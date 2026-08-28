@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
-from typing import Any
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from nexus_contracts import (
     parse_release_scope_placement,

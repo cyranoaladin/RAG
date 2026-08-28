@@ -17,7 +17,6 @@ title: Ses — seconde (generale)
 language: fr
 owner: Nexus Réussite
 expected_topics:
-- Spécialité SES de première générale (BO spécial n° 1 du 22 janvier 2019)
 - Comment se construisent et évoluent les liens sociaux ?
 - Quelles inégalités sont compatibles avec les différentes conceptions de la justice
   sociale ?
@@ -27,7 +26,6 @@ expected_topics:
   les solutions envisageables ?'
 - 'Seconde : Quel lien existe-t-il entre le niveau de revenu et le niveau d’épargne
   ?'
-- Spécialité SES de terminale générale (BO spécial n° 8 du 25 juillet 2019)
 - Comment les économistes, les sociologues et les politistes raisonnent-ils et travaillent-ils
   ?
 - Comment crée-t-on des richesses et comment les mesure-t-on ?
@@ -35,6 +33,9 @@ expected_topics:
 - 'Seconde : Comment créer une entreprise viable sur un territoire donné ?'
 - 'Seconde : Quel est le lien entre le niveau de formation et les connaissances financières
   ?'
+- Comment est structurée la société française actuelle ?
+- Quels sont les caractéristiques contemporaines et les facteurs de la mobilité sociale
+  ?
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

@@ -18,7 +18,6 @@ language: fr
 owner: Nexus Réussite
 expected_topics:
 - Annexes de la fiche La France au Cameroun
-- Totalitarismes et Seconde Guerre mondiale
 - 'La France de 1945 à nos jours : une démocratie'
 - 'L''Union européenne dans la mondialisation : des dynamiques complexes'
 - 'La France dans l''Europe des nationalités : politique et société (1848-1871)'
@@ -29,6 +28,7 @@ expected_topics:
 - La ressource Enseigner la participation des juifs à l’histoire de France
 - Les transformations politiques et sociales de la France de 1848 à 1870
 - Du monde bipolaire au monde multipolaire
+- 'La Troisième République : un régime, un empire colonial'
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

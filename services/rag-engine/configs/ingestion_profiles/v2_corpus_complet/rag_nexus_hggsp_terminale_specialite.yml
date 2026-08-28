@@ -18,7 +18,6 @@ language: fr
 owner: Nexus Réussite
 expected_topics:
 - Annexes de la fiche La France au Cameroun
-- Totalitarismes et Seconde Guerre mondiale
 - 'La France de 1945 à nos jours : une démocratie'
 - 'L''Union européenne dans la mondialisation : des dynamiques complexes'
 - 'La France dans l''Europe des nationalités : politique et société (1848-1871)'
@@ -30,6 +29,7 @@ expected_topics:
 - Seconde générale et technologique (BO spécial n° 1 du 22 janvier 2019)
 - 'Faire la guerre, faire la paix : formes de conflits et modes de résolution'
 - 'Mers et océans : au cœur de la mondialisation'
+- Terminale générale (BO spécial n° 8 du 25 juillet 2019)
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

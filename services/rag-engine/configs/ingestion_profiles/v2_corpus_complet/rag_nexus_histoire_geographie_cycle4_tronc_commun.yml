@@ -21,7 +21,6 @@ expected_topics:
 - 'Thème 3 : Société, culture et politique dans la France du XIXᵉ siècle'
 - 'Thème 2 : L''Europe et le monde au XIXᵉ siècle'
 - Annexes de la fiche La France au Cameroun
-- Totalitarismes et Seconde Guerre mondiale
 - 'Exemples d''évaluation : Analyser et comprendre des documents en géographie'
 - 'La France de 1945 à nos jours : une démocratie'
 - L'évaluation des acquis en histoire et géographie - Préambule
@@ -30,6 +29,7 @@ expected_topics:
   siècles'
 - 'La France dans l''Europe des nationalités : politique et société (1848-1871)'
 - 'Thème 3 : Prévenir les risques, s''adapter au changement global'
+- 'Thème 1 : L''urbanisation du monde'
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

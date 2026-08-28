@@ -17,11 +17,9 @@ title: Ses — cycle4 (college)
 language: fr
 owner: Nexus Réussite
 expected_topics:
-- Spécialité SES de première générale (BO spécial n° 1 du 22 janvier 2019)
 - Comment se construisent et évoluent les liens sociaux ?
 - 'Première : Comment expliquer la dégradation de l’environnement et quelles sont
   les solutions envisageables ?'
-- Spécialité SES de terminale générale (BO spécial n° 8 du 25 juillet 2019)
 - 'Première : Quelles entreprises survivent ?'
 - Comment est structurée la société française actuelle ?
 - Quels sont les caractéristiques contemporaines et les facteurs de la mobilité sociale
@@ -33,6 +31,8 @@ expected_topics:
   des individus ?
 - 'Terminale : La politique monétaire peut-elle contribuer à verdir l’économie ?'
 - 'Première : Quel financement des agents économiques en période de crise ?'
+- Quels sont les sources et les défis de la croissance économique ?
+- 'Terminale : Faut-il relocaliser les activités économiques ?'
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

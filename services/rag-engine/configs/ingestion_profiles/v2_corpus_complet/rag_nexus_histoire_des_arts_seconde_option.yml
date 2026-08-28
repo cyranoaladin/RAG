@@ -19,10 +19,6 @@ owner: Nexus Réussite
 expected_topics:
 - Option arts en seconde générale et technologique (BO spécial n° 1 du 22 janvier
   2019)
-- Option arts en première et terminale des voies générale et technologique (BO spécial
-  n° 1 du 22 janvier 2019)
-- Spécialité arts en première et terminale de la voie générale (BO spécial n° 1 du
-  22 janvier 2019)
 - histoire des arts
 - règlement du concours
 - Spécialité arts en terminale générale (BO spécial n° 8 du 25 juillet 2019)
@@ -34,6 +30,7 @@ expected_topics:
 - Dispositions en vigueur à compter de la session 2024 concernant l’épreuve pour les
   spécialités artistiques
 - Vademecum - Connaître le patrimoine de proximité
+- Ressources numériques pour accompagner l'étude des foyers chrono-géographiques
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

@@ -253,12 +253,30 @@ def validate_pdf_mirror(
 
 
 def stable_release_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ordonner les lignes de release, en refusant le seul doublon qui en est un.
+
+    L'INVARIANT CONSERVÉ — un même contenu ne peut pas être placé deux fois dans
+    la MÊME collection. C'est le doublon réel, et il reste refusé.
+
+    LE CONTRÔLE RETIRÉ — un contrôle d'unicité globale du `content_sha256`
+    interdisait qu'un contenu apparaisse dans deux collections différentes,
+    c'est-à-dire interdisait le MULTI-PLACEMENT. Il contredisait trois sources
+    indépendantes du dépôt :
+
+      1. le modèle de données — la migration `004_artifact_placements` déclare
+         « identité produit liée au contenu et placements 1:N » ;
+      2. le mandat, qui consacre un chapitre au multi-placement ;
+      3. la conception du corpus — son README énonce une seule copie canonique
+         pour plusieurs affectations : 2 956 affectations pour 2 451 documents,
+         dont 505 pour cette raison exacte.
+
+    Il n'avait jamais été éprouvé : la release historique porte 26 placements
+    pour 26 artefacts. Ce n'est donc pas un garde-fou que l'on lève, c'est une
+    contradiction que l'on retire. Décision opérateur du 29/08/2026.
+    """
     keys = [(row.get("collection"), row.get("content_sha256")) for row in rows]
     if len(keys) != len(set(keys)):
         raise ValueError("release contains duplicate collection/content")
-    content = [row.get("content_sha256") for row in rows]
-    if len(content) != len(set(content)):
-        raise ValueError("release contains duplicate content")
     return sorted(rows, key=lambda row: (row["collection"], row["content_sha256"]))
 
 

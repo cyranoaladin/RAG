@@ -27,12 +27,12 @@ expected_topics:
 - 'Seconde : Quel lien existe-t-il entre le niveau de revenu et le niveau d’épargne
   ?'
 - Quelles sont les principales défaillances du marché ?
-- Spécialité SES de terminale générale (BO spécial n° 8 du 25 juillet 2019)
 - Comment les marchés imparfaitement concurrentiels fonctionnent-ils ?
 - 'Première : Quelles entreprises survivent ?'
 - 'Seconde : Comment créer une entreprise viable sur un territoire donné ?'
 - 'Seconde : Quel est le lien entre le niveau de formation et les connaissances financières
   ?'
+- Quels sont les processus sociaux qui contribuent à la déviance ?
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

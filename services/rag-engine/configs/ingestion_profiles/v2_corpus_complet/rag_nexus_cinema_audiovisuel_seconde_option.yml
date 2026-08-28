@@ -20,12 +20,8 @@ expected_topics:
 - Option arts en seconde générale et technologique (BO spécial n° 1 du 22 janvier
   2019)
 - Consulter le sujet zéro sur Cléo de 5 à 7
-- Option arts en première et terminale des voies générale et technologique (BO spécial
-  n° 1 du 22 janvier 2019)
 - Vademecum - Créer et animer un ciné-club au collège et au lycée
 - Le personnage de cinéma
-- Spécialité arts en première et terminale de la voie générale (BO spécial n° 1 du
-  22 janvier 2019)
 - Œuvres cinématographiques au programme de l'enseignement de spécialité pour l’année
   scolaire 2025-26
 - Spécialité arts en terminale générale (BO spécial n° 8 du 25 juillet 2019)
@@ -34,6 +30,8 @@ expected_topics:
   25 juillet 2019)
 - Le personnage à l'épreuve des effets spéciaux
 - L'apparition des fantômes ou comment rencontrer les images ?
+- Découvrir les œuvres cinématographiques au programme en salle de cinéma
+- Trucages et effets spéciaux, de Méliès à la 3D
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

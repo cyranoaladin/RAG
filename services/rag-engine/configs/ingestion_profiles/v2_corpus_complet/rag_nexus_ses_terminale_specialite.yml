@@ -17,7 +17,6 @@ title: Ses — terminale (generale)
 language: fr
 owner: Nexus Réussite
 expected_topics:
-- Spécialité SES de première générale (BO spécial n° 1 du 22 janvier 2019)
 - Comment se construisent et évoluent les liens sociaux ?
 - 'Seconde : Quel est le lien entre le niveau de croissance et les émissions de GES
   ?'
@@ -34,6 +33,7 @@ expected_topics:
   ?'
 - Quelle est l'action de l'École sur les destins individuels et sur l'évolution de
   la société ?
+- Comment est structurée la société française actuelle ?
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

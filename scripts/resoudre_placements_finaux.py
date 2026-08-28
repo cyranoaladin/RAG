@@ -22,7 +22,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import sys
+import unicodedata
 from collections import Counter
 from pathlib import Path
 
@@ -31,6 +33,49 @@ CORRESP = {"3e": "troisieme", "4e": "quatrieme", "5e": "cinquieme",
            "premiere": "premiere", "terminale": "terminale"}
 COLLEGE_ANNEES = {"troisieme", "quatrieme", "cinquieme"}
 LYCEE = {"seconde", "premiere", "terminale"}
+
+
+#: MOTIF « un document cite d'autres niveaux que le sien ».
+#:
+#: Quatre occurrences dans ce dépôt, toutes coûteuses : P1 lisant « la notion de
+#: marché étudiée en classe de seconde » dans un document de première ; la portée
+#: des programmes lue dans le corps du texte, attribuant 1 377 thèmes à `seconde` ;
+#: le bandeau collège lisant « prérequis (programme du cycle 3) » comme une
+#: déclaration ; et ici, un élargissement qui ignorait le titre.
+#:
+#: RÈGLE DE CONSTRUCTION : tout extracteur de niveau lit d'abord une DÉCLARATION
+#: — titre, bandeau, en-tête — et ne descend au corps du texte qu'ensuite, en
+#: écartant les contextes de renvoi. Un titre ne cite jamais de prérequis : c'est
+#: ce qui en fait une source sûre.
+_NIVEAUX_TITRE = (
+    # La forme COORDONNÉE compte autant que la forme simple : « première et
+    # terminale » porte les deux niveaux, et n'en retenir qu'un priverait les
+    # élèves de terminale d'un programme qui les vise nommément.
+    ("terminale", re.compile(r"\bde terminale\b|\ben terminale\b|\bet terminale\b|"
+                             r"terminale generale|terminale technologique|"
+                             r"classe terminale")),
+    ("premiere", re.compile(r"\bde premiere\b|\ben premiere\b|\bet premiere\b|"
+                            r"premiere generale|premiere technologique|"
+                            r"classe de premiere")),
+    ("seconde", re.compile(r"\bde seconde\b|\ben seconde\b|\bet seconde\b|"
+                           r"seconde generale|classe de seconde")),
+    ("cycle4", re.compile(r"\bcycle\s*4\b|cycle des approfondissements")),
+)
+
+
+def _sans_accent(texte: str) -> str:
+    return "".join(c for c in unicodedata.normalize("NFD", texte)
+                   if unicodedata.category(c) != "Mn").lower()
+
+
+def niveaux_du_titre(titre: str) -> list[str]:
+    """Lire la portée déclarée par le TITRE — déclaration d'éditeur, jamais un renvoi."""
+    plat = " ".join(_sans_accent(titre).split())
+    trouves = [niveau for niveau, motif in _NIVEAUX_TITRE if motif.search(plat)]
+    # `cycle4` avec une année de lycée : titre trop ambigu pour trancher.
+    if "cycle4" in trouves and len(trouves) > 1:
+        return []
+    return trouves
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -46,7 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         affectations = list(csv.DictReader(flux, delimiter="\t"))
     with open(racine / "00_INDEX_PROVENANCE/catalogue-par-scope.tsv",
               encoding="utf-8") as flux:
-        {c["sha256"]: c for c in csv.DictReader(flux, delimiter="\t")}
+        catalogue = {c["sha256"]: c for c in csv.DictReader(flux, delimiter="\t")}
 
     bandeaux = {b["sha256"]: b for b in json.loads(
         args.bandeaux.read_text(encoding="utf-8")) if b.get("granularite")}
@@ -114,6 +159,22 @@ def main(argv: list[str] | None = None) -> int:
                            f"le niveau exact n'est pas fondé",
                 "niveaux_catalogue": catalogue_niveaux,
                 "catalogue_corrige": False,
+            })
+            continue
+
+        titre = catalogue.get(sha, {}).get("titre", "")
+        niveaux_titre = niveaux_du_titre(titre)
+        if niveaux_titre:
+            # Le TITRE déclare la portée : c'est une source d'éditeur, du même
+            # rang que le bandeau. On ne l'élargit pas — « Spécialité arts en
+            # première et terminale » ne va pas au cycle 4.
+            resultats.append({
+                "sha256": sha, "statut": "PLACE", "niveaux": sorted(niveaux_titre),
+                "granularite": ("niveau_exact" if len(niveaux_titre) == 1
+                                else "multi_niveaux_declare"),
+                "matieres": matieres, "autorite": "P0bis_titre_editeur",
+                "extrait": titre[:200],
+                "niveaux_catalogue": catalogue_niveaux, "catalogue_corrige": False,
             })
             continue
 

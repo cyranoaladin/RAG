@@ -1267,17 +1267,14 @@
   "sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "SES"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['SES']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité SES de première générale (BO spécial n° 1 du 22 janvier 2019) PDF - 174.71 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -2767,17 +2764,14 @@
   "sha256": "110927ea81b43ebb987e06b70f088929a06cee360a9e994184162e8e553163d0",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de sciences et techniques sanitaires et sociales de terminale ST2S (BO spécial n° 8 du 25 juillet 2019) PDF - 270.03 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -2785,18 +2779,15 @@
   "sha256": "111f8c536763f69124bb9bfa49555826db449cef737d3c062de39cabd5d21b60",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "seconde"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "HGGSP",
    "HISTOIRE_GEOGRAPHIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['HGGSP', 'HISTOIRE_GEOGRAPHIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Totalitarismes et Seconde Guerre mondiale PDF - 299.44 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -3521,17 +3512,15 @@
   "sha256": "158d751dda6c5fb891a7b9292dd6406e34e890a303a0de9728ee8911eb290feb",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "SCIENCES_INGENIEUR"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['SCIENCES_INGENIEUR']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de sciences de l'ingénieur de première et terminale de la voie générale (BO spécial n° 1 du 22 janvier 2019 PDF - 307.16 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -3645,17 +3634,15 @@
   "sha256": "15eccf1f8b3091dd60b52b2d0914a63b08bb5cb17cd858be40acb407646c71c7",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "DANSE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['DANSE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Programme limitatif pour l'enseignement de spécialité en classe de première à compter de la rentrée scolaire 2026 et en classe terminale à compter de la rentrée 2027 PDF - 82.82 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -3981,17 +3968,14 @@
   "sha256": "180da15944b05620a0ac52f43114f1d884f3c5a51f8caa49edf6570476586f63",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de biologie et physiopathologie humaines de première ST2S (BO spécial n° 1 du 22 janvier 2019) PDF - 252.28 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -4101,17 +4085,14 @@
   "sha256": "18aa40aa5d1edc2f16b89942977e1e720c6ce386e23ac2010e60ac3362d8c96a",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de biotechnologies de première STL (BO spécial n° 1 du 22 janvier 2019) PDF - 445.33 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -7141,17 +7122,15 @@
   "sha256": "2b27e6d1915bfd96921c1432534b3d69dc2e72009a4d1cdf21969bd87189bbf0",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialités de design et métiers d'arts de première, d'analyse et méthode en design et de conception et création en design et métiers d'arts de terminale STD2A (BO spécial n° 1 du 22 janvier 2019) PDF",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -7215,12 +7194,10 @@
   "sha256": "2b7b89b5ac4794716bc38bef88c18c2cc23194ceea985df0b9c24934cccc5857",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "ARTS_PLASTIQUES",
    "CINEMA_AUDIOVISUEL",
@@ -7229,8 +7206,8 @@
    "MUSIQUE",
    "THEATRE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['ARTS_PLASTIQUES', 'CINEMA_AUDIOVISUEL', 'DANSE', 'HISTOIRE_DES_ARTS', 'MUSIQUE', 'THEATRE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Option arts en première et terminale des voies générale et technologique (BO spécial n° 1 du 22 janvier 2019) PDF - 458.97 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -7338,17 +7315,14 @@
   "sha256": "2c3b0bed5cac0678a08d9e3c25f68ba4e607d995a40ab549a7a5a870fae7538c",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de chimie, biologie et physiopathologie humaines de terminale ST2S (BO spécial n° 8 du 25 juillet 2019) PDF - 530.92 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -7951,17 +7925,14 @@
   "sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "SES"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['SES']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité SES de terminale générale (BO spécial n° 8 du 25 juillet 2019) PDF - 193.63 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -9665,12 +9636,10 @@
   "sha256": "371d0c82ed1f47614ee9cbfdaa86cfb4add1f239a84882d9731fbd125105925d",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "ARTS_DU_CIRQUE",
    "ARTS_PLASTIQUES",
@@ -9680,8 +9649,8 @@
    "MUSIQUE",
    "THEATRE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['ARTS_DU_CIRQUE', 'ARTS_PLASTIQUES', 'CINEMA_AUDIOVISUEL', 'DANSE', 'HISTOIRE_DES_ARTS', 'MUSIQUE', 'THEATRE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité arts en première et terminale de la voie générale (BO spécial n° 1 du 22 janvier 2019) PDF - 637.88 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -15758,17 +15727,15 @@
   "sha256": "5d5ec2767ce9daed3c270a55be860198e089ed6fe4fe72c9b9ea93024e45c9fa",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "DANSE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['DANSE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de culture et sciences chorégraphiques, musicales ou théâtrales et de pratique chorégraphique, musicale ou théâtrale de première et terminale S2TMD (BO n° 31 du 29 août 2019) PDF - 531.26 K",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -17464,17 +17431,15 @@
   "sha256": "68602195b5beb2b732229d13399965a9e4883b3e3cfa10c53038e4db4887b205",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
    "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "LSF"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['LSF']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Le programme de langue des signes française, langue seconde (LSF L2) de seconde, première et terminale des voies générale et technologique, enseignement optionnel",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -17709,17 +17674,14 @@
   "sha256": "6a4e9ac308d03294bf2cd59cbe829cce41fd2912eca5f3bbeafa2430e96959c6",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de sciences physiques et chimiques en laboratoire de terminale STL (BO spécial n° 8 du 25 juillet 2019) PDF - 458.74 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -17745,17 +17707,14 @@
   "sha256": "6a87dabbeebdd35025b7e839545552d3b0a3fd155779473372e5e4c736c7e9b6",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de sciences et techniques sanitaires et sociales de première ST2S (BO spécial n° 1 du 22 janvier 2019) PDF - 189.51 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -18183,17 +18142,14 @@
   "sha256": "6d5ae8e1d2972cd658e2ae3eeeac57dfe2f9dcd1313c3669e3b18536eafb37eb",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de physique-chimie de première STD2A (BO spécial n° 1 du 22 janvier 2019) PDF - 303.34 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -23092,17 +23048,14 @@
   "sha256": "894a0abfb369a133327697df30a46bceceed62eecc66ece982a706fe7c23d69f",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité d'outils et langages numériques de première STD2A (BO spécial n° 1 du 22 janvier 2019) PDF - 180.28 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -23525,17 +23478,14 @@
   "sha256": "8c206f7143c667f43bdcb4ad5bff04ec0de9417f50847730b01810c569898c32",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de physique-chimie et mathématiques de terminale STL (BO spécial n° 8 du 25 juillet 2019) PDF - 529.03 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -23983,17 +23933,14 @@
   "sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "SVT"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['SVT']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité SVT de première générale (BO spécial n° 1 du 22 janvier 2019) PDF - 405.48 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -24220,17 +24167,15 @@
   "sha256": "917d60f435eeee1b450ae38e45c0c7ab9acf1d6ee14fb399cf23f61e63e55d54",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "LLCER"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['LLCER']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "programmes des classes de première et terminale",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -25016,17 +24961,14 @@
   "sha256": "95c2136960602d83c393fb2c779a55077da5992ace8e5a28ead5c115f5d139c1",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de sciences physiques et chimiques en laboratoire de première STL (BO spécial n° 1 du 22 janvier 2019) PDF - 394.95 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -25418,17 +25360,14 @@
   "sha256": "9827a07fefd9c196160ab320207e4676d580f9300fe54647ac37a178056438ef",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de physique-chimie et mathématiques de terminale STI2D (BO spécial n° 8 du 25 juillet 2019) PDF - 624.61 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -29308,17 +29247,14 @@
   "sha256": "b244f70da586a12b698d83df558741e3e060ea27606c6463ab3b38b82961e957",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de physique-chimie et mathématiques de première STI2D (BO spécial n° 1 du 22 janvier 2019) PDF - 551.16 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -31556,17 +31492,14 @@
   "sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de terminale générale (BO spécial n° 8 du 25 juillet 2019) PDF - 527.5 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -31624,17 +31557,15 @@
   "sha256": "c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
    "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "EPS"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['EPS']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Enseignement de spécialité d'éducation physique, pratiques et culture sportives pour les classes de première et terminale de la voie générale (BO n°25 du 24 juin 2021) PDF - 3.71 Mo",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -33964,17 +33895,14 @@
   "sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "SVT"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['SVT']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité SVT de terminale générale (BO spécial n° 8 du 25 juillet 2019) PDF - 455.06 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -34930,17 +34858,14 @@
   "sha256": "d7e1759c4ffcc3a4920f9d4474dc24cb94359e55110a1c29e7fc187042d7a7dd",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de biochimie-biologie de première STL (BO spécial n° 1 du 22 janvier 2019) PDF - 419.02 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -35236,17 +35161,14 @@
   "sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de première générale (BO spécial n° 1 du 22 janvier 2019) PDF - 383.44 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -35954,17 +35876,15 @@
   "sha256": "deab5ed03e32d12d0a9f8c01542028f91005c3fb1ac8b97ba4897bc24e462c36",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
    "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "multi_niveaux_declare",
   "matieres": [
    "LSF"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['LSF']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Le programme de langue des signes, littérature et culture sourde (LSF L1) de seconde, première et terminale des voies générale et technologique, enseignement optionnel",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -36225,17 +36145,14 @@
   "sha256": "e046e66d420541c2cca3fe7809e1dac03c8e105bc3ae937045bf0fdecc48f5cc",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
    "terminale"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de biochimie-biologie-biotechnologies de terminale STL (BO spécial n° 8 du 25 juillet 2019) PDF - 740.17 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -38323,17 +38240,14 @@
   "sha256": "ea20ffd9f3e952215c8eef5351d0270bf2dfdfbfc43a540fefe11f1357078354",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de physique-chimie et mathématiques de première STL (BO spécial n° 1 du 22 janvier 2019) PDF - 586.85 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -40744,17 +40658,14 @@
   "sha256": "fa79435f1f88d14dba36107394d42b1cdc6f0a98e21d3df76ef7134c8b6aebee",
   "statut": "PLACE",
   "niveaux": [
-   "cycle4",
-   "premiere",
-   "seconde",
-   "terminale"
+   "premiere"
   ],
-  "granularite": "transversal_discipline",
+  "granularite": "niveau_exact",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
-  "autorite": "discipline_seule",
-  "extrait": "discipline déclarée : ['PHYSIQUE_CHIMIE']",
+  "autorite": "P0bis_titre_editeur",
+  "extrait": "Spécialité de physique-chimie pour la santé de première ST2S (BO spécial n° 1 du 22 janvier 2019) PDF - 460.2 Ko",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
