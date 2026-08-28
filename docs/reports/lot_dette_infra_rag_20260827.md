@@ -709,6 +709,125 @@ sur `release model inventory mismatch` — mais pointer l'artefact valide rend
 l'action restante explicite. Le retour arrière tient en deux lignes de `.env`,
 l'artefact du 27/08 étant intact.
 
+## 3septies. Dette structurelle — dépendance de la pile à `/tmp`
+
+**Deux incidents, pas un accident.** `/tmp` a déjà emporté deux fois des éléments
+dont dépendait la pile.
+
+| # | Élément perdu | Conséquence |
+|---|---|---|
+| 1 | `docker-compose.v2.network-hasfree.yml` et `…ingest-allowlist-local.yml` | trois services en orphelins, une plage réseau publique introuvable, une allowlist définitivement perdue (§1.4, §3.2) |
+| 2 | `/tmp/nexus_corpus_pdf_cache` — **menacé, pas encore perdu** | seul exemplaire des 26 PDF scellés ; sans lui, aucune ré-émission de release n'est possible |
+
+Le second n'a été découvert que parce qu'une recherche l'avait d'abord déclaré
+absent à tort : le miroir était bien là, dans le seul répertoire que la recherche
+ne couvrait pas.
+
+### Cause traitée
+
+`canonical_release_corpus_ingestion.py` définissait
+`--cache-dir` avec pour défaut `/tmp/nexus_corpus_pdf_cache`. Le défaut pointe
+désormais `~/sauvegardes-rag/corpus-pdf-mirror`, surchargeable par
+`NEXUS_CORPUS_PDF_MIRROR`. Le miroir a été mis à l'abri sur **deux disques
+physiques distincts** (`/dev/nvme0n1p3` et `/dev/nvme1n1p1`), 26/26 vérifiés par
+empreinte contre l'autorité de la release.
+
+### Ce qui reste ouvert — et grandira
+
+Le miroir ne contient aujourd'hui que les **26** contenus scellés. Le corpus
+source en compte **2451** (`docs/corpus/README_GDRIVE_IMPORT.md` §1 :
+2451 PDF, 2451 SHA-256 uniques, 2956 affectations). Le jour où l'ingestion
+couvrira le corpus complet, le miroir passera de 9,4 Mo à plusieurs gigaoctets.
+
+**Un cache de plusieurs Go dans `/tmp` n'est pas tenable** : ni en place disque,
+ni en durabilité, ni au regard du temps de reconstitution — 2451 téléchargements
+Éduscol, dont chacun peut avoir été réédité depuis. À cette échelle, la perte du
+miroir ne serait plus un contretemps mais une reconstruction non garantie.
+
+**Décision requise** avant tout passage à l'échelle : choisir un emplacement
+durable dimensionné (le second disque offre 202 Go libres), et l'inscrire dans la
+configuration plutôt que dans un défaut de script.
+
+### Portée générale
+
+Aucun chemin de `/tmp` ne doit porter un élément dont dépend une pile ou une
+preuve. `AGENTS.md` interdit déjà les chemins absolus machine-locaux dans le code
+versionné ; la même règle doit s'étendre aux **emplacements volatils**, y compris
+dans les valeurs par défaut. Un défaut est une décision : celui-ci a créé deux
+incidents.
+
+## 3octies. Dette de fond — deux producteurs d'inventaire sans autorité déclarée
+
+C'est la cause dont l'artefact amputé n'était qu'un symptôme.
+
+**Deux outils produisent l'inventaire du même artefact embedding, et ils ne
+peuvent pas s'accorder** — non par un défaut d'implémentation, mais parce que
+chacun écrit son propre `manifest.json`, qui est la première ligne de
+l'inventaire :
+
+| Producteur | `manifest.json` écrit | Empreinte obtenue |
+|---|---|---|
+| `build_production_profile_release.py::_model_inventory` | 3 clés : `model_id`, `revision`, `canonical_dim` | `58ad18db…` |
+| `scripts/e2e/prepare-embedding-model-artifact.sh` | 10 clés : `revision_requested`, `file_count`, `generated_at`, `repo_commit`, versions… | `9788d8e5…` |
+
+Mêmes onze fichiers, mêmes poids, deux empreintes irréconciliables. Aucun
+document du dépôt n'établissait lequel fait autorité — et c'est **ce silence**
+qui est le défaut.
+
+### Répartition arrêtée le 28/08/2026
+
+- **La release fait autorité.** L'inventaire scellé par
+  `build_production_profile_release.py` est la référence ; l'artefact runtime en
+  est une **matérialisation**, pas une source.
+- `prepare-embedding-model-artifact.sh` fabrique un artefact **candidat** pour une
+  release *future*. Il ne sert jamais une release déjà scellée.
+- La matérialisation d'un artefact runtime depuis une release scellée est un
+  **troisième métier**, distinct des deux précédents : elle ne calcule rien, elle
+  copie (cf. `scripts/e2e/materialize-release-model-artifact.py` et
+  `docs/runbooks/release_reseal.md` §4bis).
+
+### Ce que le silence a coûté
+
+L'artefact du 27/08 avait été matérialisé depuis la release — méthode correcte.
+Il était amputé parce que l'inventaire de la release l'était (dette n°13, depuis
+corrigée), pas parce que la méthode était mauvaise. Faute de documentation, la
+correction a d'abord été tentée avec le mauvais outil : `prepare-…` a produit un
+artefact valide et **inutilisable en l'état**, dont l'empreinte ne pouvait par
+construction pas satisfaire la release.
+
+## 3nonies. Troisième emplacement volatil — le cache HuggingFace
+
+Après `/tmp` (surcharges Compose, miroir PDF — dette n°18), un **troisième**
+emplacement volatil porte une dépendance gouvernée.
+
+`E5TokenCounter` exige que le répertoire passé en `--embedding-snapshot` **porte
+la révision pour nom** :
+
+```python
+if snapshot.name != self.model_revision or not snapshot.is_dir():
+    raise ValueError("E5 tokenizer snapshot revision differs")
+```
+
+Seul `~/.cache/huggingface/hub/models--…/snapshots/<revision>/` satisfait cette
+contrainte. **La reproductibilité de la release dépend donc de `~/.cache`**, que
+tout nettoyage de cache — y compris automatique — peut effacer.
+
+Ce répertoire n'est de surcroît fait que de liens vers `../../blobs` : une copie
+naïve ne préserverait rien.
+
+**Traité** : copie déréférencée (`cp -rL`) sur les deux disques, nom de
+répertoire conservé égal à la révision, mise en lecture seule.
+`~/sauvegardes-rag/hub-snapshots/e5-large/3d7cfbda…` et son homologue sur
+`/dev/nvme1n1p1`, 2,2 Go chacune.
+
+**Équivalence prouvée, pas supposée** : un rejeu à blanc depuis la copie produit
+une release identique fichier pour fichier à celle produite depuis le cache, même
+agrégat `c13a6205…`.
+
+**Reste ouvert** : rien n'empêche un futur opérateur de repasser le chemin du
+cache. Le runbook impose la copie ; un contrôle automatique refusant un
+`--embedding-snapshot` sous `~/.cache` serait plus sûr.
+
 ## 4. Dettes résiduelles
 
 | # | Dette | Gravité |
@@ -730,6 +849,9 @@ l'artefact du 27/08 étant intact.
 | 15 | L'artefact d'ingestion du 26/08 est scellé au format antérieur à `374b231` (manifeste non scellé) : rejeté par l'attestation du runtime (§3quinquies) | moyenne |
 | 16 | La release active scelle `e15ab71b…`, l'empreinte de l'artefact embedding défectueux : le runtime ne peut pas démarrer sans rescellement de la release (§3sexies) | **bloquante** |
 | 17 | Les manifests `multilevel/` déclarent `e2c7384b…`, empreinte ne correspondant à aucun artefact sur disque — inertes aujourd'hui, bloquants à l'activation (§3sexies) | moyenne |
+| 18 | Dépendance de la pile à `/tmp` : deux incidents (surcharges Compose perdues, miroir PDF menacé). Défaut corrigé, mise à l'abri faite — dimensionnement à trancher avant le passage aux 2451 contenus (§3septies) | **haute** |
+| 19 | Deux producteurs d'inventaire embedding aux `manifest.json` incompatibles, sans autorité déclarée — cause de fond dont l'artefact amputé était le symptôme. Répartition arrêtée et documentée (§3octies) | **haute** |
+| 20 | La reproductibilité de la release dépend de `~/.cache/huggingface` (3ᵉ emplacement volatil). Copie faite et équivalence prouvée ; aucun garde-fou n'interdit encore de repasser le chemin du cache (§3nonies) | moyenne |
 
 ---
 

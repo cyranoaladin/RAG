@@ -296,12 +296,13 @@ def _model_inventory(
         raise ValueError(f"model snapshot is missing: {snapshot}")
     manifest_bytes = canonical_json_bytes(manifest)
     rows = [f"{_sha256_bytes(manifest_bytes)}  manifest.json"]
+    # `is_file()` suit les liens symboliques, et c'est requis : le cache hub
+    # HuggingFace — passé tel quel en `--embedding-snapshot`, son nom devant être
+    # la révision — ne contient que des liens vers `../../blobs`. Les exclure
+    # viderait l'inventaire. `_file_sha256` scelle le contenu pointé, ce qui est
+    # la propriété voulue.
     entries = sorted(
-        (
-            path
-            for path in snapshot.rglob("*")
-            if path.is_file() and not path.is_symlink()
-        ),
+        (path for path in snapshot.rglob("*") if path.is_file()),
         key=lambda item: item.relative_to(snapshot).as_posix(),
     )
     for path in entries:

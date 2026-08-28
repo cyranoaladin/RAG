@@ -372,6 +372,47 @@ def test_model_inventory_seals_subdirectories(tmp_path: Path) -> None:
     }, sorted(sealed)
 
 
+def test_model_inventory_follows_symlinked_snapshots(tmp_path: Path) -> None:
+    """Un snapshot de liens symboliques doit être scellé par son contenu.
+
+    Le cache hub HuggingFace est l'entrée réelle de `--embedding-snapshot` :
+    `E5TokenCounter` exige que le nom du répertoire soit la révision, ce que seul
+    `…/snapshots/<revision>/` satisfait. Or ce répertoire ne contient que des
+    liens vers `../../blobs`.
+
+    Exclure les liens viderait l'inventaire — et le garde-fou « model inventory
+    has no weights » transformerait la ré-émission en échec opaque. `is_file()`
+    suit les liens, `_file_sha256` scelle le contenu pointé : c'est la propriété
+    voulue.
+    """
+    module = _module()
+    blobs = tmp_path / "blobs"
+    blobs.mkdir()
+    (blobs / "poids").write_bytes(b"poids")
+    (blobs / "pooling").write_text('{"m":true}', encoding="utf-8")
+
+    snapshot = tmp_path / "snapshot"
+    (snapshot / "1_Pooling").mkdir(parents=True)
+    (snapshot / "model.safetensors").symlink_to(blobs / "poids")
+    (snapshot / "1_Pooling" / "config.json").symlink_to(blobs / "pooling")
+
+    _manifest, inventory = module._model_inventory(
+        snapshot=snapshot,
+        manifest={"model_id": "x", "revision": "y", "canonical_dim": 1024},
+    )
+    sealed = {
+        line.split("  ", 1)[1]
+        for line in inventory.decode("utf-8").splitlines()
+        if line.strip()
+    }
+
+    assert sealed == {"manifest.json", "model.safetensors", "1_Pooling/config.json"}
+    import hashlib
+
+    expected = hashlib.sha256(b"poids").hexdigest()
+    assert f"{expected}  model.safetensors" in inventory.decode("utf-8")
+
+
 def test_model_inventory_never_seals_its_own_outputs(tmp_path: Path) -> None:
     """Rejouer l'inventaire sur un artefact déjà scellé doit être stable.
 

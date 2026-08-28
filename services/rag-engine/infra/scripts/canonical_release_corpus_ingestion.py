@@ -304,7 +304,23 @@ def main() -> None:
     parser.add_argument("--registry-path", type=Path, default=Path("services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"))
     parser.add_argument("--registry-sha256", default="2a963bd956ff434384f990c60493917789f69ef4fce8fb724dd17a6bc8eb6468")
     parser.add_argument("--model-path", type=Path, default=Path("/home/alaeddine/rag-model-artifacts/intfloat-multilingual-e5-large-3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"))
-    parser.add_argument("--cache-dir", type=Path, default=Path("/tmp/nexus_corpus_pdf_cache"))
+    # Le miroir PDF n'est PAS un cache de commodité : c'est une pièce d'archive.
+    # Si Éduscol réédite un document, son empreinte ne correspondra plus à celle
+    # scellée par la release, et ce miroir devient la seule source des octets
+    # exacts sur lesquels l'index a été construit.
+    #
+    # Le défaut était `/tmp/nexus_corpus_pdf_cache`. `/tmp` a déjà emporté deux
+    # fois des éléments dont dépendait la pile (surcharges Compose du projet
+    # `infra`, puis ce miroir lui-même). Le défaut pointe désormais un
+    # emplacement durable ; `NEXUS_CORPUS_PDF_MIRROR` reste prioritaire.
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path(
+            os.environ.get("NEXUS_CORPUS_PDF_MIRROR", "")
+            or Path.home() / "sauvegardes-rag" / "corpus-pdf-mirror"
+        ),
+    )
     args = parser.parse_args()
 
     ingest_first_servable_release(

@@ -58,6 +58,34 @@ git status --porcelain
 > **Si le miroir PDF est absent, s'arrêter ici.** Il n'existe aucun chemin de
 > substitution : les empreintes de contenu sont vérifiées octet par octet.
 
+### Le miroir est une pièce d'archive, pas un cache
+
+`fetch_artifact_bytes` (`canonical_release_corpus_ingestion.py`) sait reconstruire
+le miroir en téléchargeant chaque `source_url` et en refusant toute empreinte
+divergente. Cela n'en fait pas une ressource régénérable à volonté.
+
+Les 26 contenus proviennent d'`eduscol.education.gouv.fr` (24) et de
+`www.education.gouv.fr` (2). **Si l'un de ces PDF est réédité en amont, son
+empreinte cesse de correspondre à celle scellée par la release** : le
+téléchargement échouera — comportement correct — et le miroir local deviendra la
+**seule source des octets exacts sur lesquels l'index a été construit**.
+
+Conséquences opératoires :
+
+- conserver le miroir sur **deux supports physiques distincts**, au même titre
+  que les dumps PostgreSQL ; emplacement de référence
+  `~/sauvegardes-rag/corpus-pdf-mirror`, surchargeable par
+  `NEXUS_CORPUS_PDF_MIRROR` ;
+- **ne jamais le placer sous `/tmp`** — deux incidents y sont déjà imputables
+  (dette n°18) ;
+- le vérifier contre l'autorité de la release, jamais contre lui-même :
+  `sha256sum -c` avec un manifeste dérivé des `content_sha256` des manifests-sujets ;
+- une reconstruction depuis Drive reste possible et **traçable** : le mapping
+  `docs/reports/evidence-index/drive-snapshot/drive_snapshot_mapping_20260815.json`
+  donne pour chaque contenu son `drive_file_id`, son `canonical_path` et sa
+  taille. La structure du corpus source est documentée dans
+  `docs/corpus/README_GDRIVE_IMPORT.md`.
+
 ## 1. Discipline TDD — les tests d'abord
 
 Reprise du plan `docs/superpowers/plans/2026-08-25-production-profile-gate.md`,
