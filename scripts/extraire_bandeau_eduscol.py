@@ -87,12 +87,27 @@ def lire_bandeau(chemin: Path) -> dict[str, object] | None:
             "extrait": plat[debut:m.end() + 20],
         }
 
-    c = _BANDEAU_COLLEGE.search(plat)
-    if c:
+    # Le cycle 3 est presque toujours cité en PRÉREQUIS par un document de
+    # cycle 4 : « prérequis (programme du cycle 3) », « dans le prolongement du
+    # cycle 3, l'apprentissage au cycle 4 porte… ». Prendre la première
+    # correspondance plaçait 53 documents de cycle 4 au cycle 3 — le défaut de
+    # prérequis, pour la troisième fois, ici de ma main.
+    #
+    # Règle : si le cycle 4 apparaît, il l'emporte. Le corpus ne porte aucun
+    # contenu de cycle 3 (COVERAGE_GAP établi), et une mention isolée de cycle 3
+    # n'est donc pas une déclaration de portée.
+    cycles = {m.group(1) for m in _BANDEAU_COLLEGE.finditer(plat)}
+    if cycles:
+        if "4" in cycles:
+            c = next(m for m in _BANDEAU_COLLEGE.finditer(plat) if m.group(1) == "4")
+            niveaux = ["cycle4"]
+        else:
+            c = next(_BANDEAU_COLLEGE.finditer(plat))
+            niveaux = ["cycle3"]
         return {
             "voie": "college",
             "discipline": None,
-            "niveaux": ["cycle4" if c.group(1) == "4" else "cycle3"],
+            "niveaux": niveaux,
             "granularite": "cycle",
             "palier": "P0_bandeau_editeur",
             "extrait": plat[max(0, c.start() - 60):c.end() + 60],

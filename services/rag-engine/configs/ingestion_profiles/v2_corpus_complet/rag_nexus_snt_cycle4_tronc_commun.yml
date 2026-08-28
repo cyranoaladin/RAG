@@ -2,10 +2,10 @@ profile_version: profile-gate-v2
 enabled: true
 scope:
   tenant: libre_cycle4
-  collection: rag_nexus_education_musicale_cycle4_tronc_commun
+  collection: rag_nexus_snt_cycle4_tronc_commun
   niveau: cycle4
   voie: college
-  matiere: education_musicale
+  matiere: snt
   candidat: libre
   audience:
   - libre
@@ -13,22 +13,11 @@ scope:
   visibility: internal
   school_year: 2026-2027
   programme_version: EDUSCOL_CORPUS_20260808
-title: Education Musicale — cycle4 (college)
+title: Snt — cycle4 (college)
 language: fr
 owner: Nexus Réussite
 expected_topics:
-- 'Perception & production : deux champs de compétences en interaction permanente'
-- Évaluer les progrès des élèves
-- Conduite perceptive & conduite productive
-- Le travail personnel de l'élève
-- Des répertoires diversifiés
-- 'La création : un geste pédagogique'
-- Pourquoi et comment la différenciation pédagogique ?
-- Une approche de l'éducation musicale par compétences
-- Élaborer une séquence en éducation musicale
-- Domaine du geste vocal
-- Enjeux de l'éducation musicale dans la formation générale de tous les élèves
-- La voix de l'enseignant
+- Télécharger la fiche des références à la cybersécurité dans les programmes
 expected_resource_types:
 - ressource_officielle
 allowed_domains:

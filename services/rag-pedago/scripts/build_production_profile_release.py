@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -58,7 +59,9 @@ RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
 )
 CURRENTNESS_NETWORK_AUDIT_PATH = RELEASE_ROOT / "currentness_network_audit.json"
-FINAL_MATRIX_PATH = REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"
+FINAL_MATRIX_PATH = Path(os.environ.get(
+    "NEXUS_FINAL_MATRIX",
+    REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"))
 FINAL_PRODUCTION_SET_PATH = (
     REPOSITORY_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
 )
@@ -85,8 +88,31 @@ OLD_RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel"
 )
 P24_POLICY_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/h2_initial_placement_policy.yml"
-PROFILE_ROOT = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"
-PROFILE_MANIFEST_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
+#: Quatrième autorité de fait de source, autorisée par ADR-0053 et scellée par
+#: son empreinte externe. Elle vit DANS le corpus, sous 00_INDEX_PROVENANCE/ —
+#: la zone que le README du corpus désigne comme celle de la traçabilité.
+#:
+#: Ce qu'elle atteste : `url_source`, l'URL de listing officielle dont le
+#: document provient ; `type_document`, sa nature ; les faits bibliographiques.
+#: Ce qu'elle N'ATTESTE PAS : aucune affirmation pédagogique, aucune décision de
+#: niveau — son champ `niveau` est celui du catalogue amont, faux sur 72,3 % des
+#: documents où l'éditeur s'est prononcé.
+CATALOGUE_PROVENANCE_PATH = (
+    REPOSITORY_ROOT / "docs/reports/evidence-index/eduscol_catalogue_par_scope_20260829.tsv"
+)
+CATALOGUE_PROVENANCE_SHA256 = (
+    "ec5ccbf7a30fec012734061c5fd14761d2079a0bca527320847468a23523c79b"
+)
+#: Les trois entrées de périmètre sont surchargeables par l'environnement : une
+#: seconde émission vise d'autres profils, un autre manifeste et une autre
+#: matrice, sans que le producteur ait à être dupliqué. Les défauts restent ceux
+#: de la release historique — aucune émission existante ne change de cible.
+PROFILE_ROOT = Path(os.environ.get(
+    "NEXUS_PROFILE_ROOT",
+    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"))
+PROFILE_MANIFEST_PATH = Path(os.environ.get(
+    "NEXUS_PROFILE_MANIFEST",
+    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"))
 COLLECTION_CONFIG_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
 PII_POLICY_PATH = REPOSITORY_ROOT / "services/rag-pedago/configs/pii_gate_policy.yml"
 PII_SCANNER_PATH = REPOSITORY_ROOT / "services/rag-pedago/rag_pedago/imports/pii_scanner.py"
@@ -333,6 +359,27 @@ def _title_from_path(path: str) -> str:
     return re.sub(r"\s+", " ", stem.replace("-", " ")).strip().capitalize()
 
 
+def _load_catalogue_provenance() -> dict[str, dict[str, str]]:
+    """Charger le catalogue de provenance après vérification de son empreinte.
+
+    Une autorité non scellée dérive en silence : l'empreinte est vérifiée à
+    chaque chargement, et un écart refuse la production plutôt que de sceller
+    une release sur une source qui a changé sans qu'on le sache.
+    """
+    import csv as _csv
+
+    octets = CATALOGUE_PROVENANCE_PATH.read_bytes()
+    empreinte = hashlib.sha256(octets).hexdigest()
+    if empreinte != CATALOGUE_PROVENANCE_SHA256:
+        raise ValueError(
+            f"catalogue de provenance non conforme : attendu "
+            f"{CATALOGUE_PROVENANCE_SHA256}, obtenu {empreinte}"
+        )
+    lignes = _csv.DictReader(
+        octets.decode("utf-8").splitlines(), delimiter="\t")
+    return {ligne["sha256"]: ligne for ligne in lignes}
+
+
 def _source_records(
     *, matrix: list[dict[str, Any]], profiles: Mapping[str, Any]
 ) -> list[dict[str, Any]]:
@@ -343,6 +390,7 @@ def _source_records(
     }
     old = _old_artifacts()
     p24 = _load_yaml(P24_POLICY_PATH)["approved_artifacts"]
+    provenance = _load_catalogue_provenance()
     records: list[dict[str, Any]] = []
     subject_names = {
         "maths": "mathematiques",
@@ -373,7 +421,11 @@ def _source_records(
                     else "reperes-attendus"
                 )
                 evidence = old_artifact["evidence_path"]
-            elif primary_row:
+            # `OFFICIAL_DOWNLOAD_URLS` est la table figée des documents de la
+            # release historique. Un document présent dans `primary_evidence`
+            # mais absent de cette table n'a pas d'URL de téléchargement
+            # connue : il descend à l'autorité suivante plutôt que de lever.
+            elif primary_row and content_sha in OFFICIAL_DOWNLOAD_URLS:
                 listing_url = primary_row["official_source_url"]
                 download_url = OFFICIAL_DOWNLOAD_URLS[content_sha]
                 title = _title_from_path(mirror["canonical_path"])
@@ -390,7 +442,23 @@ def _source_records(
                 type_doc = p24_row["source_document_type"]
                 evidence = _repo_relative(P24_POLICY_PATH)
             else:
-                raise ValueError(f"content {content_sha} has no release source fact")
+                prov = provenance.get(content_sha)
+                if prov and prov.get("url_source"):
+                    # Quatrième autorité : le catalogue de provenance du corpus.
+                    # Il porte l'URL de listing et le type documentaire ; il ne
+                    # porte AUCUNE décision de niveau, qui vient des placements.
+                    listing_url = prov["url_source"]
+                    title = prov.get("titre") or ""
+                    type_doc = prov.get("type_document") or "ressource_officielle"
+                    # Le catalogue de provenance porte l'URL de LISTING, jamais
+                    # l'URL de téléchargement direct. Les deux ne sont pas la
+                    # même chose, et présenter l'une pour l'autre serait
+                    # affirmer une provenance qu'on n'a pas. Le champ reste vide.
+                    download_url = None
+                    evidence = _repo_relative(CATALOGUE_PROVENANCE_PATH)
+                else:
+                    raise ValueError(
+                        f"content {content_sha} has no release source fact")
             level = profile.scope.niveau.value
             external_level = "4e" if level == "quatrieme" else level
             matiere = str(profile.scope.matiere)

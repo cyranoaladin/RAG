@@ -2217,18 +2217,18 @@
   "sha256": "0d826a31d98350c5cabc377dcc4b09c085b2a156508bb66ae03641970de050bb",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "SVT"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "t de travailler de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques uns. ",
+  "extrait": "r de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques uns. elements de co",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd",
@@ -2732,18 +2732,18 @@
   "sha256": "10eb6bb1b92017e782c1d7e563b73a7f858c611cb080b8780c51d9351f21b9f4",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "LANGUES_VIVANTES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "ge les eleves ayant commence l’apprentissage du japonais au cycle 3. dans la colonne mediane figurent, en italique, quelques ex",
+  "extrait": "gerees valent pour la fin de cycle : pour la lv1, en fin de cycle 4, tous les eleves doivent avoir au moins atteint le niveau a",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "10ec8fcb7cec8fa27c98e9d31cc89405a1e154f37bc15580e6c6e4e116c6b2bd",
@@ -2900,18 +2900,18 @@
   "sha256": "11baef67e45d47c720c25d6b841c2e060817c701bfe0272671826070d586c89b",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "SVT"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "t de travailler de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques uns. ",
+  "extrait": "r de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques uns. elements de co",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "11bc9a6a1d3fb186ea2522dac781404ad3b0170fdce33649f38fc8e1ee459c61",
@@ -4084,18 +4084,18 @@
   "sha256": "18a931200aee05252ca133214e6c3ca060fa92c2a3876fd7d277d28172ccf634",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "ssionnel. son apprentissage s’inscrit dans la duree. des le cycle 3, l’eleve a enrichi le champ des problemes multiplicatifs en",
+  "extrait": "evant pas de la proportionnalite. ce travail se poursuit au cycle 4. l ’eleve est capable de choisir la procedure la plus adapt",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "18aa40aa5d1edc2f16b89942977e1e720c6ce386e23ac2010e60ac3362d8c96a",
@@ -4441,18 +4441,18 @@
   "sha256": "1a1ba3f3c696160ca5f6c9eccf3c99130527a8720d6b3192ff31adce46282639",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "sances objectifs la notion de puissance n’intervient pas au cycle 3. il revient donc au cycle 4 d’introduire cette cinquieme op",
+  "extrait": "e puissance n’intervient pas au cycle 3. il revient donc au cycle 4 d’introduire cette cinquieme operation. l ’objectif est d’a",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "1a339b3b7bf2dc3153d0b09846dcbf870354b0b7baf41c46d4df7cee938e7778",
@@ -4670,14 +4670,14 @@
   "sha256": "1bc36e82855fd6509fffe6967f13da354c413541e91fddc2734b39c0f5dcfee0",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "SNT"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "l’education aux medias et a l’information ; le programme du cycle 3 precise par ailleurs que : des lors qu’ils disposent d’un a",
+  "extrait": ") ne fait pas l’objet d’un enseignement specifique comme au cycle 4, elle figure dans les programmes des cycles 2 et 3. le cons",
   "niveaux_catalogue": [
    "seconde"
   ],
@@ -6137,18 +6137,18 @@
   "sha256": "2541110c6e3cc3129e017ec0027ace7a01fb63c4c54deb18750cab21e5bb05e9",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": " resoudre des problemes : les nombres decimaux objectifs au cycle 3, les nombres decimaux sont introduits a partir des fraction",
+  "extrait": "r des fractions decimales, beaucoup d’eleves, a l’entree du cycle 4, associent encore la nature d’un nombre a son ecriture. pou",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "254c3ad2e95a6c5b4581dfa37f702e425342be5a99de7043c0a2f2e33a0615d6",
@@ -7691,18 +7691,18 @@
   "sha256": "2e1a135b2f93911c0e5800e2280577b9e2624c371a7e9b30eb24fb8cc5978649",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "6 1 retrouvez eduscol sur representer l’espace objectifs au cycle 3, la manipulation, l’observation, la description et la repre",
+  "extrait": " urbain proche, etc.) ouvrant sur des problemes simples. au cycle 4, l’eleve prolonge ce travail et aborde des situations dans ",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "2e1ad50536f7f7e542c41509e44c5d31bbf4d8e2070044c5df0822c134451bd0",
@@ -7758,18 +7758,18 @@
   "sha256": "2e24864600bc69dd02f847fbf01d80d22df0a86eeb89e2e786fc88000f29f182",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": " exprimant la quantite, ce type de probleme, deja aborde au cycle 3, peut etre propose tout au long du cycle 4. la resolution e",
+  "extrait": ", deja aborde au cycle 3, peut etre propose tout au long du cycle 4. la resolution est accessible a la plupart eleves lorsque l",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "2e494032e925f0cd0584ad2cfa3857242dff25717f78eae99e49e231ff36ef0d",
@@ -8234,18 +8234,18 @@
   "sha256": "3065bca820f87b59be5c5c7c1018637f25f54119915c6f9baa7a3ae78180da01",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "theme « mouvement et interactions » prerequis (programme du cycle 3) : « observer et decrire differents types de mouvements » d",
+  "extrait": "eleration) dans un mouvement rectiligne. attendus de fin de cycle 4 • caracteriser un mouvement. • modeliser une interaction pa",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "30798ecb2283d354a280bb1fd8a18f5b06dadcbb676f543b1ae68886a70f4d76",
@@ -9948,18 +9948,18 @@
   "sha256": "38e07c3dfb8db868d9368d0d1d8460d5e016e65d8ef1ce51942e24431e495449",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": " lire des donnees sous forme de tableau. attendus de fin de cycle 3 et donc aussi de cycle 4 : resoudre des problemes impliquan",
+  "extrait": "rme de tableau. attendus de fin de cycle 3 et donc aussi de cycle 4 : resoudre des problemes impliquant des grandeurs : • ident",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "38edd3b88f12b0ce3627f3e8fac055337e7524121e5b555c7e86fd323ea9742e",
@@ -10656,18 +10656,18 @@
   "sha256": "3cee72738f32175ac368a9a0f5e29690c001520d79dc944ad41ea76540c1d10d",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "FRANCAIS"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "t au plan national de formation « enseigner la grammaire au cycle 3 et au cycle 4 » par karine risselin, professeure au lycee a",
+  "extrait": "onal de formation « enseigner la grammaire au cycle 3 et au cycle 4 » par karine risselin, professeure au lycee arago, formatri",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "3d04e5de22415fb7c0741a593806671a02fa228db0e3a8f2998318e1ad339035",
@@ -12232,18 +12232,18 @@
   "sha256": "46246e914b31cc7893d5dc793e2143477bdd6d7a78861ef9732116535a06d2da",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": " et transformations de la matiere » prerequis (programme du cycle 3) : « decrire les etats et la constitution de la matiere a l",
+  "extrait": " d’un melange de differents constituants attendus de fin de cycle 4 decrire la constitution et les etats de la matiere decrire ",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "46261dc5e9dab204a362584a8fa662676d4ca0abd426b16920862767885b6688",
@@ -12322,18 +12322,18 @@
   "sha256": "4655e43a57c25ab1b2f1f0c84ca1e1538ee582e82238d4428ac8399d4834ed27",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "pas trouver sa place dans des sequences d’apprentissages de cycle 3 ou de cycle 4. pour cela, quelques activites sont proposees",
+  "extrait": " place dans des sequences d’apprentissages de cycle 3 ou de cycle 4. pour cela, quelques activites sont proposees et sont regro",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "46886d197f5b95c4a45692f21cfd9b39c2489151b620fc270719fd5dc8157cc0",
@@ -14128,18 +14128,18 @@
   "sha256": "51e9556f1c8475986e694e0cfa1cb5f18282e342c9dbcac71811536bf131d252",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": " des problemes impliquant des grandeurs - attendu de fin de cycle 3 et donc aussi de cycle 4 : • calculer la duree ecoulee entr",
+  "extrait": " des grandeurs - attendu de fin de cycle 3 et donc aussi de cycle 4 : • calculer la duree ecoulee entre deux instants donnes. c",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "5201b01d8e97aee13166f91df84d1fb142c38c47f463e1d47c6ec2e19e3e4a3c",
@@ -14340,18 +14340,18 @@
   "sha256": "5376af2a265e4ca47a319b1df842f3659bddf3f0c53d317d48da036e02346f82",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "EDUCATION_MUSICALE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": " d’interpretation. » programme d’education musicale pour le cycle 3, bulletin officiel special n° 11 du 26 novembre 2015. « la ",
+  "extrait": " travail d’ecoute. » programme d’education musicale pour le cycle 4, bulletin officiel special n° 11 du 26 novembre 2015. somma",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "539833a8f51d2a74f127bbc0b300c725b1034ef8403856e83d0f969b61a15ee9",
@@ -14900,18 +14900,18 @@
   "sha256": "57c14c6637fd19187412d34b41d9dc1a70249f6d546dde51d2f3051202f43ae4",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "SVT"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "t de travailler de nombreux points des programmes de svt en cycle 3 et en cycle 4, qui seront explicites en fin de fiche. eleme",
+  "extrait": "r de nombreux points des programmes de svt en cycle 3 et en cycle 4, qui seront explicites en fin de fiche. elements de context",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "57d6d1676ddeb4853908cf83f9eb7fb68dcd6b70e7e37404b01a109f6839a45b",
@@ -14971,18 +14971,18 @@
   "sha256": "5866e0f017f0d0427731019e3818df06b8aa16ef03988f05aa5a1f7361e31ee7",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "utiliser le calcul litteral objectifs au cycle 3, l’eleve a fait fonctionner de maniere implicite les propri",
+  "extrait": "entree dans l’algebre, l’enseignement du calcul litteral au cycle 4 vise les objectifs suivants:  traduire le resultat de la s",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "587ab86c478dc11edf4a16d847f92e29bb4f96ce26c8460195fd3b10f79e2425",
@@ -15809,35 +15809,35 @@
   "sha256": "5dcc54e2bfbe4470dc0d949f3e9331f433f4628c556cdcc4fe222853213c38f2",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "FRANCAIS"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "? references dans le programme de langue, cycles 3 et 4 : • cycle 3 : acquerir la structure, le sens et l’orthographe des mots.",
+  "extrait": "acquerir la structure, le sens et l’orthographe des mots. • cycle 4 : maitriser la structure, le sens et l’orthographe des mots",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "5ddeb78a41cb0ebb00c93cb6ec21879c70e5102482f25702ef545085b1b862ba",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "univers tres vaste compose de differents types d’astres. au cycle 3, les mouvements des planetes sont proposes comme exemples d",
+  "extrait": "pes de mouvements » cette activite est proposee en debut de cycle 4 ; elle permet d’identifier les representations des eleves s",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "5df51a6c3457ca8725dddac2bdbbe64ccf2878ea1734d9f346e1eb808470e896",
@@ -16939,14 +16939,14 @@
   "sha256": "6517cd6df8910845d4a86c204d84651e4491110d8cfcde5ac827acd6a5c360a4",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "DGEMC"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "a classe en … niveau de classe nombre d’eleves categorie 1 (cycle 3) categorie 2 (cycle 4) categorie 3 (lycee sans enseignement",
+  "extrait": "e classe nombre d’eleves categorie 1 (cycle 3) categorie 2 (cycle 4) categorie 3 (lycee sans enseignement de droit) categorie 4",
   "niveaux_catalogue": [],
   "catalogue_corrige": false
  },
@@ -17622,18 +17622,18 @@
   "sha256": "69b737b1e5c332d7de426f2c43922abc7dddba3376153a8f44b854c4140ebe16",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "HISTOIRE_GEOGRAPHIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "la construction de reperes historiques et geographiques, au cycle 3 comme au cycle 4. ces competences « se reperer dans le temp",
+  "extrait": "e reperes historiques et geographiques, au cycle 3 comme au cycle 4. ces competences « se reperer dans le temps » et « se reper",
   "niveaux_catalogue": [
    "troisieme"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "69e828931c982016965403123382acf4ddff219481b38d38b33c4643ef921126",
@@ -17920,18 +17920,18 @@
   "sha256": "6b30f8420f842557ee4046768a92f08e3c4fc6495003cff6367e45f3cabeff45",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "SVT"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "t de travailler de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques uns. ",
+  "extrait": "r de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques uns. elements de co",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "6b3cfcd19224d81c54aff5cd619f3899cdc0962ad19af78abfc266cb69f5c855",
@@ -20240,18 +20240,18 @@
   "sha256": "7943b5b790328195851a1aa7f1f1b4db772ce8c29d050291f19c699f727a59df",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "uler et resoudre des problemes : les fractions objectifs au cycle 3, l’eleve a decouvert la notion de fraction en explorant pro",
+  "extrait": "s. il a utilise la fraction pour resoudre des problemes. au cycle 4, on s'interesse au quotient 𝑎 𝑏 de deux nombres 𝑎 et 𝑏, 𝑏 =",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "79884737ccb67bb4d2d6b38829ba1aeb17b00f1fef9df441516a7dd423b4c65b",
@@ -20639,18 +20639,18 @@
   "sha256": "7be1ebdd47ac64f9e90133db34c020365a963fb0ea602d887cb74c09d550bf1a",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "SVT"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "t de travailler de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques-uns. ",
+  "extrait": "r de nombreux points des programmes de svt en cycle 3 et en cycle 4. d’autres fiches en illustrent quelques-uns. elements de co",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "7c2cdcdb0c38a1f2e37ecf909b8c8a5f5200b0c223b309d2eb1329abb62d4843",
@@ -21325,18 +21325,18 @@
   "sha256": "7f3f019932d6e0dd7dac87a86c55cbf0ab558a9d8fe5f1e220fb8dde12eb5ca1",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "soudre des problemes de proportionnalite (attendu de fin de cycle 3 et donc aussi de cycle 4) : • determiner un instant a parti",
+  "extrait": "roportionnalite (attendu de fin de cycle 3 et donc aussi de cycle 4) : • determiner un instant a partir de la connaissance d’un",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "7f4fe9747468bc08e188cfa798edac2ad621426c59d512c151c6d9f4e93ca8e4",
@@ -22526,18 +22526,18 @@
   "sha256": "85949d006a03104271be47bf318c37173246fbe50d7cb21789c35dd7f6bc595d",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "ARTS_PLASTIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "tissages fondamentaux (cycle 2), du cycle de consolidation (cycle 3) et du cycle des approfondissements (cycle 4). arrete du 9-",
+  "extrait": "consolidation (cycle 3) et du cycle des approfondissements (cycle 4). arrete du 9-11-2015 publie au j.o. du 24-11-2015. extrait",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "8595a610070bd1cb35490261cf7b3b203fc0607ca947430686be00ca4a45c2d7",
@@ -22615,18 +22615,18 @@
   "sha256": "85d86ca91c65bcb6ad19748d98b285c5b4ded92e67e8417d0c124e443fa15d48",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "LANGUES_VIVANTES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "ent les eleves ayant commence l’apprentissage du chinois au cycle 3. le professeur a toute liberte et latitude pour construire ",
+  "extrait": "gerees valent pour la fin de cycle : pour la lv1, en fin de cycle 4, tous les eleves doivent avoir au moins atteint le niveau a",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "85e7be1bf3b1aa65bc9e316afd5f591361a93cfc33eafe6e24b5d7b1827742ad",
@@ -25833,18 +25833,18 @@
   "sha256": "9b751f3374a6a07be147de3a146393c20cccdc923b2fa043a2bb7c43f6d78044",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": " des nombres evoluent au cours de la scolarite. au cours du cycle 3, les nombres positifs (entiers, decimaux ou rationnels) ont",
+  "extrait": "lement neutre, distributivite). objectifs l’introduction au cycle 4 des nombres decimaux relatifs vise plusieurs objectifs :  ",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "9b79522f9a2286b45cfaa9fe75209a84727c18a023e0112b22c956f1e476bff8",
@@ -26142,18 +26142,18 @@
   "sha256": "9d0f5916f5ff78344a86d6502a4908091658876ab93fb5826e9035f968bcf6d7",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "r comprendre et utiliser la notion de fonction objectifs au cycle 3 la notion de fonction est absente des programmes. neanmoins",
+  "extrait": "e nombreux themes preparent son etude qui sera effective au cycle 4. l ’etude des grandeurs et de la proportionnalite, la const",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "9d198dc65fb864d632fe13287e61b49d498e2d1680f48d084e11de6e87688690",
@@ -26289,18 +26289,18 @@
   "sha256": "9e70cf99086add52d1b34ddcaed01dc4821e9154cdeb0757071efd8ab1144159",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "ur observer et communiquer » 123456 prerequis (programme du cycle 3) : « identifier un signal et une information » identifier d",
+  "extrait": "e application simple de la vie courante. attendus de fin de cycle 4 • caracteriser differents types de signaux (lumineux, sonor",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "9e75387feb94f473ebd3784374b2340ed9ebc61bddf0c69e9cdfe41aabed394c",
@@ -27177,18 +27177,18 @@
   "sha256": "a33b8e67fec9c421262d7017e3a92f3634b146595130d6544efe24ad23960209",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "s societes (domaine 5). progressivite des apprentissages au cycle 3, les eleves ont ete inities dans le cadre de la resolution ",
+  "extrait": "me adaptee. ces competences sont mobilisees tout au long du cycle 4 et elles sont enrichies a la fois par la possibilite",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "a3495a1c4bbbd54a26d4b15b7a2b3b6eb7e72f555a83fe386bf124f929cd7faf",
@@ -27701,18 +27701,18 @@
   "sha256": "a80d603341c191a83be3bc5c3ecdca5137f0b85620c70bb2a1f6fd1ef0008486",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "la decouverte de preuves. objectifs dans le prolongement du cycle 3, l’apprentissage du calcul au cycle 4 porte d’abord sur les",
+  "extrait": "ns le prolongement du cycle 3, l’apprentissage du calcul au cycle 4 porte d’abord sur les nombres, dont le corpus s’elargit, pu",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "a83ab5880407907d934bb5ea2d8037e55906cc5d79a563bd3c3a6c7c30f8c881",
@@ -28039,18 +28039,18 @@
   "sha256": "aaf8bf4503a1232b7e8be76ab367b09dca51245f88aef05080fb41a738ca105d",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "HISTOIRE_GEOGRAPHIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "ue. la pratique d’ecrits disciplinaires est presente des le cycle 3 et approfondie au cycle 4. en fin de cycle 4, elle se situe",
+  "extrait": "isciplinaires est presente des le cycle 3 et approfondie au cycle 4. en fin de cycle 4, elle se situe dans la double perspectiv",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "ab0c3bf928cf011a6b4c3b4f0478418a156d55238ba72103369e89cf8e553319",
@@ -29433,18 +29433,18 @@
   "sha256": "b349ca16a0fca2d02035c9373bca3553521d17b3c91340e4eb5df21072c3bcf8",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "LANGUES_VIVANTES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "nt les eleves ay ant commence l’apprentissage de l’arabe au cycle 3. les elements figurant apres les puces mentionnent, si nece",
+  "extrait": "gerees valent pour la fin de cycle : pour la lv1, en fin de cycle 4, tous les eleves doivent avoir au moins atteint le niveau a",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "b34a60dcccbcd87b1d65c05b5919bb6c374b5205437bb8543132409f39459fd2",
@@ -29771,18 +29771,18 @@
   "sha256": "b5dc31aa3edcf97a24e51468fc0457a5c26a578523afafd2602904f4473528e1",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "HISTOIRE_GEOGRAPHIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "la construction de reperes historiques et geographiques, au cycle 3 comme au cycle 4. ces competences « se reperer dans le temp",
+  "extrait": "e reperes historiques et geographiques, au cycle 3 comme au cycle 4. ces competences « se reperer dans le temps » et « se reper",
   "niveaux_catalogue": [
    "troisieme"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "b5ec1f849884d40625acfb7bf088807622199ef2227648beab5229d46c56e5a9",
@@ -31574,18 +31574,18 @@
   "sha256": "c08a12fc0de96b62cbe40539d8c0ca7461c4fbd1485a413070f380266d6a149c",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "FRANCAIS"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "egies adaptees. il parait interessant en equipe interdegre (cycle 3) et tout au long du cycle 4 de travailler a des paliers de ",
+  "extrait": "teressant en equipe interdegre (cycle 3) et tout au long du cycle 4 de travailler a des paliers de progressivite pour accompagn",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "c0d7792c88bde65bf8513248c14b41c9168be26e1e180684cf941bdbdc668e4d",
@@ -32141,18 +32141,18 @@
   "sha256": "c5c032cbfb9452a29a31f90104cfc5613d473e60b1b4f18566d0aacf5a68fe90",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "EDUCATION_MUSICALE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "essentielles des differents enseignements au socle commun - cycle 3 - domaine 2 / les methodes et outils pour apprendre – bo sp",
+  "extrait": "essentielles des differents enseignements au socle commun – cycle 4 – domaine 2 / les methodes et outils pour apprendre – bo sp",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "c5ebfd4ba370328471d93c35c712755281facda81c2e74dfee58bf24f24896e3",
@@ -32623,18 +32623,18 @@
   "sha256": "c96f1ec7af36be92ee46a2158052826f972b546a86b731cdf6a784d9b4bfdc85",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "s notions abordees triangles et quadrilateres : • geometrie cycle 3 : reconnaitre, nommer , comparer , verifier , decrire des t",
+  "extrait": "sange, premiere approche du parallelo¬gramme) ; • geometrie cycle 4 : reconnaissance du parallelogramme. prerequis vocabulaire ",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "c980fda23fac76689439f9440cb49ec48368faf0c2a94cd0c85c47f395dc1fe1",
@@ -37418,18 +37418,18 @@
   "sha256": "e6431aad9638ff8598c87096b074a995e100b492053eca4ffed91f9e6efca475",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "notions de divisibilite et de nombres premiers objectifs au cycle 3, l’eleve a decouvert la notion de multiple et diviseur d’un",
+  "extrait": "uets identiques que l’on peut faire dans une collection. au cycle 4, la division euclidienne continue a etre mobilisee ; les no",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "e655eed88b5c4e31ffd83edc2cfb978a5302575f55fb227fa15f0b2a362b95fb",
@@ -37520,19 +37520,19 @@
   "sha256": "e67405d31052636abec6fa1f2adfd1e025a27b60e1779d639c1e3f5366e0e72e",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "PHYSIQUE_CHIMIE"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "rise des savoirs fondamentaux des eleves en cm1, cm2 et 6e (cycle 3) pour faciliter leur entree au college », precise que « la ",
+  "extrait": "aussi de pratiquer des formes langagieres specifiques ». au cycle 4, le texte precise que la physique-chimie concourt a apprend",
   "niveaux_catalogue": [
    "cycle4",
    "seconde"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "e67615ce8aca84a793f14c008df87279ad9afa7e3f7c18cdf04daae12f89e977",
@@ -38041,18 +38041,18 @@
   "sha256": "e89b3098de9a1e5c5757e9073de0eb42472c28698dbba3a7bbcd0084f05710f8",
   "statut": "PLACE",
   "niveaux": [
-   "cycle3"
+   "cycle4"
   ],
   "granularite": "cycle",
   "matieres": [
    "MATHEMATIQUES"
   ],
   "autorite": "P0_bandeau_editeur",
-  "extrait": "es usuelles, et controler leurs proprietes par les sens. au cycle 3, l’eleve s’est progressivement oriente vers une geometrie o",
+  "extrait": " a la programmation, visualisation de cartes, de plans). au cycle 4, l’eleve s’appuie toujours sur une geometrie percue par les",
   "niveaux_catalogue": [
    "cycle4"
   ],
-  "catalogue_corrige": true
+  "catalogue_corrige": false
  },
  {
   "sha256": "e89c1f14273c36a004ab6a563af26210400d5fb147f42a76da9f448375f80d6c",
