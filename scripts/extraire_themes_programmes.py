@@ -176,6 +176,33 @@ def main(argv: list[str] | None = None) -> int:
 
         themes: list[str] = []
         source_titre = None
+        #: Dernier recours, quand aucun programme n'est atteignable : dériver les
+        #: thèmes des TITRES des documents que la collection possède déjà. Ce sont
+        #: des intitulés Éduscol réels, décrivant le contenu effectivement servi —
+        #: « Les climats de la Terre : comprendre le passé pour agir aujourd'hui ».
+        #:
+        #: Ce n'est pas un thème inventé depuis un nom de matière : c'est la
+        #: description que l'éditeur donne de ses propres ressources. La source est
+        #: citée, document par document. `expected_topics` exige au moins une
+        #: entrée non vide (validateur PR#90) : une collection ne peut pas partir
+        #: sans thèmes, et un thème faux serait pire qu'un thème large.
+        def themes_des_titres() -> list[str]:
+            vus: set[str] = set()
+            sortie: list[str] = []
+            for doc in lignes:
+                brut = catalogue.get(doc["sha256"], {}).get("titre", "")
+                titre = re.sub(r"\s*PDF\s*-.*$", "", brut).strip()
+                titre = re.sub(r"\s+", " ", titre)
+                if not (12 <= len(titre) <= 110):
+                    continue
+                cle = sans_accent(titre)
+                if cle in vus:
+                    continue
+                vus.add(cle)
+                sortie.append(titre)
+                if len(sortie) >= args.max_themes:
+                    break
+            return sortie
         if programmes:
             sha = programmes[0]
             source_titre = catalogue.get(sha, {}).get("titre")
@@ -188,6 +215,11 @@ def main(argv: list[str] | None = None) -> int:
                     themes = themes_du_texte(texte, args.max_themes)
                 except Exception as exc:                 # noqa: BLE001
                     origine = f"ÉCHEC DE LECTURE : {type(exc).__name__}"
+
+        if not themes:
+            themes = themes_des_titres()
+            if themes:
+                origine = "titres des documents de la collection (Éduscol)"
 
         resultats.append({
             "niveau": niveau, "matiere": matiere, "voie": voie,
