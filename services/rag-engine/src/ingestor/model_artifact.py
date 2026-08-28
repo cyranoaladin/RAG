@@ -42,6 +42,12 @@ class ModelArtifactAttestation:
     entries: tuple[_ArtifactEntryState, ...]
 
 
+#: Modules `sentence-transformers` qui ne chargent aucun fichier d'état.
+#: `Normalize.load()` retourne `Normalize()` sans rien lire — son répertoire
+#: est absent des snapshots amont légitimes, l'exiger serait un faux positif.
+_MODULES_WITHOUT_STATE = frozenset({"Normalize"})
+
+
 def _fail_invalid() -> NoReturn:
     raise ModelArtifactError("MODEL_ARTIFACT_INVALID")
 
@@ -77,6 +83,59 @@ def _read_bounded_inventory(path: Path) -> bytes:
     if len(content) > _MAX_HEALTH_INVENTORY_BYTES:
         _fail_invalid()
     return content
+
+
+def _fail_incomplete(path: str) -> NoReturn:
+    raise ModelArtifactError(f"MODEL_ARTIFACT_INCOMPLETE: {path}")
+
+
+def _assert_declared_modules_are_sealed(*, root: Path, sealed: set[str]) -> None:
+    """Exiger que le sceau couvre ce que `modules.json` déclare.
+
+    `SHA256SUMS` scelle une liste de fichiers et garantit que chacun est intact.
+    Il ne vérifie jamais que cette liste couvre ce dont l'artefact déclare avoir
+    besoin. Le 27/08/2026, un artefact embedding amputé de `1_Pooling/` a été
+    déclaré conforme par l'attestation : le contrôle a fonctionné exactement
+    comme spécifié, et a laissé passer un artefact incapable de se charger.
+
+    `modules.json` est lui-même scellé, donc digne de confiance. Chaque module
+    qu'il déclare avec un `path` non vide charge son état depuis
+    `<path>/config.json` : ce fichier doit exister ET figurer dans le sceau.
+
+    `Normalize` est l'exception documentée — `Normalize.load()` ne lit aucun
+    fichier (vérifié au source de `sentence-transformers` 3.0.1). Exemption
+    nominative plutôt que règle vague.
+    """
+    descriptor = root / "modules.json"
+    if not descriptor.is_file():
+        return
+
+    try:
+        modules = json.loads(descriptor.read_text(encoding="utf-8"))
+    except ValueError:
+        _fail_invalid()
+    if not isinstance(modules, list):
+        _fail_invalid()
+
+    for module in modules:
+        if not isinstance(module, Mapping):
+            _fail_invalid()
+        module_type = module.get("type")
+        if not isinstance(module_type, str):
+            _fail_invalid()
+        if module_type.rsplit(".", 1)[-1] in _MODULES_WITHOUT_STATE:
+            continue
+        relative_root = module.get("path")
+        if not isinstance(relative_root, str) or not relative_root:
+            continue
+        candidate = Path(relative_root)
+        if candidate.is_absolute() or any(
+            part in ("", ".", "..") for part in candidate.parts
+        ):
+            _fail_invalid()
+        required = (candidate / "config.json").as_posix()
+        if required not in sealed or not (root / required).is_file():
+            _fail_incomplete(required)
 
 
 def verify_model_artifact(
@@ -157,6 +216,11 @@ def verify_model_artifact(
                     digest.update(block)
             if digest.hexdigest() != expected_digest:
                 _fail_invalid()
+
+        # L'intégrité ne suffit pas : le sceau doit couvrir ce que
+        # `modules.json` déclare, sans quoi un artefact amputé passe pour
+        # conforme (dette n°13).
+        _assert_declared_modules_are_sealed(root=root, sealed=set(checksums))
     except ModelArtifactError:
         raise
     except (OSError, ValueError) as exc:

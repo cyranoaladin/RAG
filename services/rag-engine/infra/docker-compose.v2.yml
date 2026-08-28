@@ -1,9 +1,24 @@
 networks:
   rag_net:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 10.30.0.0/24
+    # Pas de bloc `ipam` : le sous-réseau est auto-alloué par Docker.
+    #
+    # Un pin `10.30.0.0/24` a été introduit le 27/08/2026 pour corriger une
+    # plage publique (173.30.0.0/24) observée sur un réseau Docker réel — mais
+    # cette plage ne venait pas d'ici. Elle était déclarée par une surcharge
+    # Compose conservée dans /tmp, perdue depuis, et n'affectait que le projet
+    # `infra`. Ce fichier n'a jamais épinglé de sous-réseau.
+    #
+    # Le pin n'a donc corrigé aucun défaut réel, et en a créé un : la pile
+    # canonique tournant sur son réseau auto-alloué, tout `up -d` détectait la
+    # dérive et recréait le réseau — donc arrêtait toute la pile (constaté par
+    # `docker compose up -d --dry-run`). Retiré (ADR-0051).
+    #
+    # La garantie recherchée — jamais de plage publique — est portée par
+    # tests/test_v2_runtime_surface.py::test_compose_never_pins_a_public_subnet,
+    # qui ne coûte aucune recréation. Le durcissement de l'auto-allocation
+    # relève de `default-address-pools` dans /etc/docker/daemon.json : dette
+    # documentée, cf. docs/reports/lot_dette_infra_rag_20260827.md.
 
 volumes:
   rag_pgvector_data:

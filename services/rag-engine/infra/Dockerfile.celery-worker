@@ -1,0 +1,69 @@
+# Worker Celery d'ingestion asynchrone (service `worker` de docker-compose.v2.yml).
+#
+# ─── PROVENANCE ────────────────────────────────────────────────────────────
+# Ce fichier est une RESTITUTION, pas une réécriture. Le Dockerfile d'origine
+# n'est pas dans le dépôt : le service `worker` était créé par un fichier de
+# surcharge conservé dans `/tmp`, effacé depuis. L'image construite,
+# `infra-worker:latest`, est en revanche toujours présente localement, et
+# `docker history --no-trunc infra-worker:latest` expose la totalité de ses
+# instructions de construction. Les lignes ci-dessous en sont la transcription
+# fidèle, couche par couche.
+#
+# NON VALIDÉ PAR RECONSTRUCTION : la reconstruction (~5,7 Go de roues pip)
+# n'a pas été jouée dans le lot qui a produit ce fichier. Tant qu'un
+# `docker compose build worker` n'a pas confirmé la reproductibilité, traiter
+# ce Dockerfile comme une piste de reprise vérifiée sur sa source, non comme un
+# artefact éprouvé. Voir docs/reports/lot_dette_infra_rag.md.
+#
+# ─── DISTINCTION AVEC LES AUTRES WORKERS ───────────────────────────────────
+# `Dockerfile.ingestion-worker` construit un worker DIFFÉRENT : il démarre
+# `python -m ingestor.ingestion_worker.cli` et n'embarque pas Celery. Il ne
+# peut pas servir de substitut ici. Le worker Celery dépend de
+# `requirements.v2.txt` (celery==5.4.0, redis[hiredis]==5.0.8) et de
+# `src/ingestor/tasks.py`, tous deux présents dans le dépôt.
+#
+# Contexte de construction : racine du dépôt.
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    ffmpeg \
+    ghostscript \
+    libglib2.0-0 \
+    libmagic1 \
+    libpoppler-cpp-dev \
+    libsm6 \
+    libxext6 \
+    libreoffice \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-fra \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY services/rag-engine/src/ingestor/requirements.txt /tmp/requirements.txt
+COPY services/rag-engine/src/ingestor/requirements.v2.txt /tmp/requirements.v2.txt
+RUN pip install --upgrade pip \
+    && pip install --no-cache-dir -r /tmp/requirements.txt \
+    && pip install --no-cache-dir -r /tmp/requirements.v2.txt
+
+# Contrats partagés installés après les requirements, pour que leur épinglage
+# de pydantic l'emporte (même ordre que Dockerfile.ingestor-v2).
+COPY packages/contracts /tmp/nexus-contracts
+RUN pip install --no-cache-dir /tmp/nexus-contracts \
+    && python -m pip check \
+    && rm -rf /tmp/nexus-contracts
+
+COPY services/rag-engine/src/ingestor/ ./
+
+EXPOSE 8001
+
+# La commande réelle est portée par `docker-compose.v2.yml` (celery worker).
+# Ce CMD reproduit celui de l'image d'origine.
+CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001"]
