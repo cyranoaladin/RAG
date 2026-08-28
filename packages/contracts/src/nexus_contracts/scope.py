@@ -409,6 +409,106 @@ _RETRIEVAL_SCOPE_RESOURCES: Mapping[str, tuple[str, str, Literal["1", "2"]]] = (
                 "92fc817fed20305f597299b911e188c65e12f5cbb54b8491fb91293b5dac1f9d",
                 "2",
             ),
+            # ─────────────────────────────────────────────────────────
+            # Scopes de la release production, seconde émission.
+            #
+            # ADR-0045 interdit de muter le `source_sha256` d'un scope
+            # déjà publié : les enveloppes émises le référencent. Le
+            # rescellement de `production-profile-gate-2026-2027-v1` a
+            # changé les digests des 18 manifests-sujets sans changer
+            # l'identité de la release ; ces `_v2` lient les nouveaux
+            # digests, les `_v1` restant packagés et intacts (ADR-0052).
+            # ─────────────────────────────────────────────────────────
+            "prod_dgemc_terminale_option_v2": (
+                "artifacts/retrieval-scope-prod-dgemc-terminale-option-v2.json",
+                "ab69f366521abdaadf13b6d463b18500137e09367028713dce20f51b08bc952e",
+                "2",
+            ),
+            "prod_francais_premiere_tc_v2": (
+                "artifacts/retrieval-scope-prod-francais-premiere-tc-v2.json",
+                "b9f38ffe8a9eab28aa818e321fecbda2f8a15f523043347917f358c8f560c309",
+                "2",
+            ),
+            "prod_francais_quatrieme_tc_v2": (
+                "artifacts/retrieval-scope-prod-francais-quatrieme-tc-v2.json",
+                "55ccba2c69abf4825b8f37ee3396767243cf12ef84484cec607719f90b3ee8cf",
+                "2",
+            ),
+            "prod_francais_seconde_tc_v2": (
+                "artifacts/retrieval-scope-prod-francais-seconde-tc-v2.json",
+                "ce8f1d74e413a69a6a210e76502a5c405587ad5e801bc459d1a4ae1d13ee16b6",
+                "2",
+            ),
+            "prod_hlp_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-hlp-premiere-specialite-v2.json",
+                "aabe5687e31de7fb48678c46e5dc765eee50687c3d1fa8eaa220e3e2977dfa54",
+                "2",
+            ),
+            "prod_maths_premiere_gen_specialite_v2": (
+                "artifacts/retrieval-scope-prod-maths-premiere-gen-specialite-v2.json",
+                "7dc9ba96858a4e1f522bda9616a360b35680a2403e5999db85fc664b2d8f96e6",
+                "2",
+            ),
+            "prod_maths_quatrieme_tc_v2": (
+                "artifacts/retrieval-scope-prod-maths-quatrieme-tc-v2.json",
+                "14b5f3ce7ef7db6e40801493601315c4e7e4cb25075f48496ea557c2fe1c3bbe",
+                "2",
+            ),
+            "prod_maths_seconde_tc_v2": (
+                "artifacts/retrieval-scope-prod-maths-seconde-tc-v2.json",
+                "b02f11628eb2aa1ff2aa4b9ba08755ca8a1cd834e8113a1565a82f0e1e2887e0",
+                "2",
+            ),
+            "prod_maths_terminale_gen_specialite_v2": (
+                "artifacts/retrieval-scope-prod-maths-terminale-gen-specialite-v2.json",
+                "4f6aac0735b7a8960d73e21eadb5ada8f386c2aa6ff4683e97dc1209a7571172",
+                "2",
+            ),
+            "prod_nsi_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-nsi-premiere-specialite-v2.json",
+                "92245decce0ed1c558a89d2d56c075f48621578c5b71454ab781a964d1c5d199",
+                "2",
+            ),
+            "prod_nsi_terminale_specialite_v2": (
+                "artifacts/retrieval-scope-prod-nsi-terminale-specialite-v2.json",
+                "c43545f6a246efdb0b0b7df68141562ebc9d5e752d49ca6bfffda902eb7f8f54",
+                "2",
+            ),
+            "prod_pc_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-pc-premiere-specialite-v2.json",
+                "59a0298dba1d46c8320e040f830c1e430198b50736dc5d250ed8883cabf632c3",
+                "2",
+            ),
+            "prod_pc_terminale_specialite_v2": (
+                "artifacts/retrieval-scope-prod-pc-terminale-specialite-v2.json",
+                "11eaa76f85704685cc805a2e52d3feb7bebcfbd3393021ef56832c5f99a8d2c1",
+                "2",
+            ),
+            "prod_philo_terminale_tc_v2": (
+                "artifacts/retrieval-scope-prod-philo-terminale-tc-v2.json",
+                "5d9be88d5eb7066395c8b6b20c9beea0d28b7bf850e62b5604bd923da902d19c",
+                "2",
+            ),
+            "prod_ses_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-ses-premiere-specialite-v2.json",
+                "8aea542683d08694a10e990ba6d83fbb54aeb1d89bad682a624f8c7bb8f2c143",
+                "2",
+            ),
+            "prod_ses_terminale_specialite_v2": (
+                "artifacts/retrieval-scope-prod-ses-terminale-specialite-v2.json",
+                "487efee4569c0e70e5fa001ca6819a31d01e991b74c34076d49d818aa2767e68",
+                "2",
+            ),
+            "prod_svt_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-svt-premiere-specialite-v2.json",
+                "da9ef0b8df6114435731be8a27cd72296e8d5faec738e6f02e163f4f0037bc9f",
+                "2",
+            ),
+            "prod_svt_terminale_specialite_v2": (
+                "artifacts/retrieval-scope-prod-svt-terminale-specialite-v2.json",
+                "197b49c2a866848622159507ce0bdb4e07e54696962157a7d9fc834ee1e099b5",
+                "2",
+            ),
         }
     )
 )

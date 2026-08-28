@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
+from typing import Any
 import subprocess
 from pathlib import Path
 
@@ -28,30 +30,56 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+#: Le CLI est le chemin unique de production. Les chemins d'entrée vivent dans
+#: `PRODUCER_INPUTS` : les redéclarer ici créerait une seconde source de vérité,
+#: et deux appels qui divergent d'une entrée produisent deux documents
+#: différents sans que rien ne le signale.
+def _cli() -> Any:
+    spec = importlib.util.spec_from_file_location(
+        "produce_release_scope_placement",
+        ROOT / "scripts" / "produce_release_scope_placement.py",
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def _produce_from_provenance() -> tuple[object, dict[str, object]]:
+    """Reproduire la projection par le CLI, jamais par un appel parallèle.
+
+    Un producteur, un chemin. Le CLI n'est qu'une enveloppe autour de
+    `produce_release_scope_placement_from_git` ; passer par lui garantit que ce
+    que les tests éprouvent est exactement ce qu'un opérateur exécutera.
+    """
     provenance = json.loads(PROVENANCE_PATH.read_text(encoding="utf-8"))
     produced = produce_release_scope_placement_from_git(
         repository_root=ROOT,
         source_tree_sha=provenance["source_tree_sha"],
-        profile_proposal_matrix_path=(
-            "docs/reports/final_production_profile_matrix_20260825.json"
-        ),
-        accepted_placements_path=(
-            "docs/reports/production_profile_accepted_placements_20260825.json"
-        ),
-        release_registry_path=(
-            "services/rag-pedago/data/releases/prerentree_2026_2027/"
-            "release-registry.json"
-        ),
-        expected_contents_path=(
-            "docs/reports/final_production_eligible_set_20260825.txt"
-        ),
-        verified_profiles_path=(
-            "docs/reports/verified_production_profiles_20260825.json"
-        ),
-        profile_manifest_path="services/rag-engine/configs/ingestion_manifest.yml",
+        **_cli().PRODUCER_INPUTS,
     )
     return produced, provenance
+
+
+def test_cli_output_is_byte_identical_to_the_committed_documents() -> None:
+    """Le CLI ne doit pas être un second producteur.
+
+    Deux producteurs du même artefact qui divergent d'un détail de sérialisation
+    produisent deux empreintes irréconciliables — c'est le défaut qui a rendu
+    inutilisable l'artefact embedding du 27/08/2026 (dette n°19). Rejoué sur
+    l'arbre enregistré, le CLI doit reproduire les documents versionnés **octet
+    pour octet** : c'est ce qui établit qu'il n'ajoute ni ordre, ni format, ni
+    clé de son cru.
+    """
+    cli = _cli()
+    provenance = json.loads(PROVENANCE_PATH.read_text(encoding="utf-8"))
+
+    placement_bytes, provenance_bytes = cli.render(
+        source_commit_sha=str(provenance["source_commit_sha"])
+    )
+
+    assert placement_bytes == PLACEMENT_PATH.read_bytes()
+    assert provenance_bytes == PROVENANCE_PATH.read_bytes()
 
 
 def test_production_release_scope_placement_is_exactly_26_of_26() -> None:

@@ -22,7 +22,7 @@
         "rag_nexus_svt_premiere_specialite",
         "rag_nexus_svt_terminale_specialite"
       ],
-      "expected_manifest_sha256": "2aadfa96e6ce669abcaa6d336bdd44c680d4d3206d33e464a9eccc90f8a5944c",
+      "expected_manifest_sha256": "c13a6205fa2c175dd7a203805f89903183f08831b9d3548a29ee077ae48a746f",
       "manifest_path": "profile_gate/production-profile-gate.release.json",
       "release_id": "production-profile-gate-2026-2027-v1",
       "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1"

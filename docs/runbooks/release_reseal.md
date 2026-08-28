@@ -173,6 +173,124 @@ empreinte embedding (`e2c7384b…`) sans artefact correspondant : anomalie inert
 tant que `release-registry.json` ne les référence pas, bloquante le jour de leur
 activation. À traiter séparément.
 
+### 2.3 La cascade sort du bundle — balayage inverse obligatoire
+
+**Un diff d'écriture n'est pas un diff d'impact.** Le §2.2 établit ce que le
+script *réécrit*. Il ne dit rien de ce qui, ailleurs dans le dépôt, *épingle* les
+valeurs qu'il vient de changer.
+
+Cette confusion a coûté deux découvertes par collision : d'abord
+`packages/contracts`, heurté au démarrage du runtime
+(`scope source SHA differs from subject release`), alors que le diff du bundle
+était déclaré propre et complet.
+
+Quand une valeur change, la question n'est pas « quels fichiers ai-je réécrits »
+mais **« qui référence cette valeur, où que ce soit »**.
+
+#### Méthode
+
+```bash
+# 1. Extraire les valeurs DISPARUES : présentes avant, absentes après.
+#    Une valeur des deux côtés n'a pas changé et ne doit pas être cherchée.
+git diff -U0 services/rag-pedago/data/releases/ \
+  | grep '^-' | grep -oE '[0-9a-f]{64}' | sort -u > /tmp/anciennes.txt
+git diff -U0 services/rag-pedago/data/releases/ \
+  | grep '^+' | grep -oE '[0-9a-f]{64}' | sort -u > /tmp/nouvelles.txt
+comm -23 /tmp/anciennes.txt /tmp/nouvelles.txt > /tmp/a-chercher.txt
+
+# 2. Chercher chaque ancienne valeur dans TOUT le dépôt.
+#    Aucun filtre d'extension : un épinglage peut vivre dans un JSON de
+#    contrat, un test, une fixture, un snapshot cockpit, un verrou, la CI.
+while read -r v; do
+  grep -rl "$v" . 2>/dev/null \
+    | grep -v '^\./\.git/\|/\.venv/\|/\.worktrees/\|node_modules\|__pycache__\|/\.next/' \
+    | sed "s|^|$v\t|"
+done < /tmp/a-chercher.txt
+```
+
+> **Nommer le périmètre exclu.** Un balayage qui établit un négatif doit
+> justifier son domaine aussi rigoureusement que son résultat.
+> `find /home /mnt` prouve l'absence dans `/home` et `/mnt`, pas l'absence.
+> Écrire dans le rapport de lot ce qui a été exclu et pourquoi.
+
+#### Classer chaque site — la distinction qui décide de tout
+
+| Nature | Reconnaissance | Traitement |
+|---|---|---|
+| **Généré** | un outil du dépôt l'écrit | se régénère |
+| **Manuscrit** | aucun outil ne l'écrit | se modifie et **s'audite** |
+| **Historique** | rapport daté, trace d'un état passé | **ne pas toucher** |
+
+Un rapport de lot qui cite l'ancienne empreinte n'est pas un épinglage à
+corriger : c'est un enregistrement de ce qui était vrai à sa date. Le réécrire
+détruirait de la traçabilité.
+
+#### Sites connus après le rescellement du 28/08/2026
+
+| Site | Valeurs | Nature | Traitement |
+|---|---|---|---|
+| 18 × `packages/contracts/…/retrieval-scope-prod-*-v1.json` | `source_sha256` | manuscrit | **ni régénérer ni modifier** — ADR-0045 impose de nouveaux `_v2` (ADR-0052) |
+| `packages/contracts/tests/test_production_profile_scope_registry.py` | 18 | manuscrit | étendre aux nouveaux IDs |
+| `packages/contracts/pyproject.toml` + `tests/test_schema_export.py` | version | manuscrit | bump SemVer mineur, additif |
+| `tests/test_multilevel_scope_registry.py`, `tests/test_retrieval_scope_registry_v2.py` | compte du registre | manuscrit | suivre l'ajout — la préservation est garantie par les assertions de sous-ensemble |
+| `docs/reports/master_go_live_state_20260815.json`, `docs/reports/lot_production_profiles_20260825.md` | agrégat | **historique** | **inchangés** |
+
+Vérifié sans occurrence : `services/cockpit/` (y compris `collections.json`),
+`services/rag-pedago/tests/golden_queries/`, `scripts/governance-locks.baseline`,
+`.github/workflows/`, `scripts/ci-local.sh`.
+
+> Un épinglage de **version** — et non de digest — échappe au balayage par
+> empreinte. Vérifier séparément `grep -rn '<ancienne version>'` après tout bump
+> de `nexus-contracts`.
+
+#### Trois familles de dépendance, trois méthodes
+
+| Famille | Exemple | Détection |
+|---|---|---|
+| Épinglage de **valeur** | `source_sha256` d'un scope | balayage inverse, deux modes d'empreinte |
+| Épinglage de **version** | `test_schema_export.py` | `grep` de l'ancienne version après bump |
+| Invariant de **cardinalité** ou de **nom** | `len(registry) == 31`, une fixture nommant `prod_*_v1` | **aucune recherche de valeur ne les révèle** |
+
+La troisième famille n'est atteignable que par la CI. **La CI complète des trois
+paquets fait donc partie du balayage, elle n'en est pas la validation finale.**
+
+Sur la cardinalité : une assertion de compte accompagne presque toujours une
+assertion de sous-ensemble, qui porte l'intention réelle du test. Mettre le
+compte à jour est légitime quand le sous-ensemble passe inchangé ; ce n'est pas
+« ajuster un test pour qu'il passe ».
+
+Sur les noms : après une seconde émission, une fixture qui nomme un scope `_v1`
+peut devenir **vacante sans devenir rouge** — le scope existe toujours, il n'est
+simplement plus lié à la release active. Auditer les fixtures qui nomment un
+scope pour distinguer celles qui veulent « le scope actif » de celles qui veulent
+« ce scope historique précis ». Seule une lecture humaine tranche.
+
+> **Limite connue de l'outil de fermeture.** Il couvre deux formes d'empreinte :
+> octets, et JSON canonique compact. `nexus-contracts` en emploie au moins cinq,
+> plus des empreintes calculées sur une *projection de champs*
+> (`canonical_document()`), qu'aucune fonction générique appliquée au fichier ne
+> peut reproduire. La carte est complète **sous ces deux modes**, pas
+> absolument (dettes n°23 et n°24).
+
+#### Contrôle d'unicité avant publication
+
+ADR-0045 sélectionne un scope par le couple exact `(collection, subject_sha256)`,
+et **zéro comme plusieurs correspondances sont des refus**. Avant de publier de
+nouveaux scopes, prouver l'unicité du couple sur l'ensemble du registre : une
+collision n'exposerait pas un mauvais scope, elle empêcherait le démarrage.
+
+```bash
+PYTHONPATH=packages/contracts/src python3 -c "
+from collections import Counter
+from nexus_contracts import load_retrieval_scope_registry, RetrievalScopeArtifactV2
+pairs = [(a.evidence_subject.collection, a.source_sha256)
+         for a in load_retrieval_scope_registry().values()
+         if isinstance(a, RetrievalScopeArtifactV2)]
+dup = {k: n for k, n in Counter(pairs).items() if n > 1}
+print(f'couples={len(pairs)} distincts={len(set(pairs))} collisions={len(dup)}')
+"
+```
+
 ## 3. Ce que la ré-émission ne touche pas — vérification obligatoire
 
 Les 18 **ReviewBindings Ed25519** de `governance/review-bindings/` lient des
@@ -315,6 +433,91 @@ vecteurs stockés. Trois collections distinctes au minimum.
 10⁻⁹, plancher imposé par la sérialisation à huit décimales à l'ingestion. Au-delà
 du seuil, ne pas poursuivre : ce serait le signe que le modèle de requête n'est
 pas le modèle d'index.
+
+## 4ter. Ré-émettre le placement de scope — EN DERNIER
+
+Le rescellement change `release-registry.json`, qui est une **entrée du
+producteur** du placement de scope. `docs/reports/release_scope_placement_20260825.jsonl`
+et sa provenance doivent donc être ré-émis.
+
+`test_current_head_has_no_drift_in_any_producer_input_blob` le signale, et il a
+raison de le faire : un document qui atteste « projeté depuis cet état du dépôt »
+doit être réémis quand cet état change. Le figer en sachant l'entrée périmée
+reproduirait le défaut de l'empreinte sans référent, deux couches plus haut.
+
+### Règle de séquencement — le piège
+
+> **Produire la provenance en DERNIER — et surtout APRÈS LE COMMIT.**
+
+`produce_release_scope_placement_from_git` lit ses entrées depuis un **arbre
+git nommé**, jamais depuis le répertoire de travail. Une ré-émission non commitée
+est donc invisible pour lui : produire la provenance avant de commiter
+enregistrerait l'ancien contenu, et le document serait faux dès son écriture —
+sans qu'aucun test ne le signale, puisqu'il serait cohérent avec l'arbre qu'il
+nomme.
+
+Constaté le 28/08/2026 : le registre valait `2a963bd9…` dans l'arbre HEAD et
+`585099bc…` dans le répertoire de travail. Seul le premier serait entré dans la
+provenance.
+
+L'ordre est donc : **CI verte → commit → production de la provenance depuis le
+nouveau HEAD → second commit → rejeu du test de dérive.**
+
+La provenance scelle 36 empreintes de blobs d'entrée sous un `source_tree_sha`.
+La produire puis modifier un autre fichier du lot la périme **à la naissance** :
+elle attesterait un état du dépôt qui n'existe plus.
+
+Après **toute** édition ultérieure, si tardive soit-elle — une correction de
+test, une coquille de documentation — rejouer :
+
+```bash
+cd services/rag-pedago && .venv/bin/python -m pytest -q \
+  tests/test_production_release_scope_placement.py
+```
+
+### Production
+
+```bash
+python3 scripts/produce_release_scope_placement.py --check   # sans écrire
+python3 scripts/produce_release_scope_placement.py           # écrit
+```
+
+Le CLI est une **enveloppe mince** autour de
+`nexus_contracts.produce_release_scope_placement_from_git`. Il n'ordonne rien, ne
+reformate rien, n'ajoute aucune clé de son cru : deux producteurs du même
+artefact qui divergent d'un détail de sérialisation produisent deux empreintes
+irréconciliables (dette n°19).
+
+`test_cli_output_is_byte_identical_to_the_committed_documents` l'établit au sens
+fort — rejoué sur l'arbre enregistré, le CLI reproduit les documents versionnés
+octet pour octet. Les tests passent par le CLI, jamais par un appel parallèle :
+**un producteur, un chemin**.
+
+### Enchaînement complet d'une ré-émission
+
+| Ordre | Étape | Référence |
+|---|---|---|
+| 1 | Préalables : miroir PDF, artefacts modèles, arbre propre | §0 |
+| 2 | Test RED exprimant la cause | §1 |
+| 3 | Rejeu à blanc, reproductibilité, diff | §2, §2.2 |
+| 4 | **Balayage inverse de fermeture** | §2.3 |
+| 5 | Ré-émission réelle | §4 |
+| 6 | Matérialisation de l'artefact runtime | §4bis |
+| 7 | Report des ancres `.env` | §4 |
+| 8 | Vérification des 18 bindings Ed25519 | §3 |
+| 9 | CI complète des trois paquets | §2.3 |
+| 10 | **Commit** — la provenance a besoin d'un arbre git | §4ter |
+| 11 | **Placement de scope et provenance, depuis le nouveau HEAD** | §4ter |
+| 12 | Second commit, puis rejeu du test de dérive | §4ter |
+
+Les étapes 9 à 12 forment une boucle : toute correction exigée par la CI après
+l'étape 11 modifie l'arbre, donc périme la provenance. Dans ce cas, **reprendre à
+l'étape 9** — CI, commit, provenance, commit — jusqu'à ce que la CI et le test de
+dérive soient verts ensemble sur le même arbre.
+
+C'est le seul point de la procédure où l'ordre ne peut pas être relâché : une
+provenance produite hors séquence est fausse **sans être détectable**, puisqu'elle
+reste cohérente avec l'arbre périmé qu'elle nomme.
 
 ## 5. Rollback
 

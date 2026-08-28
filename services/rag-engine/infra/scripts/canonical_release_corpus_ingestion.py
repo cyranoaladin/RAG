@@ -302,7 +302,22 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Ingestion canonique de la FIRST_SERVABLE_RELEASE")
     parser.add_argument("--db-dsn", default=os.environ.get("PG_RAG_DSN", "host=127.0.0.1 port=5435 dbname=ragdb user=raguser password=ragpassword"))
     parser.add_argument("--registry-path", type=Path, default=Path("services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"))
-    parser.add_argument("--registry-sha256", default="2a963bd956ff434384f990c60493917789f69ef4fce8fb724dd17a6bc8eb6468")
+    # L'empreinte du registre est une ANCRE EXTERNE : elle vaut par le fait
+    # qu'elle vient d'ailleurs que du fichier qu'elle atteste. Un littéral codé
+    # en dur ici était un épinglage silencieux — périmé à la première
+    # ré-émission de release, et invisible jusqu'au premier échec.
+    #
+    # Elle est désormais lue depuis la configuration de déploiement, où
+    # `RAG_RELEASE_REGISTRY_SHA256` est déjà l'ancre du runtime : une seule
+    # valeur, un seul endroit à mettre à jour (cf. docs/runbooks/release_reseal.md).
+    parser.add_argument(
+        "--registry-sha256",
+        default=os.environ.get("RAG_RELEASE_REGISTRY_SHA256"),
+        help=(
+            "Empreinte attendue du registre de release. Défaut : variable "
+            "RAG_RELEASE_REGISTRY_SHA256. Jamais dérivée du fichier lui-même."
+        ),
+    )
     parser.add_argument("--model-path", type=Path, default=Path("/home/alaeddine/rag-model-artifacts/intfloat-multilingual-e5-large-3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"))
     # Le miroir PDF n'est PAS un cache de commodité : c'est une pièce d'archive.
     # Si Éduscol réédite un document, son empreinte ne correspondra plus à celle
@@ -322,6 +337,12 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+    if not args.registry_sha256:
+        parser.error(
+            "empreinte du registre absente : passer --registry-sha256 ou définir "
+            "RAG_RELEASE_REGISTRY_SHA256. Une ingestion sans ancre externe ne "
+            "prouve rien sur le registre qu'elle consomme."
+        )
 
     ingest_first_servable_release(
         db_dsn=args.db_dsn,

@@ -276,7 +276,12 @@ def test_internal_cli_covers_every_backend_scope() -> None:
     backend_scopes = load_retrieval_scope_registry()
 
     assert set(client.available_scopes()) == set(backend_scopes)
-    assert len(client.available_scopes()) == len(backend_scopes) == 31
+    # 49 scopes (48 V2) depuis nexus-contracts 0.16.0 (ADR-0052) : 18 `_v2`
+    # ajoutés après rescellement de la release production, les `_v1` étant
+    # préservés — ADR-0045 interdit de muter un scope publié. L'égalité
+    # d'ensembles ci-dessus porte l'intention du test ; ce compte est le
+    # garde-fou de registre fermé, qui doit suivre tout ajout délibéré.
+    assert len(client.available_scopes()) == len(backend_scopes) == 49
 
 
 def test_internal_cli_can_issue_an_identity_for_every_v2_scope(
@@ -296,7 +301,8 @@ def test_internal_cli_can_issue_an_identity_for_every_v2_scope(
         for scope_id, artifact in load_retrieval_scope_registry().items()
         if isinstance(artifact, RetrievalScopeArtifactV2)
     }
-    assert len(v2_scopes) == 30
+    # 48 V2 depuis 0.16.0 (ADR-0052) — cf. note ci-dessus.
+    assert len(v2_scopes) == 48
 
     for scope_id in v2_scopes:
         token, artifact = client.issue_scope_identity(scope_id, config=config)

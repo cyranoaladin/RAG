@@ -209,7 +209,11 @@ def test_registry_preserves_three_historical_and_ten_multilevel_scopes() -> None
     registry = load_retrieval_scope_registry()
 
     assert HISTORICAL_SCOPES | set(MULTILEVEL_SCOPES) <= set(registry)
-    assert len(registry) == 31
+    # 49 depuis nexus-contracts 0.16.0 (ADR-0052) : 18 scopes `_v2` ajoutés
+    # après rescellement de la release production. Les `_v1` sont préservés,
+    # ce que garantit l'assertion de sous-ensemble ci-dessus ; ce compte est
+    # le garde-fou de registre fermé, qui doit suivre tout ajout délibéré.
+    assert len(registry) == 49
 
 
 @pytest.mark.parametrize(("scope_id", "facts"), MULTILEVEL_SCOPES.items())

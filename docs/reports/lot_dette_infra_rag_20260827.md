@@ -828,6 +828,54 @@ agrégat `c13a6205…`.
 cache. Le runbook impose la copie ; un contrôle automatique refusant un
 `--embedding-snapshot` sous `~/.cache` serait plus sûr.
 
+## 3decies. Défaut de paquet — `nexus-contracts` porte cinq canonicalisations divergentes
+
+À distinguer de la limite de l'outil de fermeture (dette n°23) : celle-ci est une
+limite d'outillage, celle-là est un **défaut du paquet**.
+
+`packages/contracts/src/nexus_contracts/` définit au moins **cinq formes
+canoniques JSON distinctes**, chacune employée pour calculer des empreintes qui
+font autorité :
+
+| Module | Forme |
+|---|---|
+| `scope.py` | `separators=(",", ":")`, compact, sans saut de ligne final |
+| `release_evidence.py` | `indent=2` **+ `"\n"` final** |
+| `authorization_set.py` | `indent=2` + `"\n"` final |
+| `h2_coverage_evidence.py` | `indent=_CANONICAL_INDENT` + `"\n"` |
+| `production_readiness.py` | `indent=_CANONICAL_INDENT` + `"\n"` |
+
+S'y ajoutent les empreintes calculées sur une **projection de champs** —
+`review_binding.canonical_document()` énumère explicitement ses clés — et non sur
+le modèle complet.
+
+### Pourquoi c'est un défaut, et pas une commodité
+
+Chaque forme est cohérente avec elle-même. Le défaut est qu'**aucun mécanisme ne
+garantit que deux modules censés s'accorder sur une empreinte emploient la même
+forme**. Deux composants peuvent calculer « l'empreinte du même document » et
+obtenir deux valeurs, sans qu'aucun test, aucun type, aucune revue ne le signale :
+la divergence ne se manifeste qu'au moment où l'un vérifie ce que l'autre a
+scellé — c'est-à-dire trop tard, et dans un contexte où le symptôme (`digest
+mismatch`) ne désigne pas la cause.
+
+C'est **la même famille de défaut que le sceau qui n'attestait pas sa propre
+complétude** (dette n°13) : un mécanisme correct dans son périmètre, muet sur ce
+qu'il ne couvre pas. `SHA256SUMS` scellait fidèlement une liste sans vérifier
+qu'elle couvrait `modules.json` ; ici, chaque canonicalisation est fidèle à
+elle-même sans qu'aucune n'atteste être *la* canonicalisation du paquet.
+
+### Correctif recommandé
+
+Une seule fonction de canonicalisation exportée par `nexus_contracts`, employée
+par tous les modèles, et un test qui refuse toute autre implémentation de
+`json.dumps` dans le paquet — même motif que le contrôle de complétude ajouté à
+`verify_model_artifact`. Les formes historiques déjà scellées doivent être
+préservées explicitement, sous un nom qui dit qu'elles le sont
+(`_LEGACY_CANONICAL_*`), plutôt que d'être reconduites par inadvertance.
+
+Chantier de paquet, exigeant un ADR et un bump SemVer : hors de ce lot.
+
 ## 4. Dettes résiduelles
 
 | # | Dette | Gravité |
@@ -852,6 +900,10 @@ cache. Le runbook impose la copie ; un contrôle automatique refusant un
 | 18 | Dépendance de la pile à `/tmp` : deux incidents (surcharges Compose perdues, miroir PDF menacé). Défaut corrigé, mise à l'abri faite — dimensionnement à trancher avant le passage aux 2451 contenus (§3septies) | **haute** |
 | 19 | Deux producteurs d'inventaire embedding aux `manifest.json` incompatibles, sans autorité déclarée — cause de fond dont l'artefact amputé était le symptôme. Répartition arrêtée et documentée (§3octies) | **haute** |
 | 20 | La reproductibilité de la release dépend de `~/.cache/huggingface` (3ᵉ emplacement volatil). Copie faite et équivalence prouvée ; aucun garde-fou n'interdit encore de repasser le chemin du cache (§3nonies) | moyenne |
+| 21 | Dépréciation des 18 scopes `_v1` : exige de prouver qu'aucune enveloppe émise ne les référence. Hors périmètre d'ADR-0052, à trancher séparément | basse |
+| 22 | Un scope `_v2` ne dit pas qu'il procède d'un rescellement plutôt que d'un contenu nouveau : le lien vit dans ADR-0052, pas dans l'artefact. Évolution de contrat à envisager | basse |
+| 23 | `release_impact_closure.py` couvre deux formes d'empreinte (octets, JSON canonique compact). Étendre : recenser les `canonical_bytes`/`_canonical_bytes` de `nexus_contracts`, associer chaque forme aux modèles qui l'emploient, et faire valider chaque JSON contre les modèles candidats. Énumérer les producteurs, pas les formes | moyenne |
+| 24 | **`nexus-contracts` porte au moins cinq canonicalisations JSON divergentes**, plus des empreintes sur projection de champs. Deux modules censés s'accorder sur une empreinte peuvent diverger sans que rien ne le détecte — défaut de paquet, même famille que la dette n°13 (§3decies) | **haute** |
 
 ---
 
