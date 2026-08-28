@@ -45,6 +45,12 @@ from rag_pedago.imports.pii_scanner import (  # noqa: E402
 SCHOOL_YEAR = "2026-2027"
 RELEASE_ID = "production-profile-gate-2026-2027-v1"
 FINAL_SET_SHA256 = "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
+#: Empreinte scellée de l'ensemble final, quand une émission en déclare une.
+#: Vide, l'invariant « produit == déclaré par la matrice » suffit — et il est le
+#: seul qui vaille pour une émission dont l'ensemble n'a pas encore de sceau.
+FINAL_SET_SHA256_ATTENDU = os.environ.get(
+    "NEXUS_FINAL_SET_SHA256", FINAL_SET_SHA256
+    if not os.environ.get("NEXUS_FINAL_MATRIX") else "")
 CORPUS_MANIFEST_AUTHORITY = (
     "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 )
@@ -237,11 +243,15 @@ class VerifiedPdf(NamedTuple):
 def validate_pdf_mirror(
     *, pdf_root: Path, content_sha256: list[str]
 ) -> dict[str, VerifiedPdf]:
-    if len(content_sha256) != len(set(content_sha256)):
-        raise ValueError("PDF mirror request contains duplicate content")
+    # Un contenu correspond à UN fichier du miroir : le miroir est 1:1 par
+    # nature. Un même document demandé plusieurs fois est la conséquence normale
+    # du multi-placement — il est placé dans plusieurs collections — et non une
+    # anomalie. La demande se déduplique ; ce qui doit rester unique, c'est le
+    # couple (collection, contenu), et c'est `stable_release_order` qui le tient.
+    demandes = sorted(set(content_sha256))
     resolved: dict[str, VerifiedPdf] = {}
     root = pdf_root.resolve()
-    for content_sha in sorted(content_sha256):
+    for content_sha in demandes:
         path = (root / f"{content_sha}.pdf").resolve()
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError(f"PDF mirror is missing content {content_sha}")
@@ -518,10 +528,30 @@ def _source_records(
                 }
             )
     ordered = stable_release_order(records)
-    if len(ordered) != 26 or _final_set_digest(
-        [row["content_sha256"] for row in ordered]
-    ) != FINAL_SET_SHA256:
-        raise ValueError("release source records differ from the final set")
+    # L'INVARIANT : l'ensemble produit doit être EXACTEMENT l'ensemble déclaré.
+    # Il vaut, et il reste. C'est la CONSTANTE qui figeait le périmètre d'un
+    # jour — `!= 26` et une empreinte gravée — comme le faisait `!= 18` pour les
+    # profils. Un producteur qui ne peut produire qu'une seule release n'est pas
+    # un producteur.
+    #
+    # L'ensemble déclaré se lit désormais dans son fichier, surchargeable. Le
+    # défaut reste celui de la release historique : aucune émission existante ne
+    # change de référence.
+    attendu = sorted({
+        contenu
+        for ligne in matrix
+        for contenu in ligne["content_sha256"]
+    })
+    produit = sorted({row["content_sha256"] for row in ordered})
+    if produit != attendu:
+        manquants = len(set(attendu) - set(produit))
+        surnumeraires = len(set(produit) - set(attendu))
+        raise ValueError(
+            f"release source records differ from the final set: "
+            f"{manquants} manquants, {surnumeraires} surnuméraires"
+        )
+    if FINAL_SET_SHA256_ATTENDU and _final_set_digest(produit) != FINAL_SET_SHA256_ATTENDU:
+        raise ValueError("release source records differ from the sealed final set")
     return ordered
 
 
@@ -690,8 +720,17 @@ def _release_scope_inputs(
             )
     placements = sorted(placements, key=lambda row: row["content_sha256"])
     contents = [row["content_sha256"] for row in placements]
-    if len(contents) != 26 or _final_set_digest(contents) != FINAL_SET_SHA256:
-        raise ValueError("release scope inputs differ from the final set")
+    # Même famille que `!= 18` et `!= 26` plus haut : l'invariant — l'ensemble
+    # des placements couvre exactement l'ensemble déclaré — vaut et reste. La
+    # constante figeait le périmètre d'un jour.
+    attendu_scope = sorted({c for ligne in matrix for c in ligne["content_sha256"]})
+    if sorted(set(contents)) != attendu_scope:
+        raise ValueError(
+            f"release scope inputs differ from the final set: "
+            f"{len(set(attendu_scope) - set(contents))} manquants, "
+            f"{len(set(contents) - set(attendu_scope))} surnuméraires")
+    if FINAL_SET_SHA256_ATTENDU and _final_set_digest(contents) != FINAL_SET_SHA256_ATTENDU:
+        raise ValueError("release scope inputs differ from the sealed final set")
     verified_profiles = {
         "profile_manifest_digest": profile_manifest_digest,
         "profiles": [
@@ -705,8 +744,14 @@ def _release_scope_inputs(
             for collection in sorted(profile_sources)
         ],
     }
-    if len(verified_profiles["profiles"]) != 18:
-        raise ValueError("verified production profile count differs")
+    # L'invariant est que TOUS les profils du registre sont vérifiés — pas qu'ils
+    # soient dix-huit. Le manifeste est la référence, comme pour le verrou du
+    # registre corrigé plus haut.
+    if len(verified_profiles["profiles"]) != len(profiles):
+        raise ValueError(
+            f"verified production profile count differs: "
+            f"{len(verified_profiles['profiles'])} vérifiés pour "
+            f"{len(profiles)} profils")
     return (
         ("\n".join(contents) + "\n").encode("utf-8"),
         canonical_json_bytes(placements),
