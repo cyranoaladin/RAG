@@ -1,0 +1,51 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_terminale
+  collection: rag_nexus_enseignement_scientifique_terminale_tronc_commun
+  niveau: terminale
+  voie: generale
+  matiere: enseignement_scientifique
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Enseignement Scientifique — terminale (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Forçages radiatifs et réchauffement climatique
+- Le modèle de Hardy-Weinberg appliqué à l'évolution biologique
+- La production et la distribution d'énergie électrique
+- Apparition de la résistance à un insecticide chez un insecte
+- Mesure d’une distance par la méthode de triangulation de Delambre et Méchain
+- L’énergie nucléaire
+- 'La conversion d''énergie mécanique en énergie électrique : fonctionnement d''un
+  alternateur'
+- Intelligence artificielle
+- La méthode de « capture-marquage-recapture » pour estimer la taille d'une population
+- Équilibre de Hardy-Weinberg
+- L’impact de l’utilisation des antibiotiques dans l’élevage
+- programme de mathématiques intégré à l'enseignement scientifique en classe de première
+  générale
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

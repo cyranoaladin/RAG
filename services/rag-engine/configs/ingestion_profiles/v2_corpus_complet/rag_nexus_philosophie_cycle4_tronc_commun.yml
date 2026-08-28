@@ -1,0 +1,50 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_cycle4
+  collection: rag_nexus_philosophie_cycle4_tronc_commun
+  niveau: cycle4
+  voie: college
+  matiere: philosophie
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Philosophie — cycle4 (college)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Télécharger le programme du séminaire RPL 2022
+- La sagesse colérique de Jean Meslier, prêtre athée et parrhêsiaste
+- anthologie des textes présentés
+- texte de la conférence Langage des anges, langage des hommes
+- texte de la conférence Penser le temps social
+- Télécharger la présentation des conférences
+- restitutions des séminaires
+- programme de l'édition 2012 des Rencontres philosophiques de Langres
+- Qu'est-ce que la vie ? Question scientifique ou philosophique ?
+- Enjeux contemporains du problème du corps et de l'esprit
+- John Rawls et annexe sur la théorie de la justice
+- Téléchargez les dispositions en vigueur pour la voie technologique à compter de
+  la session 2024
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

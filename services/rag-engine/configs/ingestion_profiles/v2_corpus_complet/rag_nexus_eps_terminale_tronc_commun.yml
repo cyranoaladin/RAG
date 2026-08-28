@@ -1,0 +1,54 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_terminale
+  collection: rag_nexus_eps_terminale_tronc_commun
+  niveau: terminale
+  voie: generale
+  matiere: eps
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Eps — terminale (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Téléchargez le bilan statistique national sur l’évaluation de l’EPS – édition 2024.
+- Enseignement optionnel d'EPS en lycée général et technologique (BO n°25 du 24 juin
+  2021)
+- Illustrations des attentes sur des exemples de sujets
+- Exemples de sujets zéro
+- Enjeux et attentes des programmes
+- En première « Élaborer, mettre en œuvre et réguler un projet collectif relatif aux
+  APSA »
+- Téléchargez le rapport annuel sur l’évaluation de l’EPS – session 2025.
+- Critères d’évaluation de la partie de l’épreuve orale « Commentaire d’une prestation
+  physique »
+- En seconde « Connaître, mettre en œuvre et analyser les liens entre un thème et
+  une ou des APSA »
+- Référentiel éducation prioritaire
+- Téléchargez le rapport annuel sur l’évaluation de l’EPS – session 2023.
+- Enseignement commun d'EPS en lycée général et technologique (BO spécial n°1 du 22
+  janvier 2019)
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

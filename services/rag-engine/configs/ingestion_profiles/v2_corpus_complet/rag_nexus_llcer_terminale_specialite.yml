@@ -1,0 +1,49 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_terminale
+  collection: rag_nexus_llcer_terminale_specialite
+  niveau: terminale
+  voie: generale
+  matiere: llcer
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Llcer — terminale (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Programme de breton
+- Exemples pour l'occitan-langue d'oc
+- Programme d’espagnol
+- Programme de paicî
+- Exemples pour l’italien
+- 'Focus : pour un usage raisonné du dictionnaire'
+- Les seuils sinographiques en classe terminale
+- occitan-langue d'oc
+- Programme de langues vivantes étrangères
+- Programme de créole réunionnais
+- 'Axe « Ancrage et héritage » : From magic India to magic realism'
+- 'Le document support dans l''enseignement de spécialité : enjeux et méthode'
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

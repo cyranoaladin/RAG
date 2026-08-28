@@ -1,0 +1,51 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_premiere
+  collection: rag_nexus_enseignement_scientifique_premiere_tronc_commun
+  niveau: premiere
+  voie: generale
+  matiere: enseignement_scientifique
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Enseignement Scientifique — premiere (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- La théorie cellulaire - Des progrès techniques à la théorie scientifique
+- Réaliser un bilan d'énergie et calculer la puissance thermique libérée par un individu
+- Élément documentaire sur la théorie cellulaire - Étude de textes historiques en
+  anglais
+- 'La Lune : documents sur l''apparence et les mouvements de la Lune'
+- 'L’invention du microscope et la construction de la théorie cellulaire : présentation
+  orale libre'
+- Abondances relatives des éléments chimiques
+- Activité expérimentale avec un smartphone - À vos pupitres
+- La forme de la Terre et les mesures à la surface de la Terre
+- La numérisation et le codage d'un son
+- Élément documentaire sur la théorie cellulaire - Comparaison d'observations historiques
+- Pourquoi la Lune présente-t-elle toujours la même face à la Terre ?
+- Spectres d'absorption et d'action photosynthétiques
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

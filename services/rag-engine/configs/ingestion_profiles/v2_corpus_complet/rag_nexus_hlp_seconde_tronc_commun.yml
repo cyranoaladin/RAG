@@ -1,0 +1,49 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_seconde
+  collection: rag_nexus_hlp_seconde_tronc_commun
+  niveau: seconde
+  voie: generale
+  matiere: hlp
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Hlp — seconde (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Le laboratoire des mots
+- Présentation
+- 'Annexe : formuler une interrogation directe et indirecte'
+- Mes Forêts, la nature et l’intime
+- L'interrogation en regard de l'explication
+- support de l'intervention
+- La concordance des temps au subjonctif
+- Coopération entre professeurs de Lettres et professeurs de Philosophie
+- 'Le roman épistolaire : l’affirmation d’une conscience'
+- Balzac et la question de l’image
+- La représentation des Incas dans Les Lettres d’une Péruvienne
+- la définition des épreuves anticipées de français du baccalauréat général et technologique
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false
