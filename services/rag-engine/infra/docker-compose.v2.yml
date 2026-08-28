@@ -117,6 +117,13 @@ services:
       NEXUS_SSO_AUDIENCE: "${NEXUS_SSO_AUDIENCE:?NEXUS_SSO_AUDIENCE requis}"
       METRICS_ENABLED: "${METRICS_ENABLED:-true}"
       XDG_CACHE_HOME: /tmp
+      # Sans cela, torch dimensionne ses fils sur les 16 cœurs de l'hôte —
+      # invisibles depuis le cgroup — et sur-souscrit les cœurs réellement
+      # alloués. C'est une sur-souscription qui ralentit plus qu'elle n'accélère,
+      # et elle ne se voit dans aucune métrique de conteneur.
+      OMP_NUM_THREADS: "${INGESTOR_TORCH_THREADS:-8}"
+      MKL_NUM_THREADS: "${INGESTOR_TORCH_THREADS:-8}"
+      TORCH_NUM_THREADS: "${INGESTOR_TORCH_THREADS:-8}"
     volumes:
       - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/release:ro
@@ -145,7 +152,18 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          # 2,0 CPU était la cause d'une panne de service, pas un réglage prudent :
+          # 18 collections sur 18 renvoyaient 503 à concurrence 1. Le rerank de
+          # 50 paires y coûtait 5 597 ms, l'encodage 631 ms, pour un budget de
+          # 6 000 ms — le refus était de l'arithmétique.
+          #
+          # Mesuré sur ce matériel, rerank de 50 paires : 2 CPU = 5 597 ms,
+          # 4 threads = 2 045 ms, 8 threads = 1 438 ms, 16 threads = 2 533 ms.
+          # 16 est PIRE que 8 : le poste porte six piles Docker et une charge
+          # moyenne de 3,5 à 5,4 ; au-delà de huit fils la contention l'emporte
+          # sur le parallélisme. Le plafond est donc à 8, par mesure et non par
+          # prudence — « plus de cœurs » n'était pas la bonne réponse.
+          cpus: "${INGESTOR_CPUS:-8.0}"
           memory: 8G
 
   prometheus:

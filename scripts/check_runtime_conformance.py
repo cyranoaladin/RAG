@@ -82,6 +82,102 @@ print(json.dumps(report))
 """
 
 
+#: Dépendances tierces dont la divergence entre runtimes a des conséquences
+#: silencieuses. `nexus-contracts` a été le premier cas de frontière
+#: runtime/dépôt : l'image portait 0.14.0 quand le dépôt était en 0.16.0, et la
+#: CI verte ne le voyait pas. `torch` est le second, et il est pire — la
+#: divergence y est double : une version très en retard **et** une build
+#: CPU-only là où les venvs portent CUDA. Un contrôle qui n'a regardé que les
+#: paquets du dépôt a laissé passer les deux.
+DEPENDANCES_PARTAGEES = ("torch",)
+
+_SONDE_DEPENDANCES = """
+import importlib.metadata as metadata
+import json
+rapport = {}
+for nom in %(names)r:
+    entree = {}
+    try:
+        entree["version"] = metadata.version(nom)
+    except Exception as erreur:
+        entree["version"] = None
+        entree["error"] = type(erreur).__name__
+    if nom == "torch":
+        try:
+            import torch
+            entree["cuda_build"] = torch.version.cuda
+            entree["cuda_disponible"] = torch.cuda.is_available()
+        except Exception as erreur:
+            entree.setdefault("error", type(erreur).__name__)
+    rapport[nom] = entree
+print(json.dumps(rapport))
+"""
+
+
+def _sonder_dependances(command: list[str]) -> dict[str, dict[str, object]]:
+    """Relever version et capacité CUDA des dépendances partagées."""
+    completed = subprocess.run(
+        [*command, "-c", _SONDE_DEPENDANCES % {"names": list(DEPENDANCES_PARTAGEES)}],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return {nom: {"version": None, "error": "PROBE_FAILED"}
+                for nom in DEPENDANCES_PARTAGEES}
+    try:
+        return json.loads(completed.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return {nom: {"version": None, "error": "PROBE_UNREADABLE"}
+                for nom in DEPENDANCES_PARTAGEES}
+
+
+def _constats_dependances(runtimes: list[dict[str, object]]) -> list[dict[str, object]]:
+    """Signaler toute divergence de dépendance partagée entre runtimes.
+
+    Il n'existe pas de version « déclarée » pour une dépendance tierce : la
+    référence est l'accord entre runtimes. Un désaccord est le constat, et il
+    n'a pas besoin d'un arbitre pour être un défaut — deux runtimes qui
+    exécutent le même code sur des versions différentes ne prouvent rien l'un
+    de l'autre.
+    """
+    constats: list[dict[str, object]] = []
+    for nom in DEPENDANCES_PARTAGEES:
+        observations = {}
+        for runtime in runtimes:
+            releve = runtime.get("dependances")
+            if not isinstance(releve, dict) or nom not in releve:
+                continue
+            observations[str(runtime["runtime"])] = releve[nom]
+        if len(observations) < 2:
+            continue
+
+        versions = {str(e.get("version")) for e in observations.values()}
+        if len(versions) > 1:
+            detail = ", ".join(
+                f"{r} = {e.get('version')}" for r, e in sorted(observations.items())
+            )
+            constats.append({
+                "runtime": "tous", "package": nom, "severity": "bloquant",
+                "reason": f"versions divergentes entre runtimes — {detail}",
+            })
+
+        if nom == "torch":
+            builds = {r: e.get("cuda_build") for r, e in observations.items()}
+            sans_cuda = sorted(r for r, b in builds.items() if b is None)
+            avec_cuda = sorted(r for r, b in builds.items() if b is not None)
+            if sans_cuda and avec_cuda:
+                constats.append({
+                    "runtime": ", ".join(sans_cuda), "package": nom,
+                    "severity": "bloquant",
+                    "reason": (
+                        f"build CPU-only, quand {', '.join(avec_cuda)} porte CUDA "
+                        f"{builds[avec_cuda[0]]} — ce runtime ne peut pas utiliser "
+                        "le GPU, et rien dans ses journaux ne le dit"
+                    ),
+                })
+    return constats
+
+
 def _local_packages() -> dict[str, str]:
     """Paquets locaux du dépôt : nom de distribution -> version déclarée."""
     packages: dict[str, str] = {}
@@ -135,6 +231,7 @@ def check() -> dict[str, object]:
                 "runtime": relative,
                 "kind": "venv",
                 "packages": _probe([str(interpreter)], names),
+                "dependances": _sonder_dependances([str(interpreter)]),
             }
         )
 
@@ -145,6 +242,9 @@ def check() -> dict[str, object]:
                 "kind": "image",
                 "packages": _probe(
                     ["docker", "run", "--rm", "--entrypoint", "python", image], names
+                ),
+                "dependances": _sonder_dependances(
+                    ["docker", "run", "--rm", "--entrypoint", "python", image]
                 ),
             }
         )
@@ -193,6 +293,8 @@ def check() -> dict[str, object]:
                         ),
                     }
                 )
+
+    findings.extend(_constats_dependances(runtimes))
 
     return {"packages": packages, "runtimes": runtimes, "findings": findings}
 
