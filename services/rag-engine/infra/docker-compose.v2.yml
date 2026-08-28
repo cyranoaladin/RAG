@@ -165,6 +165,19 @@ services:
           # prudence — « plus de cœurs » n'était pas la bonne réponse.
           cpus: "${INGESTOR_CPUS:-8.0}"
           memory: 8G
+        # Le GPU décharge le rerank, étape dominante et cause du point de rupture
+        # à concurrence 2 : 265 ms pour 50 paires contre 1 438 ms à 8 threads CPU,
+        # mesuré sur ce matériel.
+        #
+        # CONTRAINTE DE VRAM — 4 Go seulement, dont 2,44 Go pour l'embedding.
+        # SERVIR ET INGÉRER SIMULTANÉMENT SUR CE GPU ÉPUISERA LA VRAM. Les deux
+        # opérations se séquencent, jamais ne se recouvrent. C'est le genre de
+        # contrainte qu'on redécouvre en panne si elle n'est écrite nulle part.
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   prometheus:
     image: prom/prometheus:v2.54.1@sha256:f6639335d34a77d9d9db382b92eeb7fc00934be8eae81dbc03b31cfe90411a94
