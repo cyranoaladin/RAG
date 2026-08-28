@@ -226,6 +226,33 @@ bien celui qui a produit l'index. L'écart résiduel s'explique entièrement par
 sérialisation des composantes en `f"{c:.8f}"` à l'ingestion, soit huit
 décimales.
 
+### 7bis. Ce que le contrôle de complétude a fermé sans qu'on ait à le refuser
+
+Une quatrième voie existait, non pesée au moment de l'arbitrage : conserver
+l'artefact du 27/08 et y ajouter `1_Pooling/config.json` **sans resceller**.
+L'artefact serait devenu chargeable tout en gardant l'empreinte d'inventaire
+`e15ab71b…`, donc compatible avec la release en vigueur. Le runtime aurait
+démarré.
+
+Elle est aujourd'hui **fermée par notre propre code**, et c'est la justification
+la plus forte du contrôle de complétude (dette n°13) :
+
+- garder `e15ab71b…` suppose que `SHA256SUMS` reste inchangé ;
+- donc que `1_Pooling/config.json` reste **hors du sceau** ;
+- c'est-à-dire exploiter délibérément le défaut de non-récursivité qui a créé le
+  problème, pour faire coïncider un artefact réparé avec l'empreinte d'un
+  artefact amputé ;
+- or `_assert_declared_modules_are_sealed` exige que chaque chemin déclaré par
+  `modules.json` soit **présent et couvert par le sceau**. Un fichier posé à côté
+  du sceau est rejeté exactement comme un fichier absent.
+
+Le contrôle refuse donc cette voie sans qu'aucun arbitrage humain n'ait à
+trancher. C'est la propriété recherchée : un garde-fou qui ferme la porte avant
+qu'on ait à la refuser vaut mieux qu'une règle qu'il faut se rappeler
+d'appliquer. La leçon vaut au-delà de ce cas — « présent sur le disque » et
+« couvert par le sceau » ne sont pas la même propriété, et seule la seconde
+résiste à une substitution silencieuse.
+
 ### 8. Trou de traçabilité — les 730 vecteurs de production
 
 Les 730 vecteurs en base ont été produits le 26/08 par l'artefact
