@@ -1,0 +1,24 @@
+{
+  "authorities": [
+    {
+      "id": "eduscol_catalogue_par_scope",
+      "path": "docs/reports/evidence-index/eduscol_catalogue_par_scope_20260829.tsv",
+      "sha256": "ec5ccbf7a30fec012734061c5fd14761d2079a0bca527320847468a23523c79b",
+      "rows": 2956,
+      "origin": "NEXUS_RAG_GDRIVE_READY/00_INDEX_PROVENANCE/EDUSCOL_CATALOGUES/catalogue-par-scope.tsv",
+      "imported_at": "2026-08-29",
+      "adr": "ADR-0053",
+      "attests": [
+        "url_source — l'URL de listing officielle dont le document provient",
+        "type_document — la nature documentaire, parmi 9 valeurs",
+        "annee, titre, pages_pdf, taille_octets — faits bibliographiques",
+        "sha256 — le lien au contenu, vérifiable"
+      ],
+      "does_not_attest": [
+        "aucune affirmation pédagogique : ni thème, ni notion, ni compétence",
+        "aucune décision de niveau : `niveau` y est la valeur du catalogue amont, dont 45 % ne correspond pas à l'enum du contrat",
+        "aucun statut de revue : la provenance n'est pas une validation"
+      ]
+    }
+  ]
+}

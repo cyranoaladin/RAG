@@ -1087,8 +1087,21 @@ def build_release(
     registry = load_profile_registry(PROFILE_ROOT)
     manifest = verify_profile_manifest(registry, PROFILE_MANIFEST_PATH)
     profiles = {profile.scope.collection: profile for profile in registry.values()}
-    if len(profiles) != 18 or manifest.declared_count != 18:
-        raise ValueError("production profile registry/manifest count differs")
+    # L'invariant est juste et il survit : le registre de profils et le manifeste
+    # doivent déclarer le MÊME compte. Un manifeste qui annonce un nombre que le
+    # répertoire ne contient pas est un manifeste qui affirme plus qu'il n'a
+    # vérifié — la famille de défauts de ce dépôt.
+    #
+    # Ce qui était fautif, c'est la CONSTANTE. `!= 18` figeait l'invariant sur le
+    # périmètre d'un jour, et interdisait toute release additionnelle sans rien
+    # garantir de plus. Le manifeste est la référence, pas un nombre en dur.
+    if len(profiles) != manifest.declared_count:
+        raise ValueError(
+            f"production profile registry declares {len(profiles)} profiles, "
+            f"manifest declares {manifest.declared_count}"
+        )
+    if not profiles:
+        raise ValueError("production profile registry declares no profile")
     records = _source_records(matrix=matrix, profiles=profiles)
     final_set_raw, accepted_placements_raw, verified_profiles_raw = (
         _release_scope_inputs(
