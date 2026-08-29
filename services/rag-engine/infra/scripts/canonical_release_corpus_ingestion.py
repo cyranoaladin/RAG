@@ -301,7 +301,11 @@ def ingest_first_servable_release(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingestion canonique de la FIRST_SERVABLE_RELEASE")
-    parser.add_argument("--db-dsn", default=os.environ.get("PG_RAG_DSN", "host=127.0.0.1 port=5435 dbname=ragdb user=raguser password=ragpassword"))
+    parser.add_argument(
+        "--db-dsn",
+        default=os.environ.get("PG_RAG_DSN"),
+        help="Chaîne de connexion PostgreSQL. Défaut : variable d'environnement PG_RAG_DSN.",
+    )
     parser.add_argument("--registry-path", type=Path, default=Path("services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"))
     # L'empreinte du registre est une ANCRE EXTERNE : elle vaut par le fait
     # qu'elle vient d'ailleurs que du fichier qu'elle atteste. Un littéral codé
@@ -383,6 +387,11 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+    if not args.db_dsn:
+        parser.error(
+            "chaîne de connexion PostgreSQL absente : passer --db-dsn ou "
+            "définir PG_RAG_DSN. Aucun identifiant par défaut n'est toléré."
+        )
     if not args.model_path:
         parser.error(
             "chemin de l'artefact embedding absent : passer --model-path ou "
