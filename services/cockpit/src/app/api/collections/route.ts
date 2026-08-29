@@ -111,8 +111,14 @@ export async function GET(request: Request) {
     if (!items) {
       return NextResponse.json(fallback(), { status: 503 })
     }
-    const { readyMap: _unused, ...readinessPayload } = readiness
-    return NextResponse.json({ items, live: true, ...readinessPayload })
+    return NextResponse.json({
+      items,
+      live: true,
+      launchReady: readiness.launchReady,
+      totalCollections: readiness.totalCollections,
+      readyCollections: readiness.readyCollections,
+      blockers: readiness.blockers,
+    })
   } catch {
     return NextResponse.json(fallback(), { status: 503 })
   }
