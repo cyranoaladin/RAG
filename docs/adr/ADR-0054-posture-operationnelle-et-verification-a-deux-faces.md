@@ -80,20 +80,40 @@ dériver, un contrôle qui s'exempte de son propre balayage. D'où le corollaire
 
 ### 1. Invariants d'exposition (opposables)
 
-- **I-1.** Toute route mutante (POST, PUT, PATCH, DELETE) est placée derrière une
-  authentification au niveau du proxy. Aucune exception.
-- **I-2.** Toute route mutante appelle en outre un contrôle d'authentification
-  applicatif, **inconditionnellement et avant tout effet**. La protection du
-  proxy ne dispense pas de la protection applicative : c'est une défense en
-  profondeur, et la seule couche dont on ait constaté qu'elle tenait quand
-  l'autre a cédé.
+- **I-1. La couche proxy échoue fermée.** La surface exposée est une **liste
+  blanche explicite** ; tout le reste est refusé par défaut
+  (`location / { return 404; }` ou équivalent). Une liste noire de préfixes ne
+  satisfait pas I-1 : elle échoue **ouverte**, et son défaut d'entrée devient
+  une route exposée que rien ne signale. Trois défauts de causes différentes
+  l'ont démontré sur un même filtre — un ancrage de fin de segment manquant, un
+  routeur monté sans préfixe, une route ajoutée en amont.
+- **I-2. Toute route mutante exposée appelle un contrôle d'authentification
+  applicatif, inconditionnellement et avant tout effet.** Le *mécanisme* relève
+  de l'architecture — jeton de rôle, identifiant de service, enveloppe signée,
+  authentification portée par le proxy. Ce qui est opposable est qu'il existe,
+  qu'il soit inconditionnel, et qu'il précède tout effet. La protection du proxy
+  ne dispense pas de la protection applicative : c'est la seule couche dont on
+  ait constaté qu'elle tenait quand l'autre a cédé.
 - **I-3.** L'endpoint de métriques n'est jamais joignable depuis l'extérieur.
-- **I-4.** Les endpoints de santé sont publics **par décision explicite**, et
-  sont les seules routes non authentifiées admises.
+- **I-4.** Un endpoint de santé n'est exposé que par **décision explicite et
+  documentée**, jamais par défaut. Le publier n'est pas une nécessité technique :
+  la sonde de conteneur l'interroge depuis l'intérieur.
 - **I-5.** Une route dont l'authentification est appelée sous condition
   (`if <jeton configuré>`, drapeau d'environnement, mode développement) n'est pas
   réputée protégée tant qu'un second contrôle inconditionnel n'échoue pas en
-  fermeture quand la condition n'est pas remplie.
+  fermeture quand la condition n'est pas remplie. Meilleure forme : faire de la
+  condition une **précondition du processus** — un service dont les autorités ne
+  sont pas configurées ne sert pas 503 à chaque requête, il ne démarre pas.
+
+> **Ces invariants ont été éprouvés contre un second système.** La première
+> rédaction de I-1 exigeait « une authentification au niveau du proxy », et de
+> I-4 que les endpoints de santé soient publics. Confrontée à l'architecture
+> cible — dont le proxy est une liste blanche stricte et dont l'authentification
+> est un identifiant de service vérifié dans l'application —, cette rédaction
+> déclarait non conforme un dispositif **plus strict** que celui qu'elle
+> décrivait. Un invariant qui prescrit un mécanisme au lieu d'une propriété se
+> retourne contre la meilleure implémentation : c'est encore le support pris pour
+> la propriété, cette fois dans la règle elle-même.
 
 ### 2. Règle de vérification (opposable)
 
