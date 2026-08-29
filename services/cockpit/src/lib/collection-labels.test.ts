@@ -10,7 +10,7 @@ describe('formatCollectionLabel', () => {
       statut: 'specialite',
       name: 'rag_nexus_nsi_premiere_specialite',
     })
-    expect(label).toBe('NSI — Première — Générale — Spécialité')
+    expect(label).toBe('NSI — Première — Spécialité')
   })
 
   it('formate de manière déterministe une collection STMG Tronc commun', () => {
@@ -33,5 +33,18 @@ describe('formatCollectionLabel', () => {
       name: 'rag_nexus_philosophie_terminale_tc',
     })
     expect(label).toBe('Philosophie — Terminale — Tronc commun')
+  })
+
+  it('D-21 : signale explicitement les codes inconnus au lieu d’un repli silencieux', () => {
+    const label = formatCollectionLabel({
+      matiere: 'astronomie_quantique',
+      niveau: 'bac_plus_5',
+      voie: 'intergalactique',
+      statut: 'hors_piste',
+      name: 'rag_inconnu',
+    })
+    expect(label).toBe(
+      '[Matière inconnue: astronomie_quantique] — [Niveau inconnu: bac_plus_5] — [Voie inconnue: intergalactique] — [Statut inconnu: hors_piste]',
+    )
   })
 })

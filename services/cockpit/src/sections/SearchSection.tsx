@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import type { RetrievalResult } from '@/generated/contracts'
 import { search } from '@/lib/bff-client'
+import { formatCollectionLabel } from '@/lib/collection-labels'
 import type { RagCollection } from '@/types/ui'
 
 const SEARCH_UNAVAILABLE_MESSAGE =
@@ -127,9 +128,7 @@ export default function SearchSection({
           >
             {readyCollections.map((collection) => (
               <option key={collection.name} value={collection.name}>
-                {[collection.matiere, collection.niveau, collection.statut]
-                  .filter(Boolean)
-                  .join(' · ') || collection.name}
+                {formatCollectionLabel(collection)}
               </option>
             ))}
           </select>
