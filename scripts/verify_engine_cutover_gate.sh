@@ -3,13 +3,14 @@
 # scripts/verify_engine_cutover_gate.sh
 #
 # Porte de franchissement (Gate) pour la bascule vers le Cockpit.
-# Doit être exécuté par le chantier de migration du moteur rag-engine.
+# Doit être exécuté STRICTEMENT contre le serveur de production distant.
+#
 # Code de sortie 0 = Gate validée, bascule Phase 2 autorisée.
-# Code de sortie 1 = Rejet, moteur non conforme.
+# Code de sortie 1 = Rejet, moteur non conforme ou cible invalide.
 # ==============================================================================
 set -euo pipefail
 
-ENGINE_URL="${1:-http://127.0.0.1:8001}"
+TARGET_URL="${1:-https://rag-api.nexusreussite.academy}"
 ENGINE_INTERNAL_TOKEN="${RAG_ENGINE_INTERNAL_TOKEN:-}"
 
 RED='\033[0;31m'
@@ -20,22 +21,58 @@ log_info() { echo -e "[GATE CHECK] $*"; }
 log_pass() { echo -e "[GATE CHECK] ${GREEN}PASS${NC}: $*"; }
 log_fail() { echo -e "[GATE CHECK] ${RED}FAIL${NC}: $*"; }
 
+echo "======================================================================"
+log_info "CIBLE INTERROGÉE : ${TARGET_URL}"
+echo "======================================================================"
+
+# ------------------------------------------------------------------------------
+# 0. Garde-fou strict anti-localhost / adresses privées
+# ------------------------------------------------------------------------------
+TARGET_HOST=$(python3 -c "from urllib.parse import urlparse; import sys; print(urlparse(sys.argv[1]).hostname or '')" "${TARGET_URL}")
+
+if [ -z "${TARGET_HOST}" ]; then
+  log_fail "URL cible invalide ou sans hôte : ${TARGET_URL}"
+  exit 1
+fi
+
+IS_LOCAL_OR_PRIVATE=$(python3 -c "
+import ipaddress, sys
+host = sys.argv[1].lower()
+if host in {'localhost', '127.0.0.1', '0.0.0.0', '::1'}:
+    print('TRUE')
+    sys.exit(0)
+try:
+    ip = ipaddress.ip_address(host)
+    if ip.is_private or ip.is_loopback or ip.is_link_local:
+        print('TRUE')
+        sys.exit(0)
+except ValueError:
+    pass
+print('FALSE')
+" "${TARGET_HOST}")
+
+if [ "${IS_LOCAL_OR_PRIVATE}" = "TRUE" ]; then
+  log_fail "REFUS STRICT : La porte de franchissement ne doit JAMAIS être lancée contre localhost ou une adresse privée (${TARGET_HOST})."
+  log_fail "Raison : Le poste local parle déjà le contrat moderne et produirait un faux positif (validation d'un moteur non migré en production)."
+  exit 1
+fi
+
 FAILURES=0
 
 # ------------------------------------------------------------------------------
 # 1. Assertion 1 : Rejet sans identité signée (Fail-Closed Auth)
 #    POST /search/v2 sans header X-Nexus-Identity doit retourner STRICTEMENT 401.
 # ------------------------------------------------------------------------------
-log_info "1/3 Vérification du rejet sans enveloppe X-Nexus-Identity..."
-HTTP_CODE_NO_AUTH=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X POST "${ENGINE_URL}/search/v2" \
+log_info "1/3 Vérification du rejet sans enveloppe X-Nexus-Identity sur ${TARGET_URL}/search/v2..."
+HTTP_CODE_NO_AUTH=$(curl -s -k -o /dev/null -w "%{http_code}" \
+  -X POST "${TARGET_URL}/search/v2" \
   -H "Content-Type: application/json" \
   -d '{"need":{"intent":"context","query":"test"}}' || true)
 
 if [ "${HTTP_CODE_NO_AUTH}" = "401" ]; then
   log_pass "POST /search/v2 sans X-Nexus-Identity a bien retourné HTTP 401 (rejet sécurisé)."
 else
-  log_fail "Attendu HTTP 401, reçu HTTP ${HTTP_CODE_NO_AUTH}."
+  log_fail "POST /search/v2 sans X-Nexus-Identity : attendu HTTP 401, reçu HTTP ${HTTP_CODE_NO_AUTH}."
   FAILURES=$((FAILURES + 1))
 fi
 
@@ -43,14 +80,14 @@ fi
 # 2. Assertion 2 : Endpoint de diagnostic readiness opérationnel
 #    GET /collections/readiness avec token doit retourner HTTP 200.
 # ------------------------------------------------------------------------------
-log_info "2/3 Vérification de GET /collections/readiness..."
+log_info "2/3 Vérification de GET /collections/readiness sur ${TARGET_URL}..."
 AUTH_HEADER=()
 if [ -n "${ENGINE_INTERNAL_TOKEN}" ]; then
   AUTH_HEADER=(-H "Authorization: Bearer ${ENGINE_INTERNAL_TOKEN}")
 fi
 
-HTTP_CODE_READINESS=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X GET "${ENGINE_URL}/collections/readiness" \
+HTTP_CODE_READINESS=$(curl -s -k -o /dev/null -w "%{http_code}" \
+  -X GET "${TARGET_URL}/collections/readiness" \
   "${AUTH_HEADER[@]}" || true)
 
 if [ "${HTTP_CODE_READINESS}" = "200" ]; then
@@ -103,8 +140,8 @@ SAMPLE_REQUEST='{
 }'
 
 SEARCH_RESPONSE_FILE=$(mktemp)
-HTTP_CODE_SEARCH=$(curl -s -w "%{http_code}" -o "${SEARCH_RESPONSE_FILE}" \
-  -X POST "${ENGINE_URL}/search/v2" \
+HTTP_CODE_SEARCH=$(curl -s -k -w "%{http_code}" -o "${SEARCH_RESPONSE_FILE}" \
+  -X POST "${TARGET_URL}/search/v2" \
   -H "Content-Type: application/json" \
   "${AUTH_HEADER[@]}" \
   -d "${SAMPLE_REQUEST}" || true)
@@ -127,9 +164,9 @@ rm -f "${SEARCH_RESPONSE_FILE}"
 # ------------------------------------------------------------------------------
 echo "----------------------------------------------------------------------"
 if [ "${FAILURES}" -eq 0 ]; then
-  log_pass "GATE VÉRIFIÉE (0 échec). Le moteur est prêt pour la Phase 2 (Bascule Cockpit)."
+  log_pass "GATE VÉRIFIÉE pour la cible ${TARGET_URL} (0 échec). Bascule Phase 2 autorisée."
   exit 0
 else
-  log_fail "GATE REFUSÉE (${FAILURES} assertion(s) en échec). Ne pas basculer."
+  log_fail "GATE REFUSÉE pour la cible ${TARGET_URL} (${FAILURES} assertion(s) en échec). Ne pas basculer."
   exit 1
 fi
