@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
+import re
 import shlex
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+import yaml
 from fastapi import Request
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
@@ -25,6 +28,8 @@ ENGINE_PROD_README = ENGINE_ROOT / "README-PROD.md"
 ENGINE_AGENTS = ENGINE_ROOT / "AGENTS.md"
 V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
 MAKEFILE = ENGINE_ROOT / "Makefile"
+# Projet Compose canonique : décide du volume pgvector atteint (ADR-0051).
+CANONICAL_COMPOSE_PROJECT = "nexusrag"
 
 
 @pytest.fixture(autouse=True)
@@ -1316,3 +1321,118 @@ def test_integration_make_target_exposes_the_ingestor_package() -> None:
         "test-integration: install\n"
         "\tPYTHONPATH=src $(PYTEST) tests/integration -q"
     ) in makefile
+
+
+def test_env_example_documents_every_required_compose_variable() -> None:
+    """Suivre `.env.example` doit suffire à démarrer la topologie canonique.
+
+    `docker-compose.v2.yml` refuse le démarrage sur toute variable `:?` absente.
+    Une variable requise mais non documentée rend le modèle inutilisable en
+    l'état : l'opérateur découvre l'omission au premier `up`, sans savoir quelle
+    valeur fournir.
+    """
+    compose = (ENGINE_ROOT / "infra" / "docker-compose.v2.yml").read_text(encoding="utf-8")
+    required = set(re.findall(r"\$\{([A-Z0-9_]+):\?", compose))
+    assert required, "the canonical compose must declare required variables"
+
+    example = V2_ENV_EXAMPLE.read_text(encoding="utf-8")
+    documented = set(re.findall(r"^([A-Z0-9_]+)=", example, flags=re.MULTILINE))
+
+    assert not (required - documented), sorted(required - documented)
+
+
+def test_compose_never_pins_a_public_subnet() -> None:
+    """Aucun fichier Compose n'épingle un sous-réseau routable sur Internet.
+
+    Un bridge Docker sur une plage publique détourne silencieusement le trafic
+    du poste vers ces adresses : la machine croit joindre l'hôte distant et
+    parle à un conteneur. Le cas s'est produit sur ce dépôt — un `173.30.0.0/24`
+    (plage ARIN publique) déclaré par une surcharge Compose conservée dans
+    `/tmp`, hors de tout contrôle de version.
+
+    Ce test porte la garantie réellement recherchée. Il n'exige aucun
+    sous-réseau *particulier* : épingler `10.30.0.0/24` reste licite, ne rien
+    épingler aussi. Il n'interdit que le routable — parce que fixer une valeur
+    précise imposerait de recréer les réseaux vivants, ce qui arrête les piles
+    (ADR-0051).
+
+    Il ne couvre pas l'auto-allocation, qui se règle au niveau du démon
+    (`default-address-pools`) et non dans un fichier Compose : dette documentée.
+    """
+    compose_files = sorted((ENGINE_ROOT / "infra").glob("docker-compose*.yml"))
+    assert compose_files, "aucun fichier Compose trouvé"
+
+    # Compose définit ses propres tags de fusion (`!reset`, `!override`) que
+    # `safe_load` refuse. Les ignorer plutôt que d'exclure les fichiers
+    # concernés : une surcharge non lue est exactement le trou par lequel le
+    # `173.30.0.0/24` est passé.
+    class _ComposeLoader(yaml.SafeLoader):
+        pass
+
+    _ComposeLoader.add_multi_constructor(
+        "!", lambda loader, suffix, node: None
+    )
+
+    offenders: list[tuple[str, str]] = []
+    for compose_file in compose_files:
+        document = yaml.load(  # noqa: S506 — loader dérivé de SafeLoader
+            compose_file.read_text(encoding="utf-8"), Loader=_ComposeLoader
+        ) or {}
+        for network in (document.get("networks") or {}).values():
+            if not isinstance(network, dict):
+                continue
+            for entry in ((network.get("ipam") or {}).get("config") or []):
+                subnet = (entry or {}).get("subnet")
+                if subnet is None:
+                    continue
+                if ipaddress.ip_network(subnet, strict=False).is_global:
+                    offenders.append((compose_file.name, str(subnet)))
+
+    assert not offenders, (
+        "sous-réseau routable sur Internet épinglé : "
+        f"{offenders} — utiliser une plage privée (RFC1918)"
+    )
+
+
+def test_env_example_declares_the_canonical_compose_project() -> None:
+    """La base atteinte dépend du nom de projet Compose, jamais d'un port.
+
+    Compose préfixe chaque volume du nom du projet : `nexusrag` sélectionne
+    `nexusrag_rag_pgvector_data`, tout autre nom sélectionne un AUTRE volume,
+    silencieusement. Le 27 août 2026, une soirée de remédiation de schéma a
+    porté sur `infra_rag_pgvector_data` — un vestige du 31 juillet — au lieu de
+    la base canonique, sans qu'aucune sortie de `docker compose` ne le signale.
+
+    `COMPOSE_PROJECT_NAME` était alors absent de `.env.example` : un opérateur
+    partant du modèle ignorait jusqu'à l'existence du réglage qui décide de sa
+    base. Le documenter est le garde-fou (ADR-0051), verrouillé ici comme la
+    remédiation PR#90 a verrouillé `backup-volumes.sh` par un test dédié plutôt
+    que par une note.
+    """
+    example = V2_ENV_EXAMPLE.read_text(encoding="utf-8")
+
+    declared = re.findall(
+        r"^COMPOSE_PROJECT_NAME=(.*)$", example, flags=re.MULTILINE
+    )
+    assert declared == [CANONICAL_COMPOSE_PROJECT], declared
+
+
+def test_env_example_documents_every_runtime_role_variable() -> None:
+    """Les trois rôles runtime sont provisionnés par la migration 004.
+
+    `provision_runtime_roles.sh` refuse fail-closed sans le couple
+    utilisateur/mot de passe de chacun ; les trois doivent donc figurer dans le
+    modèle, pas seulement les deux rôles de lecture et de revue.
+    """
+    example = V2_ENV_EXAMPLE.read_text(encoding="utf-8")
+    documented = set(re.findall(r"^([A-Z0-9_]+)=", example, flags=re.MULTILINE))
+
+    expected = {
+        "PGVECTOR_RETRIEVAL_USER",
+        "PGVECTOR_RETRIEVAL_PASSWORD",
+        "PGVECTOR_REVIEW_USER",
+        "PGVECTOR_REVIEW_PASSWORD",
+        "PGVECTOR_PUBLISHER_USER",
+        "PGVECTOR_PUBLISHER_PASSWORD",
+    }
+    assert not (expected - documented), sorted(expected - documented)

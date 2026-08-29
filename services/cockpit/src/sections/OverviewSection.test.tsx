@@ -3,21 +3,43 @@
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import sourcesData from '@/data/sources.json'
 import type { RagCollection } from '@/types/ui'
 import OverviewSection from './OverviewSection'
 
 describe('OverviewSection', () => {
   afterEach(cleanup)
 
-  it('affiche le nombre de sources vérifiées dérivé du snapshot', () => {
-    const verified = sourcesData.filter((source) => source.status === 'verified').length
+  it('affiche les décomptes de collections dérivées du catalogue live', () => {
+    const collections: RagCollection[] = [
+      {
+        name: 'rag_nexus_nsi_terminale_specialite',
+        matiere: 'nsi',
+        niveau: 'terminale',
+        voie: 'generale',
+        statut: 'specialite',
+        domain: 'education',
+        taxonomy_file: 'nsi/terminale.yml',
+        instanciee: true,
+        ready: true,
+      },
+      {
+        name: 'rag_nexus_maths_terminale_specialite',
+        matiere: 'maths',
+        niveau: 'terminale',
+        voie: 'generale',
+        statut: 'specialite',
+        domain: 'education',
+        taxonomy_file: 'maths/terminale.yml',
+        instanciee: true,
+        ready: false,
+      },
+    ]
 
-    const { container } = render(<OverviewSection collections={[]} demo={false} />)
+    const { container } = render(<OverviewSection collections={collections} demo={false} />)
 
-    expect(container.textContent).toContain(
-      `${verified}/${sourcesData.length} sources`,
-    )
+    expect(container.textContent).toContain('2') // Total catalogue
+    expect(container.textContent).toContain('2') // Instanciées
+    expect(container.textContent).toContain('1') // Prêtes
   })
 
   it('affiche la couverture Quatrième sans activer la collection', () => {
@@ -30,6 +52,7 @@ describe('OverviewSection', () => {
       domain: 'education',
       taxonomy_file: 'maths/quatrieme.yml',
       instanciee: false,
+      ready: false,
     }
 
     const { container } = render(

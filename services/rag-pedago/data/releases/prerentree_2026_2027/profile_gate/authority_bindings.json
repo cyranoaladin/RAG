@@ -39,8 +39,8 @@
     },
     "embedding_inventory_sha256": {
       "authority_kind": "FILE_SHA256",
-      "authority_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
-      "file_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+      "authority_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+      "file_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
       "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/models/embedding/SHA256SUMS"
     },
     "level_mapping_sha256": {

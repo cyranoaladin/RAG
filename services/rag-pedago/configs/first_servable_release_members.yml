@@ -1,0 +1,62 @@
+# Membership de la FIRST_SERVABLE_RELEASE — déclaration explicite.
+#
+# Ce fichier ÉNUMÈRE les membres. Il ne les filtre pas.
+#
+# La distinction est le fond du lot : un producteur qui construirait la release
+# par `if instanciee: include` ferait disparaître silencieusement toute
+# collection dont le drapeau bascule, et ferait apparaître silencieusement
+# toute collection nouvellement instanciée. Les deux sont inacceptables.
+#
+# Les deux invariants restent indépendants :
+#
+#     RELEASE_MEMBER  =>  INSTANCIEE          (imposé, fail-closed)
+#     INSTANCIEE      =/=>  RELEASE_MEMBER    (l'appartenance reste choisie)
+#
+# Si un membre déclaré ici n'est pas instancié, le producteur ÉCHOUE. Il ne le
+# retire jamais de lui-même : le désaccord doit être tranché par une décision,
+# pas absorbé par un outil.
+#
+# ─────────────────────────────────────────────────────────────────────────
+# CE JALON N'EST PAS LE GO-LIVE.
+#
+# `release_type: intermediate` et `go_live_complete: false` sont vérifiés par
+# un test dédié, afin qu'aucun rapport futur ne puisse dériver
+# « FIRST_SERVABLE_RELEASE = PASS  =>  GO_LIVE_READY = PASS ».
+# Le périmètre obligatoire du GO-LIVE est fixé par ADR-0048 et vaut
+# collège + lycée général + STMG.
+# ─────────────────────────────────────────────────────────────────────────
+
+protocol_version: NEXUS-RELEASE-MEMBERSHIP-V1
+release_id: production-profile-gate-2026-2027-v1
+release_name: FIRST_SERVABLE_RELEASE
+release_type: intermediate
+go_live_complete: false
+school_year: "2026-2027"
+
+rationale: >-
+  L'ensemble éligible complet de la première release servable : 18 collections
+  instanciées, portant chacune une autorité d'activation nommée (ADR-0039,
+  ADR-0041, ADR-0049, H2-C, LOT-25a) et disposant d'un profil d'ingestion
+  production activé. Les 18 collections couvrent 26 artefacts, 26 placements et
+  730 chunks scellés par l'empreinte fe97b341... permettant la réconciliation
+  exacte et le démarrage certifié du moteur.
+
+members:
+  - rag_nexus_dgemc_terminale_option
+  - rag_nexus_francais_premiere_tc
+  - rag_nexus_francais_quatrieme_tc
+  - rag_nexus_francais_seconde_tc
+  - rag_nexus_hlp_premiere_specialite
+  - rag_nexus_maths_premiere_gen_specialite
+  - rag_nexus_maths_quatrieme_tc
+  - rag_nexus_maths_seconde_tc
+  - rag_nexus_maths_terminale_gen_specialite
+  - rag_nexus_nsi_premiere_specialite
+  - rag_nexus_nsi_terminale_specialite
+  - rag_nexus_pc_premiere_specialite
+  - rag_nexus_pc_terminale_specialite
+  - rag_nexus_philo_terminale_tc
+  - rag_nexus_ses_premiere_specialite
+  - rag_nexus_ses_terminale_specialite
+  - rag_nexus_svt_premiere_specialite
+  - rag_nexus_svt_terminale_specialite

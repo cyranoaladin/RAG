@@ -35,9 +35,18 @@ def _env_path(var: str, default: Path) -> Path:
     return Path(raw).expanduser() if raw else default
 
 
+#: Racine du corpus scellé. Le défaut visait `~/Téléchargements/…` — un dossier
+#: utilisateur *localisé*, qui n'existe pas sur une machine en anglais et fait
+#: dépendre un rapport de gouvernance de la langue du système. Même motif que
+#: `--cache-dir=/tmp/...` et `--model-path` : un chemin de machine personnelle
+#: figé dans du code partagé.
+#:
+#: `_env_path` conserve la priorité à la variable ; le défaut devient neutre et
+#: relatif au dépôt, de sorte qu'une absence se manifeste par un fichier
+#: introuvable nommé, jamais par la lecture silencieuse d'un mauvais corpus.
 GDRIVE_ROOT = _env_path(
     "NEXUS_SEALED_CORPUS_ROOT",
-    Path.home() / "Téléchargements" / "NEXUS_RAG_GDRIVE_READY",
+    Path(__file__).resolve().parents[3] / "data" / "sealed-corpus",
 )
 MANIFEST_PATH = _env_path(
     "NEXUS_SEALED_MANIFEST_PATH", GDRIVE_ROOT / "00_ADMIN" / "SHA256SUMS.txt"

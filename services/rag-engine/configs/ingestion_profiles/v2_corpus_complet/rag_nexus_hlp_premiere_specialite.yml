@@ -1,0 +1,49 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_premiere
+  collection: rag_nexus_hlp_premiere_specialite
+  niveau: premiere
+  voie: generale
+  matiere: hlp
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Hlp — premiere (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Le laboratoire des mots
+- 'Exemple : Racine, Britannicus - Parcours : tragique et tragédie à l''âge classique'
+- Exemple de prolongement artistique et culturel
+- Mes Forêts, la nature et l’intime
+- L'interrogation en regard de l'explication
+- Exemple de corpus pour le parcours associé
+- support de l'intervention
+- 'Le roman épistolaire : l’affirmation d’une conscience'
+- Balzac et la question de l’image
+- La représentation des Incas dans Les Lettres d’une Péruvienne
+- la définition des épreuves anticipées de français du baccalauréat général et technologique
+- Propositions de sujets avec un support image
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

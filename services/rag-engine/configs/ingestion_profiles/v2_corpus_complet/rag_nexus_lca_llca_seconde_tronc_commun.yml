@@ -1,0 +1,51 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_seconde
+  collection: rag_nexus_lca_llca_seconde_tronc_commun
+  niveau: seconde
+  voie: generale
+  matiere: lca_llca
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Lca Llca — seconde (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Justice des dieux, justice des hommes
+- Sujet zéro en latin, avec éléments de corrigé (épreuve terminale de spécialité)
+- Option LCA en première générale (BO spécial n° 1 du 22 janvier 2019)
+- Soi-même et l'autre
+- Sujet zéro en grec (épreuve terminale de spécialité)
+- 'Méditerranée : conflits, influences et échanges'
+- La méthode audio-orale appliquée au grec ancien
+- Spécialité littérature et LCA en terminale générale (BO spécial n° 8 du 25 juillet
+  2019)
+- Option LCA en seconde générale et technologique (BO spécial n° 1 du 22 janvier 2019)
+- Amour, Amours
+- Sujet zéro des épreuves communes de contrôle continu en latin, avec des éléments
+  de corrigé
+- 'Méditerranée : voyager, explorer, découvrir'
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

@@ -103,8 +103,31 @@ _ROLE_CONTEXTS: dict[str, tuple[AccessContext, ...]] = {
     "admin": (AccessContext.admin,),
 }
 
+#: `student` a longtemps été le seul rôle sans `internal`, et les 18 collections
+#: servies portent toutes `visibility: internal` — aucun profil élève ne pouvait
+#: donc interroger le corpus. Le défaut n'apparaît qu'au premier tir sous le rôle
+#: auquel le produit est destiné : les tests d'intégration passaient parce qu'ils
+#: utilisent des rôles privilégiés.
+#:
+#: `internal` n'est PAS défini comme « exclu des utilisateurs finaux », vérifié :
+#: le contrat n'attache aucune sémantique à `Literal["public", "internal",
+#: "restricted", "private"]` ; là où « revue seulement » est visé, un autre
+#: terme explicite est employé (`internal_review_only`,
+#: `source_admission_policy.yml`) ; et la décision de droits sur
+#: `01_EDUSCOL_OFFICIEL/` autorise nommément « le retrieval, la citation et
+#: l'ingestion de production » (`rights_evidence_registry.yml`).
+#:
+#: `internal` désigne donc l'appartenance au corpus Nexus, par opposition au web
+#: public — pas une exclusion des élèves. Les collections restent internes ; la
+#: politique de rôle dit que les élèves les lisent. Alternative écartée : passer
+#: les collections en `public` aurait exigé de ré-émettre les 18 manifests-sujets
+#: scellés, donc 18 scopes `_v3` et la cascade entière — disproportionné pour une
+#: correspondance rôle/visibilité.
+#:
+#: Décision opérateur du 28/08/2026. Voir
+#: `docs/reports/analyse_dette_28_visibilite_eleve.md`.
 _ROLE_VISIBILITIES: dict[str, tuple[str, ...]] = {
-    "student": ("public",),
+    "student": ("public", "internal"),
     "teacher": ("public", "internal"),
     "reviewer": ("public", "internal", "restricted"),
     "ingest_agent": ("internal", "restricted"),

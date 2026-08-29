@@ -15,12 +15,21 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_14_0() -> None:
-    """0.14.0 (ADR-0045) ajoute les scopes retrieval production immuables
-    sans rupture des contrats V1 existants."""
+def test_package_version_is_0_16_0() -> None:
+    """0.16.0 (ADR-0052) publie 18 RetrievalScopeArtifactV2 supplémentaires.
+
+    Évolution strictement additive : le registre passe de 31 à 49 scopes, les
+    18 `_v1` de la release production restant packagés et inchangés. ADR-0045
+    interdit de muter le `source_sha256` d'un scope publié — les enveloppes
+    émises le référencent — de sorte qu'un rescellement de release ajoute des
+    scopes au lieu d'en réécrire.
+
+    Historique : 0.15.0 (ADR-0050) avait ajouté sixieme et cinquieme à l'enum
+    Niveau, également sans rupture des contrats V1.
+    """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.14.0"
+    assert pyproject["project"]["version"] == "0.16.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:

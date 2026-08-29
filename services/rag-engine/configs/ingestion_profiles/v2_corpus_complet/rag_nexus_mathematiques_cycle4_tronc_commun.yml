@@ -1,0 +1,49 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_cycle4
+  collection: rag_nexus_mathematiques_cycle4_tronc_commun
+  niveau: cycle4
+  voie: college
+  matiere: mathematiques
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Mathematiques — cycle4 (college)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- ra16_c4_math_arithm_conj_syracuse_547648.pdf
+- ra16_c4_math_flash_nombres_decimaux_calculs_decimaux_conversions_n.d_554325.pdf
+- Télécharger le document « L’évaluation et les stéréotypes de genre »
+- Accueillir un AESH dans l'école
+- ra16_c4_math_puissances_nombres_de_mersenne_n.d_555958.pdf
+- Attendus de fin d'année en mathématiques en 5ᵉ
+- ra16_c4_math_trait_donn_stat_cdi_564018.pdf
+- Livret de formation à une école inclusive
+- Étude des courbes de croissance d’un enfant
+- ra16_c4_math_prise_initiative_jeu_concours_n.d_552039.pdf
+- ra16_c4_math_probabilite_flash_563081.pdf
+- ra16_c4_math_probabilite_initiative_inventer_regle_563083.pdf
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

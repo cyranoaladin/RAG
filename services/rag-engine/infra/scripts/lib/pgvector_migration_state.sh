@@ -1,6 +1,44 @@
 #!/usr/bin/env bash
 # Shared, side-effect-free pgvector migration manifest and SQL validators.
 
+load_deployment_environment() {
+    # Charger les secrets de déploiement sans les afficher.
+    #
+    # `.env` ne fournit que des défauts : toute variable déjà présente dans
+    # l'environnement de l'appelant reste prioritaire — même sémantique que
+    # `docker compose`. Chargé avec `set -a` sans cette restauration, le
+    # fichier écrase silencieusement la cible (`PGVECTOR_CONTAINER`/`DB`/
+    # `USER`) comme les rôles runtime provisionnés par la migration 004 : un
+    # opérateur qui désigne une base peut en migrer une autre, ou provisionner
+    # d'autres rôles que ceux demandés. La CI ne peut pas voir la divergence —
+    # `.env` est ignoré par Git et n'existe jamais sur un runner.
+    local environment_file="$1"
+    local declared_name caller_override
+    local -a declared_names=()
+    local -a caller_overrides=()
+
+    [[ -f "$environment_file" ]] || return 0
+
+    mapfile -t declared_names < <(
+        sed -n 's/^[[:space:]]*\(export[[:space:]]\+\)\?\([A-Za-z_][A-Za-z0-9_]*\)=.*/\2/p' \
+            "$environment_file" | LC_ALL=C sort -u
+    )
+    for declared_name in "${declared_names[@]+"${declared_names[@]}"}"; do
+        if [[ -n "${!declared_name+x}" ]]; then
+            caller_overrides+=("$declared_name=${!declared_name}")
+        fi
+    done
+
+    set -a
+    # shellcheck disable=SC1090
+    source "$environment_file"
+    set +a
+
+    for caller_override in "${caller_overrides[@]+"${caller_overrides[@]}"}"; do
+        export "${caller_override%%=*}=${caller_override#*=}"
+    done
+}
+
 discover_manifest() {
     local migrations_dir="$1"
     local head_file="$2"

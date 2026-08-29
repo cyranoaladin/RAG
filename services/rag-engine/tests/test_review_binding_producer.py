@@ -158,9 +158,44 @@ def _args(**overrides: Any) -> argparse.Namespace:
         "authorization_id": AUTHORIZATION_ID,
         "validity_days": 30,
         "key_id": KEY_ID,
+        "trust_anchor": None,
+        "environment": "test",
     }
     values.update(overrides)
+    if values["trust_anchor"] is None:
+        values["trust_anchor"] = str(_DEFAULT_TEST_ANCHOR["path"])
     return argparse.Namespace(**values)
+
+
+#: Ancre de test par défaut, écrite une fois : `issue` exige désormais une
+#: ancre canonique, et aucun test n'a de raison de la fabriquer à la main.
+_DEFAULT_TEST_ANCHOR: dict[str, Any] = {}
+
+
+@pytest.fixture(autouse=True)
+def _default_test_anchor(tmp_path_factory: pytest.TempPathFactory) -> None:
+    import json as _json
+
+    if _DEFAULT_TEST_ANCHOR:
+        return
+    path = tmp_path_factory.mktemp("anchor") / "review-binding-v1.json"
+    path.write_text(
+        _json.dumps(
+            {
+                "protocol_version": "NEXUS-REVIEW-BINDING-V1",
+                "keys": [
+                    {
+                        "key_id": KEY_ID,
+                        "algorithm": "ed25519",
+                        "public_key": public_key_hex(TEST_SEED),
+                        "environment": "test",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    _DEFAULT_TEST_ANCHOR["path"] = path
 
 
 @pytest.fixture
@@ -487,3 +522,264 @@ class TestBoundedValidity:
                 environment="test",
                 now=datetime(2026, 8, 12, tzinfo=UTC),
             )
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# P0-L1B — le préflight doit interroger l'ancre canonique COURANTE
+#
+# Un bundle produit pour `review-binding-v1-2026-08-13` a continué de
+# rendre `SIGNING_PREFLIGHT_PASS=true` après la rotation du 2026-08-25 :
+# il ne validait que la cohérence interne d'un worktree producteur figé
+# AVANT la rotation. Une ancre tournée lui était structurellement
+# invisible.
+# ═══════════════════════════════════════════════════════════════════════
+
+ROTATED_KEY_ID = "review-binding-v1-2026-08-25"
+LOST_KEY_ID = "review-binding-v1-2026-08-13"
+
+
+def _anchor_document(
+    key_id: str = ROTATED_KEY_ID,
+    *,
+    environment: str = "production",
+    public_key: str | None = None,
+    protocol_version: str = "NEXUS-REVIEW-BINDING-V1",
+) -> dict[str, Any]:
+    return {
+        "protocol_version": protocol_version,
+        "keys": [
+            {
+                "key_id": key_id,
+                "algorithm": "ed25519",
+                "public_key": public_key or public_key_hex(TEST_SEED),
+                "environment": environment,
+            }
+        ],
+    }
+
+
+def _write_anchor(tmp_path: Any, document: dict[str, Any]) -> Any:
+    import json as _json
+
+    path = tmp_path / "review-binding-v1.json"
+    path.write_text(
+        _json.dumps(document, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return path
+
+
+def _preflight_argv(anchor: Any, **overrides: Any) -> list[str]:
+    values: dict[str, Any] = {
+        "--repository": REPOSITORY,
+        "--pull-request": str(PULL_REQUEST),
+        "--expected-head": HEAD_SHA,
+        "--key-id": ROTATED_KEY_ID,
+        "--trust-anchor": str(anchor),
+    }
+    values.update(overrides)
+    argv = ["preflight"]
+    for flag, value in values.items():
+        if value is None:
+            continue
+        argv.extend([flag, str(value)])
+    return argv
+
+
+def test_preflight_accepts_a_bundle_aligned_with_the_current_anchor(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    anchor = _write_anchor(tmp_path, _anchor_document(environment="test"))
+
+    assert (
+        producer.main(_preflight_argv(anchor) + ["--environment", "test"]) == 0
+    )
+    stdout = capsys.readouterr().out
+    assert "SIGNING_PREFLIGHT_PASS=true" in stdout
+    assert f"TRUST_ANCHOR_KEY_ID={ROTATED_KEY_ID}" in stdout
+
+
+def test_preflight_refuses_a_bundle_built_before_the_anchor_rotation(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Non-régression exacte du cas 2026-08-13 -> 2026-08-25.
+
+    Le bundle vise la clé perdue ; l'ancre canonique ne déclare plus qu'une
+    clé tournée. Aucun repli vers l'ancienne ancre, et aucune acceptation
+    au motif que le worktree producteur historique reste cohérent avec
+    lui-même.
+    """
+    anchor = _write_anchor(tmp_path, _anchor_document(ROTATED_KEY_ID))
+
+    exit_code = producer.main(_preflight_argv(anchor, **{"--key-id": LOST_KEY_ID}))
+
+    assert exit_code != 0
+    captured = capsys.readouterr()
+    assert "SIGNING_PREFLIGHT_PASS=false" in captured.err
+    assert "REASON=trust_anchor_rotated" in captured.err
+    assert "SIGNING_PREFLIGHT_PASS=true" not in captured.out
+
+
+def test_preflight_refuses_when_the_anchor_digest_the_bundle_recorded_moved(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Une rotation qui conserverait le key_id resterait une rotation."""
+    anchor = _write_anchor(tmp_path, _anchor_document(environment="test"))
+
+    exit_code = producer.main(
+        _preflight_argv(anchor)
+        + ["--environment", "test", "--expected-anchor-sha256", "f" * 64]
+    )
+
+    assert exit_code != 0
+    assert "REASON=trust_anchor_rotated" in capsys.readouterr().err
+
+
+def test_preflight_refuses_when_the_recorded_public_key_no_longer_matches(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    anchor = _write_anchor(tmp_path, _anchor_document(environment="test"))
+
+    exit_code = producer.main(
+        _preflight_argv(anchor)
+        + ["--environment", "test", "--expected-public-key", "a" * 64]
+    )
+
+    assert exit_code != 0
+    assert "REASON=trust_anchor_rotated" in capsys.readouterr().err
+
+
+def test_preflight_refuses_a_test_key_presented_for_production(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    anchor = _write_anchor(tmp_path, _anchor_document(environment="test"))
+
+    exit_code = producer.main(_preflight_argv(anchor))  # environment defaults to production
+
+    assert exit_code != 0
+    assert "REASON=trust_anchor_environment_mismatch" in capsys.readouterr().err
+
+
+def test_preflight_refuses_an_anchor_of_another_protocol_version(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    import json as _json
+
+    document = _anchor_document(environment="test")
+    document["protocol_version"] = "NEXUS-REVIEW-BINDING-V2"
+    path = tmp_path / "review-binding-v1.json"
+    path.write_text(_json.dumps(document), encoding="utf-8")
+
+    exit_code = producer.main(_preflight_argv(path) + ["--environment", "test"])
+
+    assert exit_code != 0
+    assert "REASON=review_binding_protocol_mismatch" in capsys.readouterr().err
+
+
+def test_preflight_refuses_an_unreadable_anchor_rather_than_assuming(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    missing = tmp_path / "absent.json"
+
+    exit_code = producer.main(_preflight_argv(missing) + ["--environment", "test"])
+
+    assert exit_code != 0
+    assert "REASON=trust_anchor_unreadable" in capsys.readouterr().err
+
+
+def test_preflight_refuses_when_the_pull_request_head_has_drifted(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Aucun binding ne doit être produit pour un HEAD qui n'est plus celui relu."""
+    anchor = _write_anchor(tmp_path, _anchor_document(environment="test"))
+    github["verification"] = _verification(head_sha="d" * 40)
+
+    exit_code = producer.main(_preflight_argv(anchor) + ["--environment", "test"])
+
+    assert exit_code != 0
+    assert "REASON=pull_request_head_drifted" in capsys.readouterr().err
+
+
+def test_preflight_refuses_when_the_live_challenge_is_not_the_expected_one(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    anchor = _write_anchor(tmp_path, _anchor_document(environment="test"))
+
+    exit_code = producer.main(
+        _preflight_argv(anchor)
+        + ["--environment", "test", "--expected-challenge", "NEXUS-TRUSTED-REVIEW-V1:" + "a" * 64]
+    )
+
+    assert exit_code != 0
+    assert "REASON=challenge_mismatch" in capsys.readouterr().err
+
+
+def test_preflight_never_reveals_the_signing_key(
+    github: dict[str, Any],
+    tmp_path: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    anchor = _write_anchor(tmp_path, _anchor_document(environment="test"))
+
+    producer.main(_preflight_argv(anchor) + ["--environment", "test"])
+
+    captured = capsys.readouterr()
+    assert TEST_SEED not in captured.out
+    assert TEST_SEED not in captured.err
+
+
+def test_issue_refuses_a_signing_key_the_current_anchor_does_not_declare(
+    github: dict[str, Any],
+    tmp_path: Any,
+) -> None:
+    """La porte non contournable : l'émission elle-même consulte l'ancre.
+
+    Le préflight est une commodité opérateur ; un bundle qui l'omettrait ne
+    doit pas pouvoir sceller un reçu avec une clé que l'ancre canonique ne
+    déclare pas.
+    """
+    other_public_key = public_key_hex("44" * 32)
+    anchor = _write_anchor(
+        tmp_path, _anchor_document(environment="test", public_key=other_public_key)
+    )
+
+    with pytest.raises(producer.ReviewBindingProductionError) as failure:
+        producer._issue_binding(
+            _args(trust_anchor=str(anchor), environment="test", key_id=ROTATED_KEY_ID),
+            now=NOW,
+        )
+
+    assert "signing_key_not_declared_by_trust_anchor" in str(failure.value)
+    assert TEST_SEED not in str(failure.value)
+
+
+def test_issue_refuses_a_key_id_absent_from_the_current_anchor(
+    github: dict[str, Any],
+    tmp_path: Any,
+) -> None:
+    anchor = _write_anchor(tmp_path, _anchor_document(ROTATED_KEY_ID, environment="test"))
+
+    with pytest.raises(producer.ReviewBindingProductionError) as failure:
+        producer._issue_binding(
+            _args(trust_anchor=str(anchor), environment="test", key_id=LOST_KEY_ID),
+            now=NOW,
+        )
+
+    assert "trust_anchor_rotated" in str(failure.value)

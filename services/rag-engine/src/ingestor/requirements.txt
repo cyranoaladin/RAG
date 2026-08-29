@@ -11,7 +11,14 @@ ollama==0.3.0
 
 # Multimodal extras pull in large GPU stacks; keep default lean.
 unstructured==0.14.5
-pypdf==4.2.0
+# `pypdf` fixe le TEXTE extrait, donc les empreintes de chunks. Une contrainte
+# ouverte ici casse la reproductibilité du corpus scellé : `chunk_id` vaut
+# sha256(content_sha:index:sha256(texte)), et deux versions de pypdf n'extraient
+# pas le même texte. Constaté le 28/08/2026 — 4.2.0 rendait « enseigneme nt » là
+# où 6.14.2 rend « enseignement ». Le rejeu échouait sur « Chunk ID mismatch ».
+# 6.14.2 reproduit les 44 empreintes du document témoin ; c'est la version du
+# scellement, et elle se fige.
+pypdf==6.14.2
 prometheus-client==0.20.0
 python-docx==1.1.2
 beautifulsoup4==4.12.3

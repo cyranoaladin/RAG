@@ -1,52 +1,26 @@
 version: 3
-# Catalogue canonique : 62 collections. Les extensions 4e d'ADR-0040 restent dormantes.
-# ADR-0013 — Convention: rag_nexus_{matiere}_{niveau}_{statut}
-# Extension FE-06: rag_nexus_{matiere}_{niveau}_{voie}_{statut} quand voie pertinente
-# Exceptions nommées: grand_oral, exams, candidats_libres, quarantine, dnb (cf. ADR)
-# Flag instanciee: seules les collections true sont créées et exposées (M-04)
-# Pas d'auto-création: le moteur lève une erreur si la collection n'est pas déclarée instanciee
-#
-# Périmètre v1 (D-PERIMETRE-EXPLICITE):
-#   Voie générale + STMG + collège 3e.
-#   Autres séries technologiques (ST2S, STI2D, STL, STD2A, STHR, S2TMD) = hors scope v1.
-#   Convention voie extensible: ajouter un slug voie (st2s, sti2d...) sans refonte.
-#
-# Session (D-SESSION-DECLAREE-JAMAIS-DEVINEE):
-#   session_policy: declared_or_null — la session est déclarée depuis la source
-#   ou laissée NULL + needs_review. Jamais devinée par un agent.
-
 physical_backend:
   type: pgvector
   table: rag_chunks
   dsn_env: PG_RAG_DSN
   vector_dim: 1024
-
-
 metadata_required:
-  - domain
-  - audience
-  - niveau
-  - voie
-  - matiere
-  - statut_enseignement
-  - type_doc
-  - source_kind
-  - rights
-  - review_status
-  - source_label
-  - source_uri
-  - doc_id
-  - chunk_id
-  - chunk_sha256
-
-# Catalogue taxonomique (61 entrées — LOT 28 + ADR-0040)
-# Schéma validé FE-05b: nom = matière×niveau×voie ; métadonnées = dispositif, session
-# Source de vérité: services/rag-pedago/taxonomy/
+- domain
+- audience
+- niveau
+- voie
+- matiere
+- statut_enseignement
+- type_doc
+- source_kind
+- rights
+- review_status
+- source_label
+- source_uri
+- doc_id
+- chunk_id
+- chunk_sha256
 collections:
-
-  # =====================================================================
-  # NSI (instanciées — 16 892 chunks LOT 25a)
-  # =====================================================================
   rag_nexus_nsi_premiere_specialite:
     matiere: nsi
     niveau: premiere
@@ -65,10 +39,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: nsi/terminale.yml
     instanciee: true
-
-  # =====================================================================
-  # Maths — multi-nature (FE-05e: routage par niveau×voie×type_enseignement)
-  # =====================================================================
   rag_nexus_maths_quatrieme_tc:
     matiere: maths
     niveau: quatrieme
@@ -112,7 +82,6 @@ collections:
     statut: tronc_commun
     domain: education
     session_policy: declared_or_null
-    # Maths dans enseignement scientifique pour élèves SANS spé maths
     taxonomy_file: maths/premiere_gen_tronc_commun.yml
     instanciee: false
   rag_nexus_maths_premiere_stmg_tc:
@@ -140,7 +109,6 @@ collections:
     statut: option
     domain: education
     session_policy: declared_or_null
-    # Maths complémentaires: élèves SANS spé maths en Tle
     taxonomy_file: maths/terminale_gen_option_comp.yml
     instanciee: false
   rag_nexus_maths_terminale_gen_option_exp:
@@ -150,7 +118,6 @@ collections:
     statut: option
     domain: education
     session_policy: declared_or_null
-    # Maths expertes: élèves AVEC spé maths en Tle
     taxonomy_file: maths/terminale_gen_option_exp.yml
     instanciee: false
   rag_nexus_maths_terminale_stmg_tc:
@@ -162,10 +129,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: maths/terminale_stmg_tc.yml
     instanciee: false
-
-  # =====================================================================
-  # Français
-  # =====================================================================
   rag_nexus_francais_quatrieme_tc:
     matiere: francais
     niveau: quatrieme
@@ -202,10 +165,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: francais/premiere_eaf.yml
     instanciee: true
-
-  # =====================================================================
-  # Histoire-Géo
-  # =====================================================================
   rag_nexus_hg_troisieme_tc:
     matiere: histoire_geo
     niveau: troisieme
@@ -242,10 +201,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: histoire_geo/terminale_tronc_commun.yml
     instanciee: false
-
-  # =====================================================================
-  # Physique-Chimie
-  # =====================================================================
   rag_nexus_pc_premiere_specialite:
     matiere: physique_chimie
     niveau: premiere
@@ -254,7 +209,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: physique_chimie/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_pc_terminale_specialite:
     matiere: physique_chimie
     niveau: terminale
@@ -264,10 +219,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: physique_chimie/terminale_specialite.yml
     instanciee: true
-
-  # =====================================================================
-  # SVT
-  # =====================================================================
   rag_nexus_svt_premiere_specialite:
     matiere: svt
     niveau: premiere
@@ -276,7 +227,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: svt/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_svt_terminale_specialite:
     matiere: svt
     niveau: terminale
@@ -285,11 +236,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: svt/terminale_specialite.yml
-    instanciee: false
-
-  # =====================================================================
-  # SES
-  # =====================================================================
+    instanciee: true
   rag_nexus_ses_premiere_specialite:
     matiere: ses
     niveau: premiere
@@ -298,7 +245,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: ses/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_ses_terminale_specialite:
     matiere: ses
     niveau: terminale
@@ -307,11 +254,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: ses/terminale_specialite.yml
-    instanciee: false
-
-  # =====================================================================
-  # Philosophie
-  # =====================================================================
+    instanciee: true
   rag_nexus_philo_terminale_tc:
     matiere: philosophie
     niveau: terminale
@@ -320,14 +263,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: philosophie/terminale_tronc_commun.yml
-    # H2-C : première vague réelle, cinq artefacts Eduscol explicitement
-    # résolus par h2_initial_placement_policy.yml. Toute autre ressource
-    # reste REVIEW_REQUIRED ; cette activation n'est pas un routeur large.
     instanciee: true
-
-  # =====================================================================
-  # DGEMC — option de Terminale générale
-  # =====================================================================
   rag_nexus_dgemc_terminale_option:
     matiere: dgemc
     niveau: terminale
@@ -336,11 +272,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: dgemc/terminale_option.yml
-    instanciee: false
-
-  # =====================================================================
-  # SNT
-  # =====================================================================
+    instanciee: true
   rag_nexus_snt_seconde_tc:
     matiere: snt
     niveau: seconde
@@ -350,10 +282,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: snt/seconde.yml
     instanciee: false
-
-  # =====================================================================
-  # STMG — spécialités (périmètre v1, D-PERIMETRE-EXPLICITE)
-  # =====================================================================
   rag_nexus_droiteco_premiere_stmg_specialite:
     matiere: droit_economie
     niveau: premiere
@@ -379,26 +307,17 @@ collections:
     statut: specialite
     domain: education
     session_policy: declared_or_null
-    # Enseignement spécifique (GF/mercatique/RHC/SIG) en métadonnée de chunk
     taxonomy_file: stmg/msdgn_terminale.yml
     instanciee: false
-
-  # =====================================================================
-  # Grand Oral (transversal, niveau+voie+session en métadonnée)
-  # =====================================================================
   rag_nexus_grand_oral_terminale:
     matiere: grand_oral
     niveau: terminale
-    voie: null  # transversal gen+stmg, voie en métadonnée
+    voie: null
     statut: examen
     domain: exam
     session_policy: declared_or_null
     taxonomy_file: grand_oral/terminale.yml
     instanciee: false
-
-  # =====================================================================
-  # Examens (transversal)
-  # =====================================================================
   rag_nexus_exams_bac_general:
     matiere: exams
     niveau: terminale
@@ -411,16 +330,12 @@ collections:
   rag_nexus_exams_anticipee_maths:
     matiere: exams
     niveau: premiere
-    voie: null  # 3 sujets: gen+spe, gen-spe, techno
+    voie: null
     statut: examen
     domain: exam
     session_policy: declared_or_null
     taxonomy_file: exams/anticipee_maths.yml
     instanciee: false
-
-  # =====================================================================
-  # DNB (collège, transversal par matière en métadonnée)
-  # =====================================================================
   rag_nexus_dnb:
     matiere: dnb
     niveau: troisieme
@@ -430,10 +345,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: exams/dnb.yml
     instanciee: false
-
-  # =====================================================================
-  # Candidats libres
-  # =====================================================================
   rag_nexus_candidats_libres_terminale:
     matiere: candidats_libres
     niveau: terminale
@@ -443,10 +354,6 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: candidats_libres/parcours_terminale.yml
     instanciee: false
-
-  # =====================================================================
-  # Quarantaine (hors arborescence disciplinaire)
-  # =====================================================================
   rag_nexus_quarantine:
     matiere: null
     niveau: null
@@ -456,15 +363,6 @@ collections:
     session_policy: null
     taxonomy_file: null
     instanciee: true
-
-
-
-  # =====================================================================
-  # LOT 28 — extension tous niveaux / toutes matières (ADR-0015)
-  # 24 nouvelles collections : collège complet, 2de complète, TC 1re/Tle,
-  # spécialités générales HGGSP/LLCE/HLP. Toutes instanciee: false en
-  # attente de la vague de revue (Phase B, rapport lot_28).
-  # =====================================================================
   rag_nexus_emc_premiere_tc:
     matiere: emc
     niveau: premiere
@@ -563,7 +461,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: hlp/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_hlp_terminale_specialite:
     matiere: hlp
     niveau: terminale
@@ -681,19 +579,27 @@ collections:
     session_policy: declared_or_null
     taxonomy_file: technologie/troisieme.yml
     instanciee: false
-
 domains:
   education:
-    audiences: ["libre", "aefe", "tous"]
+    audiences:
+    - libre
+    - aefe
+    - tous
     retrievable: true
   official:
-    audiences: ["tous"]
+    audiences:
+    - tous
     retrievable: true
   exam:
-    audiences: ["libre", "aefe", "tous"]
+    audiences:
+    - libre
+    - aefe
+    - tous
     retrievable: true
   nexus_owned:
-    audiences: ["libre", "aefe"]
+    audiences:
+    - libre
+    - aefe
     retrievable: true
   quarantine:
     retrievable: false

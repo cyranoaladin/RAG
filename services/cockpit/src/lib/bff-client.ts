@@ -1,16 +1,9 @@
 import type {
-  ChatMessage,
-  ChatResponse,
   RetrievalResponse,
   RetrievalResult,
 } from '@/generated/contracts'
 import type { RagCollection } from '@/types/ui'
-import { validateRetrievalResponse } from '@/generated/validators'
-import {
-  validateChatPayload,
-  validateChatResponse,
-  validateSearchPayload,
-} from '@/generated/validators'
+import { validateRetrievalResponse, validateSearchPayload } from '@/generated/validators'
 import { BFF_BROWSER_TIMEOUT_MS } from '@/lib/request-deadlines'
 
 export const BFF_ERROR_CODE = 'BFF_REQUEST_FAILED'
@@ -47,25 +40,6 @@ async function requestRetrieval(
     }
     const payload: unknown = await response.json()
     if (!validateRetrievalResponse(payload)) {
-      throw new Error(BFF_ERROR_CODE)
-    }
-    return payload
-  } catch {
-    throw new Error(BFF_ERROR_CODE)
-  }
-}
-
-async function requestChat(
-  path: '/api/chat',
-  init: RequestInit,
-): Promise<ChatResponse> {
-  try {
-    const response = await fetch(path, requestOptions(init))
-    if (!response.ok) {
-      throw new Error(BFF_ERROR_CODE)
-    }
-    const payload: unknown = await response.json()
-    if (!validateChatResponse(payload)) {
       throw new Error(BFF_ERROR_CODE)
     }
     return payload
@@ -165,30 +139,4 @@ export async function search(
     body: JSON.stringify(payload),
   })
   return { items: response.results ?? [], demo: false }
-}
-
-export async function chat(
-  query: string,
-  collections: string[],
-  history: ChatMessage[] = [],
-  topK = 5,
-): Promise<ChatResponse> {
-  if (!query.trim()) {
-    throw new Error(BFF_ERROR_CODE)
-  }
-  const payload = {
-    query,
-    collections,
-    top_k: topK,
-    history,
-  }
-
-  if (!validateChatPayload(payload)) {
-    throw new Error(BFF_ERROR_CODE)
-  }
-
-  return requestChat('/api/chat', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
 }

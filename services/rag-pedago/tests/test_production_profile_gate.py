@@ -297,7 +297,7 @@ def test_seven_new_profiles_match_the_grounded_decisions_exactly() -> None:
         )
 
 
-def test_new_profile_collections_are_declared_but_dormant_before_cutover() -> None:
+def test_new_profile_collections_are_declared_and_instanciated_after_adr0049() -> None:
     decisions = _load(DECISIONS_PATH)
     collections = yaml.safe_load(COLLECTIONS_PATH.read_text(encoding="utf-8"))[
         "collections"
@@ -306,7 +306,7 @@ def test_new_profile_collections_are_declared_but_dormant_before_cutover() -> No
     for profile_id, decision in decisions["profiles"].items():
         expected_scope = decision["profile"]["scope"]
         declared = collections[profile_id]
-        assert declared["instanciee"] is False
+        assert declared["instanciee"] is True
         assert declared["matiere"] == expected_scope["matiere"]
         assert declared["niveau"] == expected_scope["niveau"]
         assert declared["voie"] in {expected_scope["voie"], "gen"}

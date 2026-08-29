@@ -1,0 +1,51 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_premiere
+  collection: rag_nexus_stmg_premiere_specialite
+  niveau: premiere
+  voie: technologique
+  matiere: stmg
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Stmg — premiere (technologique)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- 'Prérequis : document professeur'
+- 'Comprendre le comportement rationnel : observation des préférences alimentaires
+  actuelles'
+- Spécialité de sciences de gestion et numérique de première STMG (BO spécial n° 1
+  du 22 janvier 2019)
+- 'Valeur financière : document professeur'
+- Le débat argumenté
+- Enseigner le droit en STMG
+- La protection des données à caractère personnel
+- Spécialité de management de première STMG (BO spécial n° 1 du 22 janvier 2019)
+- La société BDDev
+- 'Prérequis : document élèves'
+- Pistes d'exploitation des ressources existantes
+- 'Valeur partenariale : document professeur'
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

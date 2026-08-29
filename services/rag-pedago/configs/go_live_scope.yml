@@ -1,0 +1,111 @@
+# Périmètre produit du GO-LIVE — déclaration canonique versionnée.
+#
+# ═══════════════════════════════════════════════════════════════════════
+# AUTORITÉ : ADR-0048. Décision opérateur du 2026-08-27.
+#
+#     GO_LIVE_REQUIRED_SCOPE = college + lycee_general + stmg
+#
+# Elle SUPERSÈDE, pour le verdict `GO_LIVE_READY`, le vertical pilote
+# « Terminale générale, spécialités Maths + NSI » de docs/ROADMAP.md. Ce
+# pilote reste un jalon historique — conservé ci-dessous sous
+# `historical_pilot` — mais il ne commande plus aucun verdict final.
+#
+# Un audit futur ne doit jamais pouvoir redériver
+# « GO_LIVE_READY = Maths + NSI Terminale ». Le périmètre est ici une
+# donnée machine-vérifiable, pas une reconstruction depuis des documents
+# narratifs.
+# ═══════════════════════════════════════════════════════════════════════
+#
+# DEUX AXES INDÉPENDANTS, jamais confondus :
+#
+#   CURRICULUM_STRUCTURE_COMPLETE — le modèle représente tous les programmes
+#       du périmètre. Ne dépend pas de la quantité de ressources disponibles.
+#   PEDAGOGICAL_CONTENT_COVERAGE  — il existe assez de matière exploitable
+#       pour chaque programme requis.
+#
+# Une entrée sans ressource dans le Drive reste REQUISE structurellement et
+# porte `COVERAGE_GAP_NO_SOURCE_MATERIAL`. L'absence de matière n'a jamais
+# retiré un niveau du périmètre, et ne le fera pas.
+
+protocol_version: NEXUS-GO-LIVE-SCOPE-V2
+authority: ADR-0048
+supersedes: NEXUS-GO-LIVE-SCOPE-V1
+school_year: "2026-2027"
+
+# Le périmètre obligatoire. Une collection dont le `school_stage` figure ici
+# est structurellement requise par le GO-LIVE.
+go_live_required_scope:
+  - college
+  - lycee_general
+  - stmg
+
+# Étages dérivés du couple (niveau, voie) du catalogue. La dérivation est
+# faite par l'auditeur, jamais recopiée à la main collection par collection :
+# une collection ajoutée au catalogue hérite automatiquement de son étage, et
+# entre donc dans le périmètre sans intervention.
+school_stages:
+  college:
+    label: Collège
+    levels: [sixieme, cinquieme, quatrieme, troisieme]
+    voies: [college]
+    note: >-
+      Les niveaux `sixieme` et `cinquieme` ne sont pas encore représentables :
+      l'enum `Niveau` de nexus-contracts s'arrête à `quatrieme`. C'est un
+      blocker structurel du périmètre, traité par une évolution de contrat, et
+      non une raison de retirer ces niveaux.
+  lycee_general:
+    label: Lycée général
+    levels: [seconde, premiere, terminale]
+    voies: [gen, generale]
+    note: >-
+      Enseignements communs, spécialités, options et enseignements
+      facultatifs. Les ressources transversales et liées au baccalauréat en
+      relèvent également.
+  stmg:
+    label: Lycée technologique STMG
+    levels: [premiere, terminale]
+    voies: [stmg]
+    note: >-
+      Enseignements communs, spécialités et enseignements spécifiques. Les
+      cinq collections historiques ne définissent pas la couverture cible.
+
+# Hors périmètre produit. Seule exclusion admise, et elle est explicite.
+out_of_scope:
+  source: >-
+    Décision opérateur ADR-0048 : le périmètre technologique se limite à
+    STMG. Repris de l'en-tête « Périmètre v1 » de rag_collections.yml, qui
+    exclut déjà ST2S, STI2D, STL, STD2A, STHR et S2TMD.
+  voies: [professionnelle]
+  series: [st2s, sti2d, stl, std2a, sthr, s2tmd]
+  collections: []
+
+# Hors arborescence disciplinaire : isolement, non retrievable par design.
+infrastructure:
+  collections:
+    - rag_nexus_quarantine
+
+# ─────────────────────────────────────────────────────────────────────────
+# Jalon historique, conservé pour la traçabilité. Ne commande aucun verdict.
+# ─────────────────────────────────────────────────────────────────────────
+historical_pilot:
+  name: first_served_vertical
+  source: >-
+    docs/ROADMAP.md, « Cadrage » : « Vertical pilote décidé : Candidat libre —
+    Terminale générale, spécialités Maths + NSI ». Superseded par ADR-0048
+    pour la définition de GO_LIVE_READY.
+  status: superseded_for_go_live_verdict
+  collections:
+    - rag_nexus_maths_terminale_gen_specialite
+    - rag_nexus_nsi_terminale_specialite
+
+# ─────────────────────────────────────────────────────────────────────────
+# États de couverture admis. Fermés : `UNKNOWN` n'en fait pas partie.
+# ─────────────────────────────────────────────────────────────────────────
+coverage_states:
+  - COVERED_AND_RETRIEVABLE
+  - COVERED_NOT_YET_ACTIVATED
+  - COVERAGE_GAP_NO_SOURCE_MATERIAL
+  - COVERAGE_BLOCKED_BY_GOVERNANCE
+  - COVERAGE_BLOCKED_BY_PARSER
+  - COVERAGE_BLOCKED_BY_ROUTING
+  - COVERAGE_BLOCKED_BY_CONTRACT

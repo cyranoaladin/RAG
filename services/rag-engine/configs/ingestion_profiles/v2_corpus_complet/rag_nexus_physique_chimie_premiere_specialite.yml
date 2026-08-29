@@ -1,0 +1,50 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_premiere
+  collection: rag_nexus_physique_chimie_premiere_specialite
+  niveau: premiere
+  voie: generale
+  matiere: physique_chimie
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Physique Chimie — premiere (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Exemple de mini-projet - Recharge du smartphone
+- Crash-test et énergie cinétique
+- texte d'introduction
+- Quelques repères en lien avec les principales notions du programme de STSS
+- presentation_du_classeur_numerique_collaboratif_1290791.pdf
+- Option de biotechnologie de seconde (BO spécial n° 1 du 22 janvier 2019)
+- Vademecum - Former par le projet - Le projet technologique en 5 étapes
+- Analyse d'une force de frottement
+- Cahier ÉduNum Physique-Chimie n° 39 - mai 2026
+- Spécialité de biologie et physiopathologie humaines de première ST2S (BO spécial
+  n° 1 du 22 janvier 2019)
+- Spécialité de biotechnologies de première STL (BO spécial n° 1 du 22 janvier 2019)
+- Questionner des données en STSS
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

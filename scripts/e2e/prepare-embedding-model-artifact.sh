@@ -89,23 +89,66 @@ mkdir -p "$MODEL_ARTIFACT_DIR"
 echo "Downloading model: $MODEL_ID (revision: $EMBEDDING_MODEL_REVISION)"
 echo "Target directory: $MODEL_ARTIFACT_DIR"
 
+# ACQUISITION ONLY.  Nothing below this block may alter the sealing stage:
+# the SHA256SUMS generation and the inventory fingerprint are the authority of
+# this script and are byte-identical to their pre-2026-08-28 form.
+#
+# Offline path (HF_HUB_OFFLINE=1): `snapshot_download` bypasses the shared hub
+# cache whenever `local_dir` is passed — the huggingface_hub documentation is
+# explicit ("the `cache_dir` will not be used, and a `.cache/huggingface/`
+# folder will be created at the root of `local_dir`").  A fresh target
+# directory therefore has nothing to resolve from, and the call fails with
+# LocalEntryNotFoundError even when the pinned revision is fully cached.
+#
+# Resolving WITHOUT `local_dir` returns the hub cache snapshot, which is then
+# copied into the artifact directory.  The revision stays pinned either way.
+# Hub cache entries are symlinks into ../../blobs; the copy dereferences them,
+# because the runtime verifier rejects symlinked artifacts.
 python3 -c "
-import json
 import os
+import shutil
 import sys
+from pathlib import Path
 
 from huggingface_hub import snapshot_download
 
-target = os.environ['MODEL_ARTIFACT_DIR']
+target = Path(os.environ['MODEL_ARTIFACT_DIR'])
 model_id = '$MODEL_ID'
 revision = os.environ['EMBEDDING_MODEL_REVISION']
+offline = os.environ.get('HF_HUB_OFFLINE', '') not in ('', '0', 'false', 'False')
 
-local_dir = snapshot_download(
-    repo_id=model_id,
-    revision=revision,
-    local_dir=target,
-)
-print(f'Downloaded to: {local_dir}')
+if not offline:
+    local_dir = snapshot_download(
+        repo_id=model_id,
+        revision=revision,
+        local_dir=str(target),
+    )
+    print(f'Downloaded to: {local_dir}')
+    sys.exit(0)
+
+resolved = Path(
+    snapshot_download(repo_id=model_id, revision=revision)
+).resolve(strict=True)
+print(f'Resolved from local hub cache (offline): {resolved}')
+
+copied = 0
+for source in sorted(resolved.rglob('*')):
+    if not source.is_file():
+        continue
+    relative = source.relative_to(resolved)
+    if relative.parts and relative.parts[0] == '.cache':
+        continue
+    destination = target / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    # copyfile follows symlinks: the hub cache stores blobs behind links, and
+    # the runtime verifier refuses any symlink inside an artifact.
+    shutil.copyfile(source, destination)
+    shutil.copymode(source, destination)
+    copied += 1
+
+if not copied:
+    raise SystemExit('offline snapshot resolved to an empty directory')
+print(f'Copied {copied} files into: {target}')
 "
 
 echo "Download complete."

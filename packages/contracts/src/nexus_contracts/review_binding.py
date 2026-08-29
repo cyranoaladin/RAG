@@ -61,7 +61,7 @@ TRUSTED_REVIEW_PROTOCOL = "NEXUS-TRUSTED-REVIEW-V1"
 
 #: Le seul algorithme de signature accepté. Une valeur inconnue est un refus,
 #: jamais un repli.
-SIGNATURE_ALGORITHM = "ed25519"
+SIGNATURE_ALGORITHM: Literal["ed25519"] = "ed25519"
 
 #: Permissions GitHub qui valent habilitation à approuver — même ensemble
 #: que ``trusted_human_review._WRITE_PERMISSIONS``, dupliqué ici parce que
@@ -320,8 +320,24 @@ def sign_review_binding(
 
 def public_key_hex(private_key_hex: str) -> str:
     """Clé publique correspondante — pour publier une ancre sans jamais
-    manipuler la clé privée ailleurs que dans le producteur."""
-    private_key = Ed25519PrivateKey.from_private_bytes(bytes.fromhex(private_key_hex))
+    manipuler la clé privée ailleurs que dans le producteur.
+
+    Même discipline que ``sign_review_binding`` : une graine mal formée est
+    refusée avant tout appel cryptographique, et le message ne cite jamais la
+    valeur reçue. Sans cette barrière, ``bytes.fromhex`` remontait une
+    ``ValueError`` brute — un type que les appelants ne rattrapent pas, sur un
+    chemin qui manipule un secret.
+    """
+    if not isinstance(private_key_hex, str) or re.fullmatch(
+        _HEX_ED25519, private_key_hex.strip()
+    ) is None:
+        raise ReviewBindingError(
+            "the Ed25519 signing key must be exactly 64 lowercase hexadecimal "
+            "characters (32 bytes of seed)"
+        )
+    private_key = Ed25519PrivateKey.from_private_bytes(
+        bytes.fromhex(private_key_hex.strip())
+    )
     from cryptography.hazmat.primitives.serialization import (
         Encoding,
         PublicFormat,
@@ -425,12 +441,21 @@ def require_matches_authorization(
     authorization_git_blob_sha1: str,
     expected_repository: str,
     accepted_reviewers: tuple[str, ...] | None = None,
+    expected_head_sha: str | None = None,
 ) -> None:
     """Confronte le reçu à l'autorisation qu'il prétend couvrir.
 
     Une signature valide prouve seulement *qui* a émis le reçu. Cette
     fonction prouve *sur quoi* il porte : sans elle, un reçu authentique
     émis pour une autre autorisation validerait n'importe quel corpus.
+
+    ``expected_head_sha`` ferme le dernier cas : un reçu authentique, signé
+    par la clé courante, portant sur des octets d'autorisation **inchangés**,
+    mais émis à un HEAD qui n'est plus celui d'où l'on publie. Les octets
+    seuls l'accepteraient — la revue porte bien sur eux — mais un
+    consommateur qui sait de quel HEAD il publie doit pouvoir l'exiger. Les
+    consommateurs qui n'ont pas de HEAD à opposer laissent ce paramètre à
+    ``None`` et restent liés aux octets, ce qui reste vrai mais plus faible.
     """
     if binding.repository != expected_repository:
         raise ReviewBindingError(
@@ -486,6 +511,12 @@ def require_matches_authorization(
     if binding.challenge_protocol != TRUSTED_REVIEW_PROTOCOL:
         raise ReviewBindingError(  # pragma: no cover - borné par le Literal
             f"challenge protocol {binding.challenge_protocol!r} is unsupported"
+        )
+    if expected_head_sha is not None and binding.head_sha != expected_head_sha:
+        raise ReviewBindingError(
+            f"receipt was reviewed at head {binding.head_sha} but this "
+            f"consumption publishes from {expected_head_sha} — a review of "
+            "another head authorizes nothing here"
         )
 
 

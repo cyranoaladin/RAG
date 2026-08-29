@@ -1,10 +1,29 @@
 networks:
   rag_net:
     driver: bridge
+    # Pas de bloc `ipam` : le sous-réseau est auto-alloué par Docker.
+    #
+    # Un pin `10.30.0.0/24` a été introduit le 27/08/2026 pour corriger une
+    # plage publique (173.30.0.0/24) observée sur un réseau Docker réel — mais
+    # cette plage ne venait pas d'ici. Elle était déclarée par une surcharge
+    # Compose conservée dans /tmp, perdue depuis, et n'affectait que le projet
+    # `infra`. Ce fichier n'a jamais épinglé de sous-réseau.
+    #
+    # Le pin n'a donc corrigé aucun défaut réel, et en a créé un : la pile
+    # canonique tournant sur son réseau auto-alloué, tout `up -d` détectait la
+    # dérive et recréait le réseau — donc arrêtait toute la pile (constaté par
+    # `docker compose up -d --dry-run`). Retiré (ADR-0051).
+    #
+    # La garantie recherchée — jamais de plage publique — est portée par
+    # tests/test_v2_runtime_surface.py::test_compose_never_pins_a_public_subnet,
+    # qui ne coûte aucune recréation. Le durcissement de l'auto-allocation
+    # relève de `default-address-pools` dans /etc/docker/daemon.json : dette
+    # documentée, cf. docs/reports/lot_dette_infra_rag_20260827.md.
 
 volumes:
   rag_pgvector_data:
   rag_prometheus_data:
+  rag_alertmanager_data:
 
 services:
   pgvector:
@@ -98,6 +117,13 @@ services:
       NEXUS_SSO_AUDIENCE: "${NEXUS_SSO_AUDIENCE:?NEXUS_SSO_AUDIENCE requis}"
       METRICS_ENABLED: "${METRICS_ENABLED:-true}"
       XDG_CACHE_HOME: /tmp
+      # Sans cela, torch dimensionne ses fils sur les 16 cœurs de l'hôte —
+      # invisibles depuis le cgroup — et sur-souscrit les cœurs réellement
+      # alloués. C'est une sur-souscription qui ralentit plus qu'elle n'accélère,
+      # et elle ne se voit dans aucune métrique de conteneur.
+      OMP_NUM_THREADS: "${INGESTOR_TORCH_THREADS:-8}"
+      MKL_NUM_THREADS: "${INGESTOR_TORCH_THREADS:-8}"
+      TORCH_NUM_THREADS: "${INGESTOR_TORCH_THREADS:-8}"
     volumes:
       - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/release:ro
@@ -126,17 +152,46 @@ services:
     deploy:
       resources:
         limits:
-          cpus: "2.0"
+          # 2,0 CPU était la cause d'une panne de service, pas un réglage prudent :
+          # 18 collections sur 18 renvoyaient 503 à concurrence 1. Le rerank de
+          # 50 paires y coûtait 5 597 ms, l'encodage 631 ms, pour un budget de
+          # 6 000 ms — le refus était de l'arithmétique.
+          #
+          # Mesuré sur ce matériel, rerank de 50 paires : 2 CPU = 5 597 ms,
+          # 4 threads = 2 045 ms, 8 threads = 1 438 ms, 16 threads = 2 533 ms.
+          # 16 est PIRE que 8 : le poste porte six piles Docker et une charge
+          # moyenne de 3,5 à 5,4 ; au-delà de huit fils la contention l'emporte
+          # sur le parallélisme. Le plafond est donc à 8, par mesure et non par
+          # prudence — « plus de cœurs » n'était pas la bonne réponse.
+          cpus: "${INGESTOR_CPUS:-8.0}"
           memory: 8G
+        # Le GPU décharge le rerank, étape dominante et cause du point de rupture
+        # à concurrence 2 : 265 ms pour 50 paires contre 1 438 ms à 8 threads CPU,
+        # mesuré sur ce matériel.
+        #
+        # CONTRAINTE DE VRAM — 4 Go seulement, dont 2,44 Go pour l'embedding.
+        # SERVIR ET INGÉRER SIMULTANÉMENT SUR CE GPU ÉPUISERA LA VRAM. Les deux
+        # opérations se séquencent, jamais ne se recouvrent. C'est le genre de
+        # contrainte qu'on redécouvre en panne si elle n'est écrite nulle part.
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   prometheus:
     image: prom/prometheus:v2.54.1@sha256:f6639335d34a77d9d9db382b92eeb7fc00934be8eae81dbc03b31cfe90411a94
     restart: unless-stopped
+    # Aucune dépendance de démarrage sur `ingestor` : la supervision doit
+    # observer précisément le cas où le moteur ne démarre pas. Attendre qu'il
+    # soit sain avant de lancer Prometheus rendrait `RagEngineV2Down`
+    # inobservable exactement quand elle est utile.
     depends_on:
-      ingestor:
-        condition: service_healthy
+      alertmanager:
+        condition: service_started
     volumes:
       - ./prometheus/prometheus.v2.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules/rag-engine-v2.rules.yml:/etc/prometheus/rules/rag-engine-v2.rules.yml:ro
       - rag_prometheus_data:/prometheus
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-19091}:9090"
@@ -155,3 +210,33 @@ services:
         limits:
           cpus: "0.5"
           memory: 512M
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0@sha256:e13b6ed5cb929eeaee733479dce55e10eb3bc2e9c4586c705a4e8da41e5eacf5
+    restart: unless-stopped
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - rag_alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:${ALERTMANAGER_PORT:-19093}:9093"
+    networks: [rag_net]
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:9093/-/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M

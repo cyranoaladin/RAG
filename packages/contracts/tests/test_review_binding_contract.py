@@ -538,3 +538,98 @@ class TestChallengeBinding:
                 reviewer="abenrhouma",
             )
         )
+
+
+def test_public_key_hex_refuses_a_malformed_seed_without_quoting_it() -> None:
+    """Un secret mal formé reste un secret, et le refus reste typé.
+
+    Sans cette barrière, ``bytes.fromhex`` remontait une ``ValueError`` brute —
+    un type que les appelants du producteur ne rattrapent pas, sur le chemin
+    qui manipule précisément la clé de signature.
+    """
+    for malformed in ("not-a-valid-seed-value", "AB" * 32, "ab" * 31, "", "  "):
+        with pytest.raises(ReviewBindingError) as failure:
+            public_key_hex(malformed)
+        if malformed.strip():
+            assert malformed.strip() not in str(failure.value)
+        assert "64 lowercase hexadecimal" in str(failure.value)
+
+
+def test_public_key_hex_still_accepts_a_canonical_seed() -> None:
+    seed = "33" * 32
+    derived = public_key_hex(seed)
+    assert len(derived) == 64
+    assert derived == derived.lower()
+    assert public_key_hex(f"  {seed}  ") == derived
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# P0-L1B — modèle de sûreté du chemin de consommation
+#
+# Une clé courante valide ne suffit jamais : le reçu doit encore porter sur
+# les octets consommés ET sur le HEAD attendu.
+# ═══════════════════════════════════════════════════════════════════════
+
+
+def test_a_recycled_challenge_is_refused_even_with_a_valid_signature() -> None:
+    """Un challenge emprunté à une autre revue ne lie rien.
+
+    `challenge_digest` est recalculé depuis les sept dimensions que le reçu
+    nomme lui-même, `head_sha` compris : un reçu qui déclare un HEAD tout en
+    portant le challenge d'un autre est structurellement incohérent.
+    """
+    binding = _binding()
+    forged = binding.model_copy(update={"head_sha": "d" * 40})
+
+    with pytest.raises(ReviewBindingError) as failure:
+        require_challenge_is_bound(forged)
+    assert "challenge recycled from another review binds nothing" in str(failure.value)
+
+
+def test_a_stale_head_is_refused_when_the_consumer_pins_the_expected_head() -> None:
+    """Reçu authentique, signature valide, octets identiques — mais vieux HEAD.
+
+    Sans épinglage, ce cas est accepté : la revue porte sur des octets, et ces
+    octets n'ont pas bougé. C'est défendable, mais ce n'est pas fail-closed pour
+    un consommateur qui sait de quel HEAD il publie. `expected_head_sha` rend
+    ce refus disponible et vérifiable.
+    """
+    binding = _binding()
+    raw = AUTHORIZATION_BYTES
+
+    require_matches_authorization(
+        binding,
+        authorization_id=binding.authorization_id,
+        authorization_bytes=raw,
+        authorization_git_blob_sha1=git_blob_sha1(raw),
+        expected_repository=binding.repository,
+        expected_head_sha=binding.head_sha,
+    )
+
+    with pytest.raises(ReviewBindingError) as failure:
+        require_matches_authorization(
+            binding,
+            authorization_id=binding.authorization_id,
+            authorization_bytes=raw,
+            authorization_git_blob_sha1=git_blob_sha1(raw),
+            expected_repository=binding.repository,
+            expected_head_sha="e" * 40,
+        )
+    assert "was reviewed at head" in str(failure.value)
+
+
+def test_changed_authorization_bytes_are_refused_whatever_the_head() -> None:
+    """L'autre jambe : la revue est liée aux octets, pas seulement au commit."""
+    binding = _binding()
+    mutated = b'{"decision":"AUTHORIZE_INGESTION_SCOPE","v":2}\n'
+
+    with pytest.raises(ReviewBindingError) as failure:
+        require_matches_authorization(
+            binding,
+            authorization_id=binding.authorization_id,
+            authorization_bytes=mutated,
+            authorization_git_blob_sha1=git_blob_sha1(mutated),
+            expected_repository=binding.repository,
+            expected_head_sha=binding.head_sha,
+        )
+    assert "different authorization bytes" in str(failure.value)

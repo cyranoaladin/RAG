@@ -818,3 +818,127 @@ def test_down_applies_immutable_rollback_snapshot_if_source_changes_during_backu
     assert "MUTATED_ROLLBACK" not in down["stdin"]
     assert rollback.read_text(encoding="utf-8") == mutation
     assert not any(Path(runner_env[0]["TMPDIR"]).iterdir())
+
+
+def _registered_rows_at_head_004() -> list[dict[str, object]]:
+    return [
+        {"version": 1, "file_name": "001_rag_chunks_v2_schema.sql",
+         "sha256": _digest("001_rag_chunks_v2_schema.sql")},
+        {"version": 2, "file_name": "002_hybrid_retrieval.sql",
+         "sha256": _digest("002_hybrid_retrieval.sql")},
+        {"version": 3, "file_name": "003_profile_filtering.sql",
+         "sha256": _digest("003_profile_filtering.sql")},
+        {"version": 4, "file_name": "004_artifact_placements.sql",
+         "sha256": _digest("004_artifact_placements.sql")},
+    ]
+
+
+def test_up_prefers_caller_environment_over_deployment_env_file(
+    runner_env: tuple[dict[str, str], Path, Path],
+    tmp_path: Path,
+) -> None:
+    """`.env` fournit des défauts ; la cible explicite de l'opérateur prime.
+
+    Le runner charge `infra/.env` pour les secrets de déploiement. Chargé avec
+    `set -a` avant la résolution de la cible, ce fichier écrasait
+    silencieusement `PGVECTOR_CONTAINER`/`PGVECTOR_DB`/`PGVECTOR_USER` fournis
+    explicitement par l'appelant : un opérateur qui désigne une base pouvait en
+    migrer une autre. La CI ne peut pas voir ce défaut — `.env` est ignoré par
+    Git et n'existe jamais sur un runner.
+    """
+    runner, isolated_infra = _isolated_runner(tmp_path, "apply_pgvector_migrations.sh")
+    (isolated_infra / ".env").write_text(
+        "PGVECTOR_CONTAINER=envfile-container\n"
+        "PGVECTOR_DB=envfile-db\n"
+        "PGVECTOR_USER=envfile-user\n",
+        encoding="utf-8",
+    )
+
+    result, events = _run(
+        runner_env,
+        {
+            "registry_present": True,
+            "rag_chunks_present": True,
+            "rows": _registered_rows_at_head_004(),
+        },
+        runner_path=runner,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "MIGRATIONS_APPLIED=0" in result.stdout
+    assert events, "the runner must have contacted the caller's container"
+
+    caller_env = runner_env[0]
+    for event in events:
+        arguments = [str(item) for item in event["args"]]
+        assert caller_env["PGVECTOR_CONTAINER"] in arguments, event["event"]
+        assert "envfile-container" not in arguments, event["event"]
+        if "psql" in arguments:
+            assert arguments[arguments.index("-U") + 1] == caller_env["PGVECTOR_USER"]
+            assert arguments[arguments.index("-d") + 1] == caller_env["PGVECTOR_DB"]
+            assert "envfile-user" not in arguments, event["event"]
+            assert "envfile-db" not in arguments, event["event"]
+
+
+LIB = INFRA_ROOT / "scripts" / "lib" / "pgvector_migration_state.sh"
+
+
+def _load_deployment_environment(
+    tmp_path: Path,
+    env_file_body: str,
+    caller_environment: dict[str, str],
+) -> dict[str, str]:
+    """Exercise the shared loader alone and report the resulting variables."""
+    env_file = tmp_path / "deployment.env"
+    env_file.write_text(env_file_body, encoding="utf-8")
+    probe = tmp_path / "probe.sh"
+    probe.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -euo pipefail\n"
+        f'source "{LIB}"\n'
+        f'load_deployment_environment "{env_file}"\n'
+        'for name in $(printf "%s\\n" "${PROBE_NAMES}" | tr "," " "); do\n'
+        '    printf "%s=%s\\n" "$name" "${!name-<unset>}"\n'
+        "done\n",
+        encoding="utf-8",
+    )
+    probe.chmod(0o755)
+    names = sorted(set(caller_environment) | {"ENV_ONLY_VALUE"})
+    environment = os.environ.copy()
+    environment.update(caller_environment)
+    environment["PROBE_NAMES"] = ",".join(names)
+    completed = subprocess.run(
+        [str(probe)], env=environment, text=True, capture_output=True, check=True
+    )
+    return dict(
+        line.split("=", 1) for line in completed.stdout.splitlines() if "=" in line
+    )
+
+
+def test_deployment_env_file_never_overrides_any_caller_variable(
+    tmp_path: Path,
+) -> None:
+    """Toute variable déjà présente dans l'environnement prime sur `.env`.
+
+    La cible (`PGVECTOR_CONTAINER`/`DB`/`USER`) n'est pas seule en cause : la
+    migration 004 provisionne les rôles runtime à partir de
+    `PGVECTOR_*_USER`/`PASSWORD`. Un `.env` qui les écrase fait provisionner
+    d'autres rôles que ceux demandés — sans que rien ne le signale.
+    """
+    caller = {
+        "PGVECTOR_CONTAINER": "caller-container",
+        "PGVECTOR_DB": "caller-db",
+        "PGVECTOR_USER": "caller-user",
+        "PGVECTOR_RETRIEVAL_USER": "caller_reader",
+        "PGVECTOR_REVIEW_USER": "caller_reviewer",
+        "PGVECTOR_PUBLISHER_USER": "caller_publisher",
+        "PGVECTOR_PUBLISHER_PASSWORD": "caller-publisher-password",
+    }
+    body = "".join(f"{name}=envfile-{name.lower()}\n" for name in caller)
+    body += "ENV_ONLY_VALUE=supplied-by-env-file\n"
+
+    resolved = _load_deployment_environment(tmp_path, body, caller)
+
+    for name, expected in caller.items():
+        assert resolved[name] == expected, name
+    assert resolved["ENV_ONLY_VALUE"] == "supplied-by-env-file"

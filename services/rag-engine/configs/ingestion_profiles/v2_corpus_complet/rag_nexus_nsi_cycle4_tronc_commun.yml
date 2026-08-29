@@ -1,0 +1,49 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_cycle4
+  collection: rag_nexus_nsi_cycle4_tronc_commun
+  niveau: cycle4
+  voie: college
+  matiere: nsi
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Nsi — cycle4 (college)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- 'Systèmes de type UNIX : le point de vue utilisateur'
+- Interaction client-serveur
+- Modèle d'architecture de von Neumann
+- 'Systèmes de type UNIX : structures de données et algorithmes'
+- Algorithmes gloutons
+- Algorithme des k plus proches voisins
+- Plus court chemin dans un graphe
+- Diversité et unité des langages de programmation
+- Le problème du sac à dos
+- Un cas concret
+- Recherche dichotomique
+- Mise au point de programmes testés
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

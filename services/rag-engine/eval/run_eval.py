@@ -327,11 +327,11 @@ def _run_offline_query(
 
     sql = f"""
         SELECT chunk_id, doc_id, source_label, source_uri, rights, type_doc,
-               ts_rank_cd(tsv, {tsquery_strategy}(%s, %s)) AS lexical_score
+               ts_rank_cd(text_tsv, {tsquery_strategy}(%s, %s)) AS lexical_score
         FROM rag_chunks
         WHERE collection = %s
           AND review_status = 'reviewed'
-          AND tsv @@ {tsquery_strategy}(%s, %s)
+          AND text_tsv @@ {tsquery_strategy}(%s, %s)
         ORDER BY lexical_score DESC, chunk_id ASC
         LIMIT %s
     """

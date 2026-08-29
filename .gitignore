@@ -37,3 +37,8 @@ node_modules/
 # HTTP debug files containing API responses
 rag-local/dev/http/rest-settings.http
 .aider*
+
+# Briefs opérateur — dossier de travail. Décrit la configuration opérationnelle
+# et a contenu un identifiant actif ; sa valeur durable est reportée dans
+# docs/adr/ADR-0051 et docs/reports/. Cf. docs/briefs-operateur/README.md.
+docs/briefs-operateur/

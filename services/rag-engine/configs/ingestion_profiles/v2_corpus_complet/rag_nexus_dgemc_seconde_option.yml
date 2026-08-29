@@ -1,0 +1,50 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_seconde
+  collection: rag_nexus_dgemc_seconde_option
+  niveau: seconde
+  voie: generale
+  matiere: dgemc
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Dgemc — seconde (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Fiche de présentation du thème
+- Propositions pédagogiques pour la catégorie 3 (lycée sans enseignement de droit)
+- Qu'est-ce que la Constitution ?
+- La Constitution du 4 octobre 1958, la souveraineté et l’organisation des pouvoirs
+  publics
+- Propositions pédagogiques pour la catégorie 4 (lycée avec enseignement de droit)
+- La Constitution du 4 octobre 1958, la protection des droits et des libertés
+- lettre ÉduNum histoire-géographie n°51
+- Téléchargez le programme de DGEMC en terminales générale et technologique
+- La place de l’Europe et de l’Union européenne (UE) dans les programmes d’enseignement
+- Règlement 2026-2027
+- Pistes pédagogiques pour le lycée
+- Pistes pédagogiques pour le collège
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

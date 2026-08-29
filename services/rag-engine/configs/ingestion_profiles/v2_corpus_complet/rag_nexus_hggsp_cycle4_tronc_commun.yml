@@ -1,0 +1,49 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_cycle4
+  collection: rag_nexus_hggsp_cycle4_tronc_commun
+  niveau: cycle4
+  voie: college
+  matiere: hggsp
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Hggsp — cycle4 (college)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Annexes de la fiche La France au Cameroun
+- 'La France de 1945 à nos jours : une démocratie'
+- 'L''Union européenne dans la mondialisation : des dynamiques complexes'
+- 'La France dans l''Europe des nationalités : politique et société (1848-1871)'
+- La Première Guerre mondiale et la fin des empires européens
+- 'L''environnement, entre exploitation et protection : un enjeu planétaire'
+- L'enjeu de la connaissance
+- 'Identifier, protéger et valoriser le patrimoine : enjeux géopolitiques'
+- La ressource Enseigner la participation des juifs à l’histoire de France
+- Les transformations politiques et sociales de la France de 1848 à 1870
+- Du monde bipolaire au monde multipolaire
+- 'La Troisième République : un régime, un empire colonial'
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

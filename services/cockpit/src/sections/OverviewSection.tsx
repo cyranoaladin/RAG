@@ -1,32 +1,28 @@
 import { useMemo } from 'react'
-import { Database, Layers, ShieldCheck, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react'
+import { Database, Layers, CheckCircle2, AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import sourcesData from '@/data/sources.json'
-import type { IngestionSource, RagCollection } from '@/types/ui'
+import type { RagCollection } from '@/types/ui'
 import { NIVEAU_LABELS } from '@/types/ui'
 
 const NIVEAUX = ['quatrieme', 'troisieme', 'seconde', 'premiere', 'terminale'] as const
-const INGESTION_SOURCES = sourcesData as IngestionSource[]
 
 export default function OverviewSection({ collections, demo }: { collections: RagCollection[]; demo: boolean }) {
   const stats = useMemo(() => {
     const instanciees = collections.filter((c) => c.instanciee)
-    const verifiedSources = INGESTION_SOURCES.filter(
-      (source) => source.status === 'verified',
-    ).length
+    const ready = collections.filter((c) => c.ready)
     const byNiveau = NIVEAUX.map((n) => {
       const total = collections.filter((c) => c.niveau === n).length
       const inst = collections.filter((c) => c.niveau === n && c.instanciee).length
-      return { niveau: n, total, inst }
+      const rdy = collections.filter((c) => c.niveau === n && c.ready).length
+      return { niveau: n, total, inst, ready: rdy }
     })
     return {
       total: collections.length,
       instanciees: instanciees.length,
+      ready: ready.length,
       byNiveau,
-      verifiedSources,
-      sourceCount: INGESTION_SOURCES.length,
     }
   }, [collections])
 
@@ -42,7 +38,7 @@ export default function OverviewSection({ collections, demo }: { collections: Ra
         </div>
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-500">Collections au catalogue</CardTitle>
@@ -50,40 +46,27 @@ export default function OverviewSection({ collections, demo }: { collections: Ra
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-slate-900">{stats.total}</div>
-            <p className="mt-1 text-xs text-slate-500">Convention rag_nexus_&#123;matière&#125;_&#123;niveau&#125;_&#123;voie&#125;_&#123;statut&#125;</p>
+            <p className="mt-1 text-xs text-slate-500">Référentiel officiel des collections Nexus</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-slate-500">Collections instanciées</CardTitle>
-            <Layers className="h-4 w-4 text-emerald-600" />
+            <Layers className="h-4 w-4 text-amber-600" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-slate-900">{stats.instanciees}</div>
-            <p className="mt-1 text-xs text-slate-500">NSI 1re/Tle + quarantaine (16 892 chunks LOT 25a)</p>
+            <p className="mt-1 text-xs text-slate-500">Définies dans le plan de données PostgreSQL</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Gouvernance</CardTitle>
-            <ShieldCheck className="h-4 w-4 text-blue-600" />
+            <CardTitle className="text-sm font-medium text-slate-500">Collections prêtes</CardTitle>
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-              <span className="text-sm font-semibold text-slate-900">Verrous conformes</span>
-            </div>
-            <p className="mt-1 text-xs text-slate-500">quality → gate → review · aucune écriture directe pgvector</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-slate-500">Ingestion continue</CardTitle>
-            <RefreshCw className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-slate-900">{stats.verifiedSources}<span className="text-base font-normal text-slate-500">/{stats.sourceCount} sources</span></div>
-            <p className="mt-1 text-xs text-slate-500">vérifiées eduscol · passe quotidienne (timer systemd)</p>
+            <div className="text-3xl font-bold text-slate-900">{stats.ready}</div>
+            <p className="mt-1 text-xs text-slate-500">Substance et chunks validés (readiness: true)</p>
           </CardContent>
         </Card>
       </div>

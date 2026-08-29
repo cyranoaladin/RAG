@@ -1,0 +1,610 @@
+manifest_version: '1'
+provenance: Corpus Éduscol complet — placements résolus par le bandeau et le titre
+  éditeur, portée élargie à défaut, jamais affinée
+generated_at: '2026-08-29T00:00:00+01:00'
+profiles:
+- collection: rag_nexus_arts_du_cirque_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 41d27f15a35c46a96ca4ff57e55ac097ddcf89819ebb242cd1cebb341b33a2b7
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_arts_du_cirque_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: 5f7344adfaea9029c024563f0ad216dad2d66d25e4f8fefb0ec17b9bcf6ce99d
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_arts_du_cirque_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: be36c85c803b283e841da3a7d8052ed36a75f60c5159f9a7d5e9a3f5914ae612
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_arts_du_cirque_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: 2bfe1adbbdc19542832b31711081707282442338fa8ec56e6bda2d239d01ab76
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_arts_plastiques_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: dbf2a16fa7f7c81663308751f18019c5bdab2e8a20ef07ae9203546668529a09
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_arts_plastiques_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: 129c9866e54612afe24bf24940362500491a84ed3021509e439e9a388fc5ff43
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_arts_plastiques_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: 219d30fc4b710f76425e82320371a5ceb522d70b39314033ba0d09ca9dd6c60f
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_arts_plastiques_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: 8685d7138b72af660a45e084e6599c5c2d894889510dd3a107f1dee9f920d6a4
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_cinema_audiovisuel_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 373d15886a549f14737a6a52f0e453df13e5b0f7f6bb59359a818be63f9d6941
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_cinema_audiovisuel_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: 0695c896ebec0d631da9c0129db6b951c6fe04a5d24c2f9800a8b4d6008fe643
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_cinema_audiovisuel_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: 28cefd94608e1813c0882f82bae12af8a2ef96f5b4fd78a44479762cd9f9f7c4
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_cinema_audiovisuel_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: 0c94b603cf86a41b133fba2e7686266d2f15d0ee1535ddb1a70764113949c6a9
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_danse_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 16365145e550d3eb6a1c1767a483f9c1a3c94280a0d8a87924f7725c8816a950
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_danse_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: 336eb8804838c9c46d1b6002227a86804c80262d008b2fa1fa03b3a094c9279a
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_danse_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: a8057beed8e0ac2b3c144dfb4fb95f12cd99768c7de1f9845a9f27c3e9bce00d
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_danse_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: 296f7909d8bfc9698b0c11a9fe2796ba9841810c34117768a38142fbb0f3a12c
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_dgemc_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 490d585b96adf2a3caa42155c6907dd4d61ee7c76117ad68e20ef3bd6fab0d53
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_dgemc_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: f0e7f4e0a0341f7983bc62281509fc204493a45ac94a142fc9ace3a745154419
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_dgemc_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: fd5ead7fccb02355c8dbdaaf0817f2dd1565f5ba05877909ffe58babfea08487
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_dgemc_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: 515ff194e7113a18e737569deac7572c9167fafc02870ad3c16010ccc1696b4f
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_education_musicale_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 7b24274b8b4b7393713ce1c6c700cdf0dcf896eb88118547fb5f13df7661be28
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_emc_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 3e23e70b83713a447f4ef317747c0eccba60382cfb1e8fdc794f2d4000da124e
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_emc_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 091e5451fb2925e569999a261f9cd1189340f197cddfdf04c91ef7f7239f92a1
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_emc_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 98be6f9d8d55960f74cec26572701a4968f31de332d0e1003a34583e65e637af
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_emc_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: c78a7d7b01ffe4f19cd777c2e92fd4ca7d93d7b5a72c511acc32a8271607e8ad
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_enseignement_scientifique_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: bd8be3c46b5b005bdaec0cd56637c8a73e37ddeb73a727fc597c9e9dfb4e3254
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_enseignement_scientifique_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 60b682c5a4020c82e1061b4fbf5b1745dbd64e16e6905255d606904bb39ff0c5
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_enseignement_scientifique_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: c02435a633d7f9269102b5c5abc0d8f5d63e53930edd85e273d816a30cb9ce65
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_enseignement_scientifique_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: d5518265aaa077c27951b3a22b2539ffcd34fc976fcce537478e099a9b769289
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_eps_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 5efb28012b688a2d087c25692cec3c274d5c760249a18dcd2ca8ab42817e3a9e
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_eps_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: e92b61db6e57fa3dfc659a3237495739f82279073001613f0db648297f24bd31
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_eps_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 44aec28c48234bee579d409456d49eac47d1ada64fb64e901ed5d388f69682ab
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_eps_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 64c1238a9f7a638dbd262176c13415a4d2e2164e93ac717d1531642b5d19bcf5
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_etlv_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 7af94f9efcd6da091ea5765ecbf7b97573230c55d7a9b154433f6e486fea760d
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_etlv_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 4bede0a69787a1c2440b568e73f2daabe15a1f13fcd71c7309646935df6232e5
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_etlv_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 782449613b3eb4411c417e244402202464de702b39cf4da85002051cec1086c6
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_etlv_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 67dee0c15d96194d088221ad6607b6186757834314102758c62c99d5c28c411c
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_francais_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: f1f9942fb09c30af679a4eb2748474123fa58b0f7ea9049d802433cd4870b926
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_francais_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 07845d7e61f6c219079e2218cca965f2f08d6fbc0f46f8547bb6baaa565787d9
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_francais_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 172b3abe0bd314f3d8ba059d3e3d7140f5fa734c01d3faf64ce30637e1cdbb4f
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_francais_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: afda0da8f861fc815c4c1be2d7ad6e8078ad526b8fe6b708e6824cffe775f90b
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hggsp_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 0e7916fde1af114d436a3cfac5ceaceb6a5a451eb901d8ac5fa92048dcfa2a54
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hggsp_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 08da339af13fcfe427507ebd93457884726469f4798f439f2b6a61164e1ce275
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hggsp_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: ad331045061d8cb466ae500c3845a2c2723b8f760d878e1c0cb37955617e8add
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hggsp_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 978efc7e14453c9a801f5b62eee1fc51810fdf57edd382cf38a7fb61156cb6b6
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_des_arts_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 662765293b5e78921981b30eded696419ed5ae2b04ff7639c0c71a526469e348
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_des_arts_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: de97537351155f5818d890daeabae616725aa6aed3c8277327826fc4f16a898a
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_des_arts_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: 3e251f019a7c7fa072f675f77e3704f52ebc12ff4bf33e817637b076eba05dcd
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_des_arts_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: 427029aa99e88ef2446b2a628b74469a7fcaea44bfda695efdd42480fecc144b
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_geographie_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 47c2950bfd011507264edabb926c8779faafc223e5784eb3440d06e26d4d411d
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_geographie_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 2920a4972eb815cb8aa34ba4b755c7776c1668ab7a611ca4d8ae11bfbd3188bd
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_geographie_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 52756cd1320c7dff947eac8276d4380cc5f6fc10c349f46993351824180406ed
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_histoire_geographie_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 4adc23aa04cf38cf65b8388ad708e3fac38ff0fa9651464697ec66a5bcd997b3
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hlp_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: f0e7f57deaccaecb370cf1ebcdf6b32995c063873576311c8645da707bb0f317
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hlp_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 19c99e3bb3e693bd2b0db6e25508b8fa3d2fa710232877c36d63d5b4e3e01318
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hlp_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 72775b894f77017d9a143b2b01e0468b395bb99e7fc16875bf36148fb345ffb2
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_hlp_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 6ef717f56b5dadb7a0e85854ddb9a08b58675cb53b59b242fdb6abf798477ad6
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_langues_vivantes_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 62084f232036216b5ef31d1fb9de74e559e4b539b318b85f1e6d6841fb8c55f7
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_langues_vivantes_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 7530c33a8d6af6ea582d37e1273de12194c475633b81801114e380a7a8829d7a
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_langues_vivantes_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 28610bb5aa53810c336a84df177d37d2af2277025e55ccf11ee2f700930060d7
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_langues_vivantes_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: c98932a83e5d07da1fde565106318c3e5267dd0d22d67d7505b6061f67a6ddc1
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lca_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 5f105aa32b08ca550c8c5958c27b2b5cc23d1e54a3bafe7848e18c6ef56b28d3
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lca_llca_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: b707de60b7edebfb75bc86aa6903a976a3a02c6d490fd1e20e7c25daff572c56
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lca_llca_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: db0f43aaae38a7e319de62b62870b9fba69e77e9e7ec99046fd9a828ae708299
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lca_llca_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 9e06aef820f0b80763dd5074cfd3ff70c83028820d76316f2312da044dad7947
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lca_llca_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 6194c7e73b7d8e172ba763474fbedf49705d6455eafccb7cc79437b68a3131b4
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_llcer_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 49388721cee4fd3f25d9a72b74663869d3e83cc312ded658a1407fa22d9a2ac1
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_llcer_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: b4cbc29c95dea76abd29cd5b2127d07499cf08862652f2c75e3484a4dd32f9ea
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_llcer_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: ea0342066f71693cb8047545cabf9302b54fa46132e4fc639f4884ddde57dbd5
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_llcer_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 02ec8ba2c7ea3fada2fc7d8aec3c8850e69e0467f9c0ae4887f1a14786e54838
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lsf_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 1ce4f5b4edd5f9211b40b361816fcf3d8f54c5f55c0b83f3b3e1f88ab2498e6a
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lsf_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: 000f524674d7247535816eeac5110a378d9a52cb898a0b43aeaa4e461b0c4e0b
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lsf_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: e666509007b015c020ce20406ee95f38b7eaca64c60a00ef2225bf54d479df41
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_lsf_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: e7fa45435e6540ffe2c0c6bc4dded621cdb3e696f5dec1aa162760f6a84752d6
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_mathematiques_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 6a0bbaa8d35fe073ab4abc1bebd99b6db349c24a53de3030fb557c9a59e6bbb6
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_mathematiques_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 9c20212a217fc682cc9004b47e531015a5fa4f6ced6f83b5fc2aeda4c7263ad5
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_mathematiques_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 41c56fe841f0a8a0a41bfd22ec4597be397b1efa431ada3fa55f51b55b196303
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_mathematiques_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 59a7064d4cb6c3100b4ee40239909314277c556ad73de23c02c5eab45c475f7f
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_meta_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: ce9621cd2f50159a5f23afebad4226ab6f1f82f1f7d7a8714b21c48b898a3007
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_musique_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 47d0d8e56846e1e67c32d13b44f28889756deb77f42a061af6b658ebaff29f6d
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_musique_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: a37cc069f5f0656c57913ea8d415ef6d4e934b3a0bcbc2a59b2fdb636d8d9da1
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_musique_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 32be47c017780608d6fe188ec89ea9c9846292129e00d3db7de50854d4465917
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_musique_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 809c5d218018b46ab5e83385c5aa39854b51e7b61c6d95f0367c28e12c216b5c
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_nsi_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: e46bb2c6e2cb5b9819ecca7bab7f28c72c159299b67462f3f4a9903323683e8d
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_nsi_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 4df395e62989cfc16b4f04a2d526e45759ae7933281e6d2d1ee1acf4514b2cd7
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_nsi_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: dc4808afc4ead4aa67cea790eb85435245452a5f2d953c6e55543f7b16c0beec
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_nsi_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 59fce96d129c0d49f501fdc951ca22ecec6cb1c4a99a24fb37332e73f9945ee4
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_philosophie_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: bf51b096eccc0d5c1731f9879b115c862731a00285ea683e3dc862341f6aa3b7
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_philosophie_premiere_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: a4d699840880ae9ffad11e48342170adde63bef272a50116ff24a64bea358a50
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_philosophie_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 60548c42f8ca257bf8857e723df9354f66a0e4d2a3091bb3db3858e15c774887
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_philosophie_terminale_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 64b135f4fa03fbaf514b72a92073ee6606408c61042bd1679a4a5187146019a4
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_physique_chimie_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 19b7c29243712a14cfcf1eb4e952408e6abff1ad7cd769a79deabc192849542b
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_physique_chimie_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 7634883da72cf6487088c1bf0d89073a7de24fd6a64bcba55502374348b0f991
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_physique_chimie_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: e19351dbbe09642ceb970e353cf8538065234b588f9647d1a987f10f6fed8b02
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_physique_chimie_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 225516a7a500475bc3c2f3be8b872d0d560997427bf6082302f1c85785d93d88
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_reperes_attendus_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: de458f3e5a02dbb161f262035627e0a8796b1bb75185beb523ce0194aed5f66c
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_sciences_ingenieur_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 727cae59dcfb6e11249501158f2b02735d7178625e1a1eb69b5cdc532935973a
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_sciences_ingenieur_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 546639088042ad26b88e88efd7c0f1db503fd0b8ad556b3772e654b5289dd88b
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_sciences_ingenieur_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 424ddb3c028c7113cff3f4f62858466ac37b9d2e9ab02c1d0603e4003283c0be
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_sciences_ingenieur_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 2307e873402413b59187f0b8bb87b730ef00cb4fd0c8f516231f17b33996ba67
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_ses_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: d5fc4029150f71196364635f9576b29f7c1b3b47777cfa3fef97a32e03c78dd8
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_ses_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 8d7254a1a964ea477324ff68f9636c6cc49a70cd66a88b2e5da61bc78263265b
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_ses_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 36fbdb7754daab4f80c367908d99bccf82fdba0623c318486d596e2d2f33f969
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_ses_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: b71d494e3ebe4f25e183c8bb13f9e74eb87b9d907f6e6a422f813665a4ac11cf
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_snt_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 8436b1620d2e44025b7982fad065432396baafc770ca911a97d43d71149cce75
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_snt_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: 08f45c416989c7bd84bb56338fb03cfd7c382d0f51c0acd84f680ed9a9ab6dc7
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_snt_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: 85cacc812b4f14afa1a147db80631619b1f68ee09e5ba4b01f9538a3bb890c9e
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_snt_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: 1cd2a669fb4dab560a73eefabe4bd9367b393491d96ab1d56e14f550b30a1e63
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_stmg_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 553f1750f7b8264f15e07cfdaed742d95f01ad3926efd1acfde63ef8b7d2becf
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_stmg_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: c7dfec6b26f162d819a5c9ad974e376956b73ec89b1ec9e541fcac6b2f00aa50
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_stmg_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: fe15dac908b02cd52357c3c025150dba40218373e649c00bd4188b8757e9a406
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_stmg_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 6c91497ba2e512bc24954ea0021fb384329ef30c07e3eff6cf908df8877b0d9d
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_svt_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 4ddf8f47e9a09da3b106e270e656d6d6e5581d54c625520218a7b0fedfe4d567
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_svt_premiere_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 5b35d0751fd83db953ba16ab65816c9bde0266f3ba2dc586c540408c7d8b40c0
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_svt_seconde_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: cc8089053670455d9adeee7d02281eeec64b23f9dfad7c20b1b4cf85e4deb96b
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_svt_terminale_specialite
+  profile_version: profile-gate-v2
+  fingerprint: 74c349919e1b266786d40fe979ca818553cc2976a69f65bda2792e1200c161f8
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_technologie_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: 3152f8bb642bab6144fad46be99d78749b736dc544606b8905c67a3fd7a050cf
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_theatre_cycle4_tronc_commun
+  profile_version: profile-gate-v2
+  fingerprint: a5c34b20add80b59204f30f98a74a5fce1ee1de0b5e7bc1c7d75520c3953d8fa
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_theatre_premiere_option
+  profile_version: profile-gate-v2
+  fingerprint: 08c74426ec167dcc5c75b6fb417c4eb56a1c12509d9e87c2bc7b0832ef9c9a8f
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_theatre_seconde_option
+  profile_version: profile-gate-v2
+  fingerprint: 8f366b11cedd834589f3c867434566da60c9c80aadd0d09c8d65f9baaa330cd7
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'
+- collection: rag_nexus_theatre_terminale_option
+  profile_version: profile-gate-v2
+  fingerprint: ae8fb3a45de508ff7ed8bdcce64c310020ddb388ea300898732acec00ce89d83
+  approved_by: Direction projet RAG — placements résolus par autorité éditeur
+  approved_at: '2026-08-29T00:00:00+01:00'

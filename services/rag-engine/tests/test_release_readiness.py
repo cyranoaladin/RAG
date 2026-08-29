@@ -1378,9 +1378,16 @@ def test_runtime_startup_refuses_two_scopes_for_the_same_release_subject(
     monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
     config = yaml.safe_load(CANONICAL_COLLECTIONS.read_text(encoding="utf-8"))
     artifacts = dict(load_retrieval_scope_registry())
-    original = artifacts["prod_philo_terminale_tc_v1"]
-    artifacts["prod_philo_terminale_tc_duplicate_v1"] = original.model_copy(
-        update={"scope_id": "prod_philo_terminale_tc_duplicate_v1"}
+    # Dupliquer le scope effectivement lié au sujet de la release ACTIVE.
+    #
+    # Après le rescellement (ADR-0052), c'est `_v2` qui porte le digest des
+    # manifests-sujets courants ; `_v1` reste packagé mais ne correspond plus à
+    # aucun sujet. Le dupliquer ne créerait aucune ambiguïté — deux scopes qui ne
+    # correspondent à rien ne sont pas deux correspondances — et le test
+    # passerait sans rien éprouver.
+    original = artifacts["prod_philo_terminale_tc_v2"]
+    artifacts["prod_philo_terminale_tc_duplicate_v2"] = original.model_copy(
+        update={"scope_id": "prod_philo_terminale_tc_duplicate_v2"}
     )
 
     with pytest.raises(RuntimeError, match="ambiguous"):

@@ -1,0 +1,51 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_seconde
+  collection: rag_nexus_danse_seconde_option
+  niveau: seconde
+  voie: generale
+  matiere: danse
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Danse — seconde (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Option arts en seconde générale et technologique (BO spécial n° 1 du 22 janvier
+  2019)
+- Filles et garçons sur le chemin de l’égalité
+- Note d’accompagnement à la mise en oeuvre du programme limitatif de la spécialité
+  de danse
+- Les pourcentages horaires
+- Spécialité arts en terminale générale (BO spécial n° 8 du 25 juillet 2019)
+- Option arts en terminale des voies générale et technologique (BO spécial n° 8 du
+  25 juillet 2019)
+- Mémo Numéridanse
+- Modèle de convention S2TMD
+- Dispositions en vigueur à compter de la session 2024 concernant l’épreuve pour les
+  spécialités artistiques
+- Les champs de questionnement
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

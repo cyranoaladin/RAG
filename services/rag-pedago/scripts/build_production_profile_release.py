@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
@@ -44,6 +45,12 @@ from rag_pedago.imports.pii_scanner import (  # noqa: E402
 SCHOOL_YEAR = "2026-2027"
 RELEASE_ID = "production-profile-gate-2026-2027-v1"
 FINAL_SET_SHA256 = "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
+#: Empreinte scellée de l'ensemble final, quand une émission en déclare une.
+#: Vide, l'invariant « produit == déclaré par la matrice » suffit — et il est le
+#: seul qui vaille pour une émission dont l'ensemble n'a pas encore de sceau.
+FINAL_SET_SHA256_ATTENDU = os.environ.get(
+    "NEXUS_FINAL_SET_SHA256", FINAL_SET_SHA256
+    if not os.environ.get("NEXUS_FINAL_MATRIX") else "")
 CORPUS_MANIFEST_AUTHORITY = (
     "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 )
@@ -58,7 +65,9 @@ RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
 )
 CURRENTNESS_NETWORK_AUDIT_PATH = RELEASE_ROOT / "currentness_network_audit.json"
-FINAL_MATRIX_PATH = REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"
+FINAL_MATRIX_PATH = Path(os.environ.get(
+    "NEXUS_FINAL_MATRIX",
+    REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"))
 FINAL_PRODUCTION_SET_PATH = (
     REPOSITORY_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
 )
@@ -85,8 +94,31 @@ OLD_RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel"
 )
 P24_POLICY_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/h2_initial_placement_policy.yml"
-PROFILE_ROOT = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"
-PROFILE_MANIFEST_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
+#: Quatrième autorité de fait de source, autorisée par ADR-0053 et scellée par
+#: son empreinte externe. Elle vit DANS le corpus, sous 00_INDEX_PROVENANCE/ —
+#: la zone que le README du corpus désigne comme celle de la traçabilité.
+#:
+#: Ce qu'elle atteste : `url_source`, l'URL de listing officielle dont le
+#: document provient ; `type_document`, sa nature ; les faits bibliographiques.
+#: Ce qu'elle N'ATTESTE PAS : aucune affirmation pédagogique, aucune décision de
+#: niveau — son champ `niveau` est celui du catalogue amont, faux sur 72,3 % des
+#: documents où l'éditeur s'est prononcé.
+CATALOGUE_PROVENANCE_PATH = (
+    REPOSITORY_ROOT / "docs/reports/evidence-index/eduscol_catalogue_par_scope_20260829.tsv"
+)
+CATALOGUE_PROVENANCE_SHA256 = (
+    "ec5ccbf7a30fec012734061c5fd14761d2079a0bca527320847468a23523c79b"
+)
+#: Les trois entrées de périmètre sont surchargeables par l'environnement : une
+#: seconde émission vise d'autres profils, un autre manifeste et une autre
+#: matrice, sans que le producteur ait à être dupliqué. Les défauts restent ceux
+#: de la release historique — aucune émission existante ne change de cible.
+PROFILE_ROOT = Path(os.environ.get(
+    "NEXUS_PROFILE_ROOT",
+    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"))
+PROFILE_MANIFEST_PATH = Path(os.environ.get(
+    "NEXUS_PROFILE_MANIFEST",
+    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"))
 COLLECTION_CONFIG_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
 PII_POLICY_PATH = REPOSITORY_ROOT / "services/rag-pedago/configs/pii_gate_policy.yml"
 PII_SCANNER_PATH = REPOSITORY_ROOT / "services/rag-pedago/rag_pedago/imports/pii_scanner.py"
@@ -211,11 +243,15 @@ class VerifiedPdf(NamedTuple):
 def validate_pdf_mirror(
     *, pdf_root: Path, content_sha256: list[str]
 ) -> dict[str, VerifiedPdf]:
-    if len(content_sha256) != len(set(content_sha256)):
-        raise ValueError("PDF mirror request contains duplicate content")
+    # Un contenu correspond à UN fichier du miroir : le miroir est 1:1 par
+    # nature. Un même document demandé plusieurs fois est la conséquence normale
+    # du multi-placement — il est placé dans plusieurs collections — et non une
+    # anomalie. La demande se déduplique ; ce qui doit rester unique, c'est le
+    # couple (collection, contenu), et c'est `stable_release_order` qui le tient.
+    demandes = sorted(set(content_sha256))
     resolved: dict[str, VerifiedPdf] = {}
     root = pdf_root.resolve()
-    for content_sha in sorted(content_sha256):
+    for content_sha in demandes:
         path = (root / f"{content_sha}.pdf").resolve()
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError(f"PDF mirror is missing content {content_sha}")
@@ -227,12 +263,30 @@ def validate_pdf_mirror(
 
 
 def stable_release_order(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ordonner les lignes de release, en refusant le seul doublon qui en est un.
+
+    L'INVARIANT CONSERVÉ — un même contenu ne peut pas être placé deux fois dans
+    la MÊME collection. C'est le doublon réel, et il reste refusé.
+
+    LE CONTRÔLE RETIRÉ — un contrôle d'unicité globale du `content_sha256`
+    interdisait qu'un contenu apparaisse dans deux collections différentes,
+    c'est-à-dire interdisait le MULTI-PLACEMENT. Il contredisait trois sources
+    indépendantes du dépôt :
+
+      1. le modèle de données — la migration `004_artifact_placements` déclare
+         « identité produit liée au contenu et placements 1:N » ;
+      2. le mandat, qui consacre un chapitre au multi-placement ;
+      3. la conception du corpus — son README énonce une seule copie canonique
+         pour plusieurs affectations : 2 956 affectations pour 2 451 documents,
+         dont 505 pour cette raison exacte.
+
+    Il n'avait jamais été éprouvé : la release historique porte 26 placements
+    pour 26 artefacts. Ce n'est donc pas un garde-fou que l'on lève, c'est une
+    contradiction que l'on retire. Décision opérateur du 29/08/2026.
+    """
     keys = [(row.get("collection"), row.get("content_sha256")) for row in rows]
     if len(keys) != len(set(keys)):
         raise ValueError("release contains duplicate collection/content")
-    content = [row.get("content_sha256") for row in rows]
-    if len(content) != len(set(content)):
-        raise ValueError("release contains duplicate content")
     return sorted(rows, key=lambda row: (row["collection"], row["content_sha256"]))
 
 
@@ -275,13 +329,41 @@ class E5TokenCounter:
 def _model_inventory(
     *, snapshot: Path, manifest: Mapping[str, object]
 ) -> tuple[bytes, bytes]:
+    """Sceller la totalité du snapshot, sous-répertoires compris.
+
+    Le parcours était `snapshot.iterdir()` — non récursif — filtré par
+    `is_file()`, qui écarte les répertoires **sans erreur ni avertissement**.
+    Tout sous-répertoire disparaissait donc du sceau, et l'artefact construit
+    sur cet inventaire en était amputé.
+
+    Le 27/08/2026, cela a produit un artefact embedding sans `1_Pooling/` :
+    conforme à son empreinte, et incapable de se charger — `sentence_transformers`
+    lit `modules.json`, ne trouve pas le module de pooling en local, et retombe
+    sur un téléchargement distant qui échoue. Le seul garde-fou existant
+    (« model inventory has no weights ») protégeait les poids, pas la structure.
+
+    `rglob` aligne ce producteur sur `scripts/e2e/prepare-embedding-model-artifact.sh`,
+    qui scelle par `find . -type f`. Les chemins restent relatifs à la racine du
+    snapshot, avec un tri déterministe sur le chemin POSIX complet.
+    """
     if not snapshot.is_dir():
         raise ValueError(f"model snapshot is missing: {snapshot}")
     manifest_bytes = canonical_json_bytes(manifest)
     rows = [f"{_sha256_bytes(manifest_bytes)}  manifest.json"]
-    for path in sorted(snapshot.iterdir(), key=lambda item: item.name):
-        if path.is_file():
-            rows.append(f"{_file_sha256(path)}  {path.name}")
+    # `is_file()` suit les liens symboliques, et c'est requis : le cache hub
+    # HuggingFace — passé tel quel en `--embedding-snapshot`, son nom devant être
+    # la révision — ne contient que des liens vers `../../blobs`. Les exclure
+    # viderait l'inventaire. `_file_sha256` scelle le contenu pointé, ce qui est
+    # la propriété voulue.
+    entries = sorted(
+        (path for path in snapshot.rglob("*") if path.is_file()),
+        key=lambda item: item.relative_to(snapshot).as_posix(),
+    )
+    for path in entries:
+        relative = path.relative_to(snapshot).as_posix()
+        if relative in {"manifest.json", "SHA256SUMS"}:
+            continue
+        rows.append(f"{_file_sha256(path)}  {relative}")
     if not any(row.endswith("model.safetensors") for row in rows):
         raise ValueError("model inventory has no weights")
     return manifest_bytes, ("\n".join(rows) + "\n").encode()
@@ -305,6 +387,27 @@ def _title_from_path(path: str) -> str:
     return re.sub(r"\s+", " ", stem.replace("-", " ")).strip().capitalize()
 
 
+def _load_catalogue_provenance() -> dict[str, dict[str, str]]:
+    """Charger le catalogue de provenance après vérification de son empreinte.
+
+    Une autorité non scellée dérive en silence : l'empreinte est vérifiée à
+    chaque chargement, et un écart refuse la production plutôt que de sceller
+    une release sur une source qui a changé sans qu'on le sache.
+    """
+    import csv as _csv
+
+    octets = CATALOGUE_PROVENANCE_PATH.read_bytes()
+    empreinte = hashlib.sha256(octets).hexdigest()
+    if empreinte != CATALOGUE_PROVENANCE_SHA256:
+        raise ValueError(
+            f"catalogue de provenance non conforme : attendu "
+            f"{CATALOGUE_PROVENANCE_SHA256}, obtenu {empreinte}"
+        )
+    lignes = _csv.DictReader(
+        octets.decode("utf-8").splitlines(), delimiter="\t")
+    return {ligne["sha256"]: ligne for ligne in lignes}
+
+
 def _source_records(
     *, matrix: list[dict[str, Any]], profiles: Mapping[str, Any]
 ) -> list[dict[str, Any]]:
@@ -315,6 +418,7 @@ def _source_records(
     }
     old = _old_artifacts()
     p24 = _load_yaml(P24_POLICY_PATH)["approved_artifacts"]
+    provenance = _load_catalogue_provenance()
     records: list[dict[str, Any]] = []
     subject_names = {
         "maths": "mathematiques",
@@ -345,7 +449,11 @@ def _source_records(
                     else "reperes-attendus"
                 )
                 evidence = old_artifact["evidence_path"]
-            elif primary_row:
+            # `OFFICIAL_DOWNLOAD_URLS` est la table figée des documents de la
+            # release historique. Un document présent dans `primary_evidence`
+            # mais absent de cette table n'a pas d'URL de téléchargement
+            # connue : il descend à l'autorité suivante plutôt que de lever.
+            elif primary_row and content_sha in OFFICIAL_DOWNLOAD_URLS:
                 listing_url = primary_row["official_source_url"]
                 download_url = OFFICIAL_DOWNLOAD_URLS[content_sha]
                 title = _title_from_path(mirror["canonical_path"])
@@ -362,7 +470,23 @@ def _source_records(
                 type_doc = p24_row["source_document_type"]
                 evidence = _repo_relative(P24_POLICY_PATH)
             else:
-                raise ValueError(f"content {content_sha} has no release source fact")
+                prov = provenance.get(content_sha)
+                if prov and prov.get("url_source"):
+                    # Quatrième autorité : le catalogue de provenance du corpus.
+                    # Il porte l'URL de listing et le type documentaire ; il ne
+                    # porte AUCUNE décision de niveau, qui vient des placements.
+                    listing_url = prov["url_source"]
+                    title = prov.get("titre") or ""
+                    type_doc = prov.get("type_document") or "ressource_officielle"
+                    # Le catalogue de provenance porte l'URL de LISTING, jamais
+                    # l'URL de téléchargement direct. Les deux ne sont pas la
+                    # même chose, et présenter l'une pour l'autre serait
+                    # affirmer une provenance qu'on n'a pas. Le champ reste vide.
+                    download_url = None
+                    evidence = _repo_relative(CATALOGUE_PROVENANCE_PATH)
+                else:
+                    raise ValueError(
+                        f"content {content_sha} has no release source fact")
             level = profile.scope.niveau.value
             external_level = "4e" if level == "quatrieme" else level
             matiere = str(profile.scope.matiere)
@@ -404,10 +528,30 @@ def _source_records(
                 }
             )
     ordered = stable_release_order(records)
-    if len(ordered) != 26 or _final_set_digest(
-        [row["content_sha256"] for row in ordered]
-    ) != FINAL_SET_SHA256:
-        raise ValueError("release source records differ from the final set")
+    # L'INVARIANT : l'ensemble produit doit être EXACTEMENT l'ensemble déclaré.
+    # Il vaut, et il reste. C'est la CONSTANTE qui figeait le périmètre d'un
+    # jour — `!= 26` et une empreinte gravée — comme le faisait `!= 18` pour les
+    # profils. Un producteur qui ne peut produire qu'une seule release n'est pas
+    # un producteur.
+    #
+    # L'ensemble déclaré se lit désormais dans son fichier, surchargeable. Le
+    # défaut reste celui de la release historique : aucune émission existante ne
+    # change de référence.
+    attendu = sorted({
+        contenu
+        for ligne in matrix
+        for contenu in ligne["content_sha256"]
+    })
+    produit = sorted({row["content_sha256"] for row in ordered})
+    if produit != attendu:
+        manquants = len(set(attendu) - set(produit))
+        surnumeraires = len(set(produit) - set(attendu))
+        raise ValueError(
+            f"release source records differ from the final set: "
+            f"{manquants} manquants, {surnumeraires} surnuméraires"
+        )
+    if FINAL_SET_SHA256_ATTENDU and _final_set_digest(produit) != FINAL_SET_SHA256_ATTENDU:
+        raise ValueError("release source records differ from the sealed final set")
     return ordered
 
 
@@ -576,8 +720,17 @@ def _release_scope_inputs(
             )
     placements = sorted(placements, key=lambda row: row["content_sha256"])
     contents = [row["content_sha256"] for row in placements]
-    if len(contents) != 26 or _final_set_digest(contents) != FINAL_SET_SHA256:
-        raise ValueError("release scope inputs differ from the final set")
+    # Même famille que `!= 18` et `!= 26` plus haut : l'invariant — l'ensemble
+    # des placements couvre exactement l'ensemble déclaré — vaut et reste. La
+    # constante figeait le périmètre d'un jour.
+    attendu_scope = sorted({c for ligne in matrix for c in ligne["content_sha256"]})
+    if sorted(set(contents)) != attendu_scope:
+        raise ValueError(
+            f"release scope inputs differ from the final set: "
+            f"{len(set(attendu_scope) - set(contents))} manquants, "
+            f"{len(set(contents) - set(attendu_scope))} surnuméraires")
+    if FINAL_SET_SHA256_ATTENDU and _final_set_digest(contents) != FINAL_SET_SHA256_ATTENDU:
+        raise ValueError("release scope inputs differ from the sealed final set")
     verified_profiles = {
         "profile_manifest_digest": profile_manifest_digest,
         "profiles": [
@@ -591,8 +744,14 @@ def _release_scope_inputs(
             for collection in sorted(profile_sources)
         ],
     }
-    if len(verified_profiles["profiles"]) != 18:
-        raise ValueError("verified production profile count differs")
+    # L'invariant est que TOUS les profils du registre sont vérifiés — pas qu'ils
+    # soient dix-huit. Le manifeste est la référence, comme pour le verrou du
+    # registre corrigé plus haut.
+    if len(verified_profiles["profiles"]) != len(profiles):
+        raise ValueError(
+            f"verified production profile count differs: "
+            f"{len(verified_profiles['profiles'])} vérifiés pour "
+            f"{len(profiles)} profils")
     return (
         ("\n".join(contents) + "\n").encode("utf-8"),
         canonical_json_bytes(placements),
@@ -1059,8 +1218,21 @@ def build_release(
     registry = load_profile_registry(PROFILE_ROOT)
     manifest = verify_profile_manifest(registry, PROFILE_MANIFEST_PATH)
     profiles = {profile.scope.collection: profile for profile in registry.values()}
-    if len(profiles) != 18 or manifest.declared_count != 18:
-        raise ValueError("production profile registry/manifest count differs")
+    # L'invariant est juste et il survit : le registre de profils et le manifeste
+    # doivent déclarer le MÊME compte. Un manifeste qui annonce un nombre que le
+    # répertoire ne contient pas est un manifeste qui affirme plus qu'il n'a
+    # vérifié — la famille de défauts de ce dépôt.
+    #
+    # Ce qui était fautif, c'est la CONSTANTE. `!= 18` figeait l'invariant sur le
+    # périmètre d'un jour, et interdisait toute release additionnelle sans rien
+    # garantir de plus. Le manifeste est la référence, pas un nombre en dur.
+    if len(profiles) != manifest.declared_count:
+        raise ValueError(
+            f"production profile registry declares {len(profiles)} profiles, "
+            f"manifest declares {manifest.declared_count}"
+        )
+    if not profiles:
+        raise ValueError("production profile registry declares no profile")
     records = _source_records(matrix=matrix, profiles=profiles)
     final_set_raw, accepted_placements_raw, verified_profiles_raw = (
         _release_scope_inputs(

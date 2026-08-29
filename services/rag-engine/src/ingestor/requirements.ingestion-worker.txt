@@ -15,7 +15,14 @@ psycopg-pool==3.2.1
 httpx==0.27.2
 PyYAML==6.0.3
 pydantic==2.13.4
-pypdf==4.2.0
+# `pypdf` fixe le TEXTE extrait, donc les empreintes de chunks. Une contrainte
+# ouverte ici casse la reproductibilité du corpus scellé : `chunk_id` vaut
+# sha256(content_sha:index:sha256(texte)), et deux versions de pypdf n'extraient
+# pas le même texte. Constaté le 28/08/2026 — 4.2.0 rendait « enseigneme nt » là
+# où 6.14.2 rend « enseignement ». Le rejeu échouait sur « Chunk ID mismatch ».
+# 6.14.2 reproduit les 44 empreintes du document témoin ; c'est la version du
+# scellement, et elle se fige.
+pypdf==6.14.2
 numpy==1.26.4
 torch==2.4.1+cpu
 transformers==4.44.2

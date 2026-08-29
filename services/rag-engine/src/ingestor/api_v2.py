@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+import re
+import sys
 import time
+import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from threading import Lock
@@ -401,10 +406,93 @@ app = FastAPI(
 )
 
 
+#: Journal de corrélation du runtime. Une ligne JSON par requête, sur les
+#: mêmes libellés bornés que les métriques : jamais l'URL brute, jamais la
+#: requête de l'élève, jamais un en-tête d'autorisation ou d'identité. Ce
+#: journal répond à « quelle requête, quand, quel statut », et à rien d'autre —
+#: c'est aussi le seul identifiant qu'un appelant peut citer sans divulguer son
+#: trafic.
+REQUEST_LOGGER_NAME = "nexus.rag.request"
+_request_logger = logging.getLogger(REQUEST_LOGGER_NAME)
+_REQUEST_ID_PATTERN = re.compile(r"\A[0-9a-f]{32}\Z")
+
+
+def _configure_request_logging() -> None:
+    """Équiper le journal de corrélation sans dépendre d'une configuration
+    externe.
+
+    Uvicorn ne configure que ses propres loggers : le logger racine reste sans
+    handler et au niveau ``WARNING``. Un logger applicatif laissé aux valeurs
+    par défaut n'écrirait donc rien en production. Le handler est posé sur le
+    logger dédié, avec un format brut — la ligne est déjà un objet JSON complet
+    et tout préfixe la rendrait inexploitable par un collecteur.
+
+    ``propagate`` reste vrai : le logger racine n'a pas de handler sous
+    uvicorn, donc aucune ligne n'est dupliquée, et les tests continuent de
+    capturer par propagation.
+    """
+    if any(
+        getattr(handler, "_nexus_request_log", False)
+        for handler in _request_logger.handlers
+    ):
+        return
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    handler._nexus_request_log = True  # type: ignore[attr-defined]
+    _request_logger.addHandler(handler)
+    _request_logger.setLevel(logging.INFO)
+
+
+_configure_request_logging()
+
+
+def _resolve_request_id(request: Request) -> str:
+    """Adopter l'identifiant du BFF s'il est déjà d'une forme sûre, sinon en
+    frapper un neuf.
+
+    Un identifiant fourni par un client est une donnée, jamais du contenu de
+    journal : n'accepter qu'un jeton hexadécimal de longueur fixe interdit
+    d'injecter des séparateurs, du JSON ou des sauts de ligne dans la trace.
+    """
+    supplied = request.headers.get("x-request-id", "")
+    if _REQUEST_ID_PATTERN.match(supplied):
+        return supplied
+    return uuid.uuid4().hex
+
+
+def _log_request(
+    *,
+    request_id: str,
+    path: str,
+    method: str,
+    status: int,
+    elapsed_seconds: float,
+) -> None:
+    """Émettre exactement une ligne JSON, sans jamais faire échouer la requête."""
+    try:
+        _request_logger.info(
+            json.dumps(
+                {
+                    "event": "http_request",
+                    "request_id": request_id,
+                    "method": method,
+                    "path": path,
+                    "status": status,
+                    "duration_ms": round(max(elapsed_seconds, 0.0) * 1000, 3),
+                },
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+    except Exception:  # une trace n'interrompt jamais le service
+        pass
+
+
 @app.middleware("http")
 async def _metrics_middleware(request: Request, call_next):
     started = time.perf_counter()
     status_code = 500
+    request_id = _resolve_request_id(request)
     try:
         path = request.url.path
         if path in _ALLOWED_BUSINESS_ROUTES:
@@ -438,12 +526,25 @@ async def _metrics_middleware(request: Request, call_next):
         status_code = response.status_code
     finally:
         path = request.url.path
-        ingest_metrics.record_http_request(
-            path if path in _OBSERVED_ROUTES else "unmatched",
-            request.method if request.method in _OBSERVED_METHODS else "other",
-            status_code,
-            time.perf_counter() - started,
+        observed_path = path if path in _OBSERVED_ROUTES else "unmatched"
+        observed_method = (
+            request.method if request.method in _OBSERVED_METHODS else "other"
         )
+        elapsed_seconds = time.perf_counter() - started
+        ingest_metrics.record_http_request(
+            observed_path,
+            observed_method,
+            status_code,
+            elapsed_seconds,
+        )
+        _log_request(
+            request_id=request_id,
+            path=observed_path,
+            method=observed_method,
+            status=status_code,
+            elapsed_seconds=elapsed_seconds,
+        )
+    response.headers["X-Request-Id"] = request_id
     return response
 
 

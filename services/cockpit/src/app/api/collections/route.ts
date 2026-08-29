@@ -5,12 +5,17 @@ import type { RagCollection } from '@/types/ui'
 
 import { fetchEngine } from '../_engine'
 
-type EngineCatalogue = { collections?: unknown }
+type EngineReadinessCollection = {
+  name?: unknown
+  ready?: unknown
+}
+
 type EngineReadiness = {
   launch_ready?: unknown
   total_collections?: unknown
   ready_collections?: unknown
   blockers?: unknown
+  collections?: unknown
 }
 
 function fallback() {
@@ -24,7 +29,10 @@ function fallback() {
   }
 }
 
-function mapCatalogue(payload: unknown): RagCollection[] | null {
+function mapCatalogue(
+  payload: unknown,
+  readyMap: Map<string, boolean>,
+): RagCollection[] | null {
   const catalogue = payload as EngineCatalogue
   if (!Array.isArray(catalogue?.collections)) {
     return null
@@ -47,6 +55,7 @@ function mapCatalogue(payload: unknown): RagCollection[] | null {
       domain: entry.domain,
       taxonomy_file: typeof entry.taxonomy_file === 'string' ? entry.taxonomy_file : null,
       instanciee: entry.instanciee,
+      ready: readyMap.get(entry.name) ?? false,
     } satisfies RagCollection
   })
   return mapped.every((entry): entry is RagCollection => entry !== null) ? mapped : null
@@ -63,11 +72,23 @@ function mapReadiness(payload: unknown) {
   ) {
     return null
   }
+
+  const readyMap = new Map<string, boolean>()
+  if (Array.isArray(readiness.collections)) {
+    for (const item of readiness.collections) {
+      const col = item as EngineReadinessCollection
+      if (typeof col?.name === 'string' && typeof col?.ready === 'boolean') {
+        readyMap.set(col.name, col.ready)
+      }
+    }
+  }
+
   return {
     launchReady: readiness.launch_ready,
     totalCollections: readiness.total_collections,
     readyCollections: readiness.ready_collections,
     blockers: readiness.blockers,
+    readyMap,
   }
 }
 
@@ -82,12 +103,22 @@ export async function GET(request: Request) {
       fetchEngine('/collections/v2', { identityToken: authContext.identityToken }),
       fetchEngine('/collections/readiness', { identityToken: authContext.identityToken }),
     ])
-    const items = catalogueResult.status === 200 ? mapCatalogue(catalogueResult.payload) : null
     const readiness = readinessResult.status === 200 ? mapReadiness(readinessResult.payload) : null
-    if (!items || !readiness) {
+    if (!readiness) {
       return NextResponse.json(fallback(), { status: 503 })
     }
-    return NextResponse.json({ items, live: true, ...readiness })
+    const items = catalogueResult.status === 200 ? mapCatalogue(catalogueResult.payload, readiness.readyMap) : null
+    if (!items) {
+      return NextResponse.json(fallback(), { status: 503 })
+    }
+    return NextResponse.json({
+      items,
+      live: true,
+      launchReady: readiness.launchReady,
+      totalCollections: readiness.totalCollections,
+      readyCollections: readiness.readyCollections,
+      blockers: readiness.blockers,
+    })
   } catch {
     return NextResponse.json(fallback(), { status: 503 })
   }

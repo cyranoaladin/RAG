@@ -1,0 +1,29 @@
+{
+  "binding": {
+    "author_login": "cyranoaladin",
+    "authorization_artifact_git_blob_sha1": "710fa1e86bca4e52dfc0229f7cc64202d7af0223",
+    "authorization_artifact_path": "governance/authorizations/prerentree-2026-2027-rag_nexus_francais_quatrieme_tc-v1.json",
+    "authorization_artifact_sha256": "e0deb28cf0a31ca3e25666dcfb8c3901735ccaf40fd1bb7733dada6ec7448655",
+    "authorization_decision": "AUTHORIZE_INGESTION_SCOPE",
+    "authorization_id": "prerentree-2026-2027-rag_nexus_francais_quatrieme_tc-v1",
+    "base_ref": "main",
+    "base_sha": "3566cafb44138d6a7f00296dc0654257f9bf0ad6",
+    "challenge_digest": "66d82bdd143f1c6ccf73f62efd85dc4a66855ca635e1ee2b735cde69e45aca81",
+    "challenge_protocol": "NEXUS-TRUSTED-REVIEW-V1",
+    "expires_at": "2026-09-26T18:28:06.834532Z",
+    "head_sha": "140b157fdb8d32b7e22fffb125d9acea4195bd28",
+    "protocol_version": "NEXUS-REVIEW-BINDING-V1",
+    "pull_request": 134,
+    "repository": "cyranoaladin/RAG",
+    "review_id": 5017688008,
+    "reviewer_login": "abenrhouma",
+    "reviewer_permission": "write",
+    "submitted_at": "2026-08-25T10:12:14Z",
+    "verified_at": "2026-08-27T18:28:06.834532Z",
+    "verifier_version": "nexus-review-binding-producer/1"
+  },
+  "binding_digest": "c8751534c8356369e1bec75e08f4a99a85055ec8aa1c861a62e418cc427a75d6",
+  "key_id": "review-binding-v1-2026-08-25",
+  "signature": "7f21a6f22d7377f64f829d3fb8e59eb20fcfe454209c2b85760ca5fb0840d894fc5698b5e4692ecb3a2a07e022994aebc55b2501b76154c37c5b35b2cefba309",
+  "signature_algorithm": "ed25519"
+}

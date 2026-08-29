@@ -1,0 +1,49 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_terminale
+  collection: rag_nexus_physique_chimie_terminale_specialite
+  niveau: terminale
+  voie: generale
+  matiere: physique_chimie
+  candidat: libre
+  audience:
+  - libre
+  - tous
+  visibility: internal
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Physique Chimie — terminale (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Modéliser l'équilibre chimique et prévoir l'évolution d'un système chimique (terminale)
+- texte d'introduction
+- Quelques repères en lien avec les principales notions du programme de STSS
+- presentation_du_classeur_numerique_collaboratif_1290791.pdf
+- Option de biotechnologie de seconde (BO spécial n° 1 du 22 janvier 2019)
+- Vademecum - Former par le projet - Le projet technologique en 5 étapes
+- Cahier ÉduNum Physique-Chimie n° 39 - mai 2026
+- Méthode d'Euler et thermalisation
+- cartes_t_1289624.pdf
+- exemple_bio_mol_1289613.pdf
+- reflexion_pta_calendrier-objectifs_formation_1278300.pdf
+- 'Démarche de mini-projet : éléments méthodologique'
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

@@ -120,7 +120,11 @@ RB_KEY_ID = "rb-sign-tool-test-key-1"
 RB_REPOSITORY = "cyranoaladin/RAG"
 RB_PULL_REQUEST = 42
 RB_BASE_SHA = "d" * 40
-RB_HEAD_SHA = "e" * 40
+#: Le reçu de revue est émis au HEAD exact de la PR que le signeur reçoit.
+#: Les deux valeurs divergeaient — un reçu de revue de la PR 42 au head
+#: "eee…" injecté dans un manifeste signé pour le head "bbb…" — et rien ne
+#: le remarquait tant que le consommateur n'opposait pas les deux.
+RB_HEAD_SHA = PR_HEAD_SHA
 RB_REVIEWER = "abenrhouma"
 RB_AUTHOR = "cyranoaladin"
 AUTHORIZATION_ID = "sign-tool-test-authz-v1"
@@ -2338,3 +2342,17 @@ class TestMultiAuthorizationReadinessV2Verification:
 # duplication (AGENTS.md, DRY) -- l'ancienne classe
 # ``TestRealCommittedComposeFileParsesAsExpected`` est supprimée plutôt
 # que réécrite.
+
+
+def test_the_signer_pins_the_review_binding_to_the_live_pull_request_head() -> None:
+    """Le dernier cas du modèle de sûreté L1B, imposé au chemin réel.
+
+    Une clé de signature courante et valide ne suffit pas : un reçu émis à un
+    HEAD qui n'est plus celui d'où l'on publie doit être refusé, même quand les
+    octets d'autorisation n'ont pas bougé. Le signeur a déjà confronté
+    `--pr-head-sha` à l'état réel de la PR ; il doit l'opposer au reçu.
+    """
+    source = Path(tool.__file__).read_text(encoding="utf-8")
+    call = source[source.index("require_matches_authorization("):]
+    call = call[: call.index(")\n")]
+    assert "expected_head_sha=args.pr_head_sha" in call, call

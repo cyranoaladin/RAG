@@ -6,7 +6,7 @@
     "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
     "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
     "effective_catalog_authority_sha256": "6806a6be645d0a9b82a007d1ff7a2e608be72c2956b4a5f571c67071f2ebdb2a",
-    "embedding_inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+    "embedding_inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
     "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
     "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
     "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
@@ -28,7 +28,7 @@
   "models": {
     "embedding": {
       "dimension": 1024,
-      "inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+      "inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
       "model_id": "intfloat/multilingual-e5-large"
     },
     "reranker": {
@@ -43,92 +43,92 @@
     {
       "collection": "rag_nexus_dgemc_terminale_option",
       "path": "subjects/rag_nexus_dgemc_terminale_option.release.json",
-      "sha256": "02408bcf498ec56225852525758396152f2ed1c919c24528fd5f0fb59f54627f"
+      "sha256": "c8692efe6f0cbcd7a1a12976e88afd232f2f05732f78361564781776a05df892"
     },
     {
       "collection": "rag_nexus_francais_premiere_tc",
       "path": "subjects/rag_nexus_francais_premiere_tc.release.json",
-      "sha256": "12d592364da6dfaf7934222195f908215e48c3f8a77dcb070990cd09055c12ad"
+      "sha256": "72d58dc201071ff6d525dd31be60751773ad2815ca81a32f0e0e5d00cf4fea71"
     },
     {
       "collection": "rag_nexus_francais_quatrieme_tc",
       "path": "subjects/rag_nexus_francais_quatrieme_tc.release.json",
-      "sha256": "836b02555dba0f4f8d9c16dc64c6f5964e86ba92d4b967eda3e2397b2fb58775"
+      "sha256": "9bc7e5b594db7fea1b365e2cc5cb61be9c38c35d59669fcfa88c1df784fa2ff7"
     },
     {
       "collection": "rag_nexus_francais_seconde_tc",
       "path": "subjects/rag_nexus_francais_seconde_tc.release.json",
-      "sha256": "975ff077553830fb2e4c0da24a6baa7f59f81e9fc6029102329feb662e7ea88d"
+      "sha256": "64b93629e92740e23efca7de6384844d015dc14c3a9677d18c8e720112d13cb9"
     },
     {
       "collection": "rag_nexus_hlp_premiere_specialite",
       "path": "subjects/rag_nexus_hlp_premiere_specialite.release.json",
-      "sha256": "5e5afe7badcb497af1044359d9961a9c41f58984630fd38bd41fefbdbe313c6c"
+      "sha256": "51de4e36d5fcb86f9f844b5466fcc00d169ee6712d2935a91042773af75039af"
     },
     {
       "collection": "rag_nexus_maths_premiere_gen_specialite",
       "path": "subjects/rag_nexus_maths_premiere_gen_specialite.release.json",
-      "sha256": "309ca9d5f116b8e0217b9d12549bd945cc1a1868b93fb54bcf7574676cd668d4"
+      "sha256": "1b92615e9d32f639797d6e41fc67c1dd8ee5625426ef4c4c26aa2cb1cac019b0"
     },
     {
       "collection": "rag_nexus_maths_quatrieme_tc",
       "path": "subjects/rag_nexus_maths_quatrieme_tc.release.json",
-      "sha256": "37975e4faf5aa976ff51493b18b56e3ed8d2787af3f1e15dcad0bcfc448b5da9"
+      "sha256": "871acdf6b0ee0375a1d2394778adb6ad2a42fff81a3909741a59bff66b4389ff"
     },
     {
       "collection": "rag_nexus_maths_seconde_tc",
       "path": "subjects/rag_nexus_maths_seconde_tc.release.json",
-      "sha256": "715b78d9e1eb73ddbe4b69c363c0b1922697801cce0277673fe14d0d8c97c909"
+      "sha256": "036a28bfacfbd42b6e6264cb8af2225aed51e3c3453c42467833abb836a5bb48"
     },
     {
       "collection": "rag_nexus_maths_terminale_gen_specialite",
       "path": "subjects/rag_nexus_maths_terminale_gen_specialite.release.json",
-      "sha256": "16e30edd3cf25e80447924a3a61d5a3323dccdf776c1e49a188b8d51de9be362"
+      "sha256": "9e5c0a8b069ae3b2ea0edacd79c87953714a0ec4fed87cf99819652e5c4a8921"
     },
     {
       "collection": "rag_nexus_nsi_premiere_specialite",
       "path": "subjects/rag_nexus_nsi_premiere_specialite.release.json",
-      "sha256": "af49291a8b5d5ffe50157f1b7d595b5c7466c36893df99c7c8293e57bde0fee7"
+      "sha256": "8e563dd782e05990f31b62b50178df333afe26ff714dafbfbe0b470cd09ada25"
     },
     {
       "collection": "rag_nexus_nsi_terminale_specialite",
       "path": "subjects/rag_nexus_nsi_terminale_specialite.release.json",
-      "sha256": "27710247f2cf796b279bfa1ae05708af13519b517d28b72880527c90bd279595"
+      "sha256": "27dd2a9bb0bab918ab613d6f047c04aac4948915f34dc48e82eb573349a9d310"
     },
     {
       "collection": "rag_nexus_pc_premiere_specialite",
       "path": "subjects/rag_nexus_pc_premiere_specialite.release.json",
-      "sha256": "9fb1dd7abe303dc9a9e930ce301edb94b546dc6f28b52257f788ff78c194a7ee"
+      "sha256": "bed055dfef24eb39698e61dc95aabcac089be0c4ec6329a89451951f56cd7c1c"
     },
     {
       "collection": "rag_nexus_pc_terminale_specialite",
       "path": "subjects/rag_nexus_pc_terminale_specialite.release.json",
-      "sha256": "fb8134a8fe88478b01c73f10136f027c1dc24158466b90ba7c752cf4d0db1462"
+      "sha256": "5219cf45e0b5f0808072e4aac3cf792e4d31e5afaa0de3a31e8bf0fe4cbe98fa"
     },
     {
       "collection": "rag_nexus_philo_terminale_tc",
       "path": "subjects/rag_nexus_philo_terminale_tc.release.json",
-      "sha256": "be4645b174e9b7e9be375708e4fa6949cc1866bb31c567fc8f5f533fb121079c"
+      "sha256": "893a464de6548cbaa9449a4966b26b1b280894b7382bf1da11ed0e7cfd15dd62"
     },
     {
       "collection": "rag_nexus_ses_premiere_specialite",
       "path": "subjects/rag_nexus_ses_premiere_specialite.release.json",
-      "sha256": "03014f387da2840c1590c9bda4a58073a1a270c5fa5be11ea1e61e613f0007f9"
+      "sha256": "17c8635e5a8ad500790fef63885f211621732d14d97118b2390251698ac33cfd"
     },
     {
       "collection": "rag_nexus_ses_terminale_specialite",
       "path": "subjects/rag_nexus_ses_terminale_specialite.release.json",
-      "sha256": "6dedcd0a5060fa918cb4cb68f420cbe829c2f56bcf77239389c80a8cd1cde4df"
+      "sha256": "ef90c996c19ce88fa57f8cb2e3d63ebd9c8f2b9908a1aae5d9369945e54b7061"
     },
     {
       "collection": "rag_nexus_svt_premiere_specialite",
       "path": "subjects/rag_nexus_svt_premiere_specialite.release.json",
-      "sha256": "776178d0a077a137ee3b5db724d5071a01f3d22f3ae3543b035452374802a94d"
+      "sha256": "2da4020769000a66b4e77f54587930e397ecfdaaefda63cb9f5bbe65512220c0"
     },
     {
       "collection": "rag_nexus_svt_terminale_specialite",
       "path": "subjects/rag_nexus_svt_terminale_specialite.release.json",
-      "sha256": "29bd5d9363e737e49b9fca9654a46c04f4a6e23224b306897c57f12d2e9f5d8d"
+      "sha256": "a81ef106251aa7e771c773b77b572ee18d4bae568b7c761eb9e7046b71b39796"
     }
   ]
 }

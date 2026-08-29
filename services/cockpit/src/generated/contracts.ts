@@ -18,6 +18,8 @@ export type ContractBundle =
   | ReviewDecisionResponse;
 export type Matiere = string;
 export type Niveau =
+  | 'sixieme'
+  | 'cinquieme'
   | 'quatrieme'
   | 'troisieme'
   | 'seconde'
@@ -170,6 +172,8 @@ export type Jti = string;
  * Niveau principal du profil
  */
 export type Niveau1 =
+  | 'sixieme'
+  | 'cinquieme'
   | 'quatrieme'
   | 'troisieme'
   | 'seconde'

@@ -2,6 +2,17 @@ global:
   scrape_interval: 30s
   evaluation_interval: 30s
 
+# Sans `rule_files`, les règles versionnées n'étaient jamais chargées ; sans
+# `alerting`, une règle déclenchée ne serait allée nulle part. Les deux
+# manquaient : la supervision v2 observait sans jamais pouvoir prévenir.
+rule_files:
+  - /etc/prometheus/rules/rag-engine-v2.rules.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
 scrape_configs:
   - job_name: rag-engine-v2
     metrics_path: /metrics
