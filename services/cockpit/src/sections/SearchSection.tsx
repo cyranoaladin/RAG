@@ -1,12 +1,12 @@
-import { useState } from 'react'
-import { ExternalLink, Loader2, MessageSquareText, Search, ShieldAlert } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ExternalLink, Loader2, Search, ShieldAlert, AlertCircle } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import type { ChatMessage, ChatResponse, RetrievalResult } from '@/generated/contracts'
-import { chat, search } from '@/lib/bff-client'
+import type { RetrievalResult } from '@/generated/contracts'
+import { search } from '@/lib/bff-client'
 import type { RagCollection } from '@/types/ui'
 
 const SEARCH_UNAVAILABLE_MESSAGE =
@@ -34,21 +34,26 @@ export default function SearchSection({
   const [query, setQuery] = useState('')
   const [selectedCollections, setSelectedCollections] = useState<string[]>([])
   const [results, setResults] = useState<RetrievalResult[]>([])
-  const [conversation, setConversation] = useState<ChatMessage[]>([])
-  const [chatResponse, setChatResponse] = useState<ChatResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // D-10 & D-20 (b) : Séparation des collections prêtes vs en attente
+  const readyCollections = useMemo(() => {
+    return collections.filter((c) => c.instanciee)
+  }, [collections])
+
+  const unavailableCollections = useMemo(() => {
+    return collections.filter((c) => !c.instanciee)
+  }, [collections])
+
   const canSubmit = launchReady && Boolean(query.trim()) && selectedCollections.length > 0 && !loading
-  const chatCitations = chatResponse?.citations ?? []
 
   async function runRetrieval() {
     if (!canSubmit) return
     setLoading(true)
     setSearched(true)
     setError(null)
-    setChatResponse(null)
     try {
       const response = await search(query, selectedCollections, 8)
       setResults(response.items)
@@ -60,42 +65,34 @@ export default function SearchSection({
     }
   }
 
-  async function runChat() {
-    if (!canSubmit) return
-    setLoading(true)
-    setSearched(true)
-    setError(null)
-    setResults([])
-    try {
-      const response = await chat(query, selectedCollections, conversation, 5)
-      setChatResponse(response)
-      setConversation((current): ChatMessage[] => {
-        const nextConversation: ChatMessage[] = [
-          ...current,
-          { role: 'user', content: query },
-          { role: 'assistant', content: response.answer },
-        ]
-        return nextConversation.slice(-12)
-      })
-    } catch {
-      setChatResponse(null)
-      setError(SEARCH_UNAVAILABLE_MESSAGE)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recherche et réponses pédagogiques sourcées</CardTitle>
+          <CardTitle className="text-base">Recherche documentaire pédagogique sourcée</CardTitle>
           <p className="text-sm text-slate-500">
-            Sélectionnez une ou plusieurs collections. Les réponses conversationnelles sont
-            refusées si elles ne peuvent pas citer les extraits validés.
+            Interrogez les corpus validés. Les extraits sont cités avec leurs références officielles.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
+          {/* D-20 (b) : Transparence sur les collections disponibles vs en attente */}
+          {unavailableCollections.length > 0 && (
+            <div role="status" className="flex items-start gap-2 rounded-md bg-blue-50 p-3 text-sm text-blue-900 border border-blue-200">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
+              <div>
+                <p className="font-medium">État des matières de votre profil :</p>
+                <p className="mt-0.5 text-xs text-blue-800">
+                  <span className="font-semibold text-emerald-800">Disponibles ({readyCollections.length}) :</span>{' '}
+                  {readyCollections.map((c) => c.matiere ?? c.name).join(', ') || 'Aucune'}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-600">
+                  <span className="font-semibold text-amber-800">À venir ({unavailableCollections.length}) :</span>{' '}
+                  {unavailableCollections.map((c) => c.matiere ?? c.name).join(', ')}
+                </p>
+              </div>
+            </div>
+          )}
+
           {!launchReady && (
             <p role="alert" className="flex items-start gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-900">
               <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -105,6 +102,7 @@ export default function SearchSection({
               </span>
             </p>
           )}
+
           <Input
             placeholder="Ex. : parcours de graphes, loi binomiale, convexité…"
             value={query}
@@ -115,18 +113,19 @@ export default function SearchSection({
           <label className="block text-sm font-medium text-slate-700" htmlFor="collection-picker">
             Collections à interroger
           </label>
+          {/* D-10 : Seules les collections prêtes (instanciees) sont sélectionnables */}
           <select
             id="collection-picker"
             multiple
             aria-label="Collections à interroger"
-            className="min-h-40 w-full rounded-md border border-slate-200 bg-white p-2 text-sm"
+            className="min-h-36 w-full rounded-md border border-slate-200 bg-white p-2 text-sm"
             value={selectedCollections}
             disabled={!launchReady}
             onChange={(event) => setSelectedCollections(
               Array.from(event.currentTarget.selectedOptions, (option) => option.value),
             )}
           >
-            {collections.map((collection) => (
+            {readyCollections.map((collection) => (
               <option key={collection.name} value={collection.name}>
                 {[collection.matiere, collection.niveau, collection.statut]
                   .filter(Boolean)
@@ -140,44 +139,12 @@ export default function SearchSection({
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
               Rechercher les sources
             </Button>
-            <Button onClick={runChat} disabled={!canSubmit} variant="outline">
-              <MessageSquareText className="mr-2 h-4 w-4" />
-              Répondre avec sources
-            </Button>
           </div>
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         </CardContent>
       </Card>
 
-      {chatResponse && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Réponse citée</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{chatResponse.answer}</p>
-            {chatResponse.grounded && chatCitations.length > 0 ? (
-              <div className="space-y-2 text-xs text-slate-600">
-                <p className="font-medium">Sources citées</p>
-                {chatCitations.map((citation) => (
-                  <a
-                    key={citation.chunk_id}
-                    href={citation.source_uri}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-blue-700 hover:underline"
-                  >
-                    {citation.source_label} · {sourceHost(citation.source_uri)}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-amber-800">Réponse non fournie sans preuve suffisante.</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {searched && !loading && !error && !chatResponse && results.length === 0 && (
+      {searched && !loading && !error && results.length === 0 && (
         <Card><CardContent className="py-10 text-center text-sm text-slate-500">
           Aucune source validée ne permet de répondre à cette requête.
         </CardContent></Card>
