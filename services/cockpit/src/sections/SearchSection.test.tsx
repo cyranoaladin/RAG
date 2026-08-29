@@ -108,4 +108,58 @@ describe('SearchSection', () => {
     expect(statusBox.textContent).toContain('Disponibles (1) : nsi')
     expect(statusBox.textContent).toContain('À venir (1) : mathematiques')
   })
+
+  it('D-23 (b) discriminant : un profil dont toutes les matières sont prêtes n’affiche aucun encart À venir', () => {
+    const allReady = [
+      {
+        name: 'rag_nexus_nsi_terminale_specialite',
+        matiere: 'nsi',
+        niveau: 'terminale',
+        voie: 'generale',
+        statut: 'specialite',
+        domain: 'education',
+        taxonomy_file: 'nsi/terminale.yml',
+        instanciee: true,
+        ready: true,
+      },
+    ]
+
+    render(<SearchSection collections={allReady} launchReady blockers={[]} />)
+
+    // Aucun encart status ne doit être présent
+    expect(screen.queryByRole('status')).toBeNull()
+  })
+
+  it('D-23 (b) discriminant : une matière sans collection au catalogue apparaît dans À venir et non dans Disponibles', () => {
+    const collectionsWithUncatalogued = [
+      {
+        name: 'rag_nexus_nsi_terminale_specialite',
+        matiere: 'nsi',
+        niveau: 'terminale',
+        voie: 'generale',
+        statut: 'specialite',
+        domain: 'education',
+        taxonomy_file: 'nsi/terminale.yml',
+        instanciee: true,
+        ready: true,
+      },
+      {
+        name: 'rag_nexus_physique_chimie_terminale_specialite',
+        matiere: 'physique_chimie',
+        niveau: 'terminale',
+        voie: 'generale',
+        statut: 'specialite',
+        domain: 'education',
+        taxonomy_file: 'pc/terminale.yml',
+        instanciee: false,
+        ready: false, // Matière au profil mais non scellée/non instanciée
+      },
+    ]
+
+    render(<SearchSection collections={collectionsWithUncatalogued} launchReady blockers={[]} />)
+
+    const statusBox = screen.getByRole('status')
+    expect(statusBox.textContent).toContain('Disponibles (1) : nsi')
+    expect(statusBox.textContent).toContain('À venir (1) : physique_chimie')
+  })
 })

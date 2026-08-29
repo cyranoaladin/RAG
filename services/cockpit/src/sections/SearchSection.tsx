@@ -39,13 +39,19 @@ export default function SearchSection({
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // D-10 & D-20 (b) : Séparation stricte sur le prédicat ready (chunks reviewed >= seuil + preuve)
+  // D-10, D-20 (b) & D-23 (b) : Matières disponibles vs matières à venir (non-prêtes OU hors catalogue)
   const readyCollections = useMemo(() => {
     return collections.filter((c) => c.ready)
   }, [collections])
 
-  const unavailableCollections = useMemo(() => {
-    return collections.filter((c) => !c.ready)
+  const readyMatieres = useMemo(() => {
+    return new Set(readyCollections.map((c) => c.matiere ?? c.name))
+  }, [readyCollections])
+
+  const unavailableLabels = useMemo(() => {
+    const unready = collections.filter((c) => !c.ready).map((c) => c.matiere ?? c.name)
+    const unique = new Set(unready)
+    return Array.from(unique)
   }, [collections])
 
   const canSubmit = launchReady && Boolean(query.trim()) && selectedCollections.length > 0 && !loading
@@ -76,19 +82,19 @@ export default function SearchSection({
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
-          {/* D-20 (b) : Transparence sur les collections disponibles vs en attente */}
-          {unavailableCollections.length > 0 && (
+          {/* D-20 (b) & D-23 (b) : Transparence sur les collections disponibles vs en attente */}
+          {unavailableLabels.length > 0 && (
             <div role="status" className="flex items-start gap-2 rounded-md bg-blue-50 p-3 text-sm text-blue-900 border border-blue-200">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-blue-700" />
               <div>
                 <p className="font-medium">État des matières de votre profil :</p>
                 <p className="mt-0.5 text-xs text-blue-800">
-                  <span className="font-semibold text-emerald-800">Disponibles ({readyCollections.length}) :</span>{' '}
-                  {readyCollections.map((c) => c.matiere ?? c.name).join(', ') || 'Aucune'}
+                  <span className="font-semibold text-emerald-800">Disponibles ({readyMatieres.size}) :</span>{' '}
+                  {Array.from(readyMatieres).join(', ') || 'Aucune'}
                 </p>
                 <p className="mt-0.5 text-xs text-slate-600">
-                  <span className="font-semibold text-amber-800">À venir ({unavailableCollections.length}) :</span>{' '}
-                  {unavailableCollections.map((c) => c.matiere ?? c.name).join(', ')}
+                  <span className="font-semibold text-amber-800">À venir ({unavailableLabels.length}) :</span>{' '}
+                  {unavailableLabels.join(', ')}
                 </p>
               </div>
             </div>
