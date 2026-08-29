@@ -42,6 +42,40 @@ l'omet est ouverte sans que rien ne le signale. L'analyse statique exhaustive du
 code monté a montré qu'aucune route d'écriture ne l'omet aujourd'hui — mais rien
 dans l'architecture ne garantit qu'une route ajoutée demain l'appellera.
 
+### L'énoncé du motif
+
+Les deux défauts, et tous ceux que la même campagne a trouvés ensuite, se ramènent à une
+seule erreur :
+
+> **On a interrogé le support au lieu d'interroger la propriété.**
+
+« Un contrôle qui affirme plus qu'il n'a vérifié » décrit le symptôme. Cette formulation-ci
+nomme le mécanisme, et elle a l'avantage de rendre l'erreur reconnaissable *avant* qu'elle
+produise un faux vert. Le support est ce qui est commode à interroger — un fichier, une
+commande locale, une table déjà écrite, une variable qu'on croit à jour. La propriété est ce
+qu'on veut réellement établir.
+
+Relevé des occurrences observées dans une seule campagne :
+
+| on a interrogé le support… | …au lieu de la propriété |
+|---|---|
+| les chemins que le filtre énonce | le périmètre que le filtre doit couvrir |
+| une table de routes reprise d'un rapport antérieur | les routeurs effectivement montés |
+| des sondes sans identifiants | la fermeture **et** l'ouverture |
+| l'existence d'un fichier portant un numéro | la réservation de ce numéro, faite en prose |
+| une sonde depuis la machine elle-même vers sa propre adresse publique | l'accessibilité depuis l'extérieur — la boucle locale court-circuite le filtre |
+| la première ligne d'un nom de chaîne dans un fichier de règles | la politique de la table concernée |
+| une liste de noms de fonctions de garde écrite à la main | les fonctions qui refusent effectivement l'accès, dérivées du module de sécurité |
+| l'état de `HEAD` supposé inchangé depuis son dernier commit | l'état de `HEAD` mesuré avant d'y toucher |
+| un répertoire de recherche commode | l'emplacement réel de l'artefact cherché |
+
+La dernière ligne du tableau est la plus instructive : l'erreur ne frappe pas que le système
+vérifié. Elle frappe aussi **l'instrument de vérification** — un outil qui énumère au lieu de
+dériver, un contrôle qui s'exempte de son propre balayage. D'où le corollaire :
+
+> Un garde-fou dérive ses critères de la source qui fait autorité, jamais d'une énumération
+> écrite à la main ; et il s'applique à lui-même.
+
 ## Décision
 
 ### 1. Invariants d'exposition (opposables)
@@ -136,6 +170,29 @@ corrections structurelles — sans inventaire de routes, sans configuration de
 proxy, sans chronologie d'incident, sans nom d'hôte.
 
 *La mémoire institutionnelle est dans les invariants, pas dans la carte.*
+
+### 6. L'espace des numéros d'ADR est un registre, pas une convention
+
+Cet ADR a failli être écrit sous un numéro déjà réservé — réservé par deux artefacts **en
+prose**, une phrase de rapport et un champ d'attestation, sans qu'aucun fichier ne porte ce
+nom. Aucune recherche de fichier ne pouvait le voir. C'est le motif de la §*L'énoncé du
+motif* appliqué à la gouvernance elle-même : on interroge l'existence d'un fichier quand la
+propriété est la réservation.
+
+Décision : la réservation devient une chose que l'outillage connaît.
+
+- `docs/adr/RESERVATIONS.md` porte un bloc délimité, seul lu par le contrôle. La prose du
+  registre — numéros cités en provenance ou en exemple — ne réserve rien.
+- `scripts/check-adr-numbering.sh`, appelé par `scripts/ci-local.sh`, échoue si : deux
+  fichiers portent le même numéro ; un numéro est référencé dans le dépôt sans fichier ni
+  entrée au registre ; une entrée subsiste alors que le fichier existe.
+- Le garde-fou est balayé **comme les autres fichiers** : il ne contient donc aucun numéro
+  littéral, qui vaudrait réservation. Un contrôle qui s'exempte de son propre périmètre est
+  le défaut qu'il cherche.
+
+Le balayage a mis au jour, en passant, une lacune préexistante : un ADR déclaré accepté et
+cité comme opposable par un autre ADR, dont le fichier n'a jamais été écrit. Il est consigné
+au registre pour que la lacune cesse d'être silencieuse — non pour la légitimer.
 
 ## Conséquences
 
