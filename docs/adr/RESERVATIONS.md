@@ -22,6 +22,9 @@ si un numéro est référencé quelque part dans le dépôt sans avoir ni fichie
 
 ## Bloc lu par l'outillage
 
+Catégories : `reserve` (numéro cité, fichier à écrire), `branche` (fichier existant sur une
+ref non fusionnée), `sentinel` (numéro fictif, n'aura jamais de fichier).
+
 Le contrôle ne lit **que** l'intérieur des marqueurs ci-dessous, et n'y retient que le
 premier champ de chaque ligne. La prose de ce fichier — y compris les numéros cités en
 exemple ou en provenance — lui est donc invisible, et ne peut pas réserver un numéro par
@@ -29,7 +32,7 @@ accident.
 
 <!-- adr-registry:begin -->
 ```
-ADR-0043  lacune    Autorisation de composition multi-autorisation — déclaré accepté et cité comme non supersédé, fichier jamais écrit
+ADR-0043  branche   Preuve H2 V2 liée à la chaîne Tier A — statut Proposé, fichier porté par une branche non fusionnée
 ADR-0053  reserve   Autorité eduscol_catalogue_par_scope — autorité de fait de source pour le catalogue par scope
 ADR-9999  sentinel  Numéro fictif du test du garde-fou de gouvernance — n'aura jamais de fichier, par construction
 ```
@@ -37,10 +40,18 @@ ADR-9999  sentinel  Numéro fictif du test du garde-fou de gouvernance — n'aur
 
 ## Détail
 
-**`ADR-0043` — lacune, non réservation.** Un ADR déclaré accepté et cité comme opposable par
-le fichier `ADR-0044`, ainsi que par deux rapports de lot, mais dont le fichier n'a jamais
-été écrit. Il est consigné ici pour que la lacune cesse d'être silencieuse — pas pour la
-légitimer. À écrire ou à requalifier.
+**`ADR-0043` — porté par une branche, pas une lacune.** Le fichier
+`docs/adr/ADR-0043-preuve-h2-v2-liaison-tier-a.md` **existe**, sur la branche
+`rag-pedago/tier-a-currentness-byte-identity-20260820`, au statut **Proposé**, soumis au gate
+humain et jamais fusionné. Quatre documents fusionnés le citent — et le déclarent tous
+explicitement `UNREVIEWED_WIP`, `NON_AUTHORITATIVE`, `NOT_REUSED`. Rien n'est à corriger :
+c'est une quarantaine délibérée, correctement signalée partout où le numéro apparaît.
+
+Il figure ici parce que le contrôle ne balaie que la ref courante (`git ls-files`) : un ADR
+vivant sur une autre branche y sera toujours vu comme un numéro sans fichier. Étendre le
+balayage à toutes les refs coûterait un couplage à l'état de `fetch` pour un gain nul — le
+registre est le bon endroit pour porter cette information, et il dit **où** le fichier vit.
+À retirer d'ici le jour où la branche fusionne.
 
 **`ADR-0053` — réservation en cours.** Référencé par
 `docs/reports/evidence-index/AUTHORITIES.json` et par

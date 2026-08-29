@@ -190,9 +190,19 @@ Décision : la réservation devient une chose que l'outillage connaît.
   littéral, qui vaudrait réservation. Un contrôle qui s'exempte de son propre périmètre est
   le défaut qu'il cherche.
 
-Le balayage a mis au jour, en passant, une lacune préexistante : un ADR déclaré accepté et
-cité comme opposable par un autre ADR, dont le fichier n'a jamais été écrit. Il est consigné
-au registre pour que la lacune cesse d'être silencieuse — non pour la légitimer.
+Le balayage a signalé trois numéros sans fichier sur la ref courante, de trois natures
+distinctes — une réservation en cours, une sentinelle de test, et un ADR **vivant sur une
+branche non fusionnée**, au statut Proposé, que quatre documents citent en le déclarant
+partout `UNREVIEWED_WIP` et `NON_AUTHORITATIVE`. Ce dernier cas n'est pas un défaut : c'est
+une quarantaine délibérée, correctement signalée. Il enseigne en revanche la limite du
+contrôle — il ne balaie que la ref courante — et c'est pourquoi le registre porte une
+catégorie qui dit *où* le fichier vit, plutôt que d'étendre le balayage à toutes les refs et
+de se coupler à l'état de `fetch`.
+
+La première rédaction de ce paragraphe qualifiait ce cas de « lacune : un ADR déclaré accepté
+dont le fichier n'existe pas ». C'était faux, et faux de la manière que cet ADR décrit :
+la phrase citée avait été lue tronquée, dans une sortie de recherche, au lieu d'être lue
+dans son document.
 
 ## Conséquences
 
