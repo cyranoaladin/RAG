@@ -38,13 +38,13 @@ export default function SearchSection({
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // D-10 & D-20 (b) : Séparation des collections prêtes vs en attente
+  // D-10 & D-20 (b) : Séparation stricte sur le prédicat ready (chunks reviewed >= seuil + preuve)
   const readyCollections = useMemo(() => {
-    return collections.filter((c) => c.instanciee)
+    return collections.filter((c) => c.ready)
   }, [collections])
 
   const unavailableCollections = useMemo(() => {
-    return collections.filter((c) => !c.instanciee)
+    return collections.filter((c) => !c.ready)
   }, [collections])
 
   const canSubmit = launchReady && Boolean(query.trim()) && selectedCollections.length > 0 && !loading

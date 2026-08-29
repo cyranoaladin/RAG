@@ -103,8 +103,10 @@ export default function CollectionsSection({ collections }: { collections: RagCo
                     <Badge variant="outline" className={DOMAINS_BADGE[c.domain] ?? ''}>{c.domain}</Badge>
                   </TableCell>
                   <TableCell className="text-right">
-                    {c.instanciee ? (
-                      <Badge className="bg-emerald-600">Instanciée</Badge>
+                    {c.ready ? (
+                      <Badge className="bg-emerald-600">Prête</Badge>
+                    ) : c.instanciee ? (
+                      <Badge variant="outline" className="border-amber-400 bg-amber-50 text-amber-800">En validation</Badge>
                     ) : (
                       <Badge variant="outline" className="border-slate-300 text-slate-500">En attente</Badge>
                     )}

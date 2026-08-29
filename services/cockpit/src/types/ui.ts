@@ -8,6 +8,7 @@ export interface RagCollection {
   domain: string
   taxonomy_file: string | null
   instanciee: boolean
+  ready: boolean
 }
 
 export interface IngestionSource {
