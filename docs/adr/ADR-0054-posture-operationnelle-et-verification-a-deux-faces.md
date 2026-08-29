@@ -141,6 +141,26 @@ dériver, un contrôle qui s'exempte de son propre balayage. D'où le corollaire
 - **V-6 — Domaine porté par la synthèse.** Une phrase de synthèse porte le
   domaine de la mesure qui la fonde. C'est dans le résumé, non dans le corps du
   rapport, que les domaines se perdent — et c'est le résumé qu'on cite.
+- **V-7 — Un audit produit des faits, pas des exigences.** L'audit d'un système
+  en fonctionnement établit des faits **sur ce système**. Il ne produit aucune
+  condition pour son successeur. Tout constat doit être **re-dérivé contre la
+  cible** avant de devenir une exigence : le système observé et le système visé
+  ne se ressemblent que par accident.
+
+  Éprouvé : une liste de huit « conditions de bascule » issue de l'audit d'un
+  service en production s'est révélée, re-dérivée contre le code du dépôt, sans
+  objet sur six points, déjà satisfaite sur un, et **activement nuisible sur le
+  dernier** — elle demandait de configurer un registre de métriques multi-processus
+  pour une cible qui avait délibérément choisi un worker canonique, motif écrit
+  dans sa définition de composition. L'exigence aurait défait la décision.
+
+- **V-8 — Un fragment cité est un support.** Une phrase reprise d'un rapport, un
+  extrait de sortie de recherche, un nom de fichier dans une liste : ce sont des
+  supports, pas des propriétés. Ils se vérifient dans leur document d'origine
+  avant de fonder un raisonnement. Une citation tronquée a fait qualifier de
+  « décision opposable dont le texte n'existe nulle part » un ADR qui était en
+  réalité en quarantaine délibérée, correctement signalée aux quatre endroits où
+  son numéro apparaît.
 
 ### 3. Corrections structurelles à porter
 
@@ -228,7 +248,7 @@ dans son document.
 
 **Positives.**
 
-- Les invariants I-1 à I-5 et les règles V-1 à V-6 sont opposables en revue : une
+- Les invariants I-1 à I-5 et les règles V-1 à V-8 sont opposables en revue : une
   fermeture livrée avec des sondes d'une seule face, ou vérifiée contre un
   inventaire repris plutôt que reconstruit, est refusable sans discussion.
 - La quatrième catégorie de divulgation donne une réponse stable à une question
