@@ -84,6 +84,8 @@ class ResourceRegistryBootstrapPayload(StrictBaseModel):
         version_ids = [value.resource_version_id for value in values]
         if len(version_ids) != len(set(version_ids)):
             raise ValueError("resource_version_id values must be unique")
+        if version_ids != sorted(version_ids, key=str):
+            raise ValueError("resources must use canonical resource_version_id order")
         return values
 
 
