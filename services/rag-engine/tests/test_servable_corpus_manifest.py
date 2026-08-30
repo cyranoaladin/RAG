@@ -85,8 +85,36 @@ def _spec(**changes: object) -> CorpusBuildSpec:
         "academic_year": "2026-2027",
         "curriculum_version": "fr-national-2026",
         "physical_collection": "rag_nexus_maths_terminale_gen_specialite",
-        "scope_id": "scope-maths-terminale-v1",
-        "scope_sha256": SHA_B,
+        "retrieval_scope": {
+            "artifact_version": "3",
+            "scope_id": "aria_maths_terminale_v1",
+            "status": "eligible_for_promotion",
+            "source_sha256": SHA_B,
+            "target_policy": {
+                "tenant": "nexus",
+                "niveau": "terminale",
+                "voie": "generale",
+                "matiere": "mathematiques",
+                "statut_enseignement": "specialite",
+                "audiences": ["aefe", "libre"],
+                "candidates": ["scolarise", "aefe", "libre"],
+                "roles": ["student"],
+            },
+            "evidence_subject": {
+                "collection": "rag_nexus_maths_terminale_gen_specialite",
+                "tenant": "nexus",
+                "niveau": "terminale",
+                "voie": "generale",
+                "matiere": "mathematiques",
+                "statut_enseignement": "specialite",
+                "candidat": "scolarise",
+                "audiences": ["aefe", "tous"],
+                "visibility": "public",
+                "rights": ["officiel_public"],
+                "school_year": "2026-2027",
+                "programme_version": "fr-national-2026",
+            },
+        },
     }
     payload.update(changes)
     return CorpusBuildSpec.model_validate(payload)
@@ -139,6 +167,8 @@ def test_manifest_is_deterministic_and_preserves_canonical_resource_identity() -
     assert manifest.resource_registry_sha256 == _snapshot(registry).registry_sha256
     assert corpus.corpus_id == "aria-maths-terminale"
     assert corpus.physical_collection == "rag_nexus_maths_terminale_gen_specialite"
+    assert corpus.scope_id == "aria_maths_terminale_v1"
+    assert corpus.scope_sha256 == corpus.retrieval_scope.sha256_digest()
     assert resource.resource_id == UUID("11111111-1111-4111-8111-111111111111")
     assert resource.resource_version_id == UUID("22222222-2222-4222-8222-222222222222")
     assert resource.content_sha256 == SHA_A
@@ -176,6 +206,17 @@ def test_manifest_rejects_unknown_empty_or_cross_scope_collection() -> None:
 
     with pytest.raises(ServableCorpusBuildError, match="scope"):
         _build(specs=[_spec(academic_year="2025-2026")])
+
+    drifted_scope = _spec().retrieval_scope.model_copy(
+        update={"source_sha256": SHA_A}
+    )
+    drifted_evidence = drifted_scope.evidence_subject.model_copy(
+        update={"collection": "rag_nexus_nsi_terminale_specialite"}
+    )
+    with pytest.raises(ServableCorpusBuildError, match="scope"):
+        _build(specs=[_spec(retrieval_scope=drifted_scope.model_copy(
+            update={"evidence_subject": drifted_evidence}
+        ))])
 
 
 def test_manifest_rejects_duplicate_corpus_binding() -> None:

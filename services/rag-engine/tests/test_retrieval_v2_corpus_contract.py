@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 from nexus_contracts import (
+    ChatRequest,
     RetrievalNeed,
     RetrievalRequest,
     ServableCorpusManifestPayload,
@@ -12,11 +13,14 @@ from nexus_contracts import (
     seal_servable_corpus_manifest,
 )
 
+from ingestor.identity_v2 import IdentityVerifierConfig
 from ingestor.retrieval_scope_v2 import RetrievalScopeError
 from ingestor.retrieval_v2_endpoint import (
     SearchV2Hit,
     _canonical_retrieval_request_sha256,
+    _require_chat_profile_match,
     _require_manifest_bound_corpus,
+    _require_retrieval_identity,
     _to_manifest_bound_retrieval_result,
 )
 
@@ -44,8 +48,36 @@ def _manifest():
                         "academic_year": "2026-2027",
                         "curriculum_version": "fr-national-2026",
                         "physical_collection": "rag_nexus_maths_terminale_gen_specialite",
-                        "scope_id": "scope-maths-terminale-v1",
-                        "scope_sha256": SHA_A,
+                        "retrieval_scope": {
+                            "artifact_version": "3",
+                            "scope_id": "aria_maths_terminale_v1",
+                            "status": "eligible_for_promotion",
+                            "source_sha256": SHA_A,
+                            "target_policy": {
+                                "tenant": "nexus",
+                                "niveau": "terminale",
+                                "voie": "generale",
+                                "matiere": "mathematiques",
+                                "statut_enseignement": "specialite",
+                                "audiences": ["aefe", "libre"],
+                                "candidates": ["scolarise", "aefe", "libre"],
+                                "roles": ["student"],
+                            },
+                            "evidence_subject": {
+                                "collection": "rag_nexus_maths_terminale_gen_specialite",
+                                "tenant": "nexus",
+                                "niveau": "terminale",
+                                "voie": "generale",
+                                "matiere": "mathematiques",
+                                "statut_enseignement": "specialite",
+                                "candidat": "scolarise",
+                                "audiences": ["aefe", "tous"],
+                                "visibility": "public",
+                                "rights": ["officiel_public"],
+                                "school_year": "2026-2027",
+                                "programme_version": "fr-national-2026",
+                            },
+                        },
                         "resources": [
                             {
                                 "resource_id": RESOURCE_ID,
@@ -102,14 +134,17 @@ class _Repository:
         return manifest.corpora[0]
 
 
-def _verified(payload: RetrievalRequest, **overrides: object):
+def _verified(payload: RetrievalRequest, *, artifact=None, **overrides: object):
     envelope = {
         "manifest_sha256": payload.manifest_sha256,
         "request_sha256": _canonical_retrieval_request_sha256(payload),
         "allowed_collections": ["rag_nexus_maths_terminale_gen_specialite"],
     }
     envelope.update(overrides)
-    return SimpleNamespace(envelope=SimpleNamespace(**envelope))
+    return SimpleNamespace(
+        envelope=SimpleNamespace(**envelope),
+        artifact=artifact or _manifest().corpora[0].retrieval_scope,
+    )
 
 
 def _hit(**overrides: object) -> SearchV2Hit:
@@ -152,6 +187,40 @@ def test_manifest_bound_request_requires_signed_request_digest_and_collection() 
     ):
         with pytest.raises(RetrievalScopeError, match="forbidden"):
             _require_manifest_bound_corpus(payload, _verified(payload, **overrides), _Repository())
+
+
+def test_manifest_bound_request_rejects_identity_for_a_different_embedded_scope() -> None:
+    payload = _payload()
+    different_scope = _manifest().corpora[0].retrieval_scope.model_copy(
+        update={"scope_id": "aria_maths_terminale_other_v1"}
+    )
+
+    with pytest.raises(RetrievalScopeError, match="forbidden"):
+        _require_manifest_bound_corpus(
+            payload,
+            _verified(payload, artifact=different_scope),
+            _Repository(),
+        )
+
+
+def test_legacy_chat_route_fails_closed_for_manifest_bound_scope() -> None:
+    payload = _payload()
+    artifact = _manifest().corpora[0].retrieval_scope
+    chat_payload = {
+        "student_profile": payload.student_profile.model_dump(mode="json"),
+        "query": "Suites et limites",
+        "collections": [artifact.evidence_subject.collection],
+    }
+
+    with pytest.raises(HTTPException) as caught:
+        _require_chat_profile_match(
+            ChatRequest.model_validate(chat_payload),
+            [artifact.evidence_subject.collection],
+            {artifact.evidence_subject.collection: SimpleNamespace()},
+            verified=_verified(payload),
+        )
+
+    assert caught.value.status_code == 403
 
 
 def test_manifest_bound_result_uses_only_verified_resource_version_and_locator() -> None:
@@ -248,3 +317,50 @@ def test_search_v2_manifest_mode_uses_resolved_collection_and_returns_identity(
     }
     assert len(response.results) == 1
     assert str(response.results[0].resource_version_id) == RESOURCE_VERSION_ID
+
+
+def test_manifest_bound_identity_uses_the_exact_embedded_aria_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import retrieval_v2_endpoint as endpoint
+
+    payload = _payload()
+    corpus = _manifest().corpora[0]
+    base_artifact = corpus.retrieval_scope
+    base_config = IdentityVerifierConfig(
+        secret="s" * 32,
+        issuer="nexus-cockpit",
+        audience="nexus-rag-engine",
+        identity_issuer="nexus-cockpit",
+        identity_audience="nexus-rag-engine",
+        artifact=base_artifact,
+        artifacts={base_artifact.scope_id: base_artifact},
+    )
+    captured: dict[str, object] = {}
+    expected_verified = SimpleNamespace(envelope=SimpleNamespace(), artifact=base_artifact)
+
+    monkeypatch.setattr(endpoint, "require_bff_service", lambda *_args, **_kwargs: "service")
+    monkeypatch.setattr(
+        endpoint,
+        "_servable_corpus_repository",
+        lambda: _Repository(),
+    )
+    monkeypatch.setattr(endpoint, "load_identity_verifier_config", lambda: base_config)
+
+    def require_identity(_request, *, config):
+        captured["config"] = config
+        return expected_verified
+
+    monkeypatch.setattr(endpoint, "require_internal_identity", require_identity)
+
+    actual = _require_retrieval_identity(
+        SimpleNamespace(),
+        endpoint="/search/v2",
+        payload=payload,
+    )
+
+    assert actual is expected_verified
+    config = captured["config"]
+    assert isinstance(config, IdentityVerifierConfig)
+    assert config.artifact == base_artifact
+    assert config.artifacts == {base_artifact.scope_id: base_artifact}

@@ -49,8 +49,30 @@ def _manifest():
                         "academic_year": "2026-2027",
                         "curriculum_version": "fr-national-2026",
                         "physical_collection": "rag_nexus_maths_terminale_gen_specialite",
-                        "scope_id": "scope-maths-terminale-v1",
-                        "scope_sha256": SHA_A,
+                        "retrieval_scope": {
+                            "artifact_version": "3",
+                            "scope_id": "aria_maths_terminale_v1",
+                            "status": "eligible_for_promotion",
+                            "source_sha256": SHA_A,
+                            "target_policy": {
+                                "tenant": "nexus", "niveau": "terminale",
+                                "voie": "generale", "matiere": "mathematiques",
+                                "statut_enseignement": "specialite",
+                                "audiences": ["aefe", "libre"],
+                                "candidates": ["scolarise", "aefe", "libre"],
+                                "roles": ["student"],
+                            },
+                            "evidence_subject": {
+                                "collection": "rag_nexus_maths_terminale_gen_specialite",
+                                "tenant": "nexus", "niveau": "terminale",
+                                "voie": "generale", "matiere": "mathematiques",
+                                "statut_enseignement": "specialite",
+                                "candidat": "scolarise", "audiences": ["aefe", "tous"],
+                                "visibility": "public", "rights": ["officiel_public"],
+                                "school_year": "2026-2027",
+                                "programme_version": "fr-national-2026",
+                            },
+                        },
                         "resources": [
                             {
                                 "resource_id": RESOURCE_ID,

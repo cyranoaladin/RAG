@@ -10,13 +10,14 @@ from nexus_contracts import (
     CorpusResourceVersion,
     ResourceRegistryBootstrap,
     ResourceRegistrySnapshot,
+    RetrievalScopeArtifactV3,
     ServableCorpus,
     ServableCorpusManifest,
     ServableCorpusManifestPayload,
     seal_servable_corpus_manifest,
 )
 from nexus_contracts.document import StrictBaseModel
-from nexus_contracts.identity import CollectionName, SchoolYear, Sha256Digest
+from nexus_contracts.identity import CollectionName, SchoolYear
 from nexus_contracts.servable_corpus_manifest import BoundedVersion
 from pydantic import ValidationError
 
@@ -37,8 +38,7 @@ class CorpusBuildSpec(StrictBaseModel):
     academic_year: SchoolYear
     curriculum_version: BoundedVersion
     physical_collection: CollectionName
-    scope_id: BoundedVersion
-    scope_sha256: Sha256Digest
+    retrieval_scope: RetrievalScopeArtifactV3
 
 
 def _resources_for_spec(

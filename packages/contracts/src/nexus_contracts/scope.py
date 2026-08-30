@@ -247,8 +247,92 @@ class RetrievalScopeArtifactV2(StrictBaseModel):
             raise ValueError("identity.audience does not match the artifact")
 
 
+class RetrievalScopeTargetPolicy(StrictBaseModel):
+    """Non-personal ARIA audience policy, separate from corpus evidence."""
+
+    tenant: BoundedSlug
+    niveau: Niveau
+    voie: Voie
+    matiere: BoundedSlug
+    statut_enseignement: StatutEnseignement
+    audiences: list[Literal["libre", "aefe", "tous"]] = Field(
+        min_length=1,
+        max_length=3,
+        json_schema_extra={"uniqueItems": True},
+    )
+    candidates: list[Candidat] = Field(
+        min_length=1,
+        max_length=16,
+        json_schema_extra={"uniqueItems": True},
+    )
+    roles: list[Literal["student", "teacher", "admin", "ingest_agent", "reviewer"]] = Field(
+        min_length=1,
+        max_length=5,
+        json_schema_extra={"uniqueItems": True},
+    )
+
+    @field_validator("audiences", "candidates", "roles")
+    @classmethod
+    def validate_unique_policy_values(cls, values: list[object]) -> list[object]:
+        if len(values) != len(set(values)):
+            raise ValueError("target policy values cannot contain duplicates")
+        return values
+
+
+class RetrievalScopeArtifactV3(StrictBaseModel):
+    """ARIA scope separating target authorization from indexed evidence."""
+
+    artifact_version: Literal["3"]
+    scope_id: BoundedSlug
+    status: Literal["eligible_for_promotion"]
+    source_sha256: Sha256Digest
+    target_policy: RetrievalScopeTargetPolicy
+    evidence_subject: RetrievalScopeEvidenceSubject
+
+    def canonical_bytes(self) -> bytes:
+        return json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+
+    def sha256_digest(self) -> str:
+        return hashlib.sha256(self.canonical_bytes()).hexdigest()
+
+    def validate_envelope(self, envelope: InternalIdentityEnvelope) -> None:
+        if envelope.scope_id != self.scope_id:
+            raise ValueError("scope_id does not match the artifact")
+        if envelope.scope_digest != self.sha256_digest():
+            raise ValueError("scope_digest does not match the artifact")
+        if envelope.allowed_collections != [self.evidence_subject.collection]:
+            raise ValueError("allowed_collections do not match the artifact")
+
+        identity = envelope.identity
+        profile = identity.pedagogical_profile
+        policy = self.target_policy
+        if identity.tenant != policy.tenant:
+            raise ValueError("identity.tenant does not match the artifact")
+        if identity.niveau != policy.niveau:
+            raise ValueError("identity.niveau does not match the artifact")
+        if identity.school_year != self.evidence_subject.school_year:
+            raise ValueError("identity.school_year does not match the artifact")
+        if identity.role not in policy.roles:
+            raise ValueError("identity.role does not match the artifact")
+        if profile.voie != policy.voie:
+            raise ValueError("identity.voie does not match the artifact")
+        if profile.matieres != [policy.matiere]:
+            raise ValueError("identity.matieres do not match the artifact")
+        if profile.statut_enseignement != policy.statut_enseignement:
+            raise ValueError("identity.statut_enseignement does not match the artifact")
+        if profile.candidat not in policy.candidates:
+            raise ValueError("identity.candidat does not match the artifact")
+        if profile.audience not in policy.audiences:
+            raise ValueError("identity.audience does not match the artifact")
+
+
 RetrievalScopeArtifact: TypeAlias = (
-    PilotRetrievalScopeArtifact | RetrievalScopeArtifactV2
+    PilotRetrievalScopeArtifact | RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3
 )
 
 _RETRIEVAL_SCOPE_RESOURCES: Mapping[str, tuple[str, str, Literal["1", "2"]]] = (
@@ -457,8 +541,10 @@ __all__ = [
     "PilotScopeSubject",
     "RetrievalScopeArtifact",
     "RetrievalScopeArtifactV2",
+    "RetrievalScopeArtifactV3",
     "RetrievalScopeEvidenceSubject",
     "RetrievalScopeTargetIdentity",
+    "RetrievalScopeTargetPolicy",
     "load_retrieval_scope_artifact",
     "load_retrieval_scope_registry",
     "load_pilot_retrieval_scope",

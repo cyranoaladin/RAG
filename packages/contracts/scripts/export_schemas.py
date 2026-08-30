@@ -28,6 +28,7 @@ from nexus_contracts import (  # noqa: E402
     InternalIdentityEnvelope,
     PilotRetrievalScopeArtifact,
     RetrievalScopeArtifactV2,
+    RetrievalScopeArtifactV3,
     RetrievalError,
     RetrievalEvaluationEvidenceV1,
     RetrievalGoldenSuiteV1,
@@ -68,6 +69,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "internal-identity-envelope.json": InternalIdentityEnvelope,
     "pilot-retrieval-scope-artifact.json": PilotRetrievalScopeArtifact,
     "retrieval-scope-artifact-v2.json": RetrievalScopeArtifactV2,
+    "retrieval-scope-artifact-v3.json": RetrievalScopeArtifactV3,
     "search-payload.json": SearchPayload,
 }
 
@@ -79,8 +81,15 @@ def schema_bytes(filename: str, model: type[Model]) -> bytes:
 
 
 def lock_bytes(schemas: dict[str, bytes]) -> bytes:
+    fixture = ROOT / "fixtures" / "internal-identity-envelope-v1.json"
+    fixture_bytes = fixture.read_bytes()
     lock = {
         "packageVersion": PACKAGE_VERSION,
+        "fixtures": {
+            fixture.name: {
+                "sha256": hashlib.sha256(fixture_bytes).hexdigest(),
+            }
+        },
         "schemas": {
             filename: {
                 "$id": (

@@ -54,6 +54,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
         "internal-identity.json",
         "pilot-retrieval-scope-artifact.json",
         "retrieval-scope-artifact-v2.json",
+        "retrieval-scope-artifact-v3.json",
         *REVIEW_SCHEMAS,
         "search-payload.json",
     }
@@ -70,6 +71,12 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     assert first_lock == second_lock
     assert first_lock["packageVersion"] == "0.15.0"
     assert set(first_lock["schemas"]) == expected
+    fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
+    assert first_lock["fixtures"] == {
+        "internal-identity-envelope-v1.json": {
+            "sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        }
+    }
     for filename in expected:
         schema = (first / filename).read_bytes()
         assert first_lock["schemas"][filename] == {
@@ -100,3 +107,13 @@ def test_cockpit_generator_declares_retrieval_scope_v2_schema() -> None:
 
     assert "['retrieval-scope-artifact-v2.json', 'RetrievalScopeArtifactV2']" in generator
     assert "'RetrievalScopeArtifactV2'" in generator.partition("const validatorNames = [")[2]
+
+
+def test_cockpit_generator_declares_retrieval_scope_v3_schema() -> None:
+    root = Path(__file__).resolve().parents[3]
+    generator = (
+        root / "services" / "cockpit" / "scripts" / "generate-contracts.mjs"
+    ).read_text(encoding="utf-8")
+
+    assert "['retrieval-scope-artifact-v3.json', 'RetrievalScopeArtifactV3']" in generator
+    assert "'RetrievalScopeArtifactV3'" in generator.partition("const validatorNames = [")[2]

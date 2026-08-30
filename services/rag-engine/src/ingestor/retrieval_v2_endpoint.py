@@ -20,7 +20,7 @@ import re
 import threading
 import time
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -33,6 +33,7 @@ from nexus_contracts import (
     RetrievalResponse,
     RetrievalResult,
     RetrievalScopeArtifactV2,
+    RetrievalScopeArtifactV3,
     ServableCorpus,
     load_retrieval_scope_registry,
 )
@@ -73,7 +74,11 @@ try:
         load_embedding_model,
         runtime_embedding_dimension,
     )
-    from .identity_v2 import VerifiedInternalIdentity, require_internal_identity
+    from .identity_v2 import (
+        VerifiedInternalIdentity,
+        load_identity_verifier_config,
+        require_internal_identity,
+    )
     from .inference_runtime import BoundedInferenceEmbedder, BoundedInferenceReranker
     from .pg_pool import (
         PoolSettings,
@@ -138,6 +143,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     )
     from identity_v2 import (  # type: ignore[no-redef]
         VerifiedInternalIdentity,
+        load_identity_verifier_config,
         require_internal_identity,
     )
     from inference_runtime import (  # type: ignore[no-redef]
@@ -1432,6 +1438,7 @@ def _require_manifest_bound_corpus(
         raise RetrievalScopeError("retrieval scope forbidden") from exc
     if (
         not isinstance(corpus, ServableCorpus)
+        or verified.artifact != corpus.retrieval_scope
         or corpus.physical_collection not in envelope.allowed_collections
     ):
         raise RetrievalScopeError("retrieval scope forbidden")
@@ -1517,6 +1524,8 @@ def _require_chat_profile_match(
         raise HTTPException(status_code=403, detail="Forbidden")
     first = scopes[collections[0]]
     artifact = getattr(verified, "artifact", None)
+    if isinstance(artifact, RetrievalScopeArtifactV3):
+        raise HTTPException(status_code=403, detail="Forbidden")
     if isinstance(artifact, RetrievalScopeArtifactV2):
         if collections != [artifact.evidence_subject.collection]:
             raise HTTPException(status_code=403, detail="Forbidden")
@@ -1619,7 +1628,7 @@ def _collection_for_retrieval_request(
 ) -> str:
     """Résoudre une matière contractuelle vers l'artefact signé du serveur."""
     artifact = verified.artifact
-    if isinstance(artifact, RetrievalScopeArtifactV2):
+    if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         curriculum = payload.curriculum_scope
         evidence = artifact.evidence_subject
         if curriculum is None:
@@ -1665,7 +1674,7 @@ def _require_retrieval_profile_match(
 ) -> None:
     """Refuser toute dimension contractuelle différente du scope signé."""
     artifact = getattr(verified, "artifact", None)
-    if isinstance(artifact, RetrievalScopeArtifactV2):
+    if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         assert verified is not None
         _require_student_target_match(payload, verified)
         _require_curriculum_evidence_match(payload, scope, verified)
@@ -1715,10 +1724,14 @@ def _require_student_target_match(
 ) -> None:
     """Lier le profil de requête à la cible élève signée V2."""
     artifact = verified.artifact
-    if not isinstance(artifact, RetrievalScopeArtifactV2):
+    if not isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         raise RetrievalScopeError("retrieval scope forbidden")
     profile = payload.student_profile
-    target = artifact.target_identity
+    target = (
+        artifact.target_identity
+        if isinstance(artifact, RetrievalScopeArtifactV2)
+        else artifact.target_policy
+    )
     actual = (
         profile.niveau.value,
         profile.voie.value,
@@ -1736,8 +1749,8 @@ def _require_student_target_match(
         target.statut_enseignement.value,
         verified.envelope.identity.pedagogical_profile.candidat.value,
         artifact.evidence_subject.school_year,
-        target.audience,
-        target.audience,
+        verified.envelope.identity.pedagogical_profile.audience,
+        verified.envelope.identity.pedagogical_profile.audience,
     )
     if actual != expected:
         raise RetrievalScopeError("retrieval scope forbidden")
@@ -1751,7 +1764,7 @@ def _require_curriculum_evidence_match(
     """Lier la portée curriculaire aux dimensions SQL signées V2."""
     artifact = verified.artifact
     curriculum = payload.curriculum_scope
-    if not isinstance(artifact, RetrievalScopeArtifactV2) or curriculum is None:
+    if not isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3) or curriculum is None:
         raise RetrievalScopeError("retrieval scope forbidden")
     evidence = artifact.evidence_subject
     requested = (
@@ -1783,7 +1796,11 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
     answer_generation_allowed = false.
     """
-    verified = _require_retrieval_identity(request, endpoint="/search/v2")
+    verified = _require_retrieval_identity(
+        request,
+        endpoint="/search/v2",
+        payload=payload,
+    )
 
     cfg = load_collection_config()
     corpus: ServableCorpus | None = None
@@ -1882,10 +1899,30 @@ def _require_retrieval_identity(
     request: Request,
     *,
     endpoint: str,
+    payload: RetrievalRequest | None = None,
 ) -> VerifiedInternalIdentity:
     """Exiger le credential BFF puis l'enveloppe signée avant tout retrieval."""
     require_bff_service(request, endpoint=endpoint)
-    return require_internal_identity(request)
+    if payload is None or payload.manifest_sha256 is None:
+        return require_internal_identity(request)
+    if payload.corpus_id is None or payload.corpus_version_id is None:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    try:
+        corpus = _servable_corpus_repository().resolve_corpus(
+            manifest_sha256=payload.manifest_sha256,
+            corpus_id=payload.corpus_id,
+            corpus_version_id=payload.corpus_version_id,
+        )
+        base = load_identity_verifier_config()
+        artifact = corpus.retrieval_scope
+        config = replace(
+            base,
+            artifact=artifact,
+            artifacts={artifact.scope_id: artifact},
+        )
+    except (ServableCorpusRepositoryError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail="manifest incompatible") from exc
+    return require_internal_identity(request, config=config)
 
 
 def _require_catalogue_identity(

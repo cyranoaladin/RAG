@@ -1,6 +1,18 @@
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import json
+from pathlib import Path
+
 from nexus_contracts import InternalIdentityEnvelope, canonical_identity_envelope_bytes
+
+FIXTURE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "fixtures"
+    / "internal-identity-envelope-v1.json"
+)
 
 
 def test_internal_identity_envelope_has_stable_cross_runtime_bytes() -> None:
@@ -52,4 +64,24 @@ def test_internal_identity_envelope_has_stable_cross_runtime_bytes() -> None:
         b'"request_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",'
         b'"scope_digest":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",'
         b'"scope_id":"terminale_maths","sub":"psn_abcdefghijklmnopqrst"}'
+    )
+
+
+def test_versioned_cross_runtime_fixture_binds_request_scope_and_signature() -> None:
+    fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
+    envelope = InternalIdentityEnvelope.model_validate(fixture["envelope"])
+    canonical = canonical_identity_envelope_bytes(envelope)
+
+    assert base64.b64decode(fixture["canonicalEnvelopeBase64"]) == canonical
+    assert envelope.request_sha256 == fixture["requestSha256"]
+    assert envelope.scope_digest == fixture["retrievalScopeSha256"]
+    header, payload, signature = fixture["jwt"].split(".")
+    expected = hmac.new(
+        fixture["secret"].encode(),
+        f"{header}.{payload}".encode("ascii"),
+        hashlib.sha256,
+    ).digest()
+    assert hmac.compare_digest(
+        base64.urlsafe_b64decode(signature + "=" * (-len(signature) % 4)),
+        expected,
     )

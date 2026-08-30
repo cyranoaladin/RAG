@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -91,14 +92,33 @@ def _inputs(tmp_path: Path) -> tuple[Path, str, Path, str, Path, str]:
             }
         )
     )
-    specs = (
-        b'[{"academic_year":"2026-2027","corpus_id":"aria-maths-terminale",'
-        b'"corpus_version_id":"2026-08-30.1","curriculum_version":"fr-national-2026",'
-        b'"physical_collection":"rag_nexus_maths_terminale_gen_specialite",'
-        b'"scope_id":"scope-maths-terminale-v1","scope_sha256":"'
-        + SHA_B.encode()
-        + b'"}]\n'
-    )
+    specs = (json.dumps([{
+        "academic_year": "2026-2027",
+        "corpus_id": "aria-maths-terminale",
+        "corpus_version_id": "2026-08-30.1",
+        "curriculum_version": "fr-national-2026",
+        "physical_collection": "rag_nexus_maths_terminale_gen_specialite",
+        "retrieval_scope": {
+            "artifact_version": "3",
+            "scope_id": "aria_maths_terminale_v1",
+            "status": "eligible_for_promotion",
+            "source_sha256": SHA_B,
+            "target_policy": {
+                "tenant": "nexus", "niveau": "terminale", "voie": "generale",
+                "matiere": "mathematiques", "statut_enseignement": "specialite",
+                "audiences": ["aefe", "libre"],
+                "candidates": ["scolarise", "aefe", "libre"], "roles": ["student"],
+            },
+            "evidence_subject": {
+                "collection": "rag_nexus_maths_terminale_gen_specialite",
+                "tenant": "nexus", "niveau": "terminale", "voie": "generale",
+                "matiere": "mathematiques", "statut_enseignement": "specialite",
+                "candidat": "scolarise", "audiences": ["aefe", "tous"],
+                "visibility": "public", "rights": ["officiel_public"],
+                "school_year": "2026-2027", "programme_version": "fr-national-2026",
+            },
+        },
+    }], separators=(",", ":"), sort_keys=True) + "\n").encode()
     inventory_path = tmp_path / "inventory.json"
     registry_path = tmp_path / "registry.json"
     specs_path = tmp_path / "specs.json"

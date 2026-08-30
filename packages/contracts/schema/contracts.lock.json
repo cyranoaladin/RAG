@@ -1,4 +1,9 @@
 {
+  "fixtures": {
+    "internal-identity-envelope-v1.json": {
+      "sha256": "8821683188196680a0a408c147ec0920d52e4d53a8411e67b5d8ec398b29225f"
+    }
+  },
   "packageVersion": "0.15.0",
   "schemas": {
     "chat-payload.json": {
@@ -57,6 +62,10 @@
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v2.json",
       "sha256": "59e99bcb8e311872a282672299f7d97ace7300e6fed3705db1deaaac1ca34282"
     },
+    "retrieval-scope-artifact-v3.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v3.json",
+      "sha256": "0dfc9b1c3838d978b80f3cb1ac1d3df82d3c2484d6b5aababe7bf4487d60c301"
+    },
     "review-decision-payload.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-payload.json",
       "sha256": "4ad2d5d95b7c3ece3975472b31ed361b999f539b698624e07e38565a59a45125"
@@ -87,7 +96,7 @@
     },
     "servable-corpus-manifest-v1.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-manifest-v1.json",
-      "sha256": "54b89a704510abbd08cf5513894aa368550479f8420d2d66f3830f0d27c4712b"
+      "sha256": "e05d7cbf965c22f072faa25a9dabe673022050da4e54bf706027663321ba0386"
     }
   }
 }

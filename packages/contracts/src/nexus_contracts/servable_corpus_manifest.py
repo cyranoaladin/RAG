@@ -16,6 +16,7 @@ from nexus_contracts.identity import (
     Sha256Digest,
     require_consecutive_school_year,
 )
+from nexus_contracts.scope import RetrievalScopeArtifactV3
 
 BoundedVersion = Annotated[
     StrictStr,
@@ -112,8 +113,7 @@ class ServableCorpus(StrictBaseModel):
     academic_year: SchoolYear
     curriculum_version: BoundedVersion
     physical_collection: CollectionName
-    scope_id: BoundedVersion
-    scope_sha256: Sha256Digest
+    retrieval_scope: RetrievalScopeArtifactV3
     resources: list[CorpusResourceVersion] = Field(min_length=1)
 
     _validate_academic_year = field_validator("academic_year")(
@@ -129,6 +129,25 @@ class ServableCorpus(StrictBaseModel):
         if len(ids) != len(set(ids)):
             raise ValueError("resource_version_id values must be unique in a corpus")
         return values
+
+    @model_validator(mode="after")
+    def validate_retrieval_scope_binding(self) -> "ServableCorpus":
+        evidence = self.retrieval_scope.evidence_subject
+        if (
+            evidence.collection != self.physical_collection
+            or evidence.school_year != self.academic_year
+            or evidence.programme_version != self.curriculum_version
+        ):
+            raise ValueError("retrieval scope does not match corpus evidence")
+        return self
+
+    @property
+    def scope_id(self) -> str:
+        return self.retrieval_scope.scope_id
+
+    @property
+    def scope_sha256(self) -> str:
+        return self.retrieval_scope.sha256_digest()
 
 
 class ServableCorpusManifestPayload(StrictBaseModel):

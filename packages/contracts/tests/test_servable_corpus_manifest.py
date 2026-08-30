@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
@@ -9,6 +10,7 @@ from pydantic import ValidationError
 from nexus_contracts import (
     CorpusChunkBinding,
     CorpusResourceVersion,
+    RetrievalScopeArtifactV3,
     ServableCorpus,
     ServableCorpusIndexPayload,
     ServableCorpusManifestPayload,
@@ -16,6 +18,7 @@ from nexus_contracts import (
     seal_servable_corpus_index,
     seal_servable_corpus_manifest,
 )
+from test_aria_retrieval_scope_v3 import aria_scope_payload
 
 
 SHA_A = "a" * 64
@@ -26,6 +29,11 @@ VERSION_ID = UUID("22222222-2222-4222-8222-222222222222")
 
 
 def _manifest_payload() -> ServableCorpusManifestPayload:
+    scope = deepcopy(aria_scope_payload())
+    scope["scope_id"] = "aria_maths_terminale_v1"
+    scope["target_policy"]["niveau"] = "terminale"  # type: ignore[index]
+    scope["evidence_subject"]["niveau"] = "terminale"  # type: ignore[index]
+    scope["evidence_subject"]["collection"] = "terminale_maths"  # type: ignore[index]
     return ServableCorpusManifestPayload(
         protocol_version="1",
         manifest_version="2026-08-30.1",
@@ -41,8 +49,7 @@ def _manifest_payload() -> ServableCorpusManifestPayload:
                 academic_year="2026-2027",
                 curriculum_version="fr-national-2026",
                 physical_collection="terminale_maths",
-                scope_id="terminale-maths",
-                scope_sha256=SHA_C,
+                retrieval_scope=RetrievalScopeArtifactV3.model_validate(scope),
                 resources=[
                     CorpusResourceVersion(
                         resource_id=RESOURCE_ID,
@@ -69,6 +76,19 @@ def test_manifest_sealing_is_deterministic_and_self_verifying() -> None:
     assert first.manifest_sha256 == first.compute_sha256()
     assert first.corpora[0].resources[0].resource_version_id == VERSION_ID
     assert first.corpora[0].resources[0].content_sha256 == SHA_B
+    assert first.corpora[0].retrieval_scope.scope_id == "aria_maths_terminale_v1"
+
+
+def test_manifest_cannot_carry_scope_id_or_digest_that_drift_from_policy() -> None:
+    payload = _manifest_payload().model_dump(mode="python")
+    payload["corpora"][0]["scope_id"] = "other_scope"
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        ServableCorpusManifestPayload.model_validate(payload)
+
+    payload = _manifest_payload().model_dump(mode="python")
+    payload["corpora"][0]["scope_sha256"] = SHA_C
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        ServableCorpusManifestPayload.model_validate(payload)
 
 
 def test_manifest_rejects_duplicate_resource_versions_and_chunks() -> None:
