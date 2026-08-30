@@ -43,33 +43,23 @@
       "voie": "generale"
     },
     {
-      "collection": "rag_nexus_francais_premiere_tc",
-      "matiere": "francais",
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "matiere": "hggsp",
       "niveau": "premiere",
-      "path": "services/rag-pedago/taxonomy/francais/premiere_eaf.yml",
+      "path": "services/rag-pedago/taxonomy/hggsp/premiere_specialite.yml",
       "programme_version": "BOEN_special_1_2019-01-22",
-      "sha256": "bddfb68e05e7ba019ec4d97b3acb9802e0f8166e8117c66bae256427bc08a287",
-      "statut_enseignement": "tronc_commun",
+      "sha256": "04a51747e5408f235107ab0c05050507a3ef5b9f6f1725af75ea883fd7d31147",
+      "statut_enseignement": "specialite",
       "voie": "generale"
     },
     {
-      "collection": "rag_nexus_francais_quatrieme_tc",
-      "matiere": "francais",
-      "niveau": "quatrieme",
-      "path": "services/rag-pedago/taxonomy/francais/quatrieme.yml",
-      "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
-      "sha256": "0e5d32612f8a4e66d1dfc5dd7fad0a0c471961e1f4e017b073227d37ea396cd9",
-      "statut_enseignement": "tronc_commun",
-      "voie": "college"
-    },
-    {
-      "collection": "rag_nexus_francais_seconde_tc",
-      "matiere": "francais",
-      "niveau": "seconde",
-      "path": "services/rag-pedago/taxonomy/francais/seconde_tc.yml",
-      "programme_version": "BOEN_special_1_2019-01-22",
-      "sha256": "0d500e34d14fcd0e49f3544746151f666a0fe50425928c2e72cecc8b5f618911",
-      "statut_enseignement": "tronc_commun",
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "matiere": "hggsp",
+      "niveau": "terminale",
+      "path": "services/rag-pedago/taxonomy/hggsp/terminale_specialite.yml",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "sha256": "522e6be806f56255afceefa156fa04e0e71953baa91f227c5998112b1b05746d",
+      "statut_enseignement": "specialite",
       "voie": "generale"
     },
     {
@@ -83,42 +73,12 @@
       "voie": "generale"
     },
     {
-      "collection": "rag_nexus_maths_premiere_gen_specialite",
-      "matiere": "maths",
-      "niveau": "premiere",
-      "path": "services/rag-pedago/taxonomy/maths/premiere_gen_specialite.yml",
-      "programme_version": "BOEN_14_2026-04-02_MENE2602917A",
-      "sha256": "64ef308db6146cded002c55931c96d5f14f257f8b5a8e8c4ecc71882c4dae1f9",
-      "statut_enseignement": "specialite",
-      "voie": "generale"
-    },
-    {
-      "collection": "rag_nexus_maths_quatrieme_tc",
-      "matiere": "maths",
-      "niveau": "quatrieme",
-      "path": "services/rag-pedago/taxonomy/maths/quatrieme.yml",
-      "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
-      "sha256": "1143584759914d9229347bb93768d1d548bd9bd3bb4702db30936c2f97cd78a3",
-      "statut_enseignement": "tronc_commun",
-      "voie": "college"
-    },
-    {
-      "collection": "rag_nexus_maths_seconde_tc",
-      "matiere": "maths",
-      "niveau": "seconde",
-      "path": "services/rag-pedago/taxonomy/maths/seconde_tronc_commun.yml",
-      "programme_version": "BOEN_14_2026-04-02_MENE2602914A",
-      "sha256": "22fbefe63eb226857619f7fc3604db170ac9cd036d0612afcac510034cc40bc7",
-      "statut_enseignement": "tronc_commun",
-      "voie": "generale"
-    },
-    {
-      "collection": "rag_nexus_maths_terminale_gen_specialite",
-      "matiere": "maths",
+      "collection": "rag_nexus_hlp_terminale_specialite",
+      "matiere": "hlp",
       "niveau": "terminale",
-      "path": "services/rag-pedago/taxonomy/maths/terminale_gen_specialite.yml",
+      "path": "services/rag-pedago/taxonomy/hlp/terminale_specialite.yml",
       "programme_version": "BOEN_special_8_2019-07-25",
-      "sha256": "4a91661a381751573425b30667c53fc8f44df04fa4e0f7a0c4e71f0ec64005a6",
+      "sha256": "b2d72e8c328d4866d8fa9b6890b2619f8486541ea767e0961734b01b7dd66a8f",
       "statut_enseignement": "specialite",
       "voie": "generale"
     },
@@ -140,36 +100,6 @@
       "programme_version": "BOEN_special_8_2019-07-25",
       "sha256": "b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f",
       "statut_enseignement": "specialite",
-      "voie": "generale"
-    },
-    {
-      "collection": "rag_nexus_pc_premiere_specialite",
-      "matiere": "physique_chimie",
-      "niveau": "premiere",
-      "path": "services/rag-pedago/taxonomy/physique_chimie/premiere_specialite.yml",
-      "programme_version": "BOEN_special_1_2019-01-22",
-      "sha256": "390f703a2cdaff33a3798e597ecae1e48f50b94632d3ebd3fc8b27c342208cce",
-      "statut_enseignement": "specialite",
-      "voie": "generale"
-    },
-    {
-      "collection": "rag_nexus_pc_terminale_specialite",
-      "matiere": "physique_chimie",
-      "niveau": "terminale",
-      "path": "services/rag-pedago/taxonomy/physique_chimie/terminale_specialite.yml",
-      "programme_version": "BOEN_special_8_2019-07-25",
-      "sha256": "60ba40c6e8cca54caf4a911eb8aea1b08871409a31eedcf8c052438ae16312a9",
-      "statut_enseignement": "specialite",
-      "voie": "generale"
-    },
-    {
-      "collection": "rag_nexus_philo_terminale_tc",
-      "matiere": "philosophie",
-      "niveau": "terminale",
-      "path": "services/rag-pedago/taxonomy/philosophie/terminale_tronc_commun.yml",
-      "programme_version": "BOEN_special_8_2019-07-25",
-      "sha256": "38b5b64d73296b6715f6f855d3ce7b7a475bef30afb22a5a7e0d71630bc2b066",
-      "statut_enseignement": "tronc_commun",
       "voie": "generale"
     },
     {

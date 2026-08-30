@@ -1,6 +1,2029 @@
 {
   "artifacts": [
     {
+      "chunk_id_set_digest": "dff4f4e9a6473834e8b77e75dcbdaf32da7777907952390fcd50649e02976ad9",
+      "chunk_sha256_set_digest": "84fbe8b5bd4bb824242b1cdaec484c328cce77d44bb11006d8fb0f71a031a7f0",
+      "chunks": [
+        {
+          "chunk_id": "97136c19856ab0b3d5d9b9d571eec8f60de0466ed82555a545526d9c313cedd2",
+          "chunk_index": 0,
+          "chunk_sha256": "fc2c3fbe89623ffac5c3386059f990da913831d45a244677076dba3e8fc00778",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "2197f80ef6ebd658122538bcc1ea5fb4cdc989dc7b850be23731da9f87fa6a88",
+          "chunk_index": 1,
+          "chunk_sha256": "0cbd17d150ed06a61fc5408c1ef93cd78995a8836466f5681dc8de118c39e718",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "b6ef41857dfc22d859bbae516ac2f33049ccbb57d2a288ffd3fa96ccbb12126d",
+          "chunk_index": 2,
+          "chunk_sha256": "028ade8ecea6c52ffa7699b9a150e67e04bdc44e65b278e981a51d783bc1cccf",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "4bd50dca9dc1cafd6594f942ab358b6c4c8987771a8a919a9f5dab2a612dc502",
+          "chunk_index": 3,
+          "chunk_sha256": "50aefd86dac980b4026acf6c51c6f599c2daa14d4c754e5bfdc4f535c92e3fbb",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "099860830cc12712bd039c4c13963834ecae3f70bf13fc27f77f643dc78848fe",
+          "chunk_index": 4,
+          "chunk_sha256": "318d6df07ce9c0b76106ef3ce60c5dbe5d1e65026423593d4a3fb889d5360568",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "21f9bbfcc8f6d3cb24fab10f9cd0762092962d5607c05e9a78961a2a995a270a",
+          "chunk_index": 5,
+          "chunk_sha256": "e4f877c2c929c797656988151baec154154c8ca38ef2785bfc6bc4ebb7b955f5",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "118b1ee1e42e7e7062d7bb6650a673723dfd3ecf84cbbaf9c6f4ede1f5cb144e",
+          "chunk_index": 6,
+          "chunk_sha256": "8634865d36abad884f75ab8c9626740262e3fe7763a0377b74067c7f93ea244f",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "61713d870d00e735d69d5d6e5371b181dc9a30ed66ed308b44a91ca76cf23bca",
+          "chunk_index": 7,
+          "chunk_sha256": "2b919bac3b43b3b33f1f20af1032bd0575ac7a395c37a7190bf3298edd6b6d3f",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "ea0f960f1c1153b11c1b5dfed0d6a0df08ad5cb56083a5c7d9c08b9000d3ebf3",
+          "chunk_index": 8,
+          "chunk_sha256": "83dca234f645e183b7ad60b8d5e75a496f739922a317c6d6d5dd9a9d82d32e24",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "93043f04867f12a0608584013c496dbfef7c7d5b3aa7ceb3bcb5dc40735cac93",
+          "chunk_index": 9,
+          "chunk_sha256": "9de977686b385608c46ecd17fca2a06f2f1f407d17fa3fd9bf458ed469d9977a",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "cb1e764ff30c30fdb3e86225bd815f1b09fb0e75e7ad26085d9896f1b0753f50",
+          "chunk_index": 10,
+          "chunk_sha256": "eb3d80c0152c644c3aa12d013cdb33d5ae79387cad0971b51ea9d812fd6e46f5",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "b74df218a50d90acda4a71b15ac5777c57ba4d27cb98938341c998fd16f353a0",
+          "chunk_index": 11,
+          "chunk_sha256": "772c969332720969fb2c2841a6bc3fc14c6b4c7d2dc387f854428e6f793be0c8",
+          "page_end": 6,
+          "page_start": 6
+        }
+      ],
+      "content_sha256": "0acb85cddc0f0e2b436a574bd5d35cc6f3304270bf5e99dd1282c2344711526b",
+      "current_download_url": null,
+      "page_count": 6,
+      "page_coverage_digest": "17ec0c346922df8a32b8fee47a41171e9d6fddd3b46b04f9c3a70d9eb7b14af7",
+      "placement_id_set_digest": "00a9084b3ca54005ea1718ad50fba153a88537de5e6d7ed2c9a6d4f79fff7f7d",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "6ac3c9e9fa6c87f3bd6325c7f85fa060eeb048b17f7dd940be266da576a24080",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "e1e273abffa8f969cd0d25aad8ecfcb878b8025cd0c382742c243403028a1917",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/07_DIAPORAMAS_SUPPORTS/2026/fiche-de-presentation-du-theme-pdf-1-01-mo--0acb85cddc.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6171/concours-decouvrons-notre-constitution",
+      "title": "Fiche de présentation du thème PDF - 1.01 Mo",
+      "type_doc": "diaporama"
+    },
+    {
+      "chunk_id_set_digest": "ebf25b9263be76e93825e870ed8ef9da6d500ecb7f5d12421f5ac602cb19e897",
+      "chunk_sha256_set_digest": "198b22ff5bf0176ad8be92352476282fc5b138bd9212ce221df6f2eb862fb918",
+      "chunks": [
+        {
+          "chunk_id": "32d8b6cf21b973454c47a1bfe60de0eb9dab61a528398493b7e09bb39ba3e9cd",
+          "chunk_index": 0,
+          "chunk_sha256": "92ae8705158781a252f61b598f0644843d7d88d674f644334c5a02974a93bb4a",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "e95a323970d0a4dec3475f79f6d70044885de324805d6a31061ba759b6b44e86",
+          "chunk_index": 1,
+          "chunk_sha256": "c39e0fb2cc2d93461503704b63d608be687f629b373c6312995d81c00037d191",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "dcef393919a18165aaed74ee2284cf7beb0a1fc2877a3096070c802ff1624040",
+          "chunk_index": 2,
+          "chunk_sha256": "7e7a2750783240c5e2b19780df18682d6434c550c1d8a69720ac67575e404eee",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "4a9f9724130f0cd280bcbcf634bc6049520e71e509fee25648cb31a8bb113aa7",
+          "chunk_index": 3,
+          "chunk_sha256": "71b5b2dea7b8804b388ff377cf1a9745be68733e5e6d68d3f25905164eb2c4ce",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "c9d35f0efd01e54a8a01ee12d3cc9bea5f7bd8e4e79adfaa563fa4d5eb86a57d",
+          "chunk_index": 4,
+          "chunk_sha256": "43c57b1871b4f8e852ce2b8b32be141e73dcd05187842ecc2d5d93b018f91cc8",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "b0680b471c6f38b2ade6b15f4de1106647501d0e6322998071ba154a0363f325",
+          "chunk_index": 5,
+          "chunk_sha256": "c93327e7952866c09c3d0d578822ad9c78d9bf558aea88cd54892ebe018b537a",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "f65d997ae95cc7fc6dc06ff425f2716e300f1b74a29ac59ebe52d31466bf53c3",
+          "chunk_index": 6,
+          "chunk_sha256": "b651b1a51b1bd92bc81480e0f85a92d3d0cd335ac51870e799313a7c5dde4024",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "987c7f3b20c6a3f6a1f33a244f063a9a037c486dfd41f52f81264a06365b1c84",
+          "chunk_index": 7,
+          "chunk_sha256": "639926e16a4cb70a683bab6fae54a644c2f2d4ca99bd2433159d92ebf3c732fa",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "12b92180fef58633db116bff9349bf35728393c4752767776f2ec929652ffa72",
+          "chunk_index": 8,
+          "chunk_sha256": "acb149d87dec38ddf923580c5b53ea248002c68eff595bacde3901159bd28afd",
+          "page_end": 4,
+          "page_start": 4
+        }
+      ],
+      "content_sha256": "1087fb5ab5aeaa4330187fd267bc3b210b6f4163725593291613ba8771e880d3",
+      "current_download_url": null,
+      "page_count": 4,
+      "page_coverage_digest": "f6bd10506e9a4daed7c03eda2f2fde54be3bd58eee49dab471c18a888ffbdb6f",
+      "placement_id_set_digest": "d18a41dbfc32ec185dd998d5a103924d8e757a8ae9583fd8fbda05748c02eb4b",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "97dfeef0d66a99267113bf8aecbef4f90a76bf6de07366018732df7c63e8cc5f",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "b307f94a375e8117b37b3be0fb277f73492cda7f41638a0df1fb5dff582d86e3",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/01_PROGRAMMES_OFFICIELS/2026/propositions-pedagogiques-pour-la-categorie-3-lycee-sans-enseignement-de-droit-pdf-477-88-ko--1087fb5ab5.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6171/concours-decouvrons-notre-constitution",
+      "title": "Propositions pédagogiques pour la catégorie 3 (lycée sans enseignement de droit) PDF - 477.88 Ko",
+      "type_doc": "programme_officiel"
+    },
+    {
+      "chunk_id_set_digest": "6055a395f37d1d3c1153f28171e0b3ee6e18ec4b1b6b68319f2a60f98ae6c852",
+      "chunk_sha256_set_digest": "3e4c044aca1792880416ea0f23d1819aec8ca2ddbd354f4293ae68f679c43c3b",
+      "chunks": [
+        {
+          "chunk_id": "f887df4fd67e42f1a9201c56b61c7cd81e62f743b4c74f60c4149d8daa6d8e78",
+          "chunk_index": 0,
+          "chunk_sha256": "725a988c2cb47bce034812f219a5265439161150d9c73f18bd1aa0acb8279f84",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "a9f8ba322c73c610205b3fca8fc813a05c7aa2d0b96c0b310bbf3f41dc763f02",
+          "chunk_index": 1,
+          "chunk_sha256": "0cd651c0dbbe63e800f9ce0d24dd815e5e2e23246625f92e582be17a21cacd2d",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "a1b98d039f45830036f4cdf03575541174085534c1834cc1f7cf151e8a9a407a",
+          "chunk_index": 2,
+          "chunk_sha256": "5c6156a91aa20ca87ec35e8d8b83d9e5c72bb7c1d0c45cf1d8750913ee27b4b3",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "9781c33bc183d1f3a7c57ff0ad3be7dc335daa97fcb58e559155c7ba93716553",
+          "chunk_index": 3,
+          "chunk_sha256": "a85383f205a6d85653099517769865a0a6443d26d24fbc76cf3e4977568adcae",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "5aa666c7a09988cc5149abc6b5749af605cad50738c2d2f4276f3c7db96d99fb",
+          "chunk_index": 4,
+          "chunk_sha256": "6e5aa2f7f5cfde722a20a6add15bdd64a073028bf0cb077a3e098da9ba8bdb78",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "0025c6188486b15015f7d02a203844f86d2579119de1db5e79cb83b9fd49576f",
+          "chunk_index": 5,
+          "chunk_sha256": "84d632624c6e3eb2b487d6f11d711da59710cfba5dbd9a6774564c38583d2ebf",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "936ee95cf823f4ec42eababaa36067eee187a4a1af0da8547995b937281061e2",
+          "chunk_index": 6,
+          "chunk_sha256": "644f290f0fabe7ede61f9f42e0103552a52f1ab6a6e0a34fe51358b6ec1e426c",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "9ceb3063a2fc6602ab0993fe4d9f8b404cfe9b022ad9ed122765c47ffcb57ce7",
+          "chunk_index": 7,
+          "chunk_sha256": "566f87902f20982394ccc67aad6fbf4b2006d79760c634bfd3b6e8332dc159bb",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "a46c880e6a2bd59e1c90f813a95da51524983eea93f55fc353a3a8a954ec03ed",
+          "chunk_index": 8,
+          "chunk_sha256": "46061c157487919fa5e9956bf94b0e58bf500f24d42bdcf6bb526c223c440db2",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "128eae3b9ac60313e81591b787404a1a875740bc9b154b899644c63712361b6c",
+          "chunk_index": 9,
+          "chunk_sha256": "eb16ae1c1f756a4d636402a44ac6477e83015b2dccdbab812c58e03546ce992e",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "bb28781fc33b8b3295c092c3c2d4fd2d4f071c969b99ee2ca00866c412357a4a",
+          "chunk_index": 10,
+          "chunk_sha256": "c933ac53e1ba2808a344fa7d67532a4da33c734c6ddd084c1be995d89cbded51",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "39413326c7a367f17bb289f14b2c8692c44953e98efdd3ef03293e8b06c60c74",
+          "chunk_index": 11,
+          "chunk_sha256": "ff964433d83c4523177f198bf4a1d04e54e2de06ae3cac1782562e7d02a3e1a1",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "731874b934b0af829e74b3230e59bcaefda98290455beaa09c8d82b7e3ec2e97",
+          "chunk_index": 12,
+          "chunk_sha256": "181552becadbdd6751a7b806337619d4d5e8e05bba36950152b07e197e0c8305",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "d7fe08d0f538b22986421a0e8dc2ccaa017b05df405e61937ed2bb025fca4658",
+          "chunk_index": 13,
+          "chunk_sha256": "81e2dd09cb3724a277d3fe42c470e9558427264ab9be7a15ca30f8434d740db9",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "6e8a0de2e38b581bb95486e22fc512154157dc70f3d16b47339b87698c98d97e",
+          "chunk_index": 14,
+          "chunk_sha256": "5f3d30f4b7b204ab6e287a35a376f3eaad162e05bcea3267ec1e11d9f6fc5aa6",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "4b887c9d6a634f344ada37cafe45a620bdc55b63cf689643ecd5955b1ce096c7",
+          "chunk_index": 15,
+          "chunk_sha256": "1e32b1df3701c8303d5a95c4ffa446c7eee2376aa2c775b99547fc7f91d92297",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "63d79523ce02786325acd8b00f2c9d5322e53c6d64b3b890e2a85736db0883a6",
+          "chunk_index": 16,
+          "chunk_sha256": "305eafdac8bd69b263566b3b520e082b92607ef13d1e9b2c6ba74a83e86a5a3c",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "1abf705cbfd4aa03849e475c8d1fc11ebae673551aecc60fed60313ea4674d71",
+          "chunk_index": 17,
+          "chunk_sha256": "574c5867eae5ac500476884ae93b896f0beede15d5859d08bf87873deca2f9b3",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "e2ff39ca172b29044eadc15244f00e13dc4bce18d4c728d013c376cfbee8f569",
+          "chunk_index": 18,
+          "chunk_sha256": "31f28f4f4141e96be3d7971b05136d05ccec9fa91ccef187ffca4b1574267fe9",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "1960bc5b25b51221affaa3e5442b02750bad9113bf7cbfee9bc60483dfa1f267",
+          "chunk_index": 19,
+          "chunk_sha256": "8d905d5a5698794e9b8d7aa56c24835b33b2e87d6b89e9ec67ab9eaab3512c9a",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "50ed8e0a111e9c38bbe316dd7f43bd5c51b88ce5d0e6ccf75f988d473beeb5a0",
+          "chunk_index": 20,
+          "chunk_sha256": "45acafb4e62a696b6f0ce97de1aa97487e254b8853cebdc0042bf94095835712",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "5d9286e7ebe8f7cca61a0b68fae239d0b2e3727785a28c80c21282bd247fe315",
+          "chunk_index": 21,
+          "chunk_sha256": "c01c9ca2544b13810a8cef34b9806f2a7a588f9805fad8d11baa3da597b2a0e4",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "75752cd389611b72dbaf15b6443072b24e9d27ba4b36485cef62096f7dfeecf3",
+          "chunk_index": 22,
+          "chunk_sha256": "97a37b6a947e027c3813ae62c6f8d347158b68b44be334555835f817c5551e61",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "e10cc03296587907862bf2e6d372959c559fa206e8dbbce4972933385c2fa7fb",
+          "chunk_index": 23,
+          "chunk_sha256": "661f25ac8dfb208b5e815a62eed7b525915a85e9a1ea5e8096b6a3c7d605062d",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "34c15b6790ed7b6ded1672859b3c349e526dc4f7d31201a42bc4bce8853583a7",
+          "chunk_index": 24,
+          "chunk_sha256": "f353266d56a94fa317bceae8397de76e37ae7659624c76881871739bd4084e90",
+          "page_end": 7,
+          "page_start": 7
+        }
+      ],
+      "content_sha256": "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
+      "current_download_url": null,
+      "page_count": 7,
+      "page_coverage_digest": "cc9cd81c3110bc37d6c9bfd30bce0267b6cbfc3ffef7fb9abdc8615e42d10575",
+      "placement_id_set_digest": "747b16cf2aa1b07b554800e89e62341bc7bc941322fab3b1ea861fbc5a4d4ee3",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "5fdbfd93bf7b74a3f7446e7006f1a6fe18e0ec60466aeaaf882a0a4ca82f1784",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "e975a64b71c05c43811c9a7e69b7f0d6ef2e170e691fa2997fd33ec9c9192aa1",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/90_ARCHIVE_CATALOGUE/DGEMC/07_DIAPORAMAS_SUPPORTS/2021/glossaire--174f273ff2.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6150/ressources-pour-l-etude-de-la-constitution",
+      "title": "glossaire",
+      "type_doc": "diaporama"
+    },
+    {
+      "chunk_id_set_digest": "62b5528f5de390568f0b156d28fcdfede2386a1e573b9d43ec01d6d3b61af2a0",
+      "chunk_sha256_set_digest": "648e14a1bf06077358435c8753bf5fa538fd57f4c2b3a72e062859a3d26e0ed6",
+      "chunks": [
+        {
+          "chunk_id": "ce47fe92426ff74906d1abbb634f8fa174f296f22d414d19042e6e4e231799d7",
+          "chunk_index": 0,
+          "chunk_sha256": "8bf600bfcf9577f2e7bc1256e3997eed190ab2929c12d7be41f5ca6a37f1d0dd",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "405b8ec3ac1f9dd4cdf630c5ba2725ee46a1b9020e73b3de8a4d56ac0f02e9ea",
+          "chunk_index": 1,
+          "chunk_sha256": "8976916cc18cab215c5f36cc257d0562b62203931d00c7c70ec9e0d597aa0e88",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "ff91ab61ac97e46fc40a0a100b502ac74bb268b1ed1af562dafc49cf3b20a430",
+          "chunk_index": 2,
+          "chunk_sha256": "3dad10076d3de5388ff5372e3406e2201fdefd3566132d11a42791a4a8fa9d45",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "cdd3e9e3c379b063fe750f3af1666736d59a397427ad4fca2a650fb49a3b2c19",
+          "chunk_index": 3,
+          "chunk_sha256": "558cbcd1ee0f95fbff663dad0280fb30229546cb7dee87ec840468a8f51ba270",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "9661eb8af09527194511cc8409aa63dbc109a99bc4b472a279fcc6721f8a00fc",
+          "chunk_index": 4,
+          "chunk_sha256": "df581459bab6954f0220a6093e1f7ad9dd997d337ca0bf8d0dcc96688c3ff719",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "69f8b69f07437174e90f5d41a651fe0691ce7847683d61a4a5f32513476072ce",
+          "chunk_index": 5,
+          "chunk_sha256": "5729fe1d2ad1661ce86c883f517c85f9deb2763b6884e3c53699480ca04bed78",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "78f4aee1ea4e8dc6d3e4d8e50137f1c3c208253b607fc0bfdd4a266bfecac862",
+          "chunk_index": 6,
+          "chunk_sha256": "7afe145bcde7802f165ccac9b99edca1acc18987b04caa7c2dee3506c59a280d",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "8c7e94e15e5775fac6d7897b5a8a9a1103fab03606cb3b826ad1319f41bfeedb",
+          "chunk_index": 7,
+          "chunk_sha256": "aab91ceb9b6469d2e5a0f12404e92aed020833b12a2a74045de6f765398c2092",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "b17c0078b835bbb6beb1a818554ee0ff4b705903b0d485c2f72e3beac669a730",
+          "chunk_index": 8,
+          "chunk_sha256": "741cdeeefe9a34575d448d7d3ca55095eaac1245ef7ee2fa124fa40b3b67ca2b",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "49146e3b6cd53eb864f52d0557bb9c3720598c4ea6cd744e58d4d3dc4aa6e39b",
+          "chunk_index": 9,
+          "chunk_sha256": "dde3e39cccf61f200973a27535e92de7874205567ea8bbf30a2ff0be24e0ea98",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "819694417702781c5059d6508b735737e4f5d97260cbcb348f7565e1d2eacf01",
+          "chunk_index": 10,
+          "chunk_sha256": "f6c0ff62e6925f26293ba4870db52019bb0ee528313993fb46197b3f3908b337",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "c588eaec765224556b5da64f4022b3049341804e2ad274809e2b8fb637a4e478",
+          "chunk_index": 11,
+          "chunk_sha256": "e1104d9c4720193ea9b66ac3cd1839889ab40e09bba407f237e076e174762362",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "e7fbcf491026d2a997f324b51e2f68cc598f4a48273d1be44f972c3e141fb6df",
+          "chunk_index": 12,
+          "chunk_sha256": "c8396d5e0dcbd0ba10a9e14160ed5875e346407a47cbab645421c00ab13ae473",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "4683f19ce50f67d41df7bc62d1ea3cd525efb19ff57f777800bdb94f78a9d7e0",
+          "chunk_index": 13,
+          "chunk_sha256": "5409bf71a53f95f0568e89259fbab694003c0ee71ced066ec4a5e9f085fa7f7a",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "c9041e432d6cb0de9b72367445b662c4685f98fdc92ddbe941f8a2787e8f6d43",
+          "chunk_index": 14,
+          "chunk_sha256": "acbe760174e5bcb22cc32ac1677afb1d552587c2bb4219b37aaa739377bb1777",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "b14a6e57ca1d39a202376572ef2cab94d7dc76a0982d8cd410353d8862fc6206",
+          "chunk_index": 15,
+          "chunk_sha256": "7309ccde2243940a4828cbf9604e0cac3be4dc3b84339277b26496068f28053b",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "67566d66fded528ffd482165bb88348eaf9bc75053a093ec2d607451401f99dc",
+          "chunk_index": 16,
+          "chunk_sha256": "a7d429804b3cec774f5c3a876e6b394e5cbbc3de19299d11b1847a0a91dde6a5",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "5b136b23c59292f92383d9d63d6d6cfa89bbf86d137c04bc7e18aeaa6af6da64",
+          "chunk_index": 17,
+          "chunk_sha256": "426b38c8dc8dba1944238b2ec5828b4d25fbb5a6da23f13bf8ba7ed4870ae3bf",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "45a3e515707d2b2fad4470366240c4bff508eac17ed444c77f0489f572ca4c8e",
+          "chunk_index": 18,
+          "chunk_sha256": "01c856fcadc2b20b09fcae4b5ee4664972004611f56cc3b051344406c8d3cc01",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "7ad6be6f079061a85b59d76b8387e935d78ad1d3bcbc6ea3f04f6fa7c6ad542a",
+          "chunk_index": 19,
+          "chunk_sha256": "45d5fb830ab9ed6d0730b0c16080e76743961551a4ee6865ef8245c7676a05bc",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "5a8cf1023e37c4b3fbd656fb3750c0144b09edeb040167cf5d7e94aac0e27d64",
+          "chunk_index": 20,
+          "chunk_sha256": "2ca53761db17caba69f38aebc96bdcc915303722507e7cfc510f0a43d77acbd3",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "f2e53c5d6e113b6629a2e102bf19f7ebc4387b3ce77cbe66c011513d5fc9ba02",
+          "chunk_index": 21,
+          "chunk_sha256": "bea13a7be15ab3b7cd42814cdf8937a7b4096d0b6b919a5b0721a285e72d597a",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "bba4c43ded16f91a6ecfa2708d52ae8bc40eef54c4eb46e637676404b2a573ab",
+          "chunk_index": 22,
+          "chunk_sha256": "0db08b5e2e573534cac6e266873c3bacebfa27ab896153894684386f9f5e0439",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "2ae8baffb7aff4da495e5f1c414da0442d4eb12dad92b68764aca51ed98b4ece",
+          "chunk_index": 23,
+          "chunk_sha256": "996a14f4367196caab55e1ceed254e417a5dc008b7e9ca429399038679ef5ea1",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "26c01798c7a8aa26dd076ebf29e78517ed7868490010697c3f35f317cab8585e",
+          "chunk_index": 24,
+          "chunk_sha256": "ea83d0d0ccf2a25652d95148f6ab18f4a251f1bf3beb4b7caae5ddb769b8a8f1",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "3a8c9c49b27fa1e08bb2d60f9f5d5b400182f0c8212592c14c1a2c870566f587",
+          "chunk_index": 25,
+          "chunk_sha256": "0a40e4dec923688d19f32cbd241e0554391abb13159167c097637c98ed1f65a5",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "52f5038e0194543d2b5940ffce2c47bd1b1b272d48e012778fd4c082051b89ec",
+          "chunk_index": 26,
+          "chunk_sha256": "1d54d7f299fef75bccb671151b0a434c2d54a9d7e9d69495db78182abb3d7864",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "d93b0ac68cab14b6459f865216c827061f532883afb932bd975ea5ea5551098e",
+          "chunk_index": 27,
+          "chunk_sha256": "e6e3afd75b3f26eaacfd4314ff992f8001750dd69dbf7751d435413a82fcc615",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "3627798a920405ef3d0015edc1bbf2c351790c876e4605d9a034c72f4c9e1a7f",
+          "chunk_index": 28,
+          "chunk_sha256": "06ced36ccb03ef60038ae100c7b0e9becdd913170ba8a5d26d08ff841fcfb003",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "5f30e54c0ebc003e653218b0f4adcda6d374435a1c90d36c3ef52347a22c2fe6",
+          "chunk_index": 29,
+          "chunk_sha256": "bdb440d9bf381f50b2fed0edea3d0725d1eb577905644d2289ba6e93c85b5890",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "ac1e61c5524659c1077262ca183b3b11ae76aa247a423b41420221ffd0e06943",
+          "chunk_index": 30,
+          "chunk_sha256": "1cb088426fd6b5fba1f9ac057033c32c03f9b0ca6fe7775c620756676f4d8d3d",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "414e242b57954b0fc058449210fe41bef4b9415f8dca652bc2fdb27260a3ddb4",
+          "chunk_index": 31,
+          "chunk_sha256": "f3c91fb2e37560ed6b9b69e00af7daa9d6905a577cf8924863a86465fc9744e2",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "a091c1bea3250a77e1dead47fa9a272f26fe23ceb1d3fa0047bed63733903d74",
+          "chunk_index": 32,
+          "chunk_sha256": "766e194b87f1bbc8c1dbaa28e128a09f0a423235dc575985b2f592c690f89ef0",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "bb31030a5a1610cb20e1f9e45c87727eb6863d363fe69de6d53117a33998e0bc",
+          "chunk_index": 33,
+          "chunk_sha256": "846ca7af143db2775806a6b0fc34dbfdfad33e620090025b581a3c8e1f616c19",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "cf2aa428007ca26f18a09fec7368482429148a38929bdf143f305c9e1fb8d949",
+          "chunk_index": 34,
+          "chunk_sha256": "888e44ccb0025e3daa4a2ea72d03d52668dde70cc9e8ed32361dd6920f572001",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "60303e69d0f499d29da27d00352327785bee8ef9670a04566bf5f4b05ea9cfe0",
+          "chunk_index": 35,
+          "chunk_sha256": "6ce9c46397ce49631958e4449bfb55728e3cefab96f919b82299f6a5dd75cd66",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "4159482fd576213595c4625cb8977b8ec1959289b2d3c2174965fa1b05f95897",
+          "chunk_index": 36,
+          "chunk_sha256": "e43c3d37d16f4d03aece9439a57db1a04088f26d86301b5f721622981ff78ed8",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "6a0f7dc4f8e4a8c9b1a34d2deebb08fec1fc358d2cf3d070588ef3ae41b32447",
+          "chunk_index": 37,
+          "chunk_sha256": "8ca7c8d30bfb0fd79d7eff4898650e1529c8a52afa961df15a34d1a561f26369",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "af87abb8a69249c34b74ce3e822f9dfab13710b4761837e3465bf5de7f1bad86",
+          "chunk_index": 38,
+          "chunk_sha256": "6aa41e303820e874989410fe532cc6aa160d2beb835287b4387f3f7d5a599da2",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "f1bd0bb6513517df20384f9d94fcec92426dd21a0412de0f634b5d9878661da1",
+          "chunk_index": 39,
+          "chunk_sha256": "0612ede3e298f74fc539601c01d12eb5e71f8b30b29d95f99b6834983e91de2c",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "2edcaac2e251857947c29b258c2d5fd2302a4b97cf5b9d8c8f2c520c23209c49",
+          "chunk_index": 40,
+          "chunk_sha256": "e89dba72faab0aedc9dba092523c12b9391ef80c8f70a18b817bad6228af0422",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "d4f336acc4f26d119960c4e2c09225d65279e8fab529a4eb806ed76830a1e47b",
+          "chunk_index": 41,
+          "chunk_sha256": "bdae9062213a1b4a28f327fce6bc4f9a969c46850af37498c7c081d2ddc2ca3a",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "bc184a073f366fae592b1b638dba39b0913f9fe54744ae9baabf7d48307fc302",
+          "chunk_index": 42,
+          "chunk_sha256": "30bfd01dff77abec622634bb693fbc7042cea68c22a965b075c5075e5e129ca8",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "9f6d72fb8d89a88d2ff322ad2bdbcb23b043ee4bd4900bb0aa13661ac27c27b0",
+          "chunk_index": 43,
+          "chunk_sha256": "9d80da7d1c025effb535065548d0807b802e765437c919170685392101411b7c",
+          "page_end": 13,
+          "page_start": 13
+        },
+        {
+          "chunk_id": "12ec0b0b7621c8b51475261572e196b70e1aa6db4a6cb91dd7857d306475189a",
+          "chunk_index": 44,
+          "chunk_sha256": "9213c6f1a63383fc3401c48c321be2548333412c84645a370413d07d82f2831e",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "ee1c354892f3f862bf7800f70a7feb55a3e18d71b05872f305f14d17b3393a12",
+          "chunk_index": 45,
+          "chunk_sha256": "91eee47db77bd621c33cdb4ad5692f89472b9272b118460c3a7f891ea8749fb1",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "e0aebb14dff709ef59c0ee31afcde724638258bd1c8777606349e6a50a6e2867",
+          "chunk_index": 46,
+          "chunk_sha256": "2c6397151077f6263293876532bbac35f1bcf306b55a6707bbade5f4d3a5114b",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "4b40825c8e84ec82b6ecba68b1ee2fc23895f9c5f073a3419e901a623340137a",
+          "chunk_index": 47,
+          "chunk_sha256": "17432a70880306f85eaa2f86e88b0fad2bd5570b7f0399edb4fc94f1ccc5f227",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "c6f85887863a3531b9c8399c68396d7b22e10969445e8a9df5857dc2318b6e17",
+          "chunk_index": 48,
+          "chunk_sha256": "50e49bd8213e47e9d8c3c65f0dcba71365ad65c581083d6a7555e83db1167ee5",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "46e6148862b9742a3b0dcde4e3dcd3d7e21b047d733b933491ec2185d349e99c",
+          "chunk_index": 49,
+          "chunk_sha256": "e59553bf9b12005ac41ffdc0b8b5436de39e08760a41c928c4244d51f51aeae2",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "53c494ed419e463199c9577508a6c0f31274fa72fab13b89e7545a75d1556a32",
+          "chunk_index": 50,
+          "chunk_sha256": "43e8f8ecb7256b41e079ae8bf2ba8b76940b41dfddf356b6c8a5e2b6a4579543",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "680314443a4a2bfd4cf987570d89c53dee72534aba5c4e3a306eed715f010aeb",
+          "chunk_index": 51,
+          "chunk_sha256": "c7159e7b969734bbcb7af52462b4051ff50608252954be7187b6a60b6e28a537",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "e7b2a235f81be00ab88d068211d13a7c60f4597d7e6adb06a49c4620e1537f79",
+          "chunk_index": 52,
+          "chunk_sha256": "27e0cc916f9846b7dc4250e73b1ac7c7f505a5e4d60e8180f1455c938806b688",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "e6dd88ebe52b110b7ae870084896a502231fb7c527a29626774c40c996039929",
+          "chunk_index": 53,
+          "chunk_sha256": "6403611089cc0144d0aa6e456812d0e8af02952f103a67d001f5c3f09519ff35",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "c9b327e441c0c9f5408f0d746bf5d7057795550999c72cf8f1804563ff5568c7",
+          "chunk_index": 54,
+          "chunk_sha256": "cf2b7a64d11daa6b7deb0a0cd019d03338874fce8b02e5b58c2aaa788a1976cf",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "d6a85403ffdde2b6e75bc18b043598fc601985d22d5dabf69ee0f29ef993d1df",
+          "chunk_index": 55,
+          "chunk_sha256": "9f06da10968fbff93b4ad1d83573edf51a7d063c055c3c76dfaaf53abc1a83f5",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "26c32cd27731eafa79084bbdd5d5f6d93f60fccb9fef927980c31347e045527b",
+          "chunk_index": 56,
+          "chunk_sha256": "9ece2f99a38c300b3fa005eb14db717bf4b6d3854666c35b3d0e149940487599",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "7dac776a5de30ae4fa767d3a3656f8b476f076706034c7f8a7dfcf61cfc5113f",
+          "chunk_index": 57,
+          "chunk_sha256": "8d7e84c720f981966ef417275de3b0566b5ab62038a03092b2596fb150e2559c",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "a4dc5e9fed1145d245e7793c35f3d6b59f71d650afb01ded27d48eccd3cd2427",
+          "chunk_index": 58,
+          "chunk_sha256": "2131c299f99f38a27b8d49d0e034f197165d3fd56eaec09f90a224f97bca5775",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "d4cbd4339b9f4cc66b592241a0b3ef63a3aef33f76571619362752a8e425ca58",
+          "chunk_index": 59,
+          "chunk_sha256": "68033a6dc266ad99de0cd00601cde0a7dae67df314c245e778cabe0714816b30",
+          "page_end": 19,
+          "page_start": 19
+        },
+        {
+          "chunk_id": "0bd41361e0707fdcde2e948b0dc8be7f5917337a37490148d48228e8184ea9c2",
+          "chunk_index": 60,
+          "chunk_sha256": "707ec3dc1bca2182b2a3f23c4ed713af98da66d2f1c79f8ef2979e2b2b707c12",
+          "page_end": 19,
+          "page_start": 19
+        },
+        {
+          "chunk_id": "764cc0e1a72f45ac467ebc7a8aaf1928910f62508b81870d18cbea5e7b199f2d",
+          "chunk_index": 61,
+          "chunk_sha256": "7d5561e1890a3b32e13f37347e9f8abb43ca2dc4c6b0ddd44d22c19d4ed52362",
+          "page_end": 19,
+          "page_start": 19
+        },
+        {
+          "chunk_id": "b51f7beac421b09749434fb0e72b38cae815b725e42025cd5470aafe4d655bf8",
+          "chunk_index": 62,
+          "chunk_sha256": "f9a9b484824bbc431a12f7c19ae1eee2342ae0bc9fc3134f7137bf9a80d73983",
+          "page_end": 19,
+          "page_start": 19
+        },
+        {
+          "chunk_id": "3be58c1300904b3eb1067e1675dd7be96f23faa1254936ae6ac8f71d673d150a",
+          "chunk_index": 63,
+          "chunk_sha256": "17c1dd10dc0d3fac2afca43036019e8e65c8620dc37e590e5885772d14a6d0ea",
+          "page_end": 20,
+          "page_start": 20
+        }
+      ],
+      "content_sha256": "2732f3d9adf24e8204574b38cd6d884cea4e38cb2145e8d6d179d5e06d587a60",
+      "current_download_url": null,
+      "page_count": 20,
+      "page_coverage_digest": "0e5e410a498d751db79ce7af49aab378d5ef54d29a6361fd0d4a2c605b451a5f",
+      "placement_id_set_digest": "637d9f2ef51de97d463c8d0155ca0f5f0aa41913d034578c1c53cd1770be9442",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "13fe60cc72d2ae67ab6a3c8be9092dab5803a6ce0309049ca91ff8b679337587",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "311f4d60356bd249fe99f882868db478a5d2a69c41659f2b126f908f7bd1fc34",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/09_AUTRES/2021/qu-est-ce-que-la-constitution--2732f3d9ad.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6150/ressources-pour-l-etude-de-la-constitution",
+      "title": "Qu'est-ce que la Constitution ?",
+      "type_doc": "autre"
+    },
+    {
+      "chunk_id_set_digest": "3a06f0d95dea2d85e83ab4af7e02b2b29b9bd64baf2dc8d09496e190d0c80252",
+      "chunk_sha256_set_digest": "0b162b2fa71398ec4b5b9a0cd9facf222f89ca72cdf666c23b38bbd7c28590dd",
+      "chunks": [
+        {
+          "chunk_id": "90fd7aae7a3d48b2c540913203bd7eae5e47aa0e844f8323d1d25c590fc44566",
+          "chunk_index": 0,
+          "chunk_sha256": "31b05fd1b01ed2e9485f2c46fd0e086430eb45e4a99e4d0e04a3bc88713c45ee",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "ee14a176b241c0342b1f064cd5fdec4aa944a9379608d450e23b4e25f9ea5ff9",
+          "chunk_index": 1,
+          "chunk_sha256": "6938680da999058e4bfd342887987cac3e368cf4948ad122459d0e1c0d7d4fcf",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "ad7f2683a79b522c233264e0d95e93fe321add7fb2ac74913a555a870e50d003",
+          "chunk_index": 2,
+          "chunk_sha256": "eb71ae600d5739a90ba802e2c2255db750e7a6f209a7afaea803cedc74c0622e",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "980b5c1a144a30393ad74fa535e130d7e0b8236a6fb6582b28c971e275ac2c19",
+          "chunk_index": 3,
+          "chunk_sha256": "92ec63f8d01416eba5aba9e4090eabaa26844e563beefa9b46c37b926df248af",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "1aaaffe239b8f6a2daaf8486220088e60d590cee2aa9e7de64fbfbce1af3ef8f",
+          "chunk_index": 4,
+          "chunk_sha256": "98280c1c446189594577168feadf9b22e557b961531c07ff3acdb73242db5146",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "5fcad7fe5f7c24d4aa757a1a22f97ddb9a30bddd8aafc566bf6d76a95aa415cf",
+          "chunk_index": 5,
+          "chunk_sha256": "b73af8dff7680052072446962dc85fc530975810f6765216e20fc745eff862d0",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "bf4002669a23faae427f3d0c37ff7db4ee0aa084f8c65a67c912e84f53471e43",
+          "chunk_index": 6,
+          "chunk_sha256": "002545402f25e8f51707bb9b316edbcecc42349c91106a01a4dc58afc686d250",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "264c5f99b1d7efb5ac74affa079e5e8cd6b001f8f9315c784969e0de1594ebd8",
+          "chunk_index": 7,
+          "chunk_sha256": "c04c6674adf411501731773683b86792a0e9c7300e6ef711ffc3a86ae147a527",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "ba84481ed50c44ca849f8aa44ad158d168678ceebb3ea409b3218a998b089c8a",
+          "chunk_index": 8,
+          "chunk_sha256": "23c881bbcfdb7935def536203472ab1170537b9f22a2c5dffa637acffb8ea58c",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "a8e5f8c442879332c5e93d46d377d31af5e53e9e6798e9928c263e8950fed2ff",
+          "chunk_index": 9,
+          "chunk_sha256": "8d21ee6d9703d2f8fb6f6bbcb17524142d78c519e61f0ee703ee44944f2f0543",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "6be49d4a179538b616f2a05ede5dc6bffcfd7d9722086935b793520b59d8552b",
+          "chunk_index": 10,
+          "chunk_sha256": "9febbec12dd53f787f6280b6a14a6e88fd3391a7b38a847cfd8e25a7a13a4fb5",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "441d5cbdc688fab2b9312aa4679ddc8406b06b45fa1b8ea3688bed9f581f0382",
+          "chunk_index": 11,
+          "chunk_sha256": "4cea8628ca99702cfeada5214d57a5e27bb63c5ef218eeaec0c4341296624a7e",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "9105a7853d3bd5ff377e5c555a0d0020fd24f2965cfe0d7d92cbbb6c6864007c",
+          "chunk_index": 12,
+          "chunk_sha256": "51be9cc08bcf08e868ab803eedf6bd60bf435f2269fcc0c5df045cb77e5c77d8",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "75cd28f0af9b9814187ef7b2ff15906ee237729d15fe99adb906dbc10ed5c942",
+          "chunk_index": 13,
+          "chunk_sha256": "ad1f9509734ac4e3e3566c30ffcfa404e0a3692130292eba0b5c1510ce5f83df",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "e4530705cc8b157943fed31dc2db58f62a19d045ce3a99e4abebcc18f445709f",
+          "chunk_index": 14,
+          "chunk_sha256": "be33b2932aafbebbc429dbd99c0e32db291d613bdca8726b7e626592a24fca28",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "3e45d5274b93a04e7f26a7509c5373a8b994a59cdbe5d80325d4fb82d7d59f2c",
+          "chunk_index": 15,
+          "chunk_sha256": "7b977e1315e62bef9ba52c927d4157cc08838342200ccd6ca93e2f72d8b7f2b9",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "38ea6efc8c5faf161c1133e31f9ea41528d1bce426bba12b05908ba36e4c6cc3",
+          "chunk_index": 16,
+          "chunk_sha256": "97eef9ee8e685ed9e1244a644d860f7411c626f8b705351fb1de65129eac7c12",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "6a51009bf9dcf08ddbc30f4ec47a95f3eaa05c694a4fa6a50649d6e3cd1692f6",
+          "chunk_index": 17,
+          "chunk_sha256": "20ce0ea92bff734e2f5263134ebee320f395834a948a55ae0f5dd1fd883ab44f",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "5cf67c1fd99d87872eba08bae89a414b5463a6a4babd398404dce95ad55e3ba0",
+          "chunk_index": 18,
+          "chunk_sha256": "f210dd0ee89b99f64ff44e157bed5994ef5329380b5c4bf911c4d19989e4b8ad",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "5e23a5b2480ab0bdf078be25ada4a2d9e7719e6f17e0153cadc88cb70b809bfe",
+          "chunk_index": 19,
+          "chunk_sha256": "44469763688f6a9e3e96aeb4261e76f3f12026ff6d66096dad4e8187ebcdb752",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "5e0cc8219f5175b7716db65d360ed404bc40feac5e27350b73985d8304fc52a2",
+          "chunk_index": 20,
+          "chunk_sha256": "c326f689a1a25fdaa8669b2a3920e0451ea1e7c99ba9c71e909e42d339e767a7",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "ac37ed2b4bfa09caeaa18b53779f5bcc11395fbf5b0908850d8ffd36e7049f4b",
+          "chunk_index": 21,
+          "chunk_sha256": "44dcda2c4bbae382a73d40ca6905c96d84256fa3ddeced8b55bf55b6672c84e3",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "1c202da01f41615a5059f7efee5178354437b6d49fe2e2da536bbbd844c99d3e",
+          "chunk_index": 22,
+          "chunk_sha256": "1b6ed17180a16f93a7b5078b5b95021d299e10aac224bcc5be8cebd44ecdd837",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "9045168bdb1036d441af170a181c71a332661448003d206617e7980d32734934",
+          "chunk_index": 23,
+          "chunk_sha256": "374ae9cd26b9aa85f91826a21277c33aad163ed2fab7fedda7b783f657f1e0d9",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "8a9bd8e6c0fb0532c1dc134a350a30491eea8a3b3885b7f51a720a1362715626",
+          "chunk_index": 24,
+          "chunk_sha256": "f0218d8e057054e5122cfea187f353754896b14185780162c7c84c99e8ba65dc",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "247bfd09f20fe3fed5d38e96722643960fd1aa0912cf1d41b41189fc609fdd12",
+          "chunk_index": 25,
+          "chunk_sha256": "60beb92320ff89a4d491bc8f784e920b2fe7f31c1a06dfb416bf68e94e33a9fd",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "51a946de625c272a3781e6f43a292ebd60ac07f678207a6008c6cf512167aa21",
+          "chunk_index": 26,
+          "chunk_sha256": "6d486ff913a15ee580ca929ff29df8284f5234b508de92d44637d4bc7bf5113a",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "9e16da17f379c74ba84b1f63ba01deaace7efec614a4aaaec261c38174e61c41",
+          "chunk_index": 27,
+          "chunk_sha256": "eca6066e7b292b1c9c5d3f9fae6573975adc97f1ab732a4d5453e2dc1a8ea4e7",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "d16d2e456833a3b0d3729117c2be2ab81e00701f8296f6133124ea26bc91a5c7",
+          "chunk_index": 28,
+          "chunk_sha256": "a1d39a2a10d17b41a59910488fe9ab68fdc53c423630cedb6986a97cffec588d",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "97c5acfecbf38575620a46a10fa646cb6c7cc9e60a70282ba1396817bb4ae3ff",
+          "chunk_index": 29,
+          "chunk_sha256": "9097d7e8917da2fc4654a37165bc81999c552e26594975087ab125d4eaa36a47",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "800c356531acd76007efcb27b6d0a78c8f516f71304b56ec30a5e0c801e9293c",
+          "chunk_index": 30,
+          "chunk_sha256": "c01c6c0b3bb4e2342e3fbc49d75ae575427f79a8b6e3b79719fc19443371219d",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "ceddec465565779a1314c7a99a5764e361af73df8b9e83d414fc87343378748d",
+          "chunk_index": 31,
+          "chunk_sha256": "d4094a72b54450c1f97d1afcfaeba396e8a0a121c67a1972a8f391b306e17273",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "858685f3069905790989be0b68f69732c5a24a0f16b42662ce1af3bb77a6be02",
+          "chunk_index": 32,
+          "chunk_sha256": "573ad4460c3b81bbde9f44c899cdfdc974be07496f571307ea89e748a5f7708b",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "eecc4daa647ba716ce9d3262652aaab5989a922e25d02f8a3f95eb572db703cb",
+          "chunk_index": 33,
+          "chunk_sha256": "80e63ae57736ad1d4bd316f764f80dcc2d6c99aa3ad0aa47dd4e10236fcdf28f",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "44cd7853243a411b3d2642f0c1b49347e18d600b67c6edb50b27a4826f7adab0",
+          "chunk_index": 34,
+          "chunk_sha256": "10088b217f158a54bdbfa3942bf2266c976e8c048ca65dee7c4f76e790e062a5",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "973bbd589acae8cb05f68f3ddbd9c845490b7f004de9d1d7a54f6398ab4e08f9",
+          "chunk_index": 35,
+          "chunk_sha256": "7312bc649e2fe01de9e53287d26282d3f4c5e588890b2ae108e63762af87d557",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "56f9cf87bc5f92d3211d1fd3f722450a10aa3ab6d0b39274a22fbeb62cef7e14",
+          "chunk_index": 36,
+          "chunk_sha256": "d45c1cee4730f8ae7837d5f625ac0cf98ea7e0f112284bd5f993e3e7666156ac",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "9853d31038edebfa1af4700a1140dd5055d9b48a926b4175644baa2fb2013d9c",
+          "chunk_index": 37,
+          "chunk_sha256": "6cfb6861ebce53fe3e131eecfa63554d820e8a27caf78e5b13351590b52a9ea1",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "a008531ea796589e7cf235a647efe3ee870633ae6adeb55155012c87aa497ddc",
+          "chunk_index": 38,
+          "chunk_sha256": "782620bb1bef56bdc200c8635b1f38e563b1764087b2a390ca7d75f1bb2a0def",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "2c343a37e1cc27e455ab0fd8e338e9177d9c78da4326e775c9a14e0a12d16fb3",
+          "chunk_index": 39,
+          "chunk_sha256": "6c74da295144d60a50685702a4552d1d6493be69fa8ebc20d00e4c640da60182",
+          "page_end": 13,
+          "page_start": 13
+        },
+        {
+          "chunk_id": "751f5adfaed58064dc7b48474223ce8885c60b1f873378764df75a0243170f77",
+          "chunk_index": 40,
+          "chunk_sha256": "6b52bbd78a67fec86e35d12c9beed923e24369ea716bec0d075fc9916cb7b785",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "4468b44ef4aa2f7967188aad0750bfb4941978ebfc433df887dbe56e63fbe5f8",
+          "chunk_index": 41,
+          "chunk_sha256": "49683a964ee3846a41625c8533110ef85dd9978be9133ad9a5cf08da68fd0f4d",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "8bb74bea951bf28747a095313016debacf1a5c3434773313b0822367de7eb9af",
+          "chunk_index": 42,
+          "chunk_sha256": "0c1fbbef006b35d330f0a1116c799eeaca3f8ca518e470d4f5a3dc71246dd89b",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "7f3f774466beee55c87fc3a077caa3bb8c5aed23da7b0cf0b9d47474f424c4f4",
+          "chunk_index": 43,
+          "chunk_sha256": "b17ffc5ece690b23bd8481ed2a88120b4d4a91c4a3b291b68175d7012762f95b",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "8263eb060e743a93fad6585be30a54b2af3260afc9afdcdbb61ddcb077c26f4d",
+          "chunk_index": 44,
+          "chunk_sha256": "629d3a95349955cc3f672cace0fc279d49e8f3d5161965baad74afc0a9bdd93e",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "f4c6ed195e017cc4b25913e5ab54e3c0905f741c51d61eda994e7702455fa8d4",
+          "chunk_index": 45,
+          "chunk_sha256": "d22227529337d73f6517d77d5a2de89d30ae21bb21838f4273d8c42d8010780d",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "2c5d936875613c4c07ea8be073b75e0b93fa540beefbd2634ad10c902a9f4eb1",
+          "chunk_index": 46,
+          "chunk_sha256": "e46c65ff709bdc77512b6b6090f85234074766e14d6c949da83256c4e283a8c7",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "77edc87c11da4d559e7756538c3d9dccbebd022a8efe6e595a246a2b81ef7556",
+          "chunk_index": 47,
+          "chunk_sha256": "1899a28d619ae325d5a21dcb9a3d5dd83e8ffd6a9f1ddda42176591ddcfa744c",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "d3a0e8c98f64fa783ed229cb0d629d57c4ce78dde2e87b895203f513dfcd57da",
+          "chunk_index": 48,
+          "chunk_sha256": "3f6739a05f42bbb90f65b6625572da8b929420c53bb1281b7cfc1f1c1a47249f",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "8b1a24e16627cf1077ec92506f437546b3e104f5f41851c06974a65d5e936a9e",
+          "chunk_index": 49,
+          "chunk_sha256": "2a5bcd1dfec30ef29f0f7c3eae3491ca954c5610ec8178fb700381e4b8a5dc89",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "ef3af7fbdfb74fbda319b77a00db44f3062dc671c1569cd1fae605eccd01a040",
+          "chunk_index": 50,
+          "chunk_sha256": "ffcc75b969545069a7810c3721d4ad028c4446e1a76335f032b13dfc29e09d81",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "3cdde18d08601a154515d77b14a2cbaab205d3f154349beacc179d6c8716bf0d",
+          "chunk_index": 51,
+          "chunk_sha256": "47d3367e48ad523a878f8ebda37492e899670e0d4754949a410cd6165d792b91",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "9bf7b8764f72719ca0f7587c30b693981dc869bc4ad07327dad479f4db1ca064",
+          "chunk_index": 52,
+          "chunk_sha256": "85d299ebb32f27b455a535971824517efebe14b69da1dd1bb278894d59e48d57",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "887ae9149b5d370d97d4551355c909728126f5ce7feab598c43ff21e7ab8e33f",
+          "chunk_index": 53,
+          "chunk_sha256": "ad543a565bf52749cbdae5e30a7ce14137e59857f971ebd61f0ec6a99d09349a",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "31a50fccafb78ac87356aaabd89b6e8e2370f8ea00b7f77c6ff6cd14176b1b4a",
+          "chunk_index": 54,
+          "chunk_sha256": "675e57a4bb6bf2a6087533748b880eaa8ee891ab6988a344f6bd294717f0f16c",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "b4c64b49e5ef67a6827275d486325d2fc77ca3016f71c5ea3452b08426dac229",
+          "chunk_index": 55,
+          "chunk_sha256": "9ea8dd91cf374ca351a93dc749ef979e3087bf25e43f4992bad8fa4b406aef10",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "cfb1dcb89fedd2fd349f1c8a36ed18e54665f31cf2a7665cd462e3c7b59aa82a",
+          "chunk_index": 56,
+          "chunk_sha256": "ca91916cb113c7f65e3960ba83b58e3e92a56be4df4442403735498d82c7ae95",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "5a2d9e3d7c31e797371de40180e576d10e8784aa745e3b6f02c13eacd680a63d",
+          "chunk_index": 57,
+          "chunk_sha256": "97a37b6a947e027c3813ae62c6f8d347158b68b44be334555835f817c5551e61",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "f0b8c3ff5b285db5bff018e9acdc4bdc0a6c090fbfc0162023b5145b264853a7",
+          "chunk_index": 58,
+          "chunk_sha256": "661f25ac8dfb208b5e815a62eed7b525915a85e9a1ea5e8096b6a3c7d605062d",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "394c0504db883c7b1af466a8fcd26e0fbccb2a30b50bbaaa4e4cd749901b993f",
+          "chunk_index": 59,
+          "chunk_sha256": "f353266d56a94fa317bceae8397de76e37ae7659624c76881871739bd4084e90",
+          "page_end": 18,
+          "page_start": 18
+        }
+      ],
+      "content_sha256": "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
+      "current_download_url": null,
+      "page_count": 18,
+      "page_coverage_digest": "9db212ecc1cd159fd445931e102131498ca363a25993a0c1cd33474ee10000c9",
+      "placement_id_set_digest": "92f0caa008742fa646fd3bfc5a98da8bd2c184e033f5ef93ddfe167ce40dd290",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "c6dc1719ed045a185bca9984fbee22b86209746488ab6b78c0b6dd6ff494663b",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "5a99c89ccb1ae39b1f5ae13133487ad3d3d81336a1d1251df09ffad60a75c285",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/09_AUTRES/2021/la-constitution-du-4-octobre-1958-la-souverainete-et-l-organisation-des-pouvoirs-publics--45ccb2812b.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6150/ressources-pour-l-etude-de-la-constitution",
+      "title": "La Constitution du 4 octobre 1958, la souveraineté et l’organisation des pouvoirs publics",
+      "type_doc": "autre"
+    },
+    {
+      "chunk_id_set_digest": "dc37535308b50de477312bd0eceadd985c26f30df2b004c7088c82a0001d5ed2",
+      "chunk_sha256_set_digest": "17d9d0c6848a10a3b8d9cebccac322a966d679d8aa938e3e833ae46c5e5c25c8",
+      "chunks": [
+        {
+          "chunk_id": "f06b507e7bfc56fc4ab2cc8e6fa4ed481959670ef13a3857c401c916bfc18801",
+          "chunk_index": 0,
+          "chunk_sha256": "3b3e1b5470526619b8b9e12b11f01d4f9d219b6dcbe225e9e421b3a282022cb2",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "564a33cb693bd75862e70c922f2d1682406cb949ba8f67dc8a5e36bb43558e6b",
+          "chunk_index": 1,
+          "chunk_sha256": "e7aa0f39095e2d1433ebba40a788d99720948b17b3a462b520cb91ea41b79d20",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "3caa5e8d81eead98e5ab73a4fec8778aab9e9092c7fd2445e91a60262fbad7be",
+          "chunk_index": 2,
+          "chunk_sha256": "a6102092169085cc403a2e9b1da8a0dfad2c741e1974b2b212db5e269f15c5e0",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "551a7b67b30197eab8e7fa9aa8cbb241679decabaa48d9223e2720092fc6d9ad",
+          "chunk_index": 3,
+          "chunk_sha256": "6fdc3eaec6513737195ba3f6a83a74724e2faf383c1379352f42ead986e32344",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "c3ad7afedf7bc2ae7cf525ffd02ba00676984f10ea66a27443cd759b61b2f184",
+          "chunk_index": 4,
+          "chunk_sha256": "fb5969aeab9c2385475a1607eba81c6381a9b3cff3fc45b7cc18a60de965ea4c",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "539e11c0da20dcdbb8f79385f7faa0ff3c6d9c2e6043d375e1e65c122b18f392",
+          "chunk_index": 5,
+          "chunk_sha256": "c12ddb1dc0239efec52d40d602e95f5f2194c7c8e9590dbb119d74f185059e43",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "27e8dd7fcb0e88993c7f0d81a5be98750bba9a91d9d950bc6121c0b1e30e1315",
+          "chunk_index": 6,
+          "chunk_sha256": "fcba5ea03eaa3dfc9aa323d5ac2d131c362280088b428b9292b6153aec127c5c",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "e595c3c0929887c24817b64587db3231863058380639dbf9725c00591fe13815",
+          "chunk_index": 7,
+          "chunk_sha256": "c3f9eabf4a4e6ce8284df387b88ab92e18e272826a65098e571dca74c5ccf90f",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "7b104151243e24f33351147f6eb6ae6d8a721a9e6e1b4d2400df48c97df57628",
+          "chunk_index": 8,
+          "chunk_sha256": "9de6d71be9b95f43947c83d0db3b8173750cc5de00ca1d4e8933c5feb4470af2",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "2a684562c3a6a6807b216fd5963b04e4e85ab3d35c254b889b685cfcf3cdb803",
+          "chunk_index": 9,
+          "chunk_sha256": "49a7b6587d32414b5f26d72927ccbfd5514e55f37e51069a3c9ec7e4d239868a",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "e915960fab93ea1221a758f182105ee291ef6cca5fa146a65a998f3f39c563ce",
+          "chunk_index": 10,
+          "chunk_sha256": "35fcb4df8a637a01f08ed930456c2f7e215fb7334b78afbc8878fb800bb739ea",
+          "page_end": 5,
+          "page_start": 5
+        }
+      ],
+      "content_sha256": "46c8cebda87cba6dd6a7d523289ad69282543a99cc15cd1940fde90bbc2d5714",
+      "current_download_url": null,
+      "page_count": 5,
+      "page_coverage_digest": "f5baf0e4336fd53b4c82b453ece859868475160d36f22e9551a0e9b10ac9cc00",
+      "placement_id_set_digest": "5f681f767b42d7a61743b2aa27b051033fd8d29c4445ca4ed9e69ebd953c8231",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "8c597b0e4873b4f804effd08e28f6238b53845022c91ed691a86cc4246857dbc",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "d11239b01b9100448133a3790a29792a680872d2a3446715f8d5e64700baf703",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/01_PROGRAMMES_OFFICIELS/2026/propositions-pedagogiques-pour-la-categorie-4-lycee-avec-enseignement-de-droit-pdf-465-ko--46c8cebda8.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6171/concours-decouvrons-notre-constitution",
+      "title": "Propositions pédagogiques pour la catégorie 4 (lycée avec enseignement de droit) PDF - 465 Ko",
+      "type_doc": "programme_officiel"
+    },
+    {
+      "chunk_id_set_digest": "a8aa3126782eb6c6926b27855b9573b444f71c3edd81ff6c98bb3ab9f0491405",
+      "chunk_sha256_set_digest": "30b975141438d52f8b5d1d59eed62ebf731d0e26aa89cd6a4378dec8f86367ef",
+      "chunks": [
+        {
+          "chunk_id": "f26c307ddce54c961d1be4e50d29b49bcdef2a0cc28adcc787f964e4e6f38ab3",
+          "chunk_index": 0,
+          "chunk_sha256": "ba8c8e2dd610914e200ffab22008f3338e362f38b7ddc1a5c0e80638dd5c5bfa",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "59fc4cec660a168e2414e9761061f7dd29ace47ca9edf6f2d52bd5578d3652e0",
+          "chunk_index": 1,
+          "chunk_sha256": "1be377c264966bef9f387ae451d2d5e09b5fcd8f3792dbfff37677a12240e7e7",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "5c119b60b09cb4e7d71e673f419979cf4697099605a696f68709a2d76540dc95",
+          "chunk_index": 2,
+          "chunk_sha256": "e3aaede5244aaa4f312e5cfdc92ca8b6253f5f5bffd93dff03481254f78b6609",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "2da51cc94b9be567d66702377d95bb1351dd7338b6538b5db4b629d3b05578e0",
+          "chunk_index": 3,
+          "chunk_sha256": "91a808d9c5f918106ecb36fed106f97db5274583b5ca99b8ed79009ba4ea35b5",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "c7165f3798434fc9caadcf583c07290038a9ef02e41564888dcec0849a8f8f40",
+          "chunk_index": 4,
+          "chunk_sha256": "bbcfb72bdbfd0ba18803de38f92ecfaddf2cd4815486e21827e62a5efa79997f",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "7128f688b369f935b244df73e8069d0466e07b9f30dcb3fd00f87f923237c830",
+          "chunk_index": 5,
+          "chunk_sha256": "7e7ea84ae75174bfea8b63b4e617e801b9cda7bca066bcb492333382222c64fd",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "2b443fb65b0b92224532db46d37808f57eae7c1d8bb6cba0b5466f383522f728",
+          "chunk_index": 6,
+          "chunk_sha256": "50b4151c4d4a53d43ef37621b33947e5ebdfe84f7a5728317ae68d0c1582dc0e",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "24e541d4400eeb2a31e3604c06c8d589eea8d8146eef8f1b7ac20f595a66db88",
+          "chunk_index": 7,
+          "chunk_sha256": "8125df6a69196b6c8bd4f3eb71c08f90abc0813c6f04011ef7609469b58f6c91",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "46ee44efc524b86f0c9a4a67cbd7ce552457778a89fa882eec7c2452ade8d166",
+          "chunk_index": 8,
+          "chunk_sha256": "6591e1417fdb8fb67191ca9cb372bc36b81eef790a10e79d4c736d8c0350cb8c",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "e8151067710f38cc689cbc18397d76298f5e63c64447030cb2bc8bba44ad8f9f",
+          "chunk_index": 9,
+          "chunk_sha256": "b0e3e8dcfb9015e8628df4ea3c7c633e983b2df7674e8a11e63f9cb09daa5fe8",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "6b94e330f6ae7605953bcd32c06103bb4013a3e665127aaec8f45796894f5c59",
+          "chunk_index": 10,
+          "chunk_sha256": "e4af02083b61169347bfd7c7289e7294e00e970dcc828951c8bbf455e70332b2",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "017082736804b1d5d9341bbfac9332b8f4b35dc56d96969096a47363270739e1",
+          "chunk_index": 11,
+          "chunk_sha256": "10135b2ea51eebb311204ce543074306c644aa648e942f2d97e7cf3ff8e47133",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "29f888615f32efb923eb9d99f5a329997446f71805ce76f3ba40cec2d6f84c73",
+          "chunk_index": 12,
+          "chunk_sha256": "4b132813c53b6886aef213775a1edab90e436b56c2198e950dc07638266a8d34",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "f25fbf92b79b2bd42ce8b0af5fde6bb76ee84df4196c827b8fc66cc77e3eadc8",
+          "chunk_index": 13,
+          "chunk_sha256": "f020647303b4276d08b341bea31bc223c05fe0b4a61aee1bfa6191286b237528",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "5f0d6c9b775d1b41e60907429e84ae91a6b72a90e3b733648a5a2f520d4595db",
+          "chunk_index": 14,
+          "chunk_sha256": "983fc713946623c2b207dde9a22fe6c67ac394b8444ae8d25d66780f095932d7",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "752b984317c9304ece447c9026f17b5e512ca934bd18418aa7a08cca6686efe5",
+          "chunk_index": 15,
+          "chunk_sha256": "48bab7772a04c043c07b34b94a172418db26cf6ba39d8d5520a3b347840c472b",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "ae9d51fab80f6bf91c42a51273427c80fcd1a8455f679bb2814c8a7b84a2ef20",
+          "chunk_index": 16,
+          "chunk_sha256": "37cec7b48cca65f23b591f17e8928b7fd23f4451afc01f58b3cef6ded8a9c9cc",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "0ddf7797f59377538a3263d8e9a27c49301451f58eaacee1be2cc8a832f9f04c",
+          "chunk_index": 17,
+          "chunk_sha256": "0ee5d03b5c01a12daa9bddb616cb67b76c73548638c6393b6492ae982ae37246",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "ce4701fb8b4073e2dc1de78935624290e59daee2eecf20b17137889261357101",
+          "chunk_index": 18,
+          "chunk_sha256": "a7e84a2451ce64221a7518324db69b762ffc79a8d5eabd284e08e6acad411540",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "10614edbb865f4799f97d2ab943b64444998dc60f6b5a7817fa995c672aab3b2",
+          "chunk_index": 19,
+          "chunk_sha256": "b2f6f5fcfdba385209c83f5dec96f5fff32b389dfccb519feed5c5bbdc34bd43",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "d4d3b1573461907b9c0b9a2dd402ec5cb7d3c6dbccc89c9ff045e77a970294fc",
+          "chunk_index": 20,
+          "chunk_sha256": "5c882a215911f98dd2d6f5529a708661b41e7515bf47316c3401a4f121c06b49",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "f12a86af0b33bc75cd0b97f493485e618e4fc8266d05e06f38eb41234d4ded7e",
+          "chunk_index": 21,
+          "chunk_sha256": "e8aee616c24c8175c6afdeff365bd613d8a7e40109390ce9369e3551cc5b764f",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "1a332fef35abe12c5783d1de1008ed4a913575d6a15796d6025042bc328cface",
+          "chunk_index": 22,
+          "chunk_sha256": "6aa41e303820e874989410fe532cc6aa160d2beb835287b4387f3f7d5a599da2",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "2b6af821cefe6e8d8aabeb4a0f87fbeda8b76986955c0a5b7da9658e5cef8798",
+          "chunk_index": 23,
+          "chunk_sha256": "c6ba4491ea36f4671378f38f641695c37cd7902fa4ead2915b5a14fdcccde835",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "c66e4e555e0d2bf8f5a0bcd68c06633ab1c8ab9d94cd6a190e11df37be0e89b4",
+          "chunk_index": 24,
+          "chunk_sha256": "ed3e2fd7e3a1ad7ee632e1022ed2de5ea9141665ee47ba0b9d994aee33f071ff",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "d704564a2e2cf1f4dc1143ccfc96b02a6788ea5535e0f32e37c7a5e5f0440a59",
+          "chunk_index": 25,
+          "chunk_sha256": "336b12423ce2375d55f22746a2b04d4b6d0bce98d767237941716f853394f29d",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "84138d0665c2c04d6146ff96f39c91a8a5214e8b4cdae3252fb5da2ea6be7b4a",
+          "chunk_index": 26,
+          "chunk_sha256": "feb08c36d09cc29b01a7345e0d8f4bf26c6d685a3ee2e8fcf52c5f91fae387ac",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "d8f5c6bcb412facc36a22959c08d1de436c116b3a51188b01fc7c6647dee2779",
+          "chunk_index": 27,
+          "chunk_sha256": "0d532fc9c37bfa40f3c283b42eb89d3e38978e29210dbe5ad80a9ab93dadefe6",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "dfa3c642ac64da8ac567664f4a824cf1f03e1042c7d2bd4ced51a483e9fab4c6",
+          "chunk_index": 28,
+          "chunk_sha256": "47d69cde13b972b828aecf9ead6356b47a6a146705aa149286d65fd812bb73c0",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "8461dce9e7e56824998447b2b71e5eecd367cd29c58c39f0958c57d25b523a49",
+          "chunk_index": 29,
+          "chunk_sha256": "777fe0848471705098ee1155a2a58096c00d14bf48c1b6e36b3fab266d720b6d",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "25890ed22a5d9e738d92c211b1cc1ca6443f7b8fd4085cfaa917fdaecf9d08ab",
+          "chunk_index": 30,
+          "chunk_sha256": "fa135667b1317711a7e06e20dfd611a86bbdb599efa655c0f8e445c3f4e82ab4",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "b8b4d35ad4046d955997d4d4bec76b2909ae24751364f67f4befa9b1979f3d53",
+          "chunk_index": 31,
+          "chunk_sha256": "2b8eb74ad72dd6be783cf3a4a28c920d1bac319ebf8abfb4da9c2593fff89552",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "da67baee76ccd41684aa7aabec8f50feab84bc21ccdde2fde039402806c14a0c",
+          "chunk_index": 32,
+          "chunk_sha256": "1cb1b0ae78bfdbc9d2116085c4eedfeaf8d9405b2b0c6730db49f44ae53eac0c",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "a73897ced4c4d477d78c6bfee4ad757067b84ae77ace06d5231e9aacacc40943",
+          "chunk_index": 33,
+          "chunk_sha256": "ba49c72e9e0588d1d8c2fbc7beff3f308aa4cf9eb2fb7434bd25527272861695",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "1cb53f027cd8dbdcd7a41ead5172927781f57a7da00a115624dd732a1114de26",
+          "chunk_index": 34,
+          "chunk_sha256": "9a6fd126f81f467aefe37fed5415ccf59e42b6d4ddc85e9eb8f75148fe8588ac",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "726043a3fdb350d3502773cd01ceab0ceb34472be32e0a238970e92df3f7e2a9",
+          "chunk_index": 35,
+          "chunk_sha256": "55a6cfa493f0a64180101af80871c0c32991300b173d8a14570568589945234e",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "8c38d04fe040ba4fd151076320e06e52a8a607bbc27041a095c0a9ae2d5e8641",
+          "chunk_index": 36,
+          "chunk_sha256": "56e747907953fae148259c87eb8373528914f228c56eb57059433b3020a0c713",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "2da28f3ca5b63a971c5dbfa67a15ae06eb764a85b21a396e397e2f3dfe5595ae",
+          "chunk_index": 37,
+          "chunk_sha256": "be148496c6415d13a3c5ccf033099053872f4b48c36b32d92d1f7e22a52f9fc0",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "69596bf1d0436de92b5591b91c1cf0e7b0ee1539ff95e39d819fa38ba095eeca",
+          "chunk_index": 38,
+          "chunk_sha256": "5062f8388b180766450e0b3ab0154ab4e70fdb123336488a518db3ca79282780",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "5e1f1c6bec5b239679ebf47071f154bbd19a0f3f3c6a0ce5e16e87c9c07d1693",
+          "chunk_index": 39,
+          "chunk_sha256": "b49a6de32fc98b7ce66d91e2639444229bcd5b22c9e9d665b620df51b92351fb",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "9f021bd910b71e2cb56cc3f3ffc488222b5be75226e184506bc1edca65c86a07",
+          "chunk_index": 40,
+          "chunk_sha256": "c809093b3df94e9c036158a437ba86c12d7a1c8e78bb2231821aadf049f69bf9",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "0fe63752b9be3ba7d51fe6ec860f90658bdd8b4caa1b827d3764aa216df6ab3f",
+          "chunk_index": 41,
+          "chunk_sha256": "2de67e3ac373fa6f79bb76e512fa75453dc5709009e3a4107bdb5f26f4bd7c3c",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "235c1653edfa3ce9f0511d9a311a50d4ae37da1d86b5a86c872407b88a97fd52",
+          "chunk_index": 42,
+          "chunk_sha256": "baa620bbc6402c14354713b9b8d934a1b7aebc0d23c1a37bce02043a5ba3087c",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "914ce9962784cea2c1399067fd15d74bf82bb56c9e6c87df6eb95da8bb4ca26c",
+          "chunk_index": 43,
+          "chunk_sha256": "0e6539d627728f5d38549be24f443c6daea7bde9e351aa5b6c80a96f9df18604",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "b403a47a4abb27688d5f3cfdcc8a4783abf0a0574b0fde3e9238a06b5c4deee5",
+          "chunk_index": 44,
+          "chunk_sha256": "e30409b6d0550c59651385d679c9ca01e2885f8004be05f0e594307ed9400891",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "a130555d3d72fbaabe12086baacd4e97d1dfdb907f6e161429508c81edfb17fb",
+          "chunk_index": 45,
+          "chunk_sha256": "5af47f0544119e2ba15ac586bec8ff92308dee90f81ae18e41ed7fcdae06db34",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "e77144899094b3392ea7ceaf32d6528b10c55e7013fe8eb4e758398d868047c5",
+          "chunk_index": 46,
+          "chunk_sha256": "5c9ff8fffb0f5b523e133a6a131027a1fe897b9c53ca994e67915a9e05a77d8f",
+          "page_end": 13,
+          "page_start": 13
+        },
+        {
+          "chunk_id": "fb22a03c0c8e6f5c68955623f604cf6f13037eb2bfd4b626adc8592c46d98461",
+          "chunk_index": 47,
+          "chunk_sha256": "3258f6350e21206497c0ef3575b233e6f4cd7dc8d3910f03d312aba3835ba9fd",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "3240b09896a7069d77ecf7bcef9e9bb79d6deeb5eff5be31f4008a832de7ce81",
+          "chunk_index": 48,
+          "chunk_sha256": "e2ee90d78a6fb171c99085ebdabff758af24585c5aa55ed7a3c90c3980c4e060",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "6f39b457dae4de69654312e29c3d904c9514dae519e13540cfae2c3c51cfbee3",
+          "chunk_index": 49,
+          "chunk_sha256": "f262d7e75c304aa927da4f43c1962f3ae033252996880be15b3ba9da03022453",
+          "page_end": 16,
+          "page_start": 16
+        },
+        {
+          "chunk_id": "e828dab728eac710a80cda43c5fab10edbffefa6095e1e07f2d0f2d581730279",
+          "chunk_index": 50,
+          "chunk_sha256": "7cb1746458294acfd4b656cfa3c88d18d45e43e9d185576943b32345f235ab6f",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "8faf584510ba856b03480873c2d56397b9091886223524346b53219f130f53d7",
+          "chunk_index": 51,
+          "chunk_sha256": "92c615d2143b5c945cd3fed0d9ad0ac05d0262ca093bc673a426b8274f2e6ea9",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "14ac1cfeecac573497a03ca482e5a15074f383d462c131bc79a98f2e070bd01d",
+          "chunk_index": 52,
+          "chunk_sha256": "3a924385b14f19c9ebb57b387b9316a9a6f6d7ed110c446c077a4691bf6e985e",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "0ea81e11e31863feb660c6ea6b01ae9c5e10f4735f336f788b8e9405fd490845",
+          "chunk_index": 53,
+          "chunk_sha256": "95acd50ae7c824e64c1b789b7a7a96a60a3b797c0c95ad7947bba3eb9899aee5",
+          "page_end": 17,
+          "page_start": 17
+        },
+        {
+          "chunk_id": "5a0c1a94e4238d73bc9aa9c040af32078c6b13059f425fad381cc53f3e64f5fa",
+          "chunk_index": 54,
+          "chunk_sha256": "c0c7fee25cc0035f4d3b6f171a4a0df38fc82332a424a2cf0166df06346e99d2",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "9b6222abefd72e470742ac3098c7c90cbec58fd6a3b06ff1fef8ca5c2b123522",
+          "chunk_index": 55,
+          "chunk_sha256": "f45f180aac44f23835658c3d8f71cc392864c135ff1aa7ed1bf402cba54b64b3",
+          "page_end": 18,
+          "page_start": 18
+        },
+        {
+          "chunk_id": "c411b77b7c5255e54bf47408e3fd98ce55a6d69a31c90180843ab221ba7a280c",
+          "chunk_index": 56,
+          "chunk_sha256": "255983a2257b5679e1b39c7227091a11fc22f66afe76f0d9bfcd183061c5a2c3",
+          "page_end": 18,
+          "page_start": 18
+        }
+      ],
+      "content_sha256": "a9bb598aea037a96580c81cbeb358e01e89e7a5d0ebac55bcb907d8b9c83c33b",
+      "current_download_url": null,
+      "page_count": 18,
+      "page_coverage_digest": "9db212ecc1cd159fd445931e102131498ca363a25993a0c1cd33474ee10000c9",
+      "placement_id_set_digest": "7ae0162367a64c68d0d12431d7cb10fb9305406100b111315a2c5aac5132597a",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "8f2346ca31eaf3768da89bd16a1f81596562853b742a91d29516ab2d434e2e76",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "409e459e8432a4599d9be976d72d2bd410116775c1cfaa3ba40fa8c8f057ef6c",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/09_AUTRES/2021/la-constitution-du-4-octobre-1958-la-protection-des-droits-et-des-libertes--a9bb598aea.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6150/ressources-pour-l-etude-de-la-constitution",
+      "title": "La Constitution du 4 octobre 1958, la protection des droits et des libertés",
+      "type_doc": "autre"
+    },
+    {
+      "chunk_id_set_digest": "a7a77287cc49ca575d24db918027840864da97ea9543cb8a83449afb22e5f329",
+      "chunk_sha256_set_digest": "5526f7d068d94917f5512ff46e52ce9cc80999c8328dac67bc21a149071c3593",
+      "chunks": [
+        {
+          "chunk_id": "31235008a1459b24a52a584e3f59f63a381ab5b6bdb37b3743c5d1221c08c9b8",
+          "chunk_index": 0,
+          "chunk_sha256": "dd5f341f346cbf3e3f59c23f5fc5ad0648e49e16bf0e16304b14fe9a01b9dff4",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "da11968cc85860e1ac258e589ecb03572a6eacf6e6ba81491f0b4e2c7d9eb104",
+          "chunk_index": 1,
+          "chunk_sha256": "6375f255dbdb0add1f8c26138058e979bd0b97fb939d957e79821ccc3ec8ba15",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "acff6dc36c2b2035917f608dd2bab4484cb0f5146af0621596b24392e0994132",
+          "chunk_index": 2,
+          "chunk_sha256": "ef2aab907fdd26d16c0a73959349aaa9d1ea5f5e0bf3dd335274bb4344a9413c",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "1a6e37b9259c0a9fedb199fc896a44491010270145afd92833b3b948a693b6d7",
+          "chunk_index": 3,
+          "chunk_sha256": "1ca1ddcc796aba8acad04d43a46cebc81e4e1f4620bd20cfe35d04386c9a3974",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "ec9e7e1652f3721ff4cfae2a0081be587be3a5266f4848d97b336e88b93e2b71",
+          "chunk_index": 4,
+          "chunk_sha256": "1d6a8dc08998616809f6838760256b373b1353d1ecc0a6d1b3f76621bb664217",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "b2c9a627c8d23b2ed75594aa4cfa47c08ba7a74fdf280355f61861be715315d8",
+          "chunk_index": 5,
+          "chunk_sha256": "313903511e58993457630db238ce4441964e854c744d0a286a41803636b95f54",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "4af3e18137a07603f6d113a36320e30ba195ac8ad5dfc66607eb4ad5b1f1e202",
+          "chunk_index": 6,
+          "chunk_sha256": "61caa4082223f1f5d45efe735ad06bf4906d869a1ae97796ff07db18ae3e6634",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "99a70289feecfb82b9f7dea8a550c0a9c03ea28beb6d7664ef8f0207b6320969",
+          "chunk_index": 7,
+          "chunk_sha256": "61cdbfae112d84a2865bd85aecd19915c274140f68e7b35b022aa24f8b8bf849",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "6f96d1570cf1374663285d0323e6997a487298ac31bd59409633cc39fc8fee8b",
+          "chunk_index": 8,
+          "chunk_sha256": "9924163cb2dc9e5864fe81cd097276394a232400ddeed72292660ac5919ba48e",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "3c746831df9016b12f98031929a2204032d3d637ae5ce129246bb60fca3bcf88",
+          "chunk_index": 9,
+          "chunk_sha256": "0ac4f5c28014bd30cc1f06f2891b2b215c062eef4aaa48a659c454f87e66ac10",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "e15885b5f951009fb05d29798829783d2eca0783e8ee40aab3f64612262e82f4",
+          "chunk_index": 10,
+          "chunk_sha256": "2e0a24787feaca61804df9de6ad8c5f46a7cb2eb0a9442eaa47d08eae9a55fd1",
+          "page_end": 8,
+          "page_start": 8
+        }
+      ],
+      "content_sha256": "bce945c221de929f175d2a4adc9703b3a4945a1c535263aca128554446024be0",
+      "current_download_url": null,
+      "page_count": 8,
+      "page_coverage_digest": "b2ddd6543011e658aaebc223b42021e89fa9a18bd1f2207f6cb68e73ca5688b3",
+      "placement_id_set_digest": "166af7a1591469f1115eed80d7ab2a49c428ff1594b8543c4907998c4f56946a",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "cab14330385aa83e7904bdcf2cde4d1e9d8bc19a77c7c572363e8f9353144a2b",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "3af09f57d40c9666575bfa6af209ec64a4e673422aff1761819f373f72c8ee3c",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/06_GUIDES/2022/lettre-edunum-histoire-geographie-n-51--bce945c221.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6660/ressources-pedagogiques-pour-mieux-connaitre-l-europe",
+      "title": "lettre ÉduNum histoire-géographie n°51",
+      "type_doc": "ressource_officielle"
+    },
+    {
       "chunk_id_set_digest": "2384e5cc1573c19426e5edac830906799a20a84e1aced627a3f5211b4e5727ec",
       "chunk_sha256_set_digest": "4e1ecdf3d7ba0608d08c8f73a11499caa95e36057762d6a09c00de6d836d0880",
       "chunks": [
@@ -314,9 +2337,10 @@
         }
       ],
       "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/annexeprogrammedgemcmodifiepdf-84138.pdf",
       "page_count": 16,
       "page_coverage_digest": "ccf4600ad12544916d6b8575842f04df48765e358d3d5a6b2b4ba46f1ea913c0",
-      "placement_id_set_digest": "d186346fe28e9e075bac4994b6726eb03560f390ce4eadf4c10a5152130c8d99",
+      "placement_id_set_digest": "a1513619cc1d01ab84f892785995ceaa6a9a056b4adf96fbe3b6885a50826ec0",
       "placements": [
         {
           "candidat": "libre",
@@ -324,16 +2348,16 @@
           "currentness": "current",
           "matiere": "dgemc",
           "niveau": "terminale",
-          "placement_id": "d2aa12ca6d4ebff463cc33cfaff35da573d03ac88f98a6999097d8a58cec23ef",
+          "placement_id": "d4f077ae1ad19ef7f74a588e3c1bede9fd31ee43c3b6fef5846cb7dabf2ef0af",
           "placement_status": "active",
-          "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
           "review_status": "reviewed",
           "school_year": "2026-2027",
           "source_placement_id": "8064e465df905f7d18b79bd5a306bb2022b0f5eb5dd4a9f92ef4cb35f9735570",
           "source_scope": "lycee/general/dgemc",
           "statut_enseignement": "option",
           "tenant": "libre_terminale",
-          "visibility": "internal",
+          "visibility": "public",
           "voie": "generale"
         }
       ],
@@ -341,39 +2365,704 @@
       "source_url": "https://eduscol.education.gouv.fr/sites/default/files/document/annexeprogrammedgemcmodifiepdf-84138.pdf",
       "title": "Telechargez le programme de dgemc en terminales generale et technologique pdf 930 41 ko",
       "type_doc": "programme_officiel"
+    },
+    {
+      "chunk_id_set_digest": "e12e31b556157ba6eb31176ccd680e15a0d009de143e5ff4a0b541f649263008",
+      "chunk_sha256_set_digest": "fd7df0129efab5d31f6e8315de1b3a6ab004efd7508bc18ece38cc93ab1e60bc",
+      "chunks": [
+        {
+          "chunk_id": "dd7cba706a804fc2b95b34e2b57fe1bce17fd92b6157050bf8b3f24eff0bc99d",
+          "chunk_index": 0,
+          "chunk_sha256": "299dc25bfe0c4e393750041e2a6883ebb49cd15efb0eb8d8b8d057004896f3e7",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "4d892f5f6dfce12cb9891d693f314cbada32563f8b100e935528a79555c4b11f",
+          "chunk_index": 1,
+          "chunk_sha256": "c267e5f971caba211dc7ad4ae0c27bbeb42c608a02bf4f27c6c187d8df3cd4a9",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "9e3913606084a5a7b4ee3d0f9dd7389d9abf1c89b1e891f2e3a919cced974142",
+          "chunk_index": 2,
+          "chunk_sha256": "28affc35c8fa18d19bde5ce884a5e21ae9e8a4d225fb42904e3b8298d58cb8b6",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "038b2be31fec94ccad37b0eb882d1cb2f3b798f429eef69b7c5ae611d27d210d",
+          "chunk_index": 3,
+          "chunk_sha256": "a14fb0984e1fc510fd6a0ad835a443d127e7105a5b956daf2fb6ecbc125d3a8b",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "c6e72a03a05c6f3d777a6c8b57755d2511fffb217efffa095570018f51c989bc",
+          "chunk_index": 4,
+          "chunk_sha256": "efa3ce5c2eeb2c1f3bf68bbca14b84d6704a084f8df361b105e6a26ccadfa0ad",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "074822779c251bad161eb7eae58e73387b6c66b6dd9c324d71ee998630f0d747",
+          "chunk_index": 5,
+          "chunk_sha256": "ef88d629b531b7c2865c8694a2df5254c05a38ead01fcb9cd6787b9d69da9ab5",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "062a0282e9df795b3f6ba8e0ced4a28f6408ff3761e46d54aa9fe43401aca024",
+          "chunk_index": 6,
+          "chunk_sha256": "0a5f8de013b290c8b618b77dcf46a948761a6bfb137fa2aa83fad8f77377f085",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "af04116b6f2b4b1fb7bf914d2cd33ed0e0ac5622506485bfafbfba81982cae3c",
+          "chunk_index": 7,
+          "chunk_sha256": "5033c1fda1ad865d3ad5efb04ca6c31966f3bd3c51c8a301b6bf58230bb2d9af",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "5b77979fe15fec6685955a0f31f1f7f3f1e3c978d3285b3929ad7e3a40d8df85",
+          "chunk_index": 8,
+          "chunk_sha256": "889d4048a0a997a60c1cc3914f07f24cc1c440040e736cfdf1b86a7bc6e1d53e",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "7724031c21322171684ed11a3919cc50c72a75536f3b838199d74eb03691fe4a",
+          "chunk_index": 9,
+          "chunk_sha256": "ebf8012d7aad38d14b1516cd4428806b41ba79c8ebc8727287ebe7ef9399e224",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "cb0d2670ebb175d705c7751191af15eb10fb7e43e81eb23d34e6fc6b0f7f69db",
+          "chunk_index": 10,
+          "chunk_sha256": "3331e02b76a02367d6cb0e1105f3186515f0d4ab0e7c75d58451b2f0a8e64981",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "648c28232b5535d9f75f6e07fa518a9937edc9c11e63912f0eb3a40a78e6c4f2",
+          "chunk_index": 11,
+          "chunk_sha256": "803ca79f12bf3261d4ade1186a692421f3b197b8a2ded28dfc9b0ecb08c2e91f",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "082678b810ff91b06b137a6847e2bce23a81128c6cc4668daee06bf63f9e9a89",
+          "chunk_index": 12,
+          "chunk_sha256": "efbd1e406885fb6c879ca34c146c61fbbc875da9203d1434e4538bf4245986fa",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "57df40ec7e6ced5981b42f6d55c582cb87ed9be48dba5e6f3157526674bbd3ef",
+          "chunk_index": 13,
+          "chunk_sha256": "ee780f45275e4798c371f7efeafdae00eb0a0f35f8660991cf490c9a35e723a1",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "d72a93fd9b745ade77405c20536403b8b1bc9f23c3982c8b840da49ae8503e19",
+          "chunk_index": 14,
+          "chunk_sha256": "510e22329fa75b1a3e70ec01b22d929c49c1859edc6efc63bf67a5f5275d52a2",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "9b57e59269f1cc934c4fb2ff7320b68744f629db6be9f23d201cfda0a7527c10",
+          "chunk_index": 15,
+          "chunk_sha256": "b884a905421e5e530f62013f788ad085c7e7716d0b06422cf2e217bf7f4c6687",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "cd5021e42c43a8f3159af1cde7fea533c4b904735c762203a4ba583f3ade83cb",
+          "chunk_index": 16,
+          "chunk_sha256": "b493f973fb0d6dd6d90e696178f10d44a1097e4d5cc11b6a93d241ac2127386d",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "b29c13d2cafd51e333e7546f58c776ae16378acbc557d301e495c9d854f76a64",
+          "chunk_index": 17,
+          "chunk_sha256": "42004bf50380300d04855a74c6252a4b087a94f919040598de61925770ae91ef",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "1659d4745bffa6ae3e33bd8315e68991af07383c74f87f6fc73fcc1602d701c0",
+          "chunk_index": 18,
+          "chunk_sha256": "26e526f4fdbb3bcd2817bb6e450c9fe9fa3a3df75ac1865d2e9378b7f7d8bcb4",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "c1533bf238752351820d3b85562a8cd3025e3d9ba3a1655106ec78dc5e715fc4",
+          "chunk_index": 19,
+          "chunk_sha256": "e6d941b4d76708ea49716fd6bda92b35b85cf48e55dd0bc26032358b47db5b64",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "77e06a1a7fa0f756edef9abdab4e42838a011384bf1e62931cdfb55fbebc9120",
+          "chunk_index": 20,
+          "chunk_sha256": "bdd4d048e3af27a48a1d2eac947a77ede94b582759731d4a5945513395842118",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "56ebdd6f4ed110a2211362cc3f09da5395fbe041ede6b6dadd708d8b596d00cb",
+          "chunk_index": 21,
+          "chunk_sha256": "1dc8ae239b5b18a95f56bc54a566fbb4d4111f0a8f7f939ab3fcf66583c78c9b",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "8b189c980564ac23109e5718916d3ece130bbaeb1db145bb1e1f45df57715d31",
+          "chunk_index": 22,
+          "chunk_sha256": "cf0df004628837482e41ad37dce6676ad88b13dc241468d778698768924336e1",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "796d4782c57fbed9de9314ab7c73ae71ee4e5a47cda68f707a35f26bd2b7afb2",
+          "chunk_index": 23,
+          "chunk_sha256": "74ec92ee12bdcc2bb67ca84009aab4f10fdb5eca145ba1c921e02e34a6fe2264",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "caf504636a17461561fd74b5f1ba1939f521bbf56e1de29818730ceee700f027",
+          "chunk_index": 24,
+          "chunk_sha256": "baa28bbbf1aae8c3ce1f90e9d3167f220df826153cbb01f62649dc0590f5b4da",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "0b55e98bb79ec70f9919edad38afff1f6dee506a5f2e760bc9a2238b2d637d84",
+          "chunk_index": 25,
+          "chunk_sha256": "da182f6ea802b44f64ddc6ad139604cd745a806758ff4aae5d61050a1fd1094b",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "98fdced0051a0ac35936dec9bba94275fa8670eca2e323e4deea45fc9e21a837",
+          "chunk_index": 26,
+          "chunk_sha256": "40c08f9b9b51927b95d868c0d1ca1b38330563a30b4a13ab579e7d8477668d6c",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "e1d7a34a5b1c6cfc329c6129692eaee6ad8bd9c192c03a1ebdc33e1f99d1010a",
+          "chunk_index": 27,
+          "chunk_sha256": "9ac35b2ff0ec4d1e758afd00cbf6c9a8f26379e74b2d1d5657d30bd769f321f0",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "1335846049d337fdcff993d03c2fd615fbb9d965a12e3a82273b13eb32dbe658",
+          "chunk_index": 28,
+          "chunk_sha256": "b2a16eb94d9daeff6226ddf51aabb513a7364dbccf3cdc1ff87b2ae053158bdf",
+          "page_end": 10,
+          "page_start": 10
+        },
+        {
+          "chunk_id": "8e9f78369c1d2347031fc121d99dc9f809933171adf74bc7df9cb32b131af368",
+          "chunk_index": 29,
+          "chunk_sha256": "6c5bf9701d1b81953f5f80069ccba42317c69c3b3110c383b37b2cfcb152db43",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "d8dc8ff6d48452ec27002781663c57b6ef24c5735c6f731de494f65d221be556",
+          "chunk_index": 30,
+          "chunk_sha256": "cbb10884d8009951805a30940b61a1c53c768a84c8e933efaeb5f871dfbd8217",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "649c1db897b33ee3b028888afbac1d54de1ac78c47b34e5a34f88484512ebfb3",
+          "chunk_index": 31,
+          "chunk_sha256": "5e7bfef50502dc01bfe825260d069bb5a2702e0df4d097d35edc64cccdf4d204",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "65c0818943858c884c8d5a7d784cb31cf498108182e47b1d3f9c8e427d9874c6",
+          "chunk_index": 32,
+          "chunk_sha256": "213514e01be7adb83f41fcf55dfe365af1de8cb50401be9db47b304a8b8ff0d4",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "f373407878669441c989a6fa3341ab3141fa0554b92a51076fe3d3d27d954023",
+          "chunk_index": 33,
+          "chunk_sha256": "8f7c3611218dae71d5f9dbceccbe85a0496c5d0f899ec323975907e8744160fe",
+          "page_end": 12,
+          "page_start": 12
+        },
+        {
+          "chunk_id": "d1b3cc55bf308e6f0cb30cb177de80998f8cf0dc848ce6195354cd6d67984315",
+          "chunk_index": 34,
+          "chunk_sha256": "8c6cafca82d7089fff8c6c6660fde4a80818bad8f63e8e4a5faed4228f86cae2",
+          "page_end": 13,
+          "page_start": 13
+        },
+        {
+          "chunk_id": "6db1479a0810f2b5bac85e0ef6f1e4fb6512dde286aca5f5832900320b405fa4",
+          "chunk_index": 35,
+          "chunk_sha256": "06fa49e5bcae99220e77dbb40aeeca21ee3b8576bf46ed0875dc83c339cc155c",
+          "page_end": 13,
+          "page_start": 13
+        },
+        {
+          "chunk_id": "96b4e71760420ad29369b97d9b5d91e06559433919a3e2e6f660aa40acfa3121",
+          "chunk_index": 36,
+          "chunk_sha256": "dc8d4f178d24594904970ca28651c8effb366c7233290793f63fd97905f547f0",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "2cfdff0fc59607c8771239c80faa2db0272d69fc03fc0d4e9a8d6404483087f5",
+          "chunk_index": 37,
+          "chunk_sha256": "1d10d8b013416cd7bc82face248d21c1b588cba8c5e7cde008eaccaa8baec0e3",
+          "page_end": 14,
+          "page_start": 14
+        },
+        {
+          "chunk_id": "3928a0cbe0da71250f8887ef2c123cfbc131c9f0a32da7c8a3643177f4450bd3",
+          "chunk_index": 38,
+          "chunk_sha256": "519fb48a2371a6e0331e64c3b45a9484c7cf7e1d2b60aa768c1d3fafdb67cbab",
+          "page_end": 15,
+          "page_start": 15
+        },
+        {
+          "chunk_id": "262b2323321abb91982e390ae1ad2d9d4e4d3f6e6e5b096fefaca6f4319bfb85",
+          "chunk_index": 39,
+          "chunk_sha256": "9801b2fe2afa69ebce21cc01372b51358ce4803e061307d83f4cd346ee72ffca",
+          "page_end": 15,
+          "page_start": 15
+        }
+      ],
+      "content_sha256": "e80d76b74cbb5823d638ab67e56922c495d7282b983b33993e5664fc66bf61ff",
+      "current_download_url": null,
+      "page_count": 15,
+      "page_coverage_digest": "7d641a111d66d7dcb56336fd6ebca9ffb1b19e19325e2f1766a9cbad0a1b9d70",
+      "placement_id_set_digest": "95ca149f4c59702b4216325c4ba2a809323fdd5c607be6dfc77fd07e97bbfb13",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "024dbf9b8e64253041a39c2edda244ab4ac675eb3b6bc0a6eba0ac8bd4fd65a0",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "5ea9fb27909f6ecb3f41c6a3d90e17849e7677af2edf5b57a47c0f4498884a28",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/09_AUTRES/2025/la-place-de-l-europe-et-de-l-union-europeenne-ue-dans-les-programmes-d-enseignement-pdf-258-18-ko--e80d76b74c.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6660/ressources-pedagogiques-pour-mieux-connaitre-l-europe",
+      "title": "La place de l’Europe et de l’Union européenne (UE) dans les programmes d’enseignement PDF - 258.18 Ko",
+      "type_doc": "autre"
+    },
+    {
+      "chunk_id_set_digest": "13ac092ff4c1d731530b06940ea582144186f99d612d357d362807f66bdf8d2c",
+      "chunk_sha256_set_digest": "6989968f7f38bcb3527fd2aa5e9edd389280617fa301cbfa36cc9ab74b99077d",
+      "chunks": [
+        {
+          "chunk_id": "5a320b0c951085f5bd17fb70e74c1b4f737279e80647cb2af134119758f1becb",
+          "chunk_index": 0,
+          "chunk_sha256": "599560d77f3cd12ee25998a2d4c95d479c799a789ad63aa485b383b3c82713ce",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "20e4c3db3458a078c32c57a3971584f4e2b8cd6c2c430140de6af73fe3142d78",
+          "chunk_index": 1,
+          "chunk_sha256": "166475f93dcd7344fef9e2f95e61725f17f71deff45b137835b2171acb82edb0",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "6f2d4dba5b49eb0e88ac6c7785c1e7fd9fb039c0c74538dd23dd30bcd3964829",
+          "chunk_index": 2,
+          "chunk_sha256": "2da7b8e1c7a32caf822e69e1ca58fd4fbc2c7e51754b9ad4ac7aeab784c66063",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "9c52e58fb2e593e9883c2391f0d16090121e03d20024b62846ecafaf737119ce",
+          "chunk_index": 3,
+          "chunk_sha256": "9c83c079cbdc485e427012521b6338b379f78c5ad50c04ff4258a4fbacea6690",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "47231c9f415c84579eed46a68eeacbc6c529eeb317ff922c545befb7d78ef0fa",
+          "chunk_index": 4,
+          "chunk_sha256": "880fb56490e04c282dff47a1c6b8b2435de5d8ae06bb1b4dd29fc0a4eb4ad97c",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "8c3810a7dff1a27cfe891b05a8c3a93ad7b486dede20a077922b44a3155855c1",
+          "chunk_index": 5,
+          "chunk_sha256": "8ac72501e956751eb6a8005ecd08a7577d5a0159f5ad6f0f0558d605c5caee2c",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "1a315cfffcf29743141acb974564a50bbd1511f6c8b8eb3ba0e66d592f37194f",
+          "chunk_index": 6,
+          "chunk_sha256": "c4b94ae2e0a9d13e40ff0e715ec2e16a59d60b21323adf4f9a811ceff02aec81",
+          "page_end": 4,
+          "page_start": 4
+        }
+      ],
+      "content_sha256": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "current_download_url": null,
+      "page_count": 4,
+      "page_coverage_digest": "f6bd10506e9a4daed7c03eda2f2fde54be3bd58eee49dab471c18a888ffbdb6f",
+      "placement_id_set_digest": "d15cadaf67c0faf9c6f873df8ef840d1084dd3f3db63e5799df0ee3fab90949d",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "796603a4e673a8bbec7ea7b22a9565f6475775bc70a134316e5817e382609679",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "d05deb40d609bc877490729e0fd7beaad8b749ebaabd1e8315c6ace559e9debe",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/20_TRANSITION_OU_ACTUEL/DGEMC/09_AUTRES/2026/reglement-2026-2027-pdf-202-78-ko--ebe2d96d24.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6162/initiadroit-et-la-coupe-nationale-des-eleves-citoyens",
+      "title": "Règlement 2026-2027 PDF - 202.78 Ko",
+      "type_doc": "autre"
+    },
+    {
+      "chunk_id_set_digest": "4dcbefeed535826f10fbd5452e0aa9085dd7597db28fb838e2a42b96915d893c",
+      "chunk_sha256_set_digest": "3a4937421a1177b46749bc7f00c19a637426e905d1f62695ef06b895a1986a5c",
+      "chunks": [
+        {
+          "chunk_id": "fa0c931592d998cc4f6c050b79f937c2ebeedf760d744f0bc6fe4b15c025c84a",
+          "chunk_index": 0,
+          "chunk_sha256": "d5aca46d138a097e2230a620324bce2ba530dc74e0f78e5bf6750d029b0a3602",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "b408b874c023c452dfba237b4bdf14697e196a067ecc729eff0ccacbebc3f3f0",
+          "chunk_index": 1,
+          "chunk_sha256": "7ba7b2a03ba99de5e517d8b6cf3020b78520163e56c57c65ad57acb0c65ffd6d",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "fc7b919d4c3769f19516acfebfd8139910cad678db52c03faacc3a3562413ef3",
+          "chunk_index": 2,
+          "chunk_sha256": "dc35acd7f2c5bfe0b35c37e25c754c43ce7563293779d70ca0db99569a1a37d5",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "b946886cbff176dc142f7109e53f19636fe14580b69402c3c93207fce736f733",
+          "chunk_index": 3,
+          "chunk_sha256": "4cd7ae666107bad9fa7358fedc68a54ad6777d099fe741866a4f75b180e2018e",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "28a3b3411fc19bf6f8936ca5d27d40a1f43bbf063fdbde0c67281a60c9fa4aee",
+          "chunk_index": 4,
+          "chunk_sha256": "f21f0380694937c8c8179ffdaacd675a6a8dc341b55958c2ae46a66408f27585",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "d197e523a38b52a7e1e7d16b4c25aac0b2d6f0d998e468ae9c93cbf6964b1e14",
+          "chunk_index": 5,
+          "chunk_sha256": "2171abe571c9be56ba399a71f404614c173a7b3616ce2ec7299412f153fda51c",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "adf5b707f27f7a07fdb4d56299b0291b3dec4557c3b683bc7d159954f8bbbe72",
+          "chunk_index": 6,
+          "chunk_sha256": "a05e682121ce30d242c161ec61f34154cf93079702059d51f57248a1068e11df",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "c8582063f5132d4a25c0e986598df6c66cd128718d977b9ecc81a99f0c631bb9",
+          "chunk_index": 7,
+          "chunk_sha256": "7c260f98e846401f9b44b79f3fc7f81f13878ce7964194eba2d9c9a506c73f4d",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "2eeb2905ff286cd8292bdabea6229039e85e60f0fc6f12a92869baea95de8a9c",
+          "chunk_index": 8,
+          "chunk_sha256": "d93c53ab0146f22363c36582991379d56568d9f0caebe9887ac1fb70dec55761",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "3ebb4f62fd77e10a4a1ac34179b466871bd8cec4ca6083cd185867031d0d9c8a",
+          "chunk_index": 9,
+          "chunk_sha256": "158509dfea8dd7ae2e7f77aa80429851d2615049e08c136ba6cc17caf4e10c42",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "c18758c17907c916187db40ab7ef24c3ea9ae64ef69c7caba1244fcb54b7b30c",
+          "chunk_index": 10,
+          "chunk_sha256": "a1d3d144fe7ccbc04f369c0e0b724507de297a9c975f11dfce49d83b4eba909b",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "24a54516f67ca30348bf69481823120fa738bfedd3593857c17abd6227c301ee",
+          "chunk_index": 11,
+          "chunk_sha256": "ee978b9531733939292e806f31e2d4f0dce9a12be19fef6f658ccb0c44410461",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "cba5950879f55fa4c3355d255f755b3053dec372e262834582a6df146cf0a4c1",
+          "chunk_index": 12,
+          "chunk_sha256": "331d52abae94fa59298085dd57dc42e24cdf4e38e6629dc77fe566ff6e5a0eae",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "bc41682e3ecd527bcfcb4f7a0cb716397fad52bd75a070006a8cf68a896ab56b",
+          "chunk_index": 13,
+          "chunk_sha256": "8d1c25e0def7792cb79ad427495d9c924a0702a4fdbd3058a2c355bc90e32c94",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "41632249d6e97675b5a19a36c5ff94c3ce97b61c02a3b75634688315cbe17728",
+          "chunk_index": 14,
+          "chunk_sha256": "e19f3ca73a0b17fae85d61c099b509c604cd32e29da2d370bf8f1930124a32fc",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "6c0910d8e738bf85189b4d5fadd8e21c1be103f7f22ae55e0206e85ee0eae027",
+          "chunk_index": 15,
+          "chunk_sha256": "e4510485f2a6530c5efd704d6e2c9d731e36cea15ca4f8b4440e949ab68a33da",
+          "page_end": 8,
+          "page_start": 8
+        }
+      ],
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "current_download_url": null,
+      "page_count": 8,
+      "page_coverage_digest": "b2ddd6543011e658aaebc223b42021e89fa9a18bd1f2207f6cb68e73ca5688b3",
+      "placement_id_set_digest": "b10a1778255fd852655c9d42231e97c39c875a3fe79d124f6944d7ac5bb0d0bc",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "60c4c580408e35b63709e45c42b45deae7c1e26295e58b2ce998ca5329d18e2b",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "56b22d7ee9e8890ee6b8b96e2b4d1d8ec0d185bfd90e83e2d88f15a1450f39ed",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/03_RESSOURCES_ACCOMPAGNEMENT/2021/pistes-pedagogiques-pour-le-lycee-pdf-600-54-ko--f0a7b8af3a.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6660/ressources-pedagogiques-pour-mieux-connaitre-l-europe",
+      "title": "Pistes pédagogiques pour le lycée PDF - 600.54 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "chunk_id_set_digest": "f76dd2de0db494f2a3a1f6319f37cfe2321304afa95f9bb6452c344e8a836337",
+      "chunk_sha256_set_digest": "296db597ab2150b73d27fe8c17a3eba0faac53d1fca5ef459f26f539d75a84fc",
+      "chunks": [
+        {
+          "chunk_id": "acd848bd4b864c89104d55dade26b537bc1d448b2f2de9e087ee1a40507d5866",
+          "chunk_index": 0,
+          "chunk_sha256": "cb59b9ef615d1b50cb93aae8ed19cfac06ef3496b023982c1fa3b9482784f359",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "46882fced13bdf522d7fbc5bccf0ccb04a86ee30c80636650ed246cc658ffa84",
+          "chunk_index": 1,
+          "chunk_sha256": "4d738923b8a6e4265b307d0770406b7c8c57cb2e0ea5ee4de7ac9860e2b4985b",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "52f960d10983a31b3f54a5aeef2cec4c6dafdb89dd094ac90f65c1a69cdcbd7a",
+          "chunk_index": 2,
+          "chunk_sha256": "17f3f9f6508a644fc1c35d2de5ea2e79e3cab21581a455f6e0ed10e0308cece6",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "cd56c10275ae180db0d88a3228433570b7f7c170bb6eccfd1580271758047ffd",
+          "chunk_index": 3,
+          "chunk_sha256": "70091696f7d52f2a0c6bbfa4177a1375d67cf21f25bb0bdc0bba0482123b22ae",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "4dc08d5ed1102b6299d663cd141a5421af42840f409c75ee83e7abe3cede9709",
+          "chunk_index": 4,
+          "chunk_sha256": "f8cd2eb2e2035fd489e477888794f3aa776d6688ac95a3095abdae85b1891cd4",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "abd704c9a7b5b58577d9f05f38dbbad32081af983271da4b6052af7e7d8abd0e",
+          "chunk_index": 5,
+          "chunk_sha256": "00a59c7ec6694413179544cb1c9d44f83139e1243755a1208d8912f0eb7a4fc1",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "50144c278108d2d076ec1810bfe4d6c50c4b3fae7dd62fb26de73db1de2512d6",
+          "chunk_index": 6,
+          "chunk_sha256": "5d7fa62f347871c7982875a769bc6a2db042992a39802db33a1ad325c10e38a8",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "99e445d084c283b78f7c1845f68bbab9e7b03019c26654b4e84f777c5f43a8e6",
+          "chunk_index": 7,
+          "chunk_sha256": "ca0615a32bc474f5352ecad18599260f8f987ca065d74dea35cba00eebb94ca1",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "d00f5e32fb13323ed93ab374367d0b6be90a6e2bfa404b98e62b99756a1cdeb4",
+          "chunk_index": 8,
+          "chunk_sha256": "b735cc640bd8bfb96e68c5097d5b8f0e8cd42bca100811167446f27d2fa4ea0a",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "b44fcf8bf96cf17ed0d32280ce8bf045abd7a3433871cc150ee20fa23fe535b5",
+          "chunk_index": 9,
+          "chunk_sha256": "920ca848f7c85879247f0aac1d666dfac05cbf5b59e3fab259f3c432d63f09ec",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "e25675ec1619fe3e505c1c7fa836883314d191d49e5deee370a9fd962141a5b8",
+          "chunk_index": 10,
+          "chunk_sha256": "e44998b27082d65d12c39ec9e73d77500937785635c4b5a9f9eb5b82d3e2fff1",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "fede456f3e5f938914308834f6de6b7f61e6ad5df983a87ffcb83e6f14dbf69b",
+          "chunk_index": 11,
+          "chunk_sha256": "6d806945020945486c32fecb5dc0e4f67470836ee8e2f69b9ba8c91df29dfc1d",
+          "page_end": 7,
+          "page_start": 7
+        }
+      ],
+      "content_sha256": "f1adebff9abb216e601e1eeac23e9fba8c6fadf49d8eaa65401630baa1967948",
+      "current_download_url": null,
+      "page_count": 7,
+      "page_coverage_digest": "cc9cd81c3110bc37d6c9bfd30bce0267b6cbfc3ffef7fb9abdc8615e42d10575",
+      "placement_id_set_digest": "9b343de811ed933a903fba427b42affb608ad9f2e0c30cfb74b5cbbbd22a31ae",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "currentness": "current",
+          "matiere": "dgemc",
+          "niveau": "terminale",
+          "placement_id": "f7ba558762d55f5a4f410597a4a070116b6ed1856a1a8f4872700d339526836e",
+          "placement_status": "active",
+          "programme_version": "EDUSCOL_CORPUS_20260808",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "8e23542a3aa7b1371870d008eddb1477d1906f8d4809bed1f34e17d9ae4c853d",
+          "source_scope": "lycee/general/dgemc",
+          "statut_enseignement": "option",
+          "tenant": "libre_terminale",
+          "visibility": "public",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/DGEMC/03_RESSOURCES_ACCOMPAGNEMENT/2021/pistes-pedagogiques-pour-le-college-pdf-596-72-ko--f1adebff9a.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/6660/ressources-pedagogiques-pour-mieux-connaitre-l-europe",
+      "title": "Pistes pédagogiques pour le collège PDF - 596.72 Ko",
+      "type_doc": "ressource_officielle"
     }
   ],
   "authorities": {
-    "candidate_inventory_sha256": "fbb8aa3af44efa1484c65640ddbaebf357dff923a0ebd45b6ce80ccc7e8ed7a1",
-    "catalog_delta_sha256": "8b914d6239b87cbb3dcd11039e8e7d392aeee5c5996236a580235d7515919a04",
+    "candidate_inventory_sha256": "d906663b91b7bfac9dab0c05e4374cdb61b2eef8556ad2e86ceee3d529ab8123",
+    "catalog_delta_sha256": "08c5bef23f8fe6ebadc64ef211d7ffc0529ce91c4deae2c1803da5d05b08e845",
     "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
-    "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+    "currentness_evidence_sha256": "8fc2208d08c1703bd8a04c7884ef587598ecc692d9e683262ed022219922df1e",
     "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
-    "effective_catalog_authority_sha256": "6806a6be645d0a9b82a007d1ff7a2e608be72c2956b4a5f571c67071f2ebdb2a",
-    "embedding_inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+    "effective_catalog_authority_sha256": "275551368eeaf3e46a1352ead1ad79c249f16bd988fa0d92c832b28e35ba166f",
+    "embedding_inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
     "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
     "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
-    "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+    "pii_evidence_sha256": "ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
     "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
     "pii_scanner_sha256": "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3",
     "placement_catalog_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
-    "preflight_evidence_sha256": "5f128e9635e1433cad6f3c66e48a3639d65e91be39c8022c60da87f9f24902a1",
-    "profile_manifest_sha256": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
-    "programme_registry_sha256": "a596f45819d3f43bc9f7128a7a1719c673c13660d8d1ae9a9ccad064f4f9887d",
+    "preflight_evidence_sha256": "809c756ebb9aec74adee747b1ad48f5b94eb44896838e27f2e1886026e21b69d",
+    "profile_manifest_sha256": "c11b2b1f3253f4723ba2ecfdbaf2e70ee9fc9c10fcfd83fde4e1245702fcd39c",
+    "programme_registry_sha256": "67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97",
     "reranker_inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
     "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
     "subject_mapping_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c"
   },
   "collection": "rag_nexus_dgemc_terminale_option",
   "expected_counts": {
-    "artifacts": 1,
-    "chunks": 44,
-    "placements": 1
+    "artifacts": 13,
+    "chunks": 368,
+    "placements": 13
   },
   "models": {
     "embedding": {
       "dimension": 1024,
-      "inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+      "inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
       "model_id": "intfloat/multilingual-e5-large"
     },
     "reranker": {
@@ -382,11 +3071,11 @@
     }
   },
   "profile": {
-    "fingerprint": "685dac09676143417b08756b2bb2577d85777c3f599f9263595abad722ad4f00",
-    "manifest_digest": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
-    "version": "profile-gate-v1"
+    "fingerprint": "2e58d4b96c7f228859405535b1b338b26cd82bf0528fefac162dff38bb110f0f",
+    "manifest_digest": "c11b2b1f3253f4723ba2ecfdbaf2e70ee9fc9c10fcfd83fde4e1245702fcd39c",
+    "version": "profile-gate-v2"
   },
-  "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+  "programme_version": "EDUSCOL_CORPUS_20260808",
   "release_id": "production-profile-gate-2026-2027-v1-rag_nexus_dgemc_terminale_option",
   "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V1",
   "school_year": "2026-2027"
