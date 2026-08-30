@@ -2,6 +2,7 @@
 """Validate all taxonomy YAML files against TaxonomySpec."""
 from __future__ import annotations
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -13,7 +14,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from schema.taxonomy import TaxonomySpec
 
-TAXONOMY_DIR = Path(__file__).resolve().parents[1] / "taxonomy"
+#: `AGENTS.md` : racine dérivée de l'emplacement des fichiers, AVEC override par
+#: variable d'environnement — sans quoi la garde n'est pas éprouvable contre une
+#: entrée choisie, et c'est ainsi qu'elle a pu accepter le vide sans qu'on le voie.
+TAXONOMY_DIR = Path(
+    os.environ.get("NEXUS_TAXONOMY_DIR") or Path(__file__).resolve().parents[1] / "taxonomy"
+)
 SKIP_DIRS = {"common", "exams", "proposals"}
 
 
@@ -68,6 +74,17 @@ def validate_all() -> int:
 
     print(f"\n{validated} validated, {errors} errors, {warnings} drafts (PREMIER JET)")
     print(f"Total: {total_notions} notions, {total_subnotions} subnotions")
+
+    # Zéro fichier validé produit zéro erreur, donc un succès : la garde rendait le
+    # même code sur un répertoire vide que sur la taxonomie entière. Un contrôle qui
+    # certifie l'absence de ce qu'il valide annonce la disparition du socle comme un
+    # succès. « Rien à signaler » et « rien mesuré » ne sont pas le même verdict.
+    if validated == 0:
+        print(
+            f"  FAIL  aucun fichier de taxonomie validé sous {TAXONOMY_DIR} —"
+            " un recensement vide n'est pas une taxonomie sans défaut"
+        )
+        return 1
     return 1 if errors else 0
 
 
