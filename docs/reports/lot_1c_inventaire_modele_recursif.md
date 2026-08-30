@@ -112,3 +112,75 @@ peuplées en base. Ce n'est pas un correctif de `ffc1bae`, c'est une autre
 génération de release, et arbitrer laquelle fait foi n'appartient pas à ce lot.
 
 Conformément à `AGENTS.md` § Escalade, le lot s'arrête ici et le signale.
+
+---
+
+# LOT 1c, second volet — la désignation du montage ne doit pas avoir de repli
+
+## Le défaut
+
+```yaml
+- ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
+- ${RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/reranker:ro
+```
+
+Docker **crée** la source manquante d'un montage bind. Le répertoire fabriqué existe
+sur cette machine :
+
+```
+services/rag-engine/infra/data/.no-model-cache
+  drwxr-xr-x root root   créé le 31 juillet 15:15   vide
+  ignoré par services/rag-engine/.gitignore:35 (data/)
+```
+
+Un opérateur qui oublie la variable ne reçoit pas d'erreur de configuration : il monte
+un répertoire vide, appartenant à `root`, invisible de `git status`.
+
+**Une garantie documentée ne tenait pas.** `docs/reports/lot_27_p3_model_1024_artifact_preflight.md:135`
+affirme : « Retirer `RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR` du `.env` suffit a bloquer ».
+Mesuré sur le compose de `ffc1bae`, variable vidée, le reste de l'environnement réel :
+
+```
+docker compose config  →  code=0
+  source: …/data/.no-model-cache   target: /models/e5-large
+```
+
+Le déploiement n'est pas bloqué. Le refus survient plus tard, au démarrage du service,
+sous `EMBEDDING_MODEL_ARTIFACT_INVALID` — un motif qui accuse l'inventaire alors que la
+cause est une variable absente. Le système refusait ; il refusait au mauvais endroit,
+avec le mauvais motif.
+
+## La correction
+
+Retirer le repli. Même forme que `RAG_RELEASE_REGISTRY_SHA256`, comme demandé :
+
+```yaml
+- ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:?repertoire hote de l artefact embedding requis
+   — sans valeur, Docker fabrique un repertoire vide et le refus arrive trop tard}:/models/e5-large:ro
+```
+
+`.env.example` déclare déjà les deux variables vides ; la forme `:?` refuse aussi bien la
+variable absente que la valeur vide, donc un `.env` copié depuis l'exemple échoue tout de
+suite, avec le bon motif.
+
+## L'épreuve — deux témoins
+
+```
+TÉMOIN NÉGATIF   compose corrigé, variables vidées
+                 → code=1  « RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR is missing a value »
+TÉMOIN POSITIF   compose corrigé, environnement réel du déploiement
+                 → code=0, RAG_EMBEDDING_MODEL_INVENTORY_SHA256=58ad18db…
+```
+
+Et le test ajouté a été prouvé mordant : remis le repli, il échoue ; retiré, il passe.
+
+## Ce que ce volet ne prétend pas
+
+Le **contenu** de l'artefact était déjà désigné et déjà contrôlé : `manifest.json`
+(model_id + révision), `SHA256SUMS`, `RAG_*_INVENTORY_SHA256`, vérification intégrale au
+démarrage, confrontation au contrat scellé de la release. Ce volet ne comble pas une
+absence d'attestation : il supprime un repli qui laissait le déploiement avancer d'un cran
+de trop avant de refuser.
+
+Le **chemin hôte** reste hors dépôt, et c'est correct : `AGENTS.md` interdit tout chemin
+absolu machine-local dans le code versionné. Ce qui est versionné, c'est l'exigence.
