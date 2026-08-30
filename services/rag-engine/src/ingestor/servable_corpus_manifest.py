@@ -9,6 +9,7 @@ from nexus_contracts import (
     CorpusChunkBinding,
     CorpusResourceVersion,
     ResourceRegistryBootstrap,
+    ResourceRegistrySnapshot,
     ServableCorpus,
     ServableCorpusManifest,
     ServableCorpusManifestPayload,
@@ -41,13 +42,18 @@ class CorpusBuildSpec(StrictBaseModel):
 
 
 def _resources_for_spec(
-    resource_registry: ResourceRegistryBootstrap,
+    resource_inventory: ResourceRegistryBootstrap,
+    resource_registry: ResourceRegistrySnapshot,
     spec: CorpusBuildSpec,
 ) -> list[CorpusResourceVersion]:
     resources: list[CorpusResourceVersion] = []
     known_collection = False
     chunk_ids: set[str] = set()
-    for item in resource_registry.resources:
+    registered = {
+        (item.resource_id, item.resource_version_id, item.content_sha256)
+        for item in resource_registry.resources
+    }
+    for item in resource_inventory.resources:
         collection_placements = [
             placement
             for placement in item.placements
@@ -56,6 +62,10 @@ def _resources_for_spec(
         if not collection_placements:
             continue
         known_collection = True
+        if (item.resource_id, item.resource_version_id, item.content_sha256) not in registered:
+            raise ServableCorpusBuildError(
+                f"resource version is absent from Nexus Resource Registry: {item.resource_version_id}"
+            )
         if any(
             placement.school_year != spec.academic_year
             or placement.programme_version != spec.curriculum_version
@@ -91,8 +101,8 @@ def _resources_for_spec(
 
 def build_servable_corpus_manifest(
     *,
-    resource_registry: ResourceRegistryBootstrap,
-    resource_registry_version: str,
+    resource_inventory: ResourceRegistryBootstrap,
+    resource_registry: ResourceRegistrySnapshot,
     manifest_version: str,
     producer_repository: str,
     producer_commit: str,
@@ -100,6 +110,14 @@ def build_servable_corpus_manifest(
     corpus_specs: Iterable[CorpusBuildSpec],
 ) -> ServableCorpusManifest:
     """Seal deterministic corpus bindings without minting document identities."""
+
+    if (
+        resource_registry.bootstrap_inventory_sha256
+        != resource_inventory.inventory_sha256
+    ):
+        raise ServableCorpusBuildError(
+            "Nexus Resource Registry does not bind this bootstrap inventory"
+        )
 
     specs = sorted(
         corpus_specs,
@@ -115,15 +133,19 @@ def build_servable_corpus_manifest(
         corpora = [
             ServableCorpus(
                 **spec.model_dump(mode="python"),
-                resources=_resources_for_spec(resource_registry, spec),
+                resources=_resources_for_spec(
+                    resource_inventory,
+                    resource_registry,
+                    spec,
+                ),
             )
             for spec in specs
         ]
         payload = ServableCorpusManifestPayload(
             protocol_version="1",
             manifest_version=manifest_version,
-            resource_registry_version=resource_registry_version,
-            resource_registry_sha256=resource_registry.inventory_sha256,
+            resource_registry_version=resource_registry.registry_version,
+            resource_registry_sha256=resource_registry.registry_sha256,
             producer_repository=producer_repository,
             producer_commit=producer_commit,
             generated_at=generated_at,

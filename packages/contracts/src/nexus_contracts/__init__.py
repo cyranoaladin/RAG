@@ -56,6 +56,12 @@ from nexus_contracts.resource_registry_bootstrap import (
     ResourceRegistryBootstrapPayload,
     seal_resource_registry_bootstrap,
 )
+from nexus_contracts.resource_registry_snapshot import (
+    RegisteredResourceVersion,
+    ResourceRegistrySnapshot,
+    ResourceRegistrySnapshotPayload,
+    seal_resource_registry_snapshot,
+)
 from nexus_contracts.servable_corpus_index import (
     ServableCorpusIndex,
     ServableCorpusIndexPayload,
@@ -216,6 +222,10 @@ __all__ = [
     "ResourceRegistryBootstrap",
     "ResourceRegistryBootstrapPayload",
     "seal_resource_registry_bootstrap",
+    "RegisteredResourceVersion",
+    "ResourceRegistrySnapshot",
+    "ResourceRegistrySnapshotPayload",
+    "seal_resource_registry_snapshot",
     "ServableCorpusIndex",
     "ServableCorpusIndexPayload",
     "SupportedManifest",

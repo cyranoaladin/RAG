@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "RegisteredResourceVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "resource_id": {
+          "format": "uuid",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "resource_version_id": {
+          "format": "uuid",
+          "title": "Resource Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id",
+        "resource_version_id",
+        "content_sha256"
+      ],
+      "title": "RegisteredResourceVersion",
+      "type": "object"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-snapshot-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "bootstrap_inventory_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Bootstrap Inventory Sha256",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "producer_commit": {
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "title": "Producer Commit",
+      "type": "string"
+    },
+    "producer_repository": {
+      "const": "cyranoaladin/nexus-project_v0",
+      "title": "Producer Repository",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "registry_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Registry Sha256",
+      "type": "string"
+    },
+    "registry_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Registry Version",
+      "type": "string"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/RegisteredResourceVersion"
+      },
+      "minItems": 1,
+      "title": "Resources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "registry_version",
+    "producer_repository",
+    "producer_commit",
+    "generated_at",
+    "bootstrap_inventory_sha256",
+    "resources",
+    "registry_sha256"
+  ],
+  "title": "ResourceRegistrySnapshot",
+  "type": "object"
+}

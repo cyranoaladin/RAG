@@ -29,6 +29,10 @@
       "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-bootstrap-v1.json",
       "sha256": "95dbddabc93d52fc60cbe411da054b3245fc6b11c89ca8b1760d62e130a80b5a"
     },
+    "resource-registry-snapshot-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-snapshot-v1.json",
+      "sha256": "d9129d626149d733b0ed4476d5907fe99bebbf88a62ddff724262dd131744fe3"
+    },
     "retrieval-error.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-error.json",
       "sha256": "59037ef01f66293df6edf1ddd2617da766d0a81231f945b54133c5ebd519f791"

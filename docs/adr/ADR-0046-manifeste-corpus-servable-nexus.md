@@ -24,6 +24,8 @@ runtime actuellement en production pendant la phase d'expansion.
 existants :
 
 - `ResourceRegistryBootstrap` pour l'export gouverné initial ;
+- `ResourceRegistrySnapshot` pour la projection d'identité produite et scellée
+  par Nexus après import du bootstrap ;
 - `ServableCorpusManifest` pour lier corpus, année scolaire, version de
   programme, scope, ResourceVersion, hash de contenu, chunk et locator ;
 - `ServableCorpusIndex` pour annoncer uniquement le manifeste actif N et, au
@@ -64,7 +66,11 @@ fermée.
 Le dépôt RAG possède le manifeste du corpus effectivement servable. Nexus
 possède le Resource Registry et la résolution
 `courseKey + task/mode + role → corpusId`. Le manifeste RAG référence les
-identités et le digest du Registry Nexus ; il ne redéfinit aucune ressource.
+identités et le digest du `ResourceRegistrySnapshot` produit par Nexus ; il ne
+réutilise jamais le digest du bootstrap RAG comme digest du Registry et ne
+redéfinit aucune ressource. Le builder refuse si le snapshot Nexus ne référence
+pas le bootstrap exact ou si un triplet
+`resourceId/resourceVersionId/contentSha256` servable en est absent.
 
 Ordre de livraison :
 
