@@ -168,8 +168,11 @@ def test_shared_manifest_bound_identity_fixture_verifies_with_runtime() -> None:
     )
     fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
     artifact = RetrievalScopeArtifactV3.model_validate(fixture["retrievalScope"])
+    public_test_key = hashlib.sha256(
+        fixture["publicTestKeyDerivation"].encode("utf-8")
+    ).hexdigest()
     config = IdentityVerifierConfig(
-        secret=fixture["secret"],
+        secret=public_test_key,
         issuer=fixture["envelope"]["iss"],
         audience=fixture["envelope"]["aud"],
         identity_issuer=fixture["envelope"]["identity"]["iss"],

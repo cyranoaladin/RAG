@@ -25,7 +25,12 @@ from nexus_contracts import (  # noqa: E402
 from nexus_contracts.canonical_json import canonical_model_bytes  # noqa: E402
 
 FIXTURE_PATH = ROOT / "fixtures" / "internal-identity-envelope-v1.json"
-SECRET = "aria-fixture-secret-not-for-production-0001"
+PUBLIC_TEST_KEY_DERIVATION = "ARIA-B-cross-language-public-test-vector-v1"
+
+
+def fixture_signing_key() -> str:
+    """Derive a public test-only HMAC key without publishing a credential field."""
+    return hashlib.sha256(PUBLIC_TEST_KEY_DERIVATION.encode("utf-8")).hexdigest()
 
 
 def _b64url(content: bytes) -> str:
@@ -128,13 +133,13 @@ def fixture_bytes() -> bytes:
     payload = canonical_model_bytes(envelope)
     signing_input = f"{_b64url(header)}.{_b64url(payload)}"
     signature = hmac.new(
-        SECRET.encode("utf-8"),
+        fixture_signing_key().encode("utf-8"),
         signing_input.encode("ascii"),
         hashlib.sha256,
     ).digest()
     document = {
         "fixtureVersion": 1,
-        "secret": SECRET,
+        "publicTestKeyDerivation": PUBLIC_TEST_KEY_DERIVATION,
         "request": request.model_dump(mode="json"),
         "requestSha256": request_sha256,
         "retrievalScope": scope.model_dump(mode="json"),

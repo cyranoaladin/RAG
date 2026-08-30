@@ -1,7 +1,7 @@
 {
   "fixtures": {
     "internal-identity-envelope-v1.json": {
-      "sha256": "8821683188196680a0a408c147ec0920d52e4d53a8411e67b5d8ec398b29225f"
+      "sha256": "63d17d438a4999c794cf69ae761e149cbdb821a5558397b60c0cdf1a9e3596f9"
     }
   },
   "packageVersion": "0.15.0",

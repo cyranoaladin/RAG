@@ -76,8 +76,11 @@ def test_versioned_cross_runtime_fixture_binds_request_scope_and_signature() -> 
     assert envelope.request_sha256 == fixture["requestSha256"]
     assert envelope.scope_digest == fixture["retrievalScopeSha256"]
     header, payload, signature = fixture["jwt"].split(".")
+    public_test_key = hashlib.sha256(
+        fixture["publicTestKeyDerivation"].encode("utf-8")
+    ).hexdigest()
     expected = hmac.new(
-        fixture["secret"].encode(),
+        public_test_key.encode(),
         f"{header}.{payload}".encode("ascii"),
         hashlib.sha256,
     ).digest()
