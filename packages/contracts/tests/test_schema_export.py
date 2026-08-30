@@ -43,6 +43,8 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
         "retrieval-error.json",
         "resource-registry-bootstrap-v1.json",
         "resource-registry-snapshot-v1.json",
+        "retrieval-golden-suite-v1.json",
+        "retrieval-evaluation-evidence-v1.json",
         "servable-corpus-index-v1.json",
         "servable-corpus-manifest-v1.json",
         "chat-request.json",
