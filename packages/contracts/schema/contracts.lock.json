@@ -1,0 +1,81 @@
+{
+  "packageVersion": "0.15.0",
+  "schemas": {
+    "chat-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/chat-payload.json",
+      "sha256": "d747bd08c8ec8887599e74983104e78a3c7e827317ab5712d52830cedf3bc77c"
+    },
+    "chat-request.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/chat-request.json",
+      "sha256": "ec7bc11b18f21715e5c6f23268092b9972fab0622dd1fb5998af0a0a284e75b5"
+    },
+    "chat-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/chat-response.json",
+      "sha256": "7b70122c4c6aa591b3bf2d5ac7c561c19ed117dc594dbfcc46fa3a6eee594929"
+    },
+    "internal-identity-envelope.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity-envelope.json",
+      "sha256": "060fe25f1f8c0b9d3c9d80b53c9e09cd925a39706b6c1efa54f714b582acdd0e"
+    },
+    "internal-identity.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity.json",
+      "sha256": "121e905762ce6a23808a30f24d93efd86e662c0159f6726d6e27de9e2a0bdbf0"
+    },
+    "pilot-retrieval-scope-artifact.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/pilot-retrieval-scope-artifact.json",
+      "sha256": "cb7d45df5a4fb93faf9ad4cb6a994f7cceaa5b791152cce9ebdc302adf0ac513"
+    },
+    "resource-registry-bootstrap-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-bootstrap-v1.json",
+      "sha256": "ce53cfa71517e7e64e33e1abf142ae4e406b51be76465bee54945c3476d68255"
+    },
+    "retrieval-error.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-error.json",
+      "sha256": "59037ef01f66293df6edf1ddd2617da766d0a81231f945b54133c5ebd519f791"
+    },
+    "retrieval-request.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-request.json",
+      "sha256": "3c3817c7ca881ce5ccbf8fc6bad1424a345774cbc121133213c827cd8e86c8ba"
+    },
+    "retrieval-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-response.json",
+      "sha256": "f731eb6e524699810d0cfee9803871fe52a441e897601b813067c25a334c35af"
+    },
+    "retrieval-scope-artifact-v2.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v2.json",
+      "sha256": "59e99bcb8e311872a282672299f7d97ace7300e6fed3705db1deaaac1ca34282"
+    },
+    "review-decision-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-payload.json",
+      "sha256": "4ad2d5d95b7c3ece3975472b31ed361b999f539b698624e07e38565a59a45125"
+    },
+    "review-decision-request.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-request.json",
+      "sha256": "f58a8f00778bd9a3fa557d5670db9b4ce7f3a52e954c7c9be14eb1a62bff67e0"
+    },
+    "review-decision-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-response.json",
+      "sha256": "296a5c5aec1e7251b994744e01ea30858a6a745b7ff24f26790aadd378a93027"
+    },
+    "review-queue-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-queue-payload.json",
+      "sha256": "6c9dd0b47281990a2ac7393f82b2f433bfb392f4c48f517ec39c7081c7c8e241"
+    },
+    "review-queue-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-queue-response.json",
+      "sha256": "919292acb82d943ff5a1d23a1dbe2b1da793772a6635c549e528537f22ec5ef1"
+    },
+    "search-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/search-payload.json",
+      "sha256": "290cf00dbfd47b5b5c02169b744de7926f029d9469405eb006251bbe59409c3a"
+    },
+    "servable-corpus-index-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-index-v1.json",
+      "sha256": "df38f30052f2c2fd44d4223ab9637eef08a951f56cd730f4439742523d17dcb9"
+    },
+    "servable-corpus-manifest-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-manifest-v1.json",
+      "sha256": "54b89a704510abbd08cf5513894aa368550479f8420d2d66f3830f0d27c4712b"
+    }
+  }
+}

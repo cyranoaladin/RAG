@@ -22,6 +22,7 @@ from nexus_contracts.document import (
 )
 from nexus_contracts.retrieval import (
     Citation,
+    RetrievalError,
     RetrievalCurriculumScope,
     RetrievalNeed,
     RetrievalOptions,
@@ -45,6 +46,29 @@ from nexus_contracts.identity import (
     InternalIdentity,
     InternalIdentityEnvelope,
     PedagogicalProfile,
+    canonical_identity_envelope_bytes,
+)
+from nexus_contracts.resource_registry_bootstrap import (
+    BootstrapChunk,
+    BootstrapResourceVersion,
+    ResourceRegistryBootstrap,
+    ResourceRegistryBootstrapPayload,
+    seal_resource_registry_bootstrap,
+)
+from nexus_contracts.servable_corpus_index import (
+    ServableCorpusIndex,
+    ServableCorpusIndexPayload,
+    SupportedManifest,
+    seal_servable_corpus_index,
+)
+from nexus_contracts.servable_corpus_manifest import (
+    ChunkLocator,
+    CorpusChunkBinding,
+    CorpusResourceVersion,
+    ServableCorpus,
+    ServableCorpusManifest,
+    ServableCorpusManifestPayload,
+    seal_servable_corpus_manifest,
 )
 from nexus_contracts.scope import (
     PILOT_RETRIEVAL_SCOPE_DIGEST,
@@ -184,6 +208,23 @@ __all__ = [
     "ChunkMeta",
     "ChunkMetadata",
     "Citation",
+    "RetrievalError",
+    "BootstrapChunk",
+    "BootstrapResourceVersion",
+    "ResourceRegistryBootstrap",
+    "ResourceRegistryBootstrapPayload",
+    "seal_resource_registry_bootstrap",
+    "ServableCorpusIndex",
+    "ServableCorpusIndexPayload",
+    "SupportedManifest",
+    "seal_servable_corpus_index",
+    "ChunkLocator",
+    "CorpusChunkBinding",
+    "CorpusResourceVersion",
+    "ServableCorpus",
+    "ServableCorpusManifest",
+    "ServableCorpusManifestPayload",
+    "seal_servable_corpus_manifest",
     "DocumentMeta",
     "Epreuve",
     "Modality",
@@ -216,6 +257,7 @@ __all__ = [
     "InternalIdentity",
     "InternalIdentityEnvelope",
     "PedagogicalProfile",
+    "canonical_identity_envelope_bytes",
     "PILOT_RETRIEVAL_SCOPE_DIGEST",
     "PilotRetrievalScopeArtifact",
     "PilotScopeIdentity",

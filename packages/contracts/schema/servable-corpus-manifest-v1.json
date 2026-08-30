@@ -1,0 +1,301 @@
+{
+  "$defs": {
+    "ChunkLocator": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chunk Index"
+        },
+        "end_char": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Char"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "page_end": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page End"
+        },
+        "page_start": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Start"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "start_char": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Char"
+        }
+      },
+      "title": "ChunkLocator",
+      "type": "object"
+    },
+    "CorpusChunkBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/ChunkLocator"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "locator"
+      ],
+      "title": "CorpusChunkBinding",
+      "type": "object"
+    },
+    "CorpusResourceVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "chunks": {
+          "items": {
+            "$ref": "#/$defs/CorpusChunkBinding"
+          },
+          "minItems": 1,
+          "title": "Chunks",
+          "type": "array"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "resource_id": {
+          "format": "uuid",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "resource_version_id": {
+          "format": "uuid",
+          "title": "Resource Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id",
+        "resource_version_id",
+        "content_sha256",
+        "chunks"
+      ],
+      "title": "CorpusResourceVersion",
+      "type": "object"
+    },
+    "ServableCorpus": {
+      "additionalProperties": false,
+      "properties": {
+        "academic_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "Academic Year",
+          "type": "string"
+        },
+        "corpus_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Corpus Id",
+          "type": "string"
+        },
+        "corpus_version_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Corpus Version Id",
+          "type": "string"
+        },
+        "curriculum_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Curriculum Version",
+          "type": "string"
+        },
+        "physical_collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Physical Collection",
+          "type": "string"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/CorpusResourceVersion"
+          },
+          "minItems": 1,
+          "title": "Resources",
+          "type": "array"
+        },
+        "scope_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "scope_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scope Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "corpus_id",
+        "corpus_version_id",
+        "academic_year",
+        "curriculum_version",
+        "physical_collection",
+        "scope_id",
+        "scope_sha256",
+        "resources"
+      ],
+      "title": "ServableCorpus",
+      "type": "object"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-manifest-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "corpora": {
+      "items": {
+        "$ref": "#/$defs/ServableCorpus"
+      },
+      "minItems": 1,
+      "title": "Corpora",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Sha256",
+      "type": "string"
+    },
+    "manifest_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Manifest Version",
+      "type": "string"
+    },
+    "producer_commit": {
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "title": "Producer Commit",
+      "type": "string"
+    },
+    "producer_repository": {
+      "maxLength": 200,
+      "minLength": 3,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "title": "Producer Repository",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "resource_registry_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Resource Registry Sha256",
+      "type": "string"
+    },
+    "resource_registry_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Resource Registry Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "manifest_version",
+    "resource_registry_version",
+    "resource_registry_sha256",
+    "producer_repository",
+    "producer_commit",
+    "generated_at",
+    "corpora",
+    "manifest_sha256"
+  ],
+  "title": "ServableCorpusManifest",
+  "type": "object"
+}

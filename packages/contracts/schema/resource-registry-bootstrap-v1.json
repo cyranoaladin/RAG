@@ -1,0 +1,328 @@
+{
+  "$defs": {
+    "BootstrapChunk": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/ChunkLocator"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "locator"
+      ],
+      "title": "BootstrapChunk",
+      "type": "object"
+    },
+    "BootstrapResourceVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "chunks": {
+          "items": {
+            "$ref": "#/$defs/BootstrapChunk"
+          },
+          "minItems": 1,
+          "title": "Chunks",
+          "type": "array"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "mime_type": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Mime Type",
+          "type": "string"
+        },
+        "official": {
+          "title": "Official",
+          "type": "boolean"
+        },
+        "rag_artifact_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Rag Artifact Id",
+          "type": "string"
+        },
+        "resource_id": {
+          "format": "uuid",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "resource_version_id": {
+          "format": "uuid",
+          "title": "Resource Version Id",
+          "type": "string"
+        },
+        "rights": {
+          "$ref": "#/$defs/Rights"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        },
+        "source_kind": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "source_label": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Source Label",
+          "type": "string"
+        },
+        "source_uri": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Source Uri",
+          "type": "string"
+        },
+        "type_doc": {
+          "$ref": "#/$defs/TypeDoc"
+        }
+      },
+      "required": [
+        "resource_id",
+        "resource_version_id",
+        "content_sha256",
+        "rag_artifact_id",
+        "size_bytes",
+        "mime_type",
+        "source_label",
+        "source_uri",
+        "rights",
+        "official",
+        "source_kind",
+        "type_doc",
+        "chunks"
+      ],
+      "title": "BootstrapResourceVersion",
+      "type": "object"
+    },
+    "ChunkLocator": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chunk Index"
+        },
+        "end_char": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Char"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "page_end": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page End"
+        },
+        "page_start": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Start"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "start_char": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Char"
+        }
+      },
+      "title": "ChunkLocator",
+      "type": "object"
+    },
+    "Rights": {
+      "enum": [
+        "officiel_public",
+        "public_allowed",
+        "nexus_proprietaire",
+        "usage_interne",
+        "student_private",
+        "parent_private",
+        "commercial_confidential",
+        "restricted",
+        "unknown"
+      ],
+      "title": "Rights",
+      "type": "string"
+    },
+    "TypeDoc": {
+      "enum": [
+        "programme_officiel",
+        "ressource_officielle",
+        "cours",
+        "fiche_synthese",
+        "fiche_methode",
+        "td",
+        "tp",
+        "exercice",
+        "exercice_corrige",
+        "devoir",
+        "devoir_corrige",
+        "evaluation",
+        "evaluation_corrigee",
+        "bac_blanc",
+        "brevet_blanc",
+        "annale",
+        "sujet_zero",
+        "corrige",
+        "bareme",
+        "grille_evaluation",
+        "grille_grand_oral",
+        "oral",
+        "diaporama",
+        "latex",
+        "notebook",
+        "code",
+        "image",
+        "scan",
+        "copie",
+        "rapport",
+        "referentiel",
+        "modalite_examen",
+        "autre"
+      ],
+      "title": "TypeDoc",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-bootstrap-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "inventory_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Inventory Sha256",
+      "type": "string"
+    },
+    "package_version": {
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "title": "Package Version",
+      "type": "string"
+    },
+    "producer_commit": {
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "title": "Producer Commit",
+      "type": "string"
+    },
+    "producer_repository": {
+      "maxLength": 200,
+      "minLength": 3,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "title": "Producer Repository",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "resources": {
+      "items": {
+        "$ref": "#/$defs/BootstrapResourceVersion"
+      },
+      "minItems": 1,
+      "title": "Resources",
+      "type": "array"
+    },
+    "source_snapshot_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Snapshot Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "producer_repository",
+    "producer_commit",
+    "package_version",
+    "source_snapshot_sha256",
+    "generated_at",
+    "resources",
+    "inventory_sha256"
+  ],
+  "title": "ResourceRegistryBootstrap",
+  "type": "object"
+}

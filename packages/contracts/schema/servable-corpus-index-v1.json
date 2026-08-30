@@ -1,0 +1,102 @@
+{
+  "$defs": {
+    "SupportedManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "manifest_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Manifest Version",
+          "type": "string"
+        },
+        "retire_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Retire At"
+        }
+      },
+      "required": [
+        "manifest_version",
+        "manifest_sha256",
+        "retire_at"
+      ],
+      "title": "SupportedManifest",
+      "type": "object"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-index-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "active_manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Active Manifest Sha256",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "index_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Index Sha256",
+      "type": "string"
+    },
+    "producer_commit": {
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "title": "Producer Commit",
+      "type": "string"
+    },
+    "producer_repository": {
+      "maxLength": 200,
+      "minLength": 3,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "title": "Producer Repository",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "resource_registry_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Resource Registry Sha256",
+      "type": "string"
+    },
+    "supported_manifests": {
+      "items": {
+        "$ref": "#/$defs/SupportedManifest"
+      },
+      "maxItems": 2,
+      "minItems": 1,
+      "title": "Supported Manifests",
+      "type": "array"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "producer_repository",
+    "producer_commit",
+    "generated_at",
+    "resource_registry_sha256",
+    "active_manifest_sha256",
+    "supported_manifests",
+    "index_sha256"
+  ],
+  "title": "ServableCorpusIndex",
+  "type": "object"
+}
