@@ -33,8 +33,10 @@ from nexus_contracts import (
     RetrievalResponse,
     RetrievalResult,
     RetrievalScopeArtifactV2,
+    ServableCorpus,
     load_retrieval_scope_registry,
 )
+from nexus_contracts.canonical_json import canonical_model_bytes
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
@@ -114,6 +116,8 @@ try:
         effective_signed_collections,
     )
     from .security_v2 import SecurityRole, require_bff_service, require_role
+    from .servable_corpus_api import configured_servable_corpus_repository
+    from .servable_corpus_index import ServableCorpusRepositoryError
 except ImportError as _exc:  # repli à plat, cause réelle préservée
     if not _missing_sibling(_exc):
         # Le module frère existe : c'est l'une de ses dépendances qui
@@ -186,6 +190,12 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         SecurityRole,
         require_bff_service,
         require_role,
+    )
+    from servable_corpus_api import (  # type: ignore[no-redef]
+        configured_servable_corpus_repository,
+    )
+    from servable_corpus_index import (  # type: ignore[no-redef]
+        ServableCorpusRepositoryError,
     )
 
 logger = logging.getLogger(__name__)
@@ -1381,6 +1391,105 @@ def _to_retrieval_result(
     )
 
 
+def _canonical_retrieval_request_sha256(payload: RetrievalRequest) -> str:
+    """Digest exactly the strict shared request model used by the signed envelope."""
+
+    return hashlib.sha256(canonical_model_bytes(payload)).hexdigest()
+
+
+def _servable_corpus_repository():
+    return configured_servable_corpus_repository()
+
+
+def _require_manifest_bound_corpus(
+    payload: RetrievalRequest,
+    verified: VerifiedInternalIdentity,
+    repository: object,
+) -> ServableCorpus:
+    """Resolve a canonical corpus only when request, envelope and scope agree."""
+
+    manifest_sha256 = payload.manifest_sha256
+    corpus_id = payload.corpus_id
+    corpus_version_id = payload.corpus_version_id
+    envelope = verified.envelope
+    if (
+        manifest_sha256 is None
+        or corpus_id is None
+        or corpus_version_id is None
+        or envelope.manifest_sha256 != manifest_sha256
+        or envelope.request_sha256 != _canonical_retrieval_request_sha256(payload)
+    ):
+        raise RetrievalScopeError("retrieval scope forbidden")
+    try:
+        corpus = repository.resolve_corpus(
+            manifest_sha256=manifest_sha256,
+            corpus_id=corpus_id,
+            corpus_version_id=corpus_version_id,
+        )
+    except ServableCorpusRepositoryError as exc:
+        raise HTTPException(status_code=409, detail="manifest incompatible") from exc
+    except AttributeError as exc:
+        raise RetrievalScopeError("retrieval scope forbidden") from exc
+    if (
+        not isinstance(corpus, ServableCorpus)
+        or corpus.physical_collection not in envelope.allowed_collections
+    ):
+        raise RetrievalScopeError("retrieval scope forbidden")
+    return corpus
+
+
+def _to_manifest_bound_retrieval_result(
+    hit: SearchV2Hit,
+    corpus: ServableCorpus,
+    *,
+    manifest_sha256: str,
+    include_citation: bool,
+) -> RetrievalResult:
+    """Reconcile a database hit with immutable manifest identity before exposure."""
+
+    matches = [
+        (resource, chunk)
+        for resource in corpus.resources
+        for chunk in resource.chunks
+        if chunk.chunk_id == hit.chunk_id
+    ]
+    if len(matches) != 1:
+        raise HTTPException(status_code=503, detail="retrieval evidence unavailable")
+    resource, chunk = matches[0]
+    if not (
+        hit.artifact_id == resource.content_sha256
+        and hit.content_sha256 == resource.content_sha256
+        and hit.doc_id == resource.content_sha256
+    ):
+        raise HTTPException(status_code=503, detail="retrieval evidence unavailable")
+    base = _to_retrieval_result(
+        hit,
+        str(corpus.physical_collection),
+        include_citation=include_citation,
+    )
+    return RetrievalResult(
+        **base.model_dump(
+            mode="python",
+            exclude={
+                "resource_id",
+                "resource_version_id",
+                "content_sha256",
+                "locator",
+                "corpus_id",
+                "corpus_version_id",
+                "manifest_sha256",
+            },
+        ),
+        resource_id=resource.resource_id,
+        resource_version_id=resource.resource_version_id,
+        content_sha256=resource.content_sha256,
+        locator=chunk.locator,
+        corpus_id=corpus.corpus_id,
+        corpus_version_id=corpus.corpus_version_id,
+        manifest_sha256=manifest_sha256,
+    )
+
+
 def _chat_refusal(
     message: str,
     reason: str,
@@ -1677,8 +1786,17 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     verified = _require_retrieval_identity(request, endpoint="/search/v2")
 
     cfg = load_collection_config()
+    corpus: ServableCorpus | None = None
     try:
-        collection = _collection_for_retrieval_request(payload, verified)
+        if payload.manifest_sha256 is None:
+            collection = _collection_for_retrieval_request(payload, verified)
+        else:
+            corpus = _require_manifest_bound_corpus(
+                payload,
+                verified,
+                _servable_corpus_repository(),
+            )
+            collection = str(corpus.physical_collection)
         _check_retrievable(collection, cfg, verified)
         scope = build_server_retrieval_scope(
             verified,
@@ -1691,7 +1809,9 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
             collection=collection,
             collection_config=cfg,
         )
-    except (RetrievalScopeError, CollectionConfigError, HTTPException) as exc:
+    except HTTPException:
+        raise
+    except (RetrievalScopeError, CollectionConfigError) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
 
     if (
@@ -1712,20 +1832,39 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
         scope,
     )
 
-    return RetrievalResponse(
-        results=[
-            _to_retrieval_result(
+    results = [
+        (
+            _to_manifest_bound_retrieval_result(
+                hit,
+                corpus,
+                manifest_sha256=str(payload.manifest_sha256),
+                include_citation=adapted.include_citations,
+            )
+            if corpus is not None
+            else _to_retrieval_result(
                 hit,
                 adapted.nexus_collection,
                 include_citation=adapted.include_citations,
             )
-            for hit in hits
-        ],
+        )
+        for hit in hits
+    ]
+    filters_applied: dict[str, object] = {
+        "collection": adapted.nexus_collection,
+        "scope_digest": scope.filter_digest,
+    }
+    if corpus is not None:
+        filters_applied.update(
+            {
+                "manifest_sha256": payload.manifest_sha256,
+                "corpus_id": corpus.corpus_id,
+                "corpus_version_id": corpus.corpus_version_id,
+            }
+        )
+    return RetrievalResponse(
+        results=results,
         warnings=list(adapted.warnings),
-        filters_applied={
-            "collection": adapted.nexus_collection,
-            "scope_digest": scope.filter_digest,
-        },
+        filters_applied=filters_applied,
     )
 
 

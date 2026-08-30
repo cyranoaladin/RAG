@@ -4,6 +4,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 from nexus_contracts import (
     ServableCorpusIndex,
     ServableCorpusManifest,
@@ -161,3 +163,70 @@ def test_repository_refuses_unknown_n_minus_two_tamper_and_overwrite(tmp_path: P
             index=index,
             manifests=[active, previous],
         )
+
+
+def test_private_http_router_exposes_only_index_and_digest_addressed_manifest() -> None:
+    from ingestor.servable_corpus_api import router
+
+    paths = {(route.path, tuple(sorted(route.methods or set()))) for route in router.routes}
+    assert paths == {
+        ("/corpora/servable/v1", ("GET",)),
+        ("/corpora/servable/v1/{manifest_sha256}", ("GET",)),
+    }
+
+
+def _servable_client() -> TestClient:
+    from ingestor.servable_corpus_api import router
+
+    app = FastAPI()
+    app.include_router(router)
+    return TestClient(app)
+
+
+def test_private_http_surface_requires_bff_and_fails_closed_without_pin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "servable-corpus-bff-token-at-least-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", token)
+    monkeypatch.delenv("RAG_SERVABLE_CORPUS_DIRECTORY", raising=False)
+    monkeypatch.delenv("RAG_SERVABLE_CORPUS_INDEX_SHA256", raising=False)
+
+    unauthenticated = _servable_client().get("/corpora/servable/v1")
+    unavailable = _servable_client().get(
+        "/corpora/servable/v1",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert unauthenticated.status_code == 401
+    assert unavailable.status_code == 503
+    assert unavailable.json() == {"detail": "servable corpus unavailable"}
+
+
+def test_private_http_surface_serves_only_pinned_digest_addressed_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    token = "servable-corpus-bff-token-at-least-32-bytes"
+    index, active, _previous = _publish(tmp_path)
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", token)
+    monkeypatch.setenv("RAG_SERVABLE_CORPUS_DIRECTORY", str(tmp_path))
+    monkeypatch.setenv("RAG_SERVABLE_CORPUS_INDEX_SHA256", index.index_sha256)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    client = _servable_client()
+    index_response = client.get("/corpora/servable/v1", headers=headers)
+    manifest_response = client.get(
+        f"/corpora/servable/v1/{active.manifest_sha256}",
+        headers=headers,
+    )
+    unknown_response = client.get(
+        f"/corpora/servable/v1/{'f' * 64}",
+        headers=headers,
+    )
+
+    assert index_response.status_code == 200
+    assert index_response.json()["index_sha256"] == index.index_sha256
+    assert manifest_response.status_code == 200
+    assert manifest_response.json()["manifest_sha256"] == active.manifest_sha256
+    assert unknown_response.status_code == 404
+    assert unknown_response.json() == {"detail": "manifest unavailable"}

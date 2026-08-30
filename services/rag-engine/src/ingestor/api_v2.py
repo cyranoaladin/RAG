@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -38,7 +39,7 @@ def _missing_sibling(exc: ImportError) -> bool:
 
 try:
     from . import metrics as ingest_metrics
-    from . import retrieval_v2_endpoint, review_v2_endpoint
+    from . import retrieval_v2_endpoint, review_v2_endpoint, servable_corpus_api
     from .collection_config import validate_collection_catalogue_v2
     from .embedding_contract import (
         CANONICAL_EMBED_DIM,
@@ -89,6 +90,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     import metrics as ingest_metrics  # type: ignore[no-redef]
     import retrieval_v2_endpoint  # type: ignore[no-redef]
     import review_v2_endpoint  # type: ignore[no-redef]
+    import servable_corpus_api  # type: ignore[no-redef]
     from collection_config import (  # type: ignore[no-redef]
         validate_collection_catalogue_v2,
     )
@@ -152,6 +154,8 @@ _ALLOWED_BUSINESS_ROUTES = frozenset(
         "/collections/readiness",
         "/review/v2/queue",
         "/review/v2/decide",
+        "/corpora/servable/v1",
+        "/corpora/servable/v1/{manifest_sha256}",
     }
 )
 _OBSERVED_ROUTES = _ALLOWED_BUSINESS_ROUTES | {"/health", "/metrics"}
@@ -165,6 +169,14 @@ _database_readiness_cache_lock = Lock()
 _database_readiness_cache: (
     tuple[str, str, float, tuple[int, bool, bool, bool, bool] | None] | None
 ) = None
+
+
+def _business_route_template(path: str) -> str | None:
+    if path in _ALLOWED_BUSINESS_ROUTES:
+        return path
+    if re.fullmatch(r"/corpora/servable/v1/[0-9a-f]{64}", path):
+        return "/corpora/servable/v1/{manifest_sha256}"
+    return None
 
 
 def _required_model_inventory_anchor(environment_variable: str) -> str:
@@ -407,7 +419,8 @@ async def _metrics_middleware(request: Request, call_next):
     status_code = 500
     try:
         path = request.url.path
-        if path in _ALLOWED_BUSINESS_ROUTES:
+        route_template = _business_route_template(path)
+        if route_template is not None:
             try:
                 require_bff_service(request, endpoint=path)
             except HTTPException as exc:
@@ -419,6 +432,11 @@ async def _metrics_middleware(request: Request, call_next):
             else:
                 try:
                     with runtime_request_budget():
+                        if route_template.startswith("/corpora/servable/v1"):
+                            response = await call_next(request)
+                            remaining_request_budget_ms()
+                            status_code = response.status_code
+                            return response
                         database_ready = await run_in_threadpool(_database_runtime_ready)
                         if database_ready:
                             remaining_request_budget_ms()
@@ -439,7 +457,8 @@ async def _metrics_middleware(request: Request, call_next):
     finally:
         path = request.url.path
         ingest_metrics.record_http_request(
-            path if path in _OBSERVED_ROUTES else "unmatched",
+            _business_route_template(path)
+            or (path if path in _OBSERVED_ROUTES else "unmatched"),
             request.method if request.method in _OBSERVED_METHODS else "other",
             status_code,
             time.perf_counter() - started,
@@ -448,7 +467,11 @@ async def _metrics_middleware(request: Request, call_next):
 
 
 def _mount_allowed_routes() -> None:
-    for source in (retrieval_v2_endpoint.router, review_v2_endpoint.router):
+    for source in (
+        retrieval_v2_endpoint.router,
+        review_v2_endpoint.router,
+        servable_corpus_api.router,
+    ):
         for route in source.routes:
             route_path = getattr(route, "path", None)
             if route_path in _ALLOWED_BUSINESS_ROUTES:

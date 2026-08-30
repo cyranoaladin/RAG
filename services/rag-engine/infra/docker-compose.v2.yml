@@ -90,6 +90,8 @@ services:
       RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS: "${RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS:-1}"
       RAG_RELEASE_REGISTRY_PATH: /app/release/release-registry.json
       RAG_RELEASE_REGISTRY_SHA256: "${RAG_RELEASE_REGISTRY_SHA256:?empreinte SHA-256 externe du registre de releases requise}"
+      RAG_SERVABLE_CORPUS_DIRECTORY: /app/servable-corpus
+      RAG_SERVABLE_CORPUS_INDEX_SHA256: "${RAG_SERVABLE_CORPUS_INDEX_SHA256:?empreinte SHA-256 externe du registre de corpus servables requise}"
       RAG_BFF_SERVICE_TOKEN: "${RAG_BFF_SERVICE_TOKEN:?RAG_BFF_SERVICE_TOKEN requis}"
       NEXUS_INTERNAL_TOKEN_SECRET: "${NEXUS_INTERNAL_TOKEN_SECRET:?NEXUS_INTERNAL_TOKEN_SECRET requis}"
       NEXUS_INTERNAL_TOKEN_ISSUER: "${NEXUS_INTERNAL_TOKEN_ISSUER:?NEXUS_INTERNAL_TOKEN_ISSUER requis}"
@@ -101,6 +103,7 @@ services:
     volumes:
       - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/release:ro
+      - ${RAG_SERVABLE_CORPUS_HOST_DIR:?répertoire hôte des corpus servables requis}:/app/servable-corpus:ro
       - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
       - ${RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/reranker:ro
     ports:
