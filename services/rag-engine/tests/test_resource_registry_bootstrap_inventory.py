@@ -60,6 +60,9 @@ def _row(*, chunk_id: str = "chunk-001", chunk_index: int = 0) -> dict[str, obje
         "resource_id": RESOURCE_ID,
         "resource_version_id": VERSION_ID,
         "run_id": RUN_ID,
+        "run_status": "succeeded",
+        "resource_state": "RETRIEVAL_ELIGIBLE",
+        **_scope(),
         "content_sha256": SHA_A,
         "size_bytes": 42,
         "mime_detected": "application/pdf",
@@ -84,6 +87,8 @@ def _row(*, chunk_id: str = "chunk-001", chunk_index: int = 0) -> dict[str, obje
                 "placement_status": "active",
                 "review_status": "reviewed",
                 "source_uri": "https://eduscol.education.fr/programme.pdf",
+                **_scope(),
+                "statut_enseignement": "specialite",
             }
         ],
         "chunks": [
@@ -101,6 +106,8 @@ def _row(*, chunk_id: str = "chunk-001", chunk_index: int = 0) -> dict[str, obje
                 "source_kind": "eduscol",
                 "type_doc": "programme_officiel",
                 "review_status": "reviewed",
+                **_scope(),
+                "statut_enseignement": "specialite",
             }
         ],
     }
@@ -201,6 +208,28 @@ def test_inventory_rejects_multiple_rag_artifacts_for_one_ingestion_version() ->
         _build([_row(), _row()])
 
 
+@pytest.mark.parametrize(
+    ("target", "field", "value"),
+    [
+        ("root", "run_status", "partial"),
+        ("placement", "matiere", "nsi"),
+        ("chunk", "school_year", "2025-2026"),
+    ],
+)
+def test_inventory_rejects_unpromoted_or_cross_scope_evidence(
+    target: str, field: str, value: object
+) -> None:
+    row = _row()
+    if target == "root":
+        row[field] = value
+    elif target == "placement":
+        row["placements"][0][field] = value
+    else:
+        row["chunks"][0][field] = value
+    with pytest.raises(BootstrapInventoryError, match="run|scope"):
+        _build([row])
+
+
 def test_inventory_serialization_excludes_content_paths_vectors_and_pii() -> None:
     serialized = _build([_row()]).model_dump_json()
     assert "source_path" not in serialized
@@ -215,3 +244,6 @@ def test_export_query_uses_one_snapshot_and_separate_aggregations() -> None:
     assert "c.text" not in EXPORT_SQL
     assert "c.vector" not in EXPORT_SQL
     assert "source_path" not in EXPORT_SQL
+    assert "r.resource_state = 'RETRIEVAL_ELIGIBLE'" in EXPORT_SQL
+    assert "ir.status = 'succeeded'" in EXPORT_SQL
+    assert "r.collection = ANY(%(release_collections)s)" in EXPORT_SQL

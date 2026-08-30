@@ -278,6 +278,7 @@ def _export(pg: dict[str, str]):
             producer_commit=SHA_B[:40],
             generated_at=GENERATED_AT,
             package_version="0.15.0",
+            release_collections=frozenset({"terminale_maths"}),
         )
 
 

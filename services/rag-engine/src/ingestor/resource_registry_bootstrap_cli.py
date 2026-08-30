@@ -11,6 +11,7 @@ from pathlib import Path
 import psycopg
 from nexus_contracts.canonical_json import canonical_model_bytes
 
+from ingestor.release_readiness import load_release_registry_file
 from ingestor.resource_registry_bootstrap import (
     export_resource_registry_bootstrap_inventory,
 )
@@ -35,12 +36,18 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--producer-commit", required=True)
     parser.add_argument("--generated-at", required=True, type=_aware_datetime)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--release-registry-path", required=True, type=Path)
+    parser.add_argument("--release-registry-sha256", required=True)
     args = parser.parse_args(argv)
 
     dsn = os.environ.get(DSN_ENV)
     if not dsn:
         raise SystemExit(f"{DSN_ENV} is required and is never accepted on argv")
 
+    release_registry = load_release_registry_file(
+        args.release_registry_path,
+        args.release_registry_sha256,
+    )
     with psycopg.connect(dsn) as connection:
         inventory = export_resource_registry_bootstrap_inventory(
             connection,
@@ -48,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
             producer_commit=args.producer_commit,
             generated_at=args.generated_at,
             package_version=metadata.version("nexus-contracts"),
+            release_collections=frozenset(release_registry.collections),
         )
 
     args.output.write_bytes(canonical_model_bytes(inventory) + b"\n")

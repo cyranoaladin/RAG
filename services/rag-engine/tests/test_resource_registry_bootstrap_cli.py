@@ -62,6 +62,10 @@ class _ConnectionContext:
         return None
 
 
+class _ReleaseRegistry:
+    collections = ("terminale_maths",)
+
+
 def test_cli_writes_canonical_inventory_without_disclosing_dsn(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -84,6 +88,13 @@ def test_cli_writes_canonical_inventory_without_disclosing_dsn(
         "version",
         lambda package: "0.15.0" if package == "nexus-contracts" else "",
     )
+    monkeypatch.setattr(
+        resource_registry_bootstrap_cli,
+        "load_release_registry_file",
+        lambda path, digest: _ReleaseRegistry()
+        if path == tmp_path / "release-registry.json" and digest == SHA_B
+        else None,
+    )
 
     result = resource_registry_bootstrap_cli.main(
         [
@@ -93,6 +104,10 @@ def test_cli_writes_canonical_inventory_without_disclosing_dsn(
             "2026-08-30T12:00:00Z",
             "--output",
             str(output),
+            "--release-registry-path",
+            str(tmp_path / "release-registry.json"),
+            "--release-registry-sha256",
+            SHA_B,
         ]
     )
 
@@ -110,6 +125,27 @@ def test_cli_fails_closed_without_explicit_operator_dsn(
 ) -> None:
     monkeypatch.delenv("NEXUS_RESOURCE_EXPORT_DSN", raising=False)
     with pytest.raises(SystemExit, match="NEXUS_RESOURCE_EXPORT_DSN"):
+        resource_registry_bootstrap_cli.main(
+            [
+                "--producer-commit",
+                SHA_A[:40],
+                "--generated-at",
+                "2026-08-30T12:00:00Z",
+                "--output",
+                str(tmp_path / "inventory.json"),
+                "--release-registry-path",
+                str(tmp_path / "release-registry.json"),
+                "--release-registry-sha256",
+                SHA_B,
+            ]
+        )
+
+
+def test_cli_requires_pinned_release_registry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("NEXUS_RESOURCE_EXPORT_DSN", "postgresql://fixture")
+    with pytest.raises(SystemExit):
         resource_registry_bootstrap_cli.main(
             [
                 "--producer-commit",
