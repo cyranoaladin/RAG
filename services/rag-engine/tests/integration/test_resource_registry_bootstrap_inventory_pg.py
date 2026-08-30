@@ -270,7 +270,11 @@ def _seed(connection: psycopg.Connection) -> None:
     connection.commit()
 
 
-def _export(pg: dict[str, str], *, artifact_hashes: frozenset[str] | None = None):
+def _export(
+    pg: dict[str, str],
+    *,
+    artifact_bindings: frozenset[tuple[str, str]] | None = None,
+):
     with psycopg.connect(superuser_dsn(pg)) as connection:
         return export_resource_registry_bootstrap_inventory(
             connection,
@@ -279,7 +283,8 @@ def _export(pg: dict[str, str], *, artifact_hashes: frozenset[str] | None = None
             generated_at=GENERATED_AT,
             package_version="0.15.0",
             release_collections=frozenset({"terminale_maths"}),
-            release_artifact_sha256s=artifact_hashes or frozenset({SHA_A}),
+            release_artifact_bindings=artifact_bindings
+            or frozenset({("terminale_maths", SHA_A)}),
         )
 
 
@@ -331,4 +336,9 @@ def test_duplicate_ingestion_artifact_link_fails_closed(pg: dict[str, str]) -> N
         connection.commit()
 
     with pytest.raises(BootstrapInventoryError, match="multiple RAG artifacts"):
-        _export(pg, artifact_hashes=frozenset({SHA_A, SHA_B}))
+        _export(
+            pg,
+            artifact_bindings=frozenset(
+                {("terminale_maths", SHA_A), ("terminale_maths", SHA_B)}
+            ),
+        )

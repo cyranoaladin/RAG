@@ -48,8 +48,8 @@ def main(argv: list[str] | None = None) -> int:
         args.release_registry_path,
         args.release_registry_sha256,
     )
-    release_artifact_sha256s = frozenset(
-        artifact.content_sha256
+    release_artifact_bindings = frozenset(
+        (artifact.collection, artifact.content_sha256)
         for manifest in release_registry.manifests
         for artifact in manifest.expectation.artifacts
     )
@@ -61,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
             generated_at=args.generated_at,
             package_version=metadata.version("nexus-contracts"),
             release_collections=frozenset(release_registry.collections),
-            release_artifact_sha256s=release_artifact_sha256s,
+            release_artifact_bindings=release_artifact_bindings,
         )
 
     args.output.write_bytes(canonical_model_bytes(inventory) + b"\n")

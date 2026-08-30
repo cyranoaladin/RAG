@@ -89,7 +89,14 @@ class _ReleaseRegistry:
                     (),
                     {
                         "artifacts": (
-                            type("Artifact", (), {"content_sha256": SHA_A})(),
+                            type(
+                                "Artifact",
+                                (),
+                                {
+                                    "collection": "terminale_maths",
+                                    "content_sha256": SHA_A,
+                                },
+                            )(),
                         )
                     },
                 )()

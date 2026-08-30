@@ -481,17 +481,22 @@ def export_resource_registry_bootstrap_inventory(
     generated_at: datetime,
     package_version: str,
     release_collections: frozenset[str],
-    release_artifact_sha256s: frozenset[str],
+    release_artifact_bindings: frozenset[tuple[str, str]],
 ) -> ResourceRegistryBootstrap:
     """Read both schemas through one repeatable, read-only PostgreSQL snapshot."""
 
     if not release_collections or any(not item.strip() for item in release_collections):
         raise BootstrapInventoryError("release registry collections are required")
-    if not release_artifact_sha256s or any(
-        not re.fullmatch(r"[0-9a-f]{64}", item)
-        for item in release_artifact_sha256s
+    if not release_artifact_bindings or any(
+        not collection.strip() or not re.fullmatch(r"[0-9a-f]{64}", digest)
+        for collection, digest in release_artifact_bindings
     ):
-        raise BootstrapInventoryError("release registry artifact hashes are required")
+        raise BootstrapInventoryError("release registry artifact bindings are required")
+    if {collection for collection, _digest in release_artifact_bindings} - release_collections:
+        raise BootstrapInventoryError("release artifact binding uses an unknown collection")
+    release_artifact_sha256s = frozenset(
+        digest for _collection, digest in release_artifact_bindings
+    )
     with connection.transaction():
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -505,10 +510,13 @@ def export_resource_registry_bootstrap_inventory(
                 },
             )
             rows = cursor.fetchall()
-    observed_hashes = {str(row["rag_content_sha256"]) for row in rows}
-    if observed_hashes != release_artifact_sha256s:
+    observed_bindings = {
+        (str(row["collection"]), str(row["rag_content_sha256"]))
+        for row in rows
+    }
+    if observed_bindings != release_artifact_bindings:
         raise BootstrapInventoryError(
-            "governed inventory differs from the exact promoted release artifact set"
+            "governed inventory differs from the exact promoted release artifact bindings"
         )
     return build_resource_registry_bootstrap_inventory(
         rows,
