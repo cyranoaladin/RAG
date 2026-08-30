@@ -42,6 +42,21 @@ def _payload() -> ResourceRegistryBootstrapPayload:
                 official=True,
                 source_kind="eduscol",
                 type_doc="programme_officiel",
+                placements=[
+                    {
+                        "tenant": "nexus",
+                        "collection": "terminale_maths",
+                        "niveau": "terminale",
+                        "voie": "generale",
+                        "matiere": "mathematiques",
+                        "statut_enseignement": "specialite",
+                        "candidat": "scolarise",
+                        "audience": ["aefe"],
+                        "visibility": "internal",
+                        "school_year": "2026-2027",
+                        "programme_version": "fr-national-2026",
+                    }
+                ],
                 chunks=[
                     BootstrapChunk(
                         chunk_id="chunk-001",

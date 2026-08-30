@@ -50,6 +50,7 @@ from nexus_contracts.identity import (
 )
 from nexus_contracts.resource_registry_bootstrap import (
     BootstrapChunk,
+    BootstrapPlacement,
     BootstrapResourceVersion,
     ResourceRegistryBootstrap,
     ResourceRegistryBootstrapPayload,
@@ -210,6 +211,7 @@ __all__ = [
     "Citation",
     "RetrievalError",
     "BootstrapChunk",
+    "BootstrapPlacement",
     "BootstrapResourceVersion",
     "ResourceRegistryBootstrap",
     "ResourceRegistryBootstrapPayload",

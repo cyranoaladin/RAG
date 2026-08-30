@@ -132,6 +132,10 @@ def test_inventory_preserves_uuid_hash_provenance_and_locator() -> None:
     assert item.content_sha256 == SHA_A
     assert item.rag_artifact_id == SHA_A
     assert item.source_kind == "eduscol"
+    assert item.placements[0].model_dump(mode="json") == {
+        **_scope(),
+        "statut_enseignement": "specialite",
+    }
     assert item.chunks[0].locator.model_dump(exclude_none=True) == {
         "chunk_index": 0,
         "page_start": 2,
@@ -247,3 +251,4 @@ def test_export_query_uses_one_snapshot_and_separate_aggregations() -> None:
     assert "r.resource_state = 'RETRIEVAL_ELIGIBLE'" in EXPORT_SQL
     assert "ir.status = 'succeeded'" in EXPORT_SQL
     assert "r.collection = ANY(%(release_collections)s)" in EXPORT_SQL
+    assert "ra.content_sha256 = ANY(%(release_artifact_sha256s)s)" in EXPORT_SQL

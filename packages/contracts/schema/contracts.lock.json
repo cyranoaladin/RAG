@@ -27,7 +27,7 @@
     },
     "resource-registry-bootstrap-v1.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-bootstrap-v1.json",
-      "sha256": "ce53cfa71517e7e64e33e1abf142ae4e406b51be76465bee54945c3476d68255"
+      "sha256": "95dbddabc93d52fc60cbe411da054b3245fc6b11c89ca8b1760d62e130a80b5a"
     },
     "retrieval-error.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-error.json",

@@ -41,6 +41,21 @@ def _inventory():
                         official=True,
                         source_kind="eduscol.education.fr",
                         type_doc="programme_officiel",
+                        placements=[
+                            {
+                                "tenant": "nexus",
+                                "collection": "terminale_maths",
+                                "niveau": "terminale",
+                                "voie": "generale",
+                                "matiere": "mathematiques",
+                                "statut_enseignement": "specialite",
+                                "candidat": "scolarise",
+                                "audience": ["aefe"],
+                                "visibility": "internal",
+                                "school_year": "2026-2027",
+                                "programme_version": "fr-national-2026",
+                            }
+                        ],
                         chunks=[
                             BootstrapChunk(
                                 chunk_id="chunk-001",
@@ -64,6 +79,23 @@ class _ConnectionContext:
 
 class _ReleaseRegistry:
     collections = ("terminale_maths",)
+    manifests = (
+        type(
+            "ManifestBinding",
+            (),
+            {
+                "expectation": type(
+                    "ReleaseExpectation",
+                    (),
+                    {
+                        "artifacts": (
+                            type("Artifact", (), {"content_sha256": SHA_A})(),
+                        )
+                    },
+                )()
+            },
+        )(),
+    )
 
 
 def test_cli_writes_canonical_inventory_without_disclosing_dsn(

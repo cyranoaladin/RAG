@@ -1,5 +1,14 @@
 {
   "$defs": {
+    "Audience": {
+      "enum": [
+        "libre",
+        "aefe",
+        "tous"
+      ],
+      "title": "Audience",
+      "type": "string"
+    },
     "BootstrapChunk": {
       "additionalProperties": false,
       "properties": {
@@ -19,6 +28,89 @@
         "locator"
       ],
       "title": "BootstrapChunk",
+      "type": "object"
+    },
+    "BootstrapPlacement": {
+      "additionalProperties": false,
+      "properties": {
+        "audience": {
+          "items": {
+            "$ref": "#/$defs/Audience"
+          },
+          "minItems": 1,
+          "title": "Audience",
+          "type": "array"
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "collection",
+        "niveau",
+        "voie",
+        "matiere",
+        "candidat",
+        "audience",
+        "visibility",
+        "school_year",
+        "programme_version",
+        "statut_enseignement"
+      ],
+      "title": "BootstrapPlacement",
       "type": "object"
     },
     "BootstrapResourceVersion": {
@@ -46,6 +138,14 @@
         "official": {
           "title": "Official",
           "type": "boolean"
+        },
+        "placements": {
+          "items": {
+            "$ref": "#/$defs/BootstrapPlacement"
+          },
+          "minItems": 1,
+          "title": "Placements",
+          "type": "array"
         },
         "rag_artifact_id": {
           "pattern": "^[0-9a-f]{64}$",
@@ -105,10 +205,24 @@
         "official",
         "source_kind",
         "type_doc",
+        "placements",
         "chunks"
       ],
       "title": "BootstrapResourceVersion",
       "type": "object"
+    },
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
     },
     "ChunkLocator": {
       "additionalProperties": false,
@@ -209,6 +323,21 @@
       "title": "ChunkLocator",
       "type": "object"
     },
+    "Niveau": {
+      "enum": [
+        "quatrieme",
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
     "Rights": {
       "enum": [
         "officiel_public",
@@ -222,6 +351,27 @@
         "unknown"
       ],
       "title": "Rights",
+      "type": "string"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
       "type": "string"
     },
     "TypeDoc": {
@@ -261,6 +411,18 @@
         "autre"
       ],
       "title": "TypeDoc",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
       "type": "string"
     }
   },

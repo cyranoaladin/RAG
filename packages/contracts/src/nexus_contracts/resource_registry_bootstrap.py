@@ -9,8 +9,9 @@ from uuid import UUID
 from pydantic import Field, StrictStr, StringConstraints, field_validator, model_validator
 
 from nexus_contracts.canonical_json import canonical_model_sha256
-from nexus_contracts.document import Rights, StrictBaseModel, TypeDoc
+from nexus_contracts.document import Rights, StatutEnseignement, StrictBaseModel, TypeDoc
 from nexus_contracts.identity import Sha256Digest
+from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.servable_corpus_manifest import (
     ChunkIdentifier,
     ChunkLocator,
@@ -27,6 +28,10 @@ class BootstrapChunk(StrictBaseModel):
     locator: ChunkLocator
 
 
+class BootstrapPlacement(ResourceScope):
+    statut_enseignement: StatutEnseignement
+
+
 class BootstrapResourceVersion(StrictBaseModel):
     resource_id: UUID
     resource_version_id: UUID
@@ -40,6 +45,7 @@ class BootstrapResourceVersion(StrictBaseModel):
     official: bool
     source_kind: str = Field(min_length=1, max_length=256)
     type_doc: TypeDoc
+    placements: list[BootstrapPlacement] = Field(min_length=1)
     chunks: list[BootstrapChunk] = Field(min_length=1)
 
     @field_validator("source_uri")
@@ -110,6 +116,7 @@ def seal_resource_registry_bootstrap(
 
 __all__ = [
     "BootstrapChunk",
+    "BootstrapPlacement",
     "BootstrapResourceVersion",
     "ResourceRegistryBootstrap",
     "ResourceRegistryBootstrapPayload",

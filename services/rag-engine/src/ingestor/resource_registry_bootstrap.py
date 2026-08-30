@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any, Literal
@@ -13,6 +14,7 @@ import psycopg
 from nexus_contracts import (
     ArtifactRecord,
     BootstrapChunk,
+    BootstrapPlacement,
     BootstrapResourceVersion,
     ResourceRegistryBootstrap,
     ResourceRegistryBootstrapPayload,
@@ -235,6 +237,7 @@ JOIN LATERAL (
 WHERE r.resource_state = 'RETRIEVAL_ELIGIBLE'
   AND ir.status = 'succeeded'
   AND r.collection = ANY(%(release_collections)s)
+  AND ra.content_sha256 = ANY(%(release_artifact_sha256s)s)
 ORDER BY a.artifact_id
 """
 
@@ -432,6 +435,18 @@ def build_resource_registry_bootstrap_inventory(
             official=row.rag_official,
             source_kind=row.rag_source_kind,
             type_doc=row.rag_type_doc,
+            placements=[
+                BootstrapPlacement.model_validate(
+                    placement.model_dump(
+                        mode="python",
+                        include={*_RESOURCE_SCOPE_FIELDS, "statut_enseignement"},
+                    )
+                )
+                for placement in sorted(
+                    row.placements,
+                    key=lambda item: (item.collection, item.statut_enseignement),
+                )
+            ],
             chunks=chunks,
         )
         resources.append(resource)
@@ -466,11 +481,17 @@ def export_resource_registry_bootstrap_inventory(
     generated_at: datetime,
     package_version: str,
     release_collections: frozenset[str],
+    release_artifact_sha256s: frozenset[str],
 ) -> ResourceRegistryBootstrap:
     """Read both schemas through one repeatable, read-only PostgreSQL snapshot."""
 
     if not release_collections or any(not item.strip() for item in release_collections):
         raise BootstrapInventoryError("release registry collections are required")
+    if not release_artifact_sha256s or any(
+        not re.fullmatch(r"[0-9a-f]{64}", item)
+        for item in release_artifact_sha256s
+    ):
+        raise BootstrapInventoryError("release registry artifact hashes are required")
     with connection.transaction():
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -478,9 +499,17 @@ def export_resource_registry_bootstrap_inventory(
             )
             cursor.execute(
                 EXPORT_SQL,
-                {"release_collections": sorted(release_collections)},
+                {
+                    "release_collections": sorted(release_collections),
+                    "release_artifact_sha256s": sorted(release_artifact_sha256s),
+                },
             )
             rows = cursor.fetchall()
+    observed_hashes = {str(row["rag_content_sha256"]) for row in rows}
+    if observed_hashes != release_artifact_sha256s:
+        raise BootstrapInventoryError(
+            "governed inventory differs from the exact promoted release artifact set"
+        )
     return build_resource_registry_bootstrap_inventory(
         rows,
         producer_repository=producer_repository,
