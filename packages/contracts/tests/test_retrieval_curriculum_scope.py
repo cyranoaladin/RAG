@@ -63,7 +63,7 @@ def test_legacy_request_without_curriculum_scope_keeps_v1_filters() -> None:
     assert request.to_payload_filters()["voie"] == "generale"
 
 
-def test_manifest_binding_is_optional_for_v1_and_atomic_when_present() -> None:
+def test_manifest_binding_is_optional_for_legacy_and_atomic_when_present() -> None:
     legacy = RetrievalRequest(
         student_profile=_student_profile(),
         need=RetrievalNeed(intent="revision", query="Revoir les fonctions"),
@@ -76,6 +76,27 @@ def test_manifest_binding_is_optional_for_v1_and_atomic_when_present() -> None:
             need=RetrievalNeed(intent="revision", query="Revoir les fonctions"),
             manifest_sha256="a" * 64,
         )
+
+    canonical = RetrievalRequest(
+        student_profile=_student_profile(),
+        need=RetrievalNeed(intent="revision", query="Revoir les fonctions"),
+        corpus_id="aria-maths-seconde",
+        corpus_version_id="2026-08-30.1",
+        manifest_sha256="a" * 64,
+    )
+    assert canonical.corpus_id == "aria-maths-seconde"
+
+    for incomplete in (
+        {"corpus_id": "aria-maths-seconde", "corpus_version_id": "2026-08-30.1"},
+        {"corpus_id": "aria-maths-seconde", "manifest_sha256": "a" * 64},
+        {"corpus_version_id": "2026-08-30.1", "manifest_sha256": "a" * 64},
+    ):
+        with pytest.raises(ValidationError, match="provided together"):
+            RetrievalRequest(
+                student_profile=_student_profile(),
+                need=RetrievalNeed(intent="revision", query="Revoir les fonctions"),
+                **incomplete,
+            )
 
 
 def test_retrieval_result_canonical_identity_is_complete_or_absent() -> None:

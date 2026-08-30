@@ -35,7 +35,7 @@
     },
     "retrieval-request.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-request.json",
-      "sha256": "3c3817c7ca881ce5ccbf8fc6bad1424a345774cbc121133213c827cd8e86c8ba"
+      "sha256": "594ca5a5b145826f3f05ae287cef77d14eb0dc59fa4dd5390c955bb474fefa07"
     },
     "retrieval-response.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-response.json",

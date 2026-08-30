@@ -57,13 +57,17 @@ class RetrievalRequest(BaseModel):
     need: RetrievalNeed
     retrieval: RetrievalOptions = Field(default_factory=RetrievalOptions)
     manifest_sha256: Sha256Digest | None = None
+    corpus_id: BoundedIdentifier | None = None
     corpus_version_id: BoundedIdentifier | None = None
 
     @model_validator(mode="after")
     def validate_manifest_binding(self) -> "RetrievalRequest":
-        if (self.manifest_sha256 is None) != (self.corpus_version_id is None):
+        binding = (self.manifest_sha256, self.corpus_id, self.corpus_version_id)
+        if any(value is not None for value in binding) and any(
+            value is None for value in binding
+        ):
             raise ValueError(
-                "manifest_sha256 and corpus_version_id must be provided together"
+                "manifest_sha256, corpus_id, and corpus_version_id must be provided together"
             )
         return self
 
