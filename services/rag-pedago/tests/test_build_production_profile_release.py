@@ -378,3 +378,146 @@ def test_preflight_proves_real_e5_bounds_and_no_empty_page() -> None:
         for artifact in preflight["artifacts"]
         for chunk in artifact["chunks"]
     ) <= 384
+
+
+# --- LOT 1c : l'inventaire de modèle doit décrire exactement l'artefact ---------
+
+
+def _write(path: Path, content: bytes | str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if isinstance(content, str):
+        path.write_text(content, encoding="utf-8")
+    else:
+        path.write_bytes(content)
+
+
+def _minimal_snapshot(root: Path) -> Path:
+    """Artefact e5 minimal : des fichiers racine et un sous-répertoire de pooling."""
+    _write(root / "model.safetensors", b"poids")
+    _write(root / "config.json", '{"hidden_size": 1024}')
+    _write(root / "modules.json", '[{"idx": 1, "path": "1_Pooling"}]')
+    _write(root / "1_Pooling" / "config.json", '{"pooling_mode_mean_tokens": true}')
+    return root
+
+
+def _inventory_paths(inventory: bytes) -> list[str]:
+    return [line.split("  ", 1)[1] for line in inventory.decode("utf-8").splitlines()]
+
+
+MANIFEST = {"model_id": "intfloat/multilingual-e5-large", "canonical_dim": 1024}
+
+
+def test_model_inventory_covers_files_in_subdirectories(tmp_path: Path) -> None:
+    """Le défaut de production : `1_Pooling/config.json` était omis de l'inventaire.
+
+    Ce fichier fixe le mode de pooling, donc l'espace vectoriel. Un inventaire qui
+    l'omet scelle un artefact dont le sens des vecteurs n'est pas attesté — et le
+    vérificateur d'exécution, qui exige une couverture exacte, refuse alors tout
+    artefact réel.
+    """
+    module = cast(Any, _module())
+    snapshot = _minimal_snapshot(tmp_path / "e5")
+
+    _manifest, inventory = module._model_inventory(
+        snapshot=snapshot, manifest=MANIFEST
+    )
+
+    assert "1_Pooling/config.json" in _inventory_paths(inventory)
+
+
+def test_model_inventory_covers_the_snapshot_exactly(tmp_path: Path) -> None:
+    """Couverture exacte : ni omission, ni entrée sans fichier correspondant."""
+    module = cast(Any, _module())
+    snapshot = _minimal_snapshot(tmp_path / "e5")
+
+    _manifest, inventory = module._model_inventory(
+        snapshot=snapshot, manifest=MANIFEST
+    )
+
+    on_disk = {
+        path.relative_to(snapshot).as_posix()
+        for path in snapshot.rglob("*")
+        if path.is_file()
+    }
+    assert set(_inventory_paths(inventory)) == on_disk | {"manifest.json"}
+
+
+def test_model_inventory_digests_are_those_of_the_named_files(tmp_path: Path) -> None:
+    """Le chemin listé et l'empreinte listée doivent désigner le même fichier."""
+    module = cast(Any, _module())
+    snapshot = _minimal_snapshot(tmp_path / "e5")
+
+    _manifest, inventory = module._model_inventory(
+        snapshot=snapshot, manifest=MANIFEST
+    )
+
+    for line in inventory.decode("utf-8").splitlines():
+        digest, relative = line.split("  ", 1)
+        if relative == "manifest.json":
+            continue
+        assert digest == _sha256(snapshot / relative), relative
+
+
+def test_model_inventory_is_deterministic(tmp_path: Path) -> None:
+    """Deux exécutions sur le même artefact rendent le même octet."""
+    module = cast(Any, _module())
+    snapshot = _minimal_snapshot(tmp_path / "e5")
+
+    first = module._model_inventory(snapshot=snapshot, manifest=MANIFEST)[1]
+    second = module._model_inventory(snapshot=snapshot, manifest=MANIFEST)[1]
+
+    assert first == second
+
+
+def test_model_inventory_refuses_a_snapshot_already_carrying_its_inventory(
+    tmp_path: Path,
+) -> None:
+    """`manifest.json` et `SHA256SUMS` sont des PRODUITS, pas des entrées.
+
+    Les laisser passer produit une ligne `manifest.json` en double et une entrée
+    `SHA256SUMS` qui ne peut jamais s'auto-décrire : un inventaire que le
+    vérificateur d'exécution refusera toujours, sans que rien ne l'ait signalé
+    au moment de la production.
+    """
+    module = cast(Any, _module())
+    snapshot = _minimal_snapshot(tmp_path / "e5")
+    _write(snapshot / "SHA256SUMS", "ancien\n")
+
+    with pytest.raises(ValueError, match="SHA256SUMS"):
+        module._model_inventory(snapshot=snapshot, manifest=MANIFEST)
+
+
+def test_model_inventory_refuses_a_snapshot_carrying_a_manifest(
+    tmp_path: Path,
+) -> None:
+    module = cast(Any, _module())
+    snapshot = _minimal_snapshot(tmp_path / "e5")
+    _write(snapshot / "manifest.json", "{}")
+
+    with pytest.raises(ValueError, match="manifest.json"):
+        module._model_inventory(snapshot=snapshot, manifest=MANIFEST)
+
+
+def test_model_inventory_refuses_a_symlink(tmp_path: Path) -> None:
+    """Le vérificateur d'exécution refuse tout lien symbolique sous la racine.
+
+    Un inventaire qui en accepte un produit un artefact que rien ne pourra
+    vérifier. Le refus doit intervenir à la production, pas au démarrage.
+    """
+    module = cast(Any, _module())
+    snapshot = _minimal_snapshot(tmp_path / "e5")
+    (snapshot / "alias.json").symlink_to(snapshot / "config.json")
+
+    with pytest.raises(ValueError, match="symlink"):
+        module._model_inventory(snapshot=snapshot, manifest=MANIFEST)
+
+
+def test_model_inventory_still_requires_weights(tmp_path: Path) -> None:
+    """Garde préexistante : elle ne doit pas être perdue par la correction."""
+    module = cast(Any, _module())
+    snapshot = tmp_path / "e5"
+    _write(snapshot / "config.json", "{}")
+    _write(snapshot / "1_Pooling" / "config.json", "{}")
+
+    with pytest.raises(ValueError, match="weights"):
+        module._model_inventory(snapshot=snapshot, manifest=MANIFEST)

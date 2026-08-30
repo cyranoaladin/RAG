@@ -272,16 +272,44 @@ class E5TokenCounter:
         return count
 
 
+# Produits de l'inventaire, jamais entrées : les trouver dans l'instantané veut
+# dire qu'on inventorie une sortie précédente, et l'inventaire produit serait
+# refusé au démarrage sans que rien ne l'ait signalé ici.
+_INVENTORY_PRODUCTS = ("manifest.json", "SHA256SUMS")
+
+
 def _model_inventory(
     *, snapshot: Path, manifest: Mapping[str, object]
 ) -> tuple[bytes, bytes]:
+    """Inventorier l'artefact ENTIER, sous-répertoires compris.
+
+    Le vérificateur d'exécution (`ingestor.model_artifact`) exige que
+    l'inventaire couvre exactement l'arborescence : toute omission rend
+    l'artefact réel irrecevable, et tout artefact recevable inutilisable.
+    Un artefact `sentence-transformers` porte son mode de pooling dans
+    `1_Pooling/config.json` — un sous-répertoire, et le fichier dont dépend
+    l'espace vectoriel. L'énumération doit donc être récursive, et les chemins
+    relatifs à la racine, non les seuls noms de base.
+    """
     if not snapshot.is_dir():
         raise ValueError(f"model snapshot is missing: {snapshot}")
     manifest_bytes = canonical_json_bytes(manifest)
     rows = [f"{_sha256_bytes(manifest_bytes)}  manifest.json"]
-    for path in sorted(snapshot.iterdir(), key=lambda item: item.name):
-        if path.is_file():
-            rows.append(f"{_file_sha256(path)}  {path.name}")
+    relatives: list[str] = []
+    for path in snapshot.rglob("*"):
+        relative = path.relative_to(snapshot).as_posix()
+        if path.is_symlink():
+            raise ValueError(f"model snapshot contains a symlink: {relative}")
+        if not path.is_file():
+            continue
+        if relative in _INVENTORY_PRODUCTS:
+            raise ValueError(
+                f"model snapshot already carries {relative}: "
+                "the snapshot is an input, not a previous artifact"
+            )
+        relatives.append(relative)
+    for relative in sorted(relatives):
+        rows.append(f"{_file_sha256(snapshot / relative)}  {relative}")
     if not any(row.endswith("model.safetensors") for row in rows):
         raise ValueError("model inventory has no weights")
     return manifest_bytes, ("\n".join(rows) + "\n").encode()
