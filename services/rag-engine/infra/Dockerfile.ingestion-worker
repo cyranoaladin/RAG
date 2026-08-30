@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir /tmp/nexus-contracts \
 # modules d'ingestion (allowlist de Dockerfile.ingestor-v2 inchangée).
 COPY services/rag-engine/src/ingestor/__init__.py /app/ingestor/__init__.py
 COPY services/rag-engine/src/ingestor/ssrf_guard.py /app/ingestor/ssrf_guard.py
+COPY services/rag-engine/src/ingestor/resource_identity_freeze.py /app/ingestor/resource_identity_freeze.py
 COPY services/rag-engine/src/ingestor/ingestion_control/ /app/ingestor/ingestion_control/
 COPY services/rag-engine/src/ingestor/ingestion_agents/ /app/ingestor/ingestion_agents/
 COPY services/rag-engine/src/ingestor/ingestion_profiles/ /app/ingestor/ingestion_profiles/

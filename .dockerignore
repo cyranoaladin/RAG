@@ -56,6 +56,7 @@
 # fragile for future maintainers — explicit entries remove the ambiguity.
 !services/rag-engine/src/ingestor/requirements.ingestion-worker.txt
 !services/rag-engine/src/ingestor/ssrf_guard.py
+!services/rag-engine/src/ingestor/resource_identity_freeze.py
 !services/rag-engine/src/ingestor/ingestion_control/
 !services/rag-engine/src/ingestor/ingestion_control/**
 !services/rag-engine/src/ingestor/ingestion_agents/

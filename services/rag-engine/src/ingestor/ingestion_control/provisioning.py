@@ -21,6 +21,17 @@ from nexus_contracts.ingestion import ArtifactRecord, ResourceCandidate, Resourc
 from nexus_contracts.resource_state import ResourceState
 from psycopg.types.json import Jsonb
 
+try:
+    from ingestor.resource_identity_freeze import (
+        RESOURCE_REGISTRY_ISSUANCE_REQUIRED,
+        ResourceIdentityFreezeError,
+    )
+except ImportError:
+    from resource_identity_freeze import (  # type: ignore[no-redef]
+        RESOURCE_REGISTRY_ISSUANCE_REQUIRED,
+        ResourceIdentityFreezeError,
+    )
+
 
 def create_ingestion_run(
     conn: psycopg.Connection,
@@ -60,10 +71,15 @@ def create_resource(
     run_id: UUID,
     dedup_key: str,
     scope: ResourceScope,
+    resource_id: UUID | None = None,
+    resource_registry_issuance_required: bool = False,
 ) -> UUID:
     """Insère une ligne ``resources`` à l'état initial ``DISCOVERED``
     (défaut de la migration 001, jamais réécrit ici)."""
-    resource_id = uuid4()
+    if resource_id is None:
+        if resource_registry_issuance_required:
+            raise ResourceIdentityFreezeError(RESOURCE_REGISTRY_ISSUANCE_REQUIRED)
+        resource_id = uuid4()
     with conn.cursor() as cur:
         cur.execute(
             """

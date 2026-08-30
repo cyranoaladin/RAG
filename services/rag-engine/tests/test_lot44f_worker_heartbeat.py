@@ -256,6 +256,48 @@ def write_sealed_evidence(root: Path) -> list[str]:
 
 
 class TestWorkerHeartbeat:
+    def test_resource_registry_cutover_is_injected_into_worker_dependencies(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        profiles_dir: Path,
+        manifest_path: Path,
+    ) -> None:
+        artifact_dir = tmp_path / "artifacts"
+        artifact_dir.mkdir()
+        sentinel = object()
+        captured: dict[str, object] = {}
+        real_worker_deps = worker_cli.WorkerDeps
+
+        monkeypatch.setattr(
+            worker_cli,
+            "load_optional_pinned_resource_identity_freeze",
+            lambda path, digest: sentinel,
+        )
+
+        def capture_worker_deps(**kwargs: object):
+            captured.update(kwargs)
+            return real_worker_deps(**kwargs)
+
+        monkeypatch.setattr(worker_cli, "WorkerDeps", capture_worker_deps)
+
+        assert (
+            _run_worker(
+                monkeypatch,
+                profiles_dir=profiles_dir,
+                manifest_path=manifest_path,
+                artifact_dir=artifact_dir,
+                extra_args=[
+                    "--resource-registry-snapshot-path",
+                    "/proof/resource-registry.json",
+                    "--resource-registry-snapshot-file-sha256",
+                    "a" * 64,
+                ],
+            )
+            == 0
+        )
+        assert captured["resource_identity_freeze"] is sentinel
+
     def test_no_heartbeat_file_arg_writes_nothing(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, profiles_dir: Path, manifest_path: Path
     ) -> None:

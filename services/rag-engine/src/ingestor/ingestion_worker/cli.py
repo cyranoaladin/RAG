@@ -26,6 +26,11 @@ from pathlib import Path
 
 import psycopg
 
+from ingestor.resource_identity_freeze import (
+    ResourceIdentityFreezeError,
+    load_optional_pinned_resource_identity_freeze,
+)
+
 try:
     from ingestor.ingestion_control.attestation import (
         RoleAttestation,
@@ -119,6 +124,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--rights-evidence-path", required=True, type=Path)
     parser.add_argument("--rights-evidence-sha256", required=True, type=_non_blank_str)
     parser.add_argument("--corpus-manifest-sha256", required=True, type=_non_blank_str)
+    parser.add_argument("--resource-registry-snapshot-path", type=Path, default=None)
+    parser.add_argument(
+        "--resource-registry-snapshot-file-sha256",
+        type=_non_blank_str,
+        default=None,
+    )
     add_runtime_authority_arguments(parser)
     parser.add_argument(
         "--expected-role",
@@ -249,6 +260,19 @@ def main(argv: list[str] | None = None) -> int:
         f"corpus_manifest_sha256={args.corpus_manifest_sha256}"
     )
 
+    try:
+        resource_identity_freeze = load_optional_pinned_resource_identity_freeze(
+            args.resource_registry_snapshot_path,
+            args.resource_registry_snapshot_file_sha256,
+        )
+    except ResourceIdentityFreezeError as exc:
+        print(f"WORKER_RESOURCE_REGISTRY_FAILED: {exc}", file=sys.stderr)
+        return 1
+    print(
+        "WORKER_RESOURCE_IDENTITY "
+        f"mode={'NEXUS_REGISTRY_REQUIRED' if resource_identity_freeze else 'LEGACY_EXPANSION'}"
+    )
+
     deps = WorkerDeps(
         owner=args.owner,
         # Remédiation revue PR#90 : le registre exact vérifié par le gate
@@ -268,6 +292,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest_digest=gate_result.manifest.manifest_fingerprint,
         authorization_mapping=getattr(readiness, "authorization_mapping", None),
         authorization_context=getattr(readiness, "authorization_context", None),
+        resource_identity_freeze=resource_identity_freeze,
     )
 
     max_iterations = 1 if args.once else args.max_iterations

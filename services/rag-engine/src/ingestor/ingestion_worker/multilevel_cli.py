@@ -27,6 +27,9 @@ from ingestor.ingestion_profiles.readiness_gate import (
 )
 from ingestor.ingestion_profiles.registry import load_profile_registry
 from ingestor.release_readiness import load_release_registry_file
+from ingestor.resource_identity_freeze import (
+    load_optional_pinned_resource_identity_freeze,
+)
 
 from .multilevel_runtime_authority import (
     add_multilevel_runtime_authority_arguments,
@@ -76,6 +79,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--release-registry-sha256", default=None)
     parser.add_argument("--revocation-registry-path", type=Path, default=None)
     parser.add_argument("--revocation-registry-sha256", default=None)
+    parser.add_argument("--resource-registry-snapshot-path", type=Path, default=None)
+    parser.add_argument(
+        "--resource-registry-snapshot-file-sha256",
+        type=_non_blank,
+        default=None,
+    )
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--max-iterations", type=_positive_int, default=None)
     parser.add_argument(
@@ -175,6 +184,10 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeAuthorityStartupError(
                 "loaded profile manifest digest differs from the signed authorization set"
             )
+        resource_identity_freeze = load_optional_pinned_resource_identity_freeze(
+            args.resource_registry_snapshot_path,
+            args.resource_registry_snapshot_file_sha256,
+        )
     except Exception as exc:
         # Frontière CLI fail-closed avant PostgreSQL. Le ``Exception`` final
         # nomme aussi les digests et fichiers malformés des autorités scellées.
@@ -198,6 +211,10 @@ def main(argv: list[str] | None = None) -> int:
             f"profile_manifest_sha256={args.profile_manifest_sha256} "
             f"declared_count={len(profiles)}"
         )
+    print(
+        "MULTILEVEL_WORKER_RESOURCE_IDENTITY "
+        f"mode={'NEXUS_REGISTRY_REQUIRED' if resource_identity_freeze else 'LEGACY_EXPANSION'}"
+    )
     deps = WorkerDeps(
         owner=args.owner,
         profile_registry=profiles,
@@ -209,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
         manifest_digest=authorities.placement_resolver.release_profile_manifest_digest,
         authorization_mapping=getattr(readiness, "authorization_mapping", None),
         authorization_context=getattr(readiness, "authorization_context", None),
+        resource_identity_freeze=resource_identity_freeze,
     )
     max_iterations = 1 if args.once else args.max_iterations
     iterations = 0

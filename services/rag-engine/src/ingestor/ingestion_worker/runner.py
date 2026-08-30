@@ -221,6 +221,11 @@ except (ImportError, ValueError):
         VerifiedPedagogicalPlacementResolver,
     )
 
+try:
+    from ingestor.resource_identity_freeze import ResourceIdentityFreeze
+except ImportError:
+    from resource_identity_freeze import ResourceIdentityFreeze  # type: ignore[no-redef]
+
 #: Seul type de job que cette boucle sait traiter — remédiation revue
 #: PR#90 (Cubic P2) : sans ce filtre explicite passé à ``claim_job``, un
 #: job d'un autre type (ex. un futur job "planner_run") aurait été réclamé
@@ -310,6 +315,10 @@ class WorkerDeps:
     #: Résolution artifact-bound commune aux Workers A/B. Son absence
     #: conserve le Classifier non vérifié, donc structurellement non routable.
     placement_resolver: VerifiedPedagogicalPlacementResolver | None = None
+    #: Après bootstrap, ce snapshot Nexus interdit tout mint local de
+    #: Resource/ResourceVersion. ``None`` conserve uniquement la phase
+    #: d'expansion rétrocompatible antérieure au cutover.
+    resource_identity_freeze: ResourceIdentityFreeze | None = None
 
     #: Worker délibérément incapable de publier.
     #:
@@ -639,11 +648,26 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         ),
     )
 
+    identity_freeze = deps.resource_identity_freeze
     if claim.resource_id is not None:
-        resource_id = claim.resource_id
+        resource_id = (
+            identity_freeze.require_resource_id(claim.resource_id)
+            if identity_freeze is not None
+            else claim.resource_id
+        )
     else:
+        issued_resource_id = (
+            identity_freeze.require_resource_id(payload.get("resource_id"))
+            if identity_freeze is not None
+            else None
+        )
         resource_id = create_resource(
-            conn, run_id=claim.run_id, dedup_key=payload["dedup_key"], scope=scope
+            conn,
+            run_id=claim.run_id,
+            dedup_key=payload["dedup_key"],
+            scope=scope,
+            resource_id=issued_resource_id,
+            resource_registry_issuance_required=identity_freeze is not None,
         )
         # Rattache resource_id au job dans le même commit : sans ça, une
         # reprise après crash (claim.resource_id lu depuis jobs.resource_id
@@ -714,6 +738,14 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             )
 
     if resource_state in (ResourceState.DISCOVERED, ResourceState.CANDIDATE):
+        artifact_id = (
+            identity_freeze.require_declared_resource_version_id(
+                resource_id=resource_id,
+                resource_version_id=payload.get("resource_version_id"),
+            )
+            if identity_freeze is not None
+            else uuid4()
+        )
         # La preuve de droits vient exclusivement de l'autorisation LOT41A
         # revérifiée ci-dessus, jamais d'un champ libre du payload opérateur.
         # Elle est propagée avant persist_artifact : une reprise après crash
@@ -729,6 +761,12 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             ``content`` avant que les octets ne quittent le buffer borné.
             """
             current_mapping = _current_authorization_mapping(deps)
+            if identity_freeze is not None:
+                identity_freeze.require_resource_version_id(
+                    resource_id=resource_id,
+                    resource_version_id=artifact_id,
+                    content_sha256=content_sha256,
+                )
             if current_mapping is not None:
                 require_postfetch_authorization_mapping(
                     mapping=current_mapping,
@@ -756,7 +794,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         artifact, _fetched, stored_transition = run_fetcher(
             conn,
             candidate=candidate,
-            artifact_id=uuid4(),
+            artifact_id=artifact_id,
             collected_at=now,
             expected_version=state_version,
             actor=deps.owner,
@@ -786,6 +824,12 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
             raise ResumeStateInconsistentError(
                 f"resource {resource_id} at state={resource_state} but no persisted "
                 "ArtifactRecord found (expected after Fetcher committed)"
+            )
+        if identity_freeze is not None:
+            identity_freeze.require_resource_version_id(
+                resource_id=resource_id,
+                resource_version_id=artifact.artifact_id,
+                content_sha256=artifact.sha256,
             )
 
     # Une reprise depuis STORED saute volontairement le réseau, mais jamais
