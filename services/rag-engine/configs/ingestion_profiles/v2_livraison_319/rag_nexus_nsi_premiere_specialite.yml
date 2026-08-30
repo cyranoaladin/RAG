@@ -1,0 +1,50 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_premiere
+  collection: rag_nexus_nsi_premiere_specialite
+  niveau: premiere
+  voie: generale
+  matiere: nsi
+  candidat: libre
+  audience:
+  - libre
+  - aefe
+  visibility: public
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Nsi — premiere (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Spécialité numérique et sciences informatiques en terminale (BO spécial n° 8 du
+  25 juillet 2019)
+- Programmation dynamique
+- 'Systèmes de type UNIX : le point de vue utilisateur'
+- Interaction client-serveur
+- Modèle d'architecture de von Neumann
+- 'Systèmes de type UNIX : structures de données et algorithmes'
+- Algorithmes gloutons
+- Types construits en Python
+- Manipulation de tables
+- Algorithme des k plus proches voisins
+- Pourquoi choisir la spécialité NSI ?
+- Plus court chemin dans un graphe
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

@@ -1,0 +1,50 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_terminale
+  collection: rag_nexus_svt_terminale_specialite
+  niveau: terminale
+  voie: generale
+  matiere: svt
+  candidat: libre
+  audience:
+  - libre
+  - aefe
+  visibility: public
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Svt — terminale (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Simclimat pour comprendre les variations climatiques passées
+- Cartographie et mesure des zones d'érosion sur le littoral français
+- 'La commande du mouvement volontaire : écouter et rapporter la parole de ses pairs'
+- La mucoviscidose – enregistrement vidéo ciblé sur la posture et la voix
+- Guide pour l'épreuve pratique en sciences de la vie et de la Terre (ECE)
+- La cohérence cardiaque – Préparer le contenu de mon Grand oral – Guide élève
+- dossier de presse « eutrophisation »
+- FAQ Grand Oral
+- De la plante sauvage à la plante domestiquée
+- Génétique et évolution
+- Évaluation par les pairs sur les notions du programme de première en spécialité
+  SVT
+- Télécharger l'infographie
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false
