@@ -1818,7 +1818,10 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
                 _servable_corpus_repository(),
             )
             collection = str(corpus.physical_collection)
-        _check_retrievable(collection, cfg, verified)
+        try:
+            _check_retrievable(collection, cfg, verified)
+        except HTTPException as exc:
+            raise HTTPException(status_code=403, detail="Forbidden") from exc
         scope = build_server_retrieval_scope(
             verified,
             collection=collection,
