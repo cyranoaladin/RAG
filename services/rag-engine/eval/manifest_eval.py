@@ -8,8 +8,6 @@ from collections.abc import Callable
 from datetime import datetime
 
 from metrics import empty_answer_rate, mrr, ndcg_at_k, percentile, recall_at_k
-
-MIN_RECALL_AT_20_PER_QUERY = 0.8
 from nexus_contracts import (
     RetrievalEvaluationEvidencePayloadV1,
     RetrievalEvaluationEvidenceV1,
@@ -20,6 +18,8 @@ from nexus_contracts import (
     ServableCorpusManifest,
     seal_retrieval_evaluation_evidence,
 )
+
+MIN_RECALL_AT_20_PER_QUERY = 0.8
 
 
 class ManifestEvaluationError(ValueError):
