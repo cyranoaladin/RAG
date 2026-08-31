@@ -224,7 +224,7 @@ except (ImportError, ValueError):
 try:
     from ingestor.resource_identity_freeze import ResourceIdentityFreeze
 except ImportError:
-    from resource_identity_freeze import ResourceIdentityFreeze  # type: ignore[no-redef]
+    from resource_identity_freeze import ResourceIdentityFreeze
 
 #: Seul type de job que cette boucle sait traiter — remédiation revue
 #: PR#90 (Cubic P2) : sans ce filtre explicite passé à ``claim_job``, un

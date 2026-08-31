@@ -27,7 +27,7 @@ try:
         ResourceIdentityFreezeError,
     )
 except ImportError:
-    from resource_identity_freeze import (  # type: ignore[no-redef]
+    from resource_identity_freeze import (
         RESOURCE_REGISTRY_ISSUANCE_REQUIRED,
         ResourceIdentityFreezeError,
     )

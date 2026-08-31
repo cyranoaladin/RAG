@@ -122,7 +122,10 @@ try:
     )
     from .security_v2 import SecurityRole, require_bff_service, require_role
     from .servable_corpus_api import configured_servable_corpus_repository
-    from .servable_corpus_index import ServableCorpusRepositoryError
+    from .servable_corpus_index import (
+        FilesystemServableCorpusRepository,
+        ServableCorpusRepositoryError,
+    )
 except ImportError as _exc:  # repli à plat, cause réelle préservée
     if not _missing_sibling(_exc):
         # Le module frère existe : c'est l'une de ses dépendances qui
@@ -201,6 +204,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         configured_servable_corpus_repository,
     )
     from servable_corpus_index import (  # type: ignore[no-redef]
+        FilesystemServableCorpusRepository,
         ServableCorpusRepositoryError,
     )
 
@@ -1410,7 +1414,7 @@ def _servable_corpus_repository():
 def _require_manifest_bound_corpus(
     payload: RetrievalRequest,
     verified: VerifiedInternalIdentity,
-    repository: object,
+    repository: FilesystemServableCorpusRepository,
 ) -> ServableCorpus:
     """Resolve a canonical corpus only when request, envelope and scope agree."""
 
