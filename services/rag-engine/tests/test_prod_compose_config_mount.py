@@ -369,6 +369,10 @@ def test_ingestion_worker_image_preserves_the_ingestor_package_boundary() -> Non
     ) in dockerfile
     assert "/app/ingestor/ingestion_agents/" in dockerfile
     assert "/app/ingestor/ingestion_control/" in dockerfile
+    assert (
+        "COPY services/rag-engine/src/ingestor/resource_identity_freeze.py "
+        "/app/ingestor/resource_identity_freeze.py"
+    ) in dockerfile
     assert 'CMD ["python", "-m", "ingestor.ingestion_worker.cli"]' in dockerfile
 
     assert compose["services"]["ingestion-worker"]["command"][:3] == [
@@ -381,6 +385,14 @@ def test_ingestion_worker_image_preserves_the_ingestor_package_boundary() -> Non
         "-m",
         "ingestor.ingestion_worker.publication_resume_cli",
     ]
+
+    multilevel = (
+        ENGINE_ROOT / "infra" / "Dockerfile.multilevel-worker-production"
+    ).read_text(encoding="utf-8")
+    assert (
+        "COPY services/rag-engine/src/ingestor/resource_identity_freeze.py "
+        "/app/services/rag-engine/src/ingestor/resource_identity_freeze.py"
+    ) in multilevel
 
 
 def test_v2_image_packages_the_authoritative_taxonomy() -> None:

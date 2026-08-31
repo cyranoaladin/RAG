@@ -23,6 +23,7 @@ from test_sign_production_readiness_manifest_cli import (  # noqa: E402
     PR_NUMBER,
     TEST_KEY_ID,
     TEST_SEED,
+    V2_NOW,
     _v2_material,
 )
 
@@ -31,9 +32,15 @@ from ingestor.ingestion_profiles import readiness_gate as gate  # noqa: E402
 
 @pytest.fixture(autouse=True)
 def _pin_v2_protocol(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FixtureClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return V2_NOW
+
     monkeypatch.setenv(
         gate.EXPECTED_PROTOCOL_ENV, "NEXUS-PRODUCTION-READINESS-V2"
     )
+    monkeypatch.setattr(gate, "datetime", FixtureClock)
 
 
 def _anchor() -> bytes:

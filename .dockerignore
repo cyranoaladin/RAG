@@ -43,6 +43,8 @@
 !services/rag-engine/src/ingestor/reranker_contract.py
 !services/rag-engine/src/ingestor/schema_readiness_v2.py
 !services/rag-engine/src/ingestor/security_v2.py
+!services/rag-engine/src/ingestor/servable_corpus_api.py
+!services/rag-engine/src/ingestor/servable_corpus_index.py
 
 # Required for Dockerfile.ingestion-worker (LOT44f/ADR-0031). Explicit
 # allowlist entries added for clarity/robustness (remédiation revue PR#90,
@@ -54,6 +56,7 @@
 # fragile for future maintainers — explicit entries remove the ambiguity.
 !services/rag-engine/src/ingestor/requirements.ingestion-worker.txt
 !services/rag-engine/src/ingestor/ssrf_guard.py
+!services/rag-engine/src/ingestor/resource_identity_freeze.py
 !services/rag-engine/src/ingestor/ingestion_control/
 !services/rag-engine/src/ingestor/ingestion_control/**
 !services/rag-engine/src/ingestor/ingestion_agents/

@@ -1,0 +1,144 @@
+{
+  "$defs": {
+    "RetrievalGoldenQueryV1": {
+      "additionalProperties": false,
+      "properties": {
+        "graded_relevance": {
+          "patternProperties": {
+            "^[A-Za-z0-9_.:-]+$": {
+              "ge": 0,
+              "type": "number"
+            }
+          },
+          "propertyNames": {
+            "maxLength": 200,
+            "minLength": 1
+          },
+          "title": "Graded Relevance",
+          "type": "object"
+        },
+        "id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Id",
+          "type": "string"
+        },
+        "intent": {
+          "enum": [
+            "remediation",
+            "revision",
+            "exercise",
+            "program",
+            "exam_prep",
+            "context"
+          ],
+          "title": "Intent",
+          "type": "string"
+        },
+        "must_not_return": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "title": "Must Not Return",
+          "type": "array"
+        },
+        "query": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "relevant_chunk_ids": {
+          "items": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Relevant Chunk Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "query",
+        "intent",
+        "relevant_chunk_ids",
+        "graded_relevance",
+        "must_not_return"
+      ],
+      "title": "RetrievalGoldenQueryV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-golden-suite-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "corpus_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Corpus Id",
+      "type": "string"
+    },
+    "corpus_version_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Corpus Version Id",
+      "type": "string"
+    },
+    "human_review_status": {
+      "const": "PENDING_HUMAN_REVIEW",
+      "title": "Human Review Status",
+      "type": "string"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Sha256",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "queries": {
+      "items": {
+        "$ref": "#/$defs/RetrievalGoldenQueryV1"
+      },
+      "minItems": 1,
+      "title": "Queries",
+      "type": "array"
+    },
+    "suite_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Suite Id",
+      "type": "string"
+    },
+    "suite_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Suite Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "suite_id",
+    "manifest_sha256",
+    "corpus_id",
+    "corpus_version_id",
+    "human_review_status",
+    "queries",
+    "suite_sha256"
+  ],
+  "title": "RetrievalGoldenSuiteV1",
+  "type": "object"
+}

@@ -18,7 +18,7 @@ PYTEST := $(PY) -m pytest
     test-integration-hybrid test-governance-pg smoke \
     obs-up obs-down obs-smoke obs-quickcheck obs-restart obs-status \
     compose-test-up compose-test-down print-tools dev compose-up compose-down compose-restart \
-    eval
+    eval export-resource-registry-bootstrap
 
 help:
 	@echo "Targets : venv | install-dev | lint | typecheck | test | test-integration | eval | smoke | obs-up | obs-smoke | obs-down | obs-restart | obs-status | compose-test-up | compose-test-down | print-tools | dev | compose-up | compose-down | compose-restart"
@@ -97,7 +97,22 @@ test-governance-pg: install
 	    tests/integration/test_lot44f_migration_rollback_rehearsal.py \
 	    tests/integration/test_lot44f_migration_upgrade_paths.py \
 	    tests/integration/test_lot44f_rollback_runner.py \
+	    tests/integration/test_resource_registry_bootstrap_inventory_pg.py \
 	    tests/integration/test_lot44e_worker_e2e.py
+
+export-resource-registry-bootstrap: install
+	@: "$${NEXUS_RESOURCE_EXPORT_DSN:?NEXUS_RESOURCE_EXPORT_DSN is required}"
+	@: "$${PRODUCER_COMMIT:?PRODUCER_COMMIT is required}"
+	@: "$${GENERATED_AT:?GENERATED_AT is required}"
+	@: "$${OUTPUT:?OUTPUT is required}"
+	@: "$${RELEASE_REGISTRY_PATH:?RELEASE_REGISTRY_PATH is required}"
+	@: "$${RELEASE_REGISTRY_SHA256:?RELEASE_REGISTRY_SHA256 is required}"
+	PYTHONPATH=src $(PY) scripts/build_resource_registry_bootstrap_inventory_cli.py \
+	    --producer-commit "$$PRODUCER_COMMIT" \
+	    --generated-at "$$GENERATED_AT" \
+	    --output "$$OUTPUT" \
+	    --release-registry-path "$$RELEASE_REGISTRY_PATH" \
+	    --release-registry-sha256 "$$RELEASE_REGISTRY_SHA256"
 
 # Smoke RAG deja present (si votre repo inclut infra/scripts/smoke.sh)
 smoke:

@@ -13,6 +13,7 @@ from nexus_contracts import (
     AccessContext,
     RetrievalScopeArtifact,
     RetrievalScopeArtifactV2,
+    RetrievalScopeArtifactV3,
     Rights,
 )
 
@@ -144,7 +145,7 @@ def effective_signed_collections(
         artifact.validate_envelope(envelope)
     except ValueError as exc:
         raise RetrievalScopeError("retrieval scope forbidden") from exc
-    if isinstance(artifact, RetrievalScopeArtifactV2):
+    if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         return (artifact.evidence_subject.collection,)
     matieres = set(envelope.identity.pedagogical_profile.matieres)
     effective = tuple(
@@ -193,7 +194,7 @@ def _validate_scope_catalogue_alignment(
     if not isinstance(domains, Mapping):
         raise RetrievalScopeError("retrieval scope forbidden")
 
-    if isinstance(artifact, RetrievalScopeArtifactV2):
+    if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         evidence_subjects = (artifact.evidence_subject,)
     else:
         evidence_subjects = artifact.subjects
@@ -214,7 +215,7 @@ def _validate_scope_catalogue_alignment(
         ):
             raise RetrievalScopeError("retrieval scope forbidden")
 
-        if isinstance(artifact, RetrievalScopeArtifactV2):
+        if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
             expected_dimensions = {
                 "matiere": subject.matiere,
                 "niveau": subject.niveau.value,
@@ -303,7 +304,7 @@ def _build_server_scope(
     if collection not in effective_signed_collections(verified):
         raise RetrievalScopeError("retrieval scope forbidden")
 
-    if isinstance(artifact, RetrievalScopeArtifactV2):
+    if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         subject = (
             artifact.evidence_subject
             if artifact.evidence_subject.collection == collection
@@ -319,7 +320,7 @@ def _build_server_scope(
 
     identity = envelope.identity
     profile = identity.pedagogical_profile
-    if isinstance(artifact, RetrievalScopeArtifactV2):
+    if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         evidence = artifact.evidence_subject
         dimensions = {
             "niveau": evidence.niveau.value,

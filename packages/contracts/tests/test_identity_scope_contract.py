@@ -151,6 +151,27 @@ def test_envelope_exp_cannot_outlive_identity() -> None:
         InternalIdentityEnvelope(**payload)
 
 
+def test_manifest_bound_envelope_requires_atomic_short_lived_hashes() -> None:
+    artifact = _artifact()
+    payload = _envelope_payload(artifact)
+    payload["iat"] = 1_785_320_370
+    payload["request_sha256"] = "a" * 64
+    payload["manifest_sha256"] = "b" * 64
+
+    envelope = InternalIdentityEnvelope(**payload)
+    assert envelope.request_sha256 == "a" * 64
+    assert envelope.manifest_sha256 == "b" * 64
+
+    del payload["manifest_sha256"]
+    with pytest.raises(ValidationError, match="provided together"):
+        InternalIdentityEnvelope(**payload)
+
+    payload["manifest_sha256"] = "b" * 64
+    payload["iat"] -= 1
+    with pytest.raises(ValidationError, match="30 seconds"):
+        InternalIdentityEnvelope(**payload)
+
+
 @pytest.mark.parametrize("allowed_collections", [[], ["collection_a", "collection_a"]])
 def test_envelope_requires_unique_non_empty_collections(
     allowed_collections: list[str],

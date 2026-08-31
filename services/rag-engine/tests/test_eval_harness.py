@@ -170,13 +170,13 @@ def test_suite_fingerprint_is_canonical_and_covers_judgments() -> None:
             """
 - id: nsi-001
   query: Question
-  intent: definition
+  intent: inconnu
   collection: rag_nexus_nsi_terminale_specialite
   niveau: premiere
   relevant_chunk_ids: [chunk-1]
   must_not_return: []
 """,
-            "collection incohérente",
+            "intent invalide",
         ),
         (
             """

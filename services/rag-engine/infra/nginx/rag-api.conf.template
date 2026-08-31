@@ -53,6 +53,20 @@ server {
     proxy_read_timeout 60s;
   }
 
+  location = /corpora/servable/v1 {
+    limit_req zone=api_v2 burst=40 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/corpora/servable/v1;
+    proxy_http_version 1.1;
+    proxy_read_timeout 15s;
+  }
+
+  location ~ ^/corpora/servable/v1/[0-9a-f]{64}$ {
+    limit_req zone=api_v2 burst=40 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT};
+    proxy_http_version 1.1;
+    proxy_read_timeout 15s;
+  }
+
   location = /chat {
     limit_req zone=api_v2 burst=40 nodelay;
     proxy_pass http://127.0.0.1:${NGINX_API_PORT}/chat;

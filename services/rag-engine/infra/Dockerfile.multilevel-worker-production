@@ -49,6 +49,7 @@ RUN pip install --no-cache-dir /tmp/nexus-contracts \
 # charger.
 COPY services/rag-engine/src/ingestor/__init__.py /app/services/rag-engine/src/ingestor/__init__.py
 COPY services/rag-engine/src/ingestor/ssrf_guard.py /app/services/rag-engine/src/ingestor/ssrf_guard.py
+COPY services/rag-engine/src/ingestor/resource_identity_freeze.py /app/services/rag-engine/src/ingestor/resource_identity_freeze.py
 COPY services/rag-engine/src/ingestor/ingestion_control/ /app/services/rag-engine/src/ingestor/ingestion_control/
 COPY services/rag-engine/src/ingestor/ingestion_agents/ /app/services/rag-engine/src/ingestor/ingestion_agents/
 COPY services/rag-engine/src/ingestor/ingestion_profiles/ /app/services/rag-engine/src/ingestor/ingestion_profiles/

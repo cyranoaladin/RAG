@@ -121,6 +121,24 @@ def test_multilevel_runtime_parser_builds_every_digest_bound_input() -> None:
     assert inputs.repository_root == Path("/repo")
 
 
+def test_multilevel_worker_accepts_atomic_resource_registry_cutover() -> None:
+    parser = multilevel_cli._build_arg_parser()
+    args = parser.parse_args(
+        [
+            *_worker_a_args(),
+            "--resource-registry-snapshot-path",
+            "/proof/resource-registry.json",
+            "--resource-registry-snapshot-file-sha256",
+            SHA,
+        ]
+    )
+
+    assert args.resource_registry_snapshot_path == Path(
+        "/proof/resource-registry.json"
+    )
+    assert args.resource_registry_snapshot_file_sha256 == SHA
+
+
 @pytest.mark.parametrize(
     "required_option",
     [

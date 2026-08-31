@@ -1,0 +1,37 @@
+{
+  "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-error.json",
+  "additionalProperties": false,
+  "description": "Stable machine-readable retrieval failure without provider detail.",
+  "properties": {
+    "code": {
+      "enum": [
+        "NOT_CONFIGURED",
+        "NO_RESULTS",
+        "RUNTIME_UNAVAILABLE",
+        "TIMEOUT",
+        "INVALID_MANIFEST",
+        "MANIFEST_VERSION_MISMATCH"
+      ],
+      "title": "Code",
+      "type": "string"
+    },
+    "request_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Request Id",
+      "type": "string"
+    },
+    "retryable": {
+      "title": "Retryable",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "code",
+    "request_id",
+    "retryable"
+  ],
+  "title": "RetrievalError",
+  "type": "object"
+}

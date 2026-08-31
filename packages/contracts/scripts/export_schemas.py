@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
+import tomllib
 from pathlib import Path
 from typing import TypeVar
 
@@ -12,6 +14,9 @@ from pydantic import BaseModel
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 CONTRACT_VERSION = "0.5"
+PACKAGE_VERSION = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"][
+    "version"
+]
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
@@ -23,8 +28,16 @@ from nexus_contracts import (  # noqa: E402
     InternalIdentityEnvelope,
     PilotRetrievalScopeArtifact,
     RetrievalScopeArtifactV2,
+    RetrievalScopeArtifactV3,
+    RetrievalError,
+    RetrievalEvaluationEvidenceV1,
+    RetrievalGoldenSuiteV1,
     RetrievalRequest,
     RetrievalResponse,
+    ResourceRegistryBootstrap,
+    ResourceRegistrySnapshot,
+    ServableCorpusIndex,
+    ServableCorpusManifest,
     ReviewDecisionPayload,
     ReviewDecisionRequest,
     ReviewDecisionResponse,
@@ -37,6 +50,13 @@ Model = TypeVar("Model", bound=BaseModel)
 SCHEMAS: dict[str, type[BaseModel]] = {
     "retrieval-request.json": RetrievalRequest,
     "retrieval-response.json": RetrievalResponse,
+    "retrieval-error.json": RetrievalError,
+    "retrieval-evaluation-evidence-v1.json": RetrievalEvaluationEvidenceV1,
+    "retrieval-golden-suite-v1.json": RetrievalGoldenSuiteV1,
+    "resource-registry-bootstrap-v1.json": ResourceRegistryBootstrap,
+    "resource-registry-snapshot-v1.json": ResourceRegistrySnapshot,
+    "servable-corpus-index-v1.json": ServableCorpusIndex,
+    "servable-corpus-manifest-v1.json": ServableCorpusManifest,
     "review-decision-payload.json": ReviewDecisionPayload,
     "review-decision-request.json": ReviewDecisionRequest,
     "review-decision-response.json": ReviewDecisionResponse,
@@ -49,6 +69,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "internal-identity-envelope.json": InternalIdentityEnvelope,
     "pilot-retrieval-scope-artifact.json": PilotRetrievalScopeArtifact,
     "retrieval-scope-artifact-v2.json": RetrievalScopeArtifactV2,
+    "retrieval-scope-artifact-v3.json": RetrievalScopeArtifactV3,
     "search-payload.json": SearchPayload,
 }
 
@@ -59,15 +80,47 @@ def schema_bytes(filename: str, model: type[Model]) -> bytes:
     return (json.dumps(schema, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
 
 
+def lock_bytes(schemas: dict[str, bytes]) -> bytes:
+    fixture = ROOT / "fixtures" / "internal-identity-envelope-v1.json"
+    fixture_bytes = fixture.read_bytes()
+    lock = {
+        "packageVersion": PACKAGE_VERSION,
+        "fixtures": {
+            fixture.name: {
+                "sha256": hashlib.sha256(fixture_bytes).hexdigest(),
+            }
+        },
+        "schemas": {
+            filename: {
+                "$id": (
+                    "https://nexusreussite.academy/contracts/"
+                    f"v{CONTRACT_VERSION}/{filename}"
+                ),
+                "sha256": hashlib.sha256(content).hexdigest(),
+            }
+            for filename, content in sorted(schemas.items())
+        },
+    }
+    return (json.dumps(lock, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+
+
 def export(output: Path, *, check: bool) -> int:
-    expected = {filename: schema_bytes(filename, model) for filename, model in SCHEMAS.items()}
+    expected = {
+        filename: schema_bytes(filename, model) for filename, model in SCHEMAS.items()
+    }
+    expected["contracts.lock.json"] = lock_bytes(expected)
     if check:
         if not output.is_dir():
             return 1
-        return int(any(
-            not (output / filename).is_file() or (output / filename).read_bytes() != content
-            for filename, content in expected.items()
-        ))
+        actual = {path.name for path in output.glob("*.json")}
+        return int(
+            actual != set(expected)
+            or any(
+                not (output / filename).is_file()
+                or (output / filename).read_bytes() != content
+                for filename, content in expected.items()
+            )
+        )
     output.mkdir(parents=True, exist_ok=True)
     for filename, content in expected.items():
         (output / filename).write_bytes(content)
