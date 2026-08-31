@@ -82,7 +82,38 @@ histoire_geo (4)          ET  hggsp (2)
 Vingt-quatre identifiants pour un nombre de matières réelles inférieur. Aucune des quatre
 paires n'est réconciliée par un alias déclaré ; ce sont quatre matières nommées deux fois.
 
-## Le constat qui gouverne le go-live
+## ~~Le constat qui gouverne le go-live~~ — **RETIRÉ, la mesure était un substitut**
+
+> **Retiré le 2026-09-01.** La section ci-dessous conclut qu'un élève atteint zéro chunk.
+> **C'est faux.** Elle compte `rag_chunks.visibility`, qui n'est pas le prédicat que la
+> récupération applique.
+>
+> `retrieval_pg_v2.py:93` — le filtre de portée est un OU. La branche gouvernée exige
+> `matched_placement.placement_id IS NOT NULL`, et cette jointure LATERAL applique
+> `placement.visibility = ANY(...)`. Elle **n'interroge jamais `chunk.visibility`**.
+>
+> ```
+> chunks avec artifact_id NULL ...................................    0
+> chunks empruntant donc la branche gouvernée .................... 8 324
+> chunks avec ≥1 placement actif/courant/relu et visibility=public 8 324
+> rag_artifact_placements.visibility ............................. public ×486
+> ```
+>
+> La liste `('public',)` d'un élève est satisfaite **par le placement**. La valeur
+> `internal` de `rag_chunks.visibility` est une copie désynchronisée — inerte, non
+> bloquante. Le LOT 3 doit toujours la supprimer, pour une autre raison.
+>
+> **Ce qui reste ouvert :** le prédicat de placement exige la concordance de onze champs de
+> portée. Je n'ai levé que la visibilité. Une requête de bout en bout avec un jeton d'élève
+> reste à faire.
+>
+> **Le contrôle à deux témoins n'a pas protégé** : `student` 0 et `teacher` 8 324
+> interrogeaient tous deux la mauvaise colonne. Un instrument qui discrimine peut
+> discriminer sur la mauvaise grandeur.
+
+### Section d'origine, conservée
+
+
 
 ```
 visibility en base   internal : 8 324 / 8 324     public : 0
