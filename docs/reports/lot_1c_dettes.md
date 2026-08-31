@@ -2,7 +2,27 @@
 
 Échecs constatés pendant le lot, **non causés par lui**, antériorité prouvée.
 
-## 1. Cinq tests de `test_build_production_profile_release.py`
+## 1. ~~Cinq tests de `test_build_production_profile_release.py`~~ — **DETTE RETIRÉE**
+
+> **Retirée le 2026-08-31.** Ces cinq échecs n'existent pas sur cette branche : la suite
+> `rag-pedago` y rend **2820 passed, 0 failed**. Ils étaient produits par les **données de
+> release non committées de l'arbre de travail** — onze sujets et 486 artefacts là où
+> `ffc1bae` en déclare dix-huit et vingt-six. La branche porte les données de `ffc1bae`,
+> et les cinq s'évanouissent.
+>
+> **Le classement était faux.** Je les avais tracés comme dette, c'est-à-dire comme un
+> échec du dépôt ; c'était un échec de mon plan de travail. Une dette tracée ne se révise
+> jamais : celle-ci aurait survécu à sa cause.
+>
+> **La règle qui l'aurait évité :** une dette porte sa base, comme un diff. « Cinq tests
+> échouent » n'est pas un fait ; « cinq tests échouent avec ce jeu de données, à ce
+> commit » en est un. Le constat d'origine est conservé ci-dessous, barré, parce qu'une
+> dette annulée doit dire pourquoi — sinon la prochaine occurrence sera retracée à
+> l'identique.
+
+### Constat d'origine, conservé
+
+
 
 ```
 test_registered_release_is_the_only_active_release_and_exact

@@ -130,7 +130,18 @@ AUTHORIZATION_ID = "sign-tool-test-authz-v1"
 #: compare l'autorisation à ``datetime.now(UTC)``).
 FAR_PAST = "2020-01-01T00:00:00Z"
 FAR_FUTURE = "2099-01-01T00:00:00Z"
-V2_NOW = datetime(2026, 8, 23, 12, 0, tzinfo=UTC)
+#: Ancrée sur l'horloge RÉELLE, jamais sur une date figée.
+#:
+#: La vérification de production lit `datetime.now(UTC)` — `readiness_gate.py`
+#: lignes 407 et 630 — et n'accepte aucune horloge injectée. Une borne figée
+#: confrontée à une horloge qui avance n'est pas une constante de test : c'est une
+#: échéance. Celle-ci est arrivée le 2026-08-30 à 12:00 UTC, `V2_NOW + 7 jours`, et
+#: a fait échouer quatre tests dans trois fichiers sans qu'aucun commit n'y touche.
+#:
+#: La règle est : les deux bornes sont figées, ou aucune. Figer l'horloge de
+#: vérification est impossible ici puisqu'elle vit dans le code de production ; on
+#: ne fige donc aucune borne, et toutes les dates de la fixture restent relatives.
+V2_NOW = datetime.now(UTC)
 
 
 def _write(path: Path, content: bytes = b"content") -> Path:
