@@ -8,6 +8,8 @@ from collections.abc import Callable
 from datetime import datetime
 
 from metrics import empty_answer_rate, mrr, ndcg_at_k, percentile, recall_at_k
+
+MIN_RECALL_AT_20_PER_QUERY = 0.8
 from nexus_contracts import (
     RetrievalEvaluationEvidencePayloadV1,
     RetrievalEvaluationEvidenceV1,
@@ -159,7 +161,7 @@ def evaluate_manifest_bound_suite(
         "latency_ms_p95": percentile(latencies, 0.95),
     }
     automated_gate_pass = bool(
-        metrics["recall_at_20"] > 0
+        all(value >= MIN_RECALL_AT_20_PER_QUERY for value in recall_20)
         and metrics["filter_leak_rate"] == 0
         and metrics["citation_support"] == 1
         and metrics["empty_answer_rate"] == 0

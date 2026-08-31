@@ -79,7 +79,8 @@ def _manifest():
                                 "resource_version_id": RESOURCE_VERSION_ID,
                                 "content_sha256": SHA_A,
                                 "chunks": [
-                                    {"chunk_id": "chunk-001", "locator": {"page": 1}}
+                                    {"chunk_id": "chunk-001", "locator": {"page": 1}},
+                                    {"chunk_id": "chunk-002", "locator": {"page": 2}},
                                 ],
                             }
                         ],
@@ -162,6 +163,29 @@ def test_manifest_bound_evaluation_uses_no_course_or_collection_mapping() -> Non
     assert evidence.golden_suite_sha256 == _suite().suite_sha256
     assert evidence.automated_gate_pass is True
     assert evidence.promotion_status == "BLOCKED_PENDING_HUMAN_REVIEW"
+
+
+def test_manifest_bound_evaluation_fails_when_any_query_misses_recall_threshold() -> None:
+    first = _suite().queries[0].model_dump(mode="json")
+    second = {**first, "id": "Q002", "query": "Expliquer la raison d'une suite"}
+    suite = _suite(queries=[first, second])
+
+    evidence = evaluate_manifest_bound_suite(
+        suite=suite,
+        manifest=_manifest(),
+        index_sha256=SHA_A,
+        producer_commit=SHA_A[:40],
+        generated_at=NOW,
+        retrieve=lambda query, _corpus: _response()
+        if query.id == "Q001"
+        else _response(chunk_id="chunk-002", locator={"page": 2}),
+        embedding_model="intfloat/multilingual-e5-large",
+        reranker_model="cross-encoder/ms-marco-MiniLM-L-6-v2",
+        top_k=20,
+    )
+
+    assert evidence.metrics.recall_at_20 == pytest.approx(0.5)
+    assert evidence.automated_gate_pass is False
 
 
 @pytest.mark.parametrize(
