@@ -15,6 +15,7 @@ from ingestor import resource_registry_bootstrap_cli
 
 SHA_A = "a" * 64
 SHA_B = "b" * 64
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
 
 
 def _inventory():
@@ -195,3 +196,15 @@ def test_cli_requires_pinned_release_registry(
                 str(tmp_path / "inventory.json"),
             ]
         )
+
+
+def test_make_export_target_passes_the_pinned_release_registry() -> None:
+    makefile = (ENGINE_ROOT / "Makefile").read_text(encoding="utf-8")
+    target = makefile.split("export-resource-registry-bootstrap: install", 1)[1].split(
+        "\n# Smoke", 1
+    )[0]
+
+    assert "RELEASE_REGISTRY_PATH is required" in target
+    assert "RELEASE_REGISTRY_SHA256 is required" in target
+    assert '--release-registry-path "$$RELEASE_REGISTRY_PATH"' in target
+    assert '--release-registry-sha256 "$$RELEASE_REGISTRY_SHA256"' in target

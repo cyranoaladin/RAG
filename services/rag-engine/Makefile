@@ -105,10 +105,14 @@ export-resource-registry-bootstrap: install
 	@: "$${PRODUCER_COMMIT:?PRODUCER_COMMIT is required}"
 	@: "$${GENERATED_AT:?GENERATED_AT is required}"
 	@: "$${OUTPUT:?OUTPUT is required}"
+	@: "$${RELEASE_REGISTRY_PATH:?RELEASE_REGISTRY_PATH is required}"
+	@: "$${RELEASE_REGISTRY_SHA256:?RELEASE_REGISTRY_SHA256 is required}"
 	PYTHONPATH=src $(PY) scripts/build_resource_registry_bootstrap_inventory_cli.py \
 	    --producer-commit "$$PRODUCER_COMMIT" \
 	    --generated-at "$$GENERATED_AT" \
-	    --output "$$OUTPUT"
+	    --output "$$OUTPUT" \
+	    --release-registry-path "$$RELEASE_REGISTRY_PATH" \
+	    --release-registry-sha256 "$$RELEASE_REGISTRY_SHA256"
 
 # Smoke RAG deja present (si votre repo inclut infra/scripts/smoke.sh)
 smoke:
