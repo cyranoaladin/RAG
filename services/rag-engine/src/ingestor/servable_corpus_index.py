@@ -39,11 +39,6 @@ def build_servable_corpus_index(
     if previous_manifest is not None:
         if previous_retire_at is None or previous_retire_at <= generated_at:
             raise ServableCorpusRepositoryError("previous manifest retire_at is invalid")
-        if (
-            previous_manifest.resource_registry_sha256
-            != active_manifest.resource_registry_sha256
-        ):
-            raise ServableCorpusRepositoryError("resource registry digest differs")
     supported = [
         SupportedManifest(
             manifest_version=active_manifest.manifest_version,
@@ -103,10 +98,8 @@ def publish_servable_corpus_bundle(
     required = {item.manifest_sha256 for item in index.supported_manifests}
     if set(manifest_by_digest) != required:
         raise ServableCorpusRepositoryError("supported manifest publication set differs")
-    if any(
-        item.resource_registry_sha256 != index.resource_registry_sha256
-        for item in manifest_by_digest.values()
-    ):
+    active_manifest = manifest_by_digest[index.active_manifest_sha256]
+    if active_manifest.resource_registry_sha256 != index.resource_registry_sha256:
         raise ServableCorpusRepositoryError("resource registry digest differs")
     for digest, manifest in sorted(manifest_by_digest.items()):
         content = canonical_model_bytes(manifest) + b"\n"
@@ -178,7 +171,10 @@ class FilesystemServableCorpusRepository:
         assert isinstance(manifest, ServableCorpusManifest)
         if manifest.manifest_sha256 != manifest_sha256:
             raise ServableCorpusRepositoryError("manifest digest differs")
-        if manifest.resource_registry_sha256 != index.resource_registry_sha256:
+        if (
+            manifest_sha256 == index.active_manifest_sha256
+            and manifest.resource_registry_sha256 != index.resource_registry_sha256
+        ):
             raise ServableCorpusRepositoryError("resource registry digest differs")
         return manifest
 

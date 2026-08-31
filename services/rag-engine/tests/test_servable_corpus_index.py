@@ -101,17 +101,36 @@ def test_index_supports_active_and_unretired_n_minus_one_only() -> None:
     assert index.index_sha256 == index.compute_sha256()
 
 
-def test_index_rejects_registry_drift_or_invalid_retirement() -> None:
+def test_index_preserves_n_minus_one_with_its_immutable_registry_binding(
+    tmp_path: Path,
+) -> None:
+    active = _manifest(version="2026-08-30.2", registry_sha=SHA_A)
+    previous = _manifest(version="2026-08-30.1", registry_sha=SHA_B)
+    index = build_servable_corpus_index(
+        active_manifest=active,
+        previous_manifest=previous,
+        previous_retire_at=NOW + timedelta(days=7),
+        generated_at=NOW,
+        producer_repository="cyranoaladin/RAG",
+        producer_commit=SHA_A[:40],
+    )
+
+    publish_servable_corpus_bundle(tmp_path, index=index, manifests=[active, previous])
+    repository = FilesystemServableCorpusRepository(
+        directory=tmp_path,
+        expected_index_sha256=index.index_sha256,
+        now=lambda: NOW,
+    )
+
+    assert index.resource_registry_sha256 == active.resource_registry_sha256
+    assert (
+        repository.manifest(previous.manifest_sha256).resource_registry_sha256
+        == previous.resource_registry_sha256
+    )
+
+
+def test_index_rejects_invalid_retirement() -> None:
     active = _manifest(version="2026-08-30.2")
-    with pytest.raises(ServableCorpusRepositoryError, match="registry"):
-        build_servable_corpus_index(
-            active_manifest=active,
-            previous_manifest=_manifest(version="2026-08-30.1", registry_sha=SHA_B),
-            previous_retire_at=NOW + timedelta(days=7),
-            generated_at=NOW,
-            producer_repository="cyranoaladin/RAG",
-            producer_commit=SHA_A[:40],
-        )
     with pytest.raises(ServableCorpusRepositoryError, match="retire"):
         build_servable_corpus_index(
             active_manifest=active,
