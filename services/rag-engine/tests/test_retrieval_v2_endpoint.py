@@ -372,7 +372,7 @@ def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         endpoint,
         "_require_retrieval_identity",
-        lambda _request, *, endpoint: verified,
+        lambda _request, *, endpoint, payload=None: verified,
     )
     monkeypatch.setattr(
         endpoint,
