@@ -109,9 +109,14 @@ def publish_servable_corpus_bundle(
     ):
         raise ServableCorpusRepositoryError("resource registry digest differs")
     for digest, manifest in sorted(manifest_by_digest.items()):
+        content = canonical_model_bytes(manifest) + b"\n"
         _write_immutable(
             root / "manifests" / f"{digest}.json",
-            canonical_model_bytes(manifest) + b"\n",
+            content,
+        )
+        _write_immutable(
+            root / "manifests" / f"{digest}.aria-rag-manifest",
+            content,
         )
     _write_immutable(
         root / "servable-corpus-index-v1.json",

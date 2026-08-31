@@ -164,6 +164,21 @@ def test_repository_resolves_digest_corpus_version_and_retirement(tmp_path: Path
         retired.manifest(previous.manifest_sha256)
 
 
+def test_publication_writes_byte_identical_legacy_and_nexus_runtime_manifest_names(
+    tmp_path: Path,
+) -> None:
+    _index, active, previous = _publish(tmp_path)
+
+    for manifest in (active, previous):
+        legacy = tmp_path / "manifests" / f"{manifest.manifest_sha256}.json"
+        nexus_runtime = (
+            tmp_path / "manifests" / f"{manifest.manifest_sha256}.aria-rag-manifest"
+        )
+        assert legacy.is_file()
+        assert nexus_runtime.is_file()
+        assert nexus_runtime.read_bytes() == legacy.read_bytes()
+
+
 def test_repository_refuses_unknown_n_minus_two_tamper_and_overwrite(tmp_path: Path) -> None:
     index, active, previous = _publish(tmp_path)
     repository = FilesystemServableCorpusRepository(
@@ -179,6 +194,22 @@ def test_repository_refuses_unknown_n_minus_two_tamper_and_overwrite(tmp_path: P
     with pytest.raises(ServableCorpusRepositoryError, match="manifest"):
         repository.manifest(active.manifest_sha256)
 
+    with pytest.raises(ServableCorpusRepositoryError, match="immutable"):
+        publish_servable_corpus_bundle(
+            tmp_path,
+            index=index,
+            manifests=[active, previous],
+        )
+
+    active_path.write_bytes(
+        tmp_path.joinpath(
+            "manifests", f"{active.manifest_sha256}.aria-rag-manifest"
+        ).read_bytes()
+    )
+    runtime_path = (
+        tmp_path / "manifests" / f"{active.manifest_sha256}.aria-rag-manifest"
+    )
+    runtime_path.write_text("{}\n", encoding="utf-8")
     with pytest.raises(ServableCorpusRepositoryError, match="immutable"):
         publish_servable_corpus_bundle(
             tmp_path,

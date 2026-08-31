@@ -80,6 +80,15 @@ Ordre de livraison :
 4. déployer et vérifier les endpoints RAG rétrocompatibles ;
 5. seulement ensuite déployer Nexus avec les digests pinés.
 
+Pendant l'expansion, chaque manifeste est publié avec les **mêmes octets** sous
+deux noms digest-addressés : `manifests/<sha256>.json` pour le runtime RAG et
+les Nexus déjà déployés, puis
+`manifests/<sha256>.aria-rag-manifest` pour le loader Nexus #200. Le second nom
+est un alias de transport immuable, pas une nouvelle source documentaire. Une
+différence d'octets ou une tentative de réécriture de l'un des deux noms fait
+échouer la publication. Le nom `.json` reste disponible jusqu'au cutover et au
+soak coordonnés ; le RAG doit donc être déployé et vérifié avant Nexus #200.
+
 Une incompatibilité de package, schéma, Registry ou manifeste rend la
 capability RAG indisponible. Elle n'autorise ni collection historique implicite
 ni génération non groundée silencieuse.

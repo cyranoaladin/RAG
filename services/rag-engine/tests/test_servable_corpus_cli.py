@@ -157,6 +157,13 @@ def test_cli_builder_publishes_digest_addressed_manifest_and_pinned_index(
     assert ServableCorpusManifest.model_validate_json(
         (output / "manifests" / f"{manifest.manifest_sha256}.json").read_bytes()
     ) == manifest
+    runtime_path = (
+        output / "manifests" / f"{manifest.manifest_sha256}.aria-rag-manifest"
+    )
+    assert ServableCorpusManifest.model_validate_json(runtime_path.read_bytes()) == manifest
+    assert runtime_path.read_bytes() == (
+        output / "manifests" / f"{manifest.manifest_sha256}.json"
+    ).read_bytes()
     assert index.resource_registry_sha256 == manifest.resource_registry_sha256
 
 
