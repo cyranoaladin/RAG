@@ -1,4 +1,50 @@
-# LOT 1 — les 167 placements manquants : ni arrêt, ni choix d'ingestion
+# LOT 1 — ~~les 167 placements manquants~~ : **RIEN NE MANQUE**
+
+> **Rapport RETIRÉ le 2026-09-01, le jour même de sa publication.** Il mesurait
+> `rag_chunks`, une **copie dénormalisée**, au lieu de `rag_artifact_placements`, la table
+> d'autorité. Confrontée à l'autorité, la release concorde exactement :
+>
+> ```
+> placements déclarés par la release ........ 486
+> lignes de rag_artifact_placements ......... 486
+> déclarés absents de la table d'autorité ...   0
+> dans la table mais non déclarés ...........   0
+> ENSEMBLES IDENTIQUES ...................... vrai
+> ```
+>
+> **Il n'y a ni 167 placements manquants, ni 4 079 chunks manquants.** Le corpus est
+> complet.
+>
+> Et la récupération les sert déjà : la branche gouvernée de `retrieval_pg_v2` joint
+> `rag_artifact_placements` par `LATERAL`, et le décompte par collection le montre —
+>
+> ```
+> collection                              stockés   atteignables par placement
+> hlp_terminale_specialite                     46        1 612
+> hggsp_terminale_specialite                  732        1 874
+> nsi_terminale_specialite                    430          904
+> ses_terminale_specialite                    313          804
+> svt_terminale_specialite                    690        1 096
+> TOTAL                                     8 324       12 403
+> ```
+>
+> Les 86 documents de HLP terminale ne sont pas « rangés en première » : ils sont stockés
+> une fois et **servis dans les deux collections**. C'est le modèle correct — une donnée qui
+> ne se duplique pas ne peut pas diverger — et il est **déjà en place**.
+>
+> **Ce qui reste vrai du rapport ci-dessous :** la description des contraintes de schéma.
+> `UNIQUE (artifact_id, chunk_index)` empêche bien de dupliquer les lignes de chunks, et
+> c'est délibéré et sain. **Ce qui est faux, c'est la conséquence que j'en tirais** : cette
+> contrainte n'empêche pas le multi-placement, elle empêche la duplication des vecteurs, et
+> la jointure fournit le reste.
+>
+> **Ce que l'erreur révèle :** `rag_chunks.collection` et `rag_chunks.visibility` sont deux
+> copies dénormalisées, toutes deux périmées, toutes deux contournées par la branche
+> gouvernée. Le LOT 3 doit les supprimer — non parce qu'elles bloquent, mais parce qu'elles
+> **font mentir toute mesure qui les interroge**. Elles ont produit trois de mes constats
+> faux en une seule journée.
+
+## Section d'origine, conservée
 
 > Question posée : les 167 placements déclarés et absents de la base sont-ils un arrêt de
 > l'ingestion, ou un choix de ne matérialiser qu'un placement par contenu ?
