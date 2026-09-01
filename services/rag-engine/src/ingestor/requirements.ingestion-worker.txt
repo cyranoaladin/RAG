@@ -15,7 +15,7 @@ psycopg-pool==3.2.1
 httpx==0.27.2
 PyYAML==6.0.3
 pydantic==2.13.4
-pypdf==4.2.0
+pypdf==6.14.2
 numpy==1.26.4
 torch==2.4.1+cpu
 transformers==4.44.2

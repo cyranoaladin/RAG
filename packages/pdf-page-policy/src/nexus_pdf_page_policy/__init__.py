@@ -40,6 +40,34 @@ from pypdf.generic import ContentStream
 #: une preuve qui cite celui-ci cite exactement ce prédicat.
 POLICY_ID = "NEXUS-PDF-PAGE-POLICY-V1"
 
+#: Le runtime pypdf CANONIQUE de la plateforme — une seule autorité, partagée
+#: par le producteur de release (verrou LOT 1b, D-41) et par le worker qui
+#: extrait à l'ingestion. Mesuré le 2026-09-02 sur les 320 PDF de la production
+#: visée : 4.2.0 et 6.14.2 rendent le même `page_count` et le même verdict de
+#: pages vides, mais un texte différent sur 319 documents sur 320 — les chunks
+#: en dépendent, donc la reproductibilité de la release aussi. La version
+#: retenue est celle sous laquelle les chunks servis ont été produits.
+CANONICAL_PYPDF_VERSION = "6.14.2"
+
+
+class CanonicalRuntimeError(RuntimeError):
+    """L'interpréteur n'est pas le runtime déclaré : on ne mesure pas, on refuse."""
+
+
+def require_canonical_pypdf() -> str:
+    """Refuser d'extraire, de sceller ou d'ingérer hors du runtime déclaré."""
+    try:
+        import pypdf as _pypdf
+    except ImportError as exc:  # pragma: no cover - dépend de l'environnement
+        raise CanonicalRuntimeError("pypdf est absent de cet interpréteur") from exc
+    version = str(_pypdf.__version__)
+    if version != CANONICAL_PYPDF_VERSION:
+        raise CanonicalRuntimeError(
+            f"pypdf {version} n'est pas le runtime déclaré ({CANONICAL_PYPDF_VERSION}) ; "
+            "le découpage des chunks en dépend"
+        )
+    return version
+
 PAGE_REFUS_IMAGE = "PAGE_IMAGE_NON_LISIBLE"
 PAGE_REFUS_TEXTE = "PAGE_TEXTE_NON_DECODABLE"
 PAGE_REFUS_TRACE = "PAGE_TRACE_VECTORIEL"
@@ -196,6 +224,8 @@ def policy_source_sha256() -> str:
 
 
 __all__ = [
+    "CANONICAL_PYPDF_VERSION",
+    "CanonicalRuntimeError",
     "MOTIFS_DE_REFUS",
     "PAGE_INSPECTION_ECHOUEE",
     "PAGE_REFUS_IMAGE",
@@ -208,4 +238,5 @@ __all__ = [
     "inspecter_structure",
     "motif_de_refus_page",
     "policy_source_sha256",
+    "require_canonical_pypdf",
 ]

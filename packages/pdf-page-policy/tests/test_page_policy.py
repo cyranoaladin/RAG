@@ -198,3 +198,21 @@ class TestProvenance:
         digest = policy_source_sha256()
         assert len(digest) == 64
         assert digest == hashlib.sha256(Path(politique.__file__).read_bytes()).hexdigest()
+
+
+class TestRuntimeCanonique:
+    def test_le_runtime_canonique_est_une_seule_autorite(self) -> None:
+        assert politique.CANONICAL_PYPDF_VERSION == "6.14.2"
+
+    def test_le_bon_runtime_est_accepte(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import pypdf
+
+        monkeypatch.setattr(pypdf, "__version__", politique.CANONICAL_PYPDF_VERSION)
+        assert politique.require_canonical_pypdf() == politique.CANONICAL_PYPDF_VERSION
+
+    def test_un_autre_runtime_est_refuse(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import pypdf
+
+        monkeypatch.setattr(pypdf, "__version__", "4.2.0")
+        with pytest.raises(politique.CanonicalRuntimeError, match="4.2.0"):
+            politique.require_canonical_pypdf()

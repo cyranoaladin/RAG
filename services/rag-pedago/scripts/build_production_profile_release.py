@@ -83,7 +83,7 @@ TARGET_TOKENS = 384
 #: La garde ne demande PAS que tous les runtimes concordent — l'image de
 #: l'ingestor ne porte aucun pypdf et n'en portera jamais, elle n'extrait pas.
 #: Elle demande : mon interpréteur est-il celui qui est déclaré ?
-CANONICAL_PYPDF_VERSION = "6.14.2"
+CANONICAL_PYPDF_VERSION = page_policy.CANONICAL_PYPDF_VERSION
 
 
 def require_canonical_runtime() -> str:
@@ -123,8 +123,11 @@ DRIVE_MAPPING_PATH = (
     REPOSITORY_ROOT
     / "docs/reports/evidence-index/drive-snapshot/drive_snapshot_mapping_20260815.json"
 )
+#: Registre de contenus successeur, dérivé par exécution du registre du 14/08
+#: (`deriver_content_ledger.py`, provenance à côté). Le registre du 14/08 reste
+#: à son état attesté et n'est plus lu ici.
 CONTENT_LEDGER_PATH = (
-    REPOSITORY_ROOT / "docs/reports/evidence-index/content_ledger_20260814.jsonl"
+    REPOSITORY_ROOT / "docs/reports/evidence-index/content_ledger_20260902.jsonl"
 )
 PLACEMENT_LEDGER_PATH = (
     REPOSITORY_ROOT / "docs/reports/evidence-index/placement_ledger_20260814.jsonl"
