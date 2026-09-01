@@ -36,8 +36,14 @@ def _ledger_marker() -> tuple[bool, int | None]:
 
 
 def _git_status() -> str:
+    # Borné au service (`-- .`) : la propriété protégée est « le script ne touche
+    # ni l'index ni l'arbre de rag-pedago ». Sans cette borne, un fichier sonde
+    # écrit transitoirement par la suite d'un AUTRE service (test moteur
+    # test_governance_docker_policy, sous tests/integration) faisait rougir cette
+    # épreuve quand les suites tournent en parallèle : dépendance à l'ordre, pas
+    # défaut du script.
     return subprocess.check_output(
-        ["git", "status", "--short", "--branch"],
+        ["git", "status", "--short", "--branch", "--", "."],
         cwd=REPO_ROOT,
         text=True,
     )

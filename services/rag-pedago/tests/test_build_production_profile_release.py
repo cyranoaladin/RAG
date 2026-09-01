@@ -280,6 +280,8 @@ def test_offline_release_replay_consumes_the_sealed_currentness_audit(
     }
     audit = {
         "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+        "corpus_manifest_sha256": builder.CORPUS_MANIFEST_AUTHORITY,
+        "content_set_sha256": builder._final_set_digest([content_sha256]),
         "verified_at": "2026-08-25T00:00:00Z",
         "network_mode": "READ_ONLY",
         "write_operations": 0,
@@ -300,6 +302,33 @@ def test_offline_release_replay_consumes_the_sealed_currentness_audit(
     assert network_calls == []
 
 
+def test_unreachable_source_audit_names_the_corpus_it_did_not_verify(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La branche « source injoignable » n'affirme aucune vérification, mais elle
+    NOMME le corpus concerné (manifeste + ensemble exact de contenus) : un audit
+    d'un autre corpus, rescellé à côté d'une autre preuve, doit rester refusable
+    par le lecteur. Aucun `verified_at`, aucun `verified` > 0."""
+    builder = _module()
+    monkeypatch.setenv("NEXUS_CURRENTNESS_UNVERIFIED", "SOURCE_UNREACHABLE")
+    rows = [
+        {**_v2_placement_rows()[0], "content_sha256": "a" * 64},
+        {**_v2_placement_rows()[0], "content_sha256": "b" * 64},
+        {**_v2_placement_rows()[1], "content_sha256": "b" * 64},
+    ]
+
+    audit, network_rows = builder.resolve_currentness_network_audit(
+        rows, verify_official_downloads=False
+    )
+
+    assert network_rows == []
+    assert audit["verified_at"] is None
+    assert audit["counts"] == {"verified": 0, "digest_mismatch": 0}
+    assert audit["currentness_status"] == "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE"
+    assert audit["corpus_manifest_sha256"] == builder.CORPUS_MANIFEST_AUTHORITY
+    assert audit["content_set_sha256"] == builder._final_set_digest(["a" * 64, "b" * 64])
+
+
 def test_offline_release_replay_rejects_a_drifted_currentness_audit(
     tmp_path: Path,
 ) -> None:
@@ -312,6 +341,8 @@ def test_offline_release_replay_rejects_a_drifted_currentness_audit(
     }
     audit = {
         "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+        "corpus_manifest_sha256": builder.CORPUS_MANIFEST_AUTHORITY,
+        "content_set_sha256": builder._final_set_digest([content_sha256]),
         "verified_at": "2026-08-25T00:00:00Z",
         "network_mode": "READ_ONLY",
         "write_operations": 0,

@@ -904,11 +904,26 @@ def _verify_official_downloads(placement_rows: list[dict[str, Any]]) -> list[dic
     return audit
 
 
+def _corpus_binding(placement_rows: list[dict[str, Any]]) -> dict[str, str]:
+    """Ce que tout audit de fraîcheur NOMME : le corpus qu'il a mesuré.
+
+    Un audit rescellé à côté d'une autre preuve doit rester refusable par le
+    lecteur : il porte donc le manifeste corpus et l'ensemble exact de contenus
+    (même canonicalisation que `_final_set_digest`)."""
+    return {
+        "corpus_manifest_sha256": CORPUS_MANIFEST_AUTHORITY,
+        "content_set_sha256": _final_set_digest(sorted(_group_artifact_rows(placement_rows))),
+    }
+
+
 def _currentness_network_audit_document(
     network_rows: list[dict[str, Any]],
+    *,
+    placement_rows: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
         "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+        **_corpus_binding(placement_rows),
         "verified_at": "2026-08-25T00:00:00Z",
         "network_mode": "READ_ONLY",
         "write_operations": 0,
@@ -995,7 +1010,10 @@ def resolve_currentness_network_audit(
     """Separate optional live acquisition from deterministic offline replay."""
     if verify_official_downloads:
         network_rows = _verify_official_downloads(placement_rows)
-        return _currentness_network_audit_document(network_rows), network_rows
+        return (
+            _currentness_network_audit_document(network_rows, placement_rows=placement_rows),
+            network_rows,
+        )
 
     # LACUNE NOMMÉE ET BORNÉE — décision opérateur du 29/08/2026.
     #
@@ -1021,6 +1039,7 @@ def resolve_currentness_network_audit(
     if os.environ.get("NEXUS_CURRENTNESS_UNVERIFIED") == "SOURCE_UNREACHABLE":
         return {
             "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+            **_corpus_binding(placement_rows),
             "network_mode": "UNVERIFIED",
             "currentness_status": "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE",
             "reason": (
@@ -1072,7 +1091,9 @@ def resolve_currentness_network_audit(
         raise ValueError("sealed currentness audit is missing")
     network_audit = _load_json(audit_path)
     expected_rows = _expected_currentness_network_rows(placement_rows)
-    expected_audit = _currentness_network_audit_document(expected_rows)
+    expected_audit = _currentness_network_audit_document(
+        expected_rows, placement_rows=placement_rows
+    )
     if network_audit != expected_audit:
         raise ValueError("sealed currentness audit differs from release inputs")
     return network_audit, expected_rows
