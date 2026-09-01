@@ -230,11 +230,23 @@ class TestPDFScanning:
             "PDF_TEXT_EXTRACTION_EMPTY"
         )
 
-    def test_scan_pdf_rejects_one_unextractable_page_before_scanning(
+    def test_scan_pdf_refuses_when_the_page_cannot_be_inspected(
         self,
         monkeypatch: pytest.MonkeyPatch,
         tmp_path: Path,
     ) -> None:
+        """Ré-spécifié le 2026-08-31 (LOT 1.2).
+
+        Cette épreuve exigeait `PDF_PAGE_TEXT_EXTRACTION_EMPTY` — le refus du
+        document entier dès qu'une page ne rendait aucun texte. Ce critère était
+        faux : il rejetait des documents pour une page de séparation. Le critère
+        qui le remplace est fixé dans
+        docs/reports/lot_1_2_critere_page_sans_texte.md.
+
+        Ce que l'épreuve vérifie désormais : sur des octets qui ne sont pas un
+        PDF, l'inspection ne peut pas s'exercer, et le scanner REFUSE en le
+        nommant. Il ne conclut pas « aucune image » (R32).
+        """
         pdf = tmp_path / "mixed-text-and-image.pdf"
         pdf.write_bytes(b"synthetic mixed pdf")
         monkeypatch.setattr(
@@ -249,9 +261,10 @@ class TestPDFScanning:
         assert result.pages_scanned == 0
         assert result.characters_scanned == 0
         assert result.matches == []
-        assert result.extraction_error == "PDF_PAGE_TEXT_EXTRACTION_EMPTY"
+        assert result.extraction_error is not None
+        assert result.extraction_error.startswith("PAGE_INSPECTION_FAILED")
         assert result_to_dict_sanitized(result)["extraction_error_code"] == (
-            "PDF_PAGE_TEXT_EXTRACTION_EMPTY"
+            "PAGE_INSPECTION_FAILED"
         )
 
     def test_single_file_cli_fails_when_extraction_did_not_complete(

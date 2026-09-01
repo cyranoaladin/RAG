@@ -16,6 +16,8 @@ import yaml
 
 INVENTORY_KIND = "MULTILEVEL_CANDIDATE_INVENTORY_V1"
 CURRENTNESS_KIND = "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
+CURRENTNESS_KIND_V2 = "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
+CURRENTNESS_KINDS = frozenset({CURRENTNESS_KIND, CURRENTNESS_KIND_V2})
 _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 _SCHOOL_YEAR = re.compile(r"\A[0-9]{4}-[0-9]{4}\Z")
 _OFFICIAL_PREFIX = "01_EDUSCOL_OFFICIEL/"
@@ -428,7 +430,8 @@ def load_multilevel_currentness(
         },
         label="multilevel currentness evidence",
     )
-    if document.get("evidence_kind") != CURRENTNESS_KIND:
+    evidence_kind = document.get("evidence_kind")
+    if evidence_kind not in CURRENTNESS_KINDS:
         raise MultilevelEvidenceError("multilevel currentness evidence kind is invalid")
     if document.get("school_year") != candidate_inventory.school_year:
         raise MultilevelEvidenceError("currentness school year differs from inventory")
@@ -596,7 +599,21 @@ def load_multilevel_currentness(
     counts = document.get("counts")
     if not isinstance(counts, Mapping):
         raise MultilevelEvidenceError("currentness counts are absent")
-    _require_count(counts, "artifacts", len(artifacts), label="currentness")
+    if evidence_kind == CURRENTNESS_KIND_V2:
+        expected_count_keys = {
+            "unique_artifacts",
+            "evaluated",
+            "current",
+            "review_required",
+            "unevaluated",
+        }
+        if set(counts) != expected_count_keys:
+            raise MultilevelEvidenceError("currentness V2 counts are not canonical")
+        _require_count(
+            counts, "unique_artifacts", len(artifacts), label="currentness"
+        )
+    else:
+        _require_count(counts, "artifacts", len(artifacts), label="currentness")
     _require_count(counts, "evaluated", len(artifacts), label="currentness")
     _require_count(counts, "current", len(current), label="currentness")
     _require_count(counts, "review_required", len(review), label="currentness")
@@ -610,6 +627,7 @@ def load_multilevel_currentness(
 
 __all__ = [
     "CURRENTNESS_KIND",
+    "CURRENTNESS_KIND_V2",
     "INVENTORY_KIND",
     "MultilevelCandidateInventory",
     "MultilevelCandidatePlacement",

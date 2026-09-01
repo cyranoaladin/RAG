@@ -155,6 +155,10 @@ def chunk_publication(
     chunks: list[PublicationChunk] = []
     if mime_detected == PDF_MIME_TYPE:
         for page_number, page in enumerate(extract_pdf_pages(content), start=1):
+            if not page:
+                # Page réellement vide, conservée par l'extracteur pour que la
+                # numérotation reste celle du document. Aucun chunk à en tirer.
+                continue
             for text in _bounded_text(
                 page,
                 token_counter=token_counter,

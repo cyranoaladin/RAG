@@ -20,6 +20,7 @@ import argparse
 import hashlib
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from io import BytesIO
@@ -30,8 +31,10 @@ import yaml
 
 try:
     from pypdf import PdfReader
+    from pypdf.generic import ContentStream
 except ImportError:
     PdfReader = None  # type: ignore[misc,assignment]
+    ContentStream = None  # type: ignore[misc,assignment]
 
 
 @dataclass
@@ -65,6 +68,7 @@ class PIIScanResult:
     pages_scanned: int
     characters_scanned: int
     pii_detected: bool
+    ignored_empty_pages: tuple[int, ...] = ()
     matches: list[PIIMatch] = field(default_factory=list)
     extraction_error: str | None = None
     scan_duration_ms: int = 0
@@ -296,6 +300,157 @@ def compute_file_sha256(path: Path) -> str:
     return sha.hexdigest()
 
 
+class PageInspectionError(RuntimeError):
+    """L'inspection structurelle d'une page n'a pas pu s'effectuer.
+
+    Ce n'est pas un verdict. Une panne d'instrument ne conclut jamais « aucune
+    image » : elle refuse. Voir docs/reports/lot_1_2_critere_page_sans_texte.md.
+    """
+
+
+PAGE_REFUS_IMAGE = "PAGE_IMAGE_NON_LISIBLE"
+PAGE_REFUS_TEXTE = "PAGE_TEXTE_NON_DECODABLE"
+PAGE_REFUS_TRACE = "PAGE_TRACE_VECTORIEL"
+PAGE_INSPECTION_ECHOUEE = "PAGE_INSPECTION_FAILED"
+
+_OPS_TEXTE = {b"Tj", b"TJ", b"'", b'"'}
+_OPS_COURBE = {b"c", b"v", b"y"}
+_OPS_TRACE_LIBRE = {b"m", b"l"}
+
+
+def _inspecter_structure(
+    obj: Any,
+    reader: Any,
+    *,
+    vus: set[int],
+) -> tuple[int, bool, bool]:
+    """Rend (nb_images, opérateur_de_texte, tracé_pouvant_porter_un_glyphe).
+
+    Suit le FLUX DE CONTENU, pas l'inventaire des ressources : beaucoup de
+    producteurs attachent le même dictionnaire /Resources à toutes les pages,
+    et une image déclarée mais jamais peinte ne porte aucun glyphe. Descend
+    récursivement dans les /Form XObjects effectivement invoqués par `Do`.
+    Compte les images sans les décoder : aucune dépendance à pillow.
+    """
+    images = 0
+    texte = False
+    trace = False
+
+    xobjects: Any = {}
+    ressources = obj.get("/Resources")
+    if ressources is not None:
+        declares = ressources.get_object().get("/XObject")
+        if declares is not None:
+            xobjects = declares.get_object()
+
+    # Une page porte son flux dans /Contents ; un /Form XObject EST son flux.
+    source = obj.get_contents() if hasattr(obj, "get_contents") else obj
+    if source is None:
+        return images, texte, trace
+
+    for operandes, operateur in ContentStream(source, reader).operations:
+        if operateur in _OPS_TEXTE:
+            texte = True
+        elif operateur in _OPS_COURBE or operateur in _OPS_TRACE_LIBRE:
+            trace = True
+        elif operateur == b"INLINE IMAGE":
+            images += 1
+        elif operateur == b"Do" and operandes:
+            reference = xobjects.get(operandes[0]) if xobjects else None
+            if reference is None:
+                # L'instrument ne peut pas dire ce qui est peint : il refuse.
+                raise KeyError(f"XObject {operandes[0]!r} introuvable")
+            identifiant = getattr(reference, "idnum", None)
+            if identifiant is not None:
+                if identifiant in vus:
+                    continue
+                vus.add(identifiant)
+            enfant = reference.get_object()
+            sous_type = enfant.get("/Subtype")
+            if sous_type == "/Image":
+                images += 1
+            elif sous_type == "/Form":
+                n, t, v = _inspecter_structure(enfant, reader, vus=vus)
+                images += n
+                texte = texte or t
+                trace = trace or v
+    return images, texte, trace
+
+
+def classer_pages_sans_texte(
+    pdf_content: bytes,
+    numeros: Sequence[int],
+) -> dict[int, str]:
+    """Rend {numéro de page: motif de refus} pour les pages NON ignorables.
+
+    Une page absente du résultat est ignorable : structurellement incapable de
+    porter un glyphe. Le critère est fixé dans
+    docs/reports/lot_1_2_critere_page_sans_texte.md et n'emploie aucun seuil.
+
+    Lève PageInspectionError si l'instrument ne peut pas s'exercer — jamais de
+    valeur de repli (R32).
+    """
+    if PdfReader is None or ContentStream is None:
+        raise PageInspectionError("pypdf indisponible")
+    try:
+        reader = PdfReader(BytesIO(pdf_content))
+    except Exception as exc:  # noqa: BLE001 - relevée, jamais convertie en verdict
+        raise PageInspectionError(
+            f"lecture impossible: {type(exc).__name__}: {exc}"
+        ) from exc
+    refus: dict[int, str] = {}
+    for numero in numeros:
+        try:
+            page = reader.pages[numero - 1]
+            images, texte, trace = _inspecter_structure(page, reader, vus=set())
+        except Exception as exc:  # noqa: BLE001 - relevée, jamais convertie en verdict
+            raise PageInspectionError(
+                f"page {numero}: {type(exc).__name__}: {exc}"
+            ) from exc
+        if images:
+            refus[numero] = PAGE_REFUS_IMAGE
+        elif texte:
+            refus[numero] = PAGE_REFUS_TEXTE
+        elif trace:
+            refus[numero] = PAGE_REFUS_TRACE
+    return refus
+
+
+def extract_pdf_pages_with_structural_empty_pages(
+    pdf_content: bytes,
+) -> tuple[list[str], tuple[int, ...], str | None]:
+    """Extrait les pages et dérive les seules pages structurellement vides.
+
+    Cette fonction est l'autorité commune du scan PII et du préflight. Une
+    chaîne vide issue de ``extract_text()`` n'est jamais, à elle seule, un
+    verdict de vide : le prédicat structurel existant doit également conclure
+    que la page ne peut porter aucun glyphe.
+    """
+    pages_text, error = extract_pdf_text_bytes(pdf_content)
+    if error:
+        return pages_text, (), error
+    if not pages_text or not any(page_text.strip() for page_text in pages_text):
+        return pages_text, (), "PDF_TEXT_EXTRACTION_EMPTY"
+
+    sans_texte = tuple(
+        numero
+        for numero, page_text in enumerate(pages_text, start=1)
+        if not page_text.strip()
+    )
+    if not sans_texte:
+        return pages_text, (), None
+
+    try:
+        refus = classer_pages_sans_texte(pdf_content, sans_texte)
+    except PageInspectionError as exc:
+        return pages_text, (), f"{PAGE_INSPECTION_ECHOUEE}:{exc}"
+    if refus:
+        motif = sorted({m for m in refus.values()})
+        pages = ",".join(str(n) for n in sorted(refus))
+        return pages_text, (), f"{'+'.join(motif)}:pages {pages}"
+    return pages_text, sans_texte, None
+
+
 def scan_pdf_bytes(
     pdf_content: bytes,
     *,
@@ -308,7 +463,9 @@ def scan_pdf_bytes(
     start = time.monotonic()
     patterns = patterns or DEFAULT_PII_PATTERNS
     sha256 = hashlib.sha256(pdf_content).hexdigest()
-    pages_text, error = extract_pdf_text_bytes(pdf_content)
+    pages_text, ignored_empty_pages, error = (
+        extract_pdf_pages_with_structural_empty_pages(pdf_content)
+    )
     if error:
         return PIIScanResult(
             file_path=source_path,
@@ -316,37 +473,19 @@ def scan_pdf_bytes(
             pages_scanned=0,
             characters_scanned=0,
             pii_detected=False,
+            ignored_empty_pages=(),
             matches=[],
             extraction_error=error,
-            scan_duration_ms=int((time.monotonic() - start) * 1000),
-        )
-    if not pages_text or not any(page_text.strip() for page_text in pages_text):
-        return PIIScanResult(
-            file_path=source_path,
-            sha256=sha256,
-            pages_scanned=0,
-            characters_scanned=0,
-            pii_detected=False,
-            matches=[],
-            extraction_error="PDF_TEXT_EXTRACTION_EMPTY",
-            scan_duration_ms=int((time.monotonic() - start) * 1000),
-        )
-    if any(not page_text.strip() for page_text in pages_text):
-        return PIIScanResult(
-            file_path=source_path,
-            sha256=sha256,
-            pages_scanned=0,
-            characters_scanned=0,
-            pii_detected=False,
-            matches=[],
-            extraction_error="PDF_PAGE_TEXT_EXTRACTION_EMPTY",
             scan_duration_ms=int((time.monotonic() - start) * 1000),
         )
 
     all_matches: list[PIIMatch] = []
     total_chars = 0
 
+    ignorables = set(ignored_empty_pages)
     for page_idx, page_text in enumerate(pages_text, start=1):
+        if page_idx in ignorables:
+            continue
         total_chars += len(page_text)
         page_matches = scan_text_for_pii(page_text, patterns, page_number=page_idx)
         all_matches.extend(page_matches)
@@ -356,9 +495,10 @@ def scan_pdf_bytes(
     return PIIScanResult(
         file_path=source_path,
         sha256=sha256,
-        pages_scanned=len(pages_text),
+        pages_scanned=len(pages_text) - len(ignorables),
         characters_scanned=total_chars,
         pii_detected=len(all_matches) > 0,
+        ignored_empty_pages=ignored_empty_pages,
         matches=all_matches,
         extraction_error=None,
         scan_duration_ms=duration_ms,
@@ -543,6 +683,21 @@ def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
     extraction_error_code = None
     if result.extraction_error == "pypdf not installed":
         extraction_error_code = "PYPDF_UNAVAILABLE"
+    elif result.extraction_error and result.extraction_error.split(":", 1)[0] in {
+        PAGE_INSPECTION_ECHOUEE,
+    } | {
+        "+".join(sorted(combinaison))
+        for combinaison in (
+            {PAGE_REFUS_IMAGE},
+            {PAGE_REFUS_TEXTE},
+            {PAGE_REFUS_TRACE},
+            {PAGE_REFUS_IMAGE, PAGE_REFUS_TEXTE},
+            {PAGE_REFUS_IMAGE, PAGE_REFUS_TRACE},
+            {PAGE_REFUS_TEXTE, PAGE_REFUS_TRACE},
+            {PAGE_REFUS_IMAGE, PAGE_REFUS_TEXTE, PAGE_REFUS_TRACE},
+        )
+    }:
+        extraction_error_code = result.extraction_error.split(":", 1)[0]
     elif result.extraction_error in {
         "CONTENT_SHA256_MISMATCH",
         "LOCAL_FILE_MISSING",
@@ -559,6 +714,7 @@ def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
         "pages_scanned": result.pages_scanned,
         "characters_scanned": result.characters_scanned,
         "pii_detected": result.pii_detected,
+        "ignored_empty_pages": list(result.ignored_empty_pages),
         "signal_count": len(result.matches),
         "signal_classes": sorted({m.pattern_id for m in result.matches}),
         "signals": [

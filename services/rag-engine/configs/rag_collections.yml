@@ -77,7 +77,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/quatrieme.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_maths_troisieme_tc:
     matiere: maths
     niveau: troisieme
@@ -86,7 +86,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/troisieme.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_maths_seconde_tc:
     matiere: maths
     niveau: seconde
@@ -95,7 +95,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/seconde_tronc_commun.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_maths_premiere_gen_specialite:
     matiere: maths
     niveau: premiere
@@ -104,7 +104,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/premiere_gen_specialite.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_maths_premiere_gen_tc:
     matiere: maths
     niveau: premiere
@@ -132,7 +132,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: maths/terminale_gen_specialite.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_maths_terminale_gen_option_comp:
     matiere: maths
     niveau: terminale
@@ -174,7 +174,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/quatrieme.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_francais_troisieme_tc:
     matiere: francais
     niveau: troisieme
@@ -183,7 +183,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/troisieme.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_francais_seconde_tc:
     matiere: francais
     niveau: seconde
@@ -192,7 +192,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/seconde_tc.yml
-    instanciee: true
+    instanciee: false
   rag_nexus_francais_premiere_tc:
     matiere: francais
     niveau: premiere
@@ -201,7 +201,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: francais/premiere_eaf.yml
-    instanciee: true
+    instanciee: false
 
   # =====================================================================
   # Histoire-Géo
@@ -263,7 +263,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: physique_chimie/terminale_specialite.yml
-    instanciee: true
+    instanciee: false
 
   # =====================================================================
   # SVT
@@ -276,7 +276,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: svt/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_svt_terminale_specialite:
     matiere: svt
     niveau: terminale
@@ -285,7 +285,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: svt/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # SES
@@ -298,7 +298,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: ses/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_ses_terminale_specialite:
     matiere: ses
     niveau: terminale
@@ -307,7 +307,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: ses/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # Philosophie
@@ -323,7 +323,7 @@ collections:
     # H2-C : première vague réelle, cinq artefacts Eduscol explicitement
     # résolus par h2_initial_placement_policy.yml. Toute autre ressource
     # reste REVIEW_REQUIRED ; cette activation n'est pas un routeur large.
-    instanciee: true
+    instanciee: false
 
   # =====================================================================
   # DGEMC — option de Terminale générale
@@ -336,7 +336,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: dgemc/terminale_option.yml
-    instanciee: false
+    instanciee: true
 
   # =====================================================================
   # SNT
@@ -455,7 +455,7 @@ collections:
     domain: quarantine
     session_policy: null
     taxonomy_file: null
-    instanciee: true
+    instanciee: true  # jamais servie : son domaine `quarantine` est retrievable: false
 
 
 
@@ -545,7 +545,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: hggsp/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_hggsp_terminale_specialite:
     matiere: hggsp
     niveau: terminale
@@ -554,7 +554,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: hggsp/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_hlp_premiere_specialite:
     matiere: hlp
     niveau: premiere
@@ -563,7 +563,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: hlp/premiere_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_hlp_terminale_specialite:
     matiere: hlp
     niveau: terminale
@@ -572,7 +572,7 @@ collections:
     domain: education
     session_policy: declared_or_null
     taxonomy_file: hlp/terminale_specialite.yml
-    instanciee: false
+    instanciee: true
   rag_nexus_llce_premiere_specialite:
     matiere: llce
     niveau: premiere

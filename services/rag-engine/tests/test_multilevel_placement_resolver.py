@@ -6,12 +6,14 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from typing import cast
 
 import pytest
 from nexus_contracts.document import Niveau, TypeDoc, Voie
 from nexus_contracts.ingestion import CollectionProfile
 
+from ingestor import multilevel_verified_placement as multilevel_release
 from ingestor.ingestion_profiles.registry import profile_fingerprint
 from ingestor.multilevel_evidence import (
     MultilevelEvidenceError,
@@ -354,6 +356,33 @@ def test_loaders_bind_complete_inventory_and_retain_review_decisions(
     assert currentness.for_content("1" * 64).decision == "CURRENT"
     assert currentness.for_content("3" * 64).decision == "REVIEW_REQUIRED"
     assert currentness.current_content_sha256 == frozenset({"1" * 64, "2" * 64})
+
+
+def test_currentness_loader_accepts_explicit_v2_unique_artifact_count(
+    tmp_path: Path,
+) -> None:
+    inventory_document, currentness_document = _evidence_documents()
+    inventory_path = tmp_path / "inventory.json"
+    inventory_sha = _write_json(inventory_path, inventory_document)
+    currentness_document["candidate_inventory_sha256"] = inventory_sha
+    currentness_document["evidence_kind"] = "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
+    counts = cast(dict[str, object], currentness_document["counts"])
+    counts["unique_artifacts"] = counts.pop("artifacts")
+    counts.pop("by_collection")
+    currentness_path = tmp_path / "currentness.json"
+    currentness_sha = _write_json(currentness_path, currentness_document)
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    currentness = load_multilevel_currentness(
+        currentness_path,
+        expected_sha256=currentness_sha,
+        candidate_inventory=inventory,
+    )
+
+    assert len(currentness.artifacts) == 3
+    assert currentness.for_content("3" * 64).decision == "REVIEW_REQUIRED"
 
 
 def test_currentness_loader_rejects_an_incomplete_artifact_partition(
@@ -864,3 +893,77 @@ def test_real_multilevel_release_loader_has_exact_final_counts() -> None:
         item.profile_manifest_digest for item in eligibility.placements
     } == {eligibility.profile_manifest_sha256}
     assert all(item.programme_version for item in eligibility.placements)
+
+
+def test_v2_release_eligibility_uses_global_artifact_subject_placements(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    profile_manifest_sha256 = "4" * 64
+    authorities = {
+        "candidate_inventory_sha256": "1" * 64,
+        "currentness_evidence_sha256": "2" * 64,
+        "programme_registry_sha256": "3" * 64,
+        "profile_manifest_sha256": profile_manifest_sha256,
+        "level_mapping_sha256": "5" * 64,
+        "subject_mapping_sha256": "6" * 64,
+        "document_type_mapping_sha256": "7" * 64,
+        "pii_evidence_sha256": "8" * 64,
+        "pii_policy_sha256": "9" * 64,
+        "rights_registry_sha256": "a" * 64,
+    }
+    aggregate_path = tmp_path / "multilevel.release.json"
+    aggregate_digest = _write_json(
+        aggregate_path,
+        {
+            "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+            "authorities": authorities,
+        },
+    )
+    content_sha256 = "b" * 64
+    first_collection = "rag_nexus_nsi_premiere_specialite"
+    second_collection = "rag_nexus_nsi_terminale_specialite"
+
+    def expected_placement(collection: str, source_placement_id: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            collection=collection,
+            artifact_id=content_sha256,
+            programme_version="BOEN-NSI-2026",
+            profile_version="multilevel-v2",
+            profile_fingerprint="c" * 64,
+            profile_manifest_digest=profile_manifest_sha256,
+            payload={
+                "source_placement_id": source_placement_id,
+                "statut_enseignement": "specialite",
+            },
+        )
+
+    monkeypatch.setattr(
+        multilevel_release,
+        "load_release_expectation",
+        lambda _path, _digest: SimpleNamespace(
+            placements=(
+                expected_placement(first_collection, "placement-premiere"),
+                expected_placement(second_collection, "placement-terminale"),
+            ),
+            embedding_model_id="intfloat/multilingual-e5-large",
+            embedding_inventory_sha256="d" * 64,
+            embedding_dimension=1024,
+            reranker_model_id="cross-encoder/ms-marco-MiniLM-L-6-v2",
+            reranker_inventory_sha256="e" * 64,
+        ),
+    )
+
+    eligibility = load_multilevel_release_eligibility(
+        aggregate_path,
+        expected_sha256=aggregate_digest,
+    )
+
+    assert len(eligibility.placements) == 2
+    assert {placement.collection for placement in eligibility.placements} == {
+        first_collection,
+        second_collection,
+    }
+    assert {placement.content_sha256 for placement in eligibility.placements} == {
+        content_sha256
+    }

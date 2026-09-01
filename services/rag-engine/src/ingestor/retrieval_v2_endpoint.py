@@ -508,7 +508,10 @@ def _release_evidence_for_v2_artifact(
     if manifest is None:
         return None
     expectation = manifest.expectation
-    if expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1":
+    if expectation.release_kind in {
+        "MULTILEVEL_AGGREGATE_RELEASE_V1",
+        "MULTILEVEL_AGGREGATE_RELEASE_V2",
+    }:
         subject_sha_by_collection = dict(
             expectation.subject_manifest_sha256_by_collection
         )
@@ -569,7 +572,11 @@ def validate_release_startup_configuration(
     subject_sha_by_collection = {
         collection: sha256
         for manifest in registry.manifests
-        if manifest.expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1"
+        if manifest.expectation.release_kind
+        in {
+            "MULTILEVEL_AGGREGATE_RELEASE_V1",
+            "MULTILEVEL_AGGREGATE_RELEASE_V2",
+        }
         for collection, sha256 in (
             manifest.expectation.subject_manifest_sha256_by_collection
         )

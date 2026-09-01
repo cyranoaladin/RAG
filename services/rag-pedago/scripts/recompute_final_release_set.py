@@ -45,6 +45,13 @@ def _canonical_sha_set_bytes(values: frozenset[str]) -> bytes:
 
 
 def _load_canonical_sha_set(path: Path) -> frozenset[str]:
+    """Lit un fichier de SHA-256 canonique et rend l'ENSEMBLE des contenus.
+
+    Contrat V2 : une ligne par artefact global, jamais une ligne par placement.
+    Le multi-placement vit dans les manifests de sujets. Accepter ici deux
+    lignes identiques masquerait une population non canonique en la réduisant
+    silencieusement en ``frozenset``.
+    """
     payload = path.read_bytes()
     lines = payload.splitlines()
     if not payload.endswith(b"\n") or payload != b"".join(line + b"\n" for line in lines):
@@ -53,8 +60,10 @@ def _load_canonical_sha_set(path: Path) -> frozenset[str]:
         values = [line.decode("ascii") for line in lines]
     except UnicodeDecodeError as exc:
         raise ValueError(f"non-ASCII SHA set: {path}") from exc
-    if values != sorted(values) or len(values) != len(set(values)):
-        raise ValueError(f"SHA set must be sorted and unique: {path}")
+    if values != sorted(values):
+        raise ValueError(f"SHA set must be sorted: {path}")
+    if len(values) != len(set(values)):
+        raise ValueError(f"duplicate SHA-256 in canonical set: {path}")
     if any(len(value) != 64 or any(char not in "0123456789abcdef" for char in value) for value in values):
         raise ValueError(f"invalid SHA-256 in set: {path}")
     return frozenset(values)

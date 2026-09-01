@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -66,6 +67,24 @@ MULTILEVEL_SCOPE_COLLECTIONS = {
     "terminale_nsi_v1": "rag_nexus_nsi_terminale_specialite",
     "terminale_physique_chimie_v1": "rag_nexus_pc_terminale_specialite",
 }
+
+
+def _multilevel_v2_release_registry(
+    *subject_sha256_by_collection: tuple[str, str],
+) -> SimpleNamespace:
+    expectation = SimpleNamespace(
+        release_kind="MULTILEVEL_AGGREGATE_RELEASE_V2",
+        subject_manifest_sha256_by_collection=subject_sha256_by_collection,
+    )
+    manifest = SimpleNamespace(expectation=expectation)
+    collections = tuple(collection for collection, _sha256 in subject_sha256_by_collection)
+    return SimpleNamespace(
+        collections=collections,
+        manifests=(manifest,),
+        manifest_for_collection=lambda collection: (
+            manifest if collection in collections else None
+        ),
+    )
 
 
 def _verified(scope_id: str, *, role: str = "teacher") -> VerifiedInternalIdentity:
@@ -390,6 +409,49 @@ def test_request_gate_rejects_multilevel_scope_source_sha_drift(
     )
 
     assert endpoint._release_evidence_for_v2_artifact(drifted) is False
+
+
+def test_request_gate_accepts_v2_subject_manifest_source_sha_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    collection = str(artifact.evidence_subject.collection)
+    registry = _multilevel_v2_release_registry((collection, artifact.source_sha256))
+    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name: True)
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+
+    assert endpoint._release_evidence_for_v2_artifact(artifact) is True
+
+
+def test_request_gate_rejects_v2_subject_manifest_source_sha_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    collection = str(artifact.evidence_subject.collection)
+    registry = _multilevel_v2_release_registry((collection, "0" * 64))
+    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name: True)
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+
+    assert endpoint._release_evidence_for_v2_artifact(artifact) is False
+
+
+def test_startup_rejects_ambiguous_v2_scope_for_one_subject_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    collection = str(artifact.evidence_subject.collection)
+    registry = _multilevel_v2_release_registry((collection, artifact.source_sha256))
+    duplicate = artifact.model_copy(update={"scope_id": f"{artifact.scope_id}-duplicate"})
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        endpoint.validate_release_startup_configuration(
+            {artifact.scope_id: artifact, duplicate.scope_id: duplicate},
+            _all_multilevel_instantiated(),
+        )
 
 
 def test_chat_separates_target_identity_from_n_minus_one_evidence() -> None:

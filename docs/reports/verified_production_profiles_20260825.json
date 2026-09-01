@@ -1,383 +1,236 @@
 {
-  "profile_manifest_digest": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+  "profile_manifest_digest": "c11b2b1f3253f4723ba2ecfdbaf2e70ee9fc9c10fcfd83fde4e1245702fcd39c",
   "profiles": [
     {
-      "profile_fingerprint": "685dac09676143417b08756b2bb2577d85777c3f599f9263595abad722ad4f00",
+      "profile_fingerprint": "2e58d4b96c7f228859405535b1b338b26cd82bf0528fefac162dff38bb110f0f",
       "profile_id": "rag_nexus_dgemc_terminale_option",
-      "profile_version": "profile-gate-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_dgemc_terminale_option",
         "matiere": "dgemc",
         "niveau": "terminale",
-        "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_terminale",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_dgemc_terminale_option.yml"
     },
     {
-      "profile_fingerprint": "fe416308373772f8fa96c7570d8ad78aec32e89b9f059f2d39b37a3a8649d9a6",
-      "profile_id": "rag_nexus_francais_premiere_tc",
-      "profile_version": "multilevel-v1",
+      "profile_fingerprint": "6fa91ccf4b435fb1417739890607a8c65bc30d10bebfd26fd08d8b81e560c12a",
+      "profile_id": "rag_nexus_hggsp_premiere_specialite",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
-        "collection": "rag_nexus_francais_premiere_tc",
-        "matiere": "francais",
+        "collection": "rag_nexus_hggsp_premiere_specialite",
+        "matiere": "hggsp",
         "niveau": "premiere",
-        "programme_version": "BOEN_special_1_2019-01-22",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_premiere",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_hggsp_premiere_specialite.yml"
     },
     {
-      "profile_fingerprint": "02573ac1bdc66f9163e94334a1f6dd3469a27edded44a5d95ab2f72c0074cf4f",
-      "profile_id": "rag_nexus_francais_quatrieme_tc",
-      "profile_version": "multilevel-v1",
+      "profile_fingerprint": "a34d35e0441f8467f868d515cb1f3e37647852649f495c20222074e1b166508f",
+      "profile_id": "rag_nexus_hggsp_terminale_specialite",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
-        "collection": "rag_nexus_francais_quatrieme_tc",
-        "matiere": "francais",
-        "niveau": "quatrieme",
-        "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+        "collection": "rag_nexus_hggsp_terminale_specialite",
+        "matiere": "hggsp",
+        "niveau": "terminale",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
-        "tenant": "libre_quatrieme",
-        "visibility": "internal",
-        "voie": "college"
-      },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml"
-    },
-    {
-      "profile_fingerprint": "890dede86e97084d07f72f2d41ef1d09759bb1b4fc2eaa24544eac06a5b34c46",
-      "profile_id": "rag_nexus_francais_seconde_tc",
-      "profile_version": "multilevel-v1",
-      "scope": {
-        "audience": [
-          "libre",
-          "tous"
-        ],
-        "candidat": "libre",
-        "collection": "rag_nexus_francais_seconde_tc",
-        "matiere": "francais",
-        "niveau": "seconde",
-        "programme_version": "BOEN_special_1_2019-01-22",
-        "school_year": "2026-2027",
-        "tenant": "libre_seconde",
-        "visibility": "internal",
+        "tenant": "libre_terminale",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_hggsp_terminale_specialite.yml"
     },
     {
-      "profile_fingerprint": "48d961d273ab30eefd5d473b6680b2037176eb74934b314db28625b21c65bc35",
+      "profile_fingerprint": "b83d9c9da5a9a942f9efcc02e54cf1b2ab2b472014786aa919bf987018ba5b77",
       "profile_id": "rag_nexus_hlp_premiere_specialite",
-      "profile_version": "profile-gate-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_hlp_premiere_specialite",
         "matiere": "hlp",
         "niveau": "premiere",
-        "programme_version": "BOEN_special_1_2019-01-22",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_premiere",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_hlp_premiere_specialite.yml"
     },
     {
-      "profile_fingerprint": "04c8de1c240f344c5fbfa8fed25ded968b07e0963507c22b7ab960b858dc8478",
-      "profile_id": "rag_nexus_maths_premiere_gen_specialite",
-      "profile_version": "multilevel-v1",
+      "profile_fingerprint": "5d6772d5a4f8048640c62b83edeb81101a07fe9d583cc16fdb613be78106b214",
+      "profile_id": "rag_nexus_hlp_terminale_specialite",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
-        "collection": "rag_nexus_maths_premiere_gen_specialite",
-        "matiere": "maths",
-        "niveau": "premiere",
-        "programme_version": "BOEN_14_2026-04-02_MENE2602917A",
-        "school_year": "2026-2027",
-        "tenant": "libre_premiere",
-        "visibility": "internal",
-        "voie": "generale"
-      },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml"
-    },
-    {
-      "profile_fingerprint": "5a9a0ef45ab43f0e046b1892e0cf572b2c6fe4137d027a9077a6fe79c7314ce2",
-      "profile_id": "rag_nexus_maths_quatrieme_tc",
-      "profile_version": "multilevel-v1",
-      "scope": {
-        "audience": [
-          "libre",
-          "tous"
-        ],
-        "candidat": "libre",
-        "collection": "rag_nexus_maths_quatrieme_tc",
-        "matiere": "maths",
-        "niveau": "quatrieme",
-        "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
-        "school_year": "2026-2027",
-        "tenant": "libre_quatrieme",
-        "visibility": "internal",
-        "voie": "college"
-      },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml"
-    },
-    {
-      "profile_fingerprint": "2320e3f3e7906ae1b76b0c704cba38cd435dd8cbe6b7d13d78671c6b4cc73d89",
-      "profile_id": "rag_nexus_maths_seconde_tc",
-      "profile_version": "multilevel-v1",
-      "scope": {
-        "audience": [
-          "libre",
-          "tous"
-        ],
-        "candidat": "libre",
-        "collection": "rag_nexus_maths_seconde_tc",
-        "matiere": "maths",
-        "niveau": "seconde",
-        "programme_version": "BOEN_14_2026-04-02_MENE2602914A",
-        "school_year": "2026-2027",
-        "tenant": "libre_seconde",
-        "visibility": "internal",
-        "voie": "generale"
-      },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml"
-    },
-    {
-      "profile_fingerprint": "4f0b45d22ca6fcb0ffab20c20df92c1e852fcd836bc3c8b9793c01f085472f0f",
-      "profile_id": "rag_nexus_maths_terminale_gen_specialite",
-      "profile_version": "multilevel-v1",
-      "scope": {
-        "audience": [
-          "libre",
-          "tous"
-        ],
-        "candidat": "libre",
-        "collection": "rag_nexus_maths_terminale_gen_specialite",
-        "matiere": "maths",
+        "collection": "rag_nexus_hlp_terminale_specialite",
+        "matiere": "hlp",
         "niveau": "terminale",
-        "programme_version": "BOEN_special_8_2019-07-25",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_terminale",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_hlp_terminale_specialite.yml"
     },
     {
-      "profile_fingerprint": "2dcfca3b80266350d4185f9d9dffa673e21eeb0b947110510c6297fbf102bba1",
+      "profile_fingerprint": "805f6bb1f91f92849e93c9978f2ad769e09a66cfe37a30f3e835c26e2310186d",
       "profile_id": "rag_nexus_nsi_premiere_specialite",
-      "profile_version": "multilevel-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_nsi_premiere_specialite",
         "matiere": "nsi",
         "niveau": "premiere",
-        "programme_version": "BOEN_special_1_2019-01-22",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_premiere",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_nsi_premiere_specialite.yml"
     },
     {
-      "profile_fingerprint": "ef417eff33177d469da58c4e3bcdd19901e97799d3bcec4c816a13d65708964c",
+      "profile_fingerprint": "e6283d5cc81667e89924140f8643bbce74fc402dd015c595846639db5c6e8691",
       "profile_id": "rag_nexus_nsi_terminale_specialite",
-      "profile_version": "multilevel-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_nsi_terminale_specialite",
         "matiere": "nsi",
         "niveau": "terminale",
-        "programme_version": "BOEN_special_8_2019-07-25",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_terminale",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_nsi_terminale_specialite.yml"
     },
     {
-      "profile_fingerprint": "ca2fb2d2d4a7228bcfa3564d86588be12b425b6ae6acd15de5f66f341d4e22c5",
-      "profile_id": "rag_nexus_pc_premiere_specialite",
-      "profile_version": "profile-gate-v1",
-      "scope": {
-        "audience": [
-          "libre",
-          "tous"
-        ],
-        "candidat": "libre",
-        "collection": "rag_nexus_pc_premiere_specialite",
-        "matiere": "physique_chimie",
-        "niveau": "premiere",
-        "programme_version": "BOEN_special_1_2019-01-22",
-        "school_year": "2026-2027",
-        "tenant": "libre_premiere",
-        "visibility": "internal",
-        "voie": "generale"
-      },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml"
-    },
-    {
-      "profile_fingerprint": "c497d2c5e11ead6ec91589b89f0ba1b824458a30939b1ba6c3b4a9905ec5e865",
-      "profile_id": "rag_nexus_pc_terminale_specialite",
-      "profile_version": "multilevel-v1",
-      "scope": {
-        "audience": [
-          "libre",
-          "tous"
-        ],
-        "candidat": "libre",
-        "collection": "rag_nexus_pc_terminale_specialite",
-        "matiere": "physique_chimie",
-        "niveau": "terminale",
-        "programme_version": "BOEN_special_8_2019-07-25",
-        "school_year": "2026-2027",
-        "tenant": "libre_terminale",
-        "visibility": "internal",
-        "voie": "generale"
-      },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml"
-    },
-    {
-      "profile_fingerprint": "993b350071ffa961c2be47738aa138b95db56317f117d7b4086461dbfd0acefc",
-      "profile_id": "rag_nexus_philo_terminale_tc",
-      "profile_version": "h2c-v1",
-      "scope": {
-        "audience": [
-          "libre",
-          "tous"
-        ],
-        "candidat": "libre",
-        "collection": "rag_nexus_philo_terminale_tc",
-        "matiere": "philosophie",
-        "niveau": "terminale",
-        "programme_version": "BOEN_special_8_2019-07-25",
-        "school_year": "2026-2027",
-        "tenant": "libre_terminale",
-        "visibility": "internal",
-        "voie": "generale"
-      },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml"
-    },
-    {
-      "profile_fingerprint": "b9aa5b13c38cd603ac1c0f39ddfe03e16cf320a5d7b13dc47c1c45f59ccf8eaa",
+      "profile_fingerprint": "3707e4204f65a0e49886682d2f83ba2dc987b098223994e12cd54f063c6bb70a",
       "profile_id": "rag_nexus_ses_premiere_specialite",
-      "profile_version": "profile-gate-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_ses_premiere_specialite",
         "matiere": "ses",
         "niveau": "premiere",
-        "programme_version": "BOEN_special_1_2019-01-22",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_premiere",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_ses_premiere_specialite.yml"
     },
     {
-      "profile_fingerprint": "41ab44973d81f6b4b53e91ff65a74fcab1cb0940476ba078007ae272cc653256",
+      "profile_fingerprint": "0559810ad976231d39e93ee729c47261a5725cd1d52f228c6f5c00ee3638f209",
       "profile_id": "rag_nexus_ses_terminale_specialite",
-      "profile_version": "profile-gate-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_ses_terminale_specialite",
         "matiere": "ses",
         "niveau": "terminale",
-        "programme_version": "BOEN_special_8_2019-07-25",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_terminale",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_ses_terminale_specialite.yml"
     },
     {
-      "profile_fingerprint": "de3a4b05be3c066ad531347f400279bf42192e286d23394ecd2566b677bc409d",
+      "profile_fingerprint": "41b64293f0997bcfb85cd4c1e3d40d688c428d17ba1afeb7a47793a4bfc1db98",
       "profile_id": "rag_nexus_svt_premiere_specialite",
-      "profile_version": "profile-gate-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_svt_premiere_specialite",
         "matiere": "svt",
         "niveau": "premiere",
-        "programme_version": "BOEN_special_1_2019-01-22",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_premiere",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_svt_premiere_specialite.yml"
     },
     {
-      "profile_fingerprint": "223c6a49a224a2636865c1b5fc15012f61b6f2888f408dca547142d961ae1f58",
+      "profile_fingerprint": "e7e1fa6cf972591a629ba3137784c9f1b55980f2f94868f02184b3b1ea4a2e7d",
       "profile_id": "rag_nexus_svt_terminale_specialite",
-      "profile_version": "profile-gate-v1",
+      "profile_version": "profile-gate-v2",
       "scope": {
         "audience": [
           "libre",
-          "tous"
+          "aefe"
         ],
         "candidat": "libre",
         "collection": "rag_nexus_svt_terminale_specialite",
         "matiere": "svt",
         "niveau": "terminale",
-        "programme_version": "BOEN_special_8_2019-07-25",
+        "programme_version": "EDUSCOL_CORPUS_20260808",
         "school_year": "2026-2027",
         "tenant": "libre_terminale",
-        "visibility": "internal",
+        "visibility": "public",
         "voie": "generale"
       },
-      "source_path": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml"
+      "source_path": "services/rag-engine/configs/ingestion_profiles/v2_corpus_complet/rag_nexus_svt_terminale_specialite.yml"
     }
   ]
 }

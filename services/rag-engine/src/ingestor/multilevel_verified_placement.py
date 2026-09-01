@@ -211,34 +211,35 @@ def load_multilevel_release_eligibility(
         ) from exc
     if hashlib.sha256(raw).hexdigest() != expected_sha256:
         raise MultilevelPlacementResolutionError("multilevel release aggregate digest differs")
-    if not isinstance(aggregate, Mapping) or aggregate.get("release_kind") != (
-        "MULTILEVEL_AGGREGATE_RELEASE_V1"
-    ):
+    if not isinstance(aggregate, Mapping) or aggregate.get("release_kind") not in {
+        "MULTILEVEL_AGGREGATE_RELEASE_V1",
+        "MULTILEVEL_AGGREGATE_RELEASE_V2",
+    }:
         raise MultilevelPlacementResolutionError("multilevel release aggregate kind is invalid")
     authorities = aggregate.get("authorities")
     if not isinstance(authorities, Mapping):
         raise MultilevelPlacementResolutionError("multilevel release authorities are absent")
     placements: set[MultilevelReleasePlacement] = set()
-    for artifact in expectation.artifacts:
-        for raw_placement in artifact.placements:
-            placements.add(
-                MultilevelReleasePlacement(
-                    collection=artifact.collection,
-                    content_sha256=artifact.content_sha256,
-                    source_placement_id=_require_nonempty(
-                        raw_placement.get("source_placement_id"),
-                        label="release source placement identity",
-                    ),
-                    nexus_statut_enseignement=_require_nonempty(
-                        raw_placement.get("statut_enseignement"),
-                        label="release teaching status",
-                    ),
-                    programme_version=artifact.programme_version,
-                    profile_version=artifact.profile_version,
-                    profile_fingerprint=artifact.profile_fingerprint,
-                    profile_manifest_digest=artifact.profile_manifest_digest,
-                )
+    for expected_placement in expectation.placements:
+        raw_placement = expected_placement.payload
+        placements.add(
+            MultilevelReleasePlacement(
+                collection=expected_placement.collection,
+                content_sha256=expected_placement.artifact_id,
+                source_placement_id=_require_nonempty(
+                    raw_placement.get("source_placement_id"),
+                    label="release source placement identity",
+                ),
+                nexus_statut_enseignement=_require_nonempty(
+                    raw_placement.get("statut_enseignement"),
+                    label="release teaching status",
+                ),
+                programme_version=expected_placement.programme_version,
+                profile_version=expected_placement.profile_version,
+                profile_fingerprint=expected_placement.profile_fingerprint,
+                profile_manifest_digest=expected_placement.profile_manifest_digest,
             )
+        )
     return MultilevelReleaseEligibility(
         manifest_sha256=_require_sha256(expected_sha256, label="release manifest SHA"),
         candidate_inventory_sha256=_require_sha256(
