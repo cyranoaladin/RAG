@@ -399,6 +399,45 @@ def load_multilevel_candidate_inventory(
     )
 
 
+#: Nom du fichier d'audit reseau livre A COTE de la preuve de fraicheur par le
+#: producteur. C'est lui que `currentness_audit_sha256` nomme : sans ce fichier,
+#: l'empreinte est un chiffre que personne ne peut rehacher.
+CURRENTNESS_NETWORK_AUDIT_FILENAME = "currentness_network_audit.json"
+
+
+def _bind_currentness_network_audit(
+    evidence_path: Path,
+    declared_digest: object,
+    *,
+    evidence_kind: str,
+) -> str:
+    """Rend `currentness_audit_sha256` opposable, ou refuse.
+
+    - la valeur doit avoir la forme d'un SHA-256 (jamais `NOT-A-SHA`) ;
+    - une preuve V2 est livree avec son audit reseau frere, dont les octets
+      doivent porter exactement cette empreinte ;
+    - une preuve V1 conserve son contrat historique (audit hors bande possible),
+      mais si un audit frere est present il doit lui aussi correspondre : une
+      preuve qui contredit le fichier livre a cote d'elle est refusee.
+    """
+    digest = _require_sha256(declared_digest, label="currentness audit digest")
+    audit_path = evidence_path.parent / CURRENTNESS_NETWORK_AUDIT_FILENAME
+    if not audit_path.is_file():
+        if evidence_kind == CURRENTNESS_KIND_V2:
+            raise MultilevelEvidenceError(
+                "currentness network audit is missing next to the V2 evidence — "
+                "the declared digest names nothing that can be re-hashed"
+            )
+        return digest
+    observed = hashlib.sha256(audit_path.read_bytes()).hexdigest()
+    if observed != digest:
+        raise MultilevelEvidenceError(
+            "currentness network audit digest differs from the audit file delivered "
+            "with the evidence"
+        )
+    return digest
+
+
 def load_multilevel_currentness(
     path: Path,
     *,
@@ -433,6 +472,11 @@ def load_multilevel_currentness(
     evidence_kind = document.get("evidence_kind")
     if evidence_kind not in CURRENTNESS_KINDS:
         raise MultilevelEvidenceError("multilevel currentness evidence kind is invalid")
+    _bind_currentness_network_audit(
+        path,
+        document.get("currentness_audit_sha256"),
+        evidence_kind=str(evidence_kind),
+    )
     if document.get("school_year") != candidate_inventory.school_year:
         raise MultilevelEvidenceError("currentness school year differs from inventory")
     expected_bindings = {

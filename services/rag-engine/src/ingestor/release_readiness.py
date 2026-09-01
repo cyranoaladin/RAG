@@ -727,6 +727,19 @@ def _parse_subject_v2(
     if payload.get("school_year") != school_year:
         raise ReleaseReadinessError(f"{field}.school_year mismatch")
     collection = _require_nonblank(payload.get("collection"), f"{field}.collection")
+    # Un sujet V2 n'a pas d'identite libre : son release_id est DERIVE de celui
+    # de l'agregat et de sa collection, comme les sujets V1 reels et le producteur
+    # l'ecrivent. Un nom seul n'identifie rien (le meme release_id a deja designe
+    # des contenus differents) ; l'identite reste la chaine de digests. Ce lien
+    # empeche seulement qu'un sujet rescelle se reclame d'une autre release ou
+    # d'une autre collection tout en gardant des parents coherents.
+    aggregate_release_id = _require_nonblank(aggregate.get("release_id"), "release_id")
+    expected_release_id = f"{aggregate_release_id}-{collection}"
+    if payload.get("release_id") != expected_release_id:
+        raise ReleaseReadinessError(
+            f"{field}.release_id must derive from the aggregate release_id and the "
+            f"collection ({expected_release_id!r})"
+        )
     programme_version = _require_nonblank(
         payload.get("programme_version"), f"{field}.programme_version"
     )

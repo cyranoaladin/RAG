@@ -289,7 +289,8 @@ def _v2_release_files(
         placement = _v2_placement(collection, index)
         subject = {
             "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V2",
-            "release_id": f"multilevel-{collection}-2026-2027",
+            # Derive du release_id de l agregat, comme le producteur et les sujets V1 reels.
+            "release_id": f"multilevel-2026-2027-{collection}",
             "school_year": "2026-2027",
             "collection": collection,
             "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
@@ -1142,6 +1143,32 @@ def test_v2_subject_registry_reference_must_equal_aggregate_reference(
     digest = _write_json(manifest, aggregate)
 
     with pytest.raises(ReleaseReadinessError, match="artifact_registry.*mismatch"):
+        load_release_expectation(manifest, digest)
+
+
+@pytest.mark.parametrize(
+    "release_id",
+    [
+        "multilevel-2026-2027",
+        "autre-release-2026-2027",
+        f"multilevel-2026-2027-{COLLECTION}-bis",
+        "multilevel-2026-2027-rag_nexus_autre_collection",
+    ],
+)
+def test_v2_subject_release_id_must_derive_from_aggregate_after_reseal(
+    tmp_path: Path,
+    release_id: str,
+) -> None:
+    """Un sujet V2 n'a pas d'identite libre : son release_id est derive de celui
+    de l'agregat et de sa collection. Un sujet rescelle sous un autre release_id
+    (autre release, autre collection, suffixe arbitraire) est refuse."""
+    manifest, _digest, registry_path, subject_paths = _v2_release_files(tmp_path)
+    subject = json.loads(subject_paths[0].read_text(encoding="utf-8"))
+    subject["release_id"] = release_id
+    _write_json(subject_paths[0], subject)
+    digest = _reseal_v2_release(manifest, registry_path, subject_paths)
+
+    with pytest.raises(ReleaseReadinessError, match=r"release_id"):
         load_release_expectation(manifest, digest)
 
 

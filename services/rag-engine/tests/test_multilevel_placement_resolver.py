@@ -326,14 +326,104 @@ def _evidence_documents() -> tuple[dict[str, object], dict[str, object]]:
     return cast(dict[str, object], inventory), cast(dict[str, object], currentness)
 
 
+def _write_network_audit(tmp_path: Path, currentness_document: dict[str, object]) -> str:
+    """Ecrit l'audit reseau frere et lie la preuve a son empreinte reelle.
+
+    `currentness_audit_sha256` n'est opposable que s'il nomme un fichier que le
+    lecteur peut rehacher : l'audit reseau scelle a cote de la preuve."""
+    audit_path = tmp_path / "currentness_network_audit.json"
+    audit_sha = _write_json(
+        audit_path,
+        {"network_mode": "READ_ONLY", "counts": {"verified": 3, "digest_mismatch": 0}},
+    )
+    currentness_document["currentness_audit_sha256"] = audit_sha
+    return audit_sha
+
+
+def _write_currentness(tmp_path: Path, currentness_document: dict[str, object]) -> tuple[Path, str]:
+    _write_network_audit(tmp_path, currentness_document)
+    currentness_path = tmp_path / "currentness.json"
+    return currentness_path, _write_json(currentness_path, currentness_document)
+
+
 def _write_evidence(tmp_path: Path) -> tuple[Path, str, Path, str]:
     inventory_document, currentness_document = _evidence_documents()
     inventory_path = tmp_path / "inventory.json"
     inventory_sha = _write_json(inventory_path, inventory_document)
     currentness_document["candidate_inventory_sha256"] = inventory_sha
+    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
+    return inventory_path, inventory_sha, currentness_path, currentness_sha
+
+
+@pytest.mark.parametrize("value", ["NOT-A-SHA", "4" * 63, "4" * 64 + "a", "G" * 64, 4, None])
+def test_currentness_audit_digest_must_be_a_sha256(tmp_path: Path, value: object) -> None:
+    inventory_document, currentness_document = _evidence_documents()
+    inventory_path = tmp_path / "inventory.json"
+    inventory_sha = _write_json(inventory_path, inventory_document)
+    currentness_document["candidate_inventory_sha256"] = inventory_sha
+    _write_network_audit(tmp_path, currentness_document)
+    currentness_document["currentness_audit_sha256"] = value
     currentness_path = tmp_path / "currentness.json"
     currentness_sha = _write_json(currentness_path, currentness_document)
-    return inventory_path, inventory_sha, currentness_path, currentness_sha
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    with pytest.raises(MultilevelEvidenceError, match="currentness audit"):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )
+
+
+def test_currentness_audit_digest_that_names_no_sibling_network_audit_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Une empreinte bien formee qui ne designe aucun fichier relisible est un
+    chiffre decoratif : la preuve V2 doit etre livree avec son audit reseau."""
+    inventory_document, currentness_document = _evidence_documents()
+    currentness_document["evidence_kind"] = "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
+    counts = cast(dict[str, object], currentness_document["counts"])
+    counts["unique_artifacts"] = counts.pop("artifacts")
+    counts.pop("by_collection", None)
+    inventory_path = tmp_path / "inventory.json"
+    inventory_sha = _write_json(inventory_path, inventory_document)
+    currentness_document["candidate_inventory_sha256"] = inventory_sha
+    currentness_document["currentness_audit_sha256"] = "4" * 64
+    currentness_path = tmp_path / "currentness.json"
+    currentness_sha = _write_json(currentness_path, currentness_document)
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+    assert not (tmp_path / "currentness_network_audit.json").exists()
+
+    with pytest.raises(MultilevelEvidenceError, match="network audit"):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )
+
+
+def test_currentness_audit_digest_that_differs_from_sibling_network_audit_is_refused(
+    tmp_path: Path,
+) -> None:
+    inventory_path, inventory_sha, currentness_path, currentness_sha = (
+        _write_evidence(tmp_path)
+    )
+    audit_path = tmp_path / "currentness_network_audit.json"
+    _write_json(audit_path, {"network_mode": "READ_ONLY", "counts": {"verified": 0}})
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    with pytest.raises(MultilevelEvidenceError, match="network audit"):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )
 
 
 def test_loaders_bind_complete_inventory_and_retain_review_decisions(
@@ -369,8 +459,7 @@ def test_currentness_loader_accepts_explicit_v2_unique_artifact_count(
     counts = cast(dict[str, object], currentness_document["counts"])
     counts["unique_artifacts"] = counts.pop("artifacts")
     counts.pop("by_collection")
-    currentness_path = tmp_path / "currentness.json"
-    currentness_sha = _write_json(currentness_path, currentness_document)
+    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
     inventory = load_multilevel_candidate_inventory(
         inventory_path, expected_sha256=inventory_sha
     )
@@ -393,8 +482,7 @@ def test_currentness_loader_rejects_an_incomplete_artifact_partition(
     inventory_sha = _write_json(inventory_path, inventory_document)
     currentness_document["candidate_inventory_sha256"] = inventory_sha
     cast(list[object], currentness_document["artifacts"]).pop()
-    currentness_path = tmp_path / "currentness.json"
-    currentness_sha = _write_json(currentness_path, currentness_document)
+    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
     inventory = load_multilevel_candidate_inventory(
         inventory_path, expected_sha256=inventory_sha
     )
@@ -434,8 +522,7 @@ def test_currentness_loader_rejects_a_non_official_current_url(
     currentness_document["artifacts"][0]["current_download_url"] = (  # type: ignore[index]
         "https://example.invalid/document.pdf"
     )
-    currentness_path = tmp_path / "currentness.json"
-    currentness_sha = _write_json(currentness_path, currentness_document)
+    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
     inventory = load_multilevel_candidate_inventory(
         inventory_path, expected_sha256=inventory_sha
     )
@@ -458,8 +545,7 @@ def test_currentness_loader_rejects_listing_url_drift_from_inventory(
     currentness_document["artifacts"][0]["current_source_listing_url"] = (  # type: ignore[index]
         "https://eduscol.education.gouv.fr/another-listing"
     )
-    currentness_path = tmp_path / "currentness.json"
-    currentness_sha = _write_json(currentness_path, currentness_document)
+    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
     inventory = load_multilevel_candidate_inventory(
         inventory_path, expected_sha256=inventory_sha
     )
@@ -482,8 +568,7 @@ def test_currentness_loader_rejects_fabricated_positive_facts_on_review(
     currentness_document["artifacts"][2]["current_download_url"] = (  # type: ignore[index]
         "https://eduscol.education.gouv.fr/fabricated.pdf"
     )
-    currentness_path = tmp_path / "currentness.json"
-    currentness_sha = _write_json(currentness_path, currentness_document)
+    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
     inventory = load_multilevel_candidate_inventory(
         inventory_path, expected_sha256=inventory_sha
     )
