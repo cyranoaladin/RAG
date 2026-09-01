@@ -44,13 +44,17 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PrivateKey,
     Ed25519PublicKey,
 )
-from pydantic import AwareDatetime, Field, StrictInt, StrictStr, field_validator
+from pydantic import AwareDatetime, Field, StrictInt, StrictStr, field_validator, model_validator
 
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
     canonical_authorization_path,
 )
 from nexus_contracts.document import StrictBaseModel
+from nexus_contracts.pii_review_decisions import (
+    PII_REVIEW_DECISIONS_DIR,
+    canonical_pii_review_decisions_path,
+)
 
 #: Protocole du reçu. Versionné : un futur format ne peut jamais être relu
 #: comme celui-ci par accident.
@@ -127,7 +131,11 @@ class ScopeAuthorizationReviewBindingV1(StrictBaseModel):
     authorization_artifact_sha256: StrictStr = Field(pattern=_HEX64)
     authorization_artifact_git_blob_sha1: StrictStr = Field(pattern=_HEX40)
     authorization_id: StrictStr = Field(min_length=1, max_length=128)
-    authorization_decision: Literal["AUTHORIZE_INGESTION_SCOPE"]
+    #: Ce que la review a approuvé. `AUTHORIZE_INGESTION_SCOPE` : une
+    #: autorisation de scope (ADR-0035). `APPROVE_PII_REVIEW_DECISIONS` : un
+    #: ensemble de décisions humaines de revue PII (ADR-0047). La valeur borne
+    #: le répertoire canonique que le reçu peut désigner.
+    authorization_decision: Literal["AUTHORIZE_INGESTION_SCOPE", "APPROVE_PII_REVIEW_DECISIONS"]
 
     # --- Qui a relu -------------------------------------------------------
     review_id: StrictInt = Field(gt=0)
@@ -155,11 +163,26 @@ class ScopeAuthorizationReviewBindingV1(StrictBaseModel):
         élargir."""
         if ".." in value or value.startswith("/"):
             raise ValueError("authorization_artifact_path must be a repository path")
-        if not value.startswith("governance/authorizations/"):
+        if not value.startswith(("governance/authorizations/", f"{PII_REVIEW_DECISIONS_DIR}/")):
             raise ValueError(
-                "authorization_artifact_path must live under governance/authorizations/"
+                "authorization_artifact_path must live under governance/authorizations/ "
+                f"or {PII_REVIEW_DECISIONS_DIR}/"
             )
         return value
+
+    @model_validator(mode="after")
+    def _path_matches_decision_kind(self) -> ScopeAuthorizationReviewBindingV1:
+        """Le répertoire désigné est celui de la décision, jamais l'inverse : un
+        reçu de scope ne couvre pas un ensemble de décisions PII, ni l'inverse."""
+        expected = {
+            "AUTHORIZE_INGESTION_SCOPE": "governance/authorizations/",
+            "APPROVE_PII_REVIEW_DECISIONS": f"{PII_REVIEW_DECISIONS_DIR}/",
+        }[self.authorization_decision]
+        if not self.authorization_artifact_path.startswith(expected):
+            raise ValueError(
+                f"a {self.authorization_decision} receipt must name a path under {expected}"
+            )
+        return self
 
     def canonical_document(self) -> dict[str, Any]:
         return {
@@ -486,6 +509,65 @@ def require_matches_authorization(
     if binding.challenge_protocol != TRUSTED_REVIEW_PROTOCOL:
         raise ReviewBindingError(  # pragma: no cover - borné par le Literal
             f"challenge protocol {binding.challenge_protocol!r} is unsupported"
+        )
+
+
+def require_matches_pii_review_decision_set(
+    binding: ScopeAuthorizationReviewBindingV1,
+    *,
+    decision_set_id: str,
+    decision_set_bytes: bytes,
+    decision_set_git_blob_sha1: str,
+    expected_repository: str,
+    accepted_reviewers: tuple[str, ...] | None = None,
+) -> None:
+    """Confronte le reçu à l'ensemble de décisions PII qu'il prétend couvrir
+    (ADR-0047) — la même discipline que `require_matches_authorization`."""
+    if binding.authorization_decision != "APPROVE_PII_REVIEW_DECISIONS":
+        raise ReviewBindingError(
+            f"receipt decision {binding.authorization_decision!r} does not approve a "
+            "PII review decision set"
+        )
+    if binding.repository != expected_repository:
+        raise ReviewBindingError(
+            f"receipt covers repository {binding.repository!r}, not "
+            f"{expected_repository!r} — a review in another repository decides nothing here"
+        )
+    if binding.authorization_id != decision_set_id:
+        raise ReviewBindingError(
+            f"receipt covers decision set {binding.authorization_id!r}, not {decision_set_id!r}"
+        )
+    try:
+        expected_path = canonical_pii_review_decisions_path(decision_set_id)
+    except ValueError as exc:
+        raise ReviewBindingError(str(exc)) from exc
+    if binding.authorization_artifact_path != expected_path:
+        raise ReviewBindingError(
+            f"receipt names path {binding.authorization_artifact_path!r}, but the canonical "
+            f"path of {decision_set_id!r} is {expected_path!r}"
+        )
+    actual_sha256 = sha256(decision_set_bytes).hexdigest()
+    if binding.authorization_artifact_sha256 != actual_sha256:
+        raise ReviewBindingError(
+            "receipt was issued for different decision set bytes "
+            f"(receipt={binding.authorization_artifact_sha256[:16]}..., "
+            f"local={actual_sha256[:16]}...)"
+        )
+    if binding.authorization_artifact_git_blob_sha1 != decision_set_git_blob_sha1:
+        raise ReviewBindingError(
+            "receipt Git blob SHA-1 does not match the local decision set bytes "
+            f"(receipt={binding.authorization_artifact_git_blob_sha1}, "
+            f"local={decision_set_git_blob_sha1})"
+        )
+    if binding.reviewer_login == binding.author_login:
+        raise ReviewBindingError(
+            f"reviewer {binding.reviewer_login!r} is the author of the decision set pull "
+            "request — self-approval is never a human review"
+        )
+    if accepted_reviewers is not None and binding.reviewer_login not in accepted_reviewers:
+        raise ReviewBindingError(
+            f"reviewer {binding.reviewer_login!r} is not among the trusted "
+            f"reviewers {list(accepted_reviewers)!r}"
         )
 
 

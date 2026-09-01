@@ -15,12 +15,14 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_14_0() -> None:
-    """0.14.0 (ADR-0045) ajoute les scopes retrieval production immuables
-    sans rupture des contrats V1 existants."""
+def test_package_version_is_0_15_0() -> None:
+    """0.15.0 (ADR-0047) ajoute les décisions humaines de revue PII par contenu
+    et étend le reçu de liaison de revue de façon additive
+    (`APPROVE_PII_REVIEW_DECISIONS`), sans rupture des contrats existants.
+    0.14.0 (ADR-0045) avait ajouté les scopes retrieval production immuables."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.14.0"
+    assert pyproject["project"]["version"] == "0.15.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:

@@ -1,0 +1,561 @@
+{
+  "bundles": [
+    {
+      "bundle_dir": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "bundle_sha256": "9ffe89f80be1d5151488ac3214a09df3eb3ee22a0e7f5686b42fdf4c22852e57",
+      "content_sha256": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "files": {
+        "document.pdf": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+        "pages/page-0009.txt": "9c173874e18ee810fb02dd075a25c7f83d4fc1064f321d168ca54fc09823d1ee"
+      },
+      "page_count": 9,
+      "pages": [
+        9
+      ],
+      "placements": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2021/la-conservation-des-genomes-stabilite-genetique-et-evolution-clonale-remobiliser-des-prerequis-et-presentation-orale-pdf-1-19-mo--04bf557a57.pdf",
+      "title": "la conservation des genomes stabilite genetique et evolution clonale remobiliser des prerequis et presentation orale"
+    },
+    {
+      "bundle_dir": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "bundle_sha256": "9b705a8fdd9baa4c79e6410c6a7fa00034b43275d18518cb3bfe7859bf1dff32",
+      "content_sha256": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "files": {
+        "document.pdf": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+        "pages/page-0004.txt": "7ed5ce1509460a212e0372b917b34e6c6ad1f05a61ef12b7731a80ab135c3484"
+      },
+      "page_count": 43,
+      "pages": [
+        4
+      ],
+      "placements": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2020/former-les-eleves-a-des-techniques-de-biologie-moleculaire-et-de-bioinformatique-et-apprehender-le-concept-d-holobionte-pdf-5-31-m--0dda163a79.pdf",
+      "title": "former les eleves a des techniques de biologie moleculaire et de bioinformatique et apprehender le concept d holobionte"
+    },
+    {
+      "bundle_dir": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "bundle_sha256": "2563de9fcdc3e3f02c67183eb722736d4cd521483ea25b67ad1a8dcb05122f3c",
+      "content_sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "files": {
+        "document.pdf": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+        "pages/page-0008.txt": "03f411475335dc86fc008d9ca27779d5ef70736b1ea5296f580b799ab33211d5"
+      },
+      "page_count": 8,
+      "pages": [
+        8
+      ],
+      "placements": [
+        "rag_nexus_hlp_premiere_specialite",
+        "rag_nexus_hlp_terminale_specialite"
+      ],
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/90_ARCHIVE_CATALOGUE/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2024/la-definition-des-epreuves-anticipees-de-francais-du-baccalaureat-general-et-technologique--157309db13.pdf",
+      "title": "la definition des epreuves anticipees de francais du baccalaureat general et technologique"
+    },
+    {
+      "bundle_dir": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "bundle_sha256": "2c6ba2b830adc18fa1770c4b09077d30f7c589fbd6889c5aa096b609124120a9",
+      "content_sha256": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "files": {
+        "document.pdf": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+        "pages/page-0005.txt": "e3510638ef39de1a839c8fbf9b92326efa85a29b5873236cc2d5b7fb2c3a9565"
+      },
+      "page_count": 8,
+      "pages": [
+        5
+      ],
+      "placements": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 4,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/07_DIAPORAMAS_SUPPORTS/2019/modele-d-architecture-de-von-neumann-pdf-243-56-ko--28c92cd742.pdf",
+      "title": "modele d architecture de von neumann"
+    },
+    {
+      "bundle_dir": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "bundle_sha256": "45074317e38ea514daba096e23f5241b91d853c04a6981df7bdc8e3b309e43b5",
+      "content_sha256": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "files": {
+        "document.pdf": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+        "pages/page-0007.txt": "d415da55fbbe545553744165311a594aa9ec41c479cf55d103aa9392b5f89c48"
+      },
+      "page_count": 25,
+      "pages": [
+        7
+      ],
+      "placements": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/ecriture-de-tests-pdf-543-48-ko--28f92cfe1c.pdf",
+      "title": "ecriture de tests"
+    },
+    {
+      "bundle_dir": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "bundle_sha256": "9f28ff4047587667536c228c6f4c83dcdb888e3cacb45dba2b1beba81c972237",
+      "content_sha256": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "files": {
+        "document.pdf": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+        "pages/page-0005.txt": "c7e33098dcd8e88b4d3942e7b0edd46320dacf3dea4907c0fb813ebddf1d4826"
+      },
+      "page_count": 5,
+      "pages": [
+        5
+      ],
+      "placements": [
+        "rag_nexus_hlp_premiere_specialite",
+        "rag_nexus_hlp_terminale_specialite"
+      ],
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2023/des-ressources-numeriques-pour-accompagner-l-etude-des-uvres-au-programme-le-roman-et-le-recit-du-moyen-age-au-xxie-siecle-pdf-177--2d0745ca84.pdf",
+      "title": "des ressources numeriques pour accompagner l etude des uvres au programme le roman et le recit du moyen age au xxie siecle"
+    },
+    {
+      "bundle_dir": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "bundle_sha256": "a04e3df9b9145ba4d7c744ef27f254219e63e03d41560390109e294622e8f904",
+      "content_sha256": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "files": {
+        "document.pdf": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+        "pages/page-0007.txt": "8e109ddb4eb826e43fd6d7531d6bcd0e3d908fcc077d9375338e509b0cb455c6",
+        "pages/page-0008.txt": "503cecd092feb3854f87a6de178e931a145ca8903e5cb8c5be207cad66dced66",
+        "pages/page-0009.txt": "b98c6864ceca1f20c8f94bbb9f357b4e3897f860d6be7f88f3eb8cc7323e3045"
+      },
+      "page_count": 9,
+      "pages": [
+        7,
+        8,
+        9
+      ],
+      "placements": [
+        "rag_nexus_svt_premiere_specialite"
+      ],
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2021/mutations-de-l-adn-et-variabilite-genetique-alterations-du-genome-et-cancerisation-presentation-orale-d-une-strategie-de-resolutio--39c50431bf.pdf",
+      "title": "mutations de l adn et variabilite genetique alterations du genome et cancerisation presentation orale d une strategie de resolutio"
+    },
+    {
+      "bundle_dir": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "bundle_sha256": "fbb0c51045a831b3c40b13117a3a21af471b152776d7964244d60ae5d014740f",
+      "content_sha256": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "files": {
+        "document.pdf": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+        "pages/page-0008.txt": "e0065619aaef61f44ce05215dfee49d62c00e90dfceeaffa3e332bb5482bc56b",
+        "pages/page-0009.txt": "28cc2b7628f9ab837ebe05e4a1b4652ac973228ff7363c2215b16c3a0302805b"
+      },
+      "page_count": 13,
+      "pages": [
+        8,
+        9
+      ],
+      "placements": [
+        "rag_nexus_svt_premiere_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2020/variation-genetique-et-sante-risque-de-transmission-de-la-mucoviscidose-chez-un-couple-dont-l-homme-est-heterozygote-composite-pdf--3f1ab328a0.pdf",
+      "title": "variation genetique et sante risque de transmission de la mucoviscidose chez un couple dont l homme est heterozygote composite"
+    },
+    {
+      "bundle_dir": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "bundle_sha256": "1367f15959c52a5d946a8626d14ffe66032027c05928d5c394d07bd0a63fa5ef",
+      "content_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "files": {
+        "document.pdf": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+        "pages/page-0003.txt": "756e183aaea3b90e5aa1c4a9da36d7967d0aa61e7caf448183e96cb4595b58bd"
+      },
+      "page_count": 9,
+      "pages": [
+        3
+      ],
+      "placements": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/types-construits-en-python-pdf-159-07-ko--447bdee89a.pdf",
+      "title": "types construits en python"
+    },
+    {
+      "bundle_dir": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "bundle_sha256": "cd1d280afda53b1151de1618ea30df81c3d52f831f746c0fd2a67bc7230c1ee6",
+      "content_sha256": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "files": {
+        "document.pdf": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+        "pages/page-0001.txt": "46351f932cbee1afc0e3d3ad35b87a8953b655d55fb3acf6556ea4184abd50b7"
+      },
+      "page_count": 5,
+      "pages": [
+        1
+      ],
+      "placements": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-pdf-144-44-ko--461e89b1b1.pdf",
+      "title": "manipulation de tables"
+    },
+    {
+      "bundle_dir": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "bundle_sha256": "1a1e5d2d9ee29d6d3ea5a1dc8434afb4cf78a0923c6ff1c78858bce47060ec8a",
+      "content_sha256": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "files": {
+        "document.pdf": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+        "pages/page-0017.txt": "73afba8cefca8d8306208a09bbfa49c712c56ab25fab93118aedaddc30a300b2"
+      },
+      "page_count": 17,
+      "pages": [
+        17
+      ],
+      "placements": [
+        "rag_nexus_svt_premiere_specialite",
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "signal_classes": [
+        "email_address",
+        "phone_french"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2014/dossier-de-presse-eutrophisation-pdf-1-54-mo--5a8d69d488.pdf",
+      "title": "dossier de presse eutrophisation"
+    },
+    {
+      "bundle_dir": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "bundle_sha256": "28ab372b58721462e0b26efb09ed818c6c0c92ff9fa397de86e7d10cdac722a7",
+      "content_sha256": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "files": {
+        "document.pdf": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+        "pages/page-0008.txt": "86a5817bd6dd3914787549f50440d62eb0c4006f9cf46e52266c0ecad0f997bd"
+      },
+      "page_count": 8,
+      "pages": [
+        8
+      ],
+      "placements": [
+        "rag_nexus_ses_premiere_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/SES/03_RESSOURCES_ACCOMPAGNEMENT/2019/qu-est-ce-que-la-monnaie-et-comment-est-elle-creee-pdf-531-52-ko--62d9ac2834.pdf",
+      "title": "qu est ce que la monnaie et comment est elle creee"
+    },
+    {
+      "bundle_dir": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "bundle_sha256": "043536ad89070268fba41881e12e4b63c9eab962bebc55d36206e3b56251c9e9",
+      "content_sha256": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "files": {
+        "document.pdf": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+        "pages/page-0003.txt": "13270a10271414e82d6b00a07bb3bde700cd990097aebfc1b9bff0e46916b36a"
+      },
+      "page_count": 4,
+      "pages": [
+        3
+      ],
+      "placements": [
+        "rag_nexus_hlp_premiere_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2022/la-question-de-grammaire-de-l-epreuve-anticipee-orale-de-francais-precisions-sur-sa-definition--6a7942128b.pdf",
+      "title": "la question de grammaire de l epreuve anticipee orale de francais precisions sur sa definition"
+    },
+    {
+      "bundle_dir": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "bundle_sha256": "39002398294fca4caf6af347c58c0efa16edd2849c2cfb272129c7859f290258",
+      "content_sha256": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "files": {
+        "document.pdf": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+        "pages/page-0004.txt": "40dbaff690d1bef9e81c2171fd333b9464d65ae0106d08e181fa7b545145aa08"
+      },
+      "page_count": 17,
+      "pages": [
+        4
+      ],
+      "placements": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "french_ssn",
+        "phone_french"
+      ],
+      "signal_count": 6,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/04_EVALUATIONS_EXAMENS/2021/le-paradigme-fonctionnel-pdf-404-66-ko--703cbd7598.pdf",
+      "title": "le paradigme fonctionnel"
+    },
+    {
+      "bundle_dir": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "bundle_sha256": "5586cad879d48f61acf2730340c11d385d87aea228aff8f1cf2d23c9582324b2",
+      "content_sha256": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "files": {
+        "document.pdf": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+        "pages/page-0012.txt": "3a2cde9978d451af7c04daf064d363d8b9d1bd0e782a2cc635b87d7b2b9a26f7",
+        "pages/page-0014.txt": "9c899c5961b815cc01d073b977a048cfcd9bf8d788856bd0f29ad68fd2dd763d"
+      },
+      "page_count": 39,
+      "pages": [
+        12,
+        14
+      ],
+      "placements": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "postal_address",
+        "student_name_pattern"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/09_AUTRES/2021/les-circuits-pdf-4-51-mo--936c1e54b1.pdf",
+      "title": "les circuits"
+    },
+    {
+      "bundle_dir": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "bundle_sha256": "afa49798f64fa28593754b180269be5d462e21cd06ecda657cb61d4459ee24e9",
+      "content_sha256": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "files": {
+        "document.pdf": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+        "pages/page-0005.txt": "ea6525a2d121d2512ca4c2516dcee326d70fdba7e303ba7f18d7400f877fb3b3"
+      },
+      "page_count": 9,
+      "pages": [
+        5
+      ],
+      "placements": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/07_DIAPORAMAS_SUPPORTS/2019/diversite-et-unite-des-langages-de-programmation-pdf-161-08-ko--93b7e44627.pdf",
+      "title": "diversite et unite des langages de programmation"
+    },
+    {
+      "bundle_dir": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "bundle_sha256": "0734e9c76eb3deea223e34f3004d2abf469fb61d4abdd734aec57f340bec55fb",
+      "content_sha256": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "files": {
+        "document.pdf": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+        "pages/page-0010.txt": "8ed6678adf665c5b0e6a1fcb646817e09478e8b8167017eed19b9d40adb5501d"
+      },
+      "page_count": 13,
+      "pages": [
+        10
+      ],
+      "placements": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2020/placer-les-eleves-en-demarche-de-projet-pour-comprendre-et-evaluer-une-action-climatique-pdf-333-91-ko--96e887c34c.pdf",
+      "title": "placer les eleves en demarche de projet pour comprendre et evaluer une action climatique"
+    },
+    {
+      "bundle_dir": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "bundle_sha256": "0db7ae71fb5cee8382b7ae8e73357f3bc539d7c27e8a36aa74f28a5df1027f21",
+      "content_sha256": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "files": {
+        "document.pdf": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+        "pages/page-0007.txt": "9bc1cbfd646bd9d690cdb559fb0a58d82148f49b2f58da36328be0c39b203377"
+      },
+      "page_count": 12,
+      "pages": [
+        7
+      ],
+      "placements": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/securisation-des-communications-pdf-874-59-ko--d05da0bb13.pdf",
+      "title": "securisation des communications"
+    },
+    {
+      "bundle_dir": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "bundle_sha256": "6f4fccf9e3539e2eb6b62f7a39d25aca7b5dddbd13ba33cda16be675e774db2d",
+      "content_sha256": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "files": {
+        "document.pdf": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+        "pages/page-0009.txt": "9e4f09bfe963ea70ce11b0b2c43b6a4449223b83c7d5876fc7517e5e2103f394"
+      },
+      "page_count": 17,
+      "pages": [
+        9
+      ],
+      "placements": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2020/trajectoires-et-strategies-d-attenuation-pdf-1-43-mo--e1309f6255.pdf",
+      "title": "trajectoires et strategies d attenuation"
+    },
+    {
+      "bundle_dir": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "bundle_sha256": "86e671b3ee33d9207d074716232a74eaac85365d51d541a512eb650f391a357e",
+      "content_sha256": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "files": {
+        "document.pdf": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+        "pages/page-0002.txt": "a1131c665bda3b4bf5fe8c02f2c07ba6b05ac10eff139d71ac7034a5eaa4f973",
+        "pages/page-0004.txt": "6218e8b04352e61a0b857bce882ce57a496377894f431e34f1e33f57f8387f31",
+        "pages/page-0005.txt": "b748314a0806bf50d8fa83e105f9b3d3c071eccb53ddbaa1e0898ffb2f9c7551",
+        "pages/page-0006.txt": "23022e2d8cb15c3226b86ff46fa5fceb7602aa868c04979ce3665a30036bf644"
+      },
+      "page_count": 8,
+      "pages": [
+        2,
+        4,
+        5,
+        6
+      ],
+      "placements": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "phone_french",
+        "postal_address"
+      ],
+      "signal_count": 5,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/representation-des-entiers-naturels-pdf-167-2-ko--e20b73d10c.pdf",
+      "title": "representation des entiers naturels"
+    },
+    {
+      "bundle_dir": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "bundle_sha256": "21f1f10aedf7cbfc722e7a9a89ca2d618908a16fcae20e3e108baba2388af5ab",
+      "content_sha256": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "files": {
+        "document.pdf": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+        "pages/page-0001.txt": "ce1c4f526bd8a16d3b3aea1f76006a977bedce5c399c466966f8eaab6be6e05d",
+        "pages/page-0003.txt": "976c38344679f07ef92c58b513ad5937cb427d5a7e33b14db4c6fbf00aa4043c"
+      },
+      "page_count": 4,
+      "pages": [
+        1,
+        3
+      ],
+      "placements": [
+        "rag_nexus_dgemc_terminale_option"
+      ],
+      "signal_classes": [
+        "email_address",
+        "postal_address"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/20_TRANSITION_OU_ACTUEL/DGEMC/09_AUTRES/2026/reglement-2026-2027-pdf-202-78-ko--ebe2d96d24.pdf",
+      "title": "reglement 2026 2027"
+    },
+    {
+      "bundle_dir": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "bundle_sha256": "69889149322ed86f7897b37fc47e0f6eb372b866758510267c8897d5e4c18355",
+      "content_sha256": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "files": {
+        "document.pdf": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+        "pages/page-0003.txt": "cf7aa6f147c2d071bf5a21da7fd2fdec9a8079ee40123cc4225775296ecb8822"
+      },
+      "page_count": 5,
+      "pages": [
+        3
+      ],
+      "placements": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-avec-la-bibliotheque-pandas-pdf-146-17-ko--f21c80ab3a.pdf",
+      "title": "manipulation de tables avec la bibliotheque pandas"
+    },
+    {
+      "bundle_dir": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "bundle_sha256": "9db991c7f323360d3070dac0aef0ff4d88b475223672caa34ac714eca8aef34d",
+      "content_sha256": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "files": {
+        "document.pdf": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+        "pages/page-0007.txt": "42098d099baa8780bad18affa6a93fb9be86fd639f5f1375888e28cc987972f3"
+      },
+      "page_count": 7,
+      "pages": [
+        7
+      ],
+      "placements": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2020/calculabilite-et-decidabilite-pdf-433-14-ko--f636ef6038.pdf",
+      "title": "calculabilite et decidabilite"
+    }
+  ],
+  "campaign_id": "pii-review-2026-09-02-lot-1-2",
+  "content_set_sha256": "77f01c824c6be14ba6fd66eda99c2179fd87d9a2aaaf3c58e56a917d1ad5c31d",
+  "counts": {
+    "bundles": 23,
+    "scanned": 320
+  },
+  "generated_at": "2026-09-01T23:54:41.658593+00:00",
+  "index_sha256_excluded": true,
+  "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+  "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+  "policy_path": "services/rag-pedago/configs/pii_gate_policy.yml",
+  "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+  "protocol_version": "NEXUS-PII-REVIEW-INDEX-V1",
+  "raw_pii_in_output": false,
+  "runtime": {
+    "pypdf": "6.14.2",
+    "python": "3.12.3"
+  },
+  "scanner_path": "services/rag-pedago/rag_pedago/imports/pii_scanner.py",
+  "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94"
+}
