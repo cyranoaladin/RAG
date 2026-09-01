@@ -785,6 +785,10 @@ def test_v2_producer_pii_scans_unique_contents_once(
             pages_scanned=1,
             characters_scanned=42,
             ignored_empty_pages=(),
+            # Le double porte la mesure que le producteur lit desormais : un scan
+            # sans correspondance. Sans ce champ, la preuve ne peut plus etre ecrite.
+            pii_detected=False,
+            matches=(),
             extraction_error=None,
         )
 
