@@ -205,3 +205,42 @@ class TestNoSpecialCaseForAnyContent:
         import re
 
         assert re.search(r"[0-9a-f]{64}", source) is None
+
+
+class TestSharedPagePolicy:
+    """Le verdict structurel n'a qu'une autorité : `nexus_pdf_page_policy`.
+
+    L'extracteur ne porte aucune copie du critère ; il appelle le foyer partagé
+    et nomme le code canonique du motif dans son refus.
+    """
+
+    def test_the_extractor_calls_the_shared_policy(self) -> None:
+        import nexus_pdf_page_policy as policy
+
+        from ingestor.ingestion_agents import extractor
+
+        assert extractor.motif_de_refus_page is policy.motif_de_refus_page
+        assert not hasattr(extractor, "_inspecter_structure")
+        assert not hasattr(extractor, "motif_de_refus_page_sans_texte")
+
+    @pytest.mark.parametrize(
+        ("flux", "code"),
+        [
+            (b"q 595 0 0 842 0 0 cm /Im1 Do Q", "PAGE_IMAGE_NON_LISIBLE"),
+            (b"BT /F1 12 Tf 72 720 Td () Tj ET", "PAGE_TEXTE_NON_DECODABLE"),
+            (b"100 100 m 150 200 200 200 250 100 c f", "PAGE_TRACE_VECTORIEL"),
+        ],
+    )
+    def test_the_refusal_names_the_canonical_code(self, flux: bytes, code: str) -> None:
+        import nexus_pdf_page_policy as policy
+
+        octets = _pdf([_PAGE_AVEC_TEXTE, flux])
+        assert policy.classer_pages_sans_texte(octets, [2]) == {2: code}
+        with pytest.raises(PdfExtractionError, match=rf"page 2/2.*{code}"):
+            extract_pdf_pages(octets)
+
+    def test_an_inspection_failure_refuses_the_document(self) -> None:
+        """Une panne d'instrument n'est pas « aucune image » : le document est
+        refusé, avec le code de panne, jamais indexé comme complet."""
+        with pytest.raises(PdfExtractionError, match=r"page 2/2.*PAGE_INSPECTION_FAILED"):
+            extract_pdf_pages(_pdf([_PAGE_AVEC_TEXTE, b"q /Im9 Do Q"]))

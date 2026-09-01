@@ -129,8 +129,12 @@ class TestPageSansTexte:
     def test_panne_d_instrument_refuse_et_ne_conclut_pas(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """R32 : une panne d'instrument n'est jamais convertie en « aucune image »."""
-        monkeypatch.setattr(pii_scanner, "ContentStream", None)
+        """R32 : une panne d'instrument n'est jamais convertie en « aucune image ».
+
+        L'instrument vit dans le foyer partagé : c'est lui qu'on met en panne."""
+        import nexus_pdf_page_policy as foyer
+
+        monkeypatch.setattr(foyer, "ContentStream", None)
         resultat = _scan([_PAGE_AVEC_TEXTE, b""])
         assert resultat.extraction_error is not None
         assert resultat.extraction_error.startswith(PAGE_INSPECTION_ECHOUEE)
@@ -143,8 +147,58 @@ class TestPageSansTexte:
         def tombe_en_panne(*_args, **_kwargs):
             raise RuntimeError("moteur indisponible")
 
-        monkeypatch.setattr(pii_scanner, "ContentStream", tombe_en_panne)
+        import nexus_pdf_page_policy as foyer
+
+        monkeypatch.setattr(foyer, "ContentStream", tombe_en_panne)
         resultat = _scan([_PAGE_AVEC_TEXTE, b""])
         assert resultat.extraction_error is not None
         assert resultat.extraction_error.startswith(PAGE_INSPECTION_ECHOUEE)
         assert "moteur indisponible" in resultat.extraction_error
+
+
+class TestFoyerUnique:
+    """Le verdict structurel n'a qu'une autorité : `nexus_pdf_page_policy`.
+
+    Deux copies « maintenues synchronisées par tests » resteraient deux
+    autorités. Le scanner PII n'en porte aucune : il appelle le foyer partagé,
+    et ses codes SONT ceux du foyer (identité d'objet, pas égalité de texte).
+    """
+
+    def test_le_scanner_appelle_le_foyer_partage(self) -> None:
+        import nexus_pdf_page_policy as foyer
+
+        assert pii_scanner.classer_pages_sans_texte is foyer.classer_pages_sans_texte
+        assert pii_scanner.PageInspectionError is foyer.PageInspectionError
+        assert (PAGE_REFUS_IMAGE, PAGE_REFUS_TEXTE, PAGE_REFUS_TRACE) == foyer.MOTIFS_DE_REFUS
+        assert PAGE_INSPECTION_ECHOUEE == foyer.PAGE_INSPECTION_ECHOUEE
+
+    def test_le_scanner_ne_definit_plus_de_predicat_local(self) -> None:
+        """Aucun `_inspecter_structure` local : un doublon dormant redeviendrait
+        une seconde autorité à la première divergence."""
+        assert not hasattr(pii_scanner, "_inspecter_structure")
+
+    @pytest.mark.parametrize(
+        ("flux", "motif"),
+        [
+            (b"q 595 0 0 842 0 0 cm /Im1 Do Q", PAGE_REFUS_IMAGE),
+            (b"BT /F1 12 Tf 72 720 Td () Tj ET", PAGE_REFUS_TEXTE),
+            (b"100 100 m 150 200 200 200 250 100 c f", PAGE_REFUS_TRACE),
+            (b"", None),
+        ],
+    )
+    def test_le_scanner_rend_le_verdict_du_foyer_sur_les_memes_octets(
+        self, flux: bytes, motif: str | None
+    ) -> None:
+        import nexus_pdf_page_policy as foyer
+
+        octets = _pdf([_PAGE_AVEC_TEXTE, flux])
+        attendu = foyer.classer_pages_sans_texte(octets, [2])
+        resultat = scan_pdf_bytes(octets, source_path="epreuve.pdf")
+        if motif is None:
+            assert attendu == {}
+            assert resultat.extraction_error is None
+            assert resultat.ignored_empty_pages == (2,)
+        else:
+            assert attendu == {2: motif}
+            assert resultat.extraction_error is not None
+            assert resultat.extraction_error.startswith(motif)

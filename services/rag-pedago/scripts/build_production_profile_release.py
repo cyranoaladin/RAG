@@ -28,6 +28,10 @@ for source_root in (
     if str(source_root) not in sys.path:
         sys.path.insert(0, str(source_root))
 
+# Le prédicat qui dérive `ignored_empty_pages` (ADR-0046). La preuve PII nomme
+# ce foyer par son id versionné et l'empreinte de ses octets : `scanner_sha256`
+# reste l'empreinte du scanner et ne porte plus le prédicat.
+import nexus_pdf_page_policy as page_policy  # noqa: E402
 from ingestor.collection_config import load_collection_config  # noqa: E402
 from ingestor.ingestion_profiles.manifest import verify_profile_manifest  # noqa: E402
 from ingestor.ingestion_profiles.registry import (  # noqa: E402
@@ -1326,6 +1330,8 @@ def _pii_evidence(
         "policy_sha256": _file_sha256(PII_POLICY_PATH),
         "scanner_version": "production-profile-gate-v1",
         "scanner_sha256": _file_sha256(PII_SCANNER_PATH),
+        "page_policy_id": page_policy.POLICY_ID,
+        "page_policy_sha256": page_policy.policy_source_sha256(),
         "required_pdf_path_count": len(grouped),
         "remote_access_mode": "READ_ONLY",
         "remote_write_operations": 0,

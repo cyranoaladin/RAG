@@ -20,7 +20,6 @@ import argparse
 import hashlib
 import json
 import re
-from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from io import BytesIO
@@ -29,12 +28,22 @@ from typing import Any
 
 import yaml
 
+# Le verdict structurel « page sans texte » n'a qu'une autorité, partagée avec
+# l'extracteur de rag-engine : le foyer neutre `nexus_pdf_page_policy` (ADR-0046).
+# Ce module n'en porte aucune copie ; il ré-exporte les noms pour ses appelants.
+from nexus_pdf_page_policy import (
+    PAGE_INSPECTION_ECHOUEE,
+    PAGE_REFUS_IMAGE,
+    PAGE_REFUS_TEXTE,
+    PAGE_REFUS_TRACE,
+    PageInspectionError,
+    classer_pages_sans_texte,
+)
+
 try:
     from pypdf import PdfReader
-    from pypdf.generic import ContentStream
 except ImportError:
     PdfReader = None  # type: ignore[misc,assignment]
-    ContentStream = None  # type: ignore[misc,assignment]
 
 
 @dataclass
@@ -298,122 +307,6 @@ def compute_file_sha256(path: Path) -> str:
     sha = hashlib.sha256()
     sha.update(path.read_bytes())
     return sha.hexdigest()
-
-
-class PageInspectionError(RuntimeError):
-    """L'inspection structurelle d'une page n'a pas pu s'effectuer.
-
-    Ce n'est pas un verdict. Une panne d'instrument ne conclut jamais « aucune
-    image » : elle refuse. Voir docs/reports/lot_1_2_critere_page_sans_texte.md.
-    """
-
-
-PAGE_REFUS_IMAGE = "PAGE_IMAGE_NON_LISIBLE"
-PAGE_REFUS_TEXTE = "PAGE_TEXTE_NON_DECODABLE"
-PAGE_REFUS_TRACE = "PAGE_TRACE_VECTORIEL"
-PAGE_INSPECTION_ECHOUEE = "PAGE_INSPECTION_FAILED"
-
-_OPS_TEXTE = {b"Tj", b"TJ", b"'", b'"'}
-_OPS_COURBE = {b"c", b"v", b"y"}
-_OPS_TRACE_LIBRE = {b"m", b"l"}
-
-
-def _inspecter_structure(
-    obj: Any,
-    reader: Any,
-    *,
-    vus: set[int],
-) -> tuple[int, bool, bool]:
-    """Rend (nb_images, opérateur_de_texte, tracé_pouvant_porter_un_glyphe).
-
-    Suit le FLUX DE CONTENU, pas l'inventaire des ressources : beaucoup de
-    producteurs attachent le même dictionnaire /Resources à toutes les pages,
-    et une image déclarée mais jamais peinte ne porte aucun glyphe. Descend
-    récursivement dans les /Form XObjects effectivement invoqués par `Do`.
-    Compte les images sans les décoder : aucune dépendance à pillow.
-    """
-    images = 0
-    texte = False
-    trace = False
-
-    xobjects: Any = {}
-    ressources = obj.get("/Resources")
-    if ressources is not None:
-        declares = ressources.get_object().get("/XObject")
-        if declares is not None:
-            xobjects = declares.get_object()
-
-    # Une page porte son flux dans /Contents ; un /Form XObject EST son flux.
-    source = obj.get_contents() if hasattr(obj, "get_contents") else obj
-    if source is None:
-        return images, texte, trace
-
-    for operandes, operateur in ContentStream(source, reader).operations:
-        if operateur in _OPS_TEXTE:
-            texte = True
-        elif operateur in _OPS_COURBE or operateur in _OPS_TRACE_LIBRE:
-            trace = True
-        elif operateur == b"INLINE IMAGE":
-            images += 1
-        elif operateur == b"Do" and operandes:
-            reference = xobjects.get(operandes[0]) if xobjects else None
-            if reference is None:
-                # L'instrument ne peut pas dire ce qui est peint : il refuse.
-                raise KeyError(f"XObject {operandes[0]!r} introuvable")
-            identifiant = getattr(reference, "idnum", None)
-            if identifiant is not None:
-                if identifiant in vus:
-                    continue
-                vus.add(identifiant)
-            enfant = reference.get_object()
-            sous_type = enfant.get("/Subtype")
-            if sous_type == "/Image":
-                images += 1
-            elif sous_type == "/Form":
-                n, t, v = _inspecter_structure(enfant, reader, vus=vus)
-                images += n
-                texte = texte or t
-                trace = trace or v
-    return images, texte, trace
-
-
-def classer_pages_sans_texte(
-    pdf_content: bytes,
-    numeros: Sequence[int],
-) -> dict[int, str]:
-    """Rend {numéro de page: motif de refus} pour les pages NON ignorables.
-
-    Une page absente du résultat est ignorable : structurellement incapable de
-    porter un glyphe. Le critère est fixé dans
-    docs/reports/lot_1_2_critere_page_sans_texte.md et n'emploie aucun seuil.
-
-    Lève PageInspectionError si l'instrument ne peut pas s'exercer — jamais de
-    valeur de repli (R32).
-    """
-    if PdfReader is None or ContentStream is None:
-        raise PageInspectionError("pypdf indisponible")
-    try:
-        reader = PdfReader(BytesIO(pdf_content))
-    except Exception as exc:  # noqa: BLE001 - relevée, jamais convertie en verdict
-        raise PageInspectionError(
-            f"lecture impossible: {type(exc).__name__}: {exc}"
-        ) from exc
-    refus: dict[int, str] = {}
-    for numero in numeros:
-        try:
-            page = reader.pages[numero - 1]
-            images, texte, trace = _inspecter_structure(page, reader, vus=set())
-        except Exception as exc:  # noqa: BLE001 - relevée, jamais convertie en verdict
-            raise PageInspectionError(
-                f"page {numero}: {type(exc).__name__}: {exc}"
-            ) from exc
-        if images:
-            refus[numero] = PAGE_REFUS_IMAGE
-        elif texte:
-            refus[numero] = PAGE_REFUS_TEXTE
-        elif trace:
-            refus[numero] = PAGE_REFUS_TRACE
-    return refus
 
 
 def extract_pdf_pages_with_structural_empty_pages(

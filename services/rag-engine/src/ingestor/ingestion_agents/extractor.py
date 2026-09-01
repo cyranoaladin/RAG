@@ -27,6 +27,15 @@ import psycopg
 from nexus_contracts.ingestion import ArtifactRecord
 from nexus_contracts.resource_state import ResourceState
 
+# Foyer unique du prédicat structurel « page sans texte » (ADR-0046) : partagé
+# avec le scanner PII de rag-pedago, jamais recopié ici.
+from nexus_pdf_page_policy import (
+    PAGE_INSPECTION_ECHOUEE,
+    SENS_DES_MOTIFS,
+    PageInspectionError,
+    motif_de_refus_page,
+)
+
 from .dependencies import ArtifactReader
 from .transitions import TransitionResult, apply_resource_transition
 
@@ -93,95 +102,6 @@ class ArtifactIntegrityError(ValueError):
 #: des pages RÉELLEMENT vides — verso de couverture, quatrième de couverture. Ils
 #: étaient refusés en bloc, pour 1 720 120 caractères, soit 2,56 % du corpus.
 #:
-#: Ce critère est le MÊME que celui de ``rag_pedago.imports.pii_scanner``. La
-#: règle cross-service interdit à ce service d'importer l'autre : les deux
-#: implémentations sont donc jumelles, et une dette est inscrite pour leur
-#: donner un foyer unique (ADR requis, hors périmètre du LOT 1.2). Les deux sont
-#: épinglées sur les mêmes documents réels, de sorte qu'une divergence se voie.
-_OPS_TEXTE = {b"Tj", b"TJ", b"'", b'"'}
-_OPS_COURBE = {b"c", b"v", b"y"}
-_OPS_TRACE_LIBRE = {b"m", b"l"}
-
-PAGE_REFUS_IMAGE = "page-image non lisible (candidat OCR)"
-PAGE_REFUS_TEXTE = "opérateurs de texte sans texte extractible (encodage non décodable)"
-PAGE_REFUS_TRACE = "tracé vectoriel pouvant porter un glyphe"
-
-
-def _inspecter_structure(obj: object, reader: object, *, vus: set[int]) -> tuple[int, bool, bool]:
-    """Rend (nb_images, opérateur_de_texte, tracé_pouvant_porter_un_glyphe).
-
-    Suit le FLUX DE CONTENU, pas l'inventaire des ressources : beaucoup de
-    producteurs attachent le même dictionnaire /Resources à toutes les pages, et
-    une image déclarée mais jamais peinte ne porte aucun glyphe. Descend
-    récursivement dans les /Form XObjects effectivement invoqués par ``Do``.
-    Compte les images sans les décoder : aucune dépendance à pillow.
-    """
-    from pypdf.generic import ContentStream
-
-    images = 0
-    texte = False
-    trace = False
-
-    xobjects: object = {}
-    ressources = obj.get("/Resources")
-    if ressources is not None:
-        declares = ressources.get_object().get("/XObject")
-        if declares is not None:
-            xobjects = declares.get_object()
-
-    # Une page porte son flux dans /Contents ; un /Form XObject EST son flux.
-    source = obj.get_contents() if hasattr(obj, "get_contents") else obj
-    if source is None:
-        return images, texte, trace
-
-    for operandes, operateur in ContentStream(source, reader).operations:
-        if operateur in _OPS_TEXTE:
-            texte = True
-        elif operateur in _OPS_COURBE or operateur in _OPS_TRACE_LIBRE:
-            trace = True
-        elif operateur == b"INLINE IMAGE":
-            images += 1
-        elif operateur == b"Do" and operandes:
-            reference = xobjects.get(operandes[0]) if xobjects else None
-            if reference is None:
-                raise KeyError(f"XObject {operandes[0]!r} introuvable")
-            identifiant = getattr(reference, "idnum", None)
-            if identifiant is not None:
-                if identifiant in vus:
-                    continue
-                vus.add(identifiant)
-            enfant = reference.get_object()
-            sous_type = enfant.get("/Subtype")
-            if sous_type == "/Image":
-                images += 1
-            elif sous_type == "/Form":
-                n, t, v = _inspecter_structure(enfant, reader, vus=vus)
-                images += n
-                texte = texte or t
-                trace = trace or v
-    return images, texte, trace
-
-
-def motif_de_refus_page_sans_texte(page: object, reader: object) -> str | None:
-    """Rend le motif exact de refus d'une page sans texte, ou ``None`` si elle
-    est ignorable — structurellement incapable de porter un glyphe.
-
-    Une panne d'inspection est un refus, jamais un « aucune image » : un
-    instrument en panne ne prononce pas de verdict.
-    """
-    try:
-        images, texte, trace = _inspecter_structure(page, reader, vus=set())
-    except Exception as exc:  # noqa: BLE001 - relevée, jamais convertie en verdict
-        return f"inspection impossible ({type(exc).__name__}: {exc})"
-    if images:
-        return PAGE_REFUS_IMAGE
-    if texte:
-        return PAGE_REFUS_TEXTE
-    if trace:
-        return PAGE_REFUS_TRACE
-    return None
-
-
 def extract_pdf_pages(raw_bytes: bytes) -> list[str]:
     """Rend le texte de chaque page, dans l'ordre, ou refuse.
 
@@ -232,13 +152,23 @@ def extract_pdf_pages(raw_bytes: bytes) -> list[str]:
 
         text = _WHITESPACE_PATTERN.sub(" ", raw).strip()
         if not text:
-            motif = motif_de_refus_page_sans_texte(page, reader)
+            # Le verdict vient du foyer partagé avec le scanner PII (ADR-0046) :
+            # même critère, mêmes codes, sur les mêmes octets. Une panne de
+            # l'instrument n'est pas « aucune image » : c'est un refus nommé.
+            try:
+                motif = motif_de_refus_page(page, reader)
+            except PageInspectionError as exc:
+                raise PdfExtractionError(
+                    f"page {number}/{page_count} sans texte extractible et non "
+                    f"inspectable — {PAGE_INSPECTION_ECHOUEE} ({exc}). Une panne "
+                    "d'instrument n'est pas un verdict : le document est refusé."
+                ) from exc
             if motif is not None:
                 raise PdfExtractionError(
                     f"page {number}/{page_count} sans texte extractible et "
-                    f"susceptible d'en porter — {motif}. Le document est refusé "
-                    "plutôt qu'indexé comme complet alors qu'une page n'a jamais "
-                    "été lue ; l'OCR reste hors de ce périmètre."
+                    f"susceptible d'en porter — {motif} : {SENS_DES_MOTIFS[motif]}. "
+                    "Le document est refusé plutôt qu'indexé comme complet alors "
+                    "qu'une page n'a jamais été lue ; l'OCR reste hors de ce périmètre."
                 )
             # Page réellement vide — verso de couverture, séparateur, quatrième
             # de couverture. Elle ne peut porter aucun glyphe. On l'IGNORE sans

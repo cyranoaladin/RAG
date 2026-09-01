@@ -846,6 +846,44 @@ def test_v2_producer_never_rewrites_a_positive_pii_scan_as_cleared(
     assert result["status"] != "CLEARED"
 
 
+def test_v2_producer_pii_evidence_names_the_page_policy_that_derived_its_pages(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`ignored_empty_pages` est dérivé par le foyer partagé (ADR-0046). La preuve
+    nomme ce prédicat par son id versionné et l'empreinte de ses octets, sans
+    réinterpréter `scanner_sha256`, qui reste l'empreinte du scanner."""
+    import nexus_pdf_page_policy as foyer
+
+    builder = cast(Any, _module())
+
+    def scan_once(_content: bytes, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            sha256=V2_ARTIFACT_SHA,
+            pages_scanned=1,
+            characters_scanned=42,
+            ignored_empty_pages=(2,),
+            pii_detected=False,
+            matches=(),
+            extraction_error=None,
+        )
+
+    monkeypatch.setattr(builder, "load_patterns_from_config", lambda _path: ())
+    monkeypatch.setattr(builder, "scan_pdf_bytes", scan_once)
+    pdf = builder.VerifiedPdf(tmp_path / "commun.pdf", b"pdf-factice")
+
+    evidence = builder._pii_evidence(
+        _v2_placement_rows(),
+        pdfs={V2_ARTIFACT_SHA: pdf},
+        inventory_sha256="f" * 64,
+    )
+
+    assert evidence["page_policy_id"] == foyer.POLICY_ID == "NEXUS-PDF-PAGE-POLICY-V1"
+    assert evidence["page_policy_sha256"] == foyer.policy_source_sha256()
+    assert evidence["scanner_sha256"] == builder._file_sha256(builder.PII_SCANNER_PATH)
+    assert evidence["page_policy_sha256"] != evidence["scanner_sha256"]
+
+
 def test_v2_producer_preflight_chunks_unique_contents_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
