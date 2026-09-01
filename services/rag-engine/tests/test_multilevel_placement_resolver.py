@@ -326,22 +326,190 @@ def _evidence_documents() -> tuple[dict[str, object], dict[str, object]]:
     return cast(dict[str, object], inventory), cast(dict[str, object], currentness)
 
 
-def _write_network_audit(tmp_path: Path, currentness_document: dict[str, object]) -> str:
+def _content_set_digest(shas: list[str]) -> str:
+    """Meme canonicalisation que le producteur (`_final_set_digest`) : SHA tries,
+    un par ligne, saut de ligne final."""
+    return hashlib.sha256(("\n".join(sorted(shas)) + "\n").encode()).hexdigest()
+
+
+def _network_audit_document(
+    inventory_document: dict[str, object] | None,
+    *,
+    corpus_manifest_sha256: str | None = None,
+    content_shas: list[str] | None = None,
+) -> dict[str, object]:
+    document: dict[str, object] = {
+        "network_mode": "READ_ONLY",
+        "counts": {"verified": 3, "digest_mismatch": 0},
+    }
+    if inventory_document is not None:
+        shas = content_shas
+        if shas is None:
+            shas = sorted(
+                {
+                    str(candidate["content_sha256"])
+                    for collection in cast(list[dict[str, object]], inventory_document["collections"])
+                    for candidate in cast(list[dict[str, object]], collection["candidates"])
+                }
+            )
+        document["corpus_manifest_sha256"] = corpus_manifest_sha256 or str(
+            inventory_document["corpus_manifest_sha256"]
+        )
+        document["content_set_sha256"] = _content_set_digest(shas)
+    return document
+
+
+def _write_network_audit(
+    tmp_path: Path,
+    currentness_document: dict[str, object],
+    *,
+    inventory_document: dict[str, object] | None = None,
+    audit_document: dict[str, object] | None = None,
+) -> str:
     """Ecrit l'audit reseau frere et lie la preuve a son empreinte reelle.
 
     `currentness_audit_sha256` n'est opposable que s'il nomme un fichier que le
-    lecteur peut rehacher : l'audit reseau scelle a cote de la preuve."""
+    lecteur peut rehacher : l'audit reseau scelle a cote de la preuve. Pour une
+    preuve V2, l'audit nomme aussi le corpus qu'il a mesure (manifeste et
+    ensemble exact de contenus) : un audit d'un autre corpus ne prouve rien ici."""
     audit_path = tmp_path / "currentness_network_audit.json"
     audit_sha = _write_json(
         audit_path,
-        {"network_mode": "READ_ONLY", "counts": {"verified": 3, "digest_mismatch": 0}},
+        audit_document if audit_document is not None else _network_audit_document(inventory_document),
     )
     currentness_document["currentness_audit_sha256"] = audit_sha
     return audit_sha
 
 
-def _write_currentness(tmp_path: Path, currentness_document: dict[str, object]) -> tuple[Path, str]:
-    _write_network_audit(tmp_path, currentness_document)
+def _as_v2_currentness(currentness_document: dict[str, object]) -> None:
+    currentness_document["evidence_kind"] = "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
+    counts = cast(dict[str, object], currentness_document["counts"])
+    counts["unique_artifacts"] = counts.pop("artifacts")
+    counts.pop("by_collection", None)
+
+
+def _write_v2_evidence(
+    tmp_path: Path,
+    *,
+    audit_document: dict[str, object] | None = None,
+    audit_corpus_manifest_sha256: str | None = None,
+    audit_content_shas: list[str] | None = None,
+) -> tuple[Path, str, Path, str]:
+    inventory_document, currentness_document = _evidence_documents()
+    _as_v2_currentness(currentness_document)
+    inventory_path = tmp_path / "inventory.json"
+    inventory_sha = _write_json(inventory_path, inventory_document)
+    currentness_document["candidate_inventory_sha256"] = inventory_sha
+    if audit_document is None:
+        audit_document = _network_audit_document(
+            inventory_document,
+            corpus_manifest_sha256=audit_corpus_manifest_sha256,
+            content_shas=audit_content_shas,
+        )
+    _write_network_audit(tmp_path, currentness_document, audit_document=audit_document)
+    currentness_path = tmp_path / "currentness.json"
+    currentness_sha = _write_json(currentness_path, currentness_document)
+    return inventory_path, inventory_sha, currentness_path, currentness_sha
+
+
+def test_v2_currentness_bound_to_its_own_network_audit_is_accepted(tmp_path: Path) -> None:
+    inventory_path, inventory_sha, currentness_path, currentness_sha = _write_v2_evidence(
+        tmp_path
+    )
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    currentness = load_multilevel_currentness(
+        currentness_path,
+        expected_sha256=currentness_sha,
+        candidate_inventory=inventory,
+    )
+
+    assert currentness.current_content_sha256 == frozenset({"1" * 64, "2" * 64})
+
+
+def test_v2_currentness_refuses_a_network_audit_of_another_corpus(tmp_path: Path) -> None:
+    """Substitution rescellee : l'audit frere est coherent avec l'empreinte declaree,
+    mais il a mesure un AUTRE corpus (autre manifeste). Il ne prouve rien ici."""
+    inventory_path, inventory_sha, currentness_path, currentness_sha = _write_v2_evidence(
+        tmp_path, audit_corpus_manifest_sha256="9" * 64
+    )
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    with pytest.raises(MultilevelEvidenceError, match="network audit.*corpus"):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )
+
+
+def test_v2_currentness_refuses_a_network_audit_of_another_content_set(
+    tmp_path: Path,
+) -> None:
+    """Meme manifeste, mais l'audit porte sur un ensemble de contenus different
+    (un contenu de moins) : le denominateur n'est pas celui de cette release."""
+    inventory_path, inventory_sha, currentness_path, currentness_sha = _write_v2_evidence(
+        tmp_path, audit_content_shas=["1" * 64, "2" * 64]
+    )
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    with pytest.raises(MultilevelEvidenceError, match="network audit.*content set"):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )
+
+
+def test_v2_currentness_refuses_a_network_audit_without_corpus_binding(
+    tmp_path: Path,
+) -> None:
+    inventory_path, inventory_sha, currentness_path, currentness_sha = _write_v2_evidence(
+        tmp_path,
+        audit_document={"network_mode": "READ_ONLY", "counts": {"verified": 0}},
+    )
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    with pytest.raises(MultilevelEvidenceError, match="network audit"):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )
+
+
+def test_v2_currentness_refuses_a_deleted_network_audit(tmp_path: Path) -> None:
+    inventory_path, inventory_sha, currentness_path, currentness_sha = _write_v2_evidence(
+        tmp_path
+    )
+    (tmp_path / "currentness_network_audit.json").unlink()
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    with pytest.raises(MultilevelEvidenceError, match="network audit is missing"):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )
+
+
+def _write_currentness(
+    tmp_path: Path,
+    currentness_document: dict[str, object],
+    *,
+    inventory_document: dict[str, object] | None = None,
+) -> tuple[Path, str]:
+    _write_network_audit(tmp_path, currentness_document, inventory_document=inventory_document)
     currentness_path = tmp_path / "currentness.json"
     return currentness_path, _write_json(currentness_path, currentness_document)
 
@@ -459,7 +627,10 @@ def test_currentness_loader_accepts_explicit_v2_unique_artifact_count(
     counts = cast(dict[str, object], currentness_document["counts"])
     counts["unique_artifacts"] = counts.pop("artifacts")
     counts.pop("by_collection")
-    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
+    # Une preuve V2 est livree avec un audit reseau qui NOMME son corpus.
+    currentness_path, currentness_sha = _write_currentness(
+        tmp_path, currentness_document, inventory_document=inventory_document
+    )
     inventory = load_multilevel_candidate_inventory(
         inventory_path, expected_sha256=inventory_sha
     )

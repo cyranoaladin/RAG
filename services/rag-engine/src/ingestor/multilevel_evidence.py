@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -405,17 +405,30 @@ def load_multilevel_candidate_inventory(
 CURRENTNESS_NETWORK_AUDIT_FILENAME = "currentness_network_audit.json"
 
 
+def content_set_sha256(content_sha256_values: Iterable[str]) -> str:
+    """Empreinte canonique d'un ensemble de contenus : SHA tries, un par ligne,
+    saut de ligne final — la meme canonicalisation que le producteur
+    (`_final_set_digest`) et que le registre de droits."""
+    return hashlib.sha256(
+        ("\n".join(sorted(set(content_sha256_values))) + "\n").encode("utf-8")
+    ).hexdigest()
+
+
 def _bind_currentness_network_audit(
     evidence_path: Path,
     declared_digest: object,
     *,
     evidence_kind: str,
+    candidate_inventory: MultilevelCandidateInventory,
 ) -> str:
     """Rend `currentness_audit_sha256` opposable, ou refuse.
 
     - la valeur doit avoir la forme d'un SHA-256 (jamais `NOT-A-SHA`) ;
     - une preuve V2 est livree avec son audit reseau frere, dont les octets
-      doivent porter exactement cette empreinte ;
+      doivent porter exactement cette empreinte, et cet audit doit NOMMER le
+      corpus qu'il a mesure : meme manifeste corpus et meme ensemble exact de
+      contenus que l'inventaire. Un audit d'un autre corpus, ou d'un autre
+      denominateur, ne prouve rien sur celui-ci, meme rescelle ;
     - une preuve V1 conserve son contrat historique (audit hors bande possible),
       mais si un audit frere est present il doit lui aussi correspondre : une
       preuve qui contredit le fichier livre a cote d'elle est refusee.
@@ -429,11 +442,33 @@ def _bind_currentness_network_audit(
                 "the declared digest names nothing that can be re-hashed"
             )
         return digest
-    observed = hashlib.sha256(audit_path.read_bytes()).hexdigest()
+    raw = audit_path.read_bytes()
+    observed = hashlib.sha256(raw).hexdigest()
     if observed != digest:
         raise MultilevelEvidenceError(
             "currentness network audit digest differs from the audit file delivered "
             "with the evidence"
+        )
+    if evidence_kind != CURRENTNESS_KIND_V2:
+        return digest
+    try:
+        audit = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise MultilevelEvidenceError(
+            "currentness network audit is not a JSON document"
+        ) from exc
+    if not isinstance(audit, Mapping):
+        raise MultilevelEvidenceError("currentness network audit is not a JSON object")
+    if audit.get("corpus_manifest_sha256") != candidate_inventory.corpus_manifest_sha256:
+        raise MultilevelEvidenceError(
+            "currentness network audit names another corpus manifest than the "
+            "candidate inventory — an audit of another corpus proves nothing here"
+        )
+    expected_set = content_set_sha256(candidate_inventory.unique_content_sha256)
+    if audit.get("content_set_sha256") != expected_set:
+        raise MultilevelEvidenceError(
+            "currentness network audit names another content set than the candidate "
+            "inventory — its denominator is not this release"
         )
     return digest
 
@@ -476,6 +511,7 @@ def load_multilevel_currentness(
         path,
         document.get("currentness_audit_sha256"),
         evidence_kind=str(evidence_kind),
+        candidate_inventory=candidate_inventory,
     )
     if document.get("school_year") != candidate_inventory.school_year:
         raise MultilevelEvidenceError("currentness school year differs from inventory")
@@ -678,6 +714,7 @@ __all__ = [
     "MultilevelCurrentnessArtifact",
     "MultilevelCurrentnessEvidence",
     "MultilevelEvidenceError",
+    "content_set_sha256",
     "load_multilevel_candidate_inventory",
     "load_multilevel_currentness",
 ]

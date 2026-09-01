@@ -1172,6 +1172,68 @@ def test_v2_subject_release_id_must_derive_from_aggregate_after_reseal(
         load_release_expectation(manifest, digest)
 
 
+def test_v2_subject_moved_to_another_collection_is_refused_after_reseal(
+    tmp_path: Path,
+) -> None:
+    """Un sujet valide, rescelle sous une autre collection dans l'agregat ET dans
+    son propre champ, garde des placements et un release_id de sa collection
+    d'origine : l'identite du sujet n'est pas un nom, c'est son contenu."""
+    manifest, _digest, registry_path, subject_paths = _v2_release_files(tmp_path)
+    subject = json.loads(subject_paths[0].read_text(encoding="utf-8"))
+    subject["collection"] = SECOND_COLLECTION
+    _write_json(subject_paths[0], subject)
+    aggregate = json.loads(manifest.read_text(encoding="utf-8"))
+    aggregate["subjects"][0]["collection"] = SECOND_COLLECTION
+    _write_json(manifest, aggregate)
+    digest = _reseal_v2_release(manifest, registry_path, subject_paths)
+
+    with pytest.raises(ReleaseReadinessError):
+        load_release_expectation(manifest, digest)
+
+
+def test_v2_subject_of_another_release_with_same_ids_is_refused_by_the_registry(
+    tmp_path: Path,
+) -> None:
+    """Deux releases portent le meme release_id et la meme collection ; le sujet
+    de la seconde (contenu different : autre placement_id) est substitue dans la
+    premiere puis tout est rescelle. Le registre, qui epingle l'agregat exact,
+    refuse : le nom `release_id` n'est jamais une identite a lui seul."""
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    manifest, digest, registry_path, subject_paths = _v2_release_files(first)
+    registry_file, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest,
+                    digest,
+                    release_id="multilevel-2026-2027",
+                    collections=[COLLECTION],
+                    registry_root=tmp_path,
+                    release_kind="MULTILEVEL_AGGREGATE_RELEASE_V2",
+                )
+            ],
+        },
+    )
+    loaded = load_release_registry_file(registry_file, registry_digest)
+    assert loaded.manifests[0].expectation.release_id == "multilevel-2026-2027"
+    _other_manifest, _other_digest, _other_registry, other_subjects = _v2_release_files(second)
+    other_subject = json.loads(other_subjects[0].read_text(encoding="utf-8"))
+    other_subject["placements"][0]["placement_id"] = "e" * 64
+    _write_json(subject_paths[0], other_subject)
+    resealed = _reseal_v2_release(manifest, registry_path, subject_paths)
+    assert resealed != digest
+    assert load_release_expectation(manifest, resealed).placements[0].payload[
+        "placement_id"
+    ] == "e" * 64
+
+    with pytest.raises(ReleaseReadinessError, match="digest mismatch"):
+        load_release_registry_file(registry_file, registry_digest)
+
+
 def test_release_registry_file_loads_v2_then_detects_aggregate_sabotage(
     tmp_path: Path,
 ) -> None:
