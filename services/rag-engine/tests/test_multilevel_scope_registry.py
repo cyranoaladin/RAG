@@ -29,6 +29,10 @@ from src.ingestor.retrieval_scope_v2 import (
 )
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
+RELEASE_REGISTRY = (
+    Path(__file__).resolve().parents[3]
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
+)
 COLLECTION_CONFIG = ENGINE_ROOT / "configs" / "rag_collections.yml"
 MULTILEVEL_RELEASE = (
     ENGINE_ROOT.parent
@@ -179,10 +183,16 @@ def test_complete_registry_aligns_with_adr_0041_catalogue_activation() -> None:
         load_retrieval_scope_registry(),
         config,
     )
-    # ADR-0041 active la collection après la réconciliation réelle ; le
-    # validateur de registre ne doit ni dépendre de ce flag, ni le modifier.
-    assert config["collections"]["rag_nexus_maths_quatrieme_tc"]["instanciee"] is True
-    assert config["collections"]["rag_nexus_francais_quatrieme_tc"]["instanciee"] is True
+    # ADR-0041 prévoyait l'activation de la Quatrième après réconciliation ;
+    # aucune release scellée ne l'a jamais portée. Le validateur de registre ne
+    # dépend pas de ce flag, et le flag suit la release servie (restaté 2026-09-02).
+    served = {
+        collection
+        for release in json.loads(RELEASE_REGISTRY.read_text(encoding="utf-8"))["releases"]
+        for collection in release["collections"]
+    }
+    for name in ("rag_nexus_maths_quatrieme_tc", "rag_nexus_francais_quatrieme_tc"):
+        assert config["collections"][name]["instanciee"] is (name in served)
 
 
 def test_each_scope_source_sha_is_its_exact_subject_release_sha() -> None:
@@ -360,12 +370,24 @@ def test_v2_picker_hides_collection_when_release_manifest_is_absent(
 def test_startup_accepts_explicit_nonempty_release_subset_of_v2_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(WAVE0_RELEASE))
-    monkeypatch.setenv("RAG_RELEASE_MANIFEST_SHA256", WAVE0_RELEASE_SHA256)
+    """Restaté le 2026-09-02 : la release explicite est celle des onze
+    collections servies (profile_gate), avec le catalogue réel — la vague 0
+    (Troisième) n'a jamais été servie et ne recouvre plus le catalogue."""
+    import hashlib
+
+    aggregate = (
+        ENGINE_ROOT.parent
+        / "rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
+        / "production-profile-gate.release.json"
+    )
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(aggregate))
+    monkeypatch.setenv(
+        "RAG_RELEASE_MANIFEST_SHA256", hashlib.sha256(aggregate.read_bytes()).hexdigest()
+    )
 
     endpoint.validate_release_startup_configuration(
         load_retrieval_scope_registry(),
-        _all_multilevel_instantiated(),
+        load_collection_config(COLLECTION_CONFIG),
     )
 
 

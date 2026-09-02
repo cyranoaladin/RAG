@@ -1223,3 +1223,31 @@ def test_v2_release_eligibility_uses_global_artifact_subject_placements(
     assert {placement.content_sha256 for placement in eligibility.placements} == {
         content_sha256
     }
+
+
+def test_currentness_population_must_equal_the_inventory_set_not_only_its_count(
+    tmp_path: Path,
+) -> None:
+    """Même cardinalité, un SHA substitué : la preuve de fraîcheur ne couvre plus
+    le corpus autorisé. Égalité d'ENSEMBLES, jamais de compte (§11)."""
+    inventory_document, currentness_document = _evidence_documents()
+    inventory_path = tmp_path / "inventory.json"
+    inventory_sha = _write_json(inventory_path, inventory_document)
+    currentness_document["candidate_inventory_sha256"] = inventory_sha
+    artifacts = cast(list[dict[str, object]], currentness_document["artifacts"])
+    victim = artifacts[0]
+    victim["content_sha256"] = "9" * 64
+    victim["current_download_sha256"] = "9" * 64
+    partition = cast(dict[str, list[str]], currentness_document["partition"])
+    partition["current"] = ["9" * 64, "2" * 64]
+    currentness_path, currentness_sha = _write_currentness(tmp_path, currentness_document)
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+
+    with pytest.raises(MultilevelEvidenceError):
+        load_multilevel_currentness(
+            currentness_path,
+            expected_sha256=currentness_sha,
+            candidate_inventory=inventory,
+        )

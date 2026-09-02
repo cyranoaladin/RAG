@@ -110,6 +110,16 @@ def _read_yaml(path: Path) -> dict[str, object]:
         raise ProfileRegistryLoadError(str(exc)) from exc
 
 
+def _is_profile_manifest(data: object) -> bool:
+    """Un manifeste de profils : `manifest_version` + `profiles`, sans `scope`."""
+    return (
+        isinstance(data, Mapping)
+        and "manifest_version" in data
+        and isinstance(data.get("profiles"), list)
+        and "scope" not in data
+    )
+
+
 def load_profile_registry(directory: Path | None = None) -> ProfileRegistry:
     """Charge tous les profils déclaratifs d'un répertoire.
 
@@ -133,6 +143,12 @@ def load_profile_registry(directory: Path | None = None) -> ProfileRegistry:
     registry: ProfileRegistry = {}
     for path in paths:
         data = _read_yaml(path)
+        if _is_profile_manifest(data):
+            # Le manifeste de profils vit à côté des profils qu'il scelle (la
+            # release des onze le lie sous ce répertoire). Ce n'est pas un
+            # profil : il est reconnu par sa NATURE et laissé au vérificateur
+            # de manifeste, jamais validé « comme profil » ni ignoré en silence.
+            continue
         try:
             profile = CollectionProfile.model_validate(data)
         except ValidationError as exc:

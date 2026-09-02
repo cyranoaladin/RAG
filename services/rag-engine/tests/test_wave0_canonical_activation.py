@@ -22,19 +22,22 @@ def _config() -> dict[str, object]:
     return payload
 
 
-def test_only_the_two_wave0_collections_are_newly_activated() -> None:
+def test_wave0_collections_are_declared_and_dormant_until_served() -> None:
+    """Restaté le 2026-09-02 : la vague 0 (Troisième) n'a jamais été servie ;
+    catalogue = release = base, ses deux collections restent déclarées et
+    dormantes tant qu'aucune release scellée ne les porte."""
+    import json
+
     collections = _config()["collections"]
     assert isinstance(collections, dict)
-    wave0_active = {
-        name
-        for name, definition in collections.items()
-        if name in WAVE0
-        and isinstance(definition, dict)
-        and definition.get("instanciee") is True
-    }
-
-    assert wave0_active == WAVE0
-    assert len(wave0_active) == 2
+    registry = json.loads(
+        (Path(__file__).resolve().parents[3]
+         / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json").read_text()
+    )
+    served = {c for release in registry["releases"] for c in release["collections"]}
+    assert WAVE0.issubset(collections)
+    for name in WAVE0:
+        assert collections[name]["instanciee"] is (name in served)
 
 
 def test_activation_adr_binds_manifest_database_and_models() -> None:

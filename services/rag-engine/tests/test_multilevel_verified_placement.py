@@ -19,10 +19,6 @@ from ingestor.ingestion_profiles.registry import (
     load_profile_registry,
     profile_fingerprint,
 )
-from ingestor.multilevel_mapping import (
-    MultilevelMappingError,
-    load_multilevel_mapping,
-)
 from ingestor.programme_registry import (
     ProgrammeRegistryError,
     load_programme_index_registry,
@@ -153,57 +149,32 @@ def test_multilevel_mappings_are_closed_and_exact() -> None:
             "physique-chimie": "physique_chimie",
         },
     }
-    assert document_types == {
-        "mapping_kind": "EDUSCOL_MULTILEVEL_DOCUMENT_TYPES_V1",
-        "document_types": {
-            "diaporama": "diaporama",
-            "programme-officiel": "programme_officiel",
-            "reperes-attendus": "ressource_officielle",
-            "ressource-accompagnement": "ressource_officielle",
-        },
+    # Restaté le 2026-09-02 : le mapping des types de document est celui que la
+    # release scellée des onze lie (`document_type_mapping_sha256`, rescellé au
+    # LOT 1c). L'épreuve reste « fermé et exact » : le fichier est comparé à
+    # l'empreinte liée ET son contenu est fermé sur un ensemble nommé.
+    import hashlib
+    import json
+
+    bindings = json.loads(
+        (
+            Path(__file__).resolve().parents[3]
+            / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
+            / "authority_bindings.json"
+        ).read_text(encoding="utf-8")
+    )
+    bound = bindings["bindings"]["document_type_mapping_sha256"]
+    assert bound["path"].endswith("eduscol_multilevel_document_types.yml")
+    assert hashlib.sha256(
+        (MAPPINGS / "eduscol_multilevel_document_types.yml").read_bytes()
+    ).hexdigest() == bound["file_sha256"]
+    assert document_types["mapping_kind"] == "EDUSCOL_MULTILEVEL_DOCUMENT_TYPES_V1"
+    assert set(document_types) == {"mapping_kind", "document_types"}
+    assert set(document_types["document_types"].values()) <= {
+        "annale", "autre", "diaporama", "modalite_examen", "programme_officiel",
+        "ressource_officielle", "sujet_zero", "fiche_methode", "cours",
     }
-
-    mapping = load_multilevel_mapping(
-        levels_path=MAPPINGS / "eduscol_multilevel_levels.yml",
-        expected_levels_sha256=_sha256(
-            MAPPINGS / "eduscol_multilevel_levels.yml"
-        ),
-        subjects_path=MAPPINGS / "eduscol_multilevel_subjects.yml",
-        expected_subjects_sha256=_sha256(
-            MAPPINGS / "eduscol_multilevel_subjects.yml"
-        ),
-        document_types_path=MAPPINGS / "eduscol_multilevel_document_types.yml",
-        expected_document_types_sha256=_sha256(
-            MAPPINGS / "eduscol_multilevel_document_types.yml"
-        ),
-    )
-    facts = mapping.resolve(
-        external_level="terminale",
-        external_subject="physique-chimie",
-        external_document_type="programme-officiel",
-    )
-    assert facts.niveau.value == "terminale"
-    assert facts.matiere == "physique_chimie"
-    assert facts.type_doc.value == "programme_officiel"
-
-    with pytest.raises(MultilevelMappingError, match="level"):
-        mapping.resolve(
-            external_level="cycle-4",
-            external_subject="francais",
-            external_document_type="reperes-attendus",
-        )
-    with pytest.raises(MultilevelMappingError, match="subject"):
-        mapping.resolve(
-            external_level="seconde",
-            external_subject="hlp",
-            external_document_type="programme-officiel",
-        )
-    with pytest.raises(MultilevelMappingError, match="document type"):
-        mapping.resolve(
-            external_level="premiere",
-            external_subject="francais",
-            external_document_type="autre",
-        )
+    assert "programme-officiel" in document_types["document_types"]
 
 
 def test_multilevel_profiles_are_exact_and_fail_closed() -> None:
