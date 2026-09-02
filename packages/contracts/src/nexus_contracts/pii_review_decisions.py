@@ -37,6 +37,32 @@ PII_REVIEW_DECISIONS_DIR = "governance/pii-review-decisions"
 _HEX64 = r"^[0-9a-f]{64}$"
 _LOGIN = r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?$"
 
+#: Dispositions fermées d'UN finding (ADR-0047 § 8). Définitions :
+#: - FALSE_POSITIVE_TECHNICAL : la chaîne détectée n'est pas une donnée de la
+#:   classe annoncée (fréquence lue comme adresse, années lues comme téléphone,
+#:   NIR à clé invalide, identifiant technique) ;
+#: - PUBLIC_INSTITUTIONAL_DATA : coordonnées d'une institution ou d'un
+#:   professionnel publiées par l'État dans une ressource officielle ;
+#: - SYNTHETIC_EXAMPLE : identité ou coordonnée fabriquée par le document pour
+#:   enseigner un format (exercice, personnage fictif, gabarit) ;
+#: - PERSONAL_DATA_PRESENT : donnée personnelle réelle d'une personne physique
+#:   identifiable — jamais admissible.
+FINDING_DISPOSITIONS: tuple[str, ...] = (
+    "FALSE_POSITIVE_TECHNICAL",
+    "PUBLIC_INSTITUTIONAL_DATA",
+    "SYNTHETIC_EXAMPLE",
+    "PERSONAL_DATA_PRESENT",
+)
+ADMISSIBLE_DISPOSITIONS: frozenset[str] = frozenset(FINDING_DISPOSITIONS) - {
+    "PERSONAL_DATA_PRESENT"
+}
+FindingDisposition = Literal[
+    "FALSE_POSITIVE_TECHNICAL",
+    "PUBLIC_INSTITUTIONAL_DATA",
+    "SYNTHETIC_EXAMPLE",
+    "PERSONAL_DATA_PRESENT",
+]
+
 #: Catégories fermées de justification. Une catégorie ne DÉCIDE rien : elle
 #: qualifie ce que le reviewer a constaté, et borne ce qu'une approbation peut
 #: admettre (`PERSONAL_DATA_PRESENT` n'est jamais approuvable).
@@ -78,8 +104,45 @@ class PiiReviewJustificationV1(StrictBaseModel):
         return value
 
 
+class PiiFindingDispositionV1(StrictBaseModel):
+    """La disposition d'UN finding, identifié sans sa matière brute.
+
+    `finding_id`, `match_sha256` et `context_sha256` sont ceux de l'index des
+    paquets : le reviewer voit la matière dans le paquet local, le dépôt ne
+    garde que les empreintes."""
+
+    finding_id: StrictStr = Field(pattern=_HEX64)
+    pattern_id: StrictStr = Field(min_length=1, max_length=64)
+    page: StrictInt = Field(ge=1)
+    match_sha256: StrictStr = Field(pattern=_HEX64)
+    context_sha256: StrictStr = Field(pattern=_HEX64)
+    disposition: FindingDisposition
+
+    @field_validator("page")
+    @classmethod
+    def _page_is_int(cls, value: int) -> int:
+        if isinstance(value, bool):
+            raise ValueError("page must be an integer")
+        return value
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "context_sha256": self.context_sha256,
+            "disposition": self.disposition,
+            "finding_id": self.finding_id,
+            "match_sha256": self.match_sha256,
+            "page": self.page,
+            "pattern_id": self.pattern_id,
+        }
+
+
 class PiiReviewDecisionV1(StrictBaseModel):
-    """Une décision, un contenu, un reviewer, un paquet de revue figé."""
+    """Une décision, un contenu, un reviewer, un paquet de revue figé.
+
+    La décision documentaire découle des dispositions de ses findings : un
+    `APPROVED` exige que TOUS soient admissibles ; un `REJECTED` en nomme au
+    moins un `PERSONAL_DATA_PRESENT`. « J'ai vu le premier match, ça semble
+    bon » n'est pas représentable."""
 
     content_sha256: StrictStr = Field(pattern=_HEX64)
     policy_id: StrictStr = Field(min_length=1, max_length=128)
@@ -91,6 +154,7 @@ class PiiReviewDecisionV1(StrictBaseModel):
     signal_classes: tuple[StrictStr, ...] = Field(min_length=1)
     signal_count: StrictInt = Field(gt=0)
     pages: tuple[StrictInt, ...] = Field(min_length=1)
+    findings: tuple[PiiFindingDispositionV1, ...] = Field(min_length=1)
     decision: Literal["APPROVED", "REJECTED"]
     justification: PiiReviewJustificationV1
     reviewer_login: StrictStr = Field(pattern=_LOGIN)
@@ -115,11 +179,44 @@ class PiiReviewDecisionV1(StrictBaseModel):
         return value
 
     @model_validator(mode="after")
-    def _approval_never_admits_personal_data(self) -> PiiReviewDecisionV1:
-        if self.decision == "APPROVED" and self.justification.category == "PERSONAL_DATA_PRESENT":
+    def _findings_match_the_measure(self) -> PiiReviewDecisionV1:
+        ids = [finding.finding_id for finding in self.findings]
+        if len(set(ids)) != len(ids):
+            raise ValueError("a finding_id appears twice")
+        if ids != sorted(ids):
+            raise ValueError("findings must be sorted by finding_id")
+        if len(self.findings) != self.signal_count:
             raise ValueError(
-                "an APPROVED decision cannot carry the PERSONAL_DATA_PRESENT category — "
-                "attested personal data is never admissible"
+                f"{len(self.findings)} findings dispositioned for signal_count={self.signal_count}"
+            )
+        if {finding.page for finding in self.findings} != set(self.pages):
+            raise ValueError("findings pages differ from the measured pages")
+        if {finding.pattern_id for finding in self.findings} != set(self.signal_classes):
+            raise ValueError("findings pattern ids differ from the measured signal_classes")
+        return self
+
+    @model_validator(mode="after")
+    def _approval_never_admits_personal_data(self) -> PiiReviewDecisionV1:
+        personal = [
+            finding.finding_id
+            for finding in self.findings
+            if finding.disposition == "PERSONAL_DATA_PRESENT"
+        ]
+        if self.decision == "APPROVED":
+            if self.justification.category == "PERSONAL_DATA_PRESENT":
+                raise ValueError(
+                    "an APPROVED decision cannot carry the PERSONAL_DATA_PRESENT category — "
+                    "attested personal data is never admissible"
+                )
+            if personal:
+                raise ValueError(
+                    "an APPROVED decision cannot carry a finding dispositioned "
+                    f"PERSONAL_DATA_PRESENT ({personal[0][:12]}…) — every finding must be admissible"
+                )
+        elif not personal:
+            raise ValueError(
+                "a REJECTED decision must name at least one finding dispositioned "
+                "PERSONAL_DATA_PRESENT — a rejection is a finding, not a mood"
             )
         return self
 
@@ -128,6 +225,7 @@ class PiiReviewDecisionV1(StrictBaseModel):
             "content_sha256": self.content_sha256,
             "decided_at": _canonical_moment(self.decided_at),
             "decision": self.decision,
+            "findings": [finding.canonical_document() for finding in self.findings],
             "justification": {
                 "category": self.justification.category,
                 "raw_pii_quoted": False,
@@ -267,9 +365,13 @@ def parse_pii_review_decision_set(raw: bytes) -> PiiReviewDecisionSetV1:
 
 
 __all__ = [
+    "ADMISSIBLE_DISPOSITIONS",
+    "FINDING_DISPOSITIONS",
     "PII_REVIEW_DECISIONS_DIR",
     "PII_REVIEW_DECISIONS_PROTOCOL_VERSION",
+    "FindingDisposition",
     "JustificationCategory",
+    "PiiFindingDispositionV1",
     "PiiReviewDecisionSetV1",
     "PiiReviewDecisionV1",
     "PiiReviewJustificationV1",

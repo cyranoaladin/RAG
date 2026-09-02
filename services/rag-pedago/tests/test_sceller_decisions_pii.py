@@ -19,6 +19,9 @@ from nexus_contracts import parse_pii_review_decision_set
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 SHA_A = "a" * 64
 SHA_B = "b" * 64
+F_A1 = "c1" * 32
+F_A2 = "c2" * 32
+F_B1 = "c3" * 32
 
 
 def _module():
@@ -48,9 +51,19 @@ def _index(tmp_path: Path) -> Path:
         "page_policy_sha256": "3" * 64,
         "bundles": [
             {"content_sha256": SHA_A, "bundle_sha256": "4" * 64, "signal_classes": ["phone_french"],
-             "signal_count": 2, "pages": [3, 7]},
+             "signal_count": 2, "pages": [3, 7],
+             "findings": [
+                 {"finding_id": F_A1, "pattern_id": "phone_french", "page": 3,
+                  "match_sha256": "a1" * 32, "context_sha256": "b1" * 32, "match_length": 14},
+                 {"finding_id": F_A2, "pattern_id": "phone_french", "page": 7,
+                  "match_sha256": "a2" * 32, "context_sha256": "b2" * 32, "match_length": 14},
+             ]},
             {"content_sha256": SHA_B, "bundle_sha256": "5" * 64, "signal_classes": ["email_address"],
-             "signal_count": 1, "pages": [1]},
+             "signal_count": 1, "pages": [1],
+             "findings": [
+                 {"finding_id": F_B1, "pattern_id": "email_address", "page": 1,
+                  "match_sha256": "a3" * 32, "context_sha256": "b3" * 32, "match_length": 24},
+             ]},
         ],
     }
     path = tmp_path / "index.json"
@@ -65,6 +78,8 @@ def _draft(tmp_path: Path, **overrides: object) -> Path:
         "reviewer_login": "abenrhouma",
         "decisions": {
             SHA_A: {
+                "findings": {F_A1: {"disposition": "PUBLIC_INSTITUTIONAL_DATA"},
+                             F_A2: {"disposition": "PUBLIC_INSTITUTIONAL_DATA"}},
                 "decision": "APPROVED",
                 "decided_at": "2026-09-03T10:00:00+00:00",
                 "justification": {
@@ -73,6 +88,7 @@ def _draft(tmp_path: Path, **overrides: object) -> Path:
                 },
             },
             SHA_B: {
+                "findings": {F_B1: {"disposition": "PERSONAL_DATA_PRESENT"}},
                 "decision": "REJECTED",
                 "decided_at": "2026-09-03T10:05:00+00:00",
                 "justification": {
@@ -104,6 +120,8 @@ def test_a_complete_draft_is_sealed_into_the_canonical_decision_set(tmp_path: Pa
     assert a is not None and a.review_bundle_sha256 == "4" * 64
     assert a.signal_classes == ("phone_french",) and a.pages == (3, 7) and a.signal_count == 2
     assert a.reviewer_login == "abenrhouma"
+    assert [f.finding_id for f in a.findings] == sorted([F_A1, F_A2])
+    assert {f.disposition for f in a.findings} == {"PUBLIC_INSTITUTIONAL_DATA"}
 
 
 def test_a_draft_that_leaves_a_bundle_undecided_is_refused(tmp_path: Path) -> None:
@@ -157,6 +175,8 @@ def test_the_generated_draft_names_every_bundle_and_is_refused_until_filled(tmp_
     document = json.loads(draft.read_text(encoding="utf-8"))
     assert set(document["decisions"]) == {SHA_A, SHA_B}
     assert document["decisions"][SHA_A]["decision"] == "__A_DECIDER__"
+    assert set(document["decisions"][SHA_A]["findings"]) == {F_A1, F_A2}
+    assert document["decisions"][SHA_A]["findings"][F_A1]["disposition"] == "__A_DECIDER__"
     with pytest.raises(ValueError):
         sceller.sceller(draft=draft, index_path=index, sortie=tmp_path / "out.json")
 
@@ -228,3 +248,25 @@ def test_receipt_verification_binds_the_receipt_to_the_sealed_decision_set(tmp_p
             receipt=receipt, decision_set=decision_set, anchor=anchor, environment="test",
             repository="cyranoaladin/RAG", accepted_reviewers=("abenrhouma",), now=now,
         )
+
+
+def test_an_approval_with_one_undecided_or_personal_finding_is_refused(tmp_path: Path) -> None:
+    """« J'ai vu le premier match, ça semble bon » n'est pas représentable."""
+    sceller = _module()
+    for disposition in ("__A_DECIDER__", "PERSONAL_DATA_PRESENT"):
+        draft = _draft(tmp_path)
+        document = json.loads(draft.read_text(encoding="utf-8"))
+        document["decisions"][SHA_A]["findings"][F_A2]["disposition"] = disposition
+        draft.write_text(json.dumps(document), encoding="utf-8")
+        with pytest.raises(ValueError):
+            sceller.sceller(draft=draft, index_path=_index(tmp_path), sortie=tmp_path / "out.json")
+
+
+def test_a_finding_of_the_index_left_undecided_is_refused(tmp_path: Path) -> None:
+    sceller = _module()
+    draft = _draft(tmp_path)
+    document = json.loads(draft.read_text(encoding="utf-8"))
+    del document["decisions"][SHA_A]["findings"][F_A2]
+    draft.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ValueError, match="undecided"):
+        sceller.sceller(draft=draft, index_path=_index(tmp_path), sortie=tmp_path / "out.json")

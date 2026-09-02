@@ -41,6 +41,30 @@ INDEX = "6" * 64
 MANIFEST = "7" * 64
 MOMENT = datetime(2026, 9, 3, 10, 0, tzinfo=UTC)
 
+FINDING_A = "f1" * 32
+FINDING_B = "f2" * 32
+
+
+def _finding(finding_id: str = FINDING_A, page: int = 3, **overrides: object) -> dict[str, object]:
+    document: dict[str, object] = {
+        "finding_id": finding_id,
+        "pattern_id": "phone_french",
+        "page": page,
+        "match_sha256": "a1" * 32,
+        "context_sha256": "b1" * 32,
+        "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+    }
+    document.update(overrides)
+    return document
+
+
+def _decision_with_findings(**overrides: object) -> dict[str, object]:
+    document = _decision(findings=[_finding(FINDING_A, 3), _finding(FINDING_B, 7)])
+    document.update(overrides)
+    return document
+
+
+
 
 def _decision(sha: str = SHA_A, bundle: str = BUNDLE_A, **overrides: object) -> dict[str, object]:
     document: dict[str, object] = {
@@ -54,6 +78,14 @@ def _decision(sha: str = SHA_A, bundle: str = BUNDLE_A, **overrides: object) -> 
         "signal_classes": ["phone_french"],
         "signal_count": 2,
         "pages": [3, 7],
+        "findings": [
+            {"finding_id": "f1" * 32, "pattern_id": "phone_french", "page": 3,
+             "match_sha256": "a1" * 32, "context_sha256": "b1" * 32,
+             "disposition": "PUBLIC_INSTITUTIONAL_DATA"},
+            {"finding_id": "f2" * 32, "pattern_id": "phone_french", "page": 7,
+             "match_sha256": "a2" * 32, "context_sha256": "b2" * 32,
+             "disposition": "PUBLIC_INSTITUTIONAL_DATA"},
+        ],
         "decision": "APPROVED",
         "justification": {
             "category": "INSTITUTIONAL_CONTACT",
@@ -124,8 +156,9 @@ class TestDecision:
         }
         with pytest.raises(ValueError, match="PERSONAL_DATA_PRESENT"):
             PiiReviewDecisionV1.model_validate(_decision(justification=justification))
+        personal = [_finding(FINDING_A, 3), _finding(FINDING_B, 7, disposition="PERSONAL_DATA_PRESENT")]
         rejected = PiiReviewDecisionV1.model_validate(
-            _decision(decision="REJECTED", justification=justification)
+            _decision(decision="REJECTED", justification=justification, findings=personal)
         )
         assert rejected.decision == "REJECTED"
 
@@ -148,6 +181,7 @@ class TestDecisionSet:
     def test_a_set_binds_every_decision_to_the_same_instruments(self) -> None:
         decision_set = PiiReviewDecisionSetV1.model_validate(
             _set(_decision(SHA_A, BUNDLE_A), _decision(SHA_B, BUNDLE_B, decision="REJECTED",
+                 findings=[_finding(FINDING_A, 3), _finding(FINDING_B, 7, disposition="PERSONAL_DATA_PRESENT")],
                  justification={"category": "PERSONAL_DATA_PRESENT",
                                 "statement": "Coordonnées d'un particulier identifiable en page 3.",
                                 "raw_pii_quoted": False}))
@@ -272,3 +306,71 @@ class TestReviewBindingCoversDecisionSets:
                 expected_repository="cyranoaladin/RAG",
                 accepted_reviewers=("abenrhouma",),
             )
+
+
+
+class TestFindingDispositions:
+    """Chaque finding porte une identité et une disposition ; la décision
+    documentaire APPROVED n'est possible que si toutes sont admissibles (§8)."""
+
+    def test_every_finding_is_dispositioned_individually(self) -> None:
+        decision = PiiReviewDecisionV1.model_validate(_decision_with_findings())
+        assert [f.finding_id for f in decision.findings] == [FINDING_A, FINDING_B]
+        assert decision.findings[0].disposition == "PUBLIC_INSTITUTIONAL_DATA"
+
+    @pytest.mark.parametrize(
+        ("findings", "message"),
+        [
+            ([], "findings"),
+            ([_finding(FINDING_A), _finding(FINDING_A, 7)], "finding_id"),
+            ([_finding(FINDING_B, 7), _finding(FINDING_A, 3)], "sorted"),
+            ([_finding(FINDING_A, 3)], "signal_count"),
+            ([_finding(FINDING_A, 3), _finding(FINDING_B, 9)], "pages"),
+            ([_finding(FINDING_A, 3, pattern_id="email_address"), _finding(FINDING_B, 7)], "signal_classes"),
+            ([_finding(FINDING_A, 3, disposition="LOOKS_FINE"), _finding(FINDING_B, 7)], "disposition"),
+        ],
+    )
+    def test_findings_must_match_the_measured_signals(self, findings, message: str) -> None:
+        with pytest.raises(ValueError, match=message):
+            PiiReviewDecisionV1.model_validate(_decision(findings=findings))
+
+    def test_an_approval_requires_every_finding_to_be_admissible(self) -> None:
+        findings = [_finding(FINDING_A, 3), _finding(FINDING_B, 7, disposition="PERSONAL_DATA_PRESENT")]
+        with pytest.raises(ValueError, match="PERSONAL_DATA_PRESENT"):
+            PiiReviewDecisionV1.model_validate(_decision(findings=findings))
+        rejected = PiiReviewDecisionV1.model_validate(
+            _decision(
+                findings=findings,
+                decision="REJECTED",
+                justification={
+                    "category": "PERSONAL_DATA_PRESENT",
+                    "statement": "Coordonnées d'un particulier identifiable en page 7.",
+                    "raw_pii_quoted": False,
+                },
+            )
+        )
+        assert rejected.decision == "REJECTED"
+
+    def test_a_rejection_must_name_at_least_one_personal_finding(self) -> None:
+        with pytest.raises(ValueError, match="REJECTED"):
+            PiiReviewDecisionV1.model_validate(
+                _decision_with_findings(
+                    decision="REJECTED",
+                    justification={
+                        "category": "PERSONAL_DATA_PRESENT",
+                        "statement": "Coordonnées d'un particulier identifiable en page 7.",
+                        "raw_pii_quoted": False,
+                    },
+                )
+            )
+
+    def test_the_admissible_vocabulary_is_closed(self) -> None:
+        from nexus_contracts.pii_review_decisions import ADMISSIBLE_DISPOSITIONS, FINDING_DISPOSITIONS
+
+        assert set(FINDING_DISPOSITIONS) == {
+            "FALSE_POSITIVE_TECHNICAL",
+            "PUBLIC_INSTITUTIONAL_DATA",
+            "SYNTHETIC_EXAMPLE",
+            "PERSONAL_DATA_PRESENT",
+        }
+        assert set(ADMISSIBLE_DISPOSITIONS) == set(FINDING_DISPOSITIONS) - {"PERSONAL_DATA_PRESENT"}

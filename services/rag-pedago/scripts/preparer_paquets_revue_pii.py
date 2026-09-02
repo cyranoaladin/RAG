@@ -48,6 +48,55 @@ from rag_pedago.imports import pii_scanner  # noqa: E402
 BUNDLE_PROTOCOL = "NEXUS-PII-REVIEW-BUNDLE-V1"
 INDEX_PROTOCOL = "NEXUS-PII-REVIEW-INDEX-V1"
 CONTEXT_CHARS = 240
+REPOSITORY_ROOT = SERVICE_ROOT.parents[1]
+
+
+def nir_checksum_valid(candidate: str) -> bool:
+    """Contrôle de clé d'un NIR : clé = 97 − (13 premiers chiffres mod 97).
+
+    Un NIR de Corse (2A/2B) se code 19/18 avant le calcul ; la grille PII ne
+    capture que des chiffres, on ne le rencontre pas ici. Ce verdict est une
+    PREUVE TECHNIQUE mise à disposition du reviewer (§ 9) ; il ne décide rien.
+    """
+    digits = "".join(ch for ch in candidate if ch.isdigit())
+    if len(digits) != 15:
+        return False
+    number, key = int(digits[:13]), int(digits[13:])
+    return key == 97 - (number % 97)
+
+
+def _git(*args: str) -> str:
+    import subprocess
+
+    return subprocess.check_output(["git", *args], cwd=REPOSITORY_ROOT, text=True).strip()
+
+
+def producer_identity(*, require_frozen: bool = True) -> dict[str, object]:
+    """Ce que le reviewer doit savoir : « CE code, CES autorités » (§ 2).
+
+    Commit et arbre source du dépôt qui produit les paquets, arbre sale refusé
+    sur les fichiers qui décident (générateur, scanner, politique, foyer)."""
+    import importlib.metadata
+    import subprocess
+
+    porcelain = subprocess.check_output(
+        ["git", "status", "--porcelain", "--",
+         "services/rag-pedago/scripts/preparer_paquets_revue_pii.py",
+         "services/rag-pedago/rag_pedago/imports/pii_scanner.py",
+         "services/rag-pedago/configs/pii_gate_policy.yml",
+         "packages/pdf-page-policy", "packages/contracts"],
+        cwd=REPOSITORY_ROOT, text=True,
+    )
+    dirty = sorted(line[3:] for line in porcelain.splitlines() if line.strip())
+    if dirty and require_frozen:
+        raise RuntimeError(f"review bundle producer is not frozen: uncommitted changes in {dirty}")
+    return {
+        "producer_commit_sha": _git("rev-parse", "HEAD"),
+        "producer_tree_sha": _git("rev-parse", "HEAD^{tree}"),
+        "generator_path": "services/rag-pedago/scripts/preparer_paquets_revue_pii.py",
+        "generator_sha256": _sha256_file(Path(__file__)),
+        "contracts_version": importlib.metadata.version("nexus-contracts"),
+    }
 
 
 def _sha256_bytes(payload: bytes) -> str:
@@ -91,6 +140,7 @@ def _bundle_for(
     pages_text: list[str],
     facts: dict[str, object],
     instruments: dict[str, object],
+    producer: dict[str, object],
     bundle_dir: Path,
     campaign_id: str,
 ) -> dict[str, object]:
@@ -110,25 +160,42 @@ def _bundle_for(
         page_text = pages_text[(match.page_number or 1) - 1]
         start = max(0, match.char_offset - CONTEXT_CHARS)
         end = min(len(page_text), match.char_offset + len(match.match_text) + CONTEXT_CHARS)
-        signals.append(
-            {
-                "pattern_id": match.pattern_id,
-                "description": match.description,
-                "page_number": match.page_number,
-                "char_offset": match.char_offset,
-                "match_length": len(match.match_text),
-                "match_text": match.match_text,
-                "context": page_text[start:end],
-            }
+        context = page_text[start:end]
+        match_sha = _sha256_bytes(match.match_text.encode("utf-8"))
+        context_sha = _sha256_bytes(context.encode("utf-8"))
+        # Identité du finding : contenu, motif, page, position, matière — sans
+        # la matière elle-même. Deux findings identiques au même endroit ne
+        # peuvent pas exister ; deux findings de même matière à deux endroits
+        # ont deux identités.
+        finding_id = _sha256_bytes(
+            f"{sha}:{match.pattern_id}:{match.page_number}:{match.char_offset}:{match_sha}".encode()
         )
+        signal: dict[str, object] = {
+            "finding_id": finding_id,
+            "pattern_id": match.pattern_id,
+            "description": match.description,
+            "page_number": match.page_number,
+            "char_offset": match.char_offset,
+            "match_length": len(match.match_text),
+            "match_sha256": match_sha,
+            "context_sha256": context_sha,
+            "match_text": match.match_text,
+            "context": context,
+        }
+        if match.pattern_id == "french_ssn":
+            signal["checksum_valid"] = nir_checksum_valid(match.match_text)
+        signals.append(signal)
     manifest: dict[str, object] = {
         "protocol_version": BUNDLE_PROTOCOL,
         "campaign_id": campaign_id,
+        "bundle_id": f"{campaign_id}:{sha}",
         "content_sha256": sha,
+        "pdf_sha256": sha,
         "title": facts.get("title"),
         "source_path": facts.get("source_path"),
         "placements": sorted(facts.get("placements", [])),  # type: ignore[arg-type]
         **instruments,
+        **producer,
         "page_count": len(pages_text),
         "pages_scanned": result.pages_scanned,
         "ignored_empty_pages": list(result.ignored_empty_pages),
@@ -159,10 +226,16 @@ def preparer(
     output_root: Path,
     index_path: Path,
     campaign_id: str,
+    require_frozen: bool = True,
 ) -> dict[str, object]:
-    """Génère un paquet par contenu DÉTECTÉ et l'index versionnable."""
+    """Génère un paquet par contenu DÉTECTÉ et l'index versionnable.
+
+    `require_frozen` (défaut) refuse un producteur non commité : une campagne
+    réelle est liée à UN commit. Les épreuves synthétiques le désactivent."""
     facts_by_sha: dict[str, dict[str, object]] = json.loads(placements_path.read_text(encoding="utf-8"))
     instruments = _instruments(policy_path)
+    producer = producer_identity(require_frozen=require_frozen)
+    producer["producer_frozen"] = require_frozen
     patterns = pii_scanner.load_patterns_from_config(policy_path)
     output_root.mkdir(parents=True, exist_ok=True)
     entries: list[dict[str, object]] = []
@@ -191,13 +264,31 @@ def preparer(
             raise FileExistsError(f"bundle already exists: {bundle_dir}")
         manifest = _bundle_for(
             sha=sha, content=content, result=result, pages_text=pages_text, facts=facts,
-            instruments=instruments, bundle_dir=bundle_dir, campaign_id=campaign_id,
+            instruments=instruments, producer=producer, bundle_dir=bundle_dir,
+            campaign_id=campaign_id,
         )
+        findings = [
+            {
+                key: signal[key]
+                for key in ("finding_id", "pattern_id", "page", "match_sha256", "context_sha256",
+                            "match_length", "checksum_valid")
+                if key in signal or key == "page"
+            }
+            for signal in (
+                {**item, "page": item["page_number"]} for item in manifest["signals"]  # type: ignore[union-attr]
+            )
+        ]
+        findings.sort(key=lambda f: str(f["finding_id"]))
         entries.append(
             {
                 "content_sha256": sha,
+                "bundle_id": manifest["bundle_id"],
                 "bundle_dir": sha,
                 "bundle_sha256": _sha256_file(bundle_dir / "manifest.json"),
+                "pdf_sha256": sha,
+                "finding_count": len(findings),
+                "pages_with_findings": manifest["pages"],
+                "findings": findings,
                 "title": manifest["title"],
                 "source_path": manifest["source_path"],
                 "placements": manifest["placements"],
@@ -213,6 +304,7 @@ def preparer(
         "campaign_id": campaign_id,
         "generated_at": datetime.now(UTC).isoformat(),
         **instruments,
+        **producer,
         "content_set_sha256": _sha256_bytes(("\n".join(sorted(set(content_sha256))) + "\n").encode()),
         "counts": {"scanned": scanned, "bundles": len(entries)},
         "raw_pii_in_output": False,

@@ -55,7 +55,7 @@ from nexus_contracts.review_binding import (  # noqa: E402
 )
 
 PLACEHOLDER = "__A_DECIDER__"
-_DRAFT_FIELDS = {"decision", "decided_at", "justification"}
+_DRAFT_FIELDS = {"decision", "decided_at", "justification", "findings"}
 
 
 def _sha256_file(path: Path) -> str:
@@ -79,6 +79,15 @@ def brouillon(
             "_paquet": entry.get("bundle_dir"),
             "_classes": entry.get("signal_classes"),
             "_pages": entry.get("pages"),
+            "findings": {
+                finding["finding_id"]: {
+                    "_pattern_id": finding["pattern_id"],
+                    "_page": finding["page"],
+                    **({"_checksum_valid": finding["checksum_valid"]} if "checksum_valid" in finding else {}),
+                    "disposition": PLACEHOLDER,
+                }
+                for finding in sorted(entry.get("findings", []), key=lambda f: f["finding_id"])
+            },
             "decision": PLACEHOLDER,
             "decided_at": PLACEHOLDER,
             "justification": {"category": PLACEHOLDER, "statement": PLACEHOLDER},
@@ -87,7 +96,10 @@ def brouillon(
     }
     draft = {
         "_instructions": (
-            "Une entrée par paquet. Remplir `decision` (APPROVED | REJECTED), "
+            "Une entrée par paquet, une disposition par finding (FALSE_POSITIVE_TECHNICAL | "
+            "PUBLIC_INSTITUTIONAL_DATA | SYNTHETIC_EXAMPLE | PERSONAL_DATA_PRESENT). "
+            "Un APPROVED exige que TOUS les findings soient admissibles ; un REJECTED "
+            "exige au moins un PERSONAL_DATA_PRESENT. Remplir `decision` (APPROVED | REJECTED), "
             "`decided_at` (ISO 8601 avec fuseau), `justification.category` "
             "(INSTITUTIONAL_CONTACT | PEDAGOGICAL_EXAMPLE | FICTIONAL_IDENTITY | "
             "TECHNICAL_FALSE_POSITIVE | PUBLIC_OFFICIAL_PUBLICATION | "
@@ -133,9 +145,33 @@ def sceller(*, draft: Path, index_path: Path, sortie: Path) -> str:
             # Instruments, empreinte du paquet, classes, compte et pages viennent
             # de l'index : un brouillon ne peut pas les surcharger.
             raise ValueError(f"draft entry for {sha} may not set {sorted(extra)} — bound by the index")
+        drafted_findings = raw.get("findings")
+        if not isinstance(drafted_findings, dict):
+            raise ValueError(f"draft entry for {sha} must disposition its findings")
+        indexed = {finding["finding_id"]: finding for finding in entry.get("findings", [])}
+        if set(drafted_findings) != set(indexed):
+            raise ValueError(
+                f"draft findings for {sha} differ from the review index "
+                f"(undecided: {sorted(set(indexed) - set(drafted_findings))}, "
+                f"unknown: {sorted(set(drafted_findings) - set(indexed))})"
+            )
+        findings = [
+            {
+                "finding_id": finding_id,
+                "pattern_id": indexed[finding_id]["pattern_id"],
+                "page": indexed[finding_id]["page"],
+                "match_sha256": indexed[finding_id]["match_sha256"],
+                "context_sha256": indexed[finding_id]["context_sha256"],
+                "disposition": (drafted_findings[finding_id] or {}).get("disposition")
+                if isinstance(drafted_findings[finding_id], dict)
+                else drafted_findings[finding_id],
+            }
+            for finding_id in sorted(indexed)
+        ]
         decisions.append(
             {
                 "content_sha256": sha,
+                "findings": findings,
                 "policy_id": Path(str(index["policy_path"])).stem,
                 "policy_sha256": index["policy_sha256"],
                 "scanner_sha256": index["scanner_sha256"],

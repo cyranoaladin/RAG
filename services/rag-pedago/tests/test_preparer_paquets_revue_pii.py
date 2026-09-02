@@ -83,7 +83,7 @@ def test_bundles_are_generated_only_for_detected_contents_and_sealed(tmp_path: P
         policy_path=POLICY,
         output_root=out,
         index_path=index_path,
-        campaign_id="pii-review-test",
+        campaign_id="pii-review-test", require_frozen=False,
     )
 
     assert index["protocol_version"] == "NEXUS-PII-REVIEW-INDEX-V1"
@@ -126,7 +126,7 @@ def test_verification_detects_any_modification_after_generation(tmp_path: Path) 
     index_path = tmp_path / "index.json"
     preparer.preparer(
         pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
-        policy_path=POLICY, output_root=out, index_path=index_path, campaign_id="pii-review-test",
+        policy_path=POLICY, output_root=out, index_path=index_path, campaign_id="pii-review-test", require_frozen=False,
     )
     assert preparer.verifier(output_root=out, index_path=index_path) == []
     page = out / shas["detecte"] / "pages" / "page-0002.txt"
@@ -146,7 +146,7 @@ def test_a_mirror_file_that_does_not_match_its_name_is_refused(tmp_path: Path) -
         preparer.preparer(
             pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
             policy_path=POLICY, output_root=tmp_path / "revue", index_path=tmp_path / "index.json",
-            campaign_id="pii-review-test",
+            campaign_id="pii-review-test", require_frozen=False,
         )
 
 
@@ -156,11 +156,70 @@ def test_generation_is_deterministic(tmp_path: Path) -> None:
     first = preparer.preparer(
         pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
         policy_path=POLICY, output_root=tmp_path / "a", index_path=tmp_path / "a.json",
-        campaign_id="pii-review-test",
+        campaign_id="pii-review-test", require_frozen=False,
     )
     second = preparer.preparer(
         pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
         policy_path=POLICY, output_root=tmp_path / "b", index_path=tmp_path / "b.json",
-        campaign_id="pii-review-test",
+        campaign_id="pii-review-test", require_frozen=False,
     )
     assert first["bundles"][0]["bundle_sha256"] == second["bundles"][0]["bundle_sha256"]
+
+
+def test_each_finding_has_an_identity_and_the_producer_is_frozen(tmp_path: Path) -> None:
+    """Le reviewer statue sur des findings identifiés — jamais sur un document
+    en bloc — produits par UN code et DES autorités nommés (§2, §7, §8, §9)."""
+    preparer = _module()
+    root, placements, shas = _corpus(tmp_path)
+    out = tmp_path / "revue"
+    index_path = tmp_path / "index.json"
+    index = preparer.preparer(
+        pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
+        policy_path=POLICY, output_root=out, index_path=index_path, campaign_id="pii-review-test", require_frozen=False,
+    )
+    for key in ("producer_commit_sha", "producer_tree_sha", "generator_sha256",
+                "contracts_version", "runtime"):
+        assert key in index and index[key], key
+    assert len(index["producer_commit_sha"]) == 40 and len(index["producer_tree_sha"]) == 40
+    assert index["generator_sha256"] == _sha(SCRIPT_DIR / "preparer_paquets_revue_pii.py")
+    entry = index["bundles"][0]
+    assert entry["bundle_id"] == f"pii-review-test:{shas['detecte']}"
+    assert entry["pdf_sha256"] == shas["detecte"]
+    assert entry["finding_count"] == 2 and entry["pages_with_findings"] == [2, 3]
+    findings = entry["findings"]
+    assert [f["pattern_id"] for f in findings] == ["email_address", "phone_french"]
+    for finding in findings:
+        assert set(finding) == {"finding_id", "pattern_id", "page", "match_sha256", "context_sha256", "match_length"}
+        assert len(finding["finding_id"]) == 64 and len(finding["match_sha256"]) == 64
+    manifest = json.loads((out / shas["detecte"] / "manifest.json").read_text(encoding="utf-8"))
+    for key in ("producer_commit_sha", "producer_tree_sha", "generator_sha256", "contracts_version",
+                "bundle_id", "pdf_sha256"):
+        assert manifest[key] == index.get(key, manifest[key])
+    by_id = {s["finding_id"]: s for s in manifest["signals"]}
+    assert set(by_id) == {f["finding_id"] for f in findings}
+    first = by_id[findings[0]["finding_id"]]
+    assert first["match_sha256"] == hashlib.sha256(first["match_text"].encode("utf-8")).hexdigest()
+    assert first["context_sha256"] == hashlib.sha256(first["context"].encode("utf-8")).hexdigest()
+    serialised = index_path.read_text(encoding="utf-8")
+    assert "durand" not in serialised and "01 23 45" not in serialised
+
+
+def test_a_french_ssn_finding_carries_its_checksum_verdict_without_deciding(tmp_path: Path) -> None:
+    preparer = _module()
+    root = tmp_path / "miroir"
+    root.mkdir()
+    invalid = _pdf([_PAGE_AVEC_TEXTE, b"BT /F1 12 Tf 72 720 Td (NIR : 1 23 45 67 890 123 45) Tj ET"])
+    sha = hashlib.sha256(invalid).hexdigest()
+    (root / f"{sha}.pdf").write_bytes(invalid)
+    placements = tmp_path / "placements.json"
+    placements.write_text(json.dumps({sha: {"title": "t", "source_path": "x.pdf", "placements": ["c"]}}))
+    index = preparer.preparer(
+        pdf_root=root, content_sha256=[sha], placements_path=placements, policy_path=POLICY,
+        output_root=tmp_path / "revue", index_path=tmp_path / "index.json", campaign_id="pii-review-test", require_frozen=False,
+    )
+    findings = index["bundles"][0]["findings"]
+    ssn = [f for f in findings if f["pattern_id"] == "french_ssn"]
+    assert ssn and ssn[0]["checksum_valid"] is False
+    assert preparer.nir_checksum_valid("1 23 45 67 890 123 45") is False
+    assert preparer.nir_checksum_valid("2 55 08 14 118 200 05") is True  # clé 5, NIR synthétique
+    assert "decision" not in ssn[0]
