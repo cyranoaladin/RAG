@@ -2,27 +2,7 @@
 
 Échecs constatés pendant le lot, **non causés par lui**, antériorité prouvée.
 
-## 1. ~~Cinq tests de `test_build_production_profile_release.py`~~ — **DETTE RETIRÉE**
-
-> **Retirée le 2026-08-31.** Ces cinq échecs n'existent pas sur cette branche : la suite
-> `rag-pedago` y rend **2820 passed, 0 failed**. Ils étaient produits par les **données de
-> release non committées de l'arbre de travail** — onze sujets et 486 artefacts là où
-> `ffc1bae` en déclare dix-huit et vingt-six. La branche porte les données de `ffc1bae`,
-> et les cinq s'évanouissent.
->
-> **Le classement était faux.** Je les avais tracés comme dette, c'est-à-dire comme un
-> échec du dépôt ; c'était un échec de mon plan de travail. Une dette tracée ne se révise
-> jamais : celle-ci aurait survécu à sa cause.
->
-> **La règle qui l'aurait évité :** une dette porte sa base, comme un diff. « Cinq tests
-> échouent » n'est pas un fait ; « cinq tests échouent avec ce jeu de données, à ce
-> commit » en est un. Le constat d'origine est conservé ci-dessous, barré, parce qu'une
-> dette annulée doit dire pourquoi — sinon la prochaine occurrence sera retracée à
-> l'identique.
-
-### Constat d'origine, conservé
-
-
+## 1. Cinq tests de `test_build_production_profile_release.py`
 
 ```
 test_registered_release_is_the_only_active_release_and_exact
@@ -67,49 +47,3 @@ qu'aucune revue ne voit passer. La correction n'est pas de repousser la date : c
 figer l'horloge de vérification comme la fixture l'est déjà.
 
 Hors périmètre du LOT 1c. Signalé au titre de `AGENTS.md` § Escalade.
-
----
-
-## Mesure d'antériorité complète — suite entière, worktree détaché
-
-Les deux suites ont été exécutées dans des worktrees séparés du plan de travail, avec les
-mêmes venvs, la même machine, à quelques minutes d'intervalle.
-
-```
-                        total   passed  failed  skipped
-packages/contracts        468      468       0        0
-rag-pedago               2822     2820       0        2
-rag-engine (socle)       3445     3417      20        8
-rag-engine (ffc1bae nu)  3444     3416      20        8
-```
-
-**Les vingt échecs sont exactement les mêmes de part et d'autre** — comparaison des noms
-complets, `comm` sur les deux listes triées : zéro nouveau, zéro disparu. Le socle exécute
-un test de plus (`test_host_artifact_variables_have_no_fabricating_default`), et il passe.
-
-**Aucune régression.** Le garde-fou de `AGENTS.md` est satisfait au sens qu'il définit :
-aucun test vert ne passe au rouge.
-
-### Attribution des vingt échecs
-
-```
- 4  bombe d'horloge — « review binding receipt expired at 2026-08-30T12:00:00Z »
-      test_readiness_gate_v2::test_v2_production_path_loads_the_exact_set_and_release_material_from_env
-      test_readiness_gate_v2::test_runtime_context_rereads_revocations_bindings_and_expiry
-      test_deploy_verified_release_cli::…::test_v2_bundle_materializes_and_reverifies_every_governance_file
-      test_lot44f_create_job_cli_idempotency::…::test_exact_scope_is_created_and_caller_authority_override_is_not
-
-16  tests d'intégration exigeant Docker et une base réelle
-      test_lot44f_worker_resume ............... 6
-      test_lot41a_worker_enforcement .......... 4
-      test_lot44f_ingestion_up_failure ........ 3
-      test_lot44f_worker_attestation .......... 2
-      test_lot41a_docker_authority_e2e ........ 1
-```
-
-**Correction d'un chiffre publié.** Le rapport initial disait « une seule bombe d'horloge a
-explosé ». C'était un sondage sur six fichiers, annoncé comme tel, et il était trop étroit :
-`test_readiness_gate_v2.py` et `test_lot44f_create_job_cli_idempotency.py` n'y figuraient
-pas. **La fixture figée au 2026-08-23 fait échouer quatre tests, pas un.** Le mécanisme
-est inchangé — `V2_NOW + timedelta(days=7)` confronté à `datetime.now()` — et la correction
-aussi : figer l'horloge de vérification comme la fixture l'est déjà.
