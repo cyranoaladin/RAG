@@ -65,6 +65,11 @@ def _decision_set_bytes() -> bytes:
                     "signal_classes": ["phone_french"],
                     "signal_count": 1,
                     "pages": [2],
+                    "findings": [
+                        {"finding_id": "f1" * 32, "pattern_id": "phone_french", "page": 2,
+                         "match_sha256": "a1" * 32, "context_sha256": "b1" * 32,
+                         "disposition": "PUBLIC_INSTITUTIONAL_DATA"},
+                    ],
                     "decision": "APPROVED",
                     "justification": {
                         "category": "INSTITUTIONAL_CONTACT",
