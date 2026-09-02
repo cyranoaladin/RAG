@@ -6,9 +6,9 @@
     "extraction_failed": 0,
     "scanned": 320
   },
-  "measured_at": "2026-09-01T23:40:49.511569+00:00",
+  "measured_at": "2026-09-02T00:00:20.157518+00:00",
   "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
-  "page_policy_sha256": "5c0e90770f7fa5cd449c90c67fde4ad9b320522e6b0c319238129b0b5abb45a1",
+  "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
   "policy_path": "services/rag-pedago/configs/pii_gate_policy.yml",
   "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
   "protocol_version": "NEXUS-PII-RESCAN-V1",

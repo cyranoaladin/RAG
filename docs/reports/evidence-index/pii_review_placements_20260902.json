@@ -152,7 +152,7 @@
     "placements": 33,
     "rescan": {
       "path": "docs/reports/evidence-index/pii_rescan_policy_v5_20260902.json",
-      "sha256": "902b96239cae61115ec546ad21d3b6a027fc08e20f572f8c064bb98f5a46ff37"
+      "sha256": "70d8590253ebee710994b572e2750457f2beb324c420e6853e35478b0e5b0c55"
     },
     "schema_version": "NEXUS-PII-REVIEW-PLACEMENTS-V1"
   },

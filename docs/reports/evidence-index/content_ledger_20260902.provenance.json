@@ -27,12 +27,12 @@
     "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
     "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13"
   ],
-  "derive_le": "2026-09-01T23:43:37.395853+00:00",
+  "derive_le": "2026-09-02T00:00:20.285381+00:00",
   "entrees": {
     "docs/reports/evidence-index/exclusions_production_20260831.json": "4b605805911ba1d1204b765102bd49a95230832015d734db0355cbe0db4b2a7f",
-    "docs/reports/evidence-index/pii_rescan_policy_v5_20260902.json": "902b96239cae61115ec546ad21d3b6a027fc08e20f572f8c064bb98f5a46ff37",
+    "docs/reports/evidence-index/pii_rescan_policy_v5_20260902.json": "70d8590253ebee710994b572e2750457f2beb324c420e6853e35478b0e5b0c55",
     "docs/reports/lot_1_2_critere_page_sans_texte.md": "d8f79e91bafb4ca44116ceba94aa01ad08c0f5ab157698758b60452712ad4ce1",
-    "rectifications_ledger_20260902.json": "cc3a0abbae22854410dedd8e15e15044517ec9d489b0ab4f776e2cb8eaf4aeee"
+    "rectifications_ledger_20260902.json": "e266647b8e68368b58593e4267e8f0eb862562c65c09d5d1de5c67739aee957b"
   },
   "lignes_apres": 2582,
   "lignes_avant": 2582,
