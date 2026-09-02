@@ -79,7 +79,7 @@ def _tree_snapshot(root: Path) -> dict[str, tuple[str, str]]:
 
 def _git_status() -> str:
     return subprocess.check_output(
-        ["git", "status", "--short", "--branch", "--untracked-files=all"],
+        ["git", "status", "--short", "--branch", "--untracked-files=all", "--", "."],
         cwd=SERVICE_ROOT,
         text=True,
     )

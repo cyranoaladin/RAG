@@ -36,8 +36,10 @@ RELEASE_ROOT = (
 AGGREGATE = RELEASE_ROOT / "production-profile-gate.release.json"
 BINDINGS = RELEASE_ROOT / "authority_bindings.json"
 REGISTRY = RELEASE_ROOT.parent / "release-registry.json"
-FINAL_MATRIX = ROOT / "docs/reports/final_production_profile_matrix_20260825.json"
-PROFILE_MANIFEST = ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
+FINAL_MATRIX = ROOT / "docs/reports/evidence-index/matrice_production_20260831.json"
+PROFILE_MANIFEST = (
+    ROOT / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
+)
 FINAL_PRODUCTION_SET = (
     ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
 )
@@ -49,9 +51,28 @@ VERIFIED_PROFILES = (
 )
 
 FINAL_SET_SHA256 = "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
-PROFILE_MANIFEST_FINGERPRINT = (
-    "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c"
-)
+#: Empreinte sémantique du manifeste de profils lié par la release scellée des
+#: onze (`authority_bindings.profile_manifest_fingerprint`). Elle n'est plus un
+#: littéral d'une autre lignée : `test_bound_profile_manifest_fingerprint_is_
+#: recomputed_from_the_manifest` prouve qu'elle se recalcule depuis le fichier.
+PROFILE_MANIFEST_FINGERPRINT = json.loads(BINDINGS.read_text(encoding="utf-8"))[
+    "profile_manifest_fingerprint"
+]
+
+
+def test_bound_profile_manifest_fingerprint_is_recomputed_from_the_manifest() -> None:
+    import yaml
+    from nexus_contracts.ingestion import profile_manifest_fingerprint
+
+    document = yaml.safe_load(PROFILE_MANIFEST.read_text(encoding="utf-8"))
+    assert profile_manifest_fingerprint(document) == PROFILE_MANIFEST_FINGERPRINT
+    bindings = json.loads(BINDINGS.read_text(encoding="utf-8"))
+    assert bindings["profile_manifest_file_sha256"] == hashlib.sha256(
+        PROFILE_MANIFEST.read_bytes()
+    ).hexdigest()
+    assert bindings["bindings"]["profile_manifest_sha256"]["path"].endswith(
+        "ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
+    )
 
 
 class Builder(Protocol):
@@ -108,10 +129,17 @@ def _load(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def _final_set() -> set[str]:
+def _served_release_collections() -> list[str]:
+    registry = _load(REGISTRY)
+    return sorted(c for release in registry["releases"] for c in release["collections"])
+
+
+def _matrix_contents_in_served_collections() -> set[str]:
+    served = set(_served_release_collections())
     return {
         content
         for row in _load(FINAL_MATRIX)
+        if row["dimensions"]["collection"]["value"] in served
         for content in row["content_sha256"]
     }
 
@@ -120,10 +148,46 @@ def _set_digest(values: set[str]) -> str:
     return hashlib.sha256(("\n".join(sorted(values)) + "\n").encode()).hexdigest()
 
 
-def test_final_input_is_exactly_the_frozen_twenty_six() -> None:
-    final_set = _final_set()
-    assert len(final_set) == 26
-    assert _set_digest(final_set) == FINAL_SET_SHA256
+def _sealed_contents_and_placements() -> tuple[set[str], int, set[str]]:
+    aggregate = _load(AGGREGATE)
+    contents: set[str] = set()
+    placements = 0
+    collections: set[str] = set()
+    for subject in aggregate["subjects"]:
+        subject_path = RELEASE_ROOT / subject["path"]
+        assert subject["sha256"] == _sha256(subject_path)
+        document = _load(subject_path)
+        collections.add(document["collection"])
+        for artifact in document["artifacts"]:
+            contents.add(artifact["content_sha256"])
+            placements += 1
+            assert artifact["chunks"]
+            assert {
+                page
+                for chunk in artifact["chunks"]
+                for page in range(chunk["page_start"], chunk["page_end"] + 1)
+            } == set(range(1, artifact["page_count"] + 1))
+    return contents, placements, collections
+
+
+def test_default_matrix_is_the_derived_production_matrix_of_the_eleven() -> None:
+    """Restaté le 2026-09-02 : l'entrée par défaut du producteur est la matrice de
+    production dérivée du 31/08 (provenance à côté), projetée sur les onze
+    collections de la release servie : 320 contenus, 488 couples, dont le
+    contenu `8848f073…` réintégré et ses deux placements NSI."""
+    provenance = _load(FINAL_MATRIX.with_name("matrice_production_20260831.provenance.json"))
+    assert provenance["sortie"]["docs/reports/evidence-index/matrice_production_20260831.json"] == (
+        _sha256(FINAL_MATRIX)
+    )
+    contents = _matrix_contents_in_served_collections()
+    couples = sum(
+        len(row["content_sha256"])
+        for row in _load(FINAL_MATRIX)
+        if row["dimensions"]["collection"]["value"] in set(_served_release_collections())
+    )
+    assert len(contents) == 320 and couples == 488
+    assert "8848f0732cc1a51ac173422805ca63ce837a94acbad916714dfaedc0ffb1f04f" in contents
+    assert "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611" not in contents
 
 
 def test_registered_release_is_the_only_active_release_and_exact() -> None:
@@ -137,61 +201,62 @@ def test_registered_release_is_the_only_active_release_and_exact() -> None:
     assert entry["manifest_path"] == (
         "profile_gate/production-profile-gate.release.json"
     )
-    assert len(entry["collections"]) == 18
+    # Restaté le 2026-09-02 : onze collections servies, jamais dix-huit.
+    assert entry["collections"] == _served_release_collections()
+    assert len(entry["collections"]) == 11
     assert entry["expected_manifest_sha256"] == _sha256(AGGREGATE)
 
 
-def test_aggregate_covers_exactly_26_contents_and_18_profiles() -> None:
+def test_sealed_aggregate_is_internally_exact_and_names_its_populations() -> None:
+    """Restaté le 2026-09-02. La release scellée des onze (lignée B) est une
+    représentation V1 « par sujet » : `expected_counts.artifacts` y compte les
+    entrées d'artefact PAR SUJET (486, une par placement), pas les contenus
+    uniques (319). Ce nom ambigu est une dette nommée (décision du 02/09, § 12) ;
+    la représentation V2 (Option A) la remplace par `unique_artifacts` et
+    `placements`. Ici on vérifie l'exactitude interne et on NOMME les deux
+    populations, sans corriger l'artefact historique."""
     aggregate = _load(AGGREGATE)
     assert aggregate["release_kind"] == "MULTILEVEL_AGGREGATE_RELEASE_V1"
     assert aggregate["release_id"] == "production-profile-gate-2026-2027-v1"
-    assert aggregate["expected_counts"]["artifacts"] == 26
-    assert len(aggregate["subjects"]) == 18
     assert aggregate["authorities"]["profile_manifest_sha256"] == (
         PROFILE_MANIFEST_FINGERPRINT
     )
-
-    contents: set[str] = set()
-    collections: set[str] = set()
-    for subject in aggregate["subjects"]:
-        subject_path = RELEASE_ROOT / subject["path"]
-        assert subject["sha256"] == _sha256(subject_path)
-        document = _load(subject_path)
-        collections.add(document["collection"])
-        for artifact in document["artifacts"]:
-            assert artifact["content_sha256"] not in contents
-            contents.add(artifact["content_sha256"])
-            assert artifact["chunks"]
-            assert {
-                page
-                for chunk in artifact["chunks"]
-                for page in range(chunk["page_start"], chunk["page_end"] + 1)
-            } == set(range(1, artifact["page_count"] + 1))
-    assert contents == _final_set()
-    assert len(collections) == 18
+    contents, placements, collections = _sealed_contents_and_placements()
+    assert sorted(collections) == _served_release_collections()
+    assert len(aggregate["subjects"]) == 11
+    assert aggregate["expected_counts"]["placements"] == placements == 486
+    assert aggregate["expected_counts"]["artifacts"] == placements  # V1 : par sujet
+    assert len(contents) == 319
+    # La production V2 visée ajoute exactement `8848f073…` et ses deux placements.
+    assert _matrix_contents_in_served_collections() - contents == {
+        "8848f0732cc1a51ac173422805ca63ce837a94acbad916714dfaedc0ffb1f04f"
+    }
 
 
-def test_release_scope_inputs_cover_the_exact_final_set_and_profiles() -> None:
+def test_release_scope_inputs_cover_exactly_the_sealed_release() -> None:
+    """Restaté le 2026-09-02 : les trois fichiers de portée sont des SORTIES de
+    la production scellée (lignée B). Le set éligible y est écrit par placement
+    (486 lignes) — dette nommée, la production V2 l'écrira comme un ensemble ;
+    on vérifie qu'il couvre exactement les contenus scellés."""
     final_contents = tuple(FINAL_PRODUCTION_SET.read_text().splitlines())
     placements = _load(ACCEPTED_PLACEMENTS)
     verified = _load(VERIFIED_PROFILES)
-    matrix = _load(FINAL_MATRIX)
+    contents, sealed_placements, _collections = _sealed_contents_and_placements()
 
-    assert len(final_contents) == len(set(final_contents)) == 26
     assert list(final_contents) == sorted(final_contents)
-    assert _set_digest(set(final_contents)) == FINAL_SET_SHA256
-    assert len(placements) == 26
-    assert {row["content_sha256"] for row in placements} == set(final_contents)
+    assert set(final_contents) == contents
+    assert len(placements) == sealed_placements == 486
+    assert {row["content_sha256"] for row in placements} == contents
     assert {row["release_id"] for row in placements} == {
         "production-profile-gate-2026-2027-v1"
     }
+    assert {row["collection"] for row in placements} == set(_served_release_collections())
     assert verified["profile_manifest_digest"] == PROFILE_MANIFEST_FINGERPRINT
-    assert len(verified["profiles"]) == 18
-    assert len({row["profile_id"] for row in verified["profiles"]}) == 18
+    assert len(verified["profiles"]) == 11
+    assert {row["profile_id"] for row in verified["profiles"]} == set(
+        _served_release_collections()
+    )
     assert all(row["source_path"].endswith(".yml") for row in verified["profiles"])
-    assert {row["partition_kind"] for row in matrix} == {
-        "EXACT_VERSIONED_RELEASE_PROFILE"
-    }
 
 
 def test_every_authority_is_named_path_bound_and_digest_checked() -> None:
@@ -405,7 +470,9 @@ def test_preflight_proves_real_e5_bounds_and_no_empty_page() -> None:
     assert preflight["model_revision"] == (
         "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"
     )
-    assert preflight["counts"]["artifacts"] == 26
+    # Restaté le 2026-09-02 : V1 compte les artefacts PAR SUJET (486 entrées).
+    assert preflight["counts"]["artifacts"] == len(preflight["artifacts"]) == 486
+    assert len({artifact["content_sha256"] for artifact in preflight["artifacts"]}) == 319
     assert preflight["counts"]["empty_pages"] == 0
     assert preflight["counts"]["empty_chunks"] == 0
     assert preflight["counts"]["oversized_chunks"] == 0

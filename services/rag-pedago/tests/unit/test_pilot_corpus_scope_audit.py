@@ -44,7 +44,7 @@ def _load_audit_module():
 
 def _git_status() -> str:
     return subprocess.check_output(
-        ["git", "status", "--short", "--branch"],
+        ["git", "status", "--short", "--branch", "--", "."],
         cwd=REPO_ROOT,
         text=True,
     )

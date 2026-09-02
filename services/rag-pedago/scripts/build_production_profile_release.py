@@ -105,9 +105,14 @@ RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
 )
 CURRENTNESS_NETWORK_AUDIT_PATH = RELEASE_ROOT / "currentness_network_audit.json"
+#: Entrées par défaut = celles de la release scellée des onze (lignée B, LOT 1c) :
+#: la matrice de production dérivée du 31/08, les onze profils `v2_livraison_319`
+#: et leur manifeste au chemin que `authority_bindings.json` lie. Les surcharges
+#: d'environnement restent possibles pour une émission différente, mais une
+#: production « par défaut » reproduit la lignée servie — plus la lignée A.
 FINAL_MATRIX_PATH = Path(os.environ.get(
     "NEXUS_FINAL_MATRIX",
-    REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"))
+    REPOSITORY_ROOT / "docs/reports/evidence-index/matrice_production_20260831.json"))
 FINAL_PRODUCTION_SET_PATH = (
     REPOSITORY_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
 )
@@ -158,10 +163,11 @@ CATALOGUE_PROVENANCE_SHA256 = (
 #: de la release historique — aucune émission existante ne change de cible.
 PROFILE_ROOT = Path(os.environ.get(
     "NEXUS_PROFILE_ROOT",
-    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"))
+    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles/v2_livraison_319"))
 PROFILE_MANIFEST_PATH = Path(os.environ.get(
     "NEXUS_PROFILE_MANIFEST",
-    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"))
+    REPOSITORY_ROOT
+    / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"))
 COLLECTION_CONFIG_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
 PII_POLICY_PATH = REPOSITORY_ROOT / "services/rag-pedago/configs/pii_gate_policy.yml"
 PII_SCANNER_PATH = REPOSITORY_ROOT / "services/rag-pedago/rag_pedago/imports/pii_scanner.py"

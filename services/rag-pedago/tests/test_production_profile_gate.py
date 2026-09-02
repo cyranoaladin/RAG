@@ -36,7 +36,14 @@ DECISIONS_PATH = (
 )
 COLLECTIONS_PATH = REPO_ROOT / "services/rag-engine/configs/rag_collections.yml"
 EDUSCOL_SOURCES_PATH = REPO_ROOT / "services/rag-pedago/configs/eduscol_sources.yml"
-PROFILE_MANIFEST_PATH = REPO_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"
+PROFILE_MANIFEST_PATH = (
+    REPO_ROOT
+    / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
+)
+V2_PROFILE_ROOT = PROFILE_ROOT / "v2_livraison_319"
+RELEASE_REGISTRY_PATH = (
+    REPO_ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
+)
 PROFILE_GATE_BUILDER = (
     REPO_ROOT / "services/rag-pedago/scripts/build_production_profile_gate.py"
 )
@@ -297,16 +304,25 @@ def test_seven_new_profiles_match_the_grounded_decisions_exactly() -> None:
         )
 
 
-def test_new_profile_collections_are_declared_but_dormant_before_cutover() -> None:
+def test_new_profile_collections_are_declared_and_instantiated_only_when_served() -> None:
+    """Restaté le 2026-09-02 : « dormantes avant la bascule » supposait la bascule
+    à venir ; elle a eu lieu pour les collections que la release scellée des onze
+    porte. Chaque collection décidée reste déclarée (taxonomie, scope) et n'est
+    instanciée que si une release scellée la sert."""
     decisions = _load(DECISIONS_PATH)
     collections = yaml.safe_load(COLLECTIONS_PATH.read_text(encoding="utf-8"))[
         "collections"
     ]
+    served = {
+        collection
+        for release in _load(RELEASE_REGISTRY_PATH)["releases"]
+        for collection in release["collections"]
+    }
 
     for profile_id, decision in decisions["profiles"].items():
         expected_scope = decision["profile"]["scope"]
         declared = collections[profile_id]
-        assert declared["instanciee"] is False
+        assert declared["instanciee"] is (profile_id in served)
         assert declared["matiere"] == expected_scope["matiere"]
         assert declared["niveau"] == expected_scope["niveau"]
         assert declared["voie"] in {expected_scope["voie"], "gen"}
@@ -344,10 +360,12 @@ def test_dgemc_official_hub_stays_to_verify_and_routes_only_to_its_collection() 
     ]
 
 
-def test_production_manifest_matches_all_eighteen_profiles_exactly() -> None:
+def test_production_manifest_matches_all_eleven_profiles_exactly() -> None:
+    """Restaté le 2026-09-02 : le manifeste de production est celui de la
+    livraison 319 (onze profils `v2_livraison_319`), lié par la release scellée."""
     profile_documents = {
         (profile.scope.collection, profile.profile_version): profile
-        for path in sorted(PROFILE_ROOT.glob("*.yml"))
+        for path in sorted(V2_PROFILE_ROOT.glob("*.yml"))
         for profile in [
             CollectionProfile.model_validate(
                 yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -359,13 +377,13 @@ def test_production_manifest_matches_all_eighteen_profiles_exactly() -> None:
         for identity, profile in profile_documents.items()
     }
 
-    assert len(profile_documents) == 18
+    assert len(profile_documents) == 11
     verified = validate_production_profile_manifest(
         PROFILE_MANIFEST_PATH.read_bytes(),
         profile_fingerprints=fingerprints,
         source=str(PROFILE_MANIFEST_PATH),
     )
-    assert verified.declared_count == 18
+    assert verified.declared_count == 11
     assert set(verified.authorities) == set(fingerprints)
     declared = yaml.safe_load(PROFILE_MANIFEST_PATH.read_text(encoding="utf-8"))
     assert {

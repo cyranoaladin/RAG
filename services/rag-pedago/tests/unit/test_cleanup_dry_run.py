@@ -358,3 +358,17 @@ def test_cleanup_policy_config_protects_sensitive_and_project_files() -> None:
         "rag-local/.ruff_cache",
     ]:
         assert root in summarize_only_roots
+
+
+def test_the_git_guard_ignores_untracked_files_of_another_service(tmp_path: Path) -> None:
+    """Preuve durable contre l'interférence de suites : un fichier non suivi écrit
+    par la suite d'un autre service (sous services/rag-engine) ne change pas la
+    mesure de cette garde, qui ne regarde que rag-pedago."""
+    before = _git_status()
+    foreign = REPO_ROOT.parent / "rag-engine" / "tests" / "integration" / "test_zz_foreign_probe_witness.py"
+    assert not foreign.exists()
+    foreign.write_text("# sonde étrangère transitoire\n", encoding="utf-8")
+    try:
+        assert _git_status() == before
+    finally:
+        foreign.unlink()

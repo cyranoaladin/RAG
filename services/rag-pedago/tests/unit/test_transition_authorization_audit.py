@@ -90,7 +90,7 @@ def _run_cli(*, optimized: bool = False, config: Path = CONFIG) -> subprocess.Co
 
 
 def _git_status() -> str:
-    return subprocess.check_output(["git", "status", "--short", "--branch"], cwd=REPO_ROOT, text=True)
+    return subprocess.check_output(["git", "status", "--short", "--branch", "--", "."], cwd=REPO_ROOT, text=True)
 
 
 def test_transition_authorization_artifacts_exist() -> None:
