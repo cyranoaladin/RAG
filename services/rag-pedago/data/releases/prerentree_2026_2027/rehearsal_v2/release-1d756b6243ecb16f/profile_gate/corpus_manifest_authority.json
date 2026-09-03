@@ -1,0 +1,8 @@
+{
+  "authority_kind": "SEALED_CORPUS_MANIFEST_REFERENCE_V1",
+  "authority_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "content_ledger_path": "docs/reports/evidence-index/content_ledger_20260814.jsonl",
+  "content_ledger_sha256": "c61dc102988bf122964b1fbab64fc2ebc76ea073b74cdec2c94a5ebcdc1ecc41",
+  "final_content_count": 26,
+  "final_content_set_sha256": "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
+}

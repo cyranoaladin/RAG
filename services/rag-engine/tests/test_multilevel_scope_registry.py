@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from copy import deepcopy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
@@ -28,6 +29,10 @@ from src.ingestor.retrieval_scope_v2 import (
 )
 
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
+RELEASE_REGISTRY = (
+    Path(__file__).resolve().parents[3]
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
+)
 COLLECTION_CONFIG = ENGINE_ROOT / "configs" / "rag_collections.yml"
 MULTILEVEL_RELEASE = (
     ENGINE_ROOT.parent
@@ -66,6 +71,24 @@ MULTILEVEL_SCOPE_COLLECTIONS = {
     "terminale_nsi_v1": "rag_nexus_nsi_terminale_specialite",
     "terminale_physique_chimie_v1": "rag_nexus_pc_terminale_specialite",
 }
+
+
+def _multilevel_v2_release_registry(
+    *subject_sha256_by_collection: tuple[str, str],
+) -> SimpleNamespace:
+    expectation = SimpleNamespace(
+        release_kind="MULTILEVEL_AGGREGATE_RELEASE_V2",
+        subject_manifest_sha256_by_collection=subject_sha256_by_collection,
+    )
+    manifest = SimpleNamespace(expectation=expectation)
+    collections = tuple(collection for collection, _sha256 in subject_sha256_by_collection)
+    return SimpleNamespace(
+        collections=collections,
+        manifests=(manifest,),
+        manifest_for_collection=lambda collection: (
+            manifest if collection in collections else None
+        ),
+    )
 
 
 def _verified(scope_id: str, *, role: str = "teacher") -> VerifiedInternalIdentity:
@@ -160,10 +183,16 @@ def test_complete_registry_aligns_with_adr_0041_catalogue_activation() -> None:
         load_retrieval_scope_registry(),
         config,
     )
-    # ADR-0041 active la collection après la réconciliation réelle ; le
-    # validateur de registre ne doit ni dépendre de ce flag, ni le modifier.
-    assert config["collections"]["rag_nexus_maths_quatrieme_tc"]["instanciee"] is True
-    assert config["collections"]["rag_nexus_francais_quatrieme_tc"]["instanciee"] is True
+    # ADR-0041 prévoyait l'activation de la Quatrième après réconciliation ;
+    # aucune release scellée ne l'a jamais portée. Le validateur de registre ne
+    # dépend pas de ce flag, et le flag suit la release servie (restaté 2026-09-02).
+    served = {
+        collection
+        for release in json.loads(RELEASE_REGISTRY.read_text(encoding="utf-8"))["releases"]
+        for collection in release["collections"]
+    }
+    for name in ("rag_nexus_maths_quatrieme_tc", "rag_nexus_francais_quatrieme_tc"):
+        assert config["collections"][name]["instanciee"] is (name in served)
 
 
 def test_each_scope_source_sha_is_its_exact_subject_release_sha() -> None:
@@ -338,16 +367,143 @@ def test_v2_picker_hides_collection_when_release_manifest_is_absent(
     assert response == {"collections": []}
 
 
+def test_v2_reader_accepts_normalized_rehearsal_registry() -> None:
+    """Test A : lecture structurelle V2 de la release de répétition normalisée."""
+    import hashlib
+
+    from ingestor.release_readiness import load_release_registry_file
+
+    rehearsal_dir = (
+        ENGINE_ROOT.parent
+        / "rag-pedago/data/releases/prerentree_2026_2027/rehearsal_v2"
+    )
+    candidates = sorted(rehearsal_dir.glob("release-*"))
+    assert candidates, "Rehearsal V2 release directory not found"
+    rehearsal_release = candidates[-1]
+    registry_path = rehearsal_release / "release-registry.json"
+    registry_sha = hashlib.sha256(registry_path.read_bytes()).hexdigest()
+
+    registry = load_release_registry_file(registry_path, registry_sha)
+    assert len(registry.collections) == 11
+
+    assert len(registry.manifests) == 1
+
+    exp = registry.manifests[0].expectation
+    assert exp.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V2"
+    assert exp.release_mode == "rehearsal"
+    assert exp.promotion_status == "NOT_PROMOTABLE"
+    assert exp.activation_status == "NO_PRODUCTION_ACTIVATION"
+    assert exp.review_status == "PRE_REVIEW"
+    assert len(exp.artifacts) == 319
+    assert len(exp.placements) == 486
+    assert len(exp.subject_manifest_sha256_by_collection) == 11
+
+    unique_chunks = len(
+        {(a.content_sha256, c["chunk_index"]) for a in exp.artifacts for c in a.chunks}
+    )
+    assert unique_chunks == 8324
+
+
+def test_v2_rehearsal_placement_semantics_align_with_historical_v1() -> None:
+    """Vérifie que la projection sémantique des 486 placements est identique entre V1 et V2."""
+    rehearsal_dir = (
+        ENGINE_ROOT.parent
+        / "rag-pedago/data/releases/prerentree_2026_2027/rehearsal_v2"
+    )
+    candidates = sorted(rehearsal_dir.glob("release-*"))
+    assert candidates, "Rehearsal V2 release directory not found"
+    rehearsal_release = candidates[-1]
+
+    # V1 historique
+    v1_cand = json.loads(
+        (
+            ENGINE_ROOT.parent
+            / "rag-pedago/data/releases/prerentree_2026_2027/profile_gate/candidate_inventory.json"
+        ).read_text(encoding="utf-8")
+    )
+    v1_pairs = {
+        (c["content_sha256"], col["collection"])
+        for col in v1_cand["collections"]
+        for c in col["candidates"]
+    }
+    v1_shas = {c["content_sha256"] for col in v1_cand["collections"] for c in col["candidates"]}
+
+    # V2 rehearsal
+    subject_files = list((rehearsal_release / "profile_gate/subjects").glob("*.release.json"))
+    assert len(subject_files) == 11
+    v2_pairs = {
+        (p["artifact_id"], p["collection"])
+        for sf in subject_files
+        for p in json.loads(sf.read_text(encoding="utf-8")).get("placements", [])
+    }
+    v2_shas = {
+        p["artifact_id"]
+        for sf in subject_files
+        for p in json.loads(sf.read_text(encoding="utf-8")).get("placements", [])
+    }
+
+    assert len(v1_pairs) == 486
+    assert len(v2_pairs) == 486
+    assert len(v1_shas) == 319
+    assert len(v2_shas) == 319
+    assert v1_pairs == v2_pairs
+    assert v1_shas == v2_shas
+
+
+
+
+def test_startup_rejects_not_promotable_v2_rehearsal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test B : refus mécanique fail-closed de l'activation d'une release rehearsal."""
+    import hashlib
+
+    rehearsal_dir = (
+        ENGINE_ROOT.parent
+        / "rag-pedago/data/releases/prerentree_2026_2027/rehearsal_v2"
+    )
+    candidates = sorted(rehearsal_dir.glob("release-*"))
+    assert candidates, "Rehearsal V2 release directory not found"
+    rehearsal_release = candidates[-1]
+    registry_path = rehearsal_release / "release-registry.json"
+    registry_sha = hashlib.sha256(registry_path.read_bytes()).hexdigest()
+
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(registry_path))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha)
+
+    with pytest.raises(
+        RuntimeError,
+        match="cannot activate rehearsal or unpromotable release in production runtime",
+    ):
+        endpoint.validate_release_startup_configuration(
+            load_retrieval_scope_registry(),
+            load_collection_config(COLLECTION_CONFIG),
+        )
+
+
 def test_startup_accepts_explicit_nonempty_release_subset_of_v2_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(WAVE0_RELEASE))
-    monkeypatch.setenv("RAG_RELEASE_MANIFEST_SHA256", WAVE0_RELEASE_SHA256)
+    """Test C : startup avec une release production explicite valide et promotable."""
+    import hashlib
+
+    monkeypatch.delenv("RAG_RELEASE_REGISTRY_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_REGISTRY_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(MULTILEVEL_RELEASE))
+    monkeypatch.setenv(
+        "RAG_RELEASE_MANIFEST_SHA256",
+        hashlib.sha256(MULTILEVEL_RELEASE.read_bytes()).hexdigest(),
+    )
 
     endpoint.validate_release_startup_configuration(
         load_retrieval_scope_registry(),
-        _all_multilevel_instantiated(),
+        load_collection_config(COLLECTION_CONFIG),
     )
+
 
 
 def test_startup_rejects_scope_source_sha_different_from_subject_release(
@@ -390,6 +546,49 @@ def test_request_gate_rejects_multilevel_scope_source_sha_drift(
     )
 
     assert endpoint._release_evidence_for_v2_artifact(drifted) is False
+
+
+def test_request_gate_accepts_v2_subject_manifest_source_sha_match(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    collection = str(artifact.evidence_subject.collection)
+    registry = _multilevel_v2_release_registry((collection, artifact.source_sha256))
+    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name: True)
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+
+    assert endpoint._release_evidence_for_v2_artifact(artifact) is True
+
+
+def test_request_gate_rejects_v2_subject_manifest_source_sha_drift(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    collection = str(artifact.evidence_subject.collection)
+    registry = _multilevel_v2_release_registry((collection, "0" * 64))
+    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name: True)
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+
+    assert endpoint._release_evidence_for_v2_artifact(artifact) is False
+
+
+def test_startup_rejects_ambiguous_v2_scope_for_one_subject_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    assert isinstance(artifact, RetrievalScopeArtifactV2)
+    collection = str(artifact.evidence_subject.collection)
+    registry = _multilevel_v2_release_registry((collection, artifact.source_sha256))
+    duplicate = artifact.model_copy(update={"scope_id": f"{artifact.scope_id}-duplicate"})
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+
+    with pytest.raises(RuntimeError, match="ambiguous"):
+        endpoint.validate_release_startup_configuration(
+            {artifact.scope_id: artifact, duplicate.scope_id: duplicate},
+            _all_multilevel_instantiated(),
+        )
 
 
 def test_chat_separates_target_identity_from_n_minus_one_evidence() -> None:

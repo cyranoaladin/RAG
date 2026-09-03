@@ -88,85 +88,63 @@ def test_instanciation_flags_present() -> None:
         assert "instanciee" in defn, f"{name} missing instanciee"
 
 
-def test_quatrieme_collections_are_declared_and_release_activated_exactly() -> None:
+RELEASE_REGISTRY = (
+    Path(__file__).resolve().parents[3]
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
+)
+
+
+def _served_collections() -> set[str]:
+    import json
+
+    registry = json.loads(RELEASE_REGISTRY.read_text(encoding="utf-8"))
+    return {collection for release in registry["releases"] for collection in release["collections"]}
+
+
+def test_quatrieme_collections_are_declared_and_dormant_until_served() -> None:
+    """Restaté le 2026-09-02 : ADR-0041 prévoyait l'activation de la Quatrième
+    après réconciliation ; aucune donnée n'a jamais été servie pour ces
+    collections. Catalogue = release = base : elles restent DÉCLARÉES (taxonomie,
+    scope) et dormantes tant qu'aucune release ne les porte."""
     config = _load_yaml(CONFIG_PATH)
-
-    assert config["collections"]["rag_nexus_maths_quatrieme_tc"] == {
-        "matiere": "maths",
-        "niveau": "quatrieme",
-        "voie": "college",
-        "statut": "tronc_commun",
-        "domain": "education",
-        "session_policy": "declared_or_null",
-        "taxonomy_file": "maths/quatrieme.yml",
-        "instanciee": True,
-    }
-    assert config["collections"]["rag_nexus_francais_quatrieme_tc"] == {
-        "matiere": "francais",
-        "niveau": "quatrieme",
-        "voie": "college",
-        "statut": "tronc_commun",
-        "domain": "education",
-        "session_policy": "declared_or_null",
-        "taxonomy_file": "francais/quatrieme.yml",
-        "instanciee": True,
-    }
+    served = _served_collections()
+    for name, taxonomy in (
+        ("rag_nexus_maths_quatrieme_tc", "maths/quatrieme.yml"),
+        ("rag_nexus_francais_quatrieme_tc", "francais/quatrieme.yml"),
+    ):
+        declared = config["collections"][name]
+        assert declared["niveau"] == "quatrieme"
+        assert declared["voie"] == "college"
+        assert declared["statut"] == "tronc_commun"
+        assert declared["taxonomy_file"] == taxonomy
+        assert declared["instanciee"] is (name in served)
 
 
-def test_instanciated_match_perimetre_excludes_pre_cutover_profile_gate_scopes() -> None:
+def test_instanciated_collections_are_exactly_the_served_release_plus_quarantine() -> None:
+    """Restaté le 2026-09-02 : l'ensemble instancié n'est plus une liste figée
+    d'un plan d'activation, c'est l'ensemble des collections que la release
+    scellée porte, plus la collection technique de quarantaine."""
     config = _load_yaml(CONFIG_PATH)
     inst = {n for n, d in config["collections"].items() if d.get("instanciee") is True}
-    assert inst == {
-        "rag_nexus_francais_premiere_tc",
-        "rag_nexus_francais_quatrieme_tc",
-        "rag_nexus_francais_seconde_tc",
-        "rag_nexus_francais_troisieme_tc",
-        "rag_nexus_maths_premiere_gen_specialite",
-        "rag_nexus_maths_quatrieme_tc",
-        "rag_nexus_maths_seconde_tc",
-        "rag_nexus_maths_terminale_gen_specialite",
-        "rag_nexus_maths_troisieme_tc",
-        "rag_nexus_nsi_premiere_specialite",
-        "rag_nexus_nsi_terminale_specialite",
-        "rag_nexus_pc_terminale_specialite",
-        "rag_nexus_philo_terminale_tc",
-        "rag_nexus_quarantine",
-    }
+    assert inst == _served_collections() | {"rag_nexus_quarantine"}
+    assert len(_served_collections()) == 11
 
 
-def test_multilevel_canonical_activation_delta_is_exactly_eight() -> None:
+def test_no_collection_is_instantiated_without_data_and_none_served_is_dormant() -> None:
     canonical = load_collection_config(CONFIG_PATH)
-    newly_activated = {
-        "rag_nexus_maths_seconde_tc",
-        "rag_nexus_francais_seconde_tc",
-        "rag_nexus_maths_quatrieme_tc",
-        "rag_nexus_francais_quatrieme_tc",
-        "rag_nexus_maths_premiere_gen_specialite",
-        "rag_nexus_francais_premiere_tc",
-        "rag_nexus_maths_terminale_gen_specialite",
-        "rag_nexus_pc_terminale_specialite",
+    served = _served_collections()
+    dormant_but_served = {
+        name for name in served if canonical["collections"][name]["instanciee"] is not True
     }
-
-    assert {
-        name
-        for name in newly_activated
-        if canonical["collections"][name]["instanciee"] is True
-    } == newly_activated
-
-
-def test_wave0_canonical_activation_is_exactly_two_collections() -> None:
-    canonical = load_collection_config(CONFIG_PATH)
-    expected = {
-        "rag_nexus_maths_troisieme_tc",
-        "rag_nexus_francais_troisieme_tc",
-    }
-    activated_wave0 = {
+    instantiated_unserved = {
         name
         for name, definition in canonical["collections"].items()
-        if name in expected and definition["instanciee"] is True
+        if definition["instanciee"] is True
+        and name not in served
+        and name != "rag_nexus_quarantine"
     }
-
-    assert activated_wave0 == expected
+    assert dormant_but_served == set()
+    assert instantiated_unserved == set()
 
 
 def test_wave0_staging_overlay_is_a_noop_after_canonical_activation() -> None:

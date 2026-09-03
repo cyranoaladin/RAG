@@ -6,7 +6,7 @@ import hashlib
 import json
 import re
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -16,6 +16,8 @@ import yaml
 
 INVENTORY_KIND = "MULTILEVEL_CANDIDATE_INVENTORY_V1"
 CURRENTNESS_KIND = "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
+CURRENTNESS_KIND_V2 = "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
+CURRENTNESS_KINDS = frozenset({CURRENTNESS_KIND, CURRENTNESS_KIND_V2})
 _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 _SCHOOL_YEAR = re.compile(r"\A[0-9]{4}-[0-9]{4}\Z")
 _OFFICIAL_PREFIX = "01_EDUSCOL_OFFICIEL/"
@@ -397,6 +399,80 @@ def load_multilevel_candidate_inventory(
     )
 
 
+#: Nom du fichier d'audit reseau livre A COTE de la preuve de fraicheur par le
+#: producteur. C'est lui que `currentness_audit_sha256` nomme : sans ce fichier,
+#: l'empreinte est un chiffre que personne ne peut rehacher.
+CURRENTNESS_NETWORK_AUDIT_FILENAME = "currentness_network_audit.json"
+
+
+def content_set_sha256(content_sha256_values: Iterable[str]) -> str:
+    """Empreinte canonique d'un ensemble de contenus : SHA tries, un par ligne,
+    saut de ligne final — la meme canonicalisation que le producteur
+    (`_final_set_digest`) et que le registre de droits."""
+    return hashlib.sha256(
+        ("\n".join(sorted(set(content_sha256_values))) + "\n").encode("utf-8")
+    ).hexdigest()
+
+
+def _bind_currentness_network_audit(
+    evidence_path: Path,
+    declared_digest: object,
+    *,
+    evidence_kind: str,
+    candidate_inventory: MultilevelCandidateInventory,
+) -> str:
+    """Rend `currentness_audit_sha256` opposable, ou refuse.
+
+    - la valeur doit avoir la forme d'un SHA-256 (jamais `NOT-A-SHA`) ;
+    - une preuve V2 est livree avec son audit reseau frere, dont les octets
+      doivent porter exactement cette empreinte, et cet audit doit NOMMER le
+      corpus qu'il a mesure : meme manifeste corpus et meme ensemble exact de
+      contenus que l'inventaire. Un audit d'un autre corpus, ou d'un autre
+      denominateur, ne prouve rien sur celui-ci, meme rescelle ;
+    - une preuve V1 conserve son contrat historique (audit hors bande possible),
+      mais si un audit frere est present il doit lui aussi correspondre : une
+      preuve qui contredit le fichier livre a cote d'elle est refusee.
+    """
+    digest = _require_sha256(declared_digest, label="currentness audit digest")
+    audit_path = evidence_path.parent / CURRENTNESS_NETWORK_AUDIT_FILENAME
+    if not audit_path.is_file():
+        if evidence_kind == CURRENTNESS_KIND_V2:
+            raise MultilevelEvidenceError(
+                "currentness network audit is missing next to the V2 evidence — "
+                "the declared digest names nothing that can be re-hashed"
+            )
+        return digest
+    raw = audit_path.read_bytes()
+    observed = hashlib.sha256(raw).hexdigest()
+    if observed != digest:
+        raise MultilevelEvidenceError(
+            "currentness network audit digest differs from the audit file delivered "
+            "with the evidence"
+        )
+    if evidence_kind != CURRENTNESS_KIND_V2:
+        return digest
+    try:
+        audit = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise MultilevelEvidenceError(
+            "currentness network audit is not a JSON document"
+        ) from exc
+    if not isinstance(audit, Mapping):
+        raise MultilevelEvidenceError("currentness network audit is not a JSON object")
+    if audit.get("corpus_manifest_sha256") != candidate_inventory.corpus_manifest_sha256:
+        raise MultilevelEvidenceError(
+            "currentness network audit names another corpus manifest than the "
+            "candidate inventory — an audit of another corpus proves nothing here"
+        )
+    expected_set = content_set_sha256(candidate_inventory.unique_content_sha256)
+    if audit.get("content_set_sha256") != expected_set:
+        raise MultilevelEvidenceError(
+            "currentness network audit names another content set than the candidate "
+            "inventory — its denominator is not this release"
+        )
+    return digest
+
+
 def load_multilevel_currentness(
     path: Path,
     *,
@@ -428,8 +504,15 @@ def load_multilevel_currentness(
         },
         label="multilevel currentness evidence",
     )
-    if document.get("evidence_kind") != CURRENTNESS_KIND:
+    evidence_kind = document.get("evidence_kind")
+    if evidence_kind not in CURRENTNESS_KINDS:
         raise MultilevelEvidenceError("multilevel currentness evidence kind is invalid")
+    _bind_currentness_network_audit(
+        path,
+        document.get("currentness_audit_sha256"),
+        evidence_kind=str(evidence_kind),
+        candidate_inventory=candidate_inventory,
+    )
     if document.get("school_year") != candidate_inventory.school_year:
         raise MultilevelEvidenceError("currentness school year differs from inventory")
     expected_bindings = {
@@ -596,7 +679,21 @@ def load_multilevel_currentness(
     counts = document.get("counts")
     if not isinstance(counts, Mapping):
         raise MultilevelEvidenceError("currentness counts are absent")
-    _require_count(counts, "artifacts", len(artifacts), label="currentness")
+    if evidence_kind == CURRENTNESS_KIND_V2:
+        expected_count_keys = {
+            "unique_artifacts",
+            "evaluated",
+            "current",
+            "review_required",
+            "unevaluated",
+        }
+        if set(counts) != expected_count_keys:
+            raise MultilevelEvidenceError("currentness V2 counts are not canonical")
+        _require_count(
+            counts, "unique_artifacts", len(artifacts), label="currentness"
+        )
+    else:
+        _require_count(counts, "artifacts", len(artifacts), label="currentness")
     _require_count(counts, "evaluated", len(artifacts), label="currentness")
     _require_count(counts, "current", len(current), label="currentness")
     _require_count(counts, "review_required", len(review), label="currentness")
@@ -610,12 +707,14 @@ def load_multilevel_currentness(
 
 __all__ = [
     "CURRENTNESS_KIND",
+    "CURRENTNESS_KIND_V2",
     "INVENTORY_KIND",
     "MultilevelCandidateInventory",
     "MultilevelCandidatePlacement",
     "MultilevelCurrentnessArtifact",
     "MultilevelCurrentnessEvidence",
     "MultilevelEvidenceError",
+    "content_set_sha256",
     "load_multilevel_candidate_inventory",
     "load_multilevel_currentness",
 ]

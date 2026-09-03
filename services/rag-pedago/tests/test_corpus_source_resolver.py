@@ -207,8 +207,9 @@ class TestNoFallback:
         assert CorpusSourceUnavailable is not CorpusSourceError
 
     def test_no_tag_or_latest_appears_anywhere_in_the_module(self) -> None:
-        source = Path(
-            "rag_pedago/governance/corpus_source_resolver.py"
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "rag_pedago/governance/corpus_source_resolver.py"
         ).read_text(encoding="utf-8")
         assert ":latest" not in source
         assert "docker pull" not in source

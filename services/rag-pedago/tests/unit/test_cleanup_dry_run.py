@@ -36,8 +36,14 @@ def _ledger_marker() -> tuple[bool, int | None]:
 
 
 def _git_status() -> str:
+    # Borné au service (`-- .`) : la propriété protégée est « le script ne touche
+    # ni l'index ni l'arbre de rag-pedago ». Sans cette borne, un fichier sonde
+    # écrit transitoirement par la suite d'un AUTRE service (test moteur
+    # test_governance_docker_policy, sous tests/integration) faisait rougir cette
+    # épreuve quand les suites tournent en parallèle : dépendance à l'ordre, pas
+    # défaut du script.
     return subprocess.check_output(
-        ["git", "status", "--short", "--branch"],
+        ["git", "status", "--short", "--branch", "--", "."],
         cwd=REPO_ROOT,
         text=True,
     )
@@ -352,3 +358,17 @@ def test_cleanup_policy_config_protects_sensitive_and_project_files() -> None:
         "rag-local/.ruff_cache",
     ]:
         assert root in summarize_only_roots
+
+
+def test_the_git_guard_ignores_untracked_files_of_another_service(tmp_path: Path) -> None:
+    """Preuve durable contre l'interférence de suites : un fichier non suivi écrit
+    par la suite d'un autre service (sous services/rag-engine) ne change pas la
+    mesure de cette garde, qui ne regarde que rag-pedago."""
+    before = _git_status()
+    foreign = REPO_ROOT.parent / "rag-engine" / "tests" / "integration" / "test_zz_foreign_probe_witness.py"
+    assert not foreign.exists()
+    foreign.write_text("# sonde étrangère transitoire\n", encoding="utf-8")
+    try:
+        assert _git_status() == before
+    finally:
+        foreign.unlink()

@@ -80,6 +80,14 @@ def test_runtime_authority_rejects_pii_policy_drift(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    # La propriété éprouvée ici est la dérive de politique PII, pas le runtime :
+    # le verrou pypdf du démarrage (une seule autorité, `CANONICAL_PYPDF_VERSION`)
+    # est satisfait explicitement pour que l'épreuve ne dépende pas de la
+    # version installée dans le venv qui l'exécute.
+    import nexus_pdf_page_policy as page_policy
+    import pypdf
+
+    monkeypatch.setattr(pypdf, "__version__", page_policy.CANONICAL_PYPDF_VERSION)
     sha = "a" * 64
     inputs = runtime_authority.RuntimeAuthorityInputs(
         catalog_path=tmp_path / "catalog.json",

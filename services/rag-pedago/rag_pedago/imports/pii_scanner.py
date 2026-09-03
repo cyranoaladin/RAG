@@ -28,6 +28,18 @@ from typing import Any
 
 import yaml
 
+# Le verdict structurel « page sans texte » n'a qu'une autorité, partagée avec
+# l'extracteur de rag-engine : le foyer neutre `nexus_pdf_page_policy` (ADR-0046).
+# Ce module n'en porte aucune copie ; il ré-exporte les noms pour ses appelants.
+from nexus_pdf_page_policy import (
+    PAGE_INSPECTION_ECHOUEE,
+    PAGE_REFUS_IMAGE,
+    PAGE_REFUS_TEXTE,
+    PAGE_REFUS_TRACE,
+    PageInspectionError,
+    classer_pages_sans_texte,
+)
+
 try:
     from pypdf import PdfReader
 except ImportError:
@@ -65,6 +77,7 @@ class PIIScanResult:
     pages_scanned: int
     characters_scanned: int
     pii_detected: bool
+    ignored_empty_pages: tuple[int, ...] = ()
     matches: list[PIIMatch] = field(default_factory=list)
     extraction_error: str | None = None
     scan_duration_ms: int = 0
@@ -296,6 +309,41 @@ def compute_file_sha256(path: Path) -> str:
     return sha.hexdigest()
 
 
+def extract_pdf_pages_with_structural_empty_pages(
+    pdf_content: bytes,
+) -> tuple[list[str], tuple[int, ...], str | None]:
+    """Extrait les pages et dérive les seules pages structurellement vides.
+
+    Cette fonction est l'autorité commune du scan PII et du préflight. Une
+    chaîne vide issue de ``extract_text()`` n'est jamais, à elle seule, un
+    verdict de vide : le prédicat structurel existant doit également conclure
+    que la page ne peut porter aucun glyphe.
+    """
+    pages_text, error = extract_pdf_text_bytes(pdf_content)
+    if error:
+        return pages_text, (), error
+    if not pages_text or not any(page_text.strip() for page_text in pages_text):
+        return pages_text, (), "PDF_TEXT_EXTRACTION_EMPTY"
+
+    sans_texte = tuple(
+        numero
+        for numero, page_text in enumerate(pages_text, start=1)
+        if not page_text.strip()
+    )
+    if not sans_texte:
+        return pages_text, (), None
+
+    try:
+        refus = classer_pages_sans_texte(pdf_content, sans_texte)
+    except PageInspectionError as exc:
+        return pages_text, (), f"{PAGE_INSPECTION_ECHOUEE}:{exc}"
+    if refus:
+        motif = sorted({m for m in refus.values()})
+        pages = ",".join(str(n) for n in sorted(refus))
+        return pages_text, (), f"{'+'.join(motif)}:pages {pages}"
+    return pages_text, sans_texte, None
+
+
 def scan_pdf_bytes(
     pdf_content: bytes,
     *,
@@ -308,7 +356,9 @@ def scan_pdf_bytes(
     start = time.monotonic()
     patterns = patterns or DEFAULT_PII_PATTERNS
     sha256 = hashlib.sha256(pdf_content).hexdigest()
-    pages_text, error = extract_pdf_text_bytes(pdf_content)
+    pages_text, ignored_empty_pages, error = (
+        extract_pdf_pages_with_structural_empty_pages(pdf_content)
+    )
     if error:
         return PIIScanResult(
             file_path=source_path,
@@ -316,37 +366,19 @@ def scan_pdf_bytes(
             pages_scanned=0,
             characters_scanned=0,
             pii_detected=False,
+            ignored_empty_pages=(),
             matches=[],
             extraction_error=error,
-            scan_duration_ms=int((time.monotonic() - start) * 1000),
-        )
-    if not pages_text or not any(page_text.strip() for page_text in pages_text):
-        return PIIScanResult(
-            file_path=source_path,
-            sha256=sha256,
-            pages_scanned=0,
-            characters_scanned=0,
-            pii_detected=False,
-            matches=[],
-            extraction_error="PDF_TEXT_EXTRACTION_EMPTY",
-            scan_duration_ms=int((time.monotonic() - start) * 1000),
-        )
-    if any(not page_text.strip() for page_text in pages_text):
-        return PIIScanResult(
-            file_path=source_path,
-            sha256=sha256,
-            pages_scanned=0,
-            characters_scanned=0,
-            pii_detected=False,
-            matches=[],
-            extraction_error="PDF_PAGE_TEXT_EXTRACTION_EMPTY",
             scan_duration_ms=int((time.monotonic() - start) * 1000),
         )
 
     all_matches: list[PIIMatch] = []
     total_chars = 0
 
+    ignorables = set(ignored_empty_pages)
     for page_idx, page_text in enumerate(pages_text, start=1):
+        if page_idx in ignorables:
+            continue
         total_chars += len(page_text)
         page_matches = scan_text_for_pii(page_text, patterns, page_number=page_idx)
         all_matches.extend(page_matches)
@@ -356,9 +388,10 @@ def scan_pdf_bytes(
     return PIIScanResult(
         file_path=source_path,
         sha256=sha256,
-        pages_scanned=len(pages_text),
+        pages_scanned=len(pages_text) - len(ignorables),
         characters_scanned=total_chars,
         pii_detected=len(all_matches) > 0,
+        ignored_empty_pages=ignored_empty_pages,
         matches=all_matches,
         extraction_error=None,
         scan_duration_ms=duration_ms,
@@ -543,6 +576,21 @@ def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
     extraction_error_code = None
     if result.extraction_error == "pypdf not installed":
         extraction_error_code = "PYPDF_UNAVAILABLE"
+    elif result.extraction_error and result.extraction_error.split(":", 1)[0] in {
+        PAGE_INSPECTION_ECHOUEE,
+    } | {
+        "+".join(sorted(combinaison))
+        for combinaison in (
+            {PAGE_REFUS_IMAGE},
+            {PAGE_REFUS_TEXTE},
+            {PAGE_REFUS_TRACE},
+            {PAGE_REFUS_IMAGE, PAGE_REFUS_TEXTE},
+            {PAGE_REFUS_IMAGE, PAGE_REFUS_TRACE},
+            {PAGE_REFUS_TEXTE, PAGE_REFUS_TRACE},
+            {PAGE_REFUS_IMAGE, PAGE_REFUS_TEXTE, PAGE_REFUS_TRACE},
+        )
+    }:
+        extraction_error_code = result.extraction_error.split(":", 1)[0]
     elif result.extraction_error in {
         "CONTENT_SHA256_MISMATCH",
         "LOCAL_FILE_MISSING",
@@ -559,6 +607,7 @@ def result_to_dict_sanitized(result: PIIScanResult) -> dict[str, Any]:
         "pages_scanned": result.pages_scanned,
         "characters_scanned": result.characters_scanned,
         "pii_detected": result.pii_detected,
+        "ignored_empty_pages": list(result.ignored_empty_pages),
         "signal_count": len(result.matches),
         "signal_classes": sorted({m.pattern_id for m in result.matches}),
         "signals": [

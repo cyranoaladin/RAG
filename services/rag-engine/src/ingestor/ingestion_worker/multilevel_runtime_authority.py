@@ -27,7 +27,11 @@ from ingestor.programme_registry import load_programme_index_registry
 from ingestor.staging_profile_manifest import verify_staging_profile_manifest
 from ingestor.wave0_release import require_file_digest
 
-from .runtime_authority import GovernedRuntimeAuthorities, RuntimeAuthorityStartupError
+from .runtime_authority import (
+    GovernedRuntimeAuthorities,
+    RuntimeAuthorityStartupError,
+    require_canonical_worker_runtime,
+)
 
 
 @dataclass(frozen=True)
@@ -132,6 +136,11 @@ def load_multilevel_runtime_authorities(
     environment: str,
 ) -> GovernedRuntimeAuthorities:
     """Construire une seule autorité cohérente avant toute connexion DB."""
+    # Le worker extrait : il porte le runtime pypdf déclaré par la release
+    # (une seule autorité, `nexus_pdf_page_policy.CANONICAL_PYPDF_VERSION`),
+    # sinon il découperait d'autres chunks que ceux attendus. Refus AVANT toute
+    # lecture de preuve.
+    require_canonical_worker_runtime()
     try:
         collection_config_sha = require_file_digest(
             inputs.collection_config_path,

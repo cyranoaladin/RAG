@@ -528,7 +528,10 @@ def _release_evidence_for_v2_artifact(
     if manifest is None:
         return None
     expectation = manifest.expectation
-    if expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1":
+    if expectation.release_kind in {
+        "MULTILEVEL_AGGREGATE_RELEASE_V1",
+        "MULTILEVEL_AGGREGATE_RELEASE_V2",
+    }:
         subject_sha_by_collection = dict(
             expectation.subject_manifest_sha256_by_collection
         )
@@ -577,7 +580,22 @@ def validate_release_startup_configuration(
             raise ReleaseReadinessError("release manifest unavailable")
     except ReleaseReadinessError as exc:
         raise RuntimeError("release manifest unavailable or invalid") from exc
+    for manifest in registry.manifests:
+        exp = manifest.expectation
+        if (
+            getattr(exp, "promotion_status", None) == "NOT_PROMOTABLE"
+            or getattr(exp, "activation_status", None) == "NO_PRODUCTION_ACTIVATION"
+            or getattr(exp, "review_status", None) == "PRE_REVIEW"
+            or getattr(exp, "release_mode", None) == "rehearsal"
+        ):
+            raise RuntimeError(
+                f"cannot activate rehearsal or unpromotable release in production runtime: "
+                f"release_id={getattr(exp, 'release_id', None)}, promotion_status={getattr(exp, 'promotion_status', None)}, "
+                f"activation_status={getattr(exp, 'activation_status', None)}, review_status={getattr(exp, 'review_status', None)}"
+            )
+
     configured_collections = set(registry.collections)
+
     catalogue = cfg.get("collections")
     if (
         not configured_collections
@@ -589,7 +607,11 @@ def validate_release_startup_configuration(
     subject_sha_by_collection = {
         collection: sha256
         for manifest in registry.manifests
-        if manifest.expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V1"
+        if manifest.expectation.release_kind
+        in {
+            "MULTILEVEL_AGGREGATE_RELEASE_V1",
+            "MULTILEVEL_AGGREGATE_RELEASE_V2",
+        }
         for collection, sha256 in (
             manifest.expectation.subject_manifest_sha256_by_collection
         )
@@ -613,7 +635,22 @@ def validate_configured_release_database() -> None:
     registry = _configured_release_registry()
     if registry is None:
         return
+    for manifest in registry.manifests:
+        exp = manifest.expectation
+        if (
+            getattr(exp, "promotion_status", None) == "NOT_PROMOTABLE"
+            or getattr(exp, "activation_status", None) == "NO_PRODUCTION_ACTIVATION"
+            or getattr(exp, "review_status", None) == "PRE_REVIEW"
+            or getattr(exp, "release_mode", None) == "rehearsal"
+        ):
+            raise RuntimeError(
+                f"cannot activate rehearsal or unpromotable release in production runtime: "
+                f"release_id={getattr(exp, 'release_id', None)}, promotion_status={getattr(exp, 'promotion_status', None)}, "
+                f"activation_status={getattr(exp, 'activation_status', None)}, review_status={getattr(exp, 'review_status', None)}"
+            )
+
     settings = PoolSettings.from_env()
+
     with runtime_database_budget():
         with pool_connection(settings) as connection:
             reports = validate_release_registry_readiness(registry, connection)

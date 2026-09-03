@@ -27,6 +27,15 @@ import psycopg
 from nexus_contracts.ingestion import ArtifactRecord
 from nexus_contracts.resource_state import ResourceState
 
+# Foyer unique du prédicat structurel « page sans texte » (ADR-0046) : partagé
+# avec le scanner PII de rag-pedago, jamais recopié ici.
+from nexus_pdf_page_policy import (
+    PAGE_INSPECTION_ECHOUEE,
+    SENS_DES_MOTIFS,
+    PageInspectionError,
+    motif_de_refus_page,
+)
+
 from .dependencies import ArtifactReader
 from .transitions import TransitionResult, apply_resource_transition
 
@@ -81,6 +90,18 @@ class ArtifactIntegrityError(ValueError):
     identique à celui réellement téléchargé par Fetcher."""
 
 
+#: Critère de traitement d'une page sans texte extractible.
+#:
+#: Une page sans texte n'est PAS refusée par principe : elle l'est si elle peut
+#: porter un glyphe que l'indexation ne lira pas. Quatre conditions, sans seuil,
+#: fixées dans ``docs/reports/lot_1_2_critere_page_sans_texte.md`` le 31/08/2026.
+#:
+#: Le refus précédent tombait sur la PREMIÈRE page sans texte, en affirmant dans
+#: son message qu'elle était une page-image. Mesuré sur le corpus des 2 451 PDF :
+#: 42 documents portent au moins une page sans texte, et 16 d'entre eux n'ont que
+#: des pages RÉELLEMENT vides — verso de couverture, quatrième de couverture. Ils
+#: étaient refusés en bloc, pour 1 720 120 caractères, soit 2,56 % du corpus.
+#:
 def extract_pdf_pages(raw_bytes: bytes) -> list[str]:
     """Rend le texte de chaque page, dans l'ordre, ou refuse.
 
@@ -131,12 +152,32 @@ def extract_pdf_pages(raw_bytes: bytes) -> list[str]:
 
         text = _WHITESPACE_PATTERN.sub(" ", raw).strip()
         if not text:
-            raise PdfExtractionError(
-                f"page {number}/{page_count} yielded no text — refusing rather "
-                "than indexing a document that looks complete while one page "
-                "was never read (an image-only page needs OCR, which this "
-                "stage deliberately does not attempt)"
-            )
+            # Le verdict vient du foyer partagé avec le scanner PII (ADR-0046) :
+            # même critère, mêmes codes, sur les mêmes octets. Une panne de
+            # l'instrument n'est pas « aucune image » : c'est un refus nommé.
+            try:
+                motif = motif_de_refus_page(page, reader)
+            except PageInspectionError as exc:
+                raise PdfExtractionError(
+                    f"page {number}/{page_count} sans texte extractible et non "
+                    f"inspectable — {PAGE_INSPECTION_ECHOUEE} ({exc}). Une panne "
+                    "d'instrument n'est pas un verdict : le document est refusé."
+                ) from exc
+            if motif is not None:
+                raise PdfExtractionError(
+                    f"page {number}/{page_count} sans texte extractible et "
+                    f"susceptible d'en porter — {motif} : {SENS_DES_MOTIFS[motif]}. "
+                    "Le document est refusé plutôt qu'indexé comme complet alors "
+                    "qu'une page n'a jamais été lue ; l'OCR reste hors de ce périmètre."
+                )
+            # Page réellement vide — verso de couverture, séparateur, quatrième
+            # de couverture. Elle ne peut porter aucun glyphe. On l'IGNORE sans
+            # la retirer : la liste reste alignée sur la numérotation réelle du
+            # document, car `chunk_publication` en déduit le numéro de page par
+            # `enumerate`. Retirer l'entrée décalerait toutes les citations
+            # suivantes d'une page.
+            pages.append("")
+            continue
         total += len(text)
         if total > MAX_PDF_TEXT_CHARS:
             raise PdfExtractionError(
@@ -144,6 +185,15 @@ def extract_pdf_pages(raw_bytes: bytes) -> list[str]:
             )
         pages.append(text)
 
+    if not any(pages):
+        # Aucune page ne rend de texte : il n'y a rien à indexer. Le document
+        # est refusé, comme avant — c'est le cas que couvrait le refus sur la
+        # première page vide, et il reste couvert.
+        raise PdfExtractionError(
+            f"the PDF yielded no text on any of its {page_count} pages — "
+            "refusing rather than indexing an empty document (an image-only "
+            "document needs OCR, which this stage deliberately does not attempt)"
+        )
     return pages
 
 
@@ -162,7 +212,9 @@ def extract_text_core(*, artifact: ArtifactRecord, raw_bytes: bytes) -> str:
         )
 
     if artifact.mime_detected == PDF_MIME_TYPE:
-        return PAGE_SEPARATOR.join(extract_pdf_pages(raw_bytes))
+        return PAGE_SEPARATOR.join(
+            page for page in extract_pdf_pages(raw_bytes) if page
+        )
 
     try:
         text = raw_bytes.decode("utf-8")

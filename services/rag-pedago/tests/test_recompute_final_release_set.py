@@ -370,3 +370,76 @@ def test_recompute_final_release_set_from_real_inputs(tmp_path: Path) -> None:
         "REVIEW_REQUIRED": 2445,
         "UNSUPPORTED": 37,
     }
+
+
+class TestFormatEnsembleDeSha:
+    """Le fichier V2 porte un SHA par artefact global, jamais par placement."""
+
+    @staticmethod
+    def _ecrire(chemin: Path, lignes: list[str]) -> Path:
+        chemin.write_bytes(("".join(f"{v}\n" for v in lignes)).encode("ascii"))
+        return chemin
+
+    def test_un_contenu_multi_place_ne_peut_pas_etre_repete_dans_le_set_v2(
+        self, tmp_path: Path
+    ) -> None:
+        """Les placements multiples vivent dans les sujets, pas dans ce fichier."""
+        module = _load_script()
+        a, b = "a" * 64, "b" * 64
+        fichier = self._ecrire(tmp_path / "placements.txt", [a, a, b])
+
+        with pytest.raises(ValueError, match="duplicate SHA-256"):
+            module._load_canonical_sha_set(fichier)
+
+    def test_v2_refuse_un_sha_de_contenu_duplique(self, tmp_path: Path) -> None:
+        """Le jeu final V2 porte un SHA par artefact global, jamais par placement."""
+        module = _load_script()
+        sha = "a" * 64
+        fichier = self._ecrire(tmp_path / "contenus-v2.txt", [sha, sha])
+
+        with pytest.raises(ValueError, match="duplicate SHA-256"):
+            module._load_canonical_sha_set(fichier)
+
+    def test_le_fichier_historique_par_placement_est_mesure_et_refuse_en_v2(
+        self,
+    ) -> None:
+        """Le témoin archivé reste 486/319, mais n'est pas un set V2 canonique."""
+        module = _load_script()
+        chemin = (
+            REPO_ROOT
+            / "docs/reports/observed_overwritten_final_production_eligible_set_20260831.txt"
+        )
+        lignes = chemin.read_text(encoding="ascii").splitlines()
+
+        assert len(lignes) == 486
+        assert len(set(lignes)) == 319
+        with pytest.raises(ValueError, match="duplicate SHA-256"):
+            module._load_canonical_sha_set(chemin)
+
+        # Vérifie également que le fichier scellé du 25 août est bien restauré à ses 26 lignes historiques
+        historique = REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+        assert len(historique.read_text(encoding="ascii").splitlines()) == 26
+
+    def test_un_fichier_non_trie_est_toujours_refuse(self, tmp_path: Path) -> None:
+        module = _load_script()
+        fichier = self._ecrire(tmp_path / "desordre.txt", ["b" * 64, "a" * 64])
+
+        with pytest.raises(ValueError, match="must be sorted"):
+            module._load_canonical_sha_set(fichier)
+
+    def test_une_serialisation_non_canonique_est_toujours_refusee(
+        self, tmp_path: Path
+    ) -> None:
+        module = _load_script()
+        fichier = tmp_path / "sans-fin-de-ligne.txt"
+        fichier.write_bytes(("a" * 64).encode("ascii"))
+
+        with pytest.raises(ValueError, match="non-canonical"):
+            module._load_canonical_sha_set(fichier)
+
+    def test_un_sha_invalide_est_toujours_refuse(self, tmp_path: Path) -> None:
+        module = _load_script()
+        fichier = self._ecrire(tmp_path / "invalide.txt", ["z" * 64])
+
+        with pytest.raises(ValueError, match="invalid SHA-256"):
+            module._load_canonical_sha_set(fichier)

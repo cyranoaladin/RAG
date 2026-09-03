@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-pdf-page-policy"
+version = "1.0.0"
+description = "Foyer unique du prédicat structurel « page PDF sans texte extractible » de la plateforme Nexus"
+requires-python = ">=3.11"
+dependencies = [
+    # Le prédicat parcourt le modèle objet pypdf. Chaque service épingle sa
+    # propre version dans son lock ; ce package n'impose qu'une borne basse.
+    "pypdf>=4.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "ruff==0.15.19",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+nexus_pdf_page_policy = ["py.typed"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,10 @@
+{
+  "status": "NON_AUTHORITATIVE_SNAPSHOT",
+  "file_name": "observed_overwritten_final_production_eligible_set_20260831.txt",
+  "sha256": "a2d7bb22c579e3f0fc3b953d0ca2d870abdf6e658a61df0e342aa49d041fb4b2",
+  "description": "Archive du fichier de 486 lignes qui avait \u00e9cras\u00e9 le 25 ao\u00fbt historique. Repr\u00e9sente les 486 placements d\u00e9r\u00e9f\u00e9renc\u00e9s du corpus 319 (152 mono-plac\u00e9s + 167 bi-plac\u00e9s = 319 distincts).",
+  "line_count": 486,
+  "distinct_sha256_count": 319,
+  "duplicates_count": 167,
+  "intersection_with_319": 319
+}

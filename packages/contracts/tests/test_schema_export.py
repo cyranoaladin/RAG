@@ -18,7 +18,7 @@ REVIEW_SCHEMAS = {
 
 
 def test_package_version_is_0_15_0() -> None:
-    """0.15.0 ajoute les manifests servables sans rupture des contrats V1."""
+    """0.15.0 ajoute les manifests servables (ARIA-B) et les décisions de revue PII (ADR-0047)."""
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
     assert pyproject["project"]["version"] == "0.15.0"

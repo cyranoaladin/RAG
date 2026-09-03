@@ -1,6 +1,20 @@
 mapping_kind: EDUSCOL_MULTILEVEL_DOCUMENT_TYPES_V1
+# Le catalogue Éduscol porte NEUF types documentaires ; ce mappage n'en couvrait
+# que quatre, et la production échouait sur `autre` après huit minutes de calcul.
+# L'extension est additive : aucune correspondance existante n'est modifiée.
+#
+# Chaque cible est choisie parmi les valeurs de `TypeDoc` du contrat, et aucune
+# n'affirme plus que la source. En particulier `autre` reste `autre` : le
+# catalogue n'a pas su qualifier ces 486 documents, et les baptiser
+# « ressource officielle » serait leur attribuer une nature que personne n'a
+# établie. `TypeDoc` porte précisément la valeur qu'il faut pour cela.
 document_types:
   diaporama: diaporama
   programme-officiel: programme_officiel
   reperes-attendus: ressource_officielle
   ressource-accompagnement: ressource_officielle
+  programme-limitatif: programme_officiel
+  evaluation-examen: modalite_examen
+  annales-sujets-corriges: annale
+  guide: ressource_officielle
+  autre: autre

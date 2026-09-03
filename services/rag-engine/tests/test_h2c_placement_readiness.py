@@ -121,6 +121,21 @@ def _catalog() -> dict[str, object]:
     }
 
 
+
+def _collections() -> dict[str, object]:
+    """Catalogue réel, avec la collection du pilote H2C instanciée POUR L'ÉPREUVE.
+
+    Restaté le 2026-09-02 : ces épreuves mesurent la logique de readiness
+    (allowlist exacte, dérives, autorité), pas l'état d'activation réel du
+    catalogue — qui suit désormais la release servie (onze collections, sans
+    la philosophie du pilote H2C). L'activation réelle est éprouvée ailleurs
+    (`test_rag_collections_config`)."""
+    from copy import deepcopy
+
+    config = deepcopy(load_collection_config(COLLECTIONS_PATH))
+    config["collections"]["rag_nexus_philo_terminale_tc"]["instanciee"] = True
+    return config
+
 def _single_artifact_policy():
     policy = load_initial_placement_policy(POLICY_PATH)
     return replace(policy, approved_artifacts={SAFE_SHA: policy.approved_artifacts[SAFE_SHA]})
@@ -130,7 +145,7 @@ def _placement_readiness():
     return compile_initial_placement_readiness(
         _catalog(),
         _single_artifact_policy(),
-        load_collection_config(COLLECTIONS_PATH),
+        _collections(),
     )
 
 
@@ -196,7 +211,7 @@ def _finalize(
 
 def test_policy_resolves_only_exact_allowlisted_placement() -> None:
     policy = _single_artifact_policy()
-    config = load_collection_config(COLLECTIONS_PATH)
+    config = _collections()
 
     report = compile_initial_placement_readiness(_catalog(), policy, config)
 
@@ -543,7 +558,7 @@ def test_source_scope_drift_is_review_required_not_guessed() -> None:
     report = compile_initial_placement_readiness(
         catalog,
         _single_artifact_policy(),
-        load_collection_config(COLLECTIONS_PATH),
+        _collections(),
     )
 
     assert report.eligible_artifacts == ()
@@ -558,7 +573,7 @@ def test_manifest_or_pii_evidence_drift_fails_closed() -> None:
         compile_initial_placement_readiness(
             _catalog(),
             load_initial_placement_policy(policy_data),
-            load_collection_config(COLLECTIONS_PATH),
+            _collections(),
         )
 
     policy_data = yaml.safe_load(POLICY_PATH.read_text(encoding="utf-8"))

@@ -104,8 +104,8 @@ services:
       - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/release:ro
       - ${RAG_SERVABLE_CORPUS_HOST_DIR:?répertoire hôte des corpus servables requis}:/app/servable-corpus:ro
-      - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/e5-large:ro
-      - ${RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR:-./data/.no-model-cache}:/models/reranker:ro
+      - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:?repertoire hote de l artefact embedding requis — sans valeur, Docker fabrique un repertoire vide et le refus arrive trop tard}:/models/e5-large:ro
+      - ${RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR:?repertoire hote de l artefact reranker requis — sans valeur, Docker fabrique un repertoire vide et le refus arrive trop tard}:/models/reranker:ro
     ports:
       - "127.0.0.1:${INGESTOR_PORT:-8001}:8001"
     networks: [rag_net]

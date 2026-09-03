@@ -193,6 +193,29 @@ class TestComposeModelMount:
         """The volume source must use RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR (host path)."""
         assert "RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR" in self.source
 
+    def test_host_artifact_variables_have_no_fabricating_default(self) -> None:
+        """Un défaut sur la source d'un montage bind fabrique un répertoire vide.
+
+        Docker crée la source manquante d'un bind mount. Avec un défaut, oublier
+        la variable ne produit pas une erreur de configuration : cela monte un
+        répertoire vide, et le refus n'arrive qu'au démarrage du service, sous un
+        motif d'inventaire invalide qui désigne le mauvais coupable.
+
+        Même forme que RAG_RELEASE_REGISTRY_SHA256 : la désignation de l'artefact
+        est requise, sans valeur de repli.
+        """
+        for variable in (
+            "RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR",
+            "RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR",
+        ):
+            assert f"${{{variable}:-" not in self.source, (
+                f"{variable} porte une valeur par défaut : Docker fabriquera un "
+                "répertoire vide au lieu de refuser"
+            )
+            assert f"${{{variable}:?" in self.source, (
+                f"{variable} doit être requise sans repli"
+            )
+
 
 # -- load_embedding_model reads artifact cache dir --
 

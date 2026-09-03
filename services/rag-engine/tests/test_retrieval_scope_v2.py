@@ -132,10 +132,32 @@ def test_pilot_scope_catalogue_alignment_rejects_declared_dormant_subjects() -> 
         validate_pilot_scope_catalogue_alignment(ARTIFACT, config)
 
 
-def test_mounted_catalogue_aligns_every_instantiated_pilot_subject() -> None:
+def test_mounted_catalogue_aligns_instantiated_collection_pilot_subject() -> None:
+    """Témoin positif : le catalogue monté aligne toute collection instanciée (NSI)."""
+    payload = ARTIFACT.model_dump(mode="json")
+    payload["subjects"] = [s for s in payload["subjects"] if s["matiere"] == "nsi"]
+    nsi_artifact = type(ARTIFACT).model_validate(payload)
+
+    validate_pilot_scope_catalogue_alignment(
+        nsi_artifact,
+        validate_collection_catalogue_v2(),
+    )
+
+
+def test_mounted_catalogue_rejects_scope_with_dormant_maths_subject() -> None:
+    """Témoin négatif : le catalogue monté refuse le scope pilote historique car Maths y est dormante."""
+    with pytest.raises(RetrievalScopeError, match="retrieval scope forbidden"):
+        validate_pilot_scope_catalogue_alignment(
+            ARTIFACT,
+            validate_collection_catalogue_v2(),
+        )
+
+
+def test_fully_instantiated_config_aligns_every_pilot_subject() -> None:
+    """Témoin positif sur configuration complète : aligne Maths et NSI quand toutes deux sont instanciées."""
     validate_pilot_scope_catalogue_alignment(
         ARTIFACT,
-        validate_collection_catalogue_v2(),
+        ENGINE_CONFIG,
     )
 
 

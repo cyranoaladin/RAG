@@ -18,6 +18,14 @@ RUN pip install --no-cache-dir /tmp/nexus-contracts \
  && python -m pip check \
  && rm -rf /tmp/nexus-contracts
 
+# Foyer unique du prédicat structurel « page PDF sans texte » (ADR-0046) :
+# l'extracteur l'appelle, il ne le recopie pas. Sa borne pypdf est satisfaite
+# par l'épinglage des requirements ci-dessus ; `pip check` le prouve.
+COPY packages/pdf-page-policy /tmp/nexus-pdf-page-policy
+RUN pip install --no-cache-dir --no-deps /tmp/nexus-pdf-page-policy \
+ && python -m pip check \
+ && rm -rf /tmp/nexus-pdf-page-policy
+
 # Allowlist applicative : préserve le paquet ``ingestor`` tout en répliquant
 # le principe de Dockerfile.ingestor-v2 (COPY nommé, jamais de COPY générique
 # du répertoire ingestor/ complet) — pour un périmètre de fichiers

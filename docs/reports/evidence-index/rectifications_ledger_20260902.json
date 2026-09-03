@@ -1,0 +1,448 @@
+{
+  "date": "2026-09-02",
+  "evidences": {
+    "critere_pages": {
+      "path": "docs/reports/lot_1_2_critere_page_sans_texte.md",
+      "sha256": "d8f79e91bafb4ca44116ceba94aa01ad08c0f5ab157698758b60452712ad4ce1"
+    },
+    "exclusions_20260831": {
+      "path": "docs/reports/evidence-index/exclusions_production_20260831.json",
+      "sha256": "4b605805911ba1d1204b765102bd49a95230832015d734db0355cbe0db4b2a7f"
+    },
+    "rescan_v5": {
+      "path": "docs/reports/evidence-index/pii_rescan_policy_v5_20260902.json",
+      "sha256": "70d8590253ebee710994b572e2750457f2beb324c420e6853e35478b0e5b0c55"
+    }
+  },
+  "lot": "1.2",
+  "objet": "Rectifications du registre de contenus du 14/08 fondees sur des mesures nouvelles, appliquees a un successeur date ; le registre du 14/08 reste a son etat atteste (c61dc102...).",
+  "principe": "Une politique nouvelle qui rend un verdict different est une nouvelle mesure, pas une correction retroactive. Chaque rectification nomme sa preuve par empreinte ; la valeur anterieure est verifiee avant application.",
+  "rectifications": [
+    {
+      "champs": {
+        "EXTRACTABILITY": {
+          "apres": "EXTRACTABLE",
+          "avant": "EXTRACTION_FAILED"
+        },
+        "PII": {
+          "apres": "CLEARED",
+          "avant": "REVIEW_REQUIRED"
+        }
+      },
+      "content_sha256": "8848f0732cc1a51ac173422805ca63ce837a94acbad916714dfaedc0ffb1f04f",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json",
+        "lot_1_2_critere_page_sans_texte.md"
+      ],
+      "evidences": [
+        "rescan_v5",
+        "critere_pages"
+      ],
+      "motif": "Mesure nouvelle du 2026-09-02 sous pii_gate_policy_h2b_v5 et NEXUS-PDF-PAGE-POLICY-V1 : 54 pages physiques = 52 pages non vides + 2 pages structurellement vides (2, 54) ; 117 923 caracteres scannes ; 0 correspondance. L'ancien code PDF_PAGE_TEXT_EXTRACTION_EMPTY venait du critere `any` du scanner du 14/08, remplace par le critere structurel (ADR-0046). La disposition finale reste REVIEW_REQUIRED (routage).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_CLEAR:pii_rescan_policy_v5_20260902",
+        "PAGES_STRUCTURELLEMENT_VIDES:2,54"
+      ],
+      "reason_codes_retires": [
+        "PII_EXTRACTION_FAILED:PDF_PAGE_TEXT_EXTRACTION_EMPTY"
+      ]
+    },
+    {
+      "champs": {},
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_sources_ajoutes": [
+        "exclusions_production_20260831.json",
+        "lot_1_2_critere_page_sans_texte.md"
+      ],
+      "evidences": [
+        "exclusions_20260831",
+        "critere_pages"
+      ],
+      "motif": "Le refus est fonde, sa raison ne l'etait pas : 18 pages-image JBIG2 sur 44 et un trace vectoriel en page 44 (mesure du 2026-08-31, temoins pypdf/poppler/mutool). EXTRACTABILITY reste EXTRACTION_FAILED ; le contenu reste hors perimetre (candidat OCR).",
+      "reason_codes_ajoutes": [
+        "PII_PAGE_IMAGE_NON_LISIBLE:pages 3,4,5,6,7,9,12,13,14,15,16,18,20,22,23,30,31,40,44"
+      ],
+      "reason_codes_retires": [
+        "PII_EXTRACTION_FAILED:PDF_PAGE_TEXT_EXTRACTION_EMPTY"
+      ]
+    },
+    {
+      "champs": {
+        "FINAL_DISPOSITION": {
+          "apres": "INGEST",
+          "avant": "QUARANTINE"
+        },
+        "PII": {
+          "apres": "CLEARED",
+          "avant": "QUARANTINED"
+        }
+      },
+      "content_sha256": "b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Deux mesures, deux politiques : quarantaine du 2026-08-08 sous pii_gate_policy_h2b_v1 (une correspondance postal_address de 801 caracteres, campagne H2F) ; aucune correspondance sous pii_gate_policy_h2b_v5 le 2026-09-02. L'ancienne mesure est conservee en code de motif, pas corrigee. FINAL_DISPOSITION suit la regle du 14/08 : routage INGEST et PII claire => INGEST.",
+      "reason_codes_ajoutes": [
+        "PII_QUARANTINED_UNDER_POLICY_H2B_V1_CAMPAIGN_20260808",
+        "PII_RESCAN_POLICY_V5_CLEAR:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": [
+        "PII_H2F_CAMPAIGN_20260808_EVIDENCE",
+        "PII_QUARANTINED_BLOCKS_INGEST"
+      ]
+    },
+    {
+      "champs": {},
+      "content_sha256": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes postal_address, pages {'postal_address': [9]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes phone_french, pages {'phone_french': [4]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes student_name_pattern, pages {'student_name_pattern': [8]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:student_name_pattern:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 4 correspondance(s), classes phone_french, pages {'phone_french': [5]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes postal_address, pages {'postal_address': [7]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 2 correspondance(s), classes phone_french, pages {'phone_french': [5]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 3 correspondance(s), classes student_name_pattern, pages {'student_name_pattern': [7, 8, 9]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:student_name_pattern:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 2 correspondance(s), classes postal_address, pages {'postal_address': [8, 9]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes phone_french, pages {'phone_french': [3]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 3 correspondance(s), classes postal_address, pages {'postal_address': [1]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 3 correspondance(s), classes email_address,phone_french, pages {'email_address': [17], 'phone_french': [17]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:email_address,phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes postal_address, pages {'postal_address': [8]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes postal_address, pages {'postal_address': [3]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 6 correspondance(s), classes french_ssn,phone_french, pages {'french_ssn': [4], 'phone_french': [4]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:french_ssn,phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 2 correspondance(s), classes postal_address,student_name_pattern, pages {'postal_address': [14], 'student_name_pattern': [12]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address,student_name_pattern:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes postal_address, pages {'postal_address': [5]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes student_name_pattern, pages {'student_name_pattern': [10]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:student_name_pattern:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 3 correspondance(s), classes postal_address, pages {'postal_address': [7]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 1 correspondance(s), classes phone_french, pages {'phone_french': [9]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 5 correspondance(s), classes phone_french,postal_address, pages {'phone_french': [4, 5, 6], 'postal_address': [2]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:phone_french,postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 2 correspondance(s), classes email_address,postal_address, pages {'email_address': [3], 'postal_address': [1]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:email_address,postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 2 correspondance(s), classes postal_address, pages {'postal_address': [3]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:postal_address:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    },
+    {
+      "champs": {},
+      "content_sha256": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "evidence_sources_ajoutes": [
+        "pii_rescan_policy_v5_20260902.json"
+      ],
+      "evidences": [
+        "rescan_v5"
+      ],
+      "motif": "Quarantaine du 14/08 confirmee par la mesure du 2026-09-02 sous v5 : 2 correspondance(s), classes phone_french, pages {'phone_french': [7]}. Decision humaine par contenu requise (PII-2).",
+      "reason_codes_ajoutes": [
+        "PII_RESCAN_POLICY_V5_DETECTED:phone_french:pii_rescan_policy_v5_20260902"
+      ],
+      "reason_codes_retires": []
+    }
+  ],
+  "schema_version": "NEXUS-LEDGER-RECTIFICATIONS-V1",
+  "source_ledger": {
+    "path": "docs/reports/evidence-index/content_ledger_20260814.jsonl",
+    "sha256": "c61dc102988bf122964b1fbab64fc2ebc76ea073b74cdec2c94a5ebcdc1ecc41"
+  }
+}

@@ -142,7 +142,7 @@ def _ledger_marker() -> tuple[bool, int | None]:
 
 def _git_status() -> str:
     return subprocess.check_output(
-        ["git", "status", "--short", "--branch"],
+        ["git", "status", "--short", "--branch", "--", "."],
         cwd=REPO_ROOT,
         text=True,
     )

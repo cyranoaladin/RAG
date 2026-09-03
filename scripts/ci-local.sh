@@ -66,6 +66,29 @@ run_contracts() {
 }
 run_target "packages/contracts" run_contracts
 
+# --- packages/pdf-page-policy (ADR-0046) ---
+run_page_policy() {
+    local venv="/tmp/ci-local-pdf-page-policy-venv"
+    rm -rf "$venv"
+    "$PYTHON_BIN" -m venv "$venv"
+    "$venv/bin/pip" install -q -e "packages/pdf-page-policy[dev]"
+    "$venv/bin/python" -c "import nexus_pdf_page_policy as p; print('pdf-page-policy:', p.POLICY_ID)"
+    (cd packages/pdf-page-policy && "$venv/bin/python" -m pytest -q tests)
+}
+run_target "packages/pdf-page-policy" run_page_policy
+
+# --- packages/release-chain ---
+run_release_chain() {
+    local venv="/tmp/ci-local-release-chain-venv"
+    rm -rf "$venv"
+    "$PYTHON_BIN" -m venv "$venv"
+    "$venv/bin/pip" install -q -e "packages/contracts"
+    "$venv/bin/pip" install -q -e "packages/pdf-page-policy"
+    "$venv/bin/pip" install -q -e "packages/release-chain"
+    "$venv/bin/python" -c "import nexus_release_chain; print('release-chain: import OK')"
+}
+run_target "packages/release-chain" run_release_chain
+
 # --- services/rag-pedago ---
 run_pedago() {
     cd "$REPO_ROOT/services/rag-pedago"

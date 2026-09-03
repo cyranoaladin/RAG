@@ -19,6 +19,19 @@ jobs:
       - run: python -m pytest packages/contracts/tests -q
       - run: python packages/contracts/scripts/export_schemas.py --output packages/contracts/schema --check
 
+  pdf-page-policy:
+    name: "packages/pdf-page-policy"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e "packages/pdf-page-policy[dev]"
+      - run: python -c "import nexus_pdf_page_policy as p; print(p.POLICY_ID)"
+      - working-directory: packages/pdf-page-policy
+        run: python -m pytest -q tests
+
   rag-pedago:
     name: "services/rag-pedago"
     runs-on: ubuntu-latest

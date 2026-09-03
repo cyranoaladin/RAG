@@ -1,0 +1,28 @@
+{
+  "couples_apres": 5263,
+  "couples_avant": 5265,
+  "derive_le": "2026-08-31T21:15:59.727367+00:00",
+  "entrees": {
+    "docs/reports/evidence-index/exclusions_production_20260831.json": "4b605805911ba1d1204b765102bd49a95230832015d734db0355cbe0db4b2a7f",
+    "docs/reports/evidence-index/matrice_preuve_v2_20260829.json": "597d57701c1d91ac5ece927e44e7d5261e1ec248d78cabc4725ed9165aa33d46"
+  },
+  "producteur": "services/rag-pedago/scripts/appliquer_exclusions_production.py",
+  "retraits": [
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "motif_code": "PAGE_IMAGE_NON_LISIBLE",
+      "partition_id": "C043"
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "motif_code": "PAGE_IMAGE_NON_LISIBLE",
+      "partition_id": "C045"
+    }
+  ],
+  "schema_version": "NEXUS-DERIVED-MATRIX-PROVENANCE-V1",
+  "sortie": {
+    "docs/reports/evidence-index/matrice_production_20260831.json": "4600b6cc32ead50ee03417653b4a10e4af3bf6d6bf17fe4c93f04d29f303a1cc"
+  }
+}

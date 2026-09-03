@@ -1,0 +1,53 @@
+profile_version: profile-gate-v2
+enabled: true
+scope:
+  tenant: libre_premiere
+  collection: rag_nexus_ses_premiere_specialite
+  niveau: premiere
+  voie: generale
+  matiere: ses
+  candidat: libre
+  audience:
+  - libre
+  - aefe
+  visibility: public
+  school_year: 2026-2027
+  programme_version: EDUSCOL_CORPUS_20260808
+title: Ses — premiere (generale)
+language: fr
+owner: Nexus Réussite
+expected_topics:
+- Spécialité SES de première générale (BO spécial n° 1 du 22 janvier 2019)
+- Comment se construisent et évoluent les liens sociaux ?
+- Comment un marché concurrentiel fonctionne-t-il ?
+- 'Seconde : Quel est le lien entre le niveau de croissance et les émissions de GES
+  ?'
+- 'Première : Comment expliquer la dégradation de l’environnement et quelles sont
+  les solutions envisageables ?'
+- 'Seconde : Quel lien existe-t-il entre le niveau de revenu et le niveau d’épargne
+  ?'
+- Quelles sont les principales défaillances du marché ?
+- Comment les marchés imparfaitement concurrentiels fonctionnent-ils ?
+- 'Première : Quelles entreprises survivent ?'
+- 'Seconde : Comment créer une entreprise viable sur un territoire donné ?'
+- 'Seconde : Quel est le lien entre le niveau de formation et les connaissances financières
+  ?'
+- Quels sont les processus sociaux qui contribuent à la déviance ?
+expected_resource_types:
+- ressource_officielle
+allowed_domains:
+- eduscol.education.gouv.fr
+source_authority: official
+search_cadence: manual
+max_queries_per_run: 8
+max_documents_per_run: 512
+max_chunk_size: 800
+chunk_overlap: 100
+min_source_confidence: 0.9
+min_scope_confidence: 0.9
+min_extraction_quality: 0.1
+reject_unknown_rights: true
+reject_ambiguous_routing: true
+publication:
+  mode: human_review
+  auto_publish: false

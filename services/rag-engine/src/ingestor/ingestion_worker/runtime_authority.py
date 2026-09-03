@@ -5,6 +5,8 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+from nexus_pdf_page_policy import CanonicalRuntimeError, require_canonical_pypdf
+
 try:
     from ingestor.collection_config import load_collection_config
     from ingestor.ingestion_control.sealed_evidence import (
@@ -35,6 +37,19 @@ except ImportError as _exc:  # image worker aplatie
 
 class RuntimeAuthorityStartupError(RuntimeError):
     """Le worker ne peut pas prouver ses autorités avant connexion."""
+
+
+def require_canonical_worker_runtime() -> str:
+    """Le worker extrait : il doit porter le runtime pypdf déclaré par la release.
+
+    Une seule autorité (`nexus_pdf_page_policy.CANONICAL_PYPDF_VERSION`), la
+    même que le verrou D-41 du producteur. Un autre runtime découperait d'autres
+    chunks que ceux que la release attend : refus au démarrage, avant toute
+    lecture de preuve et toute connexion."""
+    try:
+        return require_canonical_pypdf()
+    except CanonicalRuntimeError as exc:
+        raise RuntimeAuthorityStartupError(str(exc)) from exc
 
 
 @dataclass(frozen=True)
@@ -120,6 +135,7 @@ def load_governed_runtime_authorities(
     profile_manifest_digest: str,
 ) -> GovernedRuntimeAuthorities:
     """Charge toutes les preuves une fois, avant toute boucle ou connexion."""
+    require_canonical_worker_runtime()
     try:
         collection_config_sha = require_file_digest(
             inputs.collection_config_path,

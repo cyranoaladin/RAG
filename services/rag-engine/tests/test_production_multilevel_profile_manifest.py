@@ -71,7 +71,8 @@ def test_staging_and_production_manifest_schemas_cannot_cross() -> None:
 
 
 def test_real_production_authorities_resolve_all_twenty_six_placements() -> None:
-    bindings = json.loads((RELEASE_ROOT / "authority_bindings.json").read_text())[
+    fixture_root = ENGINE_ROOT / "tests/fixtures/profile_gate_20260825"
+    bindings = json.loads((fixture_root / "authority_bindings.json").read_text())[
         "bindings"
     ]
 
@@ -79,16 +80,22 @@ def test_real_production_authorities_resolve_all_twenty_six_placements() -> None
         binding = bindings[name]
         return REPOSITORY_ROOT / binding["path"], binding["file_sha256"]
 
-    candidate_path, candidate_sha = bound("candidate_inventory_sha256")
-    currentness_path, currentness_sha = bound("currentness_evidence_sha256")
+    candidate_path = fixture_root / "candidate_inventory.json"
+    candidate_sha = _sha256(candidate_path)
+    currentness_path = fixture_root / "currentness_evidence.json"
+    currentness_sha = _sha256(currentness_path)
     levels_path, levels_sha = bound("level_mapping_sha256")
     subjects_path, subjects_sha = bound("subject_mapping_sha256")
-    types_path, types_sha = bound("document_type_mapping_sha256")
-    programme_path, programme_sha = bound("programme_registry_sha256")
+    types_path = fixture_root / "eduscol_multilevel_document_types.yml"
+    types_sha = _sha256(types_path)
+    programme_path = fixture_root / "programme_registry.json"
+    programme_sha = _sha256(programme_path)
     profile_manifest_path, profile_manifest_sha = bound("profile_manifest_sha256")
-    pii_path, pii_sha = bound("pii_evidence_sha256")
+    pii_path = fixture_root / "pii_evidence.json"
+    pii_sha = _sha256(pii_path)
     rights_path, rights_sha = bound("rights_registry_sha256")
-    release_path = RELEASE_ROOT / "production-profile-gate.release.json"
+    release_path = fixture_root / "production-profile-gate.release.json"
+    release_sha = _sha256(release_path)
     collection_config = ENGINE_ROOT / "configs/rag_collections.yml"
     profiles = load_profile_registry(PRODUCTION_PROFILES)
     by_collection = {profile.scope.collection: profile for profile in profiles.values()}
@@ -104,7 +111,7 @@ def test_real_production_authorities_resolve_all_twenty_six_placements() -> None
         document_types_mapping_path=types_path,
         document_types_mapping_sha256=types_sha,
         release_manifest_path=release_path,
-        release_manifest_sha256=_sha256(release_path),
+        release_manifest_sha256=release_sha,
         programme_registry_path=programme_path,
         programme_registry_sha256=programme_sha,
         profile_manifest_path=profile_manifest_path,
@@ -120,6 +127,7 @@ def test_real_production_authorities_resolve_all_twenty_six_placements() -> None
         ),
         repository_root=REPOSITORY_ROOT,
     )
+
 
     authorities = load_multilevel_runtime_authorities(
         inputs, profile_registry=profiles, environment="production"

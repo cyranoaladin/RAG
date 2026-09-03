@@ -169,6 +169,15 @@ from nexus_contracts.authority_artifacts import (
     parse_scope_authorization_artifact,
     require_publication_review_v2,
 )
+from nexus_contracts.pii_review_decisions import (
+    PII_REVIEW_DECISIONS_DIR,
+    PII_REVIEW_DECISIONS_PROTOCOL_VERSION,
+    PiiReviewDecisionSetV1,
+    PiiReviewDecisionV1,
+    PiiReviewJustificationV1,
+    canonical_pii_review_decisions_path,
+    parse_pii_review_decision_set,
+)
 from nexus_contracts.authorization_set import (
     AUTHORIZATION_SET_PROTOCOL_VERSION,
     RELEASE_SCOPE_PLACEMENT_PROTOCOL_VERSION,
@@ -385,6 +394,13 @@ __all__ = [
     "VerifiedAuthorizationSetV1",
     "VerifiedProfileFactV1",
     "canonical_review_binding_path",
+    "PII_REVIEW_DECISIONS_DIR",
+    "PII_REVIEW_DECISIONS_PROTOCOL_VERSION",
+    "PiiReviewDecisionSetV1",
+    "PiiReviewDecisionV1",
+    "PiiReviewJustificationV1",
+    "canonical_pii_review_decisions_path",
+    "parse_pii_review_decision_set",
     "content_set_digest",
     "parse_authorization_set",
     "parse_release_scope_placement",

@@ -31,6 +31,7 @@ import json
 import os
 import sys
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 try:
     from ingestor.ingestion_control.github_authority import (
@@ -56,6 +57,10 @@ from nexus_contracts.authority_artifacts import (
     git_blob_sha1,
     parse_scope_authorization_artifact,
 )
+from nexus_contracts.pii_review_decisions import (
+    canonical_pii_review_decisions_path,
+    parse_pii_review_decision_set,
+)
 from nexus_contracts.review_binding import (
     REVIEW_BINDING_PROTOCOL_VERSION,
     TRUSTED_REVIEW_PROTOCOL,
@@ -65,6 +70,7 @@ from nexus_contracts.review_binding import (
     public_key_hex,
     require_challenge_is_bound,
     require_matches_authorization,
+    require_matches_pii_review_decision_set,
     sign_review_binding,
 )
 
@@ -107,12 +113,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         required=True,
         help="SHA (40 hex) du HEAD exact de la PR d'autorisation.",
     )
-    issue.add_argument(
+    artefact = issue.add_mutually_exclusive_group(required=True)
+    artefact.add_argument(
         "--authorization-id",
-        required=True,
         help=(
-            "Identifiant canonique de l'autorisation. Son chemin Git en est "
-            "dérivé — il n'est jamais fourni en argument."
+            "Identifiant canonique de l'autorisation de scope (ADR-0035). Son "
+            "chemin Git en est dérivé — il n'est jamais fourni en argument."
+        ),
+    )
+    artefact.add_argument(
+        "--decision-set-id",
+        help=(
+            "Identifiant canonique d'un ensemble de décisions de revue PII "
+            "(ADR-0047), sous governance/pii-review-decisions/. Même pipeline, "
+            "même clé, même vérificateur hors ligne."
         ),
     )
     issue.add_argument(
@@ -223,8 +237,25 @@ def _issue_binding(args: argparse.Namespace, *, now: datetime) -> bytes:
         )
 
     # 3. Les octets réellement relus au HEAD approuvé — jamais un fichier
-    #    local fourni par l'opérateur.
-    path = canonical_authorization_path(args.authorization_id)
+    #    local fourni par l'opérateur. Deux natures d'artefact, un seul
+    #    pipeline : autorisation de scope (ADR-0035) ou ensemble de décisions
+    #    de revue PII (ADR-0047).
+    authorization_id = getattr(args, "authorization_id", None)
+    decision_set_id = getattr(args, "decision_set_id", None)
+    if bool(authorization_id) == bool(decision_set_id):
+        raise ReviewBindingProductionError(
+            "ARTIFACT_KIND_AMBIGUOUS: exactly one of --authorization-id or "
+            "--decision-set-id must be named"
+        )
+    decision: Literal["AUTHORIZE_INGESTION_SCOPE", "APPROVE_PII_REVIEW_DECISIONS"]
+    if decision_set_id:
+        path = canonical_pii_review_decisions_path(str(decision_set_id))
+        artifact_id = str(decision_set_id)
+        decision = "APPROVE_PII_REVIEW_DECISIONS"
+    else:
+        path = canonical_authorization_path(str(authorization_id))
+        artifact_id = str(authorization_id)
+        decision = "AUTHORIZE_INGESTION_SCOPE"
     try:
         blob = fetch_blob_at_ref(
             repository=args.repository, path=path, ref=live.head_sha
@@ -233,22 +264,36 @@ def _issue_binding(args: argparse.Namespace, *, now: datetime) -> bytes:
         raise ReviewBindingProductionError(
             f"AUTHORIZATION_UNREADABLE: {path}@{live.head_sha}: {exc}"
         ) from exc
-    try:
-        artifact = parse_scope_authorization_artifact(blob.content)
-    except CanonicalArtifactError as exc:
-        raise ReviewBindingProductionError(
-            f"AUTHORIZATION_NOT_CANONICAL: {path}@{live.head_sha}: {exc}"
-        ) from exc
-    if not isinstance(artifact, ScopeAuthorizationArtifactV2):
-        raise ReviewBindingProductionError(
-            "AUTHORIZATION_PROTOCOL_UNSUPPORTED: the final gate binds only "
-            f"LOT41A-V2 authorizations, got {artifact.protocol_version!r}"
-        )
-    if artifact.authorization_id != args.authorization_id:
-        raise ReviewBindingProductionError(
-            f"AUTHORIZATION_ID_MISMATCH: {path} declares "
-            f"{artifact.authorization_id!r}"
-        )
+    if decision_set_id:
+        try:
+            decision_set = parse_pii_review_decision_set(blob.content)
+        except CanonicalArtifactError as exc:
+            raise ReviewBindingProductionError(
+                f"DECISION_SET_NOT_CANONICAL: {path}@{live.head_sha}: {exc}"
+            ) from exc
+        if decision_set.decision_set_id != decision_set_id:
+            raise ReviewBindingProductionError(
+                f"DECISION_SET_ID_MISMATCH: {path} declares "
+                f"{decision_set.decision_set_id!r}"
+            )
+    else:
+        try:
+            artifact = parse_scope_authorization_artifact(blob.content)
+        except CanonicalArtifactError as exc:
+            raise ReviewBindingProductionError(
+                f"AUTHORIZATION_NOT_CANONICAL: {path}@{live.head_sha}: {exc}"
+            ) from exc
+        if not isinstance(artifact, ScopeAuthorizationArtifactV2):
+            raise ReviewBindingProductionError(
+                "AUTHORIZATION_PROTOCOL_UNSUPPORTED: the final gate binds only "
+                f"LOT41A-V2 authorizations, got {artifact.protocol_version!r}"
+            )
+        if artifact.authorization_id != authorization_id:
+            raise ReviewBindingProductionError(
+                f"AUTHORIZATION_ID_MISMATCH: {path} declares "
+                f"{artifact.authorization_id!r}"
+            )
+        decision = artifact.decision
     if git_blob_sha1(blob.content) != blob.blob_sha:
         raise ReviewBindingProductionError(
             "AUTHORIZATION_BLOB_MISMATCH: the bytes GitHub returned do not hash "
@@ -282,8 +327,8 @@ def _issue_binding(args: argparse.Namespace, *, now: datetime) -> bytes:
         authorization_artifact_path=path,
         authorization_artifact_sha256=hashlib.sha256(blob.content).hexdigest(),
         authorization_artifact_git_blob_sha1=blob.blob_sha,
-        authorization_id=artifact.authorization_id,
-        authorization_decision=artifact.decision,
+        authorization_id=artifact_id,
+        authorization_decision=decision,
         review_id=int(live.review_id),
         reviewer_login=live.reviewer,
         reviewer_permission=context.reviewer_permission,
@@ -302,13 +347,22 @@ def _issue_binding(args: argparse.Namespace, *, now: datetime) -> bytes:
     #    vérificateur hors ligne dès sa production. Un producteur qui émet
     #    une preuve que le consommateur refusera est un bug silencieux.
     require_challenge_is_bound(binding)
-    require_matches_authorization(
-        binding,
-        authorization_id=artifact.authorization_id,
-        authorization_bytes=blob.content,
-        authorization_git_blob_sha1=blob.blob_sha,
-        expected_repository=args.repository,
-    )
+    if decision_set_id:
+        require_matches_pii_review_decision_set(
+            binding,
+            decision_set_id=decision_set_id,
+            decision_set_bytes=blob.content,
+            decision_set_git_blob_sha1=blob.blob_sha,
+            expected_repository=args.repository,
+        )
+    else:
+        require_matches_authorization(
+            binding,
+            authorization_id=artifact_id,
+            authorization_bytes=blob.content,
+            authorization_git_blob_sha1=blob.blob_sha,
+            expected_repository=args.repository,
+        )
 
     # ``nexus_contracts`` ne publie pas de marqueur ``py.typed`` : mypy voit
     # donc ``Any`` derrière cette frontière. Plutôt que de le masquer par un

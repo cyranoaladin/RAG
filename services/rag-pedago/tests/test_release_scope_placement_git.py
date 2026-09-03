@@ -496,9 +496,108 @@ def test_exact_current_matrix_still_refuses_thirteen_partitions_fifty_six_conten
         _produce(repo, tree)
 
 
-def test_p24_profile_match_is_accepted_by_current_release_registry(
+def test_instantiated_collection_profile_match_is_accepted_by_current_release_registry(
     tmp_path: Path,
 ) -> None:
+    """Témoin positif : une collection instanciée servie (NSI Terminale) est acceptée par le release-registry courant."""
+    repo, _ = _repository(tmp_path)
+    root = Path(__file__).resolve().parents[3]
+    matrix_path = "docs/reports/proposed_production_profile_matrix_20260823.json"
+    profile_path = (
+        "services/rag-engine/configs/ingestion_profiles/"
+        "staging/multilevel/nsi_terminale_specialite_multilevel_v1.yml"
+    )
+    evidence1_path = (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "multilevel/terminale/nsi_specialite.release.json"
+    )
+    manifest_path = "services/rag-engine/configs/ingestion_manifest.yml"
+    registry_path = (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "release-registry.json"
+    )
+
+    matrix = json.loads((root / matrix_path).read_text(encoding="utf-8"))
+    p09 = next(row for row in matrix if row["partition_id"] == "P09")
+    profile_document = yaml.safe_load((root / profile_path).read_text(encoding="utf-8"))
+    profile = CollectionProfile.model_validate(profile_document)
+    profile_fact = VerifiedProfileFactV1(
+        profile_id=profile.scope.collection,
+        profile_version=profile.profile_version,
+        profile_fingerprint=collection_profile_fingerprint(profile),
+        scope=profile.scope,
+    )
+    manifest_entry = next(
+        entry
+        for entry in yaml.safe_load((root / manifest_path).read_text(encoding="utf-8"))[
+            "profiles"
+        ]
+        if entry["collection"] == profile.scope.collection
+    )
+    manifest_document = {
+        "manifest_version": "1",
+        "provenance": "fixture P09 acceptée",
+        "generated_at": "2026-08-25T00:00:00+01:00",
+        "profiles": [manifest_entry],
+    }
+
+    _write(repo, MATRIX_PATH, _json_bytes([p09]))
+    _write(repo, CONTENTS_PATH, ("\n".join(p09["content_sha256"]) + "\n").encode())
+    _write(repo, REGISTRY_PATH, (root / registry_path).read_bytes())
+    _write(
+        repo,
+        PROFILE_MANIFEST_PATH,
+        yaml.safe_dump(manifest_document, sort_keys=False).encode(),
+    )
+    _write(repo, profile_path, (root / profile_path).read_bytes())
+    _write(repo, evidence1_path, (root / evidence1_path).read_bytes())
+    _write(repo, manifest_path, (root / manifest_path).read_bytes())
+    _write(
+        repo,
+        PROFILES_PATH,
+        _json_bytes(
+            {
+                "profile_manifest_digest": profile_manifest_fingerprint(manifest_document),
+                "profiles": [
+                    {
+                        **profile_fact.model_dump(mode="json"),
+                        "source_path": profile_path,
+                    }
+                ],
+            }
+        ),
+    )
+    _write(
+        repo,
+        PLACEMENTS_PATH,
+        _json_bytes(
+            [
+                {
+                    "content_sha256": content_sha256,
+                    "release_id": "production-profile-gate-2026-2027-v1",
+                    "collection": profile.scope.collection,
+                    "profile_version": profile.profile_version,
+                }
+                for content_sha256 in p09["content_sha256"]
+            ]
+        ),
+    )
+    tree = _commit(repo, "P09 current production inputs")
+
+    produced = _produce(repo, tree)
+
+    assert [row.content_sha256 for row in produced.placement.placements] == sorted(
+        p09["content_sha256"]
+    )
+    assert {row.profile_id for row in produced.placement.placements} == {
+        profile.scope.collection
+    }
+
+
+def test_non_instantiated_collections_are_rejected_by_current_release_registry(
+    tmp_path: Path,
+) -> None:
+    """Témoin négatif : une collection hors de la release servie (Philosophie P24) est refusée par le release-registry courant."""
     repo, _ = _repository(tmp_path)
     root = Path(__file__).resolve().parents[3]
     matrix_path = "docs/reports/proposed_production_profile_matrix_20260823.json"
@@ -532,7 +631,7 @@ def test_p24_profile_match_is_accepted_by_current_release_registry(
     )
     manifest_document = {
         "manifest_version": "1",
-        "provenance": "fixture P24 acceptée",
+        "provenance": "fixture P24 non servie",
         "generated_at": "2026-08-25T00:00:00+01:00",
         "profiles": [manifest_entry],
     }
@@ -578,16 +677,13 @@ def test_p24_profile_match_is_accepted_by_current_release_registry(
             ]
         ),
     )
-    tree = _commit(repo, "P24 current production inputs")
+    tree = _commit(repo, "P24 inputs with current registry")
 
-    produced = _produce(repo, tree)
-
-    assert [row.content_sha256 for row in produced.placement.placements] == sorted(
-        p24["content_sha256"]
-    )
-    assert {row.profile_id for row in produced.placement.placements} == {
-        profile.scope.collection
-    }
+    with pytest.raises(
+        ReleaseScopePlacementProducerError,
+        match="UNACCEPTED_COLLECTION: collection 'rag_nexus_philo_terminale_tc' is not in release",
+    ):
+        _produce(repo, tree)
 
 
 def test_symlink_and_untracked_substitution_cannot_change_tree_bytes(tmp_path: Path) -> None:

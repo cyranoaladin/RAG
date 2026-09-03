@@ -1,0 +1,36 @@
+{
+  "schema_version": "NEXUS-PRODUCTION-EXCLUSIONS-V1",
+  "date": "2026-08-31",
+  "lot": "1.2",
+  "objet": "Contenus retires de la matrice de production, avec le motif exact de leur retrait.",
+  "principe": "Un contenu n'est exclu que si un controle a refuse de s'exercer sur lui et que ce refus est fonde. Le motif nomme ce qui a echoue, jamais une categorie. L'exclusion est reversible : elle enonce ce qui la leverait.",
+  "reference_critere": "docs/reports/lot_1_2_critere_page_sans_texte.md",
+  "exclusions": [
+    {
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "placements_retires": [
+        "rag_nexus_hggsp_premiere_specialite",
+        "rag_nexus_hggsp_terminale_specialite"
+      ],
+      "chemin_canonique": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2021/le-document-de-l-igesr-et-de-la-dgesco-sur-l-esclavage-les-traites-negrieres-et-leurs-abolitions-dans-les-programmes-scolaires-d-e--3bc5ff233d.pdf",
+      "motif_code": "PAGE_IMAGE_NON_LISIBLE",
+      "motif": "Document scanne. 18 de ses 44 pages ne rendent aucun texte mais portent chacune 100 a 176 fragments d'image JBIG2 — des lignes de texte photographiees, en bandes de 1230x111 a 600 ppi. Une 19e page (44) porte un trace vectoriel libre. Les 867 caracteres extractibles ne representent pas le contenu du document : le balayage PII ne peut pas s'exercer sur ce qui est photographie.",
+      "pages_refusees": [3, 4, 5, 6, 7, 9, 12, 13, 14, 15, 16, 18, 20, 22, 23, 30, 31, 40, 44],
+      "pages_ignorees": [2, 43],
+      "temoins": ["pypdf", "poppler pdftotext+pdfimages", "mutool draw+info"],
+      "ce_qui_leverait_l_exclusion": "Une couche de texte OCR sur les 18 pages-image, verifiee, permettant au balayage PII de s'exercer sur l'integralite du document. Le trace vectoriel de la page 44 devra etre qualifie separement.",
+      "decide_par": "commanditaire, note de decision du 2026-08-31",
+      "n_est_pas": "Une decision de confidentialite. Aucune PII n'a ete detectee ni recherchee sur ce document : le controle n'a pas pu s'exercer. L'exclusion est un motif technique."
+    }
+  ],
+  "non_exclus_apres_rectification": [
+    {
+      "content_sha256": "8848f0732cc1a51ac173422805ca63ce837a94acbad916714dfaedc0ffb1f04f",
+      "motif": "Exclu a tort de la release scellee du 2026-08-25 par le critere `any` du scanner PII. Le document rend 121 910 caracteres sur 52 de ses 54 pages ; ses deux pages sans texte sont structurellement incapables de porter un glyphe. Reintegre avec ses deux placements NSI, balayage PII effectivement exerce.",
+      "placements_reintegres": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,729 @@
+{
+  "artifacts": [
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_dgemc_terminale_option"
+      ],
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "current_download_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/annexeprogrammedgemcmodifiepdf-84138.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "16L66pkOOA3YscNCnAmUpIlEPh_wr-1en",
+      "drive_modified_time": "2026-08-05T04:53:30.597Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/DGEMC/01_PROGRAMMES_OFFICIELS/2023/telechargez-le-programme-de-dgemc-en-terminales-generale-et-technologique-pdf-930-41-ko--e591a87aee.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/dgemc",
+          "external_subject": "dgemc",
+          "source_placement_id": "8064e465df905f7d18b79bd5a306bb2022b0f5eb5dd4a9f92ef4cb35f9735570"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_francais_premiere_tc"
+      ],
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "current_download_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04annexe2francais1egtbomodifiepdf-69837.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04annexe2francais1egtbomodifiepdf-69837.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1zPxn6SLiDKQsJ-CizCiKWZ5PXt3GXmdR",
+      "drive_modified_time": "2026-08-05T00:57:05.372Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_francais_premiere_tc",
+          "external_document_type": "programme-officiel",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/francais",
+          "external_subject": "francais",
+          "source_placement_id": "39bac68bb943054486d290ef5490c40454e57ad086e6dce83ebb98b89ae4dd3a"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_francais_quatrieme_tc"
+      ],
+      "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "current_download_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/15-francais-4e-attendus-eduscolpdf-74679.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/15-francais-4e-attendus-eduscolpdf-74679.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1Q--V2LqIByMpDTsKsxizNigMvLPX_qrA",
+      "drive_modified_time": "2026-08-04T22:17:18.022Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-4e-pdf-1-05-mo--73c001b93c.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_francais_quatrieme_tc",
+          "external_document_type": "reperes-attendus",
+          "external_level": "4e",
+          "external_scope": "college/4e/francais",
+          "external_subject": "francais",
+          "source_placement_id": "2364a3d0c5a2e042747f18dce939fa85abb2e8f9437bba63597355f41c0ed988"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "current_download_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04-annexe1francais2ebomodifiepdf-69834.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/04-annexe1francais2ebomodifiepdf-69834.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1Kfbz0EYLOSfMQvr3QBzzFnugzmt1Abjy",
+      "drive_modified_time": "2026-08-05T00:56:55.336Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/HLP/01_PROGRAMMES_OFFICIELS/2021/seconde-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-275-51-ko--b54b6422d0.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_francais_seconde_tc",
+          "external_document_type": "programme-officiel",
+          "external_level": "seconde",
+          "external_scope": "lycee/general/francais",
+          "external_subject": "francais",
+          "source_placement_id": "c51545c7f66ed8631c02275a1c2b33e126a6c1158c466e965170529be3abe805"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_francais_seconde_tc"
+      ],
+      "content_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "current_download_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/fichecenseignerexplicitementlacomprehensiondelecritoudesecrits1168930pdf-81774.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/fichecenseignerexplicitementlacomprehensiondelecritoudesecrits1168930pdf-81774.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1PwA6bluILio0EDIsJJnSu2dKz0e_yrs9",
+      "drive_modified_time": "2026-08-05T07:00:46.379Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/02_REPERES_ATTENDUS/2019/fiche-c-enseigner-explicitement-la-comprehension-de-l-ecrit-ou-des-ecrits--c4e3cc6fb2.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_francais_seconde_tc",
+          "external_document_type": "reperes-attendus",
+          "external_level": "seconde",
+          "external_scope": "lycee/general/francais",
+          "external_subject": "francais",
+          "source_placement_id": "34aefcc2fba35bfe23d192e3c864e06afe8d1f0443ff5d9056c04469956fc3ae"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite"
+      ],
+      "content_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "current_download_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpexemple-sujet-commentesujet-zero21205357pdf-83931.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "decision": "CURRENT",
+      "drive_file_id": "17zo7OpVfh3qUtJBk7Pi-AtpN-l4UkjYX",
+      "drive_modified_time": "2026-08-05T04:06:48.970Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-2-sur-le-theme-de-la-parole-pdf-153-37-ko--4433fee96b.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "external_document_type": "ressource-accompagnement",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/hlp",
+          "external_subject": "hlp",
+          "source_placement_id": "78dbbb7aca281889248856d9a60bee4978d9177c172307a7988d36e4d9fde146"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite"
+      ],
+      "content_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "current_download_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-t-hlplitterature-apprentissage-oral-etude-textes1219746pdf-83940.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "decision": "CURRENT",
+      "drive_file_id": "1ID-dnQ2dHUqqJAdBoJJev6Q658LPu7Yg",
+      "drive_modified_time": "2026-08-05T04:07:18.941Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/litterature-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-211-27-ko--60eeb7dd1e.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "external_document_type": "ressource-accompagnement",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/hlp",
+          "external_subject": "hlp",
+          "source_placement_id": "87ec6dbeb8c384b3d66a2f6b562d0ba4251d7b03f0a639dc2327a47ed258c0f7"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite"
+      ],
+      "content_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "current_download_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-t-hlpphilosophie-apprentissage-oral-etude-textes1219750pdf-83943.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "decision": "CURRENT",
+      "drive_file_id": "1EXQ1-ngSyu6qUtk8nsgBBCZ3qPHsPgnE",
+      "drive_modified_time": "2026-08-05T04:07:28.935Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/philosophie-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-157-47-ko--64f5b3427d.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "external_document_type": "ressource-accompagnement",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/hlp",
+          "external_subject": "hlp",
+          "source_placement_id": "9b6a008165bd407b189f2a7b64d706f6ea291f8f3ef9a5949040bba9eacc5f61"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite"
+      ],
+      "content_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "current_download_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpexemple-sujet-commentesujet-zero31205359pdf-83934.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5805/programmes-et-ressources-en-humanites-litterature-et-philosophie-voie-g",
+      "decision": "CURRENT",
+      "drive_file_id": "1qe7h-6oot-nBwiRKqdslAMFEX-RGrwSW",
+      "drive_modified_time": "2026-08-05T04:06:58.931Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-3-sur-le-theme-des-representations-du-monde-pdf-172-29-ko--9357dfdebc.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "external_document_type": "ressource-accompagnement",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/hlp",
+          "external_subject": "hlp",
+          "source_placement_id": "201890cb08f619293a9fef83637cb9da590a496a0ec579c563ade5cf48a77c8e"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_maths_premiere_gen_specialite"
+      ],
+      "content_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "current_download_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "current_download_url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20sp%C3%A9cialit%C3%A9%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20premi%C3%A8re%20de%20la%20voie%20g%C3%A9n%C3%A9rale-515408.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1GNIkV0IlkCKvR5Gd83l4_H8lkGGnJZvk",
+      "drive_modified_time": "2026-08-05T01:52:47.369Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-specialite-de-mathematiques-de-la-classe-de-premiere-de-la-voie-generale--5303df0fcf.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_maths_premiere_gen_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/mathematiques",
+          "external_subject": "mathematiques",
+          "source_placement_id": "00c83816301cd79f8f48966721ee840e680002b381d5aefe17a052a4b44d4ffc"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_maths_quatrieme_tc"
+      ],
+      "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "current_download_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/16-maths-4e-attendus-eduscol1114746pdf-74682.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/16-maths-4e-attendus-eduscol1114746pdf-74682.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1jrpRZiBGwJVql56Sq6uHYctL0NxQ42mQ",
+      "drive_modified_time": "2026-08-04T22:42:48.905Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-4e-pdf-1-47-mo--d0edabd6a2.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_maths_quatrieme_tc",
+          "external_document_type": "reperes-attendus",
+          "external_level": "4e",
+          "external_scope": "college/4e/mathematiques",
+          "external_subject": "mathematiques",
+          "source_placement_id": "45842417fb4eff17f72b3b1f134ff5240745403bb066f430ad9204bd4b392f56"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_maths_seconde_tc"
+      ],
+      "content_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "current_download_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "current_download_url": "https://www.education.gouv.fr/sites/default/files/document/Annexe%20%E2%80%93%20Programme%20d%26%23039%3Benseignement%20de%20math%C3%A9matiques%20de%20la%20classe%20de%20seconde%20g%C3%A9n%C3%A9rale%20et%20technologique-515402.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1C5Q4R5xFKPQylmU9wEF1CWMmzTzT8FXr",
+      "drive_modified_time": "2026-08-05T01:52:27.578Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-mathematiques-de-la-classe-de-seconde-generale-et-technologique--05c5403d45.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_maths_seconde_tc",
+          "external_document_type": "programme-officiel",
+          "external_level": "seconde",
+          "external_scope": "lycee/general/mathematiques",
+          "external_subject": "mathematiques",
+          "source_placement_id": "0eb6f9831296a57b4a3cffb68fe26727b229920f2197f4839f3bf99080cc0db6"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_maths_terminale_gen_specialite"
+      ],
+      "content_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "current_download_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe246annexe1158907pdf-84159.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe246annexe1158907pdf-84159.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1QbnbZA0wKxIOyEdrnqeGIGMhb-_qY0J0",
+      "drive_modified_time": "2026-08-05T01:54:27.518Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-475-8-ko--eb8369e7c1.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_maths_terminale_gen_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/mathematiques",
+          "external_subject": "mathematiques",
+          "source_placement_id": "5cd1965bd38641f661031013c68d4d456d7e2dfd6b90de4a70d229b53699a8b2"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite"
+      ],
+      "content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "current_download_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe633annexe1063268pdf-89499.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe633annexe1063268pdf-89499.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1P8cPhyl7b5pVNqQj-XYYUelfscnstjKM",
+      "drive_modified_time": "2026-08-05T04:35:40.524Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-premiere-bo-special-n-1-du-22-janvier-2019-pdf-300-73-ko--7ca9a32e18.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/nsi",
+          "external_subject": "nsi",
+          "source_placement_id": "18e2da3191805fc3c645ae563b1bb212054075063a831dca066f76d44a810351"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "current_download_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe247annexe1158933pdf-89502.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe247annexe1158933pdf-89502.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1480tJgVAn4_lJArWt_bft2koVgEVIfWQ",
+      "drive_modified_time": "2026-08-05T04:35:50.539Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-terminale-bo-special-n-8-du-25-juillet-2019-pdf-196-38-ko--10ce34666e.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/nsi",
+          "external_subject": "nsi",
+          "source_placement_id": "88a3e1a4505dda72ecde8d62b4c98c90be36cd0985b880f9278e054c76f421cb"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_pc_premiere_specialite"
+      ],
+      "content_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "current_download_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe635annexe1063432pdf-82266.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5829/programmes-et-ressources-en-physique-chimie-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1puz51pjWzokes9EQfKu704DbMX8ZLc1b",
+      "drive_modified_time": "2026-08-05T02:03:47.944Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-383-44-ko--db43d342ed.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_pc_premiere_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/physique-chimie",
+          "external_subject": "physique-chimie",
+          "source_placement_id": "93df20f68378000bf279a599893bbd1dacccc77baf72d9f17db422b77d995edb"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_pc_terminale_specialite"
+      ],
+      "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "current_download_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe249annexe1158929pdf-82269.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe249annexe1158929pdf-82269.pdf",
+      "decision": "CURRENT",
+      "drive_file_id": "1Qh-zA4lsQcsdtOTbD7kodyUnmbqT7Svp",
+      "drive_modified_time": "2026-08-05T02:03:57.980Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_pc_terminale_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/physique-chimie",
+          "external_subject": "physique-chimie",
+          "source_placement_id": "37747f9ee2dd2c325a442fc71469ec40b91864e8c3e5ced06651955b467d0b37"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_philo_terminale_tc"
+      ],
+      "content_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "current_download_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphiloevaluations1318475pdf-83655.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1ijUx7AcqcpPDv0qtYqgFvL_s-Q88gcuN",
+      "drive_modified_time": "2026-08-05T03:36:38.645Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/l-evaluation-des-travaux-en-classe-de-philosophie-pdf-136-84-ko--03f268dc1f.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_philo_terminale_tc",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/philosophie",
+          "external_subject": "philosophie",
+          "source_placement_id": "93a90f694588888e7c5ca1c868dc48ce00f3369110f18d277d684398db93fdbb"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_philo_terminale_tc"
+      ],
+      "content_sha256": "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17",
+      "current_download_sha256": "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphiloexercices21307357pdf-83652.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1IK8tdUFz5ddI4xxH9M49H7p6L5hmF9Iy",
+      "drive_modified_time": "2026-08-05T03:36:28.704Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/les-exercices-en-classe-de-philosophie-pdf-171-6-ko--846962c152.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_philo_terminale_tc",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/philosophie",
+          "external_subject": "philosophie",
+          "source_placement_id": "bba1ff6d66e8760b6cfd2415f882f4c51d138025d324c76280038b2eb7ef12de"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_philo_terminale_tc"
+      ],
+      "content_sha256": "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db",
+      "current_download_sha256": "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtterphilorecommandations2-73131.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1ikYoE5uW5Af5Gy97ErLAQXlEtLHGLQ3A",
+      "drive_modified_time": "2026-08-05T03:35:58.708Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/03_RESSOURCES_ACCOMPAGNEMENT/2021/recommandations-concernant-le-travail-dans-les-classes-de-philosophie-pdf-136-23-ko--b5ed52b1a4.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_philo_terminale_tc",
+          "external_document_type": "ressource-accompagnement",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/philosophie",
+          "external_subject": "philosophie",
+          "source_placement_id": "3ed4e6719fdbef2174588e5d25ee36078552d99df38a237bd865ce2a3a5c1c1e"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_philo_terminale_tc"
+      ],
+      "content_sha256": "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9",
+      "current_download_sha256": "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphiloetudestextes1294343pdf-83649.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1bSjGlS3fROQWGE0EKZ16K825MxHzRS7m",
+      "drive_modified_time": "2026-08-05T03:36:18.697Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/03_RESSOURCES_ACCOMPAGNEMENT/2020/l-etude-des-textes-et-des-uvres-en-classe-de-philosophie-pdf-150-99-ko--e7cf3bdb7a.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_philo_terminale_tc",
+          "external_document_type": "ressource-accompagnement",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/philosophie",
+          "external_subject": "philosophie",
+          "source_placement_id": "9c14e9abb47684ac6d6706d909a415bad233044d6e67a5b7506986052036ff90"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_philo_terminale_tc"
+      ],
+      "content_sha256": "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d",
+      "current_download_sha256": "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtterphilonotionsauteursreperes1304038pdf-83646.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5826/programmes-et-ressources-en-philosophie-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1shdZUHcFCJIoRT6TmDXU7Fq4MQ7oBA6d",
+      "drive_modified_time": "2026-08-05T03:36:08.727Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHILOSOPHIE/01_PROGRAMMES_OFFICIELS/2020/la-construction-des-cours-notions-auteurs-reperes-pdf-184-72-ko--f0dec90caf.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_philo_terminale_tc",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/philosophie",
+          "external_subject": "philosophie",
+          "source_placement_id": "309e7b7662f2526def2f2a755f25cbdc79c99980ad5e15ba7f5af1e68578a083"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_ses_premiere_specialite"
+      ],
+      "content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "current_download_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe639annexe1063544pdf-82752.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "111md2A3CiiZ1cjH9fuV4y4z24RqSMU0f",
+      "drive_modified_time": "2026-08-05T02:34:18.226Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-174-71-ko--06e491d369.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_ses_premiere_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/ses",
+          "external_subject": "ses",
+          "source_placement_id": "9e79944b0a0532d6d1c209991d9ef4a57a4cbb732d4481eb6a7212562f659f1b"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_ses_terminale_specialite"
+      ],
+      "content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "current_download_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe253annexe1158821pdf-82755.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1y7GEPksUKtVqQxWcwXoNHl0q_RILfwxK",
+      "drive_modified_time": "2026-08-05T02:34:28.137Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SES/01_PROGRAMMES_OFFICIELS/2019/specialite-ses-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-193-63-ko--2f1035c74d.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_ses_terminale_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/ses",
+          "external_subject": "ses",
+          "source_placement_id": "32504470306682180efe0bf3f013664d430aa0ea7d378870906bf949d711d239"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_svt_premiere_specialite"
+      ],
+      "content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "current_download_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe648annexe1063542pdf-82878.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "1MCv79RMWrdPE7PWHqsPQQjumRPBxtw2h",
+      "drive_modified_time": "2026-08-05T02:18:58.150Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-405-48-ko--8eb0e41f95.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_svt_premiere_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "premiere",
+          "external_scope": "lycee/general/svt",
+          "external_subject": "svt",
+          "source_placement_id": "1679ec6c38196b33c9e361c59e02eccfc09e5820d69edcf5572e56fe7a3c78e0"
+        }
+      ]
+    },
+    {
+      "byte_identity": true,
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "current_download_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "current_download_url": "https://eduscol.education.gouv.fr/sites/default/files/document/spe252annexe1159114pdf-82881.pdf",
+      "current_for_school_year": "2026-2027",
+      "current_source_listing_url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
+      "decision": "CURRENT",
+      "drive_file_id": "11fLzGupNFcWDOnKW_Eof-qepw0eW6d2q",
+      "drive_modified_time": "2026-08-05T02:19:08.120Z",
+      "effective_currentness": "actuel",
+      "exact_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/SVT/01_PROGRAMMES_OFFICIELS/2019/specialite-svt-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-455-06-ko--d2cbd06f2e.pdf",
+      "placement_facts": [
+        {
+          "collection": "rag_nexus_svt_terminale_specialite",
+          "external_document_type": "programme-officiel",
+          "external_level": "terminale",
+          "external_scope": "lycee/general/svt",
+          "external_subject": "svt",
+          "source_placement_id": "7aba871d2f49ce67907f663f3547b361c79fbc68a775e809cb179561bd4ad60f"
+        }
+      ]
+    }
+  ],
+  "candidate_inventory_sha256": "fbb8aa3af44efa1484c65640ddbaebf357dff923a0ebd45b6ce80ccc7e8ed7a1",
+  "catalog_delta_sha256": "8b914d6239b87cbb3dcd11039e8e7d392aeee5c5996236a580235d7515919a04",
+  "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "counts": {
+    "artifacts": 26,
+    "current": 26,
+    "evaluated": 26,
+    "review_required": 0,
+    "unevaluated": 0
+  },
+  "currentness_audit_sha256": "4c6395e3ce4c9a61a0d3a8a3b7f94da75ba91b00419c3f0c042f2d2e7adcf520",
+  "decision_basis": "Official Eduscol URL downloaded read-only and byte-matched",
+  "effective_catalog_authority_sha256": "6806a6be645d0a9b82a007d1ff7a2e608be72c2956b4a5f571c67071f2ebdb2a",
+  "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V1",
+  "partition": {
+    "current": [
+      "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "846962c15217af5cfe7ba40b173e94cb225d2153ffd3131d23b2c60a2b5e9a17",
+      "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "b5ed52b1a4754298f7ecdbc56cb886a438c580ebd04284be0ca878b82e7c62db",
+      "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "e7cf3bdb7a1c3831ccc465d842d8ab0dacb688d565cb35510aee4eac4f2bf5f9",
+      "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "f0dec90cafd512cb754fb71ed33dbf0a48f0e67a166be35b5b16a1daa6dd006d"
+    ],
+    "review_required": [],
+    "unevaluated": []
+  },
+  "placement_catalog_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+  "school_year": "2026-2027",
+  "sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8"
+}
