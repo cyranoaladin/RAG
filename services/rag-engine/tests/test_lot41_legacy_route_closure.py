@@ -13,6 +13,7 @@ PROXIED_PATHS = {
     "/health",
     "/metrics",
     "/search/v2",
+    "/corpora/servable/v1",
     "/chat",
     "/collections/v2",
     "/catalogue/v2",
@@ -50,7 +51,8 @@ def _location_block(config: str, location: str) -> str:
 def _proxied_location_selectors(config: str) -> set[str]:
     proxied: set[str] = set()
     for match in re.finditer(
-        r"^\s*location\s+(?P<selector>[^\{]+?)\s*\{(?P<body>.*?)^\s*\}",
+        r"^\s*location\s+(?P<selector>.+?)\s+\{\s*$"
+        r"(?P<body>.*?)^\s*\}",
         config,
         re.MULTILINE | re.DOTALL,
     ):
@@ -63,7 +65,8 @@ def _proxied_location_selectors(config: str) -> set[str]:
 def test_proxy_exposes_exact_runtime_allowlist(name: str) -> None:
     config = _read(name)
     assert _proxied_location_selectors(config) == {
-        f"= {path}" for path in PROXIED_PATHS
+        *(f"= {path}" for path in PROXIED_PATHS),
+        "~ ^/corpora/servable/v1/[0-9a-f]{64}$",
     }
 
 

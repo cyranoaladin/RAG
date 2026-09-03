@@ -1,0 +1,102 @@
+{
+  "fixtures": {
+    "internal-identity-envelope-v1.json": {
+      "sha256": "63d17d438a4999c794cf69ae761e149cbdb821a5558397b60c0cdf1a9e3596f9"
+    }
+  },
+  "packageVersion": "0.15.0",
+  "schemas": {
+    "chat-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/chat-payload.json",
+      "sha256": "d747bd08c8ec8887599e74983104e78a3c7e827317ab5712d52830cedf3bc77c"
+    },
+    "chat-request.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/chat-request.json",
+      "sha256": "ec7bc11b18f21715e5c6f23268092b9972fab0622dd1fb5998af0a0a284e75b5"
+    },
+    "chat-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/chat-response.json",
+      "sha256": "7b70122c4c6aa591b3bf2d5ac7c561c19ed117dc594dbfcc46fa3a6eee594929"
+    },
+    "internal-identity-envelope.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity-envelope.json",
+      "sha256": "060fe25f1f8c0b9d3c9d80b53c9e09cd925a39706b6c1efa54f714b582acdd0e"
+    },
+    "internal-identity.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity.json",
+      "sha256": "121e905762ce6a23808a30f24d93efd86e662c0159f6726d6e27de9e2a0bdbf0"
+    },
+    "pilot-retrieval-scope-artifact.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/pilot-retrieval-scope-artifact.json",
+      "sha256": "cb7d45df5a4fb93faf9ad4cb6a994f7cceaa5b791152cce9ebdc302adf0ac513"
+    },
+    "resource-registry-bootstrap-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-bootstrap-v1.json",
+      "sha256": "95dbddabc93d52fc60cbe411da054b3245fc6b11c89ca8b1760d62e130a80b5a"
+    },
+    "resource-registry-snapshot-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/resource-registry-snapshot-v1.json",
+      "sha256": "d9129d626149d733b0ed4476d5907fe99bebbf88a62ddff724262dd131744fe3"
+    },
+    "retrieval-error.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-error.json",
+      "sha256": "59037ef01f66293df6edf1ddd2617da766d0a81231f945b54133c5ebd519f791"
+    },
+    "retrieval-evaluation-evidence-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-evaluation-evidence-v1.json",
+      "sha256": "2c1416ba00baf76474d6444456b7eab5c1b763da328ea5bfdfa897ea1b438d66"
+    },
+    "retrieval-golden-suite-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-golden-suite-v1.json",
+      "sha256": "895d0674dc345ac94f5621615a6f3c176d0abdf2d5a13252b7263eb3f0d1cd06"
+    },
+    "retrieval-request.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-request.json",
+      "sha256": "594ca5a5b145826f3f05ae287cef77d14eb0dc59fa4dd5390c955bb474fefa07"
+    },
+    "retrieval-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-response.json",
+      "sha256": "f731eb6e524699810d0cfee9803871fe52a441e897601b813067c25a334c35af"
+    },
+    "retrieval-scope-artifact-v2.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v2.json",
+      "sha256": "59e99bcb8e311872a282672299f7d97ace7300e6fed3705db1deaaac1ca34282"
+    },
+    "retrieval-scope-artifact-v3.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v3.json",
+      "sha256": "0dfc9b1c3838d978b80f3cb1ac1d3df82d3c2484d6b5aababe7bf4487d60c301"
+    },
+    "review-decision-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-payload.json",
+      "sha256": "4ad2d5d95b7c3ece3975472b31ed361b999f539b698624e07e38565a59a45125"
+    },
+    "review-decision-request.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-request.json",
+      "sha256": "f58a8f00778bd9a3fa557d5670db9b4ce7f3a52e954c7c9be14eb1a62bff67e0"
+    },
+    "review-decision-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-decision-response.json",
+      "sha256": "296a5c5aec1e7251b994744e01ea30858a6a745b7ff24f26790aadd378a93027"
+    },
+    "review-queue-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-queue-payload.json",
+      "sha256": "6c9dd0b47281990a2ac7393f82b2f433bfb392f4c48f517ec39c7081c7c8e241"
+    },
+    "review-queue-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/review-queue-response.json",
+      "sha256": "919292acb82d943ff5a1d23a1dbe2b1da793772a6635c549e528537f22ec5ef1"
+    },
+    "search-payload.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/search-payload.json",
+      "sha256": "290cf00dbfd47b5b5c02169b744de7926f029d9469405eb006251bbe59409c3a"
+    },
+    "servable-corpus-index-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-index-v1.json",
+      "sha256": "df38f30052f2c2fd44d4223ab9637eef08a951f56cd730f4439742523d17dcb9"
+    },
+    "servable-corpus-manifest-v1.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-manifest-v1.json",
+      "sha256": "e05d7cbf965c22f072faa25a9dabe673022050da4e54bf706027663321ba0386"
+    }
+  }
+}

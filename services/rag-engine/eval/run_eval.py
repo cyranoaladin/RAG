@@ -55,10 +55,7 @@ from metrics import (
 
 
 ALLOWED_INTENTS = {"definition", "methode", "exercice", "annale", "correction"}
-COLLECTION_BY_NIVEAU = {
-    "premiere": "rag_nexus_nsi_premiere_specialite",
-    "terminale": "rag_nexus_nsi_terminale_specialite",
-}
+ALLOWED_LEGACY_DIAGNOSTIC_LEVELS = {"premiere", "terminale"}
 GOLDEN_EXTS = (".yml", ".yaml")
 MIN_EVAL_DEPTH = 20
 OFFLINE_FALLBACK_SENTENCE_LIMIT = 4
@@ -163,14 +160,8 @@ def _as_golden_query(payload: dict[str, Any]) -> GoldenQuery:
         raise ValueError("Champs requis manquants: id, query, intent, collection, niveau.")
     if intent not in ALLOWED_INTENTS:
         raise ValueError(f"intent invalide: {intent!r} (attendu {sorted(ALLOWED_INTENTS)}).")
-    if niveau not in COLLECTION_BY_NIVEAU:
+    if niveau not in ALLOWED_LEGACY_DIAGNOSTIC_LEVELS:
         raise ValueError(f"niveau invalide: {niveau!r}.")
-    expected_collection = COLLECTION_BY_NIVEAU[niveau]
-    if collection != expected_collection:
-        raise ValueError(
-            f"collection incohérente pour {niveau!r}: {collection!r} "
-            f"(attendu {expected_collection!r})."
-        )
 
     relevant_chunk_ids = _normalize_chunks(payload.get("relevant_chunk_ids", payload.get("relevant_chunk")))
     if not relevant_chunk_ids:

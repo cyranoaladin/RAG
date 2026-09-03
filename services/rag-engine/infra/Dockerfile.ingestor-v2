@@ -43,6 +43,8 @@ COPY services/rag-engine/src/ingestor/review_readiness_v2.py /app/review_readine
 COPY services/rag-engine/src/ingestor/reranker_contract.py /app/reranker_contract.py
 COPY services/rag-engine/src/ingestor/schema_readiness_v2.py /app/schema_readiness_v2.py
 COPY services/rag-engine/src/ingestor/security_v2.py /app/security_v2.py
+COPY services/rag-engine/src/ingestor/servable_corpus_api.py /app/servable_corpus_api.py
+COPY services/rag-engine/src/ingestor/servable_corpus_index.py /app/servable_corpus_index.py
 COPY services/rag-engine/infra/postgres/migrations/ /app/migrations/
 COPY services/rag-engine/infra/postgres/schema_head_004_fingerprints.env /app/schema_head_004_fingerprints.env
 COPY services/rag-engine/infra/postgres/schema_head_004_columns.tsv /app/schema_head_004_columns.tsv

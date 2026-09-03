@@ -107,3 +107,20 @@ class TestArgParserIntegration:
         assert args.max_iterations == 3
         assert args.poll_interval_s == 1.5
         assert args.profiles_dir == Path("/tmp/profiles")
+
+    def test_resource_registry_cutover_arguments_are_available(self) -> None:
+        parser = _build_arg_parser()
+        args = parser.parse_args(
+            [
+                *_REQUIRED_ARGS,
+                "--resource-registry-snapshot-path",
+                "/proof/resource-registry.json",
+                "--resource-registry-snapshot-file-sha256",
+                "a" * 64,
+            ]
+        )
+
+        assert args.resource_registry_snapshot_path == Path(
+            "/proof/resource-registry.json"
+        )
+        assert args.resource_registry_snapshot_file_sha256 == "a" * 64

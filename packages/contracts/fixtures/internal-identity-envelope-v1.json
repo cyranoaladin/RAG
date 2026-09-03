@@ -1,0 +1,140 @@
+{
+  "canonicalEnvelopeBase64": "eyJhbGxvd2VkX2NvbGxlY3Rpb25zIjpbInJhZ19uZXh1c19tYXRoc19wcmVtaWVyZV9nZW5fc3BlY2lhbGl0ZSJdLCJhdWQiOiJuZXh1cy1yYWctZW5naW5lIiwiZXhwIjoxNzg1MzIwNDAwLCJpYXQiOjE3ODUzMjAzNzAsImlkZW50aXR5Ijp7ImF1ZCI6Im5leHVzLXJhZy1lbmdpbmUiLCJleHAiOjE3ODUzMjA0MDAsImlzcyI6Im5leHVzLWNvY2twaXQiLCJqdGkiOiJhcmlhLWZpeHR1cmUtanRpLTAwMSIsIm5pdmVhdSI6InByZW1pZXJlIiwicGVkYWdvZ2ljYWxfcHJvZmlsZSI6eyJhdWRpZW5jZSI6ImFlZmUiLCJjYW5kaWRhdCI6InNjb2xhcmlzZSIsIm1hdGllcmVzIjpbIm1hdGhlbWF0aXF1ZXMiXSwic3RhdHV0X2Vuc2VpZ25lbWVudCI6InNwZWNpYWxpdGUiLCJ2b2llIjoiZ2VuZXJhbGUifSwicm9sZSI6InN0dWRlbnQiLCJzY2hvb2xfeWVhciI6IjIwMjYtMjAyNyIsInN1YiI6InBzbl8xMjM0NTY3ODkwYWJjZGVmIiwidGVuYW50IjoibmV4dXMifSwiaXNzIjoibmV4dXMtY29ja3BpdCIsImp0aSI6ImFyaWEtZml4dHVyZS1qdGktMDAxIiwibWFuaWZlc3Rfc2hhMjU2IjoiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyIsInByb3RvY29sX3ZlcnNpb24iOiIxIiwicmVxdWVzdF9zaGEyNTYiOiJiNGM1NjQ1Y2M3NTljNTM3NGIzZjUyYTgzNzZhYmY3N2FmZGMzM2VmM2IxNDJmNzQyMjdhOWNjNzYxYTljNzExIiwic2NvcGVfZGlnZXN0IjoiZGYyNzJkYTQ2YmU2NDY1YTQ2YjI4MDUyZDNhNWI3MDZhYjVhMmIyMWM4ZTc1Y2VmZGQxMjRkZjk2N2IzYTE5ZiIsInNjb3BlX2lkIjoiYXJpYV9tYXRoc19wcmVtaWVyZV92MSIsInN1YiI6InBzbl8xMjM0NTY3ODkwYWJjZGVmIn0=",
+  "envelope": {
+    "allowed_collections": [
+      "rag_nexus_maths_premiere_gen_specialite"
+    ],
+    "aud": "nexus-rag-engine",
+    "exp": 1785320400,
+    "iat": 1785320370,
+    "identity": {
+      "aud": "nexus-rag-engine",
+      "exp": 1785320400,
+      "iss": "nexus-cockpit",
+      "jti": "aria-fixture-jti-001",
+      "niveau": "premiere",
+      "pedagogical_profile": {
+        "audience": "aefe",
+        "candidat": "scolarise",
+        "matieres": [
+          "mathematiques"
+        ],
+        "statut_enseignement": "specialite",
+        "voie": "generale"
+      },
+      "role": "student",
+      "school_year": "2026-2027",
+      "sub": "psn_1234567890abcdef",
+      "tenant": "nexus"
+    },
+    "iss": "nexus-cockpit",
+    "jti": "aria-fixture-jti-001",
+    "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "protocol_version": "1",
+    "request_sha256": "b4c5645cc759c5374b3f52a8376abf77afdc33ef3b142f74227a9cc761a9c711",
+    "scope_digest": "df272da46be6465a46b28052d3a5b706ab5a2b21c8e75cefdd124df967b3a19f",
+    "scope_id": "aria_maths_premiere_v1",
+    "sub": "psn_1234567890abcdef"
+  },
+  "fixtureVersion": 1,
+  "jwt": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhbGxvd2VkX2NvbGxlY3Rpb25zIjpbInJhZ19uZXh1c19tYXRoc19wcmVtaWVyZV9nZW5fc3BlY2lhbGl0ZSJdLCJhdWQiOiJuZXh1cy1yYWctZW5naW5lIiwiZXhwIjoxNzg1MzIwNDAwLCJpYXQiOjE3ODUzMjAzNzAsImlkZW50aXR5Ijp7ImF1ZCI6Im5leHVzLXJhZy1lbmdpbmUiLCJleHAiOjE3ODUzMjA0MDAsImlzcyI6Im5leHVzLWNvY2twaXQiLCJqdGkiOiJhcmlhLWZpeHR1cmUtanRpLTAwMSIsIm5pdmVhdSI6InByZW1pZXJlIiwicGVkYWdvZ2ljYWxfcHJvZmlsZSI6eyJhdWRpZW5jZSI6ImFlZmUiLCJjYW5kaWRhdCI6InNjb2xhcmlzZSIsIm1hdGllcmVzIjpbIm1hdGhlbWF0aXF1ZXMiXSwic3RhdHV0X2Vuc2VpZ25lbWVudCI6InNwZWNpYWxpdGUiLCJ2b2llIjoiZ2VuZXJhbGUifSwicm9sZSI6InN0dWRlbnQiLCJzY2hvb2xfeWVhciI6IjIwMjYtMjAyNyIsInN1YiI6InBzbl8xMjM0NTY3ODkwYWJjZGVmIiwidGVuYW50IjoibmV4dXMifSwiaXNzIjoibmV4dXMtY29ja3BpdCIsImp0aSI6ImFyaWEtZml4dHVyZS1qdGktMDAxIiwibWFuaWZlc3Rfc2hhMjU2IjoiY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjYyIsInByb3RvY29sX3ZlcnNpb24iOiIxIiwicmVxdWVzdF9zaGEyNTYiOiJiNGM1NjQ1Y2M3NTljNTM3NGIzZjUyYTgzNzZhYmY3N2FmZGMzM2VmM2IxNDJmNzQyMjdhOWNjNzYxYTljNzExIiwic2NvcGVfZGlnZXN0IjoiZGYyNzJkYTQ2YmU2NDY1YTQ2YjI4MDUyZDNhNWI3MDZhYjVhMmIyMWM4ZTc1Y2VmZGQxMjRkZjk2N2IzYTE5ZiIsInNjb3BlX2lkIjoiYXJpYV9tYXRoc19wcmVtaWVyZV92MSIsInN1YiI6InBzbl8xMjM0NTY3ODkwYWJjZGVmIn0.hxu1vJu255Z24InneBOMRfOhB9hRcVDN0Am0OOsWXhA",
+  "publicTestKeyDerivation": "ARIA-B-cross-language-public-test-vector-v1",
+  "request": {
+    "corpus_id": "aria-maths-premiere",
+    "corpus_version_id": "2026-08-30.1",
+    "curriculum_scope": {
+      "matiere": "mathematiques",
+      "niveau": "premiere",
+      "statut_enseignement": "specialite",
+      "voie": "generale"
+    },
+    "manifest_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "need": {
+      "desired_doc_types": [],
+      "difficulty_max": null,
+      "intent": "context",
+      "notions": [],
+      "query": "Dérivation et tangente"
+    },
+    "retrieval": {
+      "hybrid": true,
+      "include_citations": true,
+      "k": 8,
+      "rerank": true
+    },
+    "student_profile": {
+      "availability": {},
+      "candidat": "scolarise",
+      "candidate_status_ref": null,
+      "establishment": null,
+      "matieres": [
+        "mathematiques"
+      ],
+      "needs": [],
+      "nexus_group_id": null,
+      "nexus_offer": null,
+      "niveau": "premiere",
+      "objective": null,
+      "official_level_ref": null,
+      "options": [],
+      "risk_level": null,
+      "school_calendar_zone": null,
+      "school_year": "2026-2027",
+      "specialites": [],
+      "status_detail": "aefe",
+      "statut_enseignement": "specialite",
+      "student_id": null,
+      "target_pathway": null,
+      "teacher_confirmed": false,
+      "voie": "generale",
+      "warnings": [],
+      "zone": "aefe"
+    }
+  },
+  "requestSha256": "b4c5645cc759c5374b3f52a8376abf77afdc33ef3b142f74227a9cc761a9c711",
+  "retrievalScope": {
+    "artifact_version": "3",
+    "evidence_subject": {
+      "audiences": [
+        "aefe",
+        "tous"
+      ],
+      "candidat": "scolarise",
+      "collection": "rag_nexus_maths_premiere_gen_specialite",
+      "matiere": "mathematiques",
+      "niveau": "premiere",
+      "programme_version": "fr-national-2026",
+      "rights": [
+        "officiel_public"
+      ],
+      "school_year": "2026-2027",
+      "statut_enseignement": "specialite",
+      "tenant": "nexus",
+      "visibility": "public",
+      "voie": "generale"
+    },
+    "scope_id": "aria_maths_premiere_v1",
+    "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "status": "eligible_for_promotion",
+    "target_policy": {
+      "audiences": [
+        "aefe",
+        "libre"
+      ],
+      "candidates": [
+        "scolarise",
+        "aefe",
+        "libre"
+      ],
+      "matiere": "mathematiques",
+      "niveau": "premiere",
+      "roles": [
+        "student"
+      ],
+      "statut_enseignement": "specialite",
+      "tenant": "nexus",
+      "voie": "generale"
+    }
+  },
+  "retrievalScopeSha256": "df272da46be6465a46b28052d3a5b706ab5a2b21c8e75cefdd124df967b3a19f"
+}

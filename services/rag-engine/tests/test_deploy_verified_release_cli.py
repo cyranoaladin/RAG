@@ -59,10 +59,11 @@ from tests.test_sign_production_readiness_manifest_cli import (
     UPSTREAM_IMAGE_SERVICE as V2_UPSTREAM_IMAGE_SERVICE,
 )
 from tests.test_sign_production_readiness_manifest_cli import (
-    WORKFLOW_REF as V2_WORKFLOW_REF,
+    V2_NOW,
+    _v2_material,
 )
 from tests.test_sign_production_readiness_manifest_cli import (
-    _v2_material,
+    WORKFLOW_REF as V2_WORKFLOW_REF,
 )
 from tests.test_verify_release_image_provenance_cli import (  # noqa: E402
     _dummy_compose_env,
@@ -608,8 +609,14 @@ class TestReadinessManifestV2ExactMaterialVerification:
             )
 
     def test_v2_bundle_materializes_and_reverifies_every_governance_file(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        class FixtureClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return V2_NOW
+
+        monkeypatch.setattr(dep, "datetime", FixtureClock)
         material = _v2_material()
         effective_set = tmp_path / "effective-authorization-set.json"
         effective_set.write_bytes(material.authorization_set_raw)

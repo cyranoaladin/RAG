@@ -1,0 +1,596 @@
+{
+  "$defs": {
+    "Candidat": {
+      "enum": [
+        "scolarise",
+        "individuel",
+        "libre",
+        "cned_reglemente",
+        "cned_libre",
+        "aefe",
+        "both"
+      ],
+      "title": "Candidat",
+      "type": "string"
+    },
+    "ChunkLocator": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chunk Index"
+        },
+        "end_char": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Char"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "page_end": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page End"
+        },
+        "page_start": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Start"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "start_char": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Char"
+        }
+      },
+      "title": "ChunkLocator",
+      "type": "object"
+    },
+    "CorpusChunkBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/ChunkLocator"
+        }
+      },
+      "required": [
+        "chunk_id",
+        "locator"
+      ],
+      "title": "CorpusChunkBinding",
+      "type": "object"
+    },
+    "CorpusResourceVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "chunks": {
+          "items": {
+            "$ref": "#/$defs/CorpusChunkBinding"
+          },
+          "minItems": 1,
+          "title": "Chunks",
+          "type": "array"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "resource_id": {
+          "format": "uuid",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "resource_version_id": {
+          "format": "uuid",
+          "title": "Resource Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id",
+        "resource_version_id",
+        "content_sha256",
+        "chunks"
+      ],
+      "title": "CorpusResourceVersion",
+      "type": "object"
+    },
+    "Niveau": {
+      "enum": [
+        "quatrieme",
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "RetrievalScopeArtifactV3": {
+      "additionalProperties": false,
+      "description": "ARIA scope separating target authorization from indexed evidence.",
+      "properties": {
+        "artifact_version": {
+          "const": "3",
+          "title": "Artifact Version",
+          "type": "string"
+        },
+        "evidence_subject": {
+          "$ref": "#/$defs/RetrievalScopeEvidenceSubject"
+        },
+        "scope_id": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Scope Id",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "status": {
+          "const": "eligible_for_promotion",
+          "title": "Status",
+          "type": "string"
+        },
+        "target_policy": {
+          "$ref": "#/$defs/RetrievalScopeTargetPolicy"
+        }
+      },
+      "required": [
+        "artifact_version",
+        "scope_id",
+        "status",
+        "source_sha256",
+        "target_policy",
+        "evidence_subject"
+      ],
+      "title": "RetrievalScopeArtifactV3",
+      "type": "object"
+    },
+    "RetrievalScopeEvidenceSubject": {
+      "additionalProperties": false,
+      "description": "Dimensions SQL autoritatives de la preuve curriculaire V2.",
+      "properties": {
+        "audiences": {
+          "items": {
+            "enum": [
+              "libre",
+              "aefe",
+              "tous"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Audiences",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "candidat": {
+          "$ref": "#/$defs/Candidat"
+        },
+        "collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "rights": {
+          "items": {
+            "$ref": "#/$defs/Rights"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Rights",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "school_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "School Year",
+          "type": "string"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "visibility": {
+          "enum": [
+            "public",
+            "internal",
+            "restricted",
+            "private"
+          ],
+          "title": "Visibility",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "collection",
+        "tenant",
+        "niveau",
+        "voie",
+        "matiere",
+        "statut_enseignement",
+        "candidat",
+        "audiences",
+        "visibility",
+        "rights",
+        "school_year",
+        "programme_version"
+      ],
+      "title": "RetrievalScopeEvidenceSubject",
+      "type": "object"
+    },
+    "RetrievalScopeTargetPolicy": {
+      "additionalProperties": false,
+      "description": "Non-personal ARIA audience policy, separate from corpus evidence.",
+      "properties": {
+        "audiences": {
+          "items": {
+            "enum": [
+              "libre",
+              "aefe",
+              "tous"
+            ],
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Audiences",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/Candidat"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Candidates",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "roles": {
+          "items": {
+            "enum": [
+              "student",
+              "teacher",
+              "admin",
+              "ingest_agent",
+              "reviewer"
+            ],
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 1,
+          "title": "Roles",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "tenant": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Tenant",
+          "type": "string"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "tenant",
+        "niveau",
+        "voie",
+        "matiere",
+        "statut_enseignement",
+        "audiences",
+        "candidates",
+        "roles"
+      ],
+      "title": "RetrievalScopeTargetPolicy",
+      "type": "object"
+    },
+    "Rights": {
+      "enum": [
+        "officiel_public",
+        "public_allowed",
+        "nexus_proprietaire",
+        "usage_interne",
+        "student_private",
+        "parent_private",
+        "commercial_confidential",
+        "restricted",
+        "unknown"
+      ],
+      "title": "Rights",
+      "type": "string"
+    },
+    "ServableCorpus": {
+      "additionalProperties": false,
+      "properties": {
+        "academic_year": {
+          "pattern": "^\\d{4}-\\d{4}$",
+          "title": "Academic Year",
+          "type": "string"
+        },
+        "corpus_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Corpus Id",
+          "type": "string"
+        },
+        "corpus_version_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Corpus Version Id",
+          "type": "string"
+        },
+        "curriculum_version": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Curriculum Version",
+          "type": "string"
+        },
+        "physical_collection": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Physical Collection",
+          "type": "string"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/CorpusResourceVersion"
+          },
+          "minItems": 1,
+          "title": "Resources",
+          "type": "array"
+        },
+        "retrieval_scope": {
+          "$ref": "#/$defs/RetrievalScopeArtifactV3"
+        }
+      },
+      "required": [
+        "corpus_id",
+        "corpus_version_id",
+        "academic_year",
+        "curriculum_version",
+        "physical_collection",
+        "retrieval_scope",
+        "resources"
+      ],
+      "title": "ServableCorpus",
+      "type": "object"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-manifest-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "corpora": {
+      "items": {
+        "$ref": "#/$defs/ServableCorpus"
+      },
+      "minItems": 1,
+      "title": "Corpora",
+      "type": "array"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Sha256",
+      "type": "string"
+    },
+    "manifest_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Manifest Version",
+      "type": "string"
+    },
+    "producer_commit": {
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "title": "Producer Commit",
+      "type": "string"
+    },
+    "producer_repository": {
+      "maxLength": 200,
+      "minLength": 3,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "title": "Producer Repository",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "resource_registry_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Resource Registry Sha256",
+      "type": "string"
+    },
+    "resource_registry_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Resource Registry Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "manifest_version",
+    "resource_registry_version",
+    "resource_registry_sha256",
+    "producer_repository",
+    "producer_commit",
+    "generated_at",
+    "corpora",
+    "manifest_sha256"
+  ],
+  "title": "ServableCorpusManifest",
+  "type": "object"
+}

@@ -24,6 +24,7 @@ ROOT_README = REPOSITORY_ROOT / "README.md"
 ENGINE_PROD_README = ENGINE_ROOT / "README-PROD.md"
 ENGINE_AGENTS = ENGINE_ROOT / "AGENTS.md"
 V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
+V2_COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 MAKEFILE = ENGINE_ROOT / "Makefile"
 
 
@@ -139,6 +140,8 @@ def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
         "/health",
         "/metrics",
         "/search/v2",
+        "/corpora/servable/v1",
+        "/corpora/servable/v1/{manifest_sha256}",
         "/chat",
         "/collections/v2",
         "/catalogue/v2",
@@ -1155,6 +1158,8 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "reranker_contract.py",
         "schema_readiness_v2.py",
         "security_v2.py",
+        "servable_corpus_api.py",
+        "servable_corpus_index.py",
     ):
         assert f"services/rag-engine/src/ingestor/{required_module}" in content
     assert "infra/postgres/migrations/ /app/migrations/" in content
@@ -1295,6 +1300,8 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
         "RAG_EMBEDDING_MODEL_INVENTORY_SHA256=",
         "RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR=",
         "RAG_RERANKER_MODEL_INVENTORY_SHA256=",
+        "RAG_SERVABLE_CORPUS_HOST_DIR=",
+        "RAG_SERVABLE_CORPUS_INDEX_SHA256=",
     ):
         assert required_env in env_example
     for forbidden_env in (
@@ -1307,6 +1314,22 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
 
     assert "envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}'" in runbook
     assert "envsubst < infra/nginx/rag-api.conf.template" not in runbook
+
+
+def test_v2_runtime_mounts_the_externally_pinned_servable_corpus_read_only() -> None:
+    compose = V2_COMPOSE.read_text(encoding="utf-8")
+
+    assert (
+        "RAG_SERVABLE_CORPUS_DIRECTORY: /app/servable-corpus" in compose
+    )
+    assert (
+        'RAG_SERVABLE_CORPUS_INDEX_SHA256: "${RAG_SERVABLE_CORPUS_INDEX_SHA256:'
+        "?empreinte SHA-256 externe du registre de corpus servables requise}"
+    ) in compose
+    assert (
+        "${RAG_SERVABLE_CORPUS_HOST_DIR:?répertoire hôte des corpus servables "
+        "requis}:/app/servable-corpus:ro"
+    ) in compose
 
 
 def test_integration_make_target_exposes_the_ingestor_package() -> None:

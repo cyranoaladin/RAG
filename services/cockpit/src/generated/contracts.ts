@@ -11,11 +11,14 @@ export type ContractBundle =
   | InternalIdentityEnvelope
   | PilotRetrievalScopeArtifact
   | RetrievalScopeArtifactV2
+  | RetrievalScopeArtifactV3
   | ReviewQueuePayload
   | ReviewDecisionPayload
   | ReviewDecisionRequest
   | ReviewQueueResponse
   | ReviewDecisionResponse;
+export type CorpusId = string | null;
+export type CorpusVersionId = string | null;
 export type Matiere = string;
 export type Niveau =
   | 'quatrieme'
@@ -44,6 +47,7 @@ export type StatutEnseignement =
   | 'examen'
   | 'unknown';
 export type Voie = 'college' | 'generale' | 'technologique' | 'professionnelle' | 'aefe' | 'unknown';
+export type ManifestSha256 = string | null;
 export type TypeDoc =
   | 'programme_officiel'
   | 'ressource_officielle'
@@ -123,8 +127,21 @@ export type Page = number | null;
 export type Rights = string;
 export type SourceLabel = string;
 export type SourceUri = string;
+export type ContentSha256 = string | null;
+export type CorpusId1 = string | null;
+export type CorpusVersionId1 = string | null;
 export type DocId = string;
 export type Excerpt = string;
+export type ChunkIndex = number | null;
+export type EndChar = number | null;
+export type Page1 = number | null;
+export type PageEnd = number | null;
+export type PageStart = number | null;
+export type Section = string | null;
+export type StartChar = number | null;
+export type ManifestSha2561 = string | null;
+export type ResourceId = string | null;
+export type ResourceVersionId = string | null;
 export type Score = number;
 export type Title = string | null;
 export type Results = RetrievalResult[];
@@ -153,7 +170,7 @@ export type TopK1 = number;
 export type Answer = string;
 export type ChunkId1 = string;
 export type DocId1 = string;
-export type Page1 = number | null;
+export type Page2 = number | null;
 export type Rights1 = string;
 export type SourceLabel1 = string;
 export type SourceUri1 = string;
@@ -329,7 +346,9 @@ export type Exp1 = number;
 export type Iat = number;
 export type Iss1 = string;
 export type Jti1 = string;
+export type ManifestSha2562 = string | null;
 export type ProtocolVersion = '1';
+export type RequestSha256 = string | null;
 export type ScopeDigest = string;
 export type ScopeId = string;
 export type Sub1 = string;
@@ -795,6 +814,144 @@ export type Candidates1 =
     ];
 export type Matiere3 = string;
 export type Tenant3 = string;
+export type ArtifactVersion2 = '3';
+export type ScopeId3 = string;
+export type SourceSha2562 = string;
+export type Status2 = 'eligible_for_promotion';
+/**
+ * @minItems 1
+ * @maxItems 3
+ */
+export type Audiences1 =
+  | ['libre' | 'aefe' | 'tous']
+  | ['libre' | 'aefe' | 'tous', 'libre' | 'aefe' | 'tous']
+  | ['libre' | 'aefe' | 'tous', 'libre' | 'aefe' | 'tous', 'libre' | 'aefe' | 'tous'];
+/**
+ * @minItems 1
+ * @maxItems 16
+ */
+export type Candidates2 =
+  | [Candidat]
+  | [Candidat, Candidat]
+  | [Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat, Candidat]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ]
+  | [
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat,
+      Candidat
+    ];
+export type Matiere4 = string;
+/**
+ * @minItems 1
+ * @maxItems 5
+ */
+export type Roles =
+  | ['student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer']
+  | [
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer'
+    ]
+  | [
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer'
+    ]
+  | [
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer'
+    ]
+  | [
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer',
+      'student' | 'teacher' | 'admin' | 'ingest_agent' | 'reviewer'
+    ];
+export type Tenant4 = string;
 export type Collection2 = string | null;
 export type Limit = number;
 export type Offset = number;
@@ -806,7 +963,7 @@ export type Collection4 = string | null;
 export type Decision1 = 'reviewed' | 'quarantined';
 export type TargetId1 = string;
 export type TargetType1 = 'doc' | 'chunk';
-export type Tenant4 = string;
+export type Tenant5 = string;
 export type ChunkCount = number;
 export type Collection5 = string;
 export type DocId2 = string;
@@ -829,7 +986,10 @@ export type TargetId2 = string;
 export type TargetType2 = 'doc' | 'chunk';
 
 export interface RetrievalRequest {
+  corpus_id?: CorpusId;
+  corpus_version_id?: CorpusVersionId;
   curriculum_scope?: RetrievalCurriculumScope | null;
+  manifest_sha256?: ManifestSha256;
   need: RetrievalNeed;
   retrieval?: RetrievalOptions;
   student_profile: StudentProfile;
@@ -896,9 +1056,16 @@ export interface FiltersApplied {
 export interface RetrievalResult {
   chunk_id: ChunkId;
   citation?: Citation | null;
+  content_sha256?: ContentSha256;
+  corpus_id?: CorpusId1;
+  corpus_version_id?: CorpusVersionId1;
   doc_id: DocId;
   excerpt: Excerpt;
+  locator?: ChunkLocator | null;
+  manifest_sha256?: ManifestSha2561;
   metadata?: Metadata;
+  resource_id?: ResourceId;
+  resource_version_id?: ResourceVersionId;
   score: Score;
   title?: Title;
 }
@@ -907,6 +1074,15 @@ export interface Citation {
   rights: Rights;
   source_label: SourceLabel;
   source_uri: SourceUri;
+}
+export interface ChunkLocator {
+  chunk_index?: ChunkIndex;
+  end_char?: EndChar;
+  page?: Page1;
+  page_end?: PageEnd;
+  page_start?: PageStart;
+  section?: Section;
+  start_char?: StartChar;
 }
 export interface Metadata {
   [k: string]: unknown;
@@ -952,7 +1128,7 @@ export interface ChatResponse {
 export interface ChatCitation {
   chunk_id: ChunkId1;
   doc_id: DocId1;
-  page?: Page1;
+  page?: Page2;
   rights: Rights1;
   source_label: SourceLabel1;
   source_uri: SourceUri1;
@@ -993,7 +1169,9 @@ export interface InternalIdentityEnvelope {
   identity: InternalIdentity;
   iss: Iss1;
   jti: Jti1;
+  manifest_sha256?: ManifestSha2562;
   protocol_version: ProtocolVersion;
+  request_sha256?: RequestSha256;
   scope_digest: ScopeDigest;
   scope_id: ScopeId;
   sub: Sub1;
@@ -1070,6 +1248,30 @@ export interface RetrievalScopeTargetIdentity {
   voie: Voie;
 }
 /**
+ * ARIA scope separating target authorization from indexed evidence.
+ */
+export interface RetrievalScopeArtifactV3 {
+  artifact_version: ArtifactVersion2;
+  evidence_subject: RetrievalScopeEvidenceSubject;
+  scope_id: ScopeId3;
+  source_sha256: SourceSha2562;
+  status: Status2;
+  target_policy: RetrievalScopeTargetPolicy;
+}
+/**
+ * Non-personal ARIA audience policy, separate from corpus evidence.
+ */
+export interface RetrievalScopeTargetPolicy {
+  audiences: Audiences1;
+  candidates: Candidates2;
+  matiere: Matiere4;
+  niveau: Niveau;
+  roles: Roles;
+  statut_enseignement: StatutEnseignement;
+  tenant: Tenant4;
+  voie: Voie;
+}
+/**
  * Paramètres navigateur vers BFF pour consulter la file de review.
  */
 export interface ReviewQueuePayload {
@@ -1094,7 +1296,7 @@ export interface ReviewDecisionRequest {
   decision: Decision1;
   target_id: TargetId1;
   target_type?: TargetType1;
-  tenant: Tenant4;
+  tenant: Tenant5;
 }
 /**
  * Page de documents en attente retournée par le moteur.

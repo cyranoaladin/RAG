@@ -372,7 +372,7 @@ def _mock_retrieval_identity(endpoint: object, monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(
         endpoint,
         "_require_retrieval_identity",
-        lambda _request, *, endpoint: verified,
+        lambda _request, *, endpoint, payload=None: verified,
     )
     monkeypatch.setattr(
         endpoint,
@@ -550,7 +550,7 @@ class TestSearchV2Request:
         route = next(route for route in endpoint.router.routes if route.path == "/search/v2")
 
         assert route.body_field is not None
-        assert route.body_field.type_ is RetrievalRequest
+        assert route.body_field.field_info.annotation is RetrievalRequest
         assert route.response_model is RetrievalResponse
 
     def test_valid_request(self) -> None:

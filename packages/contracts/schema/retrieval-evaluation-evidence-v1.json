@@ -1,0 +1,420 @@
+{
+  "$defs": {
+    "ChunkLocator": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Chunk Index"
+        },
+        "end_char": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Char"
+        },
+        "page": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page"
+        },
+        "page_end": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page End"
+        },
+        "page_start": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Start"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "start_char": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Char"
+        }
+      },
+      "title": "ChunkLocator",
+      "type": "object"
+    },
+    "RetrievalEvaluationConfigurationV1": {
+      "additionalProperties": false,
+      "properties": {
+        "embedding_model": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Embedding Model",
+          "type": "string"
+        },
+        "hybrid": {
+          "title": "Hybrid",
+          "type": "boolean"
+        },
+        "rerank": {
+          "title": "Rerank",
+          "type": "boolean"
+        },
+        "reranker_model": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Reranker Model",
+          "type": "string"
+        },
+        "top_k": {
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Top K",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "top_k",
+        "hybrid",
+        "rerank",
+        "embedding_model",
+        "reranker_model"
+      ],
+      "title": "RetrievalEvaluationConfigurationV1",
+      "type": "object"
+    },
+    "RetrievalEvaluationHitV1": {
+      "additionalProperties": false,
+      "properties": {
+        "chunk_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Chunk Id",
+          "type": "string"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "locator": {
+          "$ref": "#/$defs/ChunkLocator"
+        },
+        "resource_id": {
+          "format": "uuid",
+          "title": "Resource Id",
+          "type": "string"
+        },
+        "resource_version_id": {
+          "format": "uuid",
+          "title": "Resource Version Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "resource_id",
+        "resource_version_id",
+        "content_sha256",
+        "chunk_id",
+        "locator"
+      ],
+      "title": "RetrievalEvaluationHitV1",
+      "type": "object"
+    },
+    "RetrievalEvaluationMetricsV1": {
+      "additionalProperties": false,
+      "properties": {
+        "citation_support": {
+          "ge": 0,
+          "le": 1,
+          "title": "Citation Support",
+          "type": "number"
+        },
+        "empty_answer_rate": {
+          "ge": 0,
+          "le": 1,
+          "title": "Empty Answer Rate",
+          "type": "number"
+        },
+        "filter_leak_rate": {
+          "ge": 0,
+          "le": 1,
+          "title": "Filter Leak Rate",
+          "type": "number"
+        },
+        "latency_ms_p95": {
+          "ge": 0,
+          "title": "Latency Ms P95",
+          "type": "number"
+        },
+        "mrr": {
+          "ge": 0,
+          "le": 1,
+          "title": "Mrr",
+          "type": "number"
+        },
+        "ndcg_at_10": {
+          "ge": 0,
+          "le": 1,
+          "title": "Ndcg At 10",
+          "type": "number"
+        },
+        "recall_at_10": {
+          "ge": 0,
+          "le": 1,
+          "title": "Recall At 10",
+          "type": "number"
+        },
+        "recall_at_20": {
+          "ge": 0,
+          "le": 1,
+          "title": "Recall At 20",
+          "type": "number"
+        },
+        "recall_at_5": {
+          "ge": 0,
+          "le": 1,
+          "title": "Recall At 5",
+          "type": "number"
+        }
+      },
+      "required": [
+        "recall_at_5",
+        "recall_at_10",
+        "recall_at_20",
+        "ndcg_at_10",
+        "mrr",
+        "filter_leak_rate",
+        "citation_support",
+        "empty_answer_rate",
+        "latency_ms_p95"
+      ],
+      "title": "RetrievalEvaluationMetricsV1",
+      "type": "object"
+    },
+    "RetrievalEvaluationQueryResultV1": {
+      "additionalProperties": false,
+      "properties": {
+        "hits": {
+          "items": {
+            "$ref": "#/$defs/RetrievalEvaluationHitV1"
+          },
+          "title": "Hits",
+          "type": "array"
+        },
+        "latency_ms": {
+          "ge": 0,
+          "title": "Latency Ms",
+          "type": "number"
+        },
+        "query_id": {
+          "maxLength": 64,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "title": "Query Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query_id",
+        "latency_ms",
+        "hits"
+      ],
+      "title": "RetrievalEvaluationQueryResultV1",
+      "type": "object"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-evaluation-evidence-v1.json",
+  "additionalProperties": false,
+  "properties": {
+    "automated_gate_pass": {
+      "title": "Automated Gate Pass",
+      "type": "boolean"
+    },
+    "corpus_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Corpus Id",
+      "type": "string"
+    },
+    "corpus_version_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Corpus Version Id",
+      "type": "string"
+    },
+    "evidence_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Evidence Sha256",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "golden_suite_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Golden Suite Sha256",
+      "type": "string"
+    },
+    "human_review_status": {
+      "const": "PENDING_HUMAN_REVIEW",
+      "title": "Human Review Status",
+      "type": "string"
+    },
+    "index_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Index Sha256",
+      "type": "string"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Sha256",
+      "type": "string"
+    },
+    "manifest_version": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Manifest Version",
+      "type": "string"
+    },
+    "metrics": {
+      "$ref": "#/$defs/RetrievalEvaluationMetricsV1"
+    },
+    "producer_commit": {
+      "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+      "title": "Producer Commit",
+      "type": "string"
+    },
+    "producer_repository": {
+      "maxLength": 200,
+      "minLength": 3,
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "title": "Producer Repository",
+      "type": "string"
+    },
+    "promotion_status": {
+      "const": "BLOCKED_PENDING_HUMAN_REVIEW",
+      "title": "Promotion Status",
+      "type": "string"
+    },
+    "protocol_version": {
+      "const": "1",
+      "title": "Protocol Version",
+      "type": "string"
+    },
+    "query_results": {
+      "items": {
+        "$ref": "#/$defs/RetrievalEvaluationQueryResultV1"
+      },
+      "minItems": 1,
+      "title": "Query Results",
+      "type": "array"
+    },
+    "resource_registry_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Resource Registry Sha256",
+      "type": "string"
+    },
+    "retrieval_configuration": {
+      "$ref": "#/$defs/RetrievalEvaluationConfigurationV1"
+    },
+    "scope_id": {
+      "maxLength": 64,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9_.:-]+$",
+      "title": "Scope Id",
+      "type": "string"
+    },
+    "scope_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Scope Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_version",
+    "producer_repository",
+    "producer_commit",
+    "generated_at",
+    "index_sha256",
+    "manifest_sha256",
+    "manifest_version",
+    "resource_registry_sha256",
+    "corpus_id",
+    "corpus_version_id",
+    "scope_id",
+    "scope_sha256",
+    "golden_suite_sha256",
+    "retrieval_configuration",
+    "metrics",
+    "query_results",
+    "automated_gate_pass",
+    "human_review_status",
+    "promotion_status",
+    "evidence_sha256"
+  ],
+  "title": "RetrievalEvaluationEvidenceV1",
+  "type": "object"
+}

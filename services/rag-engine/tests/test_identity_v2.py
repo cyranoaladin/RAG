@@ -7,11 +7,13 @@ import hashlib
 import hmac
 import json
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
 from nexus_contracts import (
     RetrievalScopeArtifactV2,
+    RetrievalScopeArtifactV3,
     load_pilot_retrieval_scope,
     load_retrieval_scope_artifact,
     load_retrieval_scope_registry,
@@ -154,6 +156,39 @@ def test_valid_signed_envelope_is_bound_to_the_canonical_artifact() -> None:
     assert verified.envelope.identity.tenant == "libre_terminale"
     assert verified.artifact is TEST_CONFIG.artifact
     assert verified.scope_digest == TEST_CONFIG.artifact.sha256_digest()
+
+
+def test_shared_manifest_bound_identity_fixture_verifies_with_runtime() -> None:
+    fixture_path = (
+        Path(__file__).resolve().parents[3]
+        / "packages"
+        / "contracts"
+        / "fixtures"
+        / "internal-identity-envelope-v1.json"
+    )
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+    artifact = RetrievalScopeArtifactV3.model_validate(fixture["retrievalScope"])
+    public_test_key = hashlib.sha256(
+        fixture["publicTestKeyDerivation"].encode("utf-8")
+    ).hexdigest()
+    config = IdentityVerifierConfig(
+        secret=public_test_key,
+        issuer=fixture["envelope"]["iss"],
+        audience=fixture["envelope"]["aud"],
+        identity_issuer=fixture["envelope"]["identity"]["iss"],
+        identity_audience=fixture["envelope"]["identity"]["aud"],
+        artifact=artifact,
+        artifacts={artifact.scope_id: artifact},
+    )
+
+    verified = verify_identity_token(
+        fixture["jwt"],
+        config=config,
+        now=fixture["envelope"]["iat"],
+    )
+
+    assert verified.artifact == artifact
+    assert verified.scope_digest == fixture["retrievalScopeSha256"]
 
 
 def test_signed_envelope_selects_the_exact_wave0_scope_from_registry() -> None:

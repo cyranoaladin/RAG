@@ -20,6 +20,7 @@ from nexus_contracts.document import (
     StrictBaseModel,
     Voie,
 )
+from nexus_contracts.canonical_json import canonical_model_bytes
 
 JS_SAFE_INTEGER = 9_007_199_254_740_991
 
@@ -69,6 +70,13 @@ StrictTimestamp = Annotated[
 ]
 
 
+def require_consecutive_school_year(value: str) -> str:
+    start, end = (int(part) for part in value.split("-"))
+    if end != start + 1:
+        raise ValueError("school_year must use the form YYYY-YYYY+1")
+    return value
+
+
 class PedagogicalProfile(StrictBaseModel):
     """Sous-ensemble pédagogique fermé, sans identifiant ni champ libre."""
 
@@ -110,10 +118,7 @@ class InternalIdentity(StrictBaseModel):
     @field_validator("school_year")
     @classmethod
     def validate_school_year(cls, value: str) -> str:
-        start, end = (int(part) for part in value.split("-"))
-        if end != start + 1:
-            raise ValueError("school_year must use the form YYYY-YYYY+1")
-        return value
+        return require_consecutive_school_year(value)
 
 
 class InternalIdentityEnvelope(StrictBaseModel):
@@ -129,6 +134,8 @@ class InternalIdentityEnvelope(StrictBaseModel):
     identity: InternalIdentity
     scope_id: BoundedSlug
     scope_digest: Sha256Digest
+    request_sha256: Sha256Digest | None = None
+    manifest_sha256: Sha256Digest | None = None
     allowed_collections: list[CollectionName] = Field(
         min_length=1,
         max_length=16,
@@ -152,11 +159,24 @@ class InternalIdentityEnvelope(StrictBaseModel):
             raise ValueError("exp cannot exceed identity.exp")
         if self.iat > self.exp:
             raise ValueError("iat cannot exceed exp")
+        if (self.request_sha256 is None) != (self.manifest_sha256 is None):
+            raise ValueError(
+                "request_sha256 and manifest_sha256 must be provided together"
+            )
+        if self.request_sha256 is not None and self.exp - self.iat > 30:
+            raise ValueError("manifest-bound envelopes cannot exceed 30 seconds")
         return self
+
+
+def canonical_identity_envelope_bytes(envelope: InternalIdentityEnvelope) -> bytes:
+    """Return stable bytes for cross-runtime signing and verification."""
+
+    return canonical_model_bytes(envelope)
 
 
 __all__ = [
     "InternalIdentity",
     "InternalIdentityEnvelope",
     "PedagogicalProfile",
+    "canonical_identity_envelope_bytes",
 ]

@@ -15,8 +15,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e packages/contracts
-      - run: python -c "from nexus_contracts import RetrievalRequest, StudentProfile; print('OK')"
+      - run: pip install -e 'packages/contracts[dev]'
+      - run: python -m pytest packages/contracts/tests -q
+      - run: python packages/contracts/scripts/export_schemas.py --output packages/contracts/schema --check
 
   pdf-page-policy:
     name: "packages/pdf-page-policy"

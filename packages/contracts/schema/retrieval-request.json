@@ -447,6 +447,36 @@
   "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-request.json",
   "additionalProperties": false,
   "properties": {
+    "corpus_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Corpus Id"
+    },
+    "corpus_version_id": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9_.:-]+$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Corpus Version Id"
+    },
     "curriculum_scope": {
       "anyOf": [
         {
@@ -457,6 +487,19 @@
         }
       ],
       "default": null
+    },
+    "manifest_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Manifest Sha256"
     },
     "need": {
       "$ref": "#/$defs/RetrievalNeed"

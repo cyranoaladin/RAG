@@ -59,8 +59,10 @@ run_contracts() {
     local venv="/tmp/ci-local-contracts-venv"
     rm -rf "$venv"
     "$PYTHON_BIN" -m venv "$venv"
-    "$venv/bin/pip" install -q -e packages/contracts
-    "$venv/bin/python" -c "from nexus_contracts import RetrievalRequest, StudentProfile; print('contracts: import OK')"
+    "$venv/bin/pip" install -q -e 'packages/contracts[dev]'
+    "$venv/bin/python" -m pytest packages/contracts/tests -q
+    "$venv/bin/python" packages/contracts/scripts/export_schemas.py \
+        --output packages/contracts/schema --check
 }
 run_target "packages/contracts" run_contracts
 

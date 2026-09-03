@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from nexus_contracts.document import Niveau, StatutEnseignement, TypeDoc, Voie
-from nexus_contracts.identity import BoundedSlug
+from nexus_contracts.identity import BoundedIdentifier, BoundedSlug, Sha256Digest
+from nexus_contracts.servable_corpus_manifest import ChunkLocator
 from nexus_contracts.student_profile import StudentProfile
 
 
@@ -54,6 +56,20 @@ class RetrievalRequest(BaseModel):
     curriculum_scope: RetrievalCurriculumScope | None = None
     need: RetrievalNeed
     retrieval: RetrievalOptions = Field(default_factory=RetrievalOptions)
+    manifest_sha256: Sha256Digest | None = None
+    corpus_id: BoundedIdentifier | None = None
+    corpus_version_id: BoundedIdentifier | None = None
+
+    @model_validator(mode="after")
+    def validate_manifest_binding(self) -> "RetrievalRequest":
+        binding = (self.manifest_sha256, self.corpus_id, self.corpus_version_id)
+        if any(value is not None for value in binding) and any(
+            value is None for value in binding
+        ):
+            raise ValueError(
+                "manifest_sha256, corpus_id, and corpus_version_id must be provided together"
+            )
+        return self
 
     def to_payload_filters(self) -> dict[str, str]:
         curriculum = self.curriculum_scope
@@ -102,6 +118,32 @@ class RetrievalResult(BaseModel):
     excerpt: str = Field(min_length=1)
     citation: Citation | None = None
     metadata: dict[str, object] = Field(default_factory=dict)
+    resource_id: UUID | None = None
+    resource_version_id: UUID | None = None
+    content_sha256: Sha256Digest | None = None
+    locator: ChunkLocator | None = None
+    corpus_id: BoundedIdentifier | None = None
+    corpus_version_id: BoundedIdentifier | None = None
+    manifest_sha256: Sha256Digest | None = None
+
+    @model_validator(mode="after")
+    def validate_canonical_resource_identity(self) -> "RetrievalResult":
+        identity = (
+            self.resource_id,
+            self.resource_version_id,
+            self.content_sha256,
+            self.locator,
+            self.corpus_id,
+            self.corpus_version_id,
+            self.manifest_sha256,
+        )
+        if any(value is not None for value in identity) and any(
+            value is None for value in identity
+        ):
+            raise ValueError(
+                "canonical retrieval identity fields must be provided together"
+            )
+        return self
 
 
 class RetrievalResponse(BaseModel):
@@ -110,3 +152,20 @@ class RetrievalResponse(BaseModel):
     results: list[RetrievalResult] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     filters_applied: dict[str, object] = Field(default_factory=dict)
+
+
+class RetrievalError(BaseModel):
+    """Stable machine-readable retrieval failure without provider detail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    code: Literal[
+        "NOT_CONFIGURED",
+        "NO_RESULTS",
+        "RUNTIME_UNAVAILABLE",
+        "TIMEOUT",
+        "INVALID_MANIFEST",
+        "MANIFEST_VERSION_MISMATCH",
+    ]
+    request_id: BoundedIdentifier
+    retryable: bool
