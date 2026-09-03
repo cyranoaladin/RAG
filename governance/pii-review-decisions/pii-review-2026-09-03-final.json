@@ -1,0 +1,1016 @@
+{
+  "corpus_manifest_sha256": "5ce13fac8b74e12ac9538a710b733aeb6a78f3d49434a44ac49e4c0b38296df7",
+  "decision_set_id": "pii-review-2026-09-03-final",
+  "decisions": [
+    {
+      "content_sha256": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "decided_at": "2026-09-03T22:00:19.030821Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "baafa42e8687b40023a32f614a4fc72c92869391f2d468097628622984ec0430",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "cedd292b65b2c853196536d0a5e8b32e8cb2499c1a507b512038378d454b5b3f",
+          "match_sha256": "a012acf1ea5ef6609defa2d72499273cb651b7258930e59bf13d4451122d63c5",
+          "page": 9,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Identifiant technique de ressource vidéo extrait d’une URL didactique."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        9
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "45a43f576513c4aeba240ad1c0d7f43e04a96f41a63c3dcf9fe9fa98994e38f0",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "decided_at": "2026-09-03T22:00:19.031175Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "ff2b7e3e96ed281838b6e578d7596d00bad6f3118c4ab0a92a0a052ae957261d",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "450bdc3ab27452436215b8fd6bd9de4e4818a670652eddca09ad8bc044b989d9",
+          "match_sha256": "446f7ac977aa6f036b41b4bedab0416c505187729bdfc85610034b5dc1cddd34",
+          "page": 4,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Format de date d’un texte réglementaire officiel sans caractère téléphonique."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        4
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "c4a49fa0b9580b34cb009191e424cf448242eb54f518959cf4431b0378ad82de",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "decided_at": "2026-09-03T22:00:19.031594Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "9cf09d09e845af8c4e56dea6ac245134da5bee57a9f9e9dea0b92ef8b8acdca6",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "c40f7db191448549d58629d62f67a8f4b1677a657b9ecc83a83aaddaba132fa2",
+          "match_sha256": "3c4958a446b35cb34d17fcb1d68bae758d5cb4151d3a1874befc60ef6e5bd036",
+          "page": 8,
+          "pattern_id": "student_name_pattern"
+        }
+      ],
+      "justification": {
+        "category": "PEDAGOGICAL_EXAMPLE",
+        "raw_pii_quoted": false,
+        "statement": "Formulaire vierge d’épreuve d’examen sans données d’élèves réelles."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        8
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "958b95f72e6fe64b11dc5b18526dbe6952407fc518a6bd3869633f93bdd467de",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "decided_at": "2026-09-03T22:00:19.032072Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "b7977c1c91ec48b125ab488b615c81255737c0d548c6a1a1ddaf4b96c0b9bd2d",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "23b76e5fd418491c84351c047355f64ed12c84577e1e6123bd3bc99c4e54ae75",
+          "match_sha256": "0dfda993dc7a72473684733cfeb2b08ab83c0909cd69e64a9fe6ac76c2c94bfa",
+          "page": 5,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "63a65c3e9c175c20c902f9c80d4a68e75ba323409888f9889ac6d8ff5bf8b1d4",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "72fcea96a232c641940241ecf1f3651bfe5fd768d4c54868efbc8dcc0d077500",
+          "match_sha256": "4a1ea81ce8411d90173b37ba244d1a2bce5be7af548f987e060f8f7d0d217567",
+          "page": 5,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "181f2930f20140113ad887496deb8f9f22bfa3ceca0e8fe81237efe7d611e216",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "bf51e9351d81218907b0ea199c9b69fd2c2a06cb480fa7061e6247aa8b655720",
+          "match_sha256": "0dfda993dc7a72473684733cfeb2b08ab83c0909cd69e64a9fe6ac76c2c94bfa",
+          "page": 5,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "d58b97a93ac019bceb3a1d194cd5fc07584c89a73541c041172f0db7cdaa9117",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "cf1b1eb22a803570ac127003be51cce73eccc15ed0d23a35cc586c4c1b8f11d7",
+          "match_sha256": "4a1ea81ce8411d90173b37ba244d1a2bce5be7af548f987e060f8f7d0d217567",
+          "page": 5,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Représentation binaire d’instructions dans l’architecture de Von Neumann."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        5
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "335c057c87ef6ab837ed802208b536269b353b1a18f47bb7b120ec30a0f285f4",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 4
+    },
+    {
+      "content_sha256": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "decided_at": "2026-09-03T22:00:19.032471Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "f791b214aa05e0aa9ee9622dff1eff1467d049b19599b6c58262b78488f24bbc",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "da4ccf3425cb6ee4ba6cf124b9c195cfa25fec73a77b35f66a5cf0c363ae1499",
+          "match_sha256": "c33ef5e23e443a8e6ac8a2b4b5a8d0bbbe5b115a49d7636a79da18c41dad11b3",
+          "page": 7,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Constante numérique issue d’un code source de test unitaire Python."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        7
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "00111e8de5eb6d52d46bd91e094c54d8ee9eeb71d0f8f6becd136a5ef3c4a189",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "decided_at": "2026-09-03T22:00:19.032887Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "4af9e98efd29ca91639046f3b5dff96eb5ccefed2d4633dce20de6b5ae68fd5f",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "727d3c7e247e99666c2252f3981848e6d93456537957fa45ef93fc7846afeecd",
+          "match_sha256": "4cc0e104c94de70f5f7f5726a5f0fa6e22d599c68d2197c364fbb79a1a665ac6",
+          "page": 5,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "8e20a034b8fd9541f7ba05874e676adb3cc850d28e7c185a918e203079e51ee7",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "99f9b712759e9ef8b82fcb9df77cd0e781c5c7b9a1905f4e9abe6a8cb6e99907",
+          "match_sha256": "3cdd57e233f1211a37fa8c13d3a9fe3e6500b7bf29351dbf42ef1cf08c914c6d",
+          "page": 5,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Identifiants et dates de textes réglementaires publiés au Journal Officiel."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        5
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "28c74f2a455497efbf208e6926b0570b54a9d1e1eee3699d39ff72299c3e6d81",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 2
+    },
+    {
+      "content_sha256": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "decided_at": "2026-09-03T22:00:19.033363Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "deec1fec1ab14a653b5a31a037f87bf50411b3329ca31f8d846aace399147c08",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "2b12eec1a4f8de3588b23d66a2cddb9ef19787474b18ee2b54a896f35a8e0b5b",
+          "match_sha256": "943693beae10c92c9ac871ea43251aced14d4d4d67665971299c4dca6851124f",
+          "page": 7,
+          "pattern_id": "student_name_pattern"
+        },
+        {
+          "context_sha256": "1296dcedc35ee466cf15271a4000ccbdfbbd6d16764f9e43b5e079c475b6aec9",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "47bdf9f8a94ea2140fe86c7ae0f2fb538d3ff397c0b3409014b7a039b9d7f5c4",
+          "match_sha256": "943693beae10c92c9ac871ea43251aced14d4d4d67665971299c4dca6851124f",
+          "page": 9,
+          "pattern_id": "student_name_pattern"
+        },
+        {
+          "context_sha256": "f62fc17422ac81ee81ecf38d7b48abd318d6d927a3c24eef0076f92fe960301a",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "593b765c19de425bc563990c16b5294115aba19b10a38513839bd5185b79ff5a",
+          "match_sha256": "943693beae10c92c9ac871ea43251aced14d4d4d67665971299c4dca6851124f",
+          "page": 8,
+          "pattern_id": "student_name_pattern"
+        }
+      ],
+      "justification": {
+        "category": "PEDAGOGICAL_EXAMPLE",
+        "raw_pii_quoted": false,
+        "statement": "En-têtes de grille pédagogique d’évaluation didactique sans identité réelle."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        7,
+        8,
+        9
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "166d1afe6ad92ba0eb190cd14d26a37530c4334a4c5dab0f24d28fee9e8c717c",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 3
+    },
+    {
+      "content_sha256": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "decided_at": "2026-09-03T22:00:19.033811Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "93ecebd06586e77e60384fa6f058a8026bf8464571e77feea720eb9acaf8675b",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "1243c0aae06fb362741a4edcacc3b35c4c3a7cb6ffd0e0db3580c976f3c50458",
+          "match_sha256": "f3ce4c330ade4a57aaf72cfa5b49534a0e3013c1547e770cb479f6467a7d9abb",
+          "page": 9,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "7c644d8ac08b9bd9cdef92978f7c396a1b9f016bf301f8282d990610428013cc",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "afe0a3e64f1b7d32bd00310371a3051530b3e63ab51e4c3b263c9d5a742a5535",
+          "match_sha256": "f3ca7d4167b21c237b9f1ac1a1ed93926a37a0d2be5b059912f74de114fdfb41",
+          "page": 8,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "PUBLIC_OFFICIAL_PUBLICATION",
+        "raw_pii_quoted": false,
+        "statement": "Adresse publique institutionnelle du rectorat de Créteil et exemple didactique."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        8,
+        9
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "a34996923f487d8f1f849dd048ead7af2e987ea3120204080782eee190f3e9ed",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 2
+    },
+    {
+      "content_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "decided_at": "2026-09-03T22:00:19.034291Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "c3b4da38b2dd5a1daff297f4731dfcc14f7956186597c3fe4f84cffb85600ad2",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "6b089fae72898b3bf2a0591f8fccd8e03ca33e65eb0f760639798e99c8197218",
+          "match_sha256": "b8af21bd52cc3b94a0b13a144eb149168578fc1333705828e64afc2f04225ada",
+          "page": 3,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Coordonnées numériques d’exemple dans un script de calcul géométrique."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        3
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "0d43c4edc7a59f9fd2bc2135841624739da9d71c20f82ec9d046d6e3cb8d7d59",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "decided_at": "2026-09-03T22:00:19.034839Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "8799937c797667a6d97168c4c3416fdca16f4e3aba1d079df47646532feca2f0",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "0c983ae20a92bea9487740cfc9f180e4a42244696dffd883c490728efd6e2498",
+          "match_sha256": "b18ada3f5f2da574a70d075a8320078488098ddfb4c46b2fd85d6d82c5949c12",
+          "page": 1,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "21dcc906c078b85777b4f1ba71b90b637f20e54c173804a0bd994d35fa1d26b8",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "b23ccb811db8f08cc957bc5db2d289c0f7ef3e96f4609e3ce6eddbca57aeebe1",
+          "match_sha256": "ab6af69b976638af43c37ae6ae2b3e96d4b7c357db1491e56f35f68886ddb0cb",
+          "page": 1,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "5e0e7600c2d87fa044ff582a686ca4c84880bbec253d30040cca7cb91ed45e12",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "f7a1a15350c4eb39215f5a9f0cb15a2776108857b0af3ae1820096d9ebbaf28b",
+          "match_sha256": "4b9553f1a87bff207f40cb0d693c4cb7646b40273577997916b1b40d17b6d41f",
+          "page": 1,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "PEDAGOGICAL_EXAMPLE",
+        "raw_pii_quoted": false,
+        "statement": "Données tabulaires CSV didactiques de populations d’exemple international."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        1
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "3e3c5d7d9679a68a11f8776b19493f5a3fc9a096e3e0776d8e351b73178ec2d2",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 3
+    },
+    {
+      "content_sha256": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "decided_at": "2026-09-03T22:00:19.035446Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "46f3690d2cc757735f40c6afa96f306a30bb8708bcfc1c8d34c725759d9845da",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "b4194430c6ffc91950b5699ddf5a45ab93334b499ff6ef5e4ae1acd63cd3050f",
+          "match_sha256": "f87b90dd294dcd7856bbdafe6be41f3e048039f923c99ac84d272497c745c465",
+          "page": 17,
+          "pattern_id": "email_address"
+        },
+        {
+          "context_sha256": "36c6276f7619a054f0e708de468fa0886555ca1ea62508856994140b28baf129",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "e6b35f3c5be0aabc2ada88ca99ba16629ecc5fd538bd8ccce61f946ebc02107e",
+          "match_sha256": "39e97fab23aa8d9b65764c1fa6d4de53a5c2d421f0b4d3efb3a424199adc329f",
+          "page": 17,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "2a271de2c82e3ec0a463040b1b736d3a168899b42e1c93fecb7d157e0f2a1f2c",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "ef8b2991a612ee9be4883b29bf2260d33883a8e0097ce2c1e07c209b706e04d0",
+          "match_sha256": "71cfc9ba038f2b992cb82b2035eeb740fda13517f8b0a237f4bacebe846641ab",
+          "page": 17,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "INSTITUTIONAL_CONTACT",
+        "raw_pii_quoted": false,
+        "statement": "Contacts presse officiels de l’Agence de l’eau Seine-Normandie dans un dossier de presse."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        17
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "f4723015f6364a74432cf0361fad531054c7129d701fe2a216482d7aab75c5ab",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "email_address",
+        "phone_french"
+      ],
+      "signal_count": 3
+    },
+    {
+      "content_sha256": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "decided_at": "2026-09-03T22:00:19.035959Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "ad79517b90a07faf0fb3b1461cedc115464e9d6ef0fb5072ecf3ae24c326b889",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "18de8ca14060faca9e415953b34b4a662354b5f669996dfb2517fd556cd03bc2",
+          "match_sha256": "9ca68c75d19a847ac6a5f1a39f1be34b35d698eae42824f22a09fd57fadf9883",
+          "page": 8,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "INSTITUTIONAL_CONTACT",
+        "raw_pii_quoted": false,
+        "statement": "Adresse postale publique de la Cité de l’économie Banque de France."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        8
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "9b4aa1a1da57b2fe88edf56c38f41488388fbf175d8c65566b898ba29303b2aa",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "decided_at": "2026-09-03T22:00:19.036474Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "8da5bac42f303fff54dcc8436374f82f12f8f09a8178c9a3702c697690de1c95",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "f968b36b71b41d048348a7fd039b2ff8f39d3a752ad47ebb5f7e5b41b07ca9a3",
+          "match_sha256": "accd7658244a3a49f9a8154d3ec6fe9d9639d477384489abc3c37c05b341375a",
+          "page": 3,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Numéro de référence didactique dans un exemple de question de grammaire."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        3
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "b957f39fa3029dcb32b29d75f7c8b9419e0bdebfd3e1a9e11bb50e905f049bc3",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "decided_at": "2026-09-03T22:00:19.037255Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "e8365a444bec65914290da3b1de1a51a9fe1d17d4b387d39c7fc22083ad3ea54",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "0c4ca5b9126177c767716b690da95421f6056bac0968a735e4ef595e5a9ef6b8",
+          "match_sha256": "8274519069fe7643250182bd01babdfa1bba2f5f7972b5230cc95e4d6e0d2c29",
+          "page": 4,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "d99b5fde5758188755e2f5aa25c61100e6df774b527fd3cf2e393929864acc14",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "0ed726be2ca3ecafe5dedf214e4c34e3418ad144cd3c78eae314cff5e5a8ffb8",
+          "match_sha256": "6813f058af89a407ceb7a68000aeea4f6f27d045aca1de621bf65dbf573b7616",
+          "page": 4,
+          "pattern_id": "french_ssn"
+        },
+        {
+          "context_sha256": "bc0927cf70485fec7df5bd5263e1803d58b03a7caae646d053a45016a9107353",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "77694e9e65ac8bf18b60cdd99e0a3457bb8af1a848cb50b08477622a98d8f87e",
+          "match_sha256": "8274519069fe7643250182bd01babdfa1bba2f5f7972b5230cc95e4d6e0d2c29",
+          "page": 4,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "7f9344fd1fc415352faa22a5a1fbd5f653c3d3fdcf5dbb75089bbf9b51e0a705",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "adff4d5c1c77f78bba666119997bfa82467ed48958afbf46e5b29be5b1a873b7",
+          "match_sha256": "19df039d41f2879a72a5d703971e2f9411bb95c2f900bc49426742d2de36d1f0",
+          "page": 4,
+          "pattern_id": "french_ssn"
+        },
+        {
+          "context_sha256": "3c45cc604bd328ec9fbc2faab5ec48971ee2b42042da35d28cf85ca1aa9f0a1b",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "cf8e243f1662fafc63884a5bea96ddbb206c3d707fc3e29838a24fa81c0c15ea",
+          "match_sha256": "19df039d41f2879a72a5d703971e2f9411bb95c2f900bc49426742d2de36d1f0",
+          "page": 4,
+          "pattern_id": "french_ssn"
+        },
+        {
+          "context_sha256": "6cb6c995e3bd640f68e0041def83bc169fd97bbbfeb94a0da2565decbb7c43f1",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "cf9ca24cdc4fde18347b87b2afa3cdfff5c2eb041e330866b24e26c7438fb02c",
+          "match_sha256": "c01ec96a8efeb04ee6824e4ec616c2e3a070ccc642ed3b469f129b4232fc548a",
+          "page": 4,
+          "pattern_id": "french_ssn"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Adresses mémoire internes Python générées par la fonction id() dans un cours didactique."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        4
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "f07fae2c022e82c6babfceac5beac77ac0f95ae85e0edc969701e209ff7a74fe",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "french_ssn",
+        "phone_french"
+      ],
+      "signal_count": 6
+    },
+    {
+      "content_sha256": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "decided_at": "2026-09-03T22:00:19.037829Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "589ed1aa64dc9a72754195793754efa7dd96b84ee447c1f83f9a93eea897346a",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "4fedf8a2646f2b30f65953f2403a7701416e959451531308ef60ff53042ab7be",
+          "match_sha256": "0d4f9415dc7e1946ed37cfcd87958bd80767644ef5c1822519cadd0e8262bd66",
+          "page": 12,
+          "pattern_id": "student_name_pattern"
+        },
+        {
+          "context_sha256": "4b5dee8c7c85289aa598929bce43c0b5569a6b280fb819e32d2613378734ec2e",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "8048421a6d460eb4639c844e9c966df1a11e9682d23c158d318d6a4d2da79cc3",
+          "match_sha256": "7a82aef9fc02b1fd77ba9835d64f56cecc791475e017562c3b07d07e6dca294b",
+          "page": 14,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "En-tête de tableau descriptif de microprocesseurs et référence bibliographique."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        12,
+        14
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "9880e8355dc85664f96f5deb00a806cd174a0dd7feeba27a0cebcf26d3147a6c",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address",
+        "student_name_pattern"
+      ],
+      "signal_count": 2
+    },
+    {
+      "content_sha256": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "decided_at": "2026-09-03T22:00:19.038368Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "f35fee558ea232492e71103af0b775084658e8335fbe4676362e7687db75af48",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "7b7b4c3f6c932354796483944130d2abc2c5dbe46dcac6abfad360e7ad7891b8",
+          "match_sha256": "abf85516a9288ece82d73d4e906b3a3dc8d9725ea789459da1c4feb521c1c5b3",
+          "page": 5,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Déclaration de constante et longueur de tableau dans un programme Cobol d’exemple."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        5
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "5b3ebeb109d1f922b6279f0d783503eba337591af248c9fdbbdcfbd24d8338f0",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "decided_at": "2026-09-03T22:00:19.038917Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "d36cd27a53a0546c702f87a5f32bfeace3c43296312ee05988ca4a378dbec66e",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "6f38a4c82d5dc44d21b4edeaec6e4f47902cfd4931573f8220c5c3a35de9f7ed",
+          "match_sha256": "5ff6083fdb0998ea2159841db5ad6709b77e42fd49ccf59a3bdb1daad91a56f9",
+          "page": 10,
+          "pattern_id": "student_name_pattern"
+        }
+      ],
+      "justification": {
+        "category": "PEDAGOGICAL_EXAMPLE",
+        "raw_pii_quoted": false,
+        "statement": "Désignation didactique générique des rôles pédagogiques élève et enseignant."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        10
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "5abcb75f70d1f822e52dc3d949be61cbe092356e009263208e43412ea3cf49c0",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "decided_at": "2026-09-03T22:00:19.039578Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "9b8b6fee6d92b261cfb20a28679a389c63347bcefb528b440842489cb86ed56a",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "4583963bffe6842c9a33f9e64bebda591fde4dc8d5b9502be9116871d2ce287e",
+          "match_sha256": "c2999fc1fbd9973f3b295f12809094a04ed568766693257022daf9257e81fe86",
+          "page": 7,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "83949bc55e35d8b24a794dba361dfe2e57c562ffa211882caa4fcd610963e677",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "bb950d4c531e80ca38ad275061407b0406b958b73f9913fc91e9a9e29a0670d5",
+          "match_sha256": "6a9e91e79c4149a30173dbd7d5fea8d02675dfa3f28a68d7666e07d5dac52f64",
+          "page": 7,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "6661c82da189e277cb39e4e50aee887da6f7ba81f350c4bd16e0b2ef567cee23",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "cd68c951333a33be04cc5af90101e49267a2ae50d7e08a55b7012edbd8ed3f7e",
+          "match_sha256": "320129ad13da9b4c36c82385dc82cd3d8f933d54ef92bf61c46ab89ea0b6e520",
+          "page": 7,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Opérations binaires logiques de chiffrement avec l’opérateur booléen XOR."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        7
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "c17aa1a59c3107f8097cad4e1190b977a6f96c677c567854bee877b2a3799c94",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 3
+    },
+    {
+      "content_sha256": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "decided_at": "2026-09-03T22:00:19.040217Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "30c5cf7ea5e8fa3e6da0d168a39d93690b5bf5a95883d342c95643243563468c",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "394d8a3ffe40a6df75e797741bb48bce072b190fe4729dc212a205ec688c2fd3",
+          "match_sha256": "d9e7c0ad8cb018f134bc2f316daa696875171c9ea7be71a6608191724bdae5f5",
+          "page": 9,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "INSTITUTIONAL_CONTACT",
+        "raw_pii_quoted": false,
+        "statement": "Numéro vert institutionnel gratuit d’information et d’orientation publique."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        9
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "89af2cfd443ce48cdbaff0e1b394d2348178a385ce867ded7ef646175b0db335",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1
+    },
+    {
+      "content_sha256": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "decided_at": "2026-09-03T22:00:19.041015Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "177c9664cda0a1c723feb15cc0a6a2328dbd8a526201c05e56c222012270a9cd",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "767a0a73561bc622f421080cc9a834755fbb3715ff3128c36a1586746b910ed1",
+          "match_sha256": "84d89877f0d4041efb6bf91a16f0248f2fd573e6af05c19f96bedb9f882f7882",
+          "page": 5,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "39b25af902c823f2d176d775dfeb10e1b02fce0b5bb0b0005e1347151e79e210",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "bbf6044accb2ffb13ad5892a9dd9d0a108cbb1fe5461d4068ea43e6eeeeac935",
+          "match_sha256": "5a01955e6984913f1df6d1d60edb59eaa7e188a255773c21bbd9331cee048ef0",
+          "page": 2,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "a5042dd87e5979b5a73de97b48b85bfe5298ca164e19a28966e548b825cdde8b",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "c2ead8ec87ae448ff699dfe715d3d8625344bdc4436ab9bc7c62a774f22db431",
+          "match_sha256": "84d89877f0d4041efb6bf91a16f0248f2fd573e6af05c19f96bedb9f882f7882",
+          "page": 6,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "9bd94e71104cd5fb30f466687232c614cd70f4e39d74435acc56acb4d2cbfa1e",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "cb4f8445764be264420bd7f1f210bf73a0b9cef171539303b509300983ffcfe1",
+          "match_sha256": "84d89877f0d4041efb6bf91a16f0248f2fd573e6af05c19f96bedb9f882f7882",
+          "page": 5,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "fcae22c0ce29e9aab86d429dbad7a6b37da141a0236d8f970b3e19d41618096b",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "f533857351c399cdda3fffd0c9a261fd47757a9159fd6d32a0adc6b10bc73a27",
+          "match_sha256": "84d89877f0d4041efb6bf91a16f0248f2fd573e6af05c19f96bedb9f882f7882",
+          "page": 4,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Suite de chiffres décimaux et conversions en base octale dans un algorithme."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        2,
+        4,
+        5,
+        6
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "730e55cfcf0cc4a0e4f1dac1ec2e53a6da02d964b70525a3583c42c7b3a449cc",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "phone_french",
+        "postal_address"
+      ],
+      "signal_count": 5
+    },
+    {
+      "content_sha256": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "decided_at": "2026-09-03T22:00:19.041723Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "44eb134ceb5cecb6f5a3aae5f668f5f6b806346d0b55727dac157e4b23337437",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "18dd2e50f6c95b17dceee93c99027d2fe4737a72009d0d13796adac20248c4fd",
+          "match_sha256": "b418fc211fa20174e72117826550375b0387715203d38cd8f99588ee8e10dc28",
+          "page": 1,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "6b5b91706050377a2542164f2a78ce58be6c32ba429a6a01615acfc9858ef3a4",
+          "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+          "finding_id": "466bc7b026fd194f7d0d6d03b3a4426db9cb21ab9b1f56e1b52fed84fb5719b8",
+          "match_sha256": "f97523ee5e3c307ee7151f853821e8283c7bf1c7335b46d0ac82619870e888ed",
+          "page": 3,
+          "pattern_id": "email_address"
+        }
+      ],
+      "justification": {
+        "category": "INSTITUTIONAL_CONTACT",
+        "raw_pii_quoted": false,
+        "statement": "Coordonnées publiques de l’Ordre des Avocats de Paris figurant au règlement officiel."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        1,
+        3
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "d195310a5cb08428e5ef6310c71212bb696c0aa42da99990eddccc8fab6cf82f",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "email_address",
+        "postal_address"
+      ],
+      "signal_count": 2
+    },
+    {
+      "content_sha256": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "decided_at": "2026-09-03T22:00:19.042385Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "d6f59a80e1597a55446dff3a0e50ef3e4d072ae3cff07487293c6ae7d7049a3b",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "32c67641818a0bef193d09a2fcfcce95cc0730e0e0a43cc4a87762f394611382",
+          "match_sha256": "c21dd6166d8fe164ed0622989644b38851809b23e9a0176f3b48a2c94a9e63ae",
+          "page": 3,
+          "pattern_id": "postal_address"
+        },
+        {
+          "context_sha256": "cc51b2467716568421fe360fbfe29a8e5e1abc74cbe6a214519fe9236ce825b1",
+          "disposition": "SYNTHETIC_EXAMPLE",
+          "finding_id": "8f546775ea2895b684df56e4473f2274899cdcf1aaca55c87154608d46678481",
+          "match_sha256": "4ede64e314d40a3ceacc5e460e6667c24fb7445b9987fa52196c30f33dc85cee",
+          "page": 3,
+          "pattern_id": "postal_address"
+        }
+      ],
+      "justification": {
+        "category": "PEDAGOGICAL_EXAMPLE",
+        "raw_pii_quoted": false,
+        "statement": "Données démographiques didactiques d’exercice d’analyse tabulaire avec Pandas."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        3
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "7f23560ce1202a29a3c0e9c006a57dadb653d1e553442c0ef5d651bc8cb92c65",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 2
+    },
+    {
+      "content_sha256": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "decided_at": "2026-09-03T22:00:19.043060Z",
+      "decision": "APPROVED",
+      "findings": [
+        {
+          "context_sha256": "d639d9f00ff0da95a157bad287e5db85f16a9b34b87950c1bfd3f6950e884b77",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "6d41f3c3722bec0b58ff0dcd59ae64748e7465a1f5fea68028506c5597472e40",
+          "match_sha256": "41c88cb65365d1c8c6988d73c7e4f7249aaefeb1ab28520c0b0b913ec00f931a",
+          "page": 7,
+          "pattern_id": "phone_french"
+        },
+        {
+          "context_sha256": "bc5a2e6ca4a5ea7fffbfc2a636b59fc27737a1bfd13107dafbbbcced5e11720f",
+          "disposition": "FALSE_POSITIVE_TECHNICAL",
+          "finding_id": "962510f9e87faac792a6eea0cc572b312e0591874c610fb8901e69614e2c2dc5",
+          "match_sha256": "1ea1bb94a6a9576b0d393a0289abc87a599d314b3ac3efb6a5b7fe41a7afc3fe",
+          "page": 7,
+          "pattern_id": "phone_french"
+        }
+      ],
+      "justification": {
+        "category": "TECHNICAL_FALSE_POSITIVE",
+        "raw_pii_quoted": false,
+        "statement": "Constantes numériques intervenant dans des équations de calculabilité et décidabilité."
+      },
+      "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+      "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+      "pages": [
+        7
+      ],
+      "policy_id": "pii_gate_policy",
+      "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "review_bundle_sha256": "d1978234a97afdde25c71a93056e07064b58a6fba66b6216320a50eef380f380",
+      "reviewer_login": "abenrhouma",
+      "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 2
+    }
+  ],
+  "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+  "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+  "policy_id": "pii_gate_policy",
+  "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+  "protocol_version": "NEXUS-PII-REVIEW-DECISIONS-V1",
+  "review_index_sha256": "bcb4c6f4327631a6265e5fbfa16c94a10cb1760a90683f10dff6da385aa6ad13",
+  "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94"
+}
