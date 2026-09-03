@@ -1,0 +1,125 @@
+{
+  "binding_kind": "PRODUCTION_PROFILE_RELEASE_AUTHORITY_BINDINGS_V1",
+  "bindings": {
+    "candidate_inventory_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "d906663b91b7bfac9dab0c05e4374cdb61b2eef8556ad2e86ceee3d529ab8123",
+      "file_sha256": "d906663b91b7bfac9dab0c05e4374cdb61b2eef8556ad2e86ceee3d529ab8123",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/candidate_inventory.json"
+    },
+    "catalog_delta_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "08c5bef23f8fe6ebadc64ef211d7ffc0529ce91c4deae2c1803da5d05b08e845",
+      "file_sha256": "08c5bef23f8fe6ebadc64ef211d7ffc0529ce91c4deae2c1803da5d05b08e845",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/catalog_delta.json"
+    },
+    "corpus_manifest_sha256": {
+      "authority_kind": "LOGICAL_SHA256",
+      "authority_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+      "file_sha256": "5ce13fac8b74e12ac9538a710b733aeb6a78f3d49434a44ac49e4c0b38296df7",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/corpus_manifest_authority.json"
+    },
+    "currentness_evidence_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "8fc2208d08c1703bd8a04c7884ef587598ecc692d9e683262ed022219922df1e",
+      "file_sha256": "8fc2208d08c1703bd8a04c7884ef587598ecc692d9e683262ed022219922df1e",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_evidence.json"
+    },
+    "document_type_mapping_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b",
+      "file_sha256": "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b",
+      "path": "services/rag-engine/configs/mappings/eduscol_multilevel_document_types.yml"
+    },
+    "effective_catalog_authority_sha256": {
+      "authority_kind": "LOGICAL_SHA256",
+      "authority_sha256": "275551368eeaf3e46a1352ead1ad79c249f16bd988fa0d92c832b28e35ba166f",
+      "file_sha256": "4e235f7ea1daf28277056424db22b4584c439bfdcc7a378cb64272e14aadea75",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/effective_catalog_authority.json"
+    },
+    "embedding_inventory_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+      "file_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/models/embedding/SHA256SUMS"
+    },
+    "level_mapping_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+      "file_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+      "path": "services/rag-engine/configs/mappings/eduscol_multilevel_levels.yml"
+    },
+    "parent_sealed_catalog_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+      "file_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+      "path": "docs/reports/evidence-index/drive-snapshot/drive_snapshot_mapping_20260815.json"
+    },
+    "pii_evidence_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
+      "file_sha256": "ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json"
+    },
+    "pii_policy_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "file_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+      "path": "services/rag-pedago/configs/pii_gate_policy.yml"
+    },
+    "pii_scanner_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "file_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+      "path": "services/rag-pedago/rag_pedago/imports/pii_scanner.py"
+    },
+    "placement_catalog_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+      "file_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+      "path": "docs/reports/evidence-index/placement_ledger_20260814.jsonl"
+    },
+    "preflight_evidence_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "809c756ebb9aec74adee747b1ad48f5b94eb44896838e27f2e1886026e21b69d",
+      "file_sha256": "809c756ebb9aec74adee747b1ad48f5b94eb44896838e27f2e1886026e21b69d",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/preflight_evidence.json"
+    },
+    "profile_manifest_sha256": {
+      "authority_kind": "SEMANTIC_PROFILE_FINGERPRINT",
+      "authority_sha256": "c11b2b1f3253f4723ba2ecfdbaf2e70ee9fc9c10fcfd83fde4e1245702fcd39c",
+      "file_sha256": "d8b99a1d75e23baaba478a85b997a7022f52ddb9013dab176deb45b08ce4a7fc",
+      "path": "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
+    },
+    "programme_registry_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97",
+      "file_sha256": "67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/programme_registry.json"
+    },
+    "reranker_inventory_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "file_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/models/reranker/SHA256SUMS"
+    },
+    "rights_registry_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "file_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "path": "services/rag-pedago/configs/rights_evidence_registry.yml"
+    },
+    "subject_mapping_sha256": {
+      "authority_kind": "FILE_SHA256",
+      "authority_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c",
+      "file_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c",
+      "path": "services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml"
+    }
+  },
+  "profile_manifest_file_sha256": "d8b99a1d75e23baaba478a85b997a7022f52ddb9013dab176deb45b08ce4a7fc",
+  "profile_manifest_fingerprint": "c11b2b1f3253f4723ba2ecfdbaf2e70ee9fc9c10fcfd83fde4e1245702fcd39c",
+  "runtime": {
+    "pypdf": "6.14.2"
+  },
+  "school_year": "2026-2027"
+}

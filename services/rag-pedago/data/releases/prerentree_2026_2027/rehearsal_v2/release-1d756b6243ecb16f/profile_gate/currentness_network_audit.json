@@ -1,0 +1,16 @@
+{
+  "artifacts": [],
+  "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+  "corpus_harvested_at": "2026-08-04/2026-08-05",
+  "corpus_sealed_at": "2026-08-08",
+  "counts": {
+    "digest_mismatch": 0,
+    "unverified_source_unreachable": 486,
+    "verified": 0
+  },
+  "currentness_status": "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE",
+  "network_mode": "UNVERIFIED",
+  "reason": "eduscol.education.gouv.fr répond 403 aux pages de listing (protection anti-robot) ; les URL de fichier direct, seules joignables, ne figurent dans aucune preuve du corpus",
+  "verified_at": null,
+  "write_operations": 0
+}

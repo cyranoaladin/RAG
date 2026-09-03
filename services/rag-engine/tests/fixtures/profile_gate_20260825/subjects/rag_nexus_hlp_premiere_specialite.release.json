@@ -1,0 +1,579 @@
+{
+  "artifacts": [
+    {
+      "chunk_id_set_digest": "9793d5bb0b3f70cc23656087d3c498abd82f5c1e2b471bc0171e1db0623788be",
+      "chunk_sha256_set_digest": "31061c9c7ec2dd5eb720f4dcd59bd61877d01d54c834b192aa6ffe078a1cbfce",
+      "chunks": [
+        {
+          "chunk_id": "c81c49348bb449790c664d592040d0b0aab887e37af9fc083848ba9810727c4d",
+          "chunk_index": 0,
+          "chunk_sha256": "2a08e88e66f8b545219e1f3093f7b93239a160b4d178c3fa1d9c58d5bd765e65",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "4ec14d525bb74340b58f3c8dbb044d8d01475fb28a74c604a300e767f45168a4",
+          "chunk_index": 1,
+          "chunk_sha256": "d304d73525a72a18f57c644baba59568f0ff4217c7b1fd673b78213be135e82a",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "d9a877632e4c21c932b9457825274b6f8c206c2ec468334fde9786545399ccfe",
+          "chunk_index": 2,
+          "chunk_sha256": "ffb0ce99893e84adeae5434f8a9235a01ccd89efc72df6ff720fa58ef198b2a7",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "cfdf7a159b1eb6eebea6e508dfa42c4455dbf226021e638876ed48b2facffe25",
+          "chunk_index": 3,
+          "chunk_sha256": "e3625d9c8700f204f213c9f7f3aee70129aaaa894c760936379736e432b34b4a",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "0f074d8b91b5505addd0949fc28d05a7d8be881651d4f2baa6a0411239db1bed",
+          "chunk_index": 4,
+          "chunk_sha256": "9e72573c6d5c73b6a881d96559513181eb8915aa9c2a7b023504b844582de905",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "9e943f5307901acc603aeeeb352fe46b433a49612d4f70beb27148cf9c22d7ed",
+          "chunk_index": 5,
+          "chunk_sha256": "f8468c6cd43a4143f72090528b588adbb0d5d341e6c8fd78872076fe1607c648",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "f7a177d3394cf9b1f6772b1ef7444850c607a481ce636e5052d532e36f419a00",
+          "chunk_index": 6,
+          "chunk_sha256": "11106e2a8dcf39091f036bfa70880212b4c527422f72392590e6a07e46c9a1ac",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "a89296c6ee51151579dde77004f6e2fdf0171a7313545cd1b59b488f332a94df",
+          "chunk_index": 7,
+          "chunk_sha256": "7bf85077242391db7e94662c6243e9e2a53900e201602462d82a2c80453527c9",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "351229ad27e6600013a56f266b0f53a55ea42a8c9c5e86e337d901a406e366e7",
+          "chunk_index": 8,
+          "chunk_sha256": "b5c657b9e84b43a7e5488ee14aba2a48218d13736c54c72371f485f69214e019",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "b790fc38f385de1148af798f3b7c9bb2f0aa1ada02198a1c82c31bbddf40e70f",
+          "chunk_index": 9,
+          "chunk_sha256": "106ba8e78d89e794c4889c144e151b9b95ae970518e053ac2d0bb195a1e4b21e",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "56ad2fcc64eb71cd6c126b5cc1214be27d63ef612c2ed165bd5bc9f6d37e371e",
+          "chunk_index": 10,
+          "chunk_sha256": "f34291bdc98191820f571424659976ffff6c4d64cec22c9dd18d090b55c49261",
+          "page_end": 4,
+          "page_start": 4
+        }
+      ],
+      "content_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "page_count": 4,
+      "page_coverage_digest": "f6bd10506e9a4daed7c03eda2f2fde54be3bd58eee49dab471c18a888ffbdb6f",
+      "placement_id_set_digest": "17e99677a33b62528fcc48c09896437cf937254ed2f0e8b1b255bd85cbc663e2",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "currentness": "current",
+          "matiere": "hlp",
+          "niveau": "premiere",
+          "placement_id": "7aa5b130bbbcd94bab53fe2d38244200af08c4a8aea185defbed1f25a1994a55",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_1_2019-01-22",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "78dbbb7aca281889248856d9a60bee4978d9177c172307a7988d36e4d9fde146",
+          "source_scope": "lycee/general/hlp",
+          "statut_enseignement": "specialite",
+          "tenant": "libre_premiere",
+          "visibility": "internal",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-2-sur-le-theme-de-la-parole-pdf-153-37-ko--4433fee96b.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpexemple-sujet-commentesujet-zero21205357pdf-83931.pdf",
+      "title": "Exemple de sujet commente sujet zero n 2 sur le theme de la parole pdf 153 37 ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "chunk_id_set_digest": "7d5200f364885e7935231d6c201ef7ad5c5d51844e4d7e9feb2ec7bc0d857a0b",
+      "chunk_sha256_set_digest": "9d6049d13f51b61c1be6b0e9998d008c9fd8bdfabbbb2d4403e702e55606c752",
+      "chunks": [
+        {
+          "chunk_id": "c91ebe19a2c8a0f5f2091e23a68dde7c931bc49321aafcd803f7ab1dcafa7142",
+          "chunk_index": 0,
+          "chunk_sha256": "c90242379ba6c9476b375e47239f3840380c227e964a5c8589a5d33ee579afac",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "bf557a47bcb2198d79e95555fa4e2583fea818cd96197407206a572137ee67af",
+          "chunk_index": 1,
+          "chunk_sha256": "fad3a9a149a7662626bb3213992c0ad0a9ff6348a49b3215fcd98c18604e43e5",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "e3e82e17eaaf231621eb9f783a023b652bab4e65eaac2ce2a111d498c16d1895",
+          "chunk_index": 2,
+          "chunk_sha256": "b6d4d82e686c9d63f03c637ec1015a1afd46fdbd24ebb184489f6edecd69dbe6",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "c8cc58dbbc44cbd4f8aac5a36d69ee7b9282c750d2f84f408b31142e602765b4",
+          "chunk_index": 3,
+          "chunk_sha256": "d80fb62dd4e288a719dd8b8b4bb05ec0f4ec99ef7205a37877bbdbbb807cf674",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "7101a9221c5bfeb26595679814e05f139c3701e4962455a7b5d40baa1126e1aa",
+          "chunk_index": 4,
+          "chunk_sha256": "5b9edd606ddbd18aee3356a049ce0cec247a47fe2c71f6bd3bfa55f90f58828a",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "3c25991478308b5298f0024d7b3b72fbe22f12fc8a02edccad5f978a70a296ef",
+          "chunk_index": 5,
+          "chunk_sha256": "09d58c8210a798c4d424b50a48e5c3d4e01525e0d69fe9aa1b6702b7edeeb93a",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "72062a6d29bc644ef9a1d967c86cf4f67c7cbfe64cb5ca74a3752678f8101eb8",
+          "chunk_index": 6,
+          "chunk_sha256": "12563c1c379111e647296bc2f950f10b7a2bf53dbc970eaa7a366b31d8681872",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "1f9c3170c5c382b9d40f65cd1fbd7b17e29e79e465a30f54d808b5940c24f037",
+          "chunk_index": 7,
+          "chunk_sha256": "dc20ee84d0c627119723184ecaa037cee5d09c341118800f4b3a130d1284fafe",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "c355da894f607d610e3cef7dc097cd63b3e27004cde278174069f9add2e1a365",
+          "chunk_index": 8,
+          "chunk_sha256": "573736656c047fd35c04fbd951716d8a1d9b9f8c79a236c4d19015dff7acfe65",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "be921912bfd261fd84dc514ae156c4d5c83a4f4a64cb58bc4dcf5d92375639c2",
+          "chunk_index": 9,
+          "chunk_sha256": "b2a12c7a0b1ba3371de5565b84fd28930a12c286a7d6ae2ee4fbc8a9ab5cedcc",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "dafd553b5234ac02470819867accf36b33db46c9dde08b63f58331a979f5f301",
+          "chunk_index": 10,
+          "chunk_sha256": "f63d811b50d98671c0172fc67d248b5987adbb584cac42a55046017d4984098d",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "2ed96e5cc6957d75ee9f4ac7b8bc3d99032376a35f9147c42271c375074633de",
+          "chunk_index": 11,
+          "chunk_sha256": "c5f171b1a8a1ec31d87e944602bd9aa18b9773a3e88e06d3c1686f90073b289e",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "3b8b723f7d8bd286a87c5164d83e48032bba907c56b1645999173ed6729b670a",
+          "chunk_index": 12,
+          "chunk_sha256": "868a68b4658d3922e9501faf4e2a5eee58c87b93c3776ad08985be483f676e9e",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "e12c3e90eda5fe19b1a255beb17722f9317b632237e2d8d4ca6de74ec2806334",
+          "chunk_index": 13,
+          "chunk_sha256": "83e6e87a370d003d1ededa5c377960f2e709803bcfa169a9986c86fabe733753",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "2db51e6927613c9f34e19984c25f19196214ed9569282c39c9da2be22b781b09",
+          "chunk_index": 14,
+          "chunk_sha256": "f91ab886085986fd1b19d77c4e3a45680d7de75d9f25927ba3412bcd1eab800a",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "7269790defb68bd70ffca1b14ef380fef9136d945c3fd53de71a5934af95e888",
+          "chunk_index": 15,
+          "chunk_sha256": "e1720774c89cdcdfecaf9d1f03c10ab289885d58f145f616f7d47298d2509e38",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "06c530695a0c83cbe85e545c388638b4036587efcc328a4255b48d1541411b79",
+          "chunk_index": 16,
+          "chunk_sha256": "a1e99a8bc998d05ddb3b7f01061f85b6caa37439a495fb7a4309637443ab6134",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "366b71af7596fe1a02d396ba28af4822d1156f5c1141c196426397c614ede6ea",
+          "chunk_index": 17,
+          "chunk_sha256": "a9b30d34cfe183fa4b8be797ba9a72cd6367b05d92a7689da0c42484023b2394",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "5aa73f6a776916088ca255984351aa02098e292097f1e9223b12750331407d36",
+          "chunk_index": 18,
+          "chunk_sha256": "5a85b675d2c52a33898fb9d26e14955bc8f564b2b110c9b24dbb09fbccca24d0",
+          "page_end": 7,
+          "page_start": 7
+        }
+      ],
+      "content_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "page_count": 7,
+      "page_coverage_digest": "cc9cd81c3110bc37d6c9bfd30bce0267b6cbfc3ffef7fb9abdc8615e42d10575",
+      "placement_id_set_digest": "76ac1338ddc238f1e0a990616ba7f7a2f59e4550823f55e024279a7a7dbb9247",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "currentness": "current",
+          "matiere": "hlp",
+          "niveau": "premiere",
+          "placement_id": "ef1fa58460ea348f0d571902b5fe4956b0deafd46fcd30463116673535b521dc",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_1_2019-01-22",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "87ec6dbeb8c384b3d66a2f6b562d0ba4251d7b03f0a639dc2327a47ed258c0f7",
+          "source_scope": "lycee/general/hlp",
+          "statut_enseignement": "specialite",
+          "tenant": "libre_premiere",
+          "visibility": "internal",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/litterature-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-211-27-ko--60eeb7dd1e.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-t-hlplitterature-apprentissage-oral-etude-textes1219746pdf-83940.pdf",
+      "title": "Litterature l apprentissage de l oral au service de l etude des textes pdf 211 27 ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "chunk_id_set_digest": "915f5dde8ccd080745a7f69bdf57c0c2cdc4070f8a4bd1171e2bdd980a98afd9",
+      "chunk_sha256_set_digest": "4ea0a50711a1e432affad496ddcf6d4d04cb9d3454634cb31950ec416bbe7596",
+      "chunks": [
+        {
+          "chunk_id": "5093788c21a8c68c4fa6e32bfd59e8b5df5be8283c6821f3a5a626ecea9b21aa",
+          "chunk_index": 0,
+          "chunk_sha256": "1d7c07e9dcedf58ab53c512b3a0fdabd751254b3614f362b01abe4ae9aa206ba",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "d761c0975f03759b422dbe6aa2c5c9a220cb2b9f31bf5b3c4209803430910f40",
+          "chunk_index": 1,
+          "chunk_sha256": "5f4fe1d004f3c6bc002a82e24260d433877186f0019610c705949bfec1847832",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "f22d7982f8998c8083a24a8578ab1067ea398405ec87d569defa089f66000d0c",
+          "chunk_index": 2,
+          "chunk_sha256": "22f71b9d8511e89a25494177fc2464ed38a4aea16d3867f28e045171d4a4bc23",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "fdecfc1967149a435ed034891536d6a3b51585346c778a30cb8f16b40b741757",
+          "chunk_index": 3,
+          "chunk_sha256": "5a387bd409c4d9eed6bd2e9b419d89ead68ce81e3d48ca159c383901e5f8a76a",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "a3e8b27d6f1cf4ea110044bdaf5c38e5b917615c904bdd2be7d6118d11c9e786",
+          "chunk_index": 4,
+          "chunk_sha256": "0ca13497a5d5c85b30a4d922d5e51a136a874a26f9fe735ceabdbbd8fcd55969",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "2a97d66fef4043b3ba0239e44c6b5c51032d94419f513436914598d492334fac",
+          "chunk_index": 5,
+          "chunk_sha256": "9c2e2090220df8c3a4288cc1beb8925f8d0e0cb1615a943844e278fc0f44c9d3",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "6488d89f9fc329adf0f99aec184f683df3c6f414d963fdea822bd276d4676e6f",
+          "chunk_index": 6,
+          "chunk_sha256": "50adaf4e38569cfcc0b13986c728ada18384e621b33afe046902b2eff86cd257",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "d2c1e827f1cd44e14dc8453c86a47f0fece09ea2359cc71e5eefeaed37ba3547",
+          "chunk_index": 7,
+          "chunk_sha256": "387233d5d99690b5639e1ca1957e198cde65a262f43b97e42ffb7677f2112d98",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "d873c20c3cb6d3e9e54e1e1e1e90cc99a3489342ccd9fe3452a5839fbb75d52e",
+          "chunk_index": 8,
+          "chunk_sha256": "313a37e0b2afeb3380616765da3d9e91f77f0a1da662ead3acd6308e72852981",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "2921b7121c0eea6d4569c568557d567a151ce858623f3f7f9d8d4991fc309a77",
+          "chunk_index": 9,
+          "chunk_sha256": "f91189472b1d93cce78a70c826101c8ce4979bbcc92a1896778e071abf942be9",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "b4611b8161ac4a227e0b26a3c15b96ec76d0f1b2a216ae5e44dfd52ab108750c",
+          "chunk_index": 10,
+          "chunk_sha256": "3e6f8ab78cd7dd09531ac3aa75de35a3e126274473c9653746c1037ba1f04ff7",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "e0e80b9d12835bad5eec2b4fa51f57273ae10847070ce7bb84c50f68d52f9d4d",
+          "chunk_index": 11,
+          "chunk_sha256": "3f79e5f6eed74c57d0a60d5e71d1086b3e6b19259ace4564ab56b128f66a9675",
+          "page_end": 5,
+          "page_start": 5
+        }
+      ],
+      "content_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "page_count": 5,
+      "page_coverage_digest": "f5baf0e4336fd53b4c82b453ece859868475160d36f22e9551a0e9b10ac9cc00",
+      "placement_id_set_digest": "b19568427babd81770610c9b5dd9f8f69720fdb297635e4fe2d7b231cf6cac0e",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "currentness": "current",
+          "matiere": "hlp",
+          "niveau": "premiere",
+          "placement_id": "1f97071f1cdc4235624b86850e19781139cb66bf49207b64fc03e319ca25fe42",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_1_2019-01-22",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "9b6a008165bd407b189f2a7b64d706f6ea291f8f3ef9a5949040bba9eacc5f61",
+          "source_scope": "lycee/general/hlp",
+          "statut_enseignement": "specialite",
+          "tenant": "libre_premiere",
+          "visibility": "internal",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/philosophie-l-apprentissage-de-l-oral-au-service-de-l-etude-des-textes-pdf-157-47-ko--64f5b3427d.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-t-hlpphilosophie-apprentissage-oral-etude-textes1219750pdf-83943.pdf",
+      "title": "Philosophie l apprentissage de l oral au service de l etude des textes pdf 157 47 ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "chunk_id_set_digest": "4cd87ff3a7be35238877cb2025a5832a952ac672cf71277f72cfc275631bc61c",
+      "chunk_sha256_set_digest": "6e5c59d94e23ad5c6c6c5ed2e819824bb83f11a5eee91e9476f4f02c8dab3785",
+      "chunks": [
+        {
+          "chunk_id": "7743669f085c6db49f56632c54ff6e69ff472d555453b43f3a497a3aff432466",
+          "chunk_index": 0,
+          "chunk_sha256": "d717e404c9119bc366cc57310cb92cfd8b8b2ce99465e5bc1e63b1aa73840405",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "cd6f8ec358c00b94fbf8d472015b0b7b5a3de4f0b43279ebc799f8002baaff46",
+          "chunk_index": 1,
+          "chunk_sha256": "08316549300680f54ec44c03df8f7b50a2ce3fd1689bb63dd14e1c6f03f131b4",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "50a1a7f2c82ea9b5ed6f5e2b81db2f9ade86a393369b3a8a7f131af1d6b62b93",
+          "chunk_index": 2,
+          "chunk_sha256": "36b45dc795c170f6f523486ad88c32c8949e3d189ceacbbfebf84f23860e2a9e",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "5106826572764dbc473d59e1c723676a5d148c7f33f76389f3991da63b6a953c",
+          "chunk_index": 3,
+          "chunk_sha256": "a5da87397151c25c665068f0349a57c440c2b262a7d1a6948718b3040279e78b",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "eba24e45b5d166ac38cb1e632ffb71c507161e9153008947dbccc9de1aea9be9",
+          "chunk_index": 4,
+          "chunk_sha256": "c249ba7ae3aeb55db04ae4f89be2e9f1434eecb9b203a88e56f38d4ab0c23b6b",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "3d10244f5b9b80bb8ad8cf5a717ef1584d812d77e383f1b3ce6f17832e26fd75",
+          "chunk_index": 5,
+          "chunk_sha256": "b7e8e770ff1bbe72ebb89bdeeac2c41616424864e698990136ea242296d4e0fd",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "191ef92de4c472ce5a881fd0cd24a9f8e1a29f332a9c7636b28bfec2022c1561",
+          "chunk_index": 6,
+          "chunk_sha256": "f416fa06821db10b71926d991b376e0356512362c06dc80043685db5b5b6cee8",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "153858db7a4b39a59b2a36d4076524655d0b20bddc30a8da9155f1097195baa7",
+          "chunk_index": 7,
+          "chunk_sha256": "78116533c2ace57f85477e7eae864e1ce879147cd234369b55e8efec284a873f",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "f8bf37401518ac7941393f89ea054b39df94ff73078696ecbc9080506614c242",
+          "chunk_index": 8,
+          "chunk_sha256": "e5bfd2899380e25e81f37c30ccdb9bd2cd7fb4bacc307d59ac07f2bcfeea104e",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "1db31cf564dc9f3a7f4a1ed039246610d69bf8f5224431102d020aa322a759a3",
+          "chunk_index": 9,
+          "chunk_sha256": "4722ad55e4c669bd22ac38abe065815c0e1267af7ad9d83bb12bf3c3956b2d64",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "32e0a9ece817df90dec908dea0c6a6fa04f385b1313a6c1190536e1814f272d1",
+          "chunk_index": 10,
+          "chunk_sha256": "d8c981ea7b8624163c4cea4f9acd3d56cfc8659352014bb0f94482ded02c8612",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "eef89fe8bb7339756e247d87f951676dc3e9f9e681e39e6574e7af9b0c8c1f1d",
+          "chunk_index": 11,
+          "chunk_sha256": "28805130247590ffbeb71ca71fac9d1c64f21549fbf85573fdd1085e46e6bbd9",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "63559f062d185a323a1f37139be51ae99ece557cd5feaad24663e9a708d56c3d",
+          "chunk_index": 12,
+          "chunk_sha256": "fc108ef861d5672aa3845423e63bfea052235298fb10fdfde2134185f4d2808f",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "658931e520d8cca0db39de7575432a79c536475adc7680fd881348fdd1afbff7",
+          "chunk_index": 13,
+          "chunk_sha256": "d5e8698f577633e8407523497d89698ee1d90f9ecaa98d41d3d4822397831374",
+          "page_end": 5,
+          "page_start": 5
+        }
+      ],
+      "content_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "page_count": 5,
+      "page_coverage_digest": "f5baf0e4336fd53b4c82b453ece859868475160d36f22e9551a0e9b10ac9cc00",
+      "placement_id_set_digest": "96e4bd4a38e69c390da165fa73aa6e2c585ca2a7a7504968103fc1b19836a78a",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "currentness": "current",
+          "matiere": "hlp",
+          "niveau": "premiere",
+          "placement_id": "acf33d12adf85d71e89e2d97d7971a9c870826739ae984f9d32346f8d66d5f18",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_1_2019-01-22",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "201890cb08f619293a9fef83637cb9da590a496a0ec579c563ade5cf48a77c8e",
+          "source_scope": "lycee/general/hlp",
+          "statut_enseignement": "specialite",
+          "tenant": "libre_premiere",
+          "visibility": "internal",
+          "voie": "generale"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/05_ANNALES_SUJETS_CORRIGES/2019/exemple-de-sujet-commente-sujet-zero-n-3-sur-le-theme-des-representations-du-monde-pdf-172-29-ko--9357dfdebc.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1-thlpexemple-sujet-commentesujet-zero31205359pdf-83934.pdf",
+      "title": "Exemple de sujet commente sujet zero n 3 sur le theme des representations du monde pdf 172 29 ko",
+      "type_doc": "ressource_officielle"
+    }
+  ],
+  "authorities": {
+    "candidate_inventory_sha256": "fbb8aa3af44efa1484c65640ddbaebf357dff923a0ebd45b6ce80ccc7e8ed7a1",
+    "catalog_delta_sha256": "8b914d6239b87cbb3dcd11039e8e7d392aeee5c5996236a580235d7515919a04",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+    "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
+    "effective_catalog_authority_sha256": "6806a6be645d0a9b82a007d1ff7a2e608be72c2956b4a5f571c67071f2ebdb2a",
+    "embedding_inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+    "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+    "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+    "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "pii_scanner_sha256": "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3",
+    "placement_catalog_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+    "preflight_evidence_sha256": "5f128e9635e1433cad6f3c66e48a3639d65e91be39c8022c60da87f9f24902a1",
+    "profile_manifest_sha256": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+    "programme_registry_sha256": "a596f45819d3f43bc9f7128a7a1719c673c13660d8d1ae9a9ccad064f4f9887d",
+    "reranker_inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "subject_mapping_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c"
+  },
+  "collection": "rag_nexus_hlp_premiere_specialite",
+  "expected_counts": {
+    "artifacts": 4,
+    "chunks": 56,
+    "placements": 4
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "profile": {
+    "fingerprint": "48d961d273ab30eefd5d473b6680b2037176eb74934b314db28625b21c65bc35",
+    "manifest_digest": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+    "version": "profile-gate-v1"
+  },
+  "programme_version": "BOEN_special_1_2019-01-22",
+  "release_id": "production-profile-gate-2026-2027-v1-rag_nexus_hlp_premiere_specialite",
+  "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V1",
+  "school_year": "2026-2027"
+}

@@ -7,7 +7,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "francais/quatrieme.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_maths_quatrieme_tc",
@@ -17,7 +17,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "maths/quatrieme.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_droiteco_premiere_stmg_specialite",
@@ -77,7 +77,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "francais/premiere_eaf.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_hggsp_premiere_specialite",
@@ -87,7 +87,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "hggsp/premiere_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_hg_premiere_tc",
@@ -107,7 +107,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "hlp/premiere_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_lv_premiere_tc",
@@ -137,7 +137,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "maths/premiere_gen_specialite.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_maths_premiere_gen_tc",
@@ -187,7 +187,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "ses/premiere_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_svt_premiere_specialite",
@@ -197,7 +197,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "svt/premiere_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_emc_seconde_tc",
@@ -227,7 +227,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "francais/seconde_tc.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_hg_seconde_tc",
@@ -257,7 +257,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "maths/seconde_tronc_commun.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_pc_seconde_tc",
@@ -317,7 +317,7 @@
     "statut": "option",
     "domain": "education",
     "taxonomy_file": "dgemc/terminale_option.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_droiteco_terminale_stmg_specialite",
@@ -387,7 +387,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "hggsp/terminale_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_hg_terminale_tc",
@@ -407,7 +407,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "hlp/terminale_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_lv_terminale_tc",
@@ -437,7 +437,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "maths/terminale_gen_specialite.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_maths_terminale_gen_option_comp",
@@ -497,7 +497,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "philosophie/terminale_tronc_commun.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_pc_terminale_specialite",
@@ -507,7 +507,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "physique_chimie/terminale_specialite.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_ses_terminale_specialite",
@@ -517,7 +517,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "ses/terminale_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_svt_terminale_specialite",
@@ -527,7 +527,7 @@
     "statut": "specialite",
     "domain": "education",
     "taxonomy_file": "svt/terminale_specialite.yml",
-    "instanciee": false
+    "instanciee": true
   },
   {
     "name": "rag_nexus_dnb",
@@ -547,7 +547,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "francais/troisieme.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_hg_troisieme_tc",
@@ -577,7 +577,7 @@
     "statut": "tronc_commun",
     "domain": "education",
     "taxonomy_file": "maths/troisieme.yml",
-    "instanciee": true
+    "instanciee": false
   },
   {
     "name": "rag_nexus_pc_troisieme_tc",

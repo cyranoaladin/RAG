@@ -10,22 +10,14 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
 
-import yaml
-
-# Packages partagés canoniques : nexus_pdf_page_policy, nexus_contracts, nexus_release_chain
-import os
-from pathlib import Path
-
-REPOSITORY_ROOT = Path(os.environ.get("NEXUS_REPO_ROOT") or Path(__file__).resolve().parents[3])
-
 import nexus_pdf_page_policy as page_policy
+import yaml
 from nexus_contracts.embedding_utils import format_passage
 from nexus_release_chain.collection_config import load_collection_config
 from nexus_release_chain.ingestion_profiles.manifest import verify_profile_manifest
@@ -39,11 +31,13 @@ from nexus_release_chain.release_readiness import (
     load_release_registry_file,
 )
 
-from rag_pedago.imports.pii_scanner import (  # noqa: E402
+from rag_pedago.imports.pii_scanner import (
     extract_pdf_pages_with_structural_empty_pages,
     load_patterns_from_config,
     scan_pdf_bytes,
 )
+
+REPOSITORY_ROOT = Path(os.environ.get("NEXUS_REPO_ROOT") or Path(__file__).resolve().parents[3])
 
 SCHOOL_YEAR = "2026-2027"
 RELEASE_ID = "production-profile-gate-2026-2027-v1"
@@ -1702,7 +1696,12 @@ def _release_topology_documents(
     release_root: Path,
     release_id: str,
     school_year: str,
+    release_mode: str = "production",
+    promotion_status: str | None = None,
+    activation_status: str | None = None,
+    review_status: str | None = None,
 ) -> dict[Path, bytes]:
+
     grouped_artifacts = _group_artifact_rows(placement_rows)
     artifact_shas = set(grouped_artifacts)
     preflight_shas = set(preflight_by_sha)
@@ -1847,7 +1846,16 @@ def _release_topology_documents(
         },
         "subjects": subjects,
     }
+    if release_mode != "production":
+        aggregate["release_mode"] = release_mode
+    if promotion_status is not None:
+        aggregate["promotion_status"] = promotion_status
+    if activation_status is not None:
+        aggregate["activation_status"] = activation_status
+    if review_status is not None:
+        aggregate["review_status"] = review_status
     aggregate_path = release_root / "production-profile-gate.release.json"
+
     aggregate_raw = canonical_json_bytes(aggregate)
     documents[aggregate_path] = aggregate_raw
     release_registry = {
@@ -2079,13 +2087,175 @@ def _verifier_preconditions(
         )
 
 
+def _build_rehearsal_release(
+    *,
+    source_release_root: Path,
+    release_id: str,
+    release_mode: str,
+    promotion_status: str,
+    activation_status: str,
+    review_status: str,
+) -> dict[Path, bytes]:
+    src_root = source_release_root.resolve()
+    profile_root = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"
+    profile_dir = profile_root / "v2_livraison_319"
+    profile_manifest_path = profile_root / "ingestion_manifest_v2_livraison_319.yml"
+    registry = load_profile_registry(profile_dir)
+    manifest = verify_profile_manifest(registry, profile_manifest_path)
+    profiles = {p.scope.collection: p for p in registry.values()}
+
+
+
+    subjects_dir = src_root / "subjects"
+    preflight_by_sha: dict[str, dict[str, Any]] = {}
+    placement_rows: list[dict[str, Any]] = []
+    for subj_file in sorted(subjects_dir.glob("*.release.json")):
+        subj = _load_json(subj_file)
+        col = subj["collection"]
+        for art in subj["artifacts"]:
+            sha = art["content_sha256"]
+            if sha not in preflight_by_sha:
+                preflight_by_sha[sha] = {
+                    "content_sha256": sha,
+                    "source_path": art["source_path"],
+                    "page_count": art["page_count"],
+                    "ignored_empty_pages": art.get("ignored_empty_pages", []),
+                    "chunks": art["chunks"],
+                }
+            for pl in art["placements"]:
+                placement_rows.append({
+                    "content_sha256": sha,
+                    "physical_path": art["source_path"],
+                    "source_url": art.get("source_url", ""),
+                    "current_download_url": art.get("current_download_url", ""),
+                    "title": art["title"],
+                    "external_document_type": art["type_doc"],
+                    "collection": col,
+                    "source_placement_id": pl["source_placement_id"],
+                    "external_scope": pl["source_scope"],
+                })
+
+    collection_config = load_collection_config(COLLECTION_CONFIG_PATH)["collections"]
+    type_doc_mapping = _load_yaml(DOCUMENT_TYPE_MAPPING_PATH)["document_types"]
+    effective_type_doc_mapping = {**type_doc_mapping, **{v: v for v in type_doc_mapping.values()}}
+
+    auth_doc = _load_json(src_root / "authority_bindings.json")
+    raw_bindings = dict(auth_doc["bindings"])
+    authorities = {k: v["authority_sha256"] for k, v in raw_bindings.items()}
+
+    authorities["document_type_mapping_sha256"] = _file_sha256(DOCUMENT_TYPE_MAPPING_PATH)
+    raw_bindings["document_type_mapping_sha256"] = {
+        "path": _repo_relative(DOCUMENT_TYPE_MAPPING_PATH),
+        "file_sha256": authorities["document_type_mapping_sha256"],
+        "authority_sha256": authorities["document_type_mapping_sha256"],
+        "authority_kind": "FILE_SHA256",
+    }
+
+    authorities["pii_scanner_sha256"] = _file_sha256(PII_SCANNER_PATH)
+    raw_bindings["pii_scanner_sha256"] = {
+        "path": _repo_relative(PII_SCANNER_PATH),
+        "file_sha256": authorities["pii_scanner_sha256"],
+        "authority_sha256": authorities["pii_scanner_sha256"],
+        "authority_kind": "FILE_SHA256",
+    }
+
+    authorities["profile_manifest_sha256"] = manifest.manifest_fingerprint
+    raw_bindings["profile_manifest_sha256"] = {
+        "path": _repo_relative(profile_manifest_path),
+        "file_sha256": _file_sha256(profile_manifest_path),
+        "authority_sha256": manifest.manifest_fingerprint,
+        "authority_kind": "SEMANTIC_PROFILE_FINGERPRINT",
+    }
+
+    models = {
+        "embedding": {
+            "model_id": CANONICAL_EMBEDDING_MODEL,
+            "inventory_sha256": authorities["embedding_inventory_sha256"],
+            "dimension": 1024,
+        },
+        "reranker": {
+            "model_id": CANONICAL_RERANKER_MODEL,
+            "inventory_sha256": authorities["reranker_inventory_sha256"],
+        },
+    }
+
+
+    documents = _release_topology_documents(
+        placement_rows,
+        profiles=profiles,
+        profile_manifest_digest=manifest.manifest_fingerprint,
+        collection_config=collection_config,
+        preflight_by_sha=preflight_by_sha,
+        type_doc_mapping=effective_type_doc_mapping,
+        authorities=authorities,
+        models=models,
+        release_root=RELEASE_ROOT,
+        release_id=release_id,
+        school_year=SCHOOL_YEAR,
+        release_mode=release_mode,
+        promotion_status=promotion_status,
+        activation_status=activation_status,
+        review_status=review_status,
+    )
+
+    for evidence_file in (
+        "catalog_delta.json",
+        "effective_catalog_authority.json",
+        "candidate_inventory.json",
+        "corpus_manifest_authority.json",
+        "currentness_network_audit.json",
+        "currentness_evidence.json",
+        "pii_evidence.json",
+        "preflight_evidence.json",
+        "programme_registry.json",
+        "models/embedding/manifest.json",
+        "models/embedding/SHA256SUMS",
+        "models/reranker/manifest.json",
+        "models/reranker/SHA256SUMS",
+    ):
+
+        p = src_root / evidence_file
+        if p.exists():
+            documents[RELEASE_ROOT / evidence_file] = p.read_bytes()
+
+    bindings = {
+
+        "binding_kind": "PRODUCTION_PROFILE_RELEASE_AUTHORITY_BINDINGS_V1",
+        "school_year": SCHOOL_YEAR,
+        "profile_manifest_file_sha256": _file_sha256(profile_manifest_path),
+        "profile_manifest_fingerprint": manifest.manifest_fingerprint,
+        "runtime": {"pypdf": require_canonical_runtime()},
+        "bindings": raw_bindings,
+    }
+    documents[RELEASE_ROOT / "authority_bindings.json"] = canonical_json_bytes(bindings)
+    return documents
+
+
 def build_release(
     *,
-    pdf_root: Path,
-    embedding_snapshot: Path,
-    reranker_snapshot: Path,
-    verify_official_downloads: bool,
+    pdf_root: Path | None = None,
+    embedding_snapshot: Path | None = None,
+    reranker_snapshot: Path | None = None,
+    verify_official_downloads: bool = False,
+    release_mode: str = "production",
+    promotion_status: str | None = None,
+    activation_status: str | None = None,
+    review_status: str | None = None,
+    release_id: str | None = None,
+    source_release_root: Path | None = None,
 ) -> dict[Path, bytes]:
+    if release_mode == "rehearsal":
+        return _build_rehearsal_release(
+            source_release_root=source_release_root or RELEASE_ROOT,
+            release_id=release_id or "production-profile-gate-2026-2027-v2-rehearsal",
+            release_mode=release_mode,
+            promotion_status=promotion_status or "NOT_PROMOTABLE",
+            activation_status=activation_status or "NO_PRODUCTION_ACTIVATION",
+            review_status=review_status or "PRE_REVIEW",
+        )
+    if pdf_root is None or embedding_snapshot is None or reranker_snapshot is None:
+        raise ValueError("pdf_root, embedding_snapshot, and reranker_snapshot are required in production mode")
+
     matrix_path = Path(os.environ.get(
         "NEXUS_FINAL_MATRIX",
         REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"))
@@ -2445,9 +2615,44 @@ def _write_documents(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--pdf-root", required=True, type=Path)
-    parser.add_argument("--embedding-snapshot", required=True, type=Path)
-    parser.add_argument("--reranker-snapshot", required=True, type=Path)
+    parser.add_argument("--pdf-root", required=False, type=Path, default=None)
+    parser.add_argument("--embedding-snapshot", required=False, type=Path, default=None)
+    parser.add_argument("--reranker-snapshot", required=False, type=Path, default=None)
+    parser.add_argument(
+        "--release-mode",
+        choices=["production", "rehearsal"],
+        default="production",
+        help="Mode de release: 'production' ou 'rehearsal'",
+    )
+    parser.add_argument(
+        "--promotion-status",
+        choices=["PROMOTABLE", "NOT_PROMOTABLE"],
+        default=None,
+        help="Statut de promotion (défaut: NOT_PROMOTABLE si rehearsal)",
+    )
+    parser.add_argument(
+        "--activation-status",
+        choices=["PRODUCTION_ACTIVATION_ALLOWED", "NO_PRODUCTION_ACTIVATION"],
+        default=None,
+        help="Statut d'activation (défaut: NO_PRODUCTION_ACTIVATION si rehearsal)",
+    )
+    parser.add_argument(
+        "--review-status",
+        choices=["REVIEWED", "PRE_REVIEW"],
+        default=None,
+        help="Statut de revue PII (défaut: PRE_REVIEW si rehearsal)",
+    )
+    parser.add_argument(
+        "--release-id",
+        default=None,
+        help="Identifiant de la release",
+    )
+    parser.add_argument(
+        "--source-release-root",
+        type=Path,
+        default=None,
+        help="Répertoire source pour la génération rehearsal",
+    )
     # ── PRODUIRE NE DOIT PAS POUVOIR TOUCHER CE QUI SERT ────────────────
     #
     # Le 29/08/2026, ce producteur a écrasé la release EN SERVICE et rendu le
@@ -2498,12 +2703,25 @@ def main(argv: list[str] | None = None) -> int:
              "d'écrire dans un répertoire existant qui n'est pas le sien.")
     parser.add_argument("--verify-official-downloads", action="store_true")
     args = parser.parse_args(argv)
+    if args.release_mode == "production" and (
+        args.pdf_root is None
+        or args.embedding_snapshot is None
+        or args.reranker_snapshot is None
+    ):
+        parser.error("--pdf-root, --embedding-snapshot, and --reranker-snapshot are required in production mode")
+
     require_canonical_runtime()  # D-41 : à la porte, avant les huit minutes.
     documents = build_release(
         pdf_root=args.pdf_root,
         embedding_snapshot=args.embedding_snapshot,
         reranker_snapshot=args.reranker_snapshot,
         verify_official_downloads=args.verify_official_downloads,
+        release_mode=args.release_mode,
+        promotion_status=args.promotion_status,
+        activation_status=args.activation_status,
+        review_status=args.review_status,
+        release_id=args.release_id,
+        source_release_root=args.source_release_root,
     )
     ecrit = _write_documents(
         documents,
@@ -2514,8 +2732,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     if args.output_dir is not None:
         print(f"PRODUCTION_PROFILE_RELEASE_DIR={ecrit}")
-        print("PRODUCTION_PROFILE_RELEASE_ACTIVATION="
-              f"ln -sfn {ecrit} {args.output_dir / 'current'}")
+        if args.release_mode == "production":
+            print("PRODUCTION_PROFILE_RELEASE_ACTIVATION="
+                  f"ln -sfn {ecrit} {args.output_dir / 'current'}")
+        else:
+            print(f"REHEARSAL_STATUS={args.review_status or 'PRE_REVIEW'}")
+            print(f"PROMOTABLE={'true' if args.promotion_status == 'PROMOTABLE' else 'false'}")
+            print(f"ACTIVATABLE={'true' if args.activation_status == 'PRODUCTION_ACTIVATION_ALLOWED' else 'false'}")
+
     # La vérification porte sur la release QUI VIENT D'ÊTRE ÉCRITE, jamais sur
     # celle qui sert. Lire `RELEASE_ROOT` ici confrontait les liens d'autorité
     # de l'ANCIENNE release aux fichiers courants du dépôt : tout changement

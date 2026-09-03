@@ -367,28 +367,143 @@ def test_v2_picker_hides_collection_when_release_manifest_is_absent(
     assert response == {"collections": []}
 
 
+def test_v2_reader_accepts_normalized_rehearsal_registry() -> None:
+    """Test A : lecture structurelle V2 de la release de répétition normalisée."""
+    import hashlib
+
+    from ingestor.release_readiness import load_release_registry_file
+
+    rehearsal_dir = (
+        ENGINE_ROOT.parent
+        / "rag-pedago/data/releases/prerentree_2026_2027/rehearsal_v2"
+    )
+    candidates = sorted(rehearsal_dir.glob("release-*"))
+    assert candidates, "Rehearsal V2 release directory not found"
+    rehearsal_release = candidates[-1]
+    registry_path = rehearsal_release / "release-registry.json"
+    registry_sha = hashlib.sha256(registry_path.read_bytes()).hexdigest()
+
+    registry = load_release_registry_file(registry_path, registry_sha)
+    assert len(registry.collections) == 11
+
+    assert len(registry.manifests) == 1
+
+    exp = registry.manifests[0].expectation
+    assert exp.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V2"
+    assert exp.release_mode == "rehearsal"
+    assert exp.promotion_status == "NOT_PROMOTABLE"
+    assert exp.activation_status == "NO_PRODUCTION_ACTIVATION"
+    assert exp.review_status == "PRE_REVIEW"
+    assert len(exp.artifacts) == 319
+    assert len(exp.placements) == 486
+    assert len(exp.subject_manifest_sha256_by_collection) == 11
+
+    unique_chunks = len(
+        {(a.content_sha256, c["chunk_index"]) for a in exp.artifacts for c in a.chunks}
+    )
+    assert unique_chunks == 8324
+
+
+def test_v2_rehearsal_placement_semantics_align_with_historical_v1() -> None:
+    """Vérifie que la projection sémantique des 486 placements est identique entre V1 et V2."""
+    rehearsal_dir = (
+        ENGINE_ROOT.parent
+        / "rag-pedago/data/releases/prerentree_2026_2027/rehearsal_v2"
+    )
+    candidates = sorted(rehearsal_dir.glob("release-*"))
+    assert candidates, "Rehearsal V2 release directory not found"
+    rehearsal_release = candidates[-1]
+
+    # V1 historique
+    v1_cand = json.loads(
+        (
+            ENGINE_ROOT.parent
+            / "rag-pedago/data/releases/prerentree_2026_2027/profile_gate/candidate_inventory.json"
+        ).read_text(encoding="utf-8")
+    )
+    v1_pairs = {
+        (c["content_sha256"], col["collection"])
+        for col in v1_cand["collections"]
+        for c in col["candidates"]
+    }
+    v1_shas = {c["content_sha256"] for col in v1_cand["collections"] for c in col["candidates"]}
+
+    # V2 rehearsal
+    subject_files = list((rehearsal_release / "profile_gate/subjects").glob("*.release.json"))
+    assert len(subject_files) == 11
+    v2_pairs = {
+        (p["artifact_id"], p["collection"])
+        for sf in subject_files
+        for p in json.loads(sf.read_text(encoding="utf-8")).get("placements", [])
+    }
+    v2_shas = {
+        p["artifact_id"]
+        for sf in subject_files
+        for p in json.loads(sf.read_text(encoding="utf-8")).get("placements", [])
+    }
+
+    assert len(v1_pairs) == 486
+    assert len(v2_pairs) == 486
+    assert len(v1_shas) == 319
+    assert len(v2_shas) == 319
+    assert v1_pairs == v2_pairs
+    assert v1_shas == v2_shas
+
+
+
+
+def test_startup_rejects_not_promotable_v2_rehearsal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test B : refus mécanique fail-closed de l'activation d'une release rehearsal."""
+    import hashlib
+
+    rehearsal_dir = (
+        ENGINE_ROOT.parent
+        / "rag-pedago/data/releases/prerentree_2026_2027/rehearsal_v2"
+    )
+    candidates = sorted(rehearsal_dir.glob("release-*"))
+    assert candidates, "Rehearsal V2 release directory not found"
+    rehearsal_release = candidates[-1]
+    registry_path = rehearsal_release / "release-registry.json"
+    registry_sha = hashlib.sha256(registry_path.read_bytes()).hexdigest()
+
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(registry_path))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha)
+
+    with pytest.raises(
+        RuntimeError,
+        match="cannot activate rehearsal or unpromotable release in production runtime",
+    ):
+        endpoint.validate_release_startup_configuration(
+            load_retrieval_scope_registry(),
+            load_collection_config(COLLECTION_CONFIG),
+        )
+
+
 def test_startup_accepts_explicit_nonempty_release_subset_of_v2_registry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Restaté le 2026-09-02 : la release explicite est celle des onze
-    collections servies (profile_gate), avec le catalogue réel — la vague 0
-    (Troisième) n'a jamais été servie et ne recouvre plus le catalogue."""
+    """Test C : startup avec une release production explicite valide et promotable."""
     import hashlib
 
-    aggregate = (
-        ENGINE_ROOT.parent
-        / "rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
-        / "production-profile-gate.release.json"
-    )
-    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(aggregate))
+    monkeypatch.delenv("RAG_RELEASE_REGISTRY_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_REGISTRY_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(MULTILEVEL_RELEASE))
     monkeypatch.setenv(
-        "RAG_RELEASE_MANIFEST_SHA256", hashlib.sha256(aggregate.read_bytes()).hexdigest()
+        "RAG_RELEASE_MANIFEST_SHA256",
+        hashlib.sha256(MULTILEVEL_RELEASE.read_bytes()).hexdigest(),
     )
 
     endpoint.validate_release_startup_configuration(
         load_retrieval_scope_registry(),
         load_collection_config(COLLECTION_CONFIG),
     )
+
 
 
 def test_startup_rejects_scope_source_sha_different_from_subject_release(

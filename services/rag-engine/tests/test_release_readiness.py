@@ -39,7 +39,18 @@ RELEASE_REGISTRY = (
     REPO_ROOT
     / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
 )
+REHEARSAL_DIR = (
+    REPO_ROOT
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/rehearsal_v2"
+)
+_rehearsal_candidates = sorted(REHEARSAL_DIR.glob("release-*"))
+REHEARSAL_RELEASE_REGISTRY = (
+    _rehearsal_candidates[-1] / "release-registry.json"
+    if _rehearsal_candidates
+    else RELEASE_REGISTRY
+)
 PRODUCTION_PROFILE_RELEASE_ROOT = RELEASE_REGISTRY.parent / "profile_gate"
+
 ARTIFACT_SHA = "a" * 64
 PLACEMENT_ID = "b" * 64
 CHUNK_ID = "c" * 64
@@ -2392,16 +2403,18 @@ def _registry_entry(
     }
 
 
-def test_real_release_registry_file_exposes_all_eighteen_production_collections() -> None:
-    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+def test_real_release_registry_file_exposes_all_eleven_production_collections() -> None:
+    registry_sha256 = hashlib.sha256(REHEARSAL_RELEASE_REGISTRY.read_bytes()).hexdigest()
 
-    registry = load_release_registry_file(RELEASE_REGISTRY, registry_sha256)
+    registry = load_release_registry_file(REHEARSAL_RELEASE_REGISTRY, registry_sha256)
 
-    assert len(registry.collections) == 18
+    assert len(registry.collections) == 11
     assert {
-        "rag_nexus_philo_terminale_tc",
         "rag_nexus_dgemc_terminale_option",
+        "rag_nexus_nsi_terminale_specialite",
     } < set(registry.collections)
+
+
 
 
 def test_release_registry_file_refuses_digest_mismatch(tmp_path: Path) -> None:
@@ -2732,17 +2745,19 @@ def test_runtime_uses_release_registry_file_as_primary_mechanism(
 ) -> None:
     from ingestor import retrieval_v2_endpoint as endpoint
 
-    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    registry_sha256 = hashlib.sha256(REHEARSAL_RELEASE_REGISTRY.read_bytes()).hexdigest()
     monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
     monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
     monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
-    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(REHEARSAL_RELEASE_REGISTRY))
     monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+
 
     registry = endpoint._configured_release_registry()
 
     assert registry is not None
-    assert len(registry.collections) == 18
+    assert len(registry.collections) == 11
+
 
 
 def test_runtime_release_registry_file_refuses_ambiguous_with_manifests_json(
@@ -2800,19 +2815,43 @@ def test_runtime_release_registry_file_incomplete_configuration_fails_closed(
 
 
 def test_runtime_startup_accepts_release_registry_file(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import shutil
+
     import yaml
     from nexus_contracts import load_retrieval_scope_registry
 
     from ingestor import retrieval_v2_endpoint as endpoint
 
-    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    multilevel_copy = tmp_path / "multilevel"
+    shutil.copytree(MULTILEVEL_RELEASE.parent, multilevel_copy)
+    multilevel_sha256 = hashlib.sha256(
+        (multilevel_copy / MULTILEVEL_RELEASE.name).read_bytes()
+    ).hexdigest()
+    multilevel_doc = json.loads((multilevel_copy / MULTILEVEL_RELEASE.name).read_text())
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                {
+                    "release_id": multilevel_doc["release_id"],
+                    "collections": [s["collection"] for s in multilevel_doc["subjects"]],
+                    "manifest_path": f"multilevel/{MULTILEVEL_RELEASE.name}",
+                    "expected_manifest_sha256": multilevel_sha256,
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
+                }
+            ],
+        },
+    )
     monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
     monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
     monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
-    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
-    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(registry_path))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_digest)
     config = yaml.safe_load(CANONICAL_COLLECTIONS.read_text(encoding="utf-8"))
 
     endpoint.validate_release_startup_configuration(
@@ -2822,28 +2861,53 @@ def test_runtime_startup_accepts_release_registry_file(
 
 
 def test_runtime_startup_refuses_two_scopes_for_the_same_release_subject(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    import shutil
+
     import yaml
     from nexus_contracts import load_retrieval_scope_registry
 
     from ingestor import retrieval_v2_endpoint as endpoint
 
-    registry_sha256 = hashlib.sha256(RELEASE_REGISTRY.read_bytes()).hexdigest()
+    multilevel_copy = tmp_path / "multilevel"
+    shutil.copytree(MULTILEVEL_RELEASE.parent, multilevel_copy)
+    multilevel_sha256 = hashlib.sha256(
+        (multilevel_copy / MULTILEVEL_RELEASE.name).read_bytes()
+    ).hexdigest()
+    multilevel_doc = json.loads((multilevel_copy / MULTILEVEL_RELEASE.name).read_text())
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                {
+                    "release_id": multilevel_doc["release_id"],
+                    "collections": [s["collection"] for s in multilevel_doc["subjects"]],
+                    "manifest_path": f"multilevel/{MULTILEVEL_RELEASE.name}",
+                    "expected_manifest_sha256": multilevel_sha256,
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
+                }
+            ],
+        },
+    )
     monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
     monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
     monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
-    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY))
-    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha256)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(registry_path))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_digest)
     config = yaml.safe_load(CANONICAL_COLLECTIONS.read_text(encoding="utf-8"))
     artifacts = dict(load_retrieval_scope_registry())
-    original = artifacts["prod_philo_terminale_tc_v1"]
-    artifacts["prod_philo_terminale_tc_duplicate_v1"] = original.model_copy(
-        update={"scope_id": "prod_philo_terminale_tc_duplicate_v1"}
+    original = artifacts["terminale_nsi_v1"]
+    artifacts["terminale_nsi_duplicate_v1"] = original.model_copy(
+        update={"scope_id": "terminale_nsi_duplicate_v1"}
     )
 
     with pytest.raises(RuntimeError, match="ambiguous"):
         endpoint.validate_release_startup_configuration(artifacts, config)
+
 
 
 def test_runtime_blocks_retrieval_for_a_collection_outside_the_active_registry(

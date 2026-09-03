@@ -165,6 +165,10 @@ class ReleaseExpectation:
     reranker_model_id: str
     reranker_inventory_sha256: str
     subject_manifest_sha256_by_collection: tuple[tuple[str, str], ...]
+    release_mode: str | None = None
+    promotion_status: str | None = None
+    activation_status: str | None = None
+    review_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -853,7 +857,7 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         is_v2 = True
     else:
         raise ReleaseReadinessError("release manifest kind is unsupported")
-    if is_v2 and set(aggregate) != {
+    valid_v2_keys = {
         "release_kind",
         "release_id",
         "school_year",
@@ -862,8 +866,38 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         "artifact_registry",
         "expected_counts",
         "subjects",
-    }:
-        raise ReleaseReadinessError("release manifest fields mismatch")
+    }
+    optional_v2_keys = {
+        "release_mode",
+        "promotion_status",
+        "activation_status",
+        "review_status",
+    }
+    if is_v2:
+        aggregate_keys = set(aggregate)
+        if not (aggregate_keys >= valid_v2_keys and aggregate_keys <= (valid_v2_keys | optional_v2_keys)):
+            raise ReleaseReadinessError("release manifest fields mismatch")
+        release_mode = aggregate.get("release_mode")
+        if release_mode is not None and release_mode not in {"production", "rehearsal"}:
+            raise ReleaseReadinessError("release manifest release_mode is unsupported")
+        promotion_status = aggregate.get("promotion_status")
+        if promotion_status is not None and promotion_status not in {"PROMOTABLE", "NOT_PROMOTABLE"}:
+            raise ReleaseReadinessError("release manifest promotion_status is unsupported")
+        activation_status = aggregate.get("activation_status")
+        if activation_status is not None and activation_status not in {
+            "PRODUCTION_ACTIVATION_ALLOWED",
+            "NO_PRODUCTION_ACTIVATION",
+        }:
+            raise ReleaseReadinessError("release manifest activation_status is unsupported")
+        review_status = aggregate.get("review_status")
+        if review_status is not None and review_status not in {"REVIEWED", "PRE_REVIEW"}:
+            raise ReleaseReadinessError("release manifest review_status is unsupported")
+    else:
+        release_mode = None
+        promotion_status = None
+        activation_status = None
+        review_status = None
+
     release_id = _require_nonblank(aggregate.get("release_id"), "release_id")
     school_year = _require_nonblank(aggregate.get("school_year"), "school_year")
     aggregate_authorities = _require_mapping(aggregate.get("authorities"), "authorities")
@@ -1043,7 +1077,12 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         reranker_model_id=reranker_model_id,
         reranker_inventory_sha256=reranker_inventory_sha256,
         subject_manifest_sha256_by_collection=tuple(subject_manifest_sha256_by_collection),
+        release_mode=release_mode,
+        promotion_status=promotion_status,
+        activation_status=activation_status,
+        review_status=review_status,
     )
+
 
 
 def _expectation_model_contract(

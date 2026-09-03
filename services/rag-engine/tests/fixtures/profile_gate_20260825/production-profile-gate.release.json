@@ -1,0 +1,134 @@
+{
+  "authorities": {
+    "candidate_inventory_sha256": "fbb8aa3af44efa1484c65640ddbaebf357dff923a0ebd45b6ce80ccc7e8ed7a1",
+    "catalog_delta_sha256": "8b914d6239b87cbb3dcd11039e8e7d392aeee5c5996236a580235d7515919a04",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "822677cb14987f1069ff849241e33d6f7c9fb66425a5d00c3e38d71b592b793c",
+    "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
+    "effective_catalog_authority_sha256": "6806a6be645d0a9b82a007d1ff7a2e608be72c2956b4a5f571c67071f2ebdb2a",
+    "embedding_inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+    "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+    "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+    "pii_evidence_sha256": "cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "pii_scanner_sha256": "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3",
+    "placement_catalog_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+    "preflight_evidence_sha256": "5f128e9635e1433cad6f3c66e48a3639d65e91be39c8022c60da87f9f24902a1",
+    "profile_manifest_sha256": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+    "programme_registry_sha256": "a596f45819d3f43bc9f7128a7a1719c673c13660d8d1ae9a9ccad064f4f9887d",
+    "reranker_inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "subject_mapping_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c"
+  },
+  "expected_counts": {
+    "artifacts": 26,
+    "chunks": 730,
+    "placements": 26
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "e15ab71babe2f392318c8f702a045b36ec13f7be86e7d5bad414d5d17f8c6d6c",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "release_id": "production-profile-gate-2026-2027-v1",
+  "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
+  "school_year": "2026-2027",
+  "subjects": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "path": "subjects/rag_nexus_dgemc_terminale_option.release.json",
+      "sha256": "02408bcf498ec56225852525758396152f2ed1c919c24528fd5f0fb59f54627f"
+    },
+    {
+      "collection": "rag_nexus_francais_premiere_tc",
+      "path": "subjects/rag_nexus_francais_premiere_tc.release.json",
+      "sha256": "12d592364da6dfaf7934222195f908215e48c3f8a77dcb070990cd09055c12ad"
+    },
+    {
+      "collection": "rag_nexus_francais_quatrieme_tc",
+      "path": "subjects/rag_nexus_francais_quatrieme_tc.release.json",
+      "sha256": "836b02555dba0f4f8d9c16dc64c6f5964e86ba92d4b967eda3e2397b2fb58775"
+    },
+    {
+      "collection": "rag_nexus_francais_seconde_tc",
+      "path": "subjects/rag_nexus_francais_seconde_tc.release.json",
+      "sha256": "975ff077553830fb2e4c0da24a6baa7f59f81e9fc6029102329feb662e7ea88d"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "path": "subjects/rag_nexus_hlp_premiere_specialite.release.json",
+      "sha256": "5e5afe7badcb497af1044359d9961a9c41f58984630fd38bd41fefbdbe313c6c"
+    },
+    {
+      "collection": "rag_nexus_maths_premiere_gen_specialite",
+      "path": "subjects/rag_nexus_maths_premiere_gen_specialite.release.json",
+      "sha256": "309ca9d5f116b8e0217b9d12549bd945cc1a1868b93fb54bcf7574676cd668d4"
+    },
+    {
+      "collection": "rag_nexus_maths_quatrieme_tc",
+      "path": "subjects/rag_nexus_maths_quatrieme_tc.release.json",
+      "sha256": "37975e4faf5aa976ff51493b18b56e3ed8d2787af3f1e15dcad0bcfc448b5da9"
+    },
+    {
+      "collection": "rag_nexus_maths_seconde_tc",
+      "path": "subjects/rag_nexus_maths_seconde_tc.release.json",
+      "sha256": "715b78d9e1eb73ddbe4b69c363c0b1922697801cce0277673fe14d0d8c97c909"
+    },
+    {
+      "collection": "rag_nexus_maths_terminale_gen_specialite",
+      "path": "subjects/rag_nexus_maths_terminale_gen_specialite.release.json",
+      "sha256": "16e30edd3cf25e80447924a3a61d5a3323dccdf776c1e49a188b8d51de9be362"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "path": "subjects/rag_nexus_nsi_premiere_specialite.release.json",
+      "sha256": "af49291a8b5d5ffe50157f1b7d595b5c7466c36893df99c7c8293e57bde0fee7"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "path": "subjects/rag_nexus_nsi_terminale_specialite.release.json",
+      "sha256": "27710247f2cf796b279bfa1ae05708af13519b517d28b72880527c90bd279595"
+    },
+    {
+      "collection": "rag_nexus_pc_premiere_specialite",
+      "path": "subjects/rag_nexus_pc_premiere_specialite.release.json",
+      "sha256": "9fb1dd7abe303dc9a9e930ce301edb94b546dc6f28b52257f788ff78c194a7ee"
+    },
+    {
+      "collection": "rag_nexus_pc_terminale_specialite",
+      "path": "subjects/rag_nexus_pc_terminale_specialite.release.json",
+      "sha256": "fb8134a8fe88478b01c73f10136f027c1dc24158466b90ba7c752cf4d0db1462"
+    },
+    {
+      "collection": "rag_nexus_philo_terminale_tc",
+      "path": "subjects/rag_nexus_philo_terminale_tc.release.json",
+      "sha256": "be4645b174e9b7e9be375708e4fa6949cc1866bb31c567fc8f5f533fb121079c"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "path": "subjects/rag_nexus_ses_premiere_specialite.release.json",
+      "sha256": "03014f387da2840c1590c9bda4a58073a1a270c5fa5be11ea1e61e613f0007f9"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "path": "subjects/rag_nexus_ses_terminale_specialite.release.json",
+      "sha256": "6dedcd0a5060fa918cb4cb68f420cbe829c2f56bcf77239389c80a8cd1cde4df"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "path": "subjects/rag_nexus_svt_premiere_specialite.release.json",
+      "sha256": "776178d0a077a137ee3b5db724d5071a01f3d22f3ae3543b035452374802a94d"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "path": "subjects/rag_nexus_svt_terminale_specialite.release.json",
+      "sha256": "29bd5d9363e737e49b9fca9654a46c04f4a6e23224b306897c57f12d2e9f5d8d"
+    }
+  ]
+}
