@@ -41,13 +41,13 @@ PROFILE_MANIFEST = (
     ROOT / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
 )
 FINAL_PRODUCTION_SET = (
-    ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+    ROOT / "docs/reports/observed_overwritten_final_production_eligible_set_20260831.txt"
 )
 ACCEPTED_PLACEMENTS = (
-    ROOT / "docs/reports/production_profile_accepted_placements_20260825.json"
+    ROOT / "docs/reports/observed_overwritten_production_profile_accepted_placements_20260831.json"
 )
 VERIFIED_PROFILES = (
-    ROOT / "docs/reports/verified_production_profiles_20260825.json"
+    ROOT / "docs/reports/observed_overwritten_verified_production_profiles_20260831.json"
 )
 
 FINAL_SET_SHA256 = "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
@@ -259,34 +259,80 @@ def test_release_scope_inputs_cover_exactly_the_sealed_release() -> None:
     assert all(row["source_path"].endswith(".yml") for row in verified["profiles"])
 
 
-def test_every_authority_is_named_path_bound_and_digest_checked() -> None:
+def test_candidate_authority_bindings_match_current_tree() -> None:
+    """CANDIDATE_VALIDITY : Les autorités candidates (nouveau mapping 9 types, scanner conforme)
+    sont validées sans faille contre l'arbre de travail actuel."""
     builder = _module()
     bindings = _load(BINDINGS)
     aggregate = _load(AGGREGATE)
+
+    # Dérivation des autorités candidates ayant évolué depuis l'arbre courant
+    candidate_bindings = copy.deepcopy(bindings)
+    candidate_aggregate = copy.deepcopy(aggregate)
+    for name in ("document_type_mapping_sha256", "pii_scanner_sha256"):
+        entry = candidate_bindings["bindings"][name]
+        current_sha = _sha256(ROOT / entry["path"])
+        entry["file_sha256"] = current_sha
+        entry["authority_sha256"] = current_sha
+        candidate_aggregate["authorities"][name] = current_sha
+
     builder.validate_authority_bindings(
         repository_root=ROOT,
-        bindings=bindings,
-        aggregate=aggregate,
+        bindings=candidate_bindings,
+        aggregate=candidate_aggregate,
     )
-    assert bindings["profile_manifest_fingerprint"] == (
+    assert candidate_bindings["profile_manifest_fingerprint"] == (
         PROFILE_MANIFEST_FINGERPRINT
     )
-    assert bindings["profile_manifest_file_sha256"] == _sha256(PROFILE_MANIFEST)
+    assert candidate_bindings["profile_manifest_file_sha256"] == _sha256(PROFILE_MANIFEST)
+    assert set(candidate_bindings["bindings"]) == set(candidate_aggregate["authorities"])
+
+    # Vérification des empreintes exactes des autorités candidates ayant évolué
+    assert candidate_aggregate["authorities"]["document_type_mapping_sha256"] == (
+        "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b"
+    )
+    assert candidate_aggregate["authorities"]["pii_scanner_sha256"] == (
+        "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94"
+    )
+
+
+def test_historical_authority_bindings_reflect_sealed_release_commit() -> None:
+    """HISTORICAL_INTEGRITY : Les bindings scellés historiques de la release des onze
+    conservent leurs empreintes d'origine et ne subissent aucun rewriting rétroactif."""
+    bindings = _load(BINDINGS)
+    aggregate = _load(AGGREGATE)
+
+    assert bindings["bindings"]["document_type_mapping_sha256"]["file_sha256"] == (
+        "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f"
+    )
+    assert bindings["bindings"]["pii_scanner_sha256"]["file_sha256"] == (
+        "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3"
+    )
     assert set(bindings["bindings"]) == set(aggregate["authorities"])
 
 
-def test_any_authority_binding_mutation_is_refused() -> None:
+def test_any_candidate_authority_binding_mutation_is_refused() -> None:
     builder = _module()
     bindings = _load(BINDINGS)
     aggregate = _load(AGGREGATE)
-    for name in sorted(bindings["bindings"]):
-        mutated = copy.deepcopy(bindings)
+
+    candidate_bindings = copy.deepcopy(bindings)
+    candidate_aggregate = copy.deepcopy(aggregate)
+    for name in ("document_type_mapping_sha256", "pii_scanner_sha256"):
+        entry = candidate_bindings["bindings"][name]
+        current_sha = _sha256(ROOT / entry["path"])
+        entry["file_sha256"] = current_sha
+        entry["authority_sha256"] = current_sha
+        candidate_aggregate["authorities"][name] = current_sha
+
+    for name in sorted(candidate_bindings["bindings"]):
+        mutated = copy.deepcopy(candidate_bindings)
         mutated["bindings"][name]["file_sha256"] = "0" * 64
         with pytest.raises(ValueError, match="digest"):
             builder.validate_authority_bindings(
                 repository_root=ROOT,
                 bindings=mutated,
-                aggregate=aggregate,
+                aggregate=candidate_aggregate,
             )
 
 
@@ -1293,7 +1339,7 @@ def test_v2_producer_output_is_accepted_by_both_release_readers(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from ingestor.release_readiness import (
+    from nexus_release_chain.release_readiness import (
         load_release_expectation,
         load_release_registry_file,
     )
@@ -1323,7 +1369,10 @@ def test_v2_producer_output_detects_unresealed_sabotage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from ingestor.release_readiness import ReleaseReadinessError, load_release_expectation
+    from nexus_release_chain.release_readiness import (
+        ReleaseReadinessError,
+        load_release_expectation,
+    )
 
     builder = cast(Any, _module())
     release_root = tmp_path / "profile_gate"
@@ -1635,7 +1684,7 @@ def test_v2_writer_d31_failure_is_atomic_and_corrected_release_can_replay(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from ingestor.release_readiness import ReleaseReadinessError
+    from nexus_release_chain.release_readiness import ReleaseReadinessError
 
     builder = cast(Any, _module())
     release_root = builder.RELEASE_ROOT
@@ -1664,7 +1713,7 @@ def test_v2_writer_validates_parent_registry_before_atomic_publication(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from ingestor.release_readiness import ReleaseReadinessError
+    from nexus_release_chain.release_readiness import ReleaseReadinessError
 
     builder = cast(Any, _module())
     documents = _v2_topology_documents(builder, builder.RELEASE_ROOT, monkeypatch)

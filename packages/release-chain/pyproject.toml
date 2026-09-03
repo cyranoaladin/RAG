@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nexus-release-chain"
+version = "0.1.0"
+description = "Nexus shared release chain, ingestion profiles, readiness and chunking"
+authors = [{ name = "Nexus Team" }]
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "nexus-contracts>=0.15.0",
+    "nexus-pdf-page-policy>=1.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]

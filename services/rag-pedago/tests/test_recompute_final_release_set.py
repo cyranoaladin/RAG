@@ -403,15 +403,22 @@ class TestFormatEnsembleDeSha:
     def test_le_fichier_historique_par_placement_est_mesure_et_refuse_en_v2(
         self,
     ) -> None:
-        """Le témoin actuel reste 486/319, mais n'est pas un set V2 canonique."""
+        """Le témoin archivé reste 486/319, mais n'est pas un set V2 canonique."""
         module = _load_script()
-        chemin = REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+        chemin = (
+            REPO_ROOT
+            / "docs/reports/observed_overwritten_final_production_eligible_set_20260831.txt"
+        )
         lignes = chemin.read_text(encoding="ascii").splitlines()
 
         assert len(lignes) == 486
         assert len(set(lignes)) == 319
         with pytest.raises(ValueError, match="duplicate SHA-256"):
             module._load_canonical_sha_set(chemin)
+
+        # Vérifie également que le fichier scellé du 25 août est bien restauré à ses 26 lignes historiques
+        historique = REPO_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
+        assert len(historique.read_text(encoding="ascii").splitlines()) == 26
 
     def test_un_fichier_non_trie_est_toujours_refuse(self, tmp_path: Path) -> None:
         module = _load_script()

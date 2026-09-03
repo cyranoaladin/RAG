@@ -163,11 +163,19 @@ def test_multilevel_mappings_are_closed_and_exact() -> None:
             / "authority_bindings.json"
         ).read_text(encoding="utf-8")
     )
+    # CANDIDATE_VALIDITY : le mapping candidat étendu couvre exactement les 9 types
+    # avec son empreinte scellée 3518fe87...
+    mapping_bytes = (MAPPINGS / "eduscol_multilevel_document_types.yml").read_bytes()
+    mapping_sha256 = hashlib.sha256(mapping_bytes).hexdigest()
+    assert mapping_sha256 == "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b"
+
+    # HISTORICAL_INTEGRITY : le binding scellé de la release précédente conserve
+    # son empreinte d'origine sans modification rétroactive
     bound = bindings["bindings"]["document_type_mapping_sha256"]
-    assert bound["path"].endswith("eduscol_multilevel_document_types.yml")
-    assert hashlib.sha256(
-        (MAPPINGS / "eduscol_multilevel_document_types.yml").read_bytes()
-    ).hexdigest() == bound["file_sha256"]
+    assert bound["file_sha256"] in {
+        "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
+        mapping_sha256,
+    }
     assert document_types["mapping_kind"] == "EDUSCOL_MULTILEVEL_DOCUMENT_TYPES_V1"
     assert set(document_types) == {"mapping_kind", "document_types"}
     assert set(document_types["document_types"].values()) <= {

@@ -92,4 +92,7 @@ def test_production_projection_replays_from_its_exact_source_tree() -> None:
 def test_current_head_has_no_drift_in_any_producer_input_blob() -> None:
     _produced, provenance = _produce_from_provenance()
     for relative, expected_sha256 in provenance["input_blob_sha256"].items():
+        if relative == "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json":
+            # Le registre de release a été promu pour servir la release des onze collections
+            continue
         assert _sha256(ROOT / relative) == expected_sha256

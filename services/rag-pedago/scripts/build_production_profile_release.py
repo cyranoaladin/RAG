@@ -19,31 +19,25 @@ from typing import Any, NamedTuple, Protocol
 
 import yaml
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
-for source_root in (
-    REPOSITORY_ROOT / "services/rag-engine/src",
-    REPOSITORY_ROOT / "packages/contracts/src",
-    REPOSITORY_ROOT / "services/rag-pedago",
-):
-    if str(source_root) not in sys.path:
-        sys.path.insert(0, str(source_root))
+# Packages partagés canoniques : nexus_pdf_page_policy, nexus_contracts, nexus_release_chain
+import os
+from pathlib import Path
 
-# Le prédicat qui dérive `ignored_empty_pages` (ADR-0046). La preuve PII nomme
-# ce foyer par son id versionné et l'empreinte de ses octets : `scanner_sha256`
-# reste l'empreinte du scanner et ne porte plus le prédicat.
-import nexus_pdf_page_policy as page_policy  # noqa: E402
-from ingestor.collection_config import load_collection_config  # noqa: E402
-from ingestor.ingestion_profiles.manifest import verify_profile_manifest  # noqa: E402
-from ingestor.ingestion_profiles.registry import (  # noqa: E402
+REPOSITORY_ROOT = Path(os.environ.get("NEXUS_REPO_ROOT") or Path(__file__).resolve().parents[3])
+
+import nexus_pdf_page_policy as page_policy
+from nexus_contracts.embedding_utils import format_passage
+from nexus_release_chain.collection_config import load_collection_config
+from nexus_release_chain.ingestion_profiles.manifest import verify_profile_manifest
+from nexus_release_chain.ingestion_profiles.registry import (
     load_profile_registry,
     profile_fingerprint,
 )
-from ingestor.publication_chunking import chunk_publication  # noqa: E402
-from ingestor.release_readiness import (  # noqa: E402
+from nexus_release_chain.publication_chunking import chunk_publication
+from nexus_release_chain.release_readiness import (
     load_release_expectation,
     load_release_registry_file,
 )
-from nexus_contracts.embedding_utils import format_passage  # noqa: E402
 
 from rag_pedago.imports.pii_scanner import (  # noqa: E402
     extract_pdf_pages_with_structural_empty_pages,

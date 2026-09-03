@@ -1,0 +1,502 @@
+"""Collection configuration — v2 (ADR-0013) + legacy isolation.
+
+Two separate worlds, no cross-contamination:
+- v2: resolve_collection_v2 reads rag_collections.yml (catalogue v2, instanciee flags)
+- legacy: resolve_collection reads rag_collections_legacy.yml (Chroma routing, v1)
+
+The v2 resolver is the ONLY path for new code. The legacy resolver exists solely
+for api.py (historical monolith) until it is decommissioned.
+"""
+from __future__ import annotations
+
+import logging
+import os
+from collections.abc import Mapping
+from copy import deepcopy
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, cast
+
+import yaml
+
+CONFIG_FILENAME = "rag_collections.yml"
+LEGACY_CONFIG_FILENAME = "rag_collections_legacy.yml"
+MAPPING_FILENAME = "legacy_collection_mapping.yml"
+CONFIG_ENV = "RAG_COLLECTIONS_CONFIG"
+LEGACY_CONFIG_ENV = "RAG_LEGACY_COLLECTIONS_CONFIG"
+MAPPING_ENV = "RAG_LEGACY_COLLECTION_MAPPING"
+CONFIG_DIR_ENV = "RAG_ENGINE_CONFIG_DIR"
+STAGING_OVERLAY_KIND = "RAG_COLLECTIONS_STAGING_OVERLAY_V1"
+
+
+def _candidate_config_paths(filename: str, file_env: str) -> list[Path]:
+    candidates: list[Path] = []
+    env_path = os.getenv(file_env)
+    if env_path:
+        candidates.append(Path(env_path).expanduser())
+
+    env_dir = os.getenv(CONFIG_DIR_ENV)
+    if env_dir:
+        candidates.append(Path(env_dir).expanduser() / filename)
+
+    module_path = Path(__file__).resolve()
+    for root in (module_path.parent, *module_path.parents):
+        candidates.append(root / "configs" / filename)
+    return list(dict.fromkeys(candidates))
+
+
+def _resolve_config_path(filename: str, file_env: str) -> Path:
+    env_path = os.getenv(file_env)
+    if env_path:
+        candidate = Path(env_path).expanduser()
+        if candidate.is_file():
+            return candidate
+        raise CollectionConfigLoadError(
+            f"{file_env} points to missing config file: {candidate}"
+        )
+
+    env_dir = os.getenv(CONFIG_DIR_ENV)
+    if env_dir:
+        candidate = Path(env_dir).expanduser() / filename
+        if candidate.is_file():
+            return candidate
+        raise CollectionConfigLoadError(
+            f"{CONFIG_DIR_ENV} does not contain {filename}: {candidate}"
+        )
+
+    candidates = _candidate_config_paths(filename, file_env)
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    checked = ", ".join(str(candidate) for candidate in candidates)
+    raise CollectionConfigLoadError(f"Config file {filename} not found; checked: {checked}")
+
+
+CONFIG_PATH = _candidate_config_paths(CONFIG_FILENAME, CONFIG_ENV)[0]
+MAPPING_PATH = _candidate_config_paths(MAPPING_FILENAME, MAPPING_ENV)[0]
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Exception hierarchy
+# ---------------------------------------------------------------------------
+
+class CollectionConfigError(ValueError):
+    """Raised when a collection or routing key is outside the versioned config."""
+
+
+class CollectionConfigLoadError(CollectionConfigError):
+    """Raised when the server cannot load or validate collection configuration."""
+
+
+class CollectionRoutingError(CollectionConfigError):
+    """Raised when a client asks for an unknown or non-retrievable route."""
+
+
+class CollectionNotInstanciatedError(CollectionConfigError):
+    """Raised when a requested collection exists in the catalogue but is not instanciated."""
+
+
+class CollectionUnknownError(CollectionConfigError):
+    """Raised when a requested collection is not in the catalogue at all."""
+
+
+_CATALOGUE_VOIE_MAPPING: dict[str, str] = {
+    "college": "college",
+    "gen": "generale",
+    "generale": "generale",
+    "stmg": "technologique",
+    "technologique": "technologique",
+}
+
+
+def canonicalize_catalogue_voie(value: object) -> str | None:
+    """Adapter exhaustivement un slug de voie catalogue vers le contrat."""
+    if value is None:
+        return None
+    if isinstance(value, str) and value in _CATALOGUE_VOIE_MAPPING:
+        return _CATALOGUE_VOIE_MAPPING[value]
+    raise CollectionConfigLoadError("Unknown catalogue voie")
+
+
+# ---------------------------------------------------------------------------
+# Shared types
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class CollectionResolution:
+    requested: str
+    nexus_collection: str
+    physical_collection: str
+    domain: str
+    retrievable: bool
+    legacy_collection: str | None = None
+    used_legacy: bool = False
+
+
+# ---------------------------------------------------------------------------
+# YAML loading
+# ---------------------------------------------------------------------------
+
+def _read_yaml(path: Path) -> dict[str, Any]:
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise CollectionConfigLoadError(f"Invalid YAML mapping in {path.name}")
+    return cast(dict[str, Any], data)
+
+
+def _read_collection_config(path: Path) -> dict[str, Any]:
+    """Charger un catalogue complet ou un overlay staging strict."""
+    raw = _read_yaml(path)
+    if raw.get("kind") != STAGING_OVERLAY_KIND:
+        return raw
+    if set(raw) != {"kind", "base", "instanciee_overrides"}:
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    relative_base = raw.get("base")
+    overrides = raw.get("instanciee_overrides")
+    if (
+        not isinstance(relative_base, str)
+        or not relative_base
+        or Path(relative_base).is_absolute()
+        or not isinstance(overrides, Mapping)
+        or any(
+            not isinstance(name, str) or not name or value is not True
+            for name, value in overrides.items()
+        )
+    ):
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    base_path = (path.parent / relative_base).resolve()
+    if base_path == path.resolve() or not base_path.is_file():
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    base = _read_yaml(base_path)
+    collections = base.get("collections")
+    if not isinstance(collections, Mapping) or any(
+        name not in collections
+        or not isinstance(collections[name], Mapping)
+        or collections[name].get("instanciee") is not False
+        for name in overrides
+    ):
+        raise CollectionConfigLoadError("Invalid staging collection overlay")
+    derived = deepcopy(base)
+    for name in overrides:
+        derived["collections"][name]["instanciee"] = True
+    return derived
+
+
+def load_collection_config(path: Path | None = None) -> dict[str, Any]:
+    """Load the v2 catalogue (rag_collections.yml)."""
+    return _read_collection_config(
+        path or _resolve_config_path(CONFIG_FILENAME, CONFIG_ENV)
+    )
+
+
+def validate_collection_catalogue_v2(path: Path | None = None) -> dict[str, Any]:
+    """Valider intégralement le catalogue monté avant de déclarer le runtime prêt."""
+    config = load_collection_config(path)
+    if config.get("version") != 3:
+        raise CollectionConfigLoadError("Unsupported v2 catalogue version")
+
+    backend = config.get("physical_backend")
+    if not isinstance(backend, Mapping) or (
+        backend.get("type"), backend.get("table"), backend.get("vector_dim")
+    ) != ("pgvector", "rag_chunks", 1024):
+        raise CollectionConfigLoadError("Invalid v2 physical backend")
+
+    required_metadata = config.get("metadata_required")
+    if (
+        not isinstance(required_metadata, list)
+        or not required_metadata
+        or any(not isinstance(item, str) or not item for item in required_metadata)
+        or len(set(required_metadata)) != len(required_metadata)
+    ):
+        raise CollectionConfigLoadError("Invalid v2 metadata contract")
+
+    domains = config.get("domains")
+    if not isinstance(domains, Mapping) or not domains:
+        raise CollectionConfigLoadError("Missing v2 domains")
+    for domain_name, definition in domains.items():
+        if (
+            not isinstance(domain_name, str)
+            or not domain_name
+            or not isinstance(definition, Mapping)
+            or not isinstance(definition.get("retrievable"), bool)
+            or (
+                domain_name == "quarantine"
+                and definition.get("retrievable") is not False
+            )
+        ):
+            raise CollectionConfigLoadError("Invalid v2 domain definition")
+        audiences = definition.get("audiences")
+        if audiences is not None and (
+            not isinstance(audiences, list)
+            or not audiences
+            or any(not isinstance(item, str) or not item for item in audiences)
+        ):
+            raise CollectionConfigLoadError("Invalid v2 domain audiences")
+
+    collections = _v2_catalogue(config)
+    if not collections:
+        raise CollectionConfigLoadError("Empty v2 collections catalogue")
+    for collection_name, definition in collections.items():
+        if (
+            not isinstance(collection_name, str)
+            or not collection_name
+            or not isinstance(definition, Mapping)
+            or not isinstance(definition.get("instanciee"), bool)
+        ):
+            raise CollectionConfigLoadError("Invalid v2 collection definition")
+        domain = definition.get("domain")
+        if not isinstance(domain, str) or domain not in domains:
+            raise CollectionConfigLoadError("Unknown v2 collection domain")
+        canonicalize_catalogue_voie(definition.get("voie"))
+        if domain != "quarantine" and any(
+            not isinstance(definition.get(field), str) or not definition.get(field)
+            for field in ("matiere", "niveau", "statut", "taxonomy_file")
+        ):
+            raise CollectionConfigLoadError("Incomplete v2 collection definition")
+    return config
+
+
+def load_legacy_collection_config(path: Path | None = None) -> dict[str, Any]:
+    """Load the legacy v1 config (rag_collections_legacy.yml)."""
+    return _read_yaml(path or _resolve_config_path(LEGACY_CONFIG_FILENAME, LEGACY_CONFIG_ENV))
+
+
+def load_legacy_mapping(path: Path | None = None) -> dict[str, str]:
+    raw = _read_yaml(path or _resolve_config_path(MAPPING_FILENAME, MAPPING_ENV))
+    mapping: dict[str, str] = {}
+    for legacy, target in raw.items():
+        if not isinstance(legacy, str) or not isinstance(target, str):
+            raise CollectionConfigLoadError(
+                "Legacy collection mapping must be string -> string"
+            )
+        mapping[legacy] = target
+    return mapping
+
+
+# ===================================================================
+# v2 — SOLE SOURCE FOR NEW CODE (ADR-0013)
+# ===================================================================
+
+
+def _v2_catalogue(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Return the v2 collections catalogue."""
+    cols = config.get("collections")
+    if isinstance(cols, Mapping):
+        return cols
+    raise CollectionConfigLoadError("Missing 'collections' in v2 config")
+
+
+def resolve_collection_v2(
+    collection_name: str,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve a collection against the v2 catalogue.
+
+    Gate: instanciee must be boolean True. No fallback, no guessing.
+    """
+    resolved = resolve_declared_collection_v2(collection_name, config)
+
+    if resolved.get("instanciee") is not True:
+        raise CollectionNotInstanciatedError(
+            f"Collection '{collection_name}' is in the catalogue but not instanciated "
+            f"(instanciee: false). Populate it via the governance chain before exposing."
+        )
+
+    return resolved
+
+
+def resolve_declared_collection_v2(
+    collection_name: str,
+    config: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Resolve a declared collection without authorizing its use."""
+    cfg = config or load_collection_config()
+    cols = _v2_catalogue(cfg)
+
+    if collection_name not in cols:
+        raise CollectionUnknownError(
+            f"Collection '{collection_name}' is not declared in rag_collections.yml. "
+            f"Known collections: {sorted(cols.keys())}"
+        )
+
+    definition = cols[collection_name]
+    if not isinstance(definition, Mapping):
+        raise CollectionConfigLoadError(
+            f"Invalid definition for collection '{collection_name}'"
+        )
+
+    resolved = dict(definition)
+    if "voie" in resolved:
+        resolved["voie"] = canonicalize_catalogue_voie(resolved["voie"])
+    return resolved
+
+
+def list_instanciated_collections(
+    config: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Return names of all instanciated collections (instanciee is True)."""
+    cfg = config or load_collection_config()
+    cols = _v2_catalogue(cfg)
+    return [
+        name for name, defn in cols.items()
+        if isinstance(defn, Mapping) and defn.get("instanciee") is True
+    ]
+
+
+# ===================================================================
+# LEGACY — api.py historical monolith ONLY (to be decommissioned)
+# Reads from rag_collections_legacy.yml, NEVER from the v2 catalogue.
+# ===================================================================
+
+
+def _chroma_collections(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """v1 only: read physical_backends.chroma.collections from LEGACY config."""
+    backends = config.get("physical_backends")
+    if not isinstance(backends, Mapping):
+        raise CollectionConfigLoadError("Missing physical_backends (legacy config required)")
+    chroma = backends.get("chroma")
+    if not isinstance(chroma, Mapping):
+        raise CollectionConfigLoadError("Missing chroma backend")
+    collections = chroma.get("collections")
+    if not isinstance(collections, Mapping):
+        raise CollectionConfigLoadError("Missing chroma collections")
+    return collections
+
+
+def _routing_sections(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    """v1 only: read routing.sections from LEGACY config."""
+    routing = config.get("routing")
+    if not isinstance(routing, Mapping):
+        raise CollectionConfigLoadError("Missing routing (legacy config required)")
+    sections = routing.get("sections")
+    if not isinstance(sections, Mapping):
+        raise CollectionConfigLoadError("Missing routing sections")
+    return sections
+
+
+def _domains(config: Mapping[str, Any]) -> Mapping[str, Any]:
+    domains = config.get("domains")
+    if not isinstance(domains, Mapping):
+        raise CollectionConfigLoadError("Missing domains")
+    return domains
+
+
+def _collection_domain(config: Mapping[str, Any], nexus_collection: str) -> str:
+    """v1 only: derive domain from allowed_domains in LEGACY config."""
+    collections = _chroma_collections(config)
+    definition = collections.get(nexus_collection)
+    if not isinstance(definition, Mapping):
+        raise CollectionConfigLoadError(f"Unknown Nexus collection: {nexus_collection}")
+    allowed_domains = definition.get("allowed_domains")
+    if not isinstance(allowed_domains, list) or not allowed_domains:
+        raise CollectionConfigLoadError(
+            f"Collection {nexus_collection} has no allowed domains"
+        )
+    if len(allowed_domains) != 1:
+        raise CollectionConfigLoadError(
+            f"Collection {nexus_collection} mixes multiple domains"
+        )
+    domain = allowed_domains[0]
+    if not isinstance(domain, str):
+        raise CollectionConfigLoadError(
+            f"Collection {nexus_collection} has an invalid domain"
+        )
+    return domain
+
+
+def _domain_is_retrievable(config: Mapping[str, Any], domain: str) -> bool:
+    definition = _domains(config).get(domain)
+    if not isinstance(definition, Mapping):
+        raise CollectionConfigLoadError(f"Unknown domain: {domain}")
+    return definition.get("retrievable", True) is not False
+
+
+def _section_resolution(
+    section: str,
+    config: Mapping[str, Any],
+) -> CollectionResolution:
+    """v1 only: resolve via routing.sections in LEGACY config."""
+    sections = _routing_sections(config)
+    key = section.strip().lower() if section and section.strip() else "default"
+    route = sections.get(key)
+    if not isinstance(route, Mapping):
+        raise CollectionRoutingError(f"Unknown section: {section}")
+    nexus_collection = route.get("nexus_collection")
+    legacy_collection = route.get("legacy_collection")
+    route_domain = route.get("domain")
+    if not isinstance(nexus_collection, str) or not isinstance(legacy_collection, str):
+        raise CollectionConfigLoadError(f"Invalid routing for section: {section}")
+    resolved_domain = route_domain if isinstance(route_domain, str) else _collection_domain(config, nexus_collection)
+    return CollectionResolution(
+        requested=key,
+        nexus_collection=nexus_collection,
+        physical_collection=legacy_collection,
+        domain=resolved_domain,
+        retrievable=_domain_is_retrievable(config, resolved_domain),
+        legacy_collection=legacy_collection,
+        used_legacy=True,
+    )
+
+
+def resolve_collection(
+    *,
+    section: str | None = None,
+    collection: str | None = None,
+    allow_non_retrievable: bool = True,
+    config: Mapping[str, Any] | None = None,
+    legacy_mapping: Mapping[str, str] | None = None,
+) -> CollectionResolution:
+    """LEGACY resolver — reads from rag_collections_legacy.yml.
+
+    Used ONLY by api.py (historical monolith). New code MUST use
+    resolve_collection_v2. See ADR-0013.
+    """
+    cfg = config or load_legacy_collection_config()
+    mapping = legacy_mapping or load_legacy_mapping()
+    raw_collection = (collection or "").strip().lower()
+
+    if raw_collection:
+        if raw_collection in mapping:
+            nexus_collection = mapping[raw_collection]
+            domain = _collection_domain(cfg, nexus_collection)
+            resolution = CollectionResolution(
+                requested=raw_collection,
+                nexus_collection=nexus_collection,
+                physical_collection=raw_collection,
+                domain=domain,
+                retrievable=_domain_is_retrievable(cfg, domain),
+                legacy_collection=raw_collection,
+                used_legacy=True,
+            )
+        elif raw_collection in _chroma_collections(cfg):
+            domain = _collection_domain(cfg, raw_collection)
+            resolution = CollectionResolution(
+                requested=raw_collection,
+                nexus_collection=raw_collection,
+                physical_collection=raw_collection,
+                domain=domain,
+                retrievable=_domain_is_retrievable(cfg, domain),
+            )
+        else:
+            raise CollectionRoutingError(f"Unknown collection: {raw_collection}")
+    else:
+        resolution = _section_resolution(section or "default", cfg)
+
+    if not allow_non_retrievable and not resolution.retrievable:
+        raise CollectionRoutingError(
+            f"Collection {resolution.nexus_collection} is not retrievable"
+        )
+    if resolution.used_legacy:
+        logger.warning(
+            "Legacy Chroma collection '%s' resolved to Nexus collection '%s'",
+            resolution.physical_collection,
+            resolution.nexus_collection,
+        )
+    return resolution
+
+
+def nexus_collection_domain(collection_name: str, config: Mapping[str, Any] | None = None) -> str:
+    """LEGACY: derive domain from legacy config."""
+    return _collection_domain(config or load_legacy_collection_config(), collection_name)

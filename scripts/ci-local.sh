@@ -75,6 +75,18 @@ run_page_policy() {
 }
 run_target "packages/pdf-page-policy" run_page_policy
 
+# --- packages/release-chain ---
+run_release_chain() {
+    local venv="/tmp/ci-local-release-chain-venv"
+    rm -rf "$venv"
+    "$PYTHON_BIN" -m venv "$venv"
+    "$venv/bin/pip" install -q -e "packages/contracts"
+    "$venv/bin/pip" install -q -e "packages/pdf-page-policy"
+    "$venv/bin/pip" install -q -e "packages/release-chain"
+    "$venv/bin/python" -c "import nexus_release_chain; print('release-chain: import OK')"
+}
+run_target "packages/release-chain" run_release_chain
+
 # --- services/rag-pedago ---
 run_pedago() {
     cd "$REPO_ROOT/services/rag-pedago"
