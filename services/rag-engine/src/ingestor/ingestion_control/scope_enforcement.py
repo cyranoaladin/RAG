@@ -321,22 +321,31 @@ def enforce_rights(
         )
 
 
-def enforce_pii(authorization: VerifiedAuthorization, *, pii_detected: bool) -> None:
-    """Quatrième point de contrôle : politique PII.
+def enforce_pii(
+    authorization: VerifiedAuthorization,
+    *,
+    pii_detected: bool,
+    reviewed_accepted: bool = False,
+) -> None:
+    """Quatrième point de contrôle : politique PII (élargi par ADR-0047).
 
-    Cette release n'ingère **aucune** PII. ``pii_absence_attested`` ne peut
-    d'ailleurs pas être faux dans un artefact valide — la vérification est
-    donc redondante *par construction*, et c'est voulu : le jour où une
-    politique PII plus fine apparaîtra, ce point de contrôle existe déjà et
-    devra être élargi explicitement, jamais découvert manquant."""
-    if pii_detected:
+    Une détection reste un refus. La seule exception est nommée : une revue
+    humaine documentée, scellée et vérifiée l'a admise, fait que seul le
+    registre de preuves peut établir — jamais l'appelant, jamais le payload
+    du job. ``reviewed_accepted`` vaut ``False`` par défaut, pour qu'un
+    appelant qui l'ignore reste du côté fermé.
+
+    ``pii_absence_attested`` reste exigé de toute autorisation qui n'a pas
+    de revue à opposer : une admission porte sur un contenu précis, elle ne
+    dispense pas l'autorisation de sa propre attestation."""
+    if pii_detected and not reviewed_accepted:
         raise ScopeEnforcementViolation(
             "pii",
             f"PII was detected in a document under authorization "
-            f"{authorization.authorization_id!r} — this release ingests no PII "
-            "under any authorization",
+            f"{authorization.authorization_id!r} and no approved human review "
+            "admits it — this release ingests no unreviewed PII",
         )
-    if not authorization.pii_absence_attested:  # pragma: no cover - irreprésentable
+    if not authorization.pii_absence_attested and not reviewed_accepted:
         raise ScopeEnforcementViolation(
             "pii",
             f"authorization {authorization.authorization_id!r} does not attest "

@@ -183,7 +183,25 @@ def test_multilevel_runtime_authority_has_every_digest_bound_input() -> None:
         "rights_evidence_sha256",
         "corpus_manifest_sha256",
         "repository_root",
+        # ADR-0047 : autorité de revue PII, injectée et optionnelle. Chaque
+        # chemin garde son empreinte ; l'allowlist de reviewers n'est pas un
+        # fichier et n'en a donc pas.
+        "pii_decision_set_path",
+        "pii_decision_set_sha256",
+        "pii_review_receipt_path",
+        "pii_review_receipt_sha256",
+        "review_trust_anchor_path",
+        "review_trust_anchor_sha256",
+        "pii_review_reviewers",
     }
+
+    # L'invariant que la liste ci-dessus servait à protéger, énoncé
+    # directement : aucun chemin d'entrée sans l'empreinte qui le lie.
+    unbound = {
+        field for field in fields
+        if field.endswith("_path") and f"{field[:-5]}_sha256" not in fields
+    }
+    assert unbound == set()
 
 
 def test_multilevel_runtime_authority_module_never_uses_pilot_sha_allowlist() -> None:

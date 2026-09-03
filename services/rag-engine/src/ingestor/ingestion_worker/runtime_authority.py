@@ -73,6 +73,13 @@ class RuntimeAuthorityInputs:
     rights_evidence_path: Path
     rights_evidence_sha256: str
     corpus_manifest_sha256: str
+    pii_decision_set_path: Path | None = None
+    pii_decision_set_sha256: str | None = None
+    pii_review_receipt_path: Path | None = None
+    pii_review_receipt_sha256: str | None = None
+    review_trust_anchor_path: Path | None = None
+    review_trust_anchor_sha256: str | None = None
+    pii_review_reviewers: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -94,6 +101,47 @@ _RUNTIME_FILE_ARGUMENTS = (
 )
 
 
+#: Autorité de revue PII (ADR-0047), injectée comme toute autre autorité :
+#: des couples chemin/empreinte et une allowlist de reviewers. Optionnelle,
+#: parce qu'une release sans contenu détecté n'a pas de décisions à joindre —
+#: l'absence n'ouvre rien, le registre refuse toute admission non fondée.
+_REVIEW_AUTHORITY_ARGUMENTS = (
+    ("pii-decision-set", "sealed PII human review decision set"),
+    ("pii-review-receipt", "ADR-0035 receipt sealing the decision set"),
+    ("review-trust-anchor", "trust anchor verifying the review receipt"),
+)
+
+
+def add_review_authority_arguments(parser: argparse.ArgumentParser) -> None:
+    for name, description in _REVIEW_AUTHORITY_ARGUMENTS:
+        parser.add_argument(f"--{name}-path", type=Path, default=None, help=description)
+        parser.add_argument(
+            f"--{name}-sha256", default=None, help=f"expected SHA-256: {description}"
+        )
+    parser.add_argument(
+        "--pii-review-reviewer",
+        action="append",
+        default=None,
+        dest="pii_review_reviewers",
+        help=(
+            "GitHub login allowed to approve a PII review decision set. Repeatable. "
+            "Absent means no review is accepted — never means any reviewer will do."
+        ),
+    )
+
+
+def review_authority_arguments_from_args(args: argparse.Namespace) -> dict[str, object]:
+    return {
+        "pii_decision_set_path": args.pii_decision_set_path,
+        "pii_decision_set_sha256": args.pii_decision_set_sha256,
+        "pii_review_receipt_path": args.pii_review_receipt_path,
+        "pii_review_receipt_sha256": args.pii_review_receipt_sha256,
+        "review_trust_anchor_path": args.review_trust_anchor_path,
+        "review_trust_anchor_sha256": args.review_trust_anchor_sha256,
+        "pii_review_reviewers": tuple(args.pii_review_reviewers or ()),
+    }
+
+
 def add_runtime_authority_arguments(parser: argparse.ArgumentParser) -> None:
     for name, description in _RUNTIME_FILE_ARGUMENTS:
         parser.add_argument(
@@ -102,6 +150,7 @@ def add_runtime_authority_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             f"--{name}-sha256", required=True, help=f"expected SHA-256: {description}"
         )
+    add_review_authority_arguments(parser)
 
 
 def runtime_authority_inputs_from_args(args: argparse.Namespace) -> RuntimeAuthorityInputs:
@@ -125,6 +174,7 @@ def runtime_authority_inputs_from_args(args: argparse.Namespace) -> RuntimeAutho
         rights_evidence_path=args.rights_evidence_path,
         rights_evidence_sha256=args.rights_evidence_sha256,
         corpus_manifest_sha256=args.corpus_manifest_sha256,
+        **review_authority_arguments_from_args(args),  # type: ignore[arg-type]
     )
 
 
@@ -164,6 +214,13 @@ def load_governed_runtime_authorities(
             inputs.pii_evidence_path,
             expected_evidence_sha256=inputs.pii_evidence_sha256,
             expected_corpus_manifest_sha256=inputs.corpus_manifest_sha256,
+            decision_set_path=inputs.pii_decision_set_path,
+            expected_decision_set_sha256=inputs.pii_decision_set_sha256,
+            receipt_path=inputs.pii_review_receipt_path,
+            expected_receipt_sha256=inputs.pii_review_receipt_sha256,
+            trust_anchor_path=inputs.review_trust_anchor_path,
+            expected_trust_anchor_sha256=inputs.review_trust_anchor_sha256,
+            accepted_reviewers=inputs.pii_review_reviewers or None,
         )
         rights = VerifiedRightsEvidenceRegistry.load(
             inputs.rights_evidence_path,

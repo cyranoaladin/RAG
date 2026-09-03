@@ -30,7 +30,9 @@ from ingestor.wave0_release import require_file_digest
 from .runtime_authority import (
     GovernedRuntimeAuthorities,
     RuntimeAuthorityStartupError,
+    add_review_authority_arguments,
     require_canonical_worker_runtime,
+    review_authority_arguments_from_args,
 )
 
 
@@ -60,6 +62,13 @@ class MultilevelRuntimeAuthorityInputs:
     rights_evidence_sha256: str
     corpus_manifest_sha256: str
     repository_root: Path
+    pii_decision_set_path: Path | None = None
+    pii_decision_set_sha256: str | None = None
+    pii_review_receipt_path: Path | None = None
+    pii_review_receipt_sha256: str | None = None
+    review_trust_anchor_path: Path | None = None
+    review_trust_anchor_sha256: str | None = None
+    pii_review_reviewers: tuple[str, ...] = ()
 
 
 _MULTILEVEL_RUNTIME_FILE_ARGUMENTS = (
@@ -95,6 +104,7 @@ def add_multilevel_runtime_authority_arguments(
         )
     parser.add_argument("--corpus-manifest-sha256", required=True)
     parser.add_argument("--repository-root", required=True, type=Path)
+    add_review_authority_arguments(parser)
 
 
 def multilevel_runtime_authority_inputs_from_args(
@@ -126,6 +136,7 @@ def multilevel_runtime_authority_inputs_from_args(
         rights_evidence_sha256=args.rights_evidence_sha256,
         corpus_manifest_sha256=args.corpus_manifest_sha256,
         repository_root=args.repository_root,
+        **review_authority_arguments_from_args(args),  # type: ignore[arg-type]
     )
 
 
@@ -207,6 +218,13 @@ def load_multilevel_runtime_authorities(
             inputs.pii_evidence_path,
             expected_evidence_sha256=inputs.pii_evidence_sha256,
             expected_corpus_manifest_sha256=inputs.corpus_manifest_sha256,
+            decision_set_path=inputs.pii_decision_set_path,
+            expected_decision_set_sha256=inputs.pii_decision_set_sha256,
+            receipt_path=inputs.pii_review_receipt_path,
+            expected_receipt_sha256=inputs.pii_review_receipt_sha256,
+            trust_anchor_path=inputs.review_trust_anchor_path,
+            expected_trust_anchor_sha256=inputs.review_trust_anchor_sha256,
+            accepted_reviewers=inputs.pii_review_reviewers or None,
         )
         rights = VerifiedRightsEvidenceRegistry.load(
             inputs.rights_evidence_path,
