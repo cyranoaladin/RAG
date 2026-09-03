@@ -31,7 +31,7 @@ import hashlib
 import json
 import sys
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]
@@ -222,6 +222,8 @@ def verifier_recu(
     raw = decision_set.read_bytes()
     parsed = parse_pii_review_decision_set(raw)
     trust_anchor = TrustAnchor.model_validate(json.loads(anchor.read_text(encoding="utf-8")))
+    if now is None:
+        now = datetime.now(UTC)
     try:
         binding = verify_review_binding(
             receipt.read_bytes(), trust_anchor=trust_anchor, environment=environment, now=now
