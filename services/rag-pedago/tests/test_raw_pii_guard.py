@@ -19,10 +19,12 @@ préfixé `sha256:`. Ni 63, ni 65, ni une courte chaîne hexadécimale.
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
+from rag_pedago.imports.pii_scanner import PIIPattern
 from rag_pedago.imports.raw_pii_guard import (
     RawPiiLeakError,
     _scan_units,
@@ -368,3 +370,44 @@ class TestTheAncestorKeysLendTheirContext:
         """La déduplication des miroirs ne doit pas effacer une répétition."""
         with pytest.raises(RawPiiLeakError, match=r"\b2 finding\(s\)"):
             require_no_raw_pii({"tel": "0612345678 puis 0612345678"}, label="t")
+
+
+class TestThePrefixFilterNeverHidesADetection:
+    """Écarter une correspondance de préfixe exige une PREUVE (re-review #144).
+
+    Le filtre était inconditionnel : toute correspondance confinée au préfixe
+    `clé: ` du rendu miroir était écartée, au motif que la clé est déjà scannée
+    seule. Vrai pour un motif que la clé seule produit — faux pour un motif qui
+    ne se forme QUE dans le miroir, par exemple parce qu'il exige le
+    séparateur. Un tel motif n'est comptabilisé nulle part ailleurs : le garde
+    aurait attesté une sortie propre sur une détection que la politique
+    demandait.
+
+    L'écart n'a lieu, désormais, que si la clé SEULE produit la même
+    correspondance — même classe, même longueur, même empreinte.
+    """
+
+    def test_a_pattern_that_needs_the_separator_is_not_dropped(self) -> None:
+        """Motif qui ne se forme que dans le rendu miroir."""
+        separator_pattern = [
+            PIIPattern(
+                pattern_id="cle_avec_separateur",
+                description="motif exigeant le séparateur synthétique",
+                regex=re.compile(r"secret: "),
+            )
+        ]
+        findings = [
+            finding
+            for unit in _scan_units({"secret": "x"})
+            for text in unit
+            for finding in find_raw_pii(text, patterns=separator_pattern)
+        ]
+        assert findings, "le motif ne se forme dans aucun rendu — banc invalide"
+
+        with pytest.raises(RawPiiLeakError, match="cle_avec_separateur"):
+            require_no_raw_pii({"secret": "x"}, label="t", patterns=separator_pattern)
+
+    def test_a_pattern_the_key_alone_produces_is_still_dropped(self) -> None:
+        """Contrôle inverse : ce que la clé seule produit reste écarté du miroir."""
+        with pytest.raises(RawPiiLeakError, match=r"\b1 finding\(s\)"):
+            require_no_raw_pii({"0612345678": {"a": 1, "b": 2}}, label="t")

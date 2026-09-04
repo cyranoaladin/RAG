@@ -272,13 +272,32 @@ def require_no_raw_pii(
         # n'ajoute rien.
         best: dict[tuple[str, str, int], list[RawPiiFinding]] = {}
         for text, prefix in zip(unit, prefixes, strict=True):
+            # Ce que la CLÉ SEULE produit, mesuré une fois. Le préfixe du
+            # miroir vaut `clé: ` : ses deux derniers caractères sont un
+            # séparateur SYNTHÉTIQUE, absent du document.
+            key_identities: set[tuple[str, str, int]] = set()
+            if prefix:
+                key_identities = {
+                    (f.pattern_id, f.match_sha256, f.match_length)
+                    for f in find_raw_pii(text[: prefix - 2], patterns=patterns)
+                }
             grouped: dict[tuple[str, str, int], list[RawPiiFinding]] = {}
             for finding in find_raw_pii(text, patterns=patterns):
-                # Correspondance entièrement contenue dans le préfixe de clé :
-                # elle appartient à la clé, comptée ailleurs.
-                if finding.char_offset + finding.match_length <= prefix:
-                    continue
                 identity = (finding.pattern_id, finding.match_sha256, finding.match_length)
+                # Une correspondance confinée au préfixe n'est écartée que si
+                # la clé seule la produit AUSSI — auquel cas son unité
+                # autonome l'a déjà comptée.
+                #
+                # L'écarter inconditionnellement supprimait en silence ce
+                # qu'une politique configurable aurait détecté sur le
+                # séparateur : un motif qui ne se forme que dans le rendu
+                # miroir n'est comptabilisé nulle part ailleurs, et le garde
+                # aurait attesté une sortie propre.
+                if (
+                    finding.char_offset + finding.match_length <= prefix
+                    and identity in key_identities
+                ):
+                    continue
                 grouped.setdefault(identity, []).append(finding)
             for identity, occurrences in grouped.items():
                 if len(occurrences) > len(best.get(identity, ())):
