@@ -95,7 +95,9 @@ class TestInputsCarryTheInjectedAuthority:
             "pii-evidence", "rights-evidence",
         ):
             args += [f"--{name}-path", f"/tmp/{name}.json", f"--{name}-sha256", "0" * 64]
-        args += ["--corpus-manifest-sha256", "1" * 64]
+        # La racine du dépôt est EXIGÉE depuis qu'elle ne se devine plus
+        # depuis le répertoire de lancement.
+        args += ["--corpus-manifest-sha256", "1" * 64, "--repository-root", str(REPO_ROOT)]
         return args
 
     def test_absent_review_authority_yields_none_not_a_guess(self) -> None:  # noqa: D401
@@ -168,7 +170,10 @@ class TestNoUnpinnedAuthorityCanBeInjected:
             "pii-evidence", "rights-evidence",
         ):
             args += [f"--{name}-path", f"/tmp/{name}.json", f"--{name}-sha256", "0" * 64]
-        return args + ["--corpus-manifest-sha256", "1" * 64]
+        return args + [
+            "--corpus-manifest-sha256", "1" * 64,
+            "--repository-root", str(REPO_ROOT),
+        ]
 
     @pytest.mark.parametrize("name", REVIEW_ARGUMENTS)
     def test_a_path_without_its_digest_is_refused(self, name: str) -> None:
@@ -443,3 +448,62 @@ class TestTheWaveZeroSchemaCannotDeclareAReviewChain:
                     "pii_review_index_sha256": "d" * 64,
                 },
             )
+
+
+class TestTheRepositoryRootIsNeverGuessedFromTheWorkingDirectory:
+    """La racine du dépôt est une ENTRÉE, jamais un défaut (re-review #144).
+
+    `repository_root: Path = Path()` la faisait résoudre depuis le répertoire
+    de lancement. Un worker Wave 0 démarré ailleurs que sous la racine — le
+    cas normal en production — ne trouvait pas l'allowlist canonique et
+    REJETAIT une revue PII parfaitement valide. Un défaut silencieux qui
+    refuse à tort est aussi grave qu'un défaut qui accepte à tort : dans les
+    deux cas la décision ne repose plus sur ce qu'on croit.
+
+    Le chemin multi-niveaux exigeait déjà `--repository-root` ; le chemin
+    Wave 0 le fait maintenant aussi."""
+
+    def test_the_parser_refuses_to_start_without_it(self) -> None:
+        parser = _wave0_parser()
+        args = [
+            arg
+            for pair in (
+                ("--catalog-path", "/tmp/c.json"), ("--catalog-sha256", "0" * 64),
+                ("--candidate-inventory-path", "/tmp/i.json"),
+                ("--candidate-inventory-sha256", "0" * 64),
+                ("--currentness-evidence-path", "/tmp/cu.yml"),
+                ("--currentness-evidence-sha256", "0" * 64),
+                ("--mapping-path", "/tmp/m.yml"), ("--mapping-sha256", "0" * 64),
+                ("--release-manifest-path", "/tmp/r.json"),
+                ("--release-manifest-sha256", "0" * 64),
+                ("--programme-index-path", "/tmp/p.yml"),
+                ("--programme-index-sha256", "0" * 64),
+                ("--collection-config-path", "/tmp/cc.yml"),
+                ("--collection-config-sha256", "0" * 64),
+                ("--pii-evidence-path", "/tmp/pii.json"),
+                ("--pii-evidence-sha256", "0" * 64),
+                ("--rights-evidence-path", "/tmp/ri.yml"),
+                ("--rights-evidence-sha256", "0" * 64),
+                ("--corpus-manifest-sha256", "1" * 64),
+            )
+            for arg in pair
+        ]
+        with pytest.raises(SystemExit):
+            parser.parse_args(args)
+
+    def test_the_inputs_carry_no_default_for_it(self) -> None:
+        """Un défaut, même « vide », se résoudrait contre le CWD."""
+        import dataclasses
+
+        from ingestor.ingestion_worker.runtime_authority import RuntimeAuthorityInputs
+
+        field = next(
+            item
+            for item in dataclasses.fields(RuntimeAuthorityInputs)
+            if item.name == "repository_root"
+        )
+        assert field.default is dataclasses.MISSING, (
+            "repository_root a repris une valeur par défaut : elle serait "
+            "résolue depuis le répertoire de lancement du worker"
+        )
+        assert field.default_factory is dataclasses.MISSING

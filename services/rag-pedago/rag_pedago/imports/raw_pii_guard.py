@@ -126,6 +126,36 @@ def find_raw_pii(
     return sorted(findings, key=lambda f: (f.char_offset, f.pattern_id))
 
 
+def _scan_units(node: object, key: str | None = None) -> Iterator[tuple[str, ...]]:
+    """Rend les textes à scanner, GROUPÉS par valeur feuille.
+
+    Une même valeur est rendue sous deux formes — seule, puis précédée de sa
+    clé — pour qu'un motif dont le contexte est porté par la clé puisse se
+    former. Les rendre à plat faisait compter deux fois la même fuite : un
+    rapport de preuve qui double ses chiffres est faux, même quand il refuse
+    à bon droit.
+
+    Les grouper laisse l'appelant dédoublonner à l'intérieur d'une valeur,
+    sans jamais fusionner deux occurrences réellement distinctes."""
+    if isinstance(node, str):
+        yield (node, f"{key}: {node}") if key is not None else (node,)
+    elif isinstance(node, bool) or node is None:
+        return
+    elif isinstance(node, (int, float)):
+        rendered = str(node)
+        yield (rendered, f"{key}: {rendered}") if key is not None else (rendered,)
+    elif isinstance(node, Mapping):
+        for child_key, value in node.items():
+            if isinstance(child_key, str):
+                yield (child_key,)
+                yield from _scan_units(value, child_key)
+            else:
+                yield from _scan_units(value)
+    elif isinstance(node, (list, tuple, set, frozenset)):
+        for item in node:
+            yield from _scan_units(item, key)
+
+
 def _string_values(node: object) -> Iterator[str]:
     """Parcourt un document et rend ses chaînes TELLES QU'ELLES SONT.
 
@@ -201,11 +231,31 @@ def require_no_raw_pii(
     fuite."""
     if patterns is None:
         patterns = load_patterns_from_config(DEFAULT_POLICY_PATH)
-    findings = [
-        finding
-        for value in _string_values(document)
-        for finding in find_raw_pii(value, patterns=patterns)
-    ]
+    # Le parcours rend chaque valeur DEUX fois — seule, puis précédée de sa
+    # clé — pour qu'un motif dont le contexte est porté par la clé puisse se
+    # former. Compter les deux ferait dire à ce refus qu'il y a deux fuites
+    # là où il y en a une : un rapport de preuve qui double ses chiffres est
+    # un rapport faux, même quand il refuse à bon droit.
+    #
+    # La déduplication porte sur l'IDENTITÉ de la correspondance — sa classe,
+    # sa longueur et l'empreinte de sa matière — jamais sur sa position, qui
+    # diffère justement entre les deux rendus. Deux occurrences réellement
+    # distinctes de la même matière portent des empreintes identiques mais
+    # sont comptées séparément si elles proviennent de valeurs différentes,
+    # ce que la clé de dédoublonnage préserve en incluant la valeur source.
+    findings: list[RawPiiFinding] = []
+    for unit in _scan_units(document):
+        seen: set[tuple[str, str, int]] = set()
+        for text in unit:
+            for finding in find_raw_pii(text, patterns=patterns):
+                # L'identité est la CLASSE, la longueur et l'empreinte de la
+                # matière — jamais la position, qui diffère précisément entre
+                # les deux rendus d'une même valeur.
+                identity = (finding.pattern_id, finding.match_sha256, finding.match_length)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                findings.append(finding)
     if findings:
         classes = sorted({finding.pattern_id for finding in findings})
         first = findings[0]

@@ -199,6 +199,7 @@ def _run_worker(
             "--programme-index-sha256", "8" * 64,
             "--collection-config-path", str(artifact_dir.parent / "collections.yml"),
             "--collection-config-sha256", "9" * 64,
+            "--repository-root", str(Path(__file__).resolve().parents[3]),
             "--once",
             *extra_args,
         ]

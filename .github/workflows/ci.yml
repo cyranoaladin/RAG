@@ -115,10 +115,20 @@ jobs:
             tests/integration/test_lot44f_worker_resume.py
       - name: Assert no test container survived
         if: always()
+        # `comm -13` ne signale que les conteneurs AJOUTÉS. `diff` signalait
+        # aussi les disparitions : sur un runner qui n'est pas vierge, un test
+        # supprimant légitimement un conteneur préexistant faisait échouer le
+        # job alors que rien n'avait fui. Même motif que `governance postgres`
+        # dans ce fichier, et pour la même raison.
         run: |
+          set -euo pipefail
           docker ps -aq | sort > /tmp/containers-after.txt
-          diff /tmp/containers-before.txt /tmp/containers-after.txt \
-            || { echo "::error::a test container survived the run"; exit 1; }
+          leftover="$(comm -13 /tmp/containers-before.txt /tmp/containers-after.txt)"
+          if [ -n "$leftover" ]; then
+            echo "::error::residual containers created by this job" >&2
+            echo "$leftover" | xargs -r docker rm -f
+            exit 1
+          fi
 
   real-model-acceptance:
     name: "real-model acceptance (E5 + reranker + pgvector)"

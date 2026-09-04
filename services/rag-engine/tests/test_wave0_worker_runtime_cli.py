@@ -33,6 +33,7 @@ def test_worker_a_parser_requires_governed_placement_authorities() -> None:
 def test_worker_a_parser_carries_every_resolver_input() -> None:
     parser = worker_a_cli._build_arg_parser()
     governed = [
+        "--repository-root", "/proof",
         "--catalog-path", "/proof/catalog.json",
         "--catalog-sha256", "4" * 64,
         "--candidate-inventory-path", "/proof/inventory.json",
@@ -90,6 +91,7 @@ def test_runtime_authority_rejects_pii_policy_drift(
     monkeypatch.setattr(pypdf, "__version__", page_policy.CANONICAL_PYPDF_VERSION)
     sha = "a" * 64
     inputs = runtime_authority.RuntimeAuthorityInputs(
+        repository_root=Path(__file__).resolve().parents[3],
         catalog_path=tmp_path / "catalog.json",
         catalog_sha256=sha,
         candidate_inventory_path=tmp_path / "inventory.json",

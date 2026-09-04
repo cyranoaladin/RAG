@@ -251,7 +251,13 @@ class TestTheTraversalLosesNothingTheSerialisationWouldHaveCaught:
             for value in _string_values(document)
             for finding in find_raw_pii(value)
         ]
-        assert findings, "un identifiant numérique échappe entièrement au parcours"
+        # Asserter « au moins un finding » laissait passer une régression de
+        # `french_ssn` dès qu'un AUTRE motif se déclenchait : le test serait
+        # resté vert en cessant de prouver ce que sa docstring annonce.
+        assert "french_ssn" in {finding.pattern_id for finding in findings}, (
+            "un identifiant numérique n'est plus reconnu comme NIR : "
+            f"{sorted({f.pattern_id for f in findings})}"
+        )
 
     def test_the_key_still_lends_its_context_to_the_value(self) -> None:
         """Le contexte porté par la clé ne doit pas être perdu par le parcours."""
@@ -270,3 +276,34 @@ class TestTheTraversalLosesNothingTheSerialisationWouldHaveCaught:
     def test_booleans_and_none_do_not_manufacture_findings(self) -> None:
         rendered = list(_string_values({"a": True, "b": None, "c": 3}))
         assert not any(find_raw_pii(text) for text in rendered)
+
+
+class TestTheReportedCountIsNotInflatedByTheKeyContext:
+    """Un rapport de preuve qui double ses chiffres est faux (re-review #144).
+
+    Le parcours rend chaque valeur deux fois — seule, puis précédée de sa clé —
+    pour qu'un motif dont le contexte est porté par la clé puisse se former.
+    Compter les deux faisait dire au refus qu'il y a deux fuites là où il y en
+    a une. Le refus restait juste ; sa MESURE ne l'était pas.
+    """
+
+    def test_one_leak_under_a_key_is_reported_once(self) -> None:
+        with pytest.raises(RawPiiLeakError, match=r"\b1 finding\(s\)"):
+            require_no_raw_pii({"tel": "0612345678"}, label="t")
+
+    def test_nesting_does_not_multiply_the_count_either(self) -> None:
+        with pytest.raises(RawPiiLeakError, match=r"\b1 finding\(s\)"):
+            require_no_raw_pii({"a": {"b": {"tel": "0612345678"}}}, label="t")
+
+    def test_two_distinct_leaks_are_still_two(self) -> None:
+        """La déduplication ne doit pas EFFACER une seconde fuite réelle."""
+        with pytest.raises(RawPiiLeakError, match=r"\b2 finding\(s\)"):
+            require_no_raw_pii(
+                {"tel": "0612345678", "autre": "0698765432"}, label="t"
+            )
+
+    def test_distinct_pattern_classes_are_not_collapsed(self) -> None:
+        """Deux CLASSES sur la même matière restent deux constats."""
+        with pytest.raises(RawPiiLeakError) as leak:
+            require_no_raw_pii({"identifier": 199012345678901}, label="t")
+        assert "french_ssn" in str(leak.value)

@@ -931,16 +931,10 @@ def _canonical_root(
     return root, hashlib.sha256(raw).hexdigest()
 
 
-def _index_arguments(tmp_path: Path, expected: str | None = None) -> dict[str, Any]:
-    """Écrit un index dont l'empreinte est CELLE que l'ensemble de décisions nomme."""
+def _index_arguments(tmp_path: Path) -> dict[str, Any]:
+    """Écrit un index et rend le couple chemin/empreinte qui le désigne."""
     path, digest = _write_index(tmp_path)
-    if expected is not None and digest != expected:
-        # Le banc par défaut scelle l'ensemble sur `REVIEW_INDEX_SHA` ; l'index
-        # écrit ici doit donc porter cette empreinte-là pour que le cas nominal
-        # ne bute pas sur une divergence sans rapport avec le test.
-        return {"review_index_path": path, "expected_review_index_sha256": digest}
     return {"review_index_path": path, "expected_review_index_sha256": digest}
-
 
 def _write_reviewers(tmp_path: Path, reviewers: list[str] | None = None,
                      repository: str = REPOSITORY) -> tuple[Path, str]:

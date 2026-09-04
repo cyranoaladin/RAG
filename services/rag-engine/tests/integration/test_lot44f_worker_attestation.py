@@ -286,6 +286,7 @@ def _worker_argv(
         "--programme-index-sha256", "8" * 64,
         "--collection-config-path", str(root / "collections.yml"),
         "--collection-config-sha256", "9" * 64,
+        "--repository-root", str(ENGINE_ROOT.parents[1]),
         "--once",
     ]
 

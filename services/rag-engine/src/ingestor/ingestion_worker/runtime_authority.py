@@ -74,6 +74,12 @@ class RuntimeAuthorityInputs:
     rights_evidence_path: Path
     rights_evidence_sha256: str
     corpus_manifest_sha256: str
+    #: Racine du dépôt, EXIGÉE et jamais devinée. Une valeur par défaut
+    #: `Path()` la faisait résoudre depuis le répertoire de lancement : un
+    #: worker démarré ailleurs que sous la racine ne trouvait pas l'allowlist
+    #: canonique et REJETAIT une revue PII parfaitement valide. Le chemin
+    #: multi-niveaux l'exige déjà ; celui-ci le fait désormais aussi.
+    repository_root: Path
     pii_decision_set_path: Path | None = None
     pii_decision_set_sha256: str | None = None
     pii_review_receipt_path: Path | None = None
@@ -87,7 +93,6 @@ class RuntimeAuthorityInputs:
     #: laisser choisir qui a le droit d'admettre de la PII, l'empreinte
     #: fournie avec coïncidant évidemment.
     pii_review_reviewers_sha256: str | None = None
-    repository_root: Path = Path()
 
 
 @dataclass(frozen=True)
@@ -182,11 +187,21 @@ def add_runtime_authority_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             f"--{name}-sha256", required=True, help=f"expected SHA-256: {description}"
         )
+    parser.add_argument(
+        "--repository-root",
+        required=True,
+        type=Path,
+        help=(
+            "repository root the canonical reviewer allowlist is resolved from — "
+            "never the process working directory"
+        ),
+    )
     add_review_authority_arguments(parser)
 
 
 def runtime_authority_inputs_from_args(args: argparse.Namespace) -> RuntimeAuthorityInputs:
     return RuntimeAuthorityInputs(
+        repository_root=args.repository_root,
         catalog_path=args.catalog_path,
         catalog_sha256=args.catalog_sha256,
         candidate_inventory_path=args.candidate_inventory_path,

@@ -332,7 +332,10 @@ class TestTheBundleProducerIdentityCoversWhatDecides:
             cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=True,
         ).stdout
         assert "# changement local" not in PROJECTION_HELPER.read_text(encoding="utf-8")
-        assert not changed.strip().endswith("pii_review_projection.py M"), changed
+        # `git status --porcelain` place le CODE avant le chemin (« M path ») :
+        # l'assertion précédente cherchait « path M » et ne pouvait donc jamais
+        # échouer. Une garde inatteignable rassure sans rien protéger.
+        assert changed.strip() == "", changed
 
     def test_the_historical_bundles_keep_their_own_provenance(self) -> None:
         """Les 23 paquets scellés ne sont pas réinterprétés rétroactivement.

@@ -191,15 +191,18 @@ def test_the_multilevel_loader_refuses_a_release_chain_it_does_not_verify(
 
     L'attente de placements reste celle de la release RÉELLE, et SEULE la
     déclaration d'autorité change — pas même le genre de release — pour que
-    l'échec ne puisse venir que d'elle. Une version antérieure réécrivait aussi
-    `release_kind` en V2 tout en affirmant le contraire : le test fonctionnait,
-    mais sa docstring aurait égaré quiconque en aurait cherché la cause.
+    l'échec ne puisse venir que d'elle.
+
+    Deux versions antérieures réécrivaient aussi `release_kind` en V2. La
+    première l'affirmait ; la seconde prétendait le contraire dans sa
+    docstring sans avoir retiré la ligne — une correction annoncée mais non
+    faite, relevée en revue. La ligne est partie : la release déclarante garde
+    son genre V1 réel.
     """
     from ingestor import multilevel_verified_placement as multilevel_release
 
     original = ENGINE_ROOT / "tests/fixtures/profile_gate_20260825/production-profile-gate.release.json"
     aggregate = json.loads(original.read_text(encoding="utf-8"))
-    aggregate["release_kind"] = "MULTILEVEL_AGGREGATE_RELEASE_V2"
     aggregate["authorities"].update(
         {
             "pii_decision_set_sha256": "a" * 64,
