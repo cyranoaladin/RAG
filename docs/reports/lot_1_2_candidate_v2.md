@@ -15,7 +15,8 @@ Corpus final ≠ permission de déployer.
 ## Identité
 
 ```
-PRODUCER_COMMIT      = 4f2a30a (chaîne d'autorité de la revue PII)
+PRODUCER_COMMIT      = 80e08de (release-chain: chaîne d'autorité de la revue PII)
+PRODUCER_TREE        = arbre propre au lancement ; commit à 08:37:39 UTC, run à 08:45:21 UTC
 RUN_ID               = candidate-v2-20260904T084521Z
 TOP_LEVEL_RC         = 0
 CANDIDATE_RELEASE_ID = production-profile-gate-2026-2027-v2-candidate-candidate-v2-20260904T084521Z
