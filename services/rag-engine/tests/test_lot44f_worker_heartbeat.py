@@ -178,56 +178,6 @@ def _run_worker(
         )
     )
 
-def write_sealed_evidence(root: Path) -> list[str]:
-    """Preuves scellées minimales mais cohérentes, pour un worker qui
-    doit désormais en exiger. Leur contenu n'est pas le sujet de ces
-    tests ; leur *présence* l'est, puisqu'un worker de production ne peut
-    plus démarrer sans elles."""
-    import hashlib
-    import json
-
-    manifest = "d" * 64
-    pii = root / "pii.json"
-    pii.write_text(
-        json.dumps(
-            {
-                "evidence_kind": "REAL_CORPUS_PII_SCAN",
-                "corpus_manifest_sha256": manifest,
-                "remote_access_mode": "READ_ONLY",
-                "remote_write_operations": 0,
-                "raw_pii_in_output": False,
-                "raw_pii_in_logs": False,
-                "results": [
-                    {"content_sha256": "a" * 64, "status": "CLEARED",
-                     "pii_detected": False},
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    rights = root / "rights.yml"
-    rights.write_text(
-        "registry_id: test\n"
-        "human_rights_decisions:\n"
-        "  eduscol:\n"
-        f"    scope_manifest_sha256: \"{manifest}\"\n"
-        "    scope_zone: 01_EDUSCOL_OFFICIEL/\n"
-        "    approved_for_production_rag: true\n"
-        "source_evidence:\n"
-        "  eduscol:\n"
-        "    zone: 01_EDUSCOL_OFFICIEL/\n"
-        "    recommended_rights_category: officiel_public\n",
-        encoding="utf-8",
-    )
-    return [
-        "--pii-evidence-path", str(pii),
-        "--pii-evidence-sha256", hashlib.sha256(pii.read_bytes()).hexdigest(),
-        "--rights-evidence-path", str(rights),
-        "--rights-evidence-sha256", hashlib.sha256(rights.read_bytes()).hexdigest(),
-        "--corpus-manifest-sha256", manifest,
-    ]
-
-
 class TestWorkerHeartbeat:
     def test_resource_registry_cutover_is_injected_into_worker_dependencies(
         self,

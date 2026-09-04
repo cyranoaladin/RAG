@@ -341,6 +341,29 @@ class TestTheAncestorKeysLendTheirContext:
         ]
         assert {"v", "k1: v", "k2: v", "k3: v"} <= set(rendered)
 
+    def test_a_key_carrying_pii_is_counted_once_not_once_per_descendant(self) -> None:
+        """La clé est déjà scannée SEULE : la recompter dans chaque miroir la
+        faisait apparaître autant de fois qu'elle a de feuilles.
+
+        Mesuré avant correction : `{"0612345678": {"a":1,"b":2,"c":3}}`
+        rapportait QUATRE fuites pour une seule."""
+        with pytest.raises(RawPiiLeakError, match=r"\b1 finding\(s\)"):
+            require_no_raw_pii({"0612345678": {"a": 1, "b": 2, "c": 3}}, label="t")
+
+    def test_the_count_does_not_grow_with_the_number_of_descendants(self) -> None:
+        """La propriété qui compte : le chiffre ne dépend pas de la forme."""
+        import re as _re
+
+        counts = set()
+        for width in (1, 2, 5):
+            payload = {"0612345678": {f"k{i}": i for i in range(width)}}
+            with pytest.raises(RawPiiLeakError) as leak:
+                require_no_raw_pii(payload, label="t")
+            found = _re.search(r"(\d+) finding\(s\)", str(leak.value))
+            assert found is not None
+            counts.add(found.group(1))
+        assert counts == {"1"}, f"le compte varie avec le nombre de feuilles : {counts}"
+
     def test_a_repeated_occurrence_is_still_counted_twice(self) -> None:
         """La déduplication des miroirs ne doit pas effacer une répétition."""
         with pytest.raises(RawPiiLeakError, match=r"\b2 finding\(s\)"):

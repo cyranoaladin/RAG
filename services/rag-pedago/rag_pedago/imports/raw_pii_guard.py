@@ -254,6 +254,13 @@ def require_no_raw_pii(
     # ce que la clé de dédoublonnage préserve en incluant la valeur source.
     findings: list[RawPiiFinding] = []
     for unit in _scan_units(document):
+        # Longueur du préfixe `clé: ` de chaque rendu miroir. Une clé porteuse
+        # de PII est déjà scannée SEULE, comme unité à part entière : la
+        # recompter dans le miroir de chacun de ses descendants la faisait
+        # apparaître autant de fois qu'elle a de feuilles. Mesuré :
+        # `{"0612345678": {"a":1,"b":2,"c":3}}` rapportait quatre fuites pour
+        # une seule.
+        prefixes = [0] + [len(text) - len(unit[0]) for text in unit[1:]]
         # Les rendus d'une même valeur sont des MIROIRS : la même fuite y
         # apparaît, à des positions décalées par le préfixe de clé. Dédoublonner
         # par identité seule effacerait cependant une répétition réelle — deux
@@ -264,9 +271,13 @@ def require_no_raw_pii(
         # seul le contexte de clé révèle est compté une fois, et le miroir
         # n'ajoute rien.
         best: dict[tuple[str, str, int], list[RawPiiFinding]] = {}
-        for text in unit:
+        for text, prefix in zip(unit, prefixes, strict=True):
             grouped: dict[tuple[str, str, int], list[RawPiiFinding]] = {}
             for finding in find_raw_pii(text, patterns=patterns):
+                # Correspondance entièrement contenue dans le préfixe de clé :
+                # elle appartient à la clé, comptée ailleurs.
+                if finding.char_offset + finding.match_length <= prefix:
+                    continue
                 identity = (finding.pattern_id, finding.match_sha256, finding.match_length)
                 grouped.setdefault(identity, []).append(finding)
             for identity, occurrences in grouped.items():
