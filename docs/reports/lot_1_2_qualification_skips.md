@@ -43,3 +43,27 @@ Deux le sont : Wave 0 n'est pas le chemin servi, et rien dans la release
 candidate n'en dépend. Ils restent exécutables à la demande.
 
 Aucun de ces sept n'a été rendu vert en changeant sa condition de skip.
+
+
+## Mise à jour après la CI distante de la PR #144 (2026-09-04)
+
+Deux des cinq gates ouverts sont **fermés par la CI distante**, qui les exécute
+avec une base PostgreSQL et les poids de modèles réels :
+
+| # | Test local skippé | Couverture distante | Durée | Verdict |
+|---|-------------------|---------------------|-------|---------|
+| 2 | `test_lot40_hybrid_pgvector.py` | job `governance postgres` | 5m32 | **PASS** |
+| 5 | `test_real_model_ci_acceptance.py` | job `real-model acceptance (E5 + reranker + pgvector)` | 4m30 | **PASS** |
+
+Ils ne sont donc plus des gates à ouvrir dans un staging éphémère : ils sont
+couverts, et le resteront tant que ces jobs existent en CI.
+
+Trois gates restent ouverts, et relèvent de C1–C6 :
+
+| # | Test | Ce qu'il exige |
+|---|------|----------------|
+| 1 | `test_h2c_governed_rehearsal.py` | répétition gouvernée réelle du chemin servi |
+| 3 | `test_multilevel_real_ingestion.py` | ingestion multi-niveaux réelle, corpus + PostgreSQL |
+| 4 | `test_multilevel_worker_cli_e2e.py` | acceptation du CLI que l'image lance, en sous-processus |
+
+Les deux skips Wave 0 restent hors périmètre : ce chemin n'est pas servi.
