@@ -27,6 +27,7 @@ import secrets
 import shutil
 import socket
 import subprocess
+import time
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
@@ -161,6 +162,67 @@ def _run_v2_ingestion_up(
     return subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False)
 
 
+def _service_states(isolated_project: dict[str, str]) -> dict[str, tuple[str, str]]:
+    """État et code de sortie de chaque service, après `up`.
+
+    **Pourquoi le code retour de `docker compose up --wait` ne suffit pas.**
+    `migrator-ingestion-control` est un conteneur ONE-SHOT : il fait son
+    travail et sort. Selon la version de Compose, `--wait` traite cette sortie
+    comme une condition d'échec du service attendu et rend un code non nul —
+    y compris quand le migrateur a parfaitement réussi (mesuré sur le runner
+    CI : « container … exited (0) » et pourtant `up` rend 1, là où le même
+    montage rend 0 en local).
+
+    Un contrôle positif qui repose sur ce code retour mesure donc la version
+    de Compose, pas le déploiement. Pire : son pendant négatif ne distinguerait
+    plus rien, les deux cas rendant 1.
+
+    Le signal opposable est l'état RÉEL des services."""
+    inspect = subprocess.run(
+        [
+            "docker", "compose", "-p", isolated_project["project"],
+            "-f", str(COMPOSE_V2), "-f", str(COMPOSE_INGESTION),
+            "--env-file", isolated_project["env_file"],
+            "ps", "-a", "--format", "{{.Service}} {{.State}} {{.ExitCode}}",
+        ],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+    )
+    states: dict[str, tuple[str, str]] = {}
+    for line in inspect.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 3:
+            states[parts[0]] = (parts[1], parts[-1])
+    return states
+
+
+def _terminal_migrator_exit_code(
+    isolated_project: dict[str, str], *, timeout_s: float = 120.0
+) -> str:
+    """Attend que le migrateur ait FINI, puis rend son code de sortie.
+
+    `docker compose up --wait` peut rendre la main avant qu'un conteneur
+    one-shot ait terminé : une lecture immédiate attrape alors `running` et
+    un code de sortie `0` provisoire. Mesuré — un contrôle positif saboté
+    (collision de rôles injectée) passait quand même, parce qu'il lisait
+    l'état trop tôt. Un test qui dépend d'une course ne prouve rien de
+    stable.
+
+    L'attente est bornée : au-delà, l'absence d'état terminal est elle-même
+    un échec nommé."""
+    deadline = time.monotonic() + timeout_s
+    last: tuple[str, str] | None = None
+    while time.monotonic() < deadline:
+        states = _service_states(isolated_project)
+        last = states.get("migrator-ingestion-control")
+        if last is not None and last[0] == "exited":
+            return last[1]
+        time.sleep(1.0)
+    raise AssertionError(
+        f"migrator-ingestion-control n'a pas atteint d'état terminal en {timeout_s}s "
+        f"(dernier état observé : {last})"
+    )
+
+
 class TestV2IngestionUpFailsClosed:
     def test_colliding_roles_make_migrator_fail_and_up_returns_nonzero(
         self, isolated_project: dict[str, str]
@@ -212,9 +274,12 @@ class TestV2IngestionUpFailsClosed:
             isolated_project, colliding_roles=False, services=("migrator-ingestion-control",)
         )
 
-        assert result.returncode == 0, (
-            f"expected zero exit on a well-formed deployment, got {result.returncode}\n"
-            f"stdout={result.stdout}\nstderr={result.stderr}"
+        # Symétrique de son pendant négatif : c'est le code de sortie du
+        # MIGRATEUR qui distingue les deux cas, pas celui de Compose.
+        exit_code = _terminal_migrator_exit_code(isolated_project)
+        assert exit_code == "0", (
+            "sans collision de rôles, le migrateur doit réussir ; il est sorti "
+            f"en {exit_code}\nstdout={result.stdout}\nstderr={result.stderr}"
         )
 
     def test_worker_never_healthy_is_caught_even_when_migrator_succeeds(
@@ -247,6 +312,19 @@ class TestV2IngestionUpFailsClosed:
         assert result.returncode != 0, (
             f"expected non-zero exit when ingestion-worker never becomes healthy, got 0\n"
             f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+        # Le code retour seul ne suffit pas : sur un Compose qui rend déjà 1
+        # pour la sortie du conteneur one-shot, l'assertion ci-dessus serait
+        # satisfaite quel que soit l'état du worker — donc creuse. Ce qui doit
+        # être vrai, c'est que le worker n'est PAS devenu healthy alors que le
+        # migrateur dont il dépend a réussi.
+        assert _terminal_migrator_exit_code(isolated_project) == "0", (
+            "le migrateur devait réussir dans ce cas"
+        )
+        states = _service_states(isolated_project)
+        worker_state, _ = states.get("ingestion-worker", ("absent", ""))
+        assert worker_state != "healthy", (
+            f"ingestion-worker ne devait jamais devenir healthy ici : {states}"
         )
         assert "ingestion-worker" in (result.stdout + result.stderr)
 
