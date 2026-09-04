@@ -24,8 +24,10 @@ from pathlib import Path
 import pytest
 
 from rag_pedago.imports.raw_pii_guard import (
+    RawPiiLeakError,
     find_raw_pii,
     neutralise_digest_tokens,
+    require_no_raw_pii,
 )
 
 SHA_WITH_DIGEST_RUN = "b418fc211fa20174e72117826550375b0387715203d38cd8f99588ee8e10dc42"
@@ -164,3 +166,60 @@ class TestADigestNeverDestroysSurroundingPiiSyntax:
             f.pattern_id == "phone_french"
             for f in find_raw_pii(f'{{"sha": "{SHA_WITH_DIGEST_RUN}", "tel": "0612345678"}}')
         )
+
+
+class TestValuesAreScannedBeforeSerialisation:
+    """P1 — `json.dumps` échappait le séparateur avant le scan.
+
+    `require_no_raw_pii` sérialisait le document puis cherchait la PII dans le
+    JSON. Une valeur dont le motif est séparé par un saut de ligne ou une
+    tabulation voyait ce séparateur transformé en `\\n` / `\\t` littéraux :
+    le motif ne correspondait plus, et la garde attestait une sortie propre.
+
+    C'est le MÊME défaut que celui corrigé sur les digests — transformer le
+    texte avant d'y chercher — réintroduit par la sérialisation. Les valeurs
+    sont donc parcourues et scannées telles qu'elles sont, avant tout encodage.
+    """
+
+    def test_a_plain_phone_value_is_refused(self) -> None:
+        with pytest.raises(RawPiiLeakError):
+            require_no_raw_pii({"note": "0612345678"}, label="t")
+
+    def test_a_spaced_phone_value_is_refused(self) -> None:
+        with pytest.raises(RawPiiLeakError):
+            require_no_raw_pii({"note": "06 12 34 56 78"}, label="t")
+
+    def test_a_phone_split_by_a_newline_is_refused(self) -> None:
+        """Le cas exact que l'échappement JSON faisait disparaître.
+
+        Le séparateur est DANS le numéro : le motif l'accepte comme espace en
+        texte brut, mais `json.dumps` le transforme en deux caractères
+        littéraux `\\` et `n`, et la correspondance est perdue. Mesuré :
+        1 finding sur le texte brut, 0 après sérialisation."""
+        with pytest.raises(RawPiiLeakError):
+            require_no_raw_pii({"note": "06\n12 34 56 78"}, label="t")
+
+    def test_a_phone_split_by_a_tab_is_refused(self) -> None:
+        with pytest.raises(RawPiiLeakError):
+            require_no_raw_pii({"note": "06\t12 34 56 78"}, label="t")
+
+    def test_a_phone_split_by_a_carriage_return_is_refused(self) -> None:
+        with pytest.raises(RawPiiLeakError):
+            require_no_raw_pii({"note": "06\r12 34 56 78"}, label="t")
+
+    def test_a_phone_in_a_nested_value_split_by_a_newline_is_refused(self) -> None:
+        with pytest.raises(RawPiiLeakError):
+            require_no_raw_pii({"a": [{"b": "06\n12 34 56 78"}]}, label="t")
+
+    def test_nested_structures_are_traversed(self) -> None:
+        document = {"a": [{"b": ("x", {"c": "ecrire a jean@example.org"})}]}
+        with pytest.raises(RawPiiLeakError):
+            require_no_raw_pii(document, label="t")
+
+    def test_clean_nested_structures_pass(self) -> None:
+        require_no_raw_pii(
+            {"results": [{"sha": SHA_WITH_DIGEST_RUN, "status": "CLEARED"}]}, label="t"
+        )
+
+    def test_non_string_scalars_do_not_break_the_walk(self) -> None:
+        require_no_raw_pii({"n": 3, "b": True, "z": None, "f": 1.5}, label="t")

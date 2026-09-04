@@ -197,6 +197,53 @@ class PIIClearance:
         return self.status == PII_DETECTED_REVIEWED_ACCEPTED
 
 
+#: Protocole de l'allowlist versionnée des reviewers. Le code connaît
+#: l'AUTORITÉ ; l'autorité connaît les reviewers. Aucun login n'est écrit ici.
+_TRUSTED_REVIEW_PROTOCOL = "NEXUS-TRUSTED-REVIEW-V1"
+
+
+def parse_trusted_reviewers(raw: bytes, expected_repository: str) -> tuple[str, ...]:
+    """Lit l'allowlist versionnée, après que son empreinte l'a figée."""
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SealedEvidenceError(
+            f"the trusted reviewer authority is not readable: {exc}"
+        ) from exc
+    if not isinstance(document, dict):
+        raise SealedEvidenceError("the trusted reviewer authority must be an object")
+    if document.get("protocol") != _TRUSTED_REVIEW_PROTOCOL:
+        raise SealedEvidenceError(
+            f"the trusted reviewer authority declares protocol "
+            f"{document.get('protocol')!r}, not {_TRUSTED_REVIEW_PROTOCOL!r}"
+        )
+    if document.get("repository") != expected_repository:
+        raise SealedEvidenceError(
+            f"the trusted reviewer authority covers repository "
+            f"{document.get('repository')!r}, not {expected_repository!r} — an "
+            "allowlist for another repository names nobody here"
+        )
+    logins = document.get("reviewers")
+    if not isinstance(logins, list) or not logins:
+        raise SealedEvidenceError("the trusted reviewer authority declares no reviewer")
+    if any(not isinstance(login, str) or not login for login in logins):
+        raise SealedEvidenceError("the trusted reviewer authority holds a non-login entry")
+    if len(set(logins)) != len(logins):
+        raise SealedEvidenceError("the trusted reviewer authority holds duplicates")
+    return tuple(logins)
+
+
+#: Les quatre maillons que la release déclare et que le worker vérifie. Ils
+#: sont comparés un à un : une chaîne dont trois éléments concordent n'est pas
+#: une chaîne aux trois quarts sûre.
+_REVIEW_CHAIN_FIELDS = (
+    "pii_decision_set_sha256",
+    "pii_review_receipt_sha256",
+    "pii_review_trust_anchor_sha256",
+    "pii_review_index_sha256",
+)
+
+
 @dataclass(frozen=True)
 class ReviewAuthority:
     """L'ensemble de décisions humaines scellé, et la preuve qu'il fait autorité.
@@ -209,6 +256,11 @@ class ReviewAuthority:
     decision_set: PiiReviewDecisionSetV1
     binding: ScopeAuthorizationReviewBindingV1
     decision_set_sha256: str
+    receipt_sha256: str
+    trust_anchor_sha256: str
+    review_index_sha256: str | None = None
+    trusted_reviewers: tuple[str, ...] = ()
+    trusted_reviewers_sha256: str | None = None
 
     @classmethod
     def verify(
@@ -220,11 +272,23 @@ class ReviewAuthority:
         expected_receipt_sha256: str | None,
         trust_anchor_path: Path | None,
         expected_trust_anchor_sha256: str | None,
+        review_index_path: Path | None = None,
+        expected_review_index_sha256: str | None = None,
+        reviewers_path: Path | None = None,
+        expected_reviewers_sha256: str | None = None,
         environment: Literal["production", "test"],
         expected_repository: str,
-        accepted_reviewers: tuple[str, ...] | None,
         now: datetime,
     ) -> ReviewAuthority:
+        """Foyer UNIQUE de la chaîne de revue.
+
+        Chacune des cinq autorités suit ici le même parcours — résoudre le
+        chemin, lire les octets, calculer l'empreinte réelle, la confronter à
+        l'attendue, parser strictement, puis vérifier les liaisons croisées.
+        Les répartir entre plusieurs chargeurs a produit exactement les défauts
+        que la re-review a trouvés : un index dont on croyait le digest sur
+        parole, une allowlist que l'appelant désignait, un chemin multi-niveaux
+        qui acceptait des arguments sans les lire."""
         if not decision_set_path.exists():
             raise SealedEvidenceError(
                 f"decision set {decision_set_path.name} is missing — a human review "
@@ -266,11 +330,36 @@ class ReviewAuthority:
                 trust_anchor_path, expected_trust_anchor_sha256, label="review trust anchor"
             )
         try:
-            anchor = TrustAnchor.model_validate(
-                json.loads(trust_anchor_path.read_text(encoding="utf-8"))
-            )
+            anchor_bytes = trust_anchor_path.read_bytes()
+            anchor = TrustAnchor.model_validate(json.loads(anchor_bytes.decode("utf-8")))
         except Exception as exc:  # noqa: BLE001 - frontière de parsing
             raise SealedEvidenceError(f"the trust anchor is not usable: {exc}") from exc
+
+        # ── L'allowlist : une autorité, pas une entrée d'appelant ──────────
+        #
+        # Vérifier le protocole et le dépôt ne suffit pas si l'appelant choisit
+        # le fichier : un autre JSON portant les mêmes en-têtes ajoute le
+        # reviewer qu'il veut. L'empreinte attendue vient d'ailleurs que de
+        # celui qui la présente, et c'est elle qui fige le contenu.
+        if reviewers_path is None or expected_reviewers_sha256 is None:
+            raise SealedEvidenceError(
+                "no reviewer authority was supplied — an admission is never accepted "
+                "from an unbounded set of logins, and a list of logins handed in by "
+                "the caller is not an authority"
+            )
+        if not reviewers_path.is_file():
+            raise SealedEvidenceError(
+                f"the trusted reviewer authority {reviewers_path.name} is missing"
+            )
+        raw_reviewers = reviewers_path.read_bytes()
+        reviewers_sha = hashlib.sha256(raw_reviewers).hexdigest()
+        if reviewers_sha != expected_reviewers_sha256:
+            raise SealedEvidenceError(
+                f"the trusted reviewer authority hashes to {reviewers_sha[:16]}… "
+                f"while {expected_reviewers_sha256[:16]}… was expected — this is "
+                "not the allowlist that was approved"
+            )
+        reviewers = parse_trusted_reviewers(raw_reviewers, expected_repository)
 
         # L'ordre de vérification — canonicité, digest, ancre, signature,
         # fenêtre, liaison, allowlist — appartient au contrat, et à lui seul :
@@ -283,7 +372,7 @@ class ReviewAuthority:
                 trust_anchor=anchor,
                 environment=environment,
                 expected_repository=expected_repository,
-                accepted_reviewers=accepted_reviewers,
+                accepted_reviewers=reviewers,
                 now=now,
             )
         except ReviewBindingError as exc:
@@ -293,10 +382,44 @@ class ReviewAuthority:
                 f"the review receipt could not be verified: {exc}"
             ) from exc
 
+        # ── L'index de revue : ses OCTETS, pas son empreinte annoncée ──────
+        #
+        # Un digest déclaré ne remplace pas la lecture du fichier. Le worker
+        # acceptait un index dont la valeur annoncée correspondait au manifeste
+        # sans jamais l'ouvrir : un index absent, remplacé ou réécrit passait
+        # donc, pourvu que le chiffre annoncé fût le bon. Trois valeurs doivent
+        # coïncider — octets réels, empreinte attendue, et la liaison que
+        # l'ensemble de décisions porte lui-même.
+        index_sha: str | None = None
+        if review_index_path is not None:
+            if not review_index_path.is_file():
+                raise SealedEvidenceError(
+                    f"the review index {review_index_path.name} is missing — the "
+                    "bundles that founded the decisions cannot be named"
+                )
+            index_sha = hashlib.sha256(review_index_path.read_bytes()).hexdigest()
+            if expected_review_index_sha256 and index_sha != expected_review_index_sha256:
+                raise SealedEvidenceError(
+                    f"the review index hashes to {index_sha[:16]}… while "
+                    f"{expected_review_index_sha256[:16]}… was expected — a claimed "
+                    "digest is not a read file"
+                )
+            if index_sha != decision_set.review_index_sha256:
+                raise SealedEvidenceError(
+                    f"the review index hashes to {index_sha[:16]}… while the decision "
+                    f"set was sealed against {decision_set.review_index_sha256[:16]}… "
+                    "— they are not the same campaign"
+                )
+
         return cls(
             decision_set=decision_set,
             binding=binding,
             decision_set_sha256=hashlib.sha256(raw_decision_set).hexdigest(),
+            receipt_sha256=hashlib.sha256(receipt_path.read_bytes()).hexdigest(),
+            trust_anchor_sha256=hashlib.sha256(anchor_bytes).hexdigest(),
+            review_index_sha256=index_sha,
+            trusted_reviewers=reviewers,
+            trusted_reviewers_sha256=reviewers_sha,
         )
 
 
@@ -326,9 +449,12 @@ class VerifiedPIIEvidenceRegistry:
         expected_receipt_sha256: str | None = None,
         trust_anchor_path: Path | None = None,
         expected_trust_anchor_sha256: str | None = None,
+        review_index_path: Path | None = None,
+        expected_review_index_sha256: str | None = None,
+        reviewers_path: Path | None = None,
+        expected_reviewers_sha256: str | None = None,
         environment: Literal["production", "test"] = "production",
         expected_repository: str = CANONICAL_REPOSITORY,
-        accepted_reviewers: tuple[str, ...] | None = None,
         now: datetime | None = None,
     ) -> VerifiedPIIEvidenceRegistry:
         evidence_sha = _require_digest(
@@ -372,9 +498,12 @@ class VerifiedPIIEvidenceRegistry:
                 expected_receipt_sha256=expected_receipt_sha256,
                 trust_anchor_path=trust_anchor_path,
                 expected_trust_anchor_sha256=expected_trust_anchor_sha256,
+                review_index_path=review_index_path,
+                expected_review_index_sha256=expected_review_index_sha256,
+                reviewers_path=reviewers_path,
+                expected_reviewers_sha256=expected_reviewers_sha256,
                 environment=environment,
                 expected_repository=expected_repository,
-                accepted_reviewers=accepted_reviewers,
                 now=now or datetime.now(UTC),
             )
             # Une décision porte sur un contenu scanné *sous une politique, un
@@ -421,6 +550,22 @@ class VerifiedPIIEvidenceRegistry:
             _by_content=by_content,
             review_authority=authority,
         )
+
+    def verified_review_chain(self) -> dict[str, str | None]:
+        """La chaîne telle que le foyer l'a effectivement calculée.
+
+        Confronter au manifeste les valeurs qu'un appelant a ANNONCÉES ne
+        compare que deux déclarations. Ce qui doit coïncider avec la release,
+        c'est ce qui a été lu et haché."""
+        authority = self.review_authority
+        if authority is None:
+            return {field: None for field in _REVIEW_CHAIN_FIELDS}
+        return {
+            "pii_decision_set_sha256": authority.decision_set_sha256,
+            "pii_review_receipt_sha256": authority.receipt_sha256,
+            "pii_review_trust_anchor_sha256": authority.trust_anchor_sha256,
+            "pii_review_index_sha256": authority.review_index_sha256,
+        }
 
     def verify_content_clearance(self, content_sha256: str) -> PIIClearance:
         """Rend la clairance du contenu exact, ou refuse.

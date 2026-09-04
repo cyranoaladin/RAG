@@ -237,9 +237,9 @@ class TestCandidateIsFinalButNotActivable:
         from conftest import load_producer
 
         module = load_producer()
-        statuses = module.resolve_candidate_release_statuses(
-            promotion_status=None, activation_status=None,
-            review_status=None, is_candidate=True,
+        statuses = module.resolve_release_lifecycle_statuses(
+            release_mode="production", release_id=None,
+            promotion_status=None, activation_status=None, review_status=None,
         )
         assert statuses["promotion_status"] == "NOT_PROMOTABLE"
         assert statuses["activation_status"] == "NO_PRODUCTION_ACTIVATION"
@@ -384,58 +384,93 @@ class TestRawPiiIsMeasuredNotDeclared:
 
 
 class TestACandidateCanNeverBeAskedToBeActivable:
-    """P1 — les statuts bloquants étaient des valeurs d'appelant.
+    """P1 — le cycle de vie ne se déduit pas du NOM de la release.
 
-    `_release_topology_documents` recevait `promotion_status` et
-    `activation_status` tels quels. Un appelant pouvait donc demander une
-    candidate PROMOTABLE, ou en omettre les statuts et obtenir `None` — c'est-
-    à-dire une release qu'aucun verrou ne bloque.
+    La version précédente écrivait `is_candidate = release_id is not None`. Une
+    production utilisant le `release_id` par défaut — cas parfaitement légitime,
+    le paramètre valant `None` — était donc traitée comme non-candidate et
+    transmettait des statuts activables au manifeste.
 
-    Une valeur activante n'est pas silencieusement corrigée : elle est
-    REFUSÉE, parce qu'un appel qui la demande est un appel qui se trompe, et
-    qu'écraser sa demande sans rien dire lui laisserait croire qu'il l'a
-    obtenue."""
+    Le signal juste est le MODE : une release de production n'est jamais émise
+    activable, parce que la promotion se gagne aux gates C1-C6 et non par un
+    argument de producteur. Une demande activante est refusée plutôt
+    qu'écrasée — un appel qui la formule se trompe, et l'écraser sans rien dire
+    lui laisserait croire qu'il l'a obtenue."""
 
-    def _build(self, **kw):
+    def _resolve(self, **kw):
         from conftest import load_producer
 
-        return load_producer().resolve_candidate_release_statuses(**kw)
+        return load_producer().resolve_release_lifecycle_statuses(**kw)
 
-    def test_defaults_are_blocking(self) -> None:
-        statuses = self._build(promotion_status=None, activation_status=None,
-                               review_status=None, is_candidate=True)
+    def test_production_without_release_id_defaults_to_blocking(self) -> None:
+        statuses = self._resolve(
+            release_mode="production", release_id=None,
+            promotion_status=None, activation_status=None, review_status=None,
+        )
         assert statuses["promotion_status"] == "NOT_PROMOTABLE"
         assert statuses["activation_status"] == "NO_PRODUCTION_ACTIVATION"
 
-    def test_explicit_blocking_values_are_accepted(self) -> None:
-        statuses = self._build(promotion_status="NOT_PROMOTABLE",
-                               activation_status="NO_PRODUCTION_ACTIVATION",
-                               review_status="REVIEWED", is_candidate=True)
-        assert statuses["review_status"] == "REVIEWED"
-
-    def test_a_promotable_candidate_is_refused(self) -> None:
+    def test_production_without_release_id_refuses_promotable(self) -> None:
+        """Le cas exact que l'ancienne heuristique laissait passer."""
         with pytest.raises(ValueError, match="PROMOTABLE|activable"):
-            self._build(promotion_status="PROMOTABLE", activation_status=None,
-                        review_status=None, is_candidate=True)
+            self._resolve(
+                release_mode="production", release_id=None,
+                promotion_status="PROMOTABLE", activation_status=None,
+                review_status=None,
+            )
 
-    def test_an_activatable_candidate_is_refused(self) -> None:
+    def test_production_without_release_id_refuses_activation(self) -> None:
         with pytest.raises(ValueError, match="ACTIVATION|activable"):
-            self._build(promotion_status=None,
-                        activation_status="PRODUCTION_ACTIVATION_ALLOWED",
-                        review_status=None, is_candidate=True)
+            self._resolve(
+                release_mode="production", release_id=None,
+                promotion_status=None,
+                activation_status="PRODUCTION_ACTIVATION_ALLOWED",
+                review_status=None,
+            )
+
+    def test_production_with_explicit_release_id_refuses_promotable(self) -> None:
+        with pytest.raises(ValueError, match="PROMOTABLE|activable"):
+            self._resolve(
+                release_mode="production", release_id="une-candidate-v2",
+                promotion_status="PROMOTABLE", activation_status=None,
+                review_status=None,
+            )
+
+    def test_production_with_explicit_release_id_and_blocking_values_passes(self) -> None:
+        statuses = self._resolve(
+            release_mode="production", release_id="une-candidate-v2",
+            promotion_status="NOT_PROMOTABLE",
+            activation_status="NO_PRODUCTION_ACTIVATION",
+            review_status="REVIEWED",
+        )
+        assert statuses["review_status"] == "REVIEWED"
 
     def test_both_activating_values_are_refused(self) -> None:
         with pytest.raises(ValueError):
-            self._build(promotion_status="PROMOTABLE",
-                        activation_status="PRODUCTION_ACTIVATION_ALLOWED",
-                        review_status=None, is_candidate=True)
+            self._resolve(
+                release_mode="production", release_id=None,
+                promotion_status="PROMOTABLE",
+                activation_status="PRODUCTION_ACTIVATION_ALLOWED",
+                review_status=None,
+            )
 
-    def test_a_non_candidate_build_keeps_its_caller_values(self) -> None:
-        """La règle vise les CANDIDATES ; elle ne redéfinit pas les autres."""
-        statuses = self._build(promotion_status=None, activation_status=None,
-                               review_status=None, is_candidate=False)
-        assert statuses == {"promotion_status": None, "activation_status": None,
-                            "review_status": None}
+    def test_the_lifecycle_never_depends_on_the_release_id(self) -> None:
+        """Trois identités, un seul cycle de vie."""
+        results = [
+            self._resolve(
+                release_mode="production", release_id=rid,
+                promotion_status=None, activation_status=None, review_status=None,
+            )
+            for rid in (None, "auto-genere", "explicite-v2-candidate")
+        ]
+        assert all(r["promotion_status"] == "NOT_PROMOTABLE" for r in results)
+        assert all(r["activation_status"] == "NO_PRODUCTION_ACTIVATION" for r in results)
+
+    def test_the_producer_holds_no_release_id_heuristic(self) -> None:
+        """Le motif exact qui déduisait le cycle de vie du nom ne doit pas revenir."""
+        assert "is_candidate=release_id is not None" not in PRODUCER.read_text(
+            encoding="utf-8"
+        )
 
 
 class TestTheDecisionSetMustCoverThisCorpus:

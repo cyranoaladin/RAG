@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,8 +12,11 @@ from nexus_pdf_page_policy import CanonicalRuntimeError, require_canonical_pypdf
 try:
     from ingestor.collection_config import load_collection_config
     from ingestor.ingestion_control.sealed_evidence import (
+        CANONICAL_REPOSITORY,
+        SealedEvidenceError,
         VerifiedPIIEvidenceRegistry,
         VerifiedRightsEvidenceRegistry,
+        parse_trusted_reviewers,
     )
     from ingestor.ingestion_profiles.registry import ProfileRegistry
     from ingestor.verified_pedagogical_placement import (
@@ -26,8 +28,11 @@ except ImportError as _exc:  # image worker aplatie
         raise
     from collection_config import load_collection_config
     from ingestion_control.sealed_evidence import (
+        CANONICAL_REPOSITORY,
+        SealedEvidenceError,
         VerifiedPIIEvidenceRegistry,
         VerifiedRightsEvidenceRegistry,
+        parse_trusted_reviewers,
     )
     from ingestion_profiles.registry import ProfileRegistry
     from verified_pedagogical_placement import (
@@ -120,12 +125,6 @@ _REVIEW_AUTHORITY_ARGUMENTS = (
     ("pii-review-reviewers", "versioned trusted reviewer allowlist (NEXUS-TRUSTED-REVIEW-V1)"),
 )
 
-#: Protocole et dépôt attendus de l'allowlist versionnée. Ce sont ceux que le
-#: reste de la chaîne d'autorité GitHub lit déjà dans le même fichier ; les
-#: redéfinir autrement ferait accepter ici une allowlist qu'elle refuse.
-_TRUSTED_REVIEW_PROTOCOL = "NEXUS-TRUSTED-REVIEW-V1"
-_TRUSTED_REVIEW_REPOSITORY = "cyranoaladin/RAG"
-
 
 def add_review_authority_arguments(parser: argparse.ArgumentParser) -> None:
     for name, description in _REVIEW_AUTHORITY_ARGUMENTS:
@@ -136,15 +135,11 @@ def add_review_authority_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def load_trusted_reviewers(path: Path, expected_sha256: str) -> tuple[str, ...]:
-    """Lit l'allowlist versionnée des reviewers, épinglée par son empreinte.
+    """Délègue au foyer : le parsing de l'allowlist n'existe qu'à un endroit.
 
-    **Pourquoi ce n'est plus une liste passée en ligne de commande.** Un
-    `--pii-review-reviewer <login>` faisait confiance à n'importe quel compte
-    que l'appelant nommait : celui qui lance le worker choisissait qui a le
-    droit d'approuver une admission de PII. L'allowlist est un artefact
-    VERSIONNÉ — `scripts/github/trusted-reviewers.json` — que le reste de la
-    chaîne d'autorité GitHub lit déjà. Elle est ici injectée comme les autres
-    autorités : un chemin, et l'empreinte qui le fige."""
+    Cette fonction avait sa propre lecture, son propre calcul d'empreinte et
+    ses propres refus — un second exemplaire de la chaîne, qui pouvait dériver
+    de celui de `sealed_evidence` sans que rien ne le signale."""
     if not path.is_file():
         raise ValueError(f"trusted reviewer allowlist is missing: {path}")
     raw = path.read_bytes()
@@ -155,31 +150,10 @@ def load_trusted_reviewers(path: Path, expected_sha256: str) -> tuple[str, ...]:
             f"expected {expected_sha256} — this is not the allowlist that was approved"
         )
     try:
-        document = json.loads(raw.decode("utf-8"))
-    except (UnicodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"trusted reviewer allowlist is not readable: {exc}") from exc
-    if not isinstance(document, dict):
-        raise ValueError("trusted reviewer allowlist must be a JSON object")
-    if document.get("protocol") != _TRUSTED_REVIEW_PROTOCOL:
-        raise ValueError(
-            f"trusted reviewer allowlist declares protocol {document.get('protocol')!r}, "
-            f"not {_TRUSTED_REVIEW_PROTOCOL!r}"
-        )
-    if document.get("repository") != _TRUSTED_REVIEW_REPOSITORY:
-        raise ValueError(
-            f"trusted reviewer allowlist covers repository "
-            f"{document.get('repository')!r}, not {_TRUSTED_REVIEW_REPOSITORY!r} — "
-            "an allowlist for another repository names nobody here"
-        )
-    reviewers = document.get("reviewers")
-    if not isinstance(reviewers, list) or not reviewers:
-        raise ValueError("trusted reviewer allowlist declares no reviewer")
-    if any(not isinstance(login, str) or not login for login in reviewers):
-        raise ValueError("trusted reviewer allowlist contains a non-login entry")
-    if len(set(reviewers)) != len(reviewers):
-        raise ValueError("trusted reviewer allowlist contains duplicates")
-    return tuple(reviewers)
-
+        reviewers: tuple[str, ...] = parse_trusted_reviewers(raw, CANONICAL_REPOSITORY)
+        return reviewers
+    except SealedEvidenceError as exc:
+        raise ValueError(str(exc)) from exc
 
 def review_authority_arguments_from_args(args: argparse.Namespace) -> dict[str, object]:
     """Rend les entrées d'autorité de revue, ou refuse un couple incomplet.
@@ -339,7 +313,13 @@ def load_governed_runtime_authorities(
             expected_receipt_sha256=inputs.pii_review_receipt_sha256,
             trust_anchor_path=inputs.review_trust_anchor_path,
             expected_trust_anchor_sha256=inputs.review_trust_anchor_sha256,
-            accepted_reviewers=inputs.pii_review_reviewers or None,
+            # L'index et l'allowlist ne sont plus « portés » sans être lus :
+            # les deux chargeurs les remettent au foyer, qui seul les ouvre,
+            # les hache et les confronte.
+            review_index_path=inputs.pii_review_index_path,
+            expected_review_index_sha256=inputs.pii_review_index_sha256,
+            reviewers_path=inputs.pii_review_reviewers_path,
+            expected_reviewers_sha256=inputs.pii_review_reviewers_sha256,
         )
         rights = VerifiedRightsEvidenceRegistry.load(
             inputs.rights_evidence_path,
@@ -370,12 +350,7 @@ def load_governed_runtime_authorities(
     try:
         require_runtime_review_chain_matches_release(
             declared=resolver.release_review_chain,
-            runtime={
-                "pii_decision_set_sha256": inputs.pii_decision_set_sha256,
-                "pii_review_receipt_sha256": inputs.pii_review_receipt_sha256,
-                "pii_review_trust_anchor_sha256": inputs.review_trust_anchor_sha256,
-                "pii_review_index_sha256": inputs.pii_review_index_sha256,
-            },
+            runtime=pii.verified_review_chain(),
         )
     except ValueError as exc:
         raise RuntimeAuthorityStartupError(str(exc)) from exc

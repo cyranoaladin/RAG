@@ -25,8 +25,8 @@ le rapport de la garde deviendrait lui-même la fuite qu'il signale.
 """
 from __future__ import annotations
 
-import json
 import re
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -126,6 +126,31 @@ def find_raw_pii(
     return sorted(findings, key=lambda f: (f.char_offset, f.pattern_id))
 
 
+def _string_values(node: object) -> Iterator[str]:
+    """Parcourt un document et rend ses chaînes TELLES QU'ELLES SONT.
+
+    **Pourquoi on ne scanne pas le JSON sérialisé.** La première version
+    appelait `json.dumps` puis cherchait dans le résultat. Un séparateur situé à
+    l'intérieur d'un motif — `06\n12 34 56 78` — y devient deux caractères
+    littéraux `\` et `n` : la correspondance est perdue, et la garde atteste une
+    sortie propre. Mesuré : un finding sur le texte brut, zéro après
+    sérialisation.
+
+    C'est le même défaut que celui corrigé sur les digests — transformer le
+    texte avant d'y chercher — que la sérialisation avait réintroduit. Le JSON
+    est une représentation de transport, pas la matière."""
+    if isinstance(node, str):
+        yield node
+    elif isinstance(node, Mapping):
+        for key, value in node.items():
+            if isinstance(key, str):
+                yield key
+            yield from _string_values(value)
+    elif isinstance(node, (list, tuple, set, frozenset)):
+        for item in node:
+            yield from _string_values(item)
+
+
 class RawPiiLeakError(ValueError):
     """Un artefact de gouvernance porte de la matière brute — refus."""
 
@@ -150,8 +175,11 @@ def require_no_raw_pii(
     fuite."""
     if patterns is None:
         patterns = load_patterns_from_config(DEFAULT_POLICY_PATH)
-    rendered = json.dumps(document, ensure_ascii=False, sort_keys=True, default=str)
-    findings = find_raw_pii(rendered, patterns=patterns)
+    findings = [
+        finding
+        for value in _string_values(document)
+        for finding in find_raw_pii(value, patterns=patterns)
+    ]
     if findings:
         classes = sorted({finding.pattern_id for finding in findings})
         first = findings[0]

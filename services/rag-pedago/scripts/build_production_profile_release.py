@@ -1522,23 +1522,32 @@ _ACTIVATING_PROMOTION = "PROMOTABLE"
 _ACTIVATING_ACTIVATION = "PRODUCTION_ACTIVATION_ALLOWED"
 
 
-def resolve_candidate_release_statuses(
+def resolve_release_lifecycle_statuses(
     *,
+    release_mode: str,
+    release_id: str | None = None,
     promotion_status: str | None,
     activation_status: str | None,
     review_status: str | None,
-    is_candidate: bool,
 ) -> dict[str, str | None]:
-    """Résout les statuts d'une release, et refuse une candidate activable.
+    """Résout les statuts d'une release, et refuse une production activable.
 
-    Ces trois valeurs traversaient le producteur telles que l'appelant les
-    donnait. Il pouvait donc demander une candidate `PROMOTABLE`, ou n'en rien
-    dire et obtenir `None` — c'est-à-dire une release qu'aucun verrou ne bloque.
+    **Le cycle de vie ne se déduit pas du NOM.** La version précédente écrivait
+    `is_candidate = release_id is not None` : une production utilisant le
+    `release_id` par défaut — cas légitime, le paramètre valant `None` — était
+    donc traitée comme non-candidate et transmettait des statuts activables au
+    manifeste. Le nom d'une release ne dit rien de son cycle de vie.
+
+    Le signal juste est le MODE. Une release de production n'est jamais émise
+    activable : la promotion se gagne aux gates de go-live, pas par un argument
+    de producteur. `release_id` n'entre pas dans la décision, et n'est présent
+    ici que pour rendre cette indifférence explicite et testable.
 
     Une demande activante n'est pas silencieusement corrigée mais REFUSÉE : un
     appel qui la formule est un appel qui se trompe, et écraser sa demande sans
     rien dire lui laisserait croire qu'il l'a obtenue."""
-    if not is_candidate:
+    del release_id  # jamais un signal de cycle de vie — voir la docstring
+    if release_mode != "production":
         return {
             "promotion_status": promotion_status,
             "activation_status": activation_status,
@@ -1551,8 +1560,8 @@ def resolve_candidate_release_statuses(
         refused.append(f"activation_status={_ACTIVATING_ACTIVATION}")
     if refused:
         raise ValueError(
-            f"a production candidate cannot be asked to be activable ({', '.join(refused)}): "
-            "the PII gate is one go-live gate among several, and the others are not proven"
+            f"a production release cannot be asked to be activable ({', '.join(refused)}): "
+            "promotion is earned at the go-live gates, not requested from the producer"
         )
     return {
         "promotion_status": promotion_status or "NOT_PROMOTABLE",
@@ -2831,11 +2840,12 @@ def build_release(
             # NO_PRODUCTION_ACTIVATION. Ces statuts traversent donc aussi la
             # voie production, sans quoi une candidate serait silencieusement
             # activable au seul motif que sa PII est en règle.
-            **resolve_candidate_release_statuses(
+            **resolve_release_lifecycle_statuses(
+                release_mode=release_mode,
+                release_id=release_id,
                 promotion_status=promotion_status,
                 activation_status=activation_status,
                 review_status=review_status,
-                is_candidate=release_id is not None,
             ),
         )
     )

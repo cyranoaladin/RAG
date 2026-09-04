@@ -9,13 +9,21 @@ from __future__ import annotations
 
 import hashlib
 import json
-import pathlib
 import sys
 from pathlib import Path
 
 import pytest
 
 from tests.test_pii_scanner_pages_sans_texte import _PAGE_AVEC_TEXTE, _pdf
+
+#: Racines dérivées de l'EMPLACEMENT de ce fichier, jamais du répertoire de
+#: lancement. Ces tests s'exécutaient depuis `services/rag-pedago` et échouaient
+#: partout ailleurs — y compris depuis la racine, où la CI les appelle : un test
+#: qui ne peut être lancé que d'un seul dossier ne protège que ce dossier-là.
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = SERVICE_ROOT.parents[1]
+PREPARER_SCRIPT = SERVICE_ROOT / "scripts/preparer_paquets_revue_pii.py"
+PROJECTION_HELPER = SERVICE_ROOT / "rag_pedago/imports/pii_review_projection.py"
 
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 POLICY = SCRIPT_DIR.parent / "configs" / "pii_gate_policy.yml"
@@ -242,9 +250,7 @@ class TestTheBundleProducerIdentityCoversWhatDecides:
     versionner la nouvelle règle."""
 
     def test_the_projection_helper_is_part_of_the_frozen_surface(self) -> None:
-        source = pathlib.Path("scripts/preparer_paquets_revue_pii.py").read_text(
-            encoding="utf-8"
-        )
+        source = PREPARER_SCRIPT.read_text(encoding="utf-8")
         frozen = source[source.index("porcelain = subprocess.check_output") :]
         frozen = frozen[: frozen.index("cwd=REPOSITORY_ROOT")]
         assert "pii_review_projection.py" in frozen, (
@@ -254,9 +260,7 @@ class TestTheBundleProducerIdentityCoversWhatDecides:
     def test_the_identity_names_the_projection_helper(self) -> None:
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location(
-            "_preparer", "scripts/preparer_paquets_revue_pii.py"
-        )
+        spec = importlib.util.spec_from_file_location("_preparer", PREPARER_SCRIPT)
         assert spec and spec.loader
         module = importlib.util.module_from_spec(spec)
         sys.modules["_preparer"] = module
@@ -265,14 +269,40 @@ class TestTheBundleProducerIdentityCoversWhatDecides:
         assert "projection_sha256" in identity
         assert len(identity["projection_sha256"]) == 64
 
-    def test_a_change_to_the_helper_changes_the_future_identity(self, tmp_path) -> None:
-        """La propriété qui compte : l'empreinte suit le module."""
-        import hashlib
+    def test_a_change_to_the_helper_changes_the_future_identity(self) -> None:
+        """La propriété qui compte : l'empreinte suit le module.
 
-        helper = pathlib.Path("rag_pedago/imports/pii_review_projection.py")
-        before = hashlib.sha256(helper.read_bytes()).hexdigest()
-        altered = helper.read_bytes() + b"\n# changement local\n"
-        assert hashlib.sha256(altered).hexdigest() != before
+        La version précédente hachait deux chaînes d'octets et constatait
+        qu'elles différaient — une propriété de SHA-256, pas du producteur.
+        Elle n'appelait jamais `producer_identity` et serait restée verte si
+        celui-ci avait cessé de couvrir le module. Ici l'identité est
+        réellement calculée, deux fois, autour d'une modification du module."""
+        import hashlib
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_preparer_id", PREPARER_SCRIPT)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["_preparer_id"] = module
+        spec.loader.exec_module(module)
+
+        before = module.producer_identity(require_frozen=False)
+        assert before["projection_sha256"] == hashlib.sha256(
+            PROJECTION_HELPER.read_bytes()
+        ).hexdigest()
+
+        original = PROJECTION_HELPER.read_bytes()
+        try:
+            PROJECTION_HELPER.write_bytes(original + b"\n# changement local\n")
+            after = module.producer_identity(require_frozen=False)
+        finally:
+            PROJECTION_HELPER.write_bytes(original)
+        assert after["projection_sha256"] != before["projection_sha256"], (
+            "l'identité du producteur ne suit pas le module qui décide de "
+            "l'identité des findings : des paquets différents porteraient la "
+            "même provenance"
+        )
+        assert module.producer_identity(require_frozen=False) == before
 
     def test_the_historical_bundles_keep_their_own_provenance(self) -> None:
         """Les 23 paquets scellés ne sont pas réinterprétés rétroactivement.
@@ -283,8 +313,9 @@ class TestTheBundleProducerIdentityCoversWhatDecides:
         import json
 
         index = json.loads(
-            pathlib.Path(
-                "../../docs/reports/evidence-index/pii_review_index_20260903.json"
+            (
+                REPOSITORY_ROOT
+                / "docs/reports/evidence-index/pii_review_index_20260903.json"
             ).read_text(encoding="utf-8")
         )
         assert "generator_sha256" in index

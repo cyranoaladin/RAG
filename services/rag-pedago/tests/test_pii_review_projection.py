@@ -411,15 +411,19 @@ class TestTheDecisionSetMustDescribeThisCorpus:
         assert _project().counts["reviewed_accepted_count"] == 1
 
     def test_another_corpus_manifest_is_refused(self) -> None:
+        """Même population de contenus, autre corpus : refusé.
+
+        La population de contenus du banc est INCHANGÉE : seule l'empreinte du
+        manifeste diffère. C'est précisément le cas qu'une comparaison de
+        cardinalités ne verrait pas — autant de contenus, les mêmes contenus,
+        et pourtant un autre corpus.
+
+        Un second test identique existait ici, avec une autre constante
+        arbitraire (« 8 » au lieu de « 9 ») : il n'exerçait aucun chemin
+        supplémentaire et donnait à croire que deux propriétés distinctes
+        étaient couvertes."""
         with pytest.raises(PiiProjectionError, match="corpus manifest"):
             _project(corpus_manifest_sha256="9" * 64)
-
-    def test_the_check_survives_an_identical_content_population(self) -> None:
-        """Même population de contenus, autre corpus : toujours refusé.
-
-        C'est le cas que la cardinalité seule ne verrait pas."""
-        with pytest.raises(PiiProjectionError, match="corpus manifest"):
-            _project(corpus_manifest_sha256="8" * 64)
 
 
 class TestADuplicateFindingIdIsNeverDeduplicated:
@@ -458,6 +462,26 @@ class TestADuplicateFindingIdIsNeverDeduplicated:
                     _scanned(DETECTED, (FINDING_1, FINDING_2, conflicting)),
                 ],
             )
+
+    def test_the_decision_side_is_guarded_by_the_contract_itself(self) -> None:
+        """Le côté décision n'a pas de garde ICI — il en a un, ailleurs.
+
+        La projection vérifiait aussi les doublons de `decision.findings`.
+        Cette branche ne pouvait jamais s'exécuter : `PiiReviewDecisionV1`
+        refuse « a finding_id appears twice » dès la validation du modèle, si
+        bien qu'une décision porteuse de doublons n'atteignait pas la
+        projection. Un garde inatteignable donne l'illusion d'une protection
+        et masque où se trouve la vraie.
+
+        Ce test vise donc le gardien réel : si quelqu'un retire le validateur
+        du contrat, c'est ici que cela se voit."""
+        from nexus_contracts.pii_review_decisions import PiiReviewDecisionV1
+
+        decision = _decision()
+        decision["findings"] = [decision["findings"][0], decision["findings"][0]]
+        decision["signal_count"] = 2
+        with pytest.raises(ValueError, match="appears twice"):
+            PiiReviewDecisionV1.model_validate(decision)
 
     def test_the_refusal_happens_before_any_mapping_is_built(self) -> None:
         """Le refus doit précéder la construction, pas la suivre.

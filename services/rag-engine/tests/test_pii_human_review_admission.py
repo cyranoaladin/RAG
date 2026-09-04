@@ -103,7 +103,10 @@ def _finding(finding_id: str, pattern_id: str, page: int, disposition: str) -> d
     }
 
 
-def make_decision_set_dict() -> dict[str, Any]:
+REVIEW_INDEX_SHA = "5" * 64
+
+
+def make_decision_set_dict(review_index_sha256: str | None = None) -> dict[str, Any]:
     """Un ensemble à deux décisions : une APPROVED, une REJECTED.
 
     Les deux existent pour que « absent de l'ensemble » et « présent mais
@@ -117,7 +120,7 @@ def make_decision_set_dict() -> dict[str, Any]:
         "scanner_sha256": SCANNER_SHA,
         "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
         "page_policy_sha256": PAGE_POLICY_SHA,
-        "review_index_sha256": "5" * 64,
+        "review_index_sha256": review_index_sha256 or REVIEW_INDEX_SHA,
         "decisions": [
             {
                 "content_sha256": CONTENT_APPROVED,
@@ -243,14 +246,21 @@ class Bench:
     """Un banc d'essai : les quatre fichiers sur disque et leurs empreintes."""
 
     def __init__(self, tmp_path: Path, **kw: Any) -> None:
-        decision_set_dict = kw.get("decision_set_dict") or make_decision_set_dict()
+        decision_set_dict = kw.get("decision_set_dict") or make_decision_set_dict(
+            kw.get("review_index_sha256")
+        )
         model = PiiReviewDecisionSetV1.model_validate(decision_set_dict)
         raw_ds = model.canonical_bytes()
-        if kw.get("tamper_decision_set_bytes"):
-            raw_ds = raw_ds.replace(b'"signal_count": 2', b'"signal_count": 3')
         self.ds_path = tmp_path / f"{decision_set_dict['decision_set_id']}.json"
         self.ds_path.write_bytes(raw_ds)
+        # L'empreinte attendue est celle des octets LÉGITIMES. Saboter avant ce
+        # calcul — ce que faisait la version précédente — produisait un digest
+        # de l'objet saboté, donc concordant : le test échouait alors sur la
+        # validation de schéma et aurait passé même sans vérification
+        # d'empreinte. Le sabotage doit venir APRÈS, sur le fichier.
         self.ds_sha = hashlib.sha256(raw_ds).hexdigest()
+        if kw.get("tamper_decision_set_bytes"):
+            self.ds_path.write_bytes(raw_ds.replace(b"abenrhouma", b"abenrhoumb"))
 
         receipt_source = kw.get("receipt_over_bytes", raw_ds)
         receipt_bytes = make_signed_receipt_bytes(
@@ -291,6 +301,7 @@ class Bench:
             else default_results(decision_set_dict["decision_set_id"]),
         }
         raw_pii = (json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+        self.tmp_path = tmp_path
         self.pii_path = tmp_path / "pii_evidence.json"
         self.pii_path.write_bytes(raw_pii)
         self.pii_sha = hashlib.sha256(raw_pii).hexdigest()
@@ -305,9 +316,14 @@ class Bench:
             "trust_anchor_path": self.anchor_path,
             "environment": "test",
             "expected_repository": REPOSITORY,
-            "accepted_reviewers": ("abenrhouma",),
             "now": NOW,
         }
+        if "reviewers_path" not in overrides:
+            # Le banc consomme l'autorité comme la production : un fichier et
+            # son empreinte. Aucun test ne « choisit » un reviewer.
+            path, digest = _write_reviewers(self.tmp_path)
+            kwargs["reviewers_path"] = path
+            kwargs["expected_reviewers_sha256"] = digest
         kwargs.update(overrides)
         return VerifiedPIIEvidenceRegistry.load(self.pii_path, **kwargs)
 
@@ -453,13 +469,24 @@ class TestAdmissionMatrixFailClosed:
             bench.load()
 
     def test_a_single_altered_byte_is_caught_by_the_digest(self, tmp_path: Path) -> None:
-        """Le sabotage à l'octet près, que `tamper_decision_set_bytes` prévoyait.
+        """Le sabotage à l'octet près, attrapé par l'EMPREINTE et non par le schéma.
 
-        Le mécanisme existait dans le banc d'essai sans qu'aucun test ne
-        l'emploie : une branche morte n'est pas une garantie."""
+        La première version de ce test sabotait les octets AVANT de calculer le
+        digest attendu : celui-ci décrivait donc l'objet saboté et concordait,
+        et le refus venait en réalité de la validation de schéma. Le test
+        passait alors même si la vérification d'empreinte était retirée — il ne
+        prouvait rien de ce que son nom annonce.
+
+        Ici les octets sur disque diffèrent de l'empreinte attendue, et le
+        document altéré reste par ailleurs valide : seule l'empreinte peut le
+        refuser. Le message le confirme."""
         bench = Bench(tmp_path, tamper_decision_set_bytes=True)
-        with pytest.raises(SealedEvidenceError, match="decision set"):
+        with pytest.raises(SealedEvidenceError) as excinfo:
             bench.load()
+        message = str(excinfo.value)
+        assert "hashes to" in message and "not the expected" in message, (
+            f"le refus ne vient pas de l'empreinte mais de : {message}"
+        )
 
     def test_a_decision_carrying_personal_data_is_refused_by_the_worker(
         self, tmp_path: Path
@@ -603,6 +630,10 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 REAL_DS = REPO_ROOT / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
 REAL_RECEIPT = REPO_ROOT / "governance/pii-review-bindings/pii-review-2026-09-03-final.json"
 REAL_ANCHOR = REPO_ROOT / "governance/trust-anchors/review-binding-v1.json"
+#: L'allowlist VERSIONNÉE que le reste de la chaîne GitHub lit déjà. Le test
+#: la désigne par son chemin canonique et calcule son empreinte : il n'écrit
+#: aucun login, et ne « choisit » donc aucun reviewer.
+REAL_REVIEWERS = REPO_ROOT / "scripts/github/trusted-reviewers.json"
 
 
 class TestRealCandidateDecisionSet:
@@ -699,7 +730,10 @@ class TestRealCandidateDecisionSet:
             ).hexdigest(),
             environment="production",
             expected_repository="cyranoaladin/RAG",
-            accepted_reviewers=("abenrhouma",),
+            reviewers_path=REAL_REVIEWERS,
+            expected_reviewers_sha256=hashlib.sha256(
+                REAL_REVIEWERS.read_bytes()
+            ).hexdigest(),
             now=datetime.now(UTC),
         )
         admitted = [
@@ -822,3 +856,205 @@ class TestAnAdmittedEntryMustNameItsDecisionSet:
         bench = Bench(tmp_path, results=results)
         with pytest.raises(SealedEvidenceError, match="decision set"):
             bench.load()
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Re-review — le foyer unique de la chaîne de revue (P1-A / P1-D / P1-E)
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def _write_index(tmp_path: Path, decision_set_id: str = DECISION_SET_ID) -> tuple[Path, str]:
+    """Index de revue synthétique, canonique au sens du producteur."""
+    document = {
+        "protocol_version": "NEXUS-PII-REVIEW-INDEX-V1",
+        "campaign_id": decision_set_id,
+        "bundles": [{"content_sha256": CONTENT_APPROVED, "bundle_sha256": BUNDLE_APPROVED}],
+    }
+    raw = (json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+    path = tmp_path / "review_index.json"
+    path.write_bytes(raw)
+    return path, hashlib.sha256(raw).hexdigest()
+
+
+def _write_reviewers(tmp_path: Path, reviewers: list[str] | None = None,
+                     repository: str = REPOSITORY) -> tuple[Path, str]:
+    document = {
+        "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+        "repository": repository,
+        "base_ref": "main",
+        "reviewers": reviewers if reviewers is not None else ["abenrhouma"],
+    }
+    raw = (json.dumps(document, indent=2) + "\n").encode()
+    path = tmp_path / "trusted-reviewers.json"
+    path.write_bytes(raw)
+    return path, hashlib.sha256(raw).hexdigest()
+
+
+class TestTheReviewIndexIsOpenedAndHashed:
+    """P1-E — un digest déclaré ne remplace pas la lecture du fichier.
+
+    Le worker acceptait un index dont l'empreinte annoncée correspondait au
+    manifeste, sans jamais ouvrir le fichier : un index absent, remplacé ou
+    réécrit passait donc, pourvu que la valeur annoncée soit la bonne. Les trois
+    doivent coïncider — octets réels, empreinte attendue, et
+    `decision_set.review_index_sha256`."""
+
+    def _bench(self, tmp_path: Path, **kw: Any) -> Bench:
+        return Bench(tmp_path, **kw)
+
+    def test_a_matching_index_is_accepted(self, tmp_path: Path) -> None:
+        index_path, index_sha = _write_index(tmp_path)
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        registry = bench.load(
+            review_index_path=index_path, expected_review_index_sha256=index_sha
+        )
+        assert registry.review_authority is not None
+        assert registry.review_authority.review_index_sha256 == index_sha
+
+    def test_a_missing_index_file_is_refused(self, tmp_path: Path) -> None:
+        index_path, index_sha = _write_index(tmp_path)
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        index_path.unlink()
+        with pytest.raises(SealedEvidenceError, match="review index"):
+            bench.load(review_index_path=index_path, expected_review_index_sha256=index_sha)
+
+    def test_altered_bytes_under_a_correct_claimed_digest_are_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Le cas exact du finding : l'empreinte annoncée est juste, le fichier non."""
+        index_path, index_sha = _write_index(tmp_path)
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        index_path.write_bytes(index_path.read_bytes().replace(b"NEXUS", b"NEXUZ"))
+        with pytest.raises(SealedEvidenceError, match="review index"):
+            bench.load(review_index_path=index_path, expected_review_index_sha256=index_sha)
+
+    def test_an_index_of_another_campaign_is_refused(self, tmp_path: Path) -> None:
+        other_path, other_sha = _write_index(tmp_path, decision_set_id="autre-campagne")
+        bench = Bench(tmp_path, review_index_sha256="0" * 64)
+        with pytest.raises(SealedEvidenceError, match="review index"):
+            bench.load(
+                review_index_path=other_path, expected_review_index_sha256=other_sha
+            )
+
+    def test_the_index_must_match_the_decision_set_binding(self, tmp_path: Path) -> None:
+        """Empreinte réelle et attendue concordent, mais le decision set en nomme une autre."""
+        index_path, index_sha = _write_index(tmp_path)
+        bench = Bench(tmp_path, review_index_sha256="a" * 64)
+        with pytest.raises(SealedEvidenceError, match="review index"):
+            bench.load(
+                review_index_path=index_path, expected_review_index_sha256=index_sha
+            )
+
+
+class TestTheReviewerAllowlistIsCanonical:
+    """P1-D — l'appelant ne choisit pas l'autorité qui l'autorise.
+
+    Le correctif précédent vérifiait le protocole et le dépôt, mais laissait
+    l'appelant désigner le FICHIER : un autre JSON portant le même protocole et
+    le même dépôt pouvait ajouter un reviewer arbitraire. L'autorité est
+    désormais épinglée par son empreinte canonique, que l'appelant ne fournit
+    pas."""
+
+    def test_the_canonical_allowlist_is_accepted(self, tmp_path: Path) -> None:
+        index_path, index_sha = _write_index(tmp_path)
+        reviewers_path, reviewers_sha = _write_reviewers(tmp_path)
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        registry = bench.load(
+            review_index_path=index_path, expected_review_index_sha256=index_sha,
+            reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
+        )
+        assert registry.review_authority is not None
+        # Attendue LUE dans l'autorité, jamais recopiée dans l'assertion : un
+        # test qui fige le login devient faux le jour où l'allowlist change,
+        # et ne dit alors plus rien de la propriété qu'il prétend tenir.
+        declared = tuple(json.loads(reviewers_path.read_text(encoding="utf-8"))["reviewers"])
+        assert registry.review_authority.trusted_reviewers == declared
+
+    def test_an_alternate_allowlist_adding_a_reviewer_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Même protocole, même dépôt, un reviewer de plus — le cas du finding."""
+        index_path, index_sha = _write_index(tmp_path)
+        legitimate_path, legitimate_sha = _write_reviewers(tmp_path)
+        forged = tmp_path / "autre-allowlist.json"
+        forged.write_bytes(
+            (json.dumps({
+                "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+                "repository": REPOSITORY,
+                "base_ref": "main",
+                "reviewers": ["abenrhouma", "intrus"],
+            }, indent=2) + "\n").encode()
+        )
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        with pytest.raises(SealedEvidenceError, match="reviewer"):
+            bench.load(
+                review_index_path=index_path, expected_review_index_sha256=index_sha,
+                reviewers_path=forged, expected_reviewers_sha256=legitimate_sha,
+            )
+
+    def test_a_tampered_allowlist_is_refused(self, tmp_path: Path) -> None:
+        index_path, index_sha = _write_index(tmp_path)
+        reviewers_path, reviewers_sha = _write_reviewers(tmp_path)
+        reviewers_path.write_bytes(
+            reviewers_path.read_bytes().replace(b"abenrhouma", b"quelquun-dautre")
+        )
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        with pytest.raises(SealedEvidenceError, match="reviewer"):
+            bench.load(
+                review_index_path=index_path, expected_review_index_sha256=index_sha,
+                reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
+            )
+
+    def test_a_foreign_repository_allowlist_is_refused(self, tmp_path: Path) -> None:
+        index_path, index_sha = _write_index(tmp_path)
+        reviewers_path, reviewers_sha = _write_reviewers(
+            tmp_path, repository="quelquun/autre"
+        )
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        with pytest.raises(SealedEvidenceError, match="reviewer|repository"):
+            bench.load(
+                review_index_path=index_path, expected_review_index_sha256=index_sha,
+                reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
+            )
+
+    def test_an_empty_allowlist_is_refused(self, tmp_path: Path) -> None:
+        index_path, index_sha = _write_index(tmp_path)
+        reviewers_path, reviewers_sha = _write_reviewers(tmp_path, reviewers=[])
+        bench = Bench(tmp_path, review_index_sha256=index_sha)
+        with pytest.raises(SealedEvidenceError, match="reviewer"):
+            bench.load(
+                review_index_path=index_path, expected_review_index_sha256=index_sha,
+                reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
+            )
+
+    def test_an_admission_without_any_reviewer_authority_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Le cas le plus dangereux : ne rien passer du tout.
+
+        Sans allowlist, `verify_pii_review_decision_authority` reçoit un
+        périmètre non borné et n'importe quel login ayant signé un reçu
+        valide admet de la PII. L'absence d'autorité est un refus, pas un
+        défaut permissif."""
+        bench = Bench(tmp_path)
+        with pytest.raises(SealedEvidenceError, match="unbounded set of logins"):
+            bench.load(reviewers_path=None, expected_reviewers_sha256=None)
+
+    def test_an_allowlist_without_its_pinned_digest_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Un chemin sans empreinte laisse l'appelant désigner le fichier."""
+        bench = Bench(tmp_path)
+        path, _ = _write_reviewers(tmp_path)
+        with pytest.raises(SealedEvidenceError, match="unbounded set of logins"):
+            bench.load(reviewers_path=path, expected_reviewers_sha256=None)
+
+    def test_no_reviewer_login_is_hardcoded_in_the_worker(self) -> None:
+        """Le code connaît l'autorité ; l'autorité connaît les reviewers."""
+        root = Path(__file__).resolve().parents[1] / "src" / "ingestor"
+        offenders = [
+            source.name
+            for source in root.rglob("*.py")
+            if "abenrhouma" in source.read_text(encoding="utf-8")
+        ]
+        assert offenders == []

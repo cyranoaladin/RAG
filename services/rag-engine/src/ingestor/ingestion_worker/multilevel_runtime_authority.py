@@ -32,6 +32,7 @@ from .runtime_authority import (
     RuntimeAuthorityStartupError,
     add_review_authority_arguments,
     require_canonical_worker_runtime,
+    require_runtime_review_chain_matches_release,
     review_authority_arguments_from_args,
 )
 
@@ -248,7 +249,13 @@ def load_multilevel_runtime_authorities(
             expected_receipt_sha256=inputs.pii_review_receipt_sha256,
             trust_anchor_path=inputs.review_trust_anchor_path,
             expected_trust_anchor_sha256=inputs.review_trust_anchor_sha256,
-            accepted_reviewers=inputs.pii_review_reviewers or None,
+            # L'index et l'allowlist ne sont plus « portés » sans être lus :
+            # les deux chargeurs les remettent au foyer, qui seul les ouvre,
+            # les hache et les confronte.
+            review_index_path=inputs.pii_review_index_path,
+            expected_review_index_sha256=inputs.pii_review_index_sha256,
+            reviewers_path=inputs.pii_review_reviewers_path,
+            expected_reviewers_sha256=inputs.pii_review_reviewers_sha256,
             environment=review_verification_environment(environment),
         )
         rights = VerifiedRightsEvidenceRegistry.load(
@@ -267,6 +274,17 @@ def load_multilevel_runtime_authorities(
         raise RuntimeAuthorityStartupError("release PII policy digest differs")
     if resolver.release_rights_registry_sha256 != rights.registry_sha256:
         raise RuntimeAuthorityStartupError("release rights registry digest differs")
+    # Le chemin multi-niveaux portait les mêmes autorités que le chemin simple
+    # mais ne confrontait pas la chaîne de la release à celle qu'il vérifiait :
+    # une release pouvait annoncer la chaîne A tandis que ce worker en validait
+    # une B, chacune cohérente de son côté.
+    try:
+        require_runtime_review_chain_matches_release(
+            declared=resolver.release_review_chain,
+            runtime=pii.verified_review_chain(),
+        )
+    except ValueError as exc:
+        raise RuntimeAuthorityStartupError(str(exc)) from exc
     return GovernedRuntimeAuthorities(
         placement_resolver=resolver,
         pii_evidence_registry=pii,

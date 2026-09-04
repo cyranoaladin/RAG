@@ -171,23 +171,30 @@ def _require_same_finding_universe(
     decision: Any,
 ) -> None:
     """Les findings scannés et dispositionnés doivent être les MÊMES."""
-    # Les doublons sont refusés AVANT toute indexation : une association
-    # `{finding_id: finding}` ne garde que la dernière occurrence, si bien
-    # qu'un dict deviendrait, sans qu'on l'ait voulu, le mécanisme de
+    # Les doublons du SCAN sont refusés AVANT toute indexation : une
+    # association `{finding_id: finding}` ne garde que la dernière occurrence,
+    # si bien qu'un dict deviendrait, sans qu'on l'ait voulu, le mécanisme de
     # déduplication — et qu'une détection supplémentaire traverserait sans
     # disposition. Même un doublon strictement identique est une anomalie de
-    # preuve : compter deux fois le même signal fausse la mesure, quel que soit
-    # ce que le doublon contient.
-    for label, findings in (("scan", scanned.findings), ("decision", decision.findings)):
-        seen: set[str] = set()
-        for finding in findings:
-            if finding.finding_id in seen:
-                raise PiiProjectionError(
-                    f"content {content_sha256[:12]}…: finding {finding.finding_id[:12]}… "
-                    f"appears twice in the {label} — a duplicate signal is never "
-                    "silently collapsed into one"
-                )
-            seen.add(finding.finding_id)
+    # preuve : compter deux fois le même signal fausse la mesure.
+    #
+    # Le côté DÉCISION n'est pas vérifié ici, et ce n'est pas un oubli :
+    # `PiiReviewDecisionV1._findings_match_the_measure` refuse déjà « a
+    # finding_id appears twice » à la validation du modèle. Une décision
+    # porteuse de doublons n'arrive donc jamais jusqu'ici, et la branche qui
+    # prétendait s'en prémunir ne pouvait pas s'exécuter : un garde
+    # inatteignable donne l'illusion d'une protection et masque le fait que la
+    # vraie se trouve ailleurs. C'est le contrat qui la tient, et un test le
+    # prouve sur le contrat lui-même.
+    seen: set[str] = set()
+    for finding in scanned.findings:
+        if finding.finding_id in seen:
+            raise PiiProjectionError(
+                f"content {content_sha256[:12]}…: finding {finding.finding_id[:12]}… "
+                "appears twice in the scan — a duplicate signal is never "
+                "silently collapsed into one"
+            )
+        seen.add(finding.finding_id)
 
     scanned_by_id = {finding.finding_id: finding for finding in scanned.findings}
     decided_by_id = {finding.finding_id: finding for finding in decision.findings}
