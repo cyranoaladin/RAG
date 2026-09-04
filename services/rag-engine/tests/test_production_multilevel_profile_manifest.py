@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from ingestor.ingestion_profiles.manifest import verify_profile_manifest
-from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.ingestion_profiles.registry import ProfileRegistry, load_profile_registry
 from ingestor.ingestion_worker.multilevel_runtime_authority import (
     MultilevelRuntimeAuthorityInputs,
     load_multilevel_runtime_authorities,
@@ -74,7 +74,7 @@ def test_staging_and_production_manifest_schemas_cannot_cross() -> None:
 def _production_inputs(
     release_path: Path | None = None,
     **review_authority: object,
-) -> tuple[MultilevelRuntimeAuthorityInputs, object]:
+) -> tuple[MultilevelRuntimeAuthorityInputs, ProfileRegistry]:
     """Construit les entrées réelles du chargeur multi-niveaux.
 
     Extrait du test de résolution pour qu'une seconde preuve puisse
@@ -189,8 +189,11 @@ def test_the_multilevel_loader_refuses_a_release_chain_it_does_not_verify(
 
     Ici la release déclare une chaîne complète ; le worker n'en charge aucune.
 
-    L'attente de placements reste celle de la release RÉELLE : seule la
-    déclaration d'autorité change, pour que l'échec ne puisse venir que d'elle.
+    L'attente de placements reste celle de la release RÉELLE, et SEULE la
+    déclaration d'autorité change — pas même le genre de release — pour que
+    l'échec ne puisse venir que d'elle. Une version antérieure réécrivait aussi
+    `release_kind` en V2 tout en affirmant le contraire : le test fonctionnait,
+    mais sa docstring aurait égaré quiconque en aurait cherché la cause.
     """
     from ingestor import multilevel_verified_placement as multilevel_release
 

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,11 +11,8 @@ from nexus_pdf_page_policy import CanonicalRuntimeError, require_canonical_pypdf
 try:
     from ingestor.collection_config import load_collection_config
     from ingestor.ingestion_control.sealed_evidence import (
-        CANONICAL_REPOSITORY,
-        SealedEvidenceError,
         VerifiedPIIEvidenceRegistry,
         VerifiedRightsEvidenceRegistry,
-        parse_trusted_reviewers,
     )
     from ingestor.ingestion_profiles.registry import ProfileRegistry
     from ingestor.verified_pedagogical_placement import (
@@ -28,11 +24,8 @@ except ImportError as _exc:  # image worker aplatie
         raise
     from collection_config import load_collection_config
     from ingestion_control.sealed_evidence import (
-        CANONICAL_REPOSITORY,
-        SealedEvidenceError,
         VerifiedPIIEvidenceRegistry,
         VerifiedRightsEvidenceRegistry,
-        parse_trusted_reviewers,
     )
     from ingestion_profiles.registry import ProfileRegistry
     from verified_pedagogical_placement import (
@@ -89,9 +82,12 @@ class RuntimeAuthorityInputs:
     review_trust_anchor_sha256: str | None = None
     pii_review_index_path: Path | None = None
     pii_review_index_sha256: str | None = None
-    pii_review_reviewers_path: Path | None = None
+    #: Seule l'EMPREINTE de l'allowlist est injectée. Son chemin est canonique
+    #: et connu du foyer : laisser l'appelant désigner le fichier revenait à le
+    #: laisser choisir qui a le droit d'admettre de la PII, l'empreinte
+    #: fournie avec coïncidant évidemment.
     pii_review_reviewers_sha256: str | None = None
-    pii_review_reviewers: tuple[str, ...] = ()
+    repository_root: Path = Path()
 
 
 @dataclass(frozen=True)
@@ -122,38 +118,27 @@ _REVIEW_AUTHORITY_ARGUMENTS = (
     ("pii-review-receipt", "ADR-0035 receipt sealing the decision set"),
     ("review-trust-anchor", "trust anchor verifying the review receipt"),
     ("pii-review-index", "index of the review bundles that founded the decisions"),
-    ("pii-review-reviewers", "versioned trusted reviewer allowlist (NEXUS-TRUSTED-REVIEW-V1)"),
+)
+
+#: L'allowlist n'a QUE son empreinte : son emplacement est canonique
+#: (`CANONICAL_REVIEWERS_RELATIVE_PATH`), résolu depuis la racine du dépôt.
+_REVIEW_AUTHORITY_DIGEST_ONLY_ARGUMENTS = (
+    (
+        "pii-review-reviewers-sha256",
+        "digest of the versioned trusted reviewer allowlist (NEXUS-TRUSTED-REVIEW-V1)",
+    ),
 )
 
 
 def add_review_authority_arguments(parser: argparse.ArgumentParser) -> None:
+    for name, description in _REVIEW_AUTHORITY_DIGEST_ONLY_ARGUMENTS:
+        parser.add_argument(f"--{name}", type=str, default=None, help=description)
     for name, description in _REVIEW_AUTHORITY_ARGUMENTS:
         parser.add_argument(f"--{name}-path", type=Path, default=None, help=description)
         parser.add_argument(
             f"--{name}-sha256", default=None, help=f"expected SHA-256: {description}"
         )
 
-
-def load_trusted_reviewers(path: Path, expected_sha256: str) -> tuple[str, ...]:
-    """Délègue au foyer : le parsing de l'allowlist n'existe qu'à un endroit.
-
-    Cette fonction avait sa propre lecture, son propre calcul d'empreinte et
-    ses propres refus — un second exemplaire de la chaîne, qui pouvait dériver
-    de celui de `sealed_evidence` sans que rien ne le signale."""
-    if not path.is_file():
-        raise ValueError(f"trusted reviewer allowlist is missing: {path}")
-    raw = path.read_bytes()
-    actual = hashlib.sha256(raw).hexdigest()
-    if actual != expected_sha256:
-        raise ValueError(
-            f"trusted reviewer allowlist at {path.name} hashes to {actual}, not the "
-            f"expected {expected_sha256} — this is not the allowlist that was approved"
-        )
-    try:
-        reviewers: tuple[str, ...] = parse_trusted_reviewers(raw, CANONICAL_REPOSITORY)
-        return reviewers
-    except SealedEvidenceError as exc:
-        raise ValueError(str(exc)) from exc
 
 def review_authority_arguments_from_args(args: argparse.Namespace) -> dict[str, object]:
     """Rend les entrées d'autorité de revue, ou refuse un couple incomplet.
@@ -181,13 +166,11 @@ def review_authority_arguments_from_args(args: argparse.Namespace) -> dict[str, 
         resolved[f"{field}_path"] = path
         resolved[f"{field}_sha256"] = digest
 
-    reviewers_path = resolved.get("pii_review_reviewers_path")
-    reviewers_digest = resolved.get("pii_review_reviewers_sha256")
-    resolved["pii_review_reviewers"] = (
-        load_trusted_reviewers(reviewers_path, str(reviewers_digest))  # type: ignore[arg-type]
-        if reviewers_path is not None
-        else ()
-    )
+    # L'allowlist n'a pas de couple : son chemin est canonique, seule son
+    # empreinte est injectée. Elle est lue et vérifiée par le foyer.
+    reviewers_digest = getattr(args, "pii_review_reviewers_sha256", None)
+    if reviewers_digest is not None:
+        resolved["pii_review_reviewers_sha256"] = reviewers_digest
     return resolved
 
 
@@ -318,7 +301,7 @@ def load_governed_runtime_authorities(
             # les hache et les confronte.
             review_index_path=inputs.pii_review_index_path,
             expected_review_index_sha256=inputs.pii_review_index_sha256,
-            reviewers_path=inputs.pii_review_reviewers_path,
+            repository_root=inputs.repository_root,
             expected_reviewers_sha256=inputs.pii_review_reviewers_sha256,
         )
         rights = VerifiedRightsEvidenceRegistry.load(

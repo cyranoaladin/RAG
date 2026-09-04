@@ -402,6 +402,38 @@ class TestACandidateCanNeverBeAskedToBeActivable:
 
         return load_producer().resolve_release_lifecycle_statuses(**kw)
 
+    def test_an_unsupported_mode_is_refused_not_treated_as_lenient(self) -> None:
+        """`staging` n'est pas « pas la production » : c'est un mode inconnu.
+
+        La garde s'écrivait `if release_mode != "production"`, si bien que
+        `staging` — ou une simple faute de frappe — tombait dans la branche
+        permissive et CONSERVAIT des statuts activables. Un mode que le
+        producteur ne connaît pas doit être refusé, pas rattaché par défaut au
+        cas le plus large."""
+        with pytest.raises(ValueError, match="not supported"):
+            self._resolve(
+                release_mode="staging", release_id=None,
+                promotion_status="PROMOTABLE",
+                activation_status="PRODUCTION_ACTIVATION_ALLOWED",
+                review_status=None,
+            )
+
+    def test_a_typo_in_the_mode_is_refused_too(self) -> None:
+        with pytest.raises(ValueError, match="not supported"):
+            self._resolve(
+                release_mode="Production", release_id=None,
+                promotion_status="PROMOTABLE", activation_status=None,
+                review_status=None,
+            )
+
+    def test_rehearsal_remains_a_supported_mode(self) -> None:
+        statuses = self._resolve(
+            release_mode="rehearsal", release_id=None,
+            promotion_status="PROMOTABLE", activation_status=None,
+            review_status=None,
+        )
+        assert statuses["promotion_status"] == "PROMOTABLE"
+
     def test_production_without_release_id_defaults_to_blocking(self) -> None:
         statuses = self._resolve(
             release_mode="production", release_id=None,

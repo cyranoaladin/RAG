@@ -68,6 +68,13 @@ EDUSCOL_ZONE = "01_EDUSCOL_OFFICIEL/"
 #: n'apparaît jamais dans le code.
 CANONICAL_REPOSITORY = "cyranoaladin/RAG"
 
+#: Emplacement CANONIQUE de l'allowlist versionnée des reviewers, relatif à la
+#: racine du dépôt. Il n'est pas une entrée : épingler une empreinte que
+#: l'appelant fournit avec le fichier qu'il désigne ne prouve rien — les deux
+#: coïncident, et le périmètre des reviewers reste celui qu'il a choisi. Seule
+#: la racine est injectée, comme pour le registre de programmes.
+CANONICAL_REVIEWERS_RELATIVE_PATH = "scripts/github/trusted-reviewers.json"
+
 _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 
 
@@ -274,7 +281,7 @@ class ReviewAuthority:
         expected_trust_anchor_sha256: str | None,
         review_index_path: Path | None = None,
         expected_review_index_sha256: str | None = None,
-        reviewers_path: Path | None = None,
+        repository_root: Path | None = None,
         expected_reviewers_sha256: str | None = None,
         environment: Literal["production", "test"],
         expected_repository: str,
@@ -341,15 +348,16 @@ class ReviewAuthority:
         # le fichier : un autre JSON portant les mêmes en-têtes ajoute le
         # reviewer qu'il veut. L'empreinte attendue vient d'ailleurs que de
         # celui qui la présente, et c'est elle qui fige le contenu.
-        if reviewers_path is None or expected_reviewers_sha256 is None:
+        if expected_reviewers_sha256 is None or repository_root is None:
             raise SealedEvidenceError(
-                "no reviewer authority was supplied — an admission is never accepted "
-                "from an unbounded set of logins, and a list of logins handed in by "
-                "the caller is not an authority"
+                "no reviewer authority digest was pinned — an admission is never "
+                "accepted from an unbounded set of logins"
             )
+        reviewers_path = repository_root / CANONICAL_REVIEWERS_RELATIVE_PATH
         if not reviewers_path.is_file():
             raise SealedEvidenceError(
-                f"the trusted reviewer authority {reviewers_path.name} is missing"
+                f"the trusted reviewer authority is missing at its canonical location "
+                f"{CANONICAL_REVIEWERS_RELATIVE_PATH} — it is not somewhere the caller names"
             )
         raw_reviewers = reviewers_path.read_bytes()
         reviewers_sha = hashlib.sha256(raw_reviewers).hexdigest()
@@ -390,26 +398,36 @@ class ReviewAuthority:
         # donc, pourvu que le chiffre annoncé fût le bon. Trois valeurs doivent
         # coïncider — octets réels, empreinte attendue, et la liaison que
         # l'ensemble de décisions porte lui-même.
-        index_sha: str | None = None
-        if review_index_path is not None:
-            if not review_index_path.is_file():
-                raise SealedEvidenceError(
-                    f"the review index {review_index_path.name} is missing — the "
-                    "bundles that founded the decisions cannot be named"
-                )
-            index_sha = hashlib.sha256(review_index_path.read_bytes()).hexdigest()
-            if expected_review_index_sha256 and index_sha != expected_review_index_sha256:
-                raise SealedEvidenceError(
-                    f"the review index hashes to {index_sha[:16]}… while "
-                    f"{expected_review_index_sha256[:16]}… was expected — a claimed "
-                    "digest is not a read file"
-                )
-            if index_sha != decision_set.review_index_sha256:
-                raise SealedEvidenceError(
-                    f"the review index hashes to {index_sha[:16]}… while the decision "
-                    f"set was sealed against {decision_set.review_index_sha256[:16]}… "
-                    "— they are not the same campaign"
-                )
+        #
+        # Et l'index n'est PAS optionnel : un ensemble de décisions NOMME toujours son index : `review_index_sha256`
+        # est un champ obligatoire du modèle. La vérification ne peut donc pas
+        # dépendre du bon vouloir de l'appelant — ne rien fournir suffisait à
+        # admettre du contenu revu sans jamais ouvrir l'index censé prouver
+        # quels paquets ont été revus.
+        if review_index_path is None or expected_review_index_sha256 is None:
+            raise SealedEvidenceError(
+                "the review index authority is missing — every decision set names an "
+                "index, and an admission that never opens it proves nothing about "
+                "which bundles were reviewed"
+            )
+        if not review_index_path.is_file():
+            raise SealedEvidenceError(
+                f"the review index {review_index_path.name} is missing — the "
+                "bundles that founded the decisions cannot be named"
+            )
+        index_sha = hashlib.sha256(review_index_path.read_bytes()).hexdigest()
+        if index_sha != expected_review_index_sha256:
+            raise SealedEvidenceError(
+                f"the review index hashes to {index_sha[:16]}… while "
+                f"{expected_review_index_sha256[:16]}… was expected — a claimed "
+                "digest is not a read file"
+            )
+        if index_sha != decision_set.review_index_sha256:
+            raise SealedEvidenceError(
+                f"the review index hashes to {index_sha[:16]}… while the decision "
+                f"set was sealed against {decision_set.review_index_sha256[:16]}… "
+                "— they are not the same campaign"
+            )
 
         return cls(
             decision_set=decision_set,
@@ -451,7 +469,10 @@ class VerifiedPIIEvidenceRegistry:
         expected_trust_anchor_sha256: str | None = None,
         review_index_path: Path | None = None,
         expected_review_index_sha256: str | None = None,
-        reviewers_path: Path | None = None,
+        #: Requise dès qu'un ensemble de décisions est joint — le foyer y
+        #: résout l'allowlist canonique. Sans décisions à vérifier, il n'y a
+        #: pas d'autorité de revue et donc pas de racine à exiger.
+        repository_root: Path | None = None,
         expected_reviewers_sha256: str | None = None,
         environment: Literal["production", "test"] = "production",
         expected_repository: str = CANONICAL_REPOSITORY,
@@ -500,7 +521,7 @@ class VerifiedPIIEvidenceRegistry:
                 expected_trust_anchor_sha256=expected_trust_anchor_sha256,
                 review_index_path=review_index_path,
                 expected_review_index_sha256=expected_review_index_sha256,
-                reviewers_path=reviewers_path,
+                repository_root=repository_root,
                 expected_reviewers_sha256=expected_reviewers_sha256,
                 environment=environment,
                 expected_repository=expected_repository,

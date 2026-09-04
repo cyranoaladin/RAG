@@ -254,7 +254,7 @@ def load_multilevel_runtime_authorities(
             # les hache et les confronte.
             review_index_path=inputs.pii_review_index_path,
             expected_review_index_sha256=inputs.pii_review_index_sha256,
-            reviewers_path=inputs.pii_review_reviewers_path,
+            repository_root=inputs.repository_root,
             expected_reviewers_sha256=inputs.pii_review_reviewers_sha256,
             environment=review_verification_environment(environment),
         )

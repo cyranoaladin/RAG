@@ -1522,6 +1522,11 @@ _ACTIVATING_PROMOTION = "PROMOTABLE"
 _ACTIVATING_ACTIVATION = "PRODUCTION_ACTIVATION_ALLOWED"
 
 
+#: Les seuls modes de release que le producteur sait traiter. Un mode absent de
+#: cet ensemble est refusé, jamais rattaché par défaut au cas permissif.
+_SUPPORTED_RELEASE_MODES = frozenset({"production", "rehearsal"})
+
+
 def resolve_release_lifecycle_statuses(
     *,
     release_mode: str,
@@ -1547,6 +1552,16 @@ def resolve_release_lifecycle_statuses(
     appel qui la formule est un appel qui se trompe, et écraser sa demande sans
     rien dire lui laisserait croire qu'il l'a obtenue."""
     del release_id  # jamais un signal de cycle de vie — voir la docstring
+    # Un mode inconnu n'est pas « pas la production » : c'est une demande qui
+    # ne veut rien dire. La traiter comme un simple non-production faisait
+    # passer `staging` — ou une faute de frappe — à travers la garde, en
+    # conservant des statuts activables. Le refus est explicite.
+    if release_mode not in _SUPPORTED_RELEASE_MODES:
+        raise ValueError(
+            f"release_mode={release_mode!r} is not supported — expected one of "
+            f"{sorted(_SUPPORTED_RELEASE_MODES)}; an unknown mode must not inherit "
+            "the lenient branch and keep activatable statuses"
+        )
     if release_mode != "production":
         return {
             "promotion_status": promotion_status,

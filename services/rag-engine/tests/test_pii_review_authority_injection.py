@@ -33,7 +33,6 @@ REVIEW_ARGUMENTS = (
     "pii-decision-set",
     "pii-review-receipt",
     "review-trust-anchor",
-    "pii-review-reviewers",
 )
 
 
@@ -105,11 +104,9 @@ class TestInputsCarryTheInjectedAuthority:
         assert inputs.pii_decision_set_path is None
         assert inputs.pii_review_receipt_path is None
         assert inputs.review_trust_anchor_path is None
-        assert inputs.pii_review_reviewers == ()
 
     def test_injected_review_authority_reaches_the_inputs(self) -> None:
         parser = _wave0_parser()
-        allowlist = REPO_ROOT / "scripts/github/trusted-reviewers.json"
         extra = [
             "--pii-decision-set-path", "/tmp/ds.json",
             "--pii-decision-set-sha256", "2" * 64,
@@ -117,9 +114,7 @@ class TestInputsCarryTheInjectedAuthority:
             "--pii-review-receipt-sha256", "3" * 64,
             "--review-trust-anchor-path", "/tmp/anchor.json",
             "--review-trust-anchor-sha256", "4" * 64,
-            "--pii-review-reviewers-path", str(allowlist),
-            "--pii-review-reviewers-sha256",
-            hashlib.sha256(allowlist.read_bytes()).hexdigest(),
+            "--pii-review-reviewers-sha256", "5" * 64,
         ]
         inputs = runtime_authority_inputs_from_args(parser.parse_args(self._base() + extra))
         assert inputs.pii_decision_set_path == Path("/tmp/ds.json")
@@ -129,7 +124,8 @@ class TestInputsCarryTheInjectedAuthority:
         assert inputs.pii_review_receipt_sha256 == "3" * 64
         assert inputs.review_trust_anchor_path == Path("/tmp/anchor.json")
         assert inputs.review_trust_anchor_sha256 == "4" * 64
-        assert inputs.pii_review_reviewers == ("abenrhouma",)
+        # L'allowlist n'a plus de chemin : seule son empreinte est injectée.
+        assert inputs.pii_review_reviewers_sha256 == "5" * 64
 
     def test_multilevel_inputs_carry_the_injected_authority(self) -> None:
         parser = _parser(add_multilevel_runtime_authority_arguments)
@@ -150,13 +146,11 @@ class TestInputsCarryTheInjectedAuthority:
             "--pii-review-receipt-sha256", "3" * 64,
             "--review-trust-anchor-path", "/tmp/anchor.json",
             "--review-trust-anchor-sha256", "4" * 64,
-            "--pii-review-reviewers-path", str(REPO_ROOT / "scripts/github/trusted-reviewers.json"),
             "--pii-review-reviewers-sha256",
             hashlib.sha256((REPO_ROOT / "scripts/github/trusted-reviewers.json").read_bytes()).hexdigest(),
         ]
         inputs = multilevel_runtime_authority_inputs_from_args(parser.parse_args(args))
         assert inputs.pii_decision_set_path == Path("/tmp/ds.json")
-        assert inputs.pii_review_reviewers == ("abenrhouma",)
 
 
 class TestNoUnpinnedAuthorityCanBeInjected:
@@ -192,115 +186,94 @@ class TestNoUnpinnedAuthorityCanBeInjected:
 
     def test_complete_couples_are_accepted(self) -> None:
         parser = _wave0_parser()
-        allowlist = REPO_ROOT / "scripts/github/trusted-reviewers.json"
         extra: list[str] = []
         for name in REVIEW_ARGUMENTS:
-            if name == "pii-review-reviewers":
-                extra += [f"--{name}-path", str(allowlist), f"--{name}-sha256",
-                          hashlib.sha256(allowlist.read_bytes()).hexdigest()]
-            else:
-                extra += [f"--{name}-path", f"/tmp/{name}.json", f"--{name}-sha256", "3" * 64]
+            extra += [f"--{name}-path", f"/tmp/{name}.json", f"--{name}-sha256", "3" * 64]
         inputs = runtime_authority_inputs_from_args(parser.parse_args(self._base() + extra))
         assert inputs.pii_decision_set_sha256 == "3" * 64
         assert inputs.pii_review_receipt_sha256 == "3" * 64
         assert inputs.review_trust_anchor_sha256 == "3" * 64
-        assert inputs.pii_review_reviewers == ("abenrhouma",)
 
 
 class TestTheReviewerAllowlistIsAVersionedAuthority:
-    """Les reviewers ne se fournissent plus à la main (P1).
+    """Les reviewers ne se fournissent ni à la main, ni par un chemin (P1).
 
     `--pii-review-reviewer abenrhouma` faisait confiance à n'importe quel
-    compte que l'appelant nommait. L'allowlist est un artefact versionné —
+    compte que l'appelant nommait. Le couple chemin + empreinte qui l'a
+    remplacé fermait ce cas mais pas le suivant : l'appelant présentait SON
+    fichier et SON empreinte, qui coïncidaient, et choisissait toujours le
+    périmètre des reviewers.
+
+    L'allowlist est un artefact versionné à un emplacement CANONIQUE —
     `scripts/github/trusted-reviewers.json`, protocole NEXUS-TRUSTED-REVIEW-V1 —
-    déjà lu par le reste de la chaîne d'autorité GitHub. Il est désormais
-    injecté comme les autres : par un couple chemin + empreinte."""
+    déjà lu par le reste de la chaîne d'autorité GitHub. Le worker en reçoit
+    l'empreinte, jamais le chemin."""
 
     def test_the_free_form_reviewer_flag_is_gone(self) -> None:
         options = _option_strings(_parser(add_runtime_authority_arguments))
         assert "--pii-review-reviewer" not in options
 
-    def test_the_canonical_allowlist_is_read_and_verified(self, tmp_path: Path) -> None:
-        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
+    def test_the_allowlist_path_is_not_an_option_either(self) -> None:
+        """Le chemin a suivi le login : ni l'un ni l'autre ne s'injecte."""
+        options = _option_strings(_parser(add_runtime_authority_arguments))
+        assert "--pii-review-reviewers-path" not in options
+        assert "--pii-review-reviewers-sha256" in options
 
-        config = tmp_path / "trusted-reviewers.json"
-        config.write_text(
-            json.dumps(
-                {
-                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
-                    "repository": "cyranoaladin/RAG",
-                    "base_ref": "main",
-                    "reviewers": ["abenrhouma"],
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
+    def test_the_repository_allowlist_parses_under_the_canonical_protocol(self) -> None:
+        """L'artefact réellement versionné se lit avec le parseur du foyer."""
+        from ingestor.ingestion_control.sealed_evidence import (
+            CANONICAL_REPOSITORY,
+            CANONICAL_REVIEWERS_RELATIVE_PATH,
+            parse_trusted_reviewers,
         )
-        digest = hashlib.sha256(config.read_bytes()).hexdigest()
-        assert load_trusted_reviewers(config, digest) == ("abenrhouma",)
 
-    def test_a_tampered_allowlist_is_refused(self, tmp_path: Path) -> None:
-        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
+        path = Path(__file__).resolve().parents[3] / CANONICAL_REVIEWERS_RELATIVE_PATH
+        reviewers = parse_trusted_reviewers(path.read_bytes(), CANONICAL_REPOSITORY)
+        assert reviewers, "l'allowlist versionnée ne nomme aucun reviewer"
 
-        config = tmp_path / "trusted-reviewers.json"
-        config.write_text(
-            json.dumps(
-                {
-                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
-                    "repository": "cyranoaladin/RAG",
-                    "base_ref": "main",
-                    "reviewers": ["abenrhouma"],
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
+    def test_a_foreign_repository_allowlist_is_refused(self) -> None:
+        from ingestor.ingestion_control.sealed_evidence import (
+            CANONICAL_REPOSITORY,
+            SealedEvidenceError,
+            parse_trusted_reviewers,
         )
-        legitimate = hashlib.sha256(config.read_bytes()).hexdigest()
-        config.write_text(
-            json.dumps(
-                {
-                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
-                    "repository": "cyranoaladin/RAG",
-                    "base_ref": "main",
-                    "reviewers": ["abenrhouma", "intrus"],
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        with pytest.raises(ValueError):
-            load_trusted_reviewers(config, legitimate)
 
-    def test_a_foreign_repository_allowlist_is_refused(self, tmp_path: Path) -> None:
-        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
-
-        config = tmp_path / "trusted-reviewers.json"
-        config.write_text(
+        raw = (
             json.dumps(
                 {
                     "protocol": "NEXUS-TRUSTED-REVIEW-V1",
                     "repository": "quelquun/autre",
                     "base_ref": "main",
-                    "reviewers": ["abenrhouma"],
+                    "reviewers": ["quelquun"],
                 },
                 indent=2,
             )
-            + "\n",
-            encoding="utf-8",
+            + "\n"
+        ).encode()
+        with pytest.raises(SealedEvidenceError, match="covers repository"):
+            parse_trusted_reviewers(raw, CANONICAL_REPOSITORY)
+
+    def test_a_duplicate_entry_is_refused(self) -> None:
+        from ingestor.ingestion_control.sealed_evidence import (
+            CANONICAL_REPOSITORY,
+            SealedEvidenceError,
+            parse_trusted_reviewers,
         )
-        with pytest.raises(ValueError, match="repository|dépôt"):
-            load_trusted_reviewers(config, hashlib.sha256(config.read_bytes()).hexdigest())
 
-    def test_the_repository_allowlist_loads(self) -> None:
-        """L'artefact réellement versionné se lit avec ce chargeur."""
-        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
-
-        path = Path(__file__).resolve().parents[3] / "scripts/github/trusted-reviewers.json"
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        assert "abenrhouma" in load_trusted_reviewers(path, digest)
+        raw = (
+            json.dumps(
+                {
+                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+                    "repository": CANONICAL_REPOSITORY,
+                    "base_ref": "main",
+                    "reviewers": ["quelquun", "quelquun"],
+                },
+                indent=2,
+            )
+            + "\n"
+        ).encode()
+        with pytest.raises(SealedEvidenceError, match="duplicates"):
+            parse_trusted_reviewers(raw, CANONICAL_REPOSITORY)
 
 
 class TestTheRuntimeChainMustMatchTheManifestChain:
@@ -408,12 +381,35 @@ class TestTheWaveZeroSchemaCannotDeclareAReviewChain:
     """
 
     def test_the_wave_zero_authorities_are_closed_to_eight_names(self) -> None:
+        """Lu par l'AST, pas par découpe de texte.
+
+        Une première version cherchait la sous-chaîne `authority_names = {` et
+        coupait au premier `}`. Elle se serait cassée sur un simple reformatage
+        — un littéral replié sur une ligne, une variable renommée — et une
+        occurrence antérieure de la même sous-chaîne lui aurait fait analyser
+        le mauvais bloc. Le garde doit porter sur le SENS."""
+        import ast
+
         from ingestor import wave0_release
 
-        source = pathlib.Path(wave0_release.__file__).read_text(encoding="utf-8")
-        block = source[source.index("authority_names = {") :]
-        block = block[: block.index("}")]
-        declared = {line.strip().strip('",') for line in block.splitlines()[1:] if line.strip()}
+        tree = ast.parse(pathlib.Path(wave0_release.__file__).read_text(encoding="utf-8"))
+        declared: set[str] | None = None
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Assign):
+                continue
+            targets = [t.id for t in node.targets if isinstance(t, ast.Name)]
+            if "authority_names" not in targets:
+                continue
+            assert isinstance(node.value, ast.Set), (
+                "`authority_names` n'est plus un littéral d'ensemble"
+            )
+            declared = {
+                element.value
+                for element in node.value.elts
+                if isinstance(element, ast.Constant) and isinstance(element.value, str)
+            }
+            break
+        assert declared is not None, "`authority_names` a disparu de wave0_release"
         assert len(declared) == 8
         assert not declared & {
             "pii_decision_set_sha256",

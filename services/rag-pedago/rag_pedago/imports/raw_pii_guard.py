@@ -138,14 +138,40 @@ def _string_values(node: object) -> Iterator[str]:
 
     C'est le même défaut que celui corrigé sur les digests — transformer le
     texte avant d'y chercher — que la sérialisation avait réintroduit. Le JSON
-    est une représentation de transport, pas la matière."""
+    est une représentation de transport, pas la matière.
+
+    **Ce que le parcours ne doit pas COÛTER.** Ne plus sérialiser a d'abord
+    fait perdre deux choses que `json.dumps` rendait :
+
+    1. la clé et la valeur sortaient SÉPARÉMENT, si bien qu'un motif dont le
+       contexte est porté par la clé — `{"adresse": "75001 paris"}` — ne
+       pouvait plus se former ;
+    2. tout ce qui n'est pas une chaîne était ignoré, alors qu'un identifiant
+       sérialisé en nombre — `{"identifier": 199012345678901}` — était
+       auparavant rendu tel quel.
+
+    La bonne mesure est l'UNION : la valeur seule, le couple `clé: valeur`, et
+    la représentation des scalaires. Le couple est rendu avec `str()`, jamais
+    avec un encodage JSON, pour ne pas réintroduire l'échappement qui avait
+    motivé la correction initiale."""
     if isinstance(node, str):
         yield node
+    elif isinstance(node, bool) or node is None:
+        # `True`/`None` ne portent aucune matière ; les rendre ne ferait
+        # qu'ajouter du bruit à mesurer.
+        return
+    elif isinstance(node, (int, float)):
+        yield str(node)
     elif isinstance(node, Mapping):
         for key, value in node.items():
             if isinstance(key, str):
                 yield key
-            yield from _string_values(value)
+            for rendered in _string_values(value):
+                yield rendered
+                if isinstance(key, str):
+                    # Le contexte que porte la clé, sans séparateur exotique :
+                    # c'est celui que la sérialisation offrait aux motifs.
+                    yield f"{key}: {rendered}"
     elif isinstance(node, (list, tuple, set, frozenset)):
         for item in node:
             yield from _string_values(item)

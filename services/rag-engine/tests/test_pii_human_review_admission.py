@@ -40,10 +40,12 @@ from nexus_contracts.review_binding import (
 from pydantic import ValidationError
 
 from ingestor.ingestion_control.sealed_evidence import (
+    CANONICAL_REVIEWERS_RELATIVE_PATH,
     PII_CLEARED,
     PII_DETECTED_RECORDED,
     PII_DETECTED_REVIEWED_ACCEPTED,
     PII_QUARANTINED,
+    ReviewAuthority,
     SealedEvidenceError,
     VerifiedPIIEvidenceRegistry,
 )
@@ -246,8 +248,12 @@ class Bench:
     """Un banc d'essai : les quatre fichiers sur disque et leurs empreintes."""
 
     def __init__(self, tmp_path: Path, **kw: Any) -> None:
+        # L'index est écrit AVANT l'ensemble de décisions, parce que celui-ci
+        # le nomme : sceller la campagne sur une empreinte d'index qui
+        # n'existe pas rendrait le cas nominal impossible.
+        self.index_path, written_index_sha = _write_index(tmp_path)
         decision_set_dict = kw.get("decision_set_dict") or make_decision_set_dict(
-            kw.get("review_index_sha256")
+            kw.get("review_index_sha256") or written_index_sha
         )
         model = PiiReviewDecisionSetV1.model_validate(decision_set_dict)
         raw_ds = model.canonical_bytes()
@@ -302,6 +308,7 @@ class Bench:
         }
         raw_pii = (json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
         self.tmp_path = tmp_path
+        self.index_sha = written_index_sha
         self.pii_path = tmp_path / "pii_evidence.json"
         self.pii_path.write_bytes(raw_pii)
         self.pii_sha = hashlib.sha256(raw_pii).hexdigest()
@@ -318,12 +325,19 @@ class Bench:
             "expected_repository": REPOSITORY,
             "now": NOW,
         }
-        if "reviewers_path" not in overrides:
-            # Le banc consomme l'autorité comme la production : un fichier et
-            # son empreinte. Aucun test ne « choisit » un reviewer.
-            path, digest = _write_reviewers(self.tmp_path)
-            kwargs["reviewers_path"] = path
-            kwargs["expected_reviewers_sha256"] = digest
+        if "repository_root" not in overrides:
+            # Le banc pose l'allowlist à son emplacement CANONIQUE sous une
+            # racine de test : comme en production, il ne la désigne pas.
+            root = self.tmp_path / "depot"
+            canonical = root / CANONICAL_REVIEWERS_RELATIVE_PATH
+            canonical.parent.mkdir(parents=True, exist_ok=True)
+            raw = _reviewers_document()
+            canonical.write_bytes(raw)
+            kwargs["repository_root"] = root
+            kwargs.setdefault("expected_reviewers_sha256", hashlib.sha256(raw).hexdigest())
+        if "review_index_path" not in overrides:
+            kwargs["review_index_path"] = self.index_path
+            kwargs["expected_review_index_sha256"] = self.index_sha
         kwargs.update(overrides)
         return VerifiedPIIEvidenceRegistry.load(self.pii_path, **kwargs)
 
@@ -615,7 +629,8 @@ class TestNoHardcodedCampaignIdentity:
         self, tmp_path: Path
     ) -> None:
         """Le même code admet un ensemble portant un tout autre identifiant."""
-        rotated = make_decision_set_dict()
+        _, index_sha = _write_index(tmp_path)
+        rotated = make_decision_set_dict(index_sha)
         rotated["decision_set_id"] = "pii-review-2027-01-15-rotation"
         bench = Bench(tmp_path, decision_set_dict=rotated)
         clearance = bench.load().verify_content_clearance(CONTENT_APPROVED)
@@ -626,6 +641,7 @@ class TestNoHardcodedCampaignIdentity:
 # Intégration — le candidat réel
 # ─────────────────────────────────────────────────────────────────────────
 
+ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REAL_DS = REPO_ROOT / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
 REAL_RECEIPT = REPO_ROOT / "governance/pii-review-bindings/pii-review-2026-09-03-final.json"
@@ -633,7 +649,12 @@ REAL_ANCHOR = REPO_ROOT / "governance/trust-anchors/review-binding-v1.json"
 #: L'allowlist VERSIONNÉE que le reste de la chaîne GitHub lit déjà. Le test
 #: la désigne par son chemin canonique et calcule son empreinte : il n'écrit
 #: aucun login, et ne « choisit » donc aucun reviewer.
-REAL_REVIEWERS = REPO_ROOT / "scripts/github/trusted-reviewers.json"
+REAL_REVIEWERS = REPO_ROOT / CANONICAL_REVIEWERS_RELATIVE_PATH
+#: L'index de revue de la campagne du 3 septembre. Son empreinte est celle que
+#: l'ensemble de décisions scelle : vérifié, pas supposé.
+REAL_REVIEW_INDEX = (
+    REPO_ROOT / "docs/reports/evidence-index/pii_review_index_20260903.json"
+)
 
 
 class TestRealCandidateDecisionSet:
@@ -730,9 +751,18 @@ class TestRealCandidateDecisionSet:
             ).hexdigest(),
             environment="production",
             expected_repository="cyranoaladin/RAG",
-            reviewers_path=REAL_REVIEWERS,
+            # L'allowlist est lue à son emplacement canonique sous la racine
+            # du dépôt : le test ne la désigne pas plus que la production.
+            repository_root=REPO_ROOT,
             expected_reviewers_sha256=hashlib.sha256(
                 REAL_REVIEWERS.read_bytes()
+            ).hexdigest(),
+            # L'index RÉEL de la campagne scellée. Sans lui, la preuve du
+            # candidat de production sautait précisément la liaison que
+            # toute cette re-review demandait d'ouvrir.
+            review_index_path=REAL_REVIEW_INDEX,
+            expected_review_index_sha256=hashlib.sha256(
+                REAL_REVIEW_INDEX.read_bytes()
             ).hexdigest(),
             now=datetime.now(UTC),
         )
@@ -876,6 +906,42 @@ def _write_index(tmp_path: Path, decision_set_id: str = DECISION_SET_ID) -> tupl
     return path, hashlib.sha256(raw).hexdigest()
 
 
+def _reviewers_document(reviewers: list[str] | None = None, repository: str = REPOSITORY) -> bytes:
+    document = {
+        "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+        "repository": repository,
+        "base_ref": "main",
+        "reviewers": reviewers if reviewers is not None else ["abenrhouma"],
+    }
+    return (json.dumps(document, indent=2) + "\n").encode()
+
+
+def _canonical_root(
+    tmp_path: Path,
+    name: str = "depot",
+    reviewers: list[str] | None = None,
+    repository: str = REPOSITORY,
+) -> tuple[Path, str]:
+    """Pose l'allowlist à SON emplacement, sous une racine de test."""
+    root = tmp_path / name
+    canonical = root / CANONICAL_REVIEWERS_RELATIVE_PATH
+    canonical.parent.mkdir(parents=True, exist_ok=True)
+    raw = _reviewers_document(reviewers, repository)
+    canonical.write_bytes(raw)
+    return root, hashlib.sha256(raw).hexdigest()
+
+
+def _index_arguments(tmp_path: Path, expected: str | None = None) -> dict[str, Any]:
+    """Écrit un index dont l'empreinte est CELLE que l'ensemble de décisions nomme."""
+    path, digest = _write_index(tmp_path)
+    if expected is not None and digest != expected:
+        # Le banc par défaut scelle l'ensemble sur `REVIEW_INDEX_SHA` ; l'index
+        # écrit ici doit donc porter cette empreinte-là pour que le cas nominal
+        # ne bute pas sur une divergence sans rapport avec le test.
+        return {"review_index_path": path, "expected_review_index_sha256": digest}
+    return {"review_index_path": path, "expected_review_index_sha256": digest}
+
+
 def _write_reviewers(tmp_path: Path, reviewers: list[str] | None = None,
                      repository: str = REPOSITORY) -> tuple[Path, str]:
     document = {
@@ -947,114 +1013,155 @@ class TestTheReviewIndexIsOpenedAndHashed:
 
 
 class TestTheReviewerAllowlistIsCanonical:
-    """P1-D — l'appelant ne choisit pas l'autorité qui l'autorise.
+    """L'allowlist est une AUTORITÉ versionnée, pas une entrée d'appelant.
 
-    Le correctif précédent vérifiait le protocole et le dépôt, mais laissait
-    l'appelant désigner le FICHIER : un autre JSON portant le même protocole et
-    le même dépôt pouvait ajouter un reviewer arbitraire. L'autorité est
-    désormais épinglée par son empreinte canonique, que l'appelant ne fournit
-    pas."""
+    Le worker connaît l'emplacement canonique du fichier et reçoit son
+    empreinte ; il ne reçoit jamais ni le chemin, ni la liste des logins."""
 
     def test_the_canonical_allowlist_is_accepted(self, tmp_path: Path) -> None:
-        index_path, index_sha = _write_index(tmp_path)
-        reviewers_path, reviewers_sha = _write_reviewers(tmp_path)
-        bench = Bench(tmp_path, review_index_sha256=index_sha)
-        registry = bench.load(
-            review_index_path=index_path, expected_review_index_sha256=index_sha,
-            reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
+        root, digest = _canonical_root(tmp_path)
+        registry = Bench(tmp_path).load(
+            repository_root=root, expected_reviewers_sha256=digest
         )
         assert registry.review_authority is not None
-        # Attendue LUE dans l'autorité, jamais recopiée dans l'assertion : un
-        # test qui fige le login devient faux le jour où l'allowlist change,
-        # et ne dit alors plus rien de la propriété qu'il prétend tenir.
-        declared = tuple(json.loads(reviewers_path.read_text(encoding="utf-8"))["reviewers"])
+        declared = tuple(
+            json.loads(
+                (root / CANONICAL_REVIEWERS_RELATIVE_PATH).read_text(encoding="utf-8")
+            )["reviewers"]
+        )
         assert registry.review_authority.trusted_reviewers == declared
 
     def test_an_alternate_allowlist_adding_a_reviewer_is_refused(
         self, tmp_path: Path
     ) -> None:
-        """Même protocole, même dépôt, un reviewer de plus — le cas du finding."""
-        index_path, index_sha = _write_index(tmp_path)
-        legitimate_path, legitimate_sha = _write_reviewers(tmp_path)
-        forged = tmp_path / "autre-allowlist.json"
-        forged.write_bytes(
-            (json.dumps({
-                "protocol": "NEXUS-TRUSTED-REVIEW-V1",
-                "repository": REPOSITORY,
-                "base_ref": "main",
-                "reviewers": ["abenrhouma", "intrus"],
-            }, indent=2) + "\n").encode()
+        """Une autre racine, un reviewer de plus, l'empreinte légitime."""
+        _, legitimate = _canonical_root(tmp_path, "legitime")
+        forged, _ = _canonical_root(
+            tmp_path, "forge", reviewers=["abenrhouma", "intrus"]
         )
-        bench = Bench(tmp_path, review_index_sha256=index_sha)
-        with pytest.raises(SealedEvidenceError, match="reviewer"):
-            bench.load(
-                review_index_path=index_path, expected_review_index_sha256=index_sha,
-                reviewers_path=forged, expected_reviewers_sha256=legitimate_sha,
+        with pytest.raises(SealedEvidenceError, match="not the allowlist that was approved"):
+            Bench(tmp_path).load(
+                repository_root=forged, expected_reviewers_sha256=legitimate
             )
 
     def test_a_tampered_allowlist_is_refused(self, tmp_path: Path) -> None:
-        index_path, index_sha = _write_index(tmp_path)
-        reviewers_path, reviewers_sha = _write_reviewers(tmp_path)
-        reviewers_path.write_bytes(
-            reviewers_path.read_bytes().replace(b"abenrhouma", b"quelquun-dautre")
+        root, digest = _canonical_root(tmp_path)
+        canonical = root / CANONICAL_REVIEWERS_RELATIVE_PATH
+        canonical.write_bytes(
+            canonical.read_bytes().replace(b"abenrhouma", b"quelquun-dautre")
         )
-        bench = Bench(tmp_path, review_index_sha256=index_sha)
-        with pytest.raises(SealedEvidenceError, match="reviewer"):
-            bench.load(
-                review_index_path=index_path, expected_review_index_sha256=index_sha,
-                reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
-            )
+        with pytest.raises(SealedEvidenceError, match="not the allowlist that was approved"):
+            Bench(tmp_path).load(repository_root=root, expected_reviewers_sha256=digest)
 
     def test_a_foreign_repository_allowlist_is_refused(self, tmp_path: Path) -> None:
-        index_path, index_sha = _write_index(tmp_path)
-        reviewers_path, reviewers_sha = _write_reviewers(
-            tmp_path, repository="quelquun/autre"
-        )
-        bench = Bench(tmp_path, review_index_sha256=index_sha)
-        with pytest.raises(SealedEvidenceError, match="reviewer|repository"):
-            bench.load(
-                review_index_path=index_path, expected_review_index_sha256=index_sha,
-                reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
-            )
+        root, digest = _canonical_root(tmp_path, repository="quelquun/autre")
+        with pytest.raises(SealedEvidenceError, match="covers repository"):
+            Bench(tmp_path).load(repository_root=root, expected_reviewers_sha256=digest)
 
     def test_an_empty_allowlist_is_refused(self, tmp_path: Path) -> None:
-        index_path, index_sha = _write_index(tmp_path)
-        reviewers_path, reviewers_sha = _write_reviewers(tmp_path, reviewers=[])
-        bench = Bench(tmp_path, review_index_sha256=index_sha)
-        with pytest.raises(SealedEvidenceError, match="reviewer"):
-            bench.load(
-                review_index_path=index_path, expected_review_index_sha256=index_sha,
-                reviewers_path=reviewers_path, expected_reviewers_sha256=reviewers_sha,
-            )
+        root, digest = _canonical_root(tmp_path, reviewers=[])
+        with pytest.raises(SealedEvidenceError, match="declares no reviewer"):
+            Bench(tmp_path).load(repository_root=root, expected_reviewers_sha256=digest)
 
     def test_an_admission_without_any_reviewer_authority_is_refused(
         self, tmp_path: Path
     ) -> None:
-        """Le cas le plus dangereux : ne rien passer du tout.
+        """Le cas le plus dangereux : ne rien épingler du tout.
 
         Sans allowlist, `verify_pii_review_decision_authority` reçoit un
-        périmètre non borné et n'importe quel login ayant signé un reçu
-        valide admet de la PII. L'absence d'autorité est un refus, pas un
-        défaut permissif."""
-        bench = Bench(tmp_path)
+        périmètre non borné et n'importe quel login ayant signé un reçu valide
+        admet de la PII. L'absence est un refus, pas un défaut permissif."""
+        root, _ = _canonical_root(tmp_path)
         with pytest.raises(SealedEvidenceError, match="unbounded set of logins"):
-            bench.load(reviewers_path=None, expected_reviewers_sha256=None)
-
-    def test_an_allowlist_without_its_pinned_digest_is_refused(
-        self, tmp_path: Path
-    ) -> None:
-        """Un chemin sans empreinte laisse l'appelant désigner le fichier."""
-        bench = Bench(tmp_path)
-        path, _ = _write_reviewers(tmp_path)
-        with pytest.raises(SealedEvidenceError, match="unbounded set of logins"):
-            bench.load(reviewers_path=path, expected_reviewers_sha256=None)
+            Bench(tmp_path).load(
+                repository_root=root, expected_reviewers_sha256=None
+            )
 
     def test_no_reviewer_login_is_hardcoded_in_the_worker(self) -> None:
-        """Le code connaît l'autorité ; l'autorité connaît les reviewers."""
-        root = Path(__file__).resolve().parents[1] / "src" / "ingestor"
+        """Le code connaît l'AUTORITÉ ; l'autorité connaît les reviewers."""
         offenders = [
-            source.name
-            for source in root.rglob("*.py")
+            str(source.relative_to(ENGINE_ROOT))
+            for source in (ENGINE_ROOT / "src/ingestor").rglob("*.py")
             if "abenrhouma" in source.read_text(encoding="utf-8")
         ]
-        assert offenders == []
+        assert not offenders, f"login de reviewer codé en dur dans {offenders}"
+
+
+class TestTheReviewerAuthorityIsNotChosenByItsCaller:
+    """Re-review #144 — épingler une empreinte que l'appelant fournit ne prouve rien.
+
+    La correction précédente exigeait un couple chemin + empreinte pour
+    l'allowlist. Elle fermait le cas « aucune autorité », mais pas celui-ci :
+    l'appelant présentait SON fichier et SON empreinte, qui coïncidaient
+    parfaitement. Le contrôle de cohérence passait, et le périmètre des
+    reviewers restait celui que l'appelant avait choisi.
+
+    Le chemin cesse donc d'être une entrée. Le code connaît le chemin RELATIF
+    canonique — celui que le reste de la chaîne d'autorité GitHub lit déjà — et
+    ne reçoit que la racine, comme le registre de programmes. Un appelant ne
+    peut plus désigner un autre fichier sans déplacer toute la chaîne.
+    """
+
+    def test_the_allowlist_is_read_at_the_canonical_relative_path(
+        self, tmp_path: Path
+    ) -> None:
+        root = tmp_path / "depot"
+        (root / "scripts/github").mkdir(parents=True)
+        canonical = root / "scripts/github/trusted-reviewers.json"
+        raw = _reviewers_document()
+        canonical.write_bytes(raw)
+        registry = Bench(tmp_path).load(
+            repository_root=root,
+            expected_reviewers_sha256=hashlib.sha256(raw).hexdigest(),
+            **_index_arguments(tmp_path),
+        )
+        assert registry.review_authority is not None
+        assert registry.review_authority.trusted_reviewers == ("abenrhouma",)
+
+    def test_an_allowlist_placed_elsewhere_is_not_found(self, tmp_path: Path) -> None:
+        """Poser le fichier ailleurs ne le rend pas autoritaire."""
+        root = tmp_path / "depot"
+        root.mkdir()
+        raw = _reviewers_document()
+        # Le fichier existe, son empreinte est juste — mais il n'est pas à sa
+        # place. Le foyer ne va le chercher qu'à l'emplacement canonique.
+        (root / "trusted-reviewers.json").write_bytes(raw)
+        with pytest.raises(SealedEvidenceError, match="canonical location"):
+            Bench(tmp_path).load(
+                repository_root=root,
+                expected_reviewers_sha256=hashlib.sha256(raw).hexdigest(),
+            )
+
+    def test_the_caller_cannot_name_the_allowlist_file(self) -> None:
+        """`reviewers_path` ne doit plus exister comme paramètre."""
+        import inspect
+
+        signature = inspect.signature(ReviewAuthority.verify)
+        assert "reviewers_path" not in signature.parameters, (
+            "le chemin de l'allowlist est redevenu une entrée d'appelant"
+        )
+
+
+class TestTheReviewIndexIsNeverOptional:
+    """Re-review #144 — un decision set NOMME toujours son index.
+
+    `review_index_sha256` est un champ obligatoire de l'ensemble de décisions :
+    il n'existe pas de campagne sans index. Or la vérification ne s'exerçait que
+    si l'appelant fournissait le chemin. Ne pas le fournir suffisait donc à
+    admettre du `DETECTED_REVIEWED_ACCEPTED` sans jamais ouvrir l'index censé
+    prouver quels paquets ont été revus — l'exact contraire de ce que P1-E
+    voulait fermer.
+    """
+
+    def test_an_admission_without_the_index_is_refused(self, tmp_path: Path) -> None:
+        with pytest.raises(SealedEvidenceError, match="review index"):
+            Bench(tmp_path).load(
+                review_index_path=None, expected_review_index_sha256=None
+            )
+
+    def test_an_index_path_without_its_digest_is_refused(self, tmp_path: Path) -> None:
+        index_path, _ = _write_index(tmp_path)
+        with pytest.raises(SealedEvidenceError, match="review index"):
+            Bench(tmp_path).load(
+                review_index_path=index_path, expected_review_index_sha256=None
+            )

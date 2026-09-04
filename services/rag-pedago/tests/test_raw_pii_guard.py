@@ -25,6 +25,7 @@ import pytest
 
 from rag_pedago.imports.raw_pii_guard import (
     RawPiiLeakError,
+    _string_values,
     find_raw_pii,
     neutralise_digest_tokens,
     require_no_raw_pii,
@@ -223,3 +224,49 @@ class TestValuesAreScannedBeforeSerialisation:
 
     def test_non_string_scalars_do_not_break_the_walk(self) -> None:
         require_no_raw_pii({"n": 3, "b": True, "z": None, "f": 1.5}, label="t")
+
+
+class TestTheTraversalLosesNothingTheSerialisationWouldHaveCaught:
+    """Ne pas sérialiser ne doit pas COÛTER de la détection (re-review #144).
+
+    Scanner les valeurs d'origine plutôt que le JSON a corrigé un vrai défaut :
+    un séparateur situé DANS un motif y était échappé et la correspondance
+    perdue. Mais le parcours écrit alors a introduit deux pertes en sens
+    inverse, que `json.dumps` ne faisait pas :
+
+    1. il rendait la clé et la valeur SÉPARÉMENT, si bien qu'un motif dont le
+       contexte est porté par la clé ne pouvait plus se former ;
+    2. il ignorait tout ce qui n'est pas une chaîne, alors qu'un identifiant
+       PII sérialisé en nombre était auparavant rendu tel quel.
+
+    La bonne mesure est l'union : tout ce que la sérialisation attrapait, plus
+    ce qu'elle perdait — jamais l'un au prix de l'autre.
+    """
+
+    def test_a_numeric_scalar_carrying_an_identifier_is_seen(self) -> None:
+        """Un NIR sérialisé en entier reste un NIR."""
+        document = {"identifier": 199012345678901}
+        findings = [
+            finding
+            for value in _string_values(document)
+            for finding in find_raw_pii(value)
+        ]
+        assert findings, "un identifiant numérique échappe entièrement au parcours"
+
+    def test_the_key_still_lends_its_context_to_the_value(self) -> None:
+        """Le contexte porté par la clé ne doit pas être perdu par le parcours."""
+        rendered = list(_string_values({"adresse": "75001 paris"}))
+        assert any(
+            "adresse" in text and "75001 paris" in text for text in rendered
+        ), "la clé et la valeur ne sont jamais rendues ensemble"
+
+    def test_the_separator_inside_a_pattern_is_still_preserved(self) -> None:
+        """La correction ne doit pas réintroduire l'échappement JSON."""
+        document = {"tel": "06\n12 34 56 78"}
+        rendered = list(_string_values(document))
+        assert any("06\n12 34 56 78" in text for text in rendered)
+        assert not any("06\\n12" in text for text in rendered)
+
+    def test_booleans_and_none_do_not_manufacture_findings(self) -> None:
+        rendered = list(_string_values({"a": True, "b": None, "c": 3}))
+        assert not any(find_raw_pii(text) for text in rendered)

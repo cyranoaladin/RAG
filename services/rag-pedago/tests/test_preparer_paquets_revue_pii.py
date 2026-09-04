@@ -269,16 +269,30 @@ class TestTheBundleProducerIdentityCoversWhatDecides:
         assert "projection_sha256" in identity
         assert len(identity["projection_sha256"]) == 64
 
-    def test_a_change_to_the_helper_changes_the_future_identity(self) -> None:
+    def test_a_change_to_the_helper_changes_the_future_identity(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """La propriété qui compte : l'empreinte suit le module.
 
-        La version précédente hachait deux chaînes d'octets et constatait
+        La première version hachait deux chaînes d'octets et constatait
         qu'elles différaient — une propriété de SHA-256, pas du producteur.
         Elle n'appelait jamais `producer_identity` et serait restée verte si
-        celui-ci avait cessé de couvrir le module. Ici l'identité est
-        réellement calculée, deux fois, autour d'une modification du module."""
+        celui-ci avait cessé de couvrir le module.
+
+        La deuxième l'appelait vraiment, mais écrivait dans le fichier
+        VERSIONNÉ et comptait sur un `finally` pour le remettre. Un `SIGKILL`
+        entre l'écriture et la restauration — OOM, délai de CI — laissait
+        l'arbre sale et faisait échouer tout `producer_identity(require_frozen=True)`
+        ultérieur. Signalé en revue, et le risque était réel : ce dépôt a déjà
+        perdu une exécution à un OOM cgroup.
+
+        Ici rien n'est écrit dans le dépôt. Une arborescence de travail reçoit
+        une COPIE du module, et `REPOSITORY_ROOT` du producteur y est
+        redirigée le temps du test."""
         import hashlib
         import importlib.util
+        import shutil
+        import subprocess
 
         spec = importlib.util.spec_from_file_location("_preparer_id", PREPARER_SCRIPT)
         assert spec and spec.loader
@@ -286,23 +300,39 @@ class TestTheBundleProducerIdentityCoversWhatDecides:
         sys.modules["_preparer_id"] = module
         spec.loader.exec_module(module)
 
-        before = module.producer_identity(require_frozen=False)
-        assert before["projection_sha256"] == hashlib.sha256(
-            PROJECTION_HELPER.read_bytes()
-        ).hexdigest()
+        relative = PROJECTION_HELPER.relative_to(REPOSITORY_ROOT)
+        copy = tmp_path / relative
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECTION_HELPER, copy)
+        # `producer_identity` interroge git depuis `REPOSITORY_ROOT`.
+        # L'arborescence de travail devient donc un dépôt autonome : le test
+        # reste hermétique, et rien n'est demandé au dépôt réel.
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        monkeypatch.setattr(module, "REPOSITORY_ROOT", tmp_path)
+        monkeypatch.setattr(module, "_git", lambda *_a: "0" * 40)
 
-        original = PROJECTION_HELPER.read_bytes()
-        try:
-            PROJECTION_HELPER.write_bytes(original + b"\n# changement local\n")
-            after = module.producer_identity(require_frozen=False)
-        finally:
-            PROJECTION_HELPER.write_bytes(original)
+        before = module.producer_identity(require_frozen=False)
+        assert before["projection_sha256"] == hashlib.sha256(copy.read_bytes()).hexdigest()
+
+        copy.write_bytes(copy.read_bytes() + b"\n# changement local\n")
+        after = module.producer_identity(require_frozen=False)
+
         assert after["projection_sha256"] != before["projection_sha256"], (
             "l'identité du producteur ne suit pas le module qui décide de "
             "l'identité des findings : des paquets différents porteraient la "
             "même provenance"
         )
-        assert module.producer_identity(require_frozen=False) == before
+
+    def test_the_repository_copy_of_the_helper_is_never_written_to(self) -> None:
+        """Le test précédent ne doit RIEN laisser derrière lui."""
+        import subprocess
+
+        changed = subprocess.run(
+            ["git", "status", "--porcelain", str(PROJECTION_HELPER)],
+            cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+        assert "# changement local" not in PROJECTION_HELPER.read_text(encoding="utf-8")
+        assert not changed.strip().endswith("pii_review_projection.py M"), changed
 
     def test_the_historical_bundles_keep_their_own_provenance(self) -> None:
         """Les 23 paquets scellés ne sont pas réinterprétés rétroactivement.
