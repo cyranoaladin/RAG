@@ -57,12 +57,9 @@ class TestProducerExposesTheReviewAuthority:
         On interroge la VRAIE surface d'appel — `--help` — et non le texte du
         fichier : les options sont construites par boucle, et une garde qui
         cherche un littéral dans la source échouerait sur du code correct."""
-        import importlib.util
+        from conftest import load_producer
 
-        spec = importlib.util.spec_from_file_location("_producer_cli", PRODUCER)
-        assert spec and spec.loader
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = load_producer()
         with pytest.raises(SystemExit):
             module.main(["--help"])
         helptext = capsys.readouterr().out
@@ -219,14 +216,11 @@ class TestCandidateIsFinalButNotActivable:
     déjà mécaniquement."""
 
     def test_production_mode_accepts_candidate_status_flags(self) -> None:
-        import importlib.util
         import inspect
 
-        spec = importlib.util.spec_from_file_location("_producer_flags", PRODUCER)
-        assert spec and spec.loader
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        signature = inspect.signature(module._release_topology_documents)
+        from conftest import load_producer
+
+        signature = inspect.signature(load_producer()._release_topology_documents)
         for parameter in ("promotion_status", "activation_status", "review_status"):
             assert parameter in signature.parameters
 
@@ -264,13 +258,11 @@ class TestCurrentnessVerdictNamesItsOwnRelease:
     """
 
     def _audit(self, release_id: str | None):
-        import importlib.util
         import os
 
-        spec = importlib.util.spec_from_file_location("_producer_currentness", PRODUCER)
-        assert spec and spec.loader
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        from conftest import load_producer
+
+        module = load_producer()
         previous = os.environ.get("NEXUS_CURRENTNESS_UNVERIFIED")
         os.environ["NEXUS_CURRENTNESS_UNVERIFIED"] = "SOURCE_UNREACHABLE"
         try:
@@ -294,12 +286,9 @@ class TestCurrentnessVerdictNamesItsOwnRelease:
 
     def test_without_an_explicit_identity_the_historical_one_is_kept(self) -> None:
         """Aucune émission existante ne change de cible du fait de ce correctif."""
-        import importlib.util
+        from conftest import load_producer
 
-        spec = importlib.util.spec_from_file_location("_producer_currentness2", PRODUCER)
-        assert spec and spec.loader
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        module = load_producer()
         audit = self._audit(None)
         assert audit["verdict_scope"]["release_id"] == module.RELEASE_ID
 

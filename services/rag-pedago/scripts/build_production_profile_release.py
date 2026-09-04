@@ -13,6 +13,7 @@ import subprocess
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
@@ -55,13 +56,14 @@ REPOSITORY_ROOT = Path(os.environ.get("NEXUS_REPO_ROOT") or Path(__file__).resol
 
 SCHOOL_YEAR = "2026-2027"
 RELEASE_ID = "production-profile-gate-2026-2027-v1"
-FINAL_SET_SHA256 = "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
-#: Empreinte scellée de l'ensemble final, quand une émission en déclare une.
-#: Vide, l'invariant « produit == déclaré par la matrice » suffit — et il est le
-#: seul qui vaille pour une émission dont l'ensemble n'a pas encore de sceau.
-FINAL_SET_SHA256_ATTENDU = os.environ.get(
-    "NEXUS_FINAL_SET_SHA256", FINAL_SET_SHA256
-    if not os.environ.get("NEXUS_FINAL_MATRIX") else "")
+#: Empreinte de l'ensemble de contenus que la lignée canonique produit. Ce
+#: n'est pas une affirmation : un test recalcule l'ensemble depuis la matrice
+#: et les profils déclarés, et exige ce digest. Il coïncide par ailleurs avec
+#: le `content_set_sha256` de l'index de la campagne de revue PII — le corpus
+#: scellé et le corpus revu sont le même.
+CANONICAL_CONTENT_SET_SHA256 = (
+    "77f01c824c6be14ba6fd66eda99c2179fd87d9a2aaaf3c58e56a917d1ad5c31d"
+)
 CORPUS_MANIFEST_AUTHORITY = (
     "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 )
@@ -107,14 +109,90 @@ RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
 )
 CURRENTNESS_NETWORK_AUDIT_PATH = RELEASE_ROOT / "currentness_network_audit.json"
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+
+
+@dataclass(frozen=True)
+class ReleaseLineage:
+    """Ce qui définit le corpus d'une release : matrice, profils, empreinte.
+
+    Les trois voyagent ENSEMBLE. Les résoudre séparément, en trois endroits,
+    est ce qui a permis à `build_release` de travailler sur une lignée que les
+    constantes du module ne décrivaient pas."""
+
+    matrix_path: Path
+    profile_root: Path
+    profile_manifest_path: Path
+    expected_content_set_sha256: str
+    is_overridden: bool
+
+
+#: La lignée SERVIE, déclarée ici et nulle part ailleurs : la matrice de
+#: production du 31 août et les onze profils de la livraison 319. Une exécution
+#: par défaut, depuis le commit candidat, reproduit ce corpus sans qu'aucune
+#: variable d'environnement n'ait à être connue.
+CANONICAL_LINEAGE = ReleaseLineage(
+    matrix_path=REPOSITORY_ROOT / "docs/reports/evidence-index/matrice_production_20260831.json",
+    profile_root=REPOSITORY_ROOT
+    / "services/rag-engine/configs/ingestion_profiles/v2_livraison_319",
+    profile_manifest_path=REPOSITORY_ROOT
+    / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml",
+    expected_content_set_sha256=CANONICAL_CONTENT_SET_SHA256,
+    is_overridden=False,
+)
+
+
+def resolve_release_lineage() -> ReleaseLineage:
+    """Résout la lignée, une seule fois, pour tout le producteur.
+
+    **Une surcharge n'éteint jamais l'invariant d'ensemble.** L'expression
+    précédente — `FINAL_SET_SHA256 if not NEXUS_FINAL_MATRIX else ""` — faisait
+    exactement cela : changer la matrice retirait la vérification d'empreinte,
+    si bien qu'une émission surchargée pouvait produire n'importe quel corpus
+    sans qu'aucun ensemble déclaré ne s'y oppose. C'était un défaut fail-open
+    dans un producteur dont tout le reste est fail-closed.
+
+    Une émission qui vise une autre lignée DOIT donc déclarer l'ensemble
+    qu'elle attend, via `NEXUS_FINAL_SET_SHA256`. Épingler reste toujours
+    permis ; éteindre ne l'est plus."""
+    matrix = os.environ.get("NEXUS_FINAL_MATRIX")
+    root = os.environ.get("NEXUS_PROFILE_ROOT")
+    manifest = os.environ.get("NEXUS_PROFILE_MANIFEST")
+    declared = os.environ.get("NEXUS_FINAL_SET_SHA256")
+    overridden = any(value is not None for value in (matrix, root, manifest))
+
+    if overridden and not declared:
+        raise ValueError(
+            "a lineage override (NEXUS_FINAL_MATRIX / NEXUS_PROFILE_ROOT / "
+            "NEXUS_PROFILE_MANIFEST) requires NEXUS_FINAL_SET_SHA256: targeting "
+            "another corpus never removes the obligation to declare which one"
+        )
+    expected = declared or CANONICAL_LINEAGE.expected_content_set_sha256
+    if not _HEX64.match(expected):
+        raise ValueError(
+            f"NEXUS_FINAL_SET_SHA256 must be a lowercase 64-hex SHA-256, got {expected!r}"
+        )
+    return ReleaseLineage(
+        matrix_path=Path(matrix) if matrix else CANONICAL_LINEAGE.matrix_path,
+        profile_root=Path(root) if root else CANONICAL_LINEAGE.profile_root,
+        profile_manifest_path=(
+            Path(manifest) if manifest else CANONICAL_LINEAGE.profile_manifest_path
+        ),
+        expected_content_set_sha256=expected,
+        is_overridden=overridden or bool(declared),
+    )
+
+
 #: Entrées par défaut = celles de la release scellée des onze (lignée B, LOT 1c) :
 #: la matrice de production dérivée du 31/08, les onze profils `v2_livraison_319`
 #: et leur manifeste au chemin que `authority_bindings.json` lie. Les surcharges
 #: d'environnement restent possibles pour une émission différente, mais une
 #: production « par défaut » reproduit la lignée servie — plus la lignée A.
-FINAL_MATRIX_PATH = Path(os.environ.get(
-    "NEXUS_FINAL_MATRIX",
-    REPOSITORY_ROOT / "docs/reports/evidence-index/matrice_production_20260831.json"))
+#: Vues de la lignée CANONIQUE, pour les appelants qui n'ont pas de contexte
+#: d'exécution. Elles ne lisent pas l'environnement : un import ne doit pas
+#: échouer, ni changer de sens, selon les variables du shell qui l'entoure.
+#: Les usages qui décident quelque chose passent par `resolve_release_lineage()`.
+FINAL_MATRIX_PATH = CANONICAL_LINEAGE.matrix_path
 FINAL_PRODUCTION_SET_PATH = (
     REPOSITORY_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
 )
@@ -163,14 +241,11 @@ CATALOGUE_PROVENANCE_SHA256 = (
 #: seconde émission vise d'autres profils, un autre manifeste et une autre
 #: matrice, sans que le producteur ait à être dupliqué. Les défauts restent ceux
 #: de la release historique — aucune émission existante ne change de cible.
-PROFILE_ROOT = Path(os.environ.get(
-    "NEXUS_PROFILE_ROOT",
-    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles/v2_livraison_319"))
-PROFILE_MANIFEST_PATH = Path(os.environ.get(
-    "NEXUS_PROFILE_MANIFEST",
-    REPOSITORY_ROOT
-    / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"))
+PROFILE_ROOT = CANONICAL_LINEAGE.profile_root
+PROFILE_MANIFEST_PATH = CANONICAL_LINEAGE.profile_manifest_path
 COLLECTION_CONFIG_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
+
+
 #: Dépôt dont un reçu de revue peut faire autorité ici. Constante du module,
 #: comme dans l'outillage de provenance : une revue faite ailleurs ne décide
 #: rien pour cette release. Ce n'est pas l'identité d'une campagne, qui,
@@ -657,11 +732,8 @@ def _source_records(
             f"release source placement_rows differ from the final set: "
             f"{manquants} manquants, {surnumeraires} surnuméraires"
         )
-    final_set_sha_attendue = os.environ.get(
-        "NEXUS_FINAL_SET_SHA256",
-        FINAL_SET_SHA256 if not os.environ.get("NEXUS_FINAL_MATRIX") else "",
-    )
-    if final_set_sha_attendue and _final_set_digest(produit) != final_set_sha_attendue:
+    attendue = resolve_release_lineage().expected_content_set_sha256
+    if _final_set_digest(produit) != attendue:
         raise ValueError("release source placement_rows differ from the sealed final set")
     return ordered
 
@@ -883,11 +955,8 @@ def _release_scope_inputs(
             f"release scope inputs differ from the final set: "
             f"{len(set(attendu_scope) - set(contents))} manquants, "
             f"{len(set(contents) - set(attendu_scope))} surnuméraires")
-    final_set_sha_attendue = os.environ.get(
-        "NEXUS_FINAL_SET_SHA256",
-        FINAL_SET_SHA256 if not os.environ.get("NEXUS_FINAL_MATRIX") else "",
-    )
-    if final_set_sha_attendue and _final_set_digest(contents) != final_set_sha_attendue:
+    attendue = resolve_release_lineage().expected_content_set_sha256
+    if _final_set_digest(contents) != attendue:
         raise ValueError("release scope inputs differ from the sealed final set")
     # La provenance enregistre la source RÉELLEMENT LUE. Ce chemin était figé sur
     # `v2_corpus_complet` alors que le répertoire est paramétré par
@@ -895,9 +964,7 @@ def _release_scope_inputs(
     # affirmait que ses profils venaient des 121. La provenance est précisément ce
     # que cette chaîne existe pour garantir ; un chemin en dur la rendait fausse
     # dès que le paramètre servait.
-    profile_root = Path(os.environ.get(
-        "NEXUS_PROFILE_ROOT",
-        REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles")).resolve()
+    profile_root = resolve_release_lineage().profile_root.resolve()
     profile_root_relative = (
         profile_root.relative_to(REPOSITORY_ROOT).as_posix()
         if profile_root.is_relative_to(REPOSITORY_ROOT)
@@ -2490,16 +2557,16 @@ def build_release(
     if pdf_root is None or embedding_snapshot is None or reranker_snapshot is None:
         raise ValueError("pdf_root, embedding_snapshot, and reranker_snapshot are required in production mode")
 
-    matrix_path = Path(os.environ.get(
-        "NEXUS_FINAL_MATRIX",
-        REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"))
+    # Une seule lignée, résolue une fois. `build_release` redéfinissait ici ses
+    # propres défauts — la matrice du 25 août et les dix-huit profils — alors
+    # que les constantes du module en documentaient d'autres. Un lecteur qui
+    # lisait les constantes se trompait, et une exécution « par défaut »
+    # rendait 26 documents au lieu de 320.
+    lineage = resolve_release_lineage()
+    matrix_path = lineage.matrix_path
     matrix = _load_json(matrix_path)
-    profile_root = Path(os.environ.get(
-        "NEXUS_PROFILE_ROOT",
-        REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"))
-    profile_manifest_path = Path(os.environ.get(
-        "NEXUS_PROFILE_MANIFEST",
-        REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"))
+    profile_root = lineage.profile_root
+    profile_manifest_path = lineage.profile_manifest_path
     registry = load_profile_registry(profile_root)
     manifest = verify_profile_manifest(registry, profile_manifest_path)
     profiles = {profile.scope.collection: profile for profile in registry.values()}
@@ -2632,7 +2699,7 @@ def build_release(
         "rights_registry_sha256": RIGHTS_REGISTRY_PATH,
         "preflight_evidence_sha256": RELEASE_ROOT / "preflight_evidence.json",
         "programme_registry_sha256": RELEASE_ROOT / "programme_registry.json",
-        "profile_manifest_sha256": PROFILE_MANIFEST_PATH,
+        "profile_manifest_sha256": lineage.profile_manifest_path,
         "level_mapping_sha256": LEVEL_MAPPING_PATH,
         "subject_mapping_sha256": SUBJECT_MAPPING_PATH,
         "document_type_mapping_sha256": DOCUMENT_TYPE_MAPPING_PATH,
@@ -2714,7 +2781,7 @@ def build_release(
     bindings = {
         "binding_kind": "PRODUCTION_PROFILE_RELEASE_AUTHORITY_BINDINGS_V1",
         "school_year": SCHOOL_YEAR,
-        "profile_manifest_file_sha256": _file_sha256(PROFILE_MANIFEST_PATH),
+        "profile_manifest_file_sha256": _file_sha256(lineage.profile_manifest_path),
         "profile_manifest_fingerprint": manifest.manifest_fingerprint,
         # D-41 : une release nomme l'interpréteur qui l'a produite. Sans cela,
         # « cette release est reproductible » est une phrase sans domaine.

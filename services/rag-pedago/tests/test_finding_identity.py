@@ -196,3 +196,53 @@ class TestFindingContext:
                 assert sha256(context.encode("utf-8")).hexdigest() == signal["context_sha256"]
                 checked += 1
         assert checked > 0
+
+
+class TestContextWindowEdges:
+    """Fige précisément la fenêtre, pour qu'aucune divergence ne revienne (§6).
+
+    Le test réel sur les 23 paquets prouve la conformité d'aujourd'hui ; ces
+    cas synthétiques disent ce que la fenêtre DOIT faire, y compris là où les
+    paquets réels ne l'exercent pas."""
+
+    def test_match_at_the_very_start_of_a_page(self) -> None:
+        page = "A" * 1000
+        assert finding_context(page, char_offset=0, match_length=3) == page[:243]
+
+    def test_match_at_the_very_end_of_a_page(self) -> None:
+        page = "A" * 1000
+        got = finding_context(page, char_offset=997, match_length=3)
+        assert got == page[757:1000]
+
+    def test_page_shorter_than_the_window(self) -> None:
+        page = "court"
+        assert finding_context(page, char_offset=1, match_length=2) == page
+
+    def test_two_matches_on_one_page_have_distinct_windows(self) -> None:
+        page = "".join(f"{i:04d}-" for i in range(400))
+        first = finding_context(page, char_offset=100, match_length=4)
+        second = finding_context(page, char_offset=1200, match_length=4)
+        assert first != second
+
+    def test_newlines_and_whitespace_are_not_normalised(self) -> None:
+        page = "debut\n\n   espaces\ttabulation\r\nfin " + "x" * 500
+        got = finding_context(page, char_offset=10, match_length=3)
+        assert got == page[: 10 + 3 + 240]
+        assert "\n\n" in got and "\t" in got and "\r" in got
+
+    def test_the_window_counts_characters_not_bytes(self) -> None:
+        """Unicode : une fenêtre en octets couperait un caractère en deux."""
+        page = "é" * 1000
+        got = finding_context(page, char_offset=500, match_length=2)
+        assert len(got) == 482
+        assert got == page[260:742]
+        assert "\ufffd" not in got
+
+    def test_identical_repeated_text_still_yields_position_specific_windows(self) -> None:
+        """Même matière, deux endroits : l'empreinte de contexte doit différer
+        dès que le voisinage diffère, et coïncider quand il est identique."""
+        page = ("bloc" * 100) + "UNIQUE" + ("bloc" * 100)
+        near_unique = finding_context(page, char_offset=398, match_length=4)
+        far_from_it = finding_context(page, char_offset=10, match_length=4)
+        assert "UNIQUE" in near_unique
+        assert "UNIQUE" not in far_from_it

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import importlib.util
 import inspect
 import json
 from io import BytesIO
@@ -112,13 +111,9 @@ class VerifiedPdf(Protocol):
 
 
 def _module() -> Builder:
-    spec = importlib.util.spec_from_file_location(
-        "build_production_profile_release", SCRIPT
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(Builder, module)
+    from conftest import load_producer
+
+    return cast(Builder, load_producer())
 
 
 def _sha256(path: Path) -> str:
@@ -1500,7 +1495,14 @@ def test_v2_release_scope_separates_unique_final_set_from_placements(
         for collection in V2_COLLECTIONS
     }
     monkeypatch.setattr(builder, "profile_fingerprint", lambda _profile: "e" * 64)
+    # Ce test surchargeait la matrice pour ÉTEINDRE la vérification d'empreinte
+    # de l'ensemble final — le comportement fail-open que le resolver de lignée
+    # a fermé. Il déclare désormais l'ensemble qu'il attend, ce qui est à la
+    # fois la nouvelle règle et une assertion de plus.
     monkeypatch.setenv("NEXUS_FINAL_MATRIX", str(tmp_path / "synthetic-matrix.json"))
+    monkeypatch.setenv(
+        "NEXUS_FINAL_SET_SHA256", builder._final_set_digest([V2_ARTIFACT_SHA])
+    )
 
     final_set_raw, accepted_raw, verified_raw = builder._release_scope_inputs(
         matrix=matrix,

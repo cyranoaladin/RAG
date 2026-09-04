@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
@@ -30,13 +30,9 @@ MODULES = [
 
 
 def _module() -> Any:
-    import importlib.util
+    from conftest import load_producer
 
-    spec = importlib.util.spec_from_file_location("_producer_models", PRODUCER)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(Any, module)
+    return load_producer()
 
 
 def _snapshot(tmp_path: Path, *, with_pooling: bool, modules: list[dict[str, Any]] | None = None) -> Path:
