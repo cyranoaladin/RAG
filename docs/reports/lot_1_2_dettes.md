@@ -81,3 +81,38 @@ Conformément à la règle de non-franchissement des verrous de gouvernance (`AG
   - `activation_status: NO_PRODUCTION_ACTIVATION`
   - `review_status: PRE_REVIEW`
 - **Action requise** : Aucun déploiement en production ni altération du catalogue de production actif sans ordre explicite de déploiement et nouvelle release candidate signée.
+
+## Dettes constatées pendant la production de la candidate V2 (2026-09-04)
+
+Toutes antérieures aux commits de ce lot ; antériorité prouvée par
+`git log` contre le fichier concerné.
+
+### Dette D4 — L'audit de currentness scellé n'est plus au format du producteur
+
+`services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/currentness_network_audit.json`
+porte `counts.unverified_source_unreachable: 486`, précisément le champ que le
+producteur actuel déclare avoir retiré (« un compte sans sujet »), et ne porte
+ni `content_set_sha256` ni `corpus_manifest_sha256`, que le producteur émet
+désormais. Aucune valeur d'entrée ne réconcilie ces deux formes : la garde
+`sealed currentness audit differs from release inputs` refuserait donc aussi le
+corpus historique 319, et pas seulement une candidate.
+
+**Antériorité** : `a4b1f96` (#142). **Contournement employé** : la branche de
+rejeu hors ligne `NEXUS_CURRENTNESS_UNVERIFIED=SOURCE_UNREACHABLE`, qui produit
+un document déclarant honnêtement qu'aucune vérification réseau n'a eu lieu.
+**Action requise** : rescellement de cet artefact au format courant, ou
+vérification réseau réelle. Décision hors périmètre de ce lot.
+
+### Dette D5 — Un test de CLI impose un délai d'une seconde
+
+`services/rag-engine/tests/test_compare_engine_parity_cli.py::test_cli_refuses_non_regular_input_without_blocking`
+lance un sous-processus avec `timeout=1`. Sous charge machine, le seul
+démarrage de l'interpréteur dépasse cette borne, et le test échoue sans que rien
+du comportement testé n'ait changé — observé une fois pendant l'exécution
+concurrente de deux suites, vert isolément et sans contention.
+
+L'intention du test est juste : la CLI ne doit pas se bloquer sur une FIFO. Une
+borne d'une seconde est un mécanisme fragile pour l'exprimer.
+
+**Antériorité** : `ffc1bae` (#137). **Action requise** : élargir la borne sans
+changer l'intention. Hors périmètre de ce lot, qui ne touche pas ce module.

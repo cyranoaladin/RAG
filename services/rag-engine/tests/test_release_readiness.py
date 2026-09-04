@@ -244,11 +244,13 @@ def _v2_release_files(
     tmp_path: Path,
     *,
     collections: tuple[str, ...] = (COLLECTION,),
+    extra_authorities: dict[str, str] | None = None,
 ) -> tuple[Path, str, Path, tuple[Path, ...]]:
     """Materialise le contrat V2 explicite, avant son implementation lecteur."""
 
     tmp_path.mkdir(parents=True, exist_ok=True)
     authorities = _multilevel_authorities()
+    authorities.update(extra_authorities or {})
     models = {
         "embedding": {
             "model_id": MODEL_ID,
@@ -2967,3 +2969,91 @@ def test_runtime_blocks_retrieval_for_a_collection_outside_the_active_registry(
         endpoint._release_evidence_for_collection("rag_nexus_maths_seconde_tc")
         is None
     )
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Autorité de revue PII dans la chaîne d'autorité (ADR-0047)
+# ─────────────────────────────────────────────────────────────────────────
+
+_PII_REVIEW_AUTHORITIES = (
+    "pii_decision_set_sha256",
+    "pii_review_receipt_sha256",
+    "pii_review_trust_anchor_sha256",
+    "pii_review_index_sha256",
+)
+
+
+class TestPiiReviewAuthoritiesAreAdmissible:
+    """Une release qui admet un contenu détecté doit pouvoir dire sur quoi.
+
+    La chaîne d'autorité était un ensemble FERMÉ de dix-neuf empreintes. Une
+    release post-revue en porte quatre de plus — l'ensemble de décisions, son
+    reçu, l'ancre qui vérifie ce reçu, et l'index des paquets qui l'ont fondé.
+    Sans elles, la release affirmerait une admission dont rien, dans son propre
+    manifeste, ne nommerait la source.
+
+    Elles restent OPTIONNELLES : une release sans aucun contenu détecté n'a pas
+    de décisions à joindre. Mais elles vont ensemble : un ensemble de décisions
+    sans son reçu ne prouve rien, et la moitié d'une chaîne d'autorité est une
+    chaîne rompue."""
+
+    def _with(self, tmp_path: Path, extra: dict[str, str]):
+        manifest, digest, _registry, _subjects = _v2_release_files(
+            tmp_path, extra_authorities=extra
+        )
+        return load_release_expectation(manifest, digest)
+
+    def test_a_release_without_review_authorities_is_still_accepted(
+        self, tmp_path: Path
+    ) -> None:
+        expectation = self._with(tmp_path, {})
+        assert expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V2"
+
+    def test_the_four_review_authorities_are_accepted_together(
+        self, tmp_path: Path
+    ) -> None:
+        extra = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _PII_REVIEW_AUTHORITIES
+        }
+        expectation = self._with(tmp_path, extra)
+        assert expectation.release_kind == "MULTILEVEL_AGGREGATE_RELEASE_V2"
+
+    @pytest.mark.parametrize("omitted", _PII_REVIEW_AUTHORITIES)
+    def test_a_partial_review_authority_chain_is_refused(
+        self, omitted: str, tmp_path: Path
+    ) -> None:
+        extra = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _PII_REVIEW_AUTHORITIES
+            if name != omitted
+        }
+        with pytest.raises(ReleaseReadinessError, match="review"):
+            self._with(tmp_path, extra)
+
+    def test_an_unknown_authority_field_is_still_refused(self, tmp_path: Path) -> None:
+        """L'ensemble s'élargit d'exactement quatre champs, pas de n'importe quoi."""
+        with pytest.raises(ReleaseReadinessError, match="authorities"):
+            self._with(tmp_path, {"quelque_chose_sha256": "a" * 64})
+
+    def test_a_review_authority_must_be_a_sha256(self, tmp_path: Path) -> None:
+        extra = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _PII_REVIEW_AUTHORITIES
+        }
+        extra["pii_decision_set_sha256"] = "pas-un-digest"
+        with pytest.raises(ReleaseReadinessError):
+            self._with(tmp_path, extra)
+
+
+def test_the_vendored_release_readiness_copy_is_byte_identical() -> None:
+    """Deux copies du même contrat doivent rester le même contrat.
+
+    `services/rag-engine/src/ingestor/release_readiness.py` est une copie
+    vendorée de `packages/release-chain/…/release_readiness.py`. Les laisser
+    diverger ferait accepter au producteur ce que le worker refuse, ou
+    l'inverse — sans que rien ne le signale."""
+    root = Path(__file__).resolve().parents[3]
+    vendored = root / "services/rag-engine/src/ingestor/release_readiness.py"
+    canonical = root / "packages/release-chain/src/nexus_release_chain/release_readiness.py"
+    assert vendored.read_bytes() == canonical.read_bytes()
