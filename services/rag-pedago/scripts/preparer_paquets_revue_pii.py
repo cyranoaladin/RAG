@@ -44,6 +44,7 @@ import nexus_pdf_page_policy as page_policy  # noqa: E402
 import pypdf  # noqa: E402
 
 from rag_pedago.imports import pii_scanner  # noqa: E402
+from rag_pedago.imports.pii_review_projection import finding_identity  # noqa: E402
 
 BUNDLE_PROTOCOL = "NEXUS-PII-REVIEW-BUNDLE-V1"
 INDEX_PROTOCOL = "NEXUS-PII-REVIEW-INDEX-V1"
@@ -163,12 +164,16 @@ def _bundle_for(
         context = page_text[start:end]
         match_sha = _sha256_bytes(match.match_text.encode("utf-8"))
         context_sha = _sha256_bytes(context.encode("utf-8"))
-        # Identité du finding : contenu, motif, page, position, matière — sans
-        # la matière elle-même. Deux findings identiques au même endroit ne
-        # peuvent pas exister ; deux findings de même matière à deux endroits
-        # ont deux identités.
-        finding_id = _sha256_bytes(
-            f"{sha}:{match.pattern_id}:{match.page_number}:{match.char_offset}:{match_sha}".encode()
+        # Identité du finding : dérivée par l'autorité unique du scanner, pour
+        # que le producteur de release retrouve EXACTEMENT ces findings dans
+        # son propre scan (ADR-0047). Une dérivation locale, même identique
+        # aujourd'hui, pourrait diverger demain sans que rien ne le dise.
+        finding_id = finding_identity(
+            content_sha256=sha,
+            pattern_id=match.pattern_id,
+            page_number=match.page_number,
+            char_offset=match.char_offset,
+            match_sha256=match_sha,
         )
         signal: dict[str, object] = {
             "finding_id": finding_id,

@@ -33,19 +33,16 @@ from pathlib import Path
 from typing import Any, Literal
 
 import yaml
-from nexus_contracts.authority_artifacts import git_blob_sha1
 from nexus_contracts.document import Rights
 from nexus_contracts.pii_review_decisions import (
     ADMISSIBLE_DISPOSITIONS,
     PiiReviewDecisionSetV1,
-    parse_pii_review_decision_set,
 )
 from nexus_contracts.review_binding import (
     ReviewBindingError,
     ScopeAuthorizationReviewBindingV1,
     TrustAnchor,
-    require_matches_pii_review_decision_set,
-    verify_review_binding,
+    verify_pii_review_decision_authority,
 )
 
 #: Statuts de scan PII (ADR-0047). Deux seulement autorisent la suite du
@@ -232,10 +229,6 @@ class ReviewAuthority:
                 label="PII review decision set",
             )
         raw_decision_set = decision_set_path.read_bytes()
-        try:
-            decision_set = parse_pii_review_decision_set(raw_decision_set)
-        except Exception as exc:  # noqa: BLE001 - frontière de parsing
-            raise SealedEvidenceError(f"the decision set is not readable: {exc}") from exc
 
         if receipt_path is None or not receipt_path.exists():
             raise SealedEvidenceError(
@@ -259,33 +252,22 @@ class ReviewAuthority:
         except Exception as exc:  # noqa: BLE001 - frontière de parsing
             raise SealedEvidenceError(f"the trust anchor is not usable: {exc}") from exc
 
-        # `accepted_reviewers=None` désactiverait le contrôle d'allowlist dans
-        # le contrat : ici c'est un refus, pas un défaut permissif.
-        if not accepted_reviewers:
-            raise SealedEvidenceError(
-                "no reviewer allowlist was supplied — the worker refuses to accept "
-                "a review from an unbounded set of logins"
-            )
-
+        # L'ordre de vérification — canonicité, digest, ancre, signature,
+        # fenêtre, liaison, allowlist — appartient au contrat, et à lui seul :
+        # le producteur de release consomme la même chaîne, et deux ordres
+        # parallèles finiraient par ne plus refuser les mêmes choses.
         try:
-            binding = verify_review_binding(
-                receipt_path.read_bytes(),
+            decision_set, binding = verify_pii_review_decision_authority(
+                decision_set_bytes=raw_decision_set,
+                receipt_bytes=receipt_path.read_bytes(),
                 trust_anchor=anchor,
                 environment=environment,
-                now=now,
-            )
-            require_matches_pii_review_decision_set(
-                binding,
-                decision_set_id=decision_set.decision_set_id,
-                decision_set_bytes=raw_decision_set,
-                decision_set_git_blob_sha1=git_blob_sha1(raw_decision_set),
                 expected_repository=expected_repository,
                 accepted_reviewers=accepted_reviewers,
+                now=now,
             )
         except ReviewBindingError as exc:
             raise SealedEvidenceError(f"the review receipt is refused: {exc}") from exc
-        except SealedEvidenceError:
-            raise
         except Exception as exc:  # noqa: BLE001 - toute autre anomalie est un refus
             raise SealedEvidenceError(
                 f"the review receipt could not be verified: {exc}"

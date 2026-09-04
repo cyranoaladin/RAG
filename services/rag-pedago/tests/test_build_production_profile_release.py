@@ -958,10 +958,18 @@ def test_v2_producer_pii_scans_unique_contents_once(
     assert evidence["results"][0]["ignored_empty_pages"] == []
 
 
-def test_v2_producer_never_rewrites_a_positive_pii_scan_as_cleared(
+def test_v2_producer_refuses_a_positive_pii_scan_without_a_human_decision(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Un scan positif n'est jamais réécrit en CLEARED — et désormais mieux.
+
+    Ce test garantissait que le producteur n'efface pas une détection. Depuis
+    ADR-0047, la garantie est plus forte : sans décision humaine scellée
+    couvrant ce contenu exact, le producteur REFUSE d'émettre la preuve, au
+    lieu d'écrire un statut négatif que rien n'admettrait ensuite. La sortie
+    projetée d'une détection ADMISE est vérifiée séparément, dans
+    `tests/test_pii_review_projection.py`."""
     builder = cast(Any, _module())
 
     def positive_scan(_content: bytes, **_kwargs: object) -> SimpleNamespace:
@@ -971,7 +979,15 @@ def test_v2_producer_never_rewrites_a_positive_pii_scan_as_cleared(
             characters_scanned=42,
             ignored_empty_pages=(),
             pii_detected=True,
-            matches=(SimpleNamespace(pattern_id="email_address"),),
+            matches=(
+                SimpleNamespace(
+                    pattern_id="email_address",
+                    page_number=1,
+                    char_offset=17,
+                    match_text="quelqu-un@example.org",
+                    context="ecrire a quelqu-un@example.org pour toute demande",
+                ),
+            ),
             extraction_error=None,
         )
 
@@ -979,15 +995,12 @@ def test_v2_producer_never_rewrites_a_positive_pii_scan_as_cleared(
     monkeypatch.setattr(builder, "scan_pdf_bytes", positive_scan)
     pdf = builder.VerifiedPdf(tmp_path / "commun.pdf", b"pdf-factice")
 
-    evidence = builder._pii_evidence(
-        _v2_placement_rows(),
-        pdfs={V2_ARTIFACT_SHA: pdf},
-        inventory_sha256="f" * 64,
-    )
-    result = evidence["results"][0]
-
-    assert result["pii_detected"] is True
-    assert result["status"] != "CLEARED"
+    with pytest.raises(ValueError, match="no decision set|human"):
+        builder._pii_evidence(
+            _v2_placement_rows(),
+            pdfs={V2_ARTIFACT_SHA: pdf},
+            inventory_sha256="f" * 64,
+        )
 
 
 def test_v2_producer_pii_evidence_names_the_page_policy_that_derived_its_pages(

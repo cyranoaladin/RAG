@@ -13,12 +13,18 @@ import subprocess
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
 
 import nexus_pdf_page_policy as page_policy
 import yaml
 from nexus_contracts.embedding_utils import format_passage
+from nexus_contracts.review_binding import (
+    ReviewBindingError,
+    TrustAnchor,
+    verify_pii_review_decision_authority,
+)
 from nexus_release_chain.collection_config import load_collection_config
 from nexus_release_chain.ingestion_profiles.manifest import verify_profile_manifest
 from nexus_release_chain.ingestion_profiles.registry import (
@@ -31,6 +37,13 @@ from nexus_release_chain.release_readiness import (
     load_release_registry_file,
 )
 
+from rag_pedago.imports.pii_review_projection import (
+    PiiProjectionError,
+    ScannedContent,
+    ScannedFinding,
+    finding_identity,
+    project_pii_review,
+)
 from rag_pedago.imports.pii_scanner import (
     extract_pdf_pages_with_structural_empty_pages,
     load_patterns_from_config,
@@ -157,6 +170,12 @@ PROFILE_MANIFEST_PATH = Path(os.environ.get(
     REPOSITORY_ROOT
     / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"))
 COLLECTION_CONFIG_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
+#: Dépôt dont un reçu de revue peut faire autorité ici. Constante du module,
+#: comme dans l'outillage de provenance : une revue faite ailleurs ne décide
+#: rien pour cette release. Ce n'est pas l'identité d'une campagne, qui,
+#: elle, n'apparaît jamais dans ce fichier.
+CANONICAL_REPOSITORY = "cyranoaladin/RAG"
+
 PII_POLICY_PATH = REPOSITORY_ROOT / "services/rag-pedago/configs/pii_gate_policy.yml"
 PII_SCANNER_PATH = REPOSITORY_ROOT / "services/rag-pedago/rag_pedago/imports/pii_scanner.py"
 RIGHTS_REGISTRY_PATH = (
@@ -1276,15 +1295,132 @@ def _corpus_descriptor(placement_rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+class ReviewAuthorityInputs(NamedTuple):
+    """Les quatre entrées qui portent la décision humaine, toutes injectées.
+
+    Aucune n'est dérivée d'un chemin en dur : faire tourner une autre campagne
+    de revue ne doit toucher aucune ligne de ce producteur."""
+
+    decision_set_path: Path | None
+    receipt_path: Path | None
+    trust_anchor_path: Path | None
+    review_index_path: Path | None
+    reviewers: tuple[str, ...]
+    environment: str = "production"
+
+    @property
+    def declared(self) -> bool:
+        return self.decision_set_path is not None
+
+
+#: « Aucune autorité de revue fournie ». Ce n'est pas une permission : toute
+#: détection rencontrée sans décision scellée est alors refusée. Le défaut
+#: existe pour qu'un appelant qui n'a rien à projeter n'ait pas à fabriquer
+#: une autorité vide, jamais pour rendre la revue facultative.
+NO_REVIEW_AUTHORITY = ReviewAuthorityInputs(None, None, None, None, ())
+
+
+def _load_review_authority(
+    inputs: ReviewAuthorityInputs,
+) -> tuple[dict[str, Any] | None, dict[str, str], dict[str, str]]:
+    """Vérifie la chaîne d'autorité et rend (décisions, paquets, empreintes).
+
+    Les paquets viennent de l'INDEX, jamais de la décision elle-même :
+    confronter une décision à sa propre revendication de paquet ne prouverait
+    rien. Les empreintes rendues rejoignent la chaîne d'autorité de la release
+    (§7) — celle du NOUVEAU candidat, jamais d'une release historique."""
+    if not inputs.declared:
+        return None, {}, {}
+
+    assert inputs.decision_set_path is not None
+    for label, path in (
+        ("decision set", inputs.decision_set_path),
+        ("review receipt", inputs.receipt_path),
+        ("trust anchor", inputs.trust_anchor_path),
+        ("review index", inputs.review_index_path),
+    ):
+        if path is None or not path.is_file():
+            raise ValueError(
+                f"the PII {label} is required to project a human review and is absent"
+            )
+    assert inputs.receipt_path and inputs.trust_anchor_path and inputs.review_index_path
+
+    raw_decision_set = inputs.decision_set_path.read_bytes()
+    raw_receipt = inputs.receipt_path.read_bytes()
+    anchor_bytes = inputs.trust_anchor_path.read_bytes()
+    try:
+        anchor = TrustAnchor.model_validate(json.loads(anchor_bytes.decode("utf-8")))
+    except Exception as exc:  # noqa: BLE001 - frontière de parsing
+        raise ValueError(f"the review trust anchor is not usable: {exc}") from exc
+
+    try:
+        decision_set, _binding = verify_pii_review_decision_authority(
+            decision_set_bytes=raw_decision_set,
+            receipt_bytes=raw_receipt,
+            trust_anchor=anchor,
+            environment=inputs.environment,  # type: ignore[arg-type]
+            expected_repository=CANONICAL_REPOSITORY,
+            accepted_reviewers=inputs.reviewers or None,
+            now=datetime.now(UTC),
+        )
+    except ReviewBindingError as exc:
+        raise ValueError(f"the PII review authority is refused: {exc}") from exc
+
+    index = json.loads(inputs.review_index_path.read_text(encoding="utf-8"))
+    bundles = {
+        str(entry["content_sha256"]): str(entry["bundle_sha256"])
+        for entry in index.get("bundles", [])
+    }
+    if index.get("review_index_sha256_declared") is None:
+        indexed_digest = _sha256_bytes(inputs.review_index_path.read_bytes())
+        if indexed_digest != decision_set.review_index_sha256:
+            raise ValueError(
+                "the decision set was sealed against review index "
+                f"{decision_set.review_index_sha256[:16]}… while the supplied index "
+                f"hashes to {indexed_digest[:16]}… — they are not the same campaign"
+            )
+
+    digests = {
+        "pii_decision_set_sha256": _sha256_bytes(raw_decision_set),
+        "pii_review_receipt_sha256": _sha256_bytes(raw_receipt),
+        "pii_review_trust_anchor_sha256": _sha256_bytes(anchor_bytes),
+        "pii_review_index_sha256": _sha256_bytes(inputs.review_index_path.read_bytes()),
+    }
+    return json.loads(raw_decision_set.decode("utf-8")), bundles, digests
+
+
 def _pii_evidence(
     placement_rows: list[dict[str, Any]],
     *,
     pdfs: Mapping[str, VerifiedPdf],
     inventory_sha256: str,
+    review_authority: ReviewAuthorityInputs = NO_REVIEW_AUTHORITY,
 ) -> dict[str, Any]:
     patterns = load_patterns_from_config(PII_POLICY_PATH)
-    results = []
     grouped = _group_artifact_rows(placement_rows)
+    policy_sha = _file_sha256(PII_POLICY_PATH)
+    scanner_sha = _file_sha256(PII_SCANNER_PATH)
+    page_policy_sha = page_policy.policy_source_sha256()
+
+    decision_document, review_bundles, authority_digests = _load_review_authority(
+        review_authority
+    )
+
+    # ── LE SCAN MESURE, LA REVUE DÉCIDE ─────────────────────────────────
+    #
+    # Le scan enregistre ce qu'il trouve, sans rien exclure ni rien admettre :
+    # sa précision mesurée (2 vrais positifs sur 20 correspondances tirées au
+    # hasard) ne lui donne pas qualité à trancher. La raison est structurelle,
+    # pas un défaut de réglage — le corpus ENSEIGNE le courriel, les en-têtes,
+    # l'encodage et les formats de contact, si bien qu'un détecteur de données
+    # personnelles passé sur du matériel pédagogique qui porte sur les formats
+    # de données personnelles se déclenche sur la pédagogie.
+    #
+    # C'est donc une revue humaine, décision par décision, contenu par contenu,
+    # scellée et signée, qui décide (ADR-0047). Ce producteur ne fait que
+    # projeter son résultat : il n'ajoute aucun jugement, et il refuse dès que
+    # son scan et cette revue ne décrivent pas le même monde.
+    scanned: list[ScannedContent] = []
     for sha, group in grouped.items():
         row = group["artifact_row"]
         pdf = pdfs[sha]
@@ -1295,50 +1431,67 @@ def _pii_evidence(
         )
         if result.sha256 != row["content_sha256"]:
             raise ValueError(f"PII scan digest differs for {row['content_sha256']}")
-        # DÉCISION OPÉRATEUR DU 29/08/2026 — le scan ENREGISTRE, il n'exclut plus.
-        #
-        # Sa précision a été mesurée : 2 vrais positifs sur 20 correspondances
-        # tirées au hasard, soit 10 %. Un détecteur à cette précision n'a pas
-        # qualité à exclure. Et la raison est structurelle, non un défaut de
-        # réglage : le corpus ENSEIGNE le courriel, le pourriel, les en-têtes,
-        # l'encodage et les formats de contact. Un détecteur de données
-        # personnelles passé sur du matériel pédagogique qui porte sur les
-        # formats de données personnelles se déclenche sur la pédagogie.
-        #
-        # Quatre appuis : zéro NIR sur neuf chaînes candidates (contrôle de clé,
-        # T2) ; précision 10 % mesurée ; la source est une publication publique
-        # et licite de l'État — indexer ne divulgue rien qui ne le soit déjà ;
-        # et les deux seuls vrais positifs sont l'adresse d'un lycée dans une
-        # liste de commission et le courriel d'une autrice adulte publié par
-        # l'État. Aucune donnée d'élève, aucun mineur.
-        #
-        # La protection n'est pas levée, elle est rendue EXACTE. Les
-        # correspondances restent consignées dans la preuve : un document qui
-        # en porte est servi, et le fait est enregistré.
         if result.extraction_error:
             raise ValueError(
                 f"PII scan could not read {row['content_sha256']} — "
                 f"{result.extraction_error}"
             )
-        pii_detected = bool(result.pii_detected)
-        core = {
-            "content_sha256": row["content_sha256"],
-            "pages_scanned": result.pages_scanned,
-            "characters_scanned": result.characters_scanned,
-            "ignored_empty_pages": list(result.ignored_empty_pages),
-            # La décision opérateur autorise l'indexation de correspondances
-            # consignées ; elle n'autorise jamais à réécrire la mesure. Une
-            # preuve positive reste donc positive et ne dit pas CLEARED.
-            "status": "DETECTED_RECORDED" if pii_detected else "CLEARED",
-            "pii_detected": pii_detected,
-        }
-        results.append(
-            {
-                **core,
-                "evidence_sha256": _sha256_bytes(_compact_json_bytes(core)),
-                "source_path": row["physical_path"],
-            }
+        findings: list[ScannedFinding] = []
+        for match in result.matches:
+            match_sha = _sha256_bytes(match.match_text.encode("utf-8"))
+            findings.append(
+                ScannedFinding(
+                    # L'identité vient de l'autorité unique du scanner : c'est
+                    # elle qui rend les findings du scan comparables à ceux que
+                    # la revue humaine a dispositionnés.
+                    finding_id=finding_identity(
+                        content_sha256=row["content_sha256"],
+                        pattern_id=match.pattern_id,
+                        page_number=match.page_number,
+                        char_offset=match.char_offset,
+                        match_sha256=match_sha,
+                    ),
+                    pattern_id=match.pattern_id,
+                    page=match.page_number or 1,
+                    match_sha256=match_sha,
+                    context_sha256=_sha256_bytes(match.context.encode("utf-8")),
+                )
+            )
+        scanned.append(
+            ScannedContent(
+                content_sha256=row["content_sha256"],
+                pages_scanned=result.pages_scanned,
+                characters_scanned=result.characters_scanned,
+                ignored_empty_pages=tuple(result.ignored_empty_pages),
+                findings=tuple(findings),
+            )
         )
+
+    try:
+        projection = project_pii_review(
+            scanned,
+            decision_set_document=decision_document,
+            review_bundles=review_bundles,
+            policy_sha256=policy_sha,
+            scanner_sha256=scanner_sha,
+            page_policy_sha256=page_policy_sha,
+        )
+    except PiiProjectionError as exc:
+        raise ValueError(f"the PII review cannot be projected on this scan: {exc}") from exc
+
+    source_by_sha = {
+        group["artifact_row"]["content_sha256"]: group["artifact_row"]["physical_path"]
+        for group in grouped.values()
+    }
+    results = [
+        {
+            **entry,
+            "evidence_sha256": _sha256_bytes(_compact_json_bytes(entry)),
+            "source_path": source_by_sha[entry["content_sha256"]],
+        }
+        for entry in projection.entries
+    ]
+
     return {
         "evidence_kind": "REAL_CORPUS_PII_SCAN",
         "school_year": SCHOOL_YEAR,
@@ -1355,12 +1508,18 @@ def _pii_evidence(
         "remote_write_operations": 0,
         "raw_pii_in_output": False,
         "raw_pii_in_logs": False,
+        "decision_set_id": projection.decision_set_id,
+        **authority_digests,
         "summary": {
             "unique_contents_required": len(grouped),
             "unique_contents_scanned": len(grouped),
             "pii_scan_coverage": 1.0,
             "unique_contents_not_scanned": 0,
             "sha256_mismatches": 0,
+            # Sept dimensions distinctes, toutes DÉRIVÉES des ensembles. Les
+            # fondre en « combien sont propres » rendrait invisible la
+            # différence entre « rien trouvé » et « trouvé, examiné, admis ».
+            **projection.counts,
         },
         "results": results,
     }
@@ -2243,6 +2402,7 @@ def build_release(
     review_status: str | None = None,
     release_id: str | None = None,
     source_release_root: Path | None = None,
+    review_authority: ReviewAuthorityInputs | None = None,
 ) -> dict[Path, bytes]:
     if release_mode == "rehearsal":
         return _build_rehearsal_release(
@@ -2337,7 +2497,12 @@ def build_release(
         inventory_sha256=inventory_sha,
         network_audit=network_audit,
     )
-    pii = _pii_evidence(placement_rows, pdfs=pdfs, inventory_sha256=inventory_sha)
+    pii = _pii_evidence(
+        placement_rows,
+        pdfs=pdfs,
+        inventory_sha256=inventory_sha,
+        review_authority=review_authority or NO_REVIEW_AUTHORITY,
+    )
     preflight = _preflight(
         placement_rows,
         pdfs=pdfs,
@@ -2376,6 +2541,19 @@ def build_release(
         "pii_evidence_sha256": RELEASE_ROOT / "pii_evidence.json",
         "pii_policy_sha256": PII_POLICY_PATH,
         "pii_scanner_sha256": PII_SCANNER_PATH,
+        # ADR-0047 §7 : la décision humaine et son reçu appartiennent à la
+        # chaîne d'autorité de CE candidat. On ne réécrit jamais les liens
+        # d'une release historique pour les y faire entrer après coup.
+        **(
+            {
+                "pii_decision_set_sha256": review_authority.decision_set_path,
+                "pii_review_receipt_sha256": review_authority.receipt_path,
+                "pii_review_trust_anchor_sha256": review_authority.trust_anchor_path,
+                "pii_review_index_sha256": review_authority.review_index_path,
+            }
+            if review_authority is not None and review_authority.declared
+            else {}
+        ),
         "rights_registry_sha256": RIGHTS_REGISTRY_PATH,
         "preflight_evidence_sha256": RELEASE_ROOT / "preflight_evidence.json",
         "programme_registry_sha256": RELEASE_ROOT / "programme_registry.json",
@@ -2441,8 +2619,21 @@ def build_release(
             authorities=authorities,
             models=models,
             release_root=RELEASE_ROOT,
-            release_id=RELEASE_ID,
+            # §8 : une candidate porte SA propre identité. Réemployer
+            # l'identifiant historique ferait passer une nouvelle release pour
+            # celle dont la sémantique a déjà dérivé — et rendrait indécidable
+            # laquelle des deux un registre désigne.
+            release_id=release_id or RELEASE_ID,
             school_year=SCHOOL_YEAR,
+            # §9-§10 : le corpus peut être final et la release rester non
+            # activable. Le gate PII n'est qu'un des gates de go-live, et le
+            # runtime refuse déjà mécaniquement NOT_PROMOTABLE /
+            # NO_PRODUCTION_ACTIVATION. Ces statuts traversent donc aussi la
+            # voie production, sans quoi une candidate serait silencieusement
+            # activable au seul motif que sa PII est en règle.
+            promotion_status=promotion_status,
+            activation_status=activation_status,
+            review_status=review_status,
         )
     )
     bindings = {
@@ -2702,7 +2893,39 @@ def main(argv: list[str] | None = None) -> int:
         help="Répertoire de sortie. NEUF et vide — le producteur refuse "
              "d'écrire dans un répertoire existant qui n'est pas le sien.")
     parser.add_argument("--verify-official-downloads", action="store_true")
+    # ── L'AUTORITÉ DE REVUE PII S'INJECTE ───────────────────────────────
+    #
+    # Ni identifiant de campagne, ni chemin de gouvernance en dur : faire
+    # tourner une autre campagne demain ne doit toucher aucune ligne de ce
+    # fichier. Les quatre entrées sont fournies ensemble ou pas du tout ; une
+    # release sans contenu détecté n'a pas de décisions à joindre, et le
+    # producteur refuse toute détection non dispositionnée.
+    for option, description in (
+        ("pii-decision-set", "ensemble scellé des décisions humaines de revue PII"),
+        ("pii-review-receipt", "reçu ADR-0035 scellant cet ensemble"),
+        ("review-trust-anchor", "ancre de confiance vérifiant le reçu"),
+        ("pii-review-index", "index des paquets de revue ayant fondé les décisions"),
+    ):
+        parser.add_argument(f"--{option}", type=Path, default=None, help=description)
+    parser.add_argument(
+        "--pii-review-reviewer",
+        action="append",
+        default=None,
+        dest="pii_review_reviewers",
+        help=(
+            "Login GitHub autorisé à approuver l'ensemble de décisions. Répétable. "
+            "Absent signifie qu'aucune revue n'est acceptée — jamais que tout "
+            "reviewer convient."
+        ),
+    )
     args = parser.parse_args(argv)
+    review_authority = ReviewAuthorityInputs(
+        decision_set_path=args.pii_decision_set,
+        receipt_path=args.pii_review_receipt,
+        trust_anchor_path=args.review_trust_anchor,
+        review_index_path=args.pii_review_index,
+        reviewers=tuple(args.pii_review_reviewers or ()),
+    )
     if args.release_mode == "production" and (
         args.pdf_root is None
         or args.embedding_snapshot is None
@@ -2722,6 +2945,7 @@ def main(argv: list[str] | None = None) -> int:
         review_status=args.review_status,
         release_id=args.release_id,
         source_release_root=args.source_release_root,
+        review_authority=review_authority,
     )
     ecrit = _write_documents(
         documents,
