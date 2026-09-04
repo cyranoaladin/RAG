@@ -219,9 +219,8 @@ class TestCandidateIsFinalButNotActivable:
     déjà mécaniquement."""
 
     def test_production_mode_accepts_candidate_status_flags(self) -> None:
-        import inspect
-
         import importlib.util
+        import inspect
 
         spec = importlib.util.spec_from_file_location("_producer_flags", PRODUCER)
         assert spec and spec.loader

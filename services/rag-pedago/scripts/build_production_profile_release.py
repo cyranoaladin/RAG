@@ -422,7 +422,54 @@ def _model_inventory(
         rows.append(f"{_file_sha256(path)}  {relative}")
     if not any(row.endswith("model.safetensors") for row in rows):
         raise ValueError("model inventory has no weights")
+    _require_declared_modules_are_present(snapshot)
     return manifest_bytes, ("\n".join(rows) + "\n").encode()
+
+
+#: Types de modules `sentence_transformers` qui ne portent AUCUN fichier. Un
+#: module de ce type n'a pas de répertoire, même dans un artefact complet :
+#: exiger le sien refuserait l'instantané qui sert aujourd'hui.
+_PARAMETERLESS_MODULE_TYPES = frozenset({"sentence_transformers.models.Normalize"})
+
+
+def _require_declared_modules_are_present(snapshot: Path) -> None:
+    """Un instantané doit contenir les modules que `modules.json` déclare.
+
+    Le 27/08/2026, un artefact embedding a été scellé sans `1_Pooling/` :
+    conforme à son empreinte, et incapable de se charger — `sentence_transformers`
+    lit `modules.json`, ne trouve pas le module de pooling en local, et retombe
+    sur un téléchargement distant qui échoue hors ligne. « Pas de poids, pas
+    d'inventaire » protégeait les poids ; rien ne protégeait la structure.
+
+    La règle appliquée est celle que le fichier énonce lui-même, et non une
+    liste de fichiers devinée : chaque module déclaré avec un chemin doit
+    exister. Un type inconnu et absent fait échouer — un garde-fou qui ne
+    reconnaît pas quelque chose se ferme, il ne suppose pas."""
+    modules_path = snapshot / "modules.json"
+    if not modules_path.is_file():
+        # Tout instantané n'est pas un sentence-transformer : le reranker, par
+        # exemple, n'a pas de `modules.json` et n'a donc rien à déclarer.
+        return
+    try:
+        declared = json.loads(modules_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"modules.json is not readable in {snapshot}: {exc}") from exc
+    if not isinstance(declared, list):
+        raise ValueError(f"modules.json must declare a list in {snapshot}")
+    for module in declared:
+        if not isinstance(module, dict):
+            raise ValueError(f"modules.json carries a non-object module in {snapshot}")
+        relative = str(module.get("path") or "")
+        if not relative:
+            continue  # le transformeur racine, déjà couvert par les poids
+        if str(module.get("type")) in _PARAMETERLESS_MODULE_TYPES:
+            continue
+        if not (snapshot / relative).is_dir():
+            raise ValueError(
+                f"model snapshot {snapshot.name} declares module {relative!r} "
+                f"({module.get('type')}) in modules.json but does not carry it — "
+                "the artifact would seal cleanly and fail to load"
+            )
 
 
 def _old_artifacts() -> dict[str, dict[str, Any]]:

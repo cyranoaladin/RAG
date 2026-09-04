@@ -98,6 +98,24 @@ class TestTheScannerDigestIsSealed:
             "décrivent plus ce scanner, et ne peuvent plus admettre aucun contenu"
         )
 
+    def test_the_page_policy_too_is_sealed(self) -> None:
+        """Le foyer de pages décide quelles pages sont scannées et citées.
+
+        Le changer déplacerait les pages sous les décisions déjà rendues."""
+        import json
+        from pathlib import Path
+
+        import nexus_pdf_page_policy as page_policy
+
+        root = Path(__file__).resolve().parents[3]
+        sealed = json.loads(
+            (
+                root / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert page_policy.policy_source_sha256() == sealed["page_policy_sha256"]
+        assert page_policy.POLICY_ID == sealed["page_policy_id"]
+
     def test_the_policy_too_is_sealed(self) -> None:
         import json
         from hashlib import sha256
