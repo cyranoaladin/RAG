@@ -325,6 +325,83 @@ def _always_authorized(conn, *, authorization_id, scope=None, now=None):
     )
 
 
+_RESUME_CONTENT = b"<p>Cours d'algorithmique pour la terminale (reprise).</p>"
+#: Manifeste de corpus des preuves scellées de ce banc.
+_CORPUS_MANIFEST_SHA = "d" * 64
+
+
+def _sealed_registries(tmp_path: Path) -> dict[str, object]:
+    """Registres scellés RÉELS, couvrant le contenu de ce banc.
+
+    Ce fichier construisait des `WorkerDeps` sans registres. Depuis que la
+    preuve scellée est obligatoire, chaque itération échouait avant d'agir et
+    les trois tests de reprise observaient `retried` au lieu de `succeeded` :
+    ils ne mesuraient plus la reprise du tout.
+
+    `non_publishable=True` les aurait rendus verts en sautant la mise en
+    revue — donc en supprimant précisément l'étape dont ces tests vérifient
+    qu'elle n'est PAS rejouée. Les registres sont réels, et la zone approuvée
+    couvre l'URL de ce banc pour que le job puisse réussir."""
+    import hashlib
+    import json
+
+    from ingestor.ingestion_control.sealed_evidence import (
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
+    )
+
+    root = tmp_path / "sealed"
+    root.mkdir(parents=True, exist_ok=True)
+    zone = "https://eduscol.education.fr/"
+    pii = root / "pii.json"
+    pii.write_text(
+        json.dumps(
+            {
+                "evidence_kind": "REAL_CORPUS_PII_SCAN",
+                "corpus_manifest_sha256": _CORPUS_MANIFEST_SHA,
+                "remote_access_mode": "READ_ONLY",
+                "remote_write_operations": 0,
+                "raw_pii_in_output": False,
+                "raw_pii_in_logs": False,
+                "results": [
+                    {
+                        "content_sha256": hashlib.sha256(_RESUME_CONTENT).hexdigest(),
+                        "status": "CLEARED",
+                        "pii_detected": False,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    rights = root / "rights.yml"
+    rights.write_text(
+        "registry_id: worker-resume\n"
+        "human_rights_decisions:\n"
+        "  eduscol:\n"
+        f'    scope_manifest_sha256: "{_CORPUS_MANIFEST_SHA}"\n'
+        f"    scope_zone: {zone}\n"
+        "    approved_for_production_rag: true\n"
+        "source_evidence:\n"
+        "  eduscol:\n"
+        f"    zone: {zone}\n"
+        "    recommended_rights_category: officiel_public\n",
+        encoding="utf-8",
+    )
+    return {
+        "pii_evidence_registry": VerifiedPIIEvidenceRegistry.load(
+            pii,
+            expected_evidence_sha256=hashlib.sha256(pii.read_bytes()).hexdigest(),
+            expected_corpus_manifest_sha256=_CORPUS_MANIFEST_SHA,
+        ),
+        "rights_evidence_registry": VerifiedRightsEvidenceRegistry.load(
+            rights,
+            expected_registry_sha256=hashlib.sha256(rights.read_bytes()).hexdigest(),
+            expected_corpus_manifest_sha256=_CORPUS_MANIFEST_SHA,
+        ),
+    }
+
+
 def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> WorkerDeps:
     profiles_dir = tmp_path / "profiles"
     _write_profile(profiles_dir)
@@ -337,6 +414,7 @@ def _worker_deps(tmp_path: Path, *, safe_fetch, owner: str = "worker-e2e") -> Wo
         safe_fetch=safe_fetch,
         verify_scope_authorization=_always_authorized,
         manifest_digest=STUB_MANIFEST_DIGEST,
+        **_sealed_registries(tmp_path),
     )
 
 
@@ -673,6 +751,7 @@ class TestCrashAfterFetcherResumesFromExtractor:
             safe_fetch=_fake_safe_fetch_success,
             verify_scope_authorization=_always_authorized,
             manifest_digest=STUB_MANIFEST_DIGEST,
+            **_sealed_registries(tmp_path),
         )
         first = run_worker_iteration(app_conn, deps=crashing_deps)
         assert first.status == "retried"

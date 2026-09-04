@@ -22,6 +22,7 @@ de façon déterministe, sans dépendre d'une corruption de fichier SQL.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import shutil
 import socket
@@ -54,7 +55,27 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-def _make_dummy_env_file(path: Path, *, pgvector_port: int, colliding_roles: bool) -> None:
+def _required_compose_variables() -> list[str]:
+    """Les variables `${VAR:?…}` que la fusion des deux Compose EXIGE.
+
+    Elles étaient énumérées à la main. Le jour où un fichier Compose en a
+    gagné une — `PGVECTOR_PUBLISHER_PASSWORD` — la liste a silencieusement
+    divergé, et les trois tests de ce fichier ont commencé à échouer sur une
+    erreur d'interpolation qui n'avait rien à voir avec ce qu'ils mesurent.
+    Quatre autres manquaient déjà.
+
+    Les lire dans les fichiers rend la dérive impossible : le banc suit le
+    Compose, au lieu de prétendre le connaître."""
+    pattern = re.compile(r"\$\{([A-Z_][A-Z0-9_]*):\?")
+    required: set[str] = set()
+    for compose in (COMPOSE_V2, COMPOSE_INGESTION):
+        required |= set(pattern.findall(compose.read_text(encoding="utf-8")))
+    return sorted(required)
+
+
+def _make_dummy_env_file(
+    path: Path, *, pgvector_port: int, colliding_roles: bool, host_dir: Path
+) -> None:
     """Valeurs factices, syntaxiquement valides, pour CHAQUE variable
     ``:?`` exigée par la fusion des deux fichiers Compose — y compris les
     variables du service ``ingestor`` (sans rapport avec ce test), que
@@ -68,31 +89,37 @@ def _make_dummy_env_file(path: Path, *, pgvector_port: int, colliding_roles: boo
     # passe runtime (vérifié empiriquement : "mot de passe runtime trop
     # court (32 caracteres minimum)") — token_urlsafe(24) produit 32
     # caractères, même convention que le reste de la suite d'intégration.
-    lines = [
-        f"PGVECTOR_PASSWORD={secrets.token_urlsafe(24)}",
-        f"PGVECTOR_RETRIEVAL_PASSWORD={secrets.token_urlsafe(24)}",
-        f"PGVECTOR_REVIEW_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_MIGRATOR_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_APP_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_AUTHORITY_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_ATTESTOR_PASSWORD={secrets.token_urlsafe(24)}",
+    #
+    # Les variables qui exigent une FORME précise sont nommées ici ; toutes
+    # les autres reçoivent un mot de passe factice conforme.
+    host_dir.mkdir(parents=True, exist_ok=True)
+    shaped: dict[str, str] = {
+        "PG_INGESTION_CONTROL_DSN": (
+            "postgresql://ingestion_control_app_test:dummy@pgvector:5432/ragdb"
+        ),
+        "PG_RAG_DSN": "postgresql://dummy:dummy@pgvector:5432/ragdb",
+        "PG_REVIEW_DSN": "postgresql://dummy:dummy@pgvector:5432/ragdb",
+        "NEXUS_INTERNAL_TOKEN_AUDIENCE": f"test-audience-{uuid.uuid4().hex[:8]}",
+        "NEXUS_INTERNAL_TOKEN_ISSUER": f"test-issuer-{uuid.uuid4().hex[:8]}",
+        "NEXUS_SSO_AUDIENCE": f"test-sso-audience-{uuid.uuid4().hex[:8]}",
+        "NEXUS_SSO_ISSUER": f"test-sso-issuer-{uuid.uuid4().hex[:8]}",
+    }
+    for name in _required_compose_variables():
+        if name in shaped:
+            continue
+        shaped[name] = (
+            str(host_dir) if name.endswith(("_HOST_DIR", "_CACHE_DIR"))
+            else secrets.token_urlsafe(24)
+        )
+    lines = [f"{name}={value}" for name, value in sorted(shaped.items())]
+    lines += [
         f"INGESTION_CONTROL_MIGRATOR_ROLE={migrator_role}",
         f"INGESTION_CONTROL_APP_ROLE={app_role}",
-        "PG_INGESTION_CONTROL_DSN=postgresql://ingestion_control_app_test:dummy@pgvector:5432/ragdb",
-        "PG_RAG_DSN=postgresql://dummy:dummy@pgvector:5432/ragdb",
-        "PG_REVIEW_DSN=postgresql://dummy:dummy@pgvector:5432/ragdb",
-        f"NEXUS_INTERNAL_TOKEN_AUDIENCE=test-audience-{uuid.uuid4().hex[:8]}",
-        f"NEXUS_INTERNAL_TOKEN_ISSUER=test-issuer-{uuid.uuid4().hex[:8]}",
-        f"NEXUS_INTERNAL_TOKEN_SECRET={secrets.token_urlsafe(24)}",
-        f"NEXUS_SSO_AUDIENCE=test-sso-audience-{uuid.uuid4().hex[:8]}",
-        f"NEXUS_SSO_ISSUER=test-sso-issuer-{uuid.uuid4().hex[:8]}",
-        f"RAG_BFF_SERVICE_TOKEN={secrets.token_urlsafe(24)}",
         "RAG_EMBEDDING_MODEL_INVENTORY_SHA256=" + "0" * 64,
         "RAG_RERANKER_MODEL_INVENTORY_SHA256=" + "0" * 64,
         f"PGVECTOR_PORT={pgvector_port}",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
 
 @pytest.fixture
 def isolated_project(tmp_path: Path) -> Iterator[dict[str, str]]:
@@ -116,7 +143,10 @@ def _run_v2_ingestion_up(
 ) -> subprocess.CompletedProcess[str]:
     env_file = Path(isolated_project["env_file"])
     _make_dummy_env_file(
-        env_file, pgvector_port=int(isolated_project["port"]), colliding_roles=colliding_roles
+        env_file,
+        pgvector_port=int(isolated_project["port"]),
+        colliding_roles=colliding_roles,
+        host_dir=env_file.parent / "host",
     )
     env = os.environ.copy()
     # Réplique exactement COMPOSE_V2_INGESTION + la cible v2-ingestion-up

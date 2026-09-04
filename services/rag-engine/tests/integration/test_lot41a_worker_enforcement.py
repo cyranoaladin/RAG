@@ -61,6 +61,8 @@ from ingestor.ssrf_guard import safe_fetch  # noqa: E402
 pytestmark = [pytest.mark.integration, requires_docker]
 
 MANIFEST_DIGEST = "7" * 64
+#: Manifeste de corpus des preuves scellées de ce banc.
+CORPUS_MANIFEST_SHA = "d" * 64
 FETCH_CONTENT = b"<p>Cours d'algorithmique: recursivite, tris, structures.</p>"
 
 VALID_SCOPE: dict[str, Any] = {
@@ -134,6 +136,102 @@ def fetch_ok(url: str, *, max_bytes: int, **kwargs: Any) -> httpx.Response:
     )
 
 
+def sealed_registries(tmp_path: Path) -> tuple[Any, Any]:
+    """Registres scellés RÉELS pour un worker de test.
+
+    Ce banc construisait un worker sans aucun registre. Depuis que la preuve
+    scellée est obligatoire, `require_sealed_evidence` refusait donc AVANT
+    d'atteindre les points de contrôle que ces tests mesurent : l'échec ne
+    disait plus rien sur les droits ni sur le périmètre.
+
+    `non_publishable=True` aurait fait passer les tests — et les aurait
+    VIDÉS : ce drapeau saute entièrement la résolution des droits
+    (`runner.py`, « if not deps.non_publishable »). Un test vert qui n'exerce
+    plus la garde qu'il prétend tenir est pire que le rouge qu'il remplace.
+
+    Les registres sont donc réels, et volontairement ÉTROITS : ils
+    n'approuvent qu'une zone `01_EDUSCOL_OFFICIEL/`, dans laquelle le contenu
+    récupéré par ce banc ne tombe pas. Le worker atteint le point de contrôle
+    des droits et refuse — ce qui est exactement ce qu'on veut prouver."""
+    import hashlib
+    import json
+
+    from ingestor.ingestion_control.sealed_evidence import (
+        VerifiedPIIEvidenceRegistry,
+        VerifiedRightsEvidenceRegistry,
+    )
+
+    root = tmp_path / "sealed"
+    root.mkdir(parents=True, exist_ok=True)
+    content_sha = hashlib.sha256(FETCH_CONTENT).hexdigest()
+    pii = root / "pii.json"
+    pii.write_text(
+        json.dumps(
+            {
+                "evidence_kind": "REAL_CORPUS_PII_SCAN",
+                "corpus_manifest_sha256": CORPUS_MANIFEST_SHA,
+                "remote_access_mode": "READ_ONLY",
+                "remote_write_operations": 0,
+                "raw_pii_in_output": False,
+                "raw_pii_in_logs": False,
+                "results": [
+                    {"content_sha256": content_sha, "status": "CLEARED", "pii_detected": False}
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    rights = root / "rights.yml"
+    rights.write_text(
+        "registry_id: worker-enforcement\n"
+        "human_rights_decisions:\n"
+        "  eduscol:\n"
+        f'    scope_manifest_sha256: "{CORPUS_MANIFEST_SHA}"\n'
+        "    scope_zone: 01_EDUSCOL_OFFICIEL/\n"
+        "    approved_for_production_rag: true\n"
+        "source_evidence:\n"
+        "  eduscol:\n"
+        "    zone: 01_EDUSCOL_OFFICIEL/\n"
+        "    recommended_rights_category: officiel_public\n",
+        encoding="utf-8",
+    )
+    return (
+        VerifiedPIIEvidenceRegistry.load(
+            pii,
+            expected_evidence_sha256=hashlib.sha256(pii.read_bytes()).hexdigest(),
+            expected_corpus_manifest_sha256=CORPUS_MANIFEST_SHA,
+        ),
+        VerifiedRightsEvidenceRegistry.load(
+            rights,
+            expected_registry_sha256=hashlib.sha256(rights.read_bytes()).hexdigest(),
+            expected_corpus_manifest_sha256=CORPUS_MANIFEST_SHA,
+        ),
+    )
+
+
+def assert_rights_were_not_manufactured(outcome: Any) -> None:
+    """Le worker a refusé FAUTE de droits — jamais en les inférant.
+
+    L'assertion portait sur la chaîne `Rights.unknown`, produite par une
+    version antérieure du registre. L'architecture actuelle refuse en
+    NOMMANT les zones qu'un humain a approuvées, ce qui est plus précis, pas
+    moins : recopier la nouvelle chaîne aurait juste déplacé le problème.
+
+    Ce qui est vérifié ici est la propriété, et elle n'a pas bougé : le job
+    ne réussit pas, et le refus parle de droits que personne n'a accordés."""
+    assert outcome.status in ("retried", "dead_letter"), (
+        f"un job sans droits résolus ne doit jamais réussir (statut {outcome.status!r})"
+    )
+    error = str(outcome.error)
+    assert "rights" in error.lower(), (
+        f"le refus doit nommer les droits, pas une cause accessoire : {error!r}"
+    )
+    assert "inferring" in error or "unknown rights" in error, (
+        "le refus doit dire qu'aucun droit n'est INFÉRÉ — un worker qui se "
+        f"rabattrait sur la licence de l'artefact ne dirait pas cela : {error!r}"
+    )
+
+
 def deps_for(
     tmp_path: Path, *, auth: Any, safe_fetch_impl: Any = fetch_ok,
     manifest_digest: str = MANIFEST_DIGEST, owner: str = "worker-enforcement",
@@ -152,6 +250,11 @@ def deps_for(
         safe_fetch=safe_fetch_impl,
         verify_scope_authorization=stub_verifier(auth),
         manifest_digest=manifest_digest,
+        **dict(zip(
+            ("pii_evidence_registry", "rights_evidence_registry"),
+            sealed_registries(tmp_path),
+            strict=True,
+        )),
     )
 
 
@@ -230,8 +333,7 @@ class TestRightsEvidenceIsIndependentFromScopeAuthority:
     ) -> None:
         submit(conn)
         outcome = run_once(conn, deps_for(tmp_path, auth=authorization()))
-        assert outcome.status in ("retried", "dead_letter")
-        assert "Rights.unknown" in str(outcome.error)
+        assert_rights_were_not_manufactured(outcome)
         assert denial_events(conn) == []
         with conn.cursor() as cur:
             cur.execute(
@@ -250,8 +352,7 @@ class TestRightsEvidenceIsIndependentFromScopeAuthority:
     ) -> None:
         submit(conn, license="FORGED-OPERATOR-ASSERTION")
         outcome = run_once(conn, deps_for(tmp_path, auth=authorization()))
-        assert outcome.status in ("retried", "dead_letter")
-        assert "Rights.unknown" in str(outcome.error)
+        assert_rights_were_not_manufactured(outcome)
         with conn.cursor() as cur:
             cur.execute("SELECT payload->>'license' FROM ingestion_control.artifacts")
             row = cur.fetchone()
@@ -564,8 +665,7 @@ class TestContentCheckpoint:
         )
         submit(conn)
         outcome = run_once(conn, deps_for(tmp_path, auth=auth))
-        assert outcome.status in ("retried", "dead_letter")
-        assert "Rights.unknown" in str(outcome.error)
+        assert_rights_were_not_manufactured(outcome)
         with conn.cursor() as cur:
             cur.execute(
                 "SELECT payload FROM ingestion_control.workflow_events "
@@ -587,8 +687,7 @@ class TestRightsCheckpoint:
         submit(conn)
         auth = authorization(rights_categories=("officiel_public",))
         outcome = run_once(conn, deps_for(tmp_path, auth=auth))
-        assert outcome.status in ("retried", "dead_letter")
-        assert "Rights.unknown" in str(outcome.error)
+        assert_rights_were_not_manufactured(outcome)
         assert denial_events(conn) == []
 
     def test_the_resource_never_reaches_quality_checked_when_rights_are_denied(
