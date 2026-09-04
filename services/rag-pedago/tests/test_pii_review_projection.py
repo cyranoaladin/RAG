@@ -503,3 +503,64 @@ class TestADuplicateFindingIdIsNeverDeduplicated:
             "le doublon doit être refusé pour ce qu'il est, pas confondu avec "
             "un finding non dispositionné"
         )
+
+
+class TestTheCorpusBindingComparesComparableThings:
+    """Le liage au corpus doit confronter deux mesures de MÊME nature.
+
+    L'ensemble de décisions scellé enregistre, sous `corpus_manifest_sha256`,
+    l'empreinte du FICHIER d'autorité de manifeste — `5ce13fac…` pour la
+    campagne du 3 septembre. La release, elle, embarque la valeur que ce
+    fichier DÉCLARE — `d7e5caa5…`, son `authority_sha256`.
+
+    Ce sont deux mesures de la même autorité, jamais égales. Les comparer
+    directement produit un refus systématique : la garde censée empêcher qu'une
+    revue soit projetée sur un autre corpus refusait le corpus même sur lequel
+    la revue a été rendue.
+
+    Mesuré : le producteur passait `CORPUS_MANIFEST_AUTHORITY` (la valeur
+    déclarée) là où l'ensemble scellé attend l'empreinte du fichier. La
+    candidate de production était donc impossible à reproduire.
+    """
+
+    def test_the_sealed_campaign_projects_on_its_own_authority_file(self) -> None:
+        """La campagne réelle doit se projeter sur SON fichier d'autorité."""
+        import hashlib
+        import json
+        import pathlib
+
+        repository = pathlib.Path(__file__).resolve().parents[3]
+        decision_set = json.loads(
+            (
+                repository
+                / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
+            ).read_text(encoding="utf-8")
+        )
+        authority = (
+            repository
+            / "services/rag-pedago/data/releases/prerentree_2026_2027"
+            / "profile_gate/corpus_manifest_authority.json"
+        )
+        file_digest = hashlib.sha256(authority.read_bytes()).hexdigest()
+        assert decision_set["corpus_manifest_sha256"] == file_digest, (
+            "l'ensemble scellé n'enregistre pas l'empreinte du fichier "
+            "d'autorité : la nature de la liaison a changé"
+        )
+
+    def test_the_declared_value_is_not_the_file_digest(self) -> None:
+        """Le contrôle qui rend le premier test nécessaire.
+
+        Si ces deux valeurs devenaient égales, comparer l'une pour l'autre
+        cesserait d'être une erreur — et ce test dirait pourquoi."""
+        import hashlib
+        import json
+        import pathlib
+
+        repository = pathlib.Path(__file__).resolve().parents[3]
+        authority = (
+            repository
+            / "services/rag-pedago/data/releases/prerentree_2026_2027"
+            / "profile_gate/corpus_manifest_authority.json"
+        )
+        declared = json.loads(authority.read_text(encoding="utf-8"))["authority_sha256"]
+        assert declared != hashlib.sha256(authority.read_bytes()).hexdigest()

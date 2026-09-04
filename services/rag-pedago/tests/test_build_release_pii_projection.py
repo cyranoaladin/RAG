@@ -600,3 +600,101 @@ class TestTheReviewIndexCannotDisableItsOwnCheck:
         )
         with pytest.raises(ValueError, match="review index"):
             module._load_review_authority(inputs)
+
+
+class TestTheProjectionIsBoundToTheAuthorityFile:
+    """Le producteur doit passer l'empreinte du FICHIER d'autorité.
+
+    L'ensemble de décisions scellé enregistre, sous `corpus_manifest_sha256`,
+    l'empreinte des OCTETS du fichier d'autorité de manifeste. Le producteur
+    passait `CORPUS_MANIFEST_AUTHORITY`, qui est la valeur que ce fichier
+    DÉCLARE. Deux mesures de la même autorité, jamais égales.
+
+    Conséquence mesurée : la garde censée empêcher qu'une revue soit projetée
+    sur un autre corpus refusait le corpus même sur lequel la revue avait été
+    rendue, et la candidate de production devenait irreproductible —
+    « the decisions describe another corpus », sur les décisions qui la
+    décrivent exactement.
+    """
+
+    def test_the_producer_binds_the_projection_to_the_authority_file_bytes(
+        self,
+    ) -> None:
+        import json
+        import pathlib
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        repository = pathlib.Path(__file__).resolve().parents[3]
+        sealed = json.loads(
+            (
+                repository
+                / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
+            ).read_text(encoding="utf-8")
+        )["corpus_manifest_sha256"]
+
+        bound = producer.corpus_manifest_authority_file_sha256()
+        assert bound == sealed, (
+            "le producteur ne lie plus la projection au fichier d'autorité sur "
+            "lequel la revue humaine a été rendue"
+        )
+
+    def test_the_declared_value_alone_would_refuse_the_sealed_campaign(self) -> None:
+        """Ce qui rend le test précédent nécessaire, dit explicitement."""
+        import json
+        import pathlib
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        repository = pathlib.Path(__file__).resolve().parents[3]
+        sealed = json.loads(
+            (
+                repository
+                / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
+            ).read_text(encoding="utf-8")
+        )["corpus_manifest_sha256"]
+        assert producer.CORPUS_MANIFEST_AUTHORITY != sealed, (
+            "la valeur déclarée et l'empreinte du fichier ont convergé : la "
+            "confusion cesserait d'être une erreur"
+        )
+
+    def test_an_authority_file_declaring_another_corpus_is_refused(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """L'égalité d'empreinte ne prouve rien si le fichier décrit un AUTRE corpus.
+
+        Le fichier d'autorité et la release doivent d'abord parler du même
+        objet : sans cette vérification, on comparerait l'empreinte d'octets
+        d'un document sans rapport à la valeur que l'ensemble scellé attend,
+        et la coïncidence — ou son absence — ne dirait rien du corpus."""
+        import json
+        import shutil
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        forged_root = tmp_path / "profile_gate"
+        forged_root.mkdir(parents=True)
+        original = producer.RELEASE_ROOT / "corpus_manifest_authority.json"
+        shutil.copy2(original, forged_root / "corpus_manifest_authority.json")
+
+        target = forged_root / "corpus_manifest_authority.json"
+        document = json.loads(target.read_text(encoding="utf-8"))
+        document["authority_sha256"] = "9" * 64
+        target.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+        monkeypatch.setattr(producer, "RELEASE_ROOT", forged_root)
+        with pytest.raises(ValueError, match="do not describe the same corpus authority"):
+            producer.corpus_manifest_authority_file_sha256()
+
+    def test_a_missing_authority_file_is_refused_by_name(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        from conftest import load_producer
+
+        producer = load_producer()
+        monkeypatch.setattr(producer, "RELEASE_ROOT", tmp_path)
+        with pytest.raises(ValueError, match="corpus manifest authority is missing"):
+            producer.corpus_manifest_authority_file_sha256()

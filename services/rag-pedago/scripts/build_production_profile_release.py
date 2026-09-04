@@ -65,9 +65,44 @@ RELEASE_ID = "production-profile-gate-2026-2027-v1"
 CANONICAL_CONTENT_SET_SHA256 = (
     "77f01c824c6be14ba6fd66eda99c2179fd87d9a2aaaf3c58e56a917d1ad5c31d"
 )
+#: Valeur que le fichier d'autorité de manifeste DÉCLARE (`authority_sha256`).
+#: C'est elle que la release embarque sous `corpus_manifest_sha256`.
 CORPUS_MANIFEST_AUTHORITY = (
     "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 )
+
+
+def corpus_manifest_authority_file_sha256() -> str:
+    """Empreinte des OCTETS du fichier d'autorité de manifeste.
+
+    **Pourquoi ce n'est pas `CORPUS_MANIFEST_AUTHORITY`.** L'ensemble de
+    décisions scellé enregistre l'empreinte du FICHIER ; la release embarque la
+    valeur que ce fichier DÉCLARE. Deux mesures de la même autorité, jamais
+    égales. Les confondre faisait refuser à la projection le corpus même sur
+    lequel la revue humaine avait été rendue — « the decisions describe another
+    corpus », sur les décisions qui le décrivent exactement — et rendait la
+    candidate de production irreproductible.
+
+    La liaison déclarée est vérifiée au passage : le fichier doit annoncer
+    l'autorité que la release embarque, faute de quoi les deux grandeurs ne
+    décrivent plus le même objet et l'égalité d'empreinte ne prouverait rien."""
+    # Résolu à l'usage : `RELEASE_ROOT` est défini plus bas dans ce module, et
+    # une constante de niveau module créerait une dépendance d'ordre inutile.
+    path = RELEASE_ROOT / "corpus_manifest_authority.json"
+    if not path.is_file():
+        raise ValueError(
+            f"corpus manifest authority is missing at {path.name} — the human "
+            "review cannot be bound to a corpus nobody can read"
+        )
+    raw = path.read_bytes()
+    declared = json.loads(raw.decode("utf-8")).get("authority_sha256")
+    if declared != CORPUS_MANIFEST_AUTHORITY:
+        raise ValueError(
+            f"corpus manifest authority declares {str(declared)[:16]}… while this "
+            f"release ships {CORPUS_MANIFEST_AUTHORITY[:16]}… — the file and the "
+            "release do not describe the same corpus authority"
+        )
+    return hashlib.sha256(raw).hexdigest()
 CANONICAL_EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
 CANONICAL_EMBEDDING_REVISION = "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"
 CANONICAL_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -1691,7 +1726,9 @@ def _pii_evidence(
             policy_sha256=policy_sha,
             scanner_sha256=scanner_sha,
             page_policy_sha256=page_policy_sha,
-            corpus_manifest_sha256=CORPUS_MANIFEST_AUTHORITY,
+            # L'empreinte du FICHIER, jamais la valeur qu'il déclare : c'est
+            # celle que l'ensemble de décisions humaines a enregistrée.
+            corpus_manifest_sha256=corpus_manifest_authority_file_sha256(),
         )
     except PiiProjectionError as exc:
         raise ValueError(f"the PII review cannot be projected on this scan: {exc}") from exc
