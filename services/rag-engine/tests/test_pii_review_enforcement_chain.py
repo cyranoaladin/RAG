@@ -173,3 +173,37 @@ class TestQualityReportAndRouting:
 
     def test_admitted_detection_with_no_other_defect_is_routed(self) -> None:
         assert self._route(self._report(reviewed=True)).decision == "ROUTE"
+
+
+class TestTheAuthorizationAttestationStaysIndependent:
+    """P2 — l'admission d'un CONTENU ne lève pas l'attestation d'une AUTORISATION.
+
+    Deux dimensions distinctes, qu'ADR-0047 sépare explicitement dès son
+    en-tête : « ce document ne lève aucun verrou — `pii_absence_required` reste
+    `true` sur tous les cas d'autorisation ; ce que ce contrat rend admissible
+    est une DÉTECTION revue et jugée non personnelle ou publique et licite ».
+
+    Le code faisait dépendre l'attestation de scope du verdict de contenu :
+    `if not pii_absence_attested and not reviewed_accepted`. Un contenu admis
+    ouvrait donc une autorisation qui n'atteste rien. Les deux contrôles sont
+    désormais indépendants — ce que le contrat rend d'ailleurs irreprésentable,
+    `ScopeAuthorizationArtifact` refusant `pii_absence_attested=False`. La garde
+    reste, comme le disait déjà sa docstring d'origine, redondante par
+    construction et volontairement conservée."""
+
+    class _Unattested:
+        authorization_id = "scope-sans-attestation"
+        pii_absence_attested = False
+
+    def test_an_unattested_authorization_is_refused_even_for_clean_content(self) -> None:
+        with pytest.raises(ScopeEnforcementViolation) as excinfo:
+            enforce_pii(self._Unattested(), pii_detected=False, reviewed_accepted=False)
+        assert excinfo.value.checkpoint == "pii"
+
+    def test_a_reviewed_admission_does_not_open_an_unattested_authorization(self) -> None:
+        """Le cas exact du finding."""
+        with pytest.raises(ScopeEnforcementViolation, match="attest"):
+            enforce_pii(self._Unattested(), pii_detected=True, reviewed_accepted=True)
+
+    def test_an_attested_authorization_still_admits_reviewed_content(self) -> None:
+        enforce_pii(_Authorization(), pii_detected=True, reviewed_accepted=True)

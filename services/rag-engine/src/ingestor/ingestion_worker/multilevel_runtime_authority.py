@@ -68,6 +68,10 @@ class MultilevelRuntimeAuthorityInputs:
     pii_review_receipt_sha256: str | None = None
     review_trust_anchor_path: Path | None = None
     review_trust_anchor_sha256: str | None = None
+    pii_review_index_path: Path | None = None
+    pii_review_index_sha256: str | None = None
+    pii_review_reviewers_path: Path | None = None
+    pii_review_reviewers_sha256: str | None = None
     pii_review_reviewers: tuple[str, ...] = ()
 
 
@@ -137,6 +141,26 @@ def multilevel_runtime_authority_inputs_from_args(
         corpus_manifest_sha256=args.corpus_manifest_sha256,
         repository_root=args.repository_root,
         **review_authority_arguments_from_args(args),  # type: ignore[arg-type]
+    )
+
+
+def review_verification_environment(environment: str) -> str:
+    """Traduit l'environnement de release en environnement de vérification ADR-0035.
+
+    Une répétition et une production ne sont pas signées par la même clé : le
+    contrat refuse explicitement qu'une clé de fixture valide un gate de
+    production, et qu'une clé de production soit exercée par une répétition.
+
+    **Ce mode ne retire aucune garde.** Signature Ed25519, liaison du challenge,
+    empreintes du decision set, du reçu et de l'ancre, allowlist de reviewers et
+    liaison au corpus restent tous vérifiés à l'identique. Seule change la clé
+    recevable."""
+    if environment == "production":
+        return "production"
+    if environment == "rehearsal":
+        return "test"
+    raise ValueError(
+        f"environment {environment!r} is neither rehearsal nor production"
     )
 
 
@@ -225,6 +249,7 @@ def load_multilevel_runtime_authorities(
             trust_anchor_path=inputs.review_trust_anchor_path,
             expected_trust_anchor_sha256=inputs.review_trust_anchor_sha256,
             accepted_reviewers=inputs.pii_review_reviewers or None,
+            environment=review_verification_environment(environment),
         )
         rights = VerifiedRightsEvidenceRegistry.load(
             inputs.rights_evidence_path,

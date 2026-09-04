@@ -9,9 +9,10 @@ sept, s'il porte sur le comportement réellement servi en production et s'il doi
 
 Deux faits, lus dans les fichiers Compose du dépôt :
 
-- les workers d'ingestion de production lancent
-  `ingestor.ingestion_worker.multilevel_cli`
-  (`services/rag-engine/infra/docker-compose.production-workers.yml:104`) ;
+- les deux workers d'ingestion de production lancent des CLI multi-niveaux :
+  le worker A `ingestor.ingestion_worker.multilevel_cli` (ligne 104) et le
+  worker B `ingestor.ingestion_worker.multilevel_publication_resume_cli`
+  (ligne 203) de `services/rag-engine/infra/docker-compose.production-workers.yml` ;
 - le chemin Wave 0 (`ingestor.ingestion_worker.cli`) n'apparaît que dans
   `docker-compose.ingestion.yml`, dont l'en-tête déclare qu'il est
   « strictement opt-in », « jamais chargé seul » et « jamais implicitement par
@@ -52,7 +53,7 @@ avec une base PostgreSQL et les poids de modèles réels :
 
 | # | Test local skippé | Couverture distante | Durée | Verdict |
 |---|-------------------|---------------------|-------|---------|
-| 2 | `test_lot40_hybrid_pgvector.py` | job `governance postgres` | 5m32 | **PASS** |
+| 2 | `test_lot40_hybrid_pgvector.py` | job `services/rag-engine`, étape `make test-integration-hybrid` → `infra/scripts/test_hybrid_integration.sh` | dans les 10m03 du job | **PASS** |
 | 5 | `test_real_model_ci_acceptance.py` | job `real-model acceptance (E5 + reranker + pgvector)` | 4m30 | **PASS** |
 
 Ils ne sont donc plus des gates à ouvrir dans un staging éphémère : ils sont
@@ -67,3 +68,20 @@ Trois gates restent ouverts, et relèvent de C1–C6 :
 | 4 | `test_multilevel_worker_cli_e2e.py` | acceptation du CLI que l'image lance, en sous-processus |
 
 Les deux skips Wave 0 restent hors périmètre : ce chemin n'est pas servi.
+
+
+## Correction du 2026-09-04 (revue technique)
+
+Deux faits de ce rapport étaient inexacts et sont corrigés ci-dessus :
+
+1. L'affirmation « les workers de production lancent `multilevel_cli` » ne
+   valait que pour le worker A. Le worker B lance
+   `multilevel_publication_resume_cli`. Les deux sont bien des CLI
+   multi-niveaux — la conclusion sur le chemin servi tient — mais le pluriel
+   désignait une commande unique qui n'existe pas.
+
+2. La couverture de `test_lot40_hybrid_pgvector.py` était attribuée au job
+   `governance postgres`, qui exécute `make test-governance-pg` et dont la
+   liste explicite de tests EXCLUT ce fichier. Il est réellement exécuté par le
+   job `services/rag-engine`, à l'étape `make test-integration-hybrid`, laquelle
+   appelle `infra/scripts/test_hybrid_integration.sh`.

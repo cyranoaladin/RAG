@@ -11,7 +11,9 @@ l'EMPREINTE de la correspondance.
 """
 from __future__ import annotations
 
+import os
 from hashlib import sha256
+from pathlib import Path
 
 import pytest
 
@@ -165,19 +167,59 @@ class TestFindingContext:
         tail = finding_context(self.PAGE, char_offset=len(self.PAGE) - 5, match_length=5)
         assert tail == self.PAGE[len(self.PAGE) - 245 :]
 
-    def test_it_reproduces_a_real_sealed_context_digest(self) -> None:
-        """La preuve qui compte : un contexte réellement scellé, reproduit.
+    def test_it_reproduces_a_sealed_context_digest_from_a_versioned_fixture(self) -> None:
+        """Preuve exécutée EN CI, sur une fixture versionnée sans matière réelle.
 
-        On relit le paquet de revue local du contenu que le producteur a
-        refusé, et l'on vérifie que la fenêtre partagée redonne exactement
-        l'empreinte que la décision humaine porte."""
+        La version précédente lisait les 23 paquets réels sous
+        `/home/alaeddine/…` et se contentait de sauter ailleurs : elle ne
+        prouvait donc rien hors du poste de son auteur, tout en s'annonçant
+        comme « la preuve qui compte ». Les paquets réels ne peuvent pas être
+        versionnés — ils portent de la matière personnelle — mais l'INVARIANT,
+        lui, se démontre sur un contenu fabriqué."""
         import json
         from hashlib import sha256
-        from pathlib import Path
 
-        bundles = Path("/home/alaeddine/nexus-pii-review-final-candidate")
-        if not bundles.is_dir():
-            pytest.skip("paquets de revue absents de cette machine")
+        bundle = Path(__file__).resolve().parents[1] / "tests/fixtures/pii_review_bundle_synthetic"
+        manifest = json.loads((bundle / "manifest.json").read_text(encoding="utf-8"))
+        checked = 0
+        for signal in manifest["signals"]:
+            page = bundle / "pages" / f"page-{signal['page_number']:04d}.txt"
+            text = page.read_text(encoding="utf-8")
+            context = finding_context(
+                text,
+                char_offset=signal["char_offset"],
+                match_length=signal["match_length"],
+            )
+            assert sha256(context.encode("utf-8")).hexdigest() == signal["context_sha256"]
+            assert (
+                finding_identity(
+                    content_sha256=manifest["content_sha256"],
+                    pattern_id=signal["pattern_id"],
+                    page_number=signal["page_number"],
+                    char_offset=signal["char_offset"],
+                    match_sha256=signal["match_sha256"],
+                )
+                == signal["finding_id"]
+            )
+            checked += 1
+        assert checked > 0
+
+    @pytest.mark.skipif(
+        not os.environ.get("NEXUS_PII_REVIEW_BUNDLES"),
+        reason=(
+            "intégration opérateur : exige NEXUS_PII_REVIEW_BUNDLES vers les paquets "
+            "de revue réels, qui portent de la matière personnelle et ne sont donc "
+            "jamais versionnés"
+        ),
+    )
+    def test_it_reproduces_the_real_sealed_context_digests(self) -> None:
+        """Intégration opérateur, explicitement opt-in — jamais un skip présenté
+        comme une preuve de CI."""
+        import json
+        import os as _os
+        from hashlib import sha256
+
+        bundles = Path(_os.environ["NEXUS_PII_REVIEW_BUNDLES"])
         checked = 0
         for bundle in sorted(bundles.iterdir()):
             manifest = bundle / "manifest.json"

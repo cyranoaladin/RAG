@@ -28,8 +28,8 @@ from rag_pedago.imports.raw_pii_guard import (
     neutralise_digest_tokens,
 )
 
-SHA_WITH_DIGIT_RUN = "b418fc211fa20174e72117826550375b0387715203d38cd8f99588ee8e10dc42"
-SHA_WITH_DIGIT_RUN_2 = "c21dd6166d8fe164ed0622989644b38851809b23e9a0176f4c7d8e2b1a3f5069"
+SHA_WITH_DIGEST_RUN = "b418fc211fa20174e72117826550375b0387715203d38cd8f99588ee8e10dc42"
+SHA_WITH_DIGEST_RUN_2 = "c21dd6166d8fe164ed0622989644b38851809b23e9a0176f4c7d8e2b1a3f5069"
 BLOB_SHA1 = "684e09d015ff7c53e1ee315977ffe0cb476bda37"
 
 
@@ -37,16 +37,16 @@ class TestNeutralisationIsNarrow:
     """Ce qui est neutralisé, et surtout ce qui ne l'est pas."""
 
     def test_full_sha256_token_is_neutralised(self) -> None:
-        assert SHA_WITH_DIGIT_RUN not in neutralise_digest_tokens(SHA_WITH_DIGIT_RUN)
+        assert SHA_WITH_DIGEST_RUN not in neutralise_digest_tokens(SHA_WITH_DIGEST_RUN)
 
     def test_neutralisation_preserves_length(self) -> None:
         """Les offsets restent lisibles : un masque de même longueur."""
-        text = f'"sha": "{SHA_WITH_DIGIT_RUN}",'
+        text = f'"sha": "{SHA_WITH_DIGEST_RUN}",'
         assert len(neutralise_digest_tokens(text)) == len(text)
 
     def test_prefixed_sha256_token_is_neutralised(self) -> None:
-        masked = neutralise_digest_tokens(f"sha256:{SHA_WITH_DIGIT_RUN}")
-        assert SHA_WITH_DIGIT_RUN not in masked
+        masked = neutralise_digest_tokens(f"sha256:{SHA_WITH_DIGEST_RUN}")
+        assert SHA_WITH_DIGEST_RUN not in masked
 
     def test_git_blob_sha1_token_is_neutralised(self) -> None:
         assert BLOB_SHA1 not in neutralise_digest_tokens(BLOB_SHA1)
@@ -67,18 +67,18 @@ class TestNeutralisationIsNarrow:
         assert neutralise_digest_tokens(token) == token
 
     def test_a_digest_does_not_swallow_its_neighbours(self) -> None:
-        text = f"contact: 0612345678 sha={SHA_WITH_DIGIT_RUN} fin"
+        text = f"contact: 0612345678 sha={SHA_WITH_DIGEST_RUN} fin"
         masked = neutralise_digest_tokens(text)
         assert "0612345678" in masked
-        assert SHA_WITH_DIGIT_RUN not in masked
+        assert SHA_WITH_DIGEST_RUN not in masked
 
 
 class TestFindRawPii:
     """Le verdict, sur du texte plutôt que sur des empreintes."""
 
     def test_digest_with_internal_digit_run_yields_no_finding(self) -> None:
-        assert find_raw_pii(SHA_WITH_DIGIT_RUN) == []
-        assert find_raw_pii(SHA_WITH_DIGIT_RUN_2) == []
+        assert find_raw_pii(SHA_WITH_DIGEST_RUN) == []
+        assert find_raw_pii(SHA_WITH_DIGEST_RUN_2) == []
 
     def test_isolated_phone_number_yields_a_finding(self) -> None:
         findings = find_raw_pii("0612345678")
@@ -90,7 +90,7 @@ class TestFindRawPii:
 
     def test_phone_number_next_to_a_digest_still_yields_a_finding(self) -> None:
         """Le cas qui aurait rendu la garde aveugle."""
-        text = f'{{"sha": "{SHA_WITH_DIGIT_RUN}", "note": "appeler le 0612345678"}}'
+        text = f'{{"sha": "{SHA_WITH_DIGEST_RUN}", "note": "appeler le 0612345678"}}'
         findings = find_raw_pii(text)
         assert [f.pattern_id for f in findings] == ["phone_french"]
 
@@ -125,3 +125,42 @@ class TestGovernanceArtifactsAreClean:
     def test_sealed_artifact_carries_no_raw_pii(self, relative: str) -> None:
         findings = find_raw_pii((self.ROOT / relative).read_text(encoding="utf-8"))
         assert findings == [], f"{relative}: {[f.pattern_id for f in findings]}"
+
+
+class TestADigestNeverDestroysSurroundingPiiSyntax:
+    """P1 — masquer d'abord, chercher ensuite, détruisait des adresses.
+
+    Le garde remplaçait les digests par un masque PUIS cherchait la PII dans
+    le texte amputé. Une adresse dont le domaine ou la partie locale contient
+    un composant hexadécimal de 40 caractères perdait alors sa syntaxe, et
+    n'était plus détectée : la garde certifiait l'absence de ce qu'elle venait
+    d'effacer.
+
+    Le principe est inversé : on cherche dans le texte D'ORIGINE, et l'on
+    n'écarte une correspondance que si elle est ENTIÈREMENT contenue dans un
+    token de digest. Un digest ne peut plus absorber ce qui le déborde."""
+
+    HEX40 = "a1b2c3d4e5" * 4
+    HEX64 = "a1b2c3d4e5" * 6 + "f1b2"
+
+    def test_email_whose_domain_holds_a_40_hex_component_is_detected(self) -> None:
+        findings = find_raw_pii(f"ecrire a jean@{self.HEX40}.example")
+        assert any(f.pattern_id == "email_address" for f in findings)
+
+    def test_email_whose_local_part_is_a_40_hex_token_is_detected(self) -> None:
+        findings = find_raw_pii(f"{self.HEX40}@example.com")
+        assert any(f.pattern_id == "email_address" for f in findings)
+
+    def test_email_whose_domain_holds_a_64_hex_component_is_detected(self) -> None:
+        findings = find_raw_pii(f"jean@{self.HEX64}.example")
+        assert any(f.pattern_id == "email_address" for f in findings)
+
+    def test_a_digit_run_strictly_inside_a_digest_is_still_ignored(self) -> None:
+        """La propriété d'origine ne doit pas être perdue au passage."""
+        assert find_raw_pii(SHA_WITH_DIGEST_RUN) == []
+
+    def test_a_phone_adjacent_to_a_digest_is_still_detected(self) -> None:
+        assert any(
+            f.pattern_id == "phone_french"
+            for f in find_raw_pii(f'{{"sha": "{SHA_WITH_DIGEST_RUN}", "tel": "0612345678"}}')
+        )

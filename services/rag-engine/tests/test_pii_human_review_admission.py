@@ -392,11 +392,15 @@ class TestAdmissionMatrixFailClosed:
         with pytest.raises(SealedEvidenceError, match="REJECTED"):
             bench.load()
 
-    def test_undispositioned_finding_fails(self, tmp_path: Path) -> None:
-        """Une décision dont un finding porte PERSONAL_DATA_PRESENT n'admet rien.
+    def test_an_approved_decision_with_personal_data_is_unconstructible(
+        self, tmp_path: Path
+    ) -> None:
+        """Le CONTRAT rend un tel ensemble irreprésentable.
 
-        Le contrat interdit déjà un `APPROVED` ainsi composé ; ce test prouve
-        que le worker le refuse aussi s'il rencontrait un tel ensemble."""
+        Ce test ne dit rien du worker : il exerce `PiiReviewDecisionSetV1`. Le
+        refus côté worker, sur un ensemble qui aurait contourné le contrat, est
+        démontré séparément par
+        `test_a_decision_carrying_personal_data_is_refused_by_the_worker`."""
         document = make_decision_set_dict()
         approved = document["decisions"][0]
         approved["findings"][0]["disposition"] = "PERSONAL_DATA_PRESENT"
@@ -447,6 +451,49 @@ class TestAdmissionMatrixFailClosed:
         bench.ds_path.write_bytes(bench.ds_path.read_bytes().replace(b"abenrhouma", b"abenrhoumb"))
         with pytest.raises(SealedEvidenceError, match="decision set"):
             bench.load()
+
+    def test_a_single_altered_byte_is_caught_by_the_digest(self, tmp_path: Path) -> None:
+        """Le sabotage à l'octet près, que `tamper_decision_set_bytes` prévoyait.
+
+        Le mécanisme existait dans le banc d'essai sans qu'aucun test ne
+        l'emploie : une branche morte n'est pas une garantie."""
+        bench = Bench(tmp_path, tamper_decision_set_bytes=True)
+        with pytest.raises(SealedEvidenceError, match="decision set"):
+            bench.load()
+
+    def test_a_decision_carrying_personal_data_is_refused_by_the_worker(
+        self, tmp_path: Path
+    ) -> None:
+        """La propriété côté WORKER, distincte de celle du contrat.
+
+        On construit l'entrée de preuve sans passer par le contrat, comme le
+        ferait un producteur compromis, et l'on vérifie que le worker refuse
+        de son propre chef."""
+        from ingestor.ingestion_control.sealed_evidence import (
+            _require_admission_is_founded,
+        )
+
+        bench = Bench(tmp_path)
+        authority = bench.load().review_authority
+        assert authority is not None
+
+        class _Personal:
+            finding_id = "3" * 64
+            disposition = "PERSONAL_DATA_PRESENT"
+
+        class _Decision:
+            content_sha256 = CONTENT_APPROVED
+            decision = "APPROVED"
+            findings = (_Personal(),)
+            review_bundle_sha256 = BUNDLE_APPROVED
+
+        object.__setattr__(
+            authority.decision_set, "decisions", (_Decision(),)  # type: ignore[arg-type]
+        )
+        with pytest.raises(SealedEvidenceError, match="personal data"):
+            _require_admission_is_founded(
+                CONTENT_APPROVED, default_results()[1], authority
+            )
 
     def test_receipt_absent_fails(self, tmp_path: Path) -> None:
         bench = Bench(tmp_path)
@@ -646,6 +693,10 @@ class TestRealCandidateDecisionSet:
             expected_decision_set_sha256=hashlib.sha256(raw_ds).hexdigest(),
             receipt_path=REAL_RECEIPT,
             trust_anchor_path=REAL_ANCHOR,
+            # L'ancre de production s'épingle : c'est la racine de la chaîne.
+            expected_trust_anchor_sha256=hashlib.sha256(
+                REAL_ANCHOR.read_bytes()
+            ).hexdigest(),
             environment="production",
             expected_repository="cyranoaladin/RAG",
             accepted_reviewers=("abenrhouma",),
@@ -662,3 +713,112 @@ class TestRealCandidateDecisionSet:
         assert registry.reviewed_accepted_count == len(approved)
         for sha in approved:
             assert registry.verify_content_clearance(sha).pii_detected is True
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Revue Cubic — P0 et P1 sur l'ancrage de l'autorité de revue
+# ─────────────────────────────────────────────────────────────────────────
+
+
+class TestProductionRequiresAPinnedTrustAnchor:
+    """L'ancre de confiance est la RACINE : sans elle épinglée, tout tombe.
+
+    Sans empreinte attendue sur l'ancre, un opérateur remplace le fichier par
+    une ancre portant SA clé, signe un reçu avec la clé privée correspondante,
+    et la chaîne entière se vérifie. Le decision set, lui, est protégé par le
+    reçu, et le reçu par l'ancre — donc l'ancre ne protège personne d'autre
+    qu'elle-même, et doit être épinglée de l'extérieur.
+
+    En `test`, l'exigence ne s'applique pas : les suites fabriquent leur ancre
+    éphémère, et rien de ce qu'elles produisent n'entre en production."""
+
+    def test_production_without_a_pinned_anchor_is_refused(self, tmp_path: Path) -> None:
+        bench = Bench(tmp_path)
+        anchor = TrustAnchor.model_validate(
+            {
+                "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+                "keys": [
+                    {
+                        "algorithm": "ed25519",
+                        "key_id": KEY_ID,
+                        "public_key": public_key_hex(TEST_SEED),
+                        "environment": "production",
+                        "comment": "Ancre de production fabriquée pour ce test.",
+                    }
+                ],
+            }
+        )
+        bench.anchor_path.write_bytes(
+            (json.dumps(anchor.model_dump(mode="json"), indent=2, sort_keys=True) + "\n").encode()
+        )
+        with pytest.raises(SealedEvidenceError, match="trust anchor.*pinned|pinned.*trust anchor"):
+            bench.load(environment="production", expected_trust_anchor_sha256=None)
+
+    def test_production_with_a_pinned_anchor_is_accepted(self, tmp_path: Path) -> None:
+        bench = Bench(tmp_path)
+        anchor = TrustAnchor.model_validate(
+            {
+                "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+                "keys": [
+                    {
+                        "algorithm": "ed25519",
+                        "key_id": KEY_ID,
+                        "public_key": public_key_hex(TEST_SEED),
+                        "environment": "production",
+                        "comment": "Ancre de production fabriquée pour ce test.",
+                    }
+                ],
+            }
+        )
+        raw = (json.dumps(anchor.model_dump(mode="json"), indent=2, sort_keys=True) + "\n").encode()
+        bench.anchor_path.write_bytes(raw)
+        registry = bench.load(
+            environment="production",
+            expected_trust_anchor_sha256=hashlib.sha256(raw).hexdigest(),
+        )
+        assert registry.verify_content_clearance(CONTENT_APPROVED).is_reviewed_accepted
+
+    def test_a_swapped_anchor_is_caught_by_its_pin(self, tmp_path: Path) -> None:
+        """Le sabotage que l'épinglage existe pour attraper."""
+        bench = Bench(tmp_path)
+        legitimate = hashlib.sha256(bench.anchor_path.read_bytes()).hexdigest()
+        forged = TrustAnchor.model_validate(
+            {
+                "protocol_version": REVIEW_BINDING_PROTOCOL_VERSION,
+                "keys": [
+                    {
+                        "algorithm": "ed25519",
+                        "key_id": KEY_ID,
+                        "public_key": public_key_hex("55" * 32),
+                        "environment": "test",
+                        "comment": "Ancre substituée par un opérateur.",
+                    }
+                ],
+            }
+        )
+        bench.anchor_path.write_bytes(
+            (json.dumps(forged.model_dump(mode="json"), indent=2, sort_keys=True) + "\n").encode()
+        )
+        with pytest.raises(SealedEvidenceError):
+            bench.load(expected_trust_anchor_sha256=legitimate)
+
+    def test_test_environment_does_not_require_a_pin(self, tmp_path: Path) -> None:
+        bench = Bench(tmp_path)
+        bench.load(environment="test", expected_trust_anchor_sha256=None)
+
+
+class TestAnAdmittedEntryMustNameItsDecisionSet:
+    """`decision_set_id` n'est pas décoratif sur une entrée admise.
+
+    Il était vérifié seulement s'il était présent : une entrée
+    DETECTED_REVIEWED_ACCEPTED qui l'omettait passait sans jamais nommer
+    l'ensemble qui l'admet, alors que `pii_detected` est strictement exigé."""
+
+    def test_an_admitted_entry_without_a_decision_set_id_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        results = default_results()
+        del results[1]["decision_set_id"]
+        bench = Bench(tmp_path, results=results)
+        with pytest.raises(SealedEvidenceError, match="decision set"):
+            bench.load()

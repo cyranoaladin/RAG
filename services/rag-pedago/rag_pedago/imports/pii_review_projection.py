@@ -171,6 +171,24 @@ def _require_same_finding_universe(
     decision: Any,
 ) -> None:
     """Les findings scannés et dispositionnés doivent être les MÊMES."""
+    # Les doublons sont refusés AVANT toute indexation : une association
+    # `{finding_id: finding}` ne garde que la dernière occurrence, si bien
+    # qu'un dict deviendrait, sans qu'on l'ait voulu, le mécanisme de
+    # déduplication — et qu'une détection supplémentaire traverserait sans
+    # disposition. Même un doublon strictement identique est une anomalie de
+    # preuve : compter deux fois le même signal fausse la mesure, quel que soit
+    # ce que le doublon contient.
+    for label, findings in (("scan", scanned.findings), ("decision", decision.findings)):
+        seen: set[str] = set()
+        for finding in findings:
+            if finding.finding_id in seen:
+                raise PiiProjectionError(
+                    f"content {content_sha256[:12]}…: finding {finding.finding_id[:12]}… "
+                    f"appears twice in the {label} — a duplicate signal is never "
+                    "silently collapsed into one"
+                )
+            seen.add(finding.finding_id)
+
     scanned_by_id = {finding.finding_id: finding for finding in scanned.findings}
     decided_by_id = {finding.finding_id: finding for finding in decision.findings}
 
@@ -212,6 +230,7 @@ def project_pii_review(
     policy_sha256: str,
     scanner_sha256: str,
     page_policy_sha256: str,
+    corpus_manifest_sha256: str,
 ) -> PiiProjection:
     """Projette la décision humaine sur le scan, ou refuse.
 
@@ -252,6 +271,17 @@ def project_pii_review(
             scanner_sha256=scanner_sha256,
             page_policy_sha256=page_policy_sha256,
         )
+        # `corpus_manifest_sha256` figure dans l'ensemble de décisions
+        # précisément pour dire DE QUEL CORPUS il parle. Rien ne le confrontait
+        # au corpus de la release : une campagne menée sur un autre corpus, dont
+        # quelques SHA de contenus coïncideraient, aurait admis ici des contenus
+        # que personne n'y a examinés.
+        if decision_set.corpus_manifest_sha256 != corpus_manifest_sha256:
+            raise PiiProjectionError(
+                f"the human review was rendered on corpus manifest "
+                f"{decision_set.corpus_manifest_sha256[:16]}… while this release ships "
+                f"{str(corpus_manifest_sha256)[:16]}… — the decisions describe another corpus"
+            )
         approved = decision_set.approved_content_sha256
         rejected = frozenset(
             d.content_sha256 for d in decision_set.decisions if d.decision == "REJECTED"

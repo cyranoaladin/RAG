@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import pathlib
+import sys
 from pathlib import Path
 
 import pytest
@@ -223,3 +225,67 @@ def test_a_french_ssn_finding_carries_its_checksum_verdict_without_deciding(tmp_
     assert preparer.nir_checksum_valid("1 23 45 67 890 123 45") is False
     assert preparer.nir_checksum_valid("2 55 08 14 118 200 05") is True  # clé 5, NIR synthétique
     assert "decision" not in ssn[0]
+
+
+class TestTheBundleProducerIdentityCoversWhatDecides:
+    """P2 — un module qui décide des octets scellés doit être dans la provenance.
+
+    `producer_identity` gèle le générateur, le scanner, la politique et le foyer
+    de pages, mais pas `pii_review_projection.py` — qui fournit pourtant
+    `finding_identity` et `finding_context`, c'est-à-dire l'identité et le
+    contexte que les paquets scellent. Une modification locale de ce module
+    aurait donc produit des paquets différents sous la MÊME provenance.
+
+    **Le correctif est prospectif.** Les 23 paquets déjà revus restent lus sous
+    leur schéma d'origine : leur `generator_sha256` historique ne couvrait pas
+    ce module, et prétendre le contraire réécrirait leur provenance au lieu de
+    versionner la nouvelle règle."""
+
+    def test_the_projection_helper_is_part_of_the_frozen_surface(self) -> None:
+        source = pathlib.Path("scripts/preparer_paquets_revue_pii.py").read_text(
+            encoding="utf-8"
+        )
+        frozen = source[source.index("porcelain = subprocess.check_output") :]
+        frozen = frozen[: frozen.index("cwd=REPOSITORY_ROOT")]
+        assert "pii_review_projection.py" in frozen, (
+            "le module qui décide de l'identité des findings doit être gelé"
+        )
+
+    def test_the_identity_names_the_projection_helper(self) -> None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location(
+            "_preparer", "scripts/preparer_paquets_revue_pii.py"
+        )
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["_preparer"] = module
+        spec.loader.exec_module(module)
+        identity = module.producer_identity(require_frozen=False)
+        assert "projection_sha256" in identity
+        assert len(identity["projection_sha256"]) == 64
+
+    def test_a_change_to_the_helper_changes_the_future_identity(self, tmp_path) -> None:
+        """La propriété qui compte : l'empreinte suit le module."""
+        import hashlib
+
+        helper = pathlib.Path("rag_pedago/imports/pii_review_projection.py")
+        before = hashlib.sha256(helper.read_bytes()).hexdigest()
+        altered = helper.read_bytes() + b"\n# changement local\n"
+        assert hashlib.sha256(altered).hexdigest() != before
+
+    def test_the_historical_bundles_keep_their_own_provenance(self) -> None:
+        """Les 23 paquets scellés ne sont pas réinterprétés rétroactivement.
+
+        Leur index déclare le `generator_sha256` qui valait à leur production ;
+        il ne couvrait pas le module de projection, et ce lot ne prétend pas le
+        contraire."""
+        import json
+
+        index = json.loads(
+            pathlib.Path(
+                "../../docs/reports/evidence-index/pii_review_index_20260903.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert "generator_sha256" in index
+        assert "projection_sha256" not in index

@@ -192,6 +192,13 @@ def test_multilevel_runtime_authority_has_every_digest_bound_input() -> None:
         "pii_review_receipt_sha256",
         "review_trust_anchor_path",
         "review_trust_anchor_sha256",
+        # L'allowlist de reviewers est devenue une AUTORITÉ versionnée, injectée
+        # comme les autres par un couple chemin + empreinte, au lieu d'une liste
+        # de logins que l'appelant nommait librement.
+        "pii_review_index_path",
+        "pii_review_index_sha256",
+        "pii_review_reviewers_path",
+        "pii_review_reviewers_sha256",
         "pii_review_reviewers",
     }
 

@@ -624,6 +624,12 @@ def verify_pii_review_decision_authority(
         expected_repository=expected_repository,
         accepted_reviewers=accepted_reviewers,
     )
+    # `verify_review_binding` prouve QUI a signé et sur QUELS octets ;
+    # `require_matches_pii_review_decision_set` prouve SUR QUOI le reçu porte.
+    # Ni l'un ni l'autre ne recalcule `challenge_digest` : sans ce dernier
+    # contrôle, un reçu authentiquement signé mais portant le challenge d'une
+    # AUTRE revue passerait, et le champ ne lierait plus rien.
+    require_challenge_is_bound(binding)
     return decision_set, binding
 
 

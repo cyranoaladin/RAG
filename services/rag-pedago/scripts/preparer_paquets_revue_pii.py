@@ -82,9 +82,14 @@ def producer_identity(*, require_frozen: bool = True) -> dict[str, object]:
     import importlib.metadata
     import subprocess
 
+    # `pii_review_projection.py` fournit `finding_identity` et
+    # `finding_context` : il DÉCIDE de l'identité et du contexte que les paquets
+    # scellent. L'omettre de la surface gelée laissait une modification locale
+    # produire des paquets différents sous la même provenance.
     porcelain = subprocess.check_output(
         ["git", "status", "--porcelain", "--",
          "services/rag-pedago/scripts/preparer_paquets_revue_pii.py",
+         "services/rag-pedago/rag_pedago/imports/pii_review_projection.py",
          "services/rag-pedago/rag_pedago/imports/pii_scanner.py",
          "services/rag-pedago/configs/pii_gate_policy.yml",
          "packages/pdf-page-policy", "packages/contracts"],
@@ -98,6 +103,14 @@ def producer_identity(*, require_frozen: bool = True) -> dict[str, object]:
         "producer_tree_sha": _git("rev-parse", "HEAD^{tree}"),
         "generator_path": "services/rag-pedago/scripts/preparer_paquets_revue_pii.py",
         "generator_sha256": _sha256_file(Path(__file__)),
+        # Nouveau champ, PROSPECTIF : les 23 paquets déjà revus gardent leur
+        # provenance d'origine, qui ne couvrait pas ce module. Le prétendre
+        # réécrirait leur histoire au lieu de versionner la règle.
+        "projection_path": "services/rag-pedago/rag_pedago/imports/pii_review_projection.py",
+        "projection_sha256": _sha256_file(
+            REPOSITORY_ROOT
+            / "services/rag-pedago/rag_pedago/imports/pii_review_projection.py"
+        ),
         "contracts_version": importlib.metadata.version("nexus-contracts"),
     }
 

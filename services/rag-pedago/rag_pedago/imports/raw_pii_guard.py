@@ -25,6 +25,7 @@ le rapport de la garde deviendrait lui-même la fuite qu'il signale.
 """
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass
 from hashlib import sha256
@@ -68,25 +69,49 @@ class RawPiiFinding:
 
 
 def neutralise_digest_tokens(text: str) -> str:
-    """Remplace chaque token de digest par un masque de même longueur."""
+    """Remplace chaque token de digest par un masque de même longueur.
+
+    Conservée pour ce qu'elle montre, et utilisée par les tests qui fixent la
+    frontière exacte d'un token. `find_raw_pii` ne s'en sert PLUS pour décider :
+    voir la note qui y est portée."""
     return _DIGEST_TOKEN.sub(lambda m: _MASK_CHAR * len(m.group(0)), text)
+
+
+def digest_token_spans(text: str) -> list[tuple[int, int]]:
+    """Positions des tokens de digest, dans le texte d'origine."""
+    return [(m.start(), m.end()) for m in _DIGEST_TOKEN.finditer(text)]
 
 
 def find_raw_pii(
     text: str, *, patterns: list[PIIPattern] | None = None
 ) -> list[RawPiiFinding]:
-    """Rend les correspondances PII du texte, empreintes neutralisées.
+    """Rend les correspondances PII du texte, hors empreintes.
 
-    Le scan porte sur le texte masqué, mais les décalages restent ceux du
-    texte d'origine — le masque conserve les longueurs."""
+    **Pourquoi on ne masque plus avant de chercher.** La première version
+    remplaçait les digests par un masque, puis cherchait la PII dans le texte
+    amputé. Une adresse dont la partie locale ou le domaine contient un
+    composant hexadécimal de quarante caractères — `<40hex>@example.com`,
+    `jean@<40hex>.example` — y perdait sa syntaxe et cessait d'être détectée.
+    La garde certifiait alors l'absence de ce qu'elle venait elle-même
+    d'effacer, ce qui est la seule façon de rendre une garde pire qu'inexistante.
+
+    Le principe est donc inversé : on cherche dans le texte D'ORIGINE, et l'on
+    n'écarte une correspondance que si elle est ENTIÈREMENT contenue dans un
+    token de digest. Un digest ne peut plus absorber ce qui le déborde ; une
+    suite de chiffres interne à une empreinte reste, elle, écartée."""
     if patterns is None:
         patterns = load_patterns_from_config(DEFAULT_POLICY_PATH)
-    scanned = neutralise_digest_tokens(text)
+    spans = digest_token_spans(text)
+
+    def inside_a_digest(start: int, end: int) -> bool:
+        return any(begin <= start and end <= stop for begin, stop in spans)
 
     findings: list[RawPiiFinding] = []
     for pattern in patterns:
-        for match in pattern.regex.finditer(scanned):
+        for match in pattern.regex.finditer(text):
             matched = match.group(0)
+            if inside_a_digest(match.start(), match.end()):
+                continue
             if is_allowlisted(matched):
                 continue
             findings.append(
@@ -101,6 +126,42 @@ def find_raw_pii(
     return sorted(findings, key=lambda f: (f.char_offset, f.pattern_id))
 
 
+class RawPiiLeakError(ValueError):
+    """Un artefact de gouvernance porte de la matière brute — refus."""
+
+
+def require_no_raw_pii(
+    document: object, *, label: str, patterns: list[PIIPattern] | None = None
+) -> None:
+    """Mesure un document AVANT qu'il n'atteste ne rien porter.
+
+    **Pourquoi cette fonction existe.** Les preuves de gouvernance déclarent
+    `raw_pii_in_output: false`. C'était une CONSTANTE : le producteur affirmait
+    que sa preuve ne porte aucune donnée personnelle sans jamais l'avoir
+    regardée. Une attestation qu'aucune mesure ne fonde dit ce que son auteur
+    croit, pas ce que le fichier contient — et c'est précisément la famille de
+    défauts que ce dépôt cherche à éliminer.
+
+    L'attestation ne peut désormais être émise qu'après cette mesure, et un
+    finding est un refus.
+
+    Le refus lui-même ne recopie jamais la matière : il en donne la classe, la
+    position et l'empreinte. Un rapport de fuite qui cite la fuite EST la
+    fuite."""
+    if patterns is None:
+        patterns = load_patterns_from_config(DEFAULT_POLICY_PATH)
+    rendered = json.dumps(document, ensure_ascii=False, sort_keys=True, default=str)
+    findings = find_raw_pii(rendered, patterns=patterns)
+    if findings:
+        classes = sorted({finding.pattern_id for finding in findings})
+        first = findings[0]
+        raise RawPiiLeakError(
+            f"{label} carries raw personal data and cannot attest otherwise: "
+            f"{len(findings)} finding(s), classes {classes}, first at offset "
+            f"{first.char_offset} (match {first.match_sha256[:16]}…)"
+        )
+
+
 def audit_paths(paths: list[Path]) -> dict[Path, list[RawPiiFinding]]:
     """Mesure plusieurs artefacts d'un coup, en chargeant la politique une fois."""
     patterns = load_patterns_from_config(DEFAULT_POLICY_PATH)
@@ -113,7 +174,10 @@ def audit_paths(paths: list[Path]) -> dict[Path, list[RawPiiFinding]]:
 __all__ = [
     "DEFAULT_POLICY_PATH",
     "RawPiiFinding",
+    "RawPiiLeakError",
     "audit_paths",
+    "digest_token_spans",
     "find_raw_pii",
+    "require_no_raw_pii",
     "neutralise_digest_tokens",
 ]

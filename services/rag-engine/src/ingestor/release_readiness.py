@@ -182,6 +182,15 @@ class ReleaseExpectation:
     promotion_status: str | None = None
     activation_status: str | None = None
     review_status: str | None = None
+    #: Chaîne d'autorité de la revue humaine PII, telle que le MANIFESTE la
+    #: déclare. Elle était vérifiée syntaxiquement puis jetée : le worker
+    #: chargeait la sienne depuis ses propres arguments, et rien ne confrontait
+    #: les deux. Une release pouvait donc annoncer une chaîne pendant que le
+    #: worker en vérifiait une autre, chacune valide de son côté.
+    pii_decision_set_sha256: str | None = None
+    pii_review_receipt_sha256: str | None = None
+    pii_review_trust_anchor_sha256: str | None = None
+    pii_review_index_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -426,7 +435,11 @@ def _validate_v2_page_partition(
 
 
 def _require_authority_chain(
-    authorities: Mapping[str, Any], authority_fields: frozenset[str], field: str
+    authorities: Mapping[str, Any],
+    authority_fields: frozenset[str],
+    field: str,
+    *,
+    review_chain_allowed: bool,
 ) -> None:
     """Vérifie une chaîne d'autorité, agrégat comme sujet.
 
@@ -435,11 +448,20 @@ def _require_authority_chain(
     détecté n'a pas de décisions à joindre — mais indivisibles : la moitié
     d'une chaîne d'autorité est une chaîne rompue.
 
-    Écrit une fois, appelé aux deux endroits : les laisser diverger ferait
+    **L'ouverture dépend du SCHÉMA, pas de la présence des champs.** Soustraire
+    ces quatre noms de toute chaîne déclarée les rendait acceptables partout, y
+    compris dans les schémas Wave 0 et multi-niveaux V1 qui ne les définissent
+    pas : un format ancien s'élargissait alors de lui-même, du seul fait qu'un
+    manifeste les mentionne. `review_chain_allowed` est donc décidé par
+    l'appelant depuis le genre de release, jamais deviné du contenu.
+
+    Écrit une fois, appelé aux trois endroits : les laisser diverger ferait
     accepter dans l'agrégat ce que le sujet refuse."""
     declared = set(authorities)
-    review_declared = declared & _PII_REVIEW_AUTHORITY_FIELDS
-    if declared - _PII_REVIEW_AUTHORITY_FIELDS != authority_fields:
+    review_declared = (
+        declared & _PII_REVIEW_AUTHORITY_FIELDS if review_chain_allowed else set()
+    )
+    if declared - review_declared != authority_fields:
         raise ReleaseReadinessError(f"{field} fields mismatch")
     if review_declared and review_declared != _PII_REVIEW_AUTHORITY_FIELDS:
         missing = sorted(_PII_REVIEW_AUTHORITY_FIELDS - review_declared)
@@ -467,7 +489,9 @@ def _parse_subject_v1(
         payload.get("programme_version"), f"{field}.programme_version"
     )
     authorities = _require_mapping(payload.get("authorities"), f"{field}.authorities")
-    _require_authority_chain(authorities, authority_fields, f"{field}.authorities")
+    _require_authority_chain(
+        authorities, authority_fields, f"{field}.authorities", review_chain_allowed=False
+    )
     profile = _require_mapping(payload.get("profile"), f"{field}.profile")
     if set(profile) != {"version", "fingerprint", "manifest_digest"}:
         raise ReleaseReadinessError(f"{field}.profile fields mismatch")
@@ -786,7 +810,10 @@ def _parse_subject_v2(
     )
     authorities = _require_mapping(payload.get("authorities"), f"{field}.authorities")
     _require_authority_chain(
-        authorities, _MULTILEVEL_AUTHORITY_FIELDS, f"{field}.authorities"
+        authorities,
+        _MULTILEVEL_AUTHORITY_FIELDS,
+        f"{field}.authorities",
+        review_chain_allowed=True,
     )
     if authorities != aggregate.get("authorities"):
         raise ReleaseReadinessError(f"{field}.authorities mismatch")
@@ -937,7 +964,9 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
     release_id = _require_nonblank(aggregate.get("release_id"), "release_id")
     school_year = _require_nonblank(aggregate.get("school_year"), "school_year")
     aggregate_authorities = _require_mapping(aggregate.get("authorities"), "authorities")
-    _require_authority_chain(aggregate_authorities, authority_fields, "authorities")
+    _require_authority_chain(
+        aggregate_authorities, authority_fields, "authorities", review_chain_allowed=is_v2
+    )
     aggregate_models = _require_mapping(aggregate.get("models"), "models")
     if set(aggregate_models) != {"embedding", "reranker"}:
         raise ReleaseReadinessError("models fields mismatch")
@@ -1114,6 +1143,15 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         promotion_status=promotion_status,
         activation_status=activation_status,
         review_status=review_status,
+        # La chaîne de revue déclarée par le manifeste voyage jusqu'au
+        # consommateur, au lieu d'être vérifiée puis oubliée : c'est elle que le
+        # worker doit confronter à celle qu'il charge de son côté.
+        pii_decision_set_sha256=aggregate_authorities.get("pii_decision_set_sha256"),
+        pii_review_receipt_sha256=aggregate_authorities.get("pii_review_receipt_sha256"),
+        pii_review_trust_anchor_sha256=aggregate_authorities.get(
+            "pii_review_trust_anchor_sha256"
+        ),
+        pii_review_index_sha256=aggregate_authorities.get("pii_review_index_sha256"),
     )
 
 

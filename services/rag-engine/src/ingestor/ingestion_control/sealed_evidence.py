@@ -151,8 +151,16 @@ def _require_admission_is_founded(
             f"founded on {decision.review_bundle_sha256[:16]}… — the reviewer did "
             "not look at this material"
         )
+    # `decision_set_id` est exigé, pas seulement vérifié s'il est là : une
+    # entrée admise qui ne nomme pas l'ensemble qui l'admet laisse au lecteur
+    # le soin de deviner sur quoi repose son admission.
     declared_set = entry.get("decision_set_id")
-    if declared_set is not None and declared_set != authority.decision_set.decision_set_id:
+    if declared_set is None:
+        raise SealedEvidenceError(
+            f"content {sha} is marked {PII_DETECTED_REVIEWED_ACCEPTED} without naming "
+            "its decision set — an admission must say what admits it"
+        )
+    if declared_set != authority.decision_set.decision_set_id:
         raise SealedEvidenceError(
             f"content {sha} names decision set {declared_set!r}, not "
             f"{authority.decision_set.decision_set_id!r}"
@@ -240,6 +248,18 @@ class ReviewAuthority:
         if trust_anchor_path is None or not trust_anchor_path.exists():
             raise SealedEvidenceError(
                 "no trust anchor is available to verify the review receipt"
+            )
+        # L'ancre de confiance est la RACINE de la chaîne : le reçu est protégé
+        # par sa signature, le decision set par le reçu — mais l'ancre n'est
+        # protégée par rien d'autre qu'une empreinte venue de l'extérieur. Sans
+        # elle, un opérateur remplace le fichier par une ancre portant SA clé,
+        # signe un reçu avec la clé privée correspondante, et toute la chaîne se
+        # vérifie. En production, l'épinglage n'est donc pas optionnel.
+        if environment == "production" and not expected_trust_anchor_sha256:
+            raise SealedEvidenceError(
+                "a production review authority requires a pinned trust anchor digest "
+                "— an unpinned anchor can be swapped for one that verifies a forged "
+                "receipt, and nothing else in the chain would notice"
             )
         if expected_trust_anchor_sha256 is not None:
             _require_digest(

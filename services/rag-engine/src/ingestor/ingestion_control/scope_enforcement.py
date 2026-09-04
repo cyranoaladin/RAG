@@ -335,9 +335,16 @@ def enforce_pii(
     du job. ``reviewed_accepted`` vaut ``False`` par défaut, pour qu'un
     appelant qui l'ignore reste du côté fermé.
 
-    ``pii_absence_attested`` reste exigé de toute autorisation qui n'a pas
-    de revue à opposer : une admission porte sur un contenu précis, elle ne
-    dispense pas l'autorisation de sa propre attestation."""
+    **Les deux dimensions restent INDÉPENDANTES.** ADR-0047 le dit dès son
+    en-tête : « ce document ne lève aucun verrou — `pii_absence_required` reste
+    `true` sur tous les cas d'autorisation ; ce que ce contrat rend admissible
+    est une DÉTECTION revue et jugée non personnelle ou publique et licite ».
+    L'admission porte donc sur un CONTENU ; l'attestation porte sur une
+    AUTORISATION. Faire dépendre la seconde de la première ouvrirait une
+    autorisation qui n'atteste rien, sur la foi d'un verdict qui ne parle pas
+    d'elle. Le contrat rend d'ailleurs le cas irreprésentable —
+    `ScopeAuthorizationArtifact` refuse `pii_absence_attested=False` — et cette
+    garde reste volontairement redondante par construction."""
     if pii_detected and not reviewed_accepted:
         raise ScopeEnforcementViolation(
             "pii",
@@ -345,7 +352,7 @@ def enforce_pii(
             f"{authorization.authorization_id!r} and no approved human review "
             "admits it — this release ingests no unreviewed PII",
         )
-    if not authorization.pii_absence_attested and not reviewed_accepted:
+    if not authorization.pii_absence_attested:
         raise ScopeEnforcementViolation(
             "pii",
             f"authorization {authorization.authorization_id!r} does not attest "

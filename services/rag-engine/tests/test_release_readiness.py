@@ -2975,12 +2975,12 @@ def test_runtime_blocks_retrieval_for_a_collection_outside_the_active_registry(
 # Autorité de revue PII dans la chaîne d'autorité (ADR-0047)
 # ─────────────────────────────────────────────────────────────────────────
 
-_PII_REVIEW_AUTHORITIES = (
-    "pii_decision_set_sha256",
-    "pii_review_receipt_sha256",
-    "pii_review_trust_anchor_sha256",
-    "pii_review_index_sha256",
-)
+# Dérivé du module, jamais recopié : si la chaîne s'allonge ou se raccourcit,
+# les tests paramétrés doivent suivre d'eux-mêmes plutôt que de continuer à
+# valider une liste devenue fausse.
+from ingestor.release_readiness import _PII_REVIEW_AUTHORITY_FIELDS  # noqa: E402
+
+_PII_REVIEW_AUTHORITIES = tuple(sorted(_PII_REVIEW_AUTHORITY_FIELDS))
 
 
 class TestPiiReviewAuthoritiesAreAdmissible:
@@ -3057,3 +3057,109 @@ def test_the_vendored_release_readiness_copy_is_byte_identical() -> None:
     vendored = root / "services/rag-engine/src/ingestor/release_readiness.py"
     canonical = root / "packages/release-chain/src/nexus_release_chain/release_readiness.py"
     assert vendored.read_bytes() == canonical.read_bytes()
+
+
+class TestTheReviewChainIsCarriedNotDropped:
+    """P1 — le manifeste annonçait une chaîne, le worker en vérifiait une autre.
+
+    Les quatre empreintes de la chaîne de revue étaient contrôlées
+    syntaxiquement puis JETÉES : `ReleaseExpectation` ne les portait pas. Le
+    worker, lui, charge sa chaîne depuis ses propres arguments. Rien ne
+    confrontait les deux — une release pouvait donc annoncer la chaîne A
+    pendant que le worker en vérifiait une B, chacune valide de son côté."""
+
+    def _expectation(self, tmp_path: Path, extra: dict[str, str] | None = None):
+        manifest, digest, _r, _s = _v2_release_files(tmp_path, extra_authorities=extra)
+        return load_release_expectation(manifest, digest)
+
+    def test_a_release_without_a_review_chain_carries_none(self, tmp_path: Path) -> None:
+        expectation = self._expectation(tmp_path, {})
+        assert expectation.pii_decision_set_sha256 is None
+        assert expectation.pii_review_receipt_sha256 is None
+        assert expectation.pii_review_trust_anchor_sha256 is None
+        assert expectation.pii_review_index_sha256 is None
+
+    def test_the_four_digests_reach_the_expectation(self, tmp_path: Path) -> None:
+        extra = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _PII_REVIEW_AUTHORITIES
+        }
+        expectation = self._expectation(tmp_path, extra)
+        assert expectation.pii_decision_set_sha256 == extra["pii_decision_set_sha256"]
+        assert expectation.pii_review_receipt_sha256 == extra["pii_review_receipt_sha256"]
+        assert (
+            expectation.pii_review_trust_anchor_sha256
+            == extra["pii_review_trust_anchor_sha256"]
+        )
+        assert expectation.pii_review_index_sha256 == extra["pii_review_index_sha256"]
+
+
+class TestV1StaysClosedToV2ReviewAuthorities:
+    """P2 — l'extension V2 ne doit pas ouvrir les lignées antérieures.
+
+    `_require_authority_chain` soustrayait les quatre champs de revue de
+    TOUTE chaîne déclarée, y compris celles des schémas Wave 0 et multi-niveaux
+    V1, qui ne les définissent pas. Un manifeste V1 portant ces champs devenait
+    acceptable, alors que rien dans son schéma ne les prévoit.
+
+    L'ouverture dépend désormais du SCHÉMA de release, pas de la présence des
+    champs — une heuristique de présence laisserait toujours le format ancien
+    s'élargir de lui-même."""
+
+    def test_v2_accepts_the_complete_review_chain(self, tmp_path: Path) -> None:
+        extra = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _PII_REVIEW_AUTHORITIES
+        }
+        manifest, digest, _r, _s = _v2_release_files(tmp_path, extra_authorities=extra)
+        assert load_release_expectation(manifest, digest).release_kind.endswith("_V2")
+
+    def test_the_v1_authority_set_refuses_a_single_review_field(self) -> None:
+        from ingestor.release_readiness import (
+            _MULTILEVEL_AUTHORITY_FIELDS,
+            _require_authority_chain,
+        )
+
+        authorities = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _MULTILEVEL_AUTHORITY_FIELDS
+        }
+        authorities["pii_decision_set_sha256"] = "a" * 64
+        with pytest.raises(ReleaseReadinessError, match="fields mismatch"):
+            _require_authority_chain(
+                authorities, _MULTILEVEL_AUTHORITY_FIELDS, "authorities",
+                review_chain_allowed=False,
+            )
+
+    def test_the_v1_authority_set_refuses_the_complete_review_chain(self) -> None:
+        from ingestor.release_readiness import (
+            _MULTILEVEL_AUTHORITY_FIELDS,
+            _require_authority_chain,
+        )
+
+        authorities = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _MULTILEVEL_AUTHORITY_FIELDS
+        }
+        for name in _PII_REVIEW_AUTHORITIES:
+            authorities[name] = hashlib.sha256(name.encode("utf-8")).hexdigest()
+        with pytest.raises(ReleaseReadinessError, match="fields mismatch"):
+            _require_authority_chain(
+                authorities, _MULTILEVEL_AUTHORITY_FIELDS, "authorities",
+                review_chain_allowed=False,
+            )
+
+    def test_the_v1_authority_set_without_review_fields_still_passes(self) -> None:
+        from ingestor.release_readiness import (
+            _MULTILEVEL_AUTHORITY_FIELDS,
+            _require_authority_chain,
+        )
+
+        authorities = {
+            name: hashlib.sha256(name.encode("utf-8")).hexdigest()
+            for name in _MULTILEVEL_AUTHORITY_FIELDS
+        }
+        _require_authority_chain(
+            authorities, _MULTILEVEL_AUTHORITY_FIELDS, "authorities",
+            review_chain_allowed=False,
+        )

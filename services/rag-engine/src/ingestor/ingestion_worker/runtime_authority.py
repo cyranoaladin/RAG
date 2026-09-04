@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -79,6 +82,10 @@ class RuntimeAuthorityInputs:
     pii_review_receipt_sha256: str | None = None
     review_trust_anchor_path: Path | None = None
     review_trust_anchor_sha256: str | None = None
+    pii_review_index_path: Path | None = None
+    pii_review_index_sha256: str | None = None
+    pii_review_reviewers_path: Path | None = None
+    pii_review_reviewers_sha256: str | None = None
     pii_review_reviewers: tuple[str, ...] = ()
 
 
@@ -109,7 +116,15 @@ _REVIEW_AUTHORITY_ARGUMENTS = (
     ("pii-decision-set", "sealed PII human review decision set"),
     ("pii-review-receipt", "ADR-0035 receipt sealing the decision set"),
     ("review-trust-anchor", "trust anchor verifying the review receipt"),
+    ("pii-review-index", "index of the review bundles that founded the decisions"),
+    ("pii-review-reviewers", "versioned trusted reviewer allowlist (NEXUS-TRUSTED-REVIEW-V1)"),
 )
+
+#: Protocole et dépôt attendus de l'allowlist versionnée. Ce sont ceux que le
+#: reste de la chaîne d'autorité GitHub lit déjà dans le même fichier ; les
+#: redéfinir autrement ferait accepter ici une allowlist qu'elle refuse.
+_TRUSTED_REVIEW_PROTOCOL = "NEXUS-TRUSTED-REVIEW-V1"
+_TRUSTED_REVIEW_REPOSITORY = "cyranoaladin/RAG"
 
 
 def add_review_authority_arguments(parser: argparse.ArgumentParser) -> None:
@@ -118,28 +133,88 @@ def add_review_authority_arguments(parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
             f"--{name}-sha256", default=None, help=f"expected SHA-256: {description}"
         )
-    parser.add_argument(
-        "--pii-review-reviewer",
-        action="append",
-        default=None,
-        dest="pii_review_reviewers",
-        help=(
-            "GitHub login allowed to approve a PII review decision set. Repeatable. "
-            "Absent means no review is accepted — never means any reviewer will do."
-        ),
-    )
+
+
+def load_trusted_reviewers(path: Path, expected_sha256: str) -> tuple[str, ...]:
+    """Lit l'allowlist versionnée des reviewers, épinglée par son empreinte.
+
+    **Pourquoi ce n'est plus une liste passée en ligne de commande.** Un
+    `--pii-review-reviewer <login>` faisait confiance à n'importe quel compte
+    que l'appelant nommait : celui qui lance le worker choisissait qui a le
+    droit d'approuver une admission de PII. L'allowlist est un artefact
+    VERSIONNÉ — `scripts/github/trusted-reviewers.json` — que le reste de la
+    chaîne d'autorité GitHub lit déjà. Elle est ici injectée comme les autres
+    autorités : un chemin, et l'empreinte qui le fige."""
+    if not path.is_file():
+        raise ValueError(f"trusted reviewer allowlist is missing: {path}")
+    raw = path.read_bytes()
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != expected_sha256:
+        raise ValueError(
+            f"trusted reviewer allowlist at {path.name} hashes to {actual}, not the "
+            f"expected {expected_sha256} — this is not the allowlist that was approved"
+        )
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"trusted reviewer allowlist is not readable: {exc}") from exc
+    if not isinstance(document, dict):
+        raise ValueError("trusted reviewer allowlist must be a JSON object")
+    if document.get("protocol") != _TRUSTED_REVIEW_PROTOCOL:
+        raise ValueError(
+            f"trusted reviewer allowlist declares protocol {document.get('protocol')!r}, "
+            f"not {_TRUSTED_REVIEW_PROTOCOL!r}"
+        )
+    if document.get("repository") != _TRUSTED_REVIEW_REPOSITORY:
+        raise ValueError(
+            f"trusted reviewer allowlist covers repository "
+            f"{document.get('repository')!r}, not {_TRUSTED_REVIEW_REPOSITORY!r} — "
+            "an allowlist for another repository names nobody here"
+        )
+    reviewers = document.get("reviewers")
+    if not isinstance(reviewers, list) or not reviewers:
+        raise ValueError("trusted reviewer allowlist declares no reviewer")
+    if any(not isinstance(login, str) or not login for login in reviewers):
+        raise ValueError("trusted reviewer allowlist contains a non-login entry")
+    if len(set(reviewers)) != len(reviewers):
+        raise ValueError("trusted reviewer allowlist contains duplicates")
+    return tuple(reviewers)
 
 
 def review_authority_arguments_from_args(args: argparse.Namespace) -> dict[str, object]:
-    return {
-        "pii_decision_set_path": args.pii_decision_set_path,
-        "pii_decision_set_sha256": args.pii_decision_set_sha256,
-        "pii_review_receipt_path": args.pii_review_receipt_path,
-        "pii_review_receipt_sha256": args.pii_review_receipt_sha256,
-        "review_trust_anchor_path": args.review_trust_anchor_path,
-        "review_trust_anchor_sha256": args.review_trust_anchor_sha256,
-        "pii_review_reviewers": tuple(args.pii_review_reviewers or ()),
-    }
+    """Rend les entrées d'autorité de revue, ou refuse un couple incomplet.
+
+    Un chemin sans son empreinte faisait sauter la vérification de digest et
+    acceptait une chaîne d'autorité non épinglée. Les deux vont ensemble, ou
+    aucun des deux : une moitié de couple n'est pas une demi-garantie, c'est
+    aucune."""
+    resolved: dict[str, object] = {}
+    for name, _description in _REVIEW_AUTHORITY_ARGUMENTS:
+        field = name.replace("-", "_")
+        path = getattr(args, f"{field}_path", None)
+        digest = getattr(args, f"{field}_sha256", None)
+        if path is not None and not digest:
+            raise ValueError(
+                f"--{name}-path was supplied without --{name}-sha256: an authority "
+                "path without its expected digest is not pinned, and an unpinned "
+                "authority is no authority"
+            )
+        if digest and path is None:
+            raise ValueError(
+                f"--{name}-sha256 was supplied without --{name}-path: there is "
+                "nothing for that digest to pin"
+            )
+        resolved[f"{field}_path"] = path
+        resolved[f"{field}_sha256"] = digest
+
+    reviewers_path = resolved.get("pii_review_reviewers_path")
+    reviewers_digest = resolved.get("pii_review_reviewers_sha256")
+    resolved["pii_review_reviewers"] = (
+        load_trusted_reviewers(reviewers_path, str(reviewers_digest))  # type: ignore[arg-type]
+        if reviewers_path is not None
+        else ()
+    )
+    return resolved
 
 
 def add_runtime_authority_arguments(parser: argparse.ArgumentParser) -> None:
@@ -176,6 +251,50 @@ def runtime_authority_inputs_from_args(args: argparse.Namespace) -> RuntimeAutho
         corpus_manifest_sha256=args.corpus_manifest_sha256,
         **review_authority_arguments_from_args(args),  # type: ignore[arg-type]
     )
+
+
+#: Les quatre empreintes que le manifeste de release et le runtime doivent
+#: désigner à l'identique.
+_REVIEW_CHAIN_FIELDS = (
+    "pii_decision_set_sha256",
+    "pii_review_receipt_sha256",
+    "pii_review_trust_anchor_sha256",
+    "pii_review_index_sha256",
+)
+
+
+def require_runtime_review_chain_matches_release(
+    *, declared: Mapping[str, str | None], runtime: Mapping[str, str | None]
+) -> None:
+    """Confronte la chaîne de revue du manifeste à celle que le worker charge.
+
+    Porter les deux ne prouve rien tant que personne ne les compare. Sans cette
+    confrontation, une release peut annoncer la chaîne A pendant que le worker
+    en vérifie une B — chacune valide de son côté, et aucune des deux ne
+    couvrant ce que l'autre affirme.
+
+    Les quatre champs sont comparés INDÉPENDAMMENT : une chaîne dont trois
+    éléments concordent et dont le quatrième vient d'ailleurs n'est pas une
+    chaîne aux trois quarts sûre."""
+    divergent = [
+        (
+            field,
+            declared.get(field),
+            runtime.get(field),
+        )
+        for field in _REVIEW_CHAIN_FIELDS
+        if declared.get(field) != runtime.get(field)
+    ]
+    if divergent:
+        details = "; ".join(
+            f"{field}: release declares {str(left)[:16]}…, runtime loaded {str(right)[:16]}…"
+            for field, left, right in divergent
+        )
+        raise ValueError(
+            "the review authority chain the release declares is not the one this "
+            f"worker verifies ({details}) — a release that advertises one chain "
+            "while another is checked proves nothing about either"
+        )
 
 
 def load_governed_runtime_authorities(
@@ -246,6 +365,20 @@ def load_governed_runtime_authorities(
         raise RuntimeAuthorityStartupError(
             "release rights registry digest differs from the loaded registry"
         )
+    # La chaîne de revue que la release déclare doit être exactement celle que
+    # ce worker vient de charger et de vérifier.
+    try:
+        require_runtime_review_chain_matches_release(
+            declared=resolver.release_review_chain,
+            runtime={
+                "pii_decision_set_sha256": inputs.pii_decision_set_sha256,
+                "pii_review_receipt_sha256": inputs.pii_review_receipt_sha256,
+                "pii_review_trust_anchor_sha256": inputs.review_trust_anchor_sha256,
+                "pii_review_index_sha256": inputs.pii_review_index_sha256,
+            },
+        )
+    except ValueError as exc:
+        raise RuntimeAuthorityStartupError(str(exc)) from exc
     return GovernedRuntimeAuthorities(
         placement_resolver=resolver,
         pii_evidence_registry=pii,

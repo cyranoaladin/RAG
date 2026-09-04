@@ -124,10 +124,14 @@ Base servie inchangée : 319 artefacts | 8324 chunks | 486 placements
 
 L'écart 320/488 est un **delta non appliqué**, reconnu comme tel.
 
-## Sept refus avant la production
+## Sept tentatives, six refus, une production
 
-Aucun n'a été traité en abaissant une garde. Les quatre sabotages de contrôle
-rendent `PRODUCER_RC=1` et `PUBLISHED_FILES=0`.
+Aucun refus n'a été traité en abaissant une garde. Les quatre sabotages de
+contrôle rendent `PRODUCER_RC=1` et `PUBLISHED_FILES=0`.
+
+Le décompte précédent parlait de « sept refus » alors que la ligne 5 du tableau
+est un SUCCÈS — scan, projection et chunking réussis, l'échec survenant plus
+loin. Sept tentatives, dont six refusées.
 
 | # | Refus | Nature |
 |---|-------|--------|
@@ -139,9 +143,16 @@ rendent `PRODUCER_RC=1` et `PUBLISHED_FILES=0`.
 | 6 | chaîne d'autorité fermée à 19 champs | contrat trop étroit — élargi de 4 champs indivisibles |
 | 7 | écarts d'empreinte d'autorité | motif écrit fourni, comparaison jamais désactivée |
 
-## CI locale — 21 cibles PASS, avec un écart déclaré
+## CI locale — 19 cibles PASS, avec un écart déclaré
 
-Les vingt-et-une cibles de vérification de `scripts/ci-local.sh` passent.
+`scripts/ci-local.sh` déclare **19 cibles** `run_target`, mesurées dans le
+script. Les dix-neuf passent.
+
+Le décompte précédent, « vingt-et-une cibles », était faux à deux titres :
+il comptait les opérations de mon script de rejeu — qui éclate les deux cibles
+de service en lint / typecheck / test, soit 21 opérations pour 17 cibles — et
+il omettait `services/cockpit` et `main-protection-policy-tests`, exécutées
+depuis (respectivement RC=0 sur lint+tests+build, et 34 tests OK).
 Elles ont été exécutées contre les venvs existants et épinglés, **sans** son
 étape `rm -rf .venv && make install`, que le cgroup mémoire de cette machine
 tue systématiquement pendant l'installation de torch et triton (31 Gio dont 22

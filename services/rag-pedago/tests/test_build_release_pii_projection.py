@@ -142,6 +142,7 @@ class TestRealDecisionSetProjectsOntoARealisticScan:
             policy_sha256=document["policy_sha256"],
             scanner_sha256=document["scanner_sha256"],
             page_policy_sha256=document["page_policy_sha256"],
+            corpus_manifest_sha256=document["corpus_manifest_sha256"],
         )
 
     def test_the_real_decisions_project_without_refusal(self) -> None:
@@ -175,6 +176,7 @@ class TestRealDecisionSetProjectsOntoARealisticScan:
                 policy_sha256=document["policy_sha256"],
                 scanner_sha256=document["scanner_sha256"],
                 page_policy_sha256=document["page_policy_sha256"],
+                corpus_manifest_sha256=document["corpus_manifest_sha256"],
             )
 
     def test_a_scan_that_lost_one_decided_finding_is_refused(self) -> None:
@@ -202,6 +204,7 @@ class TestRealDecisionSetProjectsOntoARealisticScan:
                 policy_sha256=document["policy_sha256"],
                 scanner_sha256=document["scanner_sha256"],
                 page_policy_sha256=document["page_policy_sha256"],
+                corpus_manifest_sha256=document["corpus_manifest_sha256"],
             )
 
 
@@ -225,26 +228,31 @@ class TestCandidateIsFinalButNotActivable:
             assert parameter in signature.parameters
 
     def test_the_production_path_forwards_the_candidate_flags(self) -> None:
-        """Le chemin production doit TRANSMETTRE ces statuts, pas seulement
-        les accepter : c'est ce qui manquait, et c'est ce qui rendrait une
-        candidate silencieusement activable."""
-        source = PRODUCER.read_text(encoding="utf-8")
-        production_call = source[source.index("        _release_topology_documents("):]
-        production_call = production_call[: production_call.index("\n    )")]
-        for parameter in ("promotion_status=", "activation_status=", "review_status="):
-            assert parameter in production_call, (
-                f"{parameter} n'est pas transmis par la voie production"
-            )
+        """Comportemental : une candidate SORT bloquée, quoi qu'on demande.
+
+        La version précédente découpait le source du producteur à une
+        indentation littérale de huit espaces et au premier `"\n    )"` — une
+        indentation n'est pas une API, et le test cassait au moindre
+        reformatage sans qu'aucun comportement ait changé."""
+        from conftest import load_producer
+
+        module = load_producer()
+        statuses = module.resolve_candidate_release_statuses(
+            promotion_status=None, activation_status=None,
+            review_status=None, is_candidate=True,
+        )
+        assert statuses["promotion_status"] == "NOT_PROMOTABLE"
+        assert statuses["activation_status"] == "NO_PRODUCTION_ACTIVATION"
 
     def test_the_production_release_id_is_not_silently_reused(self) -> None:
-        """§8 : une candidate a sa propre identité, jamais celle d'une
-        release historique dont la sémantique a déjà dérivé."""
-        source = PRODUCER.read_text(encoding="utf-8")
-        production_call = source[source.index("        _release_topology_documents("):]
-        production_call = production_call[: production_call.index("\n    )")]
-        assert "release_id=RELEASE_ID," not in production_call, (
-            "la voie production réemploie l'identifiant historique en dur"
-        )
+        """Comportemental : `--release-id` décide de l'identité produite."""
+        import inspect
+
+        from conftest import load_producer
+
+        signature = inspect.signature(load_producer().build_release)
+        assert "release_id" in signature.parameters
+        assert signature.parameters["release_id"].default is None
 
 
 class TestCurrentnessVerdictNamesItsOwnRelease:
@@ -299,3 +307,229 @@ class TestCurrentnessVerdictNamesItsOwnRelease:
         assert audit["attempts"] == []
         assert audit["attempts_made_by_this_producer"] is False
         assert audit["verified_at"] is None
+
+
+class TestRawPiiIsMeasuredNotDeclared:
+    """P1 — `raw_pii_in_output: false` était une constante déclarative.
+
+    Le producteur certifiait que sa preuve ne porte aucune matière brute sans
+    jamais la mesurer. Une attestation qu'aucune mesure ne fonde ne vaut rien :
+    elle dit ce que l'auteur croit, pas ce que le fichier contient.
+
+    La mesure s'exécute désormais AVANT l'émission, sur les résultats
+    réellement produits, et un finding est un refus — pas une note."""
+
+    def _entries(self, extra: dict | None = None) -> list[dict]:
+        rows = [
+            {
+                "content_sha256": f"{i:064x}",
+                "status": "CLEARED",
+                "pii_detected": False,
+                "pages_scanned": 1,
+                "characters_scanned": 1,
+                "ignored_empty_pages": [],
+                "source_path": f"01_EDUSCOL_OFFICIEL/doc-{i}.pdf",
+            }
+            for i in range(3)
+        ]
+        if extra:
+            rows[1].update(extra)
+        return rows
+
+    def test_clean_evidence_passes_and_is_attested(self) -> None:
+        from rag_pedago.imports.raw_pii_guard import require_no_raw_pii
+
+        require_no_raw_pii({"results": self._entries()}, label="pii_evidence")
+
+    def test_a_phone_injected_into_the_evidence_is_refused(self) -> None:
+        from rag_pedago.imports.raw_pii_guard import RawPiiLeakError, require_no_raw_pii
+
+        with pytest.raises(RawPiiLeakError, match="phone_french"):
+            require_no_raw_pii(
+                {"results": self._entries({"source_path": "appeler le 0612345678"})},
+                label="pii_evidence",
+            )
+
+    def test_an_email_injected_into_the_evidence_is_refused(self) -> None:
+        from rag_pedago.imports.raw_pii_guard import RawPiiLeakError, require_no_raw_pii
+
+        with pytest.raises(RawPiiLeakError, match="email_address"):
+            require_no_raw_pii(
+                {"results": self._entries({"source_path": "contact jean@example.org"})},
+                label="pii_evidence",
+            )
+
+    def test_the_refusal_never_repeats_the_material_it_reports(self) -> None:
+        """Un rapport de fuite qui recopie la fuite est la fuite."""
+        from rag_pedago.imports.raw_pii_guard import RawPiiLeakError, require_no_raw_pii
+
+        try:
+            require_no_raw_pii(
+                {"results": self._entries({"source_path": "tel 0612345678"})},
+                label="pii_evidence",
+            )
+        except RawPiiLeakError as exc:
+            assert "0612345678" not in str(exc)
+        else:  # pragma: no cover - le cas précédent lève toujours
+            raise AssertionError("aucun refus")
+
+    def test_the_producer_calls_the_guard_before_emitting(self) -> None:
+        """La garde doit être DANS le chemin qui certifie, pas à côté."""
+        source = PRODUCER.read_text(encoding="utf-8")
+        assert "require_no_raw_pii" in source
+        emission = source[: source.index('"raw_pii_in_output": False')]
+        assert "require_no_raw_pii" in emission, (
+            "la garde doit s'exécuter avant l'émission de l'attestation"
+        )
+
+
+class TestACandidateCanNeverBeAskedToBeActivable:
+    """P1 — les statuts bloquants étaient des valeurs d'appelant.
+
+    `_release_topology_documents` recevait `promotion_status` et
+    `activation_status` tels quels. Un appelant pouvait donc demander une
+    candidate PROMOTABLE, ou en omettre les statuts et obtenir `None` — c'est-
+    à-dire une release qu'aucun verrou ne bloque.
+
+    Une valeur activante n'est pas silencieusement corrigée : elle est
+    REFUSÉE, parce qu'un appel qui la demande est un appel qui se trompe, et
+    qu'écraser sa demande sans rien dire lui laisserait croire qu'il l'a
+    obtenue."""
+
+    def _build(self, **kw):
+        from conftest import load_producer
+
+        return load_producer().resolve_candidate_release_statuses(**kw)
+
+    def test_defaults_are_blocking(self) -> None:
+        statuses = self._build(promotion_status=None, activation_status=None,
+                               review_status=None, is_candidate=True)
+        assert statuses["promotion_status"] == "NOT_PROMOTABLE"
+        assert statuses["activation_status"] == "NO_PRODUCTION_ACTIVATION"
+
+    def test_explicit_blocking_values_are_accepted(self) -> None:
+        statuses = self._build(promotion_status="NOT_PROMOTABLE",
+                               activation_status="NO_PRODUCTION_ACTIVATION",
+                               review_status="REVIEWED", is_candidate=True)
+        assert statuses["review_status"] == "REVIEWED"
+
+    def test_a_promotable_candidate_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="PROMOTABLE|activable"):
+            self._build(promotion_status="PROMOTABLE", activation_status=None,
+                        review_status=None, is_candidate=True)
+
+    def test_an_activatable_candidate_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="ACTIVATION|activable"):
+            self._build(promotion_status=None,
+                        activation_status="PRODUCTION_ACTIVATION_ALLOWED",
+                        review_status=None, is_candidate=True)
+
+    def test_both_activating_values_are_refused(self) -> None:
+        with pytest.raises(ValueError):
+            self._build(promotion_status="PROMOTABLE",
+                        activation_status="PRODUCTION_ACTIVATION_ALLOWED",
+                        review_status=None, is_candidate=True)
+
+    def test_a_non_candidate_build_keeps_its_caller_values(self) -> None:
+        """La règle vise les CANDIDATES ; elle ne redéfinit pas les autres."""
+        statuses = self._build(promotion_status=None, activation_status=None,
+                               review_status=None, is_candidate=False)
+        assert statuses == {"promotion_status": None, "activation_status": None,
+                            "review_status": None}
+
+
+class TestTheDecisionSetMustCoverThisCorpus:
+    """P1 — un ensemble scellé pour un AUTRE corpus projetait quand même.
+
+    `corpus_manifest_sha256` figure dans l'ensemble de décisions précisément
+    pour dire de quel corpus il parle. Rien ne le confrontait au corpus de la
+    candidate : une campagne de revue menée sur un autre corpus, dont les SHA
+    de contenus coïncideraient, aurait admis des contenus que personne n'a
+    examinés dans CE corpus."""
+
+    def _project(self, manifest: str):
+        import json as _json
+
+        from rag_pedago.imports.pii_review_projection import project_pii_review
+
+        document = _json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))
+        scanned = TestRealDecisionSetProjectsOntoARealisticScan()._scan_from_decisions(3)
+        bundles = TestRealDecisionSetProjectsOntoARealisticScan()._bundles()
+        return project_pii_review(
+            scanned,
+            decision_set_document=document,
+            review_bundles=bundles,
+            policy_sha256=document["policy_sha256"],
+            scanner_sha256=document["scanner_sha256"],
+            page_policy_sha256=document["page_policy_sha256"],
+            corpus_manifest_sha256=manifest,
+        )
+
+    def test_the_matching_corpus_manifest_projects(self) -> None:
+        import json as _json
+
+        document = _json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))
+        projection = self._project(document["corpus_manifest_sha256"])
+        assert projection.counts["reviewed_accepted_count"] == 23
+
+    def test_another_corpus_manifest_is_refused(self) -> None:
+        from rag_pedago.imports.pii_review_projection import PiiProjectionError
+
+        with pytest.raises(PiiProjectionError, match="corpus manifest"):
+            self._project("0" * 64)
+
+    def test_the_binding_is_required_not_optional(self) -> None:
+        """Omettre le manifeste n'est pas une façon d'échapper au contrôle."""
+        from rag_pedago.imports.pii_review_projection import PiiProjectionError
+
+        with pytest.raises((PiiProjectionError, TypeError)):
+            self._project(None)  # type: ignore[arg-type]
+
+
+class TestTheReviewIndexCannotDisableItsOwnCheck:
+    """P2 — un champ interne au fichier désactivait le contrôle du fichier.
+
+    Le producteur ne comparait l'empreinte de l'index à celle scellée dans les
+    décisions que si l'index ne déclarait PAS `review_index_sha256_declared`.
+    Cette clé vit dans le fichier vérifié : quiconque fournit l'index pouvait
+    donc la poser et éteindre le seul contrôle qui le lie à la campagne.
+
+    L'index réel satisfait le contrôle (bcb4c6f4…), qui devient donc
+    inconditionnel sans rien casser de la campagne scellée."""
+
+    def test_the_real_index_matches_the_sealed_digest(self) -> None:
+        import hashlib
+        import json as _json
+
+        decisions = _json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))
+        assert (
+            hashlib.sha256(REAL_INDEX.read_bytes()).hexdigest()
+            == decisions["review_index_sha256"]
+        )
+
+    def test_a_self_declared_flag_no_longer_disables_the_check(self) -> None:
+        source = PRODUCER.read_text(encoding="utf-8")
+        assert 'index.get("review_index_sha256_declared")' not in source, (
+            "un champ du fichier vérifié ne peut pas décider s'il est vérifié"
+        )
+
+    def test_a_substituted_index_is_refused(self, tmp_path: Path) -> None:
+        """Sabotage : un index d'une autre campagne, correctement formé."""
+        import json as _json
+
+        from conftest import load_producer
+
+        module = load_producer()
+        index = _json.loads(REAL_INDEX.read_text(encoding="utf-8"))
+        index["campaign_id"] = "pii-review-autre-campagne"
+        forged = tmp_path / "index.json"
+        forged.write_text(_json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+        inputs = module.ReviewAuthorityInputs(
+            decision_set_path=REAL_DECISION_SET,
+            receipt_path=REAL_RECEIPT,
+            trust_anchor_path=REAL_ANCHOR,
+            review_index_path=forged,
+            reviewers=("abenrhouma",),
+        )
+        with pytest.raises(ValueError, match="review index"):
+            module._load_review_authority(inputs)

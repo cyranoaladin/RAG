@@ -15,6 +15,7 @@ sens d'un garde-fou.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -99,22 +100,39 @@ class TestSnapshotCompleteness:
 
 
 class TestTheRealSnapshotsAreJudgedCorrectly:
-    """La mesure sur les instantanés réellement présents sur la machine."""
+    """Intégration opérateur — chemin fourni explicitement, jamais deviné.
 
-    ROOT = Path("/home/alaeddine/rag-model-artifacts")
+    La version précédente codait `/home/alaeddine/rag-model-artifacts` en dur et
+    n'assertait rien ailleurs : deux blocs `if` sautés, aucun échec, et
+    l'apparence d'un test vert sur toute autre machine. Un test qui ne peut
+    échouer nulle part sauf chez son auteur n'est pas une preuve.
+
+    L'invariant lui-même est démontré en CI par `TestSnapshotCompleteness`, sur
+    des instantanés synthétiques. Ce test-ci confronte la règle aux artefacts
+    RÉELS, et n'est exécuté que si on lui en donne la racine."""
 
     @pytest.mark.skipif(
-        not (Path("/home/alaeddine/rag-model-artifacts")).is_dir(),
-        reason="artefacts de modèle absents de cette machine",
+        not os.environ.get("NEXUS_MODEL_ARTIFACTS_ROOT"),
+        reason=(
+            "intégration opérateur : exige NEXUS_MODEL_ARTIFACTS_ROOT vers la racine "
+            "des instantanés de modèle, qui ne sont pas versionnés"
+        ),
     )
     def test_the_amputated_snapshot_is_refused_and_the_complete_one_accepted(self) -> None:
+        root = Path(os.environ["NEXUS_MODEL_ARTIFACTS_ROOT"])
         builder = _module()
-        complete = self.ROOT / "e5-large-prerentree-2026-2027-20260828-materialise"
-        amputated = self.ROOT / "e5-large-prerentree-2026-2027"
-        manifest = {"model_id": "intfloat/multilingual-e5-large", "revision": "3d7cfbda"}
+        complete = root / "e5-large-prerentree-2026-2027-20260828-materialise"
+        amputated = root / "e5-large-prerentree-2026-2027"
+        judged = 0
         if amputated.is_dir():
             with pytest.raises(ValueError, match="1_Pooling"):
-                builder._model_inventory(snapshot=amputated, manifest=manifest)
+                builder._require_declared_modules_are_present(amputated)
+            judged += 1
         if complete.is_dir():
-            _m, inventory = builder._model_inventory(snapshot=complete, manifest=manifest)
-            assert b"1_Pooling/config.json" in inventory
+            builder._require_declared_modules_are_present(complete)
+            assert (complete / "1_Pooling" / "config.json").is_file()
+            judged += 1
+        assert judged > 0, (
+            "NEXUS_MODEL_ARTIFACTS_ROOT ne contient aucun des instantanés attendus : "
+            "ce test doit échouer plutôt que de ne rien vérifier"
+        )

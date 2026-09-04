@@ -530,3 +530,21 @@ class TestVerifyPiiReviewDecisionAuthority:
                 receipt_bytes=_authority_receipt_bytes(raw),
                 trust_anchor=other_anchor,
             )
+
+    def test_a_receipt_whose_challenge_is_recycled_is_refused(self) -> None:
+        """P1 : le challenge doit être celui que les dimensions du reçu produisent.
+
+        `verify_review_binding` ne recalcule pas `challenge_digest`. Sans
+        `require_challenge_is_bound`, un reçu authentiquement signé mais portant
+        le challenge d'une AUTRE revue est accepté — le champ devient
+        décoratif, et la liaison à la revue qu'il prétend couvrir n'existe
+        plus."""
+        raw = PiiReviewDecisionSetV1.model_validate(_set()).canonical_bytes()
+        receipt = json.loads(_authority_receipt_bytes(raw))
+        receipt["binding"]["challenge_digest"] = "9" * 64
+        binding = ScopeAuthorizationReviewBindingV1.model_validate(receipt["binding"])
+        resigned = sign_review_binding(
+            binding, private_key_hex=SIGNING_SEED, key_id=SIGNING_KEY_ID
+        ).canonical_bytes()
+        with pytest.raises(ReviewBindingError, match="challenge"):
+            self._authority(decision_set_bytes=raw, receipt_bytes=resigned)

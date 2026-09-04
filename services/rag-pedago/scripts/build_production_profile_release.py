@@ -51,6 +51,7 @@ from rag_pedago.imports.pii_scanner import (
     load_patterns_from_config,
     scan_pdf_bytes,
 )
+from rag_pedago.imports.raw_pii_guard import require_no_raw_pii
 
 REPOSITORY_ROOT = Path(os.environ.get("NEXUS_REPO_ROOT") or Path(__file__).resolve().parents[3])
 
@@ -1492,14 +1493,18 @@ def _load_review_authority(
         str(entry["content_sha256"]): str(entry["bundle_sha256"])
         for entry in index.get("bundles", [])
     }
-    if index.get("review_index_sha256_declared") is None:
-        indexed_digest = _sha256_bytes(inputs.review_index_path.read_bytes())
-        if indexed_digest != decision_set.review_index_sha256:
-            raise ValueError(
-                "the decision set was sealed against review index "
-                f"{decision_set.review_index_sha256[:16]}… while the supplied index "
-                f"hashes to {indexed_digest[:16]}… — they are not the same campaign"
-            )
+    # Inconditionnel. La comparaison était sautée si l'index déclarait
+    # `review_index_sha256_declared` — une clé qui vit DANS le fichier vérifié.
+    # Quiconque fournissait l'index pouvait donc la poser et éteindre le seul
+    # contrôle qui le lie à la campagne scellée. Un champ ne décide jamais s'il
+    # est lui-même vérifié.
+    indexed_digest = _sha256_bytes(inputs.review_index_path.read_bytes())
+    if indexed_digest != decision_set.review_index_sha256:
+        raise ValueError(
+            "the decision set was sealed against review index "
+            f"{decision_set.review_index_sha256[:16]}… while the supplied review index "
+            f"hashes to {indexed_digest[:16]}… — they are not the same campaign"
+        )
 
     digests = {
         "pii_decision_set_sha256": _sha256_bytes(raw_decision_set),
@@ -1508,6 +1513,52 @@ def _load_review_authority(
         "pii_review_index_sha256": _sha256_bytes(inputs.review_index_path.read_bytes()),
     }
     return json.loads(raw_decision_set.decode("utf-8")), bundles, digests
+
+
+#: Statuts qui rendraient une release promouvable ou activable. Une candidate
+#: n'a jamais le droit de les porter : le gate PII n'est qu'un des gates de
+#: go-live, et C1-C6 restent ouverts tant qu'ils ne sont pas prouvés.
+_ACTIVATING_PROMOTION = "PROMOTABLE"
+_ACTIVATING_ACTIVATION = "PRODUCTION_ACTIVATION_ALLOWED"
+
+
+def resolve_candidate_release_statuses(
+    *,
+    promotion_status: str | None,
+    activation_status: str | None,
+    review_status: str | None,
+    is_candidate: bool,
+) -> dict[str, str | None]:
+    """Résout les statuts d'une release, et refuse une candidate activable.
+
+    Ces trois valeurs traversaient le producteur telles que l'appelant les
+    donnait. Il pouvait donc demander une candidate `PROMOTABLE`, ou n'en rien
+    dire et obtenir `None` — c'est-à-dire une release qu'aucun verrou ne bloque.
+
+    Une demande activante n'est pas silencieusement corrigée mais REFUSÉE : un
+    appel qui la formule est un appel qui se trompe, et écraser sa demande sans
+    rien dire lui laisserait croire qu'il l'a obtenue."""
+    if not is_candidate:
+        return {
+            "promotion_status": promotion_status,
+            "activation_status": activation_status,
+            "review_status": review_status,
+        }
+    refused = []
+    if promotion_status == _ACTIVATING_PROMOTION:
+        refused.append(f"promotion_status={_ACTIVATING_PROMOTION}")
+    if activation_status == _ACTIVATING_ACTIVATION:
+        refused.append(f"activation_status={_ACTIVATING_ACTIVATION}")
+    if refused:
+        raise ValueError(
+            f"a production candidate cannot be asked to be activable ({', '.join(refused)}): "
+            "the PII gate is one go-live gate among several, and the others are not proven"
+        )
+    return {
+        "promotion_status": promotion_status or "NOT_PROMOTABLE",
+        "activation_status": activation_status or "NO_PRODUCTION_ACTIVATION",
+        "review_status": review_status,
+    }
 
 
 def _pii_evidence(
@@ -1616,6 +1667,7 @@ def _pii_evidence(
             policy_sha256=policy_sha,
             scanner_sha256=scanner_sha,
             page_policy_sha256=page_policy_sha,
+            corpus_manifest_sha256=CORPUS_MANIFEST_AUTHORITY,
         )
     except PiiProjectionError as exc:
         raise ValueError(f"the PII review cannot be projected on this scan: {exc}") from exc
@@ -1632,6 +1684,12 @@ def _pii_evidence(
         }
         for entry in projection.entries
     ]
+
+    # `raw_pii_in_output: false`, plus bas, était une CONSTANTE : le producteur
+    # certifiait que sa preuve ne porte aucune matière brute sans l'avoir
+    # regardée. La mesure a lieu ici, sur les résultats réellement produits, et
+    # avant l'attestation qui en dépend. Un finding est un refus.
+    require_no_raw_pii({"results": results}, label="pii_evidence.results", patterns=patterns)
 
     return {
         "evidence_kind": "REAL_CORPUS_PII_SCAN",
@@ -2773,9 +2831,12 @@ def build_release(
             # NO_PRODUCTION_ACTIVATION. Ces statuts traversent donc aussi la
             # voie production, sans quoi une candidate serait silencieusement
             # activable au seul motif que sa PII est en règle.
-            promotion_status=promotion_status,
-            activation_status=activation_status,
-            review_status=review_status,
+            **resolve_candidate_release_statuses(
+                promotion_status=promotion_status,
+                activation_status=activation_status,
+                review_status=review_status,
+                is_candidate=release_id is not None,
+            ),
         )
     )
     bindings = {

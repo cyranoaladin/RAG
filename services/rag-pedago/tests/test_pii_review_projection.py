@@ -35,6 +35,7 @@ from rag_pedago.imports.pii_review_projection import (
     project_pii_review,
 )
 
+MANIFEST_SHA = "0" * 64
 POLICY_SHA = "d" * 64
 SCANNER_SHA = "e" * 64
 PAGE_POLICY_SHA = "f" * 64
@@ -153,6 +154,7 @@ def _project(**overrides: Any):
         "policy_sha256": POLICY_SHA,
         "scanner_sha256": SCANNER_SHA,
         "page_policy_sha256": PAGE_POLICY_SHA,
+        "corpus_manifest_sha256": MANIFEST_SHA,
     }
     kwargs.update(overrides)
     return project_pii_review(**kwargs)
@@ -400,3 +402,80 @@ class TestProducerRefusals:
         with pytest.raises(PiiProjectionError, match="twice"):
             _project(scanned=[_scanned(CLEAN_A), _scanned(CLEAN_A)],
                      decision_set_document=None, review_bundles={})
+
+
+class TestTheDecisionSetMustDescribeThisCorpus:
+    """P1 — l'ensemble scellé doit parler DU corpus de cette release."""
+
+    def test_a_matching_corpus_manifest_projects(self) -> None:
+        assert _project().counts["reviewed_accepted_count"] == 1
+
+    def test_another_corpus_manifest_is_refused(self) -> None:
+        with pytest.raises(PiiProjectionError, match="corpus manifest"):
+            _project(corpus_manifest_sha256="9" * 64)
+
+    def test_the_check_survives_an_identical_content_population(self) -> None:
+        """Même population de contenus, autre corpus : toujours refusé.
+
+        C'est le cas que la cardinalité seule ne verrait pas."""
+        with pytest.raises(PiiProjectionError, match="corpus manifest"):
+            _project(corpus_manifest_sha256="8" * 64)
+
+
+class TestADuplicateFindingIdIsNeverDeduplicated:
+    """P2 — un dict servait involontairement de mécanisme de déduplication.
+
+    `{f.finding_id: f for f in findings}` ne garde que la dernière occurrence.
+    Deux findings partageant une identité — qu'ils portent la même charge ou
+    non — disparaissaient donc silencieusement l'un dans l'autre, et une
+    détection supplémentaire pouvait traverser sans disposition.
+
+    Même un doublon strictement identique est refusé : une preuve qui compte
+    deux fois le même signal est une preuve fausse, indépendamment de ce que
+    le doublon contient."""
+
+    def test_a_duplicate_scan_finding_id_is_refused(self) -> None:
+        with pytest.raises(PiiProjectionError, match="twice|duplicate"):
+            _project(
+                scanned=[
+                    _scanned(CLEAN_A), _scanned(CLEAN_B),
+                    _scanned(DETECTED, (FINDING_1, FINDING_2, FINDING_1)),
+                ],
+            )
+
+    def test_a_duplicate_with_a_conflicting_payload_is_refused(self) -> None:
+        conflicting = ScannedFinding(
+            finding_id=FINDING_1.finding_id,
+            pattern_id=FINDING_1.pattern_id,
+            page=FINDING_1.page,
+            match_sha256="7" * 64,
+            context_sha256=FINDING_1.context_sha256,
+        )
+        with pytest.raises(PiiProjectionError, match="twice|duplicate"):
+            _project(
+                scanned=[
+                    _scanned(CLEAN_A), _scanned(CLEAN_B),
+                    _scanned(DETECTED, (FINDING_1, FINDING_2, conflicting)),
+                ],
+            )
+
+    def test_the_refusal_happens_before_any_mapping_is_built(self) -> None:
+        """Le refus doit précéder la construction, pas la suivre.
+
+        Trois findings scannés pour deux dispositionnés : si la déduplication
+        avait lieu d'abord, les univers coïncideraient et rien ne serait vu."""
+        projection_error = None
+        try:
+            _project(
+                scanned=[
+                    _scanned(CLEAN_A), _scanned(CLEAN_B),
+                    _scanned(DETECTED, (FINDING_1, FINDING_2, FINDING_2)),
+                ],
+            )
+        except PiiProjectionError as exc:
+            projection_error = str(exc)
+        assert projection_error is not None
+        assert "no disposition" not in projection_error, (
+            "le doublon doit être refusé pour ce qu'il est, pas confondu avec "
+            "un finding non dispositionné"
+        )

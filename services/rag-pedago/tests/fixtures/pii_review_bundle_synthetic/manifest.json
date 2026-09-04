@@ -1,0 +1,17 @@
+{
+  "protocol_version": "NEXUS-PII-REVIEW-BUNDLE-V1",
+  "campaign_id": "pii-review-synthetic-fixture",
+  "content_sha256": "3733771418a38c63b27f932b54376b4d602d32d399bb2b4b3c1d07e956b08388",
+  "page_count": 5,
+  "signals": [
+    {
+      "finding_id": "3d9d84a442828cd494824117a93eaa0181366bff1be5750bfd283e28901107dd",
+      "pattern_id": "phone_french",
+      "page_number": 3,
+      "char_offset": 320,
+      "match_length": 10,
+      "match_sha256": "796565281f0625f4e46b5d8afd4af05eb67fb56b786ea6c06ad220db02ebd067",
+      "context_sha256": "5a313801ce6d8c2b803fd576d8a5bcbdb168b0a488d83c1704418fcc5ba4b5e1"
+    }
+  ]
+}

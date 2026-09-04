@@ -11,7 +11,11 @@ jamais un identifiant de campagne réel.
 from __future__ import annotations
 
 import argparse
+import hashlib
+import json
 from pathlib import Path
+
+import pytest
 
 from ingestor.ingestion_worker.multilevel_runtime_authority import (
     add_multilevel_runtime_authority_arguments,
@@ -22,10 +26,13 @@ from ingestor.ingestion_worker.runtime_authority import (
     runtime_authority_inputs_from_args,
 )
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+
 REVIEW_ARGUMENTS = (
     "pii-decision-set",
     "pii-review-receipt",
     "review-trust-anchor",
+    "pii-review-reviewers",
 )
 
 
@@ -60,14 +67,12 @@ class TestArgumentsAreDeclared:
         for name in REVIEW_ARGUMENTS:
             assert f"--{name}-path" in options
             assert f"--{name}-sha256" in options
-        assert "--pii-review-reviewer" in options
 
     def test_multilevel_parser_declares_the_review_authority_couples(self) -> None:
         options = _option_strings(_parser(add_multilevel_runtime_authority_arguments))
         for name in REVIEW_ARGUMENTS:
             assert f"--{name}-path" in options
             assert f"--{name}-sha256" in options
-        assert "--pii-review-reviewer" in options
 
     def test_review_authority_is_optional(self) -> None:
         """Une release sans aucun contenu détecté n'a pas de décisions à joindre.
@@ -93,7 +98,7 @@ class TestInputsCarryTheInjectedAuthority:
         args += ["--corpus-manifest-sha256", "1" * 64]
         return args
 
-    def test_absent_review_authority_yields_none_not_a_guess(self) -> None:
+    def test_absent_review_authority_yields_none_not_a_guess(self) -> None:  # noqa: D401
         parser = _wave0_parser()
         inputs = runtime_authority_inputs_from_args(parser.parse_args(self._base()))
         assert inputs.pii_decision_set_path is None
@@ -103,6 +108,7 @@ class TestInputsCarryTheInjectedAuthority:
 
     def test_injected_review_authority_reaches_the_inputs(self) -> None:
         parser = _wave0_parser()
+        allowlist = REPO_ROOT / "scripts/github/trusted-reviewers.json"
         extra = [
             "--pii-decision-set-path", "/tmp/ds.json",
             "--pii-decision-set-sha256", "2" * 64,
@@ -110,16 +116,19 @@ class TestInputsCarryTheInjectedAuthority:
             "--pii-review-receipt-sha256", "3" * 64,
             "--review-trust-anchor-path", "/tmp/anchor.json",
             "--review-trust-anchor-sha256", "4" * 64,
-            "--pii-review-reviewer", "reviewer-one",
-            "--pii-review-reviewer", "reviewer-two",
+            "--pii-review-reviewers-path", str(allowlist),
+            "--pii-review-reviewers-sha256",
+            hashlib.sha256(allowlist.read_bytes()).hexdigest(),
         ]
         inputs = runtime_authority_inputs_from_args(parser.parse_args(self._base() + extra))
         assert inputs.pii_decision_set_path == Path("/tmp/ds.json")
         assert inputs.pii_decision_set_sha256 == "2" * 64
         assert inputs.pii_review_receipt_path == Path("/tmp/receipt.json")
+        # P3 : l'empreinte du reçu était passée sans jamais être assertée.
+        assert inputs.pii_review_receipt_sha256 == "3" * 64
         assert inputs.review_trust_anchor_path == Path("/tmp/anchor.json")
         assert inputs.review_trust_anchor_sha256 == "4" * 64
-        assert inputs.pii_review_reviewers == ("reviewer-one", "reviewer-two")
+        assert inputs.pii_review_reviewers == ("abenrhouma",)
 
     def test_multilevel_inputs_carry_the_injected_authority(self) -> None:
         parser = _parser(add_multilevel_runtime_authority_arguments)
@@ -140,8 +149,245 @@ class TestInputsCarryTheInjectedAuthority:
             "--pii-review-receipt-sha256", "3" * 64,
             "--review-trust-anchor-path", "/tmp/anchor.json",
             "--review-trust-anchor-sha256", "4" * 64,
-            "--pii-review-reviewer", "reviewer-one",
+            "--pii-review-reviewers-path", str(REPO_ROOT / "scripts/github/trusted-reviewers.json"),
+            "--pii-review-reviewers-sha256",
+            hashlib.sha256((REPO_ROOT / "scripts/github/trusted-reviewers.json").read_bytes()).hexdigest(),
         ]
         inputs = multilevel_runtime_authority_inputs_from_args(parser.parse_args(args))
         assert inputs.pii_decision_set_path == Path("/tmp/ds.json")
-        assert inputs.pii_review_reviewers == ("reviewer-one",)
+        assert inputs.pii_review_reviewers == ("abenrhouma",)
+
+
+class TestNoUnpinnedAuthorityCanBeInjected:
+    """Un chemin sans son empreinte n'est pas une autorité (P1).
+
+    Fournir `--x-path` sans `--x-sha256` faisait sauter la vérification de
+    digest et acceptait une chaîne non épinglée. Les deux vont ensemble, ou
+    aucun des deux."""
+
+    def _base(self) -> list[str]:
+        args: list[str] = []
+        for name in (
+            "catalog", "candidate-inventory", "currentness-evidence", "mapping",
+            "release-manifest", "programme-index", "collection-config",
+            "pii-evidence", "rights-evidence",
+        ):
+            args += [f"--{name}-path", f"/tmp/{name}.json", f"--{name}-sha256", "0" * 64]
+        return args + ["--corpus-manifest-sha256", "1" * 64]
+
+    @pytest.mark.parametrize("name", REVIEW_ARGUMENTS)
+    def test_a_path_without_its_digest_is_refused(self, name: str) -> None:
+        parser = _wave0_parser()
+        args = parser.parse_args(self._base() + [f"--{name}-path", "/tmp/x.json"])
+        with pytest.raises(ValueError, match="sha256|digest|épingl|pinned"):
+            runtime_authority_inputs_from_args(args)
+
+    @pytest.mark.parametrize("name", REVIEW_ARGUMENTS)
+    def test_a_digest_without_its_path_is_refused(self, name: str) -> None:
+        parser = _wave0_parser()
+        args = parser.parse_args(self._base() + [f"--{name}-sha256", "2" * 64])
+        with pytest.raises(ValueError, match="path|chemin"):
+            runtime_authority_inputs_from_args(args)
+
+    def test_complete_couples_are_accepted(self) -> None:
+        parser = _wave0_parser()
+        allowlist = REPO_ROOT / "scripts/github/trusted-reviewers.json"
+        extra: list[str] = []
+        for name in REVIEW_ARGUMENTS:
+            if name == "pii-review-reviewers":
+                extra += [f"--{name}-path", str(allowlist), f"--{name}-sha256",
+                          hashlib.sha256(allowlist.read_bytes()).hexdigest()]
+            else:
+                extra += [f"--{name}-path", f"/tmp/{name}.json", f"--{name}-sha256", "3" * 64]
+        inputs = runtime_authority_inputs_from_args(parser.parse_args(self._base() + extra))
+        assert inputs.pii_decision_set_sha256 == "3" * 64
+        assert inputs.pii_review_receipt_sha256 == "3" * 64
+        assert inputs.review_trust_anchor_sha256 == "3" * 64
+        assert inputs.pii_review_reviewers == ("abenrhouma",)
+
+
+class TestTheReviewerAllowlistIsAVersionedAuthority:
+    """Les reviewers ne se fournissent plus à la main (P1).
+
+    `--pii-review-reviewer abenrhouma` faisait confiance à n'importe quel
+    compte que l'appelant nommait. L'allowlist est un artefact versionné —
+    `scripts/github/trusted-reviewers.json`, protocole NEXUS-TRUSTED-REVIEW-V1 —
+    déjà lu par le reste de la chaîne d'autorité GitHub. Il est désormais
+    injecté comme les autres : par un couple chemin + empreinte."""
+
+    def test_the_free_form_reviewer_flag_is_gone(self) -> None:
+        options = _option_strings(_parser(add_runtime_authority_arguments))
+        assert "--pii-review-reviewer" not in options
+
+    def test_the_canonical_allowlist_is_read_and_verified(self, tmp_path: Path) -> None:
+        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
+
+        config = tmp_path / "trusted-reviewers.json"
+        config.write_text(
+            json.dumps(
+                {
+                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+                    "repository": "cyranoaladin/RAG",
+                    "base_ref": "main",
+                    "reviewers": ["abenrhouma"],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        digest = hashlib.sha256(config.read_bytes()).hexdigest()
+        assert load_trusted_reviewers(config, digest) == ("abenrhouma",)
+
+    def test_a_tampered_allowlist_is_refused(self, tmp_path: Path) -> None:
+        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
+
+        config = tmp_path / "trusted-reviewers.json"
+        config.write_text(
+            json.dumps(
+                {
+                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+                    "repository": "cyranoaladin/RAG",
+                    "base_ref": "main",
+                    "reviewers": ["abenrhouma"],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        legitimate = hashlib.sha256(config.read_bytes()).hexdigest()
+        config.write_text(
+            json.dumps(
+                {
+                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+                    "repository": "cyranoaladin/RAG",
+                    "base_ref": "main",
+                    "reviewers": ["abenrhouma", "intrus"],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError):
+            load_trusted_reviewers(config, legitimate)
+
+    def test_a_foreign_repository_allowlist_is_refused(self, tmp_path: Path) -> None:
+        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
+
+        config = tmp_path / "trusted-reviewers.json"
+        config.write_text(
+            json.dumps(
+                {
+                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+                    "repository": "quelquun/autre",
+                    "base_ref": "main",
+                    "reviewers": ["abenrhouma"],
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="repository|dépôt"):
+            load_trusted_reviewers(config, hashlib.sha256(config.read_bytes()).hexdigest())
+
+    def test_the_repository_allowlist_loads(self) -> None:
+        """L'artefact réellement versionné se lit avec ce chargeur."""
+        from ingestor.ingestion_worker.runtime_authority import load_trusted_reviewers
+
+        path = Path(__file__).resolve().parents[3] / "scripts/github/trusted-reviewers.json"
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert "abenrhouma" in load_trusted_reviewers(path, digest)
+
+
+class TestTheRuntimeChainMustMatchTheManifestChain:
+    """P1 — la comparaison, sans laquelle porter la chaîne ne sert à rien.
+
+    Le manifeste déclare sa chaîne de revue ; le worker charge la sienne depuis
+    ses arguments. Les porter toutes deux ne prouve rien tant que personne ne
+    les confronte : c'est la confrontation qui interdit qu'une release annonce
+    la chaîne A pendant que le worker en vérifie une B."""
+
+    def _compare(self, **kw):
+        from ingestor.ingestion_worker.runtime_authority import (
+            require_runtime_review_chain_matches_release,
+        )
+
+        return require_runtime_review_chain_matches_release(**kw)
+
+    DECLARED = {
+        "pii_decision_set_sha256": "a" * 64,
+        "pii_review_receipt_sha256": "b" * 64,
+        "pii_review_trust_anchor_sha256": "c" * 64,
+        "pii_review_index_sha256": "d" * 64,
+    }
+
+    def test_identical_chains_are_accepted(self) -> None:
+        self._compare(declared=self.DECLARED, runtime=dict(self.DECLARED))
+
+    def test_both_absent_is_accepted(self) -> None:
+        self._compare(
+            declared=dict.fromkeys(self.DECLARED, None),
+            runtime=dict.fromkeys(self.DECLARED, None),
+        )
+
+    @pytest.mark.parametrize("field", sorted(DECLARED))
+    def test_each_field_is_compared_independently(self, field: str) -> None:
+        runtime = dict(self.DECLARED)
+        runtime[field] = "9" * 64
+        with pytest.raises(ValueError, match=field):
+            self._compare(declared=self.DECLARED, runtime=runtime)
+
+    def test_a_manifest_chain_without_a_runtime_chain_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="pii_decision_set_sha256"):
+            self._compare(
+                declared=self.DECLARED, runtime=dict.fromkeys(self.DECLARED, None)
+            )
+
+    def test_a_runtime_chain_the_manifest_never_declared_is_refused(self) -> None:
+        """Charger une autorité que la release ne nomme pas est le cas B."""
+        with pytest.raises(ValueError, match="pii_decision_set_sha256"):
+            self._compare(
+                declared=dict.fromkeys(self.DECLARED, None), runtime=self.DECLARED
+            )
+
+
+class TestRehearsalVerifiesTheSameChainAsProduction:
+    """P2 — une répétition vérifiait son reçu comme une production.
+
+    ADR-0035 sépare les clés : une clé de fixture ne valide jamais un gate de
+    production, et une clé de production n'est jamais exercée par une
+    répétition. Le worker multi-niveaux connaissait pourtant `rehearsal` sans
+    en tenir compte pour le reçu, si bien qu'une répétition portant sa propre
+    autorité de revue ne pouvait pas la charger.
+
+    Le mode `test` ne retire AUCUNE garde : signature, challenge, empreintes,
+    reviewer et liaison de corpus restent tous vérifiés. Il ne change que la
+    clé recevable."""
+
+    def test_rehearsal_maps_to_the_test_verification_environment(self) -> None:
+        from ingestor.ingestion_worker.multilevel_runtime_authority import (
+            review_verification_environment,
+        )
+
+        assert review_verification_environment("rehearsal") == "test"
+        assert review_verification_environment("production") == "production"
+
+    def test_an_unknown_environment_is_refused(self) -> None:
+        from ingestor.ingestion_worker.multilevel_runtime_authority import (
+            review_verification_environment,
+        )
+
+        with pytest.raises(ValueError, match="rehearsal|production"):
+            review_verification_environment("autre-chose")
+
+    def test_the_multilevel_loader_derives_it_instead_of_hardcoding(self) -> None:
+        source = (
+            Path(__file__).resolve().parents[1]
+            / "src/ingestor/ingestion_worker/multilevel_runtime_authority.py"
+        ).read_text(encoding="utf-8")
+        loader = source[source.index("pii = VerifiedPIIEvidenceRegistry.load(") :]
+        loader = loader[: loader.index("\n        )")]
+        assert "review_verification_environment(environment)" in loader

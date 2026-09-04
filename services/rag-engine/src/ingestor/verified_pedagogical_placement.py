@@ -11,7 +11,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import UUID
@@ -296,6 +296,10 @@ class VerifiedPedagogicalPlacementResolver:
     _profiles: ProfileRegistry
     _collection_config: Mapping[str, object]
     _canonical_programme_by_collection: Mapping[str, str]
+    #: Chaîne d'autorité de la revue humaine, telle que le MANIFESTE la
+    #: déclare — vide quand la release n'admet aucun contenu détecté. Elle est
+    #: confrontée au démarrage à celle que le worker charge de son côté.
+    release_review_chain: dict[str, str | None] = field(default_factory=dict)
 
     @classmethod
     def load(
@@ -414,6 +418,15 @@ class VerifiedPedagogicalPlacementResolver:
             mapping_sha256=mapping.sha256,
             release_manifest_sha256=release.sha256,
             release_pii_evidence_sha256=release.authorities["pii_evidence_sha256"],
+            release_review_chain={
+                name: release.authorities.get(name)
+                for name in (
+                    "pii_decision_set_sha256",
+                    "pii_review_receipt_sha256",
+                    "pii_review_trust_anchor_sha256",
+                    "pii_review_index_sha256",
+                )
+            },
             release_pii_policy_sha256=release.authorities["pii_policy_sha256"],
             release_rights_registry_sha256=release.authorities["rights_registry_sha256"],
             release_profile_manifest_digest=next(iter(profile_manifest_digests)),
