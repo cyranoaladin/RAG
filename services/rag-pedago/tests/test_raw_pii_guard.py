@@ -25,6 +25,7 @@ import pytest
 
 from rag_pedago.imports.raw_pii_guard import (
     RawPiiLeakError,
+    _scan_units,
     _string_values,
     find_raw_pii,
     neutralise_digest_tokens,
@@ -303,7 +304,44 @@ class TestTheReportedCountIsNotInflatedByTheKeyContext:
             )
 
     def test_distinct_pattern_classes_are_not_collapsed(self) -> None:
-        """Deux CLASSES sur la même matière restent deux constats."""
+        """Deux CLASSES sur la même matière restent deux constats.
+
+        N'asserter que `french_ssn` laissait le test vert si un refactor
+        fusionnait les classes, pourvu que celle-là survive — il cessait alors
+        de prouver ce que son nom annonce."""
         with pytest.raises(RawPiiLeakError) as leak:
             require_no_raw_pii({"identifier": 199012345678901}, label="t")
-        assert "french_ssn" in str(leak.value)
+        message = str(leak.value)
+        assert "french_ssn" in message
+        assert "phone_french" in message, (
+            f"la seconde classe a disparu du rapport : {message}"
+        )
+        assert "2 finding(s)" in message
+
+
+class TestTheAncestorKeysLendTheirContext:
+    """Le contexte utile peut être porté par une clé ÉLOIGNÉE (re-review #144).
+
+    Une première version du parcours ne transmettait que la clé immédiate :
+    dans `{"date_of_birth": {"value": "01/01/2000"}}`, le contexte utile était
+    perdu et seul `value` subsistait. La garde pouvait alors attester une
+    sortie propre sur une fuite que la sérialisation, elle, aurait exposée.
+    """
+
+    def test_an_outer_key_still_reaches_the_nested_value(self) -> None:
+        rendered = [text for unit in _scan_units({"a": {"b": "x"}}) for text in unit]
+        assert "a: x" in rendered, (
+            f"la clé ancêtre ne prête plus son contexte : {rendered}"
+        )
+        assert "b: x" in rendered
+
+    def test_every_key_of_the_path_gets_its_chance(self) -> None:
+        rendered = [
+            text for unit in _scan_units({"k1": {"k2": {"k3": "v"}}}) for text in unit
+        ]
+        assert {"v", "k1: v", "k2: v", "k3: v"} <= set(rendered)
+
+    def test_a_repeated_occurrence_is_still_counted_twice(self) -> None:
+        """La déduplication des miroirs ne doit pas effacer une répétition."""
+        with pytest.raises(RawPiiLeakError, match=r"\b2 finding\(s\)"):
+            require_no_raw_pii({"tel": "0612345678 puis 0612345678"}, label="t")

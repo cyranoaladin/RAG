@@ -38,7 +38,11 @@ from ingestor.ingestion_control.attestation import (  # noqa: E402
 )
 from ingestor.ingestion_profiles.registry import profile_fingerprint  # noqa: E402
 from ingestor.ingestion_worker import cli as worker_cli  # noqa: E402
-from tests.test_lot44f_worker_heartbeat import _readiness_stub, write_sealed_evidence  # noqa: E402
+from tests.worker_cli_harness import (  # noqa: E402
+    authorities_stub,
+    readiness_stub,
+    worker_argv,
+)
 
 PG_IMAGE = "pgvector/pgvector:pg16"
 PG_SUPERUSER = "raguser"
@@ -251,44 +255,27 @@ def manifest_path(tmp_path: Path, profiles_dir: Path) -> Path:
 def _worker_argv(
     *, profiles_dir: Path, manifest_path: Path, artifact_dir: Path, expected_role: str
 ) -> list[str]:
-    """L'argv complet qu'un worker de production exige aujourd'hui.
+    """L'argv complet, construit par le foyer partagé.
 
-    Ce test appelait `main` avec six arguments. Depuis, toutes les autorités
-    de gouvernance sont devenues OBLIGATOIRES sur la ligne de commande, si
-    bien que `argparse` sortait en code 2 avant même d'atteindre
-    l'attestation : le test ne mesurait plus rien, et son échec ressemblait
-    à un défaut d'infrastructure.
+    Ce test appelait `main` avec six arguments quand toutes les autorités de
+    gouvernance sont devenues obligatoires : `argparse` sortait en code 2 avant
+    même d'atteindre l'attestation. Le durcissement du CLI est la bonne
+    évolution — c'est le banc qui devait suivre.
 
-    Le durcissement du CLI est la bonne évolution — c'est le banc qui devait
-    suivre. Les autorités sont ici des fichiers de forme correcte : leur
-    contenu n'est pas le sujet, leur PRÉSENCE l'est. Ce que ce test mesure —
-    l'attestation de rôle contre un vrai PostgreSQL — reste entièrement réel.
-    """
-    root = artifact_dir.parent
-    return [
-        "--profiles-dir", str(profiles_dir),
-        "--manifest-path", str(manifest_path),
-        "--artifact-store-dir", str(artifact_dir),
-        "--expected-role", expected_role,
-        "--owner", "attestation-test",
-        *write_sealed_evidence(root),
-        "--catalog-path", str(root / "catalog.json"),
-        "--catalog-sha256", "3" * 64,
-        "--candidate-inventory-path", str(root / "inventory.json"),
-        "--candidate-inventory-sha256", "4" * 64,
-        "--currentness-evidence-path", str(root / "currentness.yml"),
-        "--currentness-evidence-sha256", "5" * 64,
-        "--mapping-path", str(root / "mapping.yml"),
-        "--mapping-sha256", "6" * 64,
-        "--release-manifest-path", str(root / "release.json"),
-        "--release-manifest-sha256", "7" * 64,
-        "--programme-index-path", str(root / "programme.yml"),
-        "--programme-index-sha256", "8" * 64,
-        "--collection-config-path", str(root / "collections.yml"),
-        "--collection-config-sha256", "9" * 64,
-        "--repository-root", str(ENGINE_ROOT.parents[1]),
-        "--once",
-    ]
+    L'argv vit désormais dans `tests/worker_cli_harness.py`, avec celui du banc
+    de heartbeat : le recopier dans deux fichiers faisait qu'une évolution des
+    arguments obligatoires devait être répercutée à la main, et qu'un oubli
+    cassait une suite en silence.
+
+    Ce que ce test mesure — l'attestation de rôle contre un vrai PostgreSQL —
+    reste entièrement réel."""
+    return worker_argv(
+        profiles_dir=profiles_dir,
+        manifest_path=manifest_path,
+        artifact_dir=artifact_dir,
+        expected_role=expected_role,
+        owner="attestation-test",
+    )
 
 
 def _isolate_everything_but_the_attestation(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -296,19 +283,9 @@ def _isolate_everything_but_the_attestation(monkeypatch: pytest.MonkeyPatch) -> 
 
     `attest_runtime_role` et la connexion PostgreSQL réelle restent
     intactes : c'est exactement la garde que ce fichier prouve."""
-    from types import SimpleNamespace
-
-    monkeypatch.setattr(worker_cli, "enforce_readiness_gate", _readiness_stub)
+    monkeypatch.setattr(worker_cli, "enforce_readiness_gate", readiness_stub)
     monkeypatch.setattr(
-        worker_cli,
-        "load_governed_runtime_authorities",
-        lambda *_a, **_k: SimpleNamespace(
-            pii_evidence_registry=SimpleNamespace(evidence_sha256="1" * 64, cleared_count=1),
-            rights_evidence_registry=SimpleNamespace(
-                registry_sha256="2" * 64, registry_id="attestation-test"
-            ),
-            placement_resolver=SimpleNamespace(release_manifest_sha256="3" * 64),
-        ),
+        worker_cli, "load_governed_runtime_authorities", lambda *_a, **_k: authorities_stub()
     )
     monkeypatch.setattr(worker_cli, "_reap_expired_leases", lambda _conn: None)
 

@@ -126,34 +126,43 @@ def find_raw_pii(
     return sorted(findings, key=lambda f: (f.char_offset, f.pattern_id))
 
 
-def _scan_units(node: object, key: str | None = None) -> Iterator[tuple[str, ...]]:
+def _scan_units(
+    node: object, keys: tuple[str, ...] = ()
+) -> Iterator[tuple[str, ...]]:
     """Rend les textes à scanner, GROUPÉS par valeur feuille.
 
-    Une même valeur est rendue sous deux formes — seule, puis précédée de sa
-    clé — pour qu'un motif dont le contexte est porté par la clé puisse se
-    former. Les rendre à plat faisait compter deux fois la même fuite : un
-    rapport de preuve qui double ses chiffres est faux, même quand il refuse
-    à bon droit.
+    Une même valeur est rendue plusieurs fois — seule, puis précédée de chacune
+    des clés qui la dominent — pour qu'un motif dont le contexte est porté par
+    une clé puisse se former. Les rendre à plat faisait compter deux fois la
+    même fuite ; les grouper laisse l'appelant dédoublonner à l'intérieur d'une
+    valeur, sans jamais fusionner deux occurrences distinctes.
 
-    Les grouper laisse l'appelant dédoublonner à l'intérieur d'une valeur,
-    sans jamais fusionner deux occurrences réellement distinctes."""
-    if isinstance(node, str):
-        yield (node, f"{key}: {node}") if key is not None else (node,)
-    elif isinstance(node, bool) or node is None:
+    **Toutes les clés ancêtres, pas seulement la plus proche.** Une première
+    version ne transmettait que la clé immédiate : dans
+    ``{"date_of_birth": {"value": "01/01/2000"}}`` le contexte utile
+    (``date_of_birth``) était perdu, seul ``value`` subsistait, et la garde
+    pouvait attester une sortie propre. Chaque clé du chemin a désormais sa
+    chance de fournir le contexte.
+    """
+    if isinstance(node, bool) or node is None:
+        # Ni l'un ni l'autre ne porte de matière ; les rendre n'ajouterait
+        # que du bruit à mesurer.
         return
-    elif isinstance(node, (int, float)):
-        rendered = str(node)
-        yield (rendered, f"{key}: {rendered}") if key is not None else (rendered,)
-    elif isinstance(node, Mapping):
+    if isinstance(node, (str, int, float)):
+        rendered = node if isinstance(node, str) else str(node)
+        yield (rendered, *(f"{key}: {rendered}" for key in keys))
+        return
+    if isinstance(node, Mapping):
         for child_key, value in node.items():
             if isinstance(child_key, str):
                 yield (child_key,)
-                yield from _scan_units(value, child_key)
+                yield from _scan_units(value, (*keys, child_key))
             else:
-                yield from _scan_units(value)
-    elif isinstance(node, (list, tuple, set, frozenset)):
+                yield from _scan_units(value, keys)
+        return
+    if isinstance(node, (list, tuple, set, frozenset)):
         for item in node:
-            yield from _scan_units(item, key)
+            yield from _scan_units(item, keys)
 
 
 def _string_values(node: object) -> Iterator[str]:
@@ -161,8 +170,8 @@ def _string_values(node: object) -> Iterator[str]:
 
     **Pourquoi on ne scanne pas le JSON sérialisé.** La première version
     appelait `json.dumps` puis cherchait dans le résultat. Un séparateur situé à
-    l'intérieur d'un motif — `06\n12 34 56 78` — y devient deux caractères
-    littéraux `\` et `n` : la correspondance est perdue, et la garde atteste une
+    l'intérieur d'un motif — « 06 retour-ligne 12 34 56 78 » — y devient deux
+    caractères littéraux, une barre oblique inverse suivie de « n » : la correspondance est perdue, et la garde atteste une
     sortie propre. Mesuré : un finding sur le texte brut, zéro après
     sérialisation.
 
@@ -245,17 +254,26 @@ def require_no_raw_pii(
     # ce que la clé de dédoublonnage préserve en incluant la valeur source.
     findings: list[RawPiiFinding] = []
     for unit in _scan_units(document):
-        seen: set[tuple[str, str, int]] = set()
+        # Les rendus d'une même valeur sont des MIROIRS : la même fuite y
+        # apparaît, à des positions décalées par le préfixe de clé. Dédoublonner
+        # par identité seule effacerait cependant une répétition réelle — deux
+        # fois le même numéro dans un même texte est bien DEUX occurrences.
+        #
+        # On retient donc, pour chaque identité, la MULTIPLICITÉ la plus élevée
+        # observée sur un rendu : deux occurrences restent deux, un motif que
+        # seul le contexte de clé révèle est compté une fois, et le miroir
+        # n'ajoute rien.
+        best: dict[tuple[str, str, int], list[RawPiiFinding]] = {}
         for text in unit:
+            grouped: dict[tuple[str, str, int], list[RawPiiFinding]] = {}
             for finding in find_raw_pii(text, patterns=patterns):
-                # L'identité est la CLASSE, la longueur et l'empreinte de la
-                # matière — jamais la position, qui diffère précisément entre
-                # les deux rendus d'une même valeur.
                 identity = (finding.pattern_id, finding.match_sha256, finding.match_length)
-                if identity in seen:
-                    continue
-                seen.add(identity)
-                findings.append(finding)
+                grouped.setdefault(identity, []).append(finding)
+            for identity, occurrences in grouped.items():
+                if len(occurrences) > len(best.get(identity, ())):
+                    best[identity] = occurrences
+        for occurrences in best.values():
+            findings.extend(occurrences)
     if findings:
         classes = sorted({finding.pattern_id for finding in findings})
         first = findings[0]

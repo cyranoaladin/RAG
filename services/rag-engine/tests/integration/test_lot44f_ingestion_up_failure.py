@@ -30,6 +30,7 @@ import subprocess
 import time
 import uuid
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -94,7 +95,19 @@ def _make_dummy_env_file(
     # Les variables qui exigent une FORME précise sont nommées ici ; toutes
     # les autres reçoivent un mot de passe factice conforme.
     host_dir.mkdir(parents=True, exist_ok=True)
+    # Chaque clé n'est écrite QU'UNE FOIS. Une première version laissait la
+    # boucle attribuer un jeton aléatoire aux deux SHA d'inventaire, puis le
+    # bloc final les réécrivait à zéro : le fichier portait des clés en double
+    # et la bonne valeur ne survivait que par la règle « dernier gagne » de
+    # Compose. Un jour où cette règle change, ou si le bloc final disparaît,
+    # l'inventaire de modèles recevrait une valeur non hexadécimale sans que
+    # rien ne le signale.
     shaped: dict[str, str] = {
+        "INGESTION_CONTROL_MIGRATOR_ROLE": migrator_role,
+        "INGESTION_CONTROL_APP_ROLE": app_role,
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256": "0" * 64,
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256": "0" * 64,
+        "PGVECTOR_PORT": str(pgvector_port),
         "PG_INGESTION_CONTROL_DSN": (
             "postgresql://ingestion_control_app_test:dummy@pgvector:5432/ragdb"
         ),
@@ -113,13 +126,9 @@ def _make_dummy_env_file(
             else secrets.token_urlsafe(24)
         )
     lines = [f"{name}={value}" for name, value in sorted(shaped.items())]
-    lines += [
-        f"INGESTION_CONTROL_MIGRATOR_ROLE={migrator_role}",
-        f"INGESTION_CONTROL_APP_ROLE={app_role}",
-        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256=" + "0" * 64,
-        "RAG_RERANKER_MODEL_INVENTORY_SHA256=" + "0" * 64,
-        f"PGVECTOR_PORT={pgvector_port}",
-    ]
+    assert len({line.split("=", 1)[0] for line in lines}) == len(lines), (
+        "le fichier d'environnement porte une clé en double"
+    )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 @pytest.fixture
@@ -162,7 +171,20 @@ def _run_v2_ingestion_up(
     return subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False)
 
 
-def _service_states(isolated_project: dict[str, str]) -> dict[str, tuple[str, str]]:
+@dataclass(frozen=True)
+class _ServiceState:
+    """État d'un service tel que Compose le rapporte.
+
+    `state` vaut `running`/`exited` et ne dit RIEN de la santé : une assertion
+    « state != healthy » est donc toujours vraie, et ne vérifie rien. La santé
+    vit dans son propre champ."""
+
+    state: str
+    health: str
+    exit_code: str
+
+
+def _service_states(isolated_project: dict[str, str]) -> dict[str, _ServiceState]:
     """État et code de sortie de chaque service, après `up`.
 
     **Pourquoi le code retour de `docker compose up --wait` ne suffit pas.**
@@ -183,15 +205,17 @@ def _service_states(isolated_project: dict[str, str]) -> dict[str, tuple[str, st
             "docker", "compose", "-p", isolated_project["project"],
             "-f", str(COMPOSE_V2), "-f", str(COMPOSE_INGESTION),
             "--env-file", isolated_project["env_file"],
-            "ps", "-a", "--format", "{{.Service}} {{.State}} {{.ExitCode}}",
+            "ps", "-a", "--format", "{{.Service}}|{{.State}}|{{.Health}}|{{.ExitCode}}",
         ],
         cwd=REPO_ROOT, capture_output=True, text=True, check=False,
     )
-    states: dict[str, tuple[str, str]] = {}
+    states: dict[str, _ServiceState] = {}
     for line in inspect.stdout.splitlines():
-        parts = line.split()
-        if len(parts) >= 3:
-            states[parts[0]] = (parts[1], parts[-1])
+        parts = line.split("|")
+        if len(parts) == 4:
+            states[parts[0]] = _ServiceState(
+                state=parts[1], health=parts[2], exit_code=parts[3]
+            )
     return states
 
 
@@ -210,12 +234,12 @@ def _terminal_migrator_exit_code(
     L'attente est bornée : au-delà, l'absence d'état terminal est elle-même
     un échec nommé."""
     deadline = time.monotonic() + timeout_s
-    last: tuple[str, str] | None = None
+    last: _ServiceState | None = None
     while time.monotonic() < deadline:
         states = _service_states(isolated_project)
         last = states.get("migrator-ingestion-control")
-        if last is not None and last[0] == "exited":
-            return last[1]
+        if last is not None and last.state == "exited":
+            return last.exit_code
         time.sleep(1.0)
     raise AssertionError(
         f"migrator-ingestion-control n'a pas atteint d'état terminal en {timeout_s}s "
@@ -260,10 +284,18 @@ class TestV2IngestionUpFailsClosed:
             if line.startswith("migrator-ingestion-control"):
                 assert not line.endswith(" 0"), f"migrator-ingestion-control unexpectedly exited 0: {line}"
 
-    def test_distinct_roles_let_migrator_succeed_and_up_returns_zero(
+    def test_distinct_roles_let_the_migrator_succeed(
         self, isolated_project: dict[str, str]
     ) -> None:
-        """Contrôle positif : sans la collision délibérée, la même commande
+        """Contrôle positif : sans la collision délibérée, le migrateur réussit.
+
+        Le nom promettait aussi « up returns zero ». Ce n'est plus ce qui est
+        vérifié — et ce ne pouvait pas l'être : le code retour de
+        `docker compose up --wait` dépend de la façon dont la version installée
+        traite la sortie d'un conteneur one-shot. Un nom qui décrit autre chose
+        que l'assertion égare quiconque cherche la cause d'un échec.
+
+        La même commande
         (limitée à ``migrator-ingestion-control`` — ``ingestion-worker``
         exige en plus un manifest LOT44c approuvé pour devenir healthy,
         une préoccupation orthogonale à ce correctif, déjà couverte par
@@ -322,8 +354,11 @@ class TestV2IngestionUpFailsClosed:
             "le migrateur devait réussir dans ce cas"
         )
         states = _service_states(isolated_project)
-        worker_state, _ = states.get("ingestion-worker", ("absent", ""))
-        assert worker_state != "healthy", (
+        worker = states.get("ingestion-worker")
+        assert worker is not None, f"ingestion-worker absent des services : {states}"
+        # `state` vaut `running`/`exited` : « state != healthy » aurait été
+        # toujours vrai, donc creux. C'est le champ SANTÉ qu'il faut lire.
+        assert worker.health != "healthy", (
             f"ingestion-worker ne devait jamais devenir healthy ici : {states}"
         )
         assert "ingestion-worker" in (result.stdout + result.stderr)
