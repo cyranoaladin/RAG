@@ -41,6 +41,7 @@ from rag_pedago.imports.pii_review_projection import (
     PiiProjectionError,
     ScannedContent,
     ScannedFinding,
+    finding_context,
     finding_identity,
     project_pii_review,
 )
@@ -1490,13 +1491,27 @@ def _pii_evidence(
                 f"{result.extraction_error}"
             )
         findings: list[ScannedFinding] = []
+        if result.matches:
+            # Les textes de page ne sont ré-extraits que pour les contenus qui
+            # portent une correspondance — 23 sur 320 — parce que le contexte
+            # scellé se calcule sur le texte de page brut, et sur lui seul.
+            pages_text, _ignored, page_error = (
+                extract_pdf_pages_with_structural_empty_pages(pdf.content)
+            )
+            if page_error:
+                raise ValueError(
+                    f"page text extraction failed for {row['content_sha256']} — {page_error}"
+                )
         for match in result.matches:
             match_sha = _sha256_bytes(match.match_text.encode("utf-8"))
+            page_text = pages_text[(match.page_number or 1) - 1]
             findings.append(
                 ScannedFinding(
-                    # L'identité vient de l'autorité unique du scanner : c'est
-                    # elle qui rend les findings du scan comparables à ceux que
-                    # la revue humaine a dispositionnés.
+                    # Identité et contexte viennent de l'autorité unique : ce
+                    # sont eux qui rendent les findings du scan comparables à
+                    # ceux que la revue humaine a dispositionnés. Le contexte
+                    # de confort du scanner (50 caractères, sauts de ligne
+                    # remplacés) n'est PAS celui que le paquet a figé.
                     finding_id=finding_identity(
                         content_sha256=row["content_sha256"],
                         pattern_id=match.pattern_id,
@@ -1507,7 +1522,13 @@ def _pii_evidence(
                     pattern_id=match.pattern_id,
                     page=match.page_number or 1,
                     match_sha256=match_sha,
-                    context_sha256=_sha256_bytes(match.context.encode("utf-8")),
+                    context_sha256=_sha256_bytes(
+                        finding_context(
+                            page_text,
+                            char_offset=match.char_offset,
+                            match_length=len(match.match_text),
+                        ).encode("utf-8")
+                    ),
                 )
             )
         scanned.append(

@@ -44,11 +44,13 @@ import nexus_pdf_page_policy as page_policy  # noqa: E402
 import pypdf  # noqa: E402
 
 from rag_pedago.imports import pii_scanner  # noqa: E402
-from rag_pedago.imports.pii_review_projection import finding_identity  # noqa: E402
+from rag_pedago.imports.pii_review_projection import (  # noqa: E402
+    finding_context,
+    finding_identity,
+)
 
 BUNDLE_PROTOCOL = "NEXUS-PII-REVIEW-BUNDLE-V1"
 INDEX_PROTOCOL = "NEXUS-PII-REVIEW-INDEX-V1"
-CONTEXT_CHARS = 240
 REPOSITORY_ROOT = SERVICE_ROOT.parents[1]
 
 
@@ -159,9 +161,11 @@ def _bundle_for(
     signals = []
     for match in sorted(result.matches, key=lambda m: (m.page_number or 0, m.char_offset, m.pattern_id)):
         page_text = pages_text[(match.page_number or 1) - 1]
-        start = max(0, match.char_offset - CONTEXT_CHARS)
-        end = min(len(page_text), match.char_offset + len(match.match_text) + CONTEXT_CHARS)
-        context = page_text[start:end]
+        context = finding_context(
+            page_text,
+            char_offset=match.char_offset,
+            match_length=len(match.match_text),
+        )
         match_sha = _sha256_bytes(match.match_text.encode("utf-8"))
         context_sha = _sha256_bytes(context.encode("utf-8"))
         # Identité du finding : dérivée par l'autorité unique du scanner, pour

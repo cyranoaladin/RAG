@@ -13,7 +13,13 @@ from __future__ import annotations
 
 from hashlib import sha256
 
-from rag_pedago.imports.pii_review_projection import finding_identity
+import pytest
+
+from rag_pedago.imports.pii_review_projection import (
+    CONTEXT_CHARS,
+    finding_context,
+    finding_identity,
+)
 
 CONTENT = "a" * 64
 MATCH_SHA = sha256(b"0612345678").hexdigest()
@@ -129,3 +135,64 @@ class TestTheScannerDigestIsSealed:
             ).read_text(encoding="utf-8")
         )["policy_sha256"]
         assert sha256(policy.read_bytes()).hexdigest() == sealed
+
+
+
+class TestFindingContext:
+    """Le contexte d'un finding est celui que le REVIEWER a vu (ADR-0047).
+
+    Le paquet de revue fige `context_sha256` sur une fenêtre de 240 caractères
+    de texte de page BRUT. Le scanner, lui, expose un contexte de confort de
+    50 caractères, sauts de ligne remplacés. Les deux sont légitimes ; les
+    confondre fait diverger l'empreinte, et le producteur refuse alors une
+    décision parfaitement valide — ce qui s'est produit.
+    """
+
+    PAGE = "".join(f"ligne {i}\n" for i in range(200))
+
+    def test_window_is_the_reviewed_one(self) -> None:
+        assert CONTEXT_CHARS == 240
+        offset, length = 500, 10
+        context = finding_context(self.PAGE, char_offset=offset, match_length=length)
+        assert context == self.PAGE[offset - 240 : offset + length + 240]
+
+    def test_newlines_are_preserved(self) -> None:
+        """Le paquet fige le texte tel quel : normaliser changerait l'empreinte."""
+        assert "\n" in finding_context(self.PAGE, char_offset=500, match_length=10)
+
+    def test_window_is_clamped_at_both_ends(self) -> None:
+        assert finding_context(self.PAGE, char_offset=0, match_length=5) == self.PAGE[:245]
+        tail = finding_context(self.PAGE, char_offset=len(self.PAGE) - 5, match_length=5)
+        assert tail == self.PAGE[len(self.PAGE) - 245 :]
+
+    def test_it_reproduces_a_real_sealed_context_digest(self) -> None:
+        """La preuve qui compte : un contexte réellement scellé, reproduit.
+
+        On relit le paquet de revue local du contenu que le producteur a
+        refusé, et l'on vérifie que la fenêtre partagée redonne exactement
+        l'empreinte que la décision humaine porte."""
+        import json
+        from hashlib import sha256
+        from pathlib import Path
+
+        bundles = Path("/home/alaeddine/nexus-pii-review-final-candidate")
+        if not bundles.is_dir():
+            pytest.skip("paquets de revue absents de cette machine")
+        checked = 0
+        for bundle in sorted(bundles.iterdir()):
+            manifest = bundle / "manifest.json"
+            if not manifest.is_file():
+                continue
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            for signal in document["signals"]:
+                page = bundle / "pages" / f"page-{signal['page_number']:04d}.txt"
+                if not page.is_file():
+                    continue
+                context = finding_context(
+                    page.read_text(encoding="utf-8"),
+                    char_offset=signal["char_offset"],
+                    match_length=signal["match_length"],
+                )
+                assert sha256(context.encode("utf-8")).hexdigest() == signal["context_sha256"]
+                checked += 1
+        assert checked > 0

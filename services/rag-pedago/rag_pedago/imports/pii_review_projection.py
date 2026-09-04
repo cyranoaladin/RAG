@@ -44,6 +44,29 @@ STATUS_REVIEWED_ACCEPTED = "DETECTED_REVIEWED_ACCEPTED"
 STATUS_QUARANTINED = "QUARANTINED_PII"
 
 
+#: Fenêtre de contexte figée dans les paquets de revue, en caractères de part
+#: et d'autre de la correspondance. C'est ce que le reviewer a effectivement
+#: lu autour du signal, et c'est sur ce texte que `context_sha256` est calculé.
+CONTEXT_CHARS = 240
+
+
+def finding_context(page_text: str, *, char_offset: int, match_length: int) -> str:
+    """Rend le texte que le reviewer a vu autour d'une correspondance.
+
+    **Pourquoi ce n'est pas le contexte du scanner.** `pii_scanner.extract_context`
+    existe aussi, mais il sert au confort de lecture : 50 caractères, sauts de
+    ligne remplacés par des espaces, bords rognés. Le paquet de revue, lui, fige
+    240 caractères de texte de page BRUT. Les deux sont légitimes ; les confondre
+    fait diverger `context_sha256`, et le producteur refuse alors une décision
+    humaine parfaitement valide.
+
+    Comme `finding_identity`, cette fenêtre est l'autorité unique : le
+    préparateur de paquets l'utilise pour sceller, le producteur pour retrouver."""
+    start = max(0, char_offset - CONTEXT_CHARS)
+    end = min(len(page_text), char_offset + match_length + CONTEXT_CHARS)
+    return page_text[start:end]
+
+
 def finding_identity(
     *,
     content_sha256: str,
@@ -361,6 +384,8 @@ __all__ = [
     "PiiProjectionError",
     "ScannedContent",
     "ScannedFinding",
+    "CONTEXT_CHARS",
+    "finding_context",
     "finding_identity",
     "project_pii_review",
 ]

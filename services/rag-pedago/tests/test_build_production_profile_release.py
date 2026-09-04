@@ -993,9 +993,17 @@ def test_v2_producer_refuses_a_positive_pii_scan_without_a_human_decision(
 
     monkeypatch.setattr(builder, "load_patterns_from_config", lambda _path: ())
     monkeypatch.setattr(builder, "scan_pdf_bytes", positive_scan)
+    # Le contexte scellé se calcule sur le texte de page brut : sans page
+    # lisible, le producteur refuserait à l'extraction et ce test passerait
+    # pour une raison qui n'est pas celle qu'il énonce.
+    monkeypatch.setattr(
+        builder,
+        "extract_pdf_pages_with_structural_empty_pages",
+        lambda _content: (["ecrire a quelqu-un@example.org pour toute demande"], (), None),
+    )
     pdf = builder.VerifiedPdf(tmp_path / "commun.pdf", b"pdf-factice")
 
-    with pytest.raises(ValueError, match="no decision set|human"):
+    with pytest.raises(ValueError, match="no decision set"):
         builder._pii_evidence(
             _v2_placement_rows(),
             pdfs={V2_ARTIFACT_SHA: pdf},
