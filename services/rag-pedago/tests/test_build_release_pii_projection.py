@@ -621,18 +621,13 @@ class TestTheProjectionIsBoundToTheAuthorityFile:
         self,
     ) -> None:
         import json
-        import pathlib
 
         from conftest import load_producer
 
         producer = load_producer()
-        repository = pathlib.Path(__file__).resolve().parents[3]
-        sealed = json.loads(
-            (
-                repository
-                / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
-            ).read_text(encoding="utf-8")
-        )["corpus_manifest_sha256"]
+        sealed = json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))[
+            "corpus_manifest_sha256"
+        ]
 
         bound = producer.corpus_manifest_authority_file_sha256()
         assert bound == sealed, (
@@ -643,18 +638,13 @@ class TestTheProjectionIsBoundToTheAuthorityFile:
     def test_the_declared_value_alone_would_refuse_the_sealed_campaign(self) -> None:
         """Ce qui rend le test précédent nécessaire, dit explicitement."""
         import json
-        import pathlib
 
         from conftest import load_producer
 
         producer = load_producer()
-        repository = pathlib.Path(__file__).resolve().parents[3]
-        sealed = json.loads(
-            (
-                repository
-                / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
-            ).read_text(encoding="utf-8")
-        )["corpus_manifest_sha256"]
+        sealed = json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))[
+            "corpus_manifest_sha256"
+        ]
         assert producer.CORPUS_MANIFEST_AUTHORITY != sealed, (
             "la valeur déclarée et l'empreinte du fichier ont convergé : la "
             "confusion cesserait d'être une erreur"
@@ -698,3 +688,142 @@ class TestTheProjectionIsBoundToTheAuthorityFile:
         monkeypatch.setattr(producer, "RELEASE_ROOT", tmp_path)
         with pytest.raises(ValueError, match="corpus manifest authority is missing"):
             producer.corpus_manifest_authority_file_sha256()
+
+
+class TestTheHumanReviewBindsTheFinalCandidateCorpus:
+    """Le pont entre la revue humaine et la candidate — mesuré, pas affirmé.
+
+    La chaîne d'autorités prouvait que chaque DOCUMENT était intact : decision
+    set, reçu, ancre, index. Aucune de ces vérifications ne disait sur quelle
+    MATIÈRE la revue avait porté.
+
+    Mesuré sur la campagne réelle : le fichier d'autorité que le decision set
+    scelle décrit 26 contenus ; la candidate en émet 320. Prouver que ce
+    fichier est intact ne prouve donc rien de la candidate. Le seul champ qui
+    désigne la matière revue est `content_set_sha256` de l'index — lu pour ses
+    paquets, jamais confronté à l'ensemble produit. La coïncidence était
+    affirmée dans un commentaire et vérifiée nulle part.
+    """
+
+    def test_the_reviewed_content_set_is_the_one_the_candidate_ships(self) -> None:
+        """Les quatre maillons, sur les artefacts RÉELS de la campagne."""
+        import hashlib
+        import json
+        import pathlib
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        repository = pathlib.Path(__file__).resolve().parents[3]
+
+        decisions = json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))
+        index_path = (
+            repository / "docs/reports/evidence-index/pii_review_index_20260903.json"
+        )
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+
+        # 1. le decision set scelle CET index
+        assert decisions["review_index_sha256"] == hashlib.sha256(
+            index_path.read_bytes()
+        ).hexdigest()
+        # 2. le decision set scelle CE fichier d'autorité
+        assert decisions["corpus_manifest_sha256"] == (
+            producer.corpus_manifest_authority_file_sha256()
+        )
+        # 3. l'index nomme l'ensemble de contenus revu
+        reviewed = index["content_set_sha256"]
+        # 4. la lignée canonique produit exactement cet ensemble
+        assert producer.CANONICAL_CONTENT_SET_SHA256 == reviewed, (
+            "la lignée canonique ne produit plus l'ensemble que la revue a "
+            "couvert : la revue ne lierait plus la candidate"
+        )
+
+    def test_the_reviewed_authority_file_describes_another_selection(self) -> None:
+        """Ce qui rend le pont NÉCESSAIRE, énoncé plutôt que sous-entendu.
+
+        Si ce test venait à échouer parce que les deux sélections ont
+        convergé, le pont deviendrait redondant — et on le saurait."""
+        import json
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        wrapper = json.loads(
+            (producer.RELEASE_ROOT / "corpus_manifest_authority.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        assert wrapper["final_content_set_sha256"] != (
+            producer.CANONICAL_CONTENT_SET_SHA256
+        ), "le fichier scellé et la candidate décrivent la même sélection"
+
+    def test_a_review_covering_another_content_set_is_refused(self) -> None:
+        """La garde elle-même, exercée — pas seulement ses prémisses."""
+        from conftest import load_producer
+
+        producer = load_producer()
+        with pytest.raises(ValueError, match="does not bind the corpus"):
+            producer.require_review_covers_produced_content_set(
+                reviewed_content_set_sha256="a" * 64,
+                produced_content_set_sha256="b" * 64,
+            )
+
+    def test_the_matching_content_set_passes(self) -> None:
+        from conftest import load_producer
+
+        load_producer().require_review_covers_produced_content_set(
+            reviewed_content_set_sha256="a" * 64,
+            produced_content_set_sha256="a" * 64,
+        )
+
+    def test_no_review_authority_means_nothing_to_bind(self) -> None:
+        """Absence d'autorité : rien n'est projeté, le registre refuse ailleurs."""
+        from conftest import load_producer
+
+        load_producer().require_review_covers_produced_content_set(
+            reviewed_content_set_sha256=None,
+            produced_content_set_sha256="a" * 64,
+        )
+
+    def test_the_loader_carries_the_reviewed_content_set_through(self) -> None:
+        """Le CÂBLAGE, pas seulement la garde.
+
+        La garde peut être parfaite et ne jamais recevoir la valeur : si le
+        chargeur d'autorité cesse d'extraire `content_set_sha256` de l'index,
+        la confrontation reçoit `None` et se tait. Ce test exerce la chaîne
+        réelle, sur les artefacts scellés de la campagne."""
+        import json
+        import pathlib
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        repository = pathlib.Path(__file__).resolve().parents[3]
+        index_path = (
+            repository / "docs/reports/evidence-index/pii_review_index_20260903.json"
+        )
+        reviewers = tuple(
+            json.loads(
+                (repository / "scripts/github/trusted-reviewers.json").read_text(
+                    encoding="utf-8"
+                )
+            )["reviewers"]
+        )
+        inputs = producer.ReviewAuthorityInputs(
+            decision_set_path=REAL_DECISION_SET,
+            receipt_path=(
+                repository
+                / "governance/pii-review-bindings/pii-review-2026-09-03-final.json"
+            ),
+            trust_anchor_path=(
+                repository / "governance/trust-anchors/review-binding-v1.json"
+            ),
+            review_index_path=index_path,
+            reviewers=reviewers,
+        )
+        _document, _bundles, digests = producer._load_review_authority(inputs)
+        expected = json.loads(index_path.read_text(encoding="utf-8"))["content_set_sha256"]
+        assert digests.get("reviewed_content_set_sha256") == expected, (
+            "le chargeur ne transmet plus l'ensemble de contenus revu : la "
+            "confrontation avec la candidate ne recevrait rien à comparer"
+        )

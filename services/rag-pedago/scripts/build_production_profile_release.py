@@ -1541,11 +1541,23 @@ def _load_review_authority(
             f"hashes to {indexed_digest[:16]}… — they are not the same campaign"
         )
 
+    # L'ensemble de contenus que la revue a RÉELLEMENT couvert. C'est le seul
+    # champ de toute la chaîne qui désigne la matière revue plutôt qu'un
+    # document ; sans lui, on prouve que les autorités sont intactes sans
+    # jamais prouver qu'elles parlent de la candidate.
+    reviewed_content_set = index.get("content_set_sha256")
+    if not isinstance(reviewed_content_set, str) or not _HEX64.match(reviewed_content_set):
+        raise ValueError(
+            "the review index declares no usable content_set_sha256 — the review "
+            "cannot be bound to any corpus"
+        )
+
     digests = {
         "pii_decision_set_sha256": _sha256_bytes(raw_decision_set),
         "pii_review_receipt_sha256": _sha256_bytes(raw_receipt),
         "pii_review_trust_anchor_sha256": _sha256_bytes(anchor_bytes),
         "pii_review_index_sha256": _sha256_bytes(inputs.review_index_path.read_bytes()),
+        "reviewed_content_set_sha256": reviewed_content_set,
     }
     return json.loads(raw_decision_set.decode("utf-8")), bundles, digests
 
@@ -1618,6 +1630,41 @@ def resolve_release_lifecycle_statuses(
         "activation_status": activation_status or "NO_PRODUCTION_ACTIVATION",
         "review_status": review_status,
     }
+
+
+def require_review_covers_produced_content_set(
+    *,
+    reviewed_content_set_sha256: str | None,
+    produced_content_set_sha256: str,
+) -> None:
+    """Le pont entre la revue humaine et la candidate.
+
+    Toute la chaîne d'autorités prouve que des DOCUMENTS sont intacts : le
+    decision set nomme un fichier d'autorité qui n'a pas bougé, un reçu signé,
+    une ancre épinglée, un index dont l'empreinte est celle scellée. Aucune de
+    ces vérifications ne dit sur QUELLE MATIÈRE la revue a porté.
+
+    Le seul champ qui le dise est `content_set_sha256` de l'index de revue. Il
+    était lu — pour ses paquets — sans jamais être confronté à l'ensemble que
+    la candidate produit. La coïncidence était AFFIRMÉE dans un commentaire et
+    vérifiée nulle part.
+
+    Mesuré sur la campagne réelle : le fichier d'autorité que le decision set
+    scelle décrit 26 contenus, la candidate en émet 320. Prouver que ce fichier
+    est intact ne prouve donc rien de la candidate ; cette confrontation-ci le
+    fait, et elle porte sur la matière plutôt que sur un document.
+
+    `None` signifie qu'aucune autorité de revue n'a été fournie — cas où rien
+    n'est projeté et où le registre refuse déjà toute admission non fondée."""
+    if reviewed_content_set_sha256 is None:
+        return
+    if reviewed_content_set_sha256 != produced_content_set_sha256:
+        raise ValueError(
+            f"the human review covered content set "
+            f"{reviewed_content_set_sha256[:16]}… while this candidate ships "
+            f"{produced_content_set_sha256[:16]}… — the review does not bind the "
+            "corpus this release would publish"
+        )
 
 
 def _pii_evidence(
@@ -1732,6 +1779,27 @@ def _pii_evidence(
         )
     except PiiProjectionError as exc:
         raise ValueError(f"the PII review cannot be projected on this scan: {exc}") from exc
+
+    # ── LE PONT ENTRE LA REVUE HUMAINE ET LA CANDIDATE ────────────────────
+    #
+    # Tout ce qui précède prouve que les AUTORITÉS sont intactes : le decision
+    # set nomme un fichier d'autorité qui n'a pas bougé, un reçu signé, une
+    # ancre épinglée, un index dont l'empreinte est celle scellée. Aucune de
+    # ces vérifications ne dit sur QUELLE MATIÈRE la revue a porté.
+    #
+    # Le seul champ qui le dise est `content_set_sha256` de l'index. Il était
+    # lu — pour ses paquets — sans jamais être confronté à l'ensemble que la
+    # candidate produit. La coïncidence était AFFIRMÉE dans un commentaire de
+    # `CANONICAL_CONTENT_SET_SHA256` et vérifiée nulle part.
+    #
+    # Mesuré : le fichier d'autorité que le decision set scelle décrit 26
+    # contenus, la candidate en émet 320. Prouver que ce fichier est intact ne
+    # prouve donc RIEN de la candidate. C'est cette confrontation-ci qui le
+    # fait, et elle porte sur la matière, pas sur un document.
+    require_review_covers_produced_content_set(
+        reviewed_content_set_sha256=authority_digests.get("reviewed_content_set_sha256"),
+        produced_content_set_sha256=_final_set_digest(sorted(grouped)),
+    )
 
     source_by_sha = {
         group["artifact_row"]["content_sha256"]: group["artifact_row"]["physical_path"]
