@@ -296,9 +296,22 @@ class VerifiedPedagogicalPlacementResolver:
     _profiles: ProfileRegistry
     _collection_config: Mapping[str, object]
     _canonical_programme_by_collection: Mapping[str, str]
-    #: Chaîne d'autorité de la revue humaine, telle que le MANIFESTE la
-    #: déclare — vide quand la release n'admet aucun contenu détecté. Elle est
+    #: Chaîne d'autorité de la revue humaine déclarée par le manifeste, et
     #: confrontée au démarrage à celle que le worker charge de son côté.
+    #:
+    #: **Sur ce résolveur — le schéma Wave 0 — elle est TOUJOURS entièrement
+    #: `None`, et ce n'est pas un défaut.** `load_subject_release` ferme
+    #: `authorities` à huit noms exactement et refuse tout manifeste qui en
+    #: déclare d'autres : les quatre empreintes de revue n'y ont aucune place.
+    #: Le schéma Wave 0 est antérieur à la campagne de revue humaine, et rien
+    #: ne doit l'élargir après coup pour lui faire dire ce qu'il n'a jamais dit.
+    #:
+    #: Conséquence VOULUE : un worker qui charge une chaîne de revue ne peut
+    #: pas servir une release Wave 0 — la confrontation échoue, et c'est le bon
+    #: sens du refus. Une release qui admet du contenu détecté se déclare en
+    #: V2, où `MultilevelReleaseEligibility.review_chain` porte réellement la
+    #: chaîne. Une docstring qui laissait croire le contraire ici a été
+    #: signalée en revue : elle promettait une lecture qui n'existe pas.
     release_review_chain: dict[str, str | None] = field(default_factory=dict)
 
     @classmethod

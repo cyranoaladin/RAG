@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import pathlib
 from pathlib import Path
 
 import pytest
@@ -391,3 +392,58 @@ class TestRehearsalVerifiesTheSameChainAsProduction:
         loader = source[source.index("pii = VerifiedPIIEvidenceRegistry.load(") :]
         loader = loader[: loader.index("\n        )")]
         assert "review_verification_environment(environment)" in loader
+
+
+class TestTheWaveZeroSchemaCannotDeclareAReviewChain:
+    """Le schéma Wave 0 ne porte PAS la chaîne de revue, et ne doit pas l'apprendre.
+
+    La revue a relevé que `VerifiedPedagogicalPlacementResolver.release_review_chain`
+    est toujours entièrement `None` : `load_subject_release` ferme `authorities`
+    à huit noms et refuse tout le reste. Le constat est exact.
+
+    La correction n'est pas d'élargir Wave 0 — ce serait faire dire à un format
+    antérieur à la campagne de revue ce qu'il n'a jamais déclaré. C'est de
+    rendre la propriété EXPLICITE et de la tenir : une release qui admet du
+    contenu détecté se déclare en V2, où la chaîne est réellement portée.
+    """
+
+    def test_the_wave_zero_authorities_are_closed_to_eight_names(self) -> None:
+        from ingestor import wave0_release
+
+        source = pathlib.Path(wave0_release.__file__).read_text(encoding="utf-8")
+        block = source[source.index("authority_names = {") :]
+        block = block[: block.index("}")]
+        declared = {line.strip().strip('",') for line in block.splitlines()[1:] if line.strip()}
+        assert len(declared) == 8
+        assert not declared & {
+            "pii_decision_set_sha256",
+            "pii_review_receipt_sha256",
+            "pii_review_trust_anchor_sha256",
+            "pii_review_index_sha256",
+        }, "le schéma Wave 0 s'est élargi à la chaîne de revue sans ADR"
+
+    def test_a_worker_chain_cannot_be_served_by_a_wave_zero_release(self) -> None:
+        """La conséquence voulue, énoncée comme telle.
+
+        Déclaré vide (Wave 0 ne peut pas faire autrement), chargé non vide :
+        le démarrage doit refuser plutôt que de servir une release qui
+        n'affirme rien sur la revue."""
+        from ingestor.ingestion_worker.runtime_authority import (
+            require_runtime_review_chain_matches_release,
+        )
+
+        with pytest.raises(ValueError, match="not the one this worker verifies"):
+            require_runtime_review_chain_matches_release(
+                declared={
+                    "pii_decision_set_sha256": None,
+                    "pii_review_receipt_sha256": None,
+                    "pii_review_trust_anchor_sha256": None,
+                    "pii_review_index_sha256": None,
+                },
+                runtime={
+                    "pii_decision_set_sha256": "a" * 64,
+                    "pii_review_receipt_sha256": "b" * 64,
+                    "pii_review_trust_anchor_sha256": "c" * 64,
+                    "pii_review_index_sha256": "d" * 64,
+                },
+            )
