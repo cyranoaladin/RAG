@@ -251,3 +251,62 @@ class TestCandidateIsFinalButNotActivable:
         assert "release_id=RELEASE_ID," not in production_call, (
             "la voie production réemploie l'identifiant historique en dur"
         )
+
+
+class TestCurrentnessVerdictNamesItsOwnRelease:
+    """Un verdict de currentness porte sur LA release qui l'embarque (§8, §14).
+
+    La branche de rejeu hors ligne écrivait `verdict_scope.release_id` depuis
+    la constante historique du module, quel que soit le `--release-id` demandé.
+    Une candidate aurait donc embarqué un verdict d'invérifiabilité désigné
+    pour une autre release — et l'auditeur humain, seul consommateur déclaré de
+    ce champ, aurait lu une portée qui n'est pas la sienne.
+    """
+
+    def _audit(self, release_id: str | None):
+        import importlib.util
+        import os
+
+        spec = importlib.util.spec_from_file_location("_producer_currentness", PRODUCER)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        previous = os.environ.get("NEXUS_CURRENTNESS_UNVERIFIED")
+        os.environ["NEXUS_CURRENTNESS_UNVERIFIED"] = "SOURCE_UNREACHABLE"
+        try:
+            audit, _rows = module.resolve_currentness_network_audit(
+                [],
+                verify_official_downloads=False,
+                release_id=release_id,
+            )
+        finally:
+            if previous is None:
+                os.environ.pop("NEXUS_CURRENTNESS_UNVERIFIED", None)
+            else:
+                os.environ["NEXUS_CURRENTNESS_UNVERIFIED"] = previous
+        return audit
+
+    def test_the_verdict_names_the_release_being_produced(self) -> None:
+        audit = self._audit("production-profile-gate-2026-2027-v2-candidate-xyz")
+        assert audit["verdict_scope"]["release_id"] == (
+            "production-profile-gate-2026-2027-v2-candidate-xyz"
+        )
+
+    def test_without_an_explicit_identity_the_historical_one_is_kept(self) -> None:
+        """Aucune émission existante ne change de cible du fait de ce correctif."""
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_producer_currentness2", PRODUCER)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        audit = self._audit(None)
+        assert audit["verdict_scope"]["release_id"] == module.RELEASE_ID
+
+    def test_the_verdict_never_claims_a_verification_took_place(self) -> None:
+        audit = self._audit("candidate-x")
+        assert audit["network_mode"] == "UNVERIFIED"
+        assert audit["currentness_status"] == "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE"
+        assert audit["attempts"] == []
+        assert audit["attempts_made_by_this_producer"] is False
+        assert audit["verified_at"] is None

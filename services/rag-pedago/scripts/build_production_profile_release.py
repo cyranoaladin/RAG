@@ -1069,6 +1069,7 @@ def resolve_currentness_network_audit(
     *,
     verify_official_downloads: bool,
     audit_path: Path = CURRENTNESS_NETWORK_AUDIT_PATH,
+    release_id: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Separate optional live acquisition from deterministic offline replay."""
     if verify_official_downloads:
@@ -1128,7 +1129,12 @@ def resolve_currentness_network_audit(
             # ici : « s'applique aux documents de cette release ».
             "verdict_scope": {
                 "kind": "RELEASE_WIDE",
-                "release_id": RELEASE_ID,
+                # La portée nomme LA release qui embarque ce verdict, pas la
+                # constante historique du module. Une candidate qui hériterait
+                # de l'identifiant d'une autre release ferait lire à l'auditeur
+                # — seul consommateur déclaré de ce champ — une portée qui
+                # n'est pas la sienne.
+                "release_id": release_id or RELEASE_ID,
                 "school_year": SCHOOL_YEAR,
                 # Un champ scellé que rien ne lit à l'exécution a exactement un
                 # consommateur : l'humain qui vérifie une release et ne peut pas
@@ -2537,6 +2543,7 @@ def build_release(
     network_audit, _network_rows = resolve_currentness_network_audit(
         placement_rows,
         verify_official_downloads=verify_official_downloads,
+        release_id=release_id,
     )
     network_audit, currentness = _currentness_documents(
         placement_rows,
