@@ -162,7 +162,20 @@ PROFILE_MANIFEST_PATH = (
 PROGRAMME_PATH = ENGINE_ROOT / "configs" / "programme_indexes" / "multilevel_2026_2027.yml"
 LEVELS_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_levels.yml"
 SUBJECTS_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_subjects.yml"
-DOCUMENT_TYPES_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_document_types.yml"
+# Le mappage des types documentaires est lu dans le snapshot scellé, pas dans
+# `configs/`. a4b1f96 (PR #142) a étendu le mappage vivant de quatre à neuf
+# types — extension additive, aucune correspondance existante modifiée — et a
+# vendorisé ici la version sous laquelle cette release a été scellée, dont les
+# allowlists portent l'empreinte. Le banc, lui, continuait de lire le fichier
+# vivant : il refusait donc sa propre entrée. Les niveaux et les matières
+# restent lus dans `configs/`, où ils sont inchangés depuis le scellement.
+DOCUMENT_TYPES_PATH = (
+    ENGINE_ROOT
+    / "tests"
+    / "fixtures"
+    / "profile_gate_20260825"
+    / "eduscol_multilevel_document_types.yml"
+)
 
 PDF_MIRROR = Path(os.environ.get("NEXUS_MULTILEVEL_PDF_MIRROR", ""))
 PII_PATH = Path(os.environ.get("NEXUS_MULTILEVEL_PII_EVIDENCE_PATH", ""))

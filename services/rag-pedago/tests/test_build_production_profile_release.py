@@ -1844,3 +1844,84 @@ def test_the_content_set_guard_is_actually_called_by_the_producer(
     assert produced != reviewed, (
         "le banc ne distingue pas les deux ensembles : il ne prouverait rien"
     )
+
+
+def _disposable_repository(root: Path) -> tuple[str, str, str]:
+    """Un vrai dépôt git jetable : deux commits, un fichier chacun.
+
+    Le garde interroge git. Le simuler prouverait que le simulacre répond, pas
+    que le garde lit l'historique.
+    """
+    import subprocess
+
+    def git(*arguments: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), *arguments],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+    git("init", "-q", "-b", "main")
+    git("config", "user.email", "banc@local")
+    git("config", "user.name", "banc")
+    (root / "autorite.yml").write_text("v: 1\n", encoding="utf-8")
+    git("add", "autorite.yml")
+    git("commit", "-qm", "poser l autorite")
+    origine = git("rev-parse", "HEAD")
+    (root / "autorite.yml").write_text("v: 2\n", encoding="utf-8")
+    (root / "ailleurs.txt").write_text("sans rapport\n", encoding="utf-8")
+    git("add", "-A")
+    git("commit", "-qm", "resceller l autorite")
+    rescellement = git("rev-parse", "HEAD")
+    # Un commit réel mais sur une branche jamais fusionnée : atteignable par
+    # son SHA, pas depuis HEAD. C'est exactement la forme de l'erreur commise.
+    git("checkout", "-q", "-b", "hors-lignee")
+    (root / "autorite.yml").write_text("v: 3\n", encoding="utf-8")
+    git("commit", "-qam", "rescellement non fusionne")
+    hors_lignee = git("rev-parse", "HEAD")
+    git("checkout", "-q", "main")
+    return origine, rescellement, hors_lignee
+
+
+def test_authority_change_motive_must_cite_the_commit_that_changed_the_file(
+    tmp_path: Path,
+) -> None:
+    """Un motif est une preuve vérifiable, pas de la prose libre.
+
+    Une release a été produite en attribuant un rescellement à un commit qui
+    n'était pas un ancêtre de HEAD. L'écart de digest était légitime ; la
+    justification écrite, elle, était fausse, et rien ne pouvait le dire.
+    """
+    builder = _module()
+    _, rescellement, hors_lignee = _disposable_repository(tmp_path)
+    verifier = builder.require_motive_cites_the_commit_that_changed_each_authority
+    argumens: dict[str, Any] = {
+        "ecarts": ["autorite_sha256"],
+        "chemins": {"autorite_sha256": "autorite.yml"},
+        "repository_root": tmp_path,
+    }
+
+    verifier(f"rescelle par {rescellement}", **argumens)
+
+    for motif, raison in (
+        (f"rescelle par {hors_lignee}", "commit hors de la lignee de HEAD"),
+        ("rescelle parce que c etait necessaire", "prose sans aucun commit"),
+        ("rescelle par " + "0" * 40, "commit inexistant"),
+    ):
+        with pytest.raises(builder.AuthorityMotiveError):
+            verifier(motif, **argumens)
+        assert raison
+
+
+def test_a_reachable_commit_that_did_not_touch_the_file_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Sans ce banc, le garde dégénérerait en « un SHA est cité »."""
+    builder = _module()
+    origine, _, _ = _disposable_repository(tmp_path)
+    with pytest.raises(builder.AuthorityMotiveError):
+        builder.require_motive_cites_the_commit_that_changed_each_authority(
+            f"rescelle par {origine}",
+            ecarts=["ailleurs_sha256"],
+            chemins={"ailleurs_sha256": "ailleurs.txt"},
+            repository_root=tmp_path,
+        )

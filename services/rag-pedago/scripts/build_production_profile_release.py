@@ -2513,7 +2513,96 @@ def _comparer_autorites_a_la_reference(
     print(f"AUTHORITY_DIGESTS_CHANGED={len(ecarts) + len(nouvelles) + len(disparues)}")
     for nom, a, b in ecarts:
         print(f"  {nom}: {a[:12]}… -> {b[:12]}…")
+    require_motive_cites_the_commit_that_changed_each_authority(
+        motif,
+        ecarts=[nom for nom, _, _ in ecarts],
+        chemins={nom: liaison["path"] for nom, liaison in apres.items()},
+        repository_root=REPOSITORY_ROOT,
+    )
     print(f"AUTHORITY_CHANGE_MOTIVE={motif}")
+
+
+_COMMIT_TOKEN = re.compile(r"\b[0-9a-f]{7,40}\b")
+
+
+class AuthorityMotiveError(ValueError):
+    """Un motif de changement d'autorité n'est pas vérifiable."""
+
+
+def _commit_is_reachable(repository_root: Path, commit: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(repository_root), "merge-base", "--is-ancestor", commit, "HEAD"],
+        capture_output=True,
+    ).returncode == 0
+
+
+def _commit_touched(repository_root: Path, commit: str, relative_path: str) -> bool:
+    completed = subprocess.run(
+        ["git", "-C", str(repository_root), "show", "--name-only", "--format=", commit],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return False
+    return relative_path in completed.stdout.split()
+
+
+def _path_is_tracked(repository_root: Path, relative_path: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(repository_root), "ls-files", "--error-unmatch", relative_path],
+        capture_output=True,
+    ).returncode == 0
+
+
+def require_motive_cites_the_commit_that_changed_each_authority(
+    motif: str,
+    *,
+    ecarts: Sequence[str],
+    chemins: Mapping[str, str],
+    repository_root: Path,
+) -> None:
+    """Exiger que le motif cite, pour chaque autorité modifiée, un commit réel.
+
+    Un motif était jusqu'ici de la prose libre : n'importe quelle phrase ouvrait
+    la porte. Une release a ainsi été produite en attribuant le rescellement de
+    `document_type_mapping_sha256` à un commit qui n'était même pas un ancêtre
+    de HEAD — l'écart de digest était réel et légitime, mais la justification
+    écrite, celle sur laquelle un relecteur s'appuie, était fausse et rien ne
+    pouvait le dire.
+
+    Le motif doit donc citer, pour chaque autorité dont l'empreinte a changé, au
+    moins un commit qui (1) est atteignable depuis HEAD et (2) a effectivement
+    touché le fichier qui porte cette autorité. Les autorités dont le fichier
+    n'est pas suivi par git sont hors de portée de ce contrôle et le disent.
+    """
+    cites = {
+        jeton for jeton in _COMMIT_TOKEN.findall(motif or "")
+        if _commit_is_reachable(repository_root, jeton)
+    }
+    manquants: list[str] = []
+    hors_portee: list[str] = []
+    for nom in ecarts:
+        chemin = chemins.get(nom)
+        if chemin is None or not _path_is_tracked(repository_root, chemin):
+            hors_portee.append(nom)
+            continue
+        if not any(_commit_touched(repository_root, c, chemin) for c in cites):
+            manquants.append(f"{nom} ({chemin})")
+    if hors_portee:
+        print(
+            "AUTHORITY_MOTIVE_OUT_OF_SCOPE="
+            f"{len(hors_portee)} — fichier non suivi par git : "
+            f"{', '.join(sorted(hors_portee))}"
+        )
+    if manquants:
+        raise AuthorityMotiveError(
+            "le motif ne cite aucun commit atteignable ayant touché ces "
+            f"autorités : {'; '.join(manquants)}.\n"
+            f"  commits cités et atteignables : {sorted(cites) or 'aucun'}\n"
+            "  Citer dans `--authority-change-motive` le commit qui a "
+            "réellement modifié chaque fichier."
+        )
+    print(f"AUTHORITY_MOTIVE_COMMITS_VERIFIED={len(cites)}")
 
 
 def _verifier_preconditions(
