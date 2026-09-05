@@ -18,6 +18,7 @@ from rag_pedago.governance.corpus_acquisition import (
     acquire_corpus,
     parse_declared_manifest,
     require_reconciled,
+    require_scoped_reconciled,
     summarise,
     verify_expected_inventory,
     zone_counts,
@@ -374,3 +375,112 @@ class TestRealCorpusShape:
         assert any(
             path.endswith(".ggb") for _digest, path in report.manifest.entries
         )
+
+
+class TestScopedReconciliation:
+    """Une tranche du corpus se recoupe *sur son périmètre*, pas moins.
+
+    Acquérir un sous-ensemble et exiger le recoupement global refuserait
+    toute tranche ; se contenter de « ce qui est arrivé concorde avec
+    lui-même » accepterait un périmètre silencieusement rétréci. Le
+    périmètre demandé est donc l'entrée du contrôle, et il est vérifié
+    dans les deux sens contre la déclaration du producteur.
+    """
+
+    def full_manifest(self) -> dict[str, str]:
+        return {path: sha(payload) for path, payload in NOMINAL.items()}
+
+    def test_a_slice_reconciles_against_the_full_producer_manifest(
+        self, tmp_path: Path
+    ) -> None:
+        subset = {"01_EDUSCOL_OFFICIEL/a.pdf": NOMINAL["01_EDUSCOL_OFFICIEL/a.pdf"]}
+        files, drive = build_source(subset, manifest_paths=self.full_manifest())
+        report = acquire(files, drive, tmp_path)
+
+        # le recoupement global échoue : deux objets déclarés manquent
+        assert report.reconciled is False
+        with pytest.raises(CorpusAcquisitionError, match="declared but not acquired"):
+            require_reconciled(report)
+
+        # le recoupement de périmètre passe, et prouve le digest acquis
+        scoped = require_scoped_reconciled(
+            report, requested={"01_EDUSCOL_OFFICIEL/a.pdf"}
+        )
+        assert scoped is report
+
+    def test_a_requested_object_absent_from_the_tree_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Un périmètre demandé plus large que l'acquisition est un
+        téléchargement incomplet, pas une tranche."""
+        subset = {"01_EDUSCOL_OFFICIEL/a.pdf": NOMINAL["01_EDUSCOL_OFFICIEL/a.pdf"]}
+        files, drive = build_source(subset, manifest_paths=self.full_manifest())
+        report = acquire(files, drive, tmp_path)
+        with pytest.raises(CorpusAcquisitionError, match="requested but not acquired"):
+            require_scoped_reconciled(
+                report,
+                requested={
+                    "01_EDUSCOL_OFFICIEL/a.pdf",
+                    "01_EDUSCOL_OFFICIEL/b.pdf",
+                },
+            )
+
+    def test_an_object_acquired_outside_the_requested_scope_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Un objet arrivé sans avoir été demandé est une source qui a
+        bougé sous l'acquisition."""
+        subset = {
+            "01_EDUSCOL_OFFICIEL/a.pdf": NOMINAL["01_EDUSCOL_OFFICIEL/a.pdf"],
+            "01_EDUSCOL_OFFICIEL/b.pdf": NOMINAL["01_EDUSCOL_OFFICIEL/b.pdf"],
+        }
+        files, drive = build_source(subset, manifest_paths=self.full_manifest())
+        report = acquire(files, drive, tmp_path)
+        with pytest.raises(CorpusAcquisitionError, match="acquired outside"):
+            require_scoped_reconciled(
+                report, requested={"01_EDUSCOL_OFFICIEL/a.pdf"}
+            )
+
+    def test_a_requested_object_the_producer_never_declared_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        """Sans ligne dans le manifeste livré, il n'y a rien à recouper :
+        le digest recalculé ne serait comparé qu'à lui-même."""
+        objects = {"01_EDUSCOL_OFFICIEL/z.pdf": b"%PDF-z"}
+        files, drive = build_source(objects, manifest_paths=self.full_manifest())
+        report = acquire(files, drive, tmp_path)
+        with pytest.raises(CorpusAcquisitionError, match="never declared"):
+            require_scoped_reconciled(
+                report, requested={"01_EDUSCOL_OFFICIEL/z.pdf"}
+            )
+
+    def test_a_tampered_object_inside_the_scope_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        subset = {"01_EDUSCOL_OFFICIEL/a.pdf": NOMINAL["01_EDUSCOL_OFFICIEL/a.pdf"]}
+        files, drive = build_source(subset, manifest_paths=self.full_manifest())
+        drive.blobs["id-01_EDUSCOL_OFFICIEL/a.pdf"] = b"%PDF-X"
+        report = acquire(files, drive, tmp_path)
+        with pytest.raises(CorpusAcquisitionError, match="digest mismatch"):
+            require_scoped_reconciled(
+                report, requested={"01_EDUSCOL_OFFICIEL/a.pdf"}
+            )
+
+    def test_an_empty_scope_is_refused(self, tmp_path: Path) -> None:
+        """Un périmètre vide passerait tous les contrôles sans rien
+        prouver."""
+        files, drive = build_source(NOMINAL)
+        report = acquire(files, drive, tmp_path)
+        with pytest.raises(CorpusAcquisitionError, match="empty scope"):
+            require_scoped_reconciled(report, requested=set())
+
+    def test_a_source_without_a_delivered_manifest_is_refused(
+        self, tmp_path: Path
+    ) -> None:
+        subset = {"01_EDUSCOL_OFFICIEL/a.pdf": NOMINAL["01_EDUSCOL_OFFICIEL/a.pdf"]}
+        files, drive = build_source(subset, include_manifest=False)
+        report = acquire(files, drive, tmp_path)
+        with pytest.raises(CorpusAcquisitionError, match="SHA256SUMS"):
+            require_scoped_reconciled(
+                report, requested={"01_EDUSCOL_OFFICIEL/a.pdf"}
+            )

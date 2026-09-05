@@ -33,7 +33,7 @@ from __future__ import annotations
 import hashlib
 import re
 import unicodedata
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Collection, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -107,6 +107,11 @@ class AcquisitionReport:
     skipped_native: list[str] = field(default_factory=list)
     skipped_folders: int = 0
     reconciliation_errors: list[str] = field(default_factory=list)
+    #: La déclaration du producteur, telle qu'elle a été lue. Conservée
+    #: pour qu'un recoupement de *périmètre* puisse comparer chemin par
+    #: chemin ; sans elle, une tranche ne pourrait être recoupée qu'avec
+    #: elle-même.
+    declared_manifest: dict[str, str] = field(default_factory=dict)
 
     @property
     def reconciled(self) -> bool:
@@ -274,6 +279,7 @@ def acquire_corpus(
         skipped_native=skipped_native,
         skipped_folders=skipped_folders,
         reconciliation_errors=errors,
+        declared_manifest=dict(declared_manifest or {}),
     )
 
 
@@ -325,6 +331,80 @@ def require_reconciled(report: AcquisitionReport) -> AcquisitionReport:
         )
         raise CorpusAcquisitionError(
             "the acquired tree does not match the manifest the source delivered:\n"
+            f"  - {joined}{more}"
+        )
+    return report
+
+
+def require_scoped_reconciled(
+    report: AcquisitionReport,
+    *,
+    requested: Collection[str],
+) -> AcquisitionReport:
+    """Recoupe une acquisition *partielle* sur le périmètre demandé.
+
+    ``require_reconciled`` compare l'acquisition au corpus entier : c'est
+    ce qu'il faut pour sceller une campagne, et c'est exactement ce qui
+    rend toute tranche impossible. Une tranche a pourtant besoin d'être
+    prouvée, sans quoi une ingestion incrémentale n'aurait plus qu'une
+    auto-vérification à offrir : le digest recalculé comparé à lui-même.
+
+    Le périmètre est donc une **entrée**, pas une déduction de ce qui est
+    arrivé. C'est la différence entre « j'ai demandé ces objets, les
+    voici, et le producteur les déclare ainsi » et « voici ce qui a fini
+    par arriver, et ça se tient » — la seconde formulation accepte un
+    téléchargement rétréci en silence.
+
+    Quatre divergences sont refusées, chacune parce qu'elle signifie
+    autre chose : un objet demandé que le producteur ne déclare pas n'est
+    recoupable contre rien ; un objet demandé et non acquis est un
+    téléchargement incomplet ; un objet acquis hors périmètre est une
+    source qui a bougé ; un digest différent est une altération. Les
+    objets déclarés *hors* périmètre, eux, sont attendus : c'est ce qui
+    fait de ceci une tranche.
+    """
+    scope = {unicodedata.normalize("NFC", path) for path in requested}
+    if not scope:
+        raise CorpusAcquisitionError(
+            "empty scope: a slice with no requested object would pass every "
+            "check while proving nothing"
+        )
+    if not report.declared_manifest_present:
+        raise CorpusAcquisitionError(
+            f"the source carries no {MANIFEST_SELF_PATH}; there is nothing to "
+            "cross-check the requested scope against"
+        )
+
+    declared = report.declared_manifest
+    acquired = {path: digest for digest, path in report.manifest.entries}
+    problems: list[str] = []
+
+    for path in sorted(scope - set(declared)):
+        problems.append(
+            f"never declared: {path!r} was requested but the producer manifest "
+            "does not describe it — its digest could only be compared to itself"
+        )
+    for path in sorted(scope - set(acquired)):
+        problems.append(
+            f"requested but not acquired: {path!r} — the download is incomplete"
+        )
+    for path in sorted(set(acquired) - scope):
+        problems.append(
+            f"acquired outside the requested scope: {path!r} — the source changed "
+            "under the acquisition"
+        )
+    for path in sorted(scope & set(declared) & set(acquired)):
+        if declared[path] != acquired[path]:
+            problems.append(
+                f"digest mismatch for {path!r}: declared {declared[path]}, "
+                f"acquired {acquired[path]}"
+            )
+
+    if problems:
+        joined = "\n  - ".join(problems[:20])
+        more = f"\n  … and {len(problems) - 20} more" if len(problems) > 20 else ""
+        raise CorpusAcquisitionError(
+            "the acquired slice does not match the requested scope:\n"
             f"  - {joined}{more}"
         )
     return report
@@ -401,6 +481,7 @@ __all__ = [
     "acquire_corpus",
     "parse_declared_manifest",
     "require_reconciled",
+    "require_scoped_reconciled",
     "summarise",
     "verify_expected_inventory",
     "zone_counts",
