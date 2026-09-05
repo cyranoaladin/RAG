@@ -27,6 +27,16 @@ def content_set_digest(values: set[str]) -> str:
     return hashlib.sha256(("\n".join(sorted(values)) + "\n").encode()).hexdigest()
 
 
+def _path_components(cas_root: Path, locator: str) -> list[Path]:
+    """Chaque préfixe du localisateur, du store jusqu'à l'objet."""
+    walked = cas_root
+    parts = [walked]
+    for element in Path(locator).parts:
+        walked = walked / element
+        parts.append(walked)
+    return parts
+
+
 def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[int, list[str]]:
     manifest_path = cas_root / "manifest.json"
     if not manifest_path.is_file():
@@ -69,10 +79,22 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
                 "store — un objet hors du store n'est pas un objet récupéré"
             )
             continue
-        if blob.is_symlink() or (cas_root / locator).is_symlink():
+        # CHAQUE composant, pas seulement le dernier. Un lien de répertoire
+        # interne — `alias -> objects` — laisse la résolution finale à
+        # l'intérieur du store : la borne précédente le laisse donc passer,
+        # et « un chemin gouverné ne redirige jamais » cesse d'être vrai.
+        redirected = next(
+            (
+                str(part)
+                for part in _path_components(cas_root, locator)
+                if part.is_symlink()
+            ),
+            None,
+        )
+        if redirected is not None:
             problems.append(
-                f"{content_sha256[:16]}… : le localisateur est un lien "
-                "symbolique — un chemin gouverné ne redirige jamais"
+                f"{content_sha256[:16]}… : {redirected!r} est un lien symbolique "
+                "— un chemin gouverné ne redirige sur aucun de ses composants"
             )
             continue
         if not blob.is_file():

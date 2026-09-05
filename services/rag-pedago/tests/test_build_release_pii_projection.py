@@ -851,8 +851,17 @@ class TestTheContentSetDigestHasOneMeaning:
                 sorted(sample)
             ), "le vérificateur du store et le producteur ne calculent plus la même chose"
 
-    def test_the_real_lineage_digest_agrees_across_both(self) -> None:
-        """Sur la lignée RÉELLE, pas seulement sur des échantillons."""
+    def test_the_two_implementations_agree_on_a_real_shaped_input(self) -> None:
+        """PARITÉ D'IMPLÉMENTATION sur une entrée de forme réelle — rien de plus.
+
+        Ce test s'appelait « real lineage digest » et prétendait donc prouver
+        la lignée. Il ne le pouvait pas : les deux côtés calculent la même
+        formule sur la même entrée, et l'ensemble dérivé des 23 paquets n'est
+        même pas le `content_set_sha256` de l'index, qui porte sur les 320.
+        Un nom qui promet plus que l'assertion égare quiconque s'y fie.
+
+        La vraie attente versionnée est vérifiée par
+        `test_the_versioned_expectation_is_the_lineage_the_producer_holds`."""
         import importlib.util
         import json
         import pathlib
@@ -872,4 +881,36 @@ class TestTheContentSetDigestHasOneMeaning:
         contents = {entry["content_sha256"] for entry in index["bundles"]}
         assert verifier.content_set_digest(contents) == producer._final_set_digest(
             sorted(contents)
+        )
+
+
+class TestTheVersionedExpectationIsNotDrifting:
+    """L'attente que le store doit satisfaire est-elle celle du producteur ?
+
+    Le vérificateur du store adressable par contenu compare l'ensemble récupéré
+    à l'empreinte que l'index de la revue humaine DÉCLARE. Encore faut-il que
+    cette empreinte soit celle que la lignée canonique produit — sinon le store
+    prouverait sa conformité à une attente que le producteur ne partage plus.
+    """
+
+    def test_the_versioned_expectation_is_the_lineage_the_producer_holds(self) -> None:
+        import json
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        index = json.loads(REAL_INDEX.read_text(encoding="utf-8"))
+        assert index["content_set_sha256"] == producer.CANONICAL_CONTENT_SET_SHA256, (
+            "l'index de revue et la lignée canonique ne désignent plus le même "
+            "ensemble de contenus : le store serait vérifié contre une attente "
+            "que le producteur ne produit pas"
+        )
+
+    def test_the_versioned_count_matches_the_lineage_count(self) -> None:
+        """Le compte que le workflow lit doit décrire le même ensemble."""
+        import json
+
+        index = json.loads(REAL_INDEX.read_text(encoding="utf-8"))
+        assert index["counts"]["scanned"] == 320, (
+            "le compte versionné a changé sans que la lignée soit revue"
         )

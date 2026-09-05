@@ -61,8 +61,12 @@ jobs:
           # la lignée scellée produit, et que l'index de la revue humaine
           # déclare. Un store de la bonne taille mais d'un autre contenu est
           # refusé — on vérifie l'ensemble, jamais le compte.
-          expected="$(python -c 'import json,pathlib;print(json.loads(pathlib.Path("docs/reports/evidence-index/pii_review_index_20260903.json").read_text())["content_set_sha256"])')"
+          # L'empreinte ET le compte viennent du MÊME fichier versionné : un
+          # littéral ici obligerait à bouger le store, l'index et le workflow
+          # ensemble, et l'oubli d'un seul rendrait le gate rouge sans dire
+          # lequel est périmé.
+          read -r expected count < <(python -c 'import json,pathlib;d=json.loads(pathlib.Path("docs/reports/evidence-index/pii_review_index_20260903.json").read_text());print(d["content_set_sha256"], d["counts"]["scanned"])')
           python scripts/qualification/verify_corpus_cas.py \
             --cas-root .corpus-cas \
             --expect-content-set-sha256 "$expected" \
-            --expect-count 320
+            --expect-count "$count"
