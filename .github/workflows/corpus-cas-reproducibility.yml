@@ -1,0 +1,72 @@
+name: Corpus CAS reproducibility (C1)
+
+# C1 — un clean-room doit pouvoir obtenir les 320 sources de la candidate SANS
+# dépendre d'un poste de travail.
+#
+# **Pourquoi ce workflow ne se déclenche PAS sur `pull_request`.** Un job de PR
+# exécute du code que personne n'a encore revu. Lui confier une clé d'accès au
+# corpus privé reviendrait à offrir ce corpus à quiconque ouvre une PR : il
+# suffirait d'y ajouter une étape qui l'exfiltre. La preuve de reproductibilité
+# se fait donc sur du code DÉJÀ fusionné, ou sur déclenchement explicite.
+#
+# Conséquence assumée : ce n'est pas un gate de PR. C'est un gate de `main`,
+# ce qui correspond à ce que C1 affirme — que la lignée publiée est
+# reproductible, pas qu'une branche en cours l'est.
+
+"on":
+  push:
+    branches: [main]
+    paths:
+      - "scripts/qualification/verify_corpus_cas.py"
+      - "docs/reports/evidence-index/pii_review_index_20260903.json"
+      - ".github/workflows/corpus-cas-reproducibility.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus-cas-reproducibility
+  cancel-in-progress: false
+
+env:
+  # Révision IMMUABLE du store. Sans épinglage, une évolution ultérieure du
+  # corpus ferait récupérer un autre manifeste à un rejeu, et la preuve
+  # cesserait de porter sur ce qui a été revu.
+  CORPUS_CAS_REF: "c892c0bb73682d1c54a4978c4be1b75725e594c5"
+
+jobs:
+  verify:
+    name: "corpus CAS reproducibility (C1)"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Fetch the private content-addressed corpus
+        uses: actions/checkout@v4
+        with:
+          repository: cyranoaladin/RAG-corpus-cas
+          ref: ${{ env.CORPUS_CAS_REF }}
+          ssh-key: ${{ secrets.NEXUS_RAG_CORPUS_CAS_DEPLOY_KEY }}
+          path: .corpus-cas
+          persist-credentials: false
+
+      - name: Refuse a corpus that is not the one the candidate publishes
+        run: |
+          set -euo pipefail
+          # L'attente est VERSIONNÉE : l'empreinte de l'ensemble de contenus que
+          # la lignée scellée produit, et que l'index de la revue humaine
+          # déclare. Un store de la bonne taille mais d'un autre contenu est
+          # refusé — on vérifie l'ensemble, jamais le compte.
+          # L'empreinte ET le compte viennent du MÊME fichier versionné : un
+          # littéral ici obligerait à bouger le store, l'index et le workflow
+          # ensemble, et l'oubli d'un seul rendrait le gate rouge sans dire
+          # lequel est périmé.
+          read -r expected count < <(python -c 'import json,pathlib;d=json.loads(pathlib.Path("docs/reports/evidence-index/pii_review_index_20260903.json").read_text());print(d["content_set_sha256"], d["counts"]["scanned"])')
+          python scripts/qualification/verify_corpus_cas.py \
+            --cas-root .corpus-cas \
+            --expect-content-set-sha256 "$expected" \
+            --expect-count "$count"

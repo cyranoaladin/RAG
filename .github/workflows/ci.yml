@@ -130,6 +130,44 @@ jobs:
             exit 1
           fi
 
+  access-authority:
+    # C5 — l'autorité d'accès est le placement, jamais une colonne
+    # dénormalisée. `rag_chunks.visibility` et `rag_chunks.audience` sont des
+    # colonnes héritées, peuplées à la publication et donc susceptibles d'être
+    # PÉRIMÉES : si l'une d'elles pouvait décider de ce qui est servi, une
+    # simple ligne non rafraîchie élargirait la portée d'un contenu.
+    #
+    # Les épreuves exercent le prédicat que le moteur LIVRE, sur un PostgreSQL
+    # jetable — jamais une copie du SQL réécrite pour le test, jamais la base
+    # servie.
+    name: "access authority (C5)"
+    runs-on: ubuntu-latest
+    services:
+      pgvector:
+        image: pgvector/pgvector:pg16@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+        env:
+          POSTGRES_PASSWORD: c5-qualification-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - working-directory: services/rag-engine
+        run: make install
+      - name: Prove the placement authority cannot be overridden
+        working-directory: services/rag-engine
+        env:
+          NEXUS_C5_PG_DSN: "postgresql://postgres:c5-qualification-only@localhost:5432/postgres"
+        run: |
+          PYTHONPATH=src .venv/bin/pytest -q -rfE \
+            tests/integration/test_c5_placement_is_the_access_authority.py
+
   real-model-acceptance:
     name: "real-model acceptance (E5 + reranker + pgvector)"
     runs-on: ubuntu-latest
