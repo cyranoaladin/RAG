@@ -159,6 +159,40 @@ def test_une_cle_sans_la_portee_exigee_est_refusee(
     assert response.status_code == 403
 
 
+def test_le_client_authentifie_est_depose_pour_le_journal_d_acces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le journal d'accès attribue une requête à un client, pas à un jeton.
+
+    Le middleware résout la clé porteuse une seule fois et dépose le client
+    sur la requête ; la route le relit. Sans ce relais, chaque ligne de
+    journal serait anonyme — ou pire, exigerait de relire le jeton.
+    """
+    from src.ingestor import retrieval_v2_endpoint
+
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", lambda: True)
+    observed: dict[str, object] = {}
+
+    async def route(request: Request) -> JSONResponse:
+        observed["client_id"] = retrieval_v2_endpoint._calling_client_id(request)
+        observed["scopes"] = retrieval_v2_endpoint._calling_client_scopes(request)
+        return JSONResponse({"ok": True})
+
+    scope = dict(_business_request("/search/v2").scope)
+    scope["headers"] = [
+        (b"authorization", f"Bearer {service_token}".encode()),
+        (b"x-rag-api-key", API_CLIENT_KEY.encode()),
+    ]
+
+    response = asyncio.run(api_v2._metrics_middleware(Request(scope), route))
+
+    assert response.status_code == 200
+    assert observed["client_id"] == "surface-v2"
+    assert observed["scopes"] == ("rag:admin", "rag:read-source", "rag:search")
+
+
 def test_chaque_route_metier_montee_declare_une_portee_d_api() -> None:
     """Une route exposée sans portée déclarée serait une route sans porte."""
     for route in api_v2._ALLOWED_BUSINESS_ROUTES:
