@@ -78,6 +78,19 @@ _MULTILEVEL_AUTHORITY_FIELDS = frozenset(
         "reranker_inventory_sha256",
     }
 )
+#: Chaîne d'autorité de la revue humaine PII (ADR-0047), en extension de
+#: l'ensemble fermé ci-dessus. OPTIONNELLE — une release sans contenu détecté
+#: n'a pas de décisions à joindre — mais INDIVISIBLE : un ensemble de décisions
+#: sans son reçu ne prouve rien, un reçu sans son ancre ne se vérifie pas, et
+#: la moitié d'une chaîne d'autorité est une chaîne rompue.
+_PII_REVIEW_AUTHORITY_FIELDS = frozenset(
+    {
+        "pii_decision_set_sha256",
+        "pii_review_receipt_sha256",
+        "pii_review_trust_anchor_sha256",
+        "pii_review_index_sha256",
+    }
+)
 _MULTILEVEL_V2_ARTIFACT_FIELDS = frozenset(
     {
         "artifact_id",
@@ -169,6 +182,15 @@ class ReleaseExpectation:
     promotion_status: str | None = None
     activation_status: str | None = None
     review_status: str | None = None
+    #: Chaîne d'autorité de la revue humaine PII, telle que le MANIFESTE la
+    #: déclare. Elle était vérifiée syntaxiquement puis jetée : le worker
+    #: chargeait la sienne depuis ses propres arguments, et rien ne confrontait
+    #: les deux. Une release pouvait donc annoncer une chaîne pendant que le
+    #: worker en vérifiait une autre, chacune valide de son côté.
+    pii_decision_set_sha256: str | None = None
+    pii_review_receipt_sha256: str | None = None
+    pii_review_trust_anchor_sha256: str | None = None
+    pii_review_index_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -412,6 +434,46 @@ def _validate_v2_page_partition(
         raise ReleaseReadinessError(f"{field} page partition is incomplete")
 
 
+def _require_authority_chain(
+    authorities: Mapping[str, Any],
+    authority_fields: frozenset[str],
+    field: str,
+    *,
+    review_chain_allowed: bool,
+) -> None:
+    """Vérifie une chaîne d'autorité, agrégat comme sujet.
+
+    L'ensemble fermé peut s'étendre des quatre empreintes de la revue humaine
+    PII, et d'elles seules. Elles sont optionnelles — une release sans contenu
+    détecté n'a pas de décisions à joindre — mais indivisibles : la moitié
+    d'une chaîne d'autorité est une chaîne rompue.
+
+    **L'ouverture dépend du SCHÉMA, pas de la présence des champs.** Soustraire
+    ces quatre noms de toute chaîne déclarée les rendait acceptables partout, y
+    compris dans les schémas Wave 0 et multi-niveaux V1 qui ne les définissent
+    pas : un format ancien s'élargissait alors de lui-même, du seul fait qu'un
+    manifeste les mentionne. `review_chain_allowed` est donc décidé par
+    l'appelant depuis le genre de release, jamais deviné du contenu.
+
+    Écrit une fois, appelé aux trois endroits : les laisser diverger ferait
+    accepter dans l'agrégat ce que le sujet refuse."""
+    declared = set(authorities)
+    review_declared = (
+        declared & _PII_REVIEW_AUTHORITY_FIELDS if review_chain_allowed else set()
+    )
+    if declared - review_declared != authority_fields:
+        raise ReleaseReadinessError(f"{field} fields mismatch")
+    if review_declared and review_declared != _PII_REVIEW_AUTHORITY_FIELDS:
+        missing = sorted(_PII_REVIEW_AUTHORITY_FIELDS - review_declared)
+        raise ReleaseReadinessError(
+            f"{field}: incomplete PII review authority chain, {missing} missing — a "
+            "decision set without its receipt, or a receipt without its anchor, "
+            "proves nothing"
+        )
+    for name in sorted(authority_fields | review_declared):
+        _require_sha256(authorities.get(name), f"{field}.{name}")
+
+
 def _parse_subject_v1(
     payload: Mapping[str, Any],
     field: str,
@@ -427,10 +489,9 @@ def _parse_subject_v1(
         payload.get("programme_version"), f"{field}.programme_version"
     )
     authorities = _require_mapping(payload.get("authorities"), f"{field}.authorities")
-    if set(authorities) != authority_fields:
-        raise ReleaseReadinessError(f"{field}.authorities fields mismatch")
-    for name in authority_fields:
-        _require_sha256(authorities.get(name), f"{field}.authorities.{name}")
+    _require_authority_chain(
+        authorities, authority_fields, f"{field}.authorities", review_chain_allowed=False
+    )
     profile = _require_mapping(payload.get("profile"), f"{field}.profile")
     if set(profile) != {"version", "fingerprint", "manifest_digest"}:
         raise ReleaseReadinessError(f"{field}.profile fields mismatch")
@@ -748,10 +809,12 @@ def _parse_subject_v2(
         payload.get("programme_version"), f"{field}.programme_version"
     )
     authorities = _require_mapping(payload.get("authorities"), f"{field}.authorities")
-    if set(authorities) != _MULTILEVEL_AUTHORITY_FIELDS:
-        raise ReleaseReadinessError(f"{field}.authorities fields mismatch")
-    for name in _MULTILEVEL_AUTHORITY_FIELDS:
-        _require_sha256(authorities.get(name), f"{field}.authorities.{name}")
+    _require_authority_chain(
+        authorities,
+        _MULTILEVEL_AUTHORITY_FIELDS,
+        f"{field}.authorities",
+        review_chain_allowed=True,
+    )
     if authorities != aggregate.get("authorities"):
         raise ReleaseReadinessError(f"{field}.authorities mismatch")
     profile = _require_mapping(payload.get("profile"), f"{field}.profile")
@@ -901,10 +964,9 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
     release_id = _require_nonblank(aggregate.get("release_id"), "release_id")
     school_year = _require_nonblank(aggregate.get("school_year"), "school_year")
     aggregate_authorities = _require_mapping(aggregate.get("authorities"), "authorities")
-    if set(aggregate_authorities) != authority_fields:
-        raise ReleaseReadinessError("authorities fields mismatch")
-    for name in authority_fields:
-        _require_sha256(aggregate_authorities.get(name), f"authorities.{name}")
+    _require_authority_chain(
+        aggregate_authorities, authority_fields, "authorities", review_chain_allowed=is_v2
+    )
     aggregate_models = _require_mapping(aggregate.get("models"), "models")
     if set(aggregate_models) != {"embedding", "reranker"}:
         raise ReleaseReadinessError("models fields mismatch")
@@ -1081,6 +1143,15 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         promotion_status=promotion_status,
         activation_status=activation_status,
         review_status=review_status,
+        # La chaîne de revue déclarée par le manifeste voyage jusqu'au
+        # consommateur, au lieu d'être vérifiée puis oubliée : c'est elle que le
+        # worker doit confronter à celle qu'il charge de son côté.
+        pii_decision_set_sha256=aggregate_authorities.get("pii_decision_set_sha256"),
+        pii_review_receipt_sha256=aggregate_authorities.get("pii_review_receipt_sha256"),
+        pii_review_trust_anchor_sha256=aggregate_authorities.get(
+            "pii_review_trust_anchor_sha256"
+        ),
+        pii_review_index_sha256=aggregate_authorities.get("pii_review_index_sha256"),
     )
 
 

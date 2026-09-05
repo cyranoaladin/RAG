@@ -869,11 +869,15 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         # Voie explicitement non publiable : la ressource ne sera pas mise
         # en revue plus bas, donc rien de ce qui suit ne peut être publié.
         pii_detected = False
+        pii_reviewed_accepted = False
     else:
         pii_registry, _ = deps.require_sealed_evidence()
-        pii_detected = pii_registry.verify_content_clearance(
-            artifact.sha256
-        ).pii_detected
+        # Les deux dimensions voyagent séparément jusqu'au bout (ADR-0047) :
+        # « on a trouvé quelque chose » et « un humain autorisé l'a admis ».
+        # Les fondre en un seul booléen effacerait la première.
+        clearance = pii_registry.verify_content_clearance(artifact.sha256)
+        pii_detected = clearance.pii_detected
+        pii_reviewed_accepted = clearance.is_reviewed_accepted
 
     extracted_text, extract_transition = run_extractor(
         conn,
@@ -966,7 +970,11 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         checkpoint="rights",
         then=lambda auth: (
             enforce_rights(auth, rights=rights, now=datetime.now(UTC)),
-            enforce_pii(auth, pii_detected=pii_detected),
+            enforce_pii(
+                auth,
+                pii_detected=pii_detected,
+                reviewed_accepted=pii_reviewed_accepted,
+            ),
         )[-1],
     )
 
@@ -991,6 +999,7 @@ def _process_claimed_job(conn: psycopg.Connection, *, claim: JobClaim, deps: Wor
         expected_version=rights_transition.state_version,
         actor=deps.owner,
         job_id=claim.job_id,
+        pii_reviewed_accepted=pii_reviewed_accepted,
     )
 
     # LOT H2-F (défaut 6) : les quatre faits d'attribution deviennent

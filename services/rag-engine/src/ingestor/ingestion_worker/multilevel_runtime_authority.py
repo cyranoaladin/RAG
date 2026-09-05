@@ -30,7 +30,10 @@ from ingestor.wave0_release import require_file_digest
 from .runtime_authority import (
     GovernedRuntimeAuthorities,
     RuntimeAuthorityStartupError,
+    add_review_authority_arguments,
     require_canonical_worker_runtime,
+    require_runtime_review_chain_matches_release,
+    review_authority_arguments_from_args,
 )
 
 
@@ -60,6 +63,17 @@ class MultilevelRuntimeAuthorityInputs:
     rights_evidence_sha256: str
     corpus_manifest_sha256: str
     repository_root: Path
+    pii_decision_set_path: Path | None = None
+    pii_decision_set_sha256: str | None = None
+    pii_review_receipt_path: Path | None = None
+    pii_review_receipt_sha256: str | None = None
+    review_trust_anchor_path: Path | None = None
+    review_trust_anchor_sha256: str | None = None
+    pii_review_index_path: Path | None = None
+    pii_review_index_sha256: str | None = None
+    pii_review_reviewers_path: Path | None = None
+    pii_review_reviewers_sha256: str | None = None
+    pii_review_reviewers: tuple[str, ...] = ()
 
 
 _MULTILEVEL_RUNTIME_FILE_ARGUMENTS = (
@@ -95,6 +109,7 @@ def add_multilevel_runtime_authority_arguments(
         )
     parser.add_argument("--corpus-manifest-sha256", required=True)
     parser.add_argument("--repository-root", required=True, type=Path)
+    add_review_authority_arguments(parser)
 
 
 def multilevel_runtime_authority_inputs_from_args(
@@ -126,6 +141,27 @@ def multilevel_runtime_authority_inputs_from_args(
         rights_evidence_sha256=args.rights_evidence_sha256,
         corpus_manifest_sha256=args.corpus_manifest_sha256,
         repository_root=args.repository_root,
+        **review_authority_arguments_from_args(args),  # type: ignore[arg-type]
+    )
+
+
+def review_verification_environment(environment: str) -> str:
+    """Traduit l'environnement de release en environnement de vérification ADR-0035.
+
+    Une répétition et une production ne sont pas signées par la même clé : le
+    contrat refuse explicitement qu'une clé de fixture valide un gate de
+    production, et qu'une clé de production soit exercée par une répétition.
+
+    **Ce mode ne retire aucune garde.** Signature Ed25519, liaison du challenge,
+    empreintes du decision set, du reçu et de l'ancre, allowlist de reviewers et
+    liaison au corpus restent tous vérifiés à l'identique. Seule change la clé
+    recevable."""
+    if environment == "production":
+        return "production"
+    if environment == "rehearsal":
+        return "test"
+    raise ValueError(
+        f"environment {environment!r} is neither rehearsal nor production"
     )
 
 
@@ -207,6 +243,20 @@ def load_multilevel_runtime_authorities(
             inputs.pii_evidence_path,
             expected_evidence_sha256=inputs.pii_evidence_sha256,
             expected_corpus_manifest_sha256=inputs.corpus_manifest_sha256,
+            decision_set_path=inputs.pii_decision_set_path,
+            expected_decision_set_sha256=inputs.pii_decision_set_sha256,
+            receipt_path=inputs.pii_review_receipt_path,
+            expected_receipt_sha256=inputs.pii_review_receipt_sha256,
+            trust_anchor_path=inputs.review_trust_anchor_path,
+            expected_trust_anchor_sha256=inputs.review_trust_anchor_sha256,
+            # L'index et l'allowlist ne sont plus « portés » sans être lus :
+            # les deux chargeurs les remettent au foyer, qui seul les ouvre,
+            # les hache et les confronte.
+            review_index_path=inputs.pii_review_index_path,
+            expected_review_index_sha256=inputs.pii_review_index_sha256,
+            repository_root=inputs.repository_root,
+            expected_reviewers_sha256=inputs.pii_review_reviewers_sha256,
+            environment=review_verification_environment(environment),
         )
         rights = VerifiedRightsEvidenceRegistry.load(
             inputs.rights_evidence_path,
@@ -224,6 +274,17 @@ def load_multilevel_runtime_authorities(
         raise RuntimeAuthorityStartupError("release PII policy digest differs")
     if resolver.release_rights_registry_sha256 != rights.registry_sha256:
         raise RuntimeAuthorityStartupError("release rights registry digest differs")
+    # Le chemin multi-niveaux portait les mêmes autorités que le chemin simple
+    # mais ne confrontait pas la chaîne de la release à celle qu'il vérifiait :
+    # une release pouvait annoncer la chaîne A tandis que ce worker en validait
+    # une B, chacune cohérente de son côté.
+    try:
+        require_runtime_review_chain_matches_release(
+            declared=resolver.release_review_chain,
+            runtime=pii.verified_review_chain(),
+        )
+    except ValueError as exc:
+        raise RuntimeAuthorityStartupError(str(exc)) from exc
     return GovernedRuntimeAuthorities(
         placement_resolver=resolver,
         pii_evidence_registry=pii,

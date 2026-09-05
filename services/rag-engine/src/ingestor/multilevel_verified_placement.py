@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import json
 import re
@@ -143,6 +144,15 @@ class MultilevelReleasePlacement:
         )
 
 
+#: Les quatre maillons de la chaîne de revue, tels que le manifeste les nomme.
+_REVIEW_CHAIN_FIELDS = (
+    "pii_decision_set_sha256",
+    "pii_review_receipt_sha256",
+    "pii_review_trust_anchor_sha256",
+    "pii_review_index_sha256",
+)
+
+
 @dataclass(frozen=True)
 class MultilevelReleaseEligibility:
     """Allowlist injectée; son loader sera ajouté avec le schéma agrégat final."""
@@ -164,6 +174,12 @@ class MultilevelReleaseEligibility:
     reranker_model_id: str
     reranker_inventory_sha256: str
     placements: frozenset[MultilevelReleasePlacement]
+    #: La chaîne d'autorité de revue PII que la release DÉCLARE. Elle n'a pas
+    #: de valeur en soi : elle n'existe que pour être confrontée à celle que le
+    #: worker vérifie réellement au démarrage. Facultative, parce qu'une
+    #: release V2 antérieure à la campagne de revue n'en déclare aucune — mais
+    #: une release qui en déclare une engage le worker à charger la même.
+    review_chain: Mapping[str, str | None] = dataclasses.field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for field in (
@@ -241,6 +257,14 @@ def load_multilevel_release_eligibility(
             )
         )
     return MultilevelReleaseEligibility(
+        review_chain={
+            name: (
+                _require_sha256(authorities.get(name), label=f"release {name}")
+                if authorities.get(name) is not None
+                else None
+            )
+            for name in _REVIEW_CHAIN_FIELDS
+        },
         manifest_sha256=_require_sha256(expected_sha256, label="release manifest SHA"),
         candidate_inventory_sha256=_require_sha256(
             authorities.get("candidate_inventory_sha256"),
@@ -308,6 +332,15 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
     _programme_registry: ProgrammeIndexRegistry
     _collection_config: Mapping[str, object]
     _release_eligibility: MultilevelReleaseEligibility
+
+    @property
+    def release_review_chain(self) -> Mapping[str, str | None]:
+        """La chaîne déclarée, exposée sous le même nom que sur le chemin simple.
+
+        Les deux chargeurs consomment ainsi la même primitive de comparaison,
+        sous le même nom : c'est ce qui empêche l'un des deux de « porter »
+        la chaîne sans jamais la confronter, comme il le faisait."""
+        return self._release_eligibility.review_chain
 
     @property
     def release_pii_evidence_sha256(self) -> str:

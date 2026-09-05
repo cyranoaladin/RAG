@@ -104,7 +104,7 @@ def _install_anchor(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     anchor = root / gate.GOVERNED_TRUST_ANCHOR_PATH
     anchor.parent.mkdir(parents=True, exist_ok=True)
     anchor.write_bytes(_anchor())
-    monkeypatch.setattr(gate, "_GOVERNED_REPOSITORY_ROOT", root)
+    monkeypatch.setattr(gate, "_governed_repository_root", lambda: root)
 
 
 def _write_runtime_material_root(

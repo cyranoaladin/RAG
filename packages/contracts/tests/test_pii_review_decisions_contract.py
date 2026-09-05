@@ -24,10 +24,16 @@ from nexus_contracts import (
     parse_pii_review_decision_set,
 )
 from nexus_contracts.authority_artifacts import CanonicalArtifactError
+from nexus_contracts.authority_artifacts import git_blob_sha1
 from nexus_contracts.review_binding import (
     ReviewBindingError,
     ScopeAuthorizationReviewBindingV1,
+    TrustAnchor,
+    expected_challenge_digest,
+    public_key_hex,
     require_matches_pii_review_decision_set,
+    sign_review_binding,
+    verify_pii_review_decision_authority,
 )
 
 SHA_A = "a" * 64
@@ -374,3 +380,171 @@ class TestFindingDispositions:
             "PERSONAL_DATA_PRESENT",
         }
         assert set(ADMISSIBLE_DISPOSITIONS) == set(FINDING_DISPOSITIONS) - {"PERSONAL_DATA_PRESENT"}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Autorité composite : décisions + reçu, vérifiées ensemble (ADR-0047/0035)
+# ─────────────────────────────────────────────────────────────────────────
+
+AUTHORITY_SET_ID = "pii-review-2026-09-02-lot-1-2"
+SIGNING_SEED = "33" * 32
+SIGNING_KEY_ID = "review-binding-contract-test-key"
+
+
+def _authority_anchor() -> TrustAnchor:
+    return TrustAnchor.model_validate(
+        {
+            "protocol_version": "NEXUS-REVIEW-BINDING-V1",
+            "keys": [
+                {
+                    "algorithm": "ed25519",
+                    "key_id": SIGNING_KEY_ID,
+                    "public_key": public_key_hex(SIGNING_SEED),
+                    "environment": "test",
+                    "comment": "Ephemeral contract-test key, never a production anchor.",
+                }
+            ],
+        }
+    )
+
+
+def _authority_receipt_bytes(raw: bytes, *, reviewer: str = "abenrhouma") -> bytes:
+    pull_request, base_sha, head_sha, author = 200, "1" * 40, "2" * 40, "cyranoaladin"
+    binding = ScopeAuthorizationReviewBindingV1.model_validate(
+        {
+            "protocol_version": "NEXUS-REVIEW-BINDING-V1",
+            "repository": "cyranoaladin/RAG",
+            "pull_request": pull_request,
+            "base_ref": "main",
+            "base_sha": base_sha,
+            "head_sha": head_sha,
+            "authorization_artifact_path": canonical_pii_review_decisions_path(
+                AUTHORITY_SET_ID
+            ),
+            "authorization_artifact_sha256": sha256(raw).hexdigest(),
+            "authorization_artifact_git_blob_sha1": git_blob_sha1(raw),
+            "authorization_id": AUTHORITY_SET_ID,
+            "authorization_decision": "APPROVE_PII_REVIEW_DECISIONS",
+            "review_id": 42,
+            "reviewer_login": reviewer,
+            "reviewer_permission": "write",
+            "author_login": author,
+            "submitted_at": MOMENT.isoformat(),
+            "challenge_protocol": "NEXUS-TRUSTED-REVIEW-V1",
+            "challenge_digest": expected_challenge_digest(
+                repository="cyranoaladin/RAG",
+                pull_request=pull_request,
+                base_ref="main",
+                base_sha=base_sha,
+                head_sha=head_sha,
+                author=author,
+                reviewer=reviewer,
+            ),
+            "verified_at": MOMENT.isoformat(),
+            "verifier_version": "nexus-review-binding-producer/1",
+            "expires_at": datetime(2026, 10, 3, tzinfo=UTC).isoformat(),
+        }
+    )
+    return sign_review_binding(
+        binding, private_key_hex=SIGNING_SEED, key_id=SIGNING_KEY_ID
+    ).canonical_bytes()
+
+
+class TestVerifyPiiReviewDecisionAuthority:
+    """Deux services consomment cette chaîne — le worker et le producteur.
+
+    Si chacun compose `verify_review_binding` et
+    `require_matches_pii_review_decision_set` de son côté, les deux ordres de
+    vérification divergeront un jour, et l'un acceptera ce que l'autre refuse.
+    La composition vit donc ici, en un seul endroit, et sans E/S."""
+
+    def _authority(self, **overrides: object):
+        raw = PiiReviewDecisionSetV1.model_validate(_set()).canonical_bytes()
+        kwargs: dict[str, object] = {
+            "decision_set_bytes": raw,
+            "receipt_bytes": _authority_receipt_bytes(raw),
+            "trust_anchor": _authority_anchor(),
+            "environment": "test",
+            "expected_repository": "cyranoaladin/RAG",
+            "accepted_reviewers": ("abenrhouma",),
+            "now": MOMENT,
+        }
+        kwargs.update(overrides)
+        return verify_pii_review_decision_authority(**kwargs)  # type: ignore[arg-type]
+
+    def test_a_matching_pair_is_accepted(self) -> None:
+        decision_set, binding = self._authority()
+        assert decision_set.decision_set_id == AUTHORITY_SET_ID
+        assert binding.authorization_id == AUTHORITY_SET_ID
+        assert binding.authorization_decision == "APPROVE_PII_REVIEW_DECISIONS"
+
+    def test_non_canonical_decision_set_bytes_are_refused(self) -> None:
+        raw = PiiReviewDecisionSetV1.model_validate(_set()).canonical_bytes()
+        with pytest.raises((ReviewBindingError, CanonicalArtifactError)):
+            self._authority(decision_set_bytes=b" " + raw)
+
+    def test_a_receipt_issued_for_other_bytes_is_refused(self) -> None:
+        other = PiiReviewDecisionSetV1.model_validate(
+            _set(_decision(sha=SHA_B, bundle=BUNDLE_B))
+        ).canonical_bytes()
+        with pytest.raises(ReviewBindingError):
+            self._authority(receipt_bytes=_authority_receipt_bytes(other))
+
+    def test_an_unlisted_reviewer_is_refused(self) -> None:
+        with pytest.raises(ReviewBindingError):
+            self._authority(accepted_reviewers=("quelquun-dautre",))
+
+    def test_an_empty_reviewer_allowlist_is_refused(self) -> None:
+        """Ne pas borner les reviewers n'est pas « accepter tout le monde ».
+
+        Le primitif sous-jacent traite `None` comme « pas de contrôle » ; la
+        composition, elle, exige une allowlist et refuse sans."""
+        with pytest.raises(ReviewBindingError):
+            self._authority(accepted_reviewers=())
+        with pytest.raises(ReviewBindingError):
+            self._authority(accepted_reviewers=None)
+
+    def test_an_expired_receipt_is_refused(self) -> None:
+        with pytest.raises(ReviewBindingError):
+            self._authority(now=datetime(2026, 11, 1, tzinfo=UTC))
+
+    def test_a_receipt_signed_by_an_unknown_key_is_refused(self) -> None:
+        raw = PiiReviewDecisionSetV1.model_validate(_set()).canonical_bytes()
+        other_anchor = TrustAnchor.model_validate(
+            {
+                "protocol_version": "NEXUS-REVIEW-BINDING-V1",
+                "keys": [
+                    {
+                        "algorithm": "ed25519",
+                        "key_id": SIGNING_KEY_ID,
+                        "public_key": public_key_hex("44" * 32),
+                        "environment": "test",
+                        "comment": "Another ephemeral test key.",
+                    }
+                ],
+            }
+        )
+        with pytest.raises(ReviewBindingError):
+            self._authority(
+                decision_set_bytes=raw,
+                receipt_bytes=_authority_receipt_bytes(raw),
+                trust_anchor=other_anchor,
+            )
+
+    def test_a_receipt_whose_challenge_is_recycled_is_refused(self) -> None:
+        """P1 : le challenge doit être celui que les dimensions du reçu produisent.
+
+        `verify_review_binding` ne recalcule pas `challenge_digest`. Sans
+        `require_challenge_is_bound`, un reçu authentiquement signé mais portant
+        le challenge d'une AUTRE revue est accepté — le champ devient
+        décoratif, et la liaison à la revue qu'il prétend couvrir n'existe
+        plus."""
+        raw = PiiReviewDecisionSetV1.model_validate(_set()).canonical_bytes()
+        receipt = json.loads(_authority_receipt_bytes(raw))
+        receipt["binding"]["challenge_digest"] = "9" * 64
+        binding = ScopeAuthorizationReviewBindingV1.model_validate(receipt["binding"])
+        resigned = sign_review_binding(
+            binding, private_key_hex=SIGNING_SEED, key_id=SIGNING_KEY_ID
+        ).canonical_bytes()
+        with pytest.raises(ReviewBindingError, match="challenge"):
+            self._authority(decision_set_bytes=raw, receipt_bytes=resigned)

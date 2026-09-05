@@ -362,8 +362,15 @@ class TestPiiCheckpoint:
         enforce_pii(authorization(), pii_detected=False)
 
     def test_detected_pii_is_refused(self) -> None:
-        with pytest.raises(ScopeEnforcementViolation, match="ingests no PII"):
+        """Une détection sans revue humaine reste un refus (ADR-0047).
+
+        L'assertion porte sur le point de contrôle, pas sur la prose : le
+        libellé s'est enrichi quand l'exception « admise après revue » a été
+        ouverte, la garantie n'a pas bougé."""
+        with pytest.raises(ScopeEnforcementViolation) as excinfo:
             enforce_pii(authorization(), pii_detected=True)
+        assert excinfo.value.checkpoint == "pii"
+        assert "no approved human review" in str(excinfo.value)
 
 
 class TestViolationsCarryTheirCheckpoint:

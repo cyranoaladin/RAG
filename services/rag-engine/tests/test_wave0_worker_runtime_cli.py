@@ -33,6 +33,7 @@ def test_worker_a_parser_requires_governed_placement_authorities() -> None:
 def test_worker_a_parser_carries_every_resolver_input() -> None:
     parser = worker_a_cli._build_arg_parser()
     governed = [
+        "--repository-root", "/proof",
         "--catalog-path", "/proof/catalog.json",
         "--catalog-sha256", "4" * 64,
         "--candidate-inventory-path", "/proof/inventory.json",
@@ -90,6 +91,7 @@ def test_runtime_authority_rejects_pii_policy_drift(
     monkeypatch.setattr(pypdf, "__version__", page_policy.CANONICAL_PYPDF_VERSION)
     sha = "a" * 64
     inputs = runtime_authority.RuntimeAuthorityInputs(
+        repository_root=Path(__file__).resolve().parents[3],
         catalog_path=tmp_path / "catalog.json",
         catalog_sha256=sha,
         candidate_inventory_path=tmp_path / "inventory.json",
@@ -183,7 +185,32 @@ def test_multilevel_runtime_authority_has_every_digest_bound_input() -> None:
         "rights_evidence_sha256",
         "corpus_manifest_sha256",
         "repository_root",
+        # ADR-0047 : autorité de revue PII, injectée et optionnelle. Chaque
+        # chemin garde son empreinte ; l'allowlist de reviewers n'est pas un
+        # fichier et n'en a donc pas.
+        "pii_decision_set_path",
+        "pii_decision_set_sha256",
+        "pii_review_receipt_path",
+        "pii_review_receipt_sha256",
+        "review_trust_anchor_path",
+        "review_trust_anchor_sha256",
+        # L'allowlist de reviewers est devenue une AUTORITÉ versionnée, injectée
+        # comme les autres par un couple chemin + empreinte, au lieu d'une liste
+        # de logins que l'appelant nommait librement.
+        "pii_review_index_path",
+        "pii_review_index_sha256",
+        "pii_review_reviewers_path",
+        "pii_review_reviewers_sha256",
+        "pii_review_reviewers",
     }
+
+    # L'invariant que la liste ci-dessus servait à protéger, énoncé
+    # directement : aucun chemin d'entrée sans l'empreinte qui le lie.
+    unbound = {
+        field for field in fields
+        if field.endswith("_path") and f"{field[:-5]}_sha256" not in fields
+    }
+    assert unbound == set()
 
 
 def test_multilevel_runtime_authority_module_never_uses_pilot_sha_allowlist() -> None:

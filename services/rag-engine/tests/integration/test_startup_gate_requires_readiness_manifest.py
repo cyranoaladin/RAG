@@ -106,7 +106,7 @@ def _install_governed_anchor(
                 }
             ).encode("utf-8")
         )
-    monkeypatch.setattr(gate_module, "_GOVERNED_REPOSITORY_ROOT", root)
+    monkeypatch.setattr(gate_module, "_governed_repository_root", lambda: root)
 
 
 def _worker_argv(tmp_path: Path) -> list[str]:

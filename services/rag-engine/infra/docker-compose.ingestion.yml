@@ -152,6 +152,9 @@ services:
       - python
       - -m
       - ingestor.ingestion_worker.cli
+      # Racine canonique DANS l'image : l'allowlist des reviewers y est
+      # résolue, jamais depuis le répertoire de lancement du processus.
+      - --repository-root=/app
       - --profiles-dir=/app/configs/ingestion_profiles
       - --manifest-path=/app/configs/ingestion_manifest.yml
       - --artifact-store-dir=/app/data/artifacts
@@ -239,6 +242,9 @@ services:
       - python
       - -m
       - ingestor.ingestion_worker.publication_resume_cli
+      # Racine canonique DANS l'image : l'allowlist des reviewers y est
+      # résolue, jamais depuis le répertoire de lancement du processus.
+      - --repository-root=/app
       - --profiles-dir=/app/configs/ingestion_profiles
       - --manifest-path=/app/configs/ingestion_manifest.yml
       - --artifact-store-dir=/app/data/artifacts

@@ -122,7 +122,7 @@ def _install_governed_root(
         target = root / GOVERNED_TRUST_ANCHOR_PATH
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(anchor)
-    monkeypatch.setattr(gate_module, "_GOVERNED_REPOSITORY_ROOT", root)
+    monkeypatch.setattr(gate_module, "_governed_repository_root", lambda: root)
     return root
 
 
@@ -265,7 +265,7 @@ class TestProductionIsFailClosed:
         stray = tmp_path / "site-packages-ish"
         (stray / Path(GOVERNED_TRUST_ANCHOR_PATH).parent).mkdir(parents=True)
         (stray / GOVERNED_TRUST_ANCHOR_PATH).write_bytes(_anchor_bytes())
-        monkeypatch.setattr(gate_module, "_GOVERNED_REPOSITORY_ROOT", stray)
+        monkeypatch.setattr(gate_module, "_governed_repository_root", lambda: stray)
         path = _write_manifest(tmp_path)
         with pytest.raises(ReadinessGateError, match="does not look like"):
             enforce_readiness_gate(manifest_path=path, release_sha=MERGE_SHA)
@@ -485,10 +485,38 @@ class TestTheRealGovernedRootResolvesOnAnActualCheckout:
     jamais détecté faute d'un test contre le vrai disque."""
 
     def test_the_unmocked_root_is_the_actual_repository_root(self) -> None:
-        assert gate_module._GOVERNED_REPOSITORY_ROOT == Path(__file__).resolve().parents[3]
+        assert gate_module._governed_repository_root() == Path(__file__).resolve().parents[3]
+
+    def test_a_layout_too_shallow_refuses_by_name_instead_of_crashing(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Dans l'image du worker, ce fichier vit sous
+        ``/app/ingestor/ingestion_profiles/`` : il n'a pas cinq parents.
+
+        Le calcul était fait AU CHARGEMENT DU MODULE et levait alors
+        `IndexError` **pendant l'import**. Mesuré dans l'image réelle :
+        `import ingestor.ingestion_worker.cli` échouait, donc aucun entrypoint
+        du worker de production ne démarrait.
+
+        Une profondeur de répertoire n'est pas une condition de sécurité ; les
+        marqueurs le sont. Un déploiement qui n'est pas un checkout doit
+        obtenir un refus NOMMÉ au moment du gate — une décision — et non une
+        exception d'indexation à l'import — une panne."""
+        monkeypatch.setattr(
+            gate_module,
+            "__file__",
+            "/app/ingestor/ingestion_profiles/readiness_gate.py",
+        )
+        with pytest.raises(gate_module.ReadinessGateError) as refusal:
+            gate_module._governed_repository_root()
+        message = str(refusal.value)
+        assert "not inside a Nexus repository checkout" in message
+        assert gate_module._FAILURE_PREFIX in message, (
+            "le refus doit porter le préfixe de gate, pas une exception nue"
+        )
 
     def test_the_unmocked_root_carries_both_governed_markers(self) -> None:
-        root = gate_module._GOVERNED_REPOSITORY_ROOT
+        root = gate_module._governed_repository_root()
         for marker in gate_module._GOVERNED_ROOT_MARKERS:
             assert (root / marker).is_dir(), f"missing governed root marker: {marker}"
 
@@ -508,7 +536,7 @@ class TestTheRealGovernedRootResolvesOnAnActualCheckout:
         manifest_path.write_bytes(b"{}")
         manifest_path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
-        real_anchor = gate_module._GOVERNED_REPOSITORY_ROOT / GOVERNED_TRUST_ANCHOR_PATH
+        real_anchor = gate_module._governed_repository_root() / GOVERNED_TRUST_ANCHOR_PATH
         assert real_anchor.is_file(), (
             f"expected the real governed anchor to exist at {real_anchor} — "
             "if this fails, PRODUCTION_TRUST_ANCHOR_PROVISIONED has regressed "

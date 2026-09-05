@@ -155,6 +155,11 @@ class TestTheImageNeedsNoGitHubCli:
     def test_both_worker_entrypoints_import_inside_the_real_image(
         self, worker_image: str
     ) -> None:
+        # `check=False` : avec `check=True`, l'échec remontait une
+        # `CalledProcessError` qui ne portait QUE la ligne de commande. Le
+        # message d'import — la seule chose utile — restait dans un `stderr`
+        # que personne ne voyait. Un test dont l'échec n'est pas
+        # diagnosticable ne protège rien : il signale sans jamais instruire.
         result = _docker(
             "run",
             "--rm",
@@ -164,8 +169,12 @@ class TestTheImageNeedsNoGitHubCli:
             "import ingestor.ingestion_worker.cli; "
             "import ingestor.ingestion_worker.publication_resume_cli; "
             "print('WORKER_ENTRYPOINTS_OK')",
+            check=False,
         )
-        assert result.stdout.strip() == "WORKER_ENTRYPOINTS_OK"
+        assert result.stdout.strip() == "WORKER_ENTRYPOINTS_OK", (
+            "les entrypoints du worker ne s'importent pas dans l'image réelle "
+            f"(code {result.returncode}) :\n{result.stderr.strip()}"
+        )
 
     def test_gh_is_absent_from_the_image(self, worker_image: str) -> None:
         """Le transport ``gh api`` n'aurait jamais fonctionné ici. Sa

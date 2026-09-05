@@ -22,12 +22,15 @@ de façon déterministe, sans dépendre d'une corruption de fichier SQL.
 from __future__ import annotations
 
 import os
+import re
 import secrets
 import shutil
 import socket
 import subprocess
+import time
 import uuid
 from collections.abc import Iterator
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -54,7 +57,27 @@ def _free_port() -> int:
         return sock.getsockname()[1]
 
 
-def _make_dummy_env_file(path: Path, *, pgvector_port: int, colliding_roles: bool) -> None:
+def _required_compose_variables() -> list[str]:
+    """Les variables `${VAR:?…}` que la fusion des deux Compose EXIGE.
+
+    Elles étaient énumérées à la main. Le jour où un fichier Compose en a
+    gagné une — `PGVECTOR_PUBLISHER_PASSWORD` — la liste a silencieusement
+    divergé, et les trois tests de ce fichier ont commencé à échouer sur une
+    erreur d'interpolation qui n'avait rien à voir avec ce qu'ils mesurent.
+    Quatre autres manquaient déjà.
+
+    Les lire dans les fichiers rend la dérive impossible : le banc suit le
+    Compose, au lieu de prétendre le connaître."""
+    pattern = re.compile(r"\$\{([A-Z_][A-Z0-9_]*):\?")
+    required: set[str] = set()
+    for compose in (COMPOSE_V2, COMPOSE_INGESTION):
+        required |= set(pattern.findall(compose.read_text(encoding="utf-8")))
+    return sorted(required)
+
+
+def _make_dummy_env_file(
+    path: Path, *, pgvector_port: int, colliding_roles: bool, host_dir: Path
+) -> None:
     """Valeurs factices, syntaxiquement valides, pour CHAQUE variable
     ``:?`` exigée par la fusion des deux fichiers Compose — y compris les
     variables du service ``ingestor`` (sans rapport avec ce test), que
@@ -68,31 +91,45 @@ def _make_dummy_env_file(path: Path, *, pgvector_port: int, colliding_roles: boo
     # passe runtime (vérifié empiriquement : "mot de passe runtime trop
     # court (32 caracteres minimum)") — token_urlsafe(24) produit 32
     # caractères, même convention que le reste de la suite d'intégration.
-    lines = [
-        f"PGVECTOR_PASSWORD={secrets.token_urlsafe(24)}",
-        f"PGVECTOR_RETRIEVAL_PASSWORD={secrets.token_urlsafe(24)}",
-        f"PGVECTOR_REVIEW_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_MIGRATOR_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_APP_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_AUTHORITY_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_ATTESTOR_PASSWORD={secrets.token_urlsafe(24)}",
-        f"INGESTION_CONTROL_MIGRATOR_ROLE={migrator_role}",
-        f"INGESTION_CONTROL_APP_ROLE={app_role}",
-        "PG_INGESTION_CONTROL_DSN=postgresql://ingestion_control_app_test:dummy@pgvector:5432/ragdb",
-        "PG_RAG_DSN=postgresql://dummy:dummy@pgvector:5432/ragdb",
-        "PG_REVIEW_DSN=postgresql://dummy:dummy@pgvector:5432/ragdb",
-        f"NEXUS_INTERNAL_TOKEN_AUDIENCE=test-audience-{uuid.uuid4().hex[:8]}",
-        f"NEXUS_INTERNAL_TOKEN_ISSUER=test-issuer-{uuid.uuid4().hex[:8]}",
-        f"NEXUS_INTERNAL_TOKEN_SECRET={secrets.token_urlsafe(24)}",
-        f"NEXUS_SSO_AUDIENCE=test-sso-audience-{uuid.uuid4().hex[:8]}",
-        f"NEXUS_SSO_ISSUER=test-sso-issuer-{uuid.uuid4().hex[:8]}",
-        f"RAG_BFF_SERVICE_TOKEN={secrets.token_urlsafe(24)}",
-        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256=" + "0" * 64,
-        "RAG_RERANKER_MODEL_INVENTORY_SHA256=" + "0" * 64,
-        f"PGVECTOR_PORT={pgvector_port}",
-    ]
+    #
+    # Les variables qui exigent une FORME précise sont nommées ici ; toutes
+    # les autres reçoivent un mot de passe factice conforme.
+    host_dir.mkdir(parents=True, exist_ok=True)
+    # Chaque clé n'est écrite QU'UNE FOIS. Une première version laissait la
+    # boucle attribuer un jeton aléatoire aux deux SHA d'inventaire, puis le
+    # bloc final les réécrivait à zéro : le fichier portait des clés en double
+    # et la bonne valeur ne survivait que par la règle « dernier gagne » de
+    # Compose. Un jour où cette règle change, ou si le bloc final disparaît,
+    # l'inventaire de modèles recevrait une valeur non hexadécimale sans que
+    # rien ne le signale.
+    shaped: dict[str, str] = {
+        "INGESTION_CONTROL_MIGRATOR_ROLE": migrator_role,
+        "INGESTION_CONTROL_APP_ROLE": app_role,
+        "RAG_EMBEDDING_MODEL_INVENTORY_SHA256": "0" * 64,
+        "RAG_RERANKER_MODEL_INVENTORY_SHA256": "0" * 64,
+        "PGVECTOR_PORT": str(pgvector_port),
+        "PG_INGESTION_CONTROL_DSN": (
+            "postgresql://ingestion_control_app_test:dummy@pgvector:5432/ragdb"
+        ),
+        "PG_RAG_DSN": "postgresql://dummy:dummy@pgvector:5432/ragdb",
+        "PG_REVIEW_DSN": "postgresql://dummy:dummy@pgvector:5432/ragdb",
+        "NEXUS_INTERNAL_TOKEN_AUDIENCE": f"test-audience-{uuid.uuid4().hex[:8]}",
+        "NEXUS_INTERNAL_TOKEN_ISSUER": f"test-issuer-{uuid.uuid4().hex[:8]}",
+        "NEXUS_SSO_AUDIENCE": f"test-sso-audience-{uuid.uuid4().hex[:8]}",
+        "NEXUS_SSO_ISSUER": f"test-sso-issuer-{uuid.uuid4().hex[:8]}",
+    }
+    for name in _required_compose_variables():
+        if name in shaped:
+            continue
+        shaped[name] = (
+            str(host_dir) if name.endswith(("_HOST_DIR", "_CACHE_DIR"))
+            else secrets.token_urlsafe(24)
+        )
+    lines = [f"{name}={value}" for name, value in sorted(shaped.items())]
+    assert len({line.split("=", 1)[0] for line in lines}) == len(lines), (
+        "le fichier d'environnement porte une clé en double"
+    )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-
 
 @pytest.fixture
 def isolated_project(tmp_path: Path) -> Iterator[dict[str, str]]:
@@ -116,7 +153,10 @@ def _run_v2_ingestion_up(
 ) -> subprocess.CompletedProcess[str]:
     env_file = Path(isolated_project["env_file"])
     _make_dummy_env_file(
-        env_file, pgvector_port=int(isolated_project["port"]), colliding_roles=colliding_roles
+        env_file,
+        pgvector_port=int(isolated_project["port"]),
+        colliding_roles=colliding_roles,
+        host_dir=env_file.parent / "host",
     )
     env = os.environ.copy()
     # Réplique exactement COMPOSE_V2_INGESTION + la cible v2-ingestion-up
@@ -129,6 +169,82 @@ def _run_v2_ingestion_up(
         *services,
     ]
     return subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False)
+
+
+@dataclass(frozen=True)
+class _ServiceState:
+    """État d'un service tel que Compose le rapporte.
+
+    `state` vaut `running`/`exited` et ne dit RIEN de la santé : une assertion
+    « state != healthy » est donc toujours vraie, et ne vérifie rien. La santé
+    vit dans son propre champ."""
+
+    state: str
+    health: str
+    exit_code: str
+
+
+def _service_states(isolated_project: dict[str, str]) -> dict[str, _ServiceState]:
+    """État et code de sortie de chaque service, après `up`.
+
+    **Pourquoi le code retour de `docker compose up --wait` ne suffit pas.**
+    `migrator-ingestion-control` est un conteneur ONE-SHOT : il fait son
+    travail et sort. Selon la version de Compose, `--wait` traite cette sortie
+    comme une condition d'échec du service attendu et rend un code non nul —
+    y compris quand le migrateur a parfaitement réussi (mesuré sur le runner
+    CI : « container … exited (0) » et pourtant `up` rend 1, là où le même
+    montage rend 0 en local).
+
+    Un contrôle positif qui repose sur ce code retour mesure donc la version
+    de Compose, pas le déploiement. Pire : son pendant négatif ne distinguerait
+    plus rien, les deux cas rendant 1.
+
+    Le signal opposable est l'état RÉEL des services."""
+    inspect = subprocess.run(
+        [
+            "docker", "compose", "-p", isolated_project["project"],
+            "-f", str(COMPOSE_V2), "-f", str(COMPOSE_INGESTION),
+            "--env-file", isolated_project["env_file"],
+            "ps", "-a", "--format", "{{.Service}}|{{.State}}|{{.Health}}|{{.ExitCode}}",
+        ],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=False,
+    )
+    states: dict[str, _ServiceState] = {}
+    for line in inspect.stdout.splitlines():
+        parts = line.split("|")
+        if len(parts) == 4:
+            states[parts[0]] = _ServiceState(
+                state=parts[1], health=parts[2], exit_code=parts[3]
+            )
+    return states
+
+
+def _terminal_migrator_exit_code(
+    isolated_project: dict[str, str], *, timeout_s: float = 120.0
+) -> str:
+    """Attend que le migrateur ait FINI, puis rend son code de sortie.
+
+    `docker compose up --wait` peut rendre la main avant qu'un conteneur
+    one-shot ait terminé : une lecture immédiate attrape alors `running` et
+    un code de sortie `0` provisoire. Mesuré — un contrôle positif saboté
+    (collision de rôles injectée) passait quand même, parce qu'il lisait
+    l'état trop tôt. Un test qui dépend d'une course ne prouve rien de
+    stable.
+
+    L'attente est bornée : au-delà, l'absence d'état terminal est elle-même
+    un échec nommé."""
+    deadline = time.monotonic() + timeout_s
+    last: _ServiceState | None = None
+    while time.monotonic() < deadline:
+        states = _service_states(isolated_project)
+        last = states.get("migrator-ingestion-control")
+        if last is not None and last.state == "exited":
+            return last.exit_code
+        time.sleep(1.0)
+    raise AssertionError(
+        f"migrator-ingestion-control n'a pas atteint d'état terminal en {timeout_s}s "
+        f"(dernier état observé : {last})"
+    )
 
 
 class TestV2IngestionUpFailsClosed:
@@ -168,10 +284,18 @@ class TestV2IngestionUpFailsClosed:
             if line.startswith("migrator-ingestion-control"):
                 assert not line.endswith(" 0"), f"migrator-ingestion-control unexpectedly exited 0: {line}"
 
-    def test_distinct_roles_let_migrator_succeed_and_up_returns_zero(
+    def test_distinct_roles_let_the_migrator_succeed(
         self, isolated_project: dict[str, str]
     ) -> None:
-        """Contrôle positif : sans la collision délibérée, la même commande
+        """Contrôle positif : sans la collision délibérée, le migrateur réussit.
+
+        Le nom promettait aussi « up returns zero ». Ce n'est plus ce qui est
+        vérifié — et ce ne pouvait pas l'être : le code retour de
+        `docker compose up --wait` dépend de la façon dont la version installée
+        traite la sortie d'un conteneur one-shot. Un nom qui décrit autre chose
+        que l'assertion égare quiconque cherche la cause d'un échec.
+
+        La même commande
         (limitée à ``migrator-ingestion-control`` — ``ingestion-worker``
         exige en plus un manifest LOT44c approuvé pour devenir healthy,
         une préoccupation orthogonale à ce correctif, déjà couverte par
@@ -182,9 +306,12 @@ class TestV2IngestionUpFailsClosed:
             isolated_project, colliding_roles=False, services=("migrator-ingestion-control",)
         )
 
-        assert result.returncode == 0, (
-            f"expected zero exit on a well-formed deployment, got {result.returncode}\n"
-            f"stdout={result.stdout}\nstderr={result.stderr}"
+        # Symétrique de son pendant négatif : c'est le code de sortie du
+        # MIGRATEUR qui distingue les deux cas, pas celui de Compose.
+        exit_code = _terminal_migrator_exit_code(isolated_project)
+        assert exit_code == "0", (
+            "sans collision de rôles, le migrateur doit réussir ; il est sorti "
+            f"en {exit_code}\nstdout={result.stdout}\nstderr={result.stderr}"
         )
 
     def test_worker_never_healthy_is_caught_even_when_migrator_succeeds(
@@ -217,6 +344,22 @@ class TestV2IngestionUpFailsClosed:
         assert result.returncode != 0, (
             f"expected non-zero exit when ingestion-worker never becomes healthy, got 0\n"
             f"stdout={result.stdout}\nstderr={result.stderr}"
+        )
+        # Le code retour seul ne suffit pas : sur un Compose qui rend déjà 1
+        # pour la sortie du conteneur one-shot, l'assertion ci-dessus serait
+        # satisfaite quel que soit l'état du worker — donc creuse. Ce qui doit
+        # être vrai, c'est que le worker n'est PAS devenu healthy alors que le
+        # migrateur dont il dépend a réussi.
+        assert _terminal_migrator_exit_code(isolated_project) == "0", (
+            "le migrateur devait réussir dans ce cas"
+        )
+        states = _service_states(isolated_project)
+        worker = states.get("ingestion-worker")
+        assert worker is not None, f"ingestion-worker absent des services : {states}"
+        # `state` vaut `running`/`exited` : « state != healthy » aurait été
+        # toujours vrai, donc creux. C'est le champ SANTÉ qu'il faut lire.
+        assert worker.health != "healthy", (
+            f"ingestion-worker ne devait jamais devenir healthy ici : {states}"
         )
         assert "ingestion-worker" in (result.stdout + result.stderr)
 

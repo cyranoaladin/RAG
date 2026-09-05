@@ -71,6 +71,7 @@ def build_quality_report_core(
     duplicate_detected: bool,
     report_id: UUID,
     evaluated_at: datetime,
+    pii_reviewed_accepted: bool = False,
 ) -> QualityReport:
     """Construit un ``QualityReport`` déterministe — aucune E/S, aucun modèle
     externe. ``pii_detected``/``duplicate_detected`` sont des constats déjà
@@ -120,7 +121,10 @@ def build_quality_report_core(
     # explicite du profil.
     if rights == Rights.unknown and profile.reject_unknown_rights:
         rejection_reasons.append("rights_unknown")
-    if pii_detected:
+    # ADR-0047 : la détection reste inscrite sur le rapport (`pii_detected`
+    # plus bas), mais elle ne motive plus le rejet quand une revue humaine
+    # scellée l'a admise. Le fait et sa conséquence sont deux choses.
+    if pii_detected and not pii_reviewed_accepted:
         rejection_reasons.append("pii_detected")
     if duplicate_detected:
         rejection_reasons.append("duplicate_detected")
@@ -229,7 +233,7 @@ def decide_routing_core(
     if quality_report.duplicate_detected:
         decision = "DUPLICATE"
         rules_applied = ["duplicate_detected"]
-    elif quality_report.pii_detected:
+    elif quality_report.pii_detected and "pii_detected" in quality_report.rejection_reasons:
         decision = "QUARANTINE"
         rules_applied = ["pii_detected"]
     elif quality_report.rejection_reasons:
@@ -272,6 +276,7 @@ def run_quality_agent(
     expected_version: int,
     actor: str,
     job_id: UUID | None = None,
+    pii_reviewed_accepted: bool = False,
 ) -> tuple[QualityReport, RoutingDecision, TransitionResult]:
     """Calcule le rapport qualité, transitionne
     ``RIGHTS_CHECKED -> QUALITY_CHECKED``, calcule la décision de routage,
@@ -291,6 +296,7 @@ def run_quality_agent(
         duplicate_detected=duplicate_detected,
         report_id=report_id,
         evaluated_at=evaluated_at,
+        pii_reviewed_accepted=pii_reviewed_accepted,
     )
 
     # LOT42 (item E) : le résultat qualité devient un **fait durable**

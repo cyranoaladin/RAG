@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import importlib.util
 import inspect
 import json
 from io import BytesIO
@@ -112,13 +111,9 @@ class VerifiedPdf(Protocol):
 
 
 def _module() -> Builder:
-    spec = importlib.util.spec_from_file_location(
-        "build_production_profile_release", SCRIPT
-    )
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(Builder, module)
+    from conftest import load_producer
+
+    return cast(Builder, load_producer())
 
 
 def _sha256(path: Path) -> str:
@@ -958,10 +953,18 @@ def test_v2_producer_pii_scans_unique_contents_once(
     assert evidence["results"][0]["ignored_empty_pages"] == []
 
 
-def test_v2_producer_never_rewrites_a_positive_pii_scan_as_cleared(
+def test_v2_producer_refuses_a_positive_pii_scan_without_a_human_decision(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """Un scan positif n'est jamais réécrit en CLEARED — et désormais mieux.
+
+    Ce test garantissait que le producteur n'efface pas une détection. Depuis
+    ADR-0047, la garantie est plus forte : sans décision humaine scellée
+    couvrant ce contenu exact, le producteur REFUSE d'émettre la preuve, au
+    lieu d'écrire un statut négatif que rien n'admettrait ensuite. La sortie
+    projetée d'une détection ADMISE est vérifiée séparément, dans
+    `tests/test_pii_review_projection.py`."""
     builder = cast(Any, _module())
 
     def positive_scan(_content: bytes, **_kwargs: object) -> SimpleNamespace:
@@ -971,23 +974,36 @@ def test_v2_producer_never_rewrites_a_positive_pii_scan_as_cleared(
             characters_scanned=42,
             ignored_empty_pages=(),
             pii_detected=True,
-            matches=(SimpleNamespace(pattern_id="email_address"),),
+            matches=(
+                SimpleNamespace(
+                    pattern_id="email_address",
+                    page_number=1,
+                    char_offset=17,
+                    match_text="quelqu-un@example.org",
+                    context="ecrire a quelqu-un@example.org pour toute demande",
+                ),
+            ),
             extraction_error=None,
         )
 
     monkeypatch.setattr(builder, "load_patterns_from_config", lambda _path: ())
     monkeypatch.setattr(builder, "scan_pdf_bytes", positive_scan)
+    # Le contexte scellé se calcule sur le texte de page brut : sans page
+    # lisible, le producteur refuserait à l'extraction et ce test passerait
+    # pour une raison qui n'est pas celle qu'il énonce.
+    monkeypatch.setattr(
+        builder,
+        "extract_pdf_pages_with_structural_empty_pages",
+        lambda _content: (["ecrire a quelqu-un@example.org pour toute demande"], (), None),
+    )
     pdf = builder.VerifiedPdf(tmp_path / "commun.pdf", b"pdf-factice")
 
-    evidence = builder._pii_evidence(
-        _v2_placement_rows(),
-        pdfs={V2_ARTIFACT_SHA: pdf},
-        inventory_sha256="f" * 64,
-    )
-    result = evidence["results"][0]
-
-    assert result["pii_detected"] is True
-    assert result["status"] != "CLEARED"
+    with pytest.raises(ValueError, match="no decision set"):
+        builder._pii_evidence(
+            _v2_placement_rows(),
+            pdfs={V2_ARTIFACT_SHA: pdf},
+            inventory_sha256="f" * 64,
+        )
 
 
 def test_v2_producer_pii_evidence_names_the_page_policy_that_derived_its_pages(
@@ -1479,7 +1495,14 @@ def test_v2_release_scope_separates_unique_final_set_from_placements(
         for collection in V2_COLLECTIONS
     }
     monkeypatch.setattr(builder, "profile_fingerprint", lambda _profile: "e" * 64)
+    # Ce test surchargeait la matrice pour ÉTEINDRE la vérification d'empreinte
+    # de l'ensemble final — le comportement fail-open que le resolver de lignée
+    # a fermé. Il déclare désormais l'ensemble qu'il attend, ce qui est à la
+    # fois la nouvelle règle et une assertion de plus.
     monkeypatch.setenv("NEXUS_FINAL_MATRIX", str(tmp_path / "synthetic-matrix.json"))
+    monkeypatch.setenv(
+        "NEXUS_FINAL_SET_SHA256", builder._final_set_digest([V2_ARTIFACT_SHA])
+    )
 
     final_set_raw, accepted_raw, verified_raw = builder._release_scope_inputs(
         matrix=matrix,
@@ -1744,4 +1767,80 @@ def test_v2_placement_id_matches_independent_historical_golden() -> None:
 
     assert placement["placement_id"] == (
         "0dbc97c6481c2ebcfeb972b5868aa26bebe9bb8766e6852d4c757e4db68ef572"
+    )
+
+
+def test_the_content_set_guard_is_actually_called_by_the_producer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CÂBLAGE : une garde correcte jamais appelée ne protège de rien.
+
+    `require_review_covers_produced_content_set` peut être parfaite et ne
+    jamais recevoir la main. Ce test passe par le chemin RÉEL de production —
+    `_pii_evidence` — et exige que la garde y soit invoquée avec l'ensemble
+    revu ET l'ensemble produit.
+
+    Aucune campagne n'est codée en dur : l'autorité de revue est remplacée par
+    un chargeur synthétique déclarant un ensemble arbitraire."""
+    builder = cast(Any, _module())
+
+    def scan_once(content: bytes, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            sha256=V2_ARTIFACT_SHA,
+            pages_scanned=1,
+            characters_scanned=42,
+            ignored_empty_pages=(),
+            pii_detected=False,
+            matches=(),
+            extraction_error=None,
+        )
+
+    monkeypatch.setattr(builder, "load_patterns_from_config", lambda _path: ())
+    monkeypatch.setattr(builder, "scan_pdf_bytes", scan_once)
+
+    reviewed = "c" * 64
+    monkeypatch.setattr(
+        builder,
+        "_load_review_authority",
+        lambda _inputs: ({}, {}, {"reviewed_content_set_sha256": reviewed}),
+    )
+    seen: list[dict[str, object]] = []
+
+    def spy(**kwargs: object) -> None:
+        seen.append(kwargs)
+
+    # La projection elle-même est éprouvée ailleurs ; ce test mesure le
+    # CÂBLAGE de la garde, et rien d'autre.
+    monkeypatch.setattr(
+        builder,
+        "project_pii_review",
+        lambda *_a, **_k: SimpleNamespace(
+            entries=[
+                {
+                    "content_sha256": V2_ARTIFACT_SHA,
+                    "status": "CLEARED",
+                    "pii_detected": False,
+                }
+            ],
+            decision_set_id="synthetique",
+            counts={},
+        ),
+    )
+    monkeypatch.setattr(builder, "require_review_covers_produced_content_set", spy)
+    pdf = builder.VerifiedPdf(tmp_path / "commun.pdf", b"pdf-factice")
+
+    builder._pii_evidence(
+        _v2_placement_rows(), pdfs={V2_ARTIFACT_SHA: pdf}, inventory_sha256="f" * 64
+    )
+
+    assert seen, (
+        "le producteur n'appelle plus la garde : l'ensemble revu ne serait "
+        "jamais confronté à l'ensemble publié"
+    )
+    assert seen[0]["reviewed_content_set_sha256"] == reviewed
+    produced = seen[0]["produced_content_set_sha256"]
+    assert isinstance(produced, str) and len(produced) == 64
+    assert produced != reviewed, (
+        "le banc ne distingue pas les deux ensembles : il ne prouverait rien"
     )

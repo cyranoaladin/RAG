@@ -196,3 +196,70 @@ def test_dockerfile_preserves_repository_depth_for_the_governed_root() -> None:
     ) in text
     assert "mkdir -p /app/docs/adr" in text
     assert "ENV PYTHONPATH=/app/services/rag-engine/src" in text
+
+
+class TestTheComposeCommandsCarryEveryRequiredCliArgument:
+    """Un argument rendu obligatoire doit atteindre les commandes réelles.
+
+    `--repository-root` est devenu requis sans que les commandes Compose des
+    deux workers Wave 0 le reçoivent : la pile d'ingestion échouait donc à
+    `argparse`, AVANT tout contrôle d'autorité. Le défaut est passé au travers
+    des tests parce qu'aucun ne confrontait le parseur aux commandes qui le
+    lancent réellement.
+
+    Ce test le fait : pour chaque service dont la commande invoque un
+    entrypoint worker, tout argument que le parseur déclare `required` doit
+    être présent. Il n'a pas d'opinion sur la VALEUR — seulement sur le fait
+    que la commande de production ne peut pas être structurellement invalide.
+    """
+
+    _ENTRYPOINTS = {
+        "ingestor.ingestion_worker.cli": "ingestor.ingestion_worker.cli",
+        "ingestor.ingestion_worker.publication_resume_cli": (
+            "ingestor.ingestion_worker.publication_resume_cli"
+        ),
+    }
+
+    def _required_options(self, module_name: str) -> set[str]:
+        import importlib
+
+        module = importlib.import_module(module_name)
+        parser = module._build_arg_parser()
+        return {
+            option
+            for action in parser._actions
+            if getattr(action, "required", False)
+            for option in action.option_strings
+        }
+
+    def test_every_required_option_appears_in_the_compose_command(self) -> None:
+        import yaml
+
+        compose = yaml.safe_load(
+            (ENGINE_ROOT / "infra/docker-compose.ingestion.yml").read_text(
+                encoding="utf-8"
+            )
+        )
+        checked = 0
+        for name, service in (compose.get("services") or {}).items():
+            command = service.get("command") or []
+            entrypoint = next(
+                (module for module in self._ENTRYPOINTS if module in command), None
+            )
+            if entrypoint is None:
+                continue
+            supplied = {
+                str(item).split("=", 1)[0]
+                for item in command
+                if str(item).startswith("--")
+            }
+            missing = sorted(self._required_options(entrypoint) - supplied)
+            assert not missing, (
+                f"le service Compose {name!r} lance {entrypoint} sans "
+                f"{missing} : la pile échouerait à argparse, avant tout "
+                "contrôle d'autorité"
+            )
+            checked += 1
+        assert checked >= 2, (
+            f"seuls {checked} services worker ont été confrontés au parseur"
+        )

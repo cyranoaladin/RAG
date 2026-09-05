@@ -49,11 +49,14 @@ from pydantic import AwareDatetime, Field, StrictInt, StrictStr, field_validator
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
     canonical_authorization_path,
+    git_blob_sha1,
 )
 from nexus_contracts.document import StrictBaseModel
 from nexus_contracts.pii_review_decisions import (
     PII_REVIEW_DECISIONS_DIR,
+    PiiReviewDecisionSetV1,
     canonical_pii_review_decisions_path,
+    parse_pii_review_decision_set,
 )
 
 #: Protocole du reçu. Versionné : un futur format ne peut jamais être relu
@@ -571,6 +574,65 @@ def require_matches_pii_review_decision_set(
         )
 
 
+def verify_pii_review_decision_authority(
+    *,
+    decision_set_bytes: bytes,
+    receipt_bytes: bytes,
+    trust_anchor: TrustAnchor,
+    environment: Literal["production", "test"],
+    expected_repository: str,
+    accepted_reviewers: tuple[str, ...] | None,
+    now: datetime,
+) -> tuple[PiiReviewDecisionSetV1, ScopeAuthorizationReviewBindingV1]:
+    """Vérifie ENSEMBLE un ensemble de décisions PII et son reçu (ADR-0047/0035).
+
+    Deux services consomment cette chaîne : le worker, qui décide d'admettre un
+    contenu, et le producteur, qui projette la décision dans une release. Si
+    chacun composait `verify_review_binding` et
+    `require_matches_pii_review_decision_set` de son côté, les deux ordres de
+    vérification finiraient par diverger, et l'un accepterait ce que l'autre
+    refuse. La composition est donc unique, et vit ici.
+
+    Un point ne se délègue pas au primitif : `accepted_reviewers=None` y
+    signifie « pas de contrôle d'allowlist ». Pour une décision qui autorise à
+    publier de la donnée détectée, ne pas borner les reviewers n'est pas un
+    défaut acceptable — c'est un refus.
+
+    Aucune E/S : le module reçoit des octets et rend des verdicts.
+    """
+    if not accepted_reviewers:
+        raise ReviewBindingError(
+            "no reviewer allowlist was supplied — a PII review decision set is "
+            "never accepted from an unbounded set of logins"
+        )
+    try:
+        decision_set = parse_pii_review_decision_set(decision_set_bytes)
+    except CanonicalArtifactError as exc:
+        raise ReviewBindingError(f"the decision set is not readable: {exc}") from exc
+
+    binding = verify_review_binding(
+        receipt_bytes,
+        trust_anchor=trust_anchor,
+        environment=environment,
+        now=now,
+    )
+    require_matches_pii_review_decision_set(
+        binding,
+        decision_set_id=decision_set.decision_set_id,
+        decision_set_bytes=decision_set_bytes,
+        decision_set_git_blob_sha1=git_blob_sha1(decision_set_bytes),
+        expected_repository=expected_repository,
+        accepted_reviewers=accepted_reviewers,
+    )
+    # `verify_review_binding` prouve QUI a signé et sur QUELS octets ;
+    # `require_matches_pii_review_decision_set` prouve SUR QUOI le reçu porte.
+    # Ni l'un ni l'autre ne recalcule `challenge_digest` : sans ce dernier
+    # contrôle, un reçu authentiquement signé mais portant le challenge d'une
+    # AUTRE revue passerait, et le champ ne lierait plus rien.
+    require_challenge_is_bound(binding)
+    return decision_set, binding
+
+
 def expected_challenge_digest(
     *,
     repository: str,
@@ -632,6 +694,7 @@ def require_challenge_is_bound(binding: ScopeAuthorizationReviewBindingV1) -> No
 
 
 __all__ = [
+    "verify_pii_review_decision_authority",
     "ACCEPTED_REVIEWER_PERMISSIONS",
     "REVIEW_BINDING_PROTOCOL_VERSION",
     "SIGNATURE_ALGORITHM",

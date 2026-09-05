@@ -42,6 +42,10 @@ _REQUIRED_ARGS = [
     "--programme-index-sha256", "4" * 64,
     "--collection-config-path", "/tmp/collections.yml",
     "--collection-config-sha256", "5" * 64,
+    # La racine du dépôt est EXIGÉE : elle ne se devine plus depuis le
+    # répertoire de lancement, où un worker de production ne trouverait pas
+    # l'allowlist canonique des reviewers.
+    "--repository-root", "/tmp/depot",
 ]
 
 

@@ -44,10 +44,13 @@ import nexus_pdf_page_policy as page_policy  # noqa: E402
 import pypdf  # noqa: E402
 
 from rag_pedago.imports import pii_scanner  # noqa: E402
+from rag_pedago.imports.pii_review_projection import (  # noqa: E402
+    finding_context,
+    finding_identity,
+)
 
 BUNDLE_PROTOCOL = "NEXUS-PII-REVIEW-BUNDLE-V1"
 INDEX_PROTOCOL = "NEXUS-PII-REVIEW-INDEX-V1"
-CONTEXT_CHARS = 240
 REPOSITORY_ROOT = SERVICE_ROOT.parents[1]
 
 
@@ -79,9 +82,14 @@ def producer_identity(*, require_frozen: bool = True) -> dict[str, object]:
     import importlib.metadata
     import subprocess
 
+    # `pii_review_projection.py` fournit `finding_identity` et
+    # `finding_context` : il DÉCIDE de l'identité et du contexte que les paquets
+    # scellent. L'omettre de la surface gelée laissait une modification locale
+    # produire des paquets différents sous la même provenance.
     porcelain = subprocess.check_output(
         ["git", "status", "--porcelain", "--",
          "services/rag-pedago/scripts/preparer_paquets_revue_pii.py",
+         "services/rag-pedago/rag_pedago/imports/pii_review_projection.py",
          "services/rag-pedago/rag_pedago/imports/pii_scanner.py",
          "services/rag-pedago/configs/pii_gate_policy.yml",
          "packages/pdf-page-policy", "packages/contracts"],
@@ -95,6 +103,14 @@ def producer_identity(*, require_frozen: bool = True) -> dict[str, object]:
         "producer_tree_sha": _git("rev-parse", "HEAD^{tree}"),
         "generator_path": "services/rag-pedago/scripts/preparer_paquets_revue_pii.py",
         "generator_sha256": _sha256_file(Path(__file__)),
+        # Nouveau champ, PROSPECTIF : les 23 paquets déjà revus gardent leur
+        # provenance d'origine, qui ne couvrait pas ce module. Le prétendre
+        # réécrirait leur histoire au lieu de versionner la règle.
+        "projection_path": "services/rag-pedago/rag_pedago/imports/pii_review_projection.py",
+        "projection_sha256": _sha256_file(
+            REPOSITORY_ROOT
+            / "services/rag-pedago/rag_pedago/imports/pii_review_projection.py"
+        ),
         "contracts_version": importlib.metadata.version("nexus-contracts"),
     }
 
@@ -158,17 +174,23 @@ def _bundle_for(
     signals = []
     for match in sorted(result.matches, key=lambda m: (m.page_number or 0, m.char_offset, m.pattern_id)):
         page_text = pages_text[(match.page_number or 1) - 1]
-        start = max(0, match.char_offset - CONTEXT_CHARS)
-        end = min(len(page_text), match.char_offset + len(match.match_text) + CONTEXT_CHARS)
-        context = page_text[start:end]
+        context = finding_context(
+            page_text,
+            char_offset=match.char_offset,
+            match_length=len(match.match_text),
+        )
         match_sha = _sha256_bytes(match.match_text.encode("utf-8"))
         context_sha = _sha256_bytes(context.encode("utf-8"))
-        # Identité du finding : contenu, motif, page, position, matière — sans
-        # la matière elle-même. Deux findings identiques au même endroit ne
-        # peuvent pas exister ; deux findings de même matière à deux endroits
-        # ont deux identités.
-        finding_id = _sha256_bytes(
-            f"{sha}:{match.pattern_id}:{match.page_number}:{match.char_offset}:{match_sha}".encode()
+        # Identité du finding : dérivée par l'autorité unique du scanner, pour
+        # que le producteur de release retrouve EXACTEMENT ces findings dans
+        # son propre scan (ADR-0047). Une dérivation locale, même identique
+        # aujourd'hui, pourrait diverger demain sans que rien ne le dise.
+        finding_id = finding_identity(
+            content_sha256=sha,
+            pattern_id=match.pattern_id,
+            page_number=match.page_number,
+            char_offset=match.char_offset,
+            match_sha256=match_sha,
         )
         signal: dict[str, object] = {
             "finding_id": finding_id,

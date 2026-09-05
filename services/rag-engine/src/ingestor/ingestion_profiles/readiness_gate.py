@@ -108,7 +108,9 @@ REHEARSAL_TRUST_ANCHOR_ENV = "NEXUS_READINESS_REHEARSAL_TRUST_ANCHOR"
 #: tout checkout réel (cf. le même calcul pour le gate H2-B, ``rag_pedago/
 #: imports/h2b_coverage_report.py``, 4 niveaux sous sa racine avec un seul
 #: répertoire de paquet entre le fichier et le service).
-_GOVERNED_REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
+#: Profondeur de ce fichier sous la racine, dans un checkout : cinq niveaux
+#: (ingestion_profiles, ingestor, src, rag-engine, services).
+_GOVERNED_ROOT_DEPTH = 5
 
 #: Marqueurs du dépôt. La dérivation par remontée n'est vraie que dans un
 #: checkout ; installée ailleurs, elle désignerait un répertoire
@@ -162,8 +164,38 @@ def _fail(reason: str) -> ReadinessGateError:
     return ReadinessGateError(f"{_FAILURE_PREFIX}: {reason}")
 
 
+def _governed_repository_root() -> Path:
+    """Racine gouvernée, calculée À L'USAGE et jamais à l'import.
+
+    Le calcul était fait au chargement du module. Dans un checkout il donne
+    la racine ; dans l'image du worker, où ce fichier vit sous
+    ``/app/ingestor/ingestion_profiles/``, il n'y a pas cinq parents et
+    Python levait `IndexError` **pendant l'import**. Conséquence mesurée :
+    `import ingestor.ingestion_worker.cli` échouait dans l'image réelle, donc
+    aucun entrypoint du worker de production ne pouvait démarrer.
+
+    Une profondeur de répertoire n'est pas une condition de sécurité : la
+    condition, ce sont les marqueurs vérifiés juste après. Un déploiement qui
+    n'est pas un checkout doit obtenir un REFUS NOMMÉ au moment du gate, pas
+    une exception d'indexation au moment de l'import — le premier est une
+    décision, la seconde une panne.
+
+    La racine reste dérivée de l'emplacement de ce fichier, sans aucun
+    override : une racine redirigeable rendrait « ancre gouvernée » vide de
+    sens."""
+    here = Path(__file__).resolve()
+    if len(here.parents) <= _GOVERNED_ROOT_DEPTH:
+        raise _fail(
+            f"{here} is not inside a Nexus repository checkout (it has "
+            f"{len(here.parents)} parent directories, not the "
+            f"{_GOVERNED_ROOT_DEPTH + 1} a checkout provides); the governed "
+            "readiness anchor cannot be resolved from an arbitrary layout"
+        )
+    return here.parents[_GOVERNED_ROOT_DEPTH]
+
+
 def _governed_anchor_path() -> Path:
-    root = _GOVERNED_REPOSITORY_ROOT
+    root = _governed_repository_root()
     for marker in _GOVERNED_ROOT_MARKERS:
         if not (root / marker).exists():
             raise _fail(

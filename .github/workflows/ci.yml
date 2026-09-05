@@ -76,6 +76,60 @@ jobs:
       - working-directory: services/rag-engine
         run: make test-integration-hybrid
 
+  worker-image-integration:
+    # Les cinq suites d'intégration qui exigent un démon Docker RÉEL : elles
+    # construisent l'image du worker, la lancent, montent leurs propres
+    # conteneurs PostgreSQL/pgvector et exercent `docker compose`.
+    #
+    # Aucun autre job ne les couvrait : `make test` les exclut
+    # (`-m "not integration"`), `test-governance-pg` a un périmètre nommé qui
+    # ne les contient pas, et `test-integration-hybrid` n'en prend que deux
+    # autres. Elles ne s'exécutaient donc NULLE PART en CI — et un poste de
+    # développement contraint n'est pas une autorité pour un gate go-live.
+    name: "worker image integration (docker)"
+    runs-on: ubuntu-latest
+    needs: contracts
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Require a real Docker daemon
+        working-directory: services/rag-engine
+        run: bash infra/scripts/require_docker.sh
+      - name: Snapshot containers before
+        run: docker ps -aq | sort > /tmp/containers-before.txt
+      - working-directory: services/rag-engine
+        run: make install
+      - name: Worker image and runtime integration suites
+        working-directory: services/rag-engine
+        env:
+          NEXUS_REQUIRE_DOCKER: "1"
+        run: |
+          PYTHONPATH=src .venv/bin/pytest -q -rfE \
+            tests/integration/test_lot41a_docker_authority_e2e.py \
+            tests/integration/test_lot41a_worker_enforcement.py \
+            tests/integration/test_lot44f_ingestion_up_failure.py \
+            tests/integration/test_lot44f_worker_attestation.py \
+            tests/integration/test_lot44f_worker_resume.py
+      - name: Assert no test container survived
+        if: always()
+        # `comm -13` ne signale que les conteneurs AJOUTÉS. `diff` signalait
+        # aussi les disparitions : sur un runner qui n'est pas vierge, un test
+        # supprimant légitimement un conteneur préexistant faisait échouer le
+        # job alors que rien n'avait fui. Même motif que `governance postgres`
+        # dans ce fichier, et pour la même raison.
+        run: |
+          set -euo pipefail
+          docker ps -aq | sort > /tmp/containers-after.txt
+          leftover="$(comm -13 /tmp/containers-before.txt /tmp/containers-after.txt)"
+          if [ -n "$leftover" ]; then
+            echo "::error::residual containers created by this job" >&2
+            echo "$leftover" | xargs -r docker rm -f
+            exit 1
+          fi
+
   real-model-acceptance:
     name: "real-model acceptance (E5 + reranker + pgvector)"
     runs-on: ubuntu-latest

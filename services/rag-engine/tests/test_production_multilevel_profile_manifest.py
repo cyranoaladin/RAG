@@ -9,11 +9,12 @@ from pathlib import Path
 import pytest
 
 from ingestor.ingestion_profiles.manifest import verify_profile_manifest
-from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.ingestion_profiles.registry import ProfileRegistry, load_profile_registry
 from ingestor.ingestion_worker.multilevel_runtime_authority import (
     MultilevelRuntimeAuthorityInputs,
     load_multilevel_runtime_authorities,
 )
+from ingestor.ingestion_worker.runtime_authority import RuntimeAuthorityStartupError
 from ingestor.multilevel_evidence import load_multilevel_candidate_inventory
 from ingestor.multilevel_verified_placement import (
     MultilevelPlacementResolutionError,
@@ -70,7 +71,14 @@ def test_staging_and_production_manifest_schemas_cannot_cross() -> None:
         )
 
 
-def test_real_production_authorities_resolve_all_twenty_six_placements() -> None:
+def _production_inputs(
+    release_path: Path | None = None,
+    **review_authority: object,
+) -> tuple[MultilevelRuntimeAuthorityInputs, ProfileRegistry]:
+    """Construit les entrées réelles du chargeur multi-niveaux.
+
+    Extrait du test de résolution pour qu'une seconde preuve puisse
+    substituer le manifeste de release sans dupliquer vingt liaisons."""
     fixture_root = ENGINE_ROOT / "tests/fixtures/profile_gate_20260825"
     bindings = json.loads((fixture_root / "authority_bindings.json").read_text())[
         "bindings"
@@ -94,11 +102,10 @@ def test_real_production_authorities_resolve_all_twenty_six_placements() -> None
     pii_path = fixture_root / "pii_evidence.json"
     pii_sha = _sha256(pii_path)
     rights_path, rights_sha = bound("rights_registry_sha256")
-    release_path = fixture_root / "production-profile-gate.release.json"
+    release_path = release_path or fixture_root / "production-profile-gate.release.json"
     release_sha = _sha256(release_path)
     collection_config = ENGINE_ROOT / "configs/rag_collections.yml"
     profiles = load_profile_registry(PRODUCTION_PROFILES)
-    by_collection = {profile.scope.collection: profile for profile in profiles.values()}
     inputs = MultilevelRuntimeAuthorityInputs(
         candidate_inventory_path=candidate_path,
         candidate_inventory_sha256=candidate_sha,
@@ -126,9 +133,17 @@ def test_real_production_authorities_resolve_all_twenty_six_placements() -> None
             "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
         ),
         repository_root=REPOSITORY_ROOT,
+        **review_authority,  # type: ignore[arg-type]
     )
+    return inputs, profiles
 
 
+def test_real_production_authorities_resolve_all_twenty_six_placements() -> None:
+    inputs, profiles = _production_inputs()
+    fixture_root = ENGINE_ROOT / "tests/fixtures/profile_gate_20260825"
+    candidate_path = fixture_root / "candidate_inventory.json"
+    candidate_sha = _sha256(candidate_path)
+    by_collection = {profile.scope.collection: profile for profile in profiles.values()}
     authorities = load_multilevel_runtime_authorities(
         inputs, profile_registry=profiles, environment="production"
     )
@@ -158,3 +173,59 @@ def test_real_production_authorities_resolve_all_twenty_six_placements() -> None
     assert len(resolved) == 26
     assert len({item.content_sha256 for item in resolved}) == 26
     assert len({item.nexus_collection for item in resolved}) == 18
+
+
+def test_the_multilevel_loader_refuses_a_release_chain_it_does_not_verify(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """P1-A : porter la chaîne n'est pas la confronter.
+
+    Le chemin multi-niveaux recevait les couples `--pii-review-*`, les
+    transmettait au registre, et s'arrêtait là : jamais il ne demandait si la
+    release qu'il sert déclare la MÊME chaîne. Une release pouvait donc
+    annoncer la chaîne d'une campagne de revue pendant qu'aucune n'était
+    vérifiée — chacune cohérente de son côté, et aucune ne couvrant ce que
+    l'autre affirme.
+
+    Ici la release déclare une chaîne complète ; le worker n'en charge aucune.
+
+    L'attente de placements reste celle de la release RÉELLE, et SEULE la
+    déclaration d'autorité change — pas même le genre de release — pour que
+    l'échec ne puisse venir que d'elle.
+
+    Deux versions antérieures réécrivaient aussi `release_kind` en V2. La
+    première l'affirmait ; la seconde prétendait le contraire dans sa
+    docstring sans avoir retiré la ligne — une correction annoncée mais non
+    faite, relevée en revue. La ligne est partie : la release déclarante garde
+    son genre V1 réel.
+    """
+    from ingestor import multilevel_verified_placement as multilevel_release
+
+    original = ENGINE_ROOT / "tests/fixtures/profile_gate_20260825/production-profile-gate.release.json"
+    aggregate = json.loads(original.read_text(encoding="utf-8"))
+    aggregate["authorities"].update(
+        {
+            "pii_decision_set_sha256": "a" * 64,
+            "pii_review_receipt_sha256": "b" * 64,
+            "pii_review_trust_anchor_sha256": "c" * 64,
+            "pii_review_index_sha256": "d" * 64,
+        }
+    )
+    declaring = tmp_path / "release-declaring-a-chain.json"
+    declaring.write_bytes(
+        (json.dumps(aggregate, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode()
+    )
+
+    real = multilevel_release.load_release_expectation
+    monkeypatch.setattr(
+        multilevel_release,
+        "load_release_expectation",
+        lambda _path, _digest: real(original, _sha256(original)),
+    )
+
+    inputs, profiles = _production_inputs(release_path=declaring)
+    with pytest.raises(RuntimeAuthorityStartupError) as refusal:
+        load_multilevel_runtime_authorities(
+            inputs, profile_registry=profiles, environment="production"
+        )
+    assert "not the one this worker verifies" in str(refusal.value)

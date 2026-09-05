@@ -9,11 +9,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
 
 from tests.test_pii_scanner_pages_sans_texte import _PAGE_AVEC_TEXTE, _pdf
+
+#: Racines dérivées de l'EMPLACEMENT de ce fichier, jamais du répertoire de
+#: lancement. Ces tests s'exécutaient depuis `services/rag-pedago` et échouaient
+#: partout ailleurs — y compris depuis la racine, où la CI les appelle : un test
+#: qui ne peut être lancé que d'un seul dossier ne protège que ce dossier-là.
+SERVICE_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = SERVICE_ROOT.parents[1]
+PREPARER_SCRIPT = SERVICE_ROOT / "scripts/preparer_paquets_revue_pii.py"
+PROJECTION_HELPER = SERVICE_ROOT / "rag_pedago/imports/pii_review_projection.py"
 
 SCRIPT_DIR = Path(__file__).resolve().parents[1] / "scripts"
 POLICY = SCRIPT_DIR.parent / "configs" / "pii_gate_policy.yml"
@@ -223,3 +233,123 @@ def test_a_french_ssn_finding_carries_its_checksum_verdict_without_deciding(tmp_
     assert preparer.nir_checksum_valid("1 23 45 67 890 123 45") is False
     assert preparer.nir_checksum_valid("2 55 08 14 118 200 05") is True  # clé 5, NIR synthétique
     assert "decision" not in ssn[0]
+
+
+class TestTheBundleProducerIdentityCoversWhatDecides:
+    """P2 — un module qui décide des octets scellés doit être dans la provenance.
+
+    `producer_identity` gèle le générateur, le scanner, la politique et le foyer
+    de pages, mais pas `pii_review_projection.py` — qui fournit pourtant
+    `finding_identity` et `finding_context`, c'est-à-dire l'identité et le
+    contexte que les paquets scellent. Une modification locale de ce module
+    aurait donc produit des paquets différents sous la MÊME provenance.
+
+    **Le correctif est prospectif.** Les 23 paquets déjà revus restent lus sous
+    leur schéma d'origine : leur `generator_sha256` historique ne couvrait pas
+    ce module, et prétendre le contraire réécrirait leur provenance au lieu de
+    versionner la nouvelle règle."""
+
+    def test_the_projection_helper_is_part_of_the_frozen_surface(self) -> None:
+        source = PREPARER_SCRIPT.read_text(encoding="utf-8")
+        frozen = source[source.index("porcelain = subprocess.check_output") :]
+        frozen = frozen[: frozen.index("cwd=REPOSITORY_ROOT")]
+        assert "pii_review_projection.py" in frozen, (
+            "le module qui décide de l'identité des findings doit être gelé"
+        )
+
+    def test_the_identity_names_the_projection_helper(self) -> None:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("_preparer", PREPARER_SCRIPT)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["_preparer"] = module
+        spec.loader.exec_module(module)
+        identity = module.producer_identity(require_frozen=False)
+        assert "projection_sha256" in identity
+        assert len(identity["projection_sha256"]) == 64
+
+    def test_a_change_to_the_helper_changes_the_future_identity(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """La propriété qui compte : l'empreinte suit le module.
+
+        La première version hachait deux chaînes d'octets et constatait
+        qu'elles différaient — une propriété de SHA-256, pas du producteur.
+        Elle n'appelait jamais `producer_identity` et serait restée verte si
+        celui-ci avait cessé de couvrir le module.
+
+        La deuxième l'appelait vraiment, mais écrivait dans le fichier
+        VERSIONNÉ et comptait sur un `finally` pour le remettre. Un `SIGKILL`
+        entre l'écriture et la restauration — OOM, délai de CI — laissait
+        l'arbre sale et faisait échouer tout `producer_identity(require_frozen=True)`
+        ultérieur. Signalé en revue, et le risque était réel : ce dépôt a déjà
+        perdu une exécution à un OOM cgroup.
+
+        Ici rien n'est écrit dans le dépôt. Une arborescence de travail reçoit
+        une COPIE du module, et `REPOSITORY_ROOT` du producteur y est
+        redirigée le temps du test."""
+        import hashlib
+        import importlib.util
+        import shutil
+        import subprocess
+
+        spec = importlib.util.spec_from_file_location("_preparer_id", PREPARER_SCRIPT)
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        sys.modules["_preparer_id"] = module
+        spec.loader.exec_module(module)
+
+        relative = PROJECTION_HELPER.relative_to(REPOSITORY_ROOT)
+        copy = tmp_path / relative
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(PROJECTION_HELPER, copy)
+        # `producer_identity` interroge git depuis `REPOSITORY_ROOT`.
+        # L'arborescence de travail devient donc un dépôt autonome : le test
+        # reste hermétique, et rien n'est demandé au dépôt réel.
+        subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+        monkeypatch.setattr(module, "REPOSITORY_ROOT", tmp_path)
+        monkeypatch.setattr(module, "_git", lambda *_a: "0" * 40)
+
+        before = module.producer_identity(require_frozen=False)
+        assert before["projection_sha256"] == hashlib.sha256(copy.read_bytes()).hexdigest()
+
+        copy.write_bytes(copy.read_bytes() + b"\n# changement local\n")
+        after = module.producer_identity(require_frozen=False)
+
+        assert after["projection_sha256"] != before["projection_sha256"], (
+            "l'identité du producteur ne suit pas le module qui décide de "
+            "l'identité des findings : des paquets différents porteraient la "
+            "même provenance"
+        )
+
+    def test_the_repository_copy_of_the_helper_is_never_written_to(self) -> None:
+        """Le test précédent ne doit RIEN laisser derrière lui."""
+        import subprocess
+
+        changed = subprocess.run(
+            ["git", "status", "--porcelain", str(PROJECTION_HELPER)],
+            cwd=REPOSITORY_ROOT, capture_output=True, text=True, check=True,
+        ).stdout
+        assert "# changement local" not in PROJECTION_HELPER.read_text(encoding="utf-8")
+        # `git status --porcelain` place le CODE avant le chemin (« M path ») :
+        # l'assertion précédente cherchait « path M » et ne pouvait donc jamais
+        # échouer. Une garde inatteignable rassure sans rien protéger.
+        assert changed.strip() == "", changed
+
+    def test_the_historical_bundles_keep_their_own_provenance(self) -> None:
+        """Les 23 paquets scellés ne sont pas réinterprétés rétroactivement.
+
+        Leur index déclare le `generator_sha256` qui valait à leur production ;
+        il ne couvrait pas le module de projection, et ce lot ne prétend pas le
+        contraire."""
+        import json
+
+        index = json.loads(
+            (
+                REPOSITORY_ROOT
+                / "docs/reports/evidence-index/pii_review_index_20260903.json"
+            ).read_text(encoding="utf-8")
+        )
+        assert "generator_sha256" in index
+        assert "projection_sha256" not in index

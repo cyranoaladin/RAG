@@ -13,12 +13,19 @@ import subprocess
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, NamedTuple, Protocol
 
 import nexus_pdf_page_policy as page_policy
 import yaml
 from nexus_contracts.embedding_utils import format_passage
+from nexus_contracts.review_binding import (
+    ReviewBindingError,
+    TrustAnchor,
+    verify_pii_review_decision_authority,
+)
 from nexus_release_chain.collection_config import load_collection_config
 from nexus_release_chain.ingestion_profiles.manifest import verify_profile_manifest
 from nexus_release_chain.ingestion_profiles.registry import (
@@ -31,26 +38,71 @@ from nexus_release_chain.release_readiness import (
     load_release_registry_file,
 )
 
+from rag_pedago.imports.pii_review_projection import (
+    PiiProjectionError,
+    ScannedContent,
+    ScannedFinding,
+    finding_context,
+    finding_identity,
+    project_pii_review,
+)
 from rag_pedago.imports.pii_scanner import (
     extract_pdf_pages_with_structural_empty_pages,
     load_patterns_from_config,
     scan_pdf_bytes,
 )
+from rag_pedago.imports.raw_pii_guard import require_no_raw_pii
 
 REPOSITORY_ROOT = Path(os.environ.get("NEXUS_REPO_ROOT") or Path(__file__).resolve().parents[3])
 
 SCHOOL_YEAR = "2026-2027"
 RELEASE_ID = "production-profile-gate-2026-2027-v1"
-FINAL_SET_SHA256 = "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
-#: Empreinte scellée de l'ensemble final, quand une émission en déclare une.
-#: Vide, l'invariant « produit == déclaré par la matrice » suffit — et il est le
-#: seul qui vaille pour une émission dont l'ensemble n'a pas encore de sceau.
-FINAL_SET_SHA256_ATTENDU = os.environ.get(
-    "NEXUS_FINAL_SET_SHA256", FINAL_SET_SHA256
-    if not os.environ.get("NEXUS_FINAL_MATRIX") else "")
+#: Empreinte de l'ensemble de contenus que la lignée canonique produit. Ce
+#: n'est pas une affirmation : un test recalcule l'ensemble depuis la matrice
+#: et les profils déclarés, et exige ce digest. Il coïncide par ailleurs avec
+#: le `content_set_sha256` de l'index de la campagne de revue PII — le corpus
+#: scellé et le corpus revu sont le même.
+CANONICAL_CONTENT_SET_SHA256 = (
+    "77f01c824c6be14ba6fd66eda99c2179fd87d9a2aaaf3c58e56a917d1ad5c31d"
+)
+#: Valeur que le fichier d'autorité de manifeste DÉCLARE (`authority_sha256`).
+#: C'est elle que la release embarque sous `corpus_manifest_sha256`.
 CORPUS_MANIFEST_AUTHORITY = (
     "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 )
+
+
+def corpus_manifest_authority_file_sha256() -> str:
+    """Empreinte des OCTETS du fichier d'autorité de manifeste.
+
+    **Pourquoi ce n'est pas `CORPUS_MANIFEST_AUTHORITY`.** L'ensemble de
+    décisions scellé enregistre l'empreinte du FICHIER ; la release embarque la
+    valeur que ce fichier DÉCLARE. Deux mesures de la même autorité, jamais
+    égales. Les confondre faisait refuser à la projection le corpus même sur
+    lequel la revue humaine avait été rendue — « the decisions describe another
+    corpus », sur les décisions qui le décrivent exactement — et rendait la
+    candidate de production irreproductible.
+
+    La liaison déclarée est vérifiée au passage : le fichier doit annoncer
+    l'autorité que la release embarque, faute de quoi les deux grandeurs ne
+    décrivent plus le même objet et l'égalité d'empreinte ne prouverait rien."""
+    # Résolu à l'usage : `RELEASE_ROOT` est défini plus bas dans ce module, et
+    # une constante de niveau module créerait une dépendance d'ordre inutile.
+    path = RELEASE_ROOT / "corpus_manifest_authority.json"
+    if not path.is_file():
+        raise ValueError(
+            f"corpus manifest authority is missing at {path.name} — the human "
+            "review cannot be bound to a corpus nobody can read"
+        )
+    raw = path.read_bytes()
+    declared = json.loads(raw.decode("utf-8")).get("authority_sha256")
+    if declared != CORPUS_MANIFEST_AUTHORITY:
+        raise ValueError(
+            f"corpus manifest authority declares {str(declared)[:16]}… while this "
+            f"release ships {CORPUS_MANIFEST_AUTHORITY[:16]}… — the file and the "
+            "release do not describe the same corpus authority"
+        )
+    return hashlib.sha256(raw).hexdigest()
 CANONICAL_EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
 CANONICAL_EMBEDDING_REVISION = "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"
 CANONICAL_RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
@@ -93,14 +145,90 @@ RELEASE_ROOT = (
     / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate"
 )
 CURRENTNESS_NETWORK_AUDIT_PATH = RELEASE_ROOT / "currentness_network_audit.json"
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+
+
+@dataclass(frozen=True)
+class ReleaseLineage:
+    """Ce qui définit le corpus d'une release : matrice, profils, empreinte.
+
+    Les trois voyagent ENSEMBLE. Les résoudre séparément, en trois endroits,
+    est ce qui a permis à `build_release` de travailler sur une lignée que les
+    constantes du module ne décrivaient pas."""
+
+    matrix_path: Path
+    profile_root: Path
+    profile_manifest_path: Path
+    expected_content_set_sha256: str
+    is_overridden: bool
+
+
+#: La lignée SERVIE, déclarée ici et nulle part ailleurs : la matrice de
+#: production du 31 août et les onze profils de la livraison 319. Une exécution
+#: par défaut, depuis le commit candidat, reproduit ce corpus sans qu'aucune
+#: variable d'environnement n'ait à être connue.
+CANONICAL_LINEAGE = ReleaseLineage(
+    matrix_path=REPOSITORY_ROOT / "docs/reports/evidence-index/matrice_production_20260831.json",
+    profile_root=REPOSITORY_ROOT
+    / "services/rag-engine/configs/ingestion_profiles/v2_livraison_319",
+    profile_manifest_path=REPOSITORY_ROOT
+    / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml",
+    expected_content_set_sha256=CANONICAL_CONTENT_SET_SHA256,
+    is_overridden=False,
+)
+
+
+def resolve_release_lineage() -> ReleaseLineage:
+    """Résout la lignée, une seule fois, pour tout le producteur.
+
+    **Une surcharge n'éteint jamais l'invariant d'ensemble.** L'expression
+    précédente — `FINAL_SET_SHA256 if not NEXUS_FINAL_MATRIX else ""` — faisait
+    exactement cela : changer la matrice retirait la vérification d'empreinte,
+    si bien qu'une émission surchargée pouvait produire n'importe quel corpus
+    sans qu'aucun ensemble déclaré ne s'y oppose. C'était un défaut fail-open
+    dans un producteur dont tout le reste est fail-closed.
+
+    Une émission qui vise une autre lignée DOIT donc déclarer l'ensemble
+    qu'elle attend, via `NEXUS_FINAL_SET_SHA256`. Épingler reste toujours
+    permis ; éteindre ne l'est plus."""
+    matrix = os.environ.get("NEXUS_FINAL_MATRIX")
+    root = os.environ.get("NEXUS_PROFILE_ROOT")
+    manifest = os.environ.get("NEXUS_PROFILE_MANIFEST")
+    declared = os.environ.get("NEXUS_FINAL_SET_SHA256")
+    overridden = any(value is not None for value in (matrix, root, manifest))
+
+    if overridden and not declared:
+        raise ValueError(
+            "a lineage override (NEXUS_FINAL_MATRIX / NEXUS_PROFILE_ROOT / "
+            "NEXUS_PROFILE_MANIFEST) requires NEXUS_FINAL_SET_SHA256: targeting "
+            "another corpus never removes the obligation to declare which one"
+        )
+    expected = declared or CANONICAL_LINEAGE.expected_content_set_sha256
+    if not _HEX64.match(expected):
+        raise ValueError(
+            f"NEXUS_FINAL_SET_SHA256 must be a lowercase 64-hex SHA-256, got {expected!r}"
+        )
+    return ReleaseLineage(
+        matrix_path=Path(matrix) if matrix else CANONICAL_LINEAGE.matrix_path,
+        profile_root=Path(root) if root else CANONICAL_LINEAGE.profile_root,
+        profile_manifest_path=(
+            Path(manifest) if manifest else CANONICAL_LINEAGE.profile_manifest_path
+        ),
+        expected_content_set_sha256=expected,
+        is_overridden=overridden or bool(declared),
+    )
+
+
 #: Entrées par défaut = celles de la release scellée des onze (lignée B, LOT 1c) :
 #: la matrice de production dérivée du 31/08, les onze profils `v2_livraison_319`
 #: et leur manifeste au chemin que `authority_bindings.json` lie. Les surcharges
 #: d'environnement restent possibles pour une émission différente, mais une
 #: production « par défaut » reproduit la lignée servie — plus la lignée A.
-FINAL_MATRIX_PATH = Path(os.environ.get(
-    "NEXUS_FINAL_MATRIX",
-    REPOSITORY_ROOT / "docs/reports/evidence-index/matrice_production_20260831.json"))
+#: Vues de la lignée CANONIQUE, pour les appelants qui n'ont pas de contexte
+#: d'exécution. Elles ne lisent pas l'environnement : un import ne doit pas
+#: échouer, ni changer de sens, selon les variables du shell qui l'entoure.
+#: Les usages qui décident quelque chose passent par `resolve_release_lineage()`.
+FINAL_MATRIX_PATH = CANONICAL_LINEAGE.matrix_path
 FINAL_PRODUCTION_SET_PATH = (
     REPOSITORY_ROOT / "docs/reports/final_production_eligible_set_20260825.txt"
 )
@@ -149,14 +277,17 @@ CATALOGUE_PROVENANCE_SHA256 = (
 #: seconde émission vise d'autres profils, un autre manifeste et une autre
 #: matrice, sans que le producteur ait à être dupliqué. Les défauts restent ceux
 #: de la release historique — aucune émission existante ne change de cible.
-PROFILE_ROOT = Path(os.environ.get(
-    "NEXUS_PROFILE_ROOT",
-    REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles/v2_livraison_319"))
-PROFILE_MANIFEST_PATH = Path(os.environ.get(
-    "NEXUS_PROFILE_MANIFEST",
-    REPOSITORY_ROOT
-    / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"))
+PROFILE_ROOT = CANONICAL_LINEAGE.profile_root
+PROFILE_MANIFEST_PATH = CANONICAL_LINEAGE.profile_manifest_path
 COLLECTION_CONFIG_PATH = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
+
+
+#: Dépôt dont un reçu de revue peut faire autorité ici. Constante du module,
+#: comme dans l'outillage de provenance : une revue faite ailleurs ne décide
+#: rien pour cette release. Ce n'est pas l'identité d'une campagne, qui,
+#: elle, n'apparaît jamais dans ce fichier.
+CANONICAL_REPOSITORY = "cyranoaladin/RAG"
+
 PII_POLICY_PATH = REPOSITORY_ROOT / "services/rag-pedago/configs/pii_gate_policy.yml"
 PII_SCANNER_PATH = REPOSITORY_ROOT / "services/rag-pedago/rag_pedago/imports/pii_scanner.py"
 RIGHTS_REGISTRY_PATH = (
@@ -403,7 +534,54 @@ def _model_inventory(
         rows.append(f"{_file_sha256(path)}  {relative}")
     if not any(row.endswith("model.safetensors") for row in rows):
         raise ValueError("model inventory has no weights")
+    _require_declared_modules_are_present(snapshot)
     return manifest_bytes, ("\n".join(rows) + "\n").encode()
+
+
+#: Types de modules `sentence_transformers` qui ne portent AUCUN fichier. Un
+#: module de ce type n'a pas de répertoire, même dans un artefact complet :
+#: exiger le sien refuserait l'instantané qui sert aujourd'hui.
+_PARAMETERLESS_MODULE_TYPES = frozenset({"sentence_transformers.models.Normalize"})
+
+
+def _require_declared_modules_are_present(snapshot: Path) -> None:
+    """Un instantané doit contenir les modules que `modules.json` déclare.
+
+    Le 27/08/2026, un artefact embedding a été scellé sans `1_Pooling/` :
+    conforme à son empreinte, et incapable de se charger — `sentence_transformers`
+    lit `modules.json`, ne trouve pas le module de pooling en local, et retombe
+    sur un téléchargement distant qui échoue hors ligne. « Pas de poids, pas
+    d'inventaire » protégeait les poids ; rien ne protégeait la structure.
+
+    La règle appliquée est celle que le fichier énonce lui-même, et non une
+    liste de fichiers devinée : chaque module déclaré avec un chemin doit
+    exister. Un type inconnu et absent fait échouer — un garde-fou qui ne
+    reconnaît pas quelque chose se ferme, il ne suppose pas."""
+    modules_path = snapshot / "modules.json"
+    if not modules_path.is_file():
+        # Tout instantané n'est pas un sentence-transformer : le reranker, par
+        # exemple, n'a pas de `modules.json` et n'a donc rien à déclarer.
+        return
+    try:
+        declared = json.loads(modules_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"modules.json is not readable in {snapshot}: {exc}") from exc
+    if not isinstance(declared, list):
+        raise ValueError(f"modules.json must declare a list in {snapshot}")
+    for module in declared:
+        if not isinstance(module, dict):
+            raise ValueError(f"modules.json carries a non-object module in {snapshot}")
+        relative = str(module.get("path") or "")
+        if not relative:
+            continue  # le transformeur racine, déjà couvert par les poids
+        if str(module.get("type")) in _PARAMETERLESS_MODULE_TYPES:
+            continue
+        if not (snapshot / relative).is_dir():
+            raise ValueError(
+                f"model snapshot {snapshot.name} declares module {relative!r} "
+                f"({module.get('type')}) in modules.json but does not carry it — "
+                "the artifact would seal cleanly and fail to load"
+            )
 
 
 def _old_artifacts() -> dict[str, dict[str, Any]]:
@@ -590,11 +768,8 @@ def _source_records(
             f"release source placement_rows differ from the final set: "
             f"{manquants} manquants, {surnumeraires} surnuméraires"
         )
-    final_set_sha_attendue = os.environ.get(
-        "NEXUS_FINAL_SET_SHA256",
-        FINAL_SET_SHA256 if not os.environ.get("NEXUS_FINAL_MATRIX") else "",
-    )
-    if final_set_sha_attendue and _final_set_digest(produit) != final_set_sha_attendue:
+    attendue = resolve_release_lineage().expected_content_set_sha256
+    if _final_set_digest(produit) != attendue:
         raise ValueError("release source placement_rows differ from the sealed final set")
     return ordered
 
@@ -816,11 +991,8 @@ def _release_scope_inputs(
             f"release scope inputs differ from the final set: "
             f"{len(set(attendu_scope) - set(contents))} manquants, "
             f"{len(set(contents) - set(attendu_scope))} surnuméraires")
-    final_set_sha_attendue = os.environ.get(
-        "NEXUS_FINAL_SET_SHA256",
-        FINAL_SET_SHA256 if not os.environ.get("NEXUS_FINAL_MATRIX") else "",
-    )
-    if final_set_sha_attendue and _final_set_digest(contents) != final_set_sha_attendue:
+    attendue = resolve_release_lineage().expected_content_set_sha256
+    if _final_set_digest(contents) != attendue:
         raise ValueError("release scope inputs differ from the sealed final set")
     # La provenance enregistre la source RÉELLEMENT LUE. Ce chemin était figé sur
     # `v2_corpus_complet` alors que le répertoire est paramétré par
@@ -828,9 +1000,7 @@ def _release_scope_inputs(
     # affirmait que ses profils venaient des 121. La provenance est précisément ce
     # que cette chaîne existe pour garantir ; un chemin en dur la rendait fausse
     # dès que le paramètre servait.
-    profile_root = Path(os.environ.get(
-        "NEXUS_PROFILE_ROOT",
-        REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles")).resolve()
+    profile_root = resolve_release_lineage().profile_root.resolve()
     profile_root_relative = (
         profile_root.relative_to(REPOSITORY_ROOT).as_posix()
         if profile_root.is_relative_to(REPOSITORY_ROOT)
@@ -1003,6 +1173,7 @@ def resolve_currentness_network_audit(
     *,
     verify_official_downloads: bool,
     audit_path: Path = CURRENTNESS_NETWORK_AUDIT_PATH,
+    release_id: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """Separate optional live acquisition from deterministic offline replay."""
     if verify_official_downloads:
@@ -1062,7 +1233,12 @@ def resolve_currentness_network_audit(
             # ici : « s'applique aux documents de cette release ».
             "verdict_scope": {
                 "kind": "RELEASE_WIDE",
-                "release_id": RELEASE_ID,
+                # La portée nomme LA release qui embarque ce verdict, pas la
+                # constante historique du module. Une candidate qui hériterait
+                # de l'identifiant d'une autre release ferait lire à l'auditeur
+                # — seul consommateur déclaré de ce champ — une portée qui
+                # n'est pas la sienne.
+                "release_id": release_id or RELEASE_ID,
                 "school_year": SCHOOL_YEAR,
                 # Un champ scellé que rien ne lit à l'exécution a exactement un
                 # consommateur : l'humain qui vérifie une release et ne peut pas
@@ -1276,15 +1452,253 @@ def _corpus_descriptor(placement_rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+class ReviewAuthorityInputs(NamedTuple):
+    """Les quatre entrées qui portent la décision humaine, toutes injectées.
+
+    Aucune n'est dérivée d'un chemin en dur : faire tourner une autre campagne
+    de revue ne doit toucher aucune ligne de ce producteur."""
+
+    decision_set_path: Path | None
+    receipt_path: Path | None
+    trust_anchor_path: Path | None
+    review_index_path: Path | None
+    reviewers: tuple[str, ...]
+    environment: str = "production"
+
+    @property
+    def declared(self) -> bool:
+        return self.decision_set_path is not None
+
+
+#: « Aucune autorité de revue fournie ». Ce n'est pas une permission : toute
+#: détection rencontrée sans décision scellée est alors refusée. Le défaut
+#: existe pour qu'un appelant qui n'a rien à projeter n'ait pas à fabriquer
+#: une autorité vide, jamais pour rendre la revue facultative.
+NO_REVIEW_AUTHORITY = ReviewAuthorityInputs(None, None, None, None, ())
+
+
+def _load_review_authority(
+    inputs: ReviewAuthorityInputs,
+) -> tuple[dict[str, Any] | None, dict[str, str], dict[str, str]]:
+    """Vérifie la chaîne d'autorité et rend (décisions, paquets, empreintes).
+
+    Les paquets viennent de l'INDEX, jamais de la décision elle-même :
+    confronter une décision à sa propre revendication de paquet ne prouverait
+    rien. Les empreintes rendues rejoignent la chaîne d'autorité de la release
+    (§7) — celle du NOUVEAU candidat, jamais d'une release historique."""
+    if not inputs.declared:
+        return None, {}, {}
+
+    assert inputs.decision_set_path is not None
+    for label, path in (
+        ("decision set", inputs.decision_set_path),
+        ("review receipt", inputs.receipt_path),
+        ("trust anchor", inputs.trust_anchor_path),
+        ("review index", inputs.review_index_path),
+    ):
+        if path is None or not path.is_file():
+            raise ValueError(
+                f"the PII {label} is required to project a human review and is absent"
+            )
+    assert inputs.receipt_path and inputs.trust_anchor_path and inputs.review_index_path
+
+    raw_decision_set = inputs.decision_set_path.read_bytes()
+    raw_receipt = inputs.receipt_path.read_bytes()
+    anchor_bytes = inputs.trust_anchor_path.read_bytes()
+    try:
+        anchor = TrustAnchor.model_validate(json.loads(anchor_bytes.decode("utf-8")))
+    except Exception as exc:  # noqa: BLE001 - frontière de parsing
+        raise ValueError(f"the review trust anchor is not usable: {exc}") from exc
+
+    try:
+        decision_set, _binding = verify_pii_review_decision_authority(
+            decision_set_bytes=raw_decision_set,
+            receipt_bytes=raw_receipt,
+            trust_anchor=anchor,
+            environment=inputs.environment,  # type: ignore[arg-type]
+            expected_repository=CANONICAL_REPOSITORY,
+            accepted_reviewers=inputs.reviewers or None,
+            now=datetime.now(UTC),
+        )
+    except ReviewBindingError as exc:
+        raise ValueError(f"the PII review authority is refused: {exc}") from exc
+
+    index = json.loads(inputs.review_index_path.read_text(encoding="utf-8"))
+    bundles = {
+        str(entry["content_sha256"]): str(entry["bundle_sha256"])
+        for entry in index.get("bundles", [])
+    }
+    # Inconditionnel. La comparaison était sautée si l'index déclarait
+    # `review_index_sha256_declared` — une clé qui vit DANS le fichier vérifié.
+    # Quiconque fournissait l'index pouvait donc la poser et éteindre le seul
+    # contrôle qui le lie à la campagne scellée. Un champ ne décide jamais s'il
+    # est lui-même vérifié.
+    indexed_digest = _sha256_bytes(inputs.review_index_path.read_bytes())
+    if indexed_digest != decision_set.review_index_sha256:
+        raise ValueError(
+            "the decision set was sealed against review index "
+            f"{decision_set.review_index_sha256[:16]}… while the supplied review index "
+            f"hashes to {indexed_digest[:16]}… — they are not the same campaign"
+        )
+
+    # L'ensemble de contenus que la revue a RÉELLEMENT couvert. C'est le seul
+    # champ de toute la chaîne qui désigne la matière revue plutôt qu'un
+    # document ; sans lui, on prouve que les autorités sont intactes sans
+    # jamais prouver qu'elles parlent de la candidate.
+    reviewed_content_set = index.get("content_set_sha256")
+    if not isinstance(reviewed_content_set, str) or not _HEX64.match(reviewed_content_set):
+        raise ValueError(
+            "the review index declares no usable content_set_sha256 — the review "
+            "cannot be bound to any corpus"
+        )
+
+    digests = {
+        "pii_decision_set_sha256": _sha256_bytes(raw_decision_set),
+        "pii_review_receipt_sha256": _sha256_bytes(raw_receipt),
+        "pii_review_trust_anchor_sha256": _sha256_bytes(anchor_bytes),
+        "pii_review_index_sha256": _sha256_bytes(inputs.review_index_path.read_bytes()),
+        "reviewed_content_set_sha256": reviewed_content_set,
+    }
+    return json.loads(raw_decision_set.decode("utf-8")), bundles, digests
+
+
+#: Statuts qui rendraient une release promouvable ou activable. Une candidate
+#: n'a jamais le droit de les porter : le gate PII n'est qu'un des gates de
+#: go-live, et C1-C6 restent ouverts tant qu'ils ne sont pas prouvés.
+_ACTIVATING_PROMOTION = "PROMOTABLE"
+_ACTIVATING_ACTIVATION = "PRODUCTION_ACTIVATION_ALLOWED"
+
+
+#: Les seuls modes de release que le producteur sait traiter. Un mode absent de
+#: cet ensemble est refusé, jamais rattaché par défaut au cas permissif.
+_SUPPORTED_RELEASE_MODES = frozenset({"production", "rehearsal"})
+
+
+def resolve_release_lifecycle_statuses(
+    *,
+    release_mode: str,
+    release_id: str | None = None,
+    promotion_status: str | None,
+    activation_status: str | None,
+    review_status: str | None,
+) -> dict[str, str | None]:
+    """Résout les statuts d'une release, et refuse une production activable.
+
+    **Le cycle de vie ne se déduit pas du NOM.** La version précédente écrivait
+    `is_candidate = release_id is not None` : une production utilisant le
+    `release_id` par défaut — cas légitime, le paramètre valant `None` — était
+    donc traitée comme non-candidate et transmettait des statuts activables au
+    manifeste. Le nom d'une release ne dit rien de son cycle de vie.
+
+    Le signal juste est le MODE. Une release de production n'est jamais émise
+    activable : la promotion se gagne aux gates de go-live, pas par un argument
+    de producteur. `release_id` n'entre pas dans la décision, et n'est présent
+    ici que pour rendre cette indifférence explicite et testable.
+
+    Une demande activante n'est pas silencieusement corrigée mais REFUSÉE : un
+    appel qui la formule est un appel qui se trompe, et écraser sa demande sans
+    rien dire lui laisserait croire qu'il l'a obtenue."""
+    del release_id  # jamais un signal de cycle de vie — voir la docstring
+    # Un mode inconnu n'est pas « pas la production » : c'est une demande qui
+    # ne veut rien dire. La traiter comme un simple non-production faisait
+    # passer `staging` — ou une faute de frappe — à travers la garde, en
+    # conservant des statuts activables. Le refus est explicite.
+    if release_mode not in _SUPPORTED_RELEASE_MODES:
+        raise ValueError(
+            f"release_mode={release_mode!r} is not supported — expected one of "
+            f"{sorted(_SUPPORTED_RELEASE_MODES)}; an unknown mode must not inherit "
+            "the lenient branch and keep activatable statuses"
+        )
+    if release_mode != "production":
+        return {
+            "promotion_status": promotion_status,
+            "activation_status": activation_status,
+            "review_status": review_status,
+        }
+    refused = []
+    if promotion_status == _ACTIVATING_PROMOTION:
+        refused.append(f"promotion_status={_ACTIVATING_PROMOTION}")
+    if activation_status == _ACTIVATING_ACTIVATION:
+        refused.append(f"activation_status={_ACTIVATING_ACTIVATION}")
+    if refused:
+        raise ValueError(
+            f"a production release cannot be asked to be activable ({', '.join(refused)}): "
+            "promotion is earned at the go-live gates, not requested from the producer"
+        )
+    return {
+        "promotion_status": promotion_status or "NOT_PROMOTABLE",
+        "activation_status": activation_status or "NO_PRODUCTION_ACTIVATION",
+        "review_status": review_status,
+    }
+
+
+def require_review_covers_produced_content_set(
+    *,
+    reviewed_content_set_sha256: str | None,
+    produced_content_set_sha256: str,
+) -> None:
+    """Le pont entre la revue humaine et la candidate.
+
+    Toute la chaîne d'autorités prouve que des DOCUMENTS sont intacts : le
+    decision set nomme un fichier d'autorité qui n'a pas bougé, un reçu signé,
+    une ancre épinglée, un index dont l'empreinte est celle scellée. Aucune de
+    ces vérifications ne dit sur QUELLE MATIÈRE la revue a porté.
+
+    Le seul champ qui le dise est `content_set_sha256` de l'index de revue. Il
+    était lu — pour ses paquets — sans jamais être confronté à l'ensemble que
+    la candidate produit. La coïncidence était AFFIRMÉE dans un commentaire et
+    vérifiée nulle part.
+
+    Mesuré sur la campagne réelle : le fichier d'autorité que le decision set
+    scelle décrit 26 contenus, la candidate en émet 320. Prouver que ce fichier
+    est intact ne prouve donc rien de la candidate ; cette confrontation-ci le
+    fait, et elle porte sur la matière plutôt que sur un document.
+
+    `None` signifie qu'aucune autorité de revue n'a été fournie — cas où rien
+    n'est projeté et où le registre refuse déjà toute admission non fondée."""
+    if reviewed_content_set_sha256 is None:
+        return
+    if reviewed_content_set_sha256 != produced_content_set_sha256:
+        raise ValueError(
+            f"the human review covered content set "
+            f"{reviewed_content_set_sha256[:16]}… while this candidate ships "
+            f"{produced_content_set_sha256[:16]}… — the review does not bind the "
+            "corpus this release would publish"
+        )
+
+
 def _pii_evidence(
     placement_rows: list[dict[str, Any]],
     *,
     pdfs: Mapping[str, VerifiedPdf],
     inventory_sha256: str,
+    review_authority: ReviewAuthorityInputs = NO_REVIEW_AUTHORITY,
 ) -> dict[str, Any]:
     patterns = load_patterns_from_config(PII_POLICY_PATH)
-    results = []
     grouped = _group_artifact_rows(placement_rows)
+    policy_sha = _file_sha256(PII_POLICY_PATH)
+    scanner_sha = _file_sha256(PII_SCANNER_PATH)
+    page_policy_sha = page_policy.policy_source_sha256()
+
+    decision_document, review_bundles, authority_digests = _load_review_authority(
+        review_authority
+    )
+
+    # ── LE SCAN MESURE, LA REVUE DÉCIDE ─────────────────────────────────
+    #
+    # Le scan enregistre ce qu'il trouve, sans rien exclure ni rien admettre :
+    # sa précision mesurée (2 vrais positifs sur 20 correspondances tirées au
+    # hasard) ne lui donne pas qualité à trancher. La raison est structurelle,
+    # pas un défaut de réglage — le corpus ENSEIGNE le courriel, les en-têtes,
+    # l'encodage et les formats de contact, si bien qu'un détecteur de données
+    # personnelles passé sur du matériel pédagogique qui porte sur les formats
+    # de données personnelles se déclenche sur la pédagogie.
+    #
+    # C'est donc une revue humaine, décision par décision, contenu par contenu,
+    # scellée et signée, qui décide (ADR-0047). Ce producteur ne fait que
+    # projeter son résultat : il n'ajoute aucun jugement, et il refuse dès que
+    # son scan et cette revue ne décrivent pas le même monde.
+    scanned: list[ScannedContent] = []
     for sha, group in grouped.items():
         row = group["artifact_row"]
         pdf = pdfs[sha]
@@ -1295,50 +1709,117 @@ def _pii_evidence(
         )
         if result.sha256 != row["content_sha256"]:
             raise ValueError(f"PII scan digest differs for {row['content_sha256']}")
-        # DÉCISION OPÉRATEUR DU 29/08/2026 — le scan ENREGISTRE, il n'exclut plus.
-        #
-        # Sa précision a été mesurée : 2 vrais positifs sur 20 correspondances
-        # tirées au hasard, soit 10 %. Un détecteur à cette précision n'a pas
-        # qualité à exclure. Et la raison est structurelle, non un défaut de
-        # réglage : le corpus ENSEIGNE le courriel, le pourriel, les en-têtes,
-        # l'encodage et les formats de contact. Un détecteur de données
-        # personnelles passé sur du matériel pédagogique qui porte sur les
-        # formats de données personnelles se déclenche sur la pédagogie.
-        #
-        # Quatre appuis : zéro NIR sur neuf chaînes candidates (contrôle de clé,
-        # T2) ; précision 10 % mesurée ; la source est une publication publique
-        # et licite de l'État — indexer ne divulgue rien qui ne le soit déjà ;
-        # et les deux seuls vrais positifs sont l'adresse d'un lycée dans une
-        # liste de commission et le courriel d'une autrice adulte publié par
-        # l'État. Aucune donnée d'élève, aucun mineur.
-        #
-        # La protection n'est pas levée, elle est rendue EXACTE. Les
-        # correspondances restent consignées dans la preuve : un document qui
-        # en porte est servi, et le fait est enregistré.
         if result.extraction_error:
             raise ValueError(
                 f"PII scan could not read {row['content_sha256']} — "
                 f"{result.extraction_error}"
             )
-        pii_detected = bool(result.pii_detected)
-        core = {
-            "content_sha256": row["content_sha256"],
-            "pages_scanned": result.pages_scanned,
-            "characters_scanned": result.characters_scanned,
-            "ignored_empty_pages": list(result.ignored_empty_pages),
-            # La décision opérateur autorise l'indexation de correspondances
-            # consignées ; elle n'autorise jamais à réécrire la mesure. Une
-            # preuve positive reste donc positive et ne dit pas CLEARED.
-            "status": "DETECTED_RECORDED" if pii_detected else "CLEARED",
-            "pii_detected": pii_detected,
-        }
-        results.append(
-            {
-                **core,
-                "evidence_sha256": _sha256_bytes(_compact_json_bytes(core)),
-                "source_path": row["physical_path"],
-            }
+        findings: list[ScannedFinding] = []
+        if result.matches:
+            # Les textes de page ne sont ré-extraits que pour les contenus qui
+            # portent une correspondance — 23 sur 320 — parce que le contexte
+            # scellé se calcule sur le texte de page brut, et sur lui seul.
+            pages_text, _ignored, page_error = (
+                extract_pdf_pages_with_structural_empty_pages(pdf.content)
+            )
+            if page_error:
+                raise ValueError(
+                    f"page text extraction failed for {row['content_sha256']} — {page_error}"
+                )
+        for match in result.matches:
+            match_sha = _sha256_bytes(match.match_text.encode("utf-8"))
+            page_text = pages_text[(match.page_number or 1) - 1]
+            findings.append(
+                ScannedFinding(
+                    # Identité et contexte viennent de l'autorité unique : ce
+                    # sont eux qui rendent les findings du scan comparables à
+                    # ceux que la revue humaine a dispositionnés. Le contexte
+                    # de confort du scanner (50 caractères, sauts de ligne
+                    # remplacés) n'est PAS celui que le paquet a figé.
+                    finding_id=finding_identity(
+                        content_sha256=row["content_sha256"],
+                        pattern_id=match.pattern_id,
+                        page_number=match.page_number,
+                        char_offset=match.char_offset,
+                        match_sha256=match_sha,
+                    ),
+                    pattern_id=match.pattern_id,
+                    page=match.page_number or 1,
+                    match_sha256=match_sha,
+                    context_sha256=_sha256_bytes(
+                        finding_context(
+                            page_text,
+                            char_offset=match.char_offset,
+                            match_length=len(match.match_text),
+                        ).encode("utf-8")
+                    ),
+                )
+            )
+        scanned.append(
+            ScannedContent(
+                content_sha256=row["content_sha256"],
+                pages_scanned=result.pages_scanned,
+                characters_scanned=result.characters_scanned,
+                ignored_empty_pages=tuple(result.ignored_empty_pages),
+                findings=tuple(findings),
+            )
         )
+
+    try:
+        projection = project_pii_review(
+            scanned,
+            decision_set_document=decision_document,
+            review_bundles=review_bundles,
+            policy_sha256=policy_sha,
+            scanner_sha256=scanner_sha,
+            page_policy_sha256=page_policy_sha,
+            # L'empreinte du FICHIER, jamais la valeur qu'il déclare : c'est
+            # celle que l'ensemble de décisions humaines a enregistrée.
+            corpus_manifest_sha256=corpus_manifest_authority_file_sha256(),
+        )
+    except PiiProjectionError as exc:
+        raise ValueError(f"the PII review cannot be projected on this scan: {exc}") from exc
+
+    # ── LE PONT ENTRE LA REVUE HUMAINE ET LA CANDIDATE ────────────────────
+    #
+    # Tout ce qui précède prouve que les AUTORITÉS sont intactes : le decision
+    # set nomme un fichier d'autorité qui n'a pas bougé, un reçu signé, une
+    # ancre épinglée, un index dont l'empreinte est celle scellée. Aucune de
+    # ces vérifications ne dit sur QUELLE MATIÈRE la revue a porté.
+    #
+    # Le seul champ qui le dise est `content_set_sha256` de l'index. Il était
+    # lu — pour ses paquets — sans jamais être confronté à l'ensemble que la
+    # candidate produit. La coïncidence était AFFIRMÉE dans un commentaire de
+    # `CANONICAL_CONTENT_SET_SHA256` et vérifiée nulle part.
+    #
+    # Mesuré : le fichier d'autorité que le decision set scelle décrit 26
+    # contenus, la candidate en émet 320. Prouver que ce fichier est intact ne
+    # prouve donc RIEN de la candidate. C'est cette confrontation-ci qui le
+    # fait, et elle porte sur la matière, pas sur un document.
+    require_review_covers_produced_content_set(
+        reviewed_content_set_sha256=authority_digests.get("reviewed_content_set_sha256"),
+        produced_content_set_sha256=_final_set_digest(sorted(grouped)),
+    )
+
+    source_by_sha = {
+        group["artifact_row"]["content_sha256"]: group["artifact_row"]["physical_path"]
+        for group in grouped.values()
+    }
+    results = [
+        {
+            **entry,
+            "evidence_sha256": _sha256_bytes(_compact_json_bytes(entry)),
+            "source_path": source_by_sha[entry["content_sha256"]],
+        }
+        for entry in projection.entries
+    ]
+
+    # `raw_pii_in_output: false`, plus bas, était une CONSTANTE : le producteur
+    # certifiait que sa preuve ne porte aucune matière brute sans l'avoir
+    # regardée. La mesure a lieu ici, sur les résultats réellement produits, et
+    # avant l'attestation qui en dépend. Un finding est un refus.
+    require_no_raw_pii({"results": results}, label="pii_evidence.results", patterns=patterns)
+
     return {
         "evidence_kind": "REAL_CORPUS_PII_SCAN",
         "school_year": SCHOOL_YEAR,
@@ -1355,12 +1836,18 @@ def _pii_evidence(
         "remote_write_operations": 0,
         "raw_pii_in_output": False,
         "raw_pii_in_logs": False,
+        "decision_set_id": projection.decision_set_id,
+        **authority_digests,
         "summary": {
             "unique_contents_required": len(grouped),
             "unique_contents_scanned": len(grouped),
             "pii_scan_coverage": 1.0,
             "unique_contents_not_scanned": 0,
             "sha256_mismatches": 0,
+            # Sept dimensions distinctes, toutes DÉRIVÉES des ensembles. Les
+            # fondre en « combien sont propres » rendrait invisible la
+            # différence entre « rien trouvé » et « trouvé, examiné, admis ».
+            **projection.counts,
         },
         "results": results,
     }
@@ -2243,6 +2730,7 @@ def build_release(
     review_status: str | None = None,
     release_id: str | None = None,
     source_release_root: Path | None = None,
+    review_authority: ReviewAuthorityInputs | None = None,
 ) -> dict[Path, bytes]:
     if release_mode == "rehearsal":
         return _build_rehearsal_release(
@@ -2256,16 +2744,16 @@ def build_release(
     if pdf_root is None or embedding_snapshot is None or reranker_snapshot is None:
         raise ValueError("pdf_root, embedding_snapshot, and reranker_snapshot are required in production mode")
 
-    matrix_path = Path(os.environ.get(
-        "NEXUS_FINAL_MATRIX",
-        REPOSITORY_ROOT / "docs/reports/final_production_profile_matrix_20260825.json"))
+    # Une seule lignée, résolue une fois. `build_release` redéfinissait ici ses
+    # propres défauts — la matrice du 25 août et les dix-huit profils — alors
+    # que les constantes du module en documentaient d'autres. Un lecteur qui
+    # lisait les constantes se trompait, et une exécution « par défaut »
+    # rendait 26 documents au lieu de 320.
+    lineage = resolve_release_lineage()
+    matrix_path = lineage.matrix_path
     matrix = _load_json(matrix_path)
-    profile_root = Path(os.environ.get(
-        "NEXUS_PROFILE_ROOT",
-        REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"))
-    profile_manifest_path = Path(os.environ.get(
-        "NEXUS_PROFILE_MANIFEST",
-        REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_manifest.yml"))
+    profile_root = lineage.profile_root
+    profile_manifest_path = lineage.profile_manifest_path
     registry = load_profile_registry(profile_root)
     manifest = verify_profile_manifest(registry, profile_manifest_path)
     profiles = {profile.scope.collection: profile for profile in registry.values()}
@@ -2330,6 +2818,7 @@ def build_release(
     network_audit, _network_rows = resolve_currentness_network_audit(
         placement_rows,
         verify_official_downloads=verify_official_downloads,
+        release_id=release_id,
     )
     network_audit, currentness = _currentness_documents(
         placement_rows,
@@ -2337,7 +2826,12 @@ def build_release(
         inventory_sha256=inventory_sha,
         network_audit=network_audit,
     )
-    pii = _pii_evidence(placement_rows, pdfs=pdfs, inventory_sha256=inventory_sha)
+    pii = _pii_evidence(
+        placement_rows,
+        pdfs=pdfs,
+        inventory_sha256=inventory_sha,
+        review_authority=review_authority or NO_REVIEW_AUTHORITY,
+    )
     preflight = _preflight(
         placement_rows,
         pdfs=pdfs,
@@ -2376,10 +2870,23 @@ def build_release(
         "pii_evidence_sha256": RELEASE_ROOT / "pii_evidence.json",
         "pii_policy_sha256": PII_POLICY_PATH,
         "pii_scanner_sha256": PII_SCANNER_PATH,
+        # ADR-0047 §7 : la décision humaine et son reçu appartiennent à la
+        # chaîne d'autorité de CE candidat. On ne réécrit jamais les liens
+        # d'une release historique pour les y faire entrer après coup.
+        **(
+            {
+                "pii_decision_set_sha256": review_authority.decision_set_path,
+                "pii_review_receipt_sha256": review_authority.receipt_path,
+                "pii_review_trust_anchor_sha256": review_authority.trust_anchor_path,
+                "pii_review_index_sha256": review_authority.review_index_path,
+            }
+            if review_authority is not None and review_authority.declared
+            else {}
+        ),
         "rights_registry_sha256": RIGHTS_REGISTRY_PATH,
         "preflight_evidence_sha256": RELEASE_ROOT / "preflight_evidence.json",
         "programme_registry_sha256": RELEASE_ROOT / "programme_registry.json",
-        "profile_manifest_sha256": PROFILE_MANIFEST_PATH,
+        "profile_manifest_sha256": lineage.profile_manifest_path,
         "level_mapping_sha256": LEVEL_MAPPING_PATH,
         "subject_mapping_sha256": SUBJECT_MAPPING_PATH,
         "document_type_mapping_sha256": DOCUMENT_TYPE_MAPPING_PATH,
@@ -2441,14 +2948,31 @@ def build_release(
             authorities=authorities,
             models=models,
             release_root=RELEASE_ROOT,
-            release_id=RELEASE_ID,
+            # §8 : une candidate porte SA propre identité. Réemployer
+            # l'identifiant historique ferait passer une nouvelle release pour
+            # celle dont la sémantique a déjà dérivé — et rendrait indécidable
+            # laquelle des deux un registre désigne.
+            release_id=release_id or RELEASE_ID,
             school_year=SCHOOL_YEAR,
+            # §9-§10 : le corpus peut être final et la release rester non
+            # activable. Le gate PII n'est qu'un des gates de go-live, et le
+            # runtime refuse déjà mécaniquement NOT_PROMOTABLE /
+            # NO_PRODUCTION_ACTIVATION. Ces statuts traversent donc aussi la
+            # voie production, sans quoi une candidate serait silencieusement
+            # activable au seul motif que sa PII est en règle.
+            **resolve_release_lifecycle_statuses(
+                release_mode=release_mode,
+                release_id=release_id,
+                promotion_status=promotion_status,
+                activation_status=activation_status,
+                review_status=review_status,
+            ),
         )
     )
     bindings = {
         "binding_kind": "PRODUCTION_PROFILE_RELEASE_AUTHORITY_BINDINGS_V1",
         "school_year": SCHOOL_YEAR,
-        "profile_manifest_file_sha256": _file_sha256(PROFILE_MANIFEST_PATH),
+        "profile_manifest_file_sha256": _file_sha256(lineage.profile_manifest_path),
         "profile_manifest_fingerprint": manifest.manifest_fingerprint,
         # D-41 : une release nomme l'interpréteur qui l'a produite. Sans cela,
         # « cette release est reproductible » est une phrase sans domaine.
@@ -2702,7 +3226,39 @@ def main(argv: list[str] | None = None) -> int:
         help="Répertoire de sortie. NEUF et vide — le producteur refuse "
              "d'écrire dans un répertoire existant qui n'est pas le sien.")
     parser.add_argument("--verify-official-downloads", action="store_true")
+    # ── L'AUTORITÉ DE REVUE PII S'INJECTE ───────────────────────────────
+    #
+    # Ni identifiant de campagne, ni chemin de gouvernance en dur : faire
+    # tourner une autre campagne demain ne doit toucher aucune ligne de ce
+    # fichier. Les quatre entrées sont fournies ensemble ou pas du tout ; une
+    # release sans contenu détecté n'a pas de décisions à joindre, et le
+    # producteur refuse toute détection non dispositionnée.
+    for option, description in (
+        ("pii-decision-set", "ensemble scellé des décisions humaines de revue PII"),
+        ("pii-review-receipt", "reçu ADR-0035 scellant cet ensemble"),
+        ("review-trust-anchor", "ancre de confiance vérifiant le reçu"),
+        ("pii-review-index", "index des paquets de revue ayant fondé les décisions"),
+    ):
+        parser.add_argument(f"--{option}", type=Path, default=None, help=description)
+    parser.add_argument(
+        "--pii-review-reviewer",
+        action="append",
+        default=None,
+        dest="pii_review_reviewers",
+        help=(
+            "Login GitHub autorisé à approuver l'ensemble de décisions. Répétable. "
+            "Absent signifie qu'aucune revue n'est acceptée — jamais que tout "
+            "reviewer convient."
+        ),
+    )
     args = parser.parse_args(argv)
+    review_authority = ReviewAuthorityInputs(
+        decision_set_path=args.pii_decision_set,
+        receipt_path=args.pii_review_receipt,
+        trust_anchor_path=args.review_trust_anchor,
+        review_index_path=args.pii_review_index,
+        reviewers=tuple(args.pii_review_reviewers or ()),
+    )
     if args.release_mode == "production" and (
         args.pdf_root is None
         or args.embedding_snapshot is None
@@ -2722,6 +3278,7 @@ def main(argv: list[str] | None = None) -> int:
         review_status=args.review_status,
         release_id=args.release_id,
         source_release_root=args.source_release_root,
+        review_authority=review_authority,
     )
     ecrit = _write_documents(
         documents,

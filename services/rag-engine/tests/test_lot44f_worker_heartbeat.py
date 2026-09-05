@@ -20,6 +20,7 @@ from nexus_contracts.ingestion import CollectionProfile
 from ingestor.ingestion_profiles.registry import profile_fingerprint
 from ingestor.ingestion_worker import cli as worker_cli
 from ingestor.ingestion_worker.runner import IterationOutcome
+from tests.worker_cli_harness import authorities_stub, worker_argv
 
 VALID_SCOPE = {
     "tenant": "libre_terminale",
@@ -135,20 +136,9 @@ def _run_worker(
         "run_worker_iteration",
         lambda _conn, deps: IterationOutcome(worked=False, job_id=None, status=None, error=None),
     )
-    from types import SimpleNamespace
 
     monkeypatch.setattr(
-        worker_cli,
-        "load_governed_runtime_authorities",
-        lambda *_args, **_kwargs: SimpleNamespace(
-            pii_evidence_registry=SimpleNamespace(
-                evidence_sha256="1" * 64, cleared_count=1
-            ),
-            rights_evidence_registry=SimpleNamespace(
-                registry_sha256="2" * 64, registry_id="heartbeat-test"
-            ),
-            placement_resolver=SimpleNamespace(release_manifest_sha256="3" * 64),
-        ),
+        worker_cli, "load_governed_runtime_authorities", lambda *_a, **_k: authorities_stub()
     )
     # Isolation DB (revue PR#90) : _reap_expired_leases touche aussi la base
     # réelle à chaque itération — hors périmètre de ce test, qui vérifie
@@ -178,82 +168,15 @@ def _run_worker(
         ),
     )
     return worker_cli.main(
-        [
-            "--profiles-dir", str(profiles_dir),
-            "--manifest-path", str(manifest_path),
-            "--artifact-store-dir", str(artifact_dir),
-            "--expected-role", "ingestion_control_app_test",
-            "--owner", "heartbeat-test",
-            *write_sealed_evidence(artifact_dir.parent),
-            "--catalog-path", str(artifact_dir.parent / "catalog.json"),
-            "--catalog-sha256", "3" * 64,
-            "--candidate-inventory-path", str(artifact_dir.parent / "inventory.json"),
-            "--candidate-inventory-sha256", "4" * 64,
-            "--currentness-evidence-path", str(artifact_dir.parent / "currentness.yml"),
-            "--currentness-evidence-sha256", "5" * 64,
-            "--mapping-path", str(artifact_dir.parent / "mapping.yml"),
-            "--mapping-sha256", "6" * 64,
-            "--release-manifest-path", str(artifact_dir.parent / "release.json"),
-            "--release-manifest-sha256", "7" * 64,
-            "--programme-index-path", str(artifact_dir.parent / "programme.yml"),
-            "--programme-index-sha256", "8" * 64,
-            "--collection-config-path", str(artifact_dir.parent / "collections.yml"),
-            "--collection-config-sha256", "9" * 64,
-            "--once",
-            *extra_args,
-        ]
+        worker_argv(
+            profiles_dir=profiles_dir,
+            manifest_path=manifest_path,
+            artifact_dir=artifact_dir,
+            expected_role="ingestion_control_app_test",
+            owner="heartbeat-test",
+            extra=extra_args,
+        )
     )
-
-
-def write_sealed_evidence(root: Path) -> list[str]:
-    """Preuves scellées minimales mais cohérentes, pour un worker qui
-    doit désormais en exiger. Leur contenu n'est pas le sujet de ces
-    tests ; leur *présence* l'est, puisqu'un worker de production ne peut
-    plus démarrer sans elles."""
-    import hashlib
-    import json
-
-    manifest = "d" * 64
-    pii = root / "pii.json"
-    pii.write_text(
-        json.dumps(
-            {
-                "evidence_kind": "REAL_CORPUS_PII_SCAN",
-                "corpus_manifest_sha256": manifest,
-                "remote_access_mode": "READ_ONLY",
-                "remote_write_operations": 0,
-                "raw_pii_in_output": False,
-                "raw_pii_in_logs": False,
-                "results": [
-                    {"content_sha256": "a" * 64, "status": "CLEARED",
-                     "pii_detected": False},
-                ],
-            }
-        ),
-        encoding="utf-8",
-    )
-    rights = root / "rights.yml"
-    rights.write_text(
-        "registry_id: test\n"
-        "human_rights_decisions:\n"
-        "  eduscol:\n"
-        f"    scope_manifest_sha256: \"{manifest}\"\n"
-        "    scope_zone: 01_EDUSCOL_OFFICIEL/\n"
-        "    approved_for_production_rag: true\n"
-        "source_evidence:\n"
-        "  eduscol:\n"
-        "    zone: 01_EDUSCOL_OFFICIEL/\n"
-        "    recommended_rights_category: officiel_public\n",
-        encoding="utf-8",
-    )
-    return [
-        "--pii-evidence-path", str(pii),
-        "--pii-evidence-sha256", hashlib.sha256(pii.read_bytes()).hexdigest(),
-        "--rights-evidence-path", str(rights),
-        "--rights-evidence-sha256", hashlib.sha256(rights.read_bytes()).hexdigest(),
-        "--corpus-manifest-sha256", manifest,
-    ]
-
 
 class TestWorkerHeartbeat:
     def test_resource_registry_cutover_is_injected_into_worker_dependencies(

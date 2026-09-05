@@ -38,6 +38,11 @@ from ingestor.ingestion_control.attestation import (  # noqa: E402
 )
 from ingestor.ingestion_profiles.registry import profile_fingerprint  # noqa: E402
 from ingestor.ingestion_worker import cli as worker_cli  # noqa: E402
+from tests.worker_cli_harness import (  # noqa: E402
+    authorities_stub,
+    readiness_stub,
+    worker_argv,
+)
 
 PG_IMAGE = "pgvector/pgvector:pg16"
 PG_SUPERUSER = "raguser"
@@ -247,6 +252,44 @@ def manifest_path(tmp_path: Path, profiles_dir: Path) -> Path:
     return path
 
 
+def _worker_argv(
+    *, profiles_dir: Path, manifest_path: Path, artifact_dir: Path, expected_role: str
+) -> list[str]:
+    """L'argv complet, construit par le foyer partagé.
+
+    Ce test appelait `main` avec six arguments quand toutes les autorités de
+    gouvernance sont devenues obligatoires : `argparse` sortait en code 2 avant
+    même d'atteindre l'attestation. Le durcissement du CLI est la bonne
+    évolution — c'est le banc qui devait suivre.
+
+    L'argv vit désormais dans `tests/worker_cli_harness.py`, avec celui du banc
+    de heartbeat : le recopier dans deux fichiers faisait qu'une évolution des
+    arguments obligatoires devait être répercutée à la main, et qu'un oubli
+    cassait une suite en silence.
+
+    Ce que ce test mesure — l'attestation de rôle contre un vrai PostgreSQL —
+    reste entièrement réel."""
+    return worker_argv(
+        profiles_dir=profiles_dir,
+        manifest_path=manifest_path,
+        artifact_dir=artifact_dir,
+        expected_role=expected_role,
+        owner="attestation-test",
+    )
+
+
+def _isolate_everything_but_the_attestation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neutralise ce qui n'est PAS mesuré ici — et rien d'autre.
+
+    `attest_runtime_role` et la connexion PostgreSQL réelle restent
+    intactes : c'est exactement la garde que ce fichier prouve."""
+    monkeypatch.setattr(worker_cli, "enforce_readiness_gate", readiness_stub)
+    monkeypatch.setattr(
+        worker_cli, "load_governed_runtime_authorities", lambda *_a, **_k: authorities_stub()
+    )
+    monkeypatch.setattr(worker_cli, "_reap_expired_leases", lambda _conn: None)
+
+
 class TestWorkerCliRefusesSuperuserDsn:
     def test_main_returns_nonzero_and_prints_attestation_failure_for_superuser_dsn(
         self,
@@ -266,15 +309,14 @@ class TestWorkerCliRefusesSuperuserDsn:
         artifact_dir = tmp_path / "artifacts"
         artifact_dir.mkdir()
 
+        _isolate_everything_but_the_attestation(monkeypatch)
         exit_code = worker_cli.main(
-            [
-                "--profiles-dir", str(profiles_dir),
-                "--manifest-path", str(manifest_path),
-                "--artifact-store-dir", str(artifact_dir),
-                "--expected-role", PG_SUPERUSER,
-                "--owner", "attestation-test",
-                "--once",
-            ]
+            _worker_argv(
+                profiles_dir=profiles_dir,
+                manifest_path=manifest_path,
+                artifact_dir=artifact_dir,
+                expected_role=PG_SUPERUSER,
+            )
         )
 
         assert exit_code == 1
@@ -299,15 +341,14 @@ class TestWorkerCliRefusesSuperuserDsn:
         artifact_dir = tmp_path / "artifacts"
         artifact_dir.mkdir()
 
+        _isolate_everything_but_the_attestation(monkeypatch)
         exit_code = worker_cli.main(
-            [
-                "--profiles-dir", str(profiles_dir),
-                "--manifest-path", str(manifest_path),
-                "--artifact-store-dir", str(artifact_dir),
-                "--expected-role", "ingestion_control_app",
-                "--owner", "attestation-test",
-                "--once",
-            ]
+            _worker_argv(
+                profiles_dir=profiles_dir,
+                manifest_path=manifest_path,
+                artifact_dir=artifact_dir,
+                expected_role="ingestion_control_app",
+            )
         )
 
         assert exit_code == 0
