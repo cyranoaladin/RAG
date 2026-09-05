@@ -1,0 +1,24 @@
+# Catalogue du banc d'ingestion réelle multi-niveaux.
+#
+# La release multi-niveaux scellée
+# (multilevel/multilevel.release.json, sha256 6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26)
+# sert dix collections. Deux d'entre elles (NSI première et terminale) sont
+# déjà instanciées par la release production ; les huit autres restent
+# dormantes dans le catalogue canonique, faute d'être servies par elle.
+#
+# Cet overlay les active — et rien d'autre — pour le déploiement qui monte
+# cette release. La forme d'overlay n'autorise que l'activation : elle ne
+# peut pas éteindre une collection servie ailleurs.
+#
+# Lié à la release par tests/test_multilevel_staging_catalogue.py.
+kind: RAG_COLLECTIONS_STAGING_OVERLAY_V1
+base: ../rag_collections.yml
+instanciee_overrides:
+  rag_nexus_francais_premiere_tc: true
+  rag_nexus_francais_quatrieme_tc: true
+  rag_nexus_francais_seconde_tc: true
+  rag_nexus_maths_premiere_gen_specialite: true
+  rag_nexus_maths_quatrieme_tc: true
+  rag_nexus_maths_seconde_tc: true
+  rag_nexus_maths_terminale_gen_specialite: true
+  rag_nexus_pc_terminale_specialite: true

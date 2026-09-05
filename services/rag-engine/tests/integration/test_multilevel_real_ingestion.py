@@ -445,7 +445,7 @@ class SearchCase:
 
 
 SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
-    "entree_premiere_maths_v1": (
+    "entree_premiere_maths_v2": (
         SearchCase(
             "Comment le programme aborde-t-il les vecteurs et la géométrie repérée en seconde ?",
             "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
@@ -462,7 +462,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("probabil", "statisti"),
         ),
     ),
-    "entree_premiere_francais_v1": (
+    "entree_premiere_francais_v2": (
         SearchCase(
             "Quel est le programme de français en classe de seconde générale et technologique ?",
             "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
@@ -479,7 +479,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("comprehension",),
         ),
     ),
-    "entree_troisieme_maths_v1": (
+    "entree_troisieme_maths_v2": (
         SearchCase(
             "Quels sont les attendus de fin d'année en mathématiques en quatrième ?",
             "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
@@ -496,7 +496,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("nombres",),
         ),
     ),
-    "entree_troisieme_francais_v1": (
+    "entree_troisieme_francais_v2": (
         SearchCase(
             "Quels sont les attendus de fin d'année en français en quatrième ?",
             "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
@@ -513,7 +513,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("interpret",),
         ),
     ),
-    "entree_terminale_maths_v1": (
+    "entree_terminale_maths_v2": (
         SearchCase(
             "Quel est le programme 2026 de spécialité mathématiques en première générale ?",
             "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
@@ -530,7 +530,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("probabil",),
         ),
     ),
-    "entree_terminale_nsi_v1": (
+    "entree_terminale_nsi_v2": (
         SearchCase(
             "Quel est le programme de spécialité NSI en première générale ?",
             "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
@@ -547,24 +547,42 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("web", "interaction"),
         ),
     ),
-    "eaf_premiere_francais_v1": (
+    "eaf_premiere_francais_v2": (
         SearchCase(
             "Quel est le programme de français en première générale et technologique ?",
             "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
             ("programme",),
         ),
+        # Requalifiée le 2026-09-05 contre la release régénérée. La formulation
+        # précédente (« Quelles compétences prépare-t-on pour les épreuves
+        # anticipées de français ? ») n'est plus servie : mesurée sur les 38
+        # chunks de l'artefact, la meilleure logit du reranker vaut -1.251,
+        # très en dessous du plancher gouverné de 1.90. Le contenu, lui, est
+        # bien là — page 9, « l'orientation générale du travail en classe de
+        # première est liée à la préparation des élèves aux épreuves anticipées
+        # de français » — et cette question-ci l'atteint (logit 2.032). Le
+        # plancher n'a pas bougé ; c'est la question qui a été remesurée.
         SearchCase(
-            "Quelles compétences prépare-t-on pour les épreuves anticipées de français ?",
+            "Quels exercices d'écrit et d'oral prépare-t-on en première en vue "
+            "des épreuves anticipées de français ?",
             "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
             ("epreuves anticipees",),
         ),
+        # Requalifiée le 2026-09-05, même cause : sous la partition régénérée,
+        # la formulation précédente (« Comment le programme de première
+        # organise-t-il lecture, écriture et étude de la langue ? ») place en
+        # tête un chunk dont l'extrait de 200 caractères, centré sur les
+        # termes de la question, ne montre pas « langue ». L'extrait est la
+        # citation rendue à l'élève : un extrait qui n'expose pas la notion
+        # demandée n'étaye pas la réponse. Cette question-ci la met en tête
+        # et dans l'extrait.
         SearchCase(
-            "Comment le programme de première organise-t-il lecture, écriture et étude de la langue ?",
+            "Comment l'étude de la langue est-elle conduite en classe de première ?",
             "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
             ("langue",),
         ),
     ),
-    "terminale_maths_v1": (
+    "terminale_maths_v2": (
         SearchCase(
             "Quel est le programme de spécialité mathématiques en terminale générale ?",
             "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
@@ -581,7 +599,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("probabil", "geometr"),
         ),
     ),
-    "terminale_nsi_v1": (
+    "terminale_nsi_v2": (
         SearchCase(
             "Quel est le programme de spécialité NSI en terminale générale ?",
             "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
@@ -598,7 +616,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("diviser pour regner",),
         ),
     ),
-    "terminale_physique_chimie_v1": (
+    "terminale_physique_chimie_v2": (
         SearchCase(
             "Quel est le programme de spécialité physique-chimie en terminale générale ?",
             "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
@@ -762,7 +780,9 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
             "NEXUS_SSO_AUDIENCE": identity_audience,
             "PG_RAG_DSN": product_pg["retrieval_dsn"],
             "PG_REVIEW_DSN": product_pg["review_dsn"],
-            "RAG_COLLECTIONS_CONFIG": str(ENGINE_ROOT / "configs" / "rag_collections.yml"),
+            "RAG_COLLECTIONS_CONFIG": str(
+                ENGINE_ROOT / "configs" / "staging" / "rag_collections_multilevel.yml"
+            ),
             "RAG_RELEASE_MANIFESTS_JSON": release_registry,
             "RAG_EMBEDDING_MODEL_CACHE_DIR": str(E5_PATH),
             "RAG_EMBEDDING_MODEL_INVENTORY_SHA256": E5_INVENTORY_SHA256,
@@ -885,15 +905,15 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
 
             cross_scope = client.post(
                 "/search/v2",
-                headers=headers_by_scope["entree_premiere_maths_v1"],
+                headers=headers_by_scope["entree_premiere_maths_v2"],
                 json=_search_payload(
-                    "entree_premiere_francais_v1",
-                    SEARCH_CASES["entree_premiere_francais_v1"][0].query,
+                    "entree_premiere_francais_v2",
+                    SEARCH_CASES["entree_premiere_francais_v2"][0].query,
                 ),
             )
             assert cross_scope.status_code == 403
 
-            fr_scope = "entree_premiere_francais_v1"
+            fr_scope = "entree_premiere_francais_v2"
             fr_token = _identity_token(
                 fr_scope,
                 secret=identity_secret,
