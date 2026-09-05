@@ -100,6 +100,65 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     api_v2._reset_database_readiness_cache()
 
 
+def _api_key_registry(scopes: list[str]) -> str:
+    return json.dumps(
+        [
+            {
+                "client_id": "surface-v2",
+                "token_sha256": hashlib.sha256(
+                    API_CLIENT_KEY.encode("utf-8")
+                ).hexdigest(),
+                "scopes": scopes,
+            }
+        ]
+    )
+
+
+def test_une_route_metier_sans_cle_porteuse_est_refusee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le credential BFF seul ne suffit plus : la portee est une seconde porte."""
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("une requete non autorisee ne doit pas sonder PostgreSQL")
+        ),
+    )
+
+    response = TestClient(api_v2.app).get(
+        "/taxonomy/v2",
+        headers={"Authorization": f"Bearer {service_token}"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_une_cle_sans_la_portee_exigee_est_refusee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`rag:ingest` n'ouvre pas le retrieval : les portees sont disjointes."""
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("RAG_API_CLIENTS", _api_key_registry(["rag:ingest"]))
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("une requete non autorisee ne doit pas sonder PostgreSQL")
+        ),
+    )
+
+    response = TestClient(api_v2.app).get(
+        "/taxonomy/v2",
+        headers={"Authorization": f"Bearer {service_token}", **API_CLIENT_HEADER},
+    )
+
+    assert response.status_code == 403
+
+
 def test_chaque_route_metier_montee_declare_une_portee_d_api() -> None:
     """Une route exposée sans portée déclarée serait une route sans porte."""
     for route in api_v2._ALLOWED_BUSINESS_ROUTES:
