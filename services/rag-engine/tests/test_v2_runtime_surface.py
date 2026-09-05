@@ -1546,3 +1546,94 @@ def test_integration_make_target_exposes_the_ingestor_package() -> None:
         "test-integration: install\n"
         "\tPYTHONPATH=src $(PYTEST) tests/integration -q"
     ) in makefile
+
+
+def _access_records(caplog: pytest.LogCaptureFixture) -> list[dict]:
+    import json as _json
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    return [
+        _json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == ACCESS_LOGGER_NAME
+    ]
+
+
+def test_un_refus_d_authentification_produit_quand_meme_sa_ligne_de_journal(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Les requêtes les plus intéressantes pour l'exploitation sont celles qui échouent.
+
+    Un refus d'authentification n'atteint jamais la fonction de route : sans
+    journalisation dans le middleware, un 401 ne laisserait aucune trace.
+    """
+    import logging
+
+    from fastapi import HTTPException
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    monkeypatch.setattr(api_v2, "require_bff_service", refuse)
+
+    async def route(_request: Request) -> JSONResponse:  # pragma: no cover
+        raise AssertionError("la route ne doit pas être atteinte")
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = asyncio.run(api_v2._metrics_middleware(_business_request(), route))
+
+    assert response.status_code == 401
+    (line,) = _access_records(caplog)
+    assert line["status_code"] == 401
+    assert line["endpoint"] == "/collections/v2"
+    assert line["client_id"] == "unattributed"
+    assert line["granted_scopes"] == []
+    assert line["outcome"] == "pre_route"
+
+
+def test_la_lecture_de_source_servable_est_journalisee_elle_aussi(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Ce chemin sort tôt du middleware : sans ligne dédiée, il serait le seul muet."""
+    import logging
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    monkeypatch.setattr(api_v2, "require_bff_service", lambda *_a, **_k: None)
+    monkeypatch.setattr(api_v2, "require_api_scope", lambda *_a, **_k: None)
+
+    async def route(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = asyncio.run(
+            api_v2._metrics_middleware(
+                _business_request("/corpora/servable/v1"), route
+            )
+        )
+
+    assert response.status_code == 200
+    (line,) = _access_records(caplog)
+    assert line["endpoint"] == "/corpora/servable/v1"
+    assert line["status_code"] == 200
+
+
+def test_une_route_hors_perimetre_metier_n_est_pas_journalisee(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Contrôle négatif : le journal d'accès n'avale pas /health ni /metrics."""
+    import logging
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    async def route(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = asyncio.run(api_v2._metrics_middleware(_business_request("/health"), route))
+
+    assert response.status_code == 200
+    assert _access_records(caplog) == []

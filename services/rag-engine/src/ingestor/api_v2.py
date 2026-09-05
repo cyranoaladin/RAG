@@ -489,6 +489,16 @@ async def _metrics_middleware(request: Request, call_next):
                             response = await call_next(request)
                             remaining_request_budget_ms()
                             status_code = response.status_code
+                            # Ce chemin sort tôt, sans passer par la
+                            # réconciliation de base. Sans cette ligne, la
+                            # lecture de source servable serait la seule
+                            # route métier absente du journal d'accès.
+                            _journal_unrecorded_access(
+                                request,
+                                endpoint=route_template,
+                                status_code=status_code,
+                                started=started,
+                            )
                             return response
                         database_ready = await run_in_threadpool(_database_runtime_ready)
                         if database_ready:
