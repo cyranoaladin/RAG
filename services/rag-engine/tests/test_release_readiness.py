@@ -2879,11 +2879,13 @@ def test_real_production_profile_gate_release_matches_canonical_volumetry() -> N
     """
     aggregate_path = PRODUCTION_PROFILE_RELEASE_ROOT / "production-profile-gate.release.json"
     registry = json.loads(RELEASE_REGISTRY.read_text(encoding="utf-8"))
-    entry = next(
+    matches = [
         r
         for r in registry["releases"]
         if r["release_id"] == "production-profile-gate-2026-2027-v1"
-    )
+    ]
+    assert len(matches) == 1, matches
+    (entry,) = matches
     digest = entry["expected_manifest_sha256"]
     assert entry["manifest_path"] == "profile_gate/production-profile-gate.release.json"
 
