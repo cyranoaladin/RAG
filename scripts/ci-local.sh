@@ -215,6 +215,9 @@ run_target "trusted-human-review-workflow-tests" "$REPO_ROOT/services/rag-pedago
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
 
+# --- ADR numbering (l'espace des numéros est un registre) ---
+run_target "adr-numbering" bash scripts/check-adr-numbering.sh
+
 # --- taxonomy validation ---
 run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/validate_taxonomy.py"
 
@@ -223,6 +226,7 @@ run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago &&
 
 # --- governance guard tests ---
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
+run_target "adr-numbering-tests" bash scripts/tests/test-adr-numbering.sh
 
 # --- ci failsafe tests ---
 run_target "ci-failsafe-tests" bash scripts/tests/test-ci-local-failsafe.sh
