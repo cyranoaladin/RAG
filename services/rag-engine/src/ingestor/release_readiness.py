@@ -474,6 +474,66 @@ def _require_authority_chain(
         _require_sha256(authorities.get(name), f"{field}.{name}")
 
 
+def _canonical_artifact_identity(artifact: "ExpectedArtifact") -> tuple[Any, ...]:
+    """Fields that must be byte-identical across every subject placing this
+    physical artifact. Deliberately excludes ``collection``,
+    ``legacy_chunk_collection`` and ``placements``: those are legitimately
+    subject-specific — one physical artifact, one or more placements — and
+    ``rag_artifact_placements`` is the reachability authority, not a
+    one-artifact-one-collection rule."""
+    return (
+        artifact.source_path,
+        artifact.source_url,
+        artifact.title,
+        artifact.type_doc,
+        artifact.page_count,
+        artifact.embedding_model,
+        artifact.embedding_dimension,
+        artifact.chunks,
+    )
+
+
+def _require_consistent_shared_artifacts(artifacts: Sequence["ExpectedArtifact"]) -> None:
+    """A repeated ``content_sha256`` across V1 subjects is legitimate sharing
+    (e.g. a première/terminale common-trunk document placed in both grade
+    collections) as long as every occurrence's canonical definition agrees.
+    A repeated identity with a divergent definition is real corruption, not
+    sharing, and stays refused under the same message subjects have always
+    seen for this failure."""
+    canonical_by_sha: dict[str, "ExpectedArtifact"] = {}
+    for artifact in artifacts:
+        canonical = canonical_by_sha.get(artifact.content_sha256)
+        if canonical is None:
+            canonical_by_sha[artifact.content_sha256] = artifact
+            continue
+        if _canonical_artifact_identity(canonical) != _canonical_artifact_identity(artifact):
+            raise ReleaseReadinessError("artifact is duplicated across subjects")
+
+
+def _require_consistent_shared_chunks(artifacts: Sequence["ExpectedArtifact"]) -> None:
+    """Mirrors :func:`_require_consistent_shared_artifacts` at chunk
+    granularity. A ``chunk_id`` is only ever legitimately repeated because its
+    *entire owning artifact* was legitimately shared across subjects — so a
+    tolerated repeat must agree on both the owning ``content_sha256`` and the
+    full chunk payload. A ``chunk_id`` reused under a *different*
+    content_sha256 is a real identity collision even when the chunk payload
+    happens to match (e.g. two distinct documents whose chunker produced the
+    same id by coincidence) — content_sha256 is what scopes a chunk_id to one
+    physical artifact, not the payload alone."""
+    owner_by_chunk_id: dict[str, str] = {}
+    chunk_by_id: dict[str, Mapping[str, Any]] = {}
+    for artifact in artifacts:
+        for chunk in artifact.chunks:
+            chunk_id = str(chunk["chunk_id"])
+            owner = owner_by_chunk_id.get(chunk_id)
+            if owner is None:
+                owner_by_chunk_id[chunk_id] = artifact.content_sha256
+                chunk_by_id[chunk_id] = chunk
+                continue
+            if owner != artifact.content_sha256 or chunk_by_id[chunk_id] != chunk:
+                raise ReleaseReadinessError("chunk is duplicated across subjects")
+
+
 def _parse_subject_v1(
     payload: Mapping[str, Any],
     field: str,
@@ -1090,14 +1150,17 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         subject_manifest_sha256_by_collection.append((collection, subject_sha256))
         artifacts.extend(subject_artifacts)
         placements.extend(subject_placements)
-    if not is_v2 and len({item.content_sha256 for item in artifacts}) != len(artifacts):
-        raise ReleaseReadinessError("artifact is duplicated across subjects")
+    if not is_v2:
+        _require_consistent_shared_artifacts(artifacts)
     placement_ids = [str(placement.payload["placement_id"]) for placement in placements]
     if len(set(placement_ids)) != len(placement_ids):
         raise ReleaseReadinessError("placement is duplicated across subjects")
     chunk_ids = [str(chunk["chunk_id"]) for artifact in artifacts for chunk in artifact.chunks]
-    if len(set(chunk_ids)) != len(chunk_ids):
-        raise ReleaseReadinessError("chunk is duplicated across subjects")
+    if is_v2:
+        if len(set(chunk_ids)) != len(chunk_ids):
+            raise ReleaseReadinessError("chunk is duplicated across subjects")
+    else:
+        _require_consistent_shared_chunks(artifacts)
     if is_v2:
         artifact_ids = {item.content_sha256 for item in artifacts}
         referenced_artifact_ids = {item.artifact_id for item in placements}
