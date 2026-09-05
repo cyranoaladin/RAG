@@ -4,6 +4,7 @@ SAFE_DIAGNOSTIC:
   - make-target-safety-audit
   - pilot-validation-policy-audit
   - pilot-golden-spec-audit
+  - url-source-registry-audit
 
 SAFE_METADATA_ONLY:
   - metadata-preflight
