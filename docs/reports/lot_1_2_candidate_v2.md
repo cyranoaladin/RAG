@@ -163,3 +163,98 @@ Ce qui est prouvé : le code passe toutes les vérifications.
 Ce qui ne l'est pas localement : qu'une installation propre depuis
 `requirements.lock` aboutit sur cette machine. La CI distante couvre ce point,
 dont C1 dépend également.
+
+---
+
+## Candidate finale — 5 septembre 2026
+
+Ce rapport décrivait jusqu'ici la candidate produite depuis `80e08de`. Celle-ci
+n'est pas remplacée : elle est **requalifiée**.
+
+### Deux candidates, deux rôles
+
+| | Rôle | Producteur |
+|---|---|---|
+| `candidate-v2-20260904T084521Z` | **baseline de validation** | `80e08de` |
+| `final-20260905T083751Z-16caf59` | **candidate finale opposable** | `16caf59…` |
+
+La baseline reste nécessaire : c'est contre elle que la dérive sémantique est
+mesurée. Elle doit rester accessible jusqu'à la fermeture de GO_LIVE_READY.
+
+### Identité de la candidate finale
+
+```text
+FINAL_CODE_SHA=16caf59f83c7f0bf4acf8f3fc1700ce56c8fc3fc
+FINAL_CODE_TREE=9e09dea01475851dd1090ca2832f99c551a8298c
+
+FINAL_RUN_ID=final-20260905T083751Z-16caf59
+FINAL_RELEASE_ID=production-profile-gate-2026-2027-v1
+FINAL_RELEASE_SHA256=b04fd98e5d74a4505c2ee1318579419b4246ef339ceef7c40b3d31ca45a76b6a
+
+FINAL_OUTPUT_FILE_COUNT=31
+FINAL_OUTPUT_INVENTORY_SHA256=2e08fb3ff056e59892e532466e6f5bc3abdb4d14a66304244f03cb157ec563d3
+```
+
+### Ce que la candidate produit
+
+```text
+UNIQUE_ARTIFACTS=320   PLACEMENTS=488   UNIQUE_CHUNKS=8421
+SUBJECTS=11            COLLECTIONS=11
+
+PROMOTION_STATUS=NOT_PROMOTABLE
+ACTIVATION_STATUS=NO_PRODUCTION_ACTIVATION
+```
+
+Une candidate n'est jamais émise activable : la promotion se gagne aux gates de
+go-live, pas par un argument de producteur.
+
+### PII
+
+```text
+SCANNED=320  CLEARED=297  REVIEWED_ACCEPTED=23  REJECTED=0  AUTHORIZED=320
+RAW_PII_IN_OUTPUT=false
+```
+
+Un contenu admis reste `pii_detected=true` sous `DETECTED_REVIEWED_ACCEPTED` :
+l'admission n'efface jamais la détection.
+
+### Le pont entre la revue humaine et la candidate
+
+```text
+PRODUCED_CONTENT_SET_SHA=77f01c824c6be14ba6fd66eda99c2179fd87d9a2aaaf3c58e56a917d1ad5c31d
+REVIEW_INDEX_CONTENT_SET_SHA=77f01c824c6be14ba6fd66eda99c2179fd87d9a2aaaf3c58e56a917d1ad5c31d
+REVIEW_COVERS_PRODUCED_CONTENT_SET=PASS
+```
+
+Cette liaison passe par l'index de revue que l'ensemble de décisions scelle —
+seul champ de la chaîne qui désigne la MATIÈRE revue plutôt qu'un document. Le
+wrapper d'autorité de manifeste, lui, décrit une sélection de 26 contenus : le
+prouver intact ne prouve rien de la population publiée.
+
+### Comparaison sémantique contre la baseline de validation
+
+```text
+AUTHORITATIVE_COMPARISON_SOURCE=profile_gate/artifacts.release.json
+
+ARTIFACT_SET_EQUAL=true      320 / 320
+CHUNK_SET_EQUAL=true         8421 / 8421
+PAGE_PARTITION_EQUAL=true
+SEMANTIC_CORPUS_DRIFT=0
+```
+
+Ce contrôle est plus fort que l'ancien « 319 artefacts et 8324 chunks
+historiques » : la baseline contient déjà `8848f073…`, donc la totalité des 320
+et des 8421 est comparée, pas seulement l'antérieur.
+
+`8848f0732cc1…` : 54 pages, ignorées `[2, 54]`, 97 chunks.
+
+### Currentness
+
+```text
+CURRENTNESS_SCOPE_BINDING=PASS
+CURRENTNESS_FRESHNESS=UNVERIFIED_SOURCE_UNREACHABLE
+verified_at=null
+```
+
+Ce n'est pas `CURRENTNESS=PASS`. La fermeture structurelle de LOT 1.2 n'emporte
+pas celle de ce gate, qui reste ouvert pour GO_LIVE_READY.
