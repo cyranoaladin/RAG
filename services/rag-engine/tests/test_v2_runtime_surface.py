@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import shlex
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +28,21 @@ ENGINE_AGENTS = ENGINE_ROOT / "AGENTS.md"
 V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
 V2_COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 MAKEFILE = ENGINE_ROOT / "Makefile"
+
+#: Clé porteuse de test. Le runtime v2 exige désormais un registre de clés
+#: (``ingestor.api_scopes``) : sans lui, il se ferme au démarrage. La valeur
+#: n'existe que dans ce fichier de test et ne configure aucun déploiement.
+API_CLIENT_KEY = "surface-v2-cle-porteuse-de-test-0123456789"
+API_CLIENT_REGISTRY = json.dumps(
+    [
+        {
+            "client_id": "surface-v2",
+            "token_sha256": hashlib.sha256(API_CLIENT_KEY.encode("utf-8")).hexdigest(),
+            "scopes": ["rag:search", "rag:read-source", "rag:admin"],
+        }
+    ]
+)
+API_CLIENT_HEADER = {"X-RAG-API-Key": API_CLIENT_KEY}
 
 
 @pytest.fixture(autouse=True)
@@ -76,9 +93,17 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda _rag_dsn, _review_dsn: True,
         raising=False,
     )
+    monkeypatch.delenv("RAG_API_CLIENTS_FILE", raising=False)
+    monkeypatch.setenv("RAG_API_CLIENTS", API_CLIENT_REGISTRY)
     api_v2._reset_database_readiness_cache()
     yield
     api_v2._reset_database_readiness_cache()
+
+
+def test_chaque_route_metier_montee_declare_une_portee_d_api() -> None:
+    """Une route exposée sans portée déclarée serait une route sans porte."""
+    for route in api_v2._ALLOWED_BUSINESS_ROUTES:
+        assert api_v2.required_scope_for_route(route) is not None, route
 
 
 def _docker_context_copy_sources(instruction: str) -> set[str]:
@@ -140,6 +165,7 @@ def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
         "/health",
         "/metrics",
         "/search/v2",
+        "/taxonomy/v2",
         "/corpora/servable/v1",
         "/corpora/servable/v1/{manifest_sha256}",
         "/chat",
@@ -682,7 +708,7 @@ def test_business_route_rejects_a_cached_unhealthy_database_proof(
     response = TestClient(api_v2.app).post(
         "/review/v2/decide",
         json={},
-        headers={"Authorization": f"Bearer {service_token}"},
+        headers={"Authorization": f"Bearer {service_token}", **API_CLIENT_HEADER},
     )
 
     assert response.status_code == 503
@@ -736,6 +762,7 @@ def test_business_readiness_and_route_share_one_runtime_deadline(
     monkeypatch.setenv("PG_DATABASE_BUDGET_MS", "6000")
     monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(api_v2, "require_bff_service", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api_v2, "require_api_scope", lambda *_args, **_kwargs: None)
 
     def readiness() -> bool:
         observed["readiness_deadline"] = pg_pool.current_runtime_request_deadline()
@@ -770,6 +797,7 @@ def test_business_route_does_not_start_after_readiness_exhausts_shared_deadline(
     monkeypatch.setenv("PG_DATABASE_BUDGET_MS", "6000")
     monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(api_v2, "require_bff_service", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api_v2, "require_api_scope", lambda *_args, **_kwargs: None)
 
     def readiness() -> bool:
         now[0] += 6.001

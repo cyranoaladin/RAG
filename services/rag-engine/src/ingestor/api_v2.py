@@ -40,6 +40,12 @@ def _missing_sibling(exc: ImportError) -> bool:
 try:
     from . import metrics as ingest_metrics
     from . import retrieval_v2_endpoint, review_v2_endpoint, servable_corpus_api
+    from .api_scopes import (
+        ApiScope,
+        load_api_clients,
+        require_api_scope,
+        required_scope_for_route,
+    )
     from .collection_config import validate_collection_catalogue_v2
     from .embedding_contract import (
         CANONICAL_EMBED_DIM,
@@ -91,6 +97,12 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     import retrieval_v2_endpoint  # type: ignore[no-redef]
     import review_v2_endpoint  # type: ignore[no-redef]
     import servable_corpus_api  # type: ignore[no-redef]
+    from api_scopes import (  # type: ignore[no-redef]
+        ApiScope,
+        load_api_clients,
+        require_api_scope,
+        required_scope_for_route,
+    )
     from collection_config import (  # type: ignore[no-redef]
         validate_collection_catalogue_v2,
     )
@@ -148,6 +160,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
 _ALLOWED_BUSINESS_ROUTES = frozenset(
     {
         "/search/v2",
+        "/taxonomy/v2",
         "/chat",
         "/collections/v2",
         "/catalogue/v2",
@@ -177,6 +190,23 @@ def _business_route_template(path: str) -> str | None:
     if re.fullmatch(r"/corpora/servable/v1/[0-9a-f]{64}", path):
         return "/corpora/servable/v1/{manifest_sha256}"
     return None
+
+
+def _required_route_scope(route_template: str) -> ApiScope:
+    """Portée exigée par une route métier montée. Jamais de repli permissif.
+
+    Une route exposée dont la portée n'aurait pas été déclarée serait une
+    route sans porte : on refuse le trafic plutôt que de la servir ouverte.
+    Un test de surface vérifie par ailleurs que la table les couvre toutes,
+    de sorte que ce refus reste un filet et non un comportement normal.
+    """
+    scope = required_scope_for_route(route_template)
+    if scope is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"{route_template}: no API scope declared for this route",
+        )
+    return scope
 
 
 def _required_model_inventory_anchor(environment_variable: str) -> str:
@@ -358,8 +388,12 @@ def _database_runtime_ready() -> bool:
 
 
 def _validate_runtime_authorities() -> None:
-    """Lier au démarrage le BFF, le registre signé et le catalogue monté."""
+    """Lier au démarrage le BFF, les clés d'API, le registre signé et le catalogue."""
     validate_bff_service_configuration()
+    # Le registre de clés est vérifié au démarrage, pas seulement à la
+    # première requête : un runtime qui accepterait du trafic avant de
+    # savoir qui a le droit d'appeler serait ouvert le temps d'un appel.
+    load_api_clients()
     identity_config = load_identity_verifier_config()
     collection_catalogue = validate_collection_catalogue_v2()
     validate_scope_registry_catalogue_alignment(
@@ -422,7 +456,16 @@ async def _metrics_middleware(request: Request, call_next):
         route_template = _business_route_template(path)
         if route_template is not None:
             try:
+                # Deux portes cumulatives : le credential machine du BFF
+                # établit que l'appel vient de la façade autorisée ; la
+                # portée de la clé porteuse établit ce que CE client a le
+                # droit de faire. Aucune ne dispense de l'autre.
                 require_bff_service(request, endpoint=path)
+                request.state.api_client = require_api_scope(
+                    request,
+                    required=_required_route_scope(route_template),
+                    endpoint=path,
+                )
             except HTTPException as exc:
                 response = JSONResponse(
                     content={"detail": exc.detail},

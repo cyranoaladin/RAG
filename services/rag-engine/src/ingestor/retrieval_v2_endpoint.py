@@ -19,7 +19,7 @@ import os
 import re
 import threading
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Literal
@@ -62,6 +62,7 @@ def _missing_sibling(exc: ImportError) -> bool:
 
 
 try:
+    from .api_scopes import ApiClient, ApiScope
     from .collection_config import (
         CollectionConfigError,
         list_instanciated_collections,
@@ -105,8 +106,20 @@ try:
         RERANK_MODEL,
         RERANK_THRESHOLD,
         RRF_K,  # noqa: F401 -- public endpoint configuration surface
+        ChannelDiagnostics,
         HybridHit,
         retrieve_hybrid,
+    )
+    from .retrieval_metadata_v2 import (
+        ChunkMetadataFilterError,
+        ChunkMetadataFilters,
+        build_chunk_metadata_filters,
+    )
+    from .retrieval_observability import (
+        RetrievalAccessRecord,
+        log_retrieval_access,
+        query_fingerprint,
+        resolve_request_id,
     )
     from .retrieval_pg_v2 import (
         _READINESS_SCOPE_PREDICATE_SQL,
@@ -132,6 +145,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         # manque, ou sa configuration qui a été refusée. Réessayer par un
         # autre chemin rejouerait le même échec sous un autre nom.
         raise
+    from api_scopes import ApiClient, ApiScope  # type: ignore[no-redef]
     from collection_config import (  # type: ignore[no-redef]
         CollectionConfigError,
         list_instanciated_collections,
@@ -180,8 +194,20 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         RERANK_MODEL,
         RERANK_THRESHOLD,
         RRF_K,  # noqa: F401 -- public endpoint configuration surface
+        ChannelDiagnostics,
         HybridHit,
         retrieve_hybrid,
+    )
+    from retrieval_metadata_v2 import (  # type: ignore[no-redef]
+        ChunkMetadataFilterError,
+        ChunkMetadataFilters,
+        build_chunk_metadata_filters,
+    )
+    from retrieval_observability import (  # type: ignore[no-redef]
+        RetrievalAccessRecord,
+        log_retrieval_access,
+        query_fingerprint,
+        resolve_request_id,
     )
     from retrieval_pg_v2 import (  # type: ignore[no-redef]
         _READINESS_SCOPE_PREDICATE_SQL,
@@ -1220,6 +1246,105 @@ def get_full_catalogue(request: Request) -> dict[str, Any]:
     return _full_catalogue()
 
 
+# --- Vue taxonomique (surface externe) ---
+
+#: Dimensions publiées par la vue. `statut_enseignement` y figure comme une
+#: DIMENSION PÉDAGOGIQUE, pas comme une autorité d'accès : les dix dimensions
+#: qui gouvernent l'accès sont celles de
+#: ``nexus_contracts.ingestion.ResourceScope``, et `statut_enseignement` n'en
+#: fait pas partie. Sa vérité canonique est le champ ``statut`` du catalogue
+#: ``rag_collections.yml`` (typé ``StatutEnseignement``), repris tel quel par
+#: ``ServerRetrievalScope``. La vue le lit ; elle ne le redéfinit pas.
+_TAXONOMY_DIMENSIONS = (
+    "matiere",
+    "niveau",
+    "voie",
+    "statut_enseignement",
+    "programme_version",
+    "school_year",
+)
+
+
+def _taxonomy_entry(
+    collection: str,
+    definition: Mapping[str, Any],
+    scope: ServerRetrievalScope,
+) -> dict[str, Any]:
+    """Projeter une collection autorisée, en refusant toute divergence.
+
+    Le catalogue déclare, le scope serveur dérive. Si les deux ne disent pas
+    la même chose, publier l'un des deux serait choisir arbitrairement quelle
+    vérité gouverne : on refuse.
+    """
+    declared = (
+        definition.get("matiere"),
+        definition.get("niveau"),
+        definition.get("statut"),
+    )
+    derived = (scope.matiere, scope.niveau, scope.statut_enseignement)
+    if declared != derived:
+        raise RetrievalScopeError("retrieval scope forbidden")
+    return {
+        "collection": collection,
+        "matiere": scope.matiere,
+        "niveau": scope.niveau,
+        "voie": scope.voie,
+        "statut_enseignement": scope.statut_enseignement,
+        "programme_version": scope.programme_version,
+        "school_year": scope.school_year,
+    }
+
+
+def _taxonomy_dimensions(entries: Sequence[Mapping[str, Any]]) -> dict[str, list[Any]]:
+    """Réduire les collections autorisées à leurs valeurs distinctes.
+
+    L'ordre d'apparition est conservé : deux appels identiques rendent la
+    même réponse, ce qu'un `set` ne garantirait pas.
+    """
+    dimensions: dict[str, list[Any]] = {name: [] for name in _TAXONOMY_DIMENSIONS}
+    for entry in entries:
+        for name in _TAXONOMY_DIMENSIONS:
+            value = entry.get(name)
+            if value is not None and value not in dimensions[name]:
+                dimensions[name].append(value)
+    return dimensions
+
+
+@router.get("/taxonomy/v2")
+def get_taxonomy(request: Request) -> dict[str, Any]:
+    """Dimensions réellement servables ET autorisées pour l'appelant.
+
+    Une collection signée mais non retrievable n'est pas annoncée : publier
+    une dimension qu'on refusera de servir induirait l'appelant en erreur.
+
+    Cette vue n'expose aucune donnée de gouvernance (empreinte de scope,
+    identifiant d'artefact, visibilité interne) : ce sont les dimensions du
+    catalogue pédagogique, rien d'autre.
+    """
+    verified = _require_retrieval_identity(request, endpoint="/taxonomy/v2")
+    try:
+        cfg = load_collection_config()
+        entries: list[dict[str, Any]] = []
+        for collection in effective_signed_collections(verified):
+            try:
+                definition = _check_retrievable(collection, cfg, verified)
+            except HTTPException:
+                continue
+            scope = build_server_retrieval_scope(
+                verified,
+                collection=collection,
+                collection_config=cfg,
+            )
+            entries.append(_taxonomy_entry(collection, definition, scope))
+    except (RetrievalScopeError, CollectionConfigError, ValueError) as exc:
+        raise HTTPException(status_code=403, detail="Forbidden") from exc
+    return {
+        "version": 2,
+        "collections": entries,
+        "dimensions": _taxonomy_dimensions(entries),
+    }
+
+
 @router.get("/collections/readiness")
 def get_collection_readiness(request: Request) -> dict[str, Any]:
     """Expose signed-scope diagnostics while LOT41 remains release-closed."""
@@ -1269,6 +1394,27 @@ def get_collection_readiness(request: Request) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="launch readiness unavailable") from exc
 
 
+def _calling_client_id(request: Request) -> str:
+    """Identifiant de la clé porteuse résolue en amont, jamais le jeton.
+
+    Le middleware de l'application v2 dépose le client authentifié sur
+    ``request.state``. Monté seul (tests, outillage), le routeur n'a pas
+    cette information : le journal dit alors `unattributed` plutôt que
+    d'inventer une identité."""
+    client = getattr(getattr(request, "state", None), "api_client", None)
+    if isinstance(client, ApiClient):
+        return client.client_id
+    return "unattributed"
+
+
+def _calling_client_scopes(request: Request) -> tuple[str, ...]:
+    """Portées effectivement accordées à l'appelant, telles que journalisées."""
+    client = getattr(getattr(request, "state", None), "api_client", None)
+    if isinstance(client, ApiClient):
+        return tuple(sorted(scope.value for scope in client.scopes))
+    return ()
+
+
 def _retrieval_unavailable() -> HTTPException:
     return HTTPException(status_code=503, detail="retrieval unavailable")
 
@@ -1278,8 +1424,15 @@ def _retrieve_hybrid_hits(
     collection: str,
     k: int,
     scope: ServerRetrievalScope,
+    *,
+    metadata_filters: ChunkMetadataFilters | None = None,
+    diagnostics: ChannelDiagnostics | None = None,
 ) -> list[HybridHit]:
-    """Compose the one canonical v2 pipeline without exposing failure context."""
+    """Compose the one canonical v2 pipeline without exposing failure context.
+
+    ``metadata_filters`` ne relâche jamais le prédicat de placement : il est
+    conjoint à lui dans le SQL du magasin de candidats.
+    """
     try:
         settings = PoolSettings.from_env()
         with runtime_request_budget(settings.database_budget_ms):
@@ -1287,6 +1440,7 @@ def _retrieve_hybrid_hits(
                 lambda: pool_connection(settings),
                 scope,
                 statement_timeout_ms=settings.statement_timeout_ms,
+                metadata_filters=metadata_filters,
             )
             return retrieve_hybrid(
                 query,
@@ -1295,6 +1449,7 @@ def _retrieve_hybrid_hits(
                 store=store,
                 embedder=BoundedInferenceEmbedder(_get_embed_model()),
                 reranker=BoundedInferenceReranker(_get_reranker()),
+                diagnostics=diagnostics,
             )
     except Exception:
         logger.error("hybrid retrieval unavailable")
@@ -1306,11 +1461,21 @@ def _retrieve_endpoint_hits(
     collection: str,
     k: int,
     scope: ServerRetrievalScope,
+    *,
+    metadata_filters: ChunkMetadataFilters | None = None,
+    diagnostics: ChannelDiagnostics | None = None,
 ) -> list[SearchV2Hit]:
     try:
         return [
             _to_search_hit(hit, query=query)
-            for hit in _retrieve_hybrid_hits(query, collection, k, scope)
+            for hit in _retrieve_hybrid_hits(
+                query,
+                collection,
+                k,
+                scope,
+                metadata_filters=metadata_filters,
+                diagnostics=diagnostics,
+            )
         ]
     except Exception:
         raise _retrieval_unavailable() from None
@@ -1837,6 +2002,11 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
     answer_generation_allowed = false.
     """
+    started = time.perf_counter()
+    # L'observabilité ne doit jamais faire échouer ce qui est servi : un
+    # appelant sans en-têtes (outillage, appel direct du routeur) obtient un
+    # identifiant généré, pas une exception.
+    request_id = resolve_request_id(getattr(request, "headers", None))
     verified = _require_retrieval_identity(
         request,
         endpoint="/search/v2",
@@ -1875,22 +2045,29 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     except (RetrievalScopeError, CollectionConfigError) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
 
-    if (
-        payload.need.notions
-        or payload.need.desired_doc_types
-        or payload.need.difficulty_max is not None
-    ):
+    # `desired_doc_types` et `difficulty_max` restent refusés : aucune
+    # colonne ne permet de les appliquer réellement (cf. retrieval_metadata_v2).
+    # Les accepter reviendrait à annoncer une restriction inopérante.
+    if payload.need.desired_doc_types or payload.need.difficulty_max is not None:
         raise HTTPException(status_code=422, detail="Unsupported retrieval filters")
 
     if not payload.retrieval.hybrid or not payload.retrieval.rerank:
         raise HTTPException(status_code=422, detail="Unsupported retrieval options")
 
+    try:
+        metadata_filters = build_chunk_metadata_filters(payload.need.notions)
+    except ChunkMetadataFilterError as exc:
+        raise HTTPException(status_code=422, detail="Unsupported retrieval filters") from exc
+
     # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
+    diagnostics = ChannelDiagnostics()
     hits = _retrieve_endpoint_hits(
         adapted.query,
         adapted.nexus_collection,
         adapted.top_k,
         scope,
+        metadata_filters=metadata_filters,
+        diagnostics=diagnostics,
     )
 
     results = [
@@ -1914,6 +2091,8 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
         "collection": adapted.nexus_collection,
         "scope_digest": scope.filter_digest,
     }
+    if metadata_filters.notions:
+        filters_applied["notions"] = list(metadata_filters.notions)
     if corpus is not None:
         filters_applied.update(
             {
@@ -1922,6 +2101,23 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
                 "corpus_version_id": corpus.corpus_version_id,
             }
         )
+    log_retrieval_access(
+        RetrievalAccessRecord(
+            request_id=request_id,
+            endpoint="/search/v2",
+            client_id=_calling_client_id(request),
+            granted_scopes=_calling_client_scopes(request) or (ApiScope.SEARCH.value,),
+            status_code=200,
+            latency_ms=(time.perf_counter() - started) * 1000.0,
+            # Les filtres journalisés sont des dimensions de catalogue, pas
+            # des données personnelles. La requête, elle, ne sort jamais
+            # autrement que sous forme d'empreinte.
+            filters=filters_applied,
+            channels=diagnostics.as_mapping(),
+            query_sha256=query_fingerprint(adapted.query),
+            query_length=len(adapted.query),
+        )
+    )
     return RetrievalResponse(
         results=results,
         warnings=list(adapted.warnings),

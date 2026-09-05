@@ -1068,7 +1068,10 @@ class TestHybridSearchDelegation:
     @pytest.mark.parametrize(
         ("field", "value"),
         [
-            ("notions", ["récursivité"]),
+            # `notions` a quitté cette liste : le filtre est désormais poussé
+            # jusqu'au SQL, conjoint au prédicat de placement. Les deux qui
+            # restent n'ont aucune colonne pour les appliquer réellement —
+            # les accepter annoncerait une restriction inopérante.
             ("desired_doc_types", ["cours"]),
             ("difficulty_max", 3),
         ],
@@ -1114,6 +1117,9 @@ class TestHybridSearchDelegation:
             collection: str,
             top_k: int,
             scope: ServerRetrievalScope,
+            *,
+            metadata_filters=None,
+            diagnostics=None,
         ):
             assert scope.collection == collection
             events.append(("retrieve", query, collection, top_k))
@@ -1153,7 +1159,9 @@ class TestHybridSearchDelegation:
     ) -> None:
         endpoint, client = _api_client(monkeypatch)
         monkeypatch.setattr(endpoint, "_check_retrievable", lambda *_args: {})
-        monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", lambda *_args: [], raising=False)
+        monkeypatch.setattr(
+            endpoint, "_retrieve_hybrid_hits", lambda *_args, **_kwargs: [], raising=False
+        )
 
         response = client.post(
             "/search/v2",
@@ -1218,12 +1226,17 @@ class TestHybridSearchDelegation:
             yield connection
 
         class Store:
-            def __init__(self, provider, scope, *, statement_timeout_ms) -> None:
+            def __init__(
+                self, provider, scope, *, statement_timeout_ms, metadata_filters=None
+            ) -> None:
                 self.provider = provider
                 self.scope = scope
                 self.statement_timeout_ms = statement_timeout_ms
+                self.metadata_filters = metadata_filters
 
-        def retrieve(query, collection, top_k, *, store, embedder, reranker):
+        def retrieve(
+            query, collection, top_k, *, store, embedder, reranker, diagnostics=None
+        ):
             captured.update(
                 {
                     "query": query,
@@ -1268,6 +1281,9 @@ class TestHybridSearchDelegation:
             "connection": connection,
         }
         assert captured["store"].statement_timeout_ms == 3_000
+        # Aucun filtre demandé : le magasin n'en reçoit aucun, et le prédicat
+        # de placement décide seul.
+        assert captured["store"].metadata_filters is None
 
     def test_search_sanitizes_failure_through_real_core_and_pg_store(
         self,
@@ -1409,6 +1425,10 @@ class TestCitedChat:
             "rag_nexus_nsi_terminale_specialite",
             4,
             BASE_SCOPE,
+            # `/chat` ne porte aucun filtre pédagogique et n'est pas journalisé
+            # comme un accès externe : les deux canaux restent explicitement vides.
+            metadata_filters=None,
+            diagnostics=None,
         )
 
     def test_chat_checks_every_collection_gate_before_any_retrieval(

@@ -196,7 +196,11 @@ def test_all_roles_only_receive_reviewed_hybrid_hits(
     assert len(body["results"]) == 1
     assert body["results"][0]["chunk_id"] == "chunk-reviewed"
     assert body["results"][0]["metadata"]["review_status"] == "reviewed"
-    retrieve.assert_called_once_with("algo", COLLECTION, 5, SCOPE)
+    assert retrieve.call_count == 1
+    called = retrieve.call_args
+    assert called.args == ("algo", COLLECTION, 5, SCOPE)
+    # Aucun filtre pédagogique demandé : le prédicat de placement décide seul.
+    assert called.kwargs["metadata_filters"].is_empty
 
 
 def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
@@ -220,7 +224,11 @@ def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
 
     assert response.status_code == 200
     assert response.json()["results"] == []
-    retrieve.assert_called_once_with("query", COLLECTION, 5, SCOPE)
+    assert retrieve.call_count == 1
+    called = retrieve.call_args
+    assert called.args == ("query", COLLECTION, 5, SCOPE)
+    # Aucun filtre pédagogique demandé : le prédicat de placement décide seul.
+    assert called.kwargs["metadata_filters"].is_empty
 
 
 def test_cache_warmup_is_disabled_and_never_serializes_unscoped_hits(
