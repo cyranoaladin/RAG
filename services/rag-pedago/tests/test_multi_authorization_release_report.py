@@ -21,6 +21,12 @@ GROUNDED_PROFILE_REPORT = (
 )
 MASTER_JSON = REPO_ROOT / "docs/reports/master_go_live_state_20260815.json"
 MASTER_MD = REPO_ROOT / "docs/reports/master_go_live_state_20260815.md"
+AUTHORIZATION_REPORT = (
+    REPO_ROOT / "docs/reports/lot_production_authorization_candidates_20260825.md"
+)
+AUTHORIZATION_MATRIX = (
+    REPO_ROOT / "docs/reports/production_authorization_matrix_20260825.json"
+)
 CHECKLIST = REPO_ROOT / "docs/checklists/production_go_live_checklist.md"
 ENVIRONMENT_PLAN = REPO_ROOT / "docs/reports/plan_production_github_environment.md"
 FINAL_SET = REPO_ROOT / "docs/reports/final_authority_required_set_20260823.txt"
@@ -67,7 +73,8 @@ PRODUCTION_PROFILE_MANIFEST = (
 
 PR127_BASE_SHA = "3548bf300c99685ff6ede0dce2e5bfe8c044d213"
 BASE_SHA = "8aa65fb3fb5f077bcd6dfa427c8902bd6d5c28b0"
-MASTER_MAIN_SHA = "3f0317e91c9ac8eff8ff1089d100a25f7c875793"
+MASTER_MAIN_SHA = "3566cafb44138d6a7f00296dc0654257f9bf0ad6"
+MASTER_MAIN_TREE_SHA = "8c5081a52096d531f1bd027790e600eb83b05bd5"
 FINAL_SET_SHA256 = "3705935f306a52cde0f398db20f685dce82d0bb9acd7909c8e6955d6356643e0"
 FINAL_PRODUCTION_SET_SHA256 = (
     "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0"
@@ -131,10 +138,12 @@ def test_master_freezes_recomputed_release_algebra_and_terminal_accounting() -> 
     terminal = master["terminal_disposition_20260825"]
 
     assert master["state_observed_at_main_sha"] == MASTER_MAIN_SHA
+    assert master["state_observed_at_main_tree_sha"] == MASTER_MAIN_TREE_SHA
     assert master["pr_merges"]["PR127_MERGED"] is True
     assert master["pr_merges"]["PR129_MERGED"] is True
     assert master["pr_merges"]["PR130_MERGED"] is True
     assert master["pr_merges"]["PR131_MERGED"] is True
+    assert master["pr_merges"]["PR133_PRODUCTION_PROFILES_MERGED"] is True
     assert master["multi_authorization_protocol_20260823"]["V2_MECHANISM_ON_MAIN"] is True
     assert corpus == {
         "PHYSICAL_FILES": 2584,
@@ -429,13 +438,46 @@ def test_current_master_and_checklist_freeze_final_profile_scope_count() -> None
     assert "10 partitions staging / 11 contenus sont promues" in checklist
 
 
-def test_master_names_the_current_production_profile_review() -> None:
+def test_master_names_the_current_production_authorization_review() -> None:
     master_md = MASTER_MD.read_text(encoding="utf-8")
     normalized = " ".join(master_md.split())
 
     assert "trusted-human-review/head-pinned" in normalized
-    assert "de la PR profils production" in normalized
+    assert "de la PR d'autorisations production" in normalized
     assert "décisions de profils" not in master_md
+
+
+def test_master_freezes_non_effective_authorization_candidates() -> None:
+    master = _master()
+    state = master["production_authorization_candidates_20260825"]
+    matrix_raw = AUTHORIZATION_MATRIX.read_bytes()
+    matrix = json.loads(matrix_raw)
+    report = AUTHORIZATION_REPORT.read_text(encoding="utf-8")
+
+    assert state["SOURCE_MAIN_SHA"] == MASTER_MAIN_SHA
+    assert state["SOURCE_MAIN_TREE_SHA"] == MASTER_MAIN_TREE_SHA
+    assert state["AUTHORIZATION_CANDIDATE_COUNT"] == 18
+    assert state["AUTHORIZATION_CANDIDATE_CONTENT_UNION"] == 26
+    assert state["AUTHORIZATION_CANDIDATE_OVERLAP"] == 0
+    assert state["AUTHORIZATION_CANDIDATE_GAP"] == 0
+    assert state["AUTHORIZATION_CANDIDATE_EXTRA"] == 0
+    assert state["AUTHORIZATION_CANDIDATE_UNION_SHA256"] == (
+        FINAL_PRODUCTION_SET_SHA256
+    )
+    assert state["AUTHORIZATION_CANDIDATES_MATERIALIZED"] is True
+    assert state["AUTHORIZATION_CANDIDATE_REPLAY_CHECK"] is True
+    assert state["EFFECTIVE_AUTHORIZATION_COUNT"] == 0
+    assert state["TRUSTED_HUMAN_REVIEW_COMPLETE"] is False
+    assert state["SIGNED_REVIEW_BINDING_COUNT"] == 0
+    assert state["REAL_AUTHORIZATION_SET_CREATED"] is False
+    assert hashlib.sha256(matrix_raw).hexdigest() == state[
+        "AUTHORIZATION_MATRIX_SHA256"
+    ]
+    assert matrix["authorization_count"] == 18
+    assert matrix["authorization_content_union"] == 26
+    assert matrix["authorization_union_sha256"] == FINAL_PRODUCTION_SET_SHA256
+    assert "REAL_AUTHORIZATIONS_CREATED=false" in report
+    assert "SIGNED_REVIEW_BINDING_COUNT=0" in report
 
 
 def test_master_reconciles_versioned_ops_assessments_fail_closed() -> None:
