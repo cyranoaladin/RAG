@@ -1,0 +1,63 @@
+{
+  "attestation_kind": "MULTILEVEL_PRODUCER_PROVENANCE_V1",
+  "bound_scope_ids": [
+    "eaf_premiere_francais_v2",
+    "entree_premiere_francais_v2",
+    "entree_premiere_maths_v2",
+    "entree_terminale_maths_v2",
+    "entree_terminale_nsi_v2",
+    "entree_troisieme_francais_v2",
+    "entree_troisieme_maths_v2",
+    "terminale_maths_v2",
+    "terminale_nsi_v2",
+    "terminale_physique_chimie_v2"
+  ],
+  "chunker_identity": {
+    "chunker": "ingestor.publication_chunking.chunk_publication",
+    "embedding_model_id": "intfloat/multilingual-e5-large",
+    "embedding_model_revision": "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3",
+    "max_sequence_length": 512,
+    "target_tokens": 384
+  },
+  "contracts_version": "0.16.0",
+  "extractor_identity": {
+    "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+    "pypdf_version": "6.14.2"
+  },
+  "input_manifest_sha256": {
+    "candidate_inventory": "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300",
+    "corpus_manifest": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+    "embedding_inventory": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+    "pii_evidence": "46d6c738ebc230dedb95ada2d07bd17a0907d75ee8aedcd556d27027ad50daa8",
+    "pii_policy": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "profile_manifest": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
+    "programme_registry": "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89aa58c",
+    "rights_registry": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff"
+  },
+  "multilevel_release_id": "multilevel-2026-2027-v1",
+  "multilevel_release_sha256": "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26",
+  "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+  "preflight_kind": "MULTILEVEL_RELEASE_PREFLIGHT_V2",
+  "preflight_sha256": "2b772df2347aa8618982c41bbe998849dd75ce60450b563b0b5e72bd6b985da9",
+  "producer_code_sha256": {
+    "services/rag-pedago/scripts/build_multilevel_preflight.py": "f49e7715aa5bb4f9ad1e46cf839d890176181bf13abcbbaa84aa66b9126b4aea",
+    "services/rag-pedago/scripts/build_multilevel_release.py": "f237bd8ade047f713d3389dd2aacce3e6574bb0fb53985ec283078ce284241ba"
+  },
+  "school_year": "2026-2027",
+  "scope_registry_sha256": "b5b2c5fa882dca83e313685bc42a1d2e44a871e42a85e8e1d9da85b86099f02b",
+  "source_commit_sha": "4b6f84d19fbc0c33399bacde18ece2d2e2d4ee28",
+  "subject_count": 10,
+  "subject_manifest_sha256_by_collection": {
+    "rag_nexus_francais_premiere_tc": "00052b38aec55eb72ae3bf1a13f914c1f7e08fd24e5257f53564f54c20e3ae64",
+    "rag_nexus_francais_quatrieme_tc": "0297544e8e303a506506bfc64a672593c5039d4d0e1b8358fc390223d0f15ceb",
+    "rag_nexus_francais_seconde_tc": "215dd3cef3b1a7beaf678a4a3d252b5e6e18a9d2b018a634f3fe3f941457e30b",
+    "rag_nexus_maths_premiere_gen_specialite": "f85159b754436d7ebae0102950863a5cbdaf381a4234c51d60a776f4c4254a85",
+    "rag_nexus_maths_quatrieme_tc": "5a21d7ebccd2fba6d27446490ae20a5137777d644dc3b92b9785892fd52d7935",
+    "rag_nexus_maths_seconde_tc": "1a7cf72c1838b563220f02c71ea2eb20ea4bd523b4484305d1cce1b526092b26",
+    "rag_nexus_maths_terminale_gen_specialite": "57ac64019aaf7815725b3f072c9c24b4c6f23e17bdf8861caa725095380a3f60",
+    "rag_nexus_nsi_premiere_specialite": "32aaa3ad8cc1efd26148276a0879180243667cb87b71e259e64538bfd10b0d38",
+    "rag_nexus_nsi_terminale_specialite": "f630a215a4b6db8a257ebd3b570f9c1781acb1f1b5a5652ba85cea22c0828b2c",
+    "rag_nexus_pc_terminale_specialite": "fdf216410cf30bf49a74e17636784757e3a4934b98e9c94014899b49b2cc7968"
+  }
+}
