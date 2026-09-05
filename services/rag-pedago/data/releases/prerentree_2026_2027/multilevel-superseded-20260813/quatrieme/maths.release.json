@@ -1,8 +1,8 @@
 {
   "artifacts": [
     {
-      "chunk_id_set_digest": "b3e65b4d9ffb52660e814d55ef01d9fabce0d51c3afd4ca28363fcf28e433b62",
-      "chunk_sha256_set_digest": "6739b4e61e4db82642832311ef4475eb8781f7aca1257d3508286ecd1dc712ac",
+      "chunk_id_set_digest": "6f5e2792efe2cff68f0c095d335ec278cc5d682cf5f8b2de7afb7c3a660ddfc2",
+      "chunk_sha256_set_digest": "1d3ed52ad6895555f0aec35d21672bebc099032eb3bb9ebc8586f2ff4f5f7acd",
       "chunks": [
         {
           "chunk_id": "9ace2b55eb6979bb4d325b315d7af42d415b1ddb141404f7f06006402cdae752",
@@ -12,51 +12,51 @@
           "page_start": 1
         },
         {
-          "chunk_id": "3b535ec7ec253658c1c75a82383338008373f1fcf096fa153368b79707d5d322",
+          "chunk_id": "75d4fc461a57a3e585eff6dcd1a3ca99d51b042412dbada4cfa9059c19a9da58",
           "chunk_index": 1,
-          "chunk_sha256": "33b35875b005c2c8b4cbe15d31b21780ca11f75dcc91f24ea56226512cbe3318",
+          "chunk_sha256": "8b030bb60303c8f576c4a3928bd0c6e8f7e789166df43b7925b834bcccdb8db2",
           "page_end": 2,
           "page_start": 2
         },
         {
-          "chunk_id": "0f8de647ade9b8ba0f1fb3140af07ebaf5f938dc4af27c96611038602482433b",
+          "chunk_id": "fc54413ccfee60f4411dab4cf93aeb9e255111b798ebfa89b5381694abdca367",
           "chunk_index": 2,
-          "chunk_sha256": "c0a1c442fd445bbce10513d64fc449e146b7f96ef9df46974537a1cb3365eb46",
+          "chunk_sha256": "3001d7c41e66377b7b038ce4ebeb857ef49d050fe2183eb6e6e37570fb273dc4",
           "page_end": 2,
           "page_start": 2
         },
         {
-          "chunk_id": "71d219283b655638ad57591b024ca35296cff90734ed5b35251ec2380a153542",
+          "chunk_id": "3f3f08b2adea62479f1721bd3c1c8368e49b5eaa969f31cd9f452f76fa7d6c5e",
           "chunk_index": 3,
-          "chunk_sha256": "b382a5c5597d13292b93130205544cdc97557e516be3c6793a1a739053edb3e8",
+          "chunk_sha256": "ba1573574a50c22fb82b50f239a21f787b705192fc45cc48d110f3d39745ecd2",
           "page_end": 3,
           "page_start": 3
         },
         {
-          "chunk_id": "5ca3405d28b44785708074ec435927a636213a5d5b7331247408881e080f10cc",
+          "chunk_id": "3a9397d96d1e7cd6af583befa1db08c4cddefe908fb05792e11a30a30d568b1e",
           "chunk_index": 4,
-          "chunk_sha256": "68af0591451506aab78ec05ab44329184a6c33aadd7c6b9555c58b819132cc1f",
+          "chunk_sha256": "0b6b27ae27cd28a4816c5202961056909a60acf0c232ee86614f6e475bbcf0a9",
           "page_end": 3,
           "page_start": 3
         },
         {
-          "chunk_id": "bd58ab9d921d3e97b53a63ffe762b04af3c5329baf576f62f6e01375e8b2cf15",
+          "chunk_id": "3414700585f486c291bebdaba4d8c36eafe51fa28144926b365f268bd4193ec0",
           "chunk_index": 5,
-          "chunk_sha256": "50fe841af81b765ebacb1cd322c1c8643667875b5ca5f0d610939daef03f4a65",
+          "chunk_sha256": "11011fa3496226caacd25ea1095ee10636a14f23d20c82f8046a36f2b16e36d2",
           "page_end": 4,
           "page_start": 4
         },
         {
-          "chunk_id": "f0b64718f3045b8a24bf6a4344823c56e09f494d4e757dbbeb03d33f8c6012f5",
+          "chunk_id": "4dc1ab68d1aa8c37f4777abcef95b77f137b86d40414681249ac89681222e1d3",
           "chunk_index": 6,
-          "chunk_sha256": "fb3e359786c09bd48ca2593e416d508a71f88abf4359a10f9ba5a516fe209c03",
+          "chunk_sha256": "dacce7faf190b9a0ac9cb37876f35680aa67052062247ea7ba984cda06266e9e",
           "page_end": 4,
           "page_start": 4
         },
         {
-          "chunk_id": "899171e04c245db179751209dd3bace7712dd6a2d7d672560f70574a35b7cd19",
+          "chunk_id": "f76a0dce7234b1e948f5df8fcbd272391b1129bf800e744391672656e107a7c7",
           "chunk_index": 7,
-          "chunk_sha256": "ef0c3055e16d63a5edb1db6f33c45ee072caf4f69488ad362cedf1b5bc9feef5",
+          "chunk_sha256": "501137f38a19780ceffe2ea41b265f1dd03c15ce30b97be7d077bed66acc2849",
           "page_end": 5,
           "page_start": 5
         },
@@ -68,86 +68,93 @@
           "page_start": 5
         },
         {
-          "chunk_id": "bb0c2a20e73e6caaba29cb13aab653bc0eb6ad3aaa38714781fa6f4f4d6d9eae",
+          "chunk_id": "f6efcafd8b6ad345c742e2a5536851e062ff51ac878cc54a65e9d675d0c9cff6",
           "chunk_index": 9,
-          "chunk_sha256": "ab5b253cdda22534b9932014dcf4aa97ece37f0f46667f94e2ed08d93913b918",
+          "chunk_sha256": "5773d873e0c1585cad53d32a762e159baa939f427884a46006b99d0212b3ad23",
           "page_end": 6,
           "page_start": 6
         },
         {
-          "chunk_id": "d8ecfa828687f786fe63b1d2cd8651f0a6de37f52608a9f884cede6e4de4bd54",
+          "chunk_id": "fc0a50ba1fe33aa5f7f563700daa1556a316f8c849e8f00187c0a2a815fd0e1a",
           "chunk_index": 10,
-          "chunk_sha256": "4eeb7d4200b0a4f8a93f1cd3aebe4a93988c4f0b61c8a58b732ab3eb67a39d74",
+          "chunk_sha256": "4c89c18aa9e7ebf321e67e92393cc9e7e8a55af612497c4ff41305c89dfb387f",
           "page_end": 6,
           "page_start": 6
         },
         {
-          "chunk_id": "e6843c3e9a87fbf7740595e4c54e28b04748287d170313288781496f6e7595b5",
+          "chunk_id": "211b56a894ee0e4a973e773a1667fd80dfedcc6789dfa9cca8348c437a8eeaf0",
           "chunk_index": 11,
-          "chunk_sha256": "a36fbde81227ec6dafe45dc898c27498863f8e4ce91ead02808914362d571670",
+          "chunk_sha256": "ad691668c4384c445116fe0bc597cb754c9a9823453eb4ef3d7a4d00d73543cf",
           "page_end": 6,
           "page_start": 6
         },
         {
-          "chunk_id": "bfddc46635b8340b00dd0c86ed103c4625b132bc728e54286554f315a1e3338e",
+          "chunk_id": "2ecd160e693e81015851ffb701fc31ae092e0fcd327c42d99e64176015fd5eb9",
           "chunk_index": 12,
-          "chunk_sha256": "25a0b88dabdba3807b9bc59ffde87ee1ab69259ef9875e78ba28d9505fab3463",
+          "chunk_sha256": "f6335600fb1f931cb2cb8fb39ca0c84b72de777a0390841700b053c5340d36b6",
           "page_end": 7,
           "page_start": 7
         },
         {
-          "chunk_id": "f337eb75d63a24992a9d3b2ff0a569465c304920156bcd9cea9db40495ca8219",
+          "chunk_id": "0b42f270f753663175d59151c863a2c3e540b1d5a4da59ab6c280f1e72d7c35a",
           "chunk_index": 13,
-          "chunk_sha256": "46f3611a50b6ae021d6d698fb361559d881ce8fdc5a46a0a87880e1ae0cefa9a",
+          "chunk_sha256": "9410bfc64c02c13d3b4224163e36c149767afa6ec662613b75d98e8c825530f4",
           "page_end": 8,
           "page_start": 8
         },
         {
-          "chunk_id": "3d2f1351350c33485193f49a9696199b8562d99dce5b322acaa5b6f0283599fa",
+          "chunk_id": "74211b2f5c66b59456ba49f83f0c5f802a42b1b639c05778253289a01061b23b",
           "chunk_index": 14,
-          "chunk_sha256": "79959b20eb3e89ed2075505a5bef3605ac5c12cdee956d9175c000ce25d72582",
+          "chunk_sha256": "f0a950c68bb7716210ad7a86601f0485971e77e8ba2d706f7a2823076d5df972",
           "page_end": 8,
           "page_start": 8
         },
         {
-          "chunk_id": "f5859079af72697fd72c050ec8246f65f03868738b21dc8933246913ee95ef36",
+          "chunk_id": "00add0add24bdf71b33ef9590210301532e7d755a681759bb5d4b457bebd6da7",
           "chunk_index": 15,
-          "chunk_sha256": "a6c4c1ce26d64216f3b853df2088316db3dd5bf441cb381d7f1836b19bfeb0df",
+          "chunk_sha256": "39f758846aa4304c0886c71f9ed4e93ab680be6774b68d30362da1ecd4937e2d",
           "page_end": 9,
           "page_start": 9
         },
         {
-          "chunk_id": "7f75c2b93e725d14626310d48af1ff37ed3fd5c452b7cd5b6adc9f1a804fda58",
+          "chunk_id": "eb1af987986796948a7ce2671d749c548fc77ac698708e52c83252333949d4d6",
           "chunk_index": 16,
-          "chunk_sha256": "6f9af1007845bd7ccb7503cda42fea951e2f7b42a0b6f3e8330b78ea4319f3a4",
-          "page_end": 10,
-          "page_start": 10
+          "chunk_sha256": "95c980704fc0921a68db858f127ba9756428fd3e97b79c209d2ce5b79c8bf3fd",
+          "page_end": 9,
+          "page_start": 9
         },
         {
-          "chunk_id": "c4d598c10432d2984bfc061a0a2199b3f79da9784f687a5e9c7acf78bd93a99b",
+          "chunk_id": "9632b2e086f9b9c133f914e3a116c878a4e8e3493eda48437bf0fd0f672f6ea7",
           "chunk_index": 17,
-          "chunk_sha256": "1589f7fcf31059905555ef2d63417b96f2a9719e3963a49f246a982c9fb92876",
+          "chunk_sha256": "8ec6aee448deeedb4f115e9469dbb36e681fa021e2d5f032b949bda69e646a28",
           "page_end": 10,
           "page_start": 10
         },
         {
-          "chunk_id": "f3f803bf6728d8b70651ea5e09b54bdd3896586523d83966b7421dc7f4dc5a24",
+          "chunk_id": "082b06e3056001dc242a27bc71c41e16807c8c4262dc7b51862842a90fa0821f",
           "chunk_index": 18,
-          "chunk_sha256": "adf50cd501be93c475c62b557f71691d013ec535aa7d862de9570aca9376b155",
-          "page_end": 11,
-          "page_start": 11
+          "chunk_sha256": "5fc0c6faa48eba6fa0846685bf91857b162dd5366bbb8e49992a6725b8ccefc0",
+          "page_end": 10,
+          "page_start": 10
         },
         {
-          "chunk_id": "8a52641e599b19162ac297d52e7318ed2decef116950d46fc83efa7ddb2d94e8",
+          "chunk_id": "dff48fa218e74263d2e800af14ff635fb4f3e8ce7016d40eaaf0d4c3cc6a7bbe",
           "chunk_index": 19,
-          "chunk_sha256": "0c0e3dfba34ccd6537694c00573eb05f7e98b3b7cc140ffd3d60b97ad8336c99",
+          "chunk_sha256": "fa3bd39e8112f95da9604577befc3f24bc1eae01f23fd421c6ed0d98f06ddddc",
           "page_end": 11,
           "page_start": 11
         },
         {
-          "chunk_id": "d9800cad8557779e9489c0bb46701391635626e1143596fa53a0292f9fee1ded",
+          "chunk_id": "daabe20398652bf4b7ea517bbed327dc3a3e2da608d6ed950ed770f0612d6851",
           "chunk_index": 20,
-          "chunk_sha256": "6088f1445bace204c030354ebc5137ac8ebdc373a9397164637d852c0ef8ac0a",
+          "chunk_sha256": "0ebacdc894adc89bcee1f249b6eb06dce21c6990107da9d03fa17682395325aa",
+          "page_end": 11,
+          "page_start": 11
+        },
+        {
+          "chunk_id": "2d031dcb8d2028f56be8e3467d44a3f8209675a6e241fbcac08c8c949f2f5e14",
+          "chunk_index": 21,
+          "chunk_sha256": "faed88daaa9734542b831eb2b60d17635e6aaca6d79507f613de52cc92dd5806",
           "page_end": 12,
           "page_start": 12
         }
@@ -187,7 +194,7 @@
     "catalog_delta_sha256": "cc12e73643bcb36102a992982e756356b34a908c60d0d742ea48d2ee61cfd99b",
     "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
     "currentness_evidence_sha256": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
-    "document_type_mapping_sha256": "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b",
+    "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
     "effective_catalog_authority_sha256": "5cc8e30b81157fbc1789a0b82ad38cd3673276167890bced55151cbac1523c2f",
     "embedding_inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
     "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
@@ -196,7 +203,7 @@
     "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
     "pii_scanner_sha256": "0517a34c1b18eee05e3b9694cc2d774754b3a04b694c90aca1faaa48e262e1b7",
     "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
-    "preflight_evidence_sha256": "2b772df2347aa8618982c41bbe998849dd75ce60450b563b0b5e72bd6b985da9",
+    "preflight_evidence_sha256": "e440745c7bc04b5398863a80bf6d4ad8128fc8726d0615d6947412f8d557cf5f",
     "profile_manifest_sha256": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
     "programme_registry_sha256": "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89aa58c",
     "reranker_inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1",
@@ -206,7 +213,7 @@
   "collection": "rag_nexus_maths_quatrieme_tc",
   "expected_counts": {
     "artifacts": 1,
-    "chunks": 21,
+    "chunks": 22,
     "placements": 1
   },
   "models": {

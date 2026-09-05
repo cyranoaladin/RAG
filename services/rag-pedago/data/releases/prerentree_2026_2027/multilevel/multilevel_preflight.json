@@ -1,0 +1,3403 @@
+{
+  "artifacts": [
+    {
+      "chunk_count": 44,
+      "chunk_id_set_digest": "70fbbbbceae62133cf1cad3d7bcead58a2daa038ce692e4af923f13a7185cb98",
+      "chunk_sha256_set_digest": "7c248a3e5b4735727fa7450214c06f3306e3f72b06fe10c5ba455b187198604d",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "b2464f81472db8f5933bea91d527d227352532c7e06c9fdce64998618527b006",
+          "chunk_index": 0,
+          "chunk_sha256": "fde25668f70301916032cc9a95bb859401937ff598bcfe0f25fde1b5500a1b9c",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 309
+        },
+        {
+          "chunk_id": "848cba5c69b39fc0067218cd24c91d6de60701e9fda4210bc023cf7a1f90cfb9",
+          "chunk_index": 1,
+          "chunk_sha256": "4799e0c9803debe2297873d3e8370ca8df9fe54ba18f3a66854e11a99e8adca7",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 339
+        },
+        {
+          "chunk_id": "05de0aa2f3f0dbc016e4b96fee2d3a10e5d380273889b3ac004c7b5974cabc29",
+          "chunk_index": 2,
+          "chunk_sha256": "d1d846ea948d7ffa5aad0983371f8be05d2a83c110456ef019817f8ad69e3b16",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "380f401c0b67aac0678a06416c51a1bfead85cc3b59bf137e1a1c67f9b68ec3d",
+          "chunk_index": 3,
+          "chunk_sha256": "62a1292eb9b3c663be37a844e19e706c26474f5ef6d019cfe3223842189e8d4d",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 314
+        },
+        {
+          "chunk_id": "95fcb18b18dd364b2348eb3cd0c48945dd18fddae3dc63002b3ea583bad27fc5",
+          "chunk_index": 4,
+          "chunk_sha256": "ae32bf21e97170b5f896d79ddf53d5e5c331228ec51a320a8b4a11705acb3464",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 332
+        },
+        {
+          "chunk_id": "7762db85dcd7c5c66c3152603a5afefb5de1a14b3d794dda96f6469cb8b1ac79",
+          "chunk_index": 5,
+          "chunk_sha256": "9bc53fdc07a44a966daf158944ab3fdd0ee1987bbad5f228a9dd2d24eadd70a3",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 351
+        },
+        {
+          "chunk_id": "36dbae1bffad6d6ce6444a6658e42f8c9a8e13159b90bd1c7768abdb27e1c0ca",
+          "chunk_index": 6,
+          "chunk_sha256": "37a24239b75b66304405c3b46ca7b87e963ffd7bfcfb6c2549ff2d7f137dfca2",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 337
+        },
+        {
+          "chunk_id": "0b0d1b6eeceedb47acf052bde5e280b63928f53144338606f31b8a46c5cbf54f",
+          "chunk_index": 7,
+          "chunk_sha256": "9b537a7f57b58b0760fd50e66845777711a959e275156ecbc1920c0fe08aed73",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 368
+        },
+        {
+          "chunk_id": "507f8d6daf6504263474226b01d5a379f5a1a6106c411256c3577c7ef3950bb3",
+          "chunk_index": 8,
+          "chunk_sha256": "89f05de42e9557d47c8ded15821bd75a03ed915c5e71ca54c316f45d1d69323e",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "f36e80a159532ea64c49b1b98ca04aac741fa0a45204d9e8278f22cc5801b104",
+          "chunk_index": 9,
+          "chunk_sha256": "0ce0610abc1b27fe3e53caf5ab850a33b72acdf36d6e294fe91ba5686416831a",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 239
+        },
+        {
+          "chunk_id": "33ee1605df47482dffc64d08377ac3ca3166469bed65bef29276001e8f1f1d75",
+          "chunk_index": 10,
+          "chunk_sha256": "0011586729b357bbcfc21e81c20717da4f1783053b5778b85c0abfa340e620ee",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "59c001b36f835fc78083565a70b41c778fcc93b2c1fb1ee797f4228c0d5a9132",
+          "chunk_index": 11,
+          "chunk_sha256": "7d3d6d3a4989e7cb1aae2a9d45be6a2d405d2fcb18947b3576ebc39bd5603065",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "0b4eacfe8fa94945c4afd496310ef12fddc96b4cd0e6734fe11b7c591e210b4e",
+          "chunk_index": 12,
+          "chunk_sha256": "5baa071ef5aad6e919c4aee5fbe75a603e1403a7ba36bcb79de558dba8d8a928",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 371
+        },
+        {
+          "chunk_id": "a24e93f93230f0b6efe72faaa1327d916c29ae83b742fa99adff072aa829baae",
+          "chunk_index": 13,
+          "chunk_sha256": "30a469e1573e53dbb9ea702adbab5924c9d5aa1c77c377b32c873696fae5ef12",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 35
+        },
+        {
+          "chunk_id": "5b243cfa06962ca9f106fe011cf633604ead993d094ba02e530f4f69a32c4426",
+          "chunk_index": 14,
+          "chunk_sha256": "57264d3122235dae3c0a2b6640bdae2cf6693eeaaa4fe5033c114fc4b5d96a49",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 365
+        },
+        {
+          "chunk_id": "ff11037e25756b235f7904dbb18b56460e8a45d570e23d91a8d7fa429d827320",
+          "chunk_index": 15,
+          "chunk_sha256": "212fc0db7c46460b76b4f74673adb90ab1cea41e1105acbe0aa27b79a8e0b865",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 379
+        },
+        {
+          "chunk_id": "299908819ad120ee39b5d8238ee38e029dcea28f167db9498693bf1e166ad4d5",
+          "chunk_index": 16,
+          "chunk_sha256": "8958381b6c4c5d41b8a9ec9031a602e14b7024668c93fa38c17780edde588704",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "536977888a32e4ded4de8ab47cb9b92e1d4a662cdfab6084dfe188e25e706a95",
+          "chunk_index": 17,
+          "chunk_sha256": "d1db4163c080c94c56e45488fa84cb7395ff40fa05c692994689ba0092ac9bad",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 30
+        },
+        {
+          "chunk_id": "18ca308a927fd5a27c995f91062785d2948717c3812ad27e63ee1cf6b6df2602",
+          "chunk_index": 18,
+          "chunk_sha256": "e0e754d6927d57aaf30ce31fd670b8572939109f1582b9b53715c934f754fe7e",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "1d7b5c1cce2d6fd0cfa508f59fdece4d536bea259be685d78669356c34d5a35b",
+          "chunk_index": 19,
+          "chunk_sha256": "8f32729c46c207bd364e69822f49eeed1bc66fd08cb49ce6030d9aed7e6e1b33",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 372
+        },
+        {
+          "chunk_id": "6585bde513d1e5d3f94022b73063e6a386773f2bb057abeebd6054a980ba2aa8",
+          "chunk_index": 20,
+          "chunk_sha256": "b1a02ae45a4e1dc564e9b4b271616455b8c5fd925cd30c97ca3490309b0498a5",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 355
+        },
+        {
+          "chunk_id": "99d7fcc9eb278f59f5442e8eb6be088731f9aa92d8632f2840dabed73f06afed",
+          "chunk_index": 21,
+          "chunk_sha256": "211059321878f62ceb5e32baa22a17d9a3b33d0c43519dd8b8d8408872745b0e",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 371
+        },
+        {
+          "chunk_id": "0e4b1cc9a425f203fee8b9114db39e8c3276076d10b4a201673ccf8cad26bf19",
+          "chunk_index": 22,
+          "chunk_sha256": "e64138e8fdc9176387ad74bafdf91a8beb18970c67ed3101c840c2e99263cf53",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "fdef65a1e6cee44b6871ab10d7adc0ba39604a84e2cc17c4913a86aae50374f2",
+          "chunk_index": 23,
+          "chunk_sha256": "b325920c7ec897dd34bc71712163d7143d0ed25c60a3d439819d669bfac95b07",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 265
+        },
+        {
+          "chunk_id": "2a071e03c5e3b6efe73f7585e87afb098eba209afc63423ac707ac68bc7aeab4",
+          "chunk_index": 24,
+          "chunk_sha256": "e742ddb11d027ac0cc2d15988a9d5ae67fb7009559c52411840a2576993909b5",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 360
+        },
+        {
+          "chunk_id": "d8ba63ad2c13a32867cb533209c599339ad8c358b57f8f849a367cc48ada3756",
+          "chunk_index": 25,
+          "chunk_sha256": "085f7c1d9876774bc5c6639e49b4c871f8ad453178f4146be4074e6290172319",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 350
+        },
+        {
+          "chunk_id": "14d55152e1dff3d0519fd2399f1887619586cf247928105dd9eccbe9b2101589",
+          "chunk_index": 26,
+          "chunk_sha256": "a771ebdea4088311b94c127a42bf08e734fde8489783f1ca455efc618bd0c71b",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "c95c0dc82f389a41d8f5e9ab1f075a2df77f8ebc58c2fb688c75ad0f1ef47832",
+          "chunk_index": 27,
+          "chunk_sha256": "a5fe7f88a8d63b13580cd42559fbe5e0be42f67f55612954c94d4a45f0a7d8c3",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 127
+        },
+        {
+          "chunk_id": "03bab36d71e4cd07927761bb990ebe84eb93ff46c674fc63bd4830502f306337",
+          "chunk_index": 28,
+          "chunk_sha256": "2f49cfb53e9bfce5723c021f7092c841e951ab4cc40f2425762b1024a918b8c1",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "9a520e7169f25d3faf9d0898de70dcd02120fa6d0055cb374c52ec8139c44f4a",
+          "chunk_index": 29,
+          "chunk_sha256": "262b64d382bb810b5f144acd178117abc253b6a5eedf70229258fc97c5d2d03b",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "dffa70cf4ff467ea9f47458025981ecfff9372490e54e3125e12e4e14c54b68f",
+          "chunk_index": 30,
+          "chunk_sha256": "f09c2bb95f2ca41227900e64c432e11daaf23ed30bfd236a3858e4d7cc28bd65",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 274
+        },
+        {
+          "chunk_id": "9146a9bfd5f330418838191fbe0b7884512d9979962a2e4fc503c8122abd3cc9",
+          "chunk_index": 31,
+          "chunk_sha256": "fce8606af10cc347a07aaa9f7339f1df432cdc1959f1020ca5fc5e3086484eae",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "1eb432863d142bbbb3f9f7fa506791e3b28125f994e93fafa0055bcd3ed2b585",
+          "chunk_index": 32,
+          "chunk_sha256": "9f630c7070e3c684dc7d63c4ee8574596e81091da5a85180ac405f49f0df2e59",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 335
+        },
+        {
+          "chunk_id": "2f6497a45489794ecbd40d722fdbc2633e116d77966efba46bd9592b4203fd3c",
+          "chunk_index": 33,
+          "chunk_sha256": "19e465408b861860f7c74f09dd576ec84d276d6bb60a3fd17a83ac6280efb27e",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 369
+        },
+        {
+          "chunk_id": "f5966d4dbb2ba9094c7b1d923539916416ffce057020682667177b3ecf551288",
+          "chunk_index": 34,
+          "chunk_sha256": "78f9fd566d39f2307f4563a7f69f2f32a266211b55a3653f13b173d8a9e984e8",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 354
+        },
+        {
+          "chunk_id": "c6451b2177b9856f23e9070d7731adf91dbd624d10880f6df834e08f78b56b60",
+          "chunk_index": 35,
+          "chunk_sha256": "08160ba300ee2cfed059a620769a8df7ff16c6f7243aece8ce01ef034309feb8",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 375
+        },
+        {
+          "chunk_id": "ff9a89ece43898d8feb2ede4f57d2d3dc57ab8b858faac4aaf6db1e180e04333",
+          "chunk_index": 36,
+          "chunk_sha256": "5ea3aef474f3801f4c64e400c2dc0cadb1766faf81fc6126af6cfc9a32f59963",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 255
+        },
+        {
+          "chunk_id": "f185b289be4c33e711ef83a888ea8247941d7dae9f7838d6242091387abd9a4d",
+          "chunk_index": 37,
+          "chunk_sha256": "0e4bf37dd7631803239c2c7790a4d68a930a79685693c08aecd7721fe1d54f65",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 356
+        },
+        {
+          "chunk_id": "e03da543559e212cd2ec749aba706c2956fc996157fcf4023d0dd6f6c6178049",
+          "chunk_index": 38,
+          "chunk_sha256": "99e144d90891b717fbb0b2d0de8cbf744bab97a338ba005ddd4071a36d1efd4c",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 346
+        },
+        {
+          "chunk_id": "ed19412c9e744c8d5f4d8ee5b74320161caf3275fc25c2c5073f3473d63abe9d",
+          "chunk_index": 39,
+          "chunk_sha256": "bb0461507eae51da638f57371f83581b0132c12594c1f85430cc6cb2997e73b8",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "4d8c416408bd9a4ac3e9f890a5609285590e9e4f3dbf9dceef7a94cbc3c7b92d",
+          "chunk_index": 40,
+          "chunk_sha256": "c9400008f1d178add1642e1785292af0c538f0b11a4e7680507d523a670666a9",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 51
+        },
+        {
+          "chunk_id": "0e460334b590ddd411638599f9fda0d2db0ac64975d9d805b976937b14188467",
+          "chunk_index": 41,
+          "chunk_sha256": "c918d161e19aa865f546f5f2a9312094f81ff64b8f3f9bdda53eed68c46df7af",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 374
+        },
+        {
+          "chunk_id": "d04dfd64f9821fbc500432e9c73a63df231b71b8b2df3b84b7311a6f66ac7b4a",
+          "chunk_index": 42,
+          "chunk_sha256": "0c5b749dce68b59a5264dc2a7c2884be634ad0938cce78a104fe513c865809f5",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 366
+        },
+        {
+          "chunk_id": "96abed704fc01c3892c381b90385633570424563eabe3417b1e821299c9672b6",
+          "chunk_index": 43,
+          "chunk_sha256": "19d2b3d870a0a4186e8b52e6d0eae60d3c4d5fef470234a0792501633f74a6b7",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 300
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_maths_seconde_tc",
+          "profile_fingerprint": "2320e3f3e7906ae1b76b0c704cba38cd435dd8cbe6b7d13d78671c6b4cc73d89",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_14_2026-04-02_MENE2602914A"
+        }
+      ],
+      "content_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 383,
+      "median_real_e5_tokens": 361.0,
+      "min_real_e5_tokens": 30,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 13,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "2bc24c4c2ab565df6556913a4e641f37974af12c91153eff0847dc17c15dfb3a",
+      "pii_pages_scanned": 13,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-mathematiques-de-la-classe-de-seconde-generale-et-technologique--05c5403d45.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 18,
+      "chunk_id_set_digest": "7810ae63a6ab12f0148ea1f8f32c15d4e9e35e8f7f533f4b9927d82c2ae56841",
+      "chunk_sha256_set_digest": "32e323c62d3a724ade11c699cc8fd5841b1d4a63d60adaa238c8e20ed12c75d9",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "67ddece3e4f0fd506deaaa3c8a00856ef2cf295dde521fa9fb321d74c3a7363e",
+          "chunk_index": 0,
+          "chunk_sha256": "cfd56c9b29c4830740698ba1f08afc577bdf5261b9b485f4a65c0376e86224a2",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "23e5b6f9682b44c248f70364e120e1687c4ba59830f08fc020f7247985eb5e93",
+          "chunk_index": 1,
+          "chunk_sha256": "182f70bb42fb854b040b722f0f0268b3a87e631b49800a2445e6912766a0c0b1",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 379
+        },
+        {
+          "chunk_id": "163517657c871cdd1b0086deda1c7e55662b1f0f7d4bad50671c00e6bc6c0309",
+          "chunk_index": 2,
+          "chunk_sha256": "cd37bff978a6e4a41e43671d3bda1f7aa7937f603068bb6b30769da4879bf07c",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "92689d54fd57b32772bc445ae1f555f9e718338d87b04d7c1e9fcf7b7d2e26da",
+          "chunk_index": 3,
+          "chunk_sha256": "f7221ffb6213221778fd42cbc47fae50df526997c459ea38a02ae03be8e7909c",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 185
+        },
+        {
+          "chunk_id": "76d9bf15a2ae758e023f4ed47aba3e5cfb2100d86b1cc39c0c4ba4272c3ff82f",
+          "chunk_index": 4,
+          "chunk_sha256": "9cc5a39a75716cdfed46ddbf62e12658b902df61c477d71e93fdca0ce3aa872e",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 321
+        },
+        {
+          "chunk_id": "9e688d4a54a0ece5385f7b3f03edd961d825bcd57999e3c37f2124d0cdb968b3",
+          "chunk_index": 5,
+          "chunk_sha256": "cbccb06c23c3c35a0c5f024232ae5dc8e2ec7ab92c0ecfee6a9be68fc352591b",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "479be7688dbc7352a73825887162e4b252a0ed5081a8066b8b1f488bc4cfdb5c",
+          "chunk_index": 6,
+          "chunk_sha256": "1d4383dcb94c0f94f947bed5c01ca44ce4e51ac1432bb32f3fc03725c37549f2",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 337
+        },
+        {
+          "chunk_id": "b95f6e55ef5d1ce9d700c7e5d2edb6ee392917542e54f9ff8ce07b2b7241dc48",
+          "chunk_index": 7,
+          "chunk_sha256": "f81568336b92e18c816b08a861de8adb861410a3b1fb83736133036b9620bc9b",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "8ff97685dd42b7145c50a7eb331c640092147e4c612bc33bef670554b824b241",
+          "chunk_index": 8,
+          "chunk_sha256": "1dd2f5370e91673c97b5ddbe631d006890f22eec444223a210b269b29ee94d42",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 321
+        },
+        {
+          "chunk_id": "ae606cb3a4042fc1ff6af2fb5337218cd7710d3806023d3f98d5f8799e89907a",
+          "chunk_index": 9,
+          "chunk_sha256": "3f7ef1407c2c938856d8470451ff91e6be6c2ab14151c38b58cafe51f81f475f",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "828ae0af71a7599a7de992787956e274ca85e0f93b9a269497ba92e109d31443",
+          "chunk_index": 10,
+          "chunk_sha256": "0606bb951cd29fade689ca28c20a5bbcebf8759774fbdb96e031d9b2f9a3f87f",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 164
+        },
+        {
+          "chunk_id": "1ff80c947b0ecfa3db79a512542e29b75979e252154717648c33ede048b1aab0",
+          "chunk_index": 11,
+          "chunk_sha256": "7ba854abe42c48ed24e4ce17624d3e291ba682f6800bb1a7746327bef1e6b428",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 356
+        },
+        {
+          "chunk_id": "ea59df532e52399fda55c97d6b98c78a110b5bcb49bed3d1cee35bbda4f0dbf3",
+          "chunk_index": 12,
+          "chunk_sha256": "8c3ebe31ba7d04f8e965fd151bc8c49075fec6779c917565f812da1191fcec14",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 324
+        },
+        {
+          "chunk_id": "b83de4bc0bc10780d00a7aed20654cb5e9c8023e53fb9d88415769a2e89b553b",
+          "chunk_index": 13,
+          "chunk_sha256": "32421372f2c40cd919d35bb1622f90ceee07c845adde92dc589892a58882088c",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 368
+        },
+        {
+          "chunk_id": "268c1a31afcbcb544b2d62bad6a1647153ba01ae9e73104de64766483074d9ce",
+          "chunk_index": 14,
+          "chunk_sha256": "aa65c450805ac55301fe3c16e6e8ee49ac5d4a8ee3e8f417fd5bb91f064a7d03",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 235
+        },
+        {
+          "chunk_id": "d132763dba8edfe43f1faa2d575d47f0f154cda9b3a5460c8d4961f5ff839b10",
+          "chunk_index": 15,
+          "chunk_sha256": "4fe98e4af72f002c690bb67ba051e2f1ca429bf0a946c343946bcaadcfb7955e",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "83822a579836a5c1e513a1321958ac9970a4682aa3993dfb1be57ea0a2966577",
+          "chunk_index": 16,
+          "chunk_sha256": "1f78406273489e42ad1a21d2149853b4174d01d76efe77a2608e6b99034193d4",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 283
+        },
+        {
+          "chunk_id": "50101ff1d2788d0a1074cc084f0e4e33551ab1169ca76e7344051cb542574fd0",
+          "chunk_index": 17,
+          "chunk_sha256": "69491e70960cd4ed439615af2ee5188a5a0a433fcacf1c7b52bf488741776560",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 233
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "profile_fingerprint": "ef417eff33177d469da58c4e3bcdd19901e97799d3bcec4c816a13d65708964c",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_8_2019-07-25"
+        }
+      ],
+      "content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 384,
+      "median_real_e5_tokens": 346.5,
+      "min_real_e5_tokens": 164,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 9,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "e7dfc785d98b2f40d7a754f5dd4848866b1c5edd3b1079e5b167fc53eb29101a",
+      "pii_pages_scanned": 9,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-terminale-bo-special-n-8-du-25-juillet-2019-pdf-196-38-ko--10ce34666e.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 38,
+      "chunk_id_set_digest": "6cc104eb641881af9a5d4e04354a72e59249f92cf73ae0446a67f84e10d53511",
+      "chunk_sha256_set_digest": "7b65d604ca053fd49f4b5c1116660a5952d446c282b2b771bc3ee1e1cb706c79",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "06c96643e5c6c018d46bfeccf8fedb84c6e7f64717e88d850c68afe453649bb2",
+          "chunk_index": 0,
+          "chunk_sha256": "c7849a64558d88b0ba647fe26869aab69423c45b5ae48f595f1d2bcb18e94b9c",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "45b802898078efb3d706e11e1b072696811be82b7c30eacae4baaacd0f155544",
+          "chunk_index": 1,
+          "chunk_sha256": "b1a045edeaad7601529eff834e2ad12a3afeec7d5661eeb1ea3351c0db1788fc",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 304
+        },
+        {
+          "chunk_id": "d165ea3ff0894b936c70735de06e107fcdc25dba94d31de18db180e886eb9a4b",
+          "chunk_index": 2,
+          "chunk_sha256": "82974e6787e82ef631bbf2d225fb1746de7816582a8cb04649dda6a92626d95c",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 372
+        },
+        {
+          "chunk_id": "c76e75e0eda7e07f805bacdafdee474b71d8219ccbe905345fbf768db4460dd9",
+          "chunk_index": 3,
+          "chunk_sha256": "acad60e1ce41c54c99ca84d16212fb7053963cfeb99d1aa6fb1c6cedad1eebcf",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "c308aaa4f5ff593b9ac78e70f81e87e4a5210aa057b976701f3ae14494d0212a",
+          "chunk_index": 4,
+          "chunk_sha256": "6699d7980fc1ab78c57326e9978681b90af5a673a36b2d410e1ddb4b4d6b4319",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 365
+        },
+        {
+          "chunk_id": "7a7926a85a6b9d66c95d12fb42d8ea44ae477f60f427f42b68acb85c8ee5514a",
+          "chunk_index": 5,
+          "chunk_sha256": "7cba57b8950e0d1f83dfc35f5310cf655cc7d6859eb1b7a9fe6035eedf8af18f",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 288
+        },
+        {
+          "chunk_id": "662ae45d80461bad626de4a20ad8a552029475b9766c0891f441acf7608b1012",
+          "chunk_index": 6,
+          "chunk_sha256": "748481a6a8a4864d900e8b92961c8b707178de8d203ca8a49747622c795c4b38",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 349
+        },
+        {
+          "chunk_id": "f184e5e528ed116684ffbc4b42428d787831181fd4ae633717c3b5745f0b5dca",
+          "chunk_index": 7,
+          "chunk_sha256": "80bdad950d2d357fbbc6a4c90209b4d4d057a857c178becbe05caa43d4e80091",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 349
+        },
+        {
+          "chunk_id": "927252f1960ad7f39c8c536514bfa5ed9c58f9576566f8f21b737cb94616235c",
+          "chunk_index": 8,
+          "chunk_sha256": "1c9f1fc77466b5992b45d65e26c1f8e8189cb50e6c184911eb7257166fdd3c5d",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "c6f10ccede784e7a39ff000be2c1286e9cc8adfca15739292b3db15a5e6557b8",
+          "chunk_index": 9,
+          "chunk_sha256": "60823ab3f922851ce0ee4f235ad75d62671bb78458dc0b1874a6cae6028cc22f",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 284
+        },
+        {
+          "chunk_id": "7e1664386330e93b9700417a55019df9d0cc6c93bbf0a2070bbdf88e4a29ddb7",
+          "chunk_index": 10,
+          "chunk_sha256": "911ee1c877cb31347561e200c89ceb2c73bb339997f94d752966cdd9787a5bf5",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 374
+        },
+        {
+          "chunk_id": "0eef66f9a1a40972dacafb94e4b1e87bb0fe6857056675d8b682339be4930b4b",
+          "chunk_index": 11,
+          "chunk_sha256": "f408bf05fde8bba4723d1ef79784056f41415fcbfbe70d2ce12b0c8a276f3b0a",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "61bc2dbc9b557420b24e32200022e53137d3513b3c6e3b5a57e8019e91b2c9f5",
+          "chunk_index": 12,
+          "chunk_sha256": "79467a5cdff300262d7c4caf9b1dae5849e03f9fd3511748a1fbd32e53bf3c9e",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "6bc8d514d7599b3c90e8a1ed53c4fc92e6deac838f2fbf43347b93b2af5a0e41",
+          "chunk_index": 13,
+          "chunk_sha256": "dbebb760c11559b19b0c34b9ad8b800b648949c28ee8204e03ff6eec15ad9a13",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 267
+        },
+        {
+          "chunk_id": "ecddbb297a5e171b92442b2f28d6c9381ba21ce145bfa9046ecd7fa612953daa",
+          "chunk_index": 14,
+          "chunk_sha256": "34b4030ee2d8b7771826d379525292f8660803ce33c843c84225721179d90f25",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "c6cfcd930d7536a2902555d435097405e92ad6eaefb8234f74f7d25f54c534e0",
+          "chunk_index": 15,
+          "chunk_sha256": "f98e576beb35642c634997b5ebfa9af2eb60a3e97a1311a8309b4b439ac64bb6",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 371
+        },
+        {
+          "chunk_id": "381752dfcef9b8eb81721c3957c29f38a811e4ba37d84c4f30e528a3bc7105eb",
+          "chunk_index": 16,
+          "chunk_sha256": "ca09b1b230fa873d77106744157924ba6981680129ce8d2456ab5af0d1c350dd",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 339
+        },
+        {
+          "chunk_id": "43c41d934f8d57bc9a9f4d988e52ea6a7c36056491313a9b12789a64298a471a",
+          "chunk_index": 17,
+          "chunk_sha256": "4242f5b64123ee520ba050559df026d513977a149b05620d92e3771f238d293f",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 314
+        },
+        {
+          "chunk_id": "70f449224c0f50fdbe6deb2bbf5c2206e59d4b11a5ac3030bb4dd1b26c27a718",
+          "chunk_index": 18,
+          "chunk_sha256": "6f2b457501b2b31fea2c50b31f77474e3776cfcc011e5cc861fea3ef27b58c99",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "8b10c3c50bd182d46485692dd5272070cafa60c718ae6e43da81d2f5676f27ad",
+          "chunk_index": 19,
+          "chunk_sha256": "4d658f3987cb2c3c868e1e8c3a3fa3efcb660b2e8e03e30c28251c86e4411362",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 379
+        },
+        {
+          "chunk_id": "5f7b829ab08ebcab4e510bd46d5dcabe67eae3bc760ca7b826438a5861b37e73",
+          "chunk_index": 20,
+          "chunk_sha256": "5b30824c8ca5fad1e23d5d638aaf77c4323641df647418db857efa4d23b206da",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "2993fbb62c98fa3c63badd648e3506c5d9c016c5e5f46bdb2fc059af223d89c0",
+          "chunk_index": 21,
+          "chunk_sha256": "6d13fc13dd85faf70be0332ca7f08c9e50828aee61cb154021fd1a5804954a5a",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 43
+        },
+        {
+          "chunk_id": "b483229af7953174becb076e877bbe517001efe47556133d1235d939a35e8a94",
+          "chunk_index": 22,
+          "chunk_sha256": "44cab21604f50981cb83d16d2d6d0e29f1d02ebb940cd56cdc3ee3f82bf3746b",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 375
+        },
+        {
+          "chunk_id": "72c4e3c52a8b27992a77c0c5fb99da8b1c0dcbeb9bd3bc4d2ffcfad9d731feff",
+          "chunk_index": 23,
+          "chunk_sha256": "5fe58af6b6762f82d05d694c9b0295d902ae207ed9ab89bb7be4810ba96f9eb2",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 350
+        },
+        {
+          "chunk_id": "1e65bb206383ada523597805012e2eb2395c69bfac34c005f2258b75055c06cd",
+          "chunk_index": 24,
+          "chunk_sha256": "ef979c0accf005ccbcabd5389d105a7f7c01cb27a3130b55f39262d9b1f1886f",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 356
+        },
+        {
+          "chunk_id": "4f48dd0bd61c38ba900a69454f084a1ef8a09d7e17547e969569914a15b739d2",
+          "chunk_index": 25,
+          "chunk_sha256": "6d80bed90909a7d6ea6187d380427955dacde19e7040209140170f1b1aaccd8e",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 336
+        },
+        {
+          "chunk_id": "1c887997ba90ddbcbb7b0b11ff0c1baa86cc826ca5ad7b9996d278fea87d9dac",
+          "chunk_index": 26,
+          "chunk_sha256": "c96474b6888f0262d2b8c427b4ea920d45b4b8fe50fdc8facaa9e34ee8632faa",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 379
+        },
+        {
+          "chunk_id": "a90d84bf263eb99c5bdfc60bd87ea0592a418fb5e57968bda0d05cbc60431d14",
+          "chunk_index": 27,
+          "chunk_sha256": "7ada8bb9c1f9b32d303d011524a051fedb8279aefad383ffca69f8f89205013b",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "1e3a2c3a065b48da628d98c154c94b591181c8a1a6f7a49f0869da5945dd418c",
+          "chunk_index": 28,
+          "chunk_sha256": "3a572a21a291aa7db0e8aeb6ad7c45eb6e632bbfc3ead85cb7ddce88b3a1c874",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 154
+        },
+        {
+          "chunk_id": "ba529234b7b7396d51495fde8a363ce38bf73e4d6b753e49336d9679251c18b2",
+          "chunk_index": 29,
+          "chunk_sha256": "32cc28af2d6a34d331b881de00925cef85651c436878849ac3961ffaa0bc82fb",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "948f6b83a8475eac43e5e077ade99ae1086b47134ccab76dca022bb1239bee5d",
+          "chunk_index": 30,
+          "chunk_sha256": "743ccc7a3324b55740037c50256d6e9e2c2e921f3af23f5f1499e4067e11d246",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "5eb337dab482757c7682f204b9d7858806b3a1987694f42617157b6a475f36df",
+          "chunk_index": 31,
+          "chunk_sha256": "c29722ba4c9db6ce1ac30eafe123ede80717597d88a25ee0c6d41b6fa0de528a",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 320
+        },
+        {
+          "chunk_id": "1e0d0f51465520e5391f09f0a4621cb4eb05b4dbc9b126b285162ebbefd359e1",
+          "chunk_index": 32,
+          "chunk_sha256": "6382172d44242b3cacde6cb72e08010f16e1813346645fd5cd695dc60469bfc7",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "4a67683cfbbd07427a15ad5e6232d804a343a35346276682c702afca35e2be21",
+          "chunk_index": 33,
+          "chunk_sha256": "1ab085f2ccef42872edf50b55f76e3bf3a679d71dd76dd2fc2e0ad3f65175946",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 377
+        },
+        {
+          "chunk_id": "a92d85d39eab01cbc65cf5d06371b527ac970ececa21880ba528f449f290e664",
+          "chunk_index": 34,
+          "chunk_sha256": "cc7e01005394601d738351ee90b4dd08adac87879bb815a46bd0280438ab73fb",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 369
+        },
+        {
+          "chunk_id": "4b72b805c00099754d33ffe6f86e6710a223bc3d3fae97cde71bd8258c50f561",
+          "chunk_index": 35,
+          "chunk_sha256": "909ac7d99063c0698807535e8b57493982893b9aab95b84fe07d63b0d804a881",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 92
+        },
+        {
+          "chunk_id": "b3a8be23c4588305739cc20edab696571ac57650fcf0cf784a51e1059fdd2bf6",
+          "chunk_index": 36,
+          "chunk_sha256": "2e46c86559c0dad54d8d7560ec022928204251841f481ca28e73e5f7328cb0d5",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 353
+        },
+        {
+          "chunk_id": "9f3681997718606bfd6893272c8d880d0ae843a19fe6c6d2d68775aa41b1023f",
+          "chunk_index": 37,
+          "chunk_sha256": "dabc742ac8644fae5c42f6a342811f0cd3589f916def6397136d4f06d7e0a4f3",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 165
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_maths_premiere_gen_specialite",
+          "profile_fingerprint": "04c8de1c240f344c5fbfa8fed25ded968b07e0963507c22b7ab960b858dc8478",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_14_2026-04-02_MENE2602917A"
+        }
+      ],
+      "content_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 384,
+      "median_real_e5_tokens": 364.0,
+      "min_real_e5_tokens": 43,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 11,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "6ebe54dbb0f3691353595fd46c093c816284bcc18f441805359458f342b15e1d",
+      "pii_pages_scanned": 11,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2026/programme-d-enseignement-de-specialite-de-mathematiques-de-la-classe-de-premiere-de-la-voie-generale--5303df0fcf.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 20,
+      "chunk_id_set_digest": "e886da46805dc550374e9a3ae436cad66c771ac4dbeedd2ce7cb8dc344c322ac",
+      "chunk_sha256_set_digest": "818487f7013d2ed050460b61ebb3f50b6296068a50eb9b4a96728fee023177e0",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "93244230965962fc5d67c76247d396d43af34155a3f555e296b3090d25354b50",
+          "chunk_index": 0,
+          "chunk_sha256": "38eee4ce9b8329372a11f4a4f254ffd4b8cd43ca0acc06565f22fceb15f05b22",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 15
+        },
+        {
+          "chunk_id": "7a9691c8777d939e2dd3c2b7679ddbcc359a41c339c31bff19108988349d5769",
+          "chunk_index": 1,
+          "chunk_sha256": "9848d6116fcadc396ef103efd5a1cf8b617d95abdc9f604758612803f25c592b",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "97701ca43870719a32c9bc57046d9905fc7e736dbb576dd6419c6e6eabb89c0d",
+          "chunk_index": 2,
+          "chunk_sha256": "07bc9094b5adaded6e65a966dd37704e3d7fae688a2d7e7f178fd610e58ac165",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 103
+        },
+        {
+          "chunk_id": "15a8d8dab5aa3725f565c142a89c5d6b65f34812a1ce9b691550f9ab109080dd",
+          "chunk_index": 3,
+          "chunk_sha256": "e0ecfdb82e1f842f4ae66713c8581e9281ae308bced9b25b13aa41526e31fc1e",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 356
+        },
+        {
+          "chunk_id": "b9b14a46386b246c4162c66d25793df6d576808a8dd5623a00e8d46386881ea0",
+          "chunk_index": 4,
+          "chunk_sha256": "af895501b56862c57ecdfedc253ee30b956997d3003dce51815c5b809aa6108c",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 274
+        },
+        {
+          "chunk_id": "578439e812e79debb426c412df7216d55afb60ae5793381af78fcd637e51897e",
+          "chunk_index": 5,
+          "chunk_sha256": "7cac099be6d94c8a5c538e766bfec803c8211806905044a931732ab8cd4cfc09",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "6e6762789a92bc89257d5b98691b6115650a09d8bba209b43cdeb2ed2f222956",
+          "chunk_index": 6,
+          "chunk_sha256": "3e048aaf970e7880c2825b7212b95b3cce7e62252e2007ead30c46706bdbdf3f",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 254
+        },
+        {
+          "chunk_id": "37d21edf8e527d411d105a596fbbd63766f88e4d6cf55b98f1a53b75e895a4f6",
+          "chunk_index": 7,
+          "chunk_sha256": "1ab06c17195e8b9ec47f944db8f4bc9e8abc7aa950f74a583f841606fb3a2a17",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 352
+        },
+        {
+          "chunk_id": "5e49df97ab451e87218ae8c5da194d7714463c178206b3496abed70ff064f02a",
+          "chunk_index": 8,
+          "chunk_sha256": "e26539ca69300ff9c989cf098d4a9b00d4b077fdfffbb34c56321f6f8d9ddc94",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 312
+        },
+        {
+          "chunk_id": "a2da0aaf218f6330f5843a1b4c66dd402ea6797d2def813fb7e509ecc66ba275",
+          "chunk_index": 9,
+          "chunk_sha256": "afb3881b8ddb1b3421eedc367281c5d90bf5083a5638f26ec3db45fd15ff9c8d",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 364
+        },
+        {
+          "chunk_id": "cb3f68ed0da782269ac79b54db2db82619f3526243e483607b5d9d514cdf4b26",
+          "chunk_index": 10,
+          "chunk_sha256": "fde5fd279bbe8cd97ba7b996f3836dd3bd7b09d95de48e78ffd653e0eaf9bd00",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 364
+        },
+        {
+          "chunk_id": "0d33cb63da0e9f58f157a60f57888b1ccca9fb9219d82c8b1d1a9466e26ec82d",
+          "chunk_index": 11,
+          "chunk_sha256": "299b0145cb82b1764bb2759d23b30112225e950e7df584419ec921f690956423",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 47
+        },
+        {
+          "chunk_id": "26962e0f58128cb95c6972560a5b47c04d94247ae1f88fc5af3a48bbedbc567a",
+          "chunk_index": 12,
+          "chunk_sha256": "cfe6909f53993001074f502befb8e5370502fb8e86a9f8eaef466fae78d73a4d",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 364
+        },
+        {
+          "chunk_id": "1534a0347d7cb57c014b92e7c7cce7cd545fbc6cb07863ce6a3f4db9cc19f16b",
+          "chunk_index": 13,
+          "chunk_sha256": "d81d7a0e5f82186e67173e49742a0fdd06ee4f96e2380400153229e23e19265d",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "a18c404f8e2fab4d0f3f7df4359ff688fa67915015e5b070c953684476df5cdc",
+          "chunk_index": 14,
+          "chunk_sha256": "2f9de9fb32193a7c5f92780f834374532361ec26b4366e6609fa695bf7d6a443",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 205
+        },
+        {
+          "chunk_id": "45c730967db9bb73a2c545ef476aa5afacd88d989ff382192edd76d6eac23af8",
+          "chunk_index": 15,
+          "chunk_sha256": "5277b811c7a2375e58deeb39c59a07a2649240d8584083f1ddb23d8b84a43774",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 359
+        },
+        {
+          "chunk_id": "bdb6a7c7f33539c38cf2a02f6d11f4dd2011df1268b9e5a95c43ad5d2dfecae2",
+          "chunk_index": 16,
+          "chunk_sha256": "5603ac5c484df3996dad1f985360dad47cecf0144ae3639a4f750b4c645ce9da",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 376
+        },
+        {
+          "chunk_id": "c5d13736404c703ec6cb9d04f574d37ccf2c1664dedb81cde81f13cd324a800c",
+          "chunk_index": 17,
+          "chunk_sha256": "e003d19ec384dc1ca3f1f461ca18b60c451b99c019f7d9a3f0edb6773e610907",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 191
+        },
+        {
+          "chunk_id": "31d6f5a66a6e09220631ca60504b3be10fecbe34984d94e7f7b407fa1b9bc52f",
+          "chunk_index": 18,
+          "chunk_sha256": "bd8d755bb62d6d51719dfcdd0d245b897d6fd5a87a69fb12921cba251d464fe1",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 352
+        },
+        {
+          "chunk_id": "7ff50d91b8a628ac17ff54da5deceac55c1e1cc990f4eb8de06e6b38c4ccd51f",
+          "chunk_index": 19,
+          "chunk_sha256": "13b85a9a14883de269741274fc6efc9f1149f026ae2afac3117b3c8ab2ec1729",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 258
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_francais_quatrieme_tc",
+          "profile_fingerprint": "02573ac1bdc66f9163e94334a1f6dd3469a27edded44a5d95ab2f72c0074cf4f",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_11_2018-07-26_aj_2020"
+        }
+      ],
+      "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 384,
+      "median_real_e5_tokens": 352.0,
+      "min_real_e5_tokens": 15,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 9,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "e7dfc785d98b2f40d7a754f5dd4848866b1c5edd3b1079e5b167fc53eb29101a",
+      "pii_pages_scanned": 9,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-4e-pdf-1-05-mo--73c001b93c.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 19,
+      "chunk_id_set_digest": "dbcd355b49c6e3c61cd33e632e603abc42c3da5fd95674ba1472f2c4316bd589",
+      "chunk_sha256_set_digest": "ed0dd656732a54623dc0176ea1d31281bf3fe9147beffc9c7f0902fc21829d99",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "218645bbeb48e41206aa563e5b5798d21615c6b4bdbe7b8eb3a6da40ee18d491",
+          "chunk_index": 0,
+          "chunk_sha256": "d04d1417d7f0a264d4db077bc266adf96a6b96c287db9525b40186ee246f8f06",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "2019174746bd4ecbee679870e039ceccfcff99ed1cf92fe477f1da233c4d5339",
+          "chunk_index": 1,
+          "chunk_sha256": "341c6351a3c0e6b56bccfd3bb0f772d5c0d4e2db21644ba79c76c774f39ed1eb",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 282
+        },
+        {
+          "chunk_id": "687d7e34eb2a55aab26fb05120c85a6ff2853e08a8e9df7805e05952ea3ab151",
+          "chunk_index": 2,
+          "chunk_sha256": "49411377d51962f62135c4e2855e9db45746fae4a034c2f6c419502b856bf702",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 364
+        },
+        {
+          "chunk_id": "6cc2a4cee931cc7b2d803d2e2c32e95f0d817fe85864a9dbb6f641b9dd5331a1",
+          "chunk_index": 3,
+          "chunk_sha256": "7bbef09ba9b5aa33e051de632e53d56206fae0de0381cde36409280243934da6",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 209
+        },
+        {
+          "chunk_id": "d4176991f4ce3c41a0f4196ee00161c8089abd052d0f9a13f39a465f4c343889",
+          "chunk_index": 4,
+          "chunk_sha256": "7feafd1c3b540b3be51fddb7b5313e177f4dd608c8ed3b4cbf75270b75f40936",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 289
+        },
+        {
+          "chunk_id": "c3234b92321c88bb45f78c0acac53810bb670678e2dca92bffc316f1d35a9d13",
+          "chunk_index": 5,
+          "chunk_sha256": "4d2c0f11abc10911419504219819fa15ffd3ef3e581bd6407a1b76ed1bac0c05",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 318
+        },
+        {
+          "chunk_id": "ede4f855223170ac8bf4b3f06ad829d11d68f9e046aaed39bb5ee7d287cd542e",
+          "chunk_index": 6,
+          "chunk_sha256": "950f96adcdc27d47c240034e6a594252b2c2eb5f21a765e3f3df93c0b8cef4f3",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 268
+        },
+        {
+          "chunk_id": "360965f016e86424052e5560a818f82fe06c6e0597331e1af4bc96371243147b",
+          "chunk_index": 7,
+          "chunk_sha256": "c79100019064d9682d26a78b6b1ee785161c133423f7b6fe58430d24adaece83",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 372
+        },
+        {
+          "chunk_id": "9927e68e1eb51cce6c336fbf54553a40adc1329846209e54ff7e6c4e3c2c6a04",
+          "chunk_index": 8,
+          "chunk_sha256": "d7e17e19204e6f7d85b63e09242ff340f520010fe8c84adca6707df21546b922",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 312
+        },
+        {
+          "chunk_id": "0344353aa7d593629498193d7675fe1dc0e6ef256ed2f3064f451e3bdef141b7",
+          "chunk_index": 9,
+          "chunk_sha256": "ca80ef9387d124645282804f2991c36c2bea4510da6a3f28adfb005550a5f08b",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 342
+        },
+        {
+          "chunk_id": "bd8ea20803c423c9a0025d8da971b0f2716f353dea8cdd32f0e860485a5ea6f4",
+          "chunk_index": 10,
+          "chunk_sha256": "0a5217cad8c2de32e5f97c794031c541f4e9de91e078ae36892aa213863f57f5",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 218
+        },
+        {
+          "chunk_id": "eba50865ab205d0a4be38bd1f337a3d320159bebff7e59c97e8c4f6800ffb8cb",
+          "chunk_index": 11,
+          "chunk_sha256": "9d0c6061858c819066193f66a39c9263332b1b55b84007fa6e9947787613b66a",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 377
+        },
+        {
+          "chunk_id": "893c737ae9e5eb8f12088ff77450fcd6e2c2e9ce363c952cd58400f36d8fd683",
+          "chunk_index": 12,
+          "chunk_sha256": "65c9fda3436dd544580a01acfed25a5d95064da97a9fea01f52217208a26af82",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 169
+        },
+        {
+          "chunk_id": "5e01458483135d691e50e62ed7d3cde85aa2307430b0bf8010891aeee00e9736",
+          "chunk_index": 13,
+          "chunk_sha256": "3b1b0c4f541d97861c72e110ece189a0e24a5d0ba9361d06b01893feab847231",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 376
+        },
+        {
+          "chunk_id": "cb0aa2281ab649bc6ec8d61fdcbf4c56dd2c2136e0b88bfc641e63369b3a8745",
+          "chunk_index": 14,
+          "chunk_sha256": "f4451b0d82b0e34cc326ee07a1ba03cc644c2db36006a700ad522da6bd3038e3",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 266
+        },
+        {
+          "chunk_id": "b7c647761e2db0e803d4461c2b3e853be040edb30f2dae07bb413afc911df600",
+          "chunk_index": 15,
+          "chunk_sha256": "88342407f7c8f69ccf3c5443494572ad630d1bcbd68364d7253c9b62284310e3",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "5355a6d150cc2db80e0cabfa4acc97b350cea536fe225a01a6fa9adbf92613f5",
+          "chunk_index": 16,
+          "chunk_sha256": "139b3fc4b020a81fedfebd0e901a87c2337ac5a070a89da33f13d37c1e4e86d9",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 86
+        },
+        {
+          "chunk_id": "2208a7b8e388dec10459b28b4dee15ecdb9f37ed4a082a85a0ecb8d2766cacf7",
+          "chunk_index": 17,
+          "chunk_sha256": "3f6cb59743048115fa8245b7282bc64145822f1029f29b32e1321456b5238eef",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 351
+        },
+        {
+          "chunk_id": "45629a7c8bbcf5c48cb2ce0957951c20813a1b7610cb42e355670ccb593ade2f",
+          "chunk_index": 18,
+          "chunk_sha256": "8a084595f350442c17e67db5307311b97762f66cf7f369c305dfe2a2356267ef",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 181
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "profile_fingerprint": "2dcfca3b80266350d4185f9d9dffa673e21eeb0b947110510c6297fbf102bba1",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 381,
+      "median_real_e5_tokens": 312,
+      "min_real_e5_tokens": 86,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 9,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "e7dfc785d98b2f40d7a754f5dd4848866b1c5edd3b1079e5b167fc53eb29101a",
+      "pii_pages_scanned": 9,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/01_PROGRAMMES_OFFICIELS/2019/specialite-numerique-et-sciences-informatiques-en-premiere-bo-special-n-1-du-22-janvier-2019-pdf-300-73-ko--7ca9a32e18.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 35,
+      "chunk_id_set_digest": "766019cae638c35ff5ee720809e3ad4fcced778d5e4961441620ebd28b30a202",
+      "chunk_sha256_set_digest": "336102650e7758eff0545f0864f161f66756b1d46afde325ec379c1e0affe727",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "2629cdb7d101bb27d3b6ff071bcd9eb4890a22c185ea8a5cac24f404105f8396",
+          "chunk_index": 0,
+          "chunk_sha256": "367b7e2a6dca9f7fc18e353d729b7a8db668d894d5727f05316c25a2971ce6d8",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 151
+        },
+        {
+          "chunk_id": "86206930d65a3a868eadb400e01ca22f031c8c2627f0d119b3898e766049e2aa",
+          "chunk_index": 1,
+          "chunk_sha256": "b76401cde93fa9630dd58d26f77df539c7f93d4cfd1e6a59fc66bf92979b2f14",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 353
+        },
+        {
+          "chunk_id": "27871df73ee295a2e47746fc714eeff634ee968757cb1e762842b28feb7e0753",
+          "chunk_index": 2,
+          "chunk_sha256": "5854430f584b4ed811dd398a93831f77f52d4f47b27b6a5264e39b7f3ff9eaa6",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "182d27b57e6d9e17eec3dbfc9492a53783c9b3d372ccbf0b4266df57d6f16256",
+          "chunk_index": 3,
+          "chunk_sha256": "c42589914a7dfe8381b29536022a0fa661ed75bb961c07a87677788f0f5458cf",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 106
+        },
+        {
+          "chunk_id": "8972ce54f2021310b28c4994c9158f849d6e44cdc3202562676e8d6d32eb3bf6",
+          "chunk_index": 4,
+          "chunk_sha256": "2269b1b18db0cd500dba447936456cc745cd8d5c75022536de0c10dc8432c7b8",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 333
+        },
+        {
+          "chunk_id": "82ece1dd088e81d7b3f11bed9a7a21e2e8486de704d6de76c5ff721cc7a294fb",
+          "chunk_index": 5,
+          "chunk_sha256": "b723fd0319c6c98642603916d4a15658c33ed2e08dca2145aa41e64af2af4eff",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 375
+        },
+        {
+          "chunk_id": "17ec06cf8604573280a8d5d83ac4ecb420e5095b76dceb547aa183efdc4c34df",
+          "chunk_index": 6,
+          "chunk_sha256": "26afc23dc6ac342f7bdd4cac654440e9ccc6418032ce3601788179b2b13ae597",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 203
+        },
+        {
+          "chunk_id": "242506861b4919a94ec8cf4f94bf2bc651f9211d01b256f833049adddc9853da",
+          "chunk_index": 7,
+          "chunk_sha256": "810a8ab85ba8e84f26f8511c4a2781f9b4837055a1314c4065357459111dad04",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "cc77b0423643c1d25cb34c59a631332de14d48514a7dee4d3209e4384c0acbdb",
+          "chunk_index": 8,
+          "chunk_sha256": "9d05c8944cb040c9d600de166f6d9aa81040c5c2c896d18677df9255d50c5f9c",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 342
+        },
+        {
+          "chunk_id": "918828aac611800ed683242f1ed05814dde9bc8d7ba4789c0a6437990eea87f2",
+          "chunk_index": 9,
+          "chunk_sha256": "10cb13f51cd826ded2f4e2310ef3624216d018011617d43fd626e7fe9b9109fb",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 306
+        },
+        {
+          "chunk_id": "1933eb03bae1d7417be7945ad33d43bf941f0287836c965b222a5387f29f8e69",
+          "chunk_index": 10,
+          "chunk_sha256": "14b44c15301a8183f45e05bcfb2dedfdc8a38fd7ab249a865c1afecb51714c88",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "a5820727609507c04cb1e91feed479ca8ed46adc29bfd11863f189e8a4835320",
+          "chunk_index": 11,
+          "chunk_sha256": "f085b2b70f7b85185352bb5502708109789f151fc2103e7bbec16c46a14fb177",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 337
+        },
+        {
+          "chunk_id": "8a64880add5e613f9cdbb198b0a5e2fd31c59db385d51e96608f84cc2381a11d",
+          "chunk_index": 12,
+          "chunk_sha256": "f6af27cc51d41d284cf19d7ff04e9657013d3255e8b0b18ae5891aa6628d768e",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 112
+        },
+        {
+          "chunk_id": "de9df4d0d76f4f696652d62c890d232ac625bdbc4c59960de62bff7d87069913",
+          "chunk_index": 13,
+          "chunk_sha256": "e68e3d779ae97217adf2118a2aa457718766df3bd13380885d209e39195cc944",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "3290a21d6e13a0d702403af2b8e78dd800dae0e8c309a39a563eba2dbfff65a0",
+          "chunk_index": 14,
+          "chunk_sha256": "8b9303bc8d78a8d8eaf19d94b35afb9ea67fd99ab386ad3c010a893c252e2448",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "651d9ae2d2eb77bcd241ef8dd89ef767f189590f13399dc6b9d62aa9c36eeaca",
+          "chunk_index": 15,
+          "chunk_sha256": "529319743d7ea32898a0a748a8af97c0ac477afe02e8b9e6cbfa0bcacd60b131",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 96
+        },
+        {
+          "chunk_id": "b0b1010bc084ccc2e8ab5c93f86c12a7e1fd66a33b8f755be603570428c71a81",
+          "chunk_index": 16,
+          "chunk_sha256": "18f1fc2bb16605a6d86186ce9154475a4ad32f290ae4e31b5370022abab1e8f0",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 372
+        },
+        {
+          "chunk_id": "05f1764590bc202a076b598061c27df176bea61e8268843efc9fabc9dff67b9b",
+          "chunk_index": 17,
+          "chunk_sha256": "be36cddf480356a930ffb40ef507cda32b6d1f624d790aa5d8698ac0afe4aa12",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 330
+        },
+        {
+          "chunk_id": "2729592c679ac6085e36a6a621c5e86942baf5453c4591682ec1a7e86c727fd3",
+          "chunk_index": 18,
+          "chunk_sha256": "21eedc980969a94db54c3b68bb8378a29bc51892d2fd40940fbbfa4a40cba77a",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 366
+        },
+        {
+          "chunk_id": "4f0026fb479d06241f768e27dacaf032f3e45a8a3a344dfb3aec9c756240e959",
+          "chunk_index": 19,
+          "chunk_sha256": "7c4c7b6ca5e8b1e00077a55f8975d25dd78e8b665f293d2280d60463ad024906",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 184
+        },
+        {
+          "chunk_id": "673ba213337a30038ca069946de415d4dac0863e59e5bc0d7722ad260b7e26b0",
+          "chunk_index": 20,
+          "chunk_sha256": "a020df79f0f3580276f0aaee32a771deaa9a80502eae2ce600ae292d2ffe6ff9",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "e4d6b2f0715b5bcab62ce7168f82bdc37995fb3efcb2f262d17dac0822eee82c",
+          "chunk_index": 21,
+          "chunk_sha256": "6980490e3cb8061179f78ddd5083705436b303b5464ea0f8d5acb47a90a786c3",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "d755215cfc65a3329c576b401612b7ee6d3c92ccaee4cf6be5ff833abb43018c",
+          "chunk_index": 22,
+          "chunk_sha256": "672ce111557298cf9760daae9c34854a4e98aeafa035a1b68ce750b4f821b195",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 164
+        },
+        {
+          "chunk_id": "e63afc434bee10c9406624e3ae2695f45221c450285f3f049ba880fec4910706",
+          "chunk_index": 23,
+          "chunk_sha256": "7b69e09dbbbed1ac058658651c9c3cfab5377d031fdeb6ac6ced9ffc0b81068e",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 344
+        },
+        {
+          "chunk_id": "95e678daf05dc1ec196a3e07fc6179c0aff6b25254b2318cf1935fe08bb26013",
+          "chunk_index": 24,
+          "chunk_sha256": "eade8b87afaedc3514ecf6cbe8fe199dfbfca41d6b1a3cb22f8ebc5d5ca1c5f9",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 325
+        },
+        {
+          "chunk_id": "c5410a537c0b336d515193eba18e52fe8bd3eb96b70cb7ea33d93f982918f220",
+          "chunk_index": 25,
+          "chunk_sha256": "07346fe0cfdf74fab866e2c1e77fc87f3be0f7dc60595023d50959a75ad7a91e",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 260
+        },
+        {
+          "chunk_id": "53f9733bbc9c82b2094d32405b66a5efe0bb3267710bb20b9a64361c5905aa35",
+          "chunk_index": 26,
+          "chunk_sha256": "c594b87b7db490f9e17a6572ba02c59b1488ff2fc3d3bcb203984b58c7333a5d",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 328
+        },
+        {
+          "chunk_id": "f50aad122a96ccb020e81fd1f56aa1d4f77422d19c46844026e235ae8ccb9a8f",
+          "chunk_index": 27,
+          "chunk_sha256": "c885961e6865f281307738815c20b6b43ba57d032e91c182acc7d0f385c1fc83",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 289
+        },
+        {
+          "chunk_id": "cea41db33fe6e653e4e14e169804ac540001c505b4ff847c034769d1fe7e3830",
+          "chunk_index": 28,
+          "chunk_sha256": "a7c4ab7893520871d86293a90003dbac8c692d0145fa11c181a9c88867e9efc1",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 274
+        },
+        {
+          "chunk_id": "2f62b5c9caae302c8397c81f0a48ffa5003ae34e0fe2d9542602a11a010b453d",
+          "chunk_index": 29,
+          "chunk_sha256": "af8f5db3f99fc49d839158e7d82acabfe44cf9a4025b27fcf93396712824882b",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "f0c73f8cf294c4f042c2ab1e3f231126cb6aac3bf700f53f728ad3e9df638774",
+          "chunk_index": 30,
+          "chunk_sha256": "cbf1cf77652ff1da6fef1e096a340f195f7f25cbb499448a2b42f179de50522c",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 370
+        },
+        {
+          "chunk_id": "e2fa03f7f1c9d4840dbdc98973564ea1df9c7411c897889254ea73a712fcf3dc",
+          "chunk_index": 31,
+          "chunk_sha256": "5ac3a9e5d821ee6beb342dad7e7f28e5bae8505259178e708889685712fbe5dc",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 154
+        },
+        {
+          "chunk_id": "e4889a831f07a2e9adfea567ee83f1819f9f2801af939f91e50ce537323dc400",
+          "chunk_index": 32,
+          "chunk_sha256": "f42237f518e8becfed9b6351346e82ebb71c7aabfb6ec06117fc5ed6077e2825",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 364
+        },
+        {
+          "chunk_id": "969d7c5e3e9c00a663486ec19dbf3441a6d70b98a39f2f2d6098ce9d9ea72bd6",
+          "chunk_index": 33,
+          "chunk_sha256": "869dd80b6d89523ea06eb5bd3d5ebd0b61160804d8a93f93a27c1ee9dd5b6c48",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "24a86d666d569a4a7e6956b2697fcd09db04993afc0a07f09beb81578c46569b",
+          "chunk_index": 34,
+          "chunk_sha256": "83f4db17f3ba7876ba46f3476c82e57c30d85c3dd6de9d57154994caada521ff",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 261
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_francais_seconde_tc",
+          "profile_fingerprint": "890dede86e97084d07f72f2d41ef1d09759bb1b4fc2eaa24544eac06a5b34c46",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 383,
+      "median_real_e5_tokens": 337,
+      "min_real_e5_tokens": 96,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 13,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "2bc24c4c2ab565df6556913a4e641f37974af12c91153eff0847dc17c15dfb3a",
+      "pii_pages_scanned": 13,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/HLP/01_PROGRAMMES_OFFICIELS/2021/seconde-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-275-51-ko--b54b6422d0.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 38,
+      "chunk_id_set_digest": "17a78932f5738d5c86431d73f50f2726973d9b64d4d84339e6d8550d652d78fd",
+      "chunk_sha256_set_digest": "07b702a36df6d9d402ebbca0913b97a3317b9c7af4090013a49cfefe5a5a2efe",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "998422ba3cdb34bf5590499a1bf15f97a83ceecd63c1eb00c55864afd74fe837",
+          "chunk_index": 0,
+          "chunk_sha256": "d199774d54de9bfd0d07cc28d52199649f2a26b06e8b10f8c507d89fa12c03f5",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 167
+        },
+        {
+          "chunk_id": "2a7fbf50dbbce12c24670078c7a19d4da400bf604ece7297885bd1822f49d6aa",
+          "chunk_index": 1,
+          "chunk_sha256": "246d6ef4a1612917116dc41318959075755a64bf7f6829d722fc5ae0718fde8b",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 369
+        },
+        {
+          "chunk_id": "b736667eafb2d49bdcd631a0bdb35dbfa825507b1cf1a563538b4ac616ac1255",
+          "chunk_index": 2,
+          "chunk_sha256": "6be8f20e9eb5d1228ac8644761ce3759d8fde86880cc5d37c9c1c4d57801794e",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "85a5ca3dc2414451d2888b65b5682d6727d7545d9bd93fccded34a447d746fea",
+          "chunk_index": 3,
+          "chunk_sha256": "3cc16ffee73538d6189265c8a5a6568a790e3d503c67421177e6b7affa8f3ea7",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 106
+        },
+        {
+          "chunk_id": "f743be3a80afa451a7095842ae0bd9a611cb33b1656968d44ec7ef131ee47cdc",
+          "chunk_index": 4,
+          "chunk_sha256": "316956e136da4f876d0a1d83210a29a432f152c2d2a7cce805416f408252f051",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 345
+        },
+        {
+          "chunk_id": "ab0b814e8a13b68e598a8e545279447c459f6b15e5577d8ef667d2adb7f5f615",
+          "chunk_index": 5,
+          "chunk_sha256": "b684011057b0c915ca639998d8edf6634876fd3ba878d64c6b756559648c6ac8",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "cb7622c08407799ea5e04c8ee04db1cd6d1c6a8bbb6829e753e92d3903681b44",
+          "chunk_index": 6,
+          "chunk_sha256": "f37807c84ab0b43ae47a8b74bb1931d99d228b2091923faf98eb083597b7859d",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 199
+        },
+        {
+          "chunk_id": "0079a770ec493a2d438e997883ea03ad595700f6b3c92bc9c9ab1d517b64ef81",
+          "chunk_index": 7,
+          "chunk_sha256": "b1a068797cd8da2f00ccc321d3638b29947ef84df79f458550b847c1b4376faa",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "93898c12f266eae8e8d5045bab07b87723addd1aceda38214ce609e02d7ea913",
+          "chunk_index": 8,
+          "chunk_sha256": "3ec013b59e6c70371aa7df96ba6a2212b8052e57c24d0c74e4e502c8b0429f1a",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 344
+        },
+        {
+          "chunk_id": "31df5b70694254b4a28a56c0cdd80f202d56c5d909124870fad1eea1ba78516a",
+          "chunk_index": 9,
+          "chunk_sha256": "fea3cb8e5604d50f9adcda49c7271318b5627ee46a75b936eb6bb963908a7eea",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 306
+        },
+        {
+          "chunk_id": "4fbd215debc2a4ccaba512c7fe0b4da621ebca64931e549fe6ac68eea598b2ac",
+          "chunk_index": 10,
+          "chunk_sha256": "65091fed016e8ec671ae4f81eebd1d0257803729eb4884f77a50d32a90bf2f5f",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 375
+        },
+        {
+          "chunk_id": "50d5b50fd9c5aed244ee748b89cead2dd0b790a6cfba3479f2819edfeefefaf2",
+          "chunk_index": 11,
+          "chunk_sha256": "80b0a4f8db54c9a1ca82c3277b25f3dd61099faf2b5504dcab330246d4520f4d",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 351
+        },
+        {
+          "chunk_id": "5e96f2203cf179b1debc984c95d66f49a4d6216db6d7f4277851bd892a919079",
+          "chunk_index": 12,
+          "chunk_sha256": "b7f0d8f47c4ca771dcd882aa6f7ac9c6fcff6ccf5925cfe74230dd793584552f",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 91
+        },
+        {
+          "chunk_id": "e25de1f4aee849f60d8e2de9b591ff29e8ed988f573840c8af98a2a49df1fc86",
+          "chunk_index": 13,
+          "chunk_sha256": "88df6c248f81157ed8af0b68d0c0f94b1d54a5824e9681bc4f89118447ad5fd8",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "59067b146207ba597c100b00901bfb147aea17d9f7d79ec4cf1041186d298b80",
+          "chunk_index": 14,
+          "chunk_sha256": "6facb92822c483eebf3cdc94fbe17843012dff820f2b36b139660def338eac2c",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 358
+        },
+        {
+          "chunk_id": "8e673a98240b68869d4bf6e1e9e5aa62922fba7990cb4acc034b92bd13b41628",
+          "chunk_index": 15,
+          "chunk_sha256": "ddab938bf53679e0b89b8ee597c5a088c7e65ab8765d3dbeef66b54be862b787",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 131
+        },
+        {
+          "chunk_id": "5bd6d9946e241ae45586f5d0fc0aa4c7586baaf0ccc511bfe278cca77559bc1c",
+          "chunk_index": 16,
+          "chunk_sha256": "52b34546e910fdcd417d774784e208a862ab1918bbd56cb85e2e12f0a5dc5b74",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 369
+        },
+        {
+          "chunk_id": "3ae84c2ee05907f3e34fef7f3794140f4e196349999b294d3c16748e564433b4",
+          "chunk_index": 17,
+          "chunk_sha256": "04c677c6b183bf224bae2ece3a942bf36cbd158312e44087f1e08d1d127693ce",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 44
+        },
+        {
+          "chunk_id": "b8c2200531c355eff811f7186eedb756a5926398ab25991e9069bd9243eac185",
+          "chunk_index": 18,
+          "chunk_sha256": "5b5a07fed4b1784a4da837b80075185fc2d0a96cbde511df87f571fd7a5a368b",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 361
+        },
+        {
+          "chunk_id": "6a1f154c0ae4989ead8959a600f940bc2f6b35c1af95d01e26c73ffbd6c79f5e",
+          "chunk_index": 19,
+          "chunk_sha256": "d36dc3f5635db266f437ab37877d5972b3d8c177071110986207e984d82f20e3",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "e7b76f264b3c59dcfeabbf8655ac4cd149b7eb2311b406a5167119afd4d13eb0",
+          "chunk_index": 20,
+          "chunk_sha256": "f4f751c598eb6c28efe7961c632ace9e525cf23accc944995a0a1fb26b798040",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 147
+        },
+        {
+          "chunk_id": "685925594890fc745c308b84df32f99b7c4dddc567bc8c9df2e2ec2cafaf6fee",
+          "chunk_index": 21,
+          "chunk_sha256": "1827cb726da95dcb4d497ae44d3c6d06a6e153b5a479ee972050d1e0e3fc4a41",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "8983c1caebd242006820445c7e2409602bfd4c206bf7920586b490e4888a7df9",
+          "chunk_index": 22,
+          "chunk_sha256": "c54f798bd163657a8e330e82b6dbf13fcc394f90d4383b55b32b6040f433ad2c",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 345
+        },
+        {
+          "chunk_id": "a453f4fc2af08276cd9eed01e1f156b76310183cad09b3ad3e09126dd93aef23",
+          "chunk_index": 23,
+          "chunk_sha256": "f99cc4d75f8d40a238aa7d094a803ed087d6a428904c2db8527cceeb4b4ab00c",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 252
+        },
+        {
+          "chunk_id": "da8b6caa7feec0c80a1765a00d543d7816e371c048dd98fa1688c0d1481b2430",
+          "chunk_index": 24,
+          "chunk_sha256": "95b0fc522ae9ebca21b8112cd9e15d422f58d89836789e9e38167e95caeed641",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 379
+        },
+        {
+          "chunk_id": "9f5a9e58df1fd6a6d5c2113cfcfc6aefd51e64a8eeca03c6765f9ecd2e630aff",
+          "chunk_index": 25,
+          "chunk_sha256": "bec1dcdefe9fd8d4fd554b8450f6e2b5dfc357a1f2e27ea69906d39baedcb2e6",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "cc831b040058feca0bed21415638f5cd2d797de8d4a8e53ed186e051510a6e0f",
+          "chunk_index": 26,
+          "chunk_sha256": "9bc071b0ae09b28dfe775c2afbf63eab98668b766f5f9cc84cbe60d01d2f3ff6",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 165
+        },
+        {
+          "chunk_id": "bf06132aeda2a89e08502a251ea215fd2291c77f7882fa9b7524221672b9f463",
+          "chunk_index": 27,
+          "chunk_sha256": "d42ad762f5fbdbd3ccd86ebe5ddd8a45af308d3f2688745d77c64eab07c3d4b0",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 355
+        },
+        {
+          "chunk_id": "7d467556ba04ceb56a228bfe40ede67d77b43ab589c53c216d17a945b2179f91",
+          "chunk_index": 28,
+          "chunk_sha256": "cb1d334ee09f2f0fda6582e19e797f6121d0b2f3e038bbb069e8cceb385d7771",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 353
+        },
+        {
+          "chunk_id": "dc968079230cb1e1140f852433cee36e30fae67a691cb89bf36bb7cd5497842a",
+          "chunk_index": 29,
+          "chunk_sha256": "c5b531bd53196340279cbd5a8fc0734ad0cd0bee2c4044f5c01c198511f2a1e1",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 175
+        },
+        {
+          "chunk_id": "c4ae2c37e072dc247b04fbc71d868f0655983d7956b7c419ad997e1bead16371",
+          "chunk_index": 30,
+          "chunk_sha256": "7c2d60aa1d9de6b011c5e88409eca8136e0217a9487104ad5dc050d19b230f97",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 328
+        },
+        {
+          "chunk_id": "fb52ac199674e74c37cdaca61fd903b1e5e7582a5f660a0ef31bb5092180f2e4",
+          "chunk_index": 31,
+          "chunk_sha256": "c4881c36271ccbe80a7292ddb1e66ab525e124fbbedb10bc9343ecc129700af2",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 365
+        },
+        {
+          "chunk_id": "ecdcf374be33023c0d5c50b7c99c0939af600172a57e16bcada9032267068c9e",
+          "chunk_index": 32,
+          "chunk_sha256": "700e7d6a640dca52ba96d7a52cae67bac9ebb53218e776a769f8cefd2d6a4403",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 257
+        },
+        {
+          "chunk_id": "6b597cfab07d09ca81edc02a9d477f7e27f8db20bf88f8f397a59a65c88c875e",
+          "chunk_index": 33,
+          "chunk_sha256": "ce0d21d63224febdca74e358979754cac57b86a92c7fb97ef1a57b5b3b32b6eb",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 359
+        },
+        {
+          "chunk_id": "10578072a235cd84932b982b4ef6ece881cd4f47b11b6d2dde849c2a47e2118f",
+          "chunk_index": 34,
+          "chunk_sha256": "b8769d07561aac7c702f23bab0e211d10e406f8725be911612687f579769d97f",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 375
+        },
+        {
+          "chunk_id": "91f9e13446f068ab434f5cfc3a83be43a4688ecc17f3c7875c32f8aaaca31bcd",
+          "chunk_index": 35,
+          "chunk_sha256": "5af9ba158f1574531fa91519fba9454a04815262054c6d594ac351a6fa6ffdb0",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 175
+        },
+        {
+          "chunk_id": "ab7d8dacffe9a028e0aa046dd79ac1e5e4f9b9b933786aa33d8ad71467ba6206",
+          "chunk_index": 36,
+          "chunk_sha256": "2a30967f394b90764340772e8f04dac6caaebb5a66c5a404bc9cd84ce5cf1a1a",
+          "page_end": 14,
+          "page_start": 14,
+          "real_e5_tokens": 360
+        },
+        {
+          "chunk_id": "5c4697997f28558a3f7a5d12de3dacaa22bad62d7e3b557a37a7490cbae3e2f1",
+          "chunk_index": 37,
+          "chunk_sha256": "4a3c6057c9f4ae72f6745bbf666594c9ec5f2bde774e59e36259a8822d027fd9",
+          "page_end": 14,
+          "page_start": 14,
+          "real_e5_tokens": 115
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_francais_premiere_tc",
+          "profile_fingerprint": "fe416308373772f8fa96c7570d8ad78aec32e89b9f059f2d39b37a3a8649d9a6",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 384,
+      "median_real_e5_tokens": 352.0,
+      "min_real_e5_tokens": 44,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 14,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "a8357d75b4e3426dbdef13067b6460ffeb8547da76eb76314419eea6e1aae43e",
+      "pii_pages_scanned": 14,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2021/premieres-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-modifie-en-2020-pdf-279-4-ko--b88b5c685e.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 56,
+      "chunk_id_set_digest": "1f10339314f07d41b05b9c494c05ee2ba0d97bc08cac44d168021b35d284284c",
+      "chunk_sha256_set_digest": "bc3f9711b83cd7b145b4ca1f502b59b66dea9ec365d39c14a8cf7b7a36f07f33",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "da52166e6fa9d63dd384a363b3e0c5dc73440eff5d73e9ecbea8875cce766c30",
+          "chunk_index": 0,
+          "chunk_sha256": "5c9cb56b8b793861febc5c36f88ba7992c2ce3e62dd985db4e7567b5bd050cb5",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 358
+        },
+        {
+          "chunk_id": "4a4d4ebca657a80f69304e50fcfc981b48ce15db650bc3d022de4b893086b41d",
+          "chunk_index": 1,
+          "chunk_sha256": "8608f383d76943f7ba307236c5722a32abbb152eb6386eb2f7af3817fc3536bc",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "934db498174e182fc3d56492740284003b6ebe87748e658d20f165a4defa08b8",
+          "chunk_index": 2,
+          "chunk_sha256": "cf87dcce4ee82a430ff0561301875aff41cf92abdd13906216bd8f3e16fbca40",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 89
+        },
+        {
+          "chunk_id": "6e330f26eed3a5c0b5927fd5dd9a696a68fcd503ef226d334a3d6fd0bed91fd5",
+          "chunk_index": 3,
+          "chunk_sha256": "d94b75c556bab7ec1c31c2ac2e7f2397fadf32f829e90377a7f83d0550f6aac9",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 376
+        },
+        {
+          "chunk_id": "78db0283b68904ec550ac01b94ce23ff19485e6f73419a917375502ed7f042e0",
+          "chunk_index": 4,
+          "chunk_sha256": "f72dc4a9e8a19671bcda081bebf731242113fcb6a67d089957396a9d9c847561",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 355
+        },
+        {
+          "chunk_id": "430b7b0a531f7a757f350d9db9a16a3b57e2024c97ce157cd8cea80baad1354e",
+          "chunk_index": 5,
+          "chunk_sha256": "cb04ce5311841ede737a346ca4f40cdaaf58d9a5ffa7cde0a61954da19dbb364",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "5a1b2aa8391546d2e44d0d4db2d6b767a21fb8aa2fd540cc229465630e1f2d00",
+          "chunk_index": 6,
+          "chunk_sha256": "6182457d3fb6dacc9421f7b33375d49a537a38aba2af1907dd40ffe660b163c0",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 312
+        },
+        {
+          "chunk_id": "6427bde4c4b253d248aec8d892a98a56697952ba1514b65620e0e1377f3a1176",
+          "chunk_index": 7,
+          "chunk_sha256": "13092064e615416f11dd1d3a6d7f4778c7973ae5212e86005f1f1976bd256ade",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 378
+        },
+        {
+          "chunk_id": "7959d46e6492e194e6dac5a921bbf4427a109cf7a1193c7edec8391be37dde28",
+          "chunk_index": 8,
+          "chunk_sha256": "61ba538c0424ee21e40883b3d0339e0f77f27606fb1004bbf5455e01de841825",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 361
+        },
+        {
+          "chunk_id": "e392bbd86d21ce90438ce686b89df4adb10f1736bdb808e198eabe785fa489f8",
+          "chunk_index": 9,
+          "chunk_sha256": "47d401c680832fd341b5a66b5e30ba739ed75e875bd9d1ce111808d290eac9bb",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 335
+        },
+        {
+          "chunk_id": "ab337b2ad203c7fef0598a78105850ce3284e1b4b2f1948fae6ffa559edf5c83",
+          "chunk_index": 10,
+          "chunk_sha256": "86daf41656acdde7a1af1ffcbe681bc118c17258566f71a012e002e59d1d5bb2",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 342
+        },
+        {
+          "chunk_id": "dceae13c2192031b66c5b83ed7fc3e50a054959d3c41c85cf1deee24a4d41452",
+          "chunk_index": 11,
+          "chunk_sha256": "2c3646ddd67949186df6e86a1fbee7e459595b83d852c95849d276c28ee8b7d5",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 165
+        },
+        {
+          "chunk_id": "5564e48cb6bbce55dc4245449a7bd21ecf5ca5fab6a88f8da82d73f5faa3f59a",
+          "chunk_index": 12,
+          "chunk_sha256": "951f57cce96e589933a8c63d9ed4e8e2ec56a0e70be3377d60d71f79501c8c3c",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "139a727fac84a759dc6a0d00513361a13a48203c00bb1bb3d2828810ca2c7691",
+          "chunk_index": 13,
+          "chunk_sha256": "a368cd99028aedae3a38f88def73626ea6bd82233d43db5eaa7a361f5175bf5b",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 372
+        },
+        {
+          "chunk_id": "398606c42b080eb08de5bea2670932509918151986dbd29cf491a1689a255f5b",
+          "chunk_index": 14,
+          "chunk_sha256": "fe0b5cd5c2d10ecc778d976b39bb2943b4ae1ce861db78064c5db429b2a27371",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 34
+        },
+        {
+          "chunk_id": "d719a030395a6372d6c548982a5fc0bba5cd424f5177c3393be56594ff3923e2",
+          "chunk_index": 15,
+          "chunk_sha256": "cc7d494807a081d76d80fddacceb281d551e08a67136f8e50edaf4f59148dc2b",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "31d4627441e65cf3e7213125c4c98002b1cae36f775d36c39305863a7c58842d",
+          "chunk_index": 16,
+          "chunk_sha256": "30eafeaf958e0b7fb15a667ae9ec2486411dd87f346c903e9dba6b964cbb64ce",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "c83cc2edfd02aa81d6487629fd72054053f8cdf6473f7da6eefdbd08749002ad",
+          "chunk_index": 17,
+          "chunk_sha256": "e514c49356d6fd1d77aaa578dcb2c9d7811aff7645cafdb329bd2d09d7912050",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 71
+        },
+        {
+          "chunk_id": "2c924ee10748c838bc924c4e34b096492d5a05ad5977850a0751c217df128c5b",
+          "chunk_index": 18,
+          "chunk_sha256": "9fe64f9c9e929385a91369fc15b478154e43bd91a60e7b1c22cd2dcfd80b2b54",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "c5e128f87cf317c3c3e5103c29e8c53f37a443d7dc227ddb38b026de3800f14f",
+          "chunk_index": 19,
+          "chunk_sha256": "3af4ed9526aea7c0be1872d46b9be5bdfda716d34bfb7788aa507d2d2e003f6d",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 347
+        },
+        {
+          "chunk_id": "88530e1807ffa54f936d9c87de2bead0c26d7f235102593b6b8b9e5f112f5ecf",
+          "chunk_index": 20,
+          "chunk_sha256": "95130c6764b17bf8b11444f794f133800871a21b914711ca298fab072e603ba6",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 146
+        },
+        {
+          "chunk_id": "eb599a55b0467dc82bec5f2f93c7114a6a62d69bc3e5e5d72e8744c336b9b33d",
+          "chunk_index": 21,
+          "chunk_sha256": "ba7773c23e536fdb1141e415cf90631b4380c154d46b82ed3e2fa3de7ee7e607",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "a4bceac9a62eade5f7f2d8041293df1da25d45d20fe1a2e93540a11a594d2c0f",
+          "chunk_index": 22,
+          "chunk_sha256": "82d903227851b161d2954b1efed2ba8c0655272f3c17db67fa75487ca4c46fba",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 361
+        },
+        {
+          "chunk_id": "0564b1e2936417f8c1c66bb4aca4c8a77ec7475883fc6e486cfe04fbfdcaf069",
+          "chunk_index": 23,
+          "chunk_sha256": "b6e50d2d0d53c68fcfa41d9d16c68d1d0e6f2b1d428ad41e732453d9084e07af",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 61
+        },
+        {
+          "chunk_id": "05348f0831b0241c70233254f163ca60d10cf8cf62c014fe7b4c692993e3d8b8",
+          "chunk_index": 24,
+          "chunk_sha256": "20c740b1f44e9ac22ecc17e97131c8eefde5caa52fcaeed20c0181afa4cc47e1",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 344
+        },
+        {
+          "chunk_id": "de5c33674df1443f51cdd8cd30f5213b78dbb068dd1b226b9d4a055c12f8d3d5",
+          "chunk_index": 25,
+          "chunk_sha256": "eaa9a2734f03013305f44978f28901aa6e9458ad0588ecf8b445140dd1b5cb90",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "ebcf9f80c4bc055128cd22b47192cbecc98fa0d5ec05afb0fc9b30f549e9cbeb",
+          "chunk_index": 26,
+          "chunk_sha256": "5dff607fec674b29cb79ef297b24a8afb363486b9ddb3d4c3918736d28178414",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 49
+        },
+        {
+          "chunk_id": "163ec44f8c95c70c04a124dde994566470ce11d6b8af05d9f74fa74948e90223",
+          "chunk_index": 27,
+          "chunk_sha256": "40e9008388c0f226170cf2fd4f8dd204ef108846e43a0ed6a5ae45278a88f134",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 334
+        },
+        {
+          "chunk_id": "bc0f4fff65cd4ea0d4cbdea298adcc088f742475efd00ae95d66a7bcf5a0e7a7",
+          "chunk_index": 28,
+          "chunk_sha256": "994329705301b8ad3a4a99b5dcee9eb192f6bed24d5ccca5943f5c8d696d09bb",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 370
+        },
+        {
+          "chunk_id": "325ed3a6e4bd13c80399fee24e84ec4aea99d983050e2211561b1c2bd1fc15f6",
+          "chunk_index": 29,
+          "chunk_sha256": "17db366c2f32428f887dea117b0937d98bea129d855b4375f8a15f25fe4db4aa",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 39
+        },
+        {
+          "chunk_id": "e7d8feb7aa4ae9e99541b0952231177fd65c1558822bc5ec214f4e049967c312",
+          "chunk_index": 30,
+          "chunk_sha256": "b8c9fc9caa9241dc0545eefba47a286ee28d49863c23c7b2d9cef511ca26400a",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 357
+        },
+        {
+          "chunk_id": "4ef6c637c1ba168ae8ca33056d8923da7d4d48068aed76bb746ae9cb019c4f31",
+          "chunk_index": 31,
+          "chunk_sha256": "d5aa69b90e06326cd225a60133a63067664df4d2dbc0d2d277c846a2062f21c1",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 356
+        },
+        {
+          "chunk_id": "8422b0da3cf1a6389a0dd9c7eaa0dafddf2cf16115fef4be0d49e67b0b989537",
+          "chunk_index": 32,
+          "chunk_sha256": "928df9dfc0167681d5cb817055b9267ee79007d5db2728d36ab5944e18b09fe9",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 103
+        },
+        {
+          "chunk_id": "45424c430dd4daf62e6e687435831259349ae8936a8e2a6753248ebbc39e7f04",
+          "chunk_index": 33,
+          "chunk_sha256": "aa5b3a2dfb42589df3cf6b1fb5c6351e643442fc8e80694f7b130fec8d97d9fc",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 345
+        },
+        {
+          "chunk_id": "f956e6209802d8b5503836ff7e7315bf19182c8fc3dd39f113eb0fc5747a3628",
+          "chunk_index": 34,
+          "chunk_sha256": "adca3a74c6e24e45fd4ceb99b14bc0b604008f83ab4e8f8c503457d09ce28f72",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 305
+        },
+        {
+          "chunk_id": "062c524120fb7cee002e340c95aac39b19fb5769d0a1c96f8f44d5624aa0a703",
+          "chunk_index": 35,
+          "chunk_sha256": "d9390fdb137d03be9e2a794c739053ec3a718a2629aec0ec173affda6fefecf1",
+          "page_end": 14,
+          "page_start": 14,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "36d27da2a2a3c401545e58cdfa120c87dad73a55708a644f28ed3bb707d45969",
+          "chunk_index": 36,
+          "chunk_sha256": "6a33a543fb84449d488ef5cc09915d83c1a4db325c105a250f724370de10ca77",
+          "page_end": 14,
+          "page_start": 14,
+          "real_e5_tokens": 248
+        },
+        {
+          "chunk_id": "95f27e4d32fef70141af78f0078ffa93f33f9a4e6cc24629dd45831292a7febb",
+          "chunk_index": 37,
+          "chunk_sha256": "6707dcecd2b7b5ed4bc462ba0e8d7ac6c24b24e5ac03a69e896536c51bb150e6",
+          "page_end": 15,
+          "page_start": 15,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "253540faac88cef1314bafe85151faac0e28f3ce582ab386983d688b975a0a87",
+          "chunk_index": 38,
+          "chunk_sha256": "16861f9b14d1c959b7a75ad26e933c3bf2641daeac847737b1a97b964cc32b3b",
+          "page_end": 15,
+          "page_start": 15,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "a8947de4926c864372273659c415e489bb182ffca8236d8c42c970cfb943a645",
+          "chunk_index": 39,
+          "chunk_sha256": "3f694d7d3a8dc5b4907e76dbb7b5f0eae71ae903e2a66e7905799fca9fd78e75",
+          "page_end": 15,
+          "page_start": 15,
+          "real_e5_tokens": 78
+        },
+        {
+          "chunk_id": "61b72f39f6d6fe3d90f530c75797bcc713763d1a4ca571309bfaf761530dcb60",
+          "chunk_index": 40,
+          "chunk_sha256": "1b0e90066584ad2344b5c43eda1443bffa2104f9625eb324b87678400c2ee7a2",
+          "page_end": 16,
+          "page_start": 16,
+          "real_e5_tokens": 373
+        },
+        {
+          "chunk_id": "c265d263725f4d000d3b4638b8e14d28675d446b8c4f05b41368a2e7edbc778e",
+          "chunk_index": 41,
+          "chunk_sha256": "a187a8cccf35146d0b603fde73de161f81ab12260629e6cfab467a865b579ef8",
+          "page_end": 16,
+          "page_start": 16,
+          "real_e5_tokens": 364
+        },
+        {
+          "chunk_id": "ae716f12a67259375b3d58d347982b0cd93fabee5a99929448f61bac98db4954",
+          "chunk_index": 42,
+          "chunk_sha256": "6bb0d1a4cbf5a78d248b92e2b92d4f709640e1180d7b6a2cb72e104fa033560a",
+          "page_end": 17,
+          "page_start": 17,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "86af6acff8935963b30c4c3daeed4bbff44a99a3203b195be4c33925302c97c3",
+          "chunk_index": 43,
+          "chunk_sha256": "4e74cc8667789bbb873fcc180b8cfc54ee314a8c1d164f1c9e5821f1d26e793f",
+          "page_end": 17,
+          "page_start": 17,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "114bc9c3f4f046b3545ab0bf70b459f489bab7249ac291514bd0fc933cc7d78c",
+          "chunk_index": 44,
+          "chunk_sha256": "f88042c03cb33f88924d2cb50904ad7b7ee48824378f6674576c7fec16f7547f",
+          "page_end": 17,
+          "page_start": 17,
+          "real_e5_tokens": 84
+        },
+        {
+          "chunk_id": "aad6cfd92891175d5c50eef8a337db32876d8f76617eb72ed586a965a852f4ad",
+          "chunk_index": 45,
+          "chunk_sha256": "84f396a57db1f93d821a6d7dfe15ebd38e9056da3d98af33d8ce3cea922236a0",
+          "page_end": 18,
+          "page_start": 18,
+          "real_e5_tokens": 329
+        },
+        {
+          "chunk_id": "18d26bc3d9ea1d5b6d858a2b954d79828ff554268a6d9bfd88bec1b1d85410c8",
+          "chunk_index": 46,
+          "chunk_sha256": "4f7d608fc309c8ed76f1170e1cdd8cc8450a7639521dae1e88b58fb02475cfcd",
+          "page_end": 18,
+          "page_start": 18,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "240665266832cbe4b915266e0d1841c74a1a5c00a542f880c9908f9081d59ffb",
+          "chunk_index": 47,
+          "chunk_sha256": "9f520f79366f876b999c14d8b67f166ebeab8b9ba697ba3670f4ae01ac13e655",
+          "page_end": 18,
+          "page_start": 18,
+          "real_e5_tokens": 17
+        },
+        {
+          "chunk_id": "c269d472f77bd0ca302df578261c6fad9c7c1903b0fd0c95d86189de8c068786",
+          "chunk_index": 48,
+          "chunk_sha256": "49452f55e2ebd011bfa6af46644d71a419883275449cda3326bd0339601bac3b",
+          "page_end": 19,
+          "page_start": 19,
+          "real_e5_tokens": 374
+        },
+        {
+          "chunk_id": "62545e3b43a55c8f4d520ff451b6db4ed7242b0452909d57740b531ccb6d0dc2",
+          "chunk_index": 49,
+          "chunk_sha256": "63e299b86ce2cdc9ad9540331c8a5d4b66236eb605050e9be96fe3571634fc93",
+          "page_end": 19,
+          "page_start": 19,
+          "real_e5_tokens": 349
+        },
+        {
+          "chunk_id": "8cdc2bfb9ec24f28cbb3edb326a17361c6f78825df6b87a4d522748e8b07cba6",
+          "chunk_index": 50,
+          "chunk_sha256": "2ff57642340c1b125bd861bf6045d441e8d2d17810622ce7c078bc84e3dcf79b",
+          "page_end": 20,
+          "page_start": 20,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "cc75d78630a0df36089697d6810e94f714c6004202cad56ed3987ac4315a1637",
+          "chunk_index": 51,
+          "chunk_sha256": "246aded7b1ef1bb73575e5b3b78538469488d8ac5d0e8630e16abc7d0efa1b38",
+          "page_end": 21,
+          "page_start": 21,
+          "real_e5_tokens": 360
+        },
+        {
+          "chunk_id": "ca3e95181a20f9220a9046041987c1f38a89f64acd4f630755275990ee7d96ab",
+          "chunk_index": 52,
+          "chunk_sha256": "2351a7cefa823e47abf89eeb55bd560a2af83b5c75b348d1dd3f55d8d8859a4a",
+          "page_end": 21,
+          "page_start": 21,
+          "real_e5_tokens": 359
+        },
+        {
+          "chunk_id": "515c693a4e57301d1161566b6a43962dddb56cf00d1dc7808a6e10ad7e345d0d",
+          "chunk_index": 53,
+          "chunk_sha256": "a7ab550d36ba451849f66fb901a187300271ab82032a6e5b0658dce4a737fc92",
+          "page_end": 21,
+          "page_start": 21,
+          "real_e5_tokens": 156
+        },
+        {
+          "chunk_id": "3a20f4e48d1fddf9c961b8bae434e1c790e7acaa57ce07323f0a3bad2a2d34de",
+          "chunk_index": 54,
+          "chunk_sha256": "a7a22f0faae0be00d79cf77b31c300fc2d458a71a835e60426601f8d88ec1607",
+          "page_end": 22,
+          "page_start": 22,
+          "real_e5_tokens": 369
+        },
+        {
+          "chunk_id": "18e30bfb7dd14006dd58c12cfc1f4344636f068c2a2ec19ff52fefddb156b46e",
+          "chunk_index": 55,
+          "chunk_sha256": "b85b630e5d1b6b7fc573949554be0d3836e285d72648572f59644c336afb822e",
+          "page_end": 22,
+          "page_start": 22,
+          "real_e5_tokens": 175
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_pc_terminale_specialite",
+          "profile_fingerprint": "c497d2c5e11ead6ec91589b89f0ba1b824458a30939b1ba6c3b4a9905ec5e865",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_8_2019-07-25"
+        }
+      ],
+      "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 384,
+      "median_real_e5_tokens": 357.5,
+      "min_real_e5_tokens": 17,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 22,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "63271bd58300f8a2728342bc97396dbd9ba0601a02f08e5ee1fcfa68d0ef7acf",
+      "pii_pages_scanned": 22,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/10_ACTUEL_CONFIRME/PHYSIQUE_CHIMIE/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-527-5-ko--c07f8b2db9.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 9,
+      "chunk_id_set_digest": "f3edc893621ae3cf325131937d2ec4d87932514f9af6a3fe6ae05c5af9122bd1",
+      "chunk_sha256_set_digest": "3084dea83ed65b1348ec790e4a0a98bad789b524ce75ee0fc733cb0b40e06fb7",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "6404ae9ba0a6ea82d52a66b11d81d08cb86226622ca337b052cb956bebc259b3",
+          "chunk_index": 0,
+          "chunk_sha256": "405b9ed54cb3bead6e94f05a7b8fa0ae587d74ac16e895b225bc228db5fe2a17",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 364
+        },
+        {
+          "chunk_id": "59f19bc059b14d0f9902e39cfc40ddb2e663bb13cc118b2fdccab570a818d321",
+          "chunk_index": 1,
+          "chunk_sha256": "dab1adbf0a707be931a602ed75a2db296836caea37c108743e99755ebb6fdf0e",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 359
+        },
+        {
+          "chunk_id": "ff138557b50d20f04d9a68101988fd3c7d2f6854a1f27e418be1d646c2134d63",
+          "chunk_index": 2,
+          "chunk_sha256": "616deb8ff188559e887c4efd2f433dacbba154bb51852588738a12a953124f3a",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 371
+        },
+        {
+          "chunk_id": "75ef6b6437ae6d131e6576fc376369e7163411e3a23346e10dab96ccebba1579",
+          "chunk_index": 3,
+          "chunk_sha256": "ba6ed12792261c67d86fd16609b6321737f2bf78631eb6db5a695ca41070f5af",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 358
+        },
+        {
+          "chunk_id": "922330af741bca8cf677d782cc790c57a3aa9bb09a9e35b8cd9816f38c4491b9",
+          "chunk_index": 4,
+          "chunk_sha256": "872548b6715f2570dfd2c14b971e5d28cedcdd7a93ee75bb5458dd6cc1ad2d49",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 130
+        },
+        {
+          "chunk_id": "ed02c99de82df3c620498881580812fe4a19aa19ef453f016239d926846e9520",
+          "chunk_index": 5,
+          "chunk_sha256": "08e15afa8ea5c0572de1a21f1351b036853329d23a45cf796b8e8e1893ee14a3",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 331
+        },
+        {
+          "chunk_id": "eba12d4cdbf13373f4b660dfc35f92e596e84a6381805750dffa4c44e3b585b4",
+          "chunk_index": 6,
+          "chunk_sha256": "e1225492dcdffce27528325b7ac13f52821882d74c8de84b6ecc8de619f16bbe",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 374
+        },
+        {
+          "chunk_id": "d483012aefbce65b06d6e6189d521e5281bdb118d6331af377bb759c260170b5",
+          "chunk_index": 7,
+          "chunk_sha256": "b256b0be0c1fdfdaf8f9b6496525b08980ab9f1d6e9be6f4d7101f39d15534d7",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "c88b278370e1079058c56efcdc59af00a50b9edabcca6f4e34520f559abf10b6",
+          "chunk_index": 8,
+          "chunk_sha256": "7554f3c4d508733c0011cf9d4e4446b5e2a34e57c3ad8286ed5b00ac7f8b976e",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 201
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_francais_seconde_tc",
+          "profile_fingerprint": "890dede86e97084d07f72f2d41ef1d09759bb1b4fc2eaa24544eac06a5b34c46",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "content_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 380,
+      "median_real_e5_tokens": 359,
+      "min_real_e5_tokens": 130,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 4,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "f6bd10506e9a4daed7c03eda2f2fde54be3bd58eee49dab471c18a888ffbdb6f",
+      "pii_pages_scanned": 4,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/FRANCAIS/02_REPERES_ATTENDUS/2019/fiche-c-enseigner-explicitement-la-comprehension-de-l-ecrit-ou-des-ecrits--c4e3cc6fb2.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 21,
+      "chunk_id_set_digest": "b3e65b4d9ffb52660e814d55ef01d9fabce0d51c3afd4ca28363fcf28e433b62",
+      "chunk_sha256_set_digest": "6739b4e61e4db82642832311ef4475eb8781f7aca1257d3508286ecd1dc712ac",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "9ace2b55eb6979bb4d325b315d7af42d415b1ddb141404f7f06006402cdae752",
+          "chunk_index": 0,
+          "chunk_sha256": "54db1b0bba49e152add6424b4112b7d8313a10e45c2f697b7f3ca7440aca7a6f",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 18
+        },
+        {
+          "chunk_id": "3b535ec7ec253658c1c75a82383338008373f1fcf096fa153368b79707d5d322",
+          "chunk_index": 1,
+          "chunk_sha256": "33b35875b005c2c8b4cbe15d31b21780ca11f75dcc91f24ea56226512cbe3318",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 380
+        },
+        {
+          "chunk_id": "0f8de647ade9b8ba0f1fb3140af07ebaf5f938dc4af27c96611038602482433b",
+          "chunk_index": 2,
+          "chunk_sha256": "c0a1c442fd445bbce10513d64fc449e146b7f96ef9df46974537a1cb3365eb46",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 177
+        },
+        {
+          "chunk_id": "71d219283b655638ad57591b024ca35296cff90734ed5b35251ec2380a153542",
+          "chunk_index": 3,
+          "chunk_sha256": "b382a5c5597d13292b93130205544cdc97557e516be3c6793a1a739053edb3e8",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "5ca3405d28b44785708074ec435927a636213a5d5b7331247408881e080f10cc",
+          "chunk_index": 4,
+          "chunk_sha256": "68af0591451506aab78ec05ab44329184a6c33aadd7c6b9555c58b819132cc1f",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 295
+        },
+        {
+          "chunk_id": "bd58ab9d921d3e97b53a63ffe762b04af3c5329baf576f62f6e01375e8b2cf15",
+          "chunk_index": 5,
+          "chunk_sha256": "50fe841af81b765ebacb1cd322c1c8643667875b5ca5f0d610939daef03f4a65",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "f0b64718f3045b8a24bf6a4344823c56e09f494d4e757dbbeb03d33f8c6012f5",
+          "chunk_index": 6,
+          "chunk_sha256": "fb3e359786c09bd48ca2593e416d508a71f88abf4359a10f9ba5a516fe209c03",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 109
+        },
+        {
+          "chunk_id": "899171e04c245db179751209dd3bace7712dd6a2d7d672560f70574a35b7cd19",
+          "chunk_index": 7,
+          "chunk_sha256": "ef0c3055e16d63a5edb1db6f33c45ee072caf4f69488ad362cedf1b5bc9feef5",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 358
+        },
+        {
+          "chunk_id": "70769a560f38363407e80aac31e8aa07ab901ce42954bd77fcb6c0fa470ebc3e",
+          "chunk_index": 8,
+          "chunk_sha256": "fd5a35028e0ccd52f3c5ca99f664822b61541a368f4e124e20b8cab25da243ca",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 97
+        },
+        {
+          "chunk_id": "bb0c2a20e73e6caaba29cb13aab653bc0eb6ad3aaa38714781fa6f4f4d6d9eae",
+          "chunk_index": 9,
+          "chunk_sha256": "ab5b253cdda22534b9932014dcf4aa97ece37f0f46667f94e2ed08d93913b918",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "d8ecfa828687f786fe63b1d2cd8651f0a6de37f52608a9f884cede6e4de4bd54",
+          "chunk_index": 10,
+          "chunk_sha256": "4eeb7d4200b0a4f8a93f1cd3aebe4a93988c4f0b61c8a58b732ab3eb67a39d74",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "e6843c3e9a87fbf7740595e4c54e28b04748287d170313288781496f6e7595b5",
+          "chunk_index": 11,
+          "chunk_sha256": "a36fbde81227ec6dafe45dc898c27498863f8e4ce91ead02808914362d571670",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 26
+        },
+        {
+          "chunk_id": "bfddc46635b8340b00dd0c86ed103c4625b132bc728e54286554f315a1e3338e",
+          "chunk_index": 12,
+          "chunk_sha256": "25a0b88dabdba3807b9bc59ffde87ee1ab69259ef9875e78ba28d9505fab3463",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 89
+        },
+        {
+          "chunk_id": "f337eb75d63a24992a9d3b2ff0a569465c304920156bcd9cea9db40495ca8219",
+          "chunk_index": 13,
+          "chunk_sha256": "46f3611a50b6ae021d6d698fb361559d881ce8fdc5a46a0a87880e1ae0cefa9a",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "3d2f1351350c33485193f49a9696199b8562d99dce5b322acaa5b6f0283599fa",
+          "chunk_index": 14,
+          "chunk_sha256": "79959b20eb3e89ed2075505a5bef3605ac5c12cdee956d9175c000ce25d72582",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 102
+        },
+        {
+          "chunk_id": "f5859079af72697fd72c050ec8246f65f03868738b21dc8933246913ee95ef36",
+          "chunk_index": 15,
+          "chunk_sha256": "a6c4c1ce26d64216f3b853df2088316db3dd5bf441cb381d7f1836b19bfeb0df",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "7f75c2b93e725d14626310d48af1ff37ed3fd5c452b7cd5b6adc9f1a804fda58",
+          "chunk_index": 16,
+          "chunk_sha256": "6f9af1007845bd7ccb7503cda42fea951e2f7b42a0b6f3e8330b78ea4319f3a4",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 374
+        },
+        {
+          "chunk_id": "c4d598c10432d2984bfc061a0a2199b3f79da9784f687a5e9c7acf78bd93a99b",
+          "chunk_index": 17,
+          "chunk_sha256": "1589f7fcf31059905555ef2d63417b96f2a9719e3963a49f246a982c9fb92876",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 105
+        },
+        {
+          "chunk_id": "f3f803bf6728d8b70651ea5e09b54bdd3896586523d83966b7421dc7f4dc5a24",
+          "chunk_index": 18,
+          "chunk_sha256": "adf50cd501be93c475c62b557f71691d013ec535aa7d862de9570aca9376b155",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 369
+        },
+        {
+          "chunk_id": "8a52641e599b19162ac297d52e7318ed2decef116950d46fc83efa7ddb2d94e8",
+          "chunk_index": 19,
+          "chunk_sha256": "0c0e3dfba34ccd6537694c00573eb05f7e98b3b7cc140ffd3d60b97ad8336c99",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 180
+        },
+        {
+          "chunk_id": "d9800cad8557779e9489c0bb46701391635626e1143596fa53a0292f9fee1ded",
+          "chunk_index": 20,
+          "chunk_sha256": "6088f1445bace204c030354ebc5137ac8ebdc373a9397164637d852c0ef8ac0a",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 316
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_maths_quatrieme_tc",
+          "profile_fingerprint": "5a9a0ef45ab43f0e046b1892e0cf572b2c6fe4137d027a9077a6fe79c7314ce2",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_11_2018-07-26_aj_2020"
+        }
+      ],
+      "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 383,
+      "median_real_e5_tokens": 316,
+      "min_real_e5_tokens": 18,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 12,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "8791fbd8d439f9800961a1ad2d1ca24ea293a7f3cc71155e6ddeda396b31d896",
+      "pii_pages_scanned": 12,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/MATHEMATIQUES/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-mathematiques-en-4e-pdf-1-47-mo--d0edabd6a2.pdf",
+      "status": "PASS"
+    },
+    {
+      "chunk_count": 55,
+      "chunk_id_set_digest": "ae03f855ee8ecf40839f156a1d26731463e4e61acb94c50f3e1501aa4a5783c7",
+      "chunk_sha256_set_digest": "1b1c3e9ee7d1524341fd29601e8c0a6049e2cc8879214c333ddbd6cc7e68bda0",
+      "chunking_complete": true,
+      "chunks": [
+        {
+          "chunk_id": "21391390ffa26babb6fb125751e1903bdba9d944452fa5f41ff4bba26bf87816",
+          "chunk_index": 0,
+          "chunk_sha256": "229747bbcb8cb18e4cff1907409f9a2fd60abb08c98b5970d68f2163f50bf1f9",
+          "page_end": 1,
+          "page_start": 1,
+          "real_e5_tokens": 96
+        },
+        {
+          "chunk_id": "de1bdca7cab3a793c5d5f9b13bb7d86cc221e3dc08cace379232da657a4c92b2",
+          "chunk_index": 1,
+          "chunk_sha256": "e3f78d663b894ffa4e2b3f1954036769d374623940aadfd3fcf182e8dbf737b9",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 342
+        },
+        {
+          "chunk_id": "bc166326e74af783163d68a018eb0f15cf3398f7299284df493577ffc7efe5c5",
+          "chunk_index": 2,
+          "chunk_sha256": "cf844f18bc1269e3cfe2c4540f25e7ca2135d2294a318a93712dedd66faf1290",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 329
+        },
+        {
+          "chunk_id": "80748a1e80273422894f3c2836b2101cf0430ffa18383c5b8f4a59613f16fc28",
+          "chunk_index": 3,
+          "chunk_sha256": "01fc0ed6ca98b37ffa718884b4889f972ec6fc75bcfdff6c1ca75adec97c9895",
+          "page_end": 2,
+          "page_start": 2,
+          "real_e5_tokens": 121
+        },
+        {
+          "chunk_id": "72bdde23ef5060bd729e4353df5a4aa52390d1fc0da90ca85d792aa81129226f",
+          "chunk_index": 4,
+          "chunk_sha256": "aecd5a22fcef4c4d3b789ec2f6eb55677cecc8d8932b7141001c05d1d676becc",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 333
+        },
+        {
+          "chunk_id": "9b2a2c5aa919041756bbd36a27ce466fde854ff3961473b82ed32e8e49eda6c9",
+          "chunk_index": 5,
+          "chunk_sha256": "48a9b6031aee8e93f7e9473afa7d90d161c1c44a9cb728340c330606a3d7f259",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 329
+        },
+        {
+          "chunk_id": "e257294aebd19c231b1ac98b3e8740cf61257097ea3353c8bf4eda2d85601317",
+          "chunk_index": 6,
+          "chunk_sha256": "b52fede7398668bfb84ac4ef981e3800e83507950159c785ce1377dc29cae147",
+          "page_end": 3,
+          "page_start": 3,
+          "real_e5_tokens": 180
+        },
+        {
+          "chunk_id": "7cedf1ee6deb5f6f7b7cda1fbf72ca8b50d67a9afeeed46ae13bdadb248823bc",
+          "chunk_index": 7,
+          "chunk_sha256": "bd8c891e72a82ba3ddef74020ba826d674292953cb5986cd2be82f785844c71e",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 374
+        },
+        {
+          "chunk_id": "c425bc7bafbcf10061680bd2a2b8db8160e44b7c66c841c63e8a4e252523ca01",
+          "chunk_index": 8,
+          "chunk_sha256": "fe4722194eeb1d6242f6bfe733234d83a346e220480d2ef05ea83eb33a28af5f",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 350
+        },
+        {
+          "chunk_id": "2617375fcf87b4c37d5c1d3ec49978be1c0216e6c69d5b454bab562ac3d52110",
+          "chunk_index": 9,
+          "chunk_sha256": "35a4c1f5fab30a571feb6937b8166da85f8788d5d533b2c7d1fe72917193aaad",
+          "page_end": 4,
+          "page_start": 4,
+          "real_e5_tokens": 111
+        },
+        {
+          "chunk_id": "eb0fab72fae06cf7805d315bea6c83407e18dfcf6863dd0de20e4bcab41f1f91",
+          "chunk_index": 10,
+          "chunk_sha256": "08691cc059d1e2c56a006d4e72a923351909c42e685113e158e5e3d59691f476",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "474afcb004bc335feaef9f0ca583456fdc6d69a25724c7a9d919ff1706beecb9",
+          "chunk_index": 11,
+          "chunk_sha256": "dea6cd2f6606216f37cd45ba87258e35ff60409f33182adf4c2647dbb157bef6",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "098c85930bfbd5ba4752ab1ba0aa79a29a0cbc972cbc750148302b8eca140316",
+          "chunk_index": 12,
+          "chunk_sha256": "688b5639f85a98484c4a13c36904b68c23922b683dfb878edeecebd6f60d3f57",
+          "page_end": 5,
+          "page_start": 5,
+          "real_e5_tokens": 115
+        },
+        {
+          "chunk_id": "5d0a018d53771c1d142c92e68c0a78f880b92246ec001d7da5b990fd551bc8f6",
+          "chunk_index": 13,
+          "chunk_sha256": "05a3889902a0e90aff68585649d5426431230a0034a219a19700d084713d8b94",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 367
+        },
+        {
+          "chunk_id": "a3af1fa0e583e6fc503c21291600d656abfa6ad6ea96ac843d4b94f3f16e079a",
+          "chunk_index": 14,
+          "chunk_sha256": "4c209ce102e65adb59311a7038a47262c5f6489afc27fad7bebc1c03b5e37e23",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 365
+        },
+        {
+          "chunk_id": "feafe8948760169691fce2f41941dcba0990f5992af44c272ebc01e8caecc6ae",
+          "chunk_index": 15,
+          "chunk_sha256": "b982db58126cfcb3e5a0bb23b7117dd07909612a920de84ffb41a84e04bb4183",
+          "page_end": 6,
+          "page_start": 6,
+          "real_e5_tokens": 253
+        },
+        {
+          "chunk_id": "02d84ff8c8cc4c2a2937782e18f54f91e45522101427cf2de9239e220b9f0a82",
+          "chunk_index": 16,
+          "chunk_sha256": "1bfd1cabdbd4a50b90256197e2fe5f2f95a3ad744240273baeecb07fb830fe37",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "32667745388bfe3596448de2d023893a36f39da4ad2f5a8f6dde705ba7d2ffb5",
+          "chunk_index": 17,
+          "chunk_sha256": "43099f4776771aaaf3cbe78ba10c1694e81c1be5841bdce71d8e0aae2b55b2fe",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "7da84c39fdbca8ebd4e91fab02e0fac6bcb687e0474acc90c841ce4cc64e0803",
+          "chunk_index": 18,
+          "chunk_sha256": "9ad9e894b83523ac330005a9be75846de822eae7541318b59e971449938592eb",
+          "page_end": 7,
+          "page_start": 7,
+          "real_e5_tokens": 32
+        },
+        {
+          "chunk_id": "7bae670d9c0dad9d31b17dac6c4d9509acf4603fe21af19b0c749ebbb35890bd",
+          "chunk_index": 19,
+          "chunk_sha256": "55fd2d73b4b6e6769ce6ce4537cc11200567aa339a0e0a190f5331ae4c709ad1",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 378
+        },
+        {
+          "chunk_id": "d13b4353d9b1ddc10be15ab41d204ca6aa4f3362d1876caf0380a4820f9d73b0",
+          "chunk_index": 20,
+          "chunk_sha256": "997fdef64cfdfa25be90a031a4bd0ccde2db1a412f1fe5496604893c02222972",
+          "page_end": 8,
+          "page_start": 8,
+          "real_e5_tokens": 363
+        },
+        {
+          "chunk_id": "03a0a76976b284161393c55b9dad5c073328700cbf2acc9669a0f09012d98092",
+          "chunk_index": 21,
+          "chunk_sha256": "3ab4a18428638cfa3bb1d3e900b32b3716a5f946243e387fbcda904a883824cf",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 295
+        },
+        {
+          "chunk_id": "91c1d39f6882cd6d0869a11b557936136db36d05d106c4abf010fb480c3d581c",
+          "chunk_index": 22,
+          "chunk_sha256": "f70294b8113712f5ea93f08983595ff4d7b9bfeaa63092e73d0c96cfdb8ec1ca",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 382
+        },
+        {
+          "chunk_id": "8ae37c66c971d53a4edc31c545c606d4dd027337925b36d879631728ace2cfad",
+          "chunk_index": 23,
+          "chunk_sha256": "3d20ff00f7e08d7b5eb133b2f68a4c9b61aad5e8397ca7cbc92bba2681e8cccb",
+          "page_end": 9,
+          "page_start": 9,
+          "real_e5_tokens": 128
+        },
+        {
+          "chunk_id": "c29640c5d6c2c2a10e8ff961fabddda5eba3fb8c1e967a8911850920aba63dd0",
+          "chunk_index": 24,
+          "chunk_sha256": "3c85fa831567ab7f5da2267fe985e1f3af655221dda9137bf8d9d265f9b1f72a",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 346
+        },
+        {
+          "chunk_id": "747276732c366dce50ab01a0d15013a44b28c8b8377fb4fe6a58fe879b2428f6",
+          "chunk_index": 25,
+          "chunk_sha256": "cc9aa5285dafe4d70bd24eacddc7a81741f2acba51333cd11f773bf58e017207",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 280
+        },
+        {
+          "chunk_id": "fe045e4787b2dfdcfe27560cd571738cfd035faee76695aa391578288861df73",
+          "chunk_index": 26,
+          "chunk_sha256": "62906eadde4a3fa93b1bfa7e87dbe74a7d31134b3ce530adb5dbf75bf903f9dd",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 384
+        },
+        {
+          "chunk_id": "33a8b79194b8ddb746a2bcf524027f94c384e0515c0737cfb2bb3d28fb61f2e9",
+          "chunk_index": 27,
+          "chunk_sha256": "4acb8920ea82c6aea80afba74e1f0db008c01597025687ca2f9c74aa88412840",
+          "page_end": 10,
+          "page_start": 10,
+          "real_e5_tokens": 24
+        },
+        {
+          "chunk_id": "2842c8f42c796d1059a7e4935463f7a4ea0735916dfe842868c2ac213736cbd5",
+          "chunk_index": 28,
+          "chunk_sha256": "ef1323f2c33e75c45c1200e8d984ceca8f95a515815ba45898a51752b915db76",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 369
+        },
+        {
+          "chunk_id": "9c792b640fb1d6a4889ee7f56b6ba0b31e0d5e6c64149291521cd11313276e94",
+          "chunk_index": 29,
+          "chunk_sha256": "7996027e9b6268ea15a558dc5763040bee85279dbb2cb7e7d6d8fa642d38b505",
+          "page_end": 11,
+          "page_start": 11,
+          "real_e5_tokens": 361
+        },
+        {
+          "chunk_id": "b3bb4318336343c137f1d9c71a6e0068d864e63c398384fdd848df7addb465e6",
+          "chunk_index": 30,
+          "chunk_sha256": "2d50f06e0d8faba8a9ae61de17e12e07345ee54c8f6764d7850fa135d0b34f99",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 377
+        },
+        {
+          "chunk_id": "5c4837d9dcc452da45bb8a64da790bc64419966484b1ccbd042702a5f5d59934",
+          "chunk_index": 31,
+          "chunk_sha256": "bf902b4238554c2c295be6b18beb4d25eef948c3f899af1223edb1113149a02a",
+          "page_end": 12,
+          "page_start": 12,
+          "real_e5_tokens": 383
+        },
+        {
+          "chunk_id": "da1119572ee5de2d1501d22709ef5338d55256a95cd611b3082ce464d6194a57",
+          "chunk_index": 32,
+          "chunk_sha256": "d1f6e1e8423bfc3bc28ce33a82f8bc283db991c239be89194b7547f68ec5e145",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 365
+        },
+        {
+          "chunk_id": "7c1bf9db663f2818df8bc52b9cbb4629d28613cecb2221f4c9979669221a62b5",
+          "chunk_index": 33,
+          "chunk_sha256": "6dc3f598b77a57beabeee45bddf221387b88217b50adb88318c444bc4929df2e",
+          "page_end": 13,
+          "page_start": 13,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "157b15d9e6e7958ca09dd1e847b01c0f4a5c4ad27b13446ee93bbc43189389c5",
+          "chunk_index": 34,
+          "chunk_sha256": "426a8d458535a06c0d593573084b40eb0847942fae942988e76fb31b75b2232b",
+          "page_end": 14,
+          "page_start": 14,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "26649d77d6cff582edc5ab32fa6a448505b9599a4760c2871b295d23fd843b35",
+          "chunk_index": 35,
+          "chunk_sha256": "21bf178de417befadf5e5430ba078190e18c4bd71c262c9834844bb7bc72599d",
+          "page_end": 14,
+          "page_start": 14,
+          "real_e5_tokens": 359
+        },
+        {
+          "chunk_id": "367980b2d8d0dc81f851cb5636b75427e5730ddf004929a955ea79d8389457ae",
+          "chunk_index": 36,
+          "chunk_sha256": "14069894eebd6a37c8c407e36406088ec2a0b1712ce5ce5b86da59736c0d5078",
+          "page_end": 15,
+          "page_start": 15,
+          "real_e5_tokens": 353
+        },
+        {
+          "chunk_id": "a816b6e723889607d8c97bd8719a608071bf1fec039fbea39380e0d00dbbf0df",
+          "chunk_index": 37,
+          "chunk_sha256": "654a302b4599e996cd9bf9b16a0ca32763b4e862e4d09b8b743726d24bfd1c56",
+          "page_end": 15,
+          "page_start": 15,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "a82e81a66a2cefe84f6d05bad793c4c5e2f62c01ccc923af24cefb1879e7500d",
+          "chunk_index": 38,
+          "chunk_sha256": "96a0787d221f8727c8f0d98631b0e1b750a9d08c8012bc1ca5225ce486ad52fa",
+          "page_end": 15,
+          "page_start": 15,
+          "real_e5_tokens": 84
+        },
+        {
+          "chunk_id": "70560de02658a097b639d4ccdce83cd3c2894745e677a6507b0427fe4aafd252",
+          "chunk_index": 39,
+          "chunk_sha256": "b691813cca5715051951c97fca22f31d53de66e7ff4bd6b40c081324a40d630c",
+          "page_end": 16,
+          "page_start": 16,
+          "real_e5_tokens": 354
+        },
+        {
+          "chunk_id": "15643946a19cc5deb556daaa8d81c3ee5824193a8e0803a4491233af555aca68",
+          "chunk_index": 40,
+          "chunk_sha256": "9a4b11e2d71db543c37ac311cf362a00277098c15c9365a50a08409fdcf550c6",
+          "page_end": 16,
+          "page_start": 16,
+          "real_e5_tokens": 381
+        },
+        {
+          "chunk_id": "5c6ae6b701c47966b4ea44480ca26c03aad434d5d2f244022f882d44ffbb97ad",
+          "chunk_index": 41,
+          "chunk_sha256": "591a21594fe658d4c47c38385e4a2996adf174223798fd19355f5c1a37c68225",
+          "page_end": 16,
+          "page_start": 16,
+          "real_e5_tokens": 215
+        },
+        {
+          "chunk_id": "102c31fa394d722f59191753e98a553ed0bcd11c5747b456827e7f2d59b58ee7",
+          "chunk_index": 42,
+          "chunk_sha256": "035dbc546e0d51fe00468e2700b06e51c781da11b716640f2faf8f08afd49f37",
+          "page_end": 17,
+          "page_start": 17,
+          "real_e5_tokens": 375
+        },
+        {
+          "chunk_id": "022ff3d958f7f46541f39a816562340ed7a6d8cae8216fd10b8618a2ad743f33",
+          "chunk_index": 43,
+          "chunk_sha256": "eae5481b43bcfa2bb14b0fcc77e908772bf65ef70a3fa855b15efa04962b21a3",
+          "page_end": 17,
+          "page_start": 17,
+          "real_e5_tokens": 372
+        },
+        {
+          "chunk_id": "e7a4b0bcde503084faee3625bf018aae4a8a8946914afc95c89ebe72467050ee",
+          "chunk_index": 44,
+          "chunk_sha256": "73a42c7a8c1337cac38260794f337a15355aa60458f38d2c7f59d2b18c301901",
+          "page_end": 17,
+          "page_start": 17,
+          "real_e5_tokens": 94
+        },
+        {
+          "chunk_id": "c3869079b74601c2c7b480a29a0ad94c289fffd5178715cc1829ddbcac177021",
+          "chunk_index": 45,
+          "chunk_sha256": "89e3e2b27deb830fe38c85ba4db7d263c99386bd54d643bac4d5ea9b66ecb9bc",
+          "page_end": 18,
+          "page_start": 18,
+          "real_e5_tokens": 362
+        },
+        {
+          "chunk_id": "3ab443c68582c0c0284b25dad54ca97635ad6402b75a661ef7495df3b4b48477",
+          "chunk_index": 46,
+          "chunk_sha256": "4907637dd5c128ce692e1f340b7eb62d5418278758f977eedcc453d33dc9a0ff",
+          "page_end": 18,
+          "page_start": 18,
+          "real_e5_tokens": 372
+        },
+        {
+          "chunk_id": "8fcf6867ba02b64a9ce2b5a4265f5f74017ed3400694f9963f544ba79f35d0c9",
+          "chunk_index": 47,
+          "chunk_sha256": "add44de1e5a9ee95590ad5fff8eb1eaebb02d2dc30620a90c784799ec8749cd1",
+          "page_end": 18,
+          "page_start": 18,
+          "real_e5_tokens": 136
+        },
+        {
+          "chunk_id": "f6e73b8e069d9fc77937f3bb75c2557684f282d0840006efcee361bdc91d60dd",
+          "chunk_index": 48,
+          "chunk_sha256": "9785b00828b84043bfb14434fcff830c23c9a0a8f0d074c45a0f573577b52422",
+          "page_end": 19,
+          "page_start": 19,
+          "real_e5_tokens": 359
+        },
+        {
+          "chunk_id": "f70ed1607b0df970bfce855bfaeb5e0df41aebe33356d50830565f35e57960c0",
+          "chunk_index": 49,
+          "chunk_sha256": "78e32677f1bf293ee8cf8680d52f4a7dac7130082ec0c6ea02d553cead473d5b",
+          "page_end": 19,
+          "page_start": 19,
+          "real_e5_tokens": 368
+        },
+        {
+          "chunk_id": "7e09e65188ea28880692c0b26320802de6a6b0f341a58ee0522f29c308df28c9",
+          "chunk_index": 50,
+          "chunk_sha256": "7848e957a7cf85eb27726847550a055e0c801e572078fcca0c52736599fc0531",
+          "page_end": 19,
+          "page_start": 19,
+          "real_e5_tokens": 279
+        },
+        {
+          "chunk_id": "2dc5f1d73d9e7d22e19d7c972082b00d49d62806928ff56e14ee46a2bcde43b5",
+          "chunk_index": 51,
+          "chunk_sha256": "060231a36357e0231d5b9d09969f43d84bb38446edfd14af8164d4c90aa2c80e",
+          "page_end": 20,
+          "page_start": 20,
+          "real_e5_tokens": 333
+        },
+        {
+          "chunk_id": "8f62bb0717c31a71b7932d615e875be0bec9951e683e46792936074fe1684832",
+          "chunk_index": 52,
+          "chunk_sha256": "86de651e22147446174bc280f56340cd917a3f718c64cc74dd919007ffa69ece",
+          "page_end": 20,
+          "page_start": 20,
+          "real_e5_tokens": 379
+        },
+        {
+          "chunk_id": "a10e352744dfa2831a7913662c47561f80cd0160216175ce5e8cb3f53adc40cf",
+          "chunk_index": 53,
+          "chunk_sha256": "c6a410832a3bc143ea6dd0a29666c772923a49bc960bd0ff3a82fd6e0b532604",
+          "page_end": 20,
+          "page_start": 20,
+          "real_e5_tokens": 164
+        },
+        {
+          "chunk_id": "33e9526719f370a29449e65cd6a595cc6425d70a585549070156029bf53f1d23",
+          "chunk_index": 54,
+          "chunk_sha256": "6f8d39dbb8b26d6820e8d11be3673bb5485aa5e824621ef524d4c523951272ab",
+          "page_end": 21,
+          "page_start": 21,
+          "real_e5_tokens": 362
+        }
+      ],
+      "collections": [
+        {
+          "collection": "rag_nexus_maths_terminale_gen_specialite",
+          "profile_fingerprint": "4f0b45d22ca6fcb0ffab20c20df92c1e852fcd836bc3c8b9793c01f085472f0f",
+          "profile_version": "multilevel-v1",
+          "programme_version": "BOEN_special_8_2019-07-25"
+        }
+      ],
+      "content_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+      "current_for_school_year": "2026-2027",
+      "currentness": "actuel",
+      "empty_chunks": 0,
+      "empty_extracted_pages": 0,
+      "error_code": null,
+      "extraction_complete": true,
+      "ignored_empty_pages": [],
+      "max_real_e5_tokens": 384,
+      "median_real_e5_tokens": 359,
+      "min_real_e5_tokens": 24,
+      "null_page_metadata": 0,
+      "oversized_model_chunks": 0,
+      "page_count": 21,
+      "page_coverage": 1.0,
+      "page_coverage_digest": "4e3f7f777a1d0c428af4fec335a69078ccc6504dfef69a655b46b67a7036f89f",
+      "pii_pages_scanned": 21,
+      "pii_status": "CLEARED",
+      "placement_clear": true,
+      "profile_conformity": true,
+      "programme_conformity": true,
+      "rights": "officiel_public",
+      "rights_decision_id": "eduscol_generic_approval",
+      "rights_zone": "01_EDUSCOL_OFFICIEL/",
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/MATHEMATIQUES/01_PROGRAMMES_OFFICIELS/2019/specialite-de-terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-475-8-ko--eb8369e7c1.pdf",
+      "status": "PASS"
+    }
+  ],
+  "candidate_inventory_sha256": "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300",
+  "chunk_target_tokens": 384,
+  "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "currentness_evidence_sha256": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+  "embedding_dimension": 1024,
+  "embedding_inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+  "embedding_max_sequence_length": 512,
+  "embedding_model_id": "intfloat/multilingual-e5-large",
+  "embedding_model_revision": "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3",
+  "evidence_kind": "MULTILEVEL_RELEASE_PREFLIGHT_V2",
+  "extraction_runtime": {
+    "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+    "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+    "pypdf_version": "6.14.2"
+  },
+  "pii_evidence_sha256": "46d6c738ebc230dedb95ada2d07bd17a0907d75ee8aedcd556d27027ad50daa8",
+  "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+  "profile_manifest_declared_count": 10,
+  "profile_manifest_sha256": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
+  "programme_index_sha256_by_path": {
+    "corpus/College/Quatrieme/_index.yml": "cd8acc426db05eeca116cb12d3fa7fe949b3303ca73547e4361f46d3572be167",
+    "corpus/Lycee/Premiere/Specialites/_index.yml": "9a7f53a1989520cd9b20544a00371ed2858dff76f160f0d95f4294f899186441",
+    "corpus/Lycee/Premiere/Tronc_commun/_index.yml": "34dea32ccca1dcfa16bc534b1e370bb04746818c3f238d574333ca1043c0eb9e",
+    "corpus/Lycee/Seconde/_index.yml": "6082ab4cce300fb57824e06da32da365d3b8411e1076e91b773749a7b99f10d5",
+    "corpus/Lycee/Terminale/Specialites/_index.yml": "82911d2497119412005830f6ee2298f72aff7831a9a686e87ca177595fc33827"
+  },
+  "programme_registry_sha256": "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89aa58c",
+  "raw_pii_in_evidence": false,
+  "raw_text_in_evidence": false,
+  "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+  "school_year": "2026-2027",
+  "selection": {
+    "current_and_pii_cleared": 11,
+    "current_artifacts": 12,
+    "excluded_current_pii_sha256": [
+      "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d"
+    ]
+  },
+  "summary": {
+    "by_collection": {
+      "rag_nexus_francais_premiere_tc": {
+        "artifacts": 1,
+        "chunks": 38,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_francais_quatrieme_tc": {
+        "artifacts": 1,
+        "chunks": 20,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_francais_seconde_tc": {
+        "artifacts": 2,
+        "chunks": 44,
+        "pass": 2,
+        "review_required": 0
+      },
+      "rag_nexus_maths_premiere_gen_specialite": {
+        "artifacts": 1,
+        "chunks": 38,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_maths_quatrieme_tc": {
+        "artifacts": 1,
+        "chunks": 21,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_maths_seconde_tc": {
+        "artifacts": 1,
+        "chunks": 44,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_maths_terminale_gen_specialite": {
+        "artifacts": 1,
+        "chunks": 55,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_nsi_premiere_specialite": {
+        "artifacts": 1,
+        "chunks": 19,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_nsi_terminale_specialite": {
+        "artifacts": 1,
+        "chunks": 18,
+        "pass": 1,
+        "review_required": 0
+      },
+      "rag_nexus_pc_terminale_specialite": {
+        "artifacts": 1,
+        "chunks": 56,
+        "pass": 1,
+        "review_required": 0
+      }
+    },
+    "empty_chunks": 0,
+    "evaluated": 11,
+    "extraction_failures": 0,
+    "full_page_coverage_artifacts": 11,
+    "null_page_metadata": 0,
+    "oversized_model_chunks": 0,
+    "pass": 11,
+    "required": 11,
+    "review_required": 0,
+    "total_chunks": 353,
+    "total_pages": 137
+  }
+}
