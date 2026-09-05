@@ -38,6 +38,7 @@ def _missing_sibling(exc: ImportError) -> bool:
 
 
 try:
+    from .api_scopes import ApiScope, require_api_scope
     from .ingest_v2 import IngestV2Request, Provenance, ingest_document
     from .security_v2 import SecurityRole, require_role, token_hash
 except ImportError as _exc:  # repli à plat, cause réelle préservée
@@ -46,6 +47,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         # manque, ou sa configuration qui a été refusée. Réessayer par un
         # autre chemin rejouerait le même échec sous un autre nom.
         raise
+    from api_scopes import ApiScope, require_api_scope  # type: ignore[no-redef]
     from ingest_v2 import IngestV2Request, Provenance, ingest_document  # type: ignore[no-redef]
     from security_v2 import SecurityRole, require_role, token_hash  # type: ignore[no-redef]
 
@@ -60,13 +62,20 @@ _BLOCKED_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "[::1]", "metadata.google
 
 
 def _enforce_security(request: Request) -> str:
-    """Auth + IP allowlist check. Returns token for provenance."""
+    """Rôle, portée d'API et allowlist IP. Rend le jeton pour la provenance.
+
+    Deux contrôles cumulatifs, jamais alternatifs : le rôle dit *qui*
+    appelle, la portée ``rag:ingest`` dit que *cette clé-là* a le droit
+    d'écrire. Une clé de lecture qui satisferait le contrôle de rôle est
+    arrêtée ici — c'est précisément la séparation lecture/écriture.
+    """
     _role, token = require_role(
         request,
         allowed_roles={SecurityRole.ADMIN, SecurityRole.INGEST_AGENT},
         endpoint="/ingest/v2/*",
         enforce_ip_allowlist=True,
     )
+    require_api_scope(request, required=ApiScope.INGEST, endpoint="/ingest/v2/*")
     return token
 
 
