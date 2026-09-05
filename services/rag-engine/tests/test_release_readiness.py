@@ -8,6 +8,7 @@ import json
 import shutil
 import sys
 from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -1750,8 +1751,10 @@ def test_database_snapshot_counts_chunk_only_artifact_as_unexpected() -> None:
     placement_cursor = connection.cursors[1]
     assert "source_scope" in placement_cursor.sql
     chunk_cursor = connection.cursors[2]
-    assert "WHERE collection = ANY(%s)" in chunk_cursor.sql
-    assert chunk_cursor.params == ([COLLECTION],)
+    assert "WHERE collection = ANY(%s) OR artifact_id = ANY(%s)" in chunk_cursor.sql
+    # No placements were returned for this collection, so the placement-derived
+    # artifact_id scope is empty -- the chunk-tag scope alone still governs.
+    assert chunk_cursor.params == ([COLLECTION], [])
 
 
 def test_v2_database_snapshot_scopes_shared_chunks_by_artifact_identity(
@@ -1851,6 +1854,113 @@ def test_v2_database_snapshot_scopes_shared_chunks_by_artifact_identity(
     assert chunk_cursor.params == ([ARTIFACT_SHA],)
     assert "WHERE artifact_id = ANY(%s)" in chunk_cursor.sql
     assert "WHERE collection = ANY(%s)" not in chunk_cursor.sql
+
+
+def test_v1_collection_readiness_reaches_shared_chunks_placed_via_a_second_subject(
+    tmp_path: Path,
+) -> None:
+    """The physical chunk of a shared V1 artifact is stored exactly once and
+    tagged with its one home collection (say Première). A second subject
+    (Terminale) legitimately reaches the SAME physical chunk only through
+    ``rag_artifact_placements`` — never through the chunk's own denormalized
+    ``collection`` column. Validating readiness for Terminale must not
+    require the chunk to be re-tagged; the placement is the reachability
+    authority, not ``legacy_chunk_collection``.
+    """
+    aggregate_path, digest = _shared_artifact_two_subjects(tmp_path)
+    expectation = load_release_expectation(aggregate_path, digest)
+
+    collection_placements = tuple(
+        placement for placement in expectation.placements if placement.collection == SECOND_COLLECTION
+    )
+    referenced_artifact_ids = {placement.artifact_id for placement in collection_placements}
+    collection_artifacts = tuple(
+        artifact
+        for artifact in expectation.artifacts
+        if artifact.content_sha256 in referenced_artifact_ids
+    )
+    collection_expectation = replace(
+        expectation,
+        collections=(SECOND_COLLECTION,),
+        artifacts=collection_artifacts,
+        placements=collection_placements,
+    )
+
+    second_placement_payload = collection_placements[0].payload
+    placement_row = {
+        **second_placement_payload,
+        "artifact_id": ARTIFACT_SHA,
+        "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/3E/MATHEMATIQUES/a.pdf",
+        "source_uri": "https://eduscol.education.fr/document/a/download",
+        "authorization_id": "LOT12-V1:auth:shared",
+        "publication_attestation_id": "00000000-0000-0000-0000-000000000001",
+    }
+    artifact_row = (
+        ARTIFACT_SHA,
+        ARTIFACT_SHA,
+        "eduscol.education.fr",
+        "https://eduscol.education.fr/document/a/download",
+        "officiel_public",
+        True,
+        "eduscol.education.fr",
+        "ressource_officielle",
+    )
+    # Physically stored under COLLECTION (its home subject), never re-tagged
+    # for SECOND_COLLECTION -- only reachable there via the placement above.
+    chunk_row = (
+        CHUNK_ID,
+        ARTIFACT_SHA,
+        COLLECTION,
+        0,
+        CHUNK_SHA,
+        1,
+        1,
+        "reviewed",
+        MODEL_ID,
+        True,
+        1024,
+    )
+
+    class Cursor:
+        def __init__(self, rows: list[tuple[object, ...]]) -> None:
+            self.rows = rows
+            self.sql = ""
+            self.params: object = None
+
+        def __enter__(self) -> Cursor:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, sql: str, params: object) -> None:
+            self.sql = sql
+            self.params = params
+
+        def fetchall(self) -> list[tuple[object, ...]]:
+            return self.rows
+
+    class Connection:
+        def __init__(self) -> None:
+            self.cursors = [
+                Cursor([artifact_row]),
+                Cursor([tuple(placement_row[column] for column in readiness._PLACEMENT_COLUMNS)]),
+                Cursor([chunk_row]),
+            ]
+            self.index = 0
+
+        def cursor(self) -> Cursor:
+            cursor = self.cursors[self.index]
+            self.index += 1
+            return cursor
+
+    connection = Connection()
+    snapshot = collect_release_snapshot(connection, (SECOND_COLLECTION,))
+    report = evaluate_release_snapshot(collection_expectation, snapshot)
+
+    assert report.ready is True, report.blockers
+    _artifact_cursor, _placement_cursor, chunk_cursor = connection.cursors
+    assert "artifact_id = ANY(%s)" in chunk_cursor.sql
 
 
 def test_v2_database_snapshot_includes_artifacts_observed_only_in_placements(

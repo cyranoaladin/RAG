@@ -1405,11 +1405,16 @@ def evaluate_release_snapshot(
     expected_placements = {
         str(placement.payload["placement_id"]): placement for placement in expectation.placements
     }
-    expected_chunks = {
-        str(chunk["chunk_id"]): (artifact, chunk)
-        for artifact in expectation.artifacts
-        for chunk in artifact.chunks
-    }
+    expected_chunks: dict[str, tuple[ExpectedArtifact, Mapping[str, Any]]] = {}
+    expected_chunk_home_collections: dict[str, set[str]] = {}
+    for artifact in expectation.artifacts:
+        for chunk in artifact.chunks:
+            chunk_id = str(chunk["chunk_id"])
+            expected_chunks[chunk_id] = (artifact, chunk)
+            if artifact.legacy_chunk_collection is not None:
+                expected_chunk_home_collections.setdefault(chunk_id, set()).add(
+                    artifact.legacy_chunk_collection
+                )
     actual_artifacts = _mapping_by(snapshot.artifacts, "artifact_id")
     actual_placements = _mapping_by(snapshot.placements, "placement_id")
     actual_chunks = _mapping_by(snapshot.chunks, "chunk_id")
@@ -1484,12 +1489,10 @@ def evaluate_release_snapshot(
     for chunk_id in expected_chunks.keys() & actual_chunks.keys():
         artifact, exp_chunk = expected_chunks[chunk_id]
         actual = actual_chunks[chunk_id]
+        home_collections = expected_chunk_home_collections.get(chunk_id)
         if (
             actual.get("artifact_id") != artifact.content_sha256
-            or (
-                artifact.legacy_chunk_collection is not None
-                and actual.get("collection") != artifact.legacy_chunk_collection
-            )
+            or (home_collections and actual.get("collection") not in home_collections)
             or actual.get("chunk_index") != exp_chunk.get("chunk_index")
         ):
             wrong_chunk_metadata += 1
@@ -1590,11 +1593,13 @@ def _fetch_rows(
     columns: tuple[str, ...],
     *,
     collection_parameters: int = 1,
+    extra_params: tuple[tuple[str, ...], ...] = (),
 ) -> tuple[Mapping[str, Any], ...]:
     with connection.cursor() as cursor:
         cursor.execute(
             sql,
-            tuple(list(collections) for _ in range(collection_parameters)),
+            tuple(list(collections) for _ in range(collection_parameters))
+            + tuple(list(param) for param in extra_params),
         )
         return tuple(dict(zip(columns, row, strict=True)) for row in cursor.fetchall())
 
@@ -1729,6 +1734,13 @@ def collect_release_snapshot(
         collections,
         _PLACEMENT_COLUMNS,
     )
+    # A shared V1 artifact's chunks are stored once, tagged with only one home
+    # collection; rag_artifact_placements is what makes them reachable from a
+    # second subject, so chunks must also be selected by the placements'
+    # artifact_id -- not solely by their own denormalized collection tag.
+    placement_artifact_ids = tuple(
+        sorted({str(placement["artifact_id"]) for placement in placements})
+    )
     chunks = _fetch_rows(
         connection,
         """
@@ -1736,11 +1748,12 @@ def collect_release_snapshot(
                page_start, page_end, review_status, model,
                vector IS NOT NULL, CASE WHEN vector IS NULL THEN NULL ELSE vector_dims(vector) END
         FROM public.rag_chunks
-        WHERE collection = ANY(%s)
+        WHERE collection = ANY(%s) OR artifact_id = ANY(%s)
         ORDER BY chunk_id
         """,
         collections,
         _CHUNK_COLUMNS,
+        extra_params=(placement_artifact_ids,),
     )
     return ReleaseDatabaseSnapshot(
         artifacts=artifacts,
