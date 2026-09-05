@@ -2223,20 +2223,9 @@ def _search_v2_served(
         )
         for hit in hits
     ]
-    filters_applied: dict[str, object] = {
-        "collection": adapted.nexus_collection,
-        "scope_digest": scope.filter_digest,
-    }
-    if metadata_filters.notions:
-        filters_applied["notions"] = list(metadata_filters.notions)
-    if corpus is not None:
-        filters_applied.update(
-            {
-                "manifest_sha256": payload.manifest_sha256,
-                "corpus_id": corpus.corpus_id,
-                "corpus_version_id": corpus.corpus_version_id,
-            }
-        )
+    # Le corpus lié n'est connu qu'ici. Il complète les deux vues du même
+    # ensemble de filtres : celle rendue à l'appelant, et celle journalisée —
+    # cette dernière assainie à l'émission, `notions` étant du texte libre.
     if corpus is not None:
         journal.filters.update(
             {
@@ -2245,6 +2234,7 @@ def _search_v2_served(
                 "corpus_version_id": corpus.corpus_version_id,
             }
         )
+    filters_applied: dict[str, object] = dict(journal.filters)
     return RetrievalResponse(
         results=results,
         warnings=list(adapted.warnings),

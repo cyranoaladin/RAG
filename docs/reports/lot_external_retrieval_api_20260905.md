@@ -293,6 +293,22 @@ alors que le canal lexical a rendu ses candidats.
 | `test_signed_identity_to_http_scope_and_real_database_is_end_to_end` | le double de comptage recopiait une signature devenue fausse | `**options` suit la signature réelle : le double compte, il ne décide pas de la forme |
 | `test_runtime_blocks_review_update_while_trigger_drift_is_detected` | la porte de portée refusait en 503 avant d'atteindre la dérive de trigger mesurée | le banc provisionne un registre et envoie les **deux** credentials |
 
+## Un point mesuré, non corrigé ici
+
+Le schéma OpenAPI est rendu par Pydantic, et deux versions rendent le même
+modèle avec des différences de forme : 2.13 écrit `additionalProperties: true`
+là où 2.9 l'omet. Le service épingle **2.9.2** dans `requirements.lock` ;
+l'image v2 épingle **2.13.4** (`requirements.runtime-v2.txt`, aligné sur
+`packages/contracts`). L'artefact publié est celui du lock de service — le même
+que la CI compare.
+
+La divergence est **de rendu, pas de contrat** : en JSON Schema,
+`additionalProperties` vaut `true` par défaut, donc les deux documents
+décrivent le même objet. `test_v2_pydantic_pin_aligned_with_contracts` ne
+couvre que le manifeste d'image ; le lock de service lui échappe. L'aligner
+exige de régénérer ce lock (avec ses empreintes) et de reprendre tout le
+service : hors périmètre de ce lot, signalé plutôt qu'entrepris.
+
 ## Qualité
 
 | Cible | Résultat |

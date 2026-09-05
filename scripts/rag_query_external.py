@@ -11,6 +11,16 @@ canonique (BFF/gateway Nexus, provisionné hors de cette remédiation — cf.
 `docs/reports/h2_exact_head_remediation_pre_go_live.md`), et le transmet
 tel quel dans l'en-tête `X-Nexus-Identity`.
 
+Trois credentials, trois questions distinctes, et le moteur exige les trois :
+
+    RAG_BFF_SERVICE_TOKEN → Authorization      « d'où vient l'appel ? »
+    RAG_API_KEY           → X-RAG-API-Key      « que peut CE client ? »
+    RAG_IDENTITY_TOKEN    → X-Nexus-Identity   « au nom de qui ? »
+
+Aucun repli de l'un sur l'autre côté moteur : n'en fournir que deux rend 401.
+Les trois sont exigés ici, avant tout appel réseau, pour que le manquant soit
+nommé — « Unauthorized » ne le nommerait pas.
+
 Pour l'outil OPÉRATEUR interne, qui détient le secret et émet sa propre
 identité, voir `scripts/rag_query.py` (INTERNAL_OPERATOR_TOOL=true) —
 jamais distribué à un agent externe.

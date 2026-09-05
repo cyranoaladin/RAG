@@ -115,6 +115,17 @@ def build_openapi_document() -> dict:
     return document
 
 
+#: **Environnement d'émission.** Le schéma est rendu par Pydantic, et deux
+#: versions de Pydantic rendent le même modèle avec des différences de forme
+#: (2.13 écrit `additionalProperties: true` là où 2.9 l'omet — même sémantique
+#: JSON Schema, la valeur par défaut étant `true`). Le service épingle 2.9.2
+#: dans `requirements.lock` ; l'image v2 épingle 2.13.4 dans
+#: `src/ingestor/requirements.runtime-v2.txt`, aligné sur `packages/contracts`.
+#: L'artefact publié est donc celui du lock de service, qui est aussi celui que
+#: la CI compare. La divergence est de rendu, pas de contrat ; l'aligner exige
+#: de régénérer le lock du service, hors périmètre de ce lot.
+
+
 def serialize(document: dict) -> str:
     """Forme canonique : clés triées, indentation fixe, saut de ligne final.
 

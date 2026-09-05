@@ -600,7 +600,6 @@
         "additionalProperties": false,
         "properties": {
           "filters_applied": {
-            "additionalProperties": true,
             "title": "Filters Applied",
             "type": "object"
           },
@@ -713,7 +712,6 @@
             "title": "Manifest Sha256"
           },
           "metadata": {
-            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -773,6 +771,9 @@
         "properties": {
           "artifact_version": {
             "const": "3",
+            "enum": [
+              "3"
+            ],
             "title": "Artifact Version",
             "type": "string"
           },
@@ -793,6 +794,9 @@
           },
           "status": {
             "const": "eligible_for_promotion",
+            "enum": [
+              "eligible_for_promotion"
+            ],
             "title": "Status",
             "type": "string"
           },
@@ -1076,6 +1080,9 @@
           },
           "max_stale_other_workers_s": {
             "const": 0,
+            "enum": [
+              0
+            ],
             "title": "Max Stale Other Workers S",
             "type": "integer"
           },
@@ -1330,6 +1337,9 @@
           },
           "protocol_version": {
             "const": "1",
+            "enum": [
+              "1"
+            ],
             "title": "Protocol Version",
             "type": "string"
           },
@@ -1403,6 +1413,9 @@
           },
           "protocol_version": {
             "const": "1",
+            "enum": [
+              "1"
+            ],
             "title": "Protocol Version",
             "type": "string"
           },
@@ -1472,7 +1485,6 @@
         "additionalProperties": false,
         "properties": {
           "availability": {
-            "additionalProperties": true,
             "title": "Availability",
             "type": "object"
           },
@@ -1828,6 +1840,9 @@
           "version": {
             "const": 2,
             "default": 2,
+            "enum": [
+              2
+            ],
             "title": "Version",
             "type": "integer"
           }
@@ -1955,7 +1970,6 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "title": "Response Get Full Catalogue Catalogue V2 Get",
                   "type": "object"
                 }
@@ -2039,7 +2053,6 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "title": "Response Get Collection Readiness Collections Readiness Get",
                   "type": "object"
                 }
@@ -2072,7 +2085,6 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
                   "title": "Response List Retrievable Collections Collections V2 Get",
                   "type": "object"
                 }
