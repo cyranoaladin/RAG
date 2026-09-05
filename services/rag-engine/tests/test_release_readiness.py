@@ -7,6 +7,8 @@ import hashlib
 import json
 import shutil
 import sys
+from collections.abc import Callable
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -1301,20 +1303,34 @@ def test_v2_global_artifact_has_no_owner_collection(tmp_path: Path) -> None:
     assert expectation.artifacts[0].collection is None
 
 
-def test_v1_duplicate_artifact_definition_across_subjects_remains_refused(
+def _shared_artifact_two_subjects(
     tmp_path: Path,
-) -> None:
+    *,
+    mutate_second_artifact: Callable[[dict], None] | None = None,
+) -> tuple[Path, str]:
+    """Build a WAVE0 aggregate whose one physical artifact is placed in two
+    subjects (première + terminale style sharing): same content_sha256, same
+    chunks, distinct placement_id/collection per subject — the exact shape of
+    the 167 artifacts genuinely shared across the real production release.
+
+    ``mutate_second_artifact`` lets a caller corrupt the second subject's copy
+    of the artifact (divergent-content counter-proof) after the placement is
+    rewired but before the file is sealed.
+    """
     aggregate_path, _digest = _release_files(tmp_path)
     first_subject_path = tmp_path / "maths_troisieme.release.json"
     first_subject = json.loads(first_subject_path.read_text(encoding="utf-8"))
     second_subject = copy.deepcopy(first_subject)
     second_subject["collection"] = SECOND_COLLECTION
-    second_placement = second_subject["artifacts"][0]["placements"][0]
+    second_artifact = second_subject["artifacts"][0]
+    second_placement = second_artifact["placements"][0]
     second_placement["placement_id"] = "9" * 64
     second_placement["collection"] = SECOND_COLLECTION
-    second_subject["artifacts"][0]["placement_id_set_digest"] = _set_digest(
+    second_artifact["placement_id_set_digest"] = _set_digest(
         [second_placement["placement_id"]]
     )
+    if mutate_second_artifact is not None:
+        mutate_second_artifact(second_artifact)
     second_path = tmp_path / "nsi_terminale.release.json"
     second_sha = _write_json(second_path, second_subject)
     aggregate = json.loads(aggregate_path.read_text(encoding="utf-8"))
@@ -1331,10 +1347,99 @@ def test_v1_duplicate_artifact_definition_across_subjects_remains_refused(
         "chunks": 2,
     }
     digest = _write_json(aggregate_path, aggregate)
+    return aggregate_path, digest
+
+
+def test_v1_identical_shared_artifact_across_subjects_is_accepted(
+    tmp_path: Path,
+) -> None:
+    """One physical artifact placed in two subjects, byte-identical content:
+    exactly the multi-placement pattern already sealed 167 times in the real
+    production-profile-gate-2026-2027-v1 release (rag_artifact_placements is
+    the authority for reachability, not a one-artifact-one-collection rule).
+    """
+    aggregate_path, digest = _shared_artifact_two_subjects(tmp_path)
+
+    expectation = load_release_expectation(aggregate_path, digest)
+
+    assert len(expectation.artifacts) == 2
+    assert len({a.content_sha256 for a in expectation.artifacts}) == 1
+    assert {a.collection for a in expectation.artifacts} == {COLLECTION, SECOND_COLLECTION}
+    assert len(expectation.placements) == 2
+    assert {p.collection for p in expectation.placements} == {COLLECTION, SECOND_COLLECTION}
+
+
+def test_v1_divergent_shared_artifact_across_subjects_is_refused(
+    tmp_path: Path,
+) -> None:
+    """Same content_sha256 claimed by two subjects, but the chunk content
+    disagrees — a real corruption, not legitimate sharing. Must stay refused."""
+
+    def diverge(second_artifact: dict) -> None:
+        second_artifact["chunks"][0]["chunk_sha256"] = "8" * 64
+        second_artifact["chunk_sha256_set_digest"] = _set_digest(["8" * 64])
+
+    aggregate_path, digest = _shared_artifact_two_subjects(
+        tmp_path, mutate_second_artifact=diverge
+    )
 
     with pytest.raises(
         ReleaseReadinessError,
         match="artifact is duplicated across subjects",
+    ):
+        load_release_expectation(aggregate_path, digest)
+
+
+def test_v1_duplicate_artifact_within_same_subject_remains_refused(
+    tmp_path: Path,
+) -> None:
+    """The same content_sha256 listed twice inside ONE subject's own artifact
+    list is never legitimate sharing (a subject owns each of its placements
+    once) — unaffected by the cross-subject sharing fix."""
+    aggregate_path, _digest = _release_files(tmp_path)
+    subject_path = tmp_path / "maths_troisieme.release.json"
+    subject = json.loads(subject_path.read_text(encoding="utf-8"))
+    duplicate_artifact = copy.deepcopy(subject["artifacts"][0])
+    duplicate_artifact["placements"][0]["placement_id"] = "9" * 64
+    duplicate_artifact["placement_id_set_digest"] = _set_digest(["9" * 64])
+    subject["artifacts"].append(duplicate_artifact)
+    subject["expected_counts"]["artifacts"] = 2
+    subject["expected_counts"]["placements"] = 2
+    subject_sha = _write_json(subject_path, subject)
+    aggregate = json.loads(aggregate_path.read_text(encoding="utf-8"))
+    aggregate["subjects"][0]["sha256"] = subject_sha
+    aggregate["expected_counts"] = {"artifacts": 2, "placements": 2, "chunks": 2}
+    digest = _write_json(aggregate_path, aggregate)
+
+    with pytest.raises(ReleaseReadinessError, match="contains duplicate artifacts"):
+        load_release_expectation(aggregate_path, digest)
+
+
+def test_v1_conflicting_placement_identity_across_subjects_remains_refused(
+    tmp_path: Path,
+) -> None:
+    """Two subjects independently claiming the SAME placement_id for what the
+    manifest treats as two different artifacts is a real identity conflict —
+    never legitimate sharing, regardless of the artifact-content fix."""
+
+    def reuse_placement_id(second_artifact: dict) -> None:
+        # Overwrite the freshly-rewired placement_id back to the first
+        # subject's own placement_id, and change the content so this is
+        # unambiguously a different artifact colliding on placement identity,
+        # not the legitimate shared-artifact case.
+        second_artifact["placements"][0]["placement_id"] = PLACEMENT_ID
+        second_artifact["placement_id_set_digest"] = _set_digest([PLACEMENT_ID])
+        second_artifact["content_sha256"] = "7" * 64
+        second_artifact["chunks"][0]["chunk_id"] = "6" * 64
+        second_artifact["chunk_id_set_digest"] = _set_digest(["6" * 64])
+
+    aggregate_path, digest = _shared_artifact_two_subjects(
+        tmp_path, mutate_second_artifact=reuse_placement_id
+    )
+
+    with pytest.raises(
+        ReleaseReadinessError,
+        match="placement is duplicated across subjects",
     ):
         load_release_expectation(aggregate_path, digest)
 
@@ -1646,8 +1751,10 @@ def test_database_snapshot_counts_chunk_only_artifact_as_unexpected() -> None:
     placement_cursor = connection.cursors[1]
     assert "source_scope" in placement_cursor.sql
     chunk_cursor = connection.cursors[2]
-    assert "WHERE collection = ANY(%s)" in chunk_cursor.sql
-    assert chunk_cursor.params == ([COLLECTION],)
+    assert "WHERE collection = ANY(%s) OR artifact_id = ANY(%s)" in chunk_cursor.sql
+    # No placements were returned for this collection, so the placement-derived
+    # artifact_id scope is empty -- the chunk-tag scope alone still governs.
+    assert chunk_cursor.params == ([COLLECTION], [])
 
 
 def test_v2_database_snapshot_scopes_shared_chunks_by_artifact_identity(
@@ -1747,6 +1854,113 @@ def test_v2_database_snapshot_scopes_shared_chunks_by_artifact_identity(
     assert chunk_cursor.params == ([ARTIFACT_SHA],)
     assert "WHERE artifact_id = ANY(%s)" in chunk_cursor.sql
     assert "WHERE collection = ANY(%s)" not in chunk_cursor.sql
+
+
+def test_v1_collection_readiness_reaches_shared_chunks_placed_via_a_second_subject(
+    tmp_path: Path,
+) -> None:
+    """The physical chunk of a shared V1 artifact is stored exactly once and
+    tagged with its one home collection (say Première). A second subject
+    (Terminale) legitimately reaches the SAME physical chunk only through
+    ``rag_artifact_placements`` — never through the chunk's own denormalized
+    ``collection`` column. Validating readiness for Terminale must not
+    require the chunk to be re-tagged; the placement is the reachability
+    authority, not ``legacy_chunk_collection``.
+    """
+    aggregate_path, digest = _shared_artifact_two_subjects(tmp_path)
+    expectation = load_release_expectation(aggregate_path, digest)
+
+    collection_placements = tuple(
+        placement for placement in expectation.placements if placement.collection == SECOND_COLLECTION
+    )
+    referenced_artifact_ids = {placement.artifact_id for placement in collection_placements}
+    collection_artifacts = tuple(
+        artifact
+        for artifact in expectation.artifacts
+        if artifact.content_sha256 in referenced_artifact_ids
+    )
+    collection_expectation = replace(
+        expectation,
+        collections=(SECOND_COLLECTION,),
+        artifacts=collection_artifacts,
+        placements=collection_placements,
+    )
+
+    second_placement_payload = collection_placements[0].payload
+    placement_row = {
+        **second_placement_payload,
+        "artifact_id": ARTIFACT_SHA,
+        "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/3E/MATHEMATIQUES/a.pdf",
+        "source_uri": "https://eduscol.education.fr/document/a/download",
+        "authorization_id": "LOT12-V1:auth:shared",
+        "publication_attestation_id": "00000000-0000-0000-0000-000000000001",
+    }
+    artifact_row = (
+        ARTIFACT_SHA,
+        ARTIFACT_SHA,
+        "eduscol.education.fr",
+        "https://eduscol.education.fr/document/a/download",
+        "officiel_public",
+        True,
+        "eduscol.education.fr",
+        "ressource_officielle",
+    )
+    # Physically stored under COLLECTION (its home subject), never re-tagged
+    # for SECOND_COLLECTION -- only reachable there via the placement above.
+    chunk_row = (
+        CHUNK_ID,
+        ARTIFACT_SHA,
+        COLLECTION,
+        0,
+        CHUNK_SHA,
+        1,
+        1,
+        "reviewed",
+        MODEL_ID,
+        True,
+        1024,
+    )
+
+    class Cursor:
+        def __init__(self, rows: list[tuple[object, ...]]) -> None:
+            self.rows = rows
+            self.sql = ""
+            self.params: object = None
+
+        def __enter__(self) -> Cursor:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def execute(self, sql: str, params: object) -> None:
+            self.sql = sql
+            self.params = params
+
+        def fetchall(self) -> list[tuple[object, ...]]:
+            return self.rows
+
+    class Connection:
+        def __init__(self) -> None:
+            self.cursors = [
+                Cursor([artifact_row]),
+                Cursor([tuple(placement_row[column] for column in readiness._PLACEMENT_COLUMNS)]),
+                Cursor([chunk_row]),
+            ]
+            self.index = 0
+
+        def cursor(self) -> Cursor:
+            cursor = self.cursors[self.index]
+            self.index += 1
+            return cursor
+
+    connection = Connection()
+    snapshot = collect_release_snapshot(connection, (SECOND_COLLECTION,))
+    report = evaluate_release_snapshot(collection_expectation, snapshot)
+
+    assert report.ready is True, report.blockers
+    _artifact_cursor, _placement_cursor, chunk_cursor = connection.cursors
+    assert "artifact_id = ANY(%s)" in chunk_cursor.sql
 
 
 def test_v2_database_snapshot_includes_artifacts_observed_only_in_placements(
@@ -2651,6 +2865,39 @@ def test_multilevel_subject_profile_manifest_matches_authority(tmp_path: Path) -
 
     with pytest.raises(ReleaseReadinessError, match="profile manifest"):
         load_release_expectation(aggregate_path, digest)
+
+
+def test_real_production_profile_gate_release_matches_canonical_volumetry() -> None:
+    """Regression proof for the multi-placement fix: the real, sealed
+    production-profile-gate-2026-2027-v1 release (167 artifacts legitimately
+    shared across première/terminale subject collections) must now load
+    cleanly through the unmodified pinned registry entry, and the resulting
+    counts must match the volumetry every downstream consumer (the Nexus
+    ARIA preview's canonical authority, the servable-corpus pipeline) has
+    been built against. Before the fix, this same release raised
+    ``ReleaseReadinessError: artifact is duplicated across subjects``.
+    """
+    aggregate_path = PRODUCTION_PROFILE_RELEASE_ROOT / "production-profile-gate.release.json"
+    registry = json.loads(RELEASE_REGISTRY.read_text(encoding="utf-8"))
+    (entry,) = [
+        r
+        for r in registry["releases"]
+        if r["release_id"] == "production-profile-gate-2026-2027-v1"
+    ]
+    digest = entry["expected_manifest_sha256"]
+    assert entry["manifest_path"] == "profile_gate/production-profile-gate.release.json"
+
+    expectation = load_release_expectation(aggregate_path, digest)
+
+    assert len(expectation.placements) == 486
+    assert len({a.content_sha256 for a in expectation.artifacts}) == 319
+    assert sum(len(a.chunks) for a in expectation.artifacts) == 12403
+
+    nsi_terminale = [
+        a for a in expectation.artifacts if a.collection == "rag_nexus_nsi_terminale_specialite"
+    ]
+    assert len(nsi_terminale) == 47
+    assert sum(len(a.chunks) for a in nsi_terminale) == 904
 
 
 def test_release_registry_file_refuses_declared_collection_collision(
