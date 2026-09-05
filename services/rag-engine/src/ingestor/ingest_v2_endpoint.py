@@ -13,6 +13,11 @@ import time
 from pathlib import Path
 from typing import Any
 
+try:
+    from .safe_fetch import fetch_public_url
+except ImportError:
+    from safe_fetch import fetch_public_url
+
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
@@ -213,14 +218,8 @@ def ingest_urls_v2(payload: UrlsV2Request, request: Request) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     for url in payload.urls:
         try:
-            _validate_url(url)
-            import httpx
-            resp = httpx.get(url, timeout=30.0, follow_redirects=True, headers={"Accept": "text/html,text/plain"})
-            resp.raise_for_status()
-            if len(resp.content) > MAX_REMOTE_BYTES:
-                results.append({"url": url, "error": f"too large (>{MAX_REMOTE_BYTES} bytes)"})
-                continue
-            text = resp.text
+            response = fetch_public_url(url, max_bytes=MAX_REMOTE_BYTES)
+            text = response.text
             if not text.strip():
                 results.append({"url": url, "error": "empty content"})
                 continue

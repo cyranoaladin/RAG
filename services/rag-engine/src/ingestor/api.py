@@ -25,6 +25,11 @@ from urllib.parse import urlparse
 import chromadb
 import pdfplumber
 import requests
+
+try:
+    from .safe_fetch import fetch_public_url, FetchError
+except ImportError:
+    from safe_fetch import fetch_public_url, FetchError
 from bs4 import BeautifulSoup
 from chromadb.config import Settings
 from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
@@ -782,63 +787,24 @@ def _validate_remote_url(url: str) -> None:
 
 
 def _download_to_temp(url: str, suffix: str) -> Path:
-    _validate_remote_url(url)
-    headers = {"User-Agent": os.getenv("USER_AGENT", "rag-local-ingestor/1.0")}
     try:
-        with requests.get(url, timeout=30, stream=True, headers=headers) as response:
-            response.raise_for_status()
-            total = 0
-            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_file:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if not chunk:
-                        continue
-                    total += len(chunk)
-                    if total > MAX_REMOTE_BYTES:
-                        raise HTTPException(
-                            status_code=400, detail="Fichier distant trop volumineux")
-                    tmp_file.write(chunk)
-                return Path(tmp_file.name)
-    except HTTPException:
-        raise
-    except requests.RequestException as exc:
-        raise HTTPException(
-            status_code=400, detail=f"Téléchargement impossible: {exc}") from exc
+        result = fetch_public_url(url, max_bytes=MAX_REMOTE_BYTES)
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_file:
+            tmp_file.write(result.data)
+            return Path(tmp_file.name)
+    except FetchError as exc:
+        raise HTTPException(status_code=400, detail="Téléchargement distant refusé") from exc
 
 
 def _fetch_remote_text(url: str) -> tuple[str, str]:
-    _validate_remote_url(url)
-    headers = {"User-Agent": os.getenv("USER_AGENT", "rag-local-ingestor/1.0")}
     try:
-        with requests.get(url, timeout=30, allow_redirects=True, stream=True, headers=headers) as response:
-            if response.history:
-                for hop in response.history:
-                    _validate_remote_url(hop.url)
-            _validate_remote_url(response.url)
-            declared_length = response.headers.get("content-length")
-            if declared_length and int(declared_length) > MAX_REMOTE_BYTES:
-                raise HTTPException(
-                    status_code=400, detail="Réponse distante trop volumineuse")
-            chunks: list[bytes] = []
-            total = 0
-            for chunk in response.iter_content(chunk_size=8192):
-                if not chunk:
-                    continue
-                total += len(chunk)
-                if total > MAX_REMOTE_BYTES:
-                    raise HTTPException(
-                        status_code=400, detail="Réponse distante trop volumineuse")
-                chunks.append(chunk)
-            encoding = response.encoding or "utf-8"
-            text = b"".join(chunks).decode(encoding, errors="ignore")
-            if not text.strip():
-                raise HTTPException(
-                    status_code=400, detail="Aucun contenu exploitable sur la page")
-            return response.url, text
-    except HTTPException:
-        raise
-    except requests.RequestException as exc:
-        raise HTTPException(
-            status_code=400, detail=f"Téléchargement impossible: {exc}") from exc
+        result = fetch_public_url(url, max_bytes=MAX_REMOTE_BYTES)
+        text = result.text
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="Aucun contenu exploitable sur la page")
+        return result.url, text
+    except FetchError as exc:
+        raise HTTPException(status_code=400, detail="Téléchargement distant refusé") from exc
 
 
 def load_from_url(url: str) -> list[Document]:

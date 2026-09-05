@@ -13,6 +13,11 @@ from typing import Any
 
 from celery import Celery
 
+try:
+    from .safe_fetch import fetch_public_url
+except ImportError:
+    from safe_fetch import fetch_public_url
+
 logger = logging.getLogger(__name__)
 
 celery_app = Celery(
@@ -186,11 +191,9 @@ def _load_source_text(source_type: str, source_path: str) -> str:
         return "\n".join(p.text for p in d.paragraphs if p.text.strip())
 
     if source_type == "url":
-        import requests
         from bs4 import BeautifulSoup
-        resp = requests.get(source_path, timeout=30)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
+        response = fetch_public_url(source_path, max_bytes=int(os.getenv("MAX_REMOTE_BYTES", str(25 * 1024 * 1024))))
+        soup = BeautifulSoup(response.text, "html.parser")
         return soup.get_text("\n", strip=True)
 
     # Fallback: lire comme texte

@@ -237,22 +237,22 @@ def _decode_to_text(payload: bytes, mime: str) -> str:
     if mime_lower.startswith("text/") or mime_lower in {"application/json", "application/xml"}:
         return payload.decode("utf-8", errors="ignore")
 
-    # Images: OCR via pytesseract
+    # Decode image headers and enforce dimensions before pixel allocation/OCR.
     if mime_lower.startswith("image/"):
         try:
             import pytesseract
             from PIL import Image
-            img = Image.open(io.BytesIO(payload))
-            # Try French first, fallback to English
-            try:
-                text = pytesseract.image_to_string(img, lang="fra+eng")
-            except Exception:
-                text = pytesseract.image_to_string(img, lang="eng")
-            return (text or "").strip()
-        except ImportError:
-            pass  # pytesseract not installed, fall through
-        except Exception:
-            pass
+            with Image.open(io.BytesIO(payload)) as img:
+                max_pixels = int(os.getenv("MM_MAX_IMAGE_PIXELS", "20000000"))
+                if max_pixels <= 0 or img.width * img.height > max_pixels:
+                    raise ValueError("Image dimensions exceed the configured limit")
+                try:
+                    text = pytesseract.image_to_string(img, lang="fra+eng", timeout=30)
+                except Exception:
+                    text = pytesseract.image_to_string(img, lang="eng", timeout=30)
+                return (text or "").strip()
+        except Exception as exc:
+            raise ValueError("Image parsing refused") from exc
 
     # PDFs: extract text via pdfplumber or pypdf
     if mime_lower == "application/pdf":
