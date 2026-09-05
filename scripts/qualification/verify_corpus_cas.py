@@ -51,9 +51,30 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
         )
 
     verified = 0
+    root = cas_root.resolve(strict=False)
     for content_sha256 in sorted(declared):
         entry = declared[content_sha256]
-        blob = cas_root / str(entry["locator"])
+        # Un localisateur est une donnée du manifeste, donc une ENTRÉE : il peut
+        # être absolu, remonter par `..`, ou pointer un lien symbolique sortant
+        # du store. Sans cette borne, le vérificateur validerait un fichier
+        # extérieur comme s'il l'avait récupéré — et prouverait la
+        # reproductibilité d'un corpus qu'il n'a pas lu.
+        locator = str(entry["locator"])
+        blob = (cas_root / locator).resolve(strict=False)
+        try:
+            blob.relative_to(root)
+        except ValueError:
+            problems.append(
+                f"{content_sha256[:16]}… : le localisateur {locator!r} sort du "
+                "store — un objet hors du store n'est pas un objet récupéré"
+            )
+            continue
+        if blob.is_symlink() or (cas_root / locator).is_symlink():
+            problems.append(
+                f"{content_sha256[:16]}… : le localisateur est un lien "
+                "symbolique — un chemin gouverné ne redirige jamais"
+            )
+            continue
         if not blob.is_file():
             problems.append(f"{content_sha256[:16]}… : objet absent du store")
             continue

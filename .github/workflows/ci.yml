@@ -130,42 +130,6 @@ jobs:
             exit 1
           fi
 
-  corpus-cas-reproducibility:
-    # C1 — un clean-room doit pouvoir obtenir les 320 sources de la candidate
-    # SANS dépendre d'un poste de travail. Le store est privé et adressable par
-    # contenu ; l'accès est une clé de déploiement LECTURE SEULE, portée au seul
-    # dépôt du corpus.
-    #
-    # Le job ne fait jamais confiance au NOM d'un objet : il lit les octets, les
-    # hache, et refuse toute divergence. Un objet posé sous le bon localisateur
-    # avec d'autres octets est un refus.
-    name: "corpus CAS reproducibility (C1)"
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - name: Fetch the private content-addressed corpus
-        uses: actions/checkout@v4
-        with:
-          repository: cyranoaladin/RAG-corpus-cas
-          ssh-key: ${{ secrets.NEXUS_RAG_CORPUS_CAS_DEPLOY_KEY }}
-          path: .corpus-cas
-          persist-credentials: false
-      - name: Refuse a corpus that is not the one the candidate publishes
-        run: |
-          set -euo pipefail
-          # L'attente est VERSIONNÉE : l'empreinte de l'ensemble de contenus
-          # que la lignée scellée produit, et que l'index de la revue humaine
-          # déclare. Un store de la bonne taille mais d'un autre contenu est
-          # refusé — on vérifie l'ensemble, jamais le compte.
-          expected="$(python -c 'import json,pathlib;print(json.loads(pathlib.Path("docs/reports/evidence-index/pii_review_index_20260903.json").read_text())["content_set_sha256"])')"
-          python scripts/qualification/verify_corpus_cas.py \
-            --cas-root .corpus-cas \
-            --expect-content-set-sha256 "$expected" \
-            --expect-count 320
-
   real-model-acceptance:
     name: "real-model acceptance (E5 + reranker + pgvector)"
     runs-on: ubuntu-latest

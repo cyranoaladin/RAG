@@ -811,3 +811,65 @@ class TestTheHumanReviewBindsTheFinalCandidateCorpus:
             "le chargeur ne transmet plus l'ensemble de contenus revu : la "
             "confrontation avec la candidate ne recevrait rien à comparer"
         )
+
+
+class TestTheContentSetDigestHasOneMeaning:
+    """Trois implémentations, une seule vérité — ou la preuve ne veut rien dire.
+
+    La formule d'empreinte d'ensemble est écrite dans le producteur
+    (`_final_set_digest`), dans le moteur (`content_set_sha256`) et dans le
+    vérificateur de store adressable par contenu. Trois copies qui dérivent
+    produiraient trois « vérités » : le store prouverait sa conformité à une
+    attente que le producteur ne partage plus.
+
+    Ce test les confronte sur les mêmes entrées. Il ne les fusionne pas — les
+    trois vivent dans des périmètres différents, et un import croisé entre
+    services est interdit par AGENTS.md — mais il interdit qu'elles divergent.
+    """
+
+    def test_the_qualification_verifier_agrees_with_the_producer(self) -> None:
+        import importlib.util
+        import pathlib
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        repository = pathlib.Path(__file__).resolve().parents[3]
+        spec = importlib.util.spec_from_file_location(
+            "_verify_cas", repository / "scripts/qualification/verify_corpus_cas.py"
+        )
+        assert spec and spec.loader
+        verifier = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(verifier)
+
+        for sample in (
+            {"a" * 64},
+            {"a" * 64, "b" * 64},
+            {f"{i:064x}" for i in range(37)},
+        ):
+            assert verifier.content_set_digest(sample) == producer._final_set_digest(
+                sorted(sample)
+            ), "le vérificateur du store et le producteur ne calculent plus la même chose"
+
+    def test_the_real_lineage_digest_agrees_across_both(self) -> None:
+        """Sur la lignée RÉELLE, pas seulement sur des échantillons."""
+        import importlib.util
+        import json
+        import pathlib
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        repository = pathlib.Path(__file__).resolve().parents[3]
+        spec = importlib.util.spec_from_file_location(
+            "_verify_cas2", repository / "scripts/qualification/verify_corpus_cas.py"
+        )
+        assert spec and spec.loader
+        verifier = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(verifier)
+
+        index = json.loads(REAL_INDEX.read_text(encoding="utf-8"))
+        contents = {entry["content_sha256"] for entry in index["bundles"]}
+        assert verifier.content_set_digest(contents) == producer._final_set_digest(
+            sorted(contents)
+        )
