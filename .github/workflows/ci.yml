@@ -160,16 +160,10 @@ jobs:
           # que la lignée scellée produit, et que l'index de la revue humaine
           # déclare. Un store de la bonne taille mais d'un autre contenu est
           # refusé — on vérifie l'ensemble, jamais le compte.
+          expected="$(python -c 'import json,pathlib;print(json.loads(pathlib.Path("docs/reports/evidence-index/pii_review_index_20260903.json").read_text())["content_set_sha256"])')"
           python scripts/qualification/verify_corpus_cas.py \
             --cas-root .corpus-cas \
-            --expect-content-set-sha256 "$(python - <<'EOF'
-import json, pathlib
-index = json.loads(
-    pathlib.Path("docs/reports/evidence-index/pii_review_index_20260903.json").read_text()
-)
-print(index["content_set_sha256"])
-EOF
-)" \
+            --expect-content-set-sha256 "$expected" \
             --expect-count 320
 
   real-model-acceptance:
