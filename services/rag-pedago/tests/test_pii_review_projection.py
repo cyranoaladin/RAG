@@ -505,6 +505,110 @@ class TestADuplicateFindingIdIsNeverDeduplicated:
         )
 
 
+#: Chemins des artefacts RÉELS de la campagne scellée. Une seule source de
+#: vérité pour ce fichier.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+REAL_DECISION_SET = (
+    _REPO_ROOT / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
+)
+REAL_INDEX = _REPO_ROOT / "docs/reports/evidence-index/pii_review_index_20260903.json"
+REAL_CORPUS_AUTHORITY = (
+    _REPO_ROOT
+    / "services/rag-pedago/data/releases/prerentree_2026_2027"
+    / "profile_gate/corpus_manifest_authority.json"
+)
+
+
+class TestTheSealed20260903CampaignIsIntact:
+    """HISTORICAL_CAMPAIGN_INTEGRITY_TEST — et RIEN d'autre.
+
+    Ce test lit les artefacts versionnés de la campagne du 3 septembre 2026 et
+    prouve qu'ils sont mutuellement cohérents. Il ne dit RIEN du comportement
+    général du producteur : recalculer deux fichiers datés ne prouve pas
+    qu'une garde s'exécute, et prétendre le contraire fut le reproche fondé de
+    la revue.
+
+    La garde générique, elle, est éprouvée sans aucune campagne codée en dur
+    par `TestTheContentSetGuardIsGeneric` et par le banc du producteur.
+    """
+
+    def test_the_20260903_sealed_campaign_still_binds_its_recorded_index(self) -> None:
+        import hashlib
+        import json
+
+        decisions = json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))
+        assert decisions["review_index_sha256"] == hashlib.sha256(
+            REAL_INDEX.read_bytes()
+        ).hexdigest(), "l'ensemble de décisions ne scelle plus cet index"
+
+    def test_the_recorded_index_still_declares_the_reviewed_content_set(self) -> None:
+        import json
+
+        index = json.loads(REAL_INDEX.read_text(encoding="utf-8"))
+        assert index["content_set_sha256"] == (
+            "77f01c824c6be14ba6fd66eda99c2179fd87d9a2aaaf3c58e56a917d1ad5c31d"
+        ), "l'index de la campagne ne déclare plus l'ensemble de contenus revu"
+
+    def test_the_sealed_wrapper_is_not_the_population_authority(self) -> None:
+        """Le fait qui a coûté quatre tentatives de production.
+
+        Le wrapper que l'ensemble de décisions scelle décrit une sélection de
+        26 contenus ; la candidate en publie 320. Prouver ce wrapper intact ne
+        prouve donc rien de la population publiée — c'est l'index qui la lie."""
+        import json
+
+        wrapper = json.loads(REAL_CORPUS_AUTHORITY.read_text(encoding="utf-8"))
+        index = json.loads(REAL_INDEX.read_text(encoding="utf-8"))
+        assert wrapper["final_content_set_sha256"] != index["content_set_sha256"], (
+            "le wrapper scellé et l'index désignent la même population : la "
+            "distinction que ces tests entretiennent n'aurait plus d'objet"
+        )
+
+
+class TestTheContentSetGuardIsGeneric:
+    """BEHAVIORAL_GUARD — aucune campagne codée en dur.
+
+    La garde doit accepter une campagne FUTURE sans toucher une ligne de
+    Python. Ces cas n'emploient donc que des empreintes fabriquées."""
+
+    def _guard(self):
+        from conftest import load_producer
+
+        return load_producer().require_review_covers_produced_content_set
+
+    def test_the_same_content_set_passes(self) -> None:
+        self._guard()(
+            reviewed_content_set_sha256="a" * 64, produced_content_set_sha256="a" * 64
+        )
+
+    def test_a_different_content_set_is_refused(self) -> None:
+        with pytest.raises(ValueError, match="does not bind the corpus"):
+            self._guard()(
+                reviewed_content_set_sha256="a" * 64,
+                produced_content_set_sha256="b" * 64,
+            )
+
+    def test_the_same_cardinality_is_not_enough(self) -> None:
+        """On vérifie l'ENSEMBLE, jamais le compte.
+
+        Deux ensembles de même cardinalité et de contenu différent doivent être
+        refusés : une garde qui comparerait des tailles laisserait passer une
+        substitution de contenus à effectif constant."""
+        reviewed = "".join(f"{i % 10}" for i in range(64))
+        produced = "".join(f"{(i + 1) % 10}" for i in range(64))
+        assert len(reviewed) == len(produced) and reviewed != produced
+        with pytest.raises(ValueError, match="does not bind the corpus"):
+            self._guard()(
+                reviewed_content_set_sha256=reviewed,
+                produced_content_set_sha256=produced,
+            )
+
+    def test_no_review_authority_leaves_nothing_to_bind(self) -> None:
+        self._guard()(
+            reviewed_content_set_sha256=None, produced_content_set_sha256="a" * 64
+        )
+
+
 class TestTheCorpusBindingComparesComparableThings:
     """Le liage au corpus doit confronter deux mesures de MÊME nature.
 
@@ -527,9 +631,8 @@ class TestTheCorpusBindingComparesComparableThings:
         """La campagne réelle doit se projeter sur SON fichier d'autorité."""
         import hashlib
         import json
-        import pathlib
 
-        repository = pathlib.Path(__file__).resolve().parents[3]
+        repository = Path(__file__).resolve().parents[3]
         decision_set = json.loads(
             (
                 repository
@@ -554,9 +657,8 @@ class TestTheCorpusBindingComparesComparableThings:
         cesserait d'être une erreur — et ce test dirait pourquoi."""
         import hashlib
         import json
-        import pathlib
 
-        repository = pathlib.Path(__file__).resolve().parents[3]
+        repository = Path(__file__).resolve().parents[3]
         authority = (
             repository
             / "services/rag-pedago/data/releases/prerentree_2026_2027"

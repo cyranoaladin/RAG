@@ -1768,3 +1768,79 @@ def test_v2_placement_id_matches_independent_historical_golden() -> None:
     assert placement["placement_id"] == (
         "0dbc97c6481c2ebcfeb972b5868aa26bebe9bb8766e6852d4c757e4db68ef572"
     )
+
+
+def test_the_content_set_guard_is_actually_called_by_the_producer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CÂBLAGE : une garde correcte jamais appelée ne protège de rien.
+
+    `require_review_covers_produced_content_set` peut être parfaite et ne
+    jamais recevoir la main. Ce test passe par le chemin RÉEL de production —
+    `_pii_evidence` — et exige que la garde y soit invoquée avec l'ensemble
+    revu ET l'ensemble produit.
+
+    Aucune campagne n'est codée en dur : l'autorité de revue est remplacée par
+    un chargeur synthétique déclarant un ensemble arbitraire."""
+    builder = cast(Any, _module())
+
+    def scan_once(content: bytes, **_kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            sha256=V2_ARTIFACT_SHA,
+            pages_scanned=1,
+            characters_scanned=42,
+            ignored_empty_pages=(),
+            pii_detected=False,
+            matches=(),
+            extraction_error=None,
+        )
+
+    monkeypatch.setattr(builder, "load_patterns_from_config", lambda _path: ())
+    monkeypatch.setattr(builder, "scan_pdf_bytes", scan_once)
+
+    reviewed = "c" * 64
+    monkeypatch.setattr(
+        builder,
+        "_load_review_authority",
+        lambda _inputs: ({}, {}, {"reviewed_content_set_sha256": reviewed}),
+    )
+    seen: list[dict[str, object]] = []
+
+    def spy(**kwargs: object) -> None:
+        seen.append(kwargs)
+
+    # La projection elle-même est éprouvée ailleurs ; ce test mesure le
+    # CÂBLAGE de la garde, et rien d'autre.
+    monkeypatch.setattr(
+        builder,
+        "project_pii_review",
+        lambda *_a, **_k: SimpleNamespace(
+            entries=[
+                {
+                    "content_sha256": V2_ARTIFACT_SHA,
+                    "status": "CLEARED",
+                    "pii_detected": False,
+                }
+            ],
+            decision_set_id="synthetique",
+            counts={},
+        ),
+    )
+    monkeypatch.setattr(builder, "require_review_covers_produced_content_set", spy)
+    pdf = builder.VerifiedPdf(tmp_path / "commun.pdf", b"pdf-factice")
+
+    builder._pii_evidence(
+        _v2_placement_rows(), pdfs={V2_ARTIFACT_SHA: pdf}, inventory_sha256="f" * 64
+    )
+
+    assert seen, (
+        "le producteur n'appelle plus la garde : l'ensemble revu ne serait "
+        "jamais confronté à l'ensemble publié"
+    )
+    assert seen[0]["reviewed_content_set_sha256"] == reviewed
+    produced = seen[0]["produced_content_set_sha256"]
+    assert isinstance(produced, str) and len(produced) == 64
+    assert produced != reviewed, (
+        "le banc ne distingue pas les deux ensembles : il ne prouverait rien"
+    )

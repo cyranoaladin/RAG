@@ -31,6 +31,7 @@ REAL_DECISION_SET = REPO_ROOT / "governance/pii-review-decisions/pii-review-2026
 REAL_RECEIPT = REPO_ROOT / "governance/pii-review-bindings/pii-review-2026-09-03-final.json"
 REAL_ANCHOR = REPO_ROOT / "governance/trust-anchors/review-binding-v1.json"
 REAL_INDEX = REPO_ROOT / "docs/reports/evidence-index/pii_review_index_20260903.json"
+REAL_REVIEWERS = REPO_ROOT / "scripts/github/trusted-reviewers.json"
 
 
 class TestProducerCarriesNoBusinessConstant:
@@ -709,17 +710,13 @@ class TestTheHumanReviewBindsTheFinalCandidateCorpus:
         """Les quatre maillons, sur les artefacts RÉELS de la campagne."""
         import hashlib
         import json
-        import pathlib
 
         from conftest import load_producer
 
         producer = load_producer()
-        repository = pathlib.Path(__file__).resolve().parents[3]
 
         decisions = json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))
-        index_path = (
-            repository / "docs/reports/evidence-index/pii_review_index_20260903.json"
-        )
+        index_path = REAL_INDEX
         index = json.loads(index_path.read_text(encoding="utf-8"))
 
         # 1. le decision set scelle CET index
@@ -793,31 +790,18 @@ class TestTheHumanReviewBindsTheFinalCandidateCorpus:
         la confrontation reçoit `None` et se tait. Ce test exerce la chaîne
         réelle, sur les artefacts scellés de la campagne."""
         import json
-        import pathlib
 
         from conftest import load_producer
 
         producer = load_producer()
-        repository = pathlib.Path(__file__).resolve().parents[3]
-        index_path = (
-            repository / "docs/reports/evidence-index/pii_review_index_20260903.json"
-        )
+        index_path = REAL_INDEX
         reviewers = tuple(
-            json.loads(
-                (repository / "scripts/github/trusted-reviewers.json").read_text(
-                    encoding="utf-8"
-                )
-            )["reviewers"]
+            json.loads(REAL_REVIEWERS.read_text(encoding="utf-8"))["reviewers"]
         )
         inputs = producer.ReviewAuthorityInputs(
             decision_set_path=REAL_DECISION_SET,
-            receipt_path=(
-                repository
-                / "governance/pii-review-bindings/pii-review-2026-09-03-final.json"
-            ),
-            trust_anchor_path=(
-                repository / "governance/trust-anchors/review-binding-v1.json"
-            ),
+            receipt_path=REAL_RECEIPT,
+            trust_anchor_path=REAL_ANCHOR,
             review_index_path=index_path,
             reviewers=reviewers,
         )
