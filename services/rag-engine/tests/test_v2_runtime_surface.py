@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import re
 import shlex
 from pathlib import Path
 from types import SimpleNamespace
@@ -1302,7 +1303,10 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "model_artifact.py",
         "pg_pool.py",
         "readiness_db.py",
+        "api_scopes.py",
         "retrieval_hybrid_v2.py",
+        "retrieval_metadata_v2.py",
+        "retrieval_observability.py",
         "retrieval_pg_v2.py",
         "retrieval_readiness_v2.py",
         "retrieval_scope_v2.py",
@@ -1330,6 +1334,55 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "database.py",
     ):
         assert f"src/ingestor/{forbidden_module}" not in content
+
+
+#: Les modules du runtime v2 s'importent selon deux chemins : ``ingestor.x``
+#: en dépôt, et le module plat ``x`` dans l'image aplatie sous ``/app``. C'est
+#: le second qui décide de ce que l'image doit porter.
+_FLAT_IMPORT = re.compile(r"^\s*from\s+([a-z_][a-z0-9_]*)\s+import\b", re.MULTILINE)
+
+
+def _copied_runtime_modules() -> set[str]:
+    """Modules ``src/ingestor/*.py`` réellement copiés par le Dockerfile v2."""
+    prefix = "services/rag-engine/src/ingestor/"
+    copied: set[str] = set()
+    for line in V2_DOCKERFILE.read_text(encoding="utf-8").splitlines():
+        if not line.lstrip().upper().startswith("COPY "):
+            continue
+        for source in _docker_context_copy_sources(line):
+            if source.startswith(prefix) and source.endswith(".py"):
+                copied.add(source[len(prefix) : -len(".py")])
+    return copied
+
+
+def test_v2_image_carries_every_module_its_runtime_imports() -> None:
+    """Fermeture transitive : aucun module importé ne peut manquer à l'image.
+
+    Une liste d'``allowlist`` tenue à la main dérive en silence : un module
+    ajouté au runtime s'importe depuis le checkout hôte pendant tout le
+    développement, et ne manque qu'une fois l'image construite — c'est-à-dire
+    en production. Cette épreuve calcule la fermeture au lieu de l'énumérer.
+    """
+    source_root = ENGINE_ROOT / "src" / "ingestor"
+    copied = _copied_runtime_modules()
+    assert copied, "aucun module applicatif copié : le Dockerfile a changé de forme"
+
+    missing: dict[str, set[str]] = {}
+    for module in sorted(copied):
+        text = (source_root / f"{module}.py").read_text(encoding="utf-8")
+        imported = {
+            name
+            for name in _FLAT_IMPORT.findall(text)
+            if (source_root / f"{name}.py").is_file()
+        }
+        absent = imported - copied
+        if absent:
+            missing[module] = absent
+
+    assert not missing, (
+        "des modules importés par le runtime aplati manquent à l'image : "
+        f"{ {k: sorted(v) for k, v in missing.items()} }"
+    )
 
 
 def test_v2_docker_context_allowlist_contains_every_explicit_copy_source() -> None:

@@ -44,6 +44,7 @@ from nexus_contracts import (  # noqa: E402
     ReviewQueuePayload,
     ReviewQueueResponse,
     SearchPayload,
+    TaxonomyV2Response,
 )
 
 Model = TypeVar("Model", bound=BaseModel)
@@ -71,6 +72,7 @@ SCHEMAS: dict[str, type[BaseModel]] = {
     "retrieval-scope-artifact-v2.json": RetrievalScopeArtifactV2,
     "retrieval-scope-artifact-v3.json": RetrievalScopeArtifactV3,
     "search-payload.json": SearchPayload,
+    "taxonomy-v2-response.json": TaxonomyV2Response,
 }
 
 

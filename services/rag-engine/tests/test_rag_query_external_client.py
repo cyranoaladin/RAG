@@ -24,6 +24,10 @@ SCRIPT_PATH = REPOSITORY_ROOT / "scripts" / "rag_query_external.py"
 VALID_ENV = {
     "RAG_API_URL": "http://127.0.0.1:8001",
     "RAG_BFF_SERVICE_TOKEN": "test-external-bff-service-token-at-least-32b",
+    # Le moteur exige deux credentials distincts sur ses routes métier, sans
+    # aucun repli de l'un sur l'autre : le client externe doit donc porter la
+    # clé de client en plus du credential de façade.
+    "RAG_API_KEY": "test-external-client-api-key",
     "RAG_IDENTITY_TOKEN": "pre-issued.identity.token",
 }
 
@@ -162,6 +166,7 @@ def test_valid_bff_and_identity_succeeds(
     assert request.full_url == "http://127.0.0.1:8001/search/v2"
     assert request.get_header("Authorization") == f"Bearer {VALID_ENV['RAG_BFF_SERVICE_TOKEN']}"
     assert request.get_header("X-nexus-identity") == VALID_ENV["RAG_IDENTITY_TOKEN"]
+    assert request.get_header("X-rag-api-key") == VALID_ENV["RAG_API_KEY"]
 
     payload = json.loads(request.data)
     assert payload["need"]["query"] == "Comment me préparer ?"
@@ -170,7 +175,11 @@ def test_valid_bff_and_identity_succeeds(
 
     output = capsys.readouterr().out
     assert "titre=Attendus de fin d'année en français en 3e" in output
-    for secret in (VALID_ENV["RAG_BFF_SERVICE_TOKEN"], VALID_ENV["RAG_IDENTITY_TOKEN"]):
+    for secret in (
+        VALID_ENV["RAG_BFF_SERVICE_TOKEN"],
+        VALID_ENV["RAG_API_KEY"],
+        VALID_ENV["RAG_IDENTITY_TOKEN"],
+    ):
         assert secret not in output
 
 
@@ -192,6 +201,30 @@ def test_missing_bff_token_fails_before_any_request(
         client.main(["--scope", "entree_seconde_maths_v1", "--query", "Fractions"]) == 2
     )
     assert "RAG_BFF_SERVICE_TOKEN requis" in capsys.readouterr().err
+
+
+def test_missing_api_key_fails_before_any_request(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Un seul credential ne passe pas : le moteur refuserait en 401.
+
+    Échouer ici, avant tout appel réseau, dit à l'opérateur ce qui manque ;
+    échouer côté serveur ne lui dirait qu'« Unauthorized ».
+    """
+    client = _load_client()
+    for key, value in VALID_ENV.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("RAG_API_KEY")
+    monkeypatch.setattr(
+        client.urllib.request,
+        "urlopen",
+        lambda *_a, **_k: pytest.fail("HTTP must not run"),
+    )
+
+    assert (
+        client.main(["--scope", "entree_seconde_maths_v1", "--query", "Fractions"]) == 2
+    )
+    assert "RAG_API_KEY requis" in capsys.readouterr().err
 
 
 def test_missing_identity_fails_before_any_request(

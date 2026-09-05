@@ -841,4 +841,12 @@ def test_real_module_explains_the_exact_production_lexical_sql() -> None:
     assert "_DENSE_SQL," in content
     assert "_LEXICAL_SQL," in content
     assert "PgCandidateStore," in content
-    assert "(QUERY, *_scope_sql_params(TARGET_COLLECTION), 50)," in content
+    # Les paramètres sont ceux de PgCandidateStore.lexical, fragment de
+    # restriction pédagogique compris — lu du module, jamais recopié : une
+    # place de plus dans le SQL sans une place de plus dans le banc rendrait
+    # ce dernier muet (42 marqueurs pour 40 paramètres).
+    assert "*_scope_sql_params(TARGET_COLLECTION)," in content
+    assert "*chunk_metadata_filter_params(None)," in content
+    assert "from ingestor.retrieval_metadata_v2 import chunk_metadata_filter_params" in (
+        content
+    )

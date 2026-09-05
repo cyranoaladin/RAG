@@ -121,7 +121,7 @@ def test_seules_les_collections_signees_sont_annoncees(
 ) -> None:
     _allow(monkeypatch, endpoint, "rag_nexus_nsi_terminale_specialite")
 
-    body = endpoint.get_taxonomy(SimpleNamespace())
+    body = endpoint.get_taxonomy(SimpleNamespace()).model_dump(mode="json")
 
     assert [item["collection"] for item in body["collections"]] == [
         "rag_nexus_nsi_terminale_specialite"
@@ -135,7 +135,7 @@ def test_la_vue_est_versionnee_comme_le_reste_de_la_surface(
 ) -> None:
     _allow(monkeypatch, endpoint, "rag_nexus_nsi_terminale_specialite")
 
-    assert endpoint.get_taxonomy(SimpleNamespace())["version"] == 2
+    assert endpoint.get_taxonomy(SimpleNamespace()).version == 2
 
 
 def test_une_collection_non_retrievable_n_est_jamais_annoncee(
@@ -144,7 +144,7 @@ def test_une_collection_non_retrievable_n_est_jamais_annoncee(
     """Annoncer une dimension qu'on refusera de servir serait mentir."""
     _allow(monkeypatch, endpoint, "rag_nexus_quarantine")
 
-    body = endpoint.get_taxonomy(SimpleNamespace())
+    body = endpoint.get_taxonomy(SimpleNamespace()).model_dump(mode="json")
 
     assert body["collections"] == []
     assert body["dimensions"]["matiere"] == []
@@ -161,7 +161,7 @@ def test_specialite_est_expose_depuis_le_catalogue_sans_seconde_verite(
         "rag_nexus_maths_terminale_tc",
     )
 
-    body = endpoint.get_taxonomy(SimpleNamespace())
+    body = endpoint.get_taxonomy(SimpleNamespace()).model_dump(mode="json")
 
     par_collection = {item["collection"]: item for item in body["collections"]}
     assert par_collection["rag_nexus_nsi_terminale_specialite"][
@@ -226,8 +226,59 @@ def test_la_vue_n_expose_aucune_dimension_de_gouvernance(
     """Ni empreinte de scope, ni identifiant d'artefact, ni droits internes."""
     _allow(monkeypatch, endpoint, "rag_nexus_nsi_terminale_specialite")
 
-    body = endpoint.get_taxonomy(SimpleNamespace())
+    body = endpoint.get_taxonomy(SimpleNamespace()).model_dump(mode="json")
 
     serialise = repr(body)
     for interdit in ("scope_digest", "source_sha256", "scope_id", "visibilit"):
         assert interdit not in serialise
+
+
+def test_une_panne_d_autorite_remonte_au_lieu_de_rendre_une_taxonomie_vide(
+    endpoint, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Fail-closed n'est pas muet.
+
+    Une taxonomie vide en 200 est indistinguable d'un compte légitimement
+    vide : l'appelant croit que rien ne lui est servable, alors que
+    l'autorité de release est en panne. Seul le 403 — une décision
+    d'autorisation — peut être silencieux.
+    """
+    _allow(monkeypatch, endpoint, "rag_nexus_nsi_terminale_specialite")
+
+    for status in (500, 503):
+        monkeypatch.setattr(
+            endpoint,
+            "_check_retrievable",
+            lambda *_a, _status=status, **_k: (_ for _ in ()).throw(
+                HTTPException(status_code=_status, detail="release evidence unavailable")
+            ),
+        )
+        with pytest.raises(HTTPException) as refus:
+            endpoint.get_taxonomy(SimpleNamespace())
+        assert refus.value.status_code == status
+
+
+def test_une_collection_interdite_reste_omise_en_silence(
+    endpoint, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Contrôle positif : sans lui, « tout remonte » passerait pour un progrès."""
+    _allow(
+        monkeypatch,
+        endpoint,
+        "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_maths_terminale_tc",
+    )
+    reel = endpoint._check_retrievable
+
+    def refuser_les_maths(collection, cfg, verified=None):
+        if collection == "rag_nexus_maths_terminale_tc":
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return reel(collection, cfg, verified)
+
+    monkeypatch.setattr(endpoint, "_check_retrievable", refuser_les_maths)
+
+    body = endpoint.get_taxonomy(SimpleNamespace()).model_dump(mode="json")
+
+    assert [item["collection"] for item in body["collections"]] == [
+        "rag_nexus_nsi_terminale_specialite"
+    ]

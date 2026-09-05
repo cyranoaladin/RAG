@@ -35,6 +35,9 @@ from nexus_contracts import (
     RetrievalScopeArtifactV2,
     RetrievalScopeArtifactV3,
     ServableCorpus,
+    TaxonomyCollectionV2,
+    TaxonomyDimensionsV2,
+    TaxonomyV2Response,
     load_retrieval_scope_registry,
 )
 from nexus_contracts.canonical_json import canonical_model_bytes
@@ -62,7 +65,6 @@ def _missing_sibling(exc: ImportError) -> bool:
 
 
 try:
-    from .api_scopes import ApiScope
     from .collection_config import (
         CollectionConfigError,
         list_instanciated_collections,
@@ -117,9 +119,11 @@ try:
     )
     from .retrieval_observability import (
         RetrievalAccessRecord,
+        load_access_log_secret,
         log_retrieval_access,
         query_fingerprint,
         resolve_request_id,
+        sanitize_filters,
     )
     from .retrieval_pg_v2 import (
         _READINESS_SCOPE_PREDICATE_SQL,
@@ -145,7 +149,6 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         # manque, ou sa configuration qui a été refusée. Réessayer par un
         # autre chemin rejouerait le même échec sous un autre nom.
         raise
-    from api_scopes import ApiScope  # type: ignore[no-redef]
     from collection_config import (  # type: ignore[no-redef]
         CollectionConfigError,
         list_instanciated_collections,
@@ -205,9 +208,11 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     )
     from retrieval_observability import (  # type: ignore[no-redef]
         RetrievalAccessRecord,
+        load_access_log_secret,
         log_retrieval_access,
         query_fingerprint,
         resolve_request_id,
+        sanitize_filters,
     )
     from retrieval_pg_v2 import (  # type: ignore[no-redef]
         _READINESS_SCOPE_PREDICATE_SQL,
@@ -1310,8 +1315,8 @@ def _taxonomy_dimensions(entries: Sequence[Mapping[str, Any]]) -> dict[str, list
     return dimensions
 
 
-@router.get("/taxonomy/v2")
-def get_taxonomy(request: Request) -> dict[str, Any]:
+@router.get("/taxonomy/v2", response_model=TaxonomyV2Response)
+def get_taxonomy(request: Request) -> TaxonomyV2Response:
     """Dimensions réellement servables ET autorisées pour l'appelant.
 
     Une collection signée mais non retrievable n'est pas annoncée : publier
@@ -1319,7 +1324,9 @@ def get_taxonomy(request: Request) -> dict[str, Any]:
 
     Cette vue n'expose aucune donnée de gouvernance (empreinte de scope,
     identifiant d'artefact, visibilité interne) : ce sont les dimensions du
-    catalogue pédagogique, rien d'autre.
+    catalogue pédagogique, rien d'autre. Sa forme est le contrat partagé
+    `TaxonomyV2Response` (ADR-0049), jamais un dictionnaire libre : un agent
+    extérieur doit pouvoir générer son client depuis le schéma.
     """
     verified = _require_retrieval_identity(request, endpoint="/taxonomy/v2")
     try:
@@ -1328,21 +1335,32 @@ def get_taxonomy(request: Request) -> dict[str, Any]:
         for collection in effective_signed_collections(verified):
             try:
                 definition = _check_retrievable(collection, cfg, verified)
-            except HTTPException:
-                continue
+            except HTTPException as exc:
+                # Fail-closed n'est pas muet. Un 403 est une décision
+                # d'autorisation : la collection est omise, en silence, et
+                # c'est le comportement voulu. Une panne d'autorité de
+                # release, un catalogue malformé ou une base indisponible
+                # (500, 503) rendraient, absorbés ici, une taxonomie VIDE en
+                # 200 — indistinguable d'un compte légitimement vide. Ils
+                # remontent.
+                if exc.status_code == 403:
+                    continue
+                raise
             scope = build_server_retrieval_scope(
                 verified,
                 collection=collection,
                 collection_config=cfg,
             )
             entries.append(_taxonomy_entry(collection, definition, scope))
+    except HTTPException:
+        raise
     except (RetrievalScopeError, CollectionConfigError, ValueError) as exc:
         raise HTTPException(status_code=403, detail="Forbidden") from exc
-    return {
-        "version": 2,
-        "collections": entries,
-        "dimensions": _taxonomy_dimensions(entries),
-    }
+    return TaxonomyV2Response(
+        version=2,
+        collections=[TaxonomyCollectionV2(**entry) for entry in entries],
+        dimensions=TaxonomyDimensionsV2(**_taxonomy_dimensions(entries)),
+    )
 
 
 @router.get("/collections/readiness")
@@ -2013,18 +2031,109 @@ def _require_curriculum_evidence_match(
         raise RetrievalScopeError("retrieval scope forbidden")
 
 
+class _AccessJournal:
+    """Accumulateur du journal d'accès d'une requête, succès ou échec.
+
+    Il existe parce qu'une requête refusée est justement celle qu'on cherche
+    à comprendre : un journal qui ne s'écrit qu'après la dernière ligne du
+    chemin nominal ne consigne jamais un 401, un 403, un 422 ni un 503, et
+    toute la machinerie d'imputation par étape est perdue à l'instant même où
+    elle servirait.
+    """
+
+    def __init__(
+        self,
+        *,
+        request: Request,
+        request_id: str,
+        endpoint: str,
+        started: float,
+    ) -> None:
+        self._request = request
+        self._request_id = request_id
+        self._endpoint = endpoint
+        self._started = started
+        self._secret = load_access_log_secret()
+        self.filters: dict[str, Any] = {}
+        self.diagnostics = ChannelDiagnostics()
+        self.query: str | None = None
+        self._emitted = False
+
+    def emit(self, *, status_code: int, outcome: str | None = None) -> None:
+        if self._emitted:
+            return
+        self._emitted = True
+        # Le middleware de l'application journalise ce qui n'a jamais atteint
+        # la route (refus d'authentification, corps invalide refusé par la
+        # validation du framework). Cette marque évite la double ligne sans
+        # laisser de trou : exactement un enregistrement par requête.
+        state = getattr(self._request, "state", None)
+        if state is not None:
+            try:
+                state.access_journaled = True
+            except Exception:  # pragma: no cover - état non inscriptible
+                pass
+        # `unattributed` ne se voit pas accorder de portée : affirmer
+        # `rag:search` sans client résolu serait inscrire au journal une
+        # autorisation que personne n'a reçue.
+        scopes = _calling_client_scopes(self._request)
+        log_retrieval_access(
+            RetrievalAccessRecord(
+                request_id=self._request_id,
+                endpoint=self._endpoint,
+                client_id=_calling_client_id(self._request),
+                granted_scopes=scopes,
+                status_code=status_code,
+                latency_ms=(time.perf_counter() - self._started) * 1000.0,
+                filters=sanitize_filters(self.filters, secret=self._secret),
+                channels=self.diagnostics.as_mapping(),
+                query_sha256=(
+                    query_fingerprint(self.query, secret=self._secret)
+                    if self.query is not None
+                    else None
+                ),
+                query_length=len(self.query) if self.query is not None else None,
+                outcome=outcome,
+            )
+        )
+
+
 @router.post("/search/v2", response_model=RetrievalResponse)
 def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
-    """Retrieval v2: dense + lexical → RRF → rerank → seuil → MMR.
-
-    Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
-    answer_generation_allowed = false.
-    """
+    """Retrieval v2 gouverné, avec journal d'accès sur toutes les issues."""
     started = time.perf_counter()
     # L'observabilité ne doit jamais faire échouer ce qui est servi : un
     # appelant sans en-têtes (outillage, appel direct du routeur) obtient un
     # identifiant généré, pas une exception.
     request_id = resolve_request_id(getattr(request, "headers", None))
+    journal = _AccessJournal(
+        request=request,
+        request_id=request_id,
+        endpoint="/search/v2",
+        started=started,
+    )
+    try:
+        response = _search_v2_served(payload, request, journal)
+    except HTTPException as exc:
+        journal.emit(status_code=exc.status_code, outcome="refused")
+        raise
+    except Exception:
+        journal.emit(status_code=500, outcome="unhandled")
+        raise
+    journal.emit(status_code=200)
+    return response
+
+
+def _search_v2_served(
+    payload: RetrievalRequest,
+    request: Request,
+    journal: _AccessJournal,
+) -> RetrievalResponse:
+    """Retrieval v2: dense + lexical → RRF → rerank → seuil → MMR.
+
+    Canonical pipeline LOT40. Gate retrievable fail-closed (GG-01).
+    answer_generation_allowed = false.
+    """
     verified = _require_retrieval_identity(
         request,
         endpoint="/search/v2",
@@ -2078,7 +2187,16 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
         raise HTTPException(status_code=422, detail="Unsupported retrieval filters") from exc
 
     # Public retrieval always re-reads PostgreSQL through the canonical pipeline.
-    diagnostics = ChannelDiagnostics()
+    # Le journal reçoit la requête et les filtres AVANT le retrieval : si le
+    # retrieval échoue, la ligne émise porte quand même de quoi le diagnostiquer.
+    journal.query = adapted.query
+    journal.filters = {
+        "collection": adapted.nexus_collection,
+        "scope_digest": scope.filter_digest,
+    }
+    if metadata_filters.notions:
+        journal.filters["notions"] = list(metadata_filters.notions)
+    diagnostics = journal.diagnostics
     hits = _retrieve_endpoint_hits(
         adapted.query,
         adapted.nexus_collection,
@@ -2119,23 +2237,14 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
                 "corpus_version_id": corpus.corpus_version_id,
             }
         )
-    log_retrieval_access(
-        RetrievalAccessRecord(
-            request_id=request_id,
-            endpoint="/search/v2",
-            client_id=_calling_client_id(request),
-            granted_scopes=_calling_client_scopes(request) or (ApiScope.SEARCH.value,),
-            status_code=200,
-            latency_ms=(time.perf_counter() - started) * 1000.0,
-            # Les filtres journalisés sont des dimensions de catalogue, pas
-            # des données personnelles. La requête, elle, ne sort jamais
-            # autrement que sous forme d'empreinte.
-            filters=filters_applied,
-            channels=diagnostics.as_mapping(),
-            query_sha256=query_fingerprint(adapted.query),
-            query_length=len(adapted.query),
+    if corpus is not None:
+        journal.filters.update(
+            {
+                "manifest_sha256": payload.manifest_sha256,
+                "corpus_id": corpus.corpus_id,
+                "corpus_version_id": corpus.corpus_version_id,
+            }
         )
-    )
     return RetrievalResponse(
         results=results,
         warnings=list(adapted.warnings),

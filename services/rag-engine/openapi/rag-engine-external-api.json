@@ -600,6 +600,7 @@
         "additionalProperties": false,
         "properties": {
           "filters_applied": {
+            "additionalProperties": true,
             "title": "Filters Applied",
             "type": "object"
           },
@@ -712,6 +713,7 @@
             "title": "Manifest Sha256"
           },
           "metadata": {
+            "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
@@ -771,9 +773,6 @@
         "properties": {
           "artifact_version": {
             "const": "3",
-            "enum": [
-              "3"
-            ],
             "title": "Artifact Version",
             "type": "string"
           },
@@ -794,9 +793,6 @@
           },
           "status": {
             "const": "eligible_for_promotion",
-            "enum": [
-              "eligible_for_promotion"
-            ],
             "title": "Status",
             "type": "string"
           },
@@ -1080,9 +1076,6 @@
           },
           "max_stale_other_workers_s": {
             "const": 0,
-            "enum": [
-              0
-            ],
             "title": "Max Stale Other Workers S",
             "type": "integer"
           },
@@ -1337,9 +1330,6 @@
           },
           "protocol_version": {
             "const": "1",
-            "enum": [
-              "1"
-            ],
             "title": "Protocol Version",
             "type": "string"
           },
@@ -1413,9 +1403,6 @@
           },
           "protocol_version": {
             "const": "1",
-            "enum": [
-              "1"
-            ],
             "title": "Protocol Version",
             "type": "string"
           },
@@ -1485,6 +1472,7 @@
         "additionalProperties": false,
         "properties": {
           "availability": {
+            "additionalProperties": true,
             "title": "Availability",
             "type": "object"
           },
@@ -1720,6 +1708,133 @@
         "title": "SupportedManifest",
         "type": "object"
       },
+      "TaxonomyCollectionV2": {
+        "additionalProperties": false,
+        "description": "Une collection servable, telle que le scope serveur la dérive.",
+        "properties": {
+          "collection": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Collection",
+            "type": "string"
+          },
+          "matiere": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Matiere",
+            "type": "string"
+          },
+          "niveau": {
+            "$ref": "#/components/schemas/Niveau"
+          },
+          "programme_version": {
+            "minLength": 1,
+            "title": "Programme Version",
+            "type": "string"
+          },
+          "school_year": {
+            "minLength": 1,
+            "title": "School Year",
+            "type": "string"
+          },
+          "statut_enseignement": {
+            "$ref": "#/components/schemas/StatutEnseignement"
+          },
+          "voie": {
+            "$ref": "#/components/schemas/Voie"
+          }
+        },
+        "required": [
+          "collection",
+          "matiere",
+          "niveau",
+          "voie",
+          "statut_enseignement",
+          "programme_version",
+          "school_year"
+        ],
+        "title": "TaxonomyCollectionV2",
+        "type": "object"
+      },
+      "TaxonomyDimensionsV2": {
+        "additionalProperties": false,
+        "description": "Valeurs distinctes des dimensions, dans l'ordre d'apparition.\n\nL'ordre est un engagement : deux appels identiques rendent la même\nréponse, ce qu'un ensemble ne garantirait pas.",
+        "properties": {
+          "matiere": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-z0-9_]+$",
+              "type": "string"
+            },
+            "title": "Matiere",
+            "type": "array"
+          },
+          "niveau": {
+            "items": {
+              "$ref": "#/components/schemas/Niveau"
+            },
+            "title": "Niveau",
+            "type": "array"
+          },
+          "programme_version": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Programme Version",
+            "type": "array"
+          },
+          "school_year": {
+            "items": {
+              "type": "string"
+            },
+            "title": "School Year",
+            "type": "array"
+          },
+          "statut_enseignement": {
+            "items": {
+              "$ref": "#/components/schemas/StatutEnseignement"
+            },
+            "title": "Statut Enseignement",
+            "type": "array"
+          },
+          "voie": {
+            "items": {
+              "$ref": "#/components/schemas/Voie"
+            },
+            "title": "Voie",
+            "type": "array"
+          }
+        },
+        "title": "TaxonomyDimensionsV2",
+        "type": "object"
+      },
+      "TaxonomyV2Response": {
+        "additionalProperties": false,
+        "description": "Réponse de `GET /taxonomy/v2` — les dimensions servables ET autorisées.",
+        "properties": {
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyCollectionV2"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "dimensions": {
+            "$ref": "#/components/schemas/TaxonomyDimensionsV2"
+          },
+          "version": {
+            "const": 2,
+            "default": 2,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "title": "TaxonomyV2Response",
+        "type": "object"
+      },
       "TypeDoc": {
         "enum": [
           "programme_officiel",
@@ -1804,6 +1919,25 @@
         "title": "Voie",
         "type": "string"
       }
+    },
+    "securitySchemes": {
+      "bffServiceToken": {
+        "description": "Credential machine de la façade autorisée (`Authorization: Bearer <RAG_BFF_SERVICE_TOKEN>`). Il établit d'où vient l'appel, jamais ce que l'appelant a le droit de faire.",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "nexusSignedIdentity": {
+        "description": "Jeton d'identité signé émis par le SSO. Il transporte la portée de retrieval (tenant, niveau, matière, droits) que ni le credential machine ni la clé de client ne portent.",
+        "in": "header",
+        "name": "X-Nexus-Identity",
+        "type": "apiKey"
+      },
+      "ragApiKey": {
+        "description": "Clé porteuse du client, portée par le registre de clients du déploiement. Elle établit ce que CE client a le droit de faire. Aucun repli sur `Authorization` : les deux sont exigés.",
+        "in": "header",
+        "name": "X-RAG-API-Key",
+        "type": "apiKey"
+      }
     }
   },
   "info": {
@@ -1821,6 +1955,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Get Full Catalogue Catalogue V2 Get",
                   "type": "object"
                 }
@@ -1829,6 +1964,15 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
         "summary": "Get Full Catalogue",
         "tags": [
           "retrieval_v2"
@@ -1871,6 +2015,15 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
         "summary": "Chat",
         "tags": [
           "retrieval_v2"
@@ -1886,6 +2039,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response Get Collection Readiness Collections Readiness Get",
                   "type": "object"
                 }
@@ -1894,6 +2048,15 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
         "summary": "Get Collection Readiness",
         "tags": [
           "retrieval_v2"
@@ -1909,6 +2072,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": true,
                   "title": "Response List Retrievable Collections Collections V2 Get",
                   "type": "object"
                 }
@@ -1917,6 +2081,15 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
         "summary": "List Retrievable Collections",
         "tags": [
           "retrieval_v2"
@@ -1938,6 +2111,14 @@
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:read-source"
+            ]
+          }
+        ],
         "summary": "Get Servable Corpus Index",
         "tags": [
           "servable_corpus"
@@ -1980,6 +2161,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:read-source"
+            ]
+          }
+        ],
         "summary": "Get Servable Corpus Manifest",
         "tags": [
           "servable_corpus"
@@ -2067,6 +2256,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:admin"
+            ]
+          }
+        ],
         "summary": "Review Decide",
         "tags": [
           "review_v2"
@@ -2143,6 +2340,14 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:admin"
+            ]
+          }
+        ],
         "summary": "List Queue",
         "tags": [
           "review_v2"
@@ -2151,7 +2356,7 @@
     },
     "/search/v2": {
       "post": {
-        "description": "Retrieval v2: dense + lexical → RRF → rerank → seuil → MMR.\n\nCanonical pipeline LOT40. Gate retrievable fail-closed (GG-01).\nanswer_generation_allowed = false.",
+        "description": "Retrieval v2 gouverné, avec journal d'accès sur toutes les issues.",
         "operationId": "search_v2_search_v2_post",
         "requestBody": {
           "content": {
@@ -2185,6 +2390,15 @@
             "description": "Validation Error"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
         "summary": "Search V2",
         "tags": [
           "retrieval_v2"
@@ -2193,21 +2407,29 @@
     },
     "/taxonomy/v2": {
       "get": {
-        "description": "Dimensions réellement servables ET autorisées pour l'appelant.\n\nUne collection signée mais non retrievable n'est pas annoncée : publier\nune dimension qu'on refusera de servir induirait l'appelant en erreur.\n\nCette vue n'expose aucune donnée de gouvernance (empreinte de scope,\nidentifiant d'artefact, visibilité interne) : ce sont les dimensions du\ncatalogue pédagogique, rien d'autre.",
+        "description": "Dimensions réellement servables ET autorisées pour l'appelant.\n\nUne collection signée mais non retrievable n'est pas annoncée : publier\nune dimension qu'on refusera de servir induirait l'appelant en erreur.\n\nCette vue n'expose aucune donnée de gouvernance (empreinte de scope,\nidentifiant d'artefact, visibilité interne) : ce sont les dimensions du\ncatalogue pédagogique, rien d'autre. Sa forme est le contrat partagé\n`TaxonomyV2Response` (ADR-0049), jamais un dictionnaire libre : un agent\nextérieur doit pouvoir générer son client depuis le schéma.",
         "operationId": "get_taxonomy_taxonomy_v2_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
                 "schema": {
-                  "title": "Response Get Taxonomy Taxonomy V2 Get",
-                  "type": "object"
+                  "$ref": "#/components/schemas/TaxonomyV2Response"
                 }
               }
             },
             "description": "Successful Response"
           }
         },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
         "summary": "Get Taxonomy",
         "tags": [
           "retrieval_v2"

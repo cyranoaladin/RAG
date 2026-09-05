@@ -158,11 +158,16 @@ def test_search_token_setup_is_reverted_after_monkeypatch_context(
 
 
 def test_search_v2_has_no_direct_visibility_or_database_pipeline() -> None:
-    source = inspect.getsource(endpoint.search_v2)
-    assert "_check_retrievable" in source
-    assert "_retrieve_endpoint_hits" in source
-    assert "psycopg" not in source
-    assert "review_status IN ('reviewed', 'needs_review')" not in source
+    # La route est une enveloppe qui journalise toutes les issues et délègue
+    # le service : l'invariant regarde les deux, sinon il cesse de regarder
+    # le code qui sert.
+    wrapper = inspect.getsource(endpoint.search_v2)
+    served = inspect.getsource(endpoint._search_v2_served)
+    assert "_check_retrievable" in served
+    assert "_retrieve_endpoint_hits" in served
+    for source in (wrapper, served):
+        assert "psycopg" not in source
+        assert "review_status IN ('reviewed', 'needs_review')" not in source
 
 
 @pytest.mark.parametrize(

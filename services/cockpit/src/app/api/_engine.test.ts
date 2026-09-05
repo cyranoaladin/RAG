@@ -27,11 +27,13 @@ describe('public launch readiness', () => {
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
     delete process.env.RAG_ENGINE_INTERNAL_TOKEN
+    delete process.env.RAG_ENGINE_API_KEY
     delete process.env.RAG_ENGINE_INTERNAL_URL
   })
 
   it('fails closed when the engine does not prove all collections ready', async () => {
     process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    process.env.RAG_ENGINE_API_KEY = 'cockpit-api-key'
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ launch_ready: false })))
 
     await expect(isPublicLaunchReady('signed-identity-token')).resolves.toBe(false)
@@ -39,6 +41,7 @@ describe('public launch readiness', () => {
     const init = vi.mocked(fetch).mock.calls[0]?.[1] as RequestInit
     const headers = init.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer service-token')
+    expect(headers.get('X-RAG-API-Key')).toBe('cockpit-api-key')
     expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
   })
 
@@ -51,6 +54,7 @@ describe('public launch readiness', () => {
 
   it('sépare le jeton service du header d’identité signé', async () => {
     process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    process.env.RAG_ENGINE_API_KEY = 'cockpit-api-key'
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ hits: [] }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -63,11 +67,13 @@ describe('public launch readiness', () => {
     const init = fetchMock.mock.calls[0]?.[1] as RequestInit
     const headers = init.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer service-token')
+    expect(headers.get('X-RAG-API-Key')).toBe('cockpit-api-key')
     expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
   })
 
   it('borne un appel moteur par le reliquat partagé et le signal appelant', async () => {
     process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    process.env.RAG_ENGINE_API_KEY = 'cockpit-api-key'
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ hits: [] }))
     vi.stubGlobal('fetch', fetchMock)
     const caller = new AbortController()
@@ -97,9 +103,22 @@ describe('public launch readiness', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it('refuse tout appel moteur sans clé porteuse de client', async () => {
+    // Le moteur exige deux secrets ; n'en fournir qu'un ferait échouer
+    // l'appel en 401 côté serveur, sans que rien ici ne dise pourquoi.
+    process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    vi.stubGlobal('fetch', vi.fn())
+
+    await expect(fetchEngine('/search/v2')).rejects.toThrow(
+      'Configuration moteur manquante: RAG_ENGINE_API_KEY',
+    )
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
   it('encode les seuls filtres autorisés dans l’URL de la queue de review', async () => {
     process.env.RAG_ENGINE_INTERNAL_URL = 'http://engine.internal:8001/'
     process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    process.env.RAG_ENGINE_API_KEY = 'cockpit-api-key'
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ documents: [] }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -122,12 +141,14 @@ describe('public launch readiness', () => {
     expect(init.method).toBe('GET')
     expect(init.body).toBeUndefined()
     expect(headers.get('Authorization')).toBe('Bearer service-token')
+    expect(headers.get('X-RAG-API-Key')).toBe('cockpit-api-key')
     expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
   })
 
   it('préserve le préfixe de chemin configuré devant la queue de review', async () => {
     process.env.RAG_ENGINE_INTERNAL_URL = 'https://gateway.internal/rag-engine/'
     process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    process.env.RAG_ENGINE_API_KEY = 'cockpit-api-key'
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ documents: [] }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -141,6 +162,7 @@ describe('public launch readiness', () => {
   it('transmet une décision de review sans mélanger corps et jetons', async () => {
     process.env.RAG_ENGINE_INTERNAL_URL = 'http://engine.internal:8001/'
     process.env.RAG_ENGINE_INTERNAL_TOKEN = 'service-token'
+    process.env.RAG_ENGINE_API_KEY = 'cockpit-api-key'
     const fetchMock = vi.fn().mockResolvedValue(Response.json({ document_id: 'doc-42' }))
     vi.stubGlobal('fetch', fetchMock)
     const body = {
@@ -164,6 +186,7 @@ describe('public launch readiness', () => {
     expect(String(init.body)).not.toContain('service-token')
     expect(String(init.body)).not.toContain('signed-identity-token')
     expect(headers.get('Authorization')).toBe('Bearer service-token')
+    expect(headers.get('X-RAG-API-Key')).toBe('cockpit-api-key')
     expect(headers.get('X-Nexus-Identity')).toBe('signed-identity-token')
   })
 })

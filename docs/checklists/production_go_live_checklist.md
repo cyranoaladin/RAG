@@ -14,6 +14,10 @@
 - [ ] Tous les tokens 64-hex distincts entre rôles v2
 - [ ] `LEGACY_ADMIN_API_TOKEN` distinct de tous les tokens v2
 - [ ] `RAG_ENGINE_INTERNAL_TOKEN` côté Cockpit est identique à `RAG_BFF_SERVICE_TOKEN` côté moteur et distinct de tous les tokens humains
+- [ ] `RAG_ENGINE_API_KEY` côté Cockpit est **distinct** de `RAG_ENGINE_INTERNAL_TOKEN` ; son empreinte SHA-256 figure dans le registre `RAG_API_CLIENTS_FILE` du moteur avec la portée `rag:search`
+- [ ] Le registre de clients du moteur est injecté par **exactement une** autorité : `RAG_API_CLIENTS_FILE` (fichier monté depuis un magasin de secrets) OU `RAG_API_CLIENTS`, jamais les deux, jamais aucune — le démarrage échoue sinon
+- [ ] Le registre ne transporte que des empreintes SHA-256, jamais un jeton en clair
+- [ ] `RAG_ACCESS_LOG_HMAC_SECRET` est configuré, dédié, et distinct de tout credential d'appel
 - [ ] Les secrets de session Auth.js et de signature d'identité interne sont configurés, non versionnés et distincts des credentials moteur
 - [ ] `INGESTOR_API_TOKEN` / `INGEST_AUTH_TOKEN` peuvent être identiques (même rôle)
 - [ ] `.env` mode 0600, non versionné

@@ -31,8 +31,69 @@ SRC_ROOT = ENGINE_ROOT / "src"
 OPENAPI_PATH = ENGINE_ROOT / "openapi" / "rag-engine-external-api.json"
 
 
+#: Les trois credentials du contrat externe, décrits pour un générateur de
+#: client. Ils ne peuvent PAS être dérivés de `app.openapi()` : l'application
+#: les exige dans un middleware, pas dans des dépendances FastAPI. Sans cette
+#: déclaration, le schéma publié annonce des routes ouvertes que le runtime
+#: refuse — un contrat qui ment.
+SECURITY_SCHEMES: dict[str, dict] = {
+    "bffServiceToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": (
+            "Credential machine de la façade autorisée "
+            "(`Authorization: Bearer <RAG_BFF_SERVICE_TOKEN>`). Il établit "
+            "d'où vient l'appel, jamais ce que l'appelant a le droit de faire."
+        ),
+    },
+    "ragApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-RAG-API-Key",
+        "description": (
+            "Clé porteuse du client, portée par le registre de clients du "
+            "déploiement. Elle établit ce que CE client a le droit de faire. "
+            "Aucun repli sur `Authorization` : les deux sont exigés."
+        ),
+    },
+    "nexusSignedIdentity": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Nexus-Identity",
+        "description": (
+            "Jeton d'identité signé émis par le SSO. Il transporte la portée "
+            "de retrieval (tenant, niveau, matière, droits) que ni le "
+            "credential machine ni la clé de client ne portent."
+        ),
+    },
+}
+
+
+def _security_requirement(route: str) -> list[dict[str, list[str]]] | None:
+    """Les credentials exigés par cette route, lus des tables du runtime.
+
+    Un seul objet dans la liste signifie « tous ceux-ci », pas « l'un d'eux » :
+    c'est bien une conjonction, comme le middleware l'applique.
+    """
+    from ingestor.api_scopes import (
+        required_scope_for_route,
+        route_requires_signed_identity,
+    )
+
+    scope = required_scope_for_route(route)
+    if scope is None:
+        return None
+    requirement: dict[str, list[str]] = {
+        "bffServiceToken": [],
+        "ragApiKey": [scope.value],
+    }
+    if route_requires_signed_identity(route):
+        requirement["nexusSignedIdentity"] = []
+    return [requirement]
+
+
 def build_openapi_document() -> dict:
-    """Rendre le schéma que FastAPI dérive des modèles montés."""
+    """Rendre le schéma que FastAPI dérive des modèles montés, auth comprise."""
     if str(SRC_ROOT) not in sys.path:
         sys.path.insert(0, str(SRC_ROOT))
     from ingestor import api_v2
@@ -40,6 +101,17 @@ def build_openapi_document() -> dict:
     document = api_v2.app.openapi()
     if not isinstance(document, dict):  # pragma: no cover - contrat FastAPI
         raise RuntimeError("FastAPI did not return an OpenAPI document")
+
+    components = document.setdefault("components", {})
+    components["securitySchemes"] = SECURITY_SCHEMES
+
+    for route, operations in document.get("paths", {}).items():
+        requirement = _security_requirement(route)
+        if requirement is None:
+            continue
+        for operation in operations.values():
+            if isinstance(operation, dict):
+                operation["security"] = requirement
     return document
 
 
@@ -70,18 +142,24 @@ def main() -> int:
     rendered = serialize(build_openapi_document())
     output: Path = arguments.output
 
+    # Comparaison et écriture en octets UTF-8, jamais en texte : une lecture
+    # en mode texte normalise les fins de ligne, et un fichier publié en CRLF
+    # passerait pour identique alors que ses octets diffèrent —
+    # `OPENAPI_SCHEMA_DRIFT=0` ne prouverait plus l'artefact octet-identique
+    # qu'il promet.
+    encoded = rendered.encode("utf-8")
     if arguments.check:
         if not output.is_file():
             print(f"OPENAPI_SCHEMA_MISSING={output}", file=sys.stderr)
             return 1
-        if output.read_text(encoding="utf-8") != rendered:
+        if output.read_bytes() != encoded:
             print("OPENAPI_SCHEMA_DRIFT=1", file=sys.stderr)
             return 1
         print("OPENAPI_SCHEMA_DRIFT=0")
         return 0
 
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(rendered, encoding="utf-8")
+    output.write_bytes(encoded)
     print(f"OPENAPI_SCHEMA_WRITTEN={output}")
     return 0
 

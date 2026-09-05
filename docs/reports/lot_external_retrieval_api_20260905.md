@@ -133,3 +133,174 @@ La porte de portée est **fail-closed** sur l'app v2 : tout appelant du cockpit
 devra présenter un `X-RAG-API-Key` en plus de son jeton BFF. C'est un changement
 de contrat côté façade. Déployer sans l'avoir traité fermerait le cockpit sur
 lui-même.
+
+---
+
+# Remédiation de revue — 2026-09-06
+
+Dix-neuf findings ouverts par la revue automatique, plus trois échecs
+d'intégration que la CI a fait remonter. Traités avant fusion.
+
+## P0 — l'image ne portait pas ce que son runtime importe
+
+`api_scopes.py`, `retrieval_metadata_v2.py` et `retrieval_observability.py`
+n'étaient dans aucun `COPY` : le service démarrait sur un poste de
+développement (le module venait du checkout hôte) et aurait échoué à
+l'`ImportError` une fois l'image construite.
+
+Trois gardes, du plus faible au plus fort :
+
+1. l'allowlist du `Dockerfile` et du `.dockerignore` est complétée ;
+2. une épreuve statique calcule la **fermeture transitive** des imports du
+   runtime aplati et refuse tout module importé mais non copié — l'énumération
+   à la main est remplacée par un calcul ;
+3. `tests/integration/test_ingestor_v2_image_boot.py` **construit l'image
+   réelle** et l'exécute. Aucun montage hôte.
+
+```
+docker build -f services/rag-engine/infra/Dockerfile.ingestor-v2 .
+docker run --rm --entrypoint python <image> -c "import api_v2"   → IMPORT_OK
+docker run --rm --entrypoint python <image> -c "import api_scopes; …"
+    → /app   (et non le checkout hôte)
+5 passed
+```
+
+Le banc est branché au job CI `worker image integration (docker)`, le seul qui
+dispose d'un démon Docker réel.
+
+## P0 — le registre de clients d'API n'était injecté par aucun Compose
+
+`load_api_clients()` est appelé dans le lifespan : sans autorité configurée, le
+service échouait au démarrage. Le Compose canonique monte désormais **une seule**
+autorité, un fichier de secrets en lecture seule, et exige un secret HMAC dédié
+pour le journal d'accès.
+
+Porte prouvée **sur l'image réelle**, pas seulement en unité :
+
+```
+zéro source configurée  → refus  ("no API client registry configured")
+deux sources            → refus  ("both API client sources are configured")
+exactement une          → la porte est franchie ; l'échec suivant n'est plus
+                          celui du registre
+```
+
+## P1 — deux credentials réellement distincts
+
+`extract_api_key` retombait sur `Authorization` quand `X-RAG-API-Key` manquait :
+un seul secret suffisait alors à passer les deux portes, et « deux
+credentials » était une fiction. Le repli est supprimé — y compris sur
+`X-API-Token`.
+
+Ses appelants suivent dans le même lot, comme la revue l'exigeait :
+
+- **Cockpit/BFF** — `RAG_ENGINE_API_KEY` en plus de `RAG_ENGINE_INTERNAL_TOKEN`,
+  avec un refus explicite avant tout appel réseau si l'un manque ;
+- **client externe** `scripts/rag_query_external.py` — `RAG_API_KEY`, même refus
+  anticipé : « Unauthorized » côté serveur ne dirait pas ce qui manque ;
+- **documentation** — README Cockpit et checklist go-live.
+
+## P1 — OpenAPI décrit l'authentification réelle
+
+`app.openapi()` ne voit rien : l'authentification vit dans un middleware, pas
+dans des dépendances FastAPI. Le document annonçait donc des routes ouvertes que
+le runtime refuse en 401 — un générateur de client produisait du code incapable
+d'appeler `/search/v2`.
+
+Les trois credentials sont maintenant déclarés (`bffServiceToken`, `ragApiKey`,
+`nexusSignedIdentity`), et chaque opération porte sa `security` **dérivée des
+tables du runtime** (`_ROUTE_SCOPES`, `_ROUTE_SIGNED_IDENTITY`) — jamais
+recopiée. Un test confronte la table d'identité au code qui appelle réellement
+la porte : une route qui quitte l'une sans quitter l'autre se voit.
+
+## P2 — `/taxonomy/v2` typé et non muet
+
+`dict[str, Any]` est publié comme un objet sans forme. Contrat partagé
+`TaxonomyV2Response` dans `packages/contracts` (0.17.0, **ADR-0049**), schéma
+JSON exporté, `response_model` sur la route.
+
+Les dimensions décrites sont celles que le moteur dérive réellement ;
+`chapitre`, `notion` et `type_document` sont **délibérément absents** — aucune
+taxonomie fermée ne les borne, et annoncer une énumération que rien ne peut
+produire serait une promesse fausse.
+
+La route absorbait par ailleurs **toute** `HTTPException` pour passer à la
+collection suivante : une panne d'autorité (500, 503) rendait une taxonomie vide
+en 200, indistinguable d'un compte légitimement vide. Seul le 403 — une décision
+d'autorisation — reste silencieux.
+
+## P2 — C6 sur les deux canaux
+
+`PgCandidateStore` câble le fragment de métadonnée et le conjoint de placement
+dans deux SQL distincts. Le banc n'exerçait que le lexical : une régression
+confinée au chemin dense n'aurait laissé aucune trace. Les quatre sabotages sont
+rejoués sur `store.dense(...)`.
+
+Mutation prouvée sur PostgreSQL réel : `AND {fragment}` → `AND (TRUE OR
+{fragment})` **dans le seul SQL dense** →
+`test_placement_autorise_et_notion_ne_correspond_pas_ne_sert_rien` rougit ;
+restauré → 5 passed.
+
+```
+PLACEMENT_DENY + notion_match  → 0   (lexical ET dense)
+PLACEMENT_ALLOW + notion_mismatch → 0 (lexical ET dense)
+PLACEMENT_ALLOW + notion_match → 1   (lexical ET dense)
+```
+
+## P2 — observabilité : les échecs, et l'étape fautive
+
+**Toute** requête produit désormais un enregistrement. La route journalise ses
+propres issues (200, 403, 422, 503, 500) et pose une marque ; le middleware
+journalise ce qui n'a jamais atteint la route — refus d'authentification, corps
+rejeté par la validation du framework. Exactement un enregistrement par requête,
+jamais deux.
+
+`stage` ne se réutilise plus après coup : `fusion_status` et `selection_status`
+existent. Un échec de RRF ou de MMR ne peut plus marquer `lexical` en échec
+alors que le canal lexical a rendu ses candidats.
+
+## P2 — confidentialité du journal
+
+- **empreinte de requête** : `HMAC-SHA256(secret, requête normalisée)` sous
+  `RAG_ACCESS_LOG_HMAC_SECRET`. Un SHA-256 nu se retourne par dictionnaire :
+  « corréler » devenait « retrouver ». **Aucun repli** : sans secret, pas
+  d'empreinte du tout.
+- **`notions`** : texte libre d'appelant, aucune taxonomie fermée ne le borne.
+  Compté et empreint sous la même clé, jamais recopié. Les dimensions de
+  catalogue fermées (`collection`, empreinte de scope, identifiants de corpus)
+  restent lisibles — sans elles, un « 0 résultat » ne se diagnostique pas.
+- **immuabilité** : `frozen=True` gèle les attributs, pas les dictionnaires
+  qu'ils désignent. `filters` et `channels` sont figés à la construction.
+- **portées** : un appelant non résolu n'est plus crédité de `rag:search`.
+
+## P3
+
+- comparaison et écriture du schéma OpenAPI **en octets** : un fichier publié en
+  CRLF passait pour identique, et `OPENAPI_SCHEMA_DRIFT=0` ne prouvait plus
+  l'artefact octet-identique promis ;
+- la surface comparée ne retient que les routes que FastAPI documente
+  réellement, au lieu d'une liste d'exclusions qui oubliait
+  `/docs/oauth2-redirect` ;
+- registre de clients lu **une seule fois** par requête : celle qui décide est
+  celle qui attribue ;
+- un registre monté en octets non-UTF-8 (rotation de secret) est une
+  configuration refusée — 503 —, plus une panne serveur 500.
+
+## Trois échecs d'intégration que la CI a fait remonter
+
+| Banc | Cause | Correctif |
+|---|---|---|
+| `test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope` | « 42 marqueurs pour 40 paramètres » : le fragment de métadonnée ajoute deux places au SQL, les helpers du banc ne les passaient pas | les paramètres sont lus de `chunk_metadata_filter_params`, jamais recopiés |
+| `test_signed_identity_to_http_scope_and_real_database_is_end_to_end` | le double de comptage recopiait une signature devenue fausse | `**options` suit la signature réelle : le double compte, il ne décide pas de la forme |
+| `test_runtime_blocks_review_update_while_trigger_drift_is_detected` | la porte de portée refusait en 503 avant d'atteindre la dérive de trigger mesurée | le banc provisionne un registre et envoie les **deux** credentials |
+
+## Qualité
+
+| Cible | Résultat |
+|---|---|
+| `services/rag-engine` — pytest (`-m "not integration"`) | vert, exit 0 |
+| `services/rag-engine` — `ruff check src tests scripts` | All checks passed |
+| `services/rag-engine` — `mypy src` | Success: no issues found in 135 source files |
+| `packages/contracts` — pytest | 568 passed |
+| `services/cockpit` — vitest | 180 passed (21 fichiers) |
+| C6 sur pgvector réel (lexical + dense) | 5 passed |
+| démarrage de l'image v2 réelle | 5 passed |

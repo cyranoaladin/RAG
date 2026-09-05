@@ -1626,15 +1626,23 @@ class TestCacheGateInvariant:
         }
 
     def test_public_search_contains_no_direct_sql(self) -> None:
-        """Public search contains no direct SQL and delegates after its gate."""
+        """Public search contains no direct SQL and delegates after its gate.
+
+        La route est désormais une enveloppe qui journalise toutes les issues
+        et délègue le service à `_search_v2_served` : l'invariant porte sur
+        les deux, sans quoi il ne regarderait plus le code qui sert.
+        """
         import inspect
 
-        from ingestor.retrieval_v2_endpoint import search_v2
+        from ingestor.retrieval_v2_endpoint import _search_v2_served, search_v2
 
-        source = inspect.getsource(search_v2)
-        assert "_retrieve_endpoint_hits" in source
-        assert "psycopg" not in source
-        assert "SELECT" not in source
+        wrapper = inspect.getsource(search_v2)
+        served = inspect.getsource(_search_v2_served)
+        assert "_search_v2_served" in wrapper
+        assert "_retrieve_endpoint_hits" in served
+        for source in (wrapper, served):
+            assert "psycopg" not in source
+            assert "SELECT" not in source
 
 
 class TestAtomicHybridWarmup:

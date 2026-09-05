@@ -13,10 +13,18 @@ Jamais un OU. Une notion qui « correspond » ne peut pas rendre visible un
 contenu que son placement interdit ; un placement qui autorise ne dispense
 pas de correspondre au filtre demandé.
 
-Les trois sabotages tournent sur un PostgreSQL RÉEL et jetable, portant le
-schéma issu des vraies migrations livrées, et exercent le VRAI magasin de
-candidats (`PgCandidateStore`) — pas une requête réécrite pour le test, qui
-pourrait diverger de celle que le moteur envoie.
+Les sabotages tournent sur un PostgreSQL RÉEL et jetable, portant le schéma
+issu des vraies migrations livrées, et exercent le VRAI magasin de candidats
+(`PgCandidateStore`) — pas une requête réécrite pour le test, qui pourrait
+diverger de celle que le moteur envoie.
+
+**Sur les deux canaux.** `PgCandidateStore` câble le fragment de métadonnée
+et le conjoint de placement dans deux SQL distincts : `_LEXICAL_SQL` avec
+`_EFFECTIVE_SCOPE_FILTER_SQL` d'un côté, `_DENSE_SQL` avec
+`_READINESS_SCOPE_PREDICATE_SQL` de l'autre. Une régression confinée au
+chemin dense — fragment élargi en OU, ou conjoint de placement affaibli —
+n'aurait laissé aucune trace dans un banc purement lexical. Chaque sabotage
+est donc rejoué sur `store.dense(...)`.
 """
 from __future__ import annotations
 
@@ -58,6 +66,10 @@ NOTION_DU_CHUNK = "recursivite"
 NOTION_ABSENTE = "graphes"
 
 VECTOR = "[" + ",".join(["0.01"] * 1024) + "]"
+#: Le même vecteur, sous la forme que `store.dense` attend. Le canal dense a
+#: son propre SQL : l'exercer avec le vecteur du chunk garantit qu'un refus
+#: vient bien du filtre ou du placement, jamais d'une distance trop grande.
+QUERY_VECTOR = tuple([0.01] * 1024)
 
 
 SCOPE = ServerRetrievalScope(
@@ -127,25 +139,55 @@ def seeded(retrieval_pg: dict[str, str]) -> Iterator[psycopg.Connection]:
         yield connection
 
 
+def _store(
+    connection: psycopg.Connection,
+    metadata: ChunkMetadataFilters | None,
+) -> PgCandidateStore:
+    @contextmanager
+    def provider() -> Iterator[psycopg.Connection]:
+        yield connection
+
+    return PgCandidateStore(provider, SCOPE, metadata_filters=metadata)
+
+
 def _served(
     connection: psycopg.Connection,
     *,
     metadata: ChunkMetadataFilters | None = None,
 ) -> list[str]:
     """Ce que le VRAI magasin de candidats livré rend, canal lexical."""
-
-    @contextmanager
-    def provider() -> Iterator[psycopg.Connection]:
-        yield connection
-
-    store = PgCandidateStore(provider, SCOPE, metadata_filters=metadata)
-    candidates = store.lexical(raw_query=QUERY, collection=COLLECTION, limit=10)
+    candidates = _store(connection, metadata).lexical(
+        raw_query=QUERY, collection=COLLECTION, limit=10
+    )
     return [candidate.chunk_id for candidate in candidates]
 
 
+def _served_dense(
+    connection: psycopg.Connection,
+    *,
+    metadata: ChunkMetadataFilters | None = None,
+) -> list[str]:
+    """Le même magasin, canal dense — un SQL distinct, donc un risque distinct."""
+    candidates = _store(connection, metadata).dense(
+        query_vector=QUERY_VECTOR, collection=COLLECTION, limit=10
+    )
+    return [candidate.chunk_id for candidate in candidates]
+
+
+def _served_on_both(
+    connection: psycopg.Connection,
+    *,
+    metadata: ChunkMetadataFilters | None = None,
+) -> tuple[list[str], list[str]]:
+    return (
+        _served(connection, metadata=metadata),
+        _served_dense(connection, metadata=metadata),
+    )
+
+
 def test_le_placement_nominal_sert_le_chunk_sans_filtre(seeded: psycopg.Connection) -> None:
-    """Contrôle positif : sans lui, les trois refus ne prouveraient rien."""
-    assert _served(seeded) == [CHUNK_ID]
+    """Contrôle positif : sans lui, les refus ne prouveraient rien."""
+    assert _served_on_both(seeded) == ([CHUNK_ID], [CHUNK_ID])
 
 
 def test_placement_refuse_et_notion_correspond_ne_sert_rien(
@@ -157,9 +199,9 @@ def test_placement_refuse_et_notion_correspond_ne_sert_rien(
     un OU, cette correspondance suffirait à servir un contenu dont le
     placement vient d'être restreint. Elle ne doit rien servir."""
     seeded.execute("UPDATE public.rag_artifact_placements SET visibility = 'restricted'")
-    assert _served(seeded, metadata=ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))) == [], (
-        "une notion correspondante a outrepassé un placement qui refuse"
-    )
+    assert _served_on_both(
+        seeded, metadata=ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))
+    ) == ([], []), "une notion correspondante a outrepassé un placement qui refuse"
 
 
 def test_placement_autorise_et_notion_ne_correspond_pas_ne_sert_rien(
@@ -169,9 +211,9 @@ def test_placement_autorise_et_notion_ne_correspond_pas_ne_sert_rien(
 
     Le placement autorise ; la notion demandée est absente du chunk. Un
     filtre décoratif, non poussé jusqu'au SQL, servirait quand même."""
-    assert _served(seeded, metadata=ChunkMetadataFilters(notions=(NOTION_ABSENTE,))) == [], (
-        "le filtre de notion n'a pas restreint un placement autorisé"
-    )
+    assert _served_on_both(
+        seeded, metadata=ChunkMetadataFilters(notions=(NOTION_ABSENTE,))
+    ) == ([], []), "le filtre de notion n'a pas restreint un placement autorisé"
 
 
 def test_placement_autorise_et_notion_correspond_sert_le_chunk(
@@ -182,21 +224,22 @@ def test_placement_autorise_et_notion_correspond_sert_le_chunk(
     Les deux conditions sont réunies : le contenu doit être servi. Sans ce
     cas, un filtre qui refuserait systématiquement passerait les deux
     précédents."""
-    assert _served(seeded, metadata=ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))) == [
-        CHUNK_ID
-    ]
+    assert _served_on_both(
+        seeded, metadata=ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))
+    ) == ([CHUNK_ID], [CHUNK_ID])
 
 
 def test_une_notion_correspondante_ne_ressuscite_pas_un_placement_retire(
     seeded: psycopg.Connection,
 ) -> None:
     """Toutes les façons de refuser un placement résistent au filtre."""
+    filtre = ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))
     seeded.execute("UPDATE public.rag_artifact_placements SET placement_status = 'disabled'")
-    assert _served(seeded, metadata=ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))) == []
+    assert _served_on_both(seeded, metadata=filtre) == ([], [])
     seeded.execute(
         "UPDATE public.rag_artifact_placements"
         " SET placement_status = 'active', currentness = 'archive'"
     )
-    assert _served(seeded, metadata=ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))) == []
+    assert _served_on_both(seeded, metadata=filtre) == ([], [])
     seeded.execute("DELETE FROM public.rag_artifact_placements")
-    assert _served(seeded, metadata=ChunkMetadataFilters(notions=(NOTION_DU_CHUNK,))) == []
+    assert _served_on_both(seeded, metadata=filtre) == ([], [])

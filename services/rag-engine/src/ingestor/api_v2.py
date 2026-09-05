@@ -79,6 +79,11 @@ try:
         CANONICAL_RERANK_MODEL,
         verify_configured_reranker_artifact,
     )
+    from .retrieval_observability import (
+        RetrievalAccessRecord,
+        log_retrieval_access,
+        resolve_request_id,
+    )
     from .retrieval_readiness_v2 import retrieval_database_ready
     from .retrieval_scope_v2 import validate_scope_registry_catalogue_alignment
     from .review_readiness_v2 import review_database_ready
@@ -139,6 +144,11 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from reranker_contract import (  # type: ignore[no-redef]
         CANONICAL_RERANK_MODEL,
         verify_configured_reranker_artifact,
+    )
+    from retrieval_observability import (  # type: ignore[no-redef]
+        RetrievalAccessRecord,
+        log_retrieval_access,
+        resolve_request_id,
     )
     from retrieval_readiness_v2 import (  # type: ignore[no-redef]
         retrieval_database_ready,
@@ -497,6 +507,13 @@ async def _metrics_middleware(request: Request, call_next):
         else:
             response = await call_next(request)
         status_code = response.status_code
+        if route_template is not None:
+            _journal_unrecorded_access(
+                request,
+                endpoint=route_template,
+                status_code=status_code,
+                started=started,
+            )
     finally:
         path = request.url.path
         ingest_metrics.record_http_request(
@@ -507,6 +524,49 @@ async def _metrics_middleware(request: Request, call_next):
             time.perf_counter() - started,
         )
     return response
+
+
+def _journal_unrecorded_access(
+    request: Request,
+    *,
+    endpoint: str,
+    status_code: int,
+    started: float,
+) -> None:
+    """Journaliser ce qui n'a jamais atteint la route.
+
+    Un refus d'authentification, un corps rejeté par la validation du
+    framework ou une base déclarée indisponible ne traversent pas la fonction
+    de route : sans cette ligne, les requêtes les plus intéressantes pour
+    l'exploitation — celles qui ont échoué — seraient les seules absentes du
+    journal. La route pose une marque quand elle a déjà écrit ; il y a donc
+    exactement un enregistrement par requête, jamais deux.
+    """
+    state = getattr(request, "state", None)
+    if getattr(state, "access_journaled", False):
+        return
+    client = getattr(state, "api_client", None)
+    scopes = tuple(
+        sorted(
+            value
+            for value in (
+                getattr(scope, "value", scope)
+                for scope in (getattr(client, "scopes", None) or ())
+            )
+            if isinstance(value, str)
+        )
+    )
+    log_retrieval_access(
+        RetrievalAccessRecord(
+            request_id=resolve_request_id(getattr(request, "headers", None)),
+            endpoint=endpoint,
+            client_id=str(getattr(client, "client_id", None) or "unattributed"),
+            granted_scopes=scopes,
+            status_code=status_code,
+            latency_ms=(time.perf_counter() - started) * 1000.0,
+            outcome="pre_route",
+        )
+    )
 
 
 def _mount_allowed_routes() -> None:

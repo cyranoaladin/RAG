@@ -4,7 +4,7 @@
       "sha256": "63d17d438a4999c794cf69ae761e149cbdb821a5558397b60c0cdf1a9e3596f9"
     }
   },
-  "packageVersion": "0.15.0",
+  "packageVersion": "0.17.0",
   "schemas": {
     "chat-payload.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/chat-payload.json",
@@ -97,6 +97,10 @@
     "servable-corpus-manifest-v1.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/servable-corpus-manifest-v1.json",
       "sha256": "e05d7cbf965c22f072faa25a9dabe673022050da4e54bf706027663321ba0386"
+    },
+    "taxonomy-v2-response.json": {
+      "$id": "https://nexusreussite.academy/contracts/v0.5/taxonomy-v2-response.json",
+      "sha256": "8aa667ef3ff997d94d78ec7fc5628b7b41c5e1c456a9fd1a7f6dc9da5a3ed501"
     }
   }
 }

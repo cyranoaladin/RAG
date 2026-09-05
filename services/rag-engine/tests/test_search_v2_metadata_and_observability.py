@@ -253,10 +253,14 @@ def test_chaque_requete_produit_une_ligne_d_acces_exploitable(
     assert line["request_id"] == "corr-42"
     assert line["endpoint"] == "/search/v2"
     assert line["client_id"] == "unattributed"
-    assert line["granted_scopes"] == ["rag:search"]
+    # Sans client résolu, aucune portée n'est affirmée : inscrire `rag:search`
+    # au journal serait y consigner une autorisation que personne n'a reçue.
+    assert line["granted_scopes"] == []
     assert line["status_code"] == 200
     assert line["filters"]["collection"] == "rag_nexus_nsi_terminale_specialite"
-    assert line["filters"]["notions"] == ["recursivite"]
+    # `notions` est du texte libre d'appelant : compté, jamais recopié.
+    assert "notions" not in line["filters"]
+    assert line["filters"]["notions_count"] == 1
     assert line["candidate_count"] == 7
     assert line["returned_count"] == 1
     assert line["dense_status"] == "ok"
@@ -270,20 +274,137 @@ def test_le_journal_ne_contient_jamais_la_requete_brute(
 ) -> None:
     """Une requête d'élève peut nommer une personne ou une difficulté.
 
-    Elle ne quitte pas le processus : seule son empreinte et sa longueur
-    sont journalisées."""
+    Elle ne quitte pas le processus : seule son empreinte clefée et sa
+    longueur sont journalisées."""
     import hashlib
+    import hmac
+
+    from ingestor.retrieval_observability import ACCESS_LOG_HMAC_SECRET_ENV
 
     endpoint, http = client
     _install_recording_pipeline(endpoint, monkeypatch)
+    monkeypatch.setenv(ACCESS_LOG_HMAC_SECRET_ENV, "secret-de-journal-de-test")
 
     with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
         http.post("/search/v2", json=_payload())
 
     (line,) = _access_lines(caplog)
     assert QUERY not in json.dumps(line, ensure_ascii=False)
-    assert line["query_sha256"] == hashlib.sha256(QUERY.encode("utf-8")).hexdigest()
+    # Un SHA-256 nu se retourne par dictionnaire : une devinette deviendrait
+    # une vérification. L'empreinte est clefée.
+    assert line["query_sha256"] != hashlib.sha256(QUERY.encode("utf-8")).hexdigest()
+    assert line["query_sha256"] == hmac.new(
+        b"secret-de-journal-de-test",
+        QUERY.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
     assert line["query_length"] == len(QUERY)
+
+
+def test_sans_secret_le_journal_prefere_aucune_empreinte_a_une_empreinte_nue(
+    client, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Pas de repli silencieux : sans clé, pas de condensé du tout."""
+    from ingestor.retrieval_observability import ACCESS_LOG_HMAC_SECRET_ENV
+
+    endpoint, http = client
+    _install_recording_pipeline(endpoint, monkeypatch)
+    monkeypatch.delenv(ACCESS_LOG_HMAC_SECRET_ENV, raising=False)
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        http.post("/search/v2", json=_payload(notions=["recursivite"]))
+
+    (line,) = _access_lines(caplog)
+    assert "query_sha256" not in line
+    assert line["query_length"] == len(QUERY)
+    assert line["filters"]["notions_count"] == 1
+    assert "notions_fingerprints" not in line["filters"]
+
+
+def test_une_notion_est_empreinte_sous_la_cle_du_journal_jamais_en_clair(
+    client, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """`notion` est du texte libre : rien ne borne son vocabulaire.
+
+    Un appelant peut donc y écrire n'importe quoi — un nom, une phrase. Le
+    journal ne le recopie pas."""
+    from ingestor.retrieval_observability import ACCESS_LOG_HMAC_SECRET_ENV
+
+    endpoint, http = client
+    _install_recording_pipeline(endpoint, monkeypatch)
+    monkeypatch.setenv(ACCESS_LOG_HMAC_SECRET_ENV, "secret-de-journal-de-test")
+    indiscret = "eleve en grande difficulte"
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        http.post("/search/v2", json=_payload(notions=[indiscret]))
+
+    (line,) = _access_lines(caplog)
+    rendered = json.dumps(line, ensure_ascii=False)
+    assert indiscret not in rendered
+    assert line["filters"]["notions_count"] == 1
+    assert len(line["filters"]["notions_fingerprints"]) == 1
+    # La dimension de catalogue fermée, elle, reste lisible : sans elle un
+    # « 0 résultat » ne se diagnostique pas.
+    assert line["filters"]["collection"] == "rag_nexus_nsi_terminale_specialite"
+
+
+def test_une_requete_refusee_produit_aussi_sa_ligne_de_journal(
+    client, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Un journal qui n'écrit qu'après le succès est muet en incident."""
+    endpoint, http = client
+    _install_recording_pipeline(endpoint, monkeypatch)
+
+    payload = _payload()
+    # Refus prononcé DANS la route (filtres inopérants), donc journalisable
+    # ici. Un corps rejeté par la validation du framework n'atteint jamais la
+    # route : c'est le middleware de l'application qui le consigne, et
+    # `tests/test_api_scopes.py` en fait la preuve.
+    payload["need"]["desired_doc_types"] = ["cours"]
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        refused = http.post("/search/v2", json=payload)
+
+    assert refused.status_code == 422
+    (line,) = _access_lines(caplog)
+    assert line["status_code"] == 422
+    assert line["outcome"] == "refused"
+    assert line["endpoint"] == "/search/v2"
+
+
+def test_un_echec_de_retrieval_est_journalise_avec_l_etape_fautive(
+    client, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """503 sans ligne de journal, c'est perdre l'imputation au moment utile."""
+
+    def failing(query, collection, k, scope, *, metadata_filters=None, diagnostics=None):
+        if diagnostics is not None:
+            diagnostics.embedding_status = "ok"
+            diagnostics.dense_status = "ok"
+            diagnostics.dense_count = 5
+            diagnostics.lexical_status = "failed"
+        raise endpoint_module_error()
+
+    endpoint, http = client
+
+    def endpoint_module_error():
+        from fastapi import HTTPException
+
+        return HTTPException(status_code=503, detail="retrieval unavailable")
+
+    monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", failing, raising=False)
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = http.post("/search/v2", json=_payload())
+
+    assert response.status_code == 503
+    (line,) = _access_lines(caplog)
+    assert line["status_code"] == 503
+    assert line["outcome"] == "refused"
+    assert line["dense_status"] == "ok"
+    assert line["lexical_status"] == "failed"
+    assert line["dense_count"] == 5
+    assert line["filters"]["collection"] == "rag_nexus_nsi_terminale_specialite"
 
 
 def test_un_identifiant_de_correlation_hostile_est_remplace(

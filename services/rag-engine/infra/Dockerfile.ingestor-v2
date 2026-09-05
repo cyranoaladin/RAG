@@ -22,6 +22,7 @@ RUN pip install --no-cache-dir /tmp/nexus-contracts \
  && rm -rf /tmp/nexus-contracts
 
 # Allowlist applicative : aucun writer, parseur ou client de source distante.
+COPY services/rag-engine/src/ingestor/api_scopes.py /app/api_scopes.py
 COPY services/rag-engine/src/ingestor/api_v2.py /app/api_v2.py
 COPY services/rag-engine/src/ingestor/collection_config.py /app/collection_config.py
 COPY services/rag-engine/src/ingestor/embedding_contract.py /app/embedding_contract.py
@@ -34,6 +35,8 @@ COPY services/rag-engine/src/ingestor/readiness_db.py /app/readiness_db.py
 COPY services/rag-engine/src/ingestor/release_readiness.py /app/release_readiness.py
 COPY services/rag-engine/src/ingestor/retrieval_contract_adapter.py /app/retrieval_contract_adapter.py
 COPY services/rag-engine/src/ingestor/retrieval_hybrid_v2.py /app/retrieval_hybrid_v2.py
+COPY services/rag-engine/src/ingestor/retrieval_metadata_v2.py /app/retrieval_metadata_v2.py
+COPY services/rag-engine/src/ingestor/retrieval_observability.py /app/retrieval_observability.py
 COPY services/rag-engine/src/ingestor/retrieval_pg_v2.py /app/retrieval_pg_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_readiness_v2.py /app/retrieval_readiness_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_scope_v2.py /app/retrieval_scope_v2.py

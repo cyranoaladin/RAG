@@ -40,11 +40,6 @@ from pathlib import Path
 
 from fastapi import HTTPException, Request
 
-if __package__:
-    from .security_v2 import extract_token
-else:  # Image Docker aplatie sous /app.
-    from security_v2 import extract_token  # type: ignore[no-redef]
-
 
 class ApiScope(str, Enum):
     """Les quatre portées. Toute autre valeur est une erreur de configuration."""
@@ -61,12 +56,16 @@ API_CLIENTS_ENV = "RAG_API_CLIENTS"
 #: Registre monté depuis un magasin de secrets (Docker/Kubernetes secret).
 API_CLIENTS_FILE_ENV = "RAG_API_CLIENTS_FILE"
 
-#: En-tête dédié à la clé porteuse externe. Il existe parce que
-#: ``Authorization`` transporte déjà, sur l'application v2, le credential
-#: machine du BFF : deux secrets différents ne peuvent pas partager un
-#: en-tête sans que l'un masque l'autre. Là où aucun credential de service
-#: n'occupe ``Authorization`` (chaîne d'ingestion), le repli sur le porteur
-#: standard s'applique.
+#: En-tête dédié à la clé porteuse externe, **sans aucun repli**.
+#:
+#: ``Authorization`` transporte le credential machine du BFF ; ``X-RAG-API-Key``
+#: transporte la clé du client. Ce sont deux secrets distincts qui répondent à
+#: deux questions distinctes : « l'appel vient-il de la façade autorisée ? » et
+#: « ce client-là a-t-il le droit de faire ceci ? ». Un repli de l'un sur
+#: l'autre effondrerait les deux portes en une : il suffirait alors d'un seul
+#: secret pour passer, et le contrat des deux credentials serait une fiction.
+#: La clé est donc lue **exclusivement** ici — jamais dans ``Authorization``,
+#: jamais dans ``X-API-Token``.
 API_KEY_HEADER = "X-RAG-API-Key"
 
 #: Identifiants de client : lisibles dans un journal, bornés, sans espace.
@@ -111,7 +110,12 @@ def _read_registry_document() -> str:
         if path.stat().st_size > _MAX_REGISTRY_BYTES:
             raise ApiScopeConfigurationError("API client registry is too large")
         return path.read_text(encoding="utf-8")
-    except OSError as exc:
+    except (OSError, UnicodeError) as exc:
+        # `UnicodeDecodeError` sort d'ici pendant une rotation de secret : le
+        # fichier monté est lu au milieu d'une écriture, ou remplacé par des
+        # octets qui ne sont pas de l'UTF-8. Sans cette branche, la requête
+        # remontait un 500 — une panne serveur — au lieu du 503 explicite que
+        # « configuration irrecevable » appelle.
         raise ApiScopeConfigurationError("API client registry is unreadable") from exc
 
 
@@ -194,18 +198,51 @@ _ROUTE_SCOPES: dict[str, ApiScope] = {
 }
 
 
+#: Routes métier qui exigent EN PLUS l'identité signée `X-Nexus-Identity`.
+#: Elles portent une portée de retrieval (tenant, niveau, matière, droits) que
+#: ni le credential machine ni la clé de client ne transportent. La table est
+#: explicite, et un test la confronte au code qui appelle réellement la porte
+#: d'identité : une route ajoutée ici sans sa porte, ou l'inverse, se voit.
+_ROUTE_SIGNED_IDENTITY: frozenset[str] = frozenset(
+    {
+        "/search/v2",
+        "/taxonomy/v2",
+        "/collections/v2",
+        "/catalogue/v2",
+        "/collections/readiness",
+        "/chat",
+    }
+)
+
+
+def route_requires_signed_identity(route: str) -> bool:
+    """La route exige-t-elle l'en-tête d'identité signée en plus des deux clés ?"""
+    return route in _ROUTE_SIGNED_IDENTITY
+
+
 def required_scope_for_route(route: str) -> ApiScope | None:
     """Portée exigée, ou ``None`` si la route n'est pas gouvernée ici."""
     return _ROUTE_SCOPES.get(route)
 
 
-def resolve_api_client(token: str) -> ApiClient | None:
-    """Retrouver le client par empreinte, en comparaison à temps constant."""
+def resolve_api_client(
+    token: str,
+    clients: tuple[ApiClient, ...] | None = None,
+) -> ApiClient | None:
+    """Retrouver le client par empreinte, en comparaison à temps constant.
+
+    ``clients`` permet à un appelant qui a déjà lu le registre de ne pas le
+    relire : sur le chemin chaud d'une requête, deux lectures du même magasin
+    doublent l'I/O sans rien prouver de plus, et ouvrent la fenêtre où les
+    deux lectures ne verraient pas la même configuration — la porte
+    déciderait alors sur un registre et attribuerait sur un autre.
+    """
     if not token:
         return None
     presented = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    registry = load_api_clients() if clients is None else clients
     matched: ApiClient | None = None
-    for client in load_api_clients():
+    for client in registry:
         # Aucune sortie anticipée : la durée de la boucle ne doit pas
         # dépendre de la position du client dans le registre.
         if hmac.compare_digest(presented, client.token_sha256):
@@ -214,12 +251,16 @@ def resolve_api_client(token: str) -> ApiClient | None:
 
 
 def extract_api_key(request: Request) -> str:
-    """Lire la clé porteuse : en-tête dédié d'abord, porteur standard ensuite."""
+    """Lire la clé porteuse dans son en-tête dédié, et nulle part ailleurs.
+
+    Aucun repli sur ``Authorization`` : ce serait précisément accepter un
+    credential unique là où le contrat en exige deux.
+    """
     headers = request.headers
     dedicated = headers.get(API_KEY_HEADER) or headers.get(API_KEY_HEADER.lower())
     if isinstance(dedicated, str) and dedicated.strip():
         return dedicated.strip()
-    return extract_token(request)
+    return ""
 
 
 def require_api_scope(
@@ -230,7 +271,9 @@ def require_api_scope(
 ) -> ApiClient:
     """Exiger une portée sur une requête entrante. Fail-closed de bout en bout."""
     try:
-        load_api_clients()
+        # Une seule lecture du registre par requête : celle qui décide est
+        # celle qui attribue.
+        clients = load_api_clients()
     except ApiScopeConfigurationError as exc:
         raise HTTPException(
             status_code=503,
@@ -240,7 +283,7 @@ def require_api_scope(
     token = extract_api_key(request)
     if not token:
         raise HTTPException(status_code=401, detail="Unauthorized")
-    client = resolve_api_client(token)
+    client = resolve_api_client(token, clients)
     if client is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
     if not client.allows(required):
@@ -259,5 +302,6 @@ __all__ = [
     "load_api_clients",
     "required_scope_for_route",
     "require_api_scope",
+    "route_requires_signed_identity",
     "resolve_api_client",
 ]

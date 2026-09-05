@@ -1,0 +1,178 @@
+{
+  "$defs": {
+    "Niveau": {
+      "enum": [
+        "quatrieme",
+        "troisieme",
+        "seconde",
+        "premiere",
+        "terminale",
+        "cycle4",
+        "lycee_gt",
+        "voie_generale",
+        "voie_technologique"
+      ],
+      "title": "Niveau",
+      "type": "string"
+    },
+    "StatutEnseignement": {
+      "enum": [
+        "tronc_commun",
+        "enseignement_commun",
+        "specialite",
+        "eds",
+        "option",
+        "maths_complementaires",
+        "maths_expertes",
+        "snt",
+        "enseignement_scientifique",
+        "emc",
+        "atelier",
+        "stage",
+        "remediation",
+        "examen",
+        "unknown"
+      ],
+      "title": "StatutEnseignement",
+      "type": "string"
+    },
+    "TaxonomyCollectionV2": {
+      "additionalProperties": false,
+      "description": "Une collection servable, telle que le scope serveur la dérive.",
+      "properties": {
+        "collection": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Collection",
+          "type": "string"
+        },
+        "matiere": {
+          "maxLength": 100,
+          "minLength": 1,
+          "pattern": "^[a-z0-9_]+$",
+          "title": "Matiere",
+          "type": "string"
+        },
+        "niveau": {
+          "$ref": "#/$defs/Niveau"
+        },
+        "programme_version": {
+          "minLength": 1,
+          "title": "Programme Version",
+          "type": "string"
+        },
+        "school_year": {
+          "minLength": 1,
+          "title": "School Year",
+          "type": "string"
+        },
+        "statut_enseignement": {
+          "$ref": "#/$defs/StatutEnseignement"
+        },
+        "voie": {
+          "$ref": "#/$defs/Voie"
+        }
+      },
+      "required": [
+        "collection",
+        "matiere",
+        "niveau",
+        "voie",
+        "statut_enseignement",
+        "programme_version",
+        "school_year"
+      ],
+      "title": "TaxonomyCollectionV2",
+      "type": "object"
+    },
+    "TaxonomyDimensionsV2": {
+      "additionalProperties": false,
+      "description": "Valeurs distinctes des dimensions, dans l'ordre d'apparition.\n\nL'ordre est un engagement : deux appels identiques rendent la même\nréponse, ce qu'un ensemble ne garantirait pas.",
+      "properties": {
+        "matiere": {
+          "items": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "type": "string"
+          },
+          "title": "Matiere",
+          "type": "array"
+        },
+        "niveau": {
+          "items": {
+            "$ref": "#/$defs/Niveau"
+          },
+          "title": "Niveau",
+          "type": "array"
+        },
+        "programme_version": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Programme Version",
+          "type": "array"
+        },
+        "school_year": {
+          "items": {
+            "type": "string"
+          },
+          "title": "School Year",
+          "type": "array"
+        },
+        "statut_enseignement": {
+          "items": {
+            "$ref": "#/$defs/StatutEnseignement"
+          },
+          "title": "Statut Enseignement",
+          "type": "array"
+        },
+        "voie": {
+          "items": {
+            "$ref": "#/$defs/Voie"
+          },
+          "title": "Voie",
+          "type": "array"
+        }
+      },
+      "title": "TaxonomyDimensionsV2",
+      "type": "object"
+    },
+    "Voie": {
+      "enum": [
+        "college",
+        "generale",
+        "technologique",
+        "professionnelle",
+        "aefe",
+        "unknown"
+      ],
+      "title": "Voie",
+      "type": "string"
+    }
+  },
+  "$id": "https://nexusreussite.academy/contracts/v0.5/taxonomy-v2-response.json",
+  "additionalProperties": false,
+  "description": "Réponse de `GET /taxonomy/v2` — les dimensions servables ET autorisées.",
+  "properties": {
+    "collections": {
+      "items": {
+        "$ref": "#/$defs/TaxonomyCollectionV2"
+      },
+      "title": "Collections",
+      "type": "array"
+    },
+    "dimensions": {
+      "$ref": "#/$defs/TaxonomyDimensionsV2"
+    },
+    "version": {
+      "const": 2,
+      "default": 2,
+      "title": "Version",
+      "type": "integer"
+    }
+  },
+  "title": "TaxonomyV2Response",
+  "type": "object"
+}

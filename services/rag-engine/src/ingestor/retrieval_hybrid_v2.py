@@ -445,7 +445,14 @@ class ChannelDiagnostics:
     embedding_status: ChannelStatus = "not_run"
     dense_status: ChannelStatus = "not_run"
     lexical_status: ChannelStatus = "not_run"
+    #: La fusion et la sélection ont leurs propres états. Sans eux, un échec
+    #: de RRF ou de MMR retombait sur le dernier canal exécuté et déclarait
+    #: « lexical failed » alors que lexical avait rendu ses candidats : le
+    #: journal accusait le canal innocent, et l'exploitant cherchait au
+    #: mauvais endroit.
+    fusion_status: ChannelStatus = "not_run"
     reranker_status: ChannelStatus = "not_run"
+    selection_status: ChannelStatus = "not_run"
     dense_count: int = 0
     lexical_count: int = 0
     candidate_count: int = 0
@@ -456,7 +463,9 @@ class ChannelDiagnostics:
             "embedding_status": self.embedding_status,
             "dense_status": self.dense_status,
             "lexical_status": self.lexical_status,
+            "fusion_status": self.fusion_status,
             "reranker_status": self.reranker_status,
+            "selection_status": self.selection_status,
             "dense_count": self.dense_count,
             "lexical_count": self.lexical_count,
             "candidate_count": self.candidate_count,
@@ -513,10 +522,14 @@ def retrieve_hybrid(
         )
         recorder.lexical_count = len(lexical)
         recorder.lexical_status = "ok" if lexical else "empty"
+
+        stage = "fusion_status"
         fused = reciprocal_rank_fusion(dense, lexical)
         recorder.candidate_count = len(fused)
+        recorder.fusion_status = "ok" if fused else "empty"
         if not fused:
             recorder.reranker_status = "not_run"
+            recorder.selection_status = "not_run"
             return []
 
         stage = "reranker_status"
@@ -524,8 +537,11 @@ def retrieve_hybrid(
         logits = [float(score) for score in reranker.predict(pairs)]
         reranked = rerank_candidates(fused, logits)
         recorder.reranker_status = "ok" if reranked else "empty"
+
+        stage = "selection_status"
         hits = select_mmr(reranked, top_k)
         recorder.returned_count = len(hits)
+        recorder.selection_status = "ok" if hits else "empty"
         return hits
     except Exception as exc:
         setattr(recorder, stage, "failed")

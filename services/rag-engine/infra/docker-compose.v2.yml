@@ -93,6 +93,15 @@ services:
       RAG_SERVABLE_CORPUS_DIRECTORY: /app/servable-corpus
       RAG_SERVABLE_CORPUS_INDEX_SHA256: "${RAG_SERVABLE_CORPUS_INDEX_SHA256:?empreinte SHA-256 externe du registre de corpus servables requise}"
       RAG_BFF_SERVICE_TOKEN: "${RAG_BFF_SERVICE_TOKEN:?RAG_BFF_SERVICE_TOKEN requis}"
+      # Une seule autorité de registre de clients, jamais deux : le lecteur
+      # refuse `RAG_API_CLIENTS` et `RAG_API_CLIENTS_FILE` ensemble, et refuse
+      # de démarrer si aucun des deux ne gouverne. Le fichier est monté depuis
+      # un magasin de secrets ; il ne porte que des empreintes SHA-256.
+      RAG_API_CLIENTS_FILE: /app/api-clients/api-clients.json
+      # Secret dédié à l'empreinte des requêtes journalisées. Une empreinte
+      # sans clé se retrouve par dictionnaire ; celle-ci ne se corrèle qu'avec
+      # le secret, qui ne quitte pas le déploiement.
+      RAG_ACCESS_LOG_HMAC_SECRET: "${RAG_ACCESS_LOG_HMAC_SECRET:?secret HMAC du journal d acces requis}"
       NEXUS_INTERNAL_TOKEN_SECRET: "${NEXUS_INTERNAL_TOKEN_SECRET:?NEXUS_INTERNAL_TOKEN_SECRET requis}"
       NEXUS_INTERNAL_TOKEN_ISSUER: "${NEXUS_INTERNAL_TOKEN_ISSUER:?NEXUS_INTERNAL_TOKEN_ISSUER requis}"
       NEXUS_INTERNAL_TOKEN_AUDIENCE: "${NEXUS_INTERNAL_TOKEN_AUDIENCE:?NEXUS_INTERNAL_TOKEN_AUDIENCE requis}"
@@ -104,6 +113,7 @@ services:
       - ${RAG_CONFIGS_HOST_DIR:-../configs}:/app/configs:ro
       - ${RAG_RELEASE_REGISTRY_HOST_DIR:-../../rag-pedago/data/releases/prerentree_2026_2027}:/app/release:ro
       - ${RAG_SERVABLE_CORPUS_HOST_DIR:?répertoire hôte des corpus servables requis}:/app/servable-corpus:ro
+      - ${RAG_API_CLIENTS_HOST_FILE:?fichier hôte du registre de clients API requis — sans valeur, Docker fabrique un répertoire vide et le refus arrive trop tard}:/app/api-clients/api-clients.json:ro
       - ${RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR:?repertoire hote de l artefact embedding requis — sans valeur, Docker fabrique un repertoire vide et le refus arrive trop tard}:/models/e5-large:ro
       - ${RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR:?repertoire hote de l artefact reranker requis — sans valeur, Docker fabrique un repertoire vide et le refus arrive trop tard}:/models/reranker:ro
     ports:

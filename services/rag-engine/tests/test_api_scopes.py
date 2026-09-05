@@ -20,6 +20,7 @@ from starlette.requests import Request
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ingestor.api_scopes import (  # noqa: E402
+    _ROUTE_SIGNED_IDENTITY,  # noqa: E402
     API_CLIENTS_ENV,
     API_CLIENTS_FILE_ENV,
     ApiScope,
@@ -27,6 +28,7 @@ from ingestor.api_scopes import (  # noqa: E402
     load_api_clients,
     require_api_scope,
     required_scope_for_route,
+    route_requires_signed_identity,
 )
 
 SEARCH_TOKEN = "jeton-de-recherche-de-test-0123456789"
@@ -63,10 +65,24 @@ def registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv(API_CLIENTS_ENV, json.dumps(REGISTRY))
 
 
-def _request(token: str | None, *, path: str = "/search/v2") -> Request:
+def _request(
+    token: str | None,
+    *,
+    path: str = "/search/v2",
+    header: bytes = b"x-rag-api-key",
+    bearer: str | None = None,
+) -> Request:
+    """Une requête portant la clé dans son en-tête dédié, et nulle part ailleurs.
+
+    `bearer` ajoute séparément le credential machine `Authorization` : les
+    chaînes qui exigent les deux (ingestion) le passent explicitement, ce qui
+    rend visible qu'il s'agit bien de deux secrets et non d'un seul.
+    """
     headers = []
     if token is not None:
-        headers.append((b"authorization", f"Bearer {token}".encode()))
+        headers.append((header, token.encode()))
+    if bearer is not None:
+        headers.append((b"authorization", f"Bearer {bearer}".encode()))
     return Request(
         {
             "type": "http",
@@ -195,6 +211,30 @@ class TestChargementDuRegistre:
             load_api_clients()
 
 
+class TestRegistreIllisible:
+    def test_un_registre_non_utf8_est_une_configuration_refusee(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Une rotation de secret peut faire lire des octets qui ne sont pas du texte.
+
+        C'est une configuration irrecevable — 503 —, pas une panne serveur.
+        Sans cette branche, `require_api_scope` remontait un 500 opaque.
+        """
+        registry = tmp_path / "api-clients.json"
+        registry.write_bytes(b"\xff\xfe not utf-8")
+        monkeypatch.delenv(API_CLIENTS_ENV, raising=False)
+        monkeypatch.setenv(API_CLIENTS_FILE_ENV, str(registry))
+
+        with pytest.raises(ApiScopeConfigurationError):
+            load_api_clients()
+
+        with pytest.raises(HTTPException) as excinfo:
+            require_api_scope(
+                _request(SEARCH_TOKEN), required=ApiScope.SEARCH, endpoint="/search/v2"
+            )
+        assert excinfo.value.status_code == 503
+
+
 class TestPorteeExigee:
     def test_jeton_absent_est_401(self, registry: None) -> None:
         with pytest.raises(HTTPException) as excinfo:
@@ -216,6 +256,31 @@ class TestPorteeExigee:
         )
         assert client.client_id == "cockpit-lecture"
         assert ApiScope.SEARCH in client.scopes
+
+    def test_une_cle_dans_authorization_seul_ne_passe_pas(self, registry: None) -> None:
+        """Deux credentials, ou aucun contrat.
+
+        `Authorization` transporte le credential machine du BFF ;
+        `X-RAG-API-Key` transporte la clé du client. Un repli de l'un sur
+        l'autre effondrerait les deux portes en une : un seul secret suffirait
+        alors à passer, et « deux credentials » serait une fiction.
+        """
+        with pytest.raises(HTTPException) as excinfo:
+            require_api_scope(
+                _request(SEARCH_TOKEN, header=b"authorization"),
+                required=ApiScope.SEARCH,
+                endpoint="/search/v2",
+            )
+        assert excinfo.value.status_code == 401
+
+    def test_aucun_repli_sur_l_en_tete_de_jeton_interne(self, registry: None) -> None:
+        with pytest.raises(HTTPException) as excinfo:
+            require_api_scope(
+                _request(SEARCH_TOKEN, header=b"x-api-token"),
+                required=ApiScope.SEARCH,
+                endpoint="/search/v2",
+            )
+        assert excinfo.value.status_code == 401
 
     def test_la_cle_de_recherche_lit_une_source(self, registry: None) -> None:
         client = require_api_scope(
@@ -286,7 +351,7 @@ class TestSeparationDeLIngestion:
 
         with pytest.raises(HTTPException) as excinfo:
             ingest_v2_endpoint._enforce_security(
-                _request(SEARCH_TOKEN, path="/ingest/v2/urls")
+                _request(SEARCH_TOKEN, path="/ingest/v2/urls", bearer=SEARCH_TOKEN)
             )
 
         assert excinfo.value.status_code == 403
@@ -301,7 +366,7 @@ class TestSeparationDeLIngestion:
         monkeypatch.delenv("INGESTOR_IP_ALLOWLIST", raising=False)
 
         token = ingest_v2_endpoint._enforce_security(
-            _request(INGEST_TOKEN, path="/ingest/v2/urls")
+            _request(INGEST_TOKEN, path="/ingest/v2/urls", bearer=INGEST_TOKEN)
         )
 
         assert token == INGEST_TOKEN
@@ -323,6 +388,35 @@ class TestTableDesRoutes:
             "/review/v2/decide",
         ):
             assert required_scope_for_route(route) is not None, route
+
+    def test_la_table_d_identite_signee_dit_ce_que_le_code_fait(self) -> None:
+        """Une table qui ne suit pas le code annonce une auth qui n'existe pas.
+
+        Le document OpenAPI déclare `X-Nexus-Identity` d'après cette table.
+        Si une route la quitte sans quitter la porte d'identité — ou l'inverse
+        —, un générateur de client produit du code qui ne peut pas appeler
+        l'API, ou qui croit pouvoir l'appeler sans identité.
+        """
+        import inspect
+        import re
+
+        from ingestor import retrieval_v2_endpoint
+
+        source = inspect.getsource(retrieval_v2_endpoint)
+        # Les routes dont le corps appelle réellement une porte d'identité
+        # signée, lues du code et non recopiées.
+        exercees = set(
+            re.findall(
+                r'_require_(?:retrieval|catalogue)_identity\(\s*(?:request,\s*)?'
+                r'\s*(?:request,\s*)?endpoint="([^"]+)"',
+                source,
+            )
+        )
+        assert exercees, "aucune porte d'identité trouvée : le motif a dérivé"
+        for route in exercees:
+            assert route_requires_signed_identity(route), route
+        for route in sorted(_ROUTE_SIGNED_IDENTITY):
+            assert route in exercees, route
 
     def test_le_retrieval_exige_rag_search(self) -> None:
         assert required_scope_for_route("/search/v2") is ApiScope.SEARCH
