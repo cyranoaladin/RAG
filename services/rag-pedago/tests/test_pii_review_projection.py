@@ -632,19 +632,8 @@ class TestTheCorpusBindingComparesComparableThings:
         import hashlib
         import json
 
-        repository = Path(__file__).resolve().parents[3]
-        decision_set = json.loads(
-            (
-                repository
-                / "governance/pii-review-decisions/pii-review-2026-09-03-final.json"
-            ).read_text(encoding="utf-8")
-        )
-        authority = (
-            repository
-            / "services/rag-pedago/data/releases/prerentree_2026_2027"
-            / "profile_gate/corpus_manifest_authority.json"
-        )
-        file_digest = hashlib.sha256(authority.read_bytes()).hexdigest()
+        decision_set = json.loads(REAL_DECISION_SET.read_text(encoding="utf-8"))
+        file_digest = hashlib.sha256(REAL_CORPUS_AUTHORITY.read_bytes()).hexdigest()
         assert decision_set["corpus_manifest_sha256"] == file_digest, (
             "l'ensemble scellé n'enregistre pas l'empreinte du fichier "
             "d'autorité : la nature de la liaison a changé"
@@ -658,11 +647,7 @@ class TestTheCorpusBindingComparesComparableThings:
         import hashlib
         import json
 
-        repository = Path(__file__).resolve().parents[3]
-        authority = (
-            repository
-            / "services/rag-pedago/data/releases/prerentree_2026_2027"
-            / "profile_gate/corpus_manifest_authority.json"
-        )
-        declared = json.loads(authority.read_text(encoding="utf-8"))["authority_sha256"]
-        assert declared != hashlib.sha256(authority.read_bytes()).hexdigest()
+        declared = json.loads(REAL_CORPUS_AUTHORITY.read_text(encoding="utf-8"))[
+            "authority_sha256"
+        ]
+        assert declared != hashlib.sha256(REAL_CORPUS_AUTHORITY.read_bytes()).hexdigest()
