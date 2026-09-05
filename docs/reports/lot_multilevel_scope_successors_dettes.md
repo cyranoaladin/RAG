@@ -59,3 +59,31 @@ ici et le signale.
 ce lot : `packages/contracts` (683 verts) et `services/rag-engine`
 (3 384 verts, 7 ignorés) sont intégralement au vert, contre huit échecs
 constatés au départ du lot.
+
+---
+
+## Résolution — 2026-09-06
+
+La dette est fermée, sans desserrer quoi que ce soit.
+
+Mesuré : **dix des onze** blobs attestés par la provenance du 2026-08-25 sont
+encore présents, **à l'octet près**, sous
+`multilevel-superseded-20260813/` — l'archive posée par la régénération. Ils
+n'ont pas dérivé : ils ont été **supersédés**, et leurs octets survivent.
+
+Le détecteur ne demande donc plus que rien ne bouge — l'exiger figerait le
+dépôt, alors qu'une release se régénère. Il demande que les octets qu'une
+attestation datée désigne existent encore à un chemin archivé nommé. C'est
+**strictement plus fort** que l'exemption par nom envisagée : une entrée
+régénérée dont l'original aurait disparu, ou aurait été retouché dans
+l'archive, échoue. Un contrôle positif exige par ailleurs exactement dix
+supersédés, tous sous `/multilevel/` : un détecteur devenu permissif ne
+passerait pas inaperçu.
+
+L'exemption préexistante de `release-registry.json` est laissée telle quelle :
+elle précède ce lot, et l'élargir n'était pas nécessaire.
+
+La lignée régénérée reçoit par ailleurs sa propre attestation —
+`docs/reports/multilevel_producer_provenance_20260906.json` — plutôt qu'une
+extension de l'ancienne, qui reste octet-identique (empreinte gelée par un
+test).

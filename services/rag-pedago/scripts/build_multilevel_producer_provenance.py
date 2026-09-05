@@ -13,6 +13,13 @@ recycler pour couvrir la lignée régénérée reviendrait à faire dire à une
 preuve datée ce qu'elle n'a jamais constaté. Elle reste octet-identique ; une
 attestation neuve est émise pour la lignée neuve.
 
+**Aucun commit n'y figure.** Une attestation qui nommerait le HEAD de son
+émission ne serait plus reproductible : le commit qui la porte n'existe pas
+encore quand elle est écrite, et toute avance du dépôt la ferait diverger
+d'elle-même. Elle est donc une fonction pure du contenu attesté — n'importe
+quel checkout qui porte ces octets la reproduit à l'identique, ce qui est
+précisément ce qu'un contrôle de dérive doit pouvoir faire.
+
 Usage :
 
     python scripts/build_multilevel_producer_provenance.py            # écrit
@@ -24,7 +31,6 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import subprocess
 import sys
 import tomllib
 from pathlib import Path
@@ -77,21 +83,6 @@ def _sha256(path: Path) -> str:
 
 def _repo_relative(path: Path) -> str:
     return path.resolve().relative_to(REPOSITORY_ROOT).as_posix()
-
-
-def _source_commit() -> str:
-    """Le commit du dépôt au moment de l'émission, ou l'échec explicite.
-
-    Une attestation qui ne sait pas d'où elle a été produite n'atteste rien.
-    """
-    completed = subprocess.run(
-        ["git", "-C", str(REPOSITORY_ROOT), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-    )
-    if completed.returncode != 0:
-        raise ProvenanceError("commit source indisponible : git a refusé")
-    return completed.stdout.strip()
 
 
 def _contracts_version() -> str:
@@ -181,7 +172,6 @@ def build_attestation() -> dict:
 
     return {
         "attestation_kind": ATTESTATION_KIND,
-        "source_commit_sha": _source_commit(),
         "producer_code_sha256": {
             source: _sha256(REPOSITORY_ROOT / source) for source in PRODUCER_SOURCES
         },

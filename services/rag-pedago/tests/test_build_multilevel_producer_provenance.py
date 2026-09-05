@@ -56,7 +56,12 @@ def attestation() -> dict:
 
 
 def test_l_attestation_publiee_est_celle_que_le_producteur_rend() -> None:
-    """`PROVENANCE_ATTESTATION_DRIFT=0` — sinon elle a été écrite à la main."""
+    """`PROVENANCE_ATTESTATION_DRIFT=0` — sinon elle a été écrite à la main.
+
+    Elle est une fonction pure du contenu attesté : aucun commit, aucune
+    horloge. Un checkout qui porte ces octets la reproduit à l'identique, ici
+    comme en CI.
+    """
     module = _module()
     assert ATTESTATION.read_bytes() == module.serialize(module.build_attestation())
 
@@ -64,6 +69,10 @@ def test_l_attestation_publiee_est_celle_que_le_producteur_rend() -> None:
 def test_l_attestation_lie_toute_la_chaine(attestation: dict) -> None:
     """Chaque maillon exigé est nommé — un manquant rendrait l'artefact irrefaisable."""
     assert attestation["attestation_kind"] == "MULTILEVEL_PRODUCER_PROVENANCE_V1"
+    # Ni commit ni horodatage : une attestation qui en porterait ne serait pas
+    # reproductible, et son contrôle de dérive ne prouverait rien.
+    assert "source_commit_sha" not in attestation
+    assert not any("date" in champ or "time" in champ for champ in attestation)
     for champ in (
         "producer_code_sha256",
         "input_manifest_sha256",
@@ -75,7 +84,6 @@ def test_l_attestation_lie_toute_la_chaine(attestation: dict) -> None:
         "extractor_identity",
         "chunker_identity",
         "bound_scope_ids",
-        "source_commit_sha",
     ):
         assert attestation.get(champ), champ
 

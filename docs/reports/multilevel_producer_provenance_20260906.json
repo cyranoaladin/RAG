@@ -46,7 +46,6 @@
   },
   "school_year": "2026-2027",
   "scope_registry_sha256": "b5b2c5fa882dca83e313685bc42a1d2e44a871e42a85e8e1d9da85b86099f02b",
-  "source_commit_sha": "4b6f84d19fbc0c33399bacde18ece2d2e2d4ee28",
   "subject_count": 10,
   "subject_manifest_sha256_by_collection": {
     "rag_nexus_francais_premiere_tc": "00052b38aec55eb72ae3bf1a13f914c1f7e08fd24e5257f53564f54c20e3ae64",
