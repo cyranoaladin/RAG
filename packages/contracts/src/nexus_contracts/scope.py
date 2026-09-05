@@ -493,6 +493,63 @@ _RETRIEVAL_SCOPE_RESOURCES: Mapping[str, tuple[str, str, Literal["1", "2"]]] = (
                 "92fc817fed20305f597299b911e188c65e12f5cbb54b8491fb91293b5dac1f9d",
                 "2",
             ),
+            # ADR-0048 — successeurs émis par
+            # `scripts/build_retrieval_scope_artifacts.py` pour la release
+            # multi-niveaux régénérée. Les scopes `_v1` ci-dessus restent
+            # packagés, adressables et inchangés : un nouveau subject reçoit un
+            # nouveau `scope_id` et un nouveau digest (ADR-0045), jamais une
+            # mutation silencieuse. Leur politique d'autorisation est celle,
+            # inchangée, de leur `_v1` ; seul `source_sha256` diffère.
+            "entree_premiere_maths_v2": (
+                "artifacts/retrieval-scope-entree-premiere-maths-v2.json",
+                "a6ad590ffcf0c9abd69e865f14ea4e78f18b3a363379f47a635ae05ed7f034d3",
+                "2",
+            ),
+            "entree_premiere_francais_v2": (
+                "artifacts/retrieval-scope-entree-premiere-francais-v2.json",
+                "e41af93cef80b82048bf5aca00e369c9659a2488c4c7215113d555a8c6cdf68d",
+                "2",
+            ),
+            "entree_troisieme_maths_v2": (
+                "artifacts/retrieval-scope-entree-troisieme-maths-v2.json",
+                "41eab7fc55ee92b72c26a1dc43d14abc8a68a75c4c7d768c4b32ce1f045d8f2f",
+                "2",
+            ),
+            "entree_troisieme_francais_v2": (
+                "artifacts/retrieval-scope-entree-troisieme-francais-v2.json",
+                "77d972fa3cd15bf9f684b32ac08231951895be4e37d0aae3000c906f420155eb",
+                "2",
+            ),
+            "entree_terminale_maths_v2": (
+                "artifacts/retrieval-scope-entree-terminale-maths-v2.json",
+                "30d8bb8dabcd75d140bb821e6a14961038f7a5b8df0dde8de9a2598b8ccbe092",
+                "2",
+            ),
+            "entree_terminale_nsi_v2": (
+                "artifacts/retrieval-scope-entree-terminale-nsi-v2.json",
+                "45ad1bb6492c74494b22bbaf67e0752202eb452bf1a038639da2489a44b420cc",
+                "2",
+            ),
+            "eaf_premiere_francais_v2": (
+                "artifacts/retrieval-scope-eaf-premiere-francais-v2.json",
+                "c6e1766aefe63a5d0dcba620c24293623afeb98f29f2ac38e5d0726af0edbaf8",
+                "2",
+            ),
+            "terminale_maths_v2": (
+                "artifacts/retrieval-scope-terminale-maths-v2.json",
+                "3f74ab4f2dbe24caf18ba73d86f5d524f078e74d0aa6776209612e367258c082",
+                "2",
+            ),
+            "terminale_nsi_v2": (
+                "artifacts/retrieval-scope-terminale-nsi-v2.json",
+                "fe89a5d25d83a96979bda1f2e703326380d192a1a023df6f0ad9a7eeae8ff574",
+                "2",
+            ),
+            "terminale_physique_chimie_v2": (
+                "artifacts/retrieval-scope-terminale-physique-chimie-v2.json",
+                "22d01e1e0bbeb908eb806df1ab9da1d5343bedc527bd9a17a03a02a22651f018",
+                "2",
+            ),
         }
     )
 )

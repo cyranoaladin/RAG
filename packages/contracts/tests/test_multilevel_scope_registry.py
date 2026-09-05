@@ -209,7 +209,7 @@ def test_registry_preserves_three_historical_and_ten_multilevel_scopes() -> None
     registry = load_retrieval_scope_registry()
 
     assert HISTORICAL_SCOPES | set(MULTILEVEL_SCOPES) <= set(registry)
-    assert len(registry) == 31
+    assert len(registry) == 41
 
 
 @pytest.mark.parametrize(("scope_id", "facts"), MULTILEVEL_SCOPES.items())

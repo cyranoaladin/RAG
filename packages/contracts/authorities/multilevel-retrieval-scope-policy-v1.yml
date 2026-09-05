@@ -1,0 +1,57 @@
+# Autorité d'autorisation des scopes de retrieval de la release multi-niveaux.
+#
+# CE FICHIER NE CRÉE AUCUN DROIT.
+#
+# Une release dit CE QUI EXISTE ; un scope dit QUI PEUT VOIR QUOI. Ce fichier
+# n'écrit ni tenant, ni niveau, ni voie, ni matière, ni statut d'enseignement,
+# ni candidat, ni audiences, ni visibilité, ni droits, ni année scolaire, ni
+# version de programme, ni collection. Il se borne à NOMMER, pour chaque
+# collection sujet de la release multi-niveaux :
+#
+#   * `policy_source_scope_id` — le scope déjà gouverné, packagé et épinglé au
+#     registre fermé de `nexus_contracts`, dont la politique d'autorisation est
+#     reconduite à l'identique. C'est LUI l'autorité de politique ; l'émetteur
+#     la lit chez lui et n'en dérive rien depuis la release ;
+#   * `scope_id` — l'identifiant du scope successeur à émettre, exigé par
+#     ADR-0045 dès qu'une nouvelle version de subject doit être liée.
+#
+# Le seul élément que l'émetteur tire de la release est `source_sha256`, le
+# digest du manifeste de subject. Toute divergence entre les dimensions
+# déclarées par les placements du subject et la politique nommée ici est un
+# REFUS de l'émetteur, jamais un élargissement silencieux.
+#
+# Reconduire une politique n'est pas l'approuver : l'approbation reste celle
+# des scopes sources, obtenue sous ADR-0038 et ADR-0045.
+authority_id: MULTILEVEL_RETRIEVAL_SCOPE_POLICY_V1
+release_id: multilevel-2026-2027-v1
+bindings:
+  - collection: rag_nexus_maths_seconde_tc
+    policy_source_scope_id: entree_premiere_maths_v1
+    scope_id: entree_premiere_maths_v2
+  - collection: rag_nexus_francais_seconde_tc
+    policy_source_scope_id: entree_premiere_francais_v1
+    scope_id: entree_premiere_francais_v2
+  - collection: rag_nexus_maths_quatrieme_tc
+    policy_source_scope_id: entree_troisieme_maths_v1
+    scope_id: entree_troisieme_maths_v2
+  - collection: rag_nexus_francais_quatrieme_tc
+    policy_source_scope_id: entree_troisieme_francais_v1
+    scope_id: entree_troisieme_francais_v2
+  - collection: rag_nexus_maths_premiere_gen_specialite
+    policy_source_scope_id: entree_terminale_maths_v1
+    scope_id: entree_terminale_maths_v2
+  - collection: rag_nexus_nsi_premiere_specialite
+    policy_source_scope_id: entree_terminale_nsi_v1
+    scope_id: entree_terminale_nsi_v2
+  - collection: rag_nexus_francais_premiere_tc
+    policy_source_scope_id: eaf_premiere_francais_v1
+    scope_id: eaf_premiere_francais_v2
+  - collection: rag_nexus_maths_terminale_gen_specialite
+    policy_source_scope_id: terminale_maths_v1
+    scope_id: terminale_maths_v2
+  - collection: rag_nexus_nsi_terminale_specialite
+    policy_source_scope_id: terminale_nsi_v1
+    scope_id: terminale_nsi_v2
+  - collection: rag_nexus_pc_terminale_specialite
+    policy_source_scope_id: terminale_physique_chimie_v1
+    scope_id: terminale_physique_chimie_v2
