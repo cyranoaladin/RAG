@@ -1846,11 +1846,29 @@ def test_the_content_set_guard_is_actually_called_by_the_producer(
     )
 
 
-def _disposable_repository(root: Path) -> tuple[str, str, str]:
-    """Un vrai dépôt git jetable : deux commits, un fichier chacun.
+def _digest(contenu: str) -> str:
+    return hashlib.sha256(contenu.encode("utf-8")).hexdigest()
 
-    Le garde interroge git. Le simuler prouverait que le simulacre répond, pas
-    que le garde lit l'historique.
+
+V1 = "v: 1\n"
+V2 = "v: 2\n"
+V3 = "v: 3\n"
+NOUVELLE = "nouvelle\n"
+SUPPRIMEE = "a supprimer\n"
+AILLEURS = "sans rapport\n"
+
+
+def _disposable_repository(root: Path) -> SimpleNamespace:
+    """Un vrai dépôt git jetable, façonné sur l'historique réel de l'incident.
+
+    Le garde interroge git : blob par blob, parent par parent. Le simuler
+    prouverait que le simulacre répond, pas que le garde lit l'historique.
+
+    `intermediaire` est la forme exacte du contre-exemple `2182339` : un commit
+    atteignable qui a bien touché le fichier, mais qui ne porte pas le digest
+    candidat. `rescellement` est la forme de `a4b1f96` : celui qui le porte.
+    `hors_lignee` porte lui aussi le digest candidat, mais sur une branche
+    jamais fusionnée — un digest juste ne rachète pas une lignée fausse.
     """
     import subprocess
 
@@ -1860,26 +1878,64 @@ def _disposable_repository(root: Path) -> tuple[str, str, str]:
             capture_output=True, text=True, check=True,
         ).stdout.strip()
 
+    def ecrire(nom: str, contenu: str) -> None:
+        (root / nom).write_text(contenu, encoding="utf-8")
+
     git("init", "-q", "-b", "main")
     git("config", "user.email", "banc@local")
     git("config", "user.name", "banc")
-    (root / "autorite.yml").write_text("v: 1\n", encoding="utf-8")
-    git("add", "autorite.yml")
-    git("commit", "-qm", "poser l autorite")
-    origine = git("rev-parse", "HEAD")
-    (root / "autorite.yml").write_text("v: 2\n", encoding="utf-8")
-    (root / "ailleurs.txt").write_text("sans rapport\n", encoding="utf-8")
+    ecrire("autorite.yml", V1)
+    ecrire("supprimee.yml", SUPPRIMEE)
     git("add", "-A")
-    git("commit", "-qm", "resceller l autorite")
-    rescellement = git("rev-parse", "HEAD")
-    # Un commit réel mais sur une branche jamais fusionnée : atteignable par
-    # son SHA, pas depuis HEAD. C'est exactement la forme de l'erreur commise.
+    git("commit", "-qm", "poser les autorites")
+    origine = git("rev-parse", "HEAD")
+
+    ecrire("autorite.yml", V2)
+    ecrire("ailleurs.txt", AILLEURS)
+    git("add", "-A")
+    git("commit", "-qm", "toucher l autorite sans porter le digest candidat")
+    intermediaire = git("rev-parse", "HEAD")
+
     git("checkout", "-q", "-b", "hors-lignee")
-    (root / "autorite.yml").write_text("v: 3\n", encoding="utf-8")
-    git("commit", "-qam", "rescellement non fusionne")
+    ecrire("autorite.yml", V3)
+    git("commit", "-qam", "rescellement jamais fusionne")
     hors_lignee = git("rev-parse", "HEAD")
     git("checkout", "-q", "main")
-    return origine, rescellement, hors_lignee
+
+    ecrire("autorite.yml", V3)
+    git("commit", "-qam", "resceller l autorite")
+    rescellement = git("rev-parse", "HEAD")
+
+    ecrire("nouvelle.yml", NOUVELLE)
+    git("add", "-A")
+    git("commit", "-qm", "ajouter une autorite")
+    ajout = git("rev-parse", "HEAD")
+
+    git("rm", "-q", "supprimee.yml")
+    git("commit", "-qm", "retirer une autorite")
+    suppression = git("rev-parse", "HEAD")
+
+    return SimpleNamespace(
+        origine=origine,
+        intermediaire=intermediaire,
+        hors_lignee=hors_lignee,
+        rescellement=rescellement,
+        ajout=ajout,
+        suppression=suppression,
+    )
+
+
+def _changement(
+    builder: Builder, genre: str, **champs: Any
+) -> Any:
+    defauts: dict[str, Any] = {
+        "nom": "autorite_sha256",
+        "chemin": "autorite.yml",
+        "digest_reference": _digest(V2),
+        "digest_candidat": _digest(V3),
+    }
+    defauts.update(champs)
+    return builder.ChangementAutorite(genre=genre, **defauts)
 
 
 def test_authority_change_motive_must_cite_the_commit_that_changed_the_file(
@@ -1892,24 +1948,56 @@ def test_authority_change_motive_must_cite_the_commit_that_changed_the_file(
     justification écrite, elle, était fausse, et rien ne pouvait le dire.
     """
     builder = _module()
-    _, rescellement, hors_lignee = _disposable_repository(tmp_path)
+    depot = _disposable_repository(tmp_path)
     verifier = builder.require_motive_cites_the_commit_that_changed_each_authority
-    argumens: dict[str, Any] = {
-        "ecarts": ["autorite_sha256"],
-        "chemins": {"autorite_sha256": "autorite.yml"},
-        "repository_root": tmp_path,
-    }
+    changements = [_changement(builder, builder.AUTORITE_MODIFIEE)]
 
-    verifier(f"rescelle par {rescellement}", **argumens)
+    verifier(f"rescelle par {depot.rescellement}", changements=changements,
+             repository_root=tmp_path)
 
-    for motif, raison in (
-        (f"rescelle par {hors_lignee}", "commit hors de la lignee de HEAD"),
-        ("rescelle parce que c etait necessaire", "prose sans aucun commit"),
-        ("rescelle par " + "0" * 40, "commit inexistant"),
+    for motif, attendu in (
+        # Porte pourtant le digest candidat : seule la lignée le disqualifie.
+        (f"rescelle par {depot.hors_lignee}", "aucun"),
+        ("rescelle parce que c etait necessaire", "aucun"),
+        ("rescelle par " + "0" * 40, "aucun"),
     ):
-        with pytest.raises(builder.AuthorityMotiveError):
-            verifier(motif, **argumens)
-        assert raison
+        with pytest.raises(builder.AuthorityMotiveError) as leve:
+            verifier(motif, changements=changements, repository_root=tmp_path)
+        assert attendu in str(leve.value), (
+            "le message n'expose pas qu'aucun commit cité n'est atteignable : "
+            f"{leve.value}"
+        )
+        assert "autorite_sha256" in str(leve.value)
+
+
+def test_a_reachable_commit_that_touched_the_file_without_the_candidate_digest_is_refused(
+    tmp_path: Path,
+) -> None:
+    """« Avoir touché le fichier » ne prouve pas « avoir produit ce contenu ».
+
+    C'est le contre-exemple réel : `2182339` a bien touché le mappage des types
+    documentaires, mais c'est `a4b1f96` qui porte le digest candidat. Un garde
+    qui se contente de « ce commit a touché ce fichier » signe le mauvais
+    commit et raconte au relecteur une histoire fausse.
+    """
+    builder = _module()
+    depot = _disposable_repository(tmp_path)
+    verifier = builder.require_motive_cites_the_commit_that_changed_each_authority
+    changements = [_changement(builder, builder.AUTORITE_MODIFIEE)]
+
+    with pytest.raises(builder.AuthorityMotiveError) as leve:
+        verifier(f"rescelle par {depot.intermediaire}", changements=changements,
+                 repository_root=tmp_path)
+    assert depot.intermediaire[:12] in str(leve.value), (
+        "le message n'oppose pas au rédacteur le commit qu'il a cité : "
+        f"{leve.value}"
+    )
+    assert _digest(V3)[:12] in str(leve.value), (
+        f"le message ne dit pas quel digest devait être porté : {leve.value}"
+    )
+
+    verifier(f"rescelle par {depot.rescellement}", changements=changements,
+             repository_root=tmp_path)
 
 
 def test_a_reachable_commit_that_did_not_touch_the_file_is_refused(
@@ -1917,11 +2005,176 @@ def test_a_reachable_commit_that_did_not_touch_the_file_is_refused(
 ) -> None:
     """Sans ce banc, le garde dégénérerait en « un SHA est cité »."""
     builder = _module()
-    origine, _, _ = _disposable_repository(tmp_path)
+    depot = _disposable_repository(tmp_path)
     with pytest.raises(builder.AuthorityMotiveError):
         builder.require_motive_cites_the_commit_that_changed_each_authority(
-            f"rescelle par {origine}",
-            ecarts=["ailleurs_sha256"],
-            chemins={"ailleurs_sha256": "ailleurs.txt"},
+            f"rescelle par {depot.origine}",
+            changements=[
+                _changement(
+                    builder,
+                    builder.AUTORITE_MODIFIEE,
+                    nom="ailleurs_sha256",
+                    chemin="ailleurs.txt",
+                    digest_reference=None,
+                    digest_candidat=_digest(AILLEURS),
+                )
+            ],
             repository_root=tmp_path,
         )
+
+
+def test_an_added_authority_must_prove_its_provenance(tmp_path: Path) -> None:
+    """Une autorité qui apparaît n'a pas de « avant » : elle a quand même une origine.
+
+    Le garde ne traitait que les autorités présentes des deux côtés. Une
+    release pouvait donc introduire une autorité neuve sous n'importe quelle
+    phrase — le trou exact que la prose libre ouvrait, déplacé d'un cran.
+    """
+    builder = _module()
+    depot = _disposable_repository(tmp_path)
+    verifier = builder.require_motive_cites_the_commit_that_changed_each_authority
+    changements = [
+        _changement(
+            builder,
+            builder.AUTORITE_AJOUTEE,
+            nom="nouvelle_sha256",
+            chemin="nouvelle.yml",
+            digest_reference=None,
+            digest_candidat=_digest(NOUVELLE),
+        )
+    ]
+
+    verifier(f"introduite par {depot.ajout}", changements=changements,
+             repository_root=tmp_path)
+
+    for motif in (
+        f"introduite par {depot.rescellement}",  # le fichier n'y existe pas
+        "introduite parce qu il le fallait",
+    ):
+        with pytest.raises(builder.AuthorityMotiveError) as leve:
+            verifier(motif, changements=changements, repository_root=tmp_path)
+        assert "nouvelle_sha256" in str(leve.value)
+        assert builder.AUTORITE_AJOUTEE in str(leve.value)
+
+
+def test_a_removed_authority_must_prove_its_provenance(tmp_path: Path) -> None:
+    """Une autorité qui disparaît se prouve sur sa dernière liaison connue.
+
+    Le côté candidat n'a plus rien à montrer : la preuve est que le commit cité
+    a bien quitté le digest que la référence liait encore.
+    """
+    builder = _module()
+    depot = _disposable_repository(tmp_path)
+    verifier = builder.require_motive_cites_the_commit_that_changed_each_authority
+    changements = [
+        _changement(
+            builder,
+            builder.AUTORITE_SUPPRIMEE,
+            nom="supprimee_sha256",
+            chemin="supprimee.yml",
+            digest_reference=_digest(SUPPRIMEE),
+            digest_candidat=None,
+        )
+    ]
+
+    verifier(f"retiree par {depot.suppression}", changements=changements,
+             repository_root=tmp_path)
+
+    for motif in (
+        # `ajout` est atteignable et son parent porte bien le digest de
+        # référence — mais il le porte encore lui-même : rien n'a été retiré.
+        f"retiree par {depot.ajout}",
+        "retiree car obsolete",
+    ):
+        with pytest.raises(builder.AuthorityMotiveError) as leve:
+            verifier(motif, changements=changements, repository_root=tmp_path)
+        assert "supprimee_sha256" in str(leve.value)
+        assert builder.AUTORITE_SUPPRIMEE in str(leve.value)
+
+
+def test_the_proven_chain_distinguishes_a_direct_transition_from_an_indirect_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """La preuve dit aussi d'où l'on venait, quand l'historique le permet.
+
+    Chaîne complète : ANCIEN DIGEST → commit cité → NOUVEAU DIGEST. Quand le
+    parent du commit cité porte exactement le digest de la référence, la
+    transition est directe et le relecteur n'a rien à reconstituer. Sinon elle
+    a transité par des états intermédiaires, et le dire évite de laisser croire
+    à une chaîne qui n'a pas été prouvée.
+    """
+    builder = _module()
+    depot = _disposable_repository(tmp_path)
+    verifier = builder.require_motive_cites_the_commit_that_changed_each_authority
+    motif = f"rescelle par {depot.rescellement}"
+
+    verifier(motif, changements=[_changement(builder, builder.AUTORITE_MODIFIEE)],
+             repository_root=tmp_path)
+    assert "preuve=transition directe" in capsys.readouterr().out
+
+    verifier(
+        motif,
+        changements=[
+            _changement(builder, builder.AUTORITE_MODIFIEE, digest_reference=_digest(V1))
+        ],
+        repository_root=tmp_path,
+    )
+    assert "preuve=transition indirecte" in capsys.readouterr().out
+
+
+def test_the_producer_submits_added_and_removed_authorities_to_the_guard(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le garde peut être irréprochable et ne rien protéger.
+
+    Il ne recevait que les autorités présentes des deux côtés. Ce banc appelle
+    le comparateur réel avec une modification, un ajout et une suppression, et
+    exige que le motif les prouve toutes les trois.
+    """
+    builder = _module()
+    depot = _disposable_repository(tmp_path)
+    monkeypatch.setattr(builder, "REPOSITORY_ROOT", tmp_path)
+
+    def liaisons(dossier: str, contenu: dict[str, tuple[str, str]]) -> Path:
+        racine = tmp_path / dossier
+        racine.mkdir()
+        (racine / "authority_bindings.json").write_text(
+            json.dumps(
+                {
+                    "bindings": {
+                        nom: {"path": chemin, "file_sha256": digest}
+                        for nom, (chemin, digest) in contenu.items()
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        return racine
+
+    reference = liaisons("reference", {
+        "autorite_sha256": ("autorite.yml", _digest(V2)),
+        "supprimee_sha256": ("supprimee.yml", _digest(SUPPRIMEE)),
+    })
+    candidate = liaisons("candidate", {
+        "autorite_sha256": ("autorite.yml", _digest(V3)),
+        "nouvelle_sha256": ("nouvelle.yml", _digest(NOUVELLE)),
+    })
+
+    def comparer(motif: str) -> None:
+        builder._comparer_autorites_a_la_reference(
+            candidate, reference=reference, motif=motif, ecrites=set()
+        )
+
+    comparer(
+        f"rescelle par {depot.rescellement}, ajoute par {depot.ajout}, "
+        f"retiree par {depot.suppression}"
+    )
+
+    with pytest.raises(builder.AuthorityMotiveError) as leve:
+        comparer(f"rescelle par {depot.rescellement}")
+    assert "nouvelle_sha256" in str(leve.value), (
+        f"l'ajout n'est pas soumis au garde : {leve.value}"
+    )
+    assert "supprimee_sha256" in str(leve.value), (
+        f"la suppression n'est pas soumise au garde : {leve.value}"
+    )
