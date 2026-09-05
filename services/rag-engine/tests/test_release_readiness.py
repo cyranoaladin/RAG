@@ -7,6 +7,7 @@ import hashlib
 import json
 import shutil
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -1304,7 +1305,7 @@ def test_v2_global_artifact_has_no_owner_collection(tmp_path: Path) -> None:
 def _shared_artifact_two_subjects(
     tmp_path: Path,
     *,
-    mutate_second_artifact: "Callable[[dict], None] | None" = None,
+    mutate_second_artifact: Callable[[dict], None] | None = None,
 ) -> tuple[Path, str]:
     """Build a WAVE0 aggregate whose one physical artifact is placed in two
     subjects (première + terminale style sharing): same content_sha256, same

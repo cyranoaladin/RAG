@@ -474,7 +474,7 @@ def _require_authority_chain(
         _require_sha256(authorities.get(name), f"{field}.{name}")
 
 
-def _canonical_artifact_identity(artifact: "ExpectedArtifact") -> tuple[Any, ...]:
+def _canonical_artifact_identity(artifact: ExpectedArtifact) -> tuple[Any, ...]:
     """Fields that must be byte-identical across every subject placing this
     physical artifact. Deliberately excludes ``collection``,
     ``legacy_chunk_collection`` and ``placements``: those are legitimately
@@ -493,14 +493,14 @@ def _canonical_artifact_identity(artifact: "ExpectedArtifact") -> tuple[Any, ...
     )
 
 
-def _require_consistent_shared_artifacts(artifacts: Sequence["ExpectedArtifact"]) -> None:
+def _require_consistent_shared_artifacts(artifacts: Sequence[ExpectedArtifact]) -> None:
     """A repeated ``content_sha256`` across V1 subjects is legitimate sharing
     (e.g. a première/terminale common-trunk document placed in both grade
     collections) as long as every occurrence's canonical definition agrees.
     A repeated identity with a divergent definition is real corruption, not
     sharing, and stays refused under the same message subjects have always
     seen for this failure."""
-    canonical_by_sha: dict[str, "ExpectedArtifact"] = {}
+    canonical_by_sha: dict[str, ExpectedArtifact] = {}
     for artifact in artifacts:
         canonical = canonical_by_sha.get(artifact.content_sha256)
         if canonical is None:
@@ -510,7 +510,7 @@ def _require_consistent_shared_artifacts(artifacts: Sequence["ExpectedArtifact"]
             raise ReleaseReadinessError("artifact is duplicated across subjects")
 
 
-def _require_consistent_shared_chunks(artifacts: Sequence["ExpectedArtifact"]) -> None:
+def _require_consistent_shared_chunks(artifacts: Sequence[ExpectedArtifact]) -> None:
     """Mirrors :func:`_require_consistent_shared_artifacts` at chunk
     granularity. A ``chunk_id`` is only ever legitimately repeated because its
     *entire owning artifact* was legitimately shared across subjects — so a
