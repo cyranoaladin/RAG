@@ -193,6 +193,39 @@ def test_le_client_authentifie_est_depose_pour_le_journal_d_acces(
     assert observed["scopes"] == ("rag:admin", "rag:read-source", "rag:search")
 
 
+def test_l_attribution_survit_aux_deux_chemins_d_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le client déposé par ``ingestor.api_scopes`` reste lisible par
+    ``src.ingestor.retrieval_v2_endpoint``, et réciproquement.
+
+    Ce service se charge selon deux chemins d'import — le paquet et le
+    runtime aplati de l'image Docker — qui produisent deux classes
+    distinctes pour le même code. Une lecture par ``isinstance`` échouerait
+    en silence : la requête serait servie, et chaque ligne de journal
+    deviendrait anonyme sans qu'aucun appel ne casse.
+    """
+    import importlib
+
+    from src.ingestor import retrieval_v2_endpoint
+
+    autre_module = importlib.import_module("ingestor.api_scopes")
+    assert autre_module is not importlib.import_module("src.ingestor.api_scopes"), (
+        "les deux chemins d'import doivent bien produire deux modules distincts"
+    )
+
+    client = autre_module.ApiClient(
+        client_id="depuis-l-autre-chemin",
+        token_sha256="0" * 64,
+        scopes=frozenset({autre_module.ApiScope.SEARCH}),
+    )
+    request = _business_request("/search/v2")
+    request.state.api_client = client
+
+    assert retrieval_v2_endpoint._calling_client_id(request) == "depuis-l-autre-chemin"
+    assert retrieval_v2_endpoint._calling_client_scopes(request) == ("rag:search",)
+
+
 def test_chaque_route_metier_montee_declare_une_portee_d_api() -> None:
     """Une route exposée sans portée déclarée serait une route sans porte."""
     for route in api_v2._ALLOWED_BUSINESS_ROUTES:

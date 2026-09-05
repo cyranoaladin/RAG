@@ -62,7 +62,7 @@ def _missing_sibling(exc: ImportError) -> bool:
 
 
 try:
-    from .api_scopes import ApiClient, ApiScope
+    from .api_scopes import ApiScope
     from .collection_config import (
         CollectionConfigError,
         list_instanciated_collections,
@@ -145,7 +145,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         # manque, ou sa configuration qui a été refusée. Réessayer par un
         # autre chemin rejouerait le même échec sous un autre nom.
         raise
-    from api_scopes import ApiClient, ApiScope  # type: ignore[no-redef]
+    from api_scopes import ApiScope  # type: ignore[no-redef]
     from collection_config import (  # type: ignore[no-redef]
         CollectionConfigError,
         list_instanciated_collections,
@@ -1400,19 +1400,37 @@ def _calling_client_id(request: Request) -> str:
     Le middleware de l'application v2 dépose le client authentifié sur
     ``request.state``. Monté seul (tests, outillage), le routeur n'a pas
     cette information : le journal dit alors `unattributed` plutôt que
-    d'inventer une identité."""
+    d'inventer une identité.
+
+    La lecture est délibérément **structurelle** et non un ``isinstance``.
+    Ce service se charge selon deux chemins d'import — ``ingestor.x`` et le
+    runtime aplati ``x`` de l'image Docker — qui produisent deux objets de
+    classe distincts pour le même code. Un ``isinstance`` y échouerait
+    silencieusement : la requête resterait servie, et chaque ligne de journal
+    deviendrait anonyme sans qu'aucun appel ne casse.
+    """
     client = getattr(getattr(request, "state", None), "api_client", None)
-    if isinstance(client, ApiClient):
-        return client.client_id
+    identifier = getattr(client, "client_id", None)
+    if isinstance(identifier, str) and identifier.strip():
+        return identifier
     return "unattributed"
 
 
 def _calling_client_scopes(request: Request) -> tuple[str, ...]:
-    """Portées effectivement accordées à l'appelant, telles que journalisées."""
+    """Portées effectivement accordées à l'appelant, telles que journalisées.
+
+    Lecture structurelle pour la même raison que ``_calling_client_id``.
+    """
     client = getattr(getattr(request, "state", None), "api_client", None)
-    if isinstance(client, ApiClient):
-        return tuple(sorted(scope.value for scope in client.scopes))
-    return ()
+    scopes = getattr(client, "scopes", None)
+    if not scopes:
+        return ()
+    values = [
+        value
+        for value in (getattr(scope, "value", scope) for scope in scopes)
+        if isinstance(value, str)
+    ]
+    return tuple(sorted(values))
 
 
 def _retrieval_unavailable() -> HTTPException:
