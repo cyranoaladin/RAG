@@ -310,8 +310,15 @@ def _croiser_les_placements_v2(
         )
     _exiger_les_collections(sujets, entree, quoi)
 
+    if len(sujets) != _compte_declare(manifeste, "subjects", quoi):
+        raise PromotedContentSetError(
+            f"{quoi} : {len(sujets)} sujet(s) portés contre "
+            f"{manifeste['expected_counts']['subjects']} déclarés"
+        )
+
     base = chemin.parent
     places: set[str] = set()
+    total_placements = 0
     for sujet in sujets:
         if not isinstance(sujet, dict):
             raise PromotedContentSetError(
@@ -340,12 +347,23 @@ def _croiser_les_placements_v2(
                 f"{ou} : {len(placements)} placement(s) lus contre "
                 f"{charge['expected_counts']['placements']} qu'il déclare"
             )
+        total_placements += len(placements)
         for placement in placements:
             if not isinstance(placement, dict) or "artifact_id" not in placement:
                 raise PromotedContentSetError(
                     f"{ou} : un placement ne porte pas d'artifact_id"
                 )
             places.add(str(placement["artifact_id"]))
+
+    # L'agrégat déclare le TOTAL de placements que la release sert. Ne vérifier
+    # que les comptes locaux laissait ce total mentir sans conséquence — et il
+    # est l'autorité que le producteur enregistre.
+    if total_placements != _compte_declare(manifeste, "placements", quoi):
+        raise PromotedContentSetError(
+            f"{quoi} : {total_placements} placement(s) portés par les sujets "
+            f"contre {manifeste['expected_counts']['placements']} déclarés par "
+            "l'agrégat"
+        )
 
     orphelins = sorted(places - contenus)
     if orphelins:
