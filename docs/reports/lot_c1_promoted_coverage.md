@@ -207,12 +207,18 @@ rendrait une trace Python là où le gate doit nommer le défaut.
 
 ## Déclenchement
 
-Le filtre de chemins du workflow est volontairement **large** —
-`services/rag-pedago/data/releases/**` et `scripts/qualification/**` — plutôt
-qu'une allowlist. L'ensemble servi dépend du registre, des manifestes qu'il
-désigne et des sujets joignables depuis eux : les énumérer un par un
-laisserait un changement de registre seul, ou une release nouvellement
-désignée, éviter C1 sans que rien ne le dise.
+Le filtre de chemins du workflow est volontairement **large** plutôt qu'une
+allowlist. L'ensemble servi dépend du registre, des manifestes qu'il désigne
+et des sujets joignables depuis eux : les énumérer un par un laisserait un
+changement de registre seul, ou une release nouvellement désignée, éviter C1
+sans que rien ne le dise.
+
+Depuis la délégation, il couvre aussi **l'autorité canonique elle-même** —
+`packages/release-chain/**` et les deux paquets dont elle dépend. Un
+changement de la sémantique de release change le périmètre servi : ne pas
+déclencher C1 dessus laisserait le chargeur évoluer sans que le store privé
+soit reconfronté, c'est-à-dire un C1 vert sur un périmètre qu'il ne décrit
+plus.
 
 ## La frontière de la clé privée
 
@@ -229,6 +235,10 @@ uniquement. La séparation reste stricte :
 PR CI            → données publiques seules, jamais la clé CAS
 main post-merge  → clé CAS, confrontation au store privé
 ```
+
+Les deux jobs installent la même chaîne de paquets locaux — `contracts`,
+`pdf-page-policy`, `release-chain` — aucun n'étant publié. Vérifié dans un
+venv vierge : installation, 25 épreuves vertes, 319 contenus rendus.
 
 ## Ce qui reste à prouver après la fusion
 
