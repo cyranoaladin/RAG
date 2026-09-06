@@ -333,6 +333,29 @@ def test_duplicate_ingestion_artifact_link_fails_closed(pg: dict[str, str]) -> N
                 """,
                 (SHA_B, SHA_B, SOURCE_URI, VERSION_ID),
             )
+            # A real, authoritative placement for SHA_B too -- otherwise the
+            # observed_bindings guard (scoped by real placements, not by
+            # rag_artifacts rows alone) refuses this fixture before ever
+            # reaching the identity-collision check this test targets.
+            cursor.execute(
+                """
+                INSERT INTO public.rag_artifact_placements (
+                    placement_id, artifact_id, collection, tenant, niveau, voie,
+                    audience, matiere, statut_enseignement, candidat, visibility,
+                    school_year, programme_version, currentness, placement_status,
+                    review_status, source_scope, source_placement_id, source_path,
+                    source_uri, authorization_id, publication_attestation_id
+                ) VALUES (
+                    %s, %s, 'terminale_maths', 'nexus', 'terminale', 'generale',
+                    ARRAY['aefe'], 'mathematiques', 'specialite', 'scolarise',
+                    'internal', '2026-2027', 'fr-national-2026', 'current', 'active',
+                    'reviewed', 'fixture-scope', 'fixture-placement-dup',
+                    '/governed/private/programme.pdf', %s, 'fixture-auth',
+                    '66666666-6666-4666-8666-666666666666'
+                )
+                """,
+                ("f" * 64, SHA_B, SOURCE_URI),
+            )
         connection.commit()
 
     with pytest.raises(BootstrapInventoryError, match="multiple RAG artifacts"):
@@ -342,3 +365,93 @@ def test_duplicate_ingestion_artifact_link_fails_closed(pg: dict[str, str]) -> N
                 {("terminale_maths", SHA_A), ("terminale_maths", SHA_B)}
             ),
         )
+
+
+SECOND_PLACEMENT_ID = "e" * 64
+SECOND_COLLECTION = "terminale_nsi"
+
+
+def _seed_second_placement(connection: psycopg.Connection) -> None:
+    """The same physical artifact/chunk seeded by ``_seed`` is also placed in
+    a second, legitimately different collection -- the real shape of a
+    première/terminale common-trunk resource shared across subjects."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO public.rag_artifact_placements (
+                placement_id, artifact_id, collection, tenant, niveau, voie,
+                audience, matiere, statut_enseignement, candidat, visibility,
+                school_year, programme_version, currentness, placement_status,
+                review_status, source_scope, source_placement_id, source_path,
+                source_uri, authorization_id, publication_attestation_id
+            ) VALUES (
+                %s, %s, %s, 'nexus', 'terminale', 'generale',
+                ARRAY['aefe'], 'mathematiques', 'specialite', 'scolarise',
+                'internal', '2026-2027', 'fr-national-2026', 'current', 'active',
+                'reviewed', 'fixture-scope', 'fixture-placement-2',
+                '/governed/private/programme.pdf', %s, 'fixture-auth',
+                '55555555-5555-4555-8555-555555555555'
+            )
+            """,
+            (SECOND_PLACEMENT_ID, SHA_A, SECOND_COLLECTION, SOURCE_URI),
+        )
+    connection.commit()
+
+
+def test_real_snapshot_reaches_a_shared_artifact_in_its_second_placement(
+    pg: dict[str, str],
+) -> None:
+    with psycopg.connect(superuser_dsn(pg)) as connection:
+        _seed(connection)
+        _seed_second_placement(connection)
+
+    with psycopg.connect(superuser_dsn(pg)) as connection:
+        inventory = export_resource_registry_bootstrap_inventory(
+            connection,
+            producer_repository="cyranoaladin/RAG",
+            producer_commit=SHA_B[:40],
+            generated_at=GENERATED_AT,
+            package_version="0.15.0",
+            release_collections=frozenset({"terminale_maths", SECOND_COLLECTION}),
+            release_artifact_bindings=frozenset(
+                {("terminale_maths", SHA_A), (SECOND_COLLECTION, SHA_A)}
+            ),
+        )
+
+    assert len(inventory.resources) == 1
+    item = inventory.resources[0]
+    assert len(item.chunks) == 1
+    assert len(item.placements) == 2
+    assert {p.collection for p in item.placements} == {"terminale_maths", SECOND_COLLECTION}
+
+
+def test_missing_release_placement_binding_fails_closed(pg: dict[str, str]) -> None:
+    """The second placement physically exists but the release registry never
+    promoted it -- the exact bindings guard must still refuse a subset."""
+    with psycopg.connect(superuser_dsn(pg)) as connection:
+        _seed(connection)
+        _seed_second_placement(connection)
+
+    with pytest.raises(BootstrapInventoryError, match="exact promoted release"):
+        _export(pg, artifact_bindings=frozenset({("terminale_maths", SHA_A)}))
+
+
+def test_unknown_extra_release_placement_binding_fails_closed(pg: dict[str, str]) -> None:
+    """The release registry claims a placement that does not physically
+    exist -- the exact bindings guard must refuse a superset too."""
+    with psycopg.connect(superuser_dsn(pg)) as connection:
+        _seed(connection)
+
+    with pytest.raises(BootstrapInventoryError, match="exact promoted release"):
+        with psycopg.connect(superuser_dsn(pg)) as connection:
+            export_resource_registry_bootstrap_inventory(
+                connection,
+                producer_repository="cyranoaladin/RAG",
+                producer_commit=SHA_B[:40],
+                generated_at=GENERATED_AT,
+                package_version="0.15.0",
+                release_collections=frozenset({"terminale_maths", SECOND_COLLECTION}),
+                release_artifact_bindings=frozenset(
+                    {("terminale_maths", SHA_A), (SECOND_COLLECTION, SHA_A)}
+                ),
+            )
