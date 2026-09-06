@@ -512,7 +512,11 @@ def _seed_v2(
         base / "profile_gate" / "production.release.json",
         {
             "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
-            "expected_counts": {"unique_artifacts": uniques},
+            "expected_counts": {
+                "unique_artifacts": uniques,
+                "subjects": 1,
+                "placements": 3,
+            },
             "artifact_registry": {
                 "path": "artifacts.release.json",
                 "sha256": _sceau(artefacts),
@@ -788,6 +792,7 @@ def test_un_artefact_place_mais_absent_du_registre_v2_est_refuse(
     _write(sujet, donnees)
     manifeste = profil / "production.release.json"
     agr = json.loads(manifeste.read_text(encoding="utf-8"))
+    agr["expected_counts"]["placements"] = 4
     agr["subjects"][0]["sha256"] = _sceau(sujet)
     _write(manifeste, agr)
     reg = json.loads(registre.read_text(encoding="utf-8"))
@@ -816,4 +821,37 @@ def test_un_registre_sans_collections_declarees_est_refuse(
         donnees["releases"][0]["collections"] = declarees
     _write(registre, donnees)
     with pytest.raises(PromotedContentSetError, match="aucune collection"):
+        collect_promoted_content_set(registre)
+
+
+def test_le_total_de_placements_declare_par_l_agregat_v2_est_confronte(
+    tmp_path: Path,
+) -> None:
+    """L'agrégat déclare le total de placements que la release sert, et c'est
+    l'autorité que le producteur enregistre. Ne vérifier que les comptes
+    locaux laissait ce total mentir sans conséquence."""
+    registre = _seed_v2(tmp_path)
+    manifeste = registre.parent / "profile_gate" / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    donnees["expected_counts"]["placements"] = 999
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+    with pytest.raises(PromotedContentSetError, match="déclarés par l'agrégat"):
+        collect_promoted_content_set(registre)
+
+
+def test_le_nombre_de_sujets_declare_par_l_agregat_v2_est_confronte(
+    tmp_path: Path,
+) -> None:
+    registre = _seed_v2(tmp_path)
+    manifeste = registre.parent / "profile_gate" / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    donnees["expected_counts"]["subjects"] = 11
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+    with pytest.raises(PromotedContentSetError, match="sujet\\(s\\) portés contre"):
         collect_promoted_content_set(registre)
