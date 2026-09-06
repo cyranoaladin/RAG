@@ -190,3 +190,40 @@ def module_registre() -> Path:
     import compute_promoted_content_set as module
 
     return module.DEFAULT_REGISTRY
+
+
+# --- C1 et le runtime lisent la MÊME sémantique ------------------------
+
+
+def test_le_chargeur_du_service_ne_derive_pas_de_l_autorite_canonique() -> None:
+    """C1 importe le paquet ; le runtime importe sa copie dans le service.
+
+    Elles sont aujourd'hui identiques octet pour octet, et rien ne l'imposait.
+    Si elles divergent, le gate CAS certifie un périmètre sous une sémantique
+    et le runtime en sert un autre sous une seconde — exactement le défaut que
+    la délégation vient de supprimer côté C1, réintroduit un cran plus bas.
+
+    Faire importer le paquet par `services/rag-engine` est la correction de
+    fond ; elle touche huit modules du service et sa chaîne de dépendances,
+    donc un autre lot. En attendant, l'écart ne peut plus se produire en
+    silence.
+    """
+    racine = Path(__file__).resolve().parents[3]
+    canonique = (
+        racine / "packages" / "release-chain" / "src" / "nexus_release_chain"
+        / "release_readiness.py"
+    )
+    copie_service = (
+        racine / "services" / "rag-engine" / "src" / "ingestor" / "release_readiness.py"
+    )
+    if not copie_service.is_file():
+        pytest.skip("le service ne porte plus de copie : elle a été unifiée")
+
+    empreinte_canonique = hashlib.sha256(canonique.read_bytes()).hexdigest()
+    empreinte_service = hashlib.sha256(copie_service.read_bytes()).hexdigest()
+    assert empreinte_canonique == empreinte_service, (
+        "le chargeur de release du service a dérivé de l'autorité canonique : "
+        f"{empreinte_service[:16]}… contre {empreinte_canonique[:16]}… — C1 "
+        "qualifierait alors un périmètre que le runtime ne sert pas de la "
+        "même façon"
+    )

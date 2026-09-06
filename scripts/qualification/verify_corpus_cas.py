@@ -183,6 +183,14 @@ def verify(
     return (0 if not problems else 1), messages + info
 
 
+def _est_sha256_minuscule(valeur: object) -> bool:
+    return (
+        isinstance(valeur, str)
+        and len(valeur) == 64
+        and all(caractere in "0123456789abcdef" for caractere in valeur)
+    )
+
+
 def _charge_ensemble_promu(chemin: Path) -> set[str]:
     """Lit l'ensemble promu en le confrontant à ses PROPRES champs d'intégrité.
 
@@ -197,6 +205,13 @@ def _charge_ensemble_promu(chemin: Path) -> set[str]:
     liste = charge.get("content_sha256")
     if not isinstance(liste, list) or not liste:
         raise ValueError(f"{chemin.name} : content_sha256 absent ou vide")
+    for valeur in liste:
+        # Un identifiant qui n'est pas un sha256 ne peut par construction
+        # désigner aucun objet du store : le traiter comme promu ferait
+        # échouer la couverture plus tard, sur un défaut dont l'origine
+        # serait perdue.
+        if not _est_sha256_minuscule(valeur):
+            raise ValueError(f"{chemin.name} : content_sha256 invalide ({valeur!r})")
     promus = {str(valeur) for valeur in liste}
     if len(promus) != len(liste):
         raise ValueError(f"{chemin.name} : contient des doublons")
@@ -239,7 +254,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.promoted_content_set is not None:
         try:
             promoted = _charge_ensemble_promu(args.promoted_content_set)
-        except ValueError as exc:
+        except (ValueError, OSError) as exc:
             print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
             return 2
 

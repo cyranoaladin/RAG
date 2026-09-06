@@ -17,3 +17,9 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# Le paquet est intégralement annoté ; sans ce marqueur, mypy refuse de
+# l'analyser chez ses consommateurs et leur impose de désactiver le contrôle
+# sur l'autorité la plus importante qu'ils importent.
+[tool.setuptools.package-data]
+nexus_release_chain = ["py.typed"]
