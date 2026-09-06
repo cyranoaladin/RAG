@@ -108,6 +108,14 @@ def _lire_gouverne(chemin: Path, quoi: str) -> bytes:
     return resolu.read_bytes()
 
 
+def _est_sha256(valeur: object) -> bool:
+    return (
+        isinstance(valeur, str)
+        and len(valeur) == 64
+        and all(caractere in "0123456789abcdef" for caractere in valeur)
+    )
+
+
 def _charge_objet(octets: bytes, quoi: str) -> dict:
     """Décode un manifeste et exige un OBJET.
 
@@ -229,7 +237,16 @@ def _contenus_dune_release(
                 raise PromotedContentSetError(
                     f"{quoi} : une entrée d'artefact ne porte pas de content_sha256"
                 )
-            contenus.add(str(artefact["content_sha256"]))
+            empreinte = artefact["content_sha256"]
+            # `str()` d'une valeur quelconque deviendrait un identifiant promu,
+            # que le store ne pourrait par construction jamais contenir : la
+            # couverture échouerait plus tard, sur un défaut dont l'origine
+            # serait perdue.
+            if not _est_sha256(empreinte):
+                raise PromotedContentSetError(
+                    f"{quoi} : content_sha256 invalide ({empreinte!r})"
+                )
+            contenus.add(empreinte)
             occurrences += 1
 
     if occurrences != attendues:
