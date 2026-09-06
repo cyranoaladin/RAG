@@ -48,7 +48,8 @@ def test_a_promoted_content_missing_from_the_store_is_refused(tmp_path: Path) ->
         cas_root, digest, len(declared), promoted=declared | {SHA_B}
     )
     assert code == 1
-    assert any("promu" in m and "absent" in m for m in messages)
+    assert any("promu" in m and "sans objet CAS vérifié" in m for m in messages)
+    assert any("PROMOTED_CAS_DECLARATION_MISSING=1" in m for m in messages)
     assert any("PROMOTED_CAS_COVERAGE_MISSING=1" in m for m in messages)
 
 
@@ -103,3 +104,69 @@ def test_an_empty_promoted_set_is_refused_instead_of_passing_vacuously(
     )
     assert code == 1
     assert any("vraie par vacuité" in message for message in messages)
+
+
+# --- « couvert » ne veut pas dire « déclaré » --------------------------
+
+
+def test_un_contenu_declare_dont_le_blob_manque_n_est_pas_couvert(
+    tmp_path: Path,
+) -> None:
+    """Le trou que comptait l'ancienne sémantique.
+
+    Un contenu peut figurer au manifeste du store et n'y avoir aucun octet
+    lisible. Compter la DÉCLARATION faisait alors passer pour reproductible
+    un document qu'on ne sait pas relire — exactement ce que C1 doit exclure.
+    """
+    cas_root = tmp_path / "cas"
+    declared = _seed_store(cas_root, [SHA_A, SHA_B])
+    manquant = sorted(declared)[0]
+    entry = json.loads((cas_root / "manifest.json").read_text(encoding="utf-8"))
+    locator = next(e["locator"] for e in entry["entries"] if e["content_sha256"] == manquant)
+    (cas_root / locator).unlink()
+
+    code, messages = verify(
+        cas_root, content_set_digest(declared), len(declared), promoted=declared
+    )
+    assert code == 1
+    assert any("PROMOTED_CAS_DECLARATION_MISSING=0" in m for m in messages)
+    assert any("PROMOTED_CAS_BLOB_MISSING=1" in m for m in messages)
+    assert any("PROMOTED_CAS_COVERAGE_MISSING=1" in m for m in messages)
+
+
+def test_un_contenu_declare_dont_les_octets_hachent_ailleurs_n_est_pas_couvert(
+    tmp_path: Path,
+) -> None:
+    """Le localisateur ne prouve rien, les octets si."""
+    cas_root = tmp_path / "cas"
+    declared = _seed_store(cas_root, [SHA_A, SHA_B])
+    cible = sorted(declared)[0]
+    entry = json.loads((cas_root / "manifest.json").read_text(encoding="utf-8"))
+    locator = next(e["locator"] for e in entry["entries"] if e["content_sha256"] == cible)
+    (cas_root / locator).write_bytes(b"d'autres octets")
+
+    code, messages = verify(
+        cas_root, content_set_digest(declared), len(declared), promoted=declared
+    )
+    assert code == 1
+    assert any("PROMOTED_CAS_HASH_MISMATCH=1" in m for m in messages)
+    assert any("PROMOTED_CAS_COVERAGE_MISSING=1" in m for m in messages)
+
+
+def test_une_couverture_complete_rend_les_quatre_compteurs_a_zero(
+    tmp_path: Path,
+) -> None:
+    cas_root = tmp_path / "cas"
+    declared = _seed_store(cas_root, [SHA_A, SHA_B])
+    code, messages = verify(
+        cas_root, content_set_digest(declared), len(declared), promoted=declared
+    )
+    assert code == 0
+    for compteur in (
+        "CURRENT_PROMOTED_CONTENTS=2",
+        "PROMOTED_CAS_DECLARATION_MISSING=0",
+        "PROMOTED_CAS_BLOB_MISSING=0",
+        "PROMOTED_CAS_HASH_MISMATCH=0",
+        "PROMOTED_CAS_COVERAGE_MISSING=0",
+    ):
+        assert any(compteur in m for m in messages), compteur
