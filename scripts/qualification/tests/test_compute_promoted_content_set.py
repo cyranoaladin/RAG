@@ -679,10 +679,11 @@ def test_un_registre_sans_release_kind_connu_est_refuse(
 def test_deux_erreurs_de_sujet_qui_se_compensent_sont_refusees(tmp_path: Path) -> None:
     """Le total de l'agrégat ne suffit pas.
 
-    Un sujet tronqué et un autre porteur d'un doublon rendent la MÊME somme :
-    l'ensemble dédupliqué rétrécit sans que rien ne le dise, et la couverture
-    CAS passerait sur un périmètre incomplet. Chaque sujet doit donc tenir son
-    propre compte.
+    Un sujet tronqué et un autre porteur d'un doublon rendent la MÊME somme.
+    Ici sujet-a perd `SHA_A`, qui n'appartient qu'à lui : l'ensemble dédupliqué
+    passe donc de trois contenus à deux, sur un total d'occurrences inchangé.
+    La couverture CAS passerait alors sur un périmètre incomplet, et le seul
+    compte de l'agrégat ne le verrait pas.
     """
     registre = _seed(tmp_path)
     profil = registre.parent / "profile_gate"
@@ -690,7 +691,12 @@ def test_deux_erreurs_de_sujet_qui_se_compensent_sont_refusees(tmp_path: Path) -
     # au total dans les deux cas.
     a = _write(
         profil / "subjects" / "sujet-a.release.json",
-        {"expected_counts": {"artifacts": 2}, "artifacts": [{"content_sha256": SHA_A}]},
+        # SHA_A n'appartient qu'à sujet-a : le perdre RÉTRÉCIT l'ensemble
+        # dédupliqué, ce que le seul total d'occurrences ne voit pas.
+        {
+            "expected_counts": {"artifacts": 2},
+            "artifacts": [{"content_sha256": SHA_SHARED}],
+        },
     )
     b = _write(
         profil / "subjects" / "sujet-b.release.json",
@@ -789,4 +795,25 @@ def test_un_artefact_place_mais_absent_du_registre_v2_est_refuse(
     _write(registre, reg)
 
     with pytest.raises(PromotedContentSetError, match="absent"):
+        collect_promoted_content_set(registre)
+
+
+@pytest.mark.parametrize("declarees", [None, [], "rag_nexus", 7])
+def test_un_registre_sans_collections_declarees_est_refuse(
+    tmp_path: Path, declarees: object
+) -> None:
+    """Obligatoire, comme `release_kind`.
+
+    Une déclaration facultative ne garde rien : elle disparaîtrait précisément
+    sur le registre tronqué qu'elle doit attraper, et le périmètre servi ne
+    serait alors confronté à rien.
+    """
+    registre = _seed(tmp_path)
+    donnees = json.loads(registre.read_text(encoding="utf-8"))
+    if declarees is None:
+        donnees["releases"][0].pop("collections")
+    else:
+        donnees["releases"][0]["collections"] = declarees
+    _write(registre, donnees)
+    with pytest.raises(PromotedContentSetError, match="aucune collection"):
         collect_promoted_content_set(registre)
