@@ -32,6 +32,7 @@ class BootstrapInventoryError(RuntimeError):
 
 
 class _PlacementRow(StrictBaseModel):
+    placement_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     collection: str = Field(min_length=1)
     tenant: str = Field(min_length=1)
     niveau: str = Field(min_length=1)
@@ -174,6 +175,7 @@ JOIN LATERAL (
     SELECT COALESCE(
         jsonb_agg(
             jsonb_build_object(
+                'placement_id', p.placement_id,
                 'collection', p.collection,
                 'tenant', p.tenant,
                 'niveau', p.niveau,
@@ -317,27 +319,55 @@ def _validate_identity(row: _BootstrapSourceRow) -> None:
 
 
 def _validate_placements(row: _BootstrapSourceRow) -> None:
+    """A shared artifact is legitimately placed in more than one collection
+    (e.g. a première/terminale common-trunk resource): every placement must
+    independently be current/active/reviewed with the artifact's own source,
+    and no placement_id may repeat, but only the ingestion resource's own
+    anchor scope -- not every placement -- must be represented among them.
+    A placement whose scope differs from the anchor (a second, legitimate
+    collection) is not itself a violation."""
     if not row.placements:
         raise BootstrapInventoryError(
             f"placements are missing for {row.resource_version_id}"
         )
+    seen_placement_ids: set[str] = set()
+    anchor_scope = _scope_tuple(row)
+    anchor_represented = False
     for placement in row.placements:
+        if placement.placement_id in seen_placement_ids:
+            raise BootstrapInventoryError(
+                f"placement is duplicated for {row.resource_version_id}"
+            )
+        seen_placement_ids.add(placement.placement_id)
         if (
             placement.currentness != "current"
             or placement.placement_status != "active"
             or placement.review_status != "reviewed"
             or placement.source_uri != row.rag_source_uri
-            or _scope_tuple(placement) != _scope_tuple(row)
         ):
-                raise BootstrapInventoryError(
-                    f"placement state, source, or scope differs for "
-                f"{row.resource_version_id}"
+            raise BootstrapInventoryError(
+                f"placement state or source differs for {row.resource_version_id}"
             )
+        if _scope_tuple(placement) == anchor_scope:
+            anchor_represented = True
+    if not anchor_represented:
+        raise BootstrapInventoryError(
+            f"no placement matches the ingestion resource anchor scope for "
+            f"{row.resource_version_id}"
+        )
 
 
 def _validated_chunks(row: _BootstrapSourceRow) -> list[BootstrapChunk]:
+    """The denormalized scope columns on a physical chunk record which
+    subject it was originally ingested under -- they are not the
+    reachability authority for a shared artifact, and need not equal the
+    ingestion resource's own anchor scope. A chunk's scope must instead
+    belong to the set of the artifact's own authoritative placements
+    (validated by ``_validate_placements`` already); a chunk whose scope
+    matches none of them is refused."""
     if not row.chunks:
         raise BootstrapInventoryError(f"chunks are missing for {row.resource_version_id}")
+    placement_scopes = [_scope_tuple(placement) for placement in row.placements]
     chunk_ids: set[str] = set()
     chunk_indexes: set[int] = set()
     result: list[BootstrapChunk] = []
@@ -358,7 +388,7 @@ def _validated_chunks(row: _BootstrapSourceRow) -> list[BootstrapChunk]:
             and chunk.source_kind == row.rag_source_kind
             and chunk.type_doc == row.rag_type_doc
             and chunk.review_status == "reviewed"
-            and _scope_tuple(chunk) == _scope_tuple(row)
+            and _scope_tuple(chunk) in placement_scopes
         ):
             raise BootstrapInventoryError(
                 f"chunk metadata or scope differs for "
@@ -510,9 +540,15 @@ def export_resource_registry_bootstrap_inventory(
                 },
             )
             rows = cursor.fetchall()
+    # One binding per authoritative placement, not per ingestion resource row:
+    # a shared artifact has exactly one governed row (keyed by artifact_id)
+    # but is reachable from every collection it is legitimately placed in --
+    # using only the row's own anchor collection would silently drop every
+    # other placement from this comparison.
     observed_bindings = {
-        (str(row["collection"]), str(row["rag_content_sha256"]))
+        (str(placement["collection"]), str(row["rag_content_sha256"]))
         for row in rows
+        for placement in row["placements"]
     }
     if observed_bindings != release_artifact_bindings:
         raise BootstrapInventoryError(
