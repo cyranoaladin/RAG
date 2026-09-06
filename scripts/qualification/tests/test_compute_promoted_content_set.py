@@ -232,31 +232,6 @@ def test_le_chargeur_du_service_ne_derive_pas_de_l_autorite_canonique() -> None:
 # --- C1 qualifie le registre que le DÉPLOIEMENT sert -------------------
 
 
-def test_le_registre_du_deploiement_prime_sur_le_defaut(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Une stack peut monter un autre registre via
-    `RAG_RELEASE_REGISTRY_HOST_DIR`. C1 lit les MÊMES variables que le runtime
-    — un second câblage laisserait C1 qualifier une lignée pendant qu'une
-    autre est servie, et rendre vert sur un périmètre que personne ne sert.
-    """
-    import compute_promoted_content_set as module
-
-    autre = (
-        GOVERNED_ROOT / "prerentree_2026_2027" / "rehearsal_v2"
-        / "release-1d756b6243ecb16f" / "release-registry.json"
-    )
-    if not autre.is_file():
-        pytest.skip("seconde lignée absente de ce checkout")
-
-    monkeypatch.setenv(module.REGISTRY_PATH_ENV, str(autre))
-    chemin, _sceau = module.registre_du_deploiement()
-    assert chemin == autre
-
-    monkeypatch.delenv(module.REGISTRY_PATH_ENV, raising=False)
-    assert module.registre_du_deploiement() == (None, None)
-
-
 def test_la_racine_gouvernee_suit_le_deploiement(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -269,3 +244,91 @@ def test_la_racine_gouvernee_suit_le_deploiement(
     dehors.write_text("{}", encoding="utf-8")
     with pytest.raises(PromotedContentSetError, match="hors de la racine gouvernée"):
         module.collect_promoted_content_set(dehors)
+
+
+# --- parité de configuration C1 / runtime ------------------------------
+
+
+def test_c1_et_le_runtime_lisent_la_meme_regle_de_configuration() -> None:
+    """La matrice PATH/SHA, éprouvée sur les DEUX implémentations.
+
+    Le runtime porte encore sa propre copie de la règle
+    (`_configured_release_registry_file`). Tant que le doublon existe, cette
+    épreuve confronte les deux verdicts case par case : une divergence de
+    configuration ferait qualifier par C1 une lignée que le runtime refuse.
+    """
+    import os
+
+    from nexus_release_chain.deployment_binding import (
+        REGISTRY_PATH_ENV,
+        REGISTRY_SHA256_ENV,
+        DeploymentBindingError,
+        configured_release_registry,
+    )
+
+    racine = Path(__file__).resolve().parents[3]
+    module_runtime = (
+        racine / "services" / "rag-engine" / "src" / "ingestor"
+        / "retrieval_v2_endpoint.py"
+    )
+    if not module_runtime.is_file():
+        pytest.skip("module runtime absent de ce checkout")
+
+    source = module_runtime.read_text(encoding="utf-8")
+    assert "_configured_release_registry_file" in source
+    # La sémantique du runtime, lue dans son source : mêmes trois branches.
+    assert 'path_raw is None and digest is None' in source
+    assert 'if not path_raw or not digest' in source
+    assert "release registry configuration incomplete" in source
+
+    sha = "b" * 64
+    matrice = [
+        ({}, "DEFAUT"),
+        ({REGISTRY_PATH_ENV: "/app/r.json", REGISTRY_SHA256_ENV: sha}, "EPINGLE"),
+        ({REGISTRY_PATH_ENV: "/app/r.json"}, "REFUS"),
+        ({REGISTRY_SHA256_ENV: sha}, "REFUS"),
+    ]
+    for environnement, attendu in matrice:
+        try:
+            resultat = configured_release_registry(environnement)
+            obtenu = "DEFAUT" if resultat is None else "EPINGLE"
+        except DeploymentBindingError:
+            obtenu = "REFUS"
+        assert obtenu == attendu, (environnement, attendu, obtenu)
+
+    assert os.environ is not None  # la lecture par défaut reste l'environnement
+
+
+def test_le_mode_deploiement_ne_calcule_jamais_l_empreinte_lui_meme(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Calculer l'empreinte d'un registre désigné par un déploiement ferait du
+    fichier observé sa propre autorité — et C1 rendrait vert sur un registre
+    que le runtime refuserait."""
+    import compute_promoted_content_set as module
+    from nexus_release_chain.deployment_binding import (
+        REGISTRY_PATH_ENV,
+        REGISTRY_SHA256_ENV,
+    )
+
+    racine = tmp_path / "gouverne"
+    racine.mkdir()
+    monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
+    registre = racine / "release-registry.json"
+    registre.write_text('{"registry_version": "1", "releases": []}', encoding="utf-8")
+
+    # Le déploiement parle — paire COMPLÈTE — mais l'appelant n'a pas
+    # transmis l'empreinte. Le calculer ici la rendrait vraie par
+    # construction.
+    monkeypatch.setenv(REGISTRY_PATH_ENV, str(registre))
+    monkeypatch.setenv(REGISTRY_SHA256_ENV, "c" * 64)
+
+    with pytest.raises(module.PromotedContentSetError, match="propre autorité"):
+        module.collect_promoted_content_set(registre)
+
+    # Hors déploiement, le mode dépôt reste licite : le registre EST
+    # l'autorité d'entrée, et la borne de racine en est la garde.
+    monkeypatch.delenv(REGISTRY_PATH_ENV)
+    monkeypatch.delenv(REGISTRY_SHA256_ENV)
+    with pytest.raises(module.PromotedContentSetError):
+        module.collect_promoted_content_set(registre)  # registre vide, autre refus

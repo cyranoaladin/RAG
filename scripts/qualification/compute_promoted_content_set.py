@@ -42,23 +42,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from nexus_release_chain.deployment_binding import (  # noqa: E402
+    DeploymentBindingError,
+    configured_release_registry,
+)
 from nexus_release_chain.release_readiness import (  # noqa: E402
     ReleaseReadinessError,
     load_release_registry_file,
 )
 from verify_corpus_cas import content_set_digest  # noqa: E402
 
-#: Variables par lesquelles un DÉPLOIEMENT désigne le registre qu'il sert.
-#: Ce sont celles que le runtime lit (`retrieval_v2_endpoint`), et non un
-#: second câblage : sans elles, une stack pointée ailleurs par
-#: `RAG_RELEASE_REGISTRY_HOST_DIR` verrait C1 qualifier l'ancien registre et
-#: rendre vert sur un périmètre que personne ne sert.
-REGISTRY_PATH_ENV = "RAG_RELEASE_REGISTRY_PATH"
-REGISTRY_SHA256_ENV = "RAG_RELEASE_REGISTRY_SHA256"
-
 #: Racine gouvernée, quand le registre vient d'un déploiement. La borne reste
-#: exercée — mais contre la racine de CE déploiement, pas contre celle du
-#: dépôt, qu'un conteneur ne connaît pas.
+#: exercée — mais contre la racine de CE déploiement, pas celle du dépôt,
+#: qu'un conteneur ne connaît pas.
 GOVERNED_ROOT_ENV = "NEXUS_C1_GOVERNED_ROOT"
 
 #: Registre canonique de l'année scolaire servie. C'est un DÉFAUT, pas une
@@ -90,16 +86,6 @@ def _racine_gouvernee() -> Path:
     if declaree:
         return Path(declaree)
     return GOVERNED_ROOT
-
-
-def registre_du_deploiement() -> tuple[Path | None, str | None]:
-    """Le registre que la stack SERT, s'il en désigne un.
-
-    Un déploiement peut monter un autre registre. Lire les mêmes variables que
-    le runtime évite que C1 qualifie une lignée pendant qu'une autre est
-    servie."""
-    chemin = os.environ.get(REGISTRY_PATH_ENV)
-    return (Path(chemin) if chemin else None, os.environ.get(REGISTRY_SHA256_ENV))
 
 
 def _borner(chemin: Path) -> Path:
@@ -137,6 +123,28 @@ def _borner(chemin: Path) -> Path:
     return resolu
 
 
+def _empreinte_attendue(resolu: Path, fournie: str | None) -> str:
+    """L'empreinte contre laquelle le chargeur confrontera le registre.
+
+    En mode DÉPLOIEMENT, elle est fournie et exigée telle quelle : la calculer
+    nous-mêmes ferait du fichier observé sa propre autorité, et C1 rendrait
+    vert sur un registre que le runtime refuserait.
+
+    En mode dépôt — aucun déploiement ne parle — le registre EST l'autorité
+    d'entrée, et le sceller contre lui-même ne prouve rien de plus que le
+    bornage à la racine gouvernée.
+    """
+    if fournie:
+        return fournie
+    if configured_release_registry() is not None:
+        raise PromotedContentSetError(
+            "un déploiement désigne un registre mais aucune empreinte n'a été "
+            "transmise — le calculer ici ferait du fichier observé sa propre "
+            "autorité"
+        )
+    return hashlib.sha256(resolu.read_bytes()).hexdigest()
+
+
 def collect_promoted_content_set(
     registry_path: Path, expected_sha256: str | None = None
 ) -> set[str]:
@@ -146,11 +154,7 @@ def collect_promoted_content_set(
     partitions de pages, collisions — est celle du chargeur canonique, celui
     que le runtime consomme. On n'en refait aucune."""
     resolu = _borner(registry_path)
-    # Le registre est l'autorité d'ENTRÉE : le sceller contre lui-même ne
-    # prouverait rien de plus que la borne ci-dessus. Une candidate figée
-    # peut en revanche fournir son empreinte externe, et elle est alors
-    # exigée telle quelle par le chargeur.
-    attendue = expected_sha256 or hashlib.sha256(resolu.read_bytes()).hexdigest()
+    attendue = _empreinte_attendue(resolu, expected_sha256)
     try:
         registre = load_release_registry_file(resolu, attendue)
     except (ReleaseReadinessError, OSError, ValueError) as exc:
@@ -175,7 +179,7 @@ def collect_promoted_collections(
 ) -> set[str]:
     """Les collections que la lignée active sert, telles que le chargeur les rend."""
     resolu = _borner(registry_path)
-    attendue = expected_sha256 or hashlib.sha256(resolu.read_bytes()).hexdigest()
+    attendue = _empreinte_attendue(resolu, expected_sha256)
     try:
         return set(load_release_registry_file(resolu, attendue).collections)
     except (ReleaseReadinessError, OSError, ValueError) as exc:
@@ -186,7 +190,14 @@ def collect_promoted_collections(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    depuis_deploiement, sceau_deploiement = registre_du_deploiement()
+    try:
+        binding = configured_release_registry()
+    except DeploymentBindingError as exc:
+        # Exactement la sémantique du runtime : une paire incomplète est un
+        # refus, jamais un repli sur le défaut du dépôt.
+        print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
+        return 2
+    depuis_deploiement, sceau_deploiement = binding or (None, None)
     parser.add_argument(
         "--release-registry",
         type=Path,
