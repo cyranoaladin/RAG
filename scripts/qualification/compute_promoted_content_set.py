@@ -348,12 +348,24 @@ def _croiser_les_placements_v2(
                 f"{charge['expected_counts']['placements']} qu'il déclare"
             )
         total_placements += len(placements)
+        references: set[str] = set()
         for placement in placements:
             if not isinstance(placement, dict) or "artifact_id" not in placement:
                 raise PromotedContentSetError(
                     f"{ou} : un placement ne porte pas d'artifact_id"
                 )
-            places.add(str(placement["artifact_id"]))
+            references.add(str(placement["artifact_id"]))
+        # Le sujet déclare aussi combien d'artefacts DISTINCTS il référence.
+        # Sans ce compte, retirer un artefact et remplacer ses placements par
+        # des doublons d'un autre préserve tous les totaux vérifiés — et
+        # rétrécit pourtant l'ensemble promu.
+        if len(references) != _compte_declare(charge, "unique_artifact_references", ou):
+            raise PromotedContentSetError(
+                f"{ou} : {len(references)} artefact(s) distinct(s) référencé(s) "
+                f"contre {charge['expected_counts']['unique_artifact_references']} "
+                "qu'il déclare"
+            )
+        places |= references
 
     # L'agrégat déclare le TOTAL de placements que la release sert. Ne vérifier
     # que les comptes locaux laissait ce total mentir sans conséquence — et il
