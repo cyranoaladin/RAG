@@ -31,6 +31,12 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from rag_pedago.governance.url_source_registry import (  # noqa: E402
+    RAISON_IRRECUPERABILITE_NAVIGATION_PROTEGEE as RAISON_403,
+)
+from rag_pedago.governance.url_source_registry import (  # noqa: E402
+    RAISON_IRRECUPERABILITE_RELATION_ABSENTE as RAISON_RELATION_ABSENTE,
+)
+from rag_pedago.governance.url_source_registry import (  # noqa: E402
     REGISTRY_KIND,
     AutoriteSource,
     EntreeUrl,
@@ -53,8 +59,19 @@ PORTEUR_RELATION = (
     "references_[source_url, target_url])"
 )
 
-RAISON_403 = "NAVIGATION_PROTEGEE_403"
-RAISON_RELATION_ABSENTE = "RELATION_NAVIGATION_VERS_DOCUMENT_ABSENTE_DES_AUTORITES"
+#: Statuts pour lesquels une non-réponse ne prouve rien de permanent : la
+#: sonde doit être reprise, pas classée irrécupérable sur un accident
+#: transitoire du fournisseur ou du réseau.
+STATUTS_TRANSITOIRES = frozenset({429})
+
+
+def _est_echec_transitoire(sonde: dict[str, Any]) -> bool:
+    status = sonde.get("status")
+    if status is None:
+        return True
+    if status in STATUTS_TRANSITOIRES:
+        return True
+    return 500 <= status < 600
 
 
 def _preuve_navigation(sonde: dict[str, Any], autorites: int) -> str:
@@ -129,6 +146,15 @@ def construire(
         if not direct:
             continue
         sonde = _sonde_de(sondes, direct)
+        servi = sonde.get("content_sha256")
+        if sonde.get("status") == 200 and servi is not None and servi != artefact["content_sha256"]:
+            raise SystemExit(
+                f"EMPREINTE_DERIVEE {direct} : servie={servi} "
+                f"scellée={artefact['content_sha256']} — la sonde directe rend un "
+                "contenu différent de l'empreinte scellée ; ceci est une dérive de "
+                "contenu à la source, pas une incohérence de registre, et exige une "
+                "remédiation gouvernée avant toute écriture du registre"
+            )
         entrees.append(
             EntreeUrl(
                 url=direct,
@@ -155,12 +181,14 @@ def construire(
     for url in sorted(urls_navigation):
         sonde = _sonde_de(sondes, url)
         accessible = sonde.get("status") == 200
+        transitoire = (not accessible) and _est_echec_transitoire(sonde)
+        irrecuperable = not accessible and not transitoire
         entrees.append(
             EntreeUrl(
                 url=url,
                 source_role=RoleSource.NAVIGATION_PROVENANCE,
                 resolution=(
-                    Resolution.EN_ATTENTE if accessible else Resolution.IRRECUPERABLE
+                    Resolution.IRRECUPERABLE if irrecuperable else Resolution.EN_ATTENTE
                 ),
                 navigation_url=url,
                 direct_url=None,
@@ -175,23 +203,28 @@ def construire(
                 empreinte_scellee=None,
                 artefacts_perimetre=tuple(sorted(perimetre_par_url.get(url, ()))),
                 raison_irrecuperabilite=(
-                    None
-                    if accessible
-                    else (
-                        RAISON_403
-                        if sonde.get("status") == 403
-                        else RAISON_RELATION_ABSENTE
-                    )
+                    RAISON_403
+                    if irrecuperable and sonde.get("status") == 403
+                    else RAISON_RELATION_ABSENTE
+                    if irrecuperable
+                    else None
                 ),
                 preuve_irrecuperabilite=(
-                    None if accessible else _preuve_navigation(sonde, nb_autorites)
+                    _preuve_navigation(sonde, nb_autorites) if irrecuperable else None
                 ),
                 motif_attente=(
                     "Page accessible : l'extraction des liens de document reste à "
                     "faire par remoisson sanctionnée (eduscol-pdf-harvester), qui "
                     "reconstruira la table urls/references_ perdue."
                     if accessible
-                    else None
+                    else (
+                        f"Échec transitoire ({sonde.get('status') or sonde.get('erreur')}) "
+                        f"le {sonde.get('retrieved_at')} : l'inaccessibilité n'est pas "
+                        "démontrée permanente, la sonde réseau doit être reprise avant "
+                        "toute classification irrécupérable."
+                        if transitoire
+                        else None
+                    )
                 ),
                 erreur_reseau=sonde.get("erreur"),
             )

@@ -33,12 +33,19 @@ fixée d'avance.
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
 LEDGER_KIND = "CURRENTNESS_DISPOSITION_V1"
+
+#: Un appui « irrécupérable » doit citer un condensé vérifiable de la preuve
+#: qui l'a produit, pas seulement les raisons codées : sans lui, la preuve
+#: existe dans le registre d'URL mais disparaît du jugement qui s'en sert.
+_PREUVE_DIGEST_RE = re.compile(r"preuve=[0-9a-f]{64}$")
 
 
 class DispositionError(RuntimeError):
@@ -82,9 +89,16 @@ def _disposition_dun_artefact(
     urls = tuple(sorted(str(entree["url"]) for entree in entrees))
 
     # 1. Vérifié : une URL directe a rendu EXACTEMENT l'empreinte scellée.
+    #    Les quatre conditions sont nécessaires ensemble : sans elles, un
+    #    « RESOLUE » qui ne serait pas un téléchargement direct réussi
+    #    pourrait produire VERIFIED_CURRENT sur la seule coïncidence des
+    #    empreintes.
     for entree in entrees:
         if (
             entree.get("resolution") == "RESOLUE"
+            and entree.get("source_role") == "DOCUMENT_DIRECT"
+            and entree.get("status") == 200
+            and entree.get("direct_url")
             and entree.get("content_sha256")
             and entree.get("content_sha256") == entree.get("empreinte_scellee") == sha
         ):
@@ -113,21 +127,43 @@ def _disposition_dun_artefact(
                 f"{', '.join(sans_preuve[:3])}"
             )
         raisons = sorted({str(e["raison_irrecuperabilite"]) for e in irrecuperables})
+        preuve_digest = hashlib.sha256(
+            "|".join(
+                sorted(str(e["preuve_irrecuperabilite"]) for e in irrecuperables)
+            ).encode("utf-8")
+        ).hexdigest()
         return DispositionArtefact(
             content_sha256=sha,
             disposition=Disposition.UNRECOVERABLE_WITH_EVIDENCE,
             urls=urls,
-            appui=f"{len(irrecuperables)} provenance(s) irrécupérable(s) : "
-            + ", ".join(raisons),
+            appui=(
+                f"{len(irrecuperables)} provenance(s) irrécupérable(s) : "
+                + ", ".join(raisons)
+                + f" ; preuve={preuve_digest}"
+            ),
         )
 
-    # 3. Sans URL du tout : source statique gouvernée.
+    # 3. Sans URL du tout : source statique gouvernée — mais seulement si
+    #    l'autorité de l'artefact le déclare explicitement. L'absence de
+    #    provenance URL ne prouve rien par elle-même : elle peut tout aussi
+    #    bien signaler une régression de jointure dans le registre d'URL, et
+    #    confondre les deux laisserait cette régression passer pour une
+    #    disposition mesurée.
     if not entrees:
+        marqueur = artefact.get("non_url_static_source")
+        if not marqueur:
+            raise DispositionError(
+                f"{sha[:12]}… : aucune provenance URL et aucune déclaration "
+                "explicite de source statique gouvernée "
+                "(non_url_static_source) par l'autorité de l'artefact — une "
+                "régression du registre d'URL ne peut pas être prise pour "
+                "une preuve"
+            )
         return DispositionArtefact(
             content_sha256=sha,
             disposition=Disposition.NON_URL_STATIC_SOURCE,
             urls=(),
-            appui="aucune provenance URL : source statique du plan de contrôle",
+            appui=f"source statique gouvernée déclarée par l'autorité : {marqueur}",
         )
 
     # 4. Ni vérifié, ni entièrement irrécupérable, ni sans URL : le cas est
@@ -193,6 +229,13 @@ def verifier_registre(registre: Mapping[str, Any]) -> dict[str, int]:
         if not item.get("appui"):
             raise DispositionError(
                 f"{item.get('content_sha256', '?')[:12]}… : disposition sans appui"
+            )
+        if valeur == Disposition.UNRECOVERABLE_WITH_EVIDENCE.value and not (
+            _PREUVE_DIGEST_RE.search(item["appui"])
+        ):
+            raise DispositionError(
+                f"{item.get('content_sha256', '?')[:12]}… : disposition irrécupérable "
+                "sans condensé de preuve vérifiable dans l'appui"
             )
         sha = str(item.get("content_sha256"))
         if sha in vus:

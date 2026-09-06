@@ -44,9 +44,13 @@ def _artefact(sha: str) -> dict[str, object]:
 
 
 def _resolue(sha: str) -> dict[str, object]:
+    url = f"https://exemple/direct/{sha[:8]}.pdf"
     return {
-        "url": f"https://exemple/direct/{sha[:8]}.pdf",
+        "url": url,
+        "source_role": "DOCUMENT_DIRECT",
         "resolution": "RESOLUE",
+        "status": 200,
+        "direct_url": url,
         "artefacts_perimetre": [sha],
         "content_sha256": sha,
         "empreinte_scellee": sha,
@@ -132,11 +136,18 @@ def test_un_irrecuperable_sans_preuve_est_refuse() -> None:
     assert "sans preuve" in str(refus.value)
 
 
-def test_un_artefact_sans_aucune_url_est_une_source_statique() -> None:
-    registre = construire_registre(artefacts=[_artefact(SHA_A)], entrees_url=[])
+def test_un_artefact_declare_source_statique_sans_url_recoit_cette_disposition() -> None:
+    artefact = {"content_sha256": SHA_A, "non_url_static_source": "DEPOT_GOUVERNE_SANS_URL"}
+    registre = construire_registre(artefacts=[artefact], entrees_url=[])
     (item,) = registre["dispositions"]
     assert item["disposition"] == Disposition.NON_URL_STATIC_SOURCE.value
     assert registre["CURRENTNESS_UNACCOUNTED"] == 0
+
+
+def test_un_artefact_sans_url_ni_declaration_de_source_statique_est_refuse() -> None:
+    """Une régression du registre d'URL ne peut pas se faire passer pour une preuve."""
+    with pytest.raises(DispositionError, match="non_url_static_source"):
+        construire_registre(artefacts=[_artefact(SHA_A)], entrees_url=[])
 
 
 def test_un_artefact_partiellement_resolu_n_est_pas_range_d_office() -> None:
@@ -191,3 +202,47 @@ def test_un_perimetre_vide_est_refuse() -> None:
     """Zéro artefact rendrait UNACCOUNTED=0 trivialement vrai."""
     with pytest.raises(DispositionError):
         construire_registre(artefacts=[], entrees_url=[])
+
+
+# --- exigences de fraîcheur vérifiée strictes ----------------------------
+
+
+def test_une_resolution_qui_n_est_pas_un_document_direct_ne_verifie_rien() -> None:
+    """RESOLUE + empreintes identiques ne suffit pas : il faut DOCUMENT_DIRECT."""
+    entree = _resolue(SHA_A) | {"source_role": "NAVIGATION_PROVENANCE"}
+    with pytest.raises(DispositionError):
+        construire_registre(artefacts=[_artefact(SHA_A)], entrees_url=[entree])
+
+
+def test_une_resolution_sans_statut_200_ne_verifie_rien() -> None:
+    entree = _resolue(SHA_A) | {"status": 404}
+    with pytest.raises(DispositionError):
+        construire_registre(artefacts=[_artefact(SHA_A)], entrees_url=[entree])
+
+
+def test_une_resolution_sans_url_directe_ne_verifie_rien() -> None:
+    entree = _resolue(SHA_A) | {"direct_url": None}
+    with pytest.raises(DispositionError):
+        construire_registre(artefacts=[_artefact(SHA_A)], entrees_url=[entree])
+
+
+# --- preuve persistée pour les dispositions irrécupérables ----------------
+
+
+def test_l_appui_irrecuperable_porte_un_condensé_verifiable_de_la_preuve() -> None:
+    registre = construire_registre(
+        artefacts=[_artefact(SHA_A)], entrees_url=[_irrecuperable(SHA_A)]
+    )
+    (item,) = registre["dispositions"]
+    import re
+
+    assert re.search(r"preuve=[0-9a-f]{64}$", item["appui"])
+
+
+def test_le_verificateur_refuse_un_appui_irrecuperable_sans_condense_de_preuve() -> None:
+    registre = construire_registre(
+        artefacts=[_artefact(SHA_A)], entrees_url=[_irrecuperable(SHA_A)]
+    )
+    registre["dispositions"][0]["appui"] = "1 provenance(s) irrécupérable(s) : X"
+    with pytest.raises(DispositionError, match="condensé de preuve"):
+        verifier_registre(registre)

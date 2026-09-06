@@ -62,6 +62,29 @@ from typing import Any
 
 REGISTRY_KIND = "URL_SOURCE_REGISTRY_V1"
 
+#: Une entrée irrécupérable doit citer l'une de ces raisons *nommées* — jamais
+#: une chaîne arbitraire. Une raison inconnue serait invérifiable, donc
+#: équivalente à l'absence de raison que la garde existe pour refuser.
+RAISON_IRRECUPERABILITE_NAVIGATION_PROTEGEE = "NAVIGATION_PROTEGEE_403"
+RAISON_IRRECUPERABILITE_RELATION_ABSENTE = (
+    "RELATION_NAVIGATION_VERS_DOCUMENT_ABSENTE_DES_AUTORITES"
+)
+RAISONS_IRRECUPERABILITE_CONNUES = frozenset(
+    {
+        RAISON_IRRECUPERABILITE_NAVIGATION_PROTEGEE,
+        RAISON_IRRECUPERABILITE_RELATION_ABSENTE,
+    }
+)
+
+#: Une preuve d'irrécupérabilité en-deçà de cette longueur ne peut pas citer
+#: à la fois un fait mesuré et la politique du fournisseur consultée : elle
+#: est une étiquette, pas une preuve.
+PREUVE_IRRECUPERABILITE_LONGUEUR_MINIMALE = 40
+
+#: Nombre d'autorités dont ce registre est censé dériver : le catalogue de
+#: moisson et l'évidence de fraîcheur, chacune scellée par sa propre empreinte.
+NOMBRE_AUTORITES_ATTENDU = 2
+
 
 class RegistreUrlSourceError(RuntimeError):
     """Le registre ne prouve pas ce qu'il affirme — refus explicite."""
@@ -214,6 +237,16 @@ def verifier_registre(registre: RegistreUrlSource) -> dict[str, int]:
             f"REGISTRY_KIND_INATTENDU: {registre.registry_kind!r} au lieu de {REGISTRY_KIND!r}"
         )
 
+    if len(registre.autorites) != NOMBRE_AUTORITES_ATTENDU:
+        manquements.append(
+            f"AUTORITES_INCOMPLETES: {len(registre.autorites)} autorité(s) au lieu de "
+            f"{NOMBRE_AUTORITES_ATTENDU}"
+        )
+    else:
+        for autorite in registre.autorites:
+            if not autorite.sha256:
+                manquements.append(f"AUTORITE_NON_SCELLEE: {autorite.nom}")
+
     vues: set[str] = set()
     for entree in registre.entrees:
         if entree.url in vues:
@@ -243,8 +276,25 @@ def _manquements_entree(entree: EntreeUrl) -> list[str]:
     if entree.resolution is Resolution.IRRECUPERABLE:
         if not entree.raison_irrecuperabilite:
             manquements.append(f"RAISON_IRRECUPERABILITE_ABSENTE: {reference}")
+        elif entree.raison_irrecuperabilite not in RAISONS_IRRECUPERABILITE_CONNUES:
+            manquements.append(
+                f"RAISON_IRRECUPERABILITE_INCONNUE: {reference} "
+                f"({entree.raison_irrecuperabilite!r})"
+            )
         if not entree.preuve_irrecuperabilite:
             manquements.append(f"PREUVE_IRRECUPERABILITE_ABSENTE: {reference}")
+        else:
+            preuve = entree.preuve_irrecuperabilite
+            if len(preuve) < PREUVE_IRRECUPERABILITE_LONGUEUR_MINIMALE:
+                manquements.append(f"PREUVE_IRRECUPERABILITE_NON_STRUCTUREE: {reference}")
+            if "robots.txt" not in preuve:
+                manquements.append(
+                    f"PREUVE_IRRECUPERABILITE_SANS_POLITIQUE_ROBOTS: {reference}"
+                )
+            if not entree.retrieved_at or entree.retrieved_at not in preuve:
+                manquements.append(
+                    f"PREUVE_IRRECUPERABILITE_SANS_HORODATAGE_SONDE: {reference}"
+                )
     if entree.resolution is Resolution.EN_ATTENTE and not entree.motif_attente:
         manquements.append(f"MOTIF_ATTENTE_ABSENT: {reference}")
 

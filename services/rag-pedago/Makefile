@@ -9,7 +9,7 @@ else
   PY ?= $(PY_VENV)
 endif
 
-.PHONY: source-evidence-check venv install doctor project-doctor init scrape-official ingest ingest-official ingest-internal verify eval-retrieval watch api test lint format typecheck backup ledger-init ledger-doctor manifest-import-fixture manifest-dir-dry-run manifest-dir-import-fixture manifest-readiness manifest-coverage manifest-gate manifest-readiness-clean manifest-coverage-clean manifest-gate-clean manifest-controlled-import-clean manifest-controlled-import-problem review-package-clean-audited pilot-template-check pilot-compile-check pilot-rehearsal real-draft-guard-check human-unlock-check real-draft-unlock-gate-check metadata-preflight cleanup-dry-run cleanup-review cleanup-decision-draft make-target-safety-audit pilot-corpus-scope-audit retrieval-metadata-eval-audit pedago-interface-contract-audit source-admission-policy-audit human-source-review-audit controlled-readiness-audit transition-authorization-audit metadata-governance-chain-audit metadata-review-handoff-audit pilot-validation-policy-audit pilot-golden-spec-audit url-source-registry-audit
+.PHONY: source-evidence-check venv install doctor project-doctor init scrape-official ingest ingest-official ingest-internal verify eval-retrieval watch api test lint format typecheck backup ledger-init ledger-doctor manifest-import-fixture manifest-dir-dry-run manifest-dir-import-fixture manifest-readiness manifest-coverage manifest-gate manifest-readiness-clean manifest-coverage-clean manifest-gate-clean manifest-controlled-import-clean manifest-controlled-import-problem review-package-clean-audited pilot-template-check pilot-compile-check pilot-rehearsal real-draft-guard-check human-unlock-check real-draft-unlock-gate-check metadata-preflight cleanup-dry-run cleanup-review cleanup-decision-draft make-target-safety-audit pilot-corpus-scope-audit retrieval-metadata-eval-audit pedago-interface-contract-audit source-admission-policy-audit human-source-review-audit controlled-readiness-audit transition-authorization-audit metadata-governance-chain-audit metadata-review-handoff-audit pilot-validation-policy-audit pilot-golden-spec-audit url-source-registry-audit currentness-disposition-check
 
 venv:
 	@if [ ! -x "$(PY_VENV)" ]; then \
@@ -142,6 +142,9 @@ pilot-golden-spec-audit:
 
 url-source-registry-audit:
 	$(PY) scripts/url_source_registry_audit.py
+
+currentness-disposition-check:
+	$(PY) scripts/build_currentness_disposition.py --check
 
 source-evidence-check:
 	$(PY) scripts/export_source_validation_evidence.py --check

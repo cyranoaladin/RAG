@@ -267,3 +267,90 @@ Douze épreuves, chacune sur le défaut qu'elle vise :
 
 Le périmètre vide est refusé nommément, parce que zéro artefact rendrait
 `UNACCOUNTED=0` trivialement vrai.
+
+---
+
+## Addendum — remédiation des neuf refus P1 de revue — 2026-09-06
+
+La revue de la PR a soulevé 20 constats non résolus (3 `chatgpt-codex-connector`
+et 17 `cubic-dev-ai`) sur le HEAD rebasé `e43acbf0`. Neuf d'entre eux, tous de
+sévérité P1, désignaient le même défaut sous des angles différents : une
+affirmation gouvernée (raison codée, preuve, disposition, empreinte) était
+acceptée sur sa seule **présence**, jamais sur son **contenu**. Les onze
+constats P2/P3 restants sont reportés à un lot séparé.
+
+Corrections apportées, chacune prouvée par un test qui échouait avant et passe
+après :
+
+- **Raison irrécupérable hors liste connue** — `raison_irrecuperabilite`
+  n'est plus une chaîne libre : elle doit appartenir à
+  `RAISONS_IRRECUPERABILITE_CONNUES` (les deux codes réellement émis par le
+  producteur), sans quoi `verifier_registre` refuse
+  `RAISON_IRRECUPERABILITE_INCONNUE`.
+- **Preuve irrécupérable non structurée** — `preuve_irrecuperabilite` doit
+  faire au moins 40 caractères, citer `robots.txt`, et citer l'horodatage
+  exact (`retrieved_at`) de la sonde qu'elle prétend documenter. `raison="x"`,
+  `preuve="x"` — la fraude minimale que la revue signalait — est maintenant
+  refusée.
+- **Registre sans autorités scellées** — `verifier_registre` exige exactement
+  les deux autorités dont ce registre est censé dériver (catalogue + évidence
+  de fraîcheur), chacune porteuse de son empreinte.
+- **`VERIFIED_CURRENT` sur coïncidence d'empreintes** — la disposition exige
+  maintenant `source_role == DOCUMENT_DIRECT`, `status == 200` et un
+  `direct_url` présent, en plus de l'égalité des empreintes : un `RESOLUE` qui
+  ne serait pas un téléchargement direct réussi ne peut plus produire
+  `VERIFIED_CURRENT` par accident.
+- **Preuve d'irrécupérabilité perdue à la disposition** — l'`appui` d'un
+  `UNRECOVERABLE_WITH_EVIDENCE` porte désormais un condensé SHA-256 vérifiable
+  des preuves sources (`; preuve=<64 hex>`), et `verifier_registre` refuse
+  toute disposition irrécupérable qui ne le porte pas.
+- **`NON_URL_STATIC_SOURCE` sur silence, pas sur preuve** — un artefact sans
+  aucune entrée d'URL n'est plus classé source statique par défaut : l'autorité
+  de l'artefact doit le déclarer explicitement
+  (`non_url_static_source`), sans quoi le registre est refusé nommément. Une
+  régression de jointure dans le registre d'URL ne peut plus se faire passer
+  pour une disposition mesurée. Aucun des 150 artefacts réels n'emprunte
+  aujourd'hui cette voie (tous portent au moins une entrée) — la garde protège
+  contre une régression future, elle ne change aucun compte actuel.
+- **Sonde directe incohérente écrite quand même** — `build_url_source_registry.py`
+  refuse maintenant la construction (`SystemExit: EMPREINTE_DERIVEE …`) dès
+  qu'une sonde directe réussie (`status=200`) rend une empreinte différente de
+  l'empreinte scellée, au lieu d'écrire un `RESOLUE` qui aurait fait échouer la
+  disposition trois étapes plus loin avec un message sans rapport.
+- **Erreurs transitoires classées irrécupérables** — 429, 5xx et échec réseau
+  sans statut restent `EN_ATTENTE` (motif : sonde à reprendre) au lieu de
+  `IRRECUPERABLE` ; seul un statut qui démontre une impossibilité (403, ou une
+  absence de relation dans les autorités) reste irrécupérable. Sans effet sur
+  le registre réel : ses 110 entrées irrécupérables sont toutes en 403.
+- **Dérive de la disposition non détectée** — `make url-source-registry-audit`
+  vérifiait le registre d'URL mais rien ne vérifiait que
+  `currentness_disposition.json` committé correspondait encore à sa
+  dérivation. Nouvelle cible `make currentness-disposition-check`
+  (`build_currentness_disposition.py --check`), câblée dans
+  `scripts/ci-local.sh` au même point que `source-evidence-check`, et
+  classifiée `SAFE_METADATA_ONLY` dans `make_target_safety.yml`. Le fichier
+  committé a été régénéré (le format d'`appui` a changé avec l'ajout du
+  condensé de preuve) ; les comptes qu'il porte sont inchangés
+  (`VERIFIED_CURRENT=12`, `UNRECOVERABLE_WITH_EVIDENCE=138`,
+  `CURRENTNESS_UNACCOUNTED=0`).
+
+**Preuve d'absence de régression** — comparaison nom par nom (pas seulement
+par cardinalité) des échecs `make test` avant/après, sur le même interpréteur
+emprunté (voir la dette d'environnement plus haut) :
+
+```
+avant (e43acbf0, stash)   141 failed, 2905 passed, 3 skipped
+après (avec les fixes)    141 failed, 2923 passed, 3 skipped
+
+NOUVEAUX ÉCHECS = 0   (comm -13 baseline branche → vide)
+ÉCHECS RÉPARÉS  = 0   (comm -23 baseline branche → vide)
+```
+
+L'écart `+18 passed` est le total des épreuves ajoutées par ce correctif (9
+gardes nouvelles en `url_source_registry.py`/`currentness_disposition.py`,
+plus un nouveau fichier `tests/test_build_url_source_registry.py` couvrant les
+deux défauts des scripts producteurs). Un correctif intermédiaire au Makefile
+avait d'abord fait régresser 15 épreuves de la famille
+`make-target-safety-audit` (cible non classifiée) ; corrigé en ajoutant
+`currentness-disposition-check` à `SAFE_METADATA_ONLY`, revérifié à zéro
+régression ci-dessus.

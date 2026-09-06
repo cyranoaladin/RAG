@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from rag_pedago.governance.url_source_registry import (
+    AutoriteSource,
     EntreeUrl,
     RegistreUrlSource,
     RegistreUrlSourceError,
@@ -26,6 +27,7 @@ from rag_pedago.governance.url_source_registry import (
 
 EMPREINTE_A = "a" * 64
 EMPREINTE_B = "b" * 64
+RETRIEVED_AT_NAVIGATION = "2026-09-05T18:00:10+00:00"
 
 
 def _entree_directe(
@@ -58,7 +60,11 @@ def _entree_navigation(
     *,
     resolution: Resolution = Resolution.IRRECUPERABLE,
     raison: str | None = "NAVIGATION_PROTEGEE_403",
-    preuve: str | None = "HTTP 403 sur la page de navigation ; robots.txt ne l'exclut pas.",
+    preuve: str | None = (
+        f"HTTP 403 sur la page de navigation le {RETRIEVED_AT_NAVIGATION} ; "
+        "robots.txt (User-agent: *) ne l'exclut pas — fermeture applicative du "
+        "fournisseur, non contournée."
+    ),
 ) -> EntreeUrl:
     return EntreeUrl(
         url=url,
@@ -71,7 +77,7 @@ def _entree_navigation(
         content_type="text/html; charset=UTF-8",
         etag=None,
         last_modified=None,
-        retrieved_at="2026-09-05T18:00:10+00:00",
+        retrieved_at=RETRIEVED_AT_NAVIGATION,
         content_sha256=None,
         artifact_id=None,
         raison_irrecuperabilite=raison,
@@ -83,7 +89,10 @@ def _registre(*entrees: EntreeUrl) -> RegistreUrlSource:
     return RegistreUrlSource(
         registry_kind="URL_SOURCE_REGISTRY_V1",
         perimetre="prerentree_2026_2027/multilevel",
-        autorites=[],
+        autorites=[
+            AutoriteSource(nom="catalogue-complet.tsv", emplacement="gdrive:x", sha256="c" * 64),
+            AutoriteSource(nom="evidence.yml", emplacement="services/x", sha256="e" * 64),
+        ],
         entrees=list(entrees),
     )
 
@@ -169,6 +178,72 @@ def test_refuse_deux_entrees_pour_la_meme_url() -> None:
 
 def test_accepte_un_registre_complet() -> None:
     verifier_registre(_registre(_entree_directe(), _entree_navigation()))
+
+
+def test_refuse_une_raison_irrecuperabilite_hors_liste_connue() -> None:
+    """Une raison inventée serait invérifiable — équivalente à son absence."""
+    raison_inventee = _entree_navigation(raison="LE_CHIEN_A_MANGE_LE_REGISTRE")
+    with pytest.raises(RegistreUrlSourceError, match="RAISON_IRRECUPERABILITE_INCONNUE"):
+        verifier_registre(_registre(raison_inventee))
+
+
+def test_refuse_une_preuve_irrecuperabilite_trop_courte_pour_etre_structuree() -> None:
+    """`raison="x"`, `preuve="x"` : la fraude minimale que la garde doit arrêter."""
+    preuve_triviale = _entree_navigation(preuve="x")
+    with pytest.raises(RegistreUrlSourceError, match="PREUVE_IRRECUPERABILITE_NON_STRUCTUREE"):
+        verifier_registre(_registre(preuve_triviale))
+
+
+def test_refuse_une_preuve_irrecuperabilite_sans_politique_robots() -> None:
+    sans_robots = _entree_navigation(
+        preuve=(
+            f"HTTP 403 le {RETRIEVED_AT_NAVIGATION} sur la page de navigation, "
+            "aucune autre vérification menée."
+        )
+    )
+    with pytest.raises(
+        RegistreUrlSourceError, match="PREUVE_IRRECUPERABILITE_SANS_POLITIQUE_ROBOTS"
+    ):
+        verifier_registre(_registre(sans_robots))
+
+
+def test_refuse_une_preuve_irrecuperabilite_qui_ne_cite_pas_l_horodatage_de_la_sonde() -> None:
+    """La preuve doit être ancrée sur LA sonde qu'elle prétend documenter."""
+    horodatage_invente = _entree_navigation(
+        preuve=(
+            "HTTP 403 le 1999-01-01T00:00:00+00:00 sur la page de navigation ; "
+            "robots.txt ne l'exclut pas."
+        )
+    )
+    with pytest.raises(
+        RegistreUrlSourceError, match="PREUVE_IRRECUPERABILITE_SANS_HORODATAGE_SONDE"
+    ):
+        verifier_registre(_registre(horodatage_invente))
+
+
+def test_refuse_un_registre_sans_autorites() -> None:
+    registre = RegistreUrlSource(
+        registry_kind="URL_SOURCE_REGISTRY_V1",
+        perimetre="prerentree_2026_2027/multilevel",
+        autorites=[],
+        entrees=[_entree_directe(), _entree_navigation()],
+    )
+    with pytest.raises(RegistreUrlSourceError, match="AUTORITES_INCOMPLETES"):
+        verifier_registre(registre)
+
+
+def test_refuse_une_autorite_non_scellee() -> None:
+    registre = RegistreUrlSource(
+        registry_kind="URL_SOURCE_REGISTRY_V1",
+        perimetre="prerentree_2026_2027/multilevel",
+        autorites=[
+            AutoriteSource(nom="catalogue-complet.tsv", emplacement="gdrive:x", sha256=None),
+            AutoriteSource(nom="evidence.yml", emplacement="services/x", sha256="e" * 64),
+        ],
+        entrees=[_entree_directe(), _entree_navigation()],
+    )
+    with pytest.raises(RegistreUrlSourceError, match="AUTORITE_NON_SCELLEE"):
+        verifier_registre(registre)
 
 
 # --- registre versionné ----------------------------------------------
