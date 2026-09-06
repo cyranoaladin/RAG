@@ -226,9 +226,30 @@ run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago &&
 # AGENTS.md fait de cette CI locale le garde-fou quand GitHub Actions est
 # indisponible. Sans ces cibles, elle rendait vert sans avoir exercé le
 # périmètre promu : le gate C1 n'existait alors que dans un workflow distant.
+#
+# La cible est HERMÉTIQUE : elle construit son propre environnement avec les
+# trois paquets locaux dont le chargeur canonique dépend. S'appuyer sur le
+# `python` de l'hôte supposerait pytest installé globalement ; s'appuyer sur
+# le venv d'un service supposerait que ce service dépende de
+# `nexus-release-chain`, ce qu'aucun ne fait.
+#
 # Aucune clé n'est requise — seul le job POST-FUSION confronte le store privé.
-run_target "qualification-tests" bash -c "cd $REPO_ROOT && PYTHONPATH=$REPO_ROOT/packages/release-chain/src:$REPO_ROOT/packages/contracts/src:$REPO_ROOT/packages/pdf-page-policy/src $PYTHON_BIN -m pytest -q scripts/qualification/tests"
-run_target "promoted-content-set" bash -c "cd $REPO_ROOT && PYTHONPATH=$REPO_ROOT/packages/release-chain/src:$REPO_ROOT/packages/contracts/src:$REPO_ROOT/packages/pdf-page-policy/src $PYTHON_BIN scripts/qualification/compute_promoted_content_set.py --output \"\${TMPDIR:-/tmp}/promoted-content-set.json\""
+run_target "qualification-c1" bash -c '
+  set -euo pipefail
+  cd "'"$REPO_ROOT"'"
+  venv="${TMPDIR:-/tmp}/nexus-qualification-venv"
+  if [ ! -x "$venv/bin/python" ]; then
+    "'"$PYTHON_BIN"'" -m venv "$venv"
+  fi
+  "$venv/bin/pip" install --quiet --upgrade pip
+  "$venv/bin/pip" install --quiet pytest \
+    -e packages/contracts \
+    -e packages/pdf-page-policy \
+    -e packages/release-chain
+  "$venv/bin/python" -m pytest -q scripts/qualification/tests
+  "$venv/bin/python" scripts/qualification/compute_promoted_content_set.py \
+    --output "${TMPDIR:-/tmp}/promoted-content-set.json"
+'
 
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
 
