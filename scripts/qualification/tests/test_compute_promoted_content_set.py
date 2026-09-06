@@ -77,6 +77,7 @@ def _seed(
         chemin = _write(
             base / "profile_gate" / "subjects" / f"{nom}.release.json",
             {
+                "collection": nom,
                 "expected_counts": {"artifacts": len(contenus[nom])},
                 "artifacts": [{"content_sha256": s} for s in contenus[nom]],
             },
@@ -888,4 +889,63 @@ def test_un_sujet_v2_qui_remplace_un_artefact_par_des_doublons_est_refuse(
     _write(registre, reg)
 
     with pytest.raises(PromotedContentSetError, match="distinct\\(s\\) référencé"):
+        collect_promoted_content_set(registre)
+
+
+def test_un_sujet_v1_qui_reference_deux_fois_le_meme_contenu_est_refuse(
+    tmp_path: Path,
+) -> None:
+    """Un sujet V1 ne déclare pas de compte de contenus DISTINCTS.
+
+    Sans cette garde, remplacer un artefact unique par un doublon d'un autre
+    préserve le compte du sujet ET celui de l'agrégat, tandis que l'ensemble
+    promu rétrécit en silence. Vérifié sur la lignée réelle : aucun sujet ne
+    porte de doublon interne, la garde ne rejette donc rien de légitime.
+    """
+    registre = _seed(tmp_path)
+    profil = registre.parent / "profile_gate"
+    sujet = _write(
+        profil / "subjects" / "sujet-a.release.json",
+        {
+            "collection": "sujet-a",
+            "expected_counts": {"artifacts": 2},
+            "artifacts": [
+                {"content_sha256": SHA_SHARED},
+                {"content_sha256": SHA_SHARED},
+            ],
+        },
+    )
+    manifeste = profil / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    donnees["subjects"][0]["sha256"] = _sceau(sujet)
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="contenu\\(s\\) distinct"):
+        collect_promoted_content_set(registre)
+
+
+def test_un_descripteur_qui_pointe_le_manifeste_d_une_autre_collection_est_refuse(
+    tmp_path: Path,
+) -> None:
+    """Le descripteur annonce la collection ; le manifeste la déclare.
+
+    Ne pas les lier laissait deux descripteurs pointer le MÊME manifeste :
+    l'ensemble des collections restait complet en apparence, et un périmètre
+    était servi deux fois pendant qu'un autre disparaissait.
+    """
+    registre = _seed(tmp_path)
+    manifeste = registre.parent / "profile_gate" / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    # sujet-b pointe désormais le manifeste de sujet-a.
+    donnees["subjects"][1]["path"] = donnees["subjects"][0]["path"]
+    donnees["subjects"][1]["sha256"] = donnees["subjects"][0]["sha256"]
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="le descripteur annonce"):
         collect_promoted_content_set(registre)
