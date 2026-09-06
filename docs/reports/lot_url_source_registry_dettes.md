@@ -41,3 +41,34 @@ Un rebase de la branche sur le `main` courant, une fois #149 puis #148
 entrés — pas une correction de ces bancs, qui sont déjà corrigés en amont.
 Aucune initiative prise ici : rebaser maintenant mêlerait à ce lot des
 changements qui ne lui appartiennent pas.
+
+
+---
+
+## Après rebase sur `main` — 2026-09-06
+
+La branche a été rebasée sur le `main` consolidé (après #147 et #149). Le
+compte d'échecs est passé de 107 à **164**. Ce n'est pas une régression : la
+branche embarque désormais les bancs que `main` a ajoutés, et la baseline
+correcte n'est plus son propre passé — c'est ce sur quoi elle est posée.
+
+```
+origin/main VIERGE (worktree détaché)   164 failed, 2973 passed, 4 skipped
+branche rebasée                          164 failed, 3000 passed, 4 skipped
+
+REGRESSIONS = 0
+REPARES     = 0
+```
+
+Ensembles comparés **nom par nom**. Les 164 échecs sont **identiques** sur un
+checkout vierge de `main`, dont la CI est verte : ils sont donc
+environnementaux, non un défaut de code. Cause : l'interpréteur emprunté
+installe `nexus-contracts` en éditable vers un autre checkout, et `PYTHONPATH`
+ne corrige que le chemin d'import, pas les dépendances résolues.
+
+L'écart `+27 passed` tient aux épreuves que cette branche ajoute et que `main`
+n'a pas.
+
+**Ce que cela change pour le lot précédent :** les 107 échecs mesurés avant
+rebase l'étaient contre l'ancienne base ; la mesure reste valide pour ce
+qu'elle disait alors (0 régression), et celle-ci la remplace.
