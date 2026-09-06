@@ -30,6 +30,7 @@ décident du texte.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -40,6 +41,9 @@ from pathlib import Path
 __all__ = [
     "OCR_CAPABILITY_ID",
     "DEFAULT_DPI",
+    "DEFAULT_COLOR_MODE",
+    "DEFAULT_OEM",
+    "DEFAULT_PSM",
     "DEFAULT_LANGUAGES",
     "OcrError",
     "OcrRuntimeUnavailable",
@@ -61,6 +65,26 @@ DEFAULT_DPI = 300
 #: Le corpus est français, avec des citations anglaises. L'ordre compte pour
 #: tesseract : il pondère la première langue.
 DEFAULT_LANGUAGES = "fra+eng"
+
+#: Mode couleur de la rastérisation. Explicite parce qu'un défaut implicite
+#: peut changer avec une version future de poppler, et le texte avec lui.
+DEFAULT_COLOR_MODE = "gray"
+
+#: Moteur OCR de tesseract. 1 = LSTM seul — le moteur historique et le mode
+#: « les deux » ne rendent pas le même texte.
+DEFAULT_OEM = 1
+
+#: Segmentation de page. 3 = page entière, segmentation automatique, sans
+#: détection d'orientation : la détection ferait dépendre le texte d'une
+#: heuristique non déclarée.
+DEFAULT_PSM = 3
+
+#: Locale imposée aux binaires. Sans elle, la locale de la machine peut
+#: changer la mise en forme des nombres rendus par certains chemins de code.
+FORCED_LOCALE = "C"
+
+#: Un seul fil : tesseract paralléliser peut réordonner ses sorties.
+FORCED_THREAD_LIMIT = "1"
 
 _VERSION_TESSERACT = re.compile(r"^tesseract\s+(\S+)", re.MULTILINE)
 _VERSION_LEPTONICA = re.compile(r"leptonica-(\S+)")
@@ -91,6 +115,11 @@ class OcrRuntime:
     languages: str
     traineddata_sha256: tuple[tuple[str, str], ...]
     dpi: int
+    color_mode: str = DEFAULT_COLOR_MODE
+    oem: int = DEFAULT_OEM
+    psm: int = DEFAULT_PSM
+    locale: str = FORCED_LOCALE
+    thread_limit: str = FORCED_THREAD_LIMIT
 
     def identity_sha256(self) -> str:
         """Une empreinte unique du runtime, pour l'inscrire en provenance."""
@@ -103,6 +132,11 @@ class OcrRuntime:
             self.rasterizer_version,
             self.languages,
             str(self.dpi),
+            self.color_mode,
+            f"oem={self.oem}",
+            f"psm={self.psm}",
+            f"locale={self.locale}",
+            f"threads={self.thread_limit}",
             *(f"{langue}:{digest}" for langue, digest in self.traineddata_sha256),
         ]
         return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
@@ -116,10 +150,35 @@ class OcrPage:
     text: str
 
 
-def _run(commande: list[str], *, quoi: str, avec_stderr: bool = False) -> str:
+def _environnement_fige(runtime: "OcrRuntime | None" = None) -> dict[str, str]:
+    """L'environnement fait partie de la commande, donc de la preuve.
+
+    Hériter de celui de l'appelant laisserait la locale et le nombre de fils
+    décider du texte rendu, sans qu'aucune attestation ne le dise."""
+    base = dict(os.environ)
+    base["LC_ALL"] = runtime.locale if runtime else FORCED_LOCALE
+    base["LANG"] = base["LC_ALL"]
+    base["OMP_THREAD_LIMIT"] = (
+        runtime.thread_limit if runtime else FORCED_THREAD_LIMIT
+    )
+    return base
+
+
+def _run(
+    commande: list[str],
+    *,
+    quoi: str,
+    avec_stderr: bool = False,
+    environnement: dict[str, str] | None = None,
+) -> str:
+    environnement = environnement or _environnement_fige()
     try:
         acheve = subprocess.run(  # noqa: S603
-            commande, capture_output=True, check=False, timeout=600
+            commande,
+            capture_output=True,
+            check=False,
+            timeout=600,
+            env=environnement,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise OcrRuntimeUnavailable(f"{quoi} : {type(exc).__name__}: {exc}") from exc
@@ -234,6 +293,7 @@ def ocr_pdf_pages(content: bytes, *, runtime: OcrRuntime) -> tuple[OcrPage, ...]
     """
     tesseract = _binaire("tesseract")
     rasteriseur = _binaire("pdftoppm")
+    env = _environnement_fige(runtime)
 
     with tempfile.TemporaryDirectory(prefix="nexus-ocr-") as brut:
         atelier = Path(brut)
@@ -245,11 +305,13 @@ def ocr_pdf_pages(content: bytes, *, runtime: OcrRuntime) -> tuple[OcrPage, ...]
                 rasteriseur,
                 "-r",
                 str(runtime.dpi),
+                f"-{runtime.color_mode}",
                 "-png",
                 str(source),
                 str(atelier / "page"),
             ],
             quoi="rastérisation",
+            environnement=env,
         )
 
         images = sorted(
@@ -274,8 +336,13 @@ def ocr_pdf_pages(content: bytes, *, runtime: OcrRuntime) -> tuple[OcrPage, ...]
                     runtime.languages,
                     "--dpi",
                     str(runtime.dpi),
+                    "--oem",
+                    str(runtime.oem),
+                    "--psm",
+                    str(runtime.psm),
                 ],
                 quoi=f"océrisation de la page {numero}",
+                environnement=env,
             )
             pages.append(OcrPage(number=numero, text=texte))
 

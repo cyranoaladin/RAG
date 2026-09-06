@@ -13,6 +13,7 @@ redécrire : deux définitions de « page vide » divergeraient en silence.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from io import BytesIO
 
 from rag_pedago.governance.drive_slice import PageText
@@ -112,3 +113,65 @@ def refused_pages(content: bytes, pages: tuple[PageText, ...]) -> dict[int, str]
 
 
 __all__ = ["PdfExtractionError", "extract_pdf_pages", "refused_pages"]
+
+
+#: Voies d'extraction possibles, nommées. Le texte d'un document dépend de
+#: celle qui l'a produit : les confondre rendrait deux corpus incomparables
+#: sans que rien ne le dise.
+EXTRACTION_PATH_TEXT_LAYER = "TEXT_LAYER"
+EXTRACTION_PATH_OCR = "OCR"
+
+
+class TextLayerAbsente(PdfExtractionError):
+    """Le document ne porte aucune couche textuelle — un scan.
+
+    Distinct des autres échecs d'extraction : le document est parfaitement
+    lisible, c'est le TEXTE qui manque. La remédiation n'est pas de corriger
+    le fichier mais d'employer la voie océrisée."""
+
+
+def porte_une_couche_textuelle(pages: Sequence[PageText]) -> bool:
+    """Vrai dès qu'UNE page rend du texte.
+
+    Un document dont toutes les pages sont muettes n'est pas « vide » : c'est
+    un document dont la couche textuelle est absente. Les confondre ferait
+    passer un scan pour un document sans contenu."""
+    return any(page.text.strip() for page in pages)
+
+
+def extraction_gouvernee(ocr_runtime: object | None = None) -> Callable[[bytes], tuple[PageText, ...]]:
+    """Rend l'extracteur à brancher sur la tranche.
+
+    La couche textuelle reste la voie ORDINAIRE : l'océrisation n'intervient
+    que lorsqu'elle est absente, et jamais en silence. Sans runtime OCR
+    fourni, un scan lève ``TextLayerAbsente`` plutôt que de rendre un
+    document vide — le refus est la seule réponse honnête quand la capacité
+    nécessaire manque.
+    """
+
+    def extraire(content: bytes) -> tuple[PageText, ...]:
+        pages = extract_pdf_pages(content)
+        if porte_une_couche_textuelle(pages):
+            return pages
+        if ocr_runtime is None:
+            raise TextLayerAbsente(
+                "aucune couche textuelle et aucun runtime OCR fourni — rendre "
+                "ce document « traité » et vide le ferait passer pour ingéré "
+                "alors qu'il n'enseigne rien"
+            )
+        from nexus_pdf_ocr import ocr_pdf_pages
+
+        ocerisees = ocr_pdf_pages(content, runtime=ocr_runtime)
+        rendues = tuple(
+            PageText(number=page.number, text=page.text) for page in ocerisees
+        )
+        if len(rendues) != len(pages):
+            raise PdfExtractionError(
+                f"l'océrisation rend {len(rendues)} pages là où le document en "
+                f"porte {len(pages)} — un décalage rendrait chaque citation "
+                "fausse sans que rien ne le montre"
+            )
+        return rendues
+
+    return extraire
+
