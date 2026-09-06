@@ -76,7 +76,46 @@ Le registre produit est jugé par le **lecteur du runtime**, pas par le banc :
 lui seul, avec sa portée — `cockpit-staging` cherche et n'administre pas,
 `ops-staging` administre et ne cherche pas.
 
-13 épreuves, toutes sur des sorties réelles écrites dans un `tmp_path`.
+13 épreuves pour le producteur, toutes sur des sorties réelles écrites dans un
+`tmp_path` ; 16 pour la recette externe.
+
+## La recette de l'agent extérieur
+
+`scripts/staging_external_acceptance.py` mesure la seule question qui compte :
+depuis un client hors réseau et hors conteneur, muni des seuls credentials
+qu'on lui a remis, obtient-on des réponses **citées** ?
+
+Il ne construit ni requête ni transport à lui : il réutilise le client externe
+livré (`scripts/rag_query_external.py`). Redéfinir ici la forme du contrat
+ferait deux vérités, et la recette finirait par valider son propre simulacre.
+Un test l'exige — aucun `method="POST"` fabriqué à la main.
+
+**Une portée par exécution**, parce que le jeton d'identité est émis pour une
+portée : prétendre en couvrir trois d'un seul appel serait une fiction. La
+recette complète se fait en autant d'exécutions que de portées.
+
+Ses refus, tous éprouvés :
+
+| Refus | Raison |
+|---|---|
+| zéro résultat | un « 200 vide » n'est pas une réponse |
+| résultat sans citation | une affirmation nue n'étaye rien |
+| citation sans page ni source | elle n'étaye pas davantage |
+| résultat hors de la portée signée | le défaut le plus grave, servi silencieusement |
+| taxonomie vide, ou qui n'annonce pas la collection visée | interroger ce que le service ne déclare pas servable mesurerait autre chose |
+| collection sans question déclarée | une question générique mesurerait que le service répond, pas qu'il enseigne |
+
+Un test confronte la table de questions au **registre de scopes réel** : une
+question visant une collection qui n'existe pas ne mesure rien. Il a d'ailleurs
+attrapé deux entrées inventées (HLP terminale, HGGSP) qui n'ont aucun scope.
+
+### `/ready` n'existe pas, et n'a pas à exister
+
+Le point 37 du brief demande `GET /ready`. La surface n'en a pas — et `/health`
+fait déjà ce travail : autorités de runtime, artefacts de modèle,
+réconciliation de base, dimension d'embedding, 503 sinon. C'est la sonde du
+healthcheck du Compose. Ajouter `/ready` dupliquerait une surface externe sans
+rien mesurer de plus.
 
 ## Ce qui reste à l'opérateur
 

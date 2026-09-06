@@ -112,16 +112,41 @@ docker compose -f docker-compose.v2.yml \
 `RAG_API_CLIENTS_FILE`. Deux sources feraient échouer le démarrage — c'est le
 comportement voulu du runtime, et le producteur ne l'y met pas.
 
-## 6. Ce qu'il faut mesurer ensuite
+## 6. Recette de l'agent extérieur
+
+Il n'y a **pas** de route `/ready`, et il n'en faut pas : `/health` est la sonde
+de disponibilité — elle valide les autorités de runtime, les artefacts de
+modèle, la réconciliation de base et la dimension d'embedding, et rend 503
+sinon. C'est elle que le healthcheck du Compose interroge.
+
+La recette se lance depuis un client **hors du réseau et hors du conteneur** :
+
+```bash
+RAG_API_URL=https://rag-staging.<domaine> RAG_BFF_SERVICE_TOKEN=… RAG_API_KEY=… RAG_IDENTITY_TOKEN=… python scripts/staging_external_acceptance.py   --scope prod_nsi_terminale_specialite_v1
+```
+
+Elle enchaîne `/health`, `/taxonomy/v2` — qui doit annoncer la collection visée
+— puis `/search/v2` avec une vraie question, et exige que **chaque** résultat
+porte une citation avec sa source et sa page. Elle rend :
 
 ```
-GET  /health          200
-GET  /ready
-GET  /taxonomy/v2     avec les trois credentials
-POST /search/v2       Terminale + NSI + SQL, avec citations
+EXTERNAL_AGENT_E2E=PASS
+SCOPE=…  COLLECTION=…  SERVABLE_COLLECTIONS=…  RESULTS=…  CITATIONS=…
 ```
 
-puis le Cockpit staging sur le **même** endpoint, sans contournement d'auth.
+**Une portée par exécution.** Le jeton d'identité est émis pour UNE portée :
+prétendre en couvrir trois d'un seul appel serait une fiction. La recette
+complète se fait donc en autant d'exécutions que de portées, chacune avec son
+identité — exactement ce qu'un agent extérieur vit. Trois exemples, trois
+niveaux, trois matières :
+
+```bash
+--scope prod_nsi_terminale_specialite_v1        # Terminale · NSI · SQL
+--scope prod_maths_premiere_gen_specialite_v1   # Première · Maths · probabilités
+--scope prod_francais_seconde_tc_v1             # Seconde · Français · programme
+```
+
+Puis le Cockpit staging sur le **même** endpoint, sans contournement d'auth.
 
 ## 7. Rotation et révocation
 
