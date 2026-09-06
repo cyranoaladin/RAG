@@ -82,3 +82,24 @@ def test_without_promoted_argument_behaviour_is_unchanged(tmp_path: Path) -> Non
     code, messages = verify(cas_root, digest, len(declared))
     assert code == 0
     assert not any("PROMOTED_CAS_COVERAGE" in m for m in messages)
+
+
+def test_an_empty_promoted_set_is_refused_instead_of_passing_vacuously(
+    tmp_path: Path,
+) -> None:
+    """Le trou du contrôle de couverture lui-même.
+
+    Un ensemble promu vide ne manque jamais de rien : il traversait le
+    contrôle en publiant `PROMOTED_CAS_COVERAGE_MISSING=0`. C'est la manière
+    exacte dont un gate devient vert en PERDANT ses données — moins on en
+    sait, plus le compte est bon. Le refuser est la seule façon que « 0
+    manquant » veuille dire « rien ne manque » plutôt que « rien n'a été
+    demandé ».
+    """
+    cas_root = tmp_path / "cas"
+    declared = _seed_store(cas_root, [SHA_A])
+    code, messages = verify(
+        cas_root, content_set_digest(declared), len(declared), promoted=set()
+    )
+    assert code == 1
+    assert any("vraie par vacuité" in message for message in messages)

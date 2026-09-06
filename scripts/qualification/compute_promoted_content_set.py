@@ -14,6 +14,7 @@ Usage :
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -34,15 +35,68 @@ DEFAULT_RELEASE = (
 )
 
 
+class PromotedContentSetError(RuntimeError):
+    """L'ensemble promu n'est pas celui que le manifeste déclare — refus."""
+
+
 def collect_promoted_content_set(top_level_release: Path) -> set[str]:
-    """L'union des `content_sha256` de chaque sujet référencé par le manifeste racine."""
+    """L'union des `content_sha256` de chaque sujet référencé par le manifeste racine.
+
+    Trois vérifications, et aucune n'est décorative. Un ensemble promu que l'on
+    calcule sans les faire pourrait être VIDE ou TRONQUÉ sans que rien ne le
+    dise — et un ensemble vide traverse victorieusement le contrôle de
+    couverture, puisqu'il ne manque alors jamais rien. C'est exactement la
+    manière dont un gate devient vert en perdant ses données.
+
+    1. chaque manifeste de sujet est confronté à l'empreinte que le manifeste
+       RACINE déclare pour lui : un sujet périmé ou réécrit change l'ensemble
+       promu sans changer le fichier qu'on lit ;
+    2. le nombre d'OCCURRENCES est confronté à `expected_counts.artifacts` :
+       une lecture tronquée est visible, alors qu'un ensemble dédupliqué plus
+       petit ne l'est pas ;
+    3. l'ensemble ne peut pas être vide.
+    """
     manifest = json.loads(top_level_release.read_text(encoding="utf-8"))
     base = top_level_release.parent
+
+    subjects = manifest.get("subjects") or []
+    if not subjects:
+        raise PromotedContentSetError(
+            "le manifeste racine ne référence aucun sujet : l'ensemble promu "
+            "serait vide, et un ensemble vide ne manque jamais de rien"
+        )
+
     contents: set[str] = set()
-    for subject in manifest["subjects"]:
-        subject_manifest = json.loads((base / subject["path"]).read_text(encoding="utf-8"))
+    occurrences = 0
+    for subject in subjects:
+        chemin = base / subject["path"]
+        octets = chemin.read_bytes()
+        declaree = str(subject.get("sha256") or "")
+        mesuree = hashlib.sha256(octets).hexdigest()
+        if declaree != mesuree:
+            raise PromotedContentSetError(
+                f"{subject['path']} : le manifeste racine déclare "
+                f"{declaree[:16]}… et le fichier vaut {mesuree[:16]}… — "
+                "l'ensemble promu ne serait pas celui que la lignée scelle"
+            )
+        subject_manifest = json.loads(octets.decode("utf-8"))
         for artifact in subject_manifest["artifacts"]:
             contents.add(str(artifact["content_sha256"]))
+            occurrences += 1
+
+    attendues = manifest.get("expected_counts", {}).get("artifacts")
+    if attendues is not None and occurrences != int(attendues):
+        raise PromotedContentSetError(
+            f"{occurrences} occurrence(s) d'artefact lues contre "
+            f"{attendues} déclarées par la lignée — lecture tronquée ou "
+            "manifeste incohérent"
+        )
+
+    if not contents:
+        raise PromotedContentSetError(
+            "aucun contenu promu : le contrôle de couverture serait vrai par "
+            "vacuité"
+        )
     return contents
 
 
@@ -52,7 +106,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
 
-    contents = collect_promoted_content_set(args.release)
+    try:
+        contents = collect_promoted_content_set(args.release)
+    except (PromotedContentSetError, KeyError, OSError) as exc:
+        # Une trace Python en CI dit où le code s'est arrêté, pas ce qui est
+        # faux dans la lignée. Le gate doit nommer le défaut.
+        print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
+        return 2
     payload = {
         "content_sha256": sorted(contents),
         "count": len(contents),

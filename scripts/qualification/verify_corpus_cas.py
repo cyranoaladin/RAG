@@ -67,7 +67,16 @@ def verify(
         )
 
     info: list[str] = []
-    if promoted is not None:
+    if promoted is not None and not promoted:
+        # Un ensemble promu vide ne manque jamais de rien : il traverserait le
+        # contrôle en publiant MISSING=0. Le refuser est la seule façon que
+        # « 0 manquant » veuille dire « rien ne manque » plutôt que « rien n'a
+        # été demandé ».
+        problems.append(
+            "l'ensemble des contenus promus est vide : la couverture serait "
+            "vraie par vacuité"
+        )
+    elif promoted is not None:
         # Le store peut être plus grand que la lignée COURANTE — un contenu
         # candidat retiré ou superseded n'est pas un défaut. L'inverse l'est :
         # un contenu que la lignée promeut et sert aujourd'hui, absent du
