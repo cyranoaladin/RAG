@@ -1,0 +1,153 @@
+{
+  "FULL_DRIVE_PROCESSING_RUN_ID": "8bbaa039cfd4e99b69a6f4a72fe23f5fe9bb07e6f242f564380fd35a91e68611",
+  "blocker_codes": [
+    "PII_NOT_ASSESSABLE",
+    "SOURCE_EXTRACTION_INCOMPLETE"
+  ],
+  "disposition": "GOVERNED_NOT_SERVABLE",
+  "entries": [
+    {
+      "canonical_text_sha256": "8f2177cb7f18d893a74e3fa37a582caaa23a02c01b7c68b068a837559e9818af",
+      "chunks": 0,
+      "content_sha256": "1d56280991413e937a8d3246d20879ff9771570db5b681d8071e0fc496d25b69",
+      "drive_file_id": "12JKzMDuNRfLWqEW-gtvzpGoeXJrYKFYy",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        2
+      ],
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "5bad36a9434bc48bab41b62ab46772ccba8cca5452595168a4ebb86a20dfc22f",
+      "chunks": 0,
+      "content_sha256": "1f2f6c57eb4b4cca8a1c3e7230095cbbb168801a9d3c9a62dbe6d3105c67e040",
+      "drive_file_id": "1xvXZXEzKkC0Vz2MuhNhW9UrnQrpKZVdG",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        3
+      ],
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "85d53b282a4cede2f1b648feb6ae386d1dbeb972ddaa562a41e9dd951047d5ad",
+      "chunks": 0,
+      "content_sha256": "54fb0ddff44bbfe372675f1c7bfb6ca40c12454b634cd90ad4e2f6eff91241ea",
+      "drive_file_id": "1wHNKCc5DJpzz1Yh48KWvzj61784cNWHe",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        2
+      ],
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "f98e72eb0e6587560d211979827315c6af347d237f1e45af5616c49b2df31144",
+      "chunks": 0,
+      "content_sha256": "862ca1220a92a34061574f691ddfd859033888d4fee94ed24c33cb8dec557b08",
+      "drive_file_id": "1XYPYcWqzV_2SJU3pJulAxb_UH-5JTSlt",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        2
+      ],
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "0338be2477701f15f2358175fbf30111676655d4b61bc64c6e4a306b92f1aae4",
+      "chunks": 0,
+      "content_sha256": "8d8cce4b88f3c1bc10d503641c76f98cf298f7a21ada7d6e55a071f1b7a508de",
+      "drive_file_id": "1QuXcqNpzcCIOzUSmlAWv1rS_D_eTmv6s",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        3
+      ],
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "210fd691bf942ad874b8d210443262d521f46ec1a36c580996e2bc6249014ff6",
+      "chunks": 0,
+      "content_sha256": "979c90b54c82fa0d073c8794d08941449e319d18125ebcf6bdbb3cd326eb1408",
+      "drive_file_id": "1zGgzpBnVXDeGoef8Uj5g1lqA__T6ekDd",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        4,
+        8,
+        9,
+        19
+      ],
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "009b5ff60ae5dca1f80bc763b5adfed7ee6d66db5521e05dff5709bc728828ec",
+      "chunks": 0,
+      "content_sha256": "a009392fc284f5cfb8dd335fe3bc08e4e5b5d9041110140daa9ab9bfbef71b9a",
+      "drive_file_id": "1Zchak005WkCZtyqov_MroG_Eh39KY0yY",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        15
+      ],
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "cb1240f009a3041d056cccdaada4f55964a0898aafb262bd330df5717119b331",
+      "chunks": 0,
+      "content_sha256": "b9fa5c5db51aa3b6031cd514f3dfcd792d64d808cea473c9721e7ad6ce831cbb",
+      "drive_file_id": "1bsvWcnNfssZUFccYT55Zk4F2TREuCIru",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        12
+      ],
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    },
+    {
+      "canonical_text_sha256": "bb1fbace891e7d5cb5295eb708e0850dd83e6a16aae926502493a561612d6c32",
+      "chunks": 0,
+      "content_sha256": "dece93e1dc0fe0b8e5a51eb91bc065ae453539d0745bb87a16746a68f5546148",
+      "drive_file_id": "1VNRO6UQAtbZSN_PQrpq27Csi5Jm96zmg",
+      "embeddings": 0,
+      "not_assessable_pages": [
+        4,
+        6,
+        16,
+        19
+      ],
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE",
+        "PAGE_TRACE_VECTORIEL"
+      ],
+      "remediation_status": "PENDING_ALTERNATE_SOURCE_LOOKUP",
+      "servable": false
+    }
+  ],
+  "kind": "NEXUS-NOT-ASSESSABLE-REMEDIATION-LEDGER-V1"
+}
