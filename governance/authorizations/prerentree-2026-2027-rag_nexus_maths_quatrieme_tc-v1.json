@@ -1,0 +1,38 @@
+{
+  "allowed_content_sha256": [
+    "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966"
+  ],
+  "allowed_domains": [
+    "eduscol.education.gouv.fr"
+  ],
+  "authorization_id": "prerentree-2026-2027-rag_nexus_maths_quatrieme_tc-v1",
+  "decision": "AUTHORIZE_INGESTION_SCOPE",
+  "exclusions": [],
+  "manifest_digest": "57d532ca0c80f0e70218e74902f1d47a4ca9f21d7e6bafa209f6f89426125b6c",
+  "pii_absence_attested": true,
+  "pii_absence_evidence": "sha256:cec9baca680439afa0dd6b4aadbb0f805514424a853a10303e6216dd8ffa7e99 path:services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/pii_evidence.json",
+  "profile_fingerprint": "5a9a0ef45ab43f0e046b1892e0cf572b2c6fe4137d027a9077a6fe79c7314ce2",
+  "profile_id": "rag_nexus_maths_quatrieme_tc",
+  "profile_version": "multilevel-v1",
+  "protocol_version": "LOT41A-V2",
+  "rights_categories": [
+    "officiel_public"
+  ],
+  "scope": {
+    "audience": [
+      "libre",
+      "tous"
+    ],
+    "candidat": "libre",
+    "collection": "rag_nexus_maths_quatrieme_tc",
+    "matiere": "maths",
+    "niveau": "quatrieme",
+    "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+    "school_year": "2026-2027",
+    "tenant": "libre_quatrieme",
+    "visibility": "internal",
+    "voie": "college"
+  },
+  "valid_from": "2026-08-25T00:00:00.000000Z",
+  "valid_until": "2027-08-25T00:00:00.000000Z"
+}
