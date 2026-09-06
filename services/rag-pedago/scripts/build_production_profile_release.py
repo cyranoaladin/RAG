@@ -2513,7 +2513,246 @@ def _comparer_autorites_a_la_reference(
     print(f"AUTHORITY_DIGESTS_CHANGED={len(ecarts) + len(nouvelles) + len(disparues)}")
     for nom, a, b in ecarts:
         print(f"  {nom}: {a[:12]}… -> {b[:12]}…")
+    require_motive_cites_the_commit_that_changed_each_authority(
+        motif,
+        changements=[
+            *(
+                ChangementAutorite(
+                    nom=nom,
+                    genre=AUTORITE_MODIFIEE,
+                    chemin=apres[nom]["path"],
+                    digest_reference=reference_digest,
+                    digest_candidat=candidat_digest,
+                )
+                for nom, reference_digest, candidat_digest in ecarts
+            ),
+            *(
+                ChangementAutorite(
+                    nom=nom,
+                    genre=AUTORITE_AJOUTEE,
+                    chemin=apres[nom]["path"],
+                    digest_reference=None,
+                    digest_candidat=apres[nom]["file_sha256"],
+                )
+                for nom in nouvelles
+            ),
+            *(
+                ChangementAutorite(
+                    nom=nom,
+                    genre=AUTORITE_SUPPRIMEE,
+                    chemin=avant[nom]["path"],
+                    digest_reference=avant[nom]["file_sha256"],
+                    digest_candidat=None,
+                )
+                for nom in disparues
+            ),
+        ],
+        repository_root=REPOSITORY_ROOT,
+    )
     print(f"AUTHORITY_CHANGE_MOTIVE={motif}")
+
+
+_COMMIT_TOKEN = re.compile(r"\b[0-9a-f]{7,40}\b")
+
+#: Les trois familles d'écart entre la référence et la candidate. Elles se
+#: prouvent différemment, mais aucune n'échappe à la preuve.
+AUTORITE_MODIFIEE = "MODIFIED_AUTHORITIES"
+AUTORITE_AJOUTEE = "ADDED_AUTHORITIES"
+AUTORITE_SUPPRIMEE = "REMOVED_AUTHORITIES"
+
+
+class AuthorityMotiveError(ValueError):
+    """Un motif de changement d'autorité n'est pas vérifiable."""
+
+
+@dataclass(frozen=True)
+class ChangementAutorite:
+    """Un écart d'autorité à justifier, avec les deux digests qui l'encadrent.
+
+    `digest_reference` est ce que la release de référence liait ; `digest_candidat`
+    ce que la candidate lie. L'un des deux est absent pour un ajout ou une
+    suppression — c'est précisément ce qui distingue les trois familles.
+    """
+
+    nom: str
+    genre: str
+    chemin: str
+    digest_reference: str | None
+    digest_candidat: str | None
+
+
+def _commit_is_reachable(repository_root: Path, commit: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(repository_root), "merge-base", "--is-ancestor", commit, "HEAD"],
+        capture_output=True,
+    ).returncode == 0
+
+
+def _blob_sha256(repository_root: Path, commit: str, relative_path: str) -> str | None:
+    """L'empreinte du *contenu* du fichier tel que ce commit le porte.
+
+    Ce n'est pas l'identifiant du blob git — celui-ci hache un en-tête en plus
+    du contenu. Les autorités portent le sha256 du contenu ; c'est donc lui, et
+    lui seul, qui peut se confronter à `file_sha256`.
+    """
+    completed = subprocess.run(
+        ["git", "-C", str(repository_root), "cat-file", "blob", f"{commit}:{relative_path}"],
+        capture_output=True,
+    )
+    if completed.returncode != 0:
+        return None
+    return hashlib.sha256(completed.stdout).hexdigest()
+
+
+def _parents(repository_root: Path, commit: str) -> list[str]:
+    completed = subprocess.run(
+        ["git", "-C", str(repository_root), "rev-list", "--parents", "-n", "1", commit],
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        return []
+    return completed.stdout.split()[1:]
+
+
+def _path_is_tracked(repository_root: Path, relative_path: str) -> bool:
+    return subprocess.run(
+        ["git", "-C", str(repository_root), "ls-files", "--error-unmatch", relative_path],
+        capture_output=True,
+    ).returncode == 0
+
+
+def _git_connait_le_chemin(repository_root: Path, relative_path: str) -> bool:
+    """git a-t-il la moindre trace de ce chemin ?
+
+    Le suivi de l'index ne suffit pas : une autorité *supprimée* pointe un
+    fichier qui n'est plus dans l'arbre de travail, et se déclarer hors portée
+    dans ce cas rendrait la preuve de suppression facultative — c'est-à-dire
+    inexistante. L'historique de HEAD tranche.
+    """
+    if _path_is_tracked(repository_root, relative_path):
+        return True
+    completed = subprocess.run(
+        ["git", "-C", str(repository_root), "rev-list", "--max-count=1", "HEAD",
+         "--", relative_path],
+        capture_output=True,
+        text=True,
+    )
+    return bool(completed.stdout.strip())
+
+
+def _preuve_du_commit(
+    repository_root: Path, changement: ChangementAutorite, commit: str
+) -> str | None:
+    """Ce que ce commit prouve de cet écart, ou None s'il ne prouve rien.
+
+    Le cœur du contrôle : « ce commit a touché ce fichier » ne prouve rien du
+    tout. Deux commits touchent le même fichier ; un seul porte le contenu que
+    la candidate lie. C'est ce contenu qui est confronté.
+    """
+    porte = _blob_sha256(repository_root, commit, changement.chemin)
+    etats_parents = [
+        _blob_sha256(repository_root, parent, changement.chemin)
+        for parent in _parents(repository_root, commit)
+    ]
+
+    if changement.genre == AUTORITE_SUPPRIMEE:
+        # La preuve porte sur la dernière liaison connue côté référence : le
+        # commit cité doit avoir quitté ce digest, et son parent le portait.
+        if porte == changement.digest_reference:
+            return None
+        if changement.digest_reference not in etats_parents:
+            return None
+        return "suppression" if porte is None else "remplacement"
+
+    if porte is None or porte != changement.digest_candidat:
+        return None
+
+    if changement.genre == AUTORITE_AJOUTEE:
+        return "ajout" if all(etat is None for etat in etats_parents) else "reprise"
+
+    if changement.digest_reference is not None and changement.digest_reference in etats_parents:
+        # Chaîne complète : ANCIEN DIGEST → commit cité → NOUVEAU DIGEST.
+        return "transition directe"
+    # Le digest candidat est prouvé, mais la référence n'est pas au parent :
+    # le passage a transité par des états intermédiaires. Le dire plutôt que
+    # laisser croire à une chaîne qui n'a pas été établie.
+    return "transition indirecte"
+
+
+def require_motive_cites_the_commit_that_changed_each_authority(
+    motif: str,
+    *,
+    changements: Sequence[ChangementAutorite],
+    repository_root: Path,
+) -> None:
+    """Exiger que le motif cite, pour chaque écart d'autorité, le commit qui le porte.
+
+    Un motif était de la prose libre : n'importe quelle phrase ouvrait la porte.
+    Une release a ainsi été produite en attribuant le rescellement de
+    `document_type_mapping_sha256` à un commit qui n'était même pas un ancêtre
+    de HEAD — l'écart de digest était réel et légitime, mais la justification
+    écrite, celle sur laquelle un relecteur s'appuie, était fausse et rien ne
+    pouvait le dire.
+
+    « Ce commit a touché ce fichier » ne suffit pas non plus : `2182339` a bien
+    touché le mappage des types documentaires, mais c'est `a4b1f96` qui porte le
+    digest que la candidate lie. Le motif doit donc citer, pour chaque écart, un
+    commit qui (1) est atteignable depuis HEAD et (2) porte le contenu en cause :
+    le digest candidat pour une modification ou un ajout, la sortie du digest de
+    référence pour une suppression. Les trois familles sont contrôlées ; aucune
+    n'est laissée à la prose. Seuls les chemins dont git n'a aucune trace —
+    ni index, ni historique — sont déclarés hors portée, et le disent.
+    """
+    cites = {
+        jeton for jeton in _COMMIT_TOKEN.findall(motif or "")
+        if _commit_is_reachable(repository_root, jeton)
+    }
+    manquants: list[str] = []
+    hors_portee: list[str] = []
+    for changement in changements:
+        if not _git_connait_le_chemin(repository_root, changement.chemin):
+            hors_portee.append(f"{changement.nom} ({changement.chemin})")
+            continue
+        preuve = next(
+            (
+                (commit, qualification)
+                for commit in sorted(cites)
+                if (qualification := _preuve_du_commit(repository_root, changement, commit))
+            ),
+            None,
+        )
+        if preuve is None:
+            attendu = (
+                f"sortie de {changement.digest_reference[:12]}…"
+                if changement.genre == AUTORITE_SUPPRIMEE and changement.digest_reference
+                else f"digest {(changement.digest_candidat or '')[:12]}…"
+            )
+            manquants.append(
+                f"{changement.nom} [{changement.genre}] ({changement.chemin}, {attendu})"
+            )
+            continue
+        commit, qualification = preuve
+        print(
+            f"AUTHORITY_MOTIVE_PROVEN nom={changement.nom} genre={changement.genre} "
+            f"commit={commit[:12]} preuve={qualification}"
+        )
+    if hors_portee:
+        print(
+            "AUTHORITY_MOTIVE_OUT_OF_SCOPE="
+            f"{len(hors_portee)} — chemin inconnu de git : "
+            f"{', '.join(sorted(hors_portee))}"
+        )
+    if manquants:
+        raise AuthorityMotiveError(
+            "le motif ne cite aucun commit atteignable portant le contenu de ces "
+            f"autorités : {'; '.join(manquants)}.\n"
+            f"  commits cités et atteignables : "
+            f"{sorted(c[:12] for c in cites) or 'aucun'}\n"
+            "  Citer dans `--authority-change-motive` le commit qui porte "
+            "réellement chaque contenu. Avoir touché le fichier ne suffit pas."
+        )
+    print(f"AUTHORITY_MOTIVE_COMMITS_VERIFIED={len(cites)}")
 
 
 def _verifier_preconditions(
