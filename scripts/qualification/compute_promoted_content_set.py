@@ -196,11 +196,18 @@ def collect_promoted_content_set(registry_path: Path) -> set[str]:
         octets = _lire_gouverne(chemin, quoi)
         _sceau_verifie(octets, release.get("expected_manifest_sha256"), quoi)
         manifeste = _charge_objet(octets, quoi)
-        # Le registre DÉCLARE la nature de chaque release. Se fier au seul
-        # manifeste laisserait une lignée dont le registre annonce V1 et dont
-        # le fichier est V2 produire un ensemble que le runtime, lui, refusera.
+        # Le registre DÉCLARE la nature de chaque release, et cette
+        # déclaration est OBLIGATOIRE. La rendre facultative laissait le
+        # manifeste choisir seul son lecteur : le contrôle croisé qu'elle
+        # existe pour permettre disparaissait précisément sur les registres
+        # tronqués ou malformés, que le runtime refuse par ailleurs.
         annonce = release.get("release_kind")
-        if annonce is not None and annonce != manifeste.get("release_kind"):
+        if annonce not in (RELEASE_V1, RELEASE_V2):
+            raise PromotedContentSetError(
+                f"{quoi} : le registre ne déclare pas de release_kind connu "
+                f"({annonce!r}) — le manifeste choisirait alors seul son lecteur"
+            )
+        if annonce != manifeste.get("release_kind"):
             raise PromotedContentSetError(
                 f"{quoi} : le registre annonce {annonce!r} et le manifeste porte "
                 f"{manifeste.get('release_kind')!r}"
@@ -299,9 +306,20 @@ def _contenus_v1(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
         ou = f"{quoi}, sujet {nom}"
         octets = _lire_gouverne(base / str(sujet["path"]), ou)
         _sceau_verifie(octets, sujet.get("sha256"), ou)
-        artefacts = _charge_objet(octets, ou).get("artifacts")
+        charge = _charge_objet(octets, ou)
+        artefacts = charge.get("artifacts")
         if not isinstance(artefacts, list) or not artefacts:
             raise PromotedContentSetError(f"{ou} : aucun artefact")
+        # CHAQUE sujet tient son propre compte. Ne vérifier que le total de
+        # l'agrégat laissait deux erreurs se compenser : un sujet tronqué et
+        # un autre porteur d'un doublon rendent la même somme, et l'ensemble
+        # dédupliqué rétrécit sans que rien ne le dise — la couverture CAS
+        # passerait alors sur un périmètre incomplet.
+        if len(artefacts) != _compte_declare(charge, "artifacts", ou):
+            raise PromotedContentSetError(
+                f"{ou} : {len(artefacts)} artefact(s) lus contre "
+                f"{charge['expected_counts']['artifacts']} qu'il déclare"
+            )
         contenus |= _contenus_des_artefacts(artefacts, ou)
         occurrences += len(artefacts)
 
