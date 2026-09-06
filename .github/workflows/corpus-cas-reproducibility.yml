@@ -17,10 +17,14 @@ name: Corpus CAS reproducibility (C1)
   push:
     branches: [main]
     paths:
-      - "scripts/qualification/verify_corpus_cas.py"
-      - "scripts/qualification/compute_promoted_content_set.py"
+      # Volontairement LARGE plutôt qu'une allowlist fragile : l'ensemble
+      # servi dépend du registre, des manifestes de release qu'il désigne et
+      # des manifestes de sujet joignables depuis eux. Énumérer ces chemins un
+      # par un laisserait un changement de registre seul — ou une release
+      # nouvellement désignée — éviter C1 sans que rien ne le dise.
+      - "services/rag-pedago/data/releases/**"
+      - "scripts/qualification/**"
       - "docs/reports/evidence-index/pii_review_index_20260903.json"
-      - "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/**"
       - ".github/workflows/corpus-cas-reproducibility.yml"
   workflow_dispatch: {}
 
