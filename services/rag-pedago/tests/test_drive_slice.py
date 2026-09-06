@@ -73,11 +73,16 @@ class TestClassification:
         une zone qui insère un dossier intermédiaire ne doit pas décaler
         toute la classification d'un cran."""
         placement = classify_from_hints(
-            ("02_NEXUS_DIAGNOSTICS", "TERMINALE", "MATHEMATIQUES", "04_TESTS")
+            (
+                "02_NEXUS_DIAGNOSTICS",
+                "TERMINALE",
+                "MATHEMATIQUES",
+                "04_EVALUATIONS_EXAMENS",
+            )
         )
         assert placement.niveau == "terminale"
         assert placement.matiere == "mathematiques"
-        assert placement.nature == "tests"
+        assert placement.nature == "evaluations_examens"
         assert placement.cycle is None
         assert placement.millesime is None
 
@@ -89,21 +94,65 @@ class TestClassification:
         with pytest.raises(DriveClassificationError, match="zone"):
             classify_from_hints(("99_ZONE_INVENTEE", "LYCEE"))
 
-    def test_deux_dossiers_de_nature_rendent_le_chemin_ambigu_donc_refuse(self) -> None:
-        """``80_A_VERIFIER`` empilé sur ``04_EVALUATIONS`` ne désigne plus
-        une nature : deviner laquelle compte reviendrait à classer au
-        hasard un document que la source elle-même dit incertain."""
+    def test_un_statut_empile_sur_une_nature_designe_DEUX_dimensions(self) -> None:
+        """``80_A_VERIFIER`` sur ``04_EVALUATIONS_EXAMENS`` n'est pas une
+        ambiguïté : c'est une évaluation dont la source doute.
+
+        La source numérote ces deux familles séparément — 01–09 pour ce que
+        le document est, 10/20/80/90/99 pour ce qu'elle dit de son actualité.
+        Les replier dans un seul seau faisait de ce chemin « deux natures »
+        et le refusait, alors qu'il ne portait aucune ambiguïté. Sur l'arbre
+        gouverné, ce seul défaut écartait 938 documents."""
+        placement = classify_from_hints(
+            (
+                "01_EDUSCOL_OFFICIEL",
+                "LYCEE",
+                "TRANSVERSAL_MULTI_NIVEAUX",
+                "80_A_VERIFIER",
+                "EPS",
+                "04_EVALUATIONS_EXAMENS",
+                "2022",
+            )
+        )
+        assert placement.nature == "evaluations_examens"
+        assert placement.statut_source == "a_verifier"
+        assert placement.matiere == "eps"
+
+    def test_deux_natures_reelles_restent_un_refus(self) -> None:
+        """Séparer les dimensions ne desserre pas la garde : deux segments
+        d'une MÊME dimension restent une ambiguïté que la source ne tranche
+        pas."""
         with pytest.raises(DriveClassificationError, match="ambigu"):
             classify_from_hints(
                 (
                     "01_EDUSCOL_OFFICIEL",
                     "LYCEE",
-                    "TRANSVERSAL_MULTI_NIVEAUX",
-                    "80_A_VERIFIER",
+                    "TERMINALE",
                     "EPS",
                     "04_EVALUATIONS_EXAMENS",
-                    "2022",
+                    "06_GUIDES",
                 )
+            )
+
+    def test_deux_statuts_de_source_restent_un_refus(self) -> None:
+        with pytest.raises(DriveClassificationError, match="ambigu"):
+            classify_from_hints(
+                (
+                    "01_EDUSCOL_OFFICIEL",
+                    "LYCEE",
+                    "TERMINALE",
+                    "EPS",
+                    "80_A_VERIFIER",
+                    "90_ARCHIVE_CATALOGUE",
+                )
+            )
+
+    def test_un_libelle_numerote_inconnu_est_refuse(self) -> None:
+        """Le ranger d'après son seul préfixe lui prêterait une dimension
+        qu'on ignore — exactement le défaut que la séparation corrige."""
+        with pytest.raises(DriveClassificationError, match="inconnu"):
+            classify_from_hints(
+                ("01_EDUSCOL_OFFICIEL", "LYCEE", "TERMINALE", "EPS", "05_INVENTE")
             )
 
     def test_deux_segments_libres_rendent_la_matiere_ambigue_donc_refusee(self) -> None:
@@ -112,9 +161,60 @@ class TestClassification:
                 ("01_EDUSCOL_OFFICIEL", "LYCEE", "TERMINALE", "MATHS", "ALGEBRE")
             )
 
-    def test_un_chemin_sans_matiere_est_refuse(self) -> None:
-        with pytest.raises(DriveClassificationError, match="matière"):
+    def test_un_chemin_sans_aucune_dimension_de_routage_est_refuse(self) -> None:
+        with pytest.raises(DriveClassificationError, match="routage"):
             classify_from_hints(("01_EDUSCOL_OFFICIEL", "LYCEE", "TERMINALE"))
+
+    def test_un_niveau_abrege_est_canonicalise(self) -> None:
+        """``3E`` et ``TROISIEME`` désignent le même niveau. Sans alias,
+        l'abréviation retombait dans les segments libres et entrait en
+        collision avec la vraie discipline : 44 documents écartés pour une
+        orthographe."""
+        abrege = classify_from_hints(
+            ("01_EDUSCOL_OFFICIEL", "COLLEGE", "3E", "HISTOIRE_GEOGRAPHIE")
+        )
+        long = classify_from_hints(
+            ("01_EDUSCOL_OFFICIEL", "COLLEGE", "TROISIEME", "HISTOIRE_GEOGRAPHIE")
+        )
+        assert abrege.niveau == long.niveau == "troisieme"
+        assert abrege.matiere == "histoire_geographie"
+
+    def test_une_abreviation_de_niveau_inconnue_reste_une_matiere(self) -> None:
+        """La canonicalisation est un vocabulaire FERMÉ : ``7E`` n'est pas
+        un niveau qu'on devine, et le chemin qui l'emploie à côté d'une
+        discipline reste refusé."""
+        with pytest.raises(DriveClassificationError, match="ambigu"):
+            classify_from_hints(
+                ("01_EDUSCOL_OFFICIEL", "COLLEGE", "7E", "HISTOIRE_GEOGRAPHIE")
+            )
+
+    def test_une_voie_route_un_document_sans_discipline(self) -> None:
+        """Une ressource de série porte de quoi être adressée sans nommer de
+        matière. Exiger la discipline seule refusait 87 documents STMG que la
+        source place pourtant sans ambiguïté."""
+        placement = classify_from_hints(
+            ("01_EDUSCOL_OFFICIEL", "STMG", "PREMIERE", "07_DIAPORAMAS_SUPPORTS", "2019")
+        )
+        assert placement.voie == "technologique"
+        assert placement.niveau == "premiere"
+        assert placement.matiere is None
+        assert placement.servable is True
+
+    def test_une_institution_route_un_test_de_positionnement(self) -> None:
+        placement = classify_from_hints(
+            (
+                "04_COMPLEMENTS_PEDAGOGIQUES",
+                "01_SOURCES_INSTITUTIONNELLES",
+                "DEPP",
+                "SECONDE",
+                "TESTS_POSITIONNEMENT",
+                "2025",
+            )
+        )
+        assert placement.institution == "depp"
+        assert placement.famille_provenance == "sources_institutionnelles"
+        assert placement.nature == "tests_positionnement"
+        assert placement.niveau == "seconde"
 
 
 # ---------------------------------------------------------------------

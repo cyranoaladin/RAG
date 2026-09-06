@@ -83,11 +83,90 @@ KNOWN_NIVEAUX = frozenset(
     }
 )
 
-#: Un dossier de *nature* : deux chiffres, un souligné, un libellé.
-_NATURE = re.compile(r"\A(\d{2})_([A-Z0-9_]+)\Z")
+#: Un dossier numéroté : deux chiffres, un souligné, un libellé. La forme
+#: est commune à DEUX familles que la source numérote pourtant séparément —
+#: voir ``NATURES_DOCUMENTAIRES`` et ``STATUTS_SOURCE``.
+_SEGMENT_NUMEROTE = re.compile(r"\A(\d{2})_([A-Z0-9_]+)\Z")
+
+#: Frontière entre les deux familles numérotées. Sous 10 : ce que le
+#: document EST. À partir de 10 : ce que la source DIT de son actualité.
+_PREFIXE_PREMIER_STATUT = 10
+
+#: Ce que le document est. Préfixes 01–09, vocabulaire **fermé** :
+#: accepter un libellé inconnu reviendrait à ranger dans « nature » un
+#: dossier dont on ignore la dimension, ce qui est exactement le défaut
+#: que la séparation corrige.
+NATURES_DOCUMENTAIRES = frozenset(
+    {
+        "PROGRAMMES_OFFICIELS",
+        "QUESTIONNAIRES_PDF",
+        "BANQUES_SOURCE",
+        "REPERES_ATTENDUS",
+        "DOCUMENTATION",
+        "RESSOURCES_ACCOMPAGNEMENT",
+        "EVALUATIONS_EXAMENS",
+        "TESTS_PRE_RENTREE_2026",
+        "ANNALES_SUJETS_CORRIGES",
+        "GUIDES",
+        "DIAPORAMAS_SUPPORTS",
+        "PROGRAMMES_LIMITATIFS",
+        "AUTRES",
+    }
+)
+
+#: Ce que la source dit de l'actualité du document. Préfixes 10/20/80/90/99.
+#: Un statut n'est PAS une nature : ``80_A_VERIFIER`` empilé sur
+#: ``09_AUTRES`` décrit un document « autre » dont la source doute, pas deux
+#: natures concurrentes.
+STATUTS_SOURCE = frozenset(
+    {
+        "ACTUEL_CONFIRME",
+        "TRANSITION_OU_ACTUEL",
+        "A_VERIFIER",
+        "ARCHIVE_CATALOGUE",
+        "A_CLASSER",
+        "CONFLITS_STATUTS",
+    }
+)
+
+#: D'où la ressource vient, dans la zone des compléments. Ces dossiers
+#: portent un préfixe de la plage des natures sans en être : ils classent la
+#: PROVENANCE, et la nature réelle est nommée plus bas dans le chemin.
+FAMILLES_PROVENANCE = frozenset(
+    {"SOURCES_INSTITUTIONNELLES", "RESSOURCES_AUTEUR_NEXUS"}
+)
+
+#: Natures que la source écrit sans préfixe numérique.
+NATURES_SANS_PREFIXE = frozenset({"TESTS_POSITIONNEMENT", "FICTION_PEDAGOGIQUE"})
+
+#: Abréviations de niveau employées par la source à côté des formes longues.
+#: Sans elles, ``3E`` retombait dans les segments libres et entrait en
+#: collision avec la vraie discipline — deux « matières » pour un chemin qui
+#: n'était pas ambigu.
+ALIAS_NIVEAUX = {
+    "6E": "SIXIEME",
+    "5E": "CINQUIEME",
+    "4E": "QUATRIEME",
+    "3E": "TROISIEME",
+    "2DE": "SECONDE",
+    "1RE": "PREMIERE",
+    "TLE": "TERMINALE",
+}
+
+#: Voies (séries) du lycée, avec leur valeur canonique au contrat.
+VOIES = {"STMG": "technologique"}
+
+#: Statuts d'enseignement nommés par un dossier.
+STATUTS_ENSEIGNEMENT = {"COMMUN": "tronc_commun"}
+
+#: Institutions productrices reconnues.
+INSTITUTIONS = frozenset({"DEPP"})
 
 #: Un millésime : quatre chiffres, rien d'autre.
 _MILLESIME = re.compile(r"\A\d{4}\Z")
+
+#: Un horodatage de run de moisson : ``AAAAMMJJTHHMMSS``.
+_HORODATAGE = re.compile(r"\A\d{8}T\d{6}\Z")
 
 
 class DriveClassificationError(RuntimeError):
@@ -107,6 +186,15 @@ class Placement:
     matiere: str | None
     nature: str | None
     millesime: str | None
+    #: Ce que la source dit de l'actualité — distinct de la nature. Les
+    #: replier ensemble faisait de « document autre dont la source doute »
+    #: deux natures concurrentes, et donc un refus.
+    statut_source: str | None = None
+    #: Voie (série) du lycée, valeur canonique du contrat.
+    voie: str | None = None
+    statut_enseignement: str | None = None
+    institution: str | None = None
+    famille_provenance: str | None = None
 
     @property
     def servable(self) -> bool:
@@ -270,11 +358,21 @@ def classify_from_hints(hints: Sequence[str]) -> Placement:
     zone qui insère un dossier intermédiaire décalerait toute une
     classification positionnelle d'un cran, sans rien signaler.
 
-    Deux ambiguïtés sont refusées plutôt qu'arbitrées : deux dossiers de
-    nature (typiquement un bucket ``80_A_VERIFIER`` empilé sur une nature
-    réelle) et deux segments libres. Dans les deux cas, la source dit
-    elle-même qu'elle ne sait pas ; choisir à sa place fabriquerait une
-    certitude."""
+    **Deux familles, pas une.** La source numérote séparément ce que le
+    document EST (préfixes 01–09) et ce qu'elle DIT de son actualité
+    (10/20/80/90/99). Une seule expression ouverte les capturait toutes
+    deux dans le même seau : ``80_A_VERIFIER`` empilé sur ``09_AUTRES``
+    devenait « deux natures », et le chemin était refusé alors qu'il n'était
+    pas ambigu. Sur l'arbre gouverné, aucune des combinaisons observées
+    n'empile deux natures ni deux statuts — la distinction était déjà
+    encodée par la source, et c'est le modèle qui la perdait.
+
+    Reste refusée la véritable ambiguïté : deux segments d'une MÊME
+    dimension. Dans ce cas la source dit elle-même qu'elle ne tranche pas,
+    et choisir à sa place fabriquerait une certitude.
+
+    Un libellé numéroté hors des vocabulaires fermés est refusé plutôt que
+    rangé d'après son seul préfixe : on ignorerait alors sa dimension."""
     if not hints:
         raise DriveClassificationError(
             "chemin vide : aucun dossier traversé ne porte de classification"
@@ -286,31 +384,54 @@ def classify_from_hints(hints: Sequence[str]) -> Placement:
             f"{sorted(KNOWN_ZONES)}"
         )
 
-    cycles: list[str] = []
-    niveaux: list[str] = []
-    natures: list[str] = []
-    millesimes: list[str] = []
-    libres: list[str] = []
+    seaux: dict[str, list[str]] = {
+        "cycle": [],
+        "niveau": [],
+        "matiere": [],
+        "nature": [],
+        "millésime": [],
+        "statut de source": [],
+        "voie": [],
+        "statut d'enseignement": [],
+        "institution": [],
+        "famille de provenance": [],
+    }
 
     for segment in hints[1:]:
         if segment in KNOWN_CYCLES:
-            cycles.append(segment)
+            seaux["cycle"].append(segment)
         elif segment in KNOWN_NIVEAUX:
-            niveaux.append(segment)
-        elif _MILLESIME.match(segment):
-            millesimes.append(segment)
-        elif (match := _NATURE.match(segment)) is not None:
-            natures.append(match.group(2))
+            seaux["niveau"].append(segment)
+        elif segment in ALIAS_NIVEAUX:
+            seaux["niveau"].append(ALIAS_NIVEAUX[segment])
+        elif segment in VOIES:
+            seaux["voie"].append(VOIES[segment])
+        elif segment in STATUTS_ENSEIGNEMENT:
+            seaux["statut d'enseignement"].append(STATUTS_ENSEIGNEMENT[segment])
+        elif segment in INSTITUTIONS:
+            seaux["institution"].append(segment)
+        elif segment in NATURES_SANS_PREFIXE:
+            seaux["nature"].append(segment)
+        elif _MILLESIME.match(segment) or _HORODATAGE.match(segment):
+            seaux["millésime"].append(segment)
+        elif (match := _SEGMENT_NUMEROTE.match(segment)) is not None:
+            libelle = match.group(2)
+            if libelle in FAMILLES_PROVENANCE:
+                seaux["famille de provenance"].append(libelle)
+            elif libelle in NATURES_DOCUMENTAIRES:
+                seaux["nature"].append(libelle)
+            elif libelle in STATUTS_SOURCE:
+                seaux["statut de source"].append(libelle)
+            else:
+                raise DriveClassificationError(
+                    f"libellé numéroté inconnu {segment!r} — le ranger d'après "
+                    "son seul préfixe reviendrait à lui prêter une dimension "
+                    "qu'on ignore"
+                )
         else:
-            libres.append(segment)
+            seaux["matiere"].append(segment)
 
-    for label, values in (
-        ("cycle", cycles),
-        ("niveau", niveaux),
-        ("nature", natures),
-        ("millésime", millesimes),
-        ("matière", libres),
-    ):
+    for label, values in seaux.items():
         if len(values) > 1:
             raise DriveClassificationError(
                 f"chemin ambigu : {len(values)} segments de {label} "
@@ -318,19 +439,34 @@ def classify_from_hints(hints: Sequence[str]) -> Placement:
                 "document que la source elle-même dit incertain"
             )
 
-    if zone not in CONTROL_PLANE_ZONES and not libres:
+    # Une discipline reste la voie de placement ordinaire, mais elle n'est
+    # pas la seule : une ressource de série (STMG première) ou d'institution
+    # (test de positionnement DEPP) porte de quoi être routée sans nommer de
+    # matière. Exiger la matière seule refusait ces chemins, que la source
+    # place pourtant sans ambiguïté.
+    routage = seaux["matiere"] or seaux["voie"] or seaux["institution"]
+    if zone not in CONTROL_PLANE_ZONES and not routage:
         raise DriveClassificationError(
-            f"aucune matière dans {list(hints)} — un artefact servable sans "
-            "discipline ne peut être placé"
+            f"aucune dimension de routage dans {list(hints)} — ni discipline, "
+            "ni voie, ni institution : un artefact servable qu'on ne sait pas "
+            "adresser ne peut être placé"
         )
+
+    def premier(cle: str) -> str | None:
+        return seaux[cle][0] if seaux[cle] else None
 
     return Placement(
         zone=zone,
-        cycle=cycles[0].lower() if cycles else None,
-        niveau=niveaux[0].lower() if niveaux else None,
-        matiere=libres[0].lower() if libres else None,
-        nature=natures[0].lower() if natures else None,
-        millesime=millesimes[0] if millesimes else None,
+        cycle=(premier("cycle") or "").lower() or None,
+        niveau=(premier("niveau") or "").lower() or None,
+        matiere=(premier("matiere") or "").lower() or None,
+        nature=(premier("nature") or "").lower() or None,
+        millesime=premier("millésime"),
+        statut_source=(premier("statut de source") or "").lower() or None,
+        voie=premier("voie"),
+        statut_enseignement=premier("statut d'enseignement"),
+        institution=(premier("institution") or "").lower() or None,
+        famille_provenance=(premier("famille de provenance") or "").lower() or None,
     )
 
 
