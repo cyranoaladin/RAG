@@ -14,6 +14,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from verify_corpus_cas import SCHEMA, content_set_digest, verify  # noqa: E402
@@ -201,3 +203,65 @@ def test_une_taille_declaree_fausse_n_est_pas_une_discordance_d_empreinte(
     assert any("PROMOTED_CAS_SIZE_MISMATCH=1" in m for m in messages)
     assert any("PROMOTED_CAS_HASH_MISMATCH=0" in m for m in messages)
     assert any("PROMOTED_CAS_COVERAGE_MISSING=1" in m for m in messages)
+
+
+# --- le fichier d'ensemble promu doit se prouver lui-même --------------
+
+
+def _ecrire_ensemble(chemin: Path, contenus: set[str], **surcharges: object) -> Path:
+    charge: dict[str, object] = {
+        "content_sha256": sorted(contenus),
+        "count": len(contenus),
+        "content_set_sha256": content_set_digest(contenus),
+    }
+    charge.update(surcharges)
+    chemin.write_text(json.dumps(charge), encoding="utf-8")
+    return chemin
+
+
+def test_un_ensemble_promu_tronque_mais_non_vide_est_refuse(tmp_path: Path) -> None:
+    """Le fichier porte `count` et `content_set_sha256`. Les ignorer laissait
+    un fichier tronqué passer pour complet : la couverture était alors
+    calculée contre moins de contenus qu'il n'y a de promus, et « 0 manquant »
+    ne voulait plus rien dire."""
+    from verify_corpus_cas import _charge_ensemble_promu
+
+    complet = {SHA_A, SHA_B}
+    fichier = _ecrire_ensemble(tmp_path / "p.json", complet)
+    charge = json.loads(fichier.read_text(encoding="utf-8"))
+    charge["content_sha256"] = charge["content_sha256"][:1]  # tronqué
+    fichier.write_text(json.dumps(charge), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="annonce 2 contenus et en porte 1"):
+        _charge_ensemble_promu(fichier)
+
+
+def test_un_ensemble_promu_dont_l_empreinte_ne_correspond_pas_est_refuse(
+    tmp_path: Path,
+) -> None:
+    from verify_corpus_cas import _charge_ensemble_promu
+
+    fichier = _ecrire_ensemble(
+        tmp_path / "p.json", {SHA_A, SHA_B}, content_set_sha256="0" * 64
+    )
+    with pytest.raises(ValueError, match="annonce l'empreinte"):
+        _charge_ensemble_promu(fichier)
+
+
+def test_un_ensemble_promu_vide_est_refuse_des_le_chargement(tmp_path: Path) -> None:
+    from verify_corpus_cas import _charge_ensemble_promu
+
+    fichier = tmp_path / "p.json"
+    fichier.write_text(
+        json.dumps({"content_sha256": [], "count": 0, "content_set_sha256": "x"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="absent ou vide"):
+        _charge_ensemble_promu(fichier)
+
+
+def test_un_ensemble_promu_conforme_est_accepte(tmp_path: Path) -> None:
+    from verify_corpus_cas import _charge_ensemble_promu
+
+    complet = {SHA_A, SHA_B}
+    assert _charge_ensemble_promu(_ecrire_ensemble(tmp_path / "p.json", complet)) == complet

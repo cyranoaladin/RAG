@@ -417,3 +417,30 @@ def test_une_entree_de_release_de_type_inattendu_est_refusee(
     )
     with pytest.raises(PromotedContentSetError, match="pas un objet"):
         module.collect_promoted_content_set(registre)
+
+
+@pytest.mark.parametrize(
+    "empreinte", [None, 42, "", "pas-un-sha", "A" * 64, "g" * 64, "a" * 63]
+)
+def test_un_content_sha256_qui_n_en_est_pas_un_est_refuse(
+    tmp_path: Path, empreinte: object
+) -> None:
+    """`str()` d'une valeur quelconque deviendrait un identifiant promu, que
+    le store ne pourrait par construction jamais contenir : la couverture
+    échouerait plus tard, sur un défaut dont l'origine serait perdue."""
+    registre = _seed(tmp_path)
+    sujet = registre.parent / "profile_gate" / "subjects" / "sujet-a.release.json"
+    _write(
+        sujet,
+        {"artifacts": [{"content_sha256": empreinte}, {"content_sha256": SHA_SHARED}]},
+    )
+    manifeste = registre.parent / "profile_gate" / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    donnees["subjects"][0]["sha256"] = _sceau(sujet)
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="content_sha256 invalide"):
+        collect_promoted_content_set(registre)
