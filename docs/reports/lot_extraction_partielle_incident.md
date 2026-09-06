@@ -301,7 +301,113 @@ Corrigé **à la cause**, pas à la garde : le miroir a été détaché (copies
 indépendantes, `0600`), `MIROIR_DETACHE=149`, `DIVERGENCES=0`, corpus revenu à
 `nlink=1` partout.
 
-## 9. Ce qui reste dû avant toute revue humaine PII
+## 9. Réconciliation exacte : 25 affectés, 24 textes modifiés
+
+Les deux ensembles ne sont pas en concurrence : le second est **inclus** dans
+le premier.
+
+```
+AFFECTED_MIXED_SHA_SET=25   sha256=6e1317595c949b66f4d2c2d2a1cafd6c17837148e450ec5f6c1e31c061ac8616
+TEXT_CHANGED_SHA_SET=24     sha256=0f6586e4296920c6839fe0314d222c162f6e04be70090172a581150e274039fa
+TEXT_CHANGED_NOT_IN_AFFECTED=0
+TEXT_UNCHANGED_BUT_SEMANTIC_STATUS_CHANGED_SHA_SET=1
+```
+
+Le document restant, par données :
+
+```
+content_sha256           = a009392fc284f5cfb8dd335fe3bc08e4e5b5d9041110140daa9ab9bfbef71b9a
+page_count               = 18
+affected_pages           = [15]
+V1_extraction_path       = TEXT_LAYER  (document non entièrement muet : V1 n'océrisait pas)
+V2 page 15               : extraction_path=NOT_ASSESSABLE
+                           page_policy_verdict=PAGE_IMAGE_NON_LISIBLE
+                           native_text_sha256=e3b0c44298fc1c14…   (chaîne vide)
+                           canonical_page_text_sha256=e3b0c44298fc1c14…   (chaîne vide)
+V1_canonical_text_sha256 = 009b5ff60ae5dca1f80bc763b5adfed7ee6d66db5521e05dff5709bc728828ec
+V2_canonical_text_sha256 = 009b5ff60ae5dca1f80bc763b5adfed7ee6d66db5521e05dff5709bc728828ec
+TEXT_IDENTICAL           = true
+V1_PII_state             = CLEARED        V2_PII_state = NOT_ASSESSABLE
+V1_servable              = true (chunké)  V2_servable  = false (chunks=0)
+```
+
+L'OCR n'a rien rendu sur cette page : son texte reste la chaîne vide, donc le
+texte canonique du document est inchangé. Ce qui change est le **statut** —
+V1 affirmait avoir lu une page qu'il n'avait pas lue. C'est exactement la
+différence entre « rien n'a été trouvé » et « rien n'a été cherché ».
+
+## 10. Matrice de transition PII V1 → V2, par `content_sha256`
+
+```
+V1_CLEARED  → V2_CLEARED        = 2315
+V1_CLEARED  → V2_DETECTED       =    1
+V1_CLEARED  → V2_NOT_ASSESSABLE =    8
+V1_DETECTED → V2_CLEARED        =    0
+V1_DETECTED → V2_DETECTED       =  148
+V1_DETECTED → V2_NOT_ASSESSABLE =    1
+
+V1 : CLEARED=2324  DETECTED=149  NOT_ASSESSABLE=0
+V2 : CLEARED=2315  DETECTED=149  NOT_ASSESSABLE=9
+TRANSITIONS_TOTAL=2473        PII_TRANSITION_UNACCOUNTED=0
+```
+
+`2315 + 1 + 8 = 2324` et `0 + 148 + 1 = 149` : les lignes réconcilient, ce
+n'est pas une différence de comptes.
+
+**`V1_CLEARED → V2_DETECTED = 1`.** Un document que V1 déclarait propre porte
+de la PII sur une page que V1 n'avait jamais lue. Le défaut d'extraction
+n'était pas théorique : sans cette correction, ce document aurait été servi.
+
+Que `PII_DETECTED` vaille 149 dans les deux campagnes est une coïncidence de
+compte, pas une stabilité : un document entre, un autre sort.
+
+## 11. Identité durable du run V2
+
+```
+FULL_DRIVE_PROCESSING_RUN_ID=8bbaa039cfd4e99b69a6f4a72fe23f5fe9bb07e6f242f564380fd35a91e68611
+CODE_COMMIT=6b6de0fa5fe9dd1c4e2ed60b3c7367f88b18735c
+RUNNER_SHA256=1e0920c5b61cdf257b00903beecd46f27e94dd204911da649ca9172d683fbb76
+EXTRACTION_POLICY_ID=NEXUS-DRIVE-PDF-EXTRACTION-V2
+PAGE_POLICY_ID=NEXUS-PDF-PAGE-POLICY-V1
+PAGE_POLICY_SHA256=82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02
+OCR_RUNTIME_IDENTITY=4090ff0754b32f2e4eca110f3e5378d3a02562e898a1f5aeaee7931696a04af2
+OCR_CAPABILITY_SHA256=9095568785b27fd96edc4c9f127a8ef4bdf8a321f40f604355dd4ff635a84fe6
+MANIFEST_SHA256=b14bad4bf358e0d86838d7daddc49d32bd61d9b9a5175649040afb9164d3eaf5
+
+PAGE_PROVENANCE_LEDGER_SHA256=3b91c87d71ca06c0d1c7ac123d7616f8103f478232e255294d329b88d7901ce5
+PII_LEDGER_SHA256=62bf5db15fa3ea401db56eb749a3f22967488e52d3149abb0fc16f393880ecfa
+CHUNK_LEDGER_SHA256=e625bac80fc16e796128aa872a7f3f56fba893e1c3b0650791be37b89f6b3dfb
+V1_V2_DIFF_LEDGER_SHA256=9cc1771dbd868b0eae16bc61f0e7d31eabea9aef1b77470a44cfb532b5a46fe7
+REPLAY_REPORT_SHA256=2c90ccc363c5957c9c2549d65ce078c29ddc1b2557fc82ca306f8d812dedddaf
+
+CODE_COMMIT_REACHABLE_FROM_ORIGIN=true    (origin/glr/drive-v2)
+RUN_EVIDENCE_DURABLE=true
+V2_PROCESSING_RUN_FROZEN=true
+```
+
+Les registres sont sérialisés en JSON **canonique** (clés triées, séparateurs
+compacts) : un JSON dont l'ordre dépend de l'exécution ne se rehache pas deux
+fois pareil, et son empreinte ne prouverait rien.
+
+Les preuves ne vivent plus dans un répertoire temporaire : elles sont scellées
+hors dépôt, `0700`/`0600`, et leurs empreintes sont versionnées ici.
+
+## 12. Disposition des 9 non évaluables
+
+Décision du commanditaire, appliquée :
+
+```
+ACCEPT_CONTENT_LOSS=NO   AUTO_EXCLUDE_PERMANENTLY=NO   SERVE_CURRENTLY=NO
+disposition   = GOVERNED_NOT_SERVABLE
+blocker_codes = ["PII_NOT_ASSESSABLE", "SOURCE_EXTRACTION_INCOMPLETE"]
+chunks=0   embeddings=0   servable=false
+```
+
+Ils restent dans la comptabilité de gouvernance et n'entrent dans aucune
+release servable. C'est une exclusion de service, pas une disparition du
+corpus.
+
+## 13. Ce qui reste dû avant toute revue humaine PII
 
 - **préparateur de paquets** : lui faire consommer le texte canonique de la
   base V2 au lieu de re-décider du sens d'une page, et prouver
@@ -313,7 +419,7 @@ indépendantes, `0600`), `MIROIR_DETACHE=149`, `DIVERGENCES=0`, corpus revenu à
 Les 149 paquets de revue PII préparés sous V1 ne sont **pas** soumis : ils
 porteraient un texte amputé.
 
-## 10. Preuves scellées (hors dépôt, `0600`, adressées par contenu)
+## 14. Preuves scellées (hors dépôt, `0600`, adressées par contenu)
 
 | Preuve | sha256 |
 |---|---|
