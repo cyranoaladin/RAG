@@ -125,8 +125,15 @@ distinguent désormais ce que l'on sait :
 Taille et empreinte sont deux propriétés distinctes : les confondre priverait
 l'exploitant de l'information qui dit *quoi* réparer.
 
-Seul `COVERAGE_MISSING` fait échouer le gate, et c'est lui qui porte la
-question : *ce document servi, sait-on le relire hors du poste ?*
+`COVERAGE_MISSING` est le compteur qui porte la question du lot — *ce
+document servi, sait-on le relire hors du poste ?* — et le seul dont ces
+quatre-là décident. Il n'est pas pour autant la seule cause d'échec : le
+vérificateur refuse **tout** objet du store dont le blob manque, dont les
+octets hachent ailleurs, dont la taille déclarée est fausse ou dont le
+localisateur sort du store — y compris un contenu qui n'est plus promu. Un
+store corrompu reste un store corrompu, même sur une strate périmée : un
+contenu superseded dont le blob a disparu rend `code 1` avec
+`COVERAGE_MISSING=0` et `EXTRA=1`.
 
 Un cinquième compteur est publié sans jamais bloquer :
 
