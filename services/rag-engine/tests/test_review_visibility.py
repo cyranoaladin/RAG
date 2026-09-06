@@ -158,11 +158,16 @@ def test_search_token_setup_is_reverted_after_monkeypatch_context(
 
 
 def test_search_v2_has_no_direct_visibility_or_database_pipeline() -> None:
-    source = inspect.getsource(endpoint.search_v2)
-    assert "_check_retrievable" in source
-    assert "_retrieve_endpoint_hits" in source
-    assert "psycopg" not in source
-    assert "review_status IN ('reviewed', 'needs_review')" not in source
+    # La route est une enveloppe qui journalise toutes les issues et délègue
+    # le service : l'invariant regarde les deux, sinon il cesse de regarder
+    # le code qui sert.
+    wrapper = inspect.getsource(endpoint.search_v2)
+    served = inspect.getsource(endpoint._search_v2_served)
+    assert "_check_retrievable" in served
+    assert "_retrieve_endpoint_hits" in served
+    for source in (wrapper, served):
+        assert "psycopg" not in source
+        assert "review_status IN ('reviewed', 'needs_review')" not in source
 
 
 @pytest.mark.parametrize(
@@ -196,7 +201,11 @@ def test_all_roles_only_receive_reviewed_hybrid_hits(
     assert len(body["results"]) == 1
     assert body["results"][0]["chunk_id"] == "chunk-reviewed"
     assert body["results"][0]["metadata"]["review_status"] == "reviewed"
-    retrieve.assert_called_once_with("algo", COLLECTION, 5, SCOPE)
+    assert retrieve.call_count == 1
+    called = retrieve.call_args
+    assert called.args == ("algo", COLLECTION, 5, SCOPE)
+    # Aucun filtre pédagogique demandé : le prédicat de placement décide seul.
+    assert called.kwargs["metadata_filters"].is_empty
 
 
 def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
@@ -220,7 +229,11 @@ def test_public_search_ignores_even_reviewed_cache_and_requeries_pipeline(
 
     assert response.status_code == 200
     assert response.json()["results"] == []
-    retrieve.assert_called_once_with("query", COLLECTION, 5, SCOPE)
+    assert retrieve.call_count == 1
+    called = retrieve.call_args
+    assert called.args == ("query", COLLECTION, 5, SCOPE)
+    # Aucun filtre pédagogique demandé : le prédicat de placement décide seul.
+    assert called.kwargs["metadata_filters"].is_empty
 
 
 def test_cache_warmup_is_disabled_and_never_serializes_unscoped_hits(

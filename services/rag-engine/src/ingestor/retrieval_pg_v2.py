@@ -19,6 +19,11 @@ if __package__:
         RetrievalCandidate,
         RetrievalPipelineError,
     )
+    from .retrieval_metadata_v2 import (
+        CHUNK_METADATA_FILTER_SQL,
+        ChunkMetadataFilters,
+        chunk_metadata_filter_params,
+    )
     from .retrieval_scope_v2 import ServerRetrievalScope
 else:
     from pg_pool import execute_with_database_budget  # type: ignore[no-redef]
@@ -28,6 +33,11 @@ else:
         CandidateStore,
         RetrievalCandidate,
         RetrievalPipelineError,
+    )
+    from retrieval_metadata_v2 import (  # type: ignore[no-redef]
+        CHUNK_METADATA_FILTER_SQL,
+        ChunkMetadataFilters,
+        chunk_metadata_filter_params,
     )
     from retrieval_scope_v2 import ServerRetrievalScope  # type: ignore[no-redef]
 
@@ -139,6 +149,7 @@ _DENSE_SQL = f"""
         SELECT chunk.*, chunk.vector <=> %s::vector AS distance
         FROM public.rag_chunks AS chunk
         WHERE {_READINESS_SCOPE_PREDICATE_SQL}
+          AND {CHUNK_METADATA_FILTER_SQL}
           AND chunk.text IS NOT NULL AND btrim(chunk.text) <> ''
           AND chunk.vector IS NOT NULL
           AND (
@@ -280,6 +291,7 @@ _LEXICAL_SQL = f"""
     CROSS JOIN lexical_query
     {_GOVERNED_SCOPE_JOINS_SQL}
     WHERE {_EFFECTIVE_SCOPE_FILTER_SQL}
+      AND {CHUNK_METADATA_FILTER_SQL}
       AND chunk.text IS NOT NULL AND btrim(chunk.text) <> ''
       AND chunk.vector IS NOT NULL
       AND btrim(COALESCE(artifact.source_label, chunk.source_label)) <> ''
@@ -532,6 +544,7 @@ class PgCandidateStore(CandidateStore):
         scope: ServerRetrievalScope,
         *,
         statement_timeout_ms: int | None = None,
+        metadata_filters: ChunkMetadataFilters | None = None,
     ) -> None:
         self._connection_provider = connection_provider
         self._scope = scope
@@ -539,6 +552,9 @@ class PgCandidateStore(CandidateStore):
         self._dense_filter_params = _readiness_scope_params(scope)
         self._placement_scope_params = _placement_scope_params(scope)
         self._statement_timeout_ms = statement_timeout_ms
+        # Restriction pédagogique, jamais autorisation : ces paramètres
+        # alimentent un fragment conjoint au prédicat de placement.
+        self._metadata_params = chunk_metadata_filter_params(metadata_filters)
 
     def _execute(
         self,
@@ -600,6 +616,7 @@ class PgCandidateStore(CandidateStore):
                 (
                     vector_text,
                     *self._dense_filter_params,
+                    *self._metadata_params,
                     _DENSE_ANN_PROBE_LIMIT,
                     *self._placement_scope_params,
                     _DENSE_ANN_POOL_LIMIT,
@@ -632,7 +649,12 @@ class PgCandidateStore(CandidateStore):
             normalized_limit = _limit(limit)
             candidates = self._fetch(
                 _LEXICAL_SQL,
-                (normalized_query, *self._scope_params, normalized_limit),
+                (
+                    normalized_query,
+                    *self._scope_params,
+                    *self._metadata_params,
+                    normalized_limit,
+                ),
                 limit=normalized_limit,
                 channel="lexical",
             )

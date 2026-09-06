@@ -22,6 +22,7 @@
 !services/rag-engine/src/ingestor/
 !services/rag-engine/src/ingestor/__init__.py
 !services/rag-engine/src/ingestor/requirements.runtime-v2.txt
+!services/rag-engine/src/ingestor/api_scopes.py
 !services/rag-engine/src/ingestor/api_v2.py
 !services/rag-engine/src/ingestor/collection_config.py
 !services/rag-engine/src/ingestor/embedding_contract.py
@@ -34,6 +35,8 @@
 !services/rag-engine/src/ingestor/release_readiness.py
 !services/rag-engine/src/ingestor/retrieval_contract_adapter.py
 !services/rag-engine/src/ingestor/retrieval_hybrid_v2.py
+!services/rag-engine/src/ingestor/retrieval_metadata_v2.py
+!services/rag-engine/src/ingestor/retrieval_observability.py
 !services/rag-engine/src/ingestor/retrieval_pg_v2.py
 !services/rag-engine/src/ingestor/retrieval_readiness_v2.py
 !services/rag-engine/src/ingestor/retrieval_scope_v2.py

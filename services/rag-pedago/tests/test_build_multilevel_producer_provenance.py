@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -59,11 +60,106 @@ def test_l_attestation_publiee_est_celle_que_le_producteur_rend() -> None:
     """`PROVENANCE_ATTESTATION_DRIFT=0` — sinon elle a été écrite à la main.
 
     Elle est une fonction pure du contenu attesté : aucun commit, aucune
-    horloge. Un checkout qui porte ces octets la reproduit à l'identique, ici
-    comme en CI.
+    horloge. Un checkout qui porte ces octets la reproduit à l'identique — à
+    la version du paquet de contrats près, seule dimension autorisée à avancer
+    (voir les épreuves de `compare_published`).
     """
     module = _module()
-    assert ATTESTATION.read_bytes() == module.serialize(module.build_attestation())
+    rendue = json.loads(module.serialize(module.build_attestation()))
+    publiee = json.loads(ATTESTATION.read_bytes())
+    assert module.compare_published(publiee, rendue) is None
+
+
+def test_une_mineure_additive_de_contrats_n_invalide_pas_la_lignee() -> None:
+    """Une attestation fige une production PASSÉE.
+
+    Le paquet de contrats continue d'avancer. Une mineure additive — un
+    contrat de plus, aucun retiré — ne change ni les octets produits, ni les
+    entrées, ni les scopes liés. Exiger l'égalité stricte du numéro pousserait
+    à régénérer l'attestation, c'est-à-dire à lui faire dire qu'elle a été
+    produite sous une version sous laquelle elle ne l'a pas été.
+    """
+    module = _module()
+    publiee = json.loads(ATTESTATION.read_bytes())
+    avancee = dict(publiee) | {"contracts_version": "99.0.0"}
+    assert module.compare_published(publiee, avancee) is None
+
+
+def test_un_recul_de_version_de_contrats_est_refuse() -> None:
+    module = _module()
+    publiee = json.loads(ATTESTATION.read_bytes())
+    reculee = dict(publiee) | {"contracts_version": "0.1.0"}
+    assert "recule" in str(module.compare_published(publiee, reculee))
+
+
+def test_un_registre_de_scopes_qui_bouge_exige_une_re_attestation() -> None:
+    """La substance, c'est le registre — pas le numéro de version.
+
+    L'épreuve n'isole qu'UNE dimension : bouger aussi la version ferait
+    répondre la comparaison générique, et ce refus-ci passerait pour vert
+    sans jamais avoir été exercé. On exige donc le message dédié, pas
+    « un refus quelconque » : c'est la seule façon de distinguer un refus
+    causé par les scopes d'un refus causé par autre chose.
+    """
+    module = _module()
+    publiee = json.loads(ATTESTATION.read_bytes())
+    bougee = dict(publiee) | {"scope_registry_sha256": "f" * 64}
+    assert module.compare_published(publiee, bougee) == (
+        "le registre de scopes a changé : la lignée doit être ré-attestée"
+    )
+
+
+def test_un_registre_qui_bouge_l_emporte_sur_la_tolerance_de_version() -> None:
+    """La tolérance de version ne doit pas masquer un registre déplacé."""
+    module = _module()
+    publiee = json.loads(ATTESTATION.read_bytes())
+    bougee = dict(publiee) | {
+        "contracts_version": "99.0.0",
+        "scope_registry_sha256": "f" * 64,
+    }
+    assert module.compare_published(publiee, bougee) == (
+        "le registre de scopes a changé : la lignée doit être ré-attestée"
+    )
+
+
+def test_une_attestation_non_canonique_est_refusee(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La tolérance porte sur le contenu ; la forme, elle, reste exigée.
+
+    Des octets réordonnés disent la même chose et ne dérivent donc pas
+    sémantiquement — `compare_published` les déclare intacts, et c'est
+    correct. Mais l'attestation EST un artefact d'octets : la laisser passer
+    non canonique la ferait « bouger » au prochain rendu sans que rien n'ait
+    changé, et `OLD_PROVENANCE_BYTES_CHANGED=0` cesserait de vouloir dire
+    quelque chose. Le contrôle doit donc refuser AVANT d'appliquer la
+    tolérance de version.
+    """
+    module = _module()
+    publiee = json.loads(ATTESTATION.read_bytes())
+
+    # Mêmes clés, mêmes valeurs, ordre inverse : sémantiquement identique.
+    desordonnee = {cle: publiee[cle] for cle in reversed(list(publiee))}
+    octets = json.dumps(desordonnee, indent=2, sort_keys=False, ensure_ascii=False)
+    octets = octets.encode("utf-8") + b"\n"
+    assert octets != module.serialize(publiee), "le désordre doit être réel"
+    assert module.compare_published(publiee, desordonnee) is None
+
+    cible = tmp_path / "attestation.json"
+    cible.write_bytes(octets)
+    monkeypatch.setattr(
+        sys, "argv", ["provenance", "--check", "--output", str(cible)]
+    )
+    assert module.main() == 1
+
+
+def test_toute_autre_derive_reste_refusee() -> None:
+    """La tolérance porte sur UN champ, pas sur l'attestation entière."""
+    module = _module()
+    publiee = json.loads(ATTESTATION.read_bytes())
+    for champ in ("preflight_sha256", "multilevel_release_sha256", "page_policy_sha256"):
+        derivee = dict(publiee) | {champ: "0" * 64}
+        assert champ in str(module.compare_published(publiee, derivee)), champ
 
 
 def test_l_attestation_lie_toute_la_chaine(attestation: dict) -> None:

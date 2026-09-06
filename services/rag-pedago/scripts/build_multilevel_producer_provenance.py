@@ -215,6 +215,57 @@ def serialize(attestation: dict) -> bytes:
     ).encode("utf-8")
 
 
+#: La seule dimension de l'attestation qui puisse avancer sans que la lignée
+#: change : la version du paquet de contrats. Les scopes attestés y sont des
+#: AJOUTS ; une mineure ultérieure ne retire rien et ne renomme rien.
+_VERSION_FIELD = "contracts_version"
+_SCOPE_FIELD = "scope_registry_sha256"
+
+
+def _version_tuple(value: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in value.split("."))
+
+
+def compare_published(published: dict, rendered: dict) -> str | None:
+    """Dire ce qui a dérivé, ou ``None`` si la lignée est intacte.
+
+    Une attestation fige une PRODUCTION PASSÉE. Le paquet de contrats, lui,
+    continue d'avancer : une mineure additive — un contrat de plus, aucun
+    retiré — ne change ni les octets produits, ni les entrées, ni les scopes
+    liés. Exiger l'égalité stricte du numéro de version ferait invalider une
+    attestation par un changement qui ne la concerne pas, et pousserait à la
+    régénérer — c'est-à-dire à lui faire dire qu'elle a été produite sous une
+    version sous laquelle elle ne l'a pas été.
+
+    La substance, elle, est `scope_registry_sha256` : si le registre de scopes
+    bouge, TOUT doit être ré-attesté. Une version de contrats **supérieure**
+    n'est donc tolérée qu'à registre inchangé, et seulement pour ce champ.
+    """
+    differing = sorted(
+        key
+        for key in set(published) | set(rendered)
+        if published.get(key) != rendered.get(key)
+    )
+    if not differing:
+        return None
+    # Le registre de scopes se juge AVANT le cas général : sinon il figure
+    # dans `differing`, la comparaison générique répond la première et la
+    # branche dédiée devient inatteignable — un refus qui ne sait plus dire
+    # de quoi il est le refus.
+    if _SCOPE_FIELD in differing:
+        return "le registre de scopes a changé : la lignée doit être ré-attestée"
+    if differing != [_VERSION_FIELD]:
+        return f"dérive sur {', '.join(differing)}"
+    ancienne = str(published.get(_VERSION_FIELD, ""))
+    courante = str(rendered.get(_VERSION_FIELD, ""))
+    try:
+        if _version_tuple(courante) < _version_tuple(ancienne):
+            return f"contracts recule de {ancienne} à {courante}"
+    except ValueError:
+        return f"version de contrats illisible : {ancienne!r} -> {courante!r}"
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="comparer sans écrire")
@@ -228,9 +279,27 @@ def main() -> int:
         if not output.is_file():
             print(f"PROVENANCE_ATTESTATION_MISSING={output}", file=sys.stderr)
             return 1
-        if output.read_bytes() != rendered:
-            print("PROVENANCE_ATTESTATION_DRIFT=1", file=sys.stderr)
-            return 1
+        published_bytes = output.read_bytes()
+        if published_bytes != rendered:
+            published = json.loads(published_bytes)
+            # La tolérance porte sur le CONTENU, jamais sur la forme. Des
+            # octets réordonnés ou reformatés disent la même chose et ne
+            # dérivent donc pas sémantiquement — mais l'attestation est un
+            # artefact d'octets : la laisser passer non canonique ferait
+            # « bouger » l'attestation au prochain rendu sans que rien n'ait
+            # changé. On exige d'abord qu'elle soit sa propre sérialisation.
+            if published_bytes != serialize(published):
+                print(
+                    "PROVENANCE_ATTESTATION_DRIFT=1 (attestation non canonique)",
+                    file=sys.stderr,
+                )
+                return 1
+            drift = compare_published(published, json.loads(rendered))
+            if drift is not None:
+                print(f"PROVENANCE_ATTESTATION_DRIFT=1 ({drift})", file=sys.stderr)
+                return 1
+            print("PROVENANCE_ATTESTATION_DRIFT=0 (contracts avancé, lignée intacte)")
+            return 0
         print("PROVENANCE_ATTESTATION_DRIFT=0")
         return 0
 

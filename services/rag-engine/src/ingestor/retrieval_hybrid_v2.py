@@ -204,6 +204,7 @@ class RetrieveFunction(Protocol):
         store: CandidateStore,
         embedder: Embedder,
         reranker: Reranker,
+        diagnostics: ChannelDiagnostics | None = None,
     ) -> list[HybridHit]:
         raise NotImplementedError
 
@@ -421,6 +422,57 @@ def select_mmr(candidates: Sequence[RankedCandidate], top_k: int) -> list[Hybrid
     return hits
 
 
+#: États d'un canal, du point de vue d'un exploitant. `not_run` n'est pas
+#: `empty` : le premier dit que l'étape n'a pas été atteinte, le second
+#: qu'elle a répondu et n'a rien trouvé. Confondre les deux masquerait une
+#: panne derrière un « zéro résultat ».
+ChannelStatus = Literal["not_run", "ok", "empty", "failed"]
+
+
+@dataclass
+class ChannelDiagnostics:
+    """Compte-rendu d'exécution du pipeline, à seule fin d'observabilité.
+
+    Volontairement mutable et volontairement inerte : `retrieve_hybrid` y
+    écrit au fil de l'eau, mais aucune décision de sélection ne le lit. Un
+    enregistreur qui pourrait influencer le résultat ne serait plus un
+    observateur.
+
+    Ne contient aucun texte de requête ni extrait de document — seulement
+    des comptes et des états.
+    """
+
+    embedding_status: ChannelStatus = "not_run"
+    dense_status: ChannelStatus = "not_run"
+    lexical_status: ChannelStatus = "not_run"
+    #: La fusion et la sélection ont leurs propres états. Sans eux, un échec
+    #: de RRF ou de MMR retombait sur le dernier canal exécuté et déclarait
+    #: « lexical failed » alors que lexical avait rendu ses candidats : le
+    #: journal accusait le canal innocent, et l'exploitant cherchait au
+    #: mauvais endroit.
+    fusion_status: ChannelStatus = "not_run"
+    reranker_status: ChannelStatus = "not_run"
+    selection_status: ChannelStatus = "not_run"
+    dense_count: int = 0
+    lexical_count: int = 0
+    candidate_count: int = 0
+    returned_count: int = 0
+
+    def as_mapping(self) -> dict[str, object]:
+        return {
+            "embedding_status": self.embedding_status,
+            "dense_status": self.dense_status,
+            "lexical_status": self.lexical_status,
+            "fusion_status": self.fusion_status,
+            "reranker_status": self.reranker_status,
+            "selection_status": self.selection_status,
+            "dense_count": self.dense_count,
+            "lexical_count": self.lexical_count,
+            "candidate_count": self.candidate_count,
+            "returned_count": self.returned_count,
+        }
+
+
 def retrieve_hybrid(
     query: str,
     collection: str,
@@ -429,6 +481,7 @@ def retrieve_hybrid(
     store: CandidateStore,
     embedder: Embedder,
     reranker: Reranker,
+    diagnostics: ChannelDiagnostics | None = None,
 ) -> list[HybridHit]:
     """Run the canonical fail-closed hybrid retrieval sequence."""
     _require_nonblank(query, "query")
@@ -436,6 +489,10 @@ def retrieve_hybrid(
     if isinstance(top_k, bool) or not isinstance(top_k, int) or not 1 <= top_k <= CHANNEL_LIMIT:
         raise RetrievalPipelineError("invalid top_k")
 
+    recorder = diagnostics if diagnostics is not None else ChannelDiagnostics()
+    #: Étape en cours : la seule chose qui permette d'imputer un échec au
+    #: bon canal plutôt qu'au premier venu.
+    stage = "embedding_status"
     try:
         formatted_query = format_query(query)
         if formatted_query != f"query: {query}":
@@ -443,7 +500,9 @@ def retrieve_hybrid(
         encoded = embedder.encode(formatted_query, normalize_embeddings=True)
         query_vector = tuple(float(component) for component in encoded)
         _require_vector(query_vector)
+        recorder.embedding_status = "ok"
 
+        stage = "dense_status"
         dense = list(
             store.dense(
                 query_vector=query_vector,
@@ -451,6 +510,9 @@ def retrieve_hybrid(
                 limit=CHANNEL_LIMIT,
             )
         )
+        recorder.dense_count = len(dense)
+        recorder.dense_status = "ok" if dense else "empty"
+        stage = "lexical_status"
         lexical = list(
             store.lexical(
                 raw_query=query,
@@ -458,13 +520,29 @@ def retrieve_hybrid(
                 limit=CHANNEL_LIMIT,
             )
         )
+        recorder.lexical_count = len(lexical)
+        recorder.lexical_status = "ok" if lexical else "empty"
+
+        stage = "fusion_status"
         fused = reciprocal_rank_fusion(dense, lexical)
+        recorder.candidate_count = len(fused)
+        recorder.fusion_status = "ok" if fused else "empty"
         if not fused:
+            recorder.reranker_status = "not_run"
+            recorder.selection_status = "not_run"
             return []
 
+        stage = "reranker_status"
         pairs = [(query, item.candidate.text) for item in fused]
         logits = [float(score) for score in reranker.predict(pairs)]
         reranked = rerank_candidates(fused, logits)
-        return select_mmr(reranked, top_k)
+        recorder.reranker_status = "ok" if reranked else "empty"
+
+        stage = "selection_status"
+        hits = select_mmr(reranked, top_k)
+        recorder.returned_count = len(hits)
+        recorder.selection_status = "ok" if hits else "empty"
+        return hits
     except Exception as exc:
+        setattr(recorder, stage, "failed")
         raise RetrievalPipelineError("hybrid retrieval failed") from exc

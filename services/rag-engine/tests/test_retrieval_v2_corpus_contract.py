@@ -304,7 +304,7 @@ def test_search_v2_manifest_mode_uses_resolved_collection_and_returns_identity(
     monkeypatch.setattr(
         endpoint,
         "_retrieve_endpoint_hits",
-        lambda query, collection, top_k, scope: [
+        lambda query, collection, top_k, scope, **_kwargs: [
             _hit()
         ],
     )

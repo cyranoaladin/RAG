@@ -123,6 +123,59 @@ def _wait_pg_isready(port: int, timeout_s: float = 90.0) -> None:
     raise TimeoutError(f"Postgres not ready on port {port} after {timeout_s}s")
 
 
+RAG_MIGRATIONS_DIR = INFRA_ROOT / "postgres" / "migrations"
+
+
+def _rag_migration_files() -> tuple[Path, ...]:
+    """Le manifeste réel, lu depuis le disque et jamais recopié.
+
+    Un test qui recréerait `rag_chunks` à la main prouverait ses invariants
+    contre un schéma inventé pour lui : ce sont les fichiers de migration
+    livrés — et leur ordre — qui font foi."""
+    files = tuple(sorted(RAG_MIGRATIONS_DIR.glob("[0-9][0-9][0-9]_*.sql")))
+    if not files:
+        raise RuntimeError(f"no pgvector migration found in {RAG_MIGRATIONS_DIR}")
+    return files
+
+
+def start_rag_retrieval_postgres(label: str) -> Iterator[dict[str, str]]:
+    """Démarre une instance jetable portant le VRAI schéma de retrieval.
+
+    Même image épinglée que le socle de gouvernance, mêmes migrations que
+    celles appliquées en production (`infra/postgres/migrations/`), donc
+    mêmes colonnes, mêmes contraintes et mêmes index que la base servie.
+    Toujours supprimée à la sortie, même sur échec.
+    """
+    import psycopg
+
+    container_name = f"nexus-{label}-{uuid.uuid4().hex[:10]}"
+    port = free_port()
+    subprocess.run(
+        [
+            "docker", "run", "-d", "--rm",
+            "--name", container_name,
+            "-e", f"POSTGRES_USER={PG_SUPERUSER}",
+            "-e", f"POSTGRES_PASSWORD={PG_SUPERUSER_PASSWORD}",
+            "-e", f"POSTGRES_DB={PG_DB}",
+            "-p", f"{port}:5432",
+            PG_IMAGE,
+        ],
+        check=True, capture_output=True,
+    )
+    try:
+        _wait_pg_isready(port)
+        dsn = (
+            f"host=127.0.0.1 port={port} dbname={PG_DB} "
+            f"user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        with psycopg.connect(dsn, autocommit=True) as connection:
+            for migration in _rag_migration_files():
+                connection.execute(migration.read_text(encoding="utf-8"))  # type: ignore[arg-type]
+        yield {"host": "127.0.0.1", "port": str(port), "dbname": PG_DB, "dsn": dsn}
+    finally:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, check=False)
+
+
 def start_ingestion_control_postgres(label: str) -> Iterator[dict[str, str]]:
     """Démarre, migre et provisionne une instance jetable. Toujours
     supprimée à la sortie, même sur échec."""
@@ -204,6 +257,7 @@ __all__ = [
     "ENGINE_ROOT",
     "MIGRATOR_PASSWORD",
     "PG_DB",
+    "RAG_MIGRATIONS_DIR",
     "PG_SUPERUSER",
     "PG_SUPERUSER_PASSWORD",
     "app_dsn",
@@ -213,5 +267,6 @@ __all__ = [
     "free_port",
     "requires_docker",
     "start_ingestion_control_postgres",
+    "start_rag_retrieval_postgres",
     "superuser_dsn",
 ]

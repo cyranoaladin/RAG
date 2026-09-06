@@ -349,13 +349,21 @@ def _dense(provider: ProviderSpy, **overrides: object) -> Sequence[RetrievalCand
     return PgCandidateStore(provider, SCOPE).dense(**arguments)  # type: ignore[arg-type]
 
 
+#: Filtre de métadonnée absent : deux paramètres NULL, donc un fragment
+#: neutre. Il est CONJOINT au prédicat de placement, jamais alternatif —
+#: c'est pourquoi son absence ne change rien à ce qui est servi.
+NO_METADATA_PARAMS: tuple[object, ...] = (None, None)
+
+
 def _dense_params(
     collection: str = "libre_terminale",
     limit: int = CHANNEL_LIMIT,
+    metadata: tuple[object, ...] = NO_METADATA_PARAMS,
 ) -> tuple[object, ...]:
     return (
         VECTOR_TEXT,
         *_dense_filter_params(collection=collection),
+        *metadata,
         _DENSE_ANN_PROBE_LIMIT,
         *_placement_params(collection=collection),
         _DENSE_ANN_POOL_LIMIT,
@@ -555,7 +563,15 @@ def test_lexical_uses_one_exact_parameterized_french_tsquery() -> None:
     candidates = _lexical(provider)
 
     assert provider.cursor.executions == [
-        (LEXICAL_SQL, ("question brute", *_scope_params(), CHANNEL_LIMIT))
+        (
+            LEXICAL_SQL,
+            (
+                "question brute",
+                *_scope_params(),
+                *NO_METADATA_PARAMS,
+                CHANNEL_LIMIT,
+            ),
+        )
     ]
     assert all("hnsw.iterative_scan" not in sql for sql, _ in provider.cursor.executions)
     assert LEXICAL_SQL.count("plainto_tsquery") == 1
@@ -594,7 +610,12 @@ def test_values_that_look_like_sql_remain_only_in_parameters(channel: str) -> No
             raw_query=malicious_query,
         )
         sql, params = provider.cursor.executions[0]
-        assert params == (malicious_query, *_scope_params(), CHANNEL_LIMIT)
+        assert params == (
+            malicious_query,
+            *_scope_params(),
+            *NO_METADATA_PARAMS,
+            CHANNEL_LIMIT,
+        )
     assert malicious_collection not in sql
     assert "DROP TABLE" not in sql
 
@@ -882,3 +903,63 @@ def test_dense_score_is_the_finite_value_returned_by_one_minus_cosine_distance()
 
     assert candidate.dense_score == score
     assert candidate.lexical_score is None
+
+
+# --- Filtre de métadonnée de chunk : conjoint, jamais alternatif ---
+
+
+def test_le_filtre_de_notion_est_conjoint_au_predicat_de_placement() -> None:
+    """La règle structurelle, lisible dans le SQL livré lui-même.
+
+    Le fragment de métadonnée doit être introduit par un `AND`. Un `OR`
+    suffirait à faire d'une notion correspondante une autorisation, ce que
+    la preuve sur base réelle (`test_c6_…`) refuse également."""
+    from ingestor.retrieval_metadata_v2 import CHUNK_METADATA_FILTER_SQL
+
+    fragment = _normalize_sql(CHUNK_METADATA_FILTER_SQL)
+    for query in (DENSE_SQL, LEXICAL_SQL):
+        assert fragment in query
+        prefix = query.split(fragment, 1)[0]
+        assert prefix.rstrip().endswith("AND"), (
+            "le filtre de métadonnée doit être conjoint au prédicat gouverné"
+        )
+
+
+def test_une_notion_demandee_voyage_uniquement_en_parametre() -> None:
+    from ingestor.retrieval_metadata_v2 import ChunkMetadataFilters
+
+    provider = ProviderSpy([])
+    store = PgCandidateStore(
+        provider,
+        SCOPE,
+        metadata_filters=ChunkMetadataFilters(notions=("recursivite'; DROP TABLE --",)),
+    )
+    store.lexical(raw_query="question brute", collection="libre_terminale", limit=CHANNEL_LIMIT)
+
+    sql, params = provider.cursor.executions[-1]
+    assert "DROP TABLE" not in sql
+    assert params == (
+        "question brute",
+        *_scope_params(),
+        ["recursivite'; DROP TABLE --"],
+        ["recursivite'; DROP TABLE --"],
+        CHANNEL_LIMIT,
+    )
+
+
+def test_le_canal_dense_porte_le_meme_filtre_que_le_canal_lexical() -> None:
+    """Un filtre appliqué d'un seul côté laisserait l'autre canal ouvert."""
+    from ingestor.retrieval_metadata_v2 import ChunkMetadataFilters
+
+    provider = ProviderSpy([])
+    store = PgCandidateStore(
+        provider,
+        SCOPE,
+        metadata_filters=ChunkMetadataFilters(notions=("recursivite",)),
+    )
+    store.dense(query_vector=VECTOR, collection="libre_terminale", limit=CHANNEL_LIMIT)
+
+    assert provider.cursor.executions[-1] == (
+        DENSE_SQL,
+        _dense_params(metadata=(["recursivite"], ["recursivite"])),
+    )

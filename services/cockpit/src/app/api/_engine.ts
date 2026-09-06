@@ -44,6 +44,22 @@ function resolveEngineToken(): string {
   return token
 }
 
+/**
+ * Clé porteuse du client Cockpit, distincte du credential machine.
+ *
+ * Le moteur exige deux secrets sur ses routes métier : `Authorization`
+ * établit que l'appel vient de la façade autorisée, `X-RAG-API-Key` établit
+ * ce que CE client a le droit de faire. Les confondre — ou n'en envoyer
+ * qu'un — effondrerait les deux portes en une.
+ */
+function resolveEngineApiKey(): string {
+  const key = (process.env.RAG_ENGINE_API_KEY || '').trim()
+  if (!key) {
+    throw new Error('Configuration moteur manquante: RAG_ENGINE_API_KEY')
+  }
+  return key
+}
+
 export type EngineEndpoint =
   | '/search/v2'
   | '/catalogue/v2'
@@ -70,11 +86,13 @@ export async function fetchEngine(
   params: EngineFetchParams = {},
 ): Promise<EngineFetchResult> {
   const token = resolveEngineToken()
+  const apiKey = resolveEngineApiKey()
   const headers = new Headers()
   headers.set('Accept', 'application/json')
   headers.set('Content-Type', 'application/json')
 
   headers.set('Authorization', `Bearer ${token}`)
+  headers.set('X-RAG-API-Key', apiKey)
   if (params.identityToken) {
     headers.set('X-Nexus-Identity', params.identityToken)
   }

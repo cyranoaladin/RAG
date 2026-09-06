@@ -30,6 +30,9 @@ défaut dans le dépôt :
 - `NEXUS_INTERNAL_TOKEN_SECRET`, `NEXUS_INTERNAL_TOKEN_ISSUER` et
   `NEXUS_INTERNAL_TOKEN_AUDIENCE` pour le transport cockpit → moteur ;
 - `RAG_ENGINE_INTERNAL_TOKEN` pour l'authentification de service BFF ;
+- `RAG_ENGINE_API_KEY`, la clé porteuse du client Cockpit auprès du moteur ;
+  elle est **distincte** du jeton de service et déclarée dans le registre de
+  clients du moteur, qui n'en connaît que l'empreinte SHA-256 ;
 - `NEXTAUTH_SECRET` pour le JWT de session httpOnly ;
 - `NEXUS_COCKPIT_PUBLIC_ORIGIN`, l'origine publique HTTPS canonique du Cockpit
   (sans credentials, chemin, query ni fragment) ; elle est comparée exactement
@@ -50,6 +53,13 @@ cookie serveur, fixée à 3 600 secondes.
 `RAG_ENGINE_INTERNAL_TOKEN` doit être exactement la valeur configurée comme
 `RAG_BFF_SERVICE_TOKEN` dans `rag-engine`, et rester distinct de tous les
 jetons de rôle humains.
+
+Le moteur exige **deux** credentials sur ses routes métier, et n'accepte aucun
+repli de l'un sur l'autre : `Authorization` établit que l'appel vient de la
+façade autorisée, `X-RAG-API-Key` établit ce que ce client-là a le droit de
+faire. `RAG_ENGINE_API_KEY` porte le second ; son empreinte SHA-256 doit
+figurer dans le registre `RAG_API_CLIENTS_FILE` du moteur avec la portée
+`rag:search`. Sans lui, tout appel BFF est refusé en 401.
 
 Les routes BFF search, chat et collections ne retiennent que les collections
 dont la matière figure dans le profil signé. Elles transmettent l'enveloppe

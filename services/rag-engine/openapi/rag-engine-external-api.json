@@ -1,0 +1,2452 @@
+{
+  "components": {
+    "schemas": {
+      "Candidat": {
+        "enum": [
+          "scolarise",
+          "individuel",
+          "libre",
+          "cned_reglemente",
+          "cned_libre",
+          "aefe",
+          "both"
+        ],
+        "title": "Candidat",
+        "type": "string"
+      },
+      "ChatCitation": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_id": {
+            "minLength": 1,
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "doc_id": {
+            "minLength": 1,
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "rights": {
+            "minLength": 1,
+            "title": "Rights",
+            "type": "string"
+          },
+          "source_label": {
+            "minLength": 1,
+            "title": "Source Label",
+            "type": "string"
+          },
+          "source_uri": {
+            "minLength": 1,
+            "title": "Source Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "doc_id",
+          "source_label",
+          "source_uri",
+          "rights"
+        ],
+        "title": "ChatCitation",
+        "type": "object"
+      },
+      "ChatMessage": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Content",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "system",
+              "user",
+              "assistant"
+            ],
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role",
+          "content"
+        ],
+        "title": "ChatMessage",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "answer_max_chars": {
+            "default": 1800,
+            "maximum": 4000.0,
+            "minimum": 120.0,
+            "title": "Answer Max Chars",
+            "type": "integer"
+          },
+          "collections": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessage"
+            },
+            "title": "History",
+            "type": "array"
+          },
+          "include_retrieval": {
+            "default": true,
+            "title": "Include Retrieval",
+            "type": "boolean"
+          },
+          "query": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          },
+          "student_profile": {
+            "$ref": "#/components/schemas/StudentProfile"
+          },
+          "top_k": {
+            "default": 5,
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "student_profile",
+          "query"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "answer": {
+            "minLength": 1,
+            "title": "Answer",
+            "type": "string"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/ChatCitation"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "grounded": {
+            "default": true,
+            "title": "Grounded",
+            "type": "boolean"
+          },
+          "refusal_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refusal Reason"
+          },
+          "retrieval_hits": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievalResult"
+            },
+            "title": "Retrieval Hits",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "answer"
+        ],
+        "title": "ChatResponse",
+        "type": "object"
+      },
+      "ChunkLocator": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_index": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chunk Index"
+          },
+          "end_char": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Char"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "page_end": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page End"
+          },
+          "page_start": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Start"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "start_char": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Char"
+          }
+        },
+        "title": "ChunkLocator",
+        "type": "object"
+      },
+      "Citation": {
+        "additionalProperties": false,
+        "properties": {
+          "page": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "rights": {
+            "minLength": 1,
+            "title": "Rights",
+            "type": "string"
+          },
+          "source_label": {
+            "minLength": 1,
+            "title": "Source Label",
+            "type": "string"
+          },
+          "source_uri": {
+            "minLength": 1,
+            "title": "Source Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_label",
+          "source_uri",
+          "rights"
+        ],
+        "title": "Citation",
+        "type": "object"
+      },
+      "CorpusChunkBinding": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_id": {
+            "maxLength": 200,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "locator": {
+            "$ref": "#/components/schemas/ChunkLocator"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "locator"
+        ],
+        "title": "CorpusChunkBinding",
+        "type": "object"
+      },
+      "CorpusResourceVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "chunks": {
+            "items": {
+              "$ref": "#/components/schemas/CorpusChunkBinding"
+            },
+            "minItems": 1,
+            "title": "Chunks",
+            "type": "array"
+          },
+          "content_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Content Sha256",
+            "type": "string"
+          },
+          "resource_id": {
+            "format": "uuid",
+            "title": "Resource Id",
+            "type": "string"
+          },
+          "resource_version_id": {
+            "format": "uuid",
+            "title": "Resource Version Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "resource_id",
+          "resource_version_id",
+          "content_sha256",
+          "chunks"
+        ],
+        "title": "CorpusResourceVersion",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Niveau": {
+        "enum": [
+          "quatrieme",
+          "troisieme",
+          "seconde",
+          "premiere",
+          "terminale",
+          "cycle4",
+          "lycee_gt",
+          "voie_generale",
+          "voie_technologique"
+        ],
+        "title": "Niveau",
+        "type": "string"
+      },
+      "RetrievalCurriculumScope": {
+        "additionalProperties": false,
+        "description": "Portée de la preuve pédagogique, distincte de la cible élève.",
+        "properties": {
+          "matiere": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Matiere",
+            "type": "string"
+          },
+          "niveau": {
+            "$ref": "#/components/schemas/Niveau"
+          },
+          "statut_enseignement": {
+            "$ref": "#/components/schemas/StatutEnseignement"
+          },
+          "voie": {
+            "$ref": "#/components/schemas/Voie"
+          }
+        },
+        "required": [
+          "niveau",
+          "voie",
+          "matiere",
+          "statut_enseignement"
+        ],
+        "title": "RetrievalCurriculumScope",
+        "type": "object"
+      },
+      "RetrievalNeed": {
+        "additionalProperties": false,
+        "properties": {
+          "desired_doc_types": {
+            "items": {
+              "$ref": "#/components/schemas/TypeDoc"
+            },
+            "title": "Desired Doc Types",
+            "type": "array"
+          },
+          "difficulty_max": {
+            "anyOf": [
+              {
+                "maximum": 5.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Difficulty Max"
+          },
+          "intent": {
+            "enum": [
+              "remediation",
+              "revision",
+              "exercise",
+              "program",
+              "exam_prep",
+              "context"
+            ],
+            "title": "Intent",
+            "type": "string"
+          },
+          "notions": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notions",
+            "type": "array"
+          },
+          "query": {
+            "minLength": 1,
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "query"
+        ],
+        "title": "RetrievalNeed",
+        "type": "object"
+      },
+      "RetrievalOptions": {
+        "additionalProperties": false,
+        "properties": {
+          "hybrid": {
+            "default": true,
+            "title": "Hybrid",
+            "type": "boolean"
+          },
+          "include_citations": {
+            "default": true,
+            "title": "Include Citations",
+            "type": "boolean"
+          },
+          "k": {
+            "default": 8,
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "K",
+            "type": "integer"
+          },
+          "rerank": {
+            "default": true,
+            "title": "Rerank",
+            "type": "boolean"
+          }
+        },
+        "title": "RetrievalOptions",
+        "type": "object"
+      },
+      "RetrievalRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "corpus_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Id"
+          },
+          "corpus_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Version Id"
+          },
+          "curriculum_scope": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetrievalCurriculumScope"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manifest Sha256"
+          },
+          "need": {
+            "$ref": "#/components/schemas/RetrievalNeed"
+          },
+          "retrieval": {
+            "$ref": "#/components/schemas/RetrievalOptions"
+          },
+          "student_profile": {
+            "$ref": "#/components/schemas/StudentProfile"
+          }
+        },
+        "required": [
+          "student_profile",
+          "need"
+        ],
+        "title": "RetrievalRequest",
+        "type": "object"
+      },
+      "RetrievalResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "filters_applied": {
+            "title": "Filters Applied",
+            "type": "object"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievalResult"
+            },
+            "title": "Results",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "title": "RetrievalResponse",
+        "type": "object"
+      },
+      "RetrievalResult": {
+        "additionalProperties": false,
+        "properties": {
+          "chunk_id": {
+            "minLength": 1,
+            "title": "Chunk Id",
+            "type": "string"
+          },
+          "citation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Citation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "content_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content Sha256"
+          },
+          "corpus_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Id"
+          },
+          "corpus_version_id": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9_.:-]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Corpus Version Id"
+          },
+          "doc_id": {
+            "minLength": 1,
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "excerpt": {
+            "minLength": 1,
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "locator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChunkLocator"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest_sha256": {
+            "anyOf": [
+              {
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Manifest Sha256"
+          },
+          "metadata": {
+            "title": "Metadata",
+            "type": "object"
+          },
+          "resource_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Id"
+          },
+          "resource_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resource Version Id"
+          },
+          "score": {
+            "minimum": 0.0,
+            "title": "Score",
+            "type": "number"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "required": [
+          "chunk_id",
+          "doc_id",
+          "score",
+          "excerpt"
+        ],
+        "title": "RetrievalResult",
+        "type": "object"
+      },
+      "RetrievalScopeArtifactV3": {
+        "additionalProperties": false,
+        "description": "ARIA scope separating target authorization from indexed evidence.",
+        "properties": {
+          "artifact_version": {
+            "const": "3",
+            "enum": [
+              "3"
+            ],
+            "title": "Artifact Version",
+            "type": "string"
+          },
+          "evidence_subject": {
+            "$ref": "#/components/schemas/RetrievalScopeEvidenceSubject"
+          },
+          "scope_id": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Scope Id",
+            "type": "string"
+          },
+          "source_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Sha256",
+            "type": "string"
+          },
+          "status": {
+            "const": "eligible_for_promotion",
+            "enum": [
+              "eligible_for_promotion"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "target_policy": {
+            "$ref": "#/components/schemas/RetrievalScopeTargetPolicy"
+          }
+        },
+        "required": [
+          "artifact_version",
+          "scope_id",
+          "status",
+          "source_sha256",
+          "target_policy",
+          "evidence_subject"
+        ],
+        "title": "RetrievalScopeArtifactV3",
+        "type": "object"
+      },
+      "RetrievalScopeEvidenceSubject": {
+        "additionalProperties": false,
+        "description": "Dimensions SQL autoritatives de la preuve curriculaire V2.",
+        "properties": {
+          "audiences": {
+            "items": {
+              "enum": [
+                "libre",
+                "aefe",
+                "tous"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Audiences",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "candidat": {
+            "$ref": "#/components/schemas/Candidat"
+          },
+          "collection": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Collection",
+            "type": "string"
+          },
+          "matiere": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Matiere",
+            "type": "string"
+          },
+          "niveau": {
+            "$ref": "#/components/schemas/Niveau"
+          },
+          "programme_version": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Programme Version",
+            "type": "string"
+          },
+          "rights": {
+            "items": {
+              "$ref": "#/components/schemas/Rights"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Rights",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "school_year": {
+            "pattern": "^\\d{4}-\\d{4}$",
+            "title": "School Year",
+            "type": "string"
+          },
+          "statut_enseignement": {
+            "$ref": "#/components/schemas/StatutEnseignement"
+          },
+          "tenant": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Tenant",
+            "type": "string"
+          },
+          "visibility": {
+            "enum": [
+              "public",
+              "internal",
+              "restricted",
+              "private"
+            ],
+            "title": "Visibility",
+            "type": "string"
+          },
+          "voie": {
+            "$ref": "#/components/schemas/Voie"
+          }
+        },
+        "required": [
+          "collection",
+          "tenant",
+          "niveau",
+          "voie",
+          "matiere",
+          "statut_enseignement",
+          "candidat",
+          "audiences",
+          "visibility",
+          "rights",
+          "school_year",
+          "programme_version"
+        ],
+        "title": "RetrievalScopeEvidenceSubject",
+        "type": "object"
+      },
+      "RetrievalScopeTargetPolicy": {
+        "additionalProperties": false,
+        "description": "Non-personal ARIA audience policy, separate from corpus evidence.",
+        "properties": {
+          "audiences": {
+            "items": {
+              "enum": [
+                "libre",
+                "aefe",
+                "tous"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Audiences",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidat"
+            },
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Candidates",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "matiere": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Matiere",
+            "type": "string"
+          },
+          "niveau": {
+            "$ref": "#/components/schemas/Niveau"
+          },
+          "roles": {
+            "items": {
+              "enum": [
+                "student",
+                "teacher",
+                "admin",
+                "ingest_agent",
+                "reviewer"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "minItems": 1,
+            "title": "Roles",
+            "type": "array",
+            "uniqueItems": true
+          },
+          "statut_enseignement": {
+            "$ref": "#/components/schemas/StatutEnseignement"
+          },
+          "tenant": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Tenant",
+            "type": "string"
+          },
+          "voie": {
+            "$ref": "#/components/schemas/Voie"
+          }
+        },
+        "required": [
+          "tenant",
+          "niveau",
+          "voie",
+          "matiere",
+          "statut_enseignement",
+          "audiences",
+          "candidates",
+          "roles"
+        ],
+        "title": "RetrievalScopeTargetPolicy",
+        "type": "object"
+      },
+      "ReviewDecisionRequest": {
+        "additionalProperties": false,
+        "description": "Décision BFF vers moteur enrichie du tenant signé.",
+        "properties": {
+          "collection": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^[a-z0-9_]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collection"
+          },
+          "decision": {
+            "enum": [
+              "reviewed",
+              "quarantined"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "target_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "default": "doc",
+            "enum": [
+              "doc",
+              "chunk"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          },
+          "tenant": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Tenant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_id",
+          "decision",
+          "tenant"
+        ],
+        "title": "ReviewDecisionRequest",
+        "type": "object"
+      },
+      "ReviewDecisionResponse": {
+        "additionalProperties": false,
+        "description": "Résultat borné d'une décision de review.",
+        "properties": {
+          "cache_invalidated_this_worker": {
+            "title": "Cache Invalidated This Worker",
+            "type": "boolean"
+          },
+          "chunks_affected": {
+            "minimum": 1.0,
+            "title": "Chunks Affected",
+            "type": "integer"
+          },
+          "decision": {
+            "enum": [
+              "reviewed",
+              "quarantined"
+            ],
+            "title": "Decision",
+            "type": "string"
+          },
+          "max_stale_other_workers_s": {
+            "const": 0,
+            "enum": [
+              0
+            ],
+            "title": "Max Stale Other Workers S",
+            "type": "integer"
+          },
+          "target_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Target Id",
+            "type": "string"
+          },
+          "target_type": {
+            "enum": [
+              "doc",
+              "chunk"
+            ],
+            "title": "Target Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target_type",
+          "target_id",
+          "decision",
+          "chunks_affected",
+          "cache_invalidated_this_worker",
+          "max_stale_other_workers_s"
+        ],
+        "title": "ReviewDecisionResponse",
+        "type": "object"
+      },
+      "ReviewQueueDocument": {
+        "additionalProperties": false,
+        "description": "Document en attente exposé par la file de review.",
+        "properties": {
+          "chunk_count": {
+            "minimum": 1.0,
+            "title": "Chunk Count",
+            "type": "integer"
+          },
+          "collection": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Collection",
+            "type": "string"
+          },
+          "doc_id": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Doc Id",
+            "type": "string"
+          },
+          "first_indexed": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Indexed"
+          },
+          "last_indexed": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Indexed"
+          },
+          "rights": {
+            "title": "Rights",
+            "type": "string"
+          },
+          "source_kind": {
+            "title": "Source Kind",
+            "type": "string"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          },
+          "type_doc": {
+            "title": "Type Doc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "doc_id",
+          "collection",
+          "source_label",
+          "source_uri",
+          "rights",
+          "source_kind",
+          "type_doc",
+          "chunk_count",
+          "first_indexed",
+          "last_indexed"
+        ],
+        "title": "ReviewQueueDocument",
+        "type": "object"
+      },
+      "ReviewQueueResponse": {
+        "additionalProperties": false,
+        "description": "Page de documents en attente retournée par le moteur.",
+        "properties": {
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewQueueDocument"
+            },
+            "title": "Documents",
+            "type": "array"
+          },
+          "offset": {
+            "minimum": 0.0,
+            "title": "Offset",
+            "type": "integer"
+          },
+          "returned": {
+            "minimum": 0.0,
+            "title": "Returned",
+            "type": "integer"
+          },
+          "total_pending_docs": {
+            "minimum": 0.0,
+            "title": "Total Pending Docs",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total_pending_docs",
+          "returned",
+          "offset",
+          "documents"
+        ],
+        "title": "ReviewQueueResponse",
+        "type": "object"
+      },
+      "Rights": {
+        "enum": [
+          "officiel_public",
+          "public_allowed",
+          "nexus_proprietaire",
+          "usage_interne",
+          "student_private",
+          "parent_private",
+          "commercial_confidential",
+          "restricted",
+          "unknown"
+        ],
+        "title": "Rights",
+        "type": "string"
+      },
+      "ServableCorpus": {
+        "additionalProperties": false,
+        "properties": {
+          "academic_year": {
+            "pattern": "^\\d{4}-\\d{4}$",
+            "title": "Academic Year",
+            "type": "string"
+          },
+          "corpus_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Corpus Id",
+            "type": "string"
+          },
+          "corpus_version_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Corpus Version Id",
+            "type": "string"
+          },
+          "curriculum_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Curriculum Version",
+            "type": "string"
+          },
+          "physical_collection": {
+            "maxLength": 128,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Physical Collection",
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/CorpusResourceVersion"
+            },
+            "minItems": 1,
+            "title": "Resources",
+            "type": "array"
+          },
+          "retrieval_scope": {
+            "$ref": "#/components/schemas/RetrievalScopeArtifactV3"
+          }
+        },
+        "required": [
+          "corpus_id",
+          "corpus_version_id",
+          "academic_year",
+          "curriculum_version",
+          "physical_collection",
+          "retrieval_scope",
+          "resources"
+        ],
+        "title": "ServableCorpus",
+        "type": "object"
+      },
+      "ServableCorpusIndex": {
+        "additionalProperties": false,
+        "properties": {
+          "active_manifest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Active Manifest Sha256",
+            "type": "string"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "index_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Index Sha256",
+            "type": "string"
+          },
+          "producer_commit": {
+            "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+            "title": "Producer Commit",
+            "type": "string"
+          },
+          "producer_repository": {
+            "maxLength": 200,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "title": "Producer Repository",
+            "type": "string"
+          },
+          "protocol_version": {
+            "const": "1",
+            "enum": [
+              "1"
+            ],
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "resource_registry_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Resource Registry Sha256",
+            "type": "string"
+          },
+          "supported_manifests": {
+            "items": {
+              "$ref": "#/components/schemas/SupportedManifest"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "title": "Supported Manifests",
+            "type": "array"
+          }
+        },
+        "required": [
+          "protocol_version",
+          "producer_repository",
+          "producer_commit",
+          "generated_at",
+          "resource_registry_sha256",
+          "active_manifest_sha256",
+          "supported_manifests",
+          "index_sha256"
+        ],
+        "title": "ServableCorpusIndex",
+        "type": "object"
+      },
+      "ServableCorpusManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "corpora": {
+            "items": {
+              "$ref": "#/components/schemas/ServableCorpus"
+            },
+            "minItems": 1,
+            "title": "Corpora",
+            "type": "array"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "manifest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Manifest Sha256",
+            "type": "string"
+          },
+          "manifest_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Manifest Version",
+            "type": "string"
+          },
+          "producer_commit": {
+            "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$",
+            "title": "Producer Commit",
+            "type": "string"
+          },
+          "producer_repository": {
+            "maxLength": 200,
+            "minLength": 3,
+            "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+            "title": "Producer Repository",
+            "type": "string"
+          },
+          "protocol_version": {
+            "const": "1",
+            "enum": [
+              "1"
+            ],
+            "title": "Protocol Version",
+            "type": "string"
+          },
+          "resource_registry_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Resource Registry Sha256",
+            "type": "string"
+          },
+          "resource_registry_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Resource Registry Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "protocol_version",
+          "manifest_version",
+          "resource_registry_version",
+          "resource_registry_sha256",
+          "producer_repository",
+          "producer_commit",
+          "generated_at",
+          "corpora",
+          "manifest_sha256"
+        ],
+        "title": "ServableCorpusManifest",
+        "type": "object"
+      },
+      "StatusDetail": {
+        "enum": [
+          "aefe",
+          "systeme_francais_hors_aefe",
+          "systeme_tunisien",
+          "double_cursus",
+          "candidat_libre",
+          "cned_reglemente",
+          "cned_libre",
+          "unknown"
+        ],
+        "title": "StatusDetail",
+        "type": "string"
+      },
+      "StatutEnseignement": {
+        "enum": [
+          "tronc_commun",
+          "enseignement_commun",
+          "specialite",
+          "eds",
+          "option",
+          "maths_complementaires",
+          "maths_expertes",
+          "snt",
+          "enseignement_scientifique",
+          "emc",
+          "atelier",
+          "stage",
+          "remediation",
+          "examen",
+          "unknown"
+        ],
+        "title": "StatutEnseignement",
+        "type": "string"
+      },
+      "StudentProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "availability": {
+            "title": "Availability",
+            "type": "object"
+          },
+          "candidat": {
+            "$ref": "#/components/schemas/Candidat"
+          },
+          "candidate_status_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Status Ref"
+          },
+          "establishment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Establishment"
+          },
+          "matieres": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Matieres",
+            "type": "array"
+          },
+          "needs": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Needs",
+            "type": "array"
+          },
+          "nexus_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nexus Group Id"
+          },
+          "nexus_offer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nexus Offer"
+          },
+          "niveau": {
+            "$ref": "#/components/schemas/Niveau"
+          },
+          "objective": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Objective"
+          },
+          "official_level_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Official Level Ref"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Options",
+            "type": "array"
+          },
+          "risk_level": {
+            "anyOf": [
+              {
+                "enum": [
+                  "low",
+                  "medium",
+                  "high",
+                  "critical"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Level"
+          },
+          "school_calendar_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "School Calendar Zone"
+          },
+          "school_year": {
+            "pattern": "^\\d{4}-\\d{4}$",
+            "title": "School Year",
+            "type": "string"
+          },
+          "specialites": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Specialites",
+            "type": "array"
+          },
+          "status_detail": {
+            "$ref": "#/components/schemas/StatusDetail",
+            "default": "unknown"
+          },
+          "statut_enseignement": {
+            "$ref": "#/components/schemas/StatutEnseignement"
+          },
+          "student_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Student Id"
+          },
+          "target_pathway": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Pathway"
+          },
+          "teacher_confirmed": {
+            "default": false,
+            "title": "Teacher Confirmed",
+            "type": "boolean"
+          },
+          "voie": {
+            "$ref": "#/components/schemas/Voie"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "zone": {
+            "minLength": 1,
+            "title": "Zone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "niveau",
+          "voie",
+          "matieres",
+          "statut_enseignement",
+          "candidat",
+          "school_year",
+          "zone"
+        ],
+        "title": "StudentProfile",
+        "type": "object"
+      },
+      "SupportedManifest": {
+        "additionalProperties": false,
+        "properties": {
+          "manifest_sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Manifest Sha256",
+            "type": "string"
+          },
+          "manifest_version": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.:-]+$",
+            "title": "Manifest Version",
+            "type": "string"
+          },
+          "retire_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retire At"
+          }
+        },
+        "required": [
+          "manifest_version",
+          "manifest_sha256",
+          "retire_at"
+        ],
+        "title": "SupportedManifest",
+        "type": "object"
+      },
+      "TaxonomyCollectionV2": {
+        "additionalProperties": false,
+        "description": "Une collection servable, telle que le scope serveur la dérive.",
+        "properties": {
+          "collection": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Collection",
+            "type": "string"
+          },
+          "matiere": {
+            "maxLength": 100,
+            "minLength": 1,
+            "pattern": "^[a-z0-9_]+$",
+            "title": "Matiere",
+            "type": "string"
+          },
+          "niveau": {
+            "$ref": "#/components/schemas/Niveau"
+          },
+          "programme_version": {
+            "minLength": 1,
+            "title": "Programme Version",
+            "type": "string"
+          },
+          "school_year": {
+            "minLength": 1,
+            "title": "School Year",
+            "type": "string"
+          },
+          "statut_enseignement": {
+            "$ref": "#/components/schemas/StatutEnseignement"
+          },
+          "voie": {
+            "$ref": "#/components/schemas/Voie"
+          }
+        },
+        "required": [
+          "collection",
+          "matiere",
+          "niveau",
+          "voie",
+          "statut_enseignement",
+          "programme_version",
+          "school_year"
+        ],
+        "title": "TaxonomyCollectionV2",
+        "type": "object"
+      },
+      "TaxonomyDimensionsV2": {
+        "additionalProperties": false,
+        "description": "Valeurs distinctes des dimensions, dans l'ordre d'apparition.\n\nL'ordre est un engagement : deux appels identiques rendent la même\nréponse, ce qu'un ensemble ne garantirait pas.",
+        "properties": {
+          "matiere": {
+            "items": {
+              "maxLength": 100,
+              "minLength": 1,
+              "pattern": "^[a-z0-9_]+$",
+              "type": "string"
+            },
+            "title": "Matiere",
+            "type": "array"
+          },
+          "niveau": {
+            "items": {
+              "$ref": "#/components/schemas/Niveau"
+            },
+            "title": "Niveau",
+            "type": "array"
+          },
+          "programme_version": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Programme Version",
+            "type": "array"
+          },
+          "school_year": {
+            "items": {
+              "type": "string"
+            },
+            "title": "School Year",
+            "type": "array"
+          },
+          "statut_enseignement": {
+            "items": {
+              "$ref": "#/components/schemas/StatutEnseignement"
+            },
+            "title": "Statut Enseignement",
+            "type": "array"
+          },
+          "voie": {
+            "items": {
+              "$ref": "#/components/schemas/Voie"
+            },
+            "title": "Voie",
+            "type": "array"
+          }
+        },
+        "title": "TaxonomyDimensionsV2",
+        "type": "object"
+      },
+      "TaxonomyV2Response": {
+        "additionalProperties": false,
+        "description": "Réponse de `GET /taxonomy/v2` — les dimensions servables ET autorisées.",
+        "properties": {
+          "collections": {
+            "items": {
+              "$ref": "#/components/schemas/TaxonomyCollectionV2"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "dimensions": {
+            "$ref": "#/components/schemas/TaxonomyDimensionsV2"
+          },
+          "version": {
+            "const": 2,
+            "default": 2,
+            "enum": [
+              2
+            ],
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "title": "TaxonomyV2Response",
+        "type": "object"
+      },
+      "TypeDoc": {
+        "enum": [
+          "programme_officiel",
+          "ressource_officielle",
+          "cours",
+          "fiche_synthese",
+          "fiche_methode",
+          "td",
+          "tp",
+          "exercice",
+          "exercice_corrige",
+          "devoir",
+          "devoir_corrige",
+          "evaluation",
+          "evaluation_corrigee",
+          "bac_blanc",
+          "brevet_blanc",
+          "annale",
+          "sujet_zero",
+          "corrige",
+          "bareme",
+          "grille_evaluation",
+          "grille_grand_oral",
+          "oral",
+          "diaporama",
+          "latex",
+          "notebook",
+          "code",
+          "image",
+          "scan",
+          "copie",
+          "rapport",
+          "referentiel",
+          "modalite_examen",
+          "autre"
+        ],
+        "title": "TypeDoc",
+        "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "Voie": {
+        "enum": [
+          "college",
+          "generale",
+          "technologique",
+          "professionnelle",
+          "aefe",
+          "unknown"
+        ],
+        "title": "Voie",
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "bffServiceToken": {
+        "description": "Credential machine de la façade autorisée (`Authorization: Bearer <RAG_BFF_SERVICE_TOKEN>`). Il établit d'où vient l'appel, jamais ce que l'appelant a le droit de faire.",
+        "scheme": "bearer",
+        "type": "http"
+      },
+      "nexusSignedIdentity": {
+        "description": "Jeton d'identité signé émis par le SSO. Il transporte la portée de retrieval (tenant, niveau, matière, droits) que ni le credential machine ni la clé de client ne portent.",
+        "in": "header",
+        "name": "X-Nexus-Identity",
+        "type": "apiKey"
+      },
+      "ragApiKey": {
+        "description": "Clé porteuse du client, portée par le registre de clients du déploiement. Elle établit ce que CE client a le droit de faire. Aucun repli sur `Authorization` : les deux sont exigés.",
+        "in": "header",
+        "name": "X-RAG-API-Key",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Nexus RAG Engine v2",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/catalogue/v2": {
+      "get": {
+        "description": "Full catalogue — all declared collections with status flags.\n\nRéservé au BFF et aux rôles humains signés autorisés. STUDENT est exclu,\ncar ce catalogue expose des détails de gouvernance.",
+        "operationId": "get_full_catalogue_catalogue_v2_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Full Catalogue Catalogue V2 Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
+        "summary": "Get Full Catalogue",
+        "tags": [
+          "retrieval_v2"
+        ]
+      }
+    },
+    "/chat": {
+      "post": {
+        "description": "Retrieve reviewed evidence while generation remains governance-locked.",
+        "operationId": "chat_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
+        "summary": "Chat",
+        "tags": [
+          "retrieval_v2"
+        ]
+      }
+    },
+    "/collections/readiness": {
+      "get": {
+        "description": "Expose signed-scope diagnostics while LOT41 remains release-closed.",
+        "operationId": "get_collection_readiness_collections_readiness_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Get Collection Readiness Collections Readiness Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
+        "summary": "Get Collection Readiness",
+        "tags": [
+          "retrieval_v2"
+        ]
+      }
+    },
+    "/collections/v2": {
+      "get": {
+        "description": "Return only collections authorized by the signed BFF identity.",
+        "operationId": "list_retrievable_collections_collections_v2_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response List Retrievable Collections Collections V2 Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
+        "summary": "List Retrievable Collections",
+        "tags": [
+          "retrieval_v2"
+        ]
+      }
+    },
+    "/corpora/servable/v1": {
+      "get": {
+        "operationId": "get_servable_corpus_index_corpora_servable_v1_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServableCorpusIndex"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:read-source"
+            ]
+          }
+        ],
+        "summary": "Get Servable Corpus Index",
+        "tags": [
+          "servable_corpus"
+        ]
+      }
+    },
+    "/corpora/servable/v1/{manifest_sha256}": {
+      "get": {
+        "operationId": "get_servable_corpus_manifest_corpora_servable_v1__manifest_sha256__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "manifest_sha256",
+            "required": true,
+            "schema": {
+              "title": "Manifest Sha256",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServableCorpusManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:read-source"
+            ]
+          }
+        ],
+        "summary": "Get Servable Corpus Manifest",
+        "tags": [
+          "servable_corpus"
+        ]
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "integer"
+                      }
+                    ]
+                  },
+                  "title": "Response Health Check Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health Check"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "operationId": "metrics_metrics_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Metrics"
+      }
+    },
+    "/review/v2/decide": {
+      "post": {
+        "description": "Promouvoir `needs_review` ou révoquer vers `quarantined`.",
+        "operationId": "review_decide_review_v2_decide_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewDecisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:admin"
+            ]
+          }
+        ],
+        "summary": "Review Decide",
+        "tags": [
+          "review_v2"
+        ]
+      }
+    },
+    "/review/v2/queue": {
+      "get": {
+        "description": "Lister uniquement les documents `needs_review` du scope signé.",
+        "operationId": "list_queue_review_v2_queue_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "collection",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "minLength": 1,
+                  "pattern": "^[a-z0-9_]+$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Collection"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 500,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewQueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "ragApiKey": [
+              "rag:admin"
+            ]
+          }
+        ],
+        "summary": "List Queue",
+        "tags": [
+          "review_v2"
+        ]
+      }
+    },
+    "/search/v2": {
+      "post": {
+        "description": "Retrieval v2 gouverné, avec journal d'accès sur toutes les issues.",
+        "operationId": "search_v2_search_v2_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetrievalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetrievalResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
+        "summary": "Search V2",
+        "tags": [
+          "retrieval_v2"
+        ]
+      }
+    },
+    "/taxonomy/v2": {
+      "get": {
+        "description": "Dimensions réellement servables ET autorisées pour l'appelant.\n\nUne collection signée mais non retrievable n'est pas annoncée : publier\nune dimension qu'on refusera de servir induirait l'appelant en erreur.\n\nCette vue n'expose aucune donnée de gouvernance (empreinte de scope,\nidentifiant d'artefact, visibilité interne) : ce sont les dimensions du\ncatalogue pédagogique, rien d'autre. Sa forme est le contrat partagé\n`TaxonomyV2Response` (ADR-0049), jamais un dictionnaire libre : un agent\nextérieur doit pouvoir générer son client depuis le schéma.",
+        "operationId": "get_taxonomy_taxonomy_v2_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaxonomyV2Response"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "bffServiceToken": [],
+            "nexusSignedIdentity": [],
+            "ragApiKey": [
+              "rag:search"
+            ]
+          }
+        ],
+        "summary": "Get Taxonomy",
+        "tags": [
+          "retrieval_v2"
+        ]
+      }
+    }
+  }
+}

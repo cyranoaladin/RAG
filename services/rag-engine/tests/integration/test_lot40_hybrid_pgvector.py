@@ -45,6 +45,7 @@ from ingestor.retrieval_hybrid_v2 import (
     RetrievalPipelineError,
     retrieve_hybrid,
 )
+from ingestor.retrieval_metadata_v2 import chunk_metadata_filter_params
 from ingestor.retrieval_pg_v2 import (
     _DENSE_ANN_POOL_LIMIT,
     _DENSE_ANN_PROBE_LIMIT,
@@ -964,7 +965,16 @@ def _assert_gin_plan(connection: psycopg.Connection[Any]) -> None:
     plan = _plan_lines(
         connection,
         _LEXICAL_SQL,
-        (QUERY, *_scope_sql_params(TARGET_COLLECTION), 50),
+        (
+            QUERY,
+            *_scope_sql_params(TARGET_COLLECTION),
+            # Ordre imposé par PgCandidateStore.lexical : le fragment de
+            # restriction pédagogique s'intercale entre la portée et la borne.
+            # Il est lu du module, jamais recopié : une place de plus dans le
+            # SQL sans une place de plus ici rendrait ce banc muet.
+            *chunk_metadata_filter_params(None),
+            50,
+        ),
     )
     if "idx_rag_chunks_text_tsv" not in plan:
         raise AssertionError(plan)
@@ -976,9 +986,11 @@ def _assert_ids(actual: Sequence[str], expected: Sequence[str]) -> None:
 
 
 def _dense_params(collection: str) -> tuple[object, ...]:
+    """Les paramètres de ``_DENSE_SQL``, dans l'ordre de PgCandidateStore.dense."""
     return (
         QUERY_VECTOR_TEXT,
         *_dense_filter_sql_params(collection),
+        *chunk_metadata_filter_params(None),
         _DENSE_ANN_PROBE_LIMIT,
         *_placement_scope_sql_params(collection),
         _DENSE_ANN_POOL_LIMIT,
@@ -2042,8 +2054,29 @@ def test_runtime_blocks_review_update_while_trigger_drift_is_detected(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    # Les deux credentials du contrat externe : celui de la façade
+    # (`Authorization`) et celui du client porteur (`X-RAG-API-Key`). Sans le
+    # second, la porte de portée refuse en 503 avant même d'atteindre la
+    # dérive de trigger que ce banc mesure — et le banc ne mesurerait plus
+    # rien.
+    admin_api_key = "lot41u-runtime-admin-api-key-32-bytes"
     target = "doc-pending-000"
     monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv(
+        "RAG_API_CLIENTS",
+        json.dumps(
+            [
+                {
+                    "client_id": "lot41u-runtime-admin",
+                    "token_sha256": hashlib.sha256(
+                        admin_api_key.encode("utf-8")
+                    ).hexdigest(),
+                    "scopes": ["rag:admin"],
+                }
+            ]
+        ),
+    )
+    monkeypatch.delenv("RAG_API_CLIENTS_FILE", raising=False)
     monkeypatch.setenv("PG_RAG_DSN", APP_DSN)
     monkeypatch.setenv("PG_REVIEW_DSN", REVIEW_DSN)
     monkeypatch.setattr(
@@ -2091,7 +2124,10 @@ def test_runtime_blocks_review_update_while_trigger_drift_is_detected(
 
         response = TestClient(runtime_api.app).post(
             "/review/v2/decide",
-            headers={"Authorization": f"Bearer {service_token}"},
+            headers={
+                "Authorization": f"Bearer {service_token}",
+                "X-RAG-API-Key": admin_api_key,
+            },
             json={
                 "target_type": "doc",
                 "target_id": target,
@@ -2694,9 +2730,12 @@ def test_signed_identity_to_http_scope_and_real_database_is_end_to_end(
         collection: str,
         k: int,
         scope: ServerRetrievalScope,
+        **options: Any,
     ) -> list[endpoint.SearchV2Hit]:
+        # `**options` suit la signature réelle sans la recopier : le double
+        # comptait les appels, il ne doit pas décider de leur forme.
         retrieval_calls.append(collection)
-        return real_endpoint_hits(query, collection, k, scope)
+        return real_endpoint_hits(query, collection, k, scope, **options)
 
     monkeypatch.setattr(endpoint, "_retrieve_endpoint_hits", counted_endpoint_hits)
     identity_token = _signed_identity_token()

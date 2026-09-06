@@ -81,6 +81,11 @@ jobs:
     # construisent l'image du worker, la lancent, montent leurs propres
     # conteneurs PostgreSQL/pgvector et exercent `docker compose`.
     #
+    # S'y ajoute le démarrage de l'image v2 servie : une allowlist de `COPY`
+    # tenue à la main ne se trompe jamais pendant le développement — le module
+    # manquant s'importe depuis le checkout hôte — et l'`ImportError` n'arrive
+    # qu'une fois l'image construite, c'est-à-dire en production.
+    #
     # Aucun autre job ne les couvrait : `make test` les exclut
     # (`-m "not integration"`), `test-governance-pg` a un périmètre nommé qui
     # ne les contient pas, et `test-integration-hybrid` n'en prend que deux
@@ -112,7 +117,8 @@ jobs:
             tests/integration/test_lot41a_worker_enforcement.py \
             tests/integration/test_lot44f_ingestion_up_failure.py \
             tests/integration/test_lot44f_worker_attestation.py \
-            tests/integration/test_lot44f_worker_resume.py
+            tests/integration/test_lot44f_worker_resume.py \
+            tests/integration/test_ingestor_v2_image_boot.py
       - name: Assert no test container survived
         if: always()
         # `comm -13` ne signale que les conteneurs AJOUTÉS. `diff` signalait

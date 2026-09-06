@@ -100,7 +100,8 @@ test-governance-pg: install
 	    tests/integration/test_lot44f_migration_upgrade_paths.py \
 	    tests/integration/test_lot44f_rollback_runner.py \
 	    tests/integration/test_resource_registry_bootstrap_inventory_pg.py \
-	    tests/integration/test_lot44e_worker_e2e.py
+	    tests/integration/test_lot44e_worker_e2e.py \
+	    tests/integration/test_c6_chunk_metadata_filters_never_widen_placement.py
 
 export-resource-registry-bootstrap: install
 	@: "$${NEXUS_RESOURCE_EXPORT_DSN:?NEXUS_RESOURCE_EXPORT_DSN is required}"

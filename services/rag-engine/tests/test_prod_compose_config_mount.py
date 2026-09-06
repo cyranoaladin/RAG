@@ -248,6 +248,57 @@ def test_v2_compose_mounts_exact_release_registry_authority_read_only() -> None:
     assert (resolved / "multilevel" / "multilevel.release.json").is_file()
 
 
+def test_v2_compose_injects_exactly_one_api_client_registry_authority() -> None:
+    """Une seule autorité gouverne le registre de clients — jamais zéro, jamais deux.
+
+    `load_api_clients()` refuse les deux sources ensemble et refuse l'absence
+    des deux ; il est appelé dans le lifespan, donc un Compose qui n'en passe
+    aucune fait échouer le démarrage avant tout trafic. Ce banc mesure que le
+    Compose canonique en passe exactement une, et que le fichier monté est
+    bien celui que la variable désigne.
+    """
+    compose = _load_compose(V2_COMPOSE_PATH)
+    service = compose["services"]["ingestor"]
+    configured = _environment_variables(service["environment"])
+
+    sources = {
+        name
+        for name in ("RAG_API_CLIENTS", "RAG_API_CLIENTS_FILE")
+        if name in configured
+    }
+    assert sources == {"RAG_API_CLIENTS_FILE"}, (
+        "exactement une autorité de registre doit être passée au conteneur ; "
+        f"observé : {sorted(sources)}"
+    )
+    mount_point = configured["RAG_API_CLIENTS_FILE"]
+    assert mount_point == "/app/api-clients/api-clients.json"
+
+    registry_mounts = [
+        volume
+        for volume in service["volumes"]
+        if isinstance(volume, str) and f":{mount_point}:" in volume
+    ]
+    assert len(registry_mounts) == 1, registry_mounts
+    source = registry_mounts[0].rsplit(":", 2)[0]
+    assert _compose_env_ref_is_valid(source, "RAG_API_CLIENTS_HOST_FILE")
+    assert "${RAG_API_CLIENTS_HOST_FILE:?" in source, (
+        "sans `:?`, Docker fabriquerait un répertoire vide et le refus "
+        "arriverait après le démarrage"
+    )
+    assert registry_mounts[0].endswith(":ro")
+
+
+def test_v2_compose_requires_a_dedicated_access_log_hmac_secret() -> None:
+    """L'empreinte de requête journalisée est clefée, et sa clé est exigée."""
+    compose = _load_compose(V2_COMPOSE_PATH)
+    configured = _environment_variables(compose["services"]["ingestor"]["environment"])
+    assert _compose_env_ref_is_valid(
+        configured["RAG_ACCESS_LOG_HMAC_SECRET"],
+        "RAG_ACCESS_LOG_HMAC_SECRET",
+    )
+    assert "${RAG_ACCESS_LOG_HMAC_SECRET:?" in configured["RAG_ACCESS_LOG_HMAC_SECRET"]
+
+
 def test_v2_compose_contains_only_the_read_review_stack() -> None:
     compose = _load_compose(V2_COMPOSE_PATH)
 

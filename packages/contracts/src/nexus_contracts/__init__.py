@@ -30,6 +30,11 @@ from nexus_contracts.retrieval import (
     RetrievalResponse,
     RetrievalResult,
 )
+from nexus_contracts.taxonomy import (
+    TaxonomyCollectionV2,
+    TaxonomyDimensionsV2,
+    TaxonomyV2Response,
+)
 from nexus_contracts.retrieval_evaluation import (
     RetrievalEvaluationEvidencePayloadV1,
     RetrievalEvaluationEvidenceV1,
@@ -280,6 +285,9 @@ __all__ = [
     "RetrievalOptions",
     "RetrievalRequest",
     "RetrievalResponse",
+    "TaxonomyCollectionV2",
+    "TaxonomyDimensionsV2",
+    "TaxonomyV2Response",
     "RetrievalResult",
     "ReviewDecisionPayload",
     "ReviewDecisionRequest",

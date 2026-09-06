@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
+import re
 import shlex
 from pathlib import Path
 from types import SimpleNamespace
@@ -26,6 +29,21 @@ ENGINE_AGENTS = ENGINE_ROOT / "AGENTS.md"
 V2_ENV_EXAMPLE = ENGINE_ROOT / "infra" / ".env.example"
 V2_COMPOSE = ENGINE_ROOT / "infra" / "docker-compose.v2.yml"
 MAKEFILE = ENGINE_ROOT / "Makefile"
+
+#: Clé porteuse de test. Le runtime v2 exige désormais un registre de clés
+#: (``ingestor.api_scopes``) : sans lui, il se ferme au démarrage. La valeur
+#: n'existe que dans ce fichier de test et ne configure aucun déploiement.
+API_CLIENT_KEY = "surface-v2-cle-porteuse-de-test-0123456789"
+API_CLIENT_REGISTRY = json.dumps(
+    [
+        {
+            "client_id": "surface-v2",
+            "token_sha256": hashlib.sha256(API_CLIENT_KEY.encode("utf-8")).hexdigest(),
+            "scopes": ["rag:search", "rag:read-source", "rag:admin"],
+        }
+    ]
+)
+API_CLIENT_HEADER = {"X-RAG-API-Key": API_CLIENT_KEY}
 
 
 @pytest.fixture(autouse=True)
@@ -76,9 +94,143 @@ def _clear_database_readiness_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda _rag_dsn, _review_dsn: True,
         raising=False,
     )
+    monkeypatch.delenv("RAG_API_CLIENTS_FILE", raising=False)
+    monkeypatch.setenv("RAG_API_CLIENTS", API_CLIENT_REGISTRY)
     api_v2._reset_database_readiness_cache()
     yield
     api_v2._reset_database_readiness_cache()
+
+
+def _api_key_registry(scopes: list[str]) -> str:
+    return json.dumps(
+        [
+            {
+                "client_id": "surface-v2",
+                "token_sha256": hashlib.sha256(
+                    API_CLIENT_KEY.encode("utf-8")
+                ).hexdigest(),
+                "scopes": scopes,
+            }
+        ]
+    )
+
+
+def test_une_route_metier_sans_cle_porteuse_est_refusee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le credential BFF seul ne suffit plus : la portee est une seconde porte."""
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("une requete non autorisee ne doit pas sonder PostgreSQL")
+        ),
+    )
+
+    response = TestClient(api_v2.app).get(
+        "/taxonomy/v2",
+        headers={"Authorization": f"Bearer {service_token}"},
+    )
+
+    assert response.status_code == 401
+
+
+def test_une_cle_sans_la_portee_exigee_est_refusee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`rag:ingest` n'ouvre pas le retrieval : les portees sont disjointes."""
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setenv("RAG_API_CLIENTS", _api_key_registry(["rag:ingest"]))
+    monkeypatch.setattr(
+        api_v2,
+        "_cached_database_readiness",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("une requete non autorisee ne doit pas sonder PostgreSQL")
+        ),
+    )
+
+    response = TestClient(api_v2.app).get(
+        "/taxonomy/v2",
+        headers={"Authorization": f"Bearer {service_token}", **API_CLIENT_HEADER},
+    )
+
+    assert response.status_code == 403
+
+
+def test_le_client_authentifie_est_depose_pour_le_journal_d_acces(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le journal d'accès attribue une requête à un client, pas à un jeton.
+
+    Le middleware résout la clé porteuse une seule fois et dépose le client
+    sur la requête ; la route le relit. Sans ce relais, chaque ligne de
+    journal serait anonyme — ou pire, exigerait de relire le jeton.
+    """
+    from src.ingestor import retrieval_v2_endpoint
+
+    service_token = "lot41u-runtime-bff-service-token-32-bytes"
+    monkeypatch.setenv("RAG_BFF_SERVICE_TOKEN", service_token)
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", lambda: True)
+    observed: dict[str, object] = {}
+
+    async def route(request: Request) -> JSONResponse:
+        observed["client_id"] = retrieval_v2_endpoint._calling_client_id(request)
+        observed["scopes"] = retrieval_v2_endpoint._calling_client_scopes(request)
+        return JSONResponse({"ok": True})
+
+    scope = dict(_business_request("/search/v2").scope)
+    scope["headers"] = [
+        (b"authorization", f"Bearer {service_token}".encode()),
+        (b"x-rag-api-key", API_CLIENT_KEY.encode()),
+    ]
+
+    response = asyncio.run(api_v2._metrics_middleware(Request(scope), route))
+
+    assert response.status_code == 200
+    assert observed["client_id"] == "surface-v2"
+    assert observed["scopes"] == ("rag:admin", "rag:read-source", "rag:search")
+
+
+def test_l_attribution_survit_aux_deux_chemins_d_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le client déposé par ``ingestor.api_scopes`` reste lisible par
+    ``src.ingestor.retrieval_v2_endpoint``, et réciproquement.
+
+    Ce service se charge selon deux chemins d'import — le paquet et le
+    runtime aplati de l'image Docker — qui produisent deux classes
+    distinctes pour le même code. Une lecture par ``isinstance`` échouerait
+    en silence : la requête serait servie, et chaque ligne de journal
+    deviendrait anonyme sans qu'aucun appel ne casse.
+    """
+    import importlib
+
+    from src.ingestor import retrieval_v2_endpoint
+
+    autre_module = importlib.import_module("ingestor.api_scopes")
+    assert autre_module is not importlib.import_module("src.ingestor.api_scopes"), (
+        "les deux chemins d'import doivent bien produire deux modules distincts"
+    )
+
+    client = autre_module.ApiClient(
+        client_id="depuis-l-autre-chemin",
+        token_sha256="0" * 64,
+        scopes=frozenset({autre_module.ApiScope.SEARCH}),
+    )
+    request = _business_request("/search/v2")
+    request.state.api_client = client
+
+    assert retrieval_v2_endpoint._calling_client_id(request) == "depuis-l-autre-chemin"
+    assert retrieval_v2_endpoint._calling_client_scopes(request) == ("rag:search",)
+
+
+def test_chaque_route_metier_montee_declare_une_portee_d_api() -> None:
+    """Une route exposée sans portée déclarée serait une route sans porte."""
+    for route in api_v2._ALLOWED_BUSINESS_ROUTES:
+        assert api_v2.required_scope_for_route(route) is not None, route
 
 
 def _docker_context_copy_sources(instruction: str) -> set[str]:
@@ -140,6 +292,7 @@ def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
         "/health",
         "/metrics",
         "/search/v2",
+        "/taxonomy/v2",
         "/corpora/servable/v1",
         "/corpora/servable/v1/{manifest_sha256}",
         "/chat",
@@ -682,7 +835,7 @@ def test_business_route_rejects_a_cached_unhealthy_database_proof(
     response = TestClient(api_v2.app).post(
         "/review/v2/decide",
         json={},
-        headers={"Authorization": f"Bearer {service_token}"},
+        headers={"Authorization": f"Bearer {service_token}", **API_CLIENT_HEADER},
     )
 
     assert response.status_code == 503
@@ -736,6 +889,7 @@ def test_business_readiness_and_route_share_one_runtime_deadline(
     monkeypatch.setenv("PG_DATABASE_BUDGET_MS", "6000")
     monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(api_v2, "require_bff_service", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api_v2, "require_api_scope", lambda *_args, **_kwargs: None)
 
     def readiness() -> bool:
         observed["readiness_deadline"] = pg_pool.current_runtime_request_deadline()
@@ -770,6 +924,7 @@ def test_business_route_does_not_start_after_readiness_exhausts_shared_deadline(
     monkeypatch.setenv("PG_DATABASE_BUDGET_MS", "6000")
     monkeypatch.setattr(pg_pool.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(api_v2, "require_bff_service", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(api_v2, "require_api_scope", lambda *_args, **_kwargs: None)
 
     def readiness() -> bool:
         now[0] += 6.001
@@ -1148,7 +1303,10 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "model_artifact.py",
         "pg_pool.py",
         "readiness_db.py",
+        "api_scopes.py",
         "retrieval_hybrid_v2.py",
+        "retrieval_metadata_v2.py",
+        "retrieval_observability.py",
         "retrieval_pg_v2.py",
         "retrieval_readiness_v2.py",
         "retrieval_scope_v2.py",
@@ -1176,6 +1334,55 @@ def test_v2_dockerfile_copies_only_the_read_review_runtime() -> None:
         "database.py",
     ):
         assert f"src/ingestor/{forbidden_module}" not in content
+
+
+#: Les modules du runtime v2 s'importent selon deux chemins : ``ingestor.x``
+#: en dépôt, et le module plat ``x`` dans l'image aplatie sous ``/app``. C'est
+#: le second qui décide de ce que l'image doit porter.
+_FLAT_IMPORT = re.compile(r"^\s*from\s+([a-z_][a-z0-9_]*)\s+import\b", re.MULTILINE)
+
+
+def _copied_runtime_modules() -> set[str]:
+    """Modules ``src/ingestor/*.py`` réellement copiés par le Dockerfile v2."""
+    prefix = "services/rag-engine/src/ingestor/"
+    copied: set[str] = set()
+    for line in V2_DOCKERFILE.read_text(encoding="utf-8").splitlines():
+        if not line.lstrip().upper().startswith("COPY "):
+            continue
+        for source in _docker_context_copy_sources(line):
+            if source.startswith(prefix) and source.endswith(".py"):
+                copied.add(source[len(prefix) : -len(".py")])
+    return copied
+
+
+def test_v2_image_carries_every_module_its_runtime_imports() -> None:
+    """Fermeture transitive : aucun module importé ne peut manquer à l'image.
+
+    Une liste d'``allowlist`` tenue à la main dérive en silence : un module
+    ajouté au runtime s'importe depuis le checkout hôte pendant tout le
+    développement, et ne manque qu'une fois l'image construite — c'est-à-dire
+    en production. Cette épreuve calcule la fermeture au lieu de l'énumérer.
+    """
+    source_root = ENGINE_ROOT / "src" / "ingestor"
+    copied = _copied_runtime_modules()
+    assert copied, "aucun module applicatif copié : le Dockerfile a changé de forme"
+
+    missing: dict[str, set[str]] = {}
+    for module in sorted(copied):
+        text = (source_root / f"{module}.py").read_text(encoding="utf-8")
+        imported = {
+            name
+            for name in _FLAT_IMPORT.findall(text)
+            if (source_root / f"{name}.py").is_file()
+        }
+        absent = imported - copied
+        if absent:
+            missing[module] = absent
+
+    assert not missing, (
+        "des modules importés par le runtime aplati manquent à l'image : "
+        f"{ {k: sorted(v) for k, v in missing.items()} }"
+    )
 
 
 def test_v2_docker_context_allowlist_contains_every_explicit_copy_source() -> None:
@@ -1302,6 +1509,11 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
         "RAG_RERANKER_MODEL_INVENTORY_SHA256=",
         "RAG_SERVABLE_CORPUS_HOST_DIR=",
         "RAG_SERVABLE_CORPUS_INDEX_SHA256=",
+        # Les deux autorités que le Compose canonique exige et qu'un
+        # opérateur ne peut pas deviner : le chemin hôte du registre de
+        # clients, et le secret d'empreinte du journal d'accès.
+        "RAG_API_CLIENTS_HOST_FILE=",
+        "RAG_ACCESS_LOG_HMAC_SECRET=",
     ):
         assert required_env in env_example
     for forbidden_env in (
@@ -1339,3 +1551,94 @@ def test_integration_make_target_exposes_the_ingestor_package() -> None:
         "test-integration: install\n"
         "\tPYTHONPATH=src $(PYTEST) tests/integration -q"
     ) in makefile
+
+
+def _access_records(caplog: pytest.LogCaptureFixture) -> list[dict]:
+    import json as _json
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    return [
+        _json.loads(record.getMessage())
+        for record in caplog.records
+        if record.name == ACCESS_LOGGER_NAME
+    ]
+
+
+def test_un_refus_d_authentification_produit_quand_meme_sa_ligne_de_journal(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Les requêtes les plus intéressantes pour l'exploitation sont celles qui échouent.
+
+    Un refus d'authentification n'atteint jamais la fonction de route : sans
+    journalisation dans le middleware, un 401 ne laisserait aucune trace.
+    """
+    import logging
+
+    from fastapi import HTTPException
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    def refuse(*_args: object, **_kwargs: object) -> None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    monkeypatch.setattr(api_v2, "require_bff_service", refuse)
+
+    async def route(_request: Request) -> JSONResponse:  # pragma: no cover
+        raise AssertionError("la route ne doit pas être atteinte")
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = asyncio.run(api_v2._metrics_middleware(_business_request(), route))
+
+    assert response.status_code == 401
+    (line,) = _access_records(caplog)
+    assert line["status_code"] == 401
+    assert line["endpoint"] == "/collections/v2"
+    assert line["client_id"] == "unattributed"
+    assert line["granted_scopes"] == []
+    assert line["outcome"] == "pre_route"
+
+
+def test_la_lecture_de_source_servable_est_journalisee_elle_aussi(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Ce chemin sort tôt du middleware : sans ligne dédiée, il serait le seul muet."""
+    import logging
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    monkeypatch.setattr(api_v2, "require_bff_service", lambda *_a, **_k: None)
+    monkeypatch.setattr(api_v2, "require_api_scope", lambda *_a, **_k: None)
+
+    async def route(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = asyncio.run(
+            api_v2._metrics_middleware(
+                _business_request("/corpora/servable/v1"), route
+            )
+        )
+
+    assert response.status_code == 200
+    (line,) = _access_records(caplog)
+    assert line["endpoint"] == "/corpora/servable/v1"
+    assert line["status_code"] == 200
+
+
+def test_une_route_hors_perimetre_metier_n_est_pas_journalisee(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Contrôle négatif : le journal d'accès n'avale pas /health ni /metrics."""
+    import logging
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
+    async def route(_request: Request) -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = asyncio.run(api_v2._metrics_middleware(_business_request("/health"), route))
+
+    assert response.status_code == 200
+    assert _access_records(caplog) == []
