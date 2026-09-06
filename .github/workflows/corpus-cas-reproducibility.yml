@@ -24,6 +24,13 @@ name: Corpus CAS reproducibility (C1)
       # nouvellement désignée — éviter C1 sans que rien ne le dise.
       - "services/rag-pedago/data/releases/**"
       - "scripts/qualification/**"
+      # C1 consomme désormais DIRECTEMENT l'autorité canonique de release.
+      # Un changement de sa sémantique change le périmètre servi : ne pas le
+      # déclencher ici laisserait le chargeur évoluer sans que le store privé
+      # soit reconfronté — un C1 vert sur un périmètre qu'il ne décrit plus.
+      - "packages/release-chain/**"
+      - "packages/contracts/**"
+      - "packages/pdf-page-policy/**"
       - "docs/reports/evidence-index/pii_review_index_20260903.json"
       - ".github/workflows/corpus-cas-reproducibility.yml"
   workflow_dispatch: {}
