@@ -119,6 +119,7 @@ def _disposition_dun_artefact(
             str(entree["url"])
             for entree in irrecuperables
             if not entree.get("raison_irrecuperabilite")
+            or not isinstance(entree.get("preuve_irrecuperabilite"), str)
             or not entree.get("preuve_irrecuperabilite")
         ]
         if sans_preuve:
@@ -231,7 +232,7 @@ def verifier_registre(registre: Mapping[str, Any]) -> dict[str, int]:
                 f"{item.get('content_sha256', '?')[:12]}… : disposition sans appui"
             )
         if valeur == Disposition.UNRECOVERABLE_WITH_EVIDENCE.value and not (
-            _PREUVE_DIGEST_RE.search(item["appui"])
+            isinstance(item["appui"], str) and _PREUVE_DIGEST_RE.search(item["appui"])
         ):
             raise DispositionError(
                 f"{item.get('content_sha256', '?')[:12]}… : disposition irrécupérable "

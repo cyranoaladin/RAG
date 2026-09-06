@@ -247,6 +247,27 @@ def test_l_appui_irrecuperable_porte_un_condensé_verifiable_de_la_preuve() -> N
     assert re.search(r"preuve=[0-9a-f]{64}$", item["appui"])
 
 
+@pytest.mark.parametrize("preuve_non_textuelle", [True, ["HTTP 403 le ...", "robots.txt lu"]])
+def test_une_preuve_non_textuelle_est_refusee(preuve_non_textuelle: object) -> None:
+    """`True` ou une liste seraient truthy, mais ne sont pas une preuve."""
+    with pytest.raises(DispositionError, match="sans preuve"):
+        construire_registre(
+            artefacts=[_artefact(SHA_A)],
+            entrees_url=[_irrecuperable(SHA_A, preuve=preuve_non_textuelle)],
+        )
+
+
+@pytest.mark.parametrize("appui_non_textuel", [123, ["preuve=" + "a" * 64]])
+def test_le_verificateur_refuse_un_appui_irrecuperable_non_textuel(appui_non_textuel: object) -> None:
+    """Un `appui` non textuel doit être un refus nommé, pas un TypeError."""
+    registre = construire_registre(
+        artefacts=[_artefact(SHA_A)], entrees_url=[_irrecuperable(SHA_A)]
+    )
+    registre["dispositions"][0]["appui"] = appui_non_textuel
+    with pytest.raises(DispositionError, match="condensé de preuve"):
+        verifier_registre(registre)
+
+
 def test_le_verificateur_refuse_un_appui_irrecuperable_sans_condense_de_preuve() -> None:
     registre = construire_registre(
         artefacts=[_artefact(SHA_A)], entrees_url=[_irrecuperable(SHA_A)]
