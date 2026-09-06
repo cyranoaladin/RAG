@@ -195,9 +195,17 @@ def collect_promoted_content_set(registry_path: Path) -> set[str]:
         quoi = f"release {identifiant}"
         octets = _lire_gouverne(chemin, quoi)
         _sceau_verifie(octets, release.get("expected_manifest_sha256"), quoi)
-        contenus |= _contenus_dune_release(
-            _charge_objet(octets, quoi), chemin, identifiant
-        )
+        manifeste = _charge_objet(octets, quoi)
+        # Le registre DÉCLARE la nature de chaque release. Se fier au seul
+        # manifeste laisserait une lignée dont le registre annonce V1 et dont
+        # le fichier est V2 produire un ensemble que le runtime, lui, refusera.
+        annonce = release.get("release_kind")
+        if annonce is not None and annonce != manifeste.get("release_kind"):
+            raise PromotedContentSetError(
+                f"{quoi} : le registre annonce {annonce!r} et le manifeste porte "
+                f"{manifeste.get('release_kind')!r}"
+            )
+        contenus |= _contenus_dune_release(manifeste, chemin, identifiant)
 
     if not contenus:
         raise PromotedContentSetError(
@@ -245,15 +253,26 @@ def _contenus_v2(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
     octets = _lire_gouverne(cible, f"{quoi}, registre d'artefacts")
     _sceau_verifie(octets, registre.get("sha256"), f"{quoi}, registre d'artefacts")
 
-    artefacts = _charge_objet(octets, f"{quoi}, registre d'artefacts").get("artifacts")
+    ou = f"{quoi}, registre d'artefacts"
+    charge = _charge_objet(octets, ou)
+    artefacts = charge.get("artifacts")
     if not isinstance(artefacts, list) or not artefacts:
         raise PromotedContentSetError(f"{quoi} : registre d'artefacts vide")
 
-    contenus = _contenus_des_artefacts(artefacts, quoi)
+    contenus = _contenus_des_artefacts(artefacts, ou)
+    # Le registre d'artefacts porte SON PROPRE compte. Ne confronter qu'à
+    # celui de l'agrégat laissait passer un registre tronqué dont on aurait
+    # rescellé l'agrégat : les deux comptes doivent tomber juste, faute de
+    # quoi l'un des deux ment.
+    if len(contenus) != _compte_declare(charge, "unique_artifacts", ou):
+        raise PromotedContentSetError(
+            f"{ou} : {len(contenus)} contenu(s) distinct(s) lus contre "
+            f"{charge['expected_counts']['unique_artifacts']} qu'il déclare"
+        )
     if len(contenus) != attendus:
         raise PromotedContentSetError(
             f"{quoi} : {len(contenus)} contenu(s) distinct(s) lus contre "
-            f"{attendus} déclarés — lecture tronquée ou manifeste incohérent"
+            f"{attendus} déclarés par l'agrégat"
         )
     return contenus
 

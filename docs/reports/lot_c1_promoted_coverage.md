@@ -75,11 +75,31 @@ moment précis où il doit servir.
 Un `release_kind` inconnu est refusé plutôt que rangé d'office dans l'une des
 deux : le lire au mauvais endroit rendrait un ensemble faux au lieu d'un refus.
 
-**Corroboration.** Sur le dépôt réel, la V1 canonique et la V2 de répétition
-rendent le **même ensemble** et la **même empreinte**
-`d06d6051e7037372acf4dca4675a1c999c198129433d68491221a9d03bb821cd`, par des
-structures entièrement différentes. Une épreuve le vérifie contre les deux
-lignées réelles.
+Trois sceaux, pas un. Le registre **déclare** la nature de chaque release :
+une lignée dont le registre annonce V1 et dont le fichier est V2 est refusée,
+sans quoi elle produirait un ensemble que le runtime, lui, rejettera. Et le
+registre d'artefacts V2 porte **son propre** `expected_counts` : ne confronter
+qu'à celui de l'agrégat laissait passer un registre tronqué dont on aurait
+rescellé l'agrégat.
+
+Ce dernier sabotage a été reproduit sur la lignée V2 réelle — un artefact
+retiré, le registre d'artefacts rescellé, le compte de l'agrégat ramené à 318,
+le registre de releases rescellé :
+
+```
+REFUSÉ : … registre d'artefacts : 318 contenu(s) distinct(s) lus contre 319 qu'il déclare
+```
+
+**Corroboration sur données réelles.** Toutes les lignées versionnées du dépôt
+sont lues de bout en bout par une épreuve qui les découvre par parcours, sans
+nommer de répertoire : nommer en dur celui d'une répétition ferait taire la
+corroboration à la répétition suivante, et un `skip` silencieux est la manière
+dont une épreuve cesse d'exister sans que personne ne le voie. L'épreuve
+n'affirme pas non plus l'égalité entre la V1 promue et une candidate de
+répétition — deux jeux qui évoluent séparément, et dont la divergence est
+légitime. Elle éprouve la propriété qui vaut pour toutes : chaque registre se
+lit, ses sceaux tombent juste, ses comptes correspondent, son ensemble n'est
+pas vide.
 
 ## Le compte mesuré
 
