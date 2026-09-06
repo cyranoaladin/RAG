@@ -17,6 +17,7 @@ la ligne était nouvelle.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -98,6 +99,54 @@ CREATE TABLE IF NOT EXISTS drive_staging.chunks (
 
 CREATE INDEX IF NOT EXISTS idx_drive_staging_chunks_artifact
     ON drive_staging.chunks (artifact_id);
+
+-- Ce qui a produit le texte de CHAQUE page, et ce qu'il vaut.
+--
+-- Sans cette table, « ce document a été océrisé » est la seule chose qu'on
+-- sache : impossible de rejouer une page, impossible de distinguer une page
+-- blanche d'une page perdue, impossible de prouver que le texte soumis au
+-- scanner PII est celui qui a été découpé. C'est exactement l'aveuglement qui
+-- a laissé passer l'extraction partielle de la campagne V1.
+CREATE TABLE IF NOT EXISTS drive_staging.page_provenances (
+    artifact_id     text NOT NULL
+                    REFERENCES drive_staging.artifacts (artifact_id),
+    page_number     integer NOT NULL CHECK (page_number >= 1),
+    -- NATIVE_TEXT | STRUCTURAL_EMPTY | OCR_FALLBACK | NOT_ASSESSABLE.
+    -- Contraint en base : une voie inconnue est une régression du producteur,
+    -- pas une valeur à stocker en attendant que quelqu'un la remarque.
+    extraction_path text NOT NULL
+                    CHECK (extraction_path IN (
+                        'NATIVE_TEXT', 'STRUCTURAL_EMPTY',
+                        'OCR_FALLBACK', 'NOT_ASSESSABLE')),
+    -- Ce que l'extracteur natif avait rendu, y compris la chaîne vide : le
+    -- témoin qui permet de rejouer la décision d'océriser.
+    native_text_sha256 text NOT NULL
+                    CHECK (native_text_sha256 ~ '^[0-9a-f]{64}$'),
+    -- Le verdict de la politique de page, NULL si la page rendait du texte.
+    page_policy_verdict text,
+    -- Le texte RETENU pour cette page — celui que le scanner PII lit et que
+    -- le découpage utilise.
+    canonical_page_text_sha256 text NOT NULL
+                    CHECK (canonical_page_text_sha256 ~ '^[0-9a-f]{64}$'),
+    ocr_runtime_identity_sha256 text
+                    CHECK (ocr_runtime_identity_sha256 ~ '^[0-9a-f]{64}$'),
+    -- Une page océrisée sans runtime nommé serait irrejouable ; une page
+    -- native qui en nomme un mentirait sur sa fabrication.
+    CHECK (
+        (extraction_path IN ('OCR_FALLBACK', 'NOT_ASSESSABLE'))
+        = (ocr_runtime_identity_sha256 IS NOT NULL)
+    ),
+    -- Une page océrisée l'a été parce que la politique l'a refusée : sans
+    -- verdict, « pourquoi » n'a plus de réponse écrite.
+    CHECK (
+        extraction_path NOT IN ('OCR_FALLBACK', 'NOT_ASSESSABLE')
+        OR page_policy_verdict IS NOT NULL
+    ),
+    PRIMARY KEY (artifact_id, page_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_drive_staging_page_provenances_path
+    ON drive_staging.page_provenances (extraction_path);
 """
 
 
@@ -204,6 +253,47 @@ class PostgresStagingStore(StagingStore):
                 ),
             )
             return bool(cursor.rowcount)
+
+    def upsert_page_provenance(
+        self, artifact_id: str, provenance: Iterable[Any]
+    ) -> int:
+        """Persiste la provenance de CHAQUE page d'un artefact.
+
+        Écrite en une passe avec les autres écritures de l'artefact : une
+        provenance de page posée hors de la transaction qui pose l'artefact
+        laisserait, en cas d'échec, un document dont on croit connaître la
+        fabrication page par page alors qu'il n'est pas là.
+        """
+        lignes = [
+            (
+                artifact_id,
+                page.number,
+                page.extraction_path,
+                page.native_text_sha256,
+                page.page_policy_verdict,
+                page.canonical_page_text_sha256,
+                page.ocr_runtime_identity_sha256,
+            )
+            for page in provenance
+        ]
+        if not lignes:
+            raise DriveSourceError(
+                f"{artifact_id[:16]}… : aucune provenance de page — un document "
+                "sans page ne se distingue pas d'une extraction qui a échoué"
+            )
+        with self.connection.cursor() as cursor:
+            cursor.executemany(
+                """
+                INSERT INTO drive_staging.page_provenances (
+                    artifact_id, page_number, extraction_path,
+                    native_text_sha256, page_policy_verdict,
+                    canonical_page_text_sha256, ocr_runtime_identity_sha256
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (artifact_id, page_number) DO NOTHING
+                """,
+                lignes,
+            )
+        return len(lignes)
 
     def query(
         self,

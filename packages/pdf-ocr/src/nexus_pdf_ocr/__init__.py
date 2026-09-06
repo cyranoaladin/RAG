@@ -35,6 +35,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -150,7 +151,7 @@ class OcrPage:
     text: str
 
 
-def _environnement_fige(runtime: "OcrRuntime | None" = None) -> dict[str, str]:
+def _environnement_fige(runtime: OcrRuntime | None = None) -> dict[str, str]:
     """L'environnement fait partie de la commande, donc de la preuve.
 
     Hériter de celui de l'appelant laisserait la locale et le nombre de fils
@@ -283,13 +284,23 @@ def require_runtime(expected_identity_sha256: str, **kwargs: object) -> OcrRunti
     return mesure
 
 
-def ocr_pdf_pages(content: bytes, *, runtime: OcrRuntime) -> tuple[OcrPage, ...]:
+def ocr_pdf_pages(
+    content: bytes,
+    *,
+    runtime: OcrRuntime,
+    pages: Sequence[int] | None = None,
+) -> tuple[OcrPage, ...]:
     """Rend une entrée par page PHYSIQUE, dans l'ordre du document.
 
     La rastérisation nomme ses sorties d'après le numéro de page, et le
     rapprochement se fait sur ce numéro — jamais sur l'ordre de listage d'un
     répertoire, qui trierait ``page-10`` avant ``page-2`` et décalerait toutes
     les citations sans que rien ne le montre.
+
+    ``pages`` restreint le travail aux pages demandées. Un document de 155
+    pages dont une seule est illisible n'a pas à être océrisé en entier : le
+    coût serait cent cinquante fois celui du besoin. Les numéros rendus
+    restent ceux du document — jamais un rang dans la sélection.
     """
     tesseract = _binaire("tesseract")
     rasteriseur = _binaire("pdftoppm")
@@ -300,12 +311,25 @@ def ocr_pdf_pages(content: bytes, *, runtime: OcrRuntime) -> tuple[OcrPage, ...]
         source = atelier / "source.pdf"
         source.write_bytes(content)
 
+        # `pages is not None`, jamais `if pages` : une sélection VIDE est une
+        # demande de rien, pas une absence de demande. Les confondre ferait
+        # océriser le document entier en croyant obéir.
+        demandees = sorted({int(numero) for numero in pages}) if pages is not None else None
+        if demandees is not None and not demandees:
+            raise OcrError("sélection de pages vide : rien à océriser")
+        bornes: list[str] = []
+        if demandees is not None:
+            # `pdftoppm` ne prend qu'un intervalle. Une sélection éparse est
+            # donc rastérisée par intervalle contigu, jamais par une plage
+            # élargie qui ferait travailler sur des pages non demandées.
+            bornes = ["-f", str(demandees[0]), "-l", str(demandees[-1])]
         _run(
             [
                 rasteriseur,
                 "-r",
                 str(runtime.dpi),
                 f"-{runtime.color_mode}",
+                *bornes,
                 "-png",
                 str(source),
                 str(atelier / "page"),
@@ -318,13 +342,20 @@ def ocr_pdf_pages(content: bytes, *, runtime: OcrRuntime) -> tuple[OcrPage, ...]
             atelier.glob("page-*.png"),
             key=lambda chemin: int(chemin.stem.rsplit("-", 1)[1]),
         )
+        if demandees is not None:
+            voulues = set(demandees)
+            images = [
+                image
+                for image in images
+                if int(image.stem.rsplit("-", 1)[1]) in voulues
+            ]
         if not images:
             raise OcrError(
                 "la rastérisation n'a produit aucune page — un document sans "
                 "page ne peut pas être distingué d'une lecture qui a échoué"
             )
 
-        pages: list[OcrPage] = []
+        resultat: list[OcrPage] = []
         for image in images:
             numero = int(image.stem.rsplit("-", 1)[1])
             texte = _run(
@@ -344,12 +375,14 @@ def ocr_pdf_pages(content: bytes, *, runtime: OcrRuntime) -> tuple[OcrPage, ...]
                 quoi=f"océrisation de la page {numero}",
                 environnement=env,
             )
-            pages.append(OcrPage(number=numero, text=texte))
+            resultat.append(OcrPage(number=numero, text=texte))
 
-    numeros = [page.number for page in pages]
-    if numeros != list(range(1, len(pages) + 1)):
+    numeros = [page.number for page in resultat]
+    attendus = demandees if demandees is not None else list(range(1, len(resultat) + 1))
+    if numeros != list(attendus):
         raise OcrError(
-            f"partition de pages incomplète : {numeros[:8]}… — un décalage "
-            "rendrait chaque citation fausse sans que rien ne le montre"
+            f"partition de pages incomplète : {numeros[:8]}… attendus "
+            f"{list(attendus)[:8]}… — un décalage rendrait chaque citation "
+            "fausse sans que rien ne le montre"
         )
-    return tuple(pages)
+    return tuple(resultat)

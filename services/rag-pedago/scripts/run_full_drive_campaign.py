@@ -51,6 +51,13 @@ _AUTORITES: tuple[tuple[str, Path, bool, str], ...] = (
      True, "chunk,classification"),
     ("TAXONOMY_AUTHORITY_SHA256", _PEDAGO / "rag_pedago" / "governance" / "drive_slice.py",
      True, "classification,placement"),
+    # L'OCR décide désormais du TEXTE de certaines pages : la sélection des
+    # pages à océriser et la composition du résultat sont donc des autorités
+    # au même titre que l'extracteur natif. `OCR_RUNTIME_IDENTITY` ne couvre
+    # que les binaires, pas le code qui les pilote.
+    ("OCR_CAPABILITY_SHA256",
+     _RACINE / "packages" / "pdf-ocr" / "src" / "nexus_pdf_ocr" / "__init__.py",
+     True, "texte,chunk"),
     ("PII_SCANNER_SHA256", _PEDAGO / "rag_pedago" / "imports" / "pii_scanner.py",
      True, "servabilite"),
     ("PII_POLICY_SHA256", _PEDAGO / "configs" / "pii_gate_policy.yml",
@@ -89,14 +96,18 @@ import psycopg  # noqa: E402
 from nexus_pdf_ocr import describe_runtime  # noqa: E402
 
 from rag_pedago.governance.drive_extraction import (  # noqa: E402
+    EXTRACTION_POLICY_ID,
+    PATH_NOT_ASSESSABLE,
+    PATH_OCR_FALLBACK,
+    PATH_STRUCTURAL_EMPTY,
     TEXT_NORMALISATION_ID,
-    extraction_gouvernee,
+    extraire_document,
 )
 
-# La couche textuelle reste la voie ordinaire ; l'océrisation n'intervient
-# que lorsqu'elle est absente, et le runtime est RELEVÉ, jamais supposé.
+# La couche textuelle reste la voie ordinaire ; l'océrisation ne comble que
+# les pages que la politique de page refuse d'ignorer, et le runtime est
+# RELEVÉ, jamais supposé.
 _OCR_RUNTIME = describe_runtime()
-extract_pdf_pages = extraction_gouvernee(_OCR_RUNTIME)
 
 # Le scanner PII faisant autorité, sur le MÊME texte que le découpage. Deux
 # extractions donneraient deux vérités : un document pourrait être déclaré
@@ -275,6 +286,10 @@ _CAMPAGNE = {
     "PAGE_POLICY_SHA256": _POLICY_SHA256,
     "CANONICAL_PYPDF_VERSION": _PYPDF_CANONIQUE,
     "TEXT_NORMALIZATION_VERSION": TEXT_NORMALISATION_ID,
+    # V1 décidait de l'océrisation au niveau du DOCUMENT et perdait les pages
+    # muettes des documents mixtes. Nommer la politique dans l'identité du run
+    # est ce qui permet de requalifier un corpus au lieu de le redécouvrir.
+    "EXTRACTION_POLICY_ID": EXTRACTION_POLICY_ID,
     "OCR_RUNTIME_IDENTITY": _OCR_RUNTIME.identity_sha256(),
     "CHUNKER_ID": "nexus-drive-slice",
     "POSTGRES_IMAGE_DIGEST": _digest_postgres(),
@@ -341,6 +356,15 @@ erreurs_extraction: list[dict[str, str]] = []
 erreurs_pii: list[dict[str, str]] = []
 erreurs_staging: list[dict[str, str]] = []
 non_assessables: list[str] = []
+#: Documents dont au moins une page affiche du contenu que NI l'extraction
+#: native NI l'océrisation ne rendent. Ils sont persistés — avec leur
+#: provenance de page — et n'obtiennent AUCUN chunk : personne ne sait ce
+#: qu'ils portent, donc personne ne peut les déclarer sains.
+non_evaluables: list[str] = []
+pages_non_evaluables: list[dict[str, object]] = []
+#: Comptage des voies d'extraction, à la PAGE. Sans lui, « le corpus a été
+#: océrisé » resterait une affirmation sans grandeur.
+voies_de_page: collections.Counter[str] = collections.Counter()
 
 
 def _incident(artifact: dict, premier: str, index: dict, exc: Exception) -> dict:
@@ -368,6 +392,7 @@ def _write_report(done: int) -> None:
         distincts
         - len(staged)
         - len(quarantaine)
+        - len(non_evaluables)
         - len(unclassifiable)
         - erreurs
     )
@@ -394,6 +419,7 @@ def _write_report(done: int) -> None:
                 # -- partition du traitement --
                 "DRIVE_PDF_CLEARED_AND_STAGED": len(staged),
                 "DRIVE_PDF_QUARANTINED_PII": len(quarantaine),
+                "DRIVE_PDF_NOT_ASSESSABLE": len(non_evaluables),
                 "DRIVE_PDF_UNCLASSIFIABLE": len(unclassifiable),
                 "DRIVE_PDF_PROCESSING_ERRORS": erreurs,
                 "DRIVE_PDF_UNACCOUNTED": unaccounted,
@@ -410,12 +436,20 @@ def _write_report(done: int) -> None:
                     distincts - pii_attempted - len(non_assessables)
                 ),
                 "QUARANTINED_PII_ARTIFACTS": len(quarantaine),
+                # -- comptabilité de l'extraction, à la PAGE --
+                "EXTRACTION_POLICY_ID": EXTRACTION_POLICY_ID,
+                "PAGES_TOTAL": sum(voies_de_page.values()),
+                "PAGES_NATIVE_TEXT": voies_de_page["NATIVE_TEXT"],
+                "PAGES_STRUCTURAL_EMPTY": voies_de_page[PATH_STRUCTURAL_EMPTY],
+                "PAGES_OCR_FALLBACK": voies_de_page[PATH_OCR_FALLBACK],
+                "PAGES_NOT_ASSESSABLE": voies_de_page[PATH_NOT_ASSESSABLE],
                 # -- ledgers --
                 "totals": dict(totals),
                 "erreurs_extraction": erreurs_extraction,
                 "erreurs_pii": erreurs_pii,
                 "erreurs_staging": erreurs_staging,
                 "unclassifiable": unclassifiable,
+                "pages_non_evaluables": pages_non_evaluables,
                 "pii_detectes": pii_detectes,
                 "progress": f"{done}/{distincts}",
                 "elapsed_s": round(time.monotonic() - started, 1),
@@ -455,8 +489,9 @@ with psycopg.connect(staging_dsn()) as connection:
         #    commune du scan PII, du découpage et de l'indexation.
         try:
             proven = (DESTINATION / first).read_bytes()
-            pages_canoniques = extract_pdf_pages(proven)
-            texte_canonique = "\n".join(page.text for page in pages_canoniques)
+            extraction = extraire_document(proven, ocr_runtime=_OCR_RUNTIME)
+            pages_canoniques = extraction.pages
+            texte_canonique = extraction.canonical_text
             empreinte_texte = hashlib.sha256(
                 texte_canonique.encode("utf-8")
             ).hexdigest()
@@ -467,23 +502,59 @@ with psycopg.connect(staging_dsn()) as connection:
             non_assessables.append(artifact["artifact_id"])
             continue
 
+        for _trace in extraction.provenance:
+            voies_de_page[_trace.extraction_path] += 1
+
+        # 1 bis. Une page que l'OCR n'a pas su rendre n'est pas une page
+        #    vide : c'est une page dont personne ne sait ce qu'elle porte. La
+        #    soumettre au scanner PII produirait un « aucune PII trouvée » qui
+        #    ne parlerait que du silence de l'instrument.
+        evaluable = extraction.assessable
+        if not evaluable:
+            pages_non_evaluables.append(
+                {
+                    "artifact_id": artifact["artifact_id"],
+                    "content_sha256": artifact["artifact_id"],
+                    "drive_file_id": by_path[first]["drive_file_id"],
+                    "canonical_text_sha256": empreinte_texte,
+                    "pages": list(extraction.pages_non_evaluables),
+                    "page_policy_verdicts": sorted(
+                        {
+                            trace.page_policy_verdict
+                            for trace in extraction.provenance
+                            if trace.extraction_path == PATH_NOT_ASSESSABLE
+                            and trace.page_policy_verdict
+                        }
+                    ),
+                }
+            )
+            non_assessables.append(artifact["artifact_id"])
+
         # 2. PII AVANT classification : un document qu'on ne sait pas classer
         #    n'est pas un document sans données personnelles.
+        constats: list[object] = []
         try:
-            constats = [
-                motif
-                for page in pages_canoniques
-                for motif in scan_text_for_pii(
-                    page.text, _PII_PATTERNS, page_number=page.number
-                )
-            ]
+            constats = (
+                [
+                    motif
+                    for page in pages_canoniques
+                    for motif in scan_text_for_pii(
+                        page.text, _PII_PATTERNS, page_number=page.number
+                    )
+                ]
+                if evaluable
+                else []
+            )
         except Exception as exc:  # noqa: BLE001
             erreurs_pii.append(_incident(artifact, first, by_path, exc))
             non_assessables.append(artifact["artifact_id"])
             continue
 
-        totals["pii_attempted"] += 1
-        if constats:
+        if evaluable:
+            totals["pii_attempted"] += 1
+        if not evaluable:
+            pass
+        elif constats:
             totals["pii_detected"] += 1
             # Ledger SANITISÉ : jamais le texte trouvé ni son contexte.
             pii_detectes.append(
@@ -497,7 +568,7 @@ with psycopg.connect(staging_dsn()) as connection:
                     "pages": sorted({m.page_number for m in constats}),
                 }
             )
-        else:
+        elif evaluable:
             totals["pii_cleared"] += 1
 
         # 3. Classification.
@@ -550,14 +621,21 @@ with psycopg.connect(staging_dsn()) as connection:
                     local["new_provenances"] += int(fresh)
                     local["duplicate_provenances"] += int(not fresh)
 
-                # FAIL-CLOSED sur le SERVING : un document détecté est
-                # persisté comme artefact, avec sa provenance et l'empreinte
-                # de son texte, mais SANS aucun chunk. La campagne continue —
-                # l'arrêter au premier imposerait une revue humaine par
-                # document là où une seule rend l'inventaire complet.
-                if constats:
-                    quarantaine.append(artifact["artifact_id"])
-                else:
+                # La fabrication de CHAQUE page, dans la même transaction que
+                # l'artefact : une provenance posée à part laisserait, en cas
+                # d'échec, un document dont on croit connaître la fabrication
+                # page par page alors qu'il n'est pas là.
+                local["page_provenances"] += store.upsert_page_provenance(
+                    artifact["artifact_id"], extraction.provenance
+                )
+
+                # FAIL-CLOSED sur le SERVING : un document détecté — ou dont
+                # une page n'est pas évaluable — est persisté comme artefact,
+                # avec sa provenance et l'empreinte de son texte, mais SANS
+                # aucun chunk. La campagne continue : l'arrêter au premier
+                # imposerait une revue humaine par document là où une seule
+                # rend l'inventaire complet.
+                if evaluable and not constats:
                     for chunk in make_chunks(
                         artifact["artifact_id"], pages_canoniques
                     ):
@@ -565,7 +643,15 @@ with psycopg.connect(staging_dsn()) as connection:
                         local["new_chunks"] += int(fresh_chunk)
                         local["duplicate_chunks"] += int(not fresh_chunk)
             totals.update(local)
-            if not constats:
+            # Les seaux de la partition ne sont crédités QU'APRÈS la
+            # transaction : les créditer dedans ferait compter un document à
+            # la fois en quarantaine et en erreur de staging si elle échoue,
+            # et la partition deviendrait négative sans que rien ne le dise.
+            if not evaluable:
+                non_evaluables.append(artifact["artifact_id"])
+            elif constats:
+                quarantaine.append(artifact["artifact_id"])
+            else:
                 staged.append(artifact["artifact_id"])
         except Exception as exc:  # noqa: BLE001
             erreurs_staging.append(_incident(artifact, first, by_path, exc))
@@ -592,6 +678,7 @@ for key in (
     "DRIVE_PDF_DISTINCT_ARTIFACTS",
     "DRIVE_PDF_CLEARED_AND_STAGED",
     "DRIVE_PDF_QUARANTINED_PII",
+    "DRIVE_PDF_NOT_ASSESSABLE",
     "DRIVE_PDF_UNCLASSIFIABLE",
     "DRIVE_PDF_PROCESSING_ERRORS",
     "DRIVE_PDF_UNACCOUNTED",

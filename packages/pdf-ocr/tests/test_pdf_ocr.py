@@ -11,7 +11,6 @@ from __future__ import annotations
 import shutil
 
 import pytest
-
 from nexus_pdf_ocr import (
     DEFAULT_DPI,
     DEFAULT_LANGUAGES,
@@ -129,3 +128,125 @@ def test_un_pdf_illisible_est_un_refus_pas_zero_page() -> None:
 
     with pytest.raises(OcrError):
         ocr_pdf_pages(b"ceci n'est pas un PDF", runtime=describe_runtime())
+
+
+# --- la sélection de pages -------------------------------------------
+
+
+def _pdf_multipage(textes: list[str]) -> bytes:
+    """Un PDF réel de `len(textes)` pages, chacune portant son texte en grand.
+
+    Construit à la main plutôt qu'emprunté à un corpus : une épreuve qui
+    dépendrait d'un document de production ne dirait plus rien le jour où ce
+    document change.
+    """
+    objets: list[bytes] = []
+
+    def ajouter(corps: bytes) -> int:
+        objets.append(corps)
+        return len(objets)
+
+    kids: list[int] = []
+    pages_id = len(textes) * 2 + 1  # l'objet /Pages suit les 2N objets de page
+    for texte in textes:
+        flux = f"BT /F1 48 Tf 72 500 Td ({texte}) Tj ET".encode("ascii")
+        contenu = ajouter(
+            b"<< /Length " + str(len(flux)).encode() + b" >>\nstream\n" + flux + b"\nendstream"
+        )
+        kids.append(
+            ajouter(
+                b"<< /Type /Page /Parent " + str(pages_id).encode() + b" 0 R "
+                b"/MediaBox [0 0 612 792] /Resources << /Font << /F1 "
+                + str(pages_id + 1).encode()
+                + b" 0 R >> >> /Contents "
+                + str(contenu).encode()
+                + b" 0 R >>"
+            )
+        )
+    ajouter(
+        b"<< /Type /Pages /Count " + str(len(kids)).encode() + b" /Kids ["
+        + b" ".join(str(k).encode() + b" 0 R" for k in kids)
+        + b"] >>"
+    )
+    ajouter(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+    catalogue = ajouter(b"<< /Type /Catalog /Pages " + str(pages_id).encode() + b" 0 R >>")
+
+    sortie = bytearray(b"%PDF-1.4\n")
+    offsets: list[int] = []
+    for numero, corps in enumerate(objets, 1):
+        offsets.append(len(sortie))
+        sortie += str(numero).encode() + b" 0 obj\n" + corps + b"\nendobj\n"
+    debut_xref = len(sortie)
+    sortie += b"xref\n0 " + str(len(objets) + 1).encode() + b"\n0000000000 65535 f \n"
+    for offset in offsets:
+        sortie += f"{offset:010d} 00000 n \n".encode()
+    sortie += (
+        b"trailer\n<< /Size " + str(len(objets) + 1).encode() + b" /Root "
+        + str(catalogue).encode() + b" 0 R >>\nstartxref\n"
+        + str(debut_xref).encode() + b"\n%%EOF\n"
+    )
+    return bytes(sortie)
+
+
+@besoin_runtime
+def test_sans_selection_toutes_les_pages_sont_rendues() -> None:
+    pages = ocr_pdf_pages(_pdf_multipage(["UN", "DEUX", "TROIS"]), runtime=describe_runtime())
+    assert [page.number for page in pages] == [1, 2, 3]
+
+
+@besoin_runtime
+def test_une_selection_ne_rend_que_les_pages_demandees_avec_leurs_numeros_du_document() -> None:
+    """Le numéro rendu est celui du DOCUMENT, jamais un rang dans la sélection.
+
+    Renvoyer 1, 2 pour les pages 2 et 4 décalerait chaque citation et chaque
+    empreinte de page sans que rien ne le montre.
+    """
+    pages = ocr_pdf_pages(
+        _pdf_multipage(["UN", "DEUX", "TROIS", "QUATRE"]),
+        runtime=describe_runtime(),
+        pages=[4, 2],
+    )
+    assert [page.number for page in pages] == [2, 4]
+
+
+@besoin_runtime
+def test_une_selection_eparse_n_ocerise_pas_les_pages_intermediaires() -> None:
+    """`pdftoppm` ne borne qu'un intervalle : sans le filtrage, la page 3 serait
+    océrisée et rendue alors que personne ne l'a demandée."""
+    pages = ocr_pdf_pages(
+        _pdf_multipage(["UN", "DEUX", "TROIS", "QUATRE", "CINQ"]),
+        runtime=describe_runtime(),
+        pages=[2, 5],
+    )
+    assert [page.number for page in pages] == [2, 5]
+
+
+def test_une_selection_vide_est_un_refus_pas_le_document_entier() -> None:
+    """Demander RIEN n'est pas ne rien demander.
+
+    Les confondre ferait océriser le document entier en croyant obéir — et
+    ferait payer cent cinquante pages pour une sélection que l'appelant avait
+    calculée vide.
+    """
+    from nexus_pdf_ocr import OcrError
+
+    if not RUNTIME_PRESENT:
+        pytest.skip("tesseract absent")
+    with pytest.raises(OcrError, match="sélection de pages vide"):
+        ocr_pdf_pages(_pdf_multipage(["UN"]), runtime=describe_runtime(), pages=[])
+
+
+@besoin_runtime
+def test_une_page_hors_du_document_est_un_refus_pas_un_silence() -> None:
+    """Demander la page 9 d'un document de 3 pages est une erreur d'appelant.
+
+    Rendre discrètement moins de pages que demandé laisserait le consommateur
+    croire que la page existe et qu'elle est vide."""
+    from nexus_pdf_ocr import OcrError
+
+    with pytest.raises(OcrError, match="partition de pages incomplète"):
+        ocr_pdf_pages(
+            _pdf_multipage(["UN", "DEUX", "TROIS"]),
+            runtime=describe_runtime(),
+            pages=[2, 9],
+        )
