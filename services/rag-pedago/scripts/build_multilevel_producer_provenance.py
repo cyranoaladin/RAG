@@ -219,6 +219,7 @@ def serialize(attestation: dict) -> bytes:
 #: change : la version du paquet de contrats. Les scopes attestés y sont des
 #: AJOUTS ; une mineure ultérieure ne retire rien et ne renomme rien.
 _VERSION_FIELD = "contracts_version"
+_SCOPE_FIELD = "scope_registry_sha256"
 
 
 def _version_tuple(value: str) -> tuple[int, ...]:
@@ -247,10 +248,14 @@ def compare_published(published: dict, rendered: dict) -> str | None:
     )
     if not differing:
         return None
+    # Le registre de scopes se juge AVANT le cas général : sinon il figure
+    # dans `differing`, la comparaison générique répond la première et la
+    # branche dédiée devient inatteignable — un refus qui ne sait plus dire
+    # de quoi il est le refus.
+    if _SCOPE_FIELD in differing:
+        return "le registre de scopes a changé : la lignée doit être ré-attestée"
     if differing != [_VERSION_FIELD]:
         return f"dérive sur {', '.join(differing)}"
-    if published.get("scope_registry_sha256") != rendered.get("scope_registry_sha256"):
-        return "le registre de scopes a changé : la lignée doit être ré-attestée"
     ancienne = str(published.get(_VERSION_FIELD, ""))
     courante = str(rendered.get(_VERSION_FIELD, ""))
     try:
@@ -276,9 +281,20 @@ def main() -> int:
             return 1
         published_bytes = output.read_bytes()
         if published_bytes != rendered:
-            drift = compare_published(
-                json.loads(published_bytes), json.loads(rendered)
-            )
+            published = json.loads(published_bytes)
+            # La tolérance porte sur le CONTENU, jamais sur la forme. Des
+            # octets réordonnés ou reformatés disent la même chose et ne
+            # dérivent donc pas sémantiquement — mais l'attestation est un
+            # artefact d'octets : la laisser passer non canonique ferait
+            # « bouger » l'attestation au prochain rendu sans que rien n'ait
+            # changé. On exige d'abord qu'elle soit sa propre sérialisation.
+            if published_bytes != serialize(published):
+                print(
+                    "PROVENANCE_ATTESTATION_DRIFT=1 (attestation non canonique)",
+                    file=sys.stderr,
+                )
+                return 1
+            drift = compare_published(published, json.loads(rendered))
             if drift is not None:
                 print(f"PROVENANCE_ATTESTATION_DRIFT=1 ({drift})", file=sys.stderr)
                 return 1
