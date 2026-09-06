@@ -415,10 +415,14 @@ def _exiger_les_collections(sujets: list, entree: dict, quoi: str) -> None:
     donc sur un périmètre que l'autorité dit toujours servi.
     """
     declarees = entree.get("collections")
-    if declarees is None:
-        return
+    # Obligatoire, comme `release_kind` : une déclaration facultative ne garde
+    # rien, et disparaîtrait précisément sur le registre tronqué qu'elle doit
+    # attraper.
     if not isinstance(declarees, list) or not declarees:
-        raise PromotedContentSetError(f"{quoi} : collections déclarées illisibles")
+        raise PromotedContentSetError(
+            f"{quoi} : le registre ne déclare aucune collection ({declarees!r}) "
+            "— le périmètre servi ne serait alors confronté à rien"
+        )
     portees = {str(s.get("collection")) for s in sujets if isinstance(s, dict)}
     manquantes = sorted(set(map(str, declarees)) - portees)
     surplus = sorted(portees - set(map(str, declarees)))
