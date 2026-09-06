@@ -65,6 +65,7 @@ def _entree_navigation(
         "robots.txt (User-agent: *) ne l'exclut pas — fermeture applicative du "
         "fournisseur, non contournée."
     ),
+    status: int | None = 403,
 ) -> EntreeUrl:
     return EntreeUrl(
         url=url,
@@ -73,7 +74,7 @@ def _entree_navigation(
         navigation_url=url,
         direct_url=None,
         resolved_url=None,
-        status=403,
+        status=status,
         content_type="text/html; charset=UTF-8",
         etag=None,
         last_modified=None,
@@ -85,14 +86,28 @@ def _entree_navigation(
     )
 
 
-def _registre(*entrees: EntreeUrl) -> RegistreUrlSource:
+def _deux_autorites(sha256: str | None = None) -> list[AutoriteSource]:
+    return [
+        AutoriteSource(
+            nom="catalogue-complet.tsv",
+            emplacement="gdrive:x",
+            sha256=sha256 if sha256 is not None else "c" * 64,
+        ),
+        AutoriteSource(
+            nom="evidence.yml",
+            emplacement="services/x",
+            sha256=sha256 if sha256 is not None else "e" * 64,
+        ),
+    ]
+
+
+def _registre(
+    *entrees: EntreeUrl, autorites: list[AutoriteSource] | None = None
+) -> RegistreUrlSource:
     return RegistreUrlSource(
         registry_kind="URL_SOURCE_REGISTRY_V1",
         perimetre="prerentree_2026_2027/multilevel",
-        autorites=[
-            AutoriteSource(nom="catalogue-complet.tsv", emplacement="gdrive:x", sha256="c" * 64),
-            AutoriteSource(nom="evidence.yml", emplacement="services/x", sha256="e" * 64),
-        ],
+        autorites=_deux_autorites() if autorites is None else autorites,
         entrees=list(entrees),
     )
 
@@ -293,3 +308,73 @@ def test_le_registre_versionne_couvre_les_cent_cinquante_artefacts_du_perimetre(
     )["artifacts"]
     attendus = {artefact["content_sha256"] for artefact in evidence}
     assert attendus - couverts == set()
+
+
+# --- ce que la sonde doit confirmer -----------------------------------
+
+
+def test_refuse_une_raison_que_sa_propre_sonde_contredit() -> None:
+    """Un code qui NOMME un statut et une sonde qui en relève un autre se
+    contredisent : l'un des deux est faux, et l'entrée ne prouve plus rien."""
+    incoherente = _entree_navigation(
+        status=404,
+        preuve=(
+            f"HTTP 404 sur la page de navigation le {RETRIEVED_AT_NAVIGATION} ; "
+            "robots.txt (User-agent: *) ne l'exclut pas — page absente."
+        ),
+    )
+    with pytest.raises(
+        RegistreUrlSourceError, match="RAISON_INCOHERENTE_AVEC_LA_SONDE"
+    ):
+        verifier_registre(_registre(incoherente))
+
+
+def test_refuse_une_irrecuperabilite_que_sa_propre_sonde_dement() -> None:
+    """Une URL qui répond 200 n'est pas hors d'atteinte."""
+    contradictoire = _entree_navigation(
+        status=200,
+        preuve=(
+            f"HTTP 200 sur la page de navigation le {RETRIEVED_AT_NAVIGATION} ; "
+            "robots.txt (User-agent: *) ne l'exclut pas — page servie."
+        ),
+    )
+    with pytest.raises(
+        RegistreUrlSourceError, match="IRRECUPERABILITE_CONTREDITE_PAR_LA_SONDE"
+    ):
+        verifier_registre(_registre(contradictoire))
+
+
+@pytest.mark.parametrize("statut", [408, 425, 429, 500, 502, 503, 504])
+def test_un_echec_transitoire_ecrit_a_la_main_reste_refuse(statut: int) -> None:
+    """Le constructeur oriente déjà les 5xx vers EN_ATTENTE ; la garde doit
+    refuser qu'un registre ÉDITÉ les range en irrécupérable — sinon
+    `URL_UNACCOUNTED=0` s'obtiendrait un jour de maintenance chez l'hébergeur.
+    """
+    passagere = _entree_navigation(
+        status=statut,
+        raison="RELATION_NAVIGATION_VERS_DOCUMENT_ABSENTE_DES_AUTORITES",
+        preuve=(
+            f"HTTP {statut} sur la page de navigation le {RETRIEVED_AT_NAVIGATION} ; "
+            "robots.txt (User-agent: *) ne l'exclut pas."
+        ),
+    )
+    with pytest.raises(
+        RegistreUrlSourceError, match="IRRECUPERABILITE_SUR_ECHEC_TRANSITOIRE"
+    ):
+        verifier_registre(_registre(passagere))
+
+
+def test_refuse_une_autorite_dont_l_empreinte_n_en_est_pas_une() -> None:
+    """« Scellée » veut dire porteuse d'un sha256, pas d'une chaîne non vide."""
+    with pytest.raises(RegistreUrlSourceError, match="AUTORITE_NON_SCELLEE"):
+        verifier_registre(
+            _registre(_entree_navigation(), autorites=_deux_autorites(sha256="oui"))
+        )
+
+
+def test_une_url_jamais_sondee_est_un_trou_pas_une_erreur() -> None:
+    """Confondre « sondée et en échec » et « jamais sondée » laissait un
+    registre non mesuré se présenter comme intégralement mesuré."""
+    compteurs = compter(_registre(_entree_navigation(status=None)))
+    assert compteurs["URL_UNPROBED"] == 1
+    assert compteurs["URL_ERRORS"] == 0

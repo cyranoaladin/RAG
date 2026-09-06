@@ -354,3 +354,86 @@ avait d'abord fait régresser 15 épreuves de la famille
 `make-target-safety-audit` (cible non classifiée) ; corrigé en ajoutant
 `currentness-disposition-check` à `SAFE_METADATA_ONLY`, revérifié à zéro
 régression ci-dessus.
+
+## Complément — les quatre refus qui restaient ouverts
+
+Le correctif précédent ferme neuf des onze constats P1. Quatre points
+restaient à découvert, dont un que le contrôle de dérive ne pouvait pas
+attraper par construction.
+
+### Le registre d'URL n'était pas vérifié *avant* de servir d'autorité
+
+`build_currentness_disposition.py` lisait le registre d'URL sans le vérifier.
+Or le contrôle de dérive attrape un grand livre **périmé** ; il n'attrape pas
+un registre **vide, tronqué ou édité** : à partir de celui-ci, un grand livre
+tout neuf se régénère, et chaque artefact devenu introuvable serait pris pour
+une source statique. Moins on en saurait, plus le compte serait vert.
+
+La dérivation vérifie désormais le registre, puis exige que **chaque artefact
+du périmètre soit couvert** — ou porte la déclaration explicite
+`non_url_static_source`. Prouvé par mutation :
+
+```
+entrées du registre vidées   → RC=2, « 150 artefact(s) hors couverture »
+couverture amputée (5 URL)   → CURRENTNESS_LEDGER_DRIFT=1
+registre restauré            → CURRENTNESS_LEDGER_DRIFT=0, RC=0
+```
+
+### Une raison pouvait contredire sa propre sonde
+
+`NAVIGATION_PROTEGEE_403` était acceptée quel que soit le statut relevé. Un
+code qui **nomme** un statut et une sonde qui en relève un autre se
+contredisent : l'un des deux est faux. `STATUT_EXIGE_PAR_RAISON` lie
+désormais le code au relevé. Symétriquement, une entrée dont la sonde répond
+200 ne peut plus être déclarée hors d'atteinte : elle attesterait le
+contraire de ce qu'elle affirme.
+
+Le constructeur oriente déjà les échecs transitoires vers `EN_ATTENTE` ; la
+garde refuse maintenant qu'un registre **écrit à la main** les range en
+irrécupérable — sans quoi `URL_UNACCOUNTED=0` s'obtiendrait un jour de
+maintenance chez l'hébergeur.
+
+### « Scellée » voulait dire « chaîne non vide »
+
+`AUTORITE_NON_SCELLEE` ne testait que la présence du champ : `sha256="oui"`
+passait. La forme sha256 (64 hexadécimaux) est désormais exigée.
+
+### `URL_ERRORS` comptait ce qui n'avait jamais été sondé
+
+`status != 200` est vrai de `None`. Une URL jamais sondée n'est pas « en
+erreur » : c'est un trou dans la mesure, et les confondre laissait un registre
+non mesuré se présenter comme intégralement mesuré et en échec. `URL_UNPROBED`
+les sépare, et la partition des sondes est vérifiée sur les trois termes.
+
+### Une assertion qui ne demandait rien
+
+`assert item["appui"].startswith("")` est vrai de **toute** chaîne :
+l'épreuve des 138 irrécupérables passait au vert sans rien exiger. Elle exige
+désormais une raison du vocabulaire fermé, nommée dans l'appui.
+
+### Non-régression
+
+```
+origin/main vierge      164 failed, 2973 passed
+branche (ce complément) 164 failed, 3031 passed
+
+NOUVEAUX ÉCHECS = 0     ÉCHECS RÉPARÉS = 0   (comparaison nom par nom)
+```
+
+Les comptes réels restent inchangés — `VERIFIED_CURRENT=12`,
+`UNRECOVERABLE_WITH_EVIDENCE=138`, `CURRENTNESS_UNACCOUNTED=0`. Le résultat
+était juste ; c'est la machinerie qui ne le garantissait pas.
+
+### Ce que « CURRENTNESS_ACCOUNTED=150 » veut dire, et ne veut pas dire
+
+Il reste utile de le nommer : **12** artefacts sont *vérifiés courants* (URL
+directe rejouée, empreinte servie identique à l'empreinte scellée). Les
+**138** autres sont dispositionnés `UNRECOVERABLE_WITH_EVIDENCE` sur le seul
+code `NAVIGATION_PROTEGEE_403`, porté par 11 URL de navigation — l'autorité
+du catalogue déclarant elle-même « aucune URL de document direct ».
+
+La preuve consignée dit d'ailleurs que la fermeture 403 est une protection
+anti-robot du fournisseur, **pas** une exclusion. Autrement dit : ces 138
+documents ne sont pas *démontrés périmés*, ils sont *non vérifiables en
+l'état*. Le compte à 150 mesure la complétude de la **disposition**, jamais
+la fraîcheur de 150 documents.

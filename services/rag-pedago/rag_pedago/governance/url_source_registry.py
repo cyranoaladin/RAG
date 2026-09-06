@@ -81,6 +81,18 @@ RAISONS_IRRECUPERABILITE_CONNUES = frozenset(
 #: est une étiquette, pas une preuve.
 PREUVE_IRRECUPERABILITE_LONGUEUR_MINIMALE = 40
 
+#: Statut HTTP qu'un code de raison exige de sa propre sonde. Un code qui
+#: NOMME un statut et une sonde qui en a relevé un autre se contredisent :
+#: l'un des deux est faux, et l'entrée ne prouve plus rien.
+STATUT_EXIGE_PAR_RAISON: dict[str, int] = {
+    RAISON_IRRECUPERABILITE_NAVIGATION_PROTEGEE: 403,
+}
+
+#: Statuts qui disent « pas maintenant », jamais « plus jamais ». Le
+#: constructeur les oriente déjà vers EN_ATTENTE ; la garde refuse qu'un
+#: registre écrit à la main les range en irrécupérable.
+STATUTS_TRANSITOIRES = frozenset({408, 425, 429, 500, 502, 503, 504})
+
 #: Nombre d'autorités dont ce registre est censé dériver : le catalogue de
 #: moisson et l'évidence de fraîcheur, chacune scellée par sa propre empreinte.
 NOMBRE_AUTORITES_ATTENDU = 2
@@ -201,7 +213,11 @@ def compter(registre: RegistreUrlSource) -> dict[str, int]:
             1 for e in entrees if e.resolution is Resolution.IRRECUPERABLE
         ),
         "URL_FETCHED": sum(1 for e in entrees if e.status == 200),
-        "URL_ERRORS": sum(1 for e in entrees if e.status != 200),
+        # Une URL jamais sondée n'est pas « en erreur » : c'est un trou dans
+        # la mesure. Les confondre laissait un registre non sondé se
+        # présenter comme intégralement sondé et en échec.
+        "URL_ERRORS": sum(1 for e in entrees if _sonde_en_echec(e)),
+        "URL_UNPROBED": sum(1 for e in entrees if _jamais_sondee(e)),
         "URL_UNACCOUNTED": len(entrees) - len(comptees),
         "CURRENTNESS_VERIFIED": sum(
             1 for e in verifiables if e.content_sha256 == e.empreinte_scellee
@@ -210,6 +226,24 @@ def compter(registre: RegistreUrlSource) -> dict[str, int]:
             1 for e in verifiables if e.content_sha256 != e.empreinte_scellee
         ),
     }
+
+
+def _jamais_sondee(entree: EntreeUrl) -> bool:
+    return entree.status is None and not entree.erreur_reseau
+
+
+def _sonde_en_echec(entree: EntreeUrl) -> bool:
+    if _jamais_sondee(entree):
+        return False
+    return entree.status != 200 or bool(entree.erreur_reseau)
+
+
+def _empreinte_sha256_valide(valeur: str | None) -> bool:
+    return (
+        isinstance(valeur, str)
+        and len(valeur) == 64
+        and all(caractere in "0123456789abcdef" for caractere in valeur)
+    )
 
 
 def _est_comptee(entree: EntreeUrl) -> bool:
@@ -244,8 +278,10 @@ def verifier_registre(registre: RegistreUrlSource) -> dict[str, int]:
         )
     else:
         for autorite in registre.autorites:
-            if not autorite.sha256:
-                manquements.append(f"AUTORITE_NON_SCELLEE: {autorite.nom}")
+            if not _empreinte_sha256_valide(autorite.sha256):
+                manquements.append(
+                    f"AUTORITE_NON_SCELLEE: {autorite.nom} ({autorite.sha256!r})"
+                )
 
     vues: set[str] = set()
     for entree in registre.entrees:
@@ -259,8 +295,13 @@ def verifier_registre(registre: RegistreUrlSource) -> dict[str, int]:
         manquements.append(
             f"URL_UNACCOUNTED: {compteurs['URL_UNACCOUNTED']} URL sans sort nommé"
         )
-    if compteurs["URL_FETCHED"] + compteurs["URL_ERRORS"] != compteurs["URL_DISCOVERED"]:
-        manquements.append("PARTITION_SONDES_INCOHERENTE")
+    partition = (
+        compteurs["URL_FETCHED"] + compteurs["URL_ERRORS"] + compteurs["URL_UNPROBED"]
+    )
+    if partition != compteurs["URL_DISCOVERED"]:
+        manquements.append(
+            f"PARTITION_SONDES_INCOHERENTE: {partition} != {compteurs['URL_DISCOVERED']}"
+        )
 
     if manquements:
         raise RegistreUrlSourceError("; ".join(manquements))
@@ -280,6 +321,26 @@ def _manquements_entree(entree: EntreeUrl) -> list[str]:
             manquements.append(
                 f"RAISON_IRRECUPERABILITE_INCONNUE: {reference} "
                 f"({entree.raison_irrecuperabilite!r})"
+            )
+        else:
+            exige = STATUT_EXIGE_PAR_RAISON.get(entree.raison_irrecuperabilite)
+            if exige is not None and entree.status != exige:
+                manquements.append(
+                    f"RAISON_INCOHERENTE_AVEC_LA_SONDE: {reference} annonce "
+                    f"{entree.raison_irrecuperabilite} mais la sonde a relevé "
+                    f"{entree.status!r}"
+                )
+        # Une URL qui répond 200 n'est pas hors d'atteinte : l'entrée se
+        # contredirait elle-même, et sa « preuve » attesterait le contraire
+        # de ce qu'elle affirme.
+        if entree.status == 200 and not entree.erreur_reseau:
+            manquements.append(
+                f"IRRECUPERABILITE_CONTREDITE_PAR_LA_SONDE: {reference} répond 200"
+            )
+        if entree.status in STATUTS_TRANSITOIRES:
+            manquements.append(
+                f"IRRECUPERABILITE_SUR_ECHEC_TRANSITOIRE: {reference} "
+                f"(HTTP {entree.status} — relève de EN_ATTENTE)"
             )
         if not entree.preuve_irrecuperabilite:
             manquements.append(f"PREUVE_IRRECUPERABILITE_ABSENTE: {reference}")

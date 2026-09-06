@@ -22,6 +22,7 @@
     "URL_ERRORS": 110,
     "URL_FETCHED": 13,
     "URL_UNACCOUNTED": 0,
+    "URL_UNPROBED": 0,
     "URL_UNRECOVERABLE": 110
   },
   "entrees": [

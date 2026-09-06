@@ -17,7 +17,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -29,6 +31,13 @@ from rag_pedago.governance.currentness_disposition import (  # noqa: E402
     DispositionError,
     construire_registre,
     verifier_registre,
+)
+from rag_pedago.governance.url_source_registry import (  # noqa: E402
+    RegistreUrlSourceError,
+    charger_registre,
+)
+from rag_pedago.governance.url_source_registry import (  # noqa: E402
+    verifier_registre as verifier_registre_url,
 )
 
 EVIDENCE_PATH = (
@@ -42,6 +51,10 @@ URL_REGISTRY_PATH = (
     / "multilevel"
     / "url_source_registry.json"
 )
+#: Nom du champ par lequel l'autorité des artefacts déclare une source
+#: statique — le même que celui qu'exige la disposition elle-même.
+MARQUEUR_SOURCE_STATIQUE = "non_url_static_source"
+
 LEDGER_PATH = (
     PEDAGO_ROOT
     / "data"
@@ -54,12 +67,50 @@ LEDGER_PATH = (
 
 def build() -> dict:
     evidence = yaml.safe_load(EVIDENCE_PATH.read_text(encoding="utf-8"))
+
+    # Le registre d'URL est une AUTORITÉ de cette dérivation, pas une simple
+    # entrée : on le vérifie avant de s'appuyer dessus. Le contrôle de dérive
+    # du grand livre attrape un grand livre PÉRIMÉ ; il n'attrape pas un
+    # registre vide, tronqué ou édité, à partir duquel un grand livre tout
+    # neuf — et faux — se régénère sans rien signaler.
+    verifier_registre_url(charger_registre(URL_REGISTRY_PATH))
+
     registry = json.loads(URL_REGISTRY_PATH.read_text(encoding="utf-8"))
+    _exiger_couverture(evidence["artifacts"], registry["entrees"])
+
     ledger = construire_registre(
         artefacts=evidence["artifacts"], entrees_url=registry["entrees"]
     )
     verifier_registre(ledger)
     return ledger
+
+
+def _exiger_couverture(
+    artefacts: Sequence[Mapping[str, Any]], entrees: Sequence[Mapping[str, Any]]
+) -> None:
+    """Refuser de dériver si le registre ne couvre pas le périmètre.
+
+    Un artefact absent de toute ``artefacts_perimetre`` n'est pas « sans
+    URL » : il est hors de portée du registre. Les deux situations donnent
+    zéro entrée et sont indiscernables dans le résultat, mais la première
+    est une réponse et la seconde une lacune. Seule l'autorité des artefacts
+    peut déclarer une source statique, et elle le fait explicitement.
+    """
+    couverts: set[str] = set()
+    for entree in entrees:
+        couverts.update(str(sha) for sha in entree.get("artefacts_perimetre") or ())
+    orphelins = sorted(
+        str(artefact["content_sha256"])
+        for artefact in artefacts
+        if str(artefact["content_sha256"]) not in couverts
+        and not artefact.get(MARQUEUR_SOURCE_STATIQUE)
+    )
+    if orphelins:
+        raise DispositionError(
+            f"{len(orphelins)} artefact(s) hors couverture du registre d'URL et "
+            f"sans déclaration {MARQUEUR_SOURCE_STATIQUE} par leur autorité : "
+            + ", ".join(sha[:12] + "…" for sha in orphelins[:5])
+        )
 
 
 def serialize(ledger: dict) -> bytes:
@@ -76,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         rendered = serialize(build())
-    except (DispositionError, KeyError, OSError) as exc:
+    except (DispositionError, RegistreUrlSourceError, KeyError, OSError) as exc:
         print(f"currentness disposition error: {exc}", file=sys.stderr)
         return 2
 

@@ -21,6 +21,9 @@ from rag_pedago.governance.currentness_disposition import (
     construire_registre,
     verifier_registre,
 )
+from rag_pedago.governance.url_source_registry import (
+    RAISONS_IRRECUPERABILITE_CONNUES,
+)
 
 PEDAGO_ROOT = Path(__file__).resolve().parents[1]
 EVIDENCE = (
@@ -106,7 +109,12 @@ def test_les_irrecuperables_portent_tous_une_raison(registre_reel) -> None:
     ]
     assert len(irrecuperables) == 138
     for item in irrecuperables:
-        assert item["appui"].startswith("")
+        # `startswith("")` était vrai de TOUTE chaîne : l'assertion passait
+        # au vert sans rien exiger. On exige ce que la disposition promet —
+        # une raison du vocabulaire fermé, nommée dans l'appui.
+        assert any(
+            raison in item["appui"] for raison in RAISONS_IRRECUPERABILITE_CONNUES
+        ), item["appui"]
         assert "irrécupérable" in item["appui"]
         assert item["urls"]
 
@@ -246,3 +254,46 @@ def test_le_verificateur_refuse_un_appui_irrecuperable_sans_condense_de_preuve()
     registre["dispositions"][0]["appui"] = "1 provenance(s) irrécupérable(s) : X"
     with pytest.raises(DispositionError, match="condensé de preuve"):
         verifier_registre(registre)
+
+
+# --- ce dont la dérivation doit s'assurer AVANT de dériver -------------
+
+
+def test_le_constructeur_refuse_un_artefact_hors_couverture_du_registre() -> None:
+    """Le trou que le contrôle de dérive ne voit pas.
+
+    Le contrôle de dérive attrape un grand livre PÉRIMÉ. Il n'attrape pas un
+    registre d'URL vide, tronqué ou édité : à partir de lui, un grand livre
+    tout neuf se régénère, et chaque artefact devenu introuvable serait pris
+    pour une source statique. Moins on en saurait, plus le compte serait vert.
+    """
+    import importlib.util
+
+    chemin = PEDAGO_ROOT / "scripts" / "build_currentness_disposition.py"
+    spec = importlib.util.spec_from_file_location("build_cd", chemin)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    with pytest.raises(DispositionError) as refus:
+        module._exiger_couverture(
+            [{"content_sha256": SHA_A}],
+            [{"url": "https://x", "artefacts_perimetre": [SHA_B]}],
+        )
+    assert "hors couverture du registre" in str(refus.value)
+
+
+def test_un_artefact_declare_statique_est_admis_hors_couverture() -> None:
+    """La déclaration explicite reste la seule porte de sortie."""
+    import importlib.util
+
+    chemin = PEDAGO_ROOT / "scripts" / "build_currentness_disposition.py"
+    spec = importlib.util.spec_from_file_location("build_cd2", chemin)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+
+    module._exiger_couverture(
+        [{"content_sha256": SHA_A, "non_url_static_source": "corpus/referentiels"}],
+        [],
+    )
