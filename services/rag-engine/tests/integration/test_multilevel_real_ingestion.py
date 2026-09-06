@@ -133,7 +133,6 @@ PROGRAMME_SHA256 = "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89a
 PROFILE_MANIFEST_SHA256 = "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753"
 LEVELS_SHA256 = "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e"
 SUBJECTS_SHA256 = "c3c2d20bd27243a77795b3a056441d256f0b0b9b73306b3a1e710eee61407ed6"
-DOCUMENT_TYPES_SHA256 = "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b"
 CORPUS_MANIFEST_SHA256 = "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 E5_INVENTORY_SHA256 = "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a"
 
@@ -166,20 +165,6 @@ PROFILE_MANIFEST_PATH = (
 PROGRAMME_PATH = ENGINE_ROOT / "configs" / "programme_indexes" / "multilevel_2026_2027.yml"
 LEVELS_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_levels.yml"
 SUBJECTS_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_subjects.yml"
-# Le mappage des types documentaires est lu dans le snapshot scellé, pas dans
-# `configs/`. a4b1f96 (PR #142) a étendu le mappage vivant de quatre à neuf
-# types — extension additive, aucune correspondance existante modifiée — et a
-# vendorisé ici la version sous laquelle cette release a été scellée, dont les
-# allowlists portent l'empreinte. Le banc, lui, continuait de lire le fichier
-# vivant : il refusait donc sa propre entrée. Les niveaux et les matières
-# restent lus dans `configs/`, où ils sont inchangés depuis le scellement.
-DOCUMENT_TYPES_PATH = (
-    ENGINE_ROOT
-    / "tests"
-    / "fixtures"
-    / "profile_gate_20260825"
-    / "eduscol_multilevel_document_types.yml"
-)
 
 PDF_MIRROR = Path(os.environ.get("NEXUS_MULTILEVEL_PDF_MIRROR", ""))
 PII_PATH = Path(os.environ.get("NEXUS_MULTILEVEL_PII_EVIDENCE_PATH", ""))
@@ -198,6 +183,57 @@ if not os.environ.get("NEXUS_REQUIRE_DOCKER", "").strip() or not all(
     )
 ):
     pytest.skip("multilevel real ingestion not requested", allow_module_level=True)
+
+
+#: Chemins connus du mappage de types documentaires. Le banc ne choisit pas
+#: entre eux : il retient celui dont l'empreinte est celle que la release
+#: SERVIE lie.
+_DOCUMENT_TYPE_MAPPING_CANDIDATES = (
+    ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_document_types.yml",
+    ENGINE_ROOT
+    / "tests"
+    / "fixtures"
+    / "profile_gate_20260825"
+    / "eduscol_multilevel_document_types.yml",
+)
+
+
+def _document_type_mapping_bound_by_the_release() -> tuple[Path, str]:
+    """Le mappage que LA RELEASE SERVIE lie, où qu'il se trouve dans l'arbre.
+
+    Ce couple a été faux deux fois, dans les deux sens. Le banc lisait le
+    fichier vivant de `configs/` alors que la release du 2026-08-13 était
+    scellée sous le snapshot vendorisé du 2026-08-25 : il refusait sa propre
+    entrée (PR #147). Puis la release a été régénérée contre le fichier vivant,
+    et pointer sur le snapshot l'aurait fait refuser son entrée à nouveau, en
+    sens inverse.
+
+    Aucun des deux chemins n'est bon dans l'absolu : le bon est celui que la
+    release NOMME. On lit donc son empreinte de la release, et on retient le
+    fichier qui la porte. Si aucun ne la porte, le mappage lié n'existe plus
+    dans l'arbre — et le banc le dit, au lieu d'en servir un autre.
+    """
+    expected = str(
+        json.loads(RELEASE_PATH.read_text(encoding="utf-8"))["authorities"][
+            "document_type_mapping_sha256"
+        ]
+    )
+    for candidate in _DOCUMENT_TYPE_MAPPING_CANDIDATES:
+        if (
+            candidate.is_file()
+            and hashlib.sha256(candidate.read_bytes()).hexdigest() == expected
+        ):
+            return candidate, expected
+    raise AssertionError(
+        "le mappage de types documentaires lié par la release "
+        f"({expected[:12]}…) n'existe dans aucun chemin connu : "
+        + ", ".join(str(candidate) for candidate in _DOCUMENT_TYPE_MAPPING_CANDIDATES)
+    )
+
+
+DOCUMENT_TYPES_PATH, DOCUMENT_TYPES_SHA256 = (
+    _document_type_mapping_bound_by_the_release()
+)
 
 
 def _sha256(path: Path) -> str:
