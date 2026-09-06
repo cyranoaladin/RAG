@@ -18,7 +18,9 @@ name: Corpus CAS reproducibility (C1)
     branches: [main]
     paths:
       - "scripts/qualification/verify_corpus_cas.py"
+      - "scripts/qualification/compute_promoted_content_set.py"
       - "docs/reports/evidence-index/pii_review_index_20260903.json"
+      - "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/**"
       - ".github/workflows/corpus-cas-reproducibility.yml"
   workflow_dispatch: {}
 
@@ -45,6 +47,18 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Unit tests for the qualification scripts
+        run: python -m pip install --quiet pytest && python -m pytest -q scripts/qualification/tests/
+
+      - name: Compute the content set the current lineage promotes
+        run: |
+          set -euo pipefail
+          # Données publiques du dépôt uniquement — aucune clé requise ici.
+          # Le store peut légitimement porter plus que cet ensemble (candidat
+          # retiré, contenu superseded) ; il ne peut jamais en porter moins.
+          python scripts/qualification/compute_promoted_content_set.py \
+            --output /tmp/promoted-content-set.json
+
       - name: Fetch the private content-addressed corpus
         uses: actions/checkout@v4
         with:
@@ -69,4 +83,5 @@ jobs:
           python scripts/qualification/verify_corpus_cas.py \
             --cas-root .corpus-cas \
             --expect-content-set-sha256 "$expected" \
-            --expect-count "$count"
+            --expect-count "$count" \
+            --promoted-content-set /tmp/promoted-content-set.json
