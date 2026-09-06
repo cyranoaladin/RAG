@@ -17,11 +17,18 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_15_0() -> None:
-    """0.15.0 ajoute les manifests servables (ARIA-B) et les décisions de revue PII (ADR-0047)."""
+def test_package_version_is_0_16_0() -> None:
+    """0.16.0 ajoute dix scopes de retrieval empaquetés (ADR-0048).
+
+    Évolution publique ADDITIVE : une nouvelle population de ressources
+    adressables, aucun schéma modifié, aucune rupture. Le dépôt applique à ce
+    cas la MINEURE — ADR-0042 (0.11→0.12), ADR-0044 (0.12→0.13), ADR-0045
+    (0.13→0.14, dix-huit scopes V2 ajoutés) et ARIA-B (0.14→0.15) l'ont fait
+    avant nous.
+    """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.15.0"
+    assert pyproject["project"]["version"] == "0.16.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -69,7 +76,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first_lock = json.loads((first / "contracts.lock.json").read_text())
     second_lock = json.loads((second / "contracts.lock.json").read_text())
     assert first_lock == second_lock
-    assert first_lock["packageVersion"] == "0.15.0"
+    assert first_lock["packageVersion"] == "0.16.0"
     assert set(first_lock["schemas"]) == expected
     fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
     assert first_lock["fixtures"] == {

@@ -44,7 +44,7 @@ _REAL_MULTILEVEL_RELEASE = (
     / "multilevel.release.json"
 )
 _REAL_MULTILEVEL_RELEASE_SHA256 = (
-    "d8ee6703d3497e34e6e5273bee00da90ab9c82094f0f9a1257eef0ff91da1828"
+    "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26"
 )
 
 
@@ -1138,7 +1138,7 @@ def test_real_multilevel_release_loader_has_exact_final_counts() -> None:
 
     assert len(expectation.collections) == 10
     assert sum(len(item.placements) for item in expectation.artifacts) == 11
-    assert sum(len(item.chunks) for item in expectation.artifacts) == 359
+    assert sum(len(item.chunks) for item in expectation.artifacts) == 353
     assert len(eligibility.placements) == 11
     assert eligibility.manifest_sha256 == _REAL_MULTILEVEL_RELEASE_SHA256
     assert {item.profile_version for item in eligibility.placements} == {

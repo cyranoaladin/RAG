@@ -271,18 +271,19 @@ def test_internal_cli_covers_every_backend_scope() -> None:
     """LOT H2-B remédiation (finding P2-cli-scope-coverage) : le client
     interne doit reconnaître 100% des scopes du registre canonique — plus
     l'allowlist statique de 2 scopes qui divergeait déjà du backend
-    (BACKEND_SCOPE_COUNT=31 après liaison de la release production)."""
+    (BACKEND_SCOPE_COUNT=41 après ADR-0048 : 31 scopes historiques plus
+    les dix successeurs `_v2` de la release multi-niveaux régénérée)."""
     client = _load_client()
     backend_scopes = load_retrieval_scope_registry()
 
     assert set(client.available_scopes()) == set(backend_scopes)
-    assert len(client.available_scopes()) == len(backend_scopes) == 31
+    assert len(client.available_scopes()) == len(backend_scopes) == 41
 
 
 def test_internal_cli_can_issue_an_identity_for_every_v2_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Every V2 scope in the registry (30 of the 31) must reach a signed,
+    """Every V2 scope in the registry (40 of the 41) must reach a signed,
     self-verifying identity through the same code path — not just the two
     Wave 0 scopes the old hardcoded allowlist happened to cover."""
     client = _load_client()
@@ -296,7 +297,7 @@ def test_internal_cli_can_issue_an_identity_for_every_v2_scope(
         for scope_id, artifact in load_retrieval_scope_registry().items()
         if isinstance(artifact, RetrievalScopeArtifactV2)
     }
-    assert len(v2_scopes) == 30
+    assert len(v2_scopes) == 40
 
     for scope_id in v2_scopes:
         token, artifact = client.issue_scope_identity(scope_id, config=config)

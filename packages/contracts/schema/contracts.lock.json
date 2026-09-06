@@ -4,7 +4,7 @@
       "sha256": "63d17d438a4999c794cf69ae761e149cbdb821a5558397b60c0cdf1a9e3596f9"
     }
   },
-  "packageVersion": "0.15.0",
+  "packageVersion": "0.16.0",
   "schemas": {
     "chat-payload.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/chat-payload.json",

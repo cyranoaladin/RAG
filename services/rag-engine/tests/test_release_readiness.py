@@ -3151,9 +3151,9 @@ def test_runtime_startup_refuses_two_scopes_for_the_same_release_subject(
     monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_digest)
     config = yaml.safe_load(CANONICAL_COLLECTIONS.read_text(encoding="utf-8"))
     artifacts = dict(load_retrieval_scope_registry())
-    original = artifacts["terminale_nsi_v1"]
-    artifacts["terminale_nsi_duplicate_v1"] = original.model_copy(
-        update={"scope_id": "terminale_nsi_duplicate_v1"}
+    original = artifacts["terminale_nsi_v2"]
+    artifacts["terminale_nsi_duplicate_v2"] = original.model_copy(
+        update={"scope_id": "terminale_nsi_duplicate_v2"}
     )
 
     with pytest.raises(RuntimeError, match="ambiguous"):

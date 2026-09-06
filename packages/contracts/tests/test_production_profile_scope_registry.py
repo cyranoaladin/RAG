@@ -80,7 +80,7 @@ def test_registry_contains_all_immutable_production_profile_scopes() -> None:
     registry = load_retrieval_scope_registry()
 
     assert set(PRODUCTION_PROFILE_SCOPES) <= set(registry)
-    assert len(registry) == 31
+    assert len(registry) == 41
 
 
 def test_production_profile_scopes_bind_exact_release_subjects() -> None:

@@ -119,8 +119,12 @@ pytestmark = [pytest.mark.integration, requires_docker]
 TARGET_COLLECTIONS = 10
 EXPECTED_ARTIFACTS = 11
 EXPECTED_PLACEMENTS = 11
-EXPECTED_CHUNKS = 359
-RELEASE_SHA256 = "d8ee6703d3497e34e6e5273bee00da90ab9c82094f0f9a1257eef0ff91da1828"
+# 353 et non 359 : sous la sémantique d'extraction actuelle (page policy
+# introduite par a4b1f96) les mêmes onze artefacts, au même nombre de pages
+# (137), rendent 353 chunks. La release a été régénérée en conséquence ;
+# l'ancienne est conservée sous multilevel-superseded-20260813/.
+EXPECTED_CHUNKS = 353
+RELEASE_SHA256 = "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26"
 INVENTORY_SHA256 = "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300"
 CURRENTNESS_SHA256 = "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122"
 PII_SHA256 = "46d6c738ebc230dedb95ada2d07bd17a0907d75ee8aedcd556d27027ad50daa8"
@@ -129,7 +133,6 @@ PROGRAMME_SHA256 = "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89a
 PROFILE_MANIFEST_SHA256 = "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753"
 LEVELS_SHA256 = "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e"
 SUBJECTS_SHA256 = "c3c2d20bd27243a77795b3a056441d256f0b0b9b73306b3a1e710eee61407ed6"
-DOCUMENT_TYPES_SHA256 = "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f"
 CORPUS_MANIFEST_SHA256 = "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e"
 E5_INVENTORY_SHA256 = "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a"
 
@@ -162,20 +165,6 @@ PROFILE_MANIFEST_PATH = (
 PROGRAMME_PATH = ENGINE_ROOT / "configs" / "programme_indexes" / "multilevel_2026_2027.yml"
 LEVELS_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_levels.yml"
 SUBJECTS_PATH = ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_subjects.yml"
-# Le mappage des types documentaires est lu dans le snapshot scellé, pas dans
-# `configs/`. a4b1f96 (PR #142) a étendu le mappage vivant de quatre à neuf
-# types — extension additive, aucune correspondance existante modifiée — et a
-# vendorisé ici la version sous laquelle cette release a été scellée, dont les
-# allowlists portent l'empreinte. Le banc, lui, continuait de lire le fichier
-# vivant : il refusait donc sa propre entrée. Les niveaux et les matières
-# restent lus dans `configs/`, où ils sont inchangés depuis le scellement.
-DOCUMENT_TYPES_PATH = (
-    ENGINE_ROOT
-    / "tests"
-    / "fixtures"
-    / "profile_gate_20260825"
-    / "eduscol_multilevel_document_types.yml"
-)
 
 PDF_MIRROR = Path(os.environ.get("NEXUS_MULTILEVEL_PDF_MIRROR", ""))
 PII_PATH = Path(os.environ.get("NEXUS_MULTILEVEL_PII_EVIDENCE_PATH", ""))
@@ -194,6 +183,57 @@ if not os.environ.get("NEXUS_REQUIRE_DOCKER", "").strip() or not all(
     )
 ):
     pytest.skip("multilevel real ingestion not requested", allow_module_level=True)
+
+
+#: Chemins connus du mappage de types documentaires. Le banc ne choisit pas
+#: entre eux : il retient celui dont l'empreinte est celle que la release
+#: SERVIE lie.
+_DOCUMENT_TYPE_MAPPING_CANDIDATES = (
+    ENGINE_ROOT / "configs" / "mappings" / "eduscol_multilevel_document_types.yml",
+    ENGINE_ROOT
+    / "tests"
+    / "fixtures"
+    / "profile_gate_20260825"
+    / "eduscol_multilevel_document_types.yml",
+)
+
+
+def _document_type_mapping_bound_by_the_release() -> tuple[Path, str]:
+    """Le mappage que LA RELEASE SERVIE lie, où qu'il se trouve dans l'arbre.
+
+    Ce couple a été faux deux fois, dans les deux sens. Le banc lisait le
+    fichier vivant de `configs/` alors que la release du 2026-08-13 était
+    scellée sous le snapshot vendorisé du 2026-08-25 : il refusait sa propre
+    entrée (PR #147). Puis la release a été régénérée contre le fichier vivant,
+    et pointer sur le snapshot l'aurait fait refuser son entrée à nouveau, en
+    sens inverse.
+
+    Aucun des deux chemins n'est bon dans l'absolu : le bon est celui que la
+    release NOMME. On lit donc son empreinte de la release, et on retient le
+    fichier qui la porte. Si aucun ne la porte, le mappage lié n'existe plus
+    dans l'arbre — et le banc le dit, au lieu d'en servir un autre.
+    """
+    expected = str(
+        json.loads(RELEASE_PATH.read_text(encoding="utf-8"))["authorities"][
+            "document_type_mapping_sha256"
+        ]
+    )
+    for candidate in _DOCUMENT_TYPE_MAPPING_CANDIDATES:
+        if (
+            candidate.is_file()
+            and hashlib.sha256(candidate.read_bytes()).hexdigest() == expected
+        ):
+            return candidate, expected
+    raise AssertionError(
+        "le mappage de types documentaires lié par la release "
+        f"({expected[:12]}…) n'existe dans aucun chemin connu : "
+        + ", ".join(str(candidate) for candidate in _DOCUMENT_TYPE_MAPPING_CANDIDATES)
+    )
+
+
+DOCUMENT_TYPES_PATH, DOCUMENT_TYPES_SHA256 = (
+    _document_type_mapping_bound_by_the_release()
+)
 
 
 def _sha256(path: Path) -> str:
@@ -454,7 +494,7 @@ class SearchCase:
 
 
 SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
-    "entree_premiere_maths_v1": (
+    "entree_premiere_maths_v2": (
         SearchCase(
             "Comment le programme aborde-t-il les vecteurs et la géométrie repérée en seconde ?",
             "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
@@ -471,7 +511,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("probabil", "statisti"),
         ),
     ),
-    "entree_premiere_francais_v1": (
+    "entree_premiere_francais_v2": (
         SearchCase(
             "Quel est le programme de français en classe de seconde générale et technologique ?",
             "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
@@ -488,7 +528,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("comprehension",),
         ),
     ),
-    "entree_troisieme_maths_v1": (
+    "entree_troisieme_maths_v2": (
         SearchCase(
             "Quels sont les attendus de fin d'année en mathématiques en quatrième ?",
             "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
@@ -505,7 +545,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("nombres",),
         ),
     ),
-    "entree_troisieme_francais_v1": (
+    "entree_troisieme_francais_v2": (
         SearchCase(
             "Quels sont les attendus de fin d'année en français en quatrième ?",
             "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
@@ -522,7 +562,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("interpret",),
         ),
     ),
-    "entree_terminale_maths_v1": (
+    "entree_terminale_maths_v2": (
         SearchCase(
             "Quel est le programme 2026 de spécialité mathématiques en première générale ?",
             "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
@@ -539,7 +579,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("probabil",),
         ),
     ),
-    "entree_terminale_nsi_v1": (
+    "entree_terminale_nsi_v2": (
         SearchCase(
             "Quel est le programme de spécialité NSI en première générale ?",
             "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
@@ -556,24 +596,42 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("web", "interaction"),
         ),
     ),
-    "eaf_premiere_francais_v1": (
+    "eaf_premiere_francais_v2": (
         SearchCase(
             "Quel est le programme de français en première générale et technologique ?",
             "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
             ("programme",),
         ),
+        # Requalifiée le 2026-09-05 contre la release régénérée. La formulation
+        # précédente (« Quelles compétences prépare-t-on pour les épreuves
+        # anticipées de français ? ») n'est plus servie : mesurée sur les 38
+        # chunks de l'artefact, la meilleure logit du reranker vaut -1.251,
+        # très en dessous du plancher gouverné de 1.90. Le contenu, lui, est
+        # bien là — page 9, « l'orientation générale du travail en classe de
+        # première est liée à la préparation des élèves aux épreuves anticipées
+        # de français » — et cette question-ci l'atteint (logit 2.032). Le
+        # plancher n'a pas bougé ; c'est la question qui a été remesurée.
         SearchCase(
-            "Quelles compétences prépare-t-on pour les épreuves anticipées de français ?",
+            "Quels exercices d'écrit et d'oral prépare-t-on en première en vue "
+            "des épreuves anticipées de français ?",
             "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
             ("epreuves anticipees",),
         ),
+        # Requalifiée le 2026-09-05, même cause : sous la partition régénérée,
+        # la formulation précédente (« Comment le programme de première
+        # organise-t-il lecture, écriture et étude de la langue ? ») place en
+        # tête un chunk dont l'extrait de 200 caractères, centré sur les
+        # termes de la question, ne montre pas « langue ». L'extrait est la
+        # citation rendue à l'élève : un extrait qui n'expose pas la notion
+        # demandée n'étaye pas la réponse. Cette question-ci la met en tête
+        # et dans l'extrait.
         SearchCase(
-            "Comment le programme de première organise-t-il lecture, écriture et étude de la langue ?",
+            "Comment l'étude de la langue est-elle conduite en classe de première ?",
             "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
             ("langue",),
         ),
     ),
-    "terminale_maths_v1": (
+    "terminale_maths_v2": (
         SearchCase(
             "Quel est le programme de spécialité mathématiques en terminale générale ?",
             "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
@@ -590,7 +648,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("probabil", "geometr"),
         ),
     ),
-    "terminale_nsi_v1": (
+    "terminale_nsi_v2": (
         SearchCase(
             "Quel est le programme de spécialité NSI en terminale générale ?",
             "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
@@ -607,7 +665,7 @@ SEARCH_CASES: Mapping[str, tuple[SearchCase, ...]] = {
             ("diviser pour regner",),
         ),
     ),
-    "terminale_physique_chimie_v1": (
+    "terminale_physique_chimie_v2": (
         SearchCase(
             "Quel est le programme de spécialité physique-chimie en terminale générale ?",
             "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
@@ -771,7 +829,9 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
             "NEXUS_SSO_AUDIENCE": identity_audience,
             "PG_RAG_DSN": product_pg["retrieval_dsn"],
             "PG_REVIEW_DSN": product_pg["review_dsn"],
-            "RAG_COLLECTIONS_CONFIG": str(ENGINE_ROOT / "configs" / "rag_collections.yml"),
+            "RAG_COLLECTIONS_CONFIG": str(
+                ENGINE_ROOT / "configs" / "staging" / "rag_collections_multilevel.yml"
+            ),
             "RAG_RELEASE_MANIFESTS_JSON": release_registry,
             "RAG_EMBEDDING_MODEL_CACHE_DIR": str(E5_PATH),
             "RAG_EMBEDDING_MODEL_INVENTORY_SHA256": E5_INVENTORY_SHA256,
@@ -894,15 +954,15 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
 
             cross_scope = client.post(
                 "/search/v2",
-                headers=headers_by_scope["entree_premiere_maths_v1"],
+                headers=headers_by_scope["entree_premiere_maths_v2"],
                 json=_search_payload(
-                    "entree_premiere_francais_v1",
-                    SEARCH_CASES["entree_premiere_francais_v1"][0].query,
+                    "entree_premiere_francais_v2",
+                    SEARCH_CASES["entree_premiere_francais_v2"][0].query,
                 ),
             )
             assert cross_scope.status_code == 403
 
-            fr_scope = "entree_premiere_francais_v1"
+            fr_scope = "entree_premiere_francais_v2"
             fr_token = _identity_token(
                 fr_scope,
                 secret=identity_secret,

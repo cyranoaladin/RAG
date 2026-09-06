@@ -89,10 +89,63 @@ def test_production_projection_replays_from_its_exact_source_tree() -> None:
     ]
 
 
+#: Les archives qui portent, à l'octet près, une version supersédée d'une
+#: entrée du producteur. Une entrée régénérée n'a pas « dérivé » si les octets
+#: qu'une attestation datée désigne existent encore, intacts, à un chemin
+#: archivé nommé.
+SUPERSEDED_ARCHIVES = (
+    (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/",
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "multilevel-superseded-20260813/",
+    ),
+)
+
+
+def _superseded_copy(relative: str) -> Path | None:
+    """Le chemin archivé qui correspond à cette entrée, s'il existe."""
+    for vivant, archive in SUPERSEDED_ARCHIVES:
+        if relative.startswith(vivant):
+            candidate = ROOT / (archive + relative[len(vivant) :])
+            if candidate.is_file():
+                return candidate
+    return None
+
+
 def test_current_head_has_no_drift_in_any_producer_input_blob() -> None:
+    """Aucune entrée du producteur n'a changé sans que ses octets survivent.
+
+    Le détecteur ne demande pas que rien ne bouge : une release SE régénère,
+    et l'exiger figerait le dépôt. Il demande que les octets qu'une
+    attestation datée désigne existent **encore**, à l'octet près, à un
+    chemin nommé — sans quoi la provenance du 2026-08-25 attesterait des
+    entrées qu'on ne peut plus produire.
+
+    C'est strictement plus fort qu'une exemption par nom : une entrée
+    régénérée dont l'original aurait disparu, ou aurait été retouché dans
+    l'archive, échoue ici.
+    """
     _produced, provenance = _produce_from_provenance()
+    supersedees: list[str] = []
     for relative, expected_sha256 in provenance["input_blob_sha256"].items():
         if relative == "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json":
             # Le registre de release a été promu pour servir la release des onze collections
             continue
-        assert _sha256(ROOT / relative) == expected_sha256
+        if _sha256(ROOT / relative) == expected_sha256:
+            continue
+        archive = _superseded_copy(relative)
+        assert archive is not None, (
+            f"{relative} a changé et aucune archive ne porte la version attestée"
+        )
+        assert _sha256(archive) == expected_sha256, (
+            f"{relative} a changé et l'archive {archive.name} ne porte pas les "
+            "octets attestés"
+        )
+        supersedees.append(relative)
+
+    # Contrôle positif : sans lui, un détecteur qui laisserait tout passer
+    # serait vert pour une raison qu'on ne verrait pas. Les dix manifestes de
+    # subject multi-niveaux sont supersédés depuis la régénération de la
+    # release ; aucune autre entrée ne l'est.
+    assert len(supersedees) == 10, sorted(supersedees)
+    assert all("/multilevel/" in relative for relative in supersedees)

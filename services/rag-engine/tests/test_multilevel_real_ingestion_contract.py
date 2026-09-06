@@ -13,7 +13,7 @@ def test_multilevel_e2e_uses_real_governed_runtime() -> None:
 
     assert "TARGET_COLLECTIONS = 10" in source
     assert "EXPECTED_ARTIFACTS = 11" in source
-    assert "EXPECTED_CHUNKS = 359" in source
+    assert "EXPECTED_CHUNKS = 353" in source
     assert "VerifiedE5EmbeddingProvider.from_artifact" in source
     assert "run_worker_iteration" in source
     assert "run_publication_resume_iteration" in source
