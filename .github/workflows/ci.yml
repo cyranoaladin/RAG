@@ -48,7 +48,13 @@ jobs:
       # Le qualificateur consomme l'autorité canonique de release, celle que
       # le runtime utilise. L'installer coûte une ligne ; la dupliquer coûtait
       # onze rondes de revue et un second runtime à maintenir.
-      - run: pip install --quiet pytest -e packages/release-chain
+      # `nexus-release-chain` dépend de `nexus-contracts`, qui n'est pas
+      # publié : les deux paquets locaux s'installent ensemble, dans l'ordre.
+      - run: |
+          pip install --quiet pytest \
+            -e packages/contracts \
+            -e packages/pdf-page-policy \
+            -e packages/release-chain
       - run: python -m pytest -q scripts/qualification/tests
       # Le producteur ne lit que des données publiques du dépôt : il doit
       # rendre l'ensemble promu ici, sans clé, ou nommer ce qui est faux.
