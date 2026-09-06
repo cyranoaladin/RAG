@@ -207,3 +207,63 @@ C'est une remoisson : elle sort du périmètre de ce lot et est signalée ici sa
   source (classification dans `configs/make_target_safety.yml`), pas contournés.
 - `make url-source-registry-audit` : `VERDICT : REGISTRE DES URL SOURCES
   COHÉRENT, AUCUNE URL NON COMPTÉE`
+
+---
+
+# Dispositions de fraîcheur — 2026-09-06
+
+`URL_UNACCOUNTED=0` répondait d'une question : chaque URL a un état. Elle n'en
+répondait pas d'une autre : **chaque artefact gouverné a-t-il une
+disposition ?** Un artefact couvert par une URL comptée peut rester, lui, sans
+réponse — et c'était le cas, faute qu'on le lui demande.
+
+## Le registre
+
+`rag_pedago/governance/currentness_disposition.py` +
+`data/releases/prerentree_2026_2027/multilevel/currentness_disposition.json`,
+produit par `scripts/build_currentness_disposition.py` (mode `--check`
+disponible, dérive refusée).
+
+Il est **dérivé** de deux autorités déjà scellées — l'évidence de fraîcheur et
+le registre d'URL — et de rien d'autre. Une disposition saisie à la main serait
+un avis, pas une mesure.
+
+```
+CURRENTNESS_ACCOUNTED=150
+CURRENTNESS_UNACCOUNTED=0
+
+VERIFIED_CURRENT=12
+UNRECOVERABLE_WITH_EVIDENCE=138
+NON_URL_STATIC_SOURCE=0
+INTERACTIVE_RESOURCE_VERIFIED=0
+```
+
+## Ce que chaque disposition exige
+
+| Disposition | Ce qui doit être vrai |
+|---|---|
+| `VERIFIED_CURRENT` | une URL directe rejouée dont l'**empreinte servie** est identique à l'empreinte scellée |
+| `UNRECOVERABLE_WITH_EVIDENCE` | **toutes** les provenances irrécupérables, chacune avec sa raison codée **et** sa preuve |
+| `NON_URL_STATIC_SOURCE` | aucune provenance URL — source statique du plan de contrôle |
+| `INTERACTIVE_RESOURCE_VERIFIED` | ressource dont l'identité n'est pas un fichier téléchargeable |
+
+Un artefact qui n'entre dans aucune case **n'est pas rangé d'office** : le
+producteur échoue en nommant le cas. C'est ce qui empêche
+`CURRENTNESS_UNACCOUNTED=0` de s'obtenir par déplacement.
+
+## Refus prouvés
+
+Douze épreuves, chacune sur le défaut qu'elle vise :
+
+- une URL qui répond **sans empreinte servie** ne vérifie rien — un 200 est un
+  ping, pas une vérification ;
+- une empreinte servie **différente** de l'empreinte scellée ne vérifie rien —
+  c'est même le cas qui compte, le contenu a dérivé ;
+- un `IRRECUPERABLE` **sans preuve** est refusé ;
+- un artefact **partiellement** résolu (une provenance irrécupérable, une en
+  attente) est nommé, pas classé ;
+- un compte publié faux, une disposition sans appui, un artefact dispositionné
+  deux fois, un périmètre vide : tous refusés.
+
+Le périmètre vide est refusé nommément, parce que zéro artefact rendrait
+`UNACCOUNTED=0` trivialement vrai.
