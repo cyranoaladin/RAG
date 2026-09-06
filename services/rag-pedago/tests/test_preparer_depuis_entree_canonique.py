@@ -165,7 +165,9 @@ def test_le_texte_du_paquet_est_celui_du_run_pas_une_extraction_du_pdf(atelier) 
     page = (args["output_root"] / sha / "pages/page-0002.txt").read_bytes().decode("utf-8")
     assert page == PAGES[1]
     assert "\r\n" in page, "un retour chariot traduit serait un autre texte"
-    assert index["entries"][0]["canonical_text_sha256"] == _sha("\n".join(PAGES))
+    assert index["protocol_version"] == "NEXUS-PII-REVIEW-INDEX-V1"
+    assert "bundles" in index, "l'index garde les clés du protocole existant"
+    assert index["bundles"][0]["canonical_text_sha256"] == _sha("\n".join(PAGES))
 
 
 def test_un_texte_de_revue_qui_n_est_pas_celui_scanne_est_refuse(atelier) -> None:

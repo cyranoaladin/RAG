@@ -668,11 +668,17 @@ def preparer_depuis_entree_canonique(
         "content_set_sha256": _sha256_bytes(
             ("\n".join(sorted(e["content_sha256"] for e in entries)) + "\n").encode()  # type: ignore[misc]
         ),
+        # Les MÊMES noms que `NEXUS-PII-REVIEW-INDEX-V1` porte déjà : un index
+        # qui renommerait ses clés serait un protocole neuf, et le
+        # vérificateur comme la projection de release cesseraient de le lire.
         "counts": {
-            "contents": len(entries),
+            "scanned": len(entries),
+            "bundles": len(entries),
             "findings": sum(int(e["finding_count"]) for e in entries),  # type: ignore[arg-type]
         },
-        "entries": sorted(entries, key=lambda e: str(e["content_sha256"])),
+        "raw_pii_in_output": True,
+        "index_sha256_excluded": True,
+        "bundles": sorted(entries, key=lambda e: str(e["content_sha256"])),
     }
     index_path.parent.mkdir(parents=True, exist_ok=True)
     index_path.write_bytes(canonical_json_bytes(index))
