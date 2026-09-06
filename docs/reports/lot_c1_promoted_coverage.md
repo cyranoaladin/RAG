@@ -75,12 +75,22 @@ moment précis où il doit servir.
 Un `release_kind` inconnu est refusé plutôt que rangé d'office dans l'une des
 deux : le lire au mauvais endroit rendrait un ensemble faux au lieu d'un refus.
 
-Trois sceaux, pas un. Le registre **déclare** la nature de chaque release :
-une lignée dont le registre annonce V1 et dont le fichier est V2 est refusée,
-sans quoi elle produirait un ensemble que le runtime, lui, rejettera. Et le
-registre d'artefacts V2 porte **son propre** `expected_counts` : ne confronter
-qu'à celui de l'agrégat laissait passer un registre tronqué dont on aurait
-rescellé l'agrégat.
+Trois sceaux, pas un. Le registre **déclare** la nature de chaque release, et
+cette déclaration est **obligatoire** : la rendre facultative laissait le
+manifeste choisir seul son lecteur, et faisait disparaître le contrôle croisé
+précisément sur les registres tronqués ou malformés. Une lignée dont le
+registre annonce V1 et dont le fichier est V2 est refusée, sans quoi elle
+produirait un ensemble que le runtime rejettera.
+
+**Chaque compte déclaré est confronté, à chaque étage.** Le total de l'agrégat
+ne suffit pas : un sujet tronqué et un autre porteur d'un doublon rendent la
+même somme, l'ensemble dédupliqué rétrécit sans que rien ne le dise, et la
+couverture CAS passerait sur un périmètre incomplet. Chaque sujet V1 tient
+donc son propre `expected_counts.artifacts` — mesuré sur la lignée réelle :
+les onze le déclarent, et il tombe juste pour chacun, pour un total de 486.
+Le registre d'artefacts V2 porte de même **son propre**
+`expected_counts.unique_artifacts` : ne confronter qu'à celui de l'agrégat
+laissait passer un registre tronqué dont on aurait rescellé l'agrégat.
 
 Ce dernier sabotage a été reproduit sur la lignée V2 réelle — un artefact
 retiré, le registre d'artefacts rescellé, le compte de l'agrégat ramené à 318,
