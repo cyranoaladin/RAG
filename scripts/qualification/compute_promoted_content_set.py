@@ -148,23 +148,23 @@ def _sceau_verifie(octets: bytes, attendu: object, quoi: str) -> None:
         )
 
 
-def _occurrences_attendues(manifeste: dict, quoi: str) -> int:
-    """`expected_counts.artifacts` est OBLIGATOIRE.
+def _compte_declare(manifeste: dict, cle: str, quoi: str) -> int:
+    """Un compte déclaré est OBLIGATOIRE.
 
     Le tolérer absent désactivait silencieusement le seul contrôle capable de
     distinguer une lecture tronquée d'un ensemble légitimement dédupliqué."""
     comptes = manifeste.get("expected_counts")
     if not isinstance(comptes, dict):
         raise PromotedContentSetError(f"{quoi} : expected_counts absent ou illisible")
-    attendues = comptes.get("artifacts")
+    attendues = comptes.get(cle)
     if isinstance(attendues, bool) or not isinstance(attendues, int):
         raise PromotedContentSetError(
-            f"{quoi} : expected_counts.artifacts n'est pas un entier ({attendues!r})"
+            f"{quoi} : expected_counts.{cle} n'est pas un entier ({attendues!r})"
         )
     if attendues <= 0:
         raise PromotedContentSetError(
-            f"{quoi} : expected_counts.artifacts vaut {attendues} — une lignée "
-            "qui sert ne promeut pas zéro artefact"
+            f"{quoi} : expected_counts.{cle} vaut {attendues} — une lignée qui "
+            "sert ne promeut pas zéro artefact"
         )
     return attendues
 
@@ -206,15 +206,67 @@ def collect_promoted_content_set(registry_path: Path) -> set[str]:
     return contenus
 
 
+#: Les deux formes de manifeste que la gouvernance produit. La V1 énumère ses
+#: artefacts sujet par sujet — un contenu partagé y apparaît plusieurs fois ;
+#: la V2 les rassemble dans un registre d'artefacts SCELLÉ, déjà dédupliqué.
+#: Les deux sont légitimes, et la candidate complète emploiera la seconde :
+#: n'en connaître qu'une obligerait à réécrire ce gate au moment précis où il
+#: doit servir.
+RELEASE_V1 = "MULTILEVEL_AGGREGATE_RELEASE_V1"
+RELEASE_V2 = "MULTILEVEL_AGGREGATE_RELEASE_V2"
+
+
 def _contenus_dune_release(
     manifeste: dict, chemin: Path, identifiant: str
 ) -> set[str]:
+    nature = manifeste.get("release_kind")
+    if nature == RELEASE_V2:
+        return _contenus_v2(manifeste, chemin, identifiant)
+    if nature == RELEASE_V1:
+        return _contenus_v1(manifeste, chemin, identifiant)
+    raise PromotedContentSetError(
+        f"release {identifiant} : release_kind inconnu ({nature!r}) — le ranger "
+        f"d'office dans l'une des formes connues ({RELEASE_V1}, {RELEASE_V2}) "
+        "lirait ses artefacts au mauvais endroit"
+    )
+
+
+def _contenus_v2(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
+    """V2 : un registre d'artefacts scellé, déjà dédupliqué."""
+    quoi = f"release {identifiant}"
+    attendus = _compte_declare(manifeste, "unique_artifacts", quoi)
+
+    registre = manifeste.get("artifact_registry")
+    if not isinstance(registre, dict):
+        raise PromotedContentSetError(
+            f"{quoi} : artifact_registry absent — la V2 y range ses contenus"
+        )
+    cible = chemin.parent / str(registre["path"])
+    octets = _lire_gouverne(cible, f"{quoi}, registre d'artefacts")
+    _sceau_verifie(octets, registre.get("sha256"), f"{quoi}, registre d'artefacts")
+
+    artefacts = _charge_objet(octets, f"{quoi}, registre d'artefacts").get("artifacts")
+    if not isinstance(artefacts, list) or not artefacts:
+        raise PromotedContentSetError(f"{quoi} : registre d'artefacts vide")
+
+    contenus = _contenus_des_artefacts(artefacts, quoi)
+    if len(contenus) != attendus:
+        raise PromotedContentSetError(
+            f"{quoi} : {len(contenus)} contenu(s) distinct(s) lus contre "
+            f"{attendus} déclarés — lecture tronquée ou manifeste incohérent"
+        )
+    return contenus
+
+
+def _contenus_v1(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
+    """V1 : les artefacts sont énumérés sujet par sujet, avec répétitions."""
+    quoi = f"release {identifiant}"
     sujets = manifeste.get("subjects")
     if not isinstance(sujets, list) or not sujets:
         raise PromotedContentSetError(
-            f"release {identifiant} : aucun sujet — une release qui sert n'est pas vide"
+            f"{quoi} : aucun sujet — une release qui sert n'est pas vide"
         )
-    attendues = _occurrences_attendues(manifeste, f"release {identifiant}")
+    attendues = _compte_declare(manifeste, "artifacts", quoi)
 
     base = chemin.parent
     contenus: set[str] = set()
@@ -222,38 +274,42 @@ def _contenus_dune_release(
     for sujet in sujets:
         if not isinstance(sujet, dict):
             raise PromotedContentSetError(
-                f"release {identifiant} : une entrée de sujet est "
-                f"{type(sujet).__name__}, pas un objet"
+                f"{quoi} : une entrée de sujet est {type(sujet).__name__}, pas un objet"
             )
         nom = str(sujet.get("collection", sujet.get("path", "?")))
-        quoi = f"release {identifiant}, sujet {nom}"
-        octets = _lire_gouverne(base / str(sujet["path"]), quoi)
-        _sceau_verifie(octets, sujet.get("sha256"), quoi)
-        artefacts = _charge_objet(octets, quoi).get("artifacts")
+        ou = f"{quoi}, sujet {nom}"
+        octets = _lire_gouverne(base / str(sujet["path"]), ou)
+        _sceau_verifie(octets, sujet.get("sha256"), ou)
+        artefacts = _charge_objet(octets, ou).get("artifacts")
         if not isinstance(artefacts, list) or not artefacts:
-            raise PromotedContentSetError(f"{quoi} : aucun artefact")
-        for artefact in artefacts:
-            if not isinstance(artefact, dict) or "content_sha256" not in artefact:
-                raise PromotedContentSetError(
-                    f"{quoi} : une entrée d'artefact ne porte pas de content_sha256"
-                )
-            empreinte = artefact["content_sha256"]
-            # `str()` d'une valeur quelconque deviendrait un identifiant promu,
-            # que le store ne pourrait par construction jamais contenir : la
-            # couverture échouerait plus tard, sur un défaut dont l'origine
-            # serait perdue.
-            if not _est_sha256(empreinte):
-                raise PromotedContentSetError(
-                    f"{quoi} : content_sha256 invalide ({empreinte!r})"
-                )
-            contenus.add(empreinte)
-            occurrences += 1
+            raise PromotedContentSetError(f"{ou} : aucun artefact")
+        contenus |= _contenus_des_artefacts(artefacts, ou)
+        occurrences += len(artefacts)
 
     if occurrences != attendues:
         raise PromotedContentSetError(
-            f"release {identifiant} : {occurrences} occurrence(s) d'artefact lues "
-            f"contre {attendues} déclarées — lecture tronquée ou manifeste incohérent"
+            f"{quoi} : {occurrences} occurrence(s) d'artefact lues contre "
+            f"{attendues} déclarées — lecture tronquée ou manifeste incohérent"
         )
+    return contenus
+
+
+def _contenus_des_artefacts(artefacts: list, quoi: str) -> set[str]:
+    contenus: set[str] = set()
+    for artefact in artefacts:
+        if not isinstance(artefact, dict) or "content_sha256" not in artefact:
+            raise PromotedContentSetError(
+                f"{quoi} : une entrée d'artefact ne porte pas de content_sha256"
+            )
+        empreinte = artefact["content_sha256"]
+        # `str()` d'une valeur quelconque deviendrait un identifiant promu, que
+        # le store ne pourrait par construction jamais contenir : la couverture
+        # échouerait plus tard, sur un défaut dont l'origine serait perdue.
+        if not _est_sha256(empreinte):
+            raise PromotedContentSetError(
+                f"{quoi} : content_sha256 invalide ({empreinte!r})"
+            )
+        contenus.add(empreinte)
     return contenus
 
 
