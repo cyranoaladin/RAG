@@ -100,6 +100,30 @@ le registre de releases rescellé :
 REFUSÉ : … registre d'artefacts : 318 contenu(s) distinct(s) lus contre 319 qu'il déclare
 ```
 
+**Le registre est l'autorité du périmètre servi.** Il déclare les
+`collections` que chaque release sert. Sans cette confrontation, une release
+amputée d'un sujet — comptes et sceaux refaits — était acceptée alors que
+l'autorité continue de déclarer la collection disparue active : l'ensemble
+promu rétrécissait sur un périmètre toujours servi. Sabotage reproduit sur la
+V1 réelle (`rag_nexus_svt_terminale_specialite` retiré, 38 artefacts) :
+
+```
+REFUSÉ : le registre déclare 11 collection(s) et la release en porte 10
+```
+
+**Les sujets V2 sont lus, et croisés.** Le registre d'artefacts et l'agrégat
+peuvent être rescellés ensemble sur un ensemble amputé ; les manifestes de
+sujet, eux, continuent de placer l'artefact retiré et de déclarer l'ancien
+sceau du registre. Ne pas les lire laissait donc passer un ensemble plus petit
+que le périmètre servi. Chaque sujet est désormais descellé, son
+`artifact_registry.sha256` confronté à celui de l'agrégat, son compte de
+placements vérifié, et tout artefact placé absent du registre est un refus.
+Sabotage reproduit sur la V2 réelle :
+
+```
+REFUSÉ : … sujet rag_nexus_dgemc_terminale_option : suppose le registre d'artefacts d…
+```
+
 **Corroboration sur données réelles.** Toutes les lignées versionnées du dépôt
 sont lues de bout en bout par une épreuve qui les découvre par parcours, sans
 nommer de répertoire : nommer en dur celui d'une répétition ferait taire la

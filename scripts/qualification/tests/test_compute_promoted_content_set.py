@@ -107,6 +107,7 @@ def _seed(
                 {
                     "release_id": "epreuve-v1",
                     "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
+                    "collections": noms,
                     "manifest_path": "profile_gate/production.release.json",
                     "expected_manifest_sha256": _sceau(release),
                 }
@@ -230,6 +231,7 @@ def test_un_sujet_sans_artefact_est_refuse(tmp_path: Path) -> None:
                 {
                     "release_id": "r",
                     "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
+                    "collections": ["vide"],
                     "manifest_path": "profile_gate/production.release.json",
                     "expected_manifest_sha256": _sceau(release),
                 }
@@ -468,10 +470,35 @@ def test_un_content_sha256_qui_n_en_est_pas_un_est_refuse(
 # --- les deux formes de release ----------------------------------------
 
 
+def _sujets_v2(base: Path, sceau_registre: str) -> list[dict]:
+    """Un sujet V2 place les artefacts que le registre porte."""
+    sujet = _write(
+        base / "profile_gate" / "subjects" / "sujet-v2.release.json",
+        {
+            "collection": "sujet-v2",
+            "artifact_registry": {
+                "path": "../artifacts.release.json",
+                "sha256": sceau_registre,
+            },
+            "expected_counts": {"placements": 3},
+            "placements": [
+                {"artifact_id": s} for s in (SHA_A, SHA_B, SHA_SHARED)
+            ],
+        },
+    )
+    return [
+        {
+            "collection": "sujet-v2",
+            "path": "subjects/sujet-v2.release.json",
+            "sha256": _sceau(sujet),
+        }
+    ]
+
+
 def _seed_v2(
     tmp_path: Path, *, uniques: int | None = 3, propre: int | None = None
 ) -> Path:
-    """Une lignée V2 : registre d'artefacts SCELLÉ, déjà dédupliqué."""
+    """Une lignée V2 : registre d'artefacts SCELLÉ, et sujets qui placent."""
     base = tmp_path / "prerentree_2026_2027"
     artefacts = _write(
         base / "profile_gate" / "artifacts.release.json",
@@ -490,7 +517,7 @@ def _seed_v2(
                 "path": "artifacts.release.json",
                 "sha256": _sceau(artefacts),
             },
-            "subjects": [],
+            "subjects": _sujets_v2(base, _sceau(artefacts)),
         },
     )
     return _write(
@@ -499,6 +526,7 @@ def _seed_v2(
             "releases": [
                 {
                     "release_id": "v2",
+                    "collections": ["sujet-v2"],
                     "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
                     "manifest_path": "profile_gate/production.release.json",
                     "expected_manifest_sha256": _sceau(release),
@@ -685,4 +713,80 @@ def test_deux_erreurs_de_sujet_qui_se_compensent_sont_refusees(tmp_path: Path) -
     _write(registre, reg)
 
     with pytest.raises(PromotedContentSetError, match="qu'il déclare"):
+        collect_promoted_content_set(registre)
+
+
+# --- le registre est l'autorité du périmètre servi ---------------------
+
+
+def test_une_release_amputee_d_un_sujet_est_refusee_par_les_collections(
+    tmp_path: Path,
+) -> None:
+    """Comptes et sceaux refaits ne suffisent pas.
+
+    Le registre déclare les collections que la release SERT. Sans cette
+    confrontation, une release amputée d'un sujet était acceptée alors que
+    l'autorité continue de déclarer la collection disparue active : l'ensemble
+    promu rétrécissait sur un périmètre toujours servi.
+    """
+    registre = _seed(tmp_path)
+    manifeste = registre.parent / "profile_gate" / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    donnees["subjects"] = donnees["subjects"][:1]
+    donnees["expected_counts"]["artifacts"] = 2
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="collection"):
+        collect_promoted_content_set(registre)
+
+
+def test_un_sujet_v2_qui_suppose_un_autre_registre_d_artefacts_est_refuse(
+    tmp_path: Path,
+) -> None:
+    """Le registre d'artefacts et l'agrégat peuvent être rescellés ensemble
+    sur un ensemble amputé ; les sujets, eux, continuent de déclarer l'ancien
+    sceau. Ne pas les lire laissait passer un ensemble plus petit que le
+    périmètre servi."""
+    registre = _seed_v2(tmp_path)
+    profil = registre.parent / "profile_gate"
+    sujet = profil / "subjects" / "sujet-v2.release.json"
+    donnees = json.loads(sujet.read_text(encoding="utf-8"))
+    donnees["artifact_registry"]["sha256"] = "0" * 64
+    _write(sujet, donnees)
+    manifeste = profil / "production.release.json"
+    agr = json.loads(manifeste.read_text(encoding="utf-8"))
+    agr["subjects"][0]["sha256"] = _sceau(sujet)
+    _write(manifeste, agr)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="suppose le registre"):
+        collect_promoted_content_set(registre)
+
+
+def test_un_artefact_place_mais_absent_du_registre_v2_est_refuse(
+    tmp_path: Path,
+) -> None:
+    """Un sujet qui place un artefact que le registre ne porte plus signale
+    que l'un des deux a été amputé."""
+    registre = _seed_v2(tmp_path)
+    profil = registre.parent / "profile_gate"
+    sujet = profil / "subjects" / "sujet-v2.release.json"
+    donnees = json.loads(sujet.read_text(encoding="utf-8"))
+    donnees["placements"].append({"artifact_id": "d" * 64})
+    donnees["expected_counts"]["placements"] = 4
+    _write(sujet, donnees)
+    manifeste = profil / "production.release.json"
+    agr = json.loads(manifeste.read_text(encoding="utf-8"))
+    agr["subjects"][0]["sha256"] = _sceau(sujet)
+    _write(manifeste, agr)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="absent"):
         collect_promoted_content_set(registre)
