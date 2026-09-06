@@ -277,6 +277,44 @@ def test_le_verificateur_refuse_un_appui_irrecuperable_sans_condense_de_preuve()
         verifier_registre(registre)
 
 
+def test_sans_entrees_url_un_condense_falsifie_mais_bien_forme_passe() -> None:
+    """La forme seule ne prouve rien : documenté, pas un défaut caché."""
+    registre = construire_registre(
+        artefacts=[_artefact(SHA_A)], entrees_url=[_irrecuperable(SHA_A)]
+    )
+    registre["dispositions"][0]["appui"] = (
+        "1 provenance(s) irrécupérable(s) : AUTRE_RAISON ; preuve=" + "0" * 64
+    )
+    assert verifier_registre(registre) == registre["comptes"]
+
+
+def test_avec_entrees_url_un_condense_falsifie_est_refuse() -> None:
+    """La même falsification, recalculée depuis l'autorité, est refusée."""
+    entrees = [_irrecuperable(SHA_A)]
+    registre = construire_registre(artefacts=[_artefact(SHA_A)], entrees_url=entrees)
+    registre["dispositions"][0]["appui"] = (
+        "1 provenance(s) irrécupérable(s) : AUTRE_RAISON ; preuve=" + "0" * 64
+    )
+    with pytest.raises(DispositionError, match="ne correspond pas"):
+        verifier_registre(registre, entrees_url=entrees)
+
+
+def test_avec_entrees_url_le_condense_reel_est_accepte() -> None:
+    entrees = [_irrecuperable(SHA_A)]
+    registre = construire_registre(artefacts=[_artefact(SHA_A)], entrees_url=entrees)
+    assert verifier_registre(registre, entrees_url=entrees) == registre["comptes"]
+
+
+def test_le_registre_reel_se_verifie_condense_compris_contre_le_registre_d_url(
+    registre_reel,
+) -> None:
+    registry = json.loads(REGISTRY.read_text(encoding="utf-8"))
+    assert (
+        verifier_registre(registre_reel, entrees_url=registry["entrees"])
+        == registre_reel["comptes"]
+    )
+
+
 # --- ce dont la dérivation doit s'assurer AVANT de dériver -------------
 
 

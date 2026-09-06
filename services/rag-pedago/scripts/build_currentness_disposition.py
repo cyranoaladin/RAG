@@ -81,7 +81,7 @@ def build() -> dict:
     ledger = construire_registre(
         artefacts=evidence["artifacts"], entrees_url=registry["entrees"]
     )
-    verifier_registre(ledger)
+    verifier_registre(ledger, entrees_url=registry["entrees"])
     return ledger
 
 

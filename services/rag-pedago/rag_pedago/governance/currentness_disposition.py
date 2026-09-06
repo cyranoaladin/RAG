@@ -45,7 +45,15 @@ LEDGER_KIND = "CURRENTNESS_DISPOSITION_V1"
 #: Un appui « irrécupérable » doit citer un condensé vérifiable de la preuve
 #: qui l'a produit, pas seulement les raisons codées : sans lui, la preuve
 #: existe dans le registre d'URL mais disparaît du jugement qui s'en sert.
-_PREUVE_DIGEST_RE = re.compile(r"preuve=[0-9a-f]{64}$")
+_PREUVE_DIGEST_RE = re.compile(r"preuve=([0-9a-f]{64})$")
+
+
+def _condense_preuves(irrecuperables: Sequence[Mapping[str, Any]]) -> str:
+    return hashlib.sha256(
+        "|".join(
+            sorted(str(e["preuve_irrecuperabilite"]) for e in irrecuperables)
+        ).encode("utf-8")
+    ).hexdigest()
 
 
 class DispositionError(RuntimeError):
@@ -128,11 +136,7 @@ def _disposition_dun_artefact(
                 f"{', '.join(sans_preuve[:3])}"
             )
         raisons = sorted({str(e["raison_irrecuperabilite"]) for e in irrecuperables})
-        preuve_digest = hashlib.sha256(
-            "|".join(
-                sorted(str(e["preuve_irrecuperabilite"]) for e in irrecuperables)
-            ).encode("utf-8")
-        ).hexdigest()
+        preuve_digest = _condense_preuves(irrecuperables)
         return DispositionArtefact(
             content_sha256=sha,
             disposition=Disposition.UNRECOVERABLE_WITH_EVIDENCE,
@@ -213,8 +217,19 @@ def construire_registre(
     }
 
 
-def verifier_registre(registre: Mapping[str, Any]) -> dict[str, int]:
-    """Refuser un registre qui laisserait un objet gouverné sans disposition."""
+def verifier_registre(
+    registre: Mapping[str, Any],
+    *,
+    entrees_url: Sequence[Mapping[str, Any]] | None = None,
+) -> dict[str, int]:
+    """Refuser un registre qui laisserait un objet gouverné sans disposition.
+
+    Quand ``entrees_url`` est fourni — l'autorité dont le registre prétend
+    dériver —, le condensé de preuve de chaque disposition irrécupérable est
+    **recalculé** depuis les provenances réelles et comparé, pas seulement
+    vérifié en forme : remplacer le condensé par n'importe quel 64-hexadécimal
+    ne suffit plus à le faire accepter.
+    """
     if registre.get("ledger_kind") != LEDGER_KIND:
         raise DispositionError("nature de registre inattendue")
     dispositions = registre.get("dispositions")
@@ -222,6 +237,7 @@ def verifier_registre(registre: Mapping[str, Any]) -> dict[str, int]:
         raise DispositionError("registre sans disposition")
     connues = {disposition.value for disposition in Disposition}
     comptes = {valeur: 0 for valeur in connues}
+    index = _entrees_par_artefact(entrees_url) if entrees_url is not None else None
     vus: set[str] = set()
     for item in dispositions:
         valeur = item.get("disposition")
@@ -231,13 +247,28 @@ def verifier_registre(registre: Mapping[str, Any]) -> dict[str, int]:
             raise DispositionError(
                 f"{item.get('content_sha256', '?')[:12]}… : disposition sans appui"
             )
-        if valeur == Disposition.UNRECOVERABLE_WITH_EVIDENCE.value and not (
-            isinstance(item["appui"], str) and _PREUVE_DIGEST_RE.search(item["appui"])
-        ):
-            raise DispositionError(
-                f"{item.get('content_sha256', '?')[:12]}… : disposition irrécupérable "
-                "sans condensé de preuve vérifiable dans l'appui"
+        if valeur == Disposition.UNRECOVERABLE_WITH_EVIDENCE.value:
+            appui = item["appui"]
+            correspondance = (
+                _PREUVE_DIGEST_RE.search(appui) if isinstance(appui, str) else None
             )
+            if not correspondance:
+                raise DispositionError(
+                    f"{item.get('content_sha256', '?')[:12]}… : disposition "
+                    "irrécupérable sans condensé de preuve vérifiable dans l'appui"
+                )
+            if index is not None:
+                irrecuperables = [
+                    e
+                    for e in index.get(str(item.get("content_sha256")), [])
+                    if e.get("resolution") == "IRRECUPERABLE"
+                ]
+                attendu = _condense_preuves(irrecuperables)
+                if correspondance.group(1) != attendu:
+                    raise DispositionError(
+                        f"{item.get('content_sha256', '?')[:12]}… : condensé de "
+                        "preuve ne correspond pas aux provenances scellées"
+                    )
         sha = str(item.get("content_sha256"))
         if sha in vus:
             raise DispositionError(f"{sha[:12]}… : artefact dispositionné deux fois")
