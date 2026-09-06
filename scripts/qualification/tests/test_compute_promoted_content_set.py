@@ -76,7 +76,10 @@ def _seed(
     for nom in noms:
         chemin = _write(
             base / "profile_gate" / "subjects" / f"{nom}.release.json",
-            {"artifacts": [{"content_sha256": s} for s in contenus[nom]]},
+            {
+                "expected_counts": {"artifacts": len(contenus[nom])},
+                "artifacts": [{"content_sha256": s} for s in contenus[nom]],
+            },
         )
         entrees.append(
             {
@@ -103,6 +106,7 @@ def _seed(
             else [
                 {
                     "release_id": "epreuve-v1",
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
                     "manifest_path": "profile_gate/production.release.json",
                     "expected_manifest_sha256": _sceau(release),
                 }
@@ -152,7 +156,7 @@ def test_un_manifeste_de_sujet_qui_a_derive_de_son_sceau_est_refuse(
     registre = _seed(tmp_path)
     _write(
         registre.parent / "profile_gate" / "subjects" / "sujet-a.release.json",
-        {"artifacts": [{"content_sha256": SHA_A}]},
+        {"expected_counts": {"artifacts": 1}, "artifacts": [{"content_sha256": SHA_A}]},
     )
     with pytest.raises(PromotedContentSetError, match="l'autorité déclare"):
         collect_promoted_content_set(registre)
@@ -192,6 +196,7 @@ def test_une_release_sans_sujet_est_refusee(tmp_path: Path) -> None:
             "releases": [
                 {
                     "release_id": "vide",
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
                     "manifest_path": "profile_gate/production.release.json",
                     "expected_manifest_sha256": _sceau(release),
                 }
@@ -204,7 +209,10 @@ def test_une_release_sans_sujet_est_refusee(tmp_path: Path) -> None:
 
 def test_un_sujet_sans_artefact_est_refuse(tmp_path: Path) -> None:
     base = tmp_path / "prerentree_2026_2027"
-    sujet = _write(base / "profile_gate" / "subjects" / "vide.release.json", {"artifacts": []})
+    sujet = _write(
+        base / "profile_gate" / "subjects" / "vide.release.json",
+        {"expected_counts": {"artifacts": 1}, "artifacts": []},
+    )
     release = _write(
         base / "profile_gate" / "production.release.json",
         {
@@ -221,6 +229,7 @@ def test_un_sujet_sans_artefact_est_refuse(tmp_path: Path) -> None:
             "releases": [
                 {
                     "release_id": "r",
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
                     "manifest_path": "profile_gate/production.release.json",
                     "expected_manifest_sha256": _sceau(release),
                 }
@@ -287,6 +296,7 @@ def test_un_chemin_qui_sort_de_la_racine_gouvernee_est_refuse(
             "releases": [
                 {
                     "release_id": "evade",
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
                     "manifest_path": "../../dehors/release.json",
                     "expected_manifest_sha256": _sceau(dehors),
                 }
@@ -394,6 +404,7 @@ def test_un_manifeste_de_release_de_type_inattendu_est_refuse(
             "releases": [
                 {
                     "release_id": "r",
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
                     "manifest_path": "release.json",
                     "expected_manifest_sha256": _sceau(manifeste),
                 }
@@ -437,7 +448,10 @@ def test_un_content_sha256_qui_n_en_est_pas_un_est_refuse(
     sujet = registre.parent / "profile_gate" / "subjects" / "sujet-a.release.json"
     _write(
         sujet,
-        {"artifacts": [{"content_sha256": empreinte}, {"content_sha256": SHA_SHARED}]},
+        {
+            "expected_counts": {"artifacts": 2},
+            "artifacts": [{"content_sha256": empreinte}, {"content_sha256": SHA_SHARED}],
+        },
     )
     manifeste = registre.parent / "profile_gate" / "production.release.json"
     donnees = json.loads(manifeste.read_text(encoding="utf-8"))
@@ -485,6 +499,7 @@ def _seed_v2(
             "releases": [
                 {
                     "release_id": "v2",
+                    "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
                     "manifest_path": "profile_gate/production.release.json",
                     "expected_manifest_sha256": _sceau(release),
                 }
@@ -507,7 +522,7 @@ def test_le_registre_d_artefacts_v2_est_confronte_a_son_sceau(tmp_path: Path) ->
     registre = _seed_v2(tmp_path)
     _write(
         registre.parent / "profile_gate" / "artifacts.release.json",
-        {"artifacts": [{"content_sha256": SHA_A}]},
+        {"expected_counts": {"artifacts": 1}, "artifacts": [{"content_sha256": SHA_A}]},
     )
     with pytest.raises(PromotedContentSetError, match="l'autorité déclare"):
         collect_promoted_content_set(registre)
@@ -544,9 +559,15 @@ def test_une_nature_de_release_annoncee_et_dementie_est_refusee(
         collect_promoted_content_set(registre)
 
 
-def test_un_release_kind_inconnu_est_refuse(tmp_path: Path) -> None:
-    """Le ranger d'office dans l'une des formes connues lirait ses artefacts
-    au mauvais endroit — et rendrait un ensemble faux plutôt qu'un refus."""
+def test_une_nature_de_manifeste_qui_dement_le_registre_est_refusee(
+    tmp_path: Path,
+) -> None:
+    """Le registre déclare V2 et le manifeste porte autre chose : refus.
+
+    Le lire d'office dans l'une des formes connues rendrait un ensemble faux
+    au lieu d'un refus — et l'ensemble de couverture ainsi produit serait
+    rejeté par le runtime, bien plus tard.
+    """
     registre = _seed_v2(tmp_path)
     manifeste = registre.parent / "profile_gate" / "production.release.json"
     donnees = json.loads(manifeste.read_text(encoding="utf-8"))
@@ -555,8 +576,23 @@ def test_un_release_kind_inconnu_est_refuse(tmp_path: Path) -> None:
     reg = json.loads(registre.read_text(encoding="utf-8"))
     reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
     _write(registre, reg)
-    with pytest.raises(PromotedContentSetError, match="release_kind inconnu"):
+    with pytest.raises(PromotedContentSetError, match="le registre annonce"):
         collect_promoted_content_set(registre)
+
+
+def test_le_dispatch_refuse_une_nature_inconnue_meme_appele_directement(
+    tmp_path: Path,
+) -> None:
+    """Défense en profondeur : la garde du registre attrape ce cas en amont,
+    mais le dispatch ne doit pas pour autant supposer son appelant."""
+    import compute_promoted_content_set as module
+
+    with pytest.raises(PromotedContentSetError, match="release_kind inconnu"):
+        module._contenus_dune_release(
+            {"release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V9"},
+            tmp_path / "x.json",
+            "essai",
+        )
 
 
 @pytest.mark.racine_propre
@@ -592,3 +628,61 @@ def test_chaque_lignee_reelle_du_depot_est_lisible_et_coherente() -> None:
 
 def _est_un_sha256(valeur: str) -> bool:
     return len(valeur) == 64 and all(c in "0123456789abcdef" for c in valeur)
+
+
+@pytest.mark.parametrize("annonce", [None, "", "MULTILEVEL_AGGREGATE_RELEASE_V9"])
+def test_un_registre_sans_release_kind_connu_est_refuse(
+    tmp_path: Path, annonce: object
+) -> None:
+    """La déclaration côté REGISTRE est obligatoire. La rendre facultative
+    laissait le manifeste choisir seul son lecteur — et faisait disparaître le
+    contrôle croisé précisément sur les registres tronqués ou malformés."""
+    registre = _seed(tmp_path)
+    donnees = json.loads(registre.read_text(encoding="utf-8"))
+    if annonce is None:
+        donnees["releases"][0].pop("release_kind")
+    else:
+        donnees["releases"][0]["release_kind"] = annonce
+    _write(registre, donnees)
+    with pytest.raises(PromotedContentSetError, match="release_kind connu"):
+        collect_promoted_content_set(registre)
+
+
+def test_deux_erreurs_de_sujet_qui_se_compensent_sont_refusees(tmp_path: Path) -> None:
+    """Le total de l'agrégat ne suffit pas.
+
+    Un sujet tronqué et un autre porteur d'un doublon rendent la MÊME somme :
+    l'ensemble dédupliqué rétrécit sans que rien ne le dise, et la couverture
+    CAS passerait sur un périmètre incomplet. Chaque sujet doit donc tenir son
+    propre compte.
+    """
+    registre = _seed(tmp_path)
+    profil = registre.parent / "profile_gate"
+    # sujet-a perd un artefact, sujet-b en gagne un doublon : 4 occurrences
+    # au total dans les deux cas.
+    a = _write(
+        profil / "subjects" / "sujet-a.release.json",
+        {"expected_counts": {"artifacts": 2}, "artifacts": [{"content_sha256": SHA_A}]},
+    )
+    b = _write(
+        profil / "subjects" / "sujet-b.release.json",
+        {
+            "expected_counts": {"artifacts": 2},
+            "artifacts": [
+                {"content_sha256": SHA_B},
+                {"content_sha256": SHA_SHARED},
+                {"content_sha256": SHA_SHARED},
+            ],
+        },
+    )
+    manifeste = profil / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    donnees["subjects"][0]["sha256"] = _sceau(a)
+    donnees["subjects"][1]["sha256"] = _sceau(b)
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="qu'il déclare"):
+        collect_promoted_content_set(registre)
