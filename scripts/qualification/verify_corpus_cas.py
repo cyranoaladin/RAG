@@ -72,6 +72,9 @@ def verify(
     prouves: set[str] = set()
     absents: set[str] = set()
     discordants: set[str] = set()
+    #: Octets corrects, taille déclarée fausse. Distinct d'une discordance
+    #: d'empreinte : le manifeste ment sur une propriété différente.
+    tailles: set[str] = set()
     invalides: set[str] = set()
     root = cas_root.resolve(strict=False)
     for content_sha256 in sorted(declared):
@@ -129,7 +132,7 @@ def verify(
                 f"{content_sha256[:16]}… : taille déclarée {entry['byte_size']}, "
                 f"lue {len(payload)}"
             )
-            discordants.add(content_sha256)
+            tailles.add(content_sha256)
             continue
         verified += 1
         prouves.add(content_sha256)
@@ -155,6 +158,10 @@ def verify(
             sans_declaration = sorted(promoted - declares)
             sans_blob = sorted(promoted & absents)
             discordance = sorted(promoted & (discordants | invalides))
+            desaccord_taille = sorted(promoted & tailles)
+            # L'agrégat bloquant : déclaration absente, blob absent, taille
+            # fausse ou empreinte discordante. Un contenu promu n'est couvert
+            # que si ses octets ont été RELUS et vérifiés.
             sans_couverture = sorted(promoted - prouves)
             surplus = sorted(declares - promoted)
 
@@ -167,6 +174,7 @@ def verify(
             info.append(f"CURRENT_PROMOTED_CONTENTS={len(promoted)}")
             info.append(f"PROMOTED_CAS_DECLARATION_MISSING={len(sans_declaration)}")
             info.append(f"PROMOTED_CAS_BLOB_MISSING={len(sans_blob)}")
+            info.append(f"PROMOTED_CAS_SIZE_MISMATCH={len(desaccord_taille)}")
             info.append(f"PROMOTED_CAS_HASH_MISMATCH={len(discordance)}")
             info.append(f"PROMOTED_CAS_COVERAGE_MISSING={len(sans_couverture)}")
             info.append(f"PROMOTED_CAS_COVERAGE_EXTRA={len(surplus)}")

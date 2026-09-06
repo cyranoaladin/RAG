@@ -166,7 +166,35 @@ def test_une_couverture_complete_rend_les_quatre_compteurs_a_zero(
         "CURRENT_PROMOTED_CONTENTS=2",
         "PROMOTED_CAS_DECLARATION_MISSING=0",
         "PROMOTED_CAS_BLOB_MISSING=0",
+        "PROMOTED_CAS_SIZE_MISMATCH=0",
         "PROMOTED_CAS_HASH_MISMATCH=0",
         "PROMOTED_CAS_COVERAGE_MISSING=0",
     ):
         assert any(compteur in m for m in messages), compteur
+
+
+def test_une_taille_declaree_fausse_n_est_pas_une_discordance_d_empreinte(
+    tmp_path: Path,
+) -> None:
+    """Deux propriétés différentes, deux compteurs différents.
+
+    Les octets peuvent hacher juste et la taille déclarée être fausse : le
+    manifeste ment alors sur autre chose que le contenu. Les confondre
+    priverait l'exploitant de l'information qui dit QUOI réparer.
+    """
+    cas_root = tmp_path / "cas"
+    declared = _seed_store(cas_root, [SHA_A, SHA_B])
+    cible = sorted(declared)[0]
+    manifeste = json.loads((cas_root / "manifest.json").read_text(encoding="utf-8"))
+    for entree in manifeste["entries"]:
+        if entree["content_sha256"] == cible:
+            entree["byte_size"] = entree["byte_size"] + 1
+    (cas_root / "manifest.json").write_text(json.dumps(manifeste), encoding="utf-8")
+
+    code, messages = verify(
+        cas_root, content_set_digest(declared), len(declared), promoted=declared
+    )
+    assert code == 1
+    assert any("PROMOTED_CAS_SIZE_MISMATCH=1" in m for m in messages)
+    assert any("PROMOTED_CAS_HASH_MISMATCH=0" in m for m in messages)
+    assert any("PROMOTED_CAS_COVERAGE_MISSING=1" in m for m in messages)

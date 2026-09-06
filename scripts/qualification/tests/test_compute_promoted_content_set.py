@@ -44,6 +44,23 @@ def _write(path: Path, data: dict) -> Path:
     return path
 
 
+def _gouverne(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Fait de `tmp_path` la racine gouvernée pour l'épreuve."""
+    import compute_promoted_content_set as module
+
+    monkeypatch.setattr(module, "GOVERNED_ROOT", tmp_path)
+
+
+@pytest.fixture(autouse=True)
+def _racine_gouvernee(request: pytest.FixtureRequest) -> None:
+    """Sauf mention contraire, la racine gouvernée est le `tmp_path` du test."""
+    if "tmp_path" not in request.fixturenames:
+        return
+    if request.node.get_closest_marker("racine_propre"):
+        return
+    _gouverne(request.getfixturevalue("monkeypatch"), request.getfixturevalue("tmp_path"))
+
+
 def _seed(
     tmp_path: Path,
     *,
@@ -101,8 +118,13 @@ def test_collecte_les_contenus_de_toutes_les_releases_actives(tmp_path: Path) ->
 def test_un_contenu_partage_par_deux_sujets_n_est_pas_compte_deux_fois(
     tmp_path: Path,
 ) -> None:
-    """486 occurrences pour 319 contenus distincts : la déduplication est ce
-    que la PR #146 a légitimé."""
+    """Un contenu référencé par plusieurs sujets compte UNE fois.
+
+    Deux sujets de deux artefacts chacun, dont un partagé : quatre occurrences
+    pour trois contenus distincts. Les chiffres de production — 486 pour 319 —
+    sont mesurés sur le corpus réel et consignés au rapport de lot ; c'est la
+    PROPRIÉTÉ qui est éprouvée ici, pas leur valeur.
+    """
     assert len(collect_promoted_content_set(_seed(tmp_path))) == 3
 
 
@@ -240,25 +262,34 @@ def test_un_compte_d_occurrences_absent_ou_illisible_est_refuse(
 # --- le périmètre gouverné ---------------------------------------------
 
 
-def test_un_chemin_qui_sort_de_la_racine_gouvernee_est_refuse(tmp_path: Path) -> None:
+@pytest.mark.racine_propre
+def test_un_chemin_qui_sort_de_la_racine_gouvernee_est_refuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Le SHA correct d'un fichier HORS périmètre ne prouve rien du corpus
     gouverné : il prouve qu'on a bien lu le fichier qu'on a désigné."""
+    import compute_promoted_content_set as module
+
+    racine = tmp_path / "gouverne"
+    base = racine / "prerentree_2026_2027"
+    base.mkdir(parents=True)
+    monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
+
     dehors = _write(tmp_path / "dehors" / "release.json", {"subjects": []})
-    base = tmp_path / "prerentree_2026_2027"
     registre = _write(
         base / "release-registry.json",
         {
             "releases": [
                 {
                     "release_id": "evade",
-                    "manifest_path": "../dehors/release.json",
+                    "manifest_path": "../../dehors/release.json",
                     "expected_manifest_sha256": _sceau(dehors),
                 }
             ]
         },
     )
     with pytest.raises(PromotedContentSetError, match="hors de la racine gouvernée"):
-        collect_promoted_content_set(registre)
+        module.collect_promoted_content_set(registre)
 
 
 # --- un manifeste malformé échoue proprement ---------------------------
@@ -271,3 +302,118 @@ def test_un_manifeste_illisible_rend_un_code_nomme_pas_une_trace(
     registre.write_text("{ ceci n'est pas du JSON", encoding="utf-8")
     assert main(["--release-registry", str(registre), "--output", str(tmp_path / "o.json")]) == 2
     assert "PROMOTED_CONTENT_SET_INVALID" in capsys.readouterr().err
+
+
+# --- l'autorité d'entrée est elle-même bornée --------------------------
+
+
+@pytest.mark.racine_propre
+def test_un_registre_hors_de_la_racine_gouvernee_est_refuse(tmp_path: Path) -> None:
+    """Une autorité d'entrée extérieure au périmètre qu'elle prétend gouverner
+    ne le gouverne pas. Un faux registre dont toutes les empreintes seraient
+    cohérentes prouverait seulement qu'on a bien lu le fichier désigné."""
+    registre = _seed(tmp_path)
+    with pytest.raises(PromotedContentSetError, match="hors de la racine gouvernée"):
+        collect_promoted_content_set(registre)
+
+
+@pytest.mark.racine_propre
+def test_un_composant_en_lien_symbolique_interne_est_refuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le garde symlink, éprouvé sur le cas qu'il est SEUL à attraper.
+
+    Un lien vers l'extérieur est déjà refusé par la borne « le chemin résolu
+    est dans la racine ». Un lien INTERNE ne l'est pas : la résolution reste
+    à l'intérieur, et seule l'inspection de chaque composant le voit. Retirer
+    cette inspection rend cette épreuve rouge — c'est ce qui en fait une
+    épreuve du garde, et non de la borne voisine.
+    """
+    import compute_promoted_content_set as module
+
+    racine = tmp_path / "gouverne"
+    racine.mkdir()
+    monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
+
+    reel = _seed(racine)
+    assert module.collect_promoted_content_set(reel), "le chemin direct doit passer"
+
+    # `gouverne/alias` → `gouverne/prerentree_2026_2027`. Tout reste DANS la
+    # racine ; le sceau du fichier atteint est parfaitement correct.
+    (racine / "alias").symlink_to(reel.parent, target_is_directory=True)
+    par_le_lien = racine / "alias" / reel.name
+    assert par_le_lien.resolve() == reel.resolve()
+
+    with pytest.raises(PromotedContentSetError, match="lien symbolique"):
+        module.collect_promoted_content_set(par_le_lien)
+
+
+# --- JSON valide, type faux --------------------------------------------
+
+
+@pytest.mark.parametrize("charge", ["[]", '"registry"', "42", "null"])
+@pytest.mark.racine_propre
+def test_un_registre_de_type_inattendu_est_refuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, charge: str
+) -> None:
+    """Un JSON parfaitement valide peut n'être pas un objet. Appeler `.get()`
+    dessus rendrait une trace là où le gate doit nommer le défaut."""
+    import compute_promoted_content_set as module
+
+    racine = tmp_path / "gouverne"
+    (racine / "prerentree_2026_2027").mkdir(parents=True)
+    monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
+    registre = racine / "prerentree_2026_2027" / "release-registry.json"
+    registre.write_text(charge, encoding="utf-8")
+
+    with pytest.raises(PromotedContentSetError, match="pas un objet"):
+        module.collect_promoted_content_set(registre)
+
+
+@pytest.mark.parametrize("charge", ["[]", '"release"', "7"])
+@pytest.mark.racine_propre
+def test_un_manifeste_de_release_de_type_inattendu_est_refuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, charge: str
+) -> None:
+    import compute_promoted_content_set as module
+
+    racine = tmp_path / "gouverne"
+    base = racine / "prerentree_2026_2027"
+    base.mkdir(parents=True)
+    monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
+    manifeste = base / "release.json"
+    manifeste.write_text(charge, encoding="utf-8")
+    registre = _write(
+        base / "release-registry.json",
+        {
+            "releases": [
+                {
+                    "release_id": "r",
+                    "manifest_path": "release.json",
+                    "expected_manifest_sha256": _sceau(manifeste),
+                }
+            ]
+        },
+    )
+    with pytest.raises(PromotedContentSetError, match="pas un objet"):
+        module.collect_promoted_content_set(registre)
+
+
+@pytest.mark.parametrize("entree", ["[]", '"r"', "3"])
+@pytest.mark.racine_propre
+def test_une_entree_de_release_de_type_inattendu_est_refusee(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, entree: str
+) -> None:
+    import compute_promoted_content_set as module
+    import json as _json
+
+    racine = tmp_path / "gouverne"
+    base = racine / "prerentree_2026_2027"
+    base.mkdir(parents=True)
+    monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
+    registre = base / "release-registry.json"
+    registre.write_text(
+        _json.dumps({"releases": [_json.loads(entree)]}), encoding="utf-8"
+    )
+    with pytest.raises(PromotedContentSetError, match="pas un objet"):
+        module.collect_promoted_content_set(registre)

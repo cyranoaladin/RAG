@@ -62,35 +62,69 @@ class PromotedContentSetError(RuntimeError):
     """L'ensemble promu n'est pas celui que les autorités déclarent — refus."""
 
 
-def _lire_borne(chemin: Path, racine: Path, quoi: str) -> bytes:
-    """Lit un fichier après avoir prouvé qu'il est DANS le périmètre gouverné.
+def _lire_gouverne(chemin: Path, quoi: str) -> bytes:
+    """Primitive CANONIQUE d'accès à une autorité. Toutes les entrées passent
+    par elle — registre compris.
 
-    `..`, chemin absolu et lien symbolique sortant sont refusés avant toute
-    lecture : sans cette borne, une entrée de manifeste pourrait désigner un
-    fichier extérieur, et son sceau correct ferait passer pour gouverné un
-    contenu qui ne l'est pas."""
-    ancre = racine.resolve(strict=False)
+    Trois implémentations de la même borne divergeraient : celle qu'on oublie
+    de durcir devient le chemin d'entrée. Elle vérifie, dans cet ordre, que le
+    chemin se résout DANS la racine gouvernée, qu'aucun de ses composants
+    n'est un lien symbolique, et qu'il désigne un fichier ordinaire — puis
+    seulement lit.
+
+    Le registre lui-même y est soumis : une autorité d'entrée extérieure au
+    périmètre qu'elle prétend gouverner ne le gouverne pas. Un faux registre
+    dont toutes les empreintes seraient cohérentes prouverait seulement qu'on
+    a bien lu le fichier qu'on a désigné.
+    """
+    racine = GOVERNED_ROOT.resolve(strict=False)
     resolu = chemin.resolve(strict=False)
     try:
-        resolu.relative_to(ancre)
+        resolu.relative_to(racine)
     except ValueError as exc:
         raise PromotedContentSetError(
-            f"{quoi} : {chemin.as_posix()} se résout hors de la racine gouvernée"
+            f"{quoi} : {chemin.as_posix()} se résout hors de la racine gouvernée "
+            f"({racine.as_posix()})"
         ) from exc
-    # CHAQUE composant, pas seulement le dernier : un lien de répertoire
+
+    # CHAQUE composant, pas seulement le dernier : un lien de RÉPERTOIRE
     # interne laisse la résolution finale à l'intérieur de la racine, et la
     # borne précédente le laisserait donc passer.
-    courant = chemin
-    while courant != racine and courant.parent != courant:
+    courant = chemin if chemin.is_absolute() else Path.cwd() / chemin
+    vus: set[Path] = set()
+    while courant not in vus:
+        vus.add(courant)
         if courant.is_symlink():
             raise PromotedContentSetError(
-                f"{quoi} : {courant.as_posix()} est un lien symbolique — un chemin "
-                "gouverné ne redirige sur aucun de ses composants"
+                f"{quoi} : {courant.as_posix()} est un lien symbolique — un "
+                "chemin gouverné ne redirige sur aucun de ses composants"
             )
+        if courant.resolve(strict=False) == racine or courant.parent == courant:
+            break
         courant = courant.parent
+
     if not resolu.is_file():
         raise PromotedContentSetError(f"{quoi} : {chemin.as_posix()} est introuvable")
     return resolu.read_bytes()
+
+
+def _charge_objet(octets: bytes, quoi: str) -> dict:
+    """Décode un manifeste et exige un OBJET.
+
+    Un JSON parfaitement valide peut être `[]`, `"registry"` ou `42` : appeler
+    `.get()` dessus rendrait une trace Python là où le gate doit nommer le
+    défaut."""
+    try:
+        charge = json.loads(octets.decode("utf-8"))
+    except (UnicodeError, json.JSONDecodeError) as exc:
+        raise PromotedContentSetError(
+            f"{quoi} : illisible ({type(exc).__name__})"
+        ) from exc
+    if not isinstance(charge, dict):
+        raise PromotedContentSetError(
+            f"{quoi} : la racine du document est {type(charge).__name__}, pas un objet"
+        )
+    return charge
 
 
 def _sceau_verifie(octets: bytes, attendu: object, quoi: str) -> None:
@@ -129,13 +163,10 @@ def _occurrences_attendues(manifeste: dict, quoi: str) -> int:
 
 def collect_promoted_content_set(registry_path: Path) -> set[str]:
     """L'union des contenus que TOUTES les releases actives du registre servent."""
+    registre = _charge_objet(
+        _lire_gouverne(registry_path, "registre"), "registre"
+    )
     racine = registry_path.resolve(strict=False).parent
-    try:
-        registre = json.loads(registry_path.read_bytes().decode("utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
-        raise PromotedContentSetError(
-            f"registre {registry_path.as_posix()} illisible : {type(exc).__name__}"
-        ) from exc
 
     releases = registre.get("releases")
     if not isinstance(releases, list) or not releases:
@@ -146,11 +177,19 @@ def collect_promoted_content_set(registry_path: Path) -> set[str]:
 
     contenus: set[str] = set()
     for release in releases:
+        if not isinstance(release, dict):
+            raise PromotedContentSetError(
+                f"registre : une entrée de release est {type(release).__name__}, "
+                "pas un objet"
+            )
         identifiant = str(release.get("release_id", "?"))
         chemin = racine / str(release["manifest_path"])
-        octets = _lire_borne(chemin, racine, f"release {identifiant}")
-        _sceau_verifie(octets, release.get("expected_manifest_sha256"), f"release {identifiant}")
-        contenus |= _contenus_dune_release(json.loads(octets.decode("utf-8")), chemin, racine, identifiant)
+        quoi = f"release {identifiant}"
+        octets = _lire_gouverne(chemin, quoi)
+        _sceau_verifie(octets, release.get("expected_manifest_sha256"), quoi)
+        contenus |= _contenus_dune_release(
+            _charge_objet(octets, quoi), chemin, identifiant
+        )
 
     if not contenus:
         raise PromotedContentSetError(
@@ -160,7 +199,7 @@ def collect_promoted_content_set(registry_path: Path) -> set[str]:
 
 
 def _contenus_dune_release(
-    manifeste: dict, chemin: Path, racine: Path, identifiant: str
+    manifeste: dict, chemin: Path, identifiant: str
 ) -> set[str]:
     sujets = manifeste.get("subjects")
     if not isinstance(sujets, list) or not sujets:
@@ -173,14 +212,23 @@ def _contenus_dune_release(
     contenus: set[str] = set()
     occurrences = 0
     for sujet in sujets:
+        if not isinstance(sujet, dict):
+            raise PromotedContentSetError(
+                f"release {identifiant} : une entrée de sujet est "
+                f"{type(sujet).__name__}, pas un objet"
+            )
         nom = str(sujet.get("collection", sujet.get("path", "?")))
         quoi = f"release {identifiant}, sujet {nom}"
-        octets = _lire_borne(base / str(sujet["path"]), racine, quoi)
+        octets = _lire_gouverne(base / str(sujet["path"]), quoi)
         _sceau_verifie(octets, sujet.get("sha256"), quoi)
-        artefacts = json.loads(octets.decode("utf-8")).get("artifacts")
+        artefacts = _charge_objet(octets, quoi).get("artifacts")
         if not isinstance(artefacts, list) or not artefacts:
             raise PromotedContentSetError(f"{quoi} : aucun artefact")
         for artefact in artefacts:
+            if not isinstance(artefact, dict) or "content_sha256" not in artefact:
+                raise PromotedContentSetError(
+                    f"{quoi} : une entrée d'artefact ne porte pas de content_sha256"
+                )
             contenus.add(str(artefact["content_sha256"]))
             occurrences += 1
 
