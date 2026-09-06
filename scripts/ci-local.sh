@@ -221,6 +221,9 @@ run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && s
 # --- source evidence check (revue PR #74, round 11) ---
 run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/export_source_validation_evidence.py --check"
 
+# --- currentness disposition drift check (revue PR #151) ---
+run_target "currentness-disposition-check" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/build_currentness_disposition.py --check"
+
 # --- governance guard tests ---
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
 

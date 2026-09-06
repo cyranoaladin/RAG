@@ -52,6 +52,8 @@ SAFE_METADATA_ONLY :
 - `transition-authorization-audit`
 - `metadata-governance-chain-audit`
 - `metadata-review-handoff-audit`
+- `source-evidence-check`
+- `currentness-disposition-check`
 
 SAFE_CLEANUP_REVIEW :
 
