@@ -333,6 +333,29 @@ def test_duplicate_ingestion_artifact_link_fails_closed(pg: dict[str, str]) -> N
                 """,
                 (SHA_B, SHA_B, SOURCE_URI, VERSION_ID),
             )
+            # A real, authoritative placement for SHA_B too -- otherwise the
+            # observed_bindings guard (scoped by real placements, not by
+            # rag_artifacts rows alone) refuses this fixture before ever
+            # reaching the identity-collision check this test targets.
+            cursor.execute(
+                """
+                INSERT INTO public.rag_artifact_placements (
+                    placement_id, artifact_id, collection, tenant, niveau, voie,
+                    audience, matiere, statut_enseignement, candidat, visibility,
+                    school_year, programme_version, currentness, placement_status,
+                    review_status, source_scope, source_placement_id, source_path,
+                    source_uri, authorization_id, publication_attestation_id
+                ) VALUES (
+                    %s, %s, 'terminale_maths', 'nexus', 'terminale', 'generale',
+                    ARRAY['aefe'], 'mathematiques', 'specialite', 'scolarise',
+                    'internal', '2026-2027', 'fr-national-2026', 'current', 'active',
+                    'reviewed', 'fixture-scope', 'fixture-placement-dup',
+                    '/governed/private/programme.pdf', %s, 'fixture-auth',
+                    '66666666-6666-4666-8666-666666666666'
+                )
+                """,
+                ("f" * 64, SHA_B, SOURCE_URI),
+            )
         connection.commit()
 
     with pytest.raises(BootstrapInventoryError, match="multiple RAG artifacts"):
