@@ -90,8 +90,36 @@ distinguent désormais ce que l'on sait :
 Taille et empreinte sont deux propriétés distinctes : les confondre priverait
 l'exploitant de l'information qui dit *quoi* réparer.
 
-Seul le dernier fait échouer le gate, et c'est lui qui porte la question :
-*ce document servi, sait-on le relire hors du poste ?*
+Seul `COVERAGE_MISSING` fait échouer le gate, et c'est lui qui porte la
+question : *ce document servi, sait-on le relire hors du poste ?*
+
+Un cinquième compteur est publié sans jamais bloquer :
+
+| Compteur | Ce qu'il compte |
+|---|---|
+| `PROMOTED_CAS_COVERAGE_EXTRA` | contenus du store **qui ne sont plus promus** |
+
+Il n'est pas un défaut, et c'est délibéré. **Le store peut être un
+sur-ensemble ; jamais un sous-ensemble.** Un candidat retiré, un contenu
+remplacé par une version plus récente, un artefact rendu non servable par une
+décision de gouvernance : tous restent légitimement dans le store, où ils
+continuent de rendre reproductible ce qu'une lignée antérieure a servi.
+Effacer le store à chaque changement de lignée détruirait cette propriété.
+`EXTRA` est donc une mesure de l'écart, pas une alarme — et sa valeur non
+nulle est l'état normal d'un store qui a vécu.
+
+### Le fichier d'ensemble promu se prouve lui-même
+
+Il porte `count` et `content_set_sha256`. Les ignorer laissait un fichier
+**tronqué mais non vide** passer pour complet : la couverture était alors
+calculée contre moins de contenus qu'il n'y en a de promus, et « 0 manquant »
+cessait de vouloir dire quelque chose. Les deux champs sont désormais
+confrontés à la liste avant tout usage.
+
+Un `content_sha256` qui n'est pas un sha256 minuscule de 64 caractères est
+refusé à la source. Sans cela, `str()` d'une valeur quelconque devenait un
+identifiant promu que le store ne pouvait par construction jamais contenir :
+la couverture échouait plus tard, sur un défaut dont l'origine était perdue.
 
 ## Les mutants
 

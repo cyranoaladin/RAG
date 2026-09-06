@@ -183,6 +183,38 @@ def verify(
     return (0 if not problems else 1), messages + info
 
 
+def _charge_ensemble_promu(chemin: Path) -> set[str]:
+    """Lit l'ensemble promu en le confrontant à ses PROPRES champs d'intégrité.
+
+    Le fichier porte `count` et `content_set_sha256`. Les ignorer laissait un
+    fichier tronqué mais non vide passer pour complet : la couverture était
+    alors calculée contre moins de contenus qu'il n'y en a de promus, et
+    « 0 manquant » ne voulait plus rien dire.
+    """
+    charge = json.loads(chemin.read_text(encoding="utf-8"))
+    if not isinstance(charge, dict):
+        raise ValueError(f"{chemin.name} : la racine n'est pas un objet")
+    liste = charge.get("content_sha256")
+    if not isinstance(liste, list) or not liste:
+        raise ValueError(f"{chemin.name} : content_sha256 absent ou vide")
+    promus = {str(valeur) for valeur in liste}
+    if len(promus) != len(liste):
+        raise ValueError(f"{chemin.name} : contient des doublons")
+    if charge.get("count") != len(promus):
+        raise ValueError(
+            f"{chemin.name} : annonce {charge.get('count')!r} contenus et en "
+            f"porte {len(promus)}"
+        )
+    attendu = charge.get("content_set_sha256")
+    obtenu = content_set_digest(promus)
+    if attendu != obtenu:
+        raise ValueError(
+            f"{chemin.name} : annonce l'empreinte {str(attendu)[:16]}… et ses "
+            f"contenus hachent vers {obtenu[:16]}…"
+        )
+    return promus
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cas-root", required=True, type=Path)
@@ -205,11 +237,11 @@ def main(argv: list[str] | None = None) -> int:
 
     promoted = None
     if args.promoted_content_set is not None:
-        promoted = set(
-            json.loads(args.promoted_content_set.read_text(encoding="utf-8"))[
-                "content_sha256"
-            ]
-        )
+        try:
+            promoted = _charge_ensemble_promu(args.promoted_content_set)
+        except ValueError as exc:
+            print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
+            return 2
 
     code, messages = verify(
         args.cas_root,
