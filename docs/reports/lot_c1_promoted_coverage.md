@@ -83,8 +83,12 @@ distinguent désormais ce que l'on sait :
 |---|---|
 | `PROMOTED_CAS_DECLARATION_MISSING` | promu, absent du manifeste du store |
 | `PROMOTED_CAS_BLOB_MISSING` | déclaré, mais aucun objet sur disque |
-| `PROMOTED_CAS_HASH_MISMATCH` | objet présent, octets hachant ailleurs, ou localisateur hors store |
-| `PROMOTED_CAS_COVERAGE_MISSING` | promu **sans objet CAS vérifié** — l'union des trois |
+| `PROMOTED_CAS_SIZE_MISMATCH` | octets corrects, taille déclarée fausse |
+| `PROMOTED_CAS_HASH_MISMATCH` | octets hachant ailleurs, ou localisateur hors store |
+| `PROMOTED_CAS_COVERAGE_MISSING` | promu **sans objet CAS vérifié** — l'union des quatre |
+
+Taille et empreinte sont deux propriétés distinctes : les confondre priverait
+l'exploitant de l'information qui dit *quoi* réparer.
 
 Seul le dernier fait échouer le gate, et c'est lui qui porte la question :
 *ce document servi, sait-on le relire hors du poste ?*
@@ -103,14 +107,40 @@ Chaque garde est prouvée par la mutation qu'elle refuse.
 | manifeste de release réécrit sans son sceau | refus | « l'autorité déclare » |
 | `expected_counts.artifacts` absent, `"4"`, `0`, `-1`, `True` | refus | « expected_counts » |
 | occurrences lues ≠ déclarées | refus | « contre 9 déclarées » |
+| registre hors racine gouvernée | refus | « hors de la racine gouvernée » |
 | `manifest_path` en `../` | refus | « hors de la racine gouvernée » |
-| composant du chemin en lien symbolique | refus | « est un lien symbolique » |
+| lien symbolique **interne** sur un composant | refus | « est un lien symbolique » |
+| registre / release / entrée valant `[]`, `"x"`, `42`, `null` | refus | « pas un objet » |
+| taille déclarée fausse, octets justes | refus | `SIZE_MISMATCH=1`, `HASH_MISMATCH=0` |
 | JSON malformé | `RC=2` | `PROMOTED_CONTENT_SET_INVALID` |
 | blob supprimé | refus | `BLOB_MISSING=1`, `COVERAGE_MISSING=1` |
 | octets remplacés | refus | `HASH_MISMATCH=1`, `COVERAGE_MISSING=1` |
 
 Sur l'arbre réel, la mutation d'un sujet sans mise à jour de son sceau rend
 `RC=2` en nommant le sujet, l'empreinte déclarée et l'empreinte mesurée.
+
+**Le garde symlink est éprouvé sur le cas qu'il est SEUL à attraper.** Un lien
+vers l'extérieur est déjà refusé par la borne « le chemin résolu est dans la
+racine » ; un lien **interne** ne l'est pas — la résolution reste à
+l'intérieur, et le sceau du fichier atteint est parfaitement correct. Mutant
+appliqué (`if courant.is_symlink()` neutralisé) : **exactement une épreuve
+rouge**, celle du lien interne. C'est ce qui en fait une épreuve du garde et
+non de la borne voisine.
+
+## Une seule primitive pour toutes les entrées
+
+`_lire_gouverne` borne le registre, les manifestes de release et les
+manifestes de sujet. Trois implémentations de la même borne divergeraient :
+celle qu'on oublie de durcir devient le chemin d'entrée.
+
+Le **registre lui-même** y est soumis. Une autorité d'entrée extérieure au
+périmètre qu'elle prétend gouverner ne le gouverne pas : un faux registre dont
+toutes les empreintes seraient cohérentes prouverait seulement qu'on a bien lu
+le fichier qu'on a désigné.
+
+Un JSON parfaitement valide peut n'être pas un objet — `[]`, `"registry"`,
+`42`, `null`. `_charge_objet` l'exige à chaque étage : appeler `.get()` dessus
+rendrait une trace Python là où le gate doit nommer le défaut.
 
 ## Déclenchement
 
@@ -146,6 +176,7 @@ privilégié post-fusion, sur le commit exact de `main` :
 CURRENT_PROMOTED_CONTENTS=<mesuré>
 PROMOTED_CAS_DECLARATION_MISSING=0
 PROMOTED_CAS_BLOB_MISSING=0
+PROMOTED_CAS_SIZE_MISMATCH=0
 PROMOTED_CAS_HASH_MISMATCH=0
 PROMOTED_CAS_COVERAGE_MISSING=0
 ```
