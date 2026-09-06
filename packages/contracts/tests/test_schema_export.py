@@ -21,8 +21,10 @@ def test_package_version_is_0_17_0() -> None:
     """0.17.0 ajoute le contrat typé de la vue taxonomie servable (ADR-0049).
 
     Mineure et non majeure : `TaxonomyV2Response` est un ajout, aucun contrat
-    existant n'est modifié ni retiré. 0.16.0 est prise par l'émetteur canonique
-    de scopes (ADR-0048, PR #149), qui entre avant ce lot.
+    existant n'est modifié ni retiré. Elle succède à 0.16.0, qui a empaqueté
+    dix scopes de retrieval (ADR-0048) — évolution également ADDITIVE. Le
+    dépôt applique la MINEURE à ce cas depuis ADR-0042 (0.11→0.12), ADR-0044,
+    ADR-0045 et ARIA-B.
     """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())

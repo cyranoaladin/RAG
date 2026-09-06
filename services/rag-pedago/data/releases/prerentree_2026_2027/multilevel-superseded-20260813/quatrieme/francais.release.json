@@ -1,0 +1,225 @@
+{
+  "artifacts": [
+    {
+      "chunk_id_set_digest": "6cbb6eafaa8b64a9749724f604227f955cd7bac3b5fee32ca2d0b008e1d1c9df",
+      "chunk_sha256_set_digest": "5a701cd9e155bd2bd83bd6387553960f19e44d3e4a255d98683df86d37781b50",
+      "chunks": [
+        {
+          "chunk_id": "93244230965962fc5d67c76247d396d43af34155a3f555e296b3090d25354b50",
+          "chunk_index": 0,
+          "chunk_sha256": "38eee4ce9b8329372a11f4a4f254ffd4b8cd43ca0acc06565f22fceb15f05b22",
+          "page_end": 1,
+          "page_start": 1
+        },
+        {
+          "chunk_id": "bac5a48fc0f265b008c7f09c58831fcf0039bed77cddfa6dd13efeb8fe8b004c",
+          "chunk_index": 1,
+          "chunk_sha256": "dde52f7329764b3503c07bc8cb525d24062d57db4bbe116aa7874e3e9605cae1",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "9c30bb3f0684da9cb4515411a9d80fff56a5f8ad7f86ecbffbbc17431133abe4",
+          "chunk_index": 2,
+          "chunk_sha256": "418a288f499a114e768d71a8f90215136a8e9fa90bc12b83e2d8d5fbea16884a",
+          "page_end": 2,
+          "page_start": 2
+        },
+        {
+          "chunk_id": "56886704d552fa7c0fe4acbe38fe7173fd1f4e0f194a1dc026bf452216fb1863",
+          "chunk_index": 3,
+          "chunk_sha256": "93600d8ef6e102754166eeadc024465b5a044787641bf7cdba5ee194978a768b",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "544d36e7864870e2ae61052342bab41e5d5a6c70e8370458f662d78f432ab9e5",
+          "chunk_index": 4,
+          "chunk_sha256": "20ade57955d0a574027c8e471930ac1522fc6c6eff9fc60c6c5b7365497a3126",
+          "page_end": 3,
+          "page_start": 3
+        },
+        {
+          "chunk_id": "e5d5635c10a42664bd8e10138d569c7708025a9643acea5abe497c186c020e11",
+          "chunk_index": 5,
+          "chunk_sha256": "05201152f27d4ea09550d1a69aa63305d4f12e8e6253b01b30f0c538326feb06",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "24c7bb47c186b7386235eef1e0c3569dbd2c91becde9369c601b396d7deb2562",
+          "chunk_index": 6,
+          "chunk_sha256": "ce9975b3a3c11f793069c08194876be6963dfc9824e06cdf940bc301bba96e32",
+          "page_end": 4,
+          "page_start": 4
+        },
+        {
+          "chunk_id": "6ab2c960904a845880b7b44b80fc69f1746d17a1bf80507493464bbcc2f5cdaf",
+          "chunk_index": 7,
+          "chunk_sha256": "afce2e52c78a3e877cc420685b7844125758f3980e66167f0e1646fd0ab6ca44",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "155d4535a5e70472e672a200f1e6294428a2647c20b1ccab301d0929692c4301",
+          "chunk_index": 8,
+          "chunk_sha256": "31db326fdef565d09071794bce656b13c141d89e89110de589795b8d7a74a1c1",
+          "page_end": 5,
+          "page_start": 5
+        },
+        {
+          "chunk_id": "294c954a2c00403229ae3e45eb5ffb46bfc1383c5dd3a7d88974d5f5781f34cc",
+          "chunk_index": 9,
+          "chunk_sha256": "798254b1ae62627150531fadbd303dbca85f5605d2d4d0c25a2026ca2bb0c5c9",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "7a95a8868834e8aa3dd9bac395c7dfe7635bf5ac7c9b6cbe38f8ede67ab7c040",
+          "chunk_index": 10,
+          "chunk_sha256": "abf24f04b6f9bdaee692c6e015482dc927b394989b2c3dce4b1709b5ac1ce0cb",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "8ee5da673e053cd4571f3bd2120d63a6363923866e4e23bd5c25d9e76f4f2f80",
+          "chunk_index": 11,
+          "chunk_sha256": "b034c57831e1d4e332b1861abf72af8c35e335a3692e3c5e0b8bc298ed84db1e",
+          "page_end": 6,
+          "page_start": 6
+        },
+        {
+          "chunk_id": "257d689fcbbd7f47e7ba18e0181350143bc6a558ae7bb44a45489c2a3c5ac694",
+          "chunk_index": 12,
+          "chunk_sha256": "52c45c5836c45c172f7e50322e666297fdf815bcf3b9e3d019bd9ae050c21fef",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "94fdaee2c8157b0f13f707669232c0938ed2bd65736facb7cdbf778a5b96d10d",
+          "chunk_index": 13,
+          "chunk_sha256": "1295655e875cb7df1d7b5c0743c45d1adfffe28cddeabbba4c0e7200c4c83ef5",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "35926080cdafb41c0b41fbba731c4aca92e9cd1493b0cf4c5d49967d1542cec8",
+          "chunk_index": 14,
+          "chunk_sha256": "59ee93f9b22371a02504228f1f08ee7e0f4354d3d4ae9d11cdb4508134ee6ec1",
+          "page_end": 7,
+          "page_start": 7
+        },
+        {
+          "chunk_id": "8899dec6f45f013c8ea353f2919b0e04c0048ef025ed75de45f0f1c3abf66bb1",
+          "chunk_index": 15,
+          "chunk_sha256": "8cdcb5334f144b544ff1d1bfe13ace80b74732a86deae03a817c97b0e6fffed1",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "bdbc3f55162541a0184d2546695a5f1b846d820f3034ae9d0ac293258ff826d9",
+          "chunk_index": 16,
+          "chunk_sha256": "feec1590cdf65c07ddb2fdf603216d656da2f6c82528a1b65f46118c7baed7ab",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "9e8b91024a2d68f093b9acf28774ab0ec7b78242c76b831e19f5c2c24287929b",
+          "chunk_index": 17,
+          "chunk_sha256": "aa0c7be0a5f1a5a9fa34dfed6b7ae2fa8951a7957779ff1c5d52ea1a1c5553bd",
+          "page_end": 8,
+          "page_start": 8
+        },
+        {
+          "chunk_id": "9107444e99ddc94687a76e108a6f20202688ee13d6c3d70e1b4689bb08314849",
+          "chunk_index": 18,
+          "chunk_sha256": "1dcc04fb679bc2dfa116b6bebda983a67ae6a67ce209e37a0b266934965ddc5f",
+          "page_end": 9,
+          "page_start": 9
+        },
+        {
+          "chunk_id": "5aa072b1d3eb073e4ce9fc922a84b3c8b3af5010e27164580e358187620c60b4",
+          "chunk_index": 19,
+          "chunk_sha256": "d2746661d93c7170a7fd2f11168d964c99733a33da027246813cc2613f9af799",
+          "page_end": 9,
+          "page_start": 9
+        }
+      ],
+      "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+      "page_count": 9,
+      "page_coverage_digest": "e7dfc785d98b2f40d7a754f5dd4848866b1c5edd3b1079e5b167fc53eb29101a",
+      "placement_id_set_digest": "d94783875c122ea8ff2781c233304e9a8b556e22df795fa4127141725d2fb0e1",
+      "placements": [
+        {
+          "candidat": "libre",
+          "collection": "rag_nexus_francais_quatrieme_tc",
+          "currentness": "current",
+          "matiere": "francais",
+          "niveau": "quatrieme",
+          "placement_id": "d7b4b0625e57a27bc94d97aa4ce2d8b701e798ff690cd192403309da6d0d6512",
+          "placement_status": "active",
+          "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+          "review_status": "reviewed",
+          "school_year": "2026-2027",
+          "source_placement_id": "par-scope/college/cycle-4/francais/4e/reperes-attendus/2019/attendus-de-fin-d-annee-en-francais-en-4e-pdf-1-05-mo--73c001b93c.pdf",
+          "source_scope": "college/cycle-4/francais",
+          "statut_enseignement": "tronc_commun",
+          "tenant": "libre_quatrieme",
+          "visibility": "internal",
+          "voie": "college"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/COLLEGE/4E/FRANCAIS/02_REPERES_ATTENDUS/2019/attendus-de-fin-d-annee-en-francais-en-4e-pdf-1-05-mo--73c001b93c.pdf",
+      "source_url": "https://eduscol.education.gouv.fr/sites/default/files/document/15-francais-4e-attendus-eduscolpdf-74679.pdf",
+      "title": "Attendus de fin d'année en français en 4e PDF - 1.05 Mo",
+      "type_doc": "ressource_officielle"
+    }
+  ],
+  "authorities": {
+    "candidate_inventory_sha256": "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300",
+    "catalog_delta_sha256": "cc12e73643bcb36102a992982e756356b34a908c60d0d742ea48d2ee61cfd99b",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+    "document_type_mapping_sha256": "ce5e51b7c6890120bec1e7394d2f649ce0b4a2590ea8765d964a5576b99f871f",
+    "effective_catalog_authority_sha256": "5cc8e30b81157fbc1789a0b82ad38cd3673276167890bced55151cbac1523c2f",
+    "embedding_inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+    "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+    "parent_sealed_catalog_sha256": "301c0dcce4e49cd9b6e524708bde82b262a09b05bd52e0431233813ecf8ae04b",
+    "pii_evidence_sha256": "46d6c738ebc230dedb95ada2d07bd17a0907d75ee8aedcd556d27027ad50daa8",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "pii_scanner_sha256": "0517a34c1b18eee05e3b9694cc2d774754b3a04b694c90aca1faaa48e262e1b7",
+    "placement_catalog_sha256": "095ca37cc4c2126d06b77106f9f1663d4f5ad881ae4952dbf5b951477fd54c39",
+    "preflight_evidence_sha256": "e440745c7bc04b5398863a80bf6d4ad8128fc8726d0615d6947412f8d557cf5f",
+    "profile_manifest_sha256": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
+    "programme_registry_sha256": "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89aa58c",
+    "reranker_inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "subject_mapping_sha256": "c3c2d20bd27243a77795b3a056441d256f0b0b9b73306b3a1e710eee61407ed6"
+  },
+  "collection": "rag_nexus_francais_quatrieme_tc",
+  "expected_counts": {
+    "artifacts": 1,
+    "chunks": 20,
+    "placements": 1
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "profile": {
+    "fingerprint": "02573ac1bdc66f9163e94334a1f6dd3469a27edded44a5d95ab2f72c0074cf4f",
+    "manifest_digest": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
+    "version": "multilevel-v1"
+  },
+  "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+  "release_id": "multilevel-rag_nexus_francais_quatrieme_tc-2026-2027-v1",
+  "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V1",
+  "school_year": "2026-2027"
+}

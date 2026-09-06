@@ -4,8 +4,8 @@
 - **Date** : 2026-09-06
 - **Portée** : `packages/contracts` (0.16.0 → 0.17.0), `services/rag-engine` (`GET /taxonomy/v2`)
 - **Références** : ADR-0001 (séparation des plans), ADR-0038 (scopes de retrieval v2)
-- **Ordre de version** : 0.16.0 est prise par ADR-0048 (émetteur canonique de
-  scopes, PR #149), qui entre avant ce lot ; celui-ci prend donc 0.17.0.
+- **Ordre de version** : 0.16.0 a été prise par ADR-0048 (émetteur canonique
+  de scopes), entrée dans `main` par la PR #149 ; ce lot prend donc 0.17.0.
 
 ## Contexte
 

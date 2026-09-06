@@ -56,20 +56,25 @@ WAVE0_RELEASE_SHA256 = (
     "0cf9c5d8ceaa2766aa97195743e949ec0a907ed0f609f116275a7d1f8202498d"
 )
 MULTILEVEL_RELEASE_SHA256 = (
-    "d8ee6703d3497e34e6e5273bee00da90ab9c82094f0f9a1257eef0ff91da1828"
+    "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26"
 )
 
+# ADR-0048 : la release multi-niveaux régénérée est liée par les SUCCESSEURS
+# `_v2`. Les `_v1` restent packagés et adressables sous leurs digests d'origine,
+# mais ils désignent la release archivée du 2026-08-13, plus aucune release
+# active. Le nom d'un diagnostic d'entrée reste décalé d'un niveau par rapport
+# à sa collection : entrer en première s'évalue sur le contenu de seconde.
 MULTILEVEL_SCOPE_COLLECTIONS = {
-    "entree_premiere_maths_v1": "rag_nexus_maths_seconde_tc",
-    "entree_premiere_francais_v1": "rag_nexus_francais_seconde_tc",
-    "entree_troisieme_maths_v1": "rag_nexus_maths_quatrieme_tc",
-    "entree_troisieme_francais_v1": "rag_nexus_francais_quatrieme_tc",
-    "entree_terminale_maths_v1": "rag_nexus_maths_premiere_gen_specialite",
-    "entree_terminale_nsi_v1": "rag_nexus_nsi_premiere_specialite",
-    "eaf_premiere_francais_v1": "rag_nexus_francais_premiere_tc",
-    "terminale_maths_v1": "rag_nexus_maths_terminale_gen_specialite",
-    "terminale_nsi_v1": "rag_nexus_nsi_terminale_specialite",
-    "terminale_physique_chimie_v1": "rag_nexus_pc_terminale_specialite",
+    "entree_premiere_maths_v2": "rag_nexus_maths_seconde_tc",
+    "entree_premiere_francais_v2": "rag_nexus_francais_seconde_tc",
+    "entree_troisieme_maths_v2": "rag_nexus_maths_quatrieme_tc",
+    "entree_troisieme_francais_v2": "rag_nexus_francais_quatrieme_tc",
+    "entree_terminale_maths_v2": "rag_nexus_maths_premiere_gen_specialite",
+    "entree_terminale_nsi_v2": "rag_nexus_nsi_premiere_specialite",
+    "eaf_premiere_francais_v2": "rag_nexus_francais_premiere_tc",
+    "terminale_maths_v2": "rag_nexus_maths_terminale_gen_specialite",
+    "terminale_nsi_v2": "rag_nexus_nsi_terminale_specialite",
+    "terminale_physique_chimie_v2": "rag_nexus_pc_terminale_specialite",
 }
 
 
@@ -510,7 +515,7 @@ def test_startup_rejects_scope_source_sha_different_from_subject_release(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     registry = dict(load_retrieval_scope_registry())
-    artifact = registry["entree_premiere_maths_v1"]
+    artifact = registry["entree_premiere_maths_v2"]
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     registry[artifact.scope_id] = artifact.model_copy(
         update={"source_sha256": "0" * 64}
@@ -531,7 +536,7 @@ def test_startup_rejects_scope_source_sha_different_from_subject_release(
 def test_request_gate_rejects_multilevel_scope_source_sha_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v2")
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     drifted = artifact.model_copy(update={"source_sha256": "0" * 64})
     monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(MULTILEVEL_RELEASE))
@@ -551,7 +556,7 @@ def test_request_gate_rejects_multilevel_scope_source_sha_drift(
 def test_request_gate_accepts_v2_subject_manifest_source_sha_match(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v2")
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     collection = str(artifact.evidence_subject.collection)
     registry = _multilevel_v2_release_registry((collection, artifact.source_sha256))
@@ -564,7 +569,7 @@ def test_request_gate_accepts_v2_subject_manifest_source_sha_match(
 def test_request_gate_rejects_v2_subject_manifest_source_sha_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v2")
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     collection = str(artifact.evidence_subject.collection)
     registry = _multilevel_v2_release_registry((collection, "0" * 64))
@@ -577,7 +582,7 @@ def test_request_gate_rejects_v2_subject_manifest_source_sha_drift(
 def test_startup_rejects_ambiguous_v2_scope_for_one_subject_manifest(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v1")
+    artifact = load_retrieval_scope_artifact("entree_premiere_maths_v2")
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     collection = str(artifact.evidence_subject.collection)
     registry = _multilevel_v2_release_registry((collection, artifact.source_sha256))

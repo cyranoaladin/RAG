@@ -9,24 +9,47 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
+import nexus_pdf_page_policy as page_policy
 import yaml
 from nexus_contracts.ingestion import CollectionProfile
+from nexus_release_chain.publication_chunking import DEFAULT_TARGET_TOKENS
 
 INVENTORY_KIND = "MULTILEVEL_CANDIDATE_INVENTORY_V1"
 CATALOG_DELTA_KIND = "MULTILEVEL_CATALOG_VNEXT_DESCRIPTOR_V1"
 PLACEMENT_DELTA_KIND = "APPEND_ONLY_EXACT_PLACEMENT_DELTA_V1"
 CURRENTNESS_EVIDENCE_KIND = "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
 CURRENTNESS_AUDIT_KIND = "MULTILEVEL_CURRENTNESS_NETWORK_AUDIT_V1"
-PREFLIGHT_EVIDENCE_KIND = "MULTILEVEL_RELEASE_PREFLIGHT_V1"
+#: Schéma du préflight consommé ici. **Pourquoi V2 et non V1.** Depuis la
+#: politique de pages (PR #142), l'extraction distingue une page vide qui rend
+#: le document incomplet d'une page structurellement incapable de porter un
+#: glyphe, que l'extracteur conserve. Et le découpage — donc chaque
+#: `chunk_sha256` — dépend de la version de pypdf et du prédicat de pages.
+#:
+#: V1 n'a d'emplacement ni pour l'un ni pour l'autre : il ne connaît qu'un
+#: compteur de pages vides, et ne nomme aucun runtime. Deux préflights V1 issus
+#: de deux extracteurs différents sont indiscernables — c'est la panne
+#: constatée, la release scellée le 13/08 et le banc d'ingestion actuel
+#: divergeant de plusieurs centaines de chunks sans qu'aucune preuve ne dise
+#: sous quel extracteur le sceau avait été apposé.
+#:
+#: V2 DÉCLARE ces deux faits. Il n'élargit aucune porte : un artefact portant
+#: une page structurellement vide est nommé, et reste refusé à la release.
+PREFLIGHT_EVIDENCE_KIND = "MULTILEVEL_RELEASE_PREFLIGHT_V2"
 SUBJECT_RELEASE_KIND = "MULTILEVEL_SUBJECT_RELEASE_V1"
 AGGREGATE_RELEASE_KIND = "MULTILEVEL_AGGREGATE_RELEASE_V1"
 SCHOOL_YEAR = "2026-2027"
 EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
 EMBEDDING_INVENTORY_SHA256 = "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a"
+#: Révision amont du tokenizer. `real_e5_tokens` n'a de sens que rapporté à
+#: elle : deux révisions ne segmentent pas le même texte de la même façon.
+EMBEDDING_MODEL_REVISION = "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"
+#: Budget de découpage du chunker gouverné, lu chez lui plutôt que redéclaré.
+CHUNK_TARGET_TOKENS = DEFAULT_TARGET_TOKENS
 RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 RERANKER_INVENTORY_SHA256 = "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1"
 _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
@@ -1168,7 +1191,7 @@ def _validate_pii_release_evidence(
 
 def _validate_rights_registry(
     registry: Mapping[str, Any], *, registry_sha256: str, corpus_manifest_sha256: str
-) -> tuple[str, frozenset[str]]:
+) -> tuple[str, frozenset[str], str, str]:
     _require_document_digest(registry, registry_sha256, "rights registry")
     decisions = _require_mapping(registry.get("human_rights_decisions"), "human rights decisions")
     sources = _require_mapping(registry.get("source_evidence"), "rights sources")
@@ -1201,7 +1224,10 @@ def _validate_rights_registry(
         if sha in excepted:
             raise ValueError("rights document exception is duplicated")
         excepted.add(sha)
-    return "officiel_public", frozenset(excepted)
+    # La décision et la zone sont rendues parce que la preuve de préflight les
+    # inscrit : un artefact y déclare SOUS QUELLE décision humaine il est admis,
+    # et non la seule catégorie de droits qui en résulte.
+    return "officiel_public", frozenset(excepted), decision_ref, "01_EDUSCOL_OFFICIEL/"
 
 
 def _validate_mapping(
@@ -1231,8 +1257,13 @@ def _validate_programme_registry(
     *,
     registry_sha256: str,
     programme_indexes_by_path: Mapping[str, dict[str, Any]],
-    preflight: Mapping[str, Any],
-) -> dict[str, dict[str, str]]:
+) -> tuple[dict[str, dict[str, str]], dict[str, str]]:
+    """Rend les faits de programme ET les empreintes d'index qu'il faut retrouver.
+
+    La confrontation au préflight n'est plus faite ici : elle appartient à la
+    validation du préflight, et l'y avoir laissée obligeait le registre à
+    connaître un document que le producteur du préflight ne possède pas
+    encore. Le contrôle est identique, exercé à l'endroit qui le comprend."""
     _require_document_digest(registry, registry_sha256, "programme registry")
     if (
         registry.get("registry_kind") != "NEXUS_PROGRAMME_INDEX_REGISTRY_V3"
@@ -1255,11 +1286,6 @@ def _validate_programme_registry(
         _require_document_digest(document, index_digests[path], f"programme index {path}")
         if not isinstance(document.get("fiches"), list):
             raise ValueError("programme index entries are absent")
-    preflight_indexes = _require_mapping(
-        preflight.get("programme_index_sha256_by_path"), "preflight programme indexes"
-    )
-    if dict(preflight_indexes) != index_digests:
-        raise ValueError("preflight programme index authority differs")
     raw_taxonomies = registry.get("taxonomies")
     if not isinstance(raw_taxonomies, list) or len(raw_taxonomies) != len(TARGET_MATRIX):
         raise ValueError("programme registry taxonomy facts are absent")
@@ -1283,7 +1309,7 @@ def _validate_programme_registry(
         }
     if set(facts) != {target["collection"] for target in TARGET_MATRIX}:
         raise ValueError("programme registry collection set differs")
-    return facts
+    return facts, index_digests
 
 
 def _validate_profiles(
@@ -1353,19 +1379,85 @@ def _validate_profiles(
     return profiles
 
 
-def _validate_preflight(
+@dataclass(frozen=True)
+class PreflightRequirements:
+    """Ce que les autorités versionnées exigent d'un préflight, avant lui.
+
+    **Pourquoi cet objet existe.** La sélection — quels contenus sont actuels,
+    déchargés de PII et couverts par les droits — était calculée à l'intérieur
+    de la validation du préflight, donc inaccessible à qui doit PRODUIRE ce
+    préflight. Le producteur aurait dû réimplémenter la même algèbre, et deux
+    implémentations d'une même sélection finissent par diverger en silence.
+    Elle est calculée une fois, ici, et les deux appelants la lisent."""
+
+    artifacts: dict[str, dict[str, Any]]
+    candidates_by_collection: dict[str, list[dict[str, Any]]]
+    collections_by_sha: dict[str, set[str]]
+    currentness_rows: dict[str, dict[str, Any]]
+    pii_rows: dict[str, dict[str, Any]]
+    profiles: dict[str, tuple[CollectionProfile, str]]
+    programme_facts: dict[str, dict[str, str]]
+    programme_index_sha256_by_path: dict[str, str]
+    document_types: dict[str, str]
+    physical_path_by_sha: dict[str, str]
+    bindings: dict[str, str]
+    authorities: dict[str, str]
+    current_shas: frozenset[str]
+    pii_cleared_shas: frozenset[str]
+    rights_cleared_shas: frozenset[str]
+    type_clear_shas: frozenset[str]
+    required_shas: frozenset[str]
+    excluded_current_pii_shas: frozenset[str]
+    rights_decision_id: str
+    rights_zone: str
+    rights_category: str
+
+
+def _require_page_partition(
+    row: Mapping[str, Any],
+    *,
+    sha: str,
+    page_count: int,
+    covered_pages: set[int],
+) -> None:
+    """Exiger que chaque page du document soit expliquée, une fois exactement.
+
+    Depuis la politique de pages, un document complet peut porter des pages
+    sans texte extractible : celles que le prédicat structurel déclare
+    incapables de porter un glyphe. Elles ne sont couvertes par aucun chunk et
+    ne sont pas pour autant une extraction manquante. La preuve doit donc
+    NOMMER ces pages, et la partition doit être totale et disjointe — sans
+    quoi une page jamais lue passerait pour une page volontairement écartée."""
+    raw_ignored = row.get("ignored_empty_pages")
+    if not isinstance(raw_ignored, list) or any(
+        type(page) is not int for page in raw_ignored
+    ):
+        raise ValueError("preflight ignored empty pages must be strict integers")
+    ignored = list(raw_ignored)
+    if ignored != sorted(set(ignored)):
+        raise ValueError("preflight ignored empty pages must be strictly increasing")
+    if any(page < 1 or page > page_count for page in ignored):
+        raise ValueError("preflight ignored empty pages are out of bounds")
+    if row.get("empty_extracted_pages") != len(ignored):
+        raise ValueError("preflight empty page count differs from the named pages")
+    overlap = covered_pages & set(ignored)
+    if overlap:
+        raise ValueError(f"preflight artifact {sha} covers a page it also ignores")
+    if covered_pages | set(ignored) != set(range(1, page_count + 1)):
+        raise ValueError("preflight page coverage differs")
+
+
+def _validate_preflight_document(
     preflight: Mapping[str, Any],
     *,
     preflight_sha256: str,
-    bindings: Mapping[str, str],
-    expected_shas: set[str],
-    expected_current_count: int,
-    profile_count: int,
-    profiles: Mapping[str, tuple[CollectionProfile, str]],
-    programme_facts: Mapping[str, dict[str, str]],
-    expected_collections_by_sha: Mapping[str, set[str]],
-    expected_excluded_shas: set[str],
+    requirements: PreflightRequirements,
 ) -> dict[str, dict[str, Any]]:
+    """Confronter un préflight aux exigences dérivées des autorités."""
+    bindings = requirements.bindings
+    expected_shas = set(requirements.required_shas)
+    profiles = requirements.profiles
+    programme_facts = requirements.programme_facts
     _require_document_digest(preflight, preflight_sha256, "preflight evidence")
     if (
         preflight.get("evidence_kind") != PREFLIGHT_EVIDENCE_KIND
@@ -1386,13 +1478,33 @@ def _validate_preflight(
             raise ValueError(f"preflight authority {field} differs")
     if (
         preflight.get("corpus_manifest_sha256") != bindings["corpus_manifest_sha256"]
-        or preflight.get("profile_manifest_declared_count") != profile_count
+        or preflight.get("profile_manifest_declared_count") != len(profiles)
         or preflight.get("embedding_model_id") != EMBEDDING_MODEL
+        or preflight.get("embedding_model_revision") != EMBEDDING_MODEL_REVISION
         or preflight.get("embedding_dimension") != 1024
         or preflight.get("raw_pii_in_evidence") is not False
         or preflight.get("raw_text_in_evidence") is not False
     ):
         raise ValueError("preflight authority contract differs")
+    # D-41 : les empreintes de chunks ne veulent rien dire hors du runtime qui
+    # les a produites. Un préflight scellé sous un autre extracteur ou une
+    # autre politique de pages décrit un autre découpage, et le dire est le
+    # seul moyen de ne pas resceller une release sur une sémantique périmée.
+    if preflight.get("extraction_runtime") != {
+        "pypdf_version": page_policy.CANONICAL_PYPDF_VERSION,
+        "page_policy_id": page_policy.POLICY_ID,
+        "page_policy_sha256": page_policy.policy_source_sha256(),
+    }:
+        raise ValueError("preflight extraction runtime differs")
+    if preflight.get("chunk_target_tokens") != CHUNK_TARGET_TOKENS:
+        raise ValueError("preflight chunk budget differs from the governed chunker")
+    if (
+        dict(_require_mapping(
+            preflight.get("programme_index_sha256_by_path"), "preflight programme indexes"
+        ))
+        != requirements.programme_index_sha256_by_path
+    ):
+        raise ValueError("preflight programme index authority differs")
     raw_rows = preflight.get("artifacts")
     if not isinstance(raw_rows, list):
         raise ValueError("preflight artifacts are absent")
@@ -1407,9 +1519,11 @@ def _validate_preflight(
         raise ValueError("preflight artifact set differs from release gate set")
     selection = _require_mapping(preflight.get("selection"), "preflight selection")
     raw_excluded = selection.get("excluded_current_pii_sha256")
-    if not isinstance(raw_excluded, list) or sorted(raw_excluded) != sorted(expected_excluded_shas):
+    if not isinstance(raw_excluded, list) or sorted(raw_excluded) != sorted(
+        requirements.excluded_current_pii_shas
+    ):
         raise ValueError("preflight excluded current PII set differs")
-    if selection.get("current_artifacts") != expected_current_count or selection.get(
+    if selection.get("current_artifacts") != len(requirements.current_shas) or selection.get(
         "current_and_pii_cleared"
     ) != len(expected_shas):
         raise ValueError("preflight selection counts differ")
@@ -1437,7 +1551,7 @@ def _validate_preflight(
                 != programme_facts[collection]["programme_version"]
             ):
                 raise ValueError("preflight collection authority differs")
-        if observed_collections != expected_collections_by_sha[sha]:
+        if observed_collections != requirements.collections_by_sha[sha]:
             raise ValueError("preflight collection set differs from inventory")
         chunks = row.get("chunks")
         if not isinstance(chunks, list) or not chunks:
@@ -1445,6 +1559,11 @@ def _validate_preflight(
         page_count = row.get("page_count")
         if not isinstance(page_count, int) or page_count < 1:
             raise ValueError("preflight page count is invalid")
+        if row.get("error_code") is not None:
+            raise ValueError("preflight artifact records an extraction error")
+        # La porte reste celle d'avant V2 : aucune page structurellement vide
+        # n'est ADMISE. V2 les nomme pour que le refus soit lisible ; les
+        # admettre serait une décision de gouvernance, pas un effet de schéma.
         if (
             row.get("extraction_complete") is not True
             or row.get("empty_extracted_pages") != 0
@@ -1453,14 +1572,15 @@ def _validate_preflight(
             or row.get("empty_chunks") != 0
             or row.get("oversized_model_chunks") != 0
             or row.get("null_page_metadata") != 0
-            or row.get("rights") != "officiel_public"
+            or row.get("rights") != requirements.rights_category
             or row.get("profile_conformity") is not True
             or row.get("programme_conformity") is not True
             or row.get("placement_clear") is not True
         ):
             raise ValueError("preflight artifact gate is not clear")
         pages: set[int] = set()
-        chunk_ids: set[str] = set()
+        chunk_ids: list[str] = []
+        chunk_shas: list[str] = []
         for index, raw_chunk in enumerate(chunks):
             chunk = _require_mapping(raw_chunk, "preflight chunk")
             if chunk.get("chunk_index") != index:
@@ -1474,7 +1594,8 @@ def _validate_preflight(
                 raise ValueError("preflight chunk differs from canonical publisher identity")
             if chunk_id in chunk_ids:
                 raise ValueError("preflight chunk ID is duplicated")
-            chunk_ids.add(chunk_id)
+            chunk_ids.append(chunk_id)
+            chunk_shas.append(chunk_sha)
             start = chunk.get("page_start")
             end = chunk.get("page_end")
             tokens = chunk.get("real_e5_tokens")
@@ -1486,18 +1607,27 @@ def _validate_preflight(
                 or end > page_count
                 or not isinstance(tokens, int)
                 or tokens < 1
+                or tokens > CHUNK_TARGET_TOKENS
                 or tokens > int(preflight.get("embedding_max_sequence_length", 0))
             ):
                 raise ValueError("preflight chunk metadata is invalid")
             pages.update(range(start, end + 1))
-        if pages != set(range(1, page_count + 1)):
-            raise ValueError("preflight page coverage differs")
+        _require_page_partition(row, sha=sha, page_count=page_count, covered_pages=pages)
+        # Les trois digests scellent les ensembles que la release rescellera :
+        # produits par la même fonction, ils se contredisent au premier écart.
+        if (
+            row.get("chunk_id_set_digest") != _set_digest(chunk_ids)
+            or row.get("chunk_sha256_set_digest") != _set_digest(chunk_shas)
+            or row.get("page_coverage_digest") != _set_digest(sorted(pages))
+        ):
+            raise ValueError("preflight chunk set digest differs")
         total_chunks += len(chunks)
         total_pages += page_count
     if (
         summary.get("required") != len(rows)
         or summary.get("evaluated") != len(rows)
         or summary.get("pass") != len(rows)
+        or summary.get("full_page_coverage_artifacts") != len(rows)
         or summary.get("review_required") != 0
         or summary.get("total_chunks") != total_chunks
         or summary.get("total_pages") != total_pages
@@ -1508,9 +1638,7 @@ def _validate_preflight(
     ):
         raise ValueError("preflight summary differs from artifact facts")
     return rows
-
-
-def _release_context(
+def derive_preflight_requirements(
     *,
     inventory: dict[str, Any],
     candidate_inventory_sha256: str,
@@ -1518,8 +1646,6 @@ def _release_context(
     currentness_evidence_sha256: str,
     pii_evidence: dict[str, Any],
     pii_evidence_sha256: str,
-    preflight_evidence: dict[str, Any],
-    preflight_evidence_sha256: str,
     rights_registry: dict[str, Any],
     rights_registry_sha256: str,
     profiles_by_collection: dict[str, dict[str, Any]],
@@ -1534,7 +1660,11 @@ def _release_context(
     subject_mapping_sha256: str,
     document_type_mapping: dict[str, Any],
     document_type_mapping_sha256: str,
-) -> dict[str, Any]:
+) -> PreflightRequirements:
+    """Dériver, des seules autorités versionnées, ce qu'un préflight doit dire.
+
+    Aucun préflight n'entre ici : c'est la condition pour qu'un producteur de
+    préflight puisse s'en servir sans circularité."""
     artifacts, candidates_by_collection, collections_by_sha = _inventory_release_rows(
         inventory, candidate_inventory_sha256
     )
@@ -1554,7 +1684,7 @@ def _release_context(
         corpus_manifest_sha256=corpus_manifest_sha,
         expected_shas=set(artifacts),
     )
-    rights, rights_exceptions = _validate_rights_registry(
+    rights, rights_exceptions, rights_decision_id, rights_zone = _validate_rights_registry(
         rights_registry,
         registry_sha256=rights_registry_sha256,
         corpus_manifest_sha256=corpus_manifest_sha,
@@ -1592,11 +1722,10 @@ def _release_context(
                 raise ValueError("unknown external level")
             if placement.get("external_subject") not in subjects:
                 raise ValueError("unknown external subject")
-    programme_facts = _validate_programme_registry(
+    programme_facts, programme_index_digests = _validate_programme_registry(
         programme_registry,
         registry_sha256=programme_registry_sha256,
         programme_indexes_by_path=programme_indexes_by_path,
-        preflight=preflight_evidence,
     )
     profiles = _validate_profiles(
         profiles_by_collection,
@@ -1636,33 +1765,95 @@ def _release_context(
         "programme_registry_sha256": programme_registry_sha256,
         "embedding_inventory_sha256": EMBEDDING_INVENTORY_SHA256,
     }
-    preflight_rows = _validate_preflight(
-        preflight_evidence,
-        preflight_sha256=preflight_evidence_sha256,
-        bindings=bindings,
-        expected_shas=preflight_required,
-        expected_current_count=len(current_shas),
-        profile_count=len(profiles),
+    return PreflightRequirements(
+        artifacts=artifacts,
+        candidates_by_collection=candidates_by_collection,
+        collections_by_sha=collections_by_sha,
+        currentness_rows=currentness_rows,
+        pii_rows=pii_rows,
         profiles=profiles,
         programme_facts=programme_facts,
-        expected_collections_by_sha=collections_by_sha,
-        expected_excluded_shas=current_shas - preflight_required,
+        programme_index_sha256_by_path=programme_index_digests,
+        document_types=document_types,
+        physical_path_by_sha={
+            sha: str(artifact["physical_path"]) for sha, artifact in artifacts.items()
+        },
+        bindings=bindings,
+        authorities={
+            "corpus_manifest_sha256": corpus_manifest_sha,
+            "parent_sealed_catalog_sha256": _require_sha(
+                inventory.get("sealed_catalog_sha256"), "parent catalog SHA"
+            ),
+            "placement_catalog_sha256": _require_sha(
+                inventory.get("placement_catalog_sha256"), "placement catalog SHA"
+            ),
+            "catalog_delta_sha256": _require_sha(
+                inventory.get("catalog_delta_sha256"), "catalog delta SHA"
+            ),
+            "effective_catalog_authority_sha256": _require_sha(
+                inventory.get("effective_catalog_authority_sha256"),
+                "effective catalog authority SHA",
+            ),
+            "candidate_inventory_sha256": candidate_inventory_sha256,
+            "currentness_evidence_sha256": currentness_evidence_sha256,
+            "pii_evidence_sha256": pii_evidence_sha256,
+            "pii_policy_sha256": bindings["pii_policy_sha256"],
+            "pii_scanner_sha256": _require_sha(
+                pii_evidence.get("scanner_sha256"), "PII scanner SHA"
+            ),
+            "rights_registry_sha256": rights_registry_sha256,
+            "programme_registry_sha256": programme_registry_sha256,
+            "profile_manifest_sha256": profile_manifest_sha256,
+            "level_mapping_sha256": _require_sha(level_mapping_sha256, "level mapping SHA"),
+            "subject_mapping_sha256": _require_sha(subject_mapping_sha256, "subject mapping SHA"),
+            "document_type_mapping_sha256": _require_sha(
+                document_type_mapping_sha256, "document type mapping SHA"
+            ),
+            "embedding_inventory_sha256": EMBEDDING_INVENTORY_SHA256,
+            "reranker_inventory_sha256": RERANKER_INVENTORY_SHA256,
+        },
+        current_shas=frozenset(current_shas),
+        pii_cleared_shas=frozenset(pii_cleared_shas),
+        rights_cleared_shas=frozenset(rights_cleared_shas),
+        type_clear_shas=frozenset(type_clear_shas),
+        required_shas=frozenset(preflight_required),
+        excluded_current_pii_shas=frozenset(current_shas - preflight_required),
+        rights_decision_id=rights_decision_id,
+        rights_zone=rights_zone,
+        rights_category=rights,
     )
+
+
+def _release_context(
+    *,
+    preflight_evidence: dict[str, Any],
+    preflight_evidence_sha256: str,
+    **inputs: Any,
+) -> dict[str, Any]:
+    """Confronter le préflight aux exigences, puis partitionner les candidats."""
+    requirements = derive_preflight_requirements(**inputs)
+    preflight_rows = _validate_preflight_document(
+        preflight_evidence,
+        preflight_sha256=preflight_evidence_sha256,
+        requirements=requirements,
+    )
+    artifacts = requirements.artifacts
+    collections_by_sha = requirements.collections_by_sha
 
     by_content: dict[str, dict[str, Any]] = {}
     release_eligible: list[str] = []
     named_noneligible: list[str] = []
     for sha in sorted(artifacts):
         reasons: list[str] = []
-        if sha not in current_shas:
+        if sha not in requirements.current_shas:
             reasons.append("CURRENTNESS_NOT_CURRENT")
-        if sha not in pii_cleared_shas:
+        if sha not in requirements.pii_cleared_shas:
             reasons.append("PII_NOT_CLEARED")
-        if sha not in rights_cleared_shas:
+        if sha not in requirements.rights_cleared_shas:
             reasons.append("RIGHTS_NOT_CLEARED")
-        if sha not in type_clear_shas:
+        if sha not in requirements.type_clear_shas:
             reasons.append("TYPE_DOC_UNMAPPED")
-        if sha in preflight_required:
+        if sha in requirements.required_shas:
             row = preflight_rows[sha]
             if row.get("extraction_complete") is not True:
                 reasons.append("EXTRACTION_INCOMPLETE")
@@ -1687,12 +1878,12 @@ def _release_context(
 
     return {
         "artifacts": artifacts,
-        "candidates_by_collection": candidates_by_collection,
-        "currentness_rows": currentness_rows,
+        "candidates_by_collection": requirements.candidates_by_collection,
+        "currentness_rows": requirements.currentness_rows,
         "preflight_rows": preflight_rows,
-        "profiles": profiles,
-        "programme_facts": programme_facts,
-        "document_types": document_types,
+        "profiles": requirements.profiles,
+        "programme_facts": requirements.programme_facts,
+        "document_types": requirements.document_types,
         "eligibility": {
             "counts": {
                 "candidate_artifacts": len(artifacts),
@@ -1708,38 +1899,10 @@ def _release_context(
             "by_content": by_content,
         },
         "authorities": {
-            "corpus_manifest_sha256": corpus_manifest_sha,
-            "parent_sealed_catalog_sha256": _require_sha(
-                inventory.get("sealed_catalog_sha256"), "parent catalog SHA"
+            **requirements.authorities,
+            "preflight_evidence_sha256": _require_sha(
+                preflight_evidence_sha256, "preflight evidence SHA"
             ),
-            "placement_catalog_sha256": _require_sha(
-                inventory.get("placement_catalog_sha256"), "placement catalog SHA"
-            ),
-            "catalog_delta_sha256": _require_sha(
-                inventory.get("catalog_delta_sha256"), "catalog delta SHA"
-            ),
-            "effective_catalog_authority_sha256": _require_sha(
-                inventory.get("effective_catalog_authority_sha256"),
-                "effective catalog authority SHA",
-            ),
-            "candidate_inventory_sha256": candidate_inventory_sha256,
-            "currentness_evidence_sha256": currentness_evidence_sha256,
-            "pii_evidence_sha256": pii_evidence_sha256,
-            "pii_policy_sha256": bindings["pii_policy_sha256"],
-            "pii_scanner_sha256": _require_sha(
-                pii_evidence.get("scanner_sha256"), "PII scanner SHA"
-            ),
-            "rights_registry_sha256": rights_registry_sha256,
-            "preflight_evidence_sha256": preflight_evidence_sha256,
-            "programme_registry_sha256": programme_registry_sha256,
-            "profile_manifest_sha256": profile_manifest_sha256,
-            "level_mapping_sha256": _require_sha(level_mapping_sha256, "level mapping SHA"),
-            "subject_mapping_sha256": _require_sha(subject_mapping_sha256, "subject mapping SHA"),
-            "document_type_mapping_sha256": _require_sha(
-                document_type_mapping_sha256, "document type mapping SHA"
-            ),
-            "embedding_inventory_sha256": EMBEDDING_INVENTORY_SHA256,
-            "reranker_inventory_sha256": RERANKER_INVENTORY_SHA256,
         },
     }
 
@@ -2013,7 +2176,13 @@ def _bounded_repository_file(repository_root: Path, relative: object) -> Path:
     return resolved
 
 
-def _load_release_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
+def load_authority_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
+    """Charger les autorités versionnées, sans le préflight.
+
+    Séparé du chargement de release parce que le producteur de préflight a
+    besoin d'exactement ces entrées — et d'aucune preuve de préflight, qu'il
+    n'a pas encore. Les deux commandes lisent donc les mêmes octets, vérifiés
+    par les mêmes empreintes, par un seul chemin de code."""
     document_specs = {
         "inventory": (Path(args.inventory), args.inventory_sha256, _load_json),
         "currentness_evidence": (
@@ -2022,11 +2191,6 @@ def _load_release_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
             _load_json,
         ),
         "pii_evidence": (Path(args.pii), args.pii_sha256, _load_json),
-        "preflight_evidence": (
-            Path(args.preflight),
-            args.preflight_sha256,
-            _load_json,
-        ),
         "rights_registry": (
             Path(args.rights_registry),
             args.rights_registry_sha256,
@@ -2112,6 +2276,18 @@ def _load_release_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
             f"taxonomy {relative}",
         )
     inputs["programme_indexes_by_path"] = index_documents
+    return inputs
+
+
+def _load_release_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
+    """Les autorités, plus la preuve de préflight que la release confronte."""
+    inputs = load_authority_cli_inputs(args)
+    preflight_path = Path(args.preflight)
+    _require_file_sha(preflight_path, args.preflight_sha256, "preflight evidence")
+    inputs["preflight_evidence"] = _DigestBoundDocument(
+        _load_json(preflight_path), source_sha256=args.preflight_sha256
+    )
+    inputs["preflight_evidence_sha256"] = args.preflight_sha256
     return inputs
 
 

@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import importlib.util
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, Protocol, cast
 
 import pytest
+from conftest import load_script_module
 from nexus_contracts.ingestion import CollectionProfile
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -73,11 +74,11 @@ class MultilevelBuilder(Protocol):
 
 
 def _module() -> MultilevelBuilder:
-    spec = importlib.util.spec_from_file_location("build_multilevel_release", SCRIPT)
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return cast(MultilevelBuilder, module)
+    # Chargé via `conftest` : le script porte désormais une `@dataclass`, et
+    # `dataclasses` résout ses annotations en relisant `sys.modules`. Un
+    # chargement qui n'y enregistre pas le module échoue par un `AttributeError`
+    # obscur — la panne exacte que ce chargeur partagé existe pour éviter.
+    return cast(MultilevelBuilder, load_script_module(SCRIPT, "build_multilevel_release"))
 
 
 def test_target_matrix_is_exact_and_ordered() -> None:
@@ -1211,7 +1212,18 @@ def test_materialized_currentness_evidence_matches_exact_inventory_and_audit() -
     assert builder.canonical_json_bytes(regenerated) == evidence_path.read_bytes()
 
 
-def _synthetic_release_inputs(builder: MultilevelBuilder) -> dict[str, Any]:
+def _synthetic_release_inputs(
+    builder: MultilevelBuilder,
+    *,
+    artifact_facts: Mapping[str, tuple[str, int]] | None = None,
+) -> dict[str, Any]:
+    """Jeu d'autorités synthétique et cohérent pour les dix collections.
+
+    `artifact_facts` permet à un appelant — le test du producteur de préflight —
+    de substituer le couple (empreinte de contenu, pages scannées par le scan
+    PII) d'une collection par ceux d'un PDF RÉEL qu'il a écrit sur disque. Sans
+    lui, le jeu reste exactement celui des tests existants."""
+    facts = dict(artifact_facts or {})
     candidates_by_collection: dict[str, list[dict[str, Any]]] = {}
     currentness_rows: list[dict[str, Any]] = []
     pii_rows: list[dict[str, Any]] = []
@@ -1264,7 +1276,7 @@ def _synthetic_release_inputs(builder: MultilevelBuilder) -> dict[str, Any]:
     }
     for index, target in enumerate(builder.TARGET_MATRIX, start=1):
         collection = target["collection"]
-        content_sha = f"{index:064x}"
+        content_sha, pii_pages_scanned = facts.get(collection, (f"{index:064x}", 1))
         source_placement_id = f"par-scope/{collection}/{content_sha}.pdf"
         candidate = {
             "content_sha256": content_sha,
@@ -1312,6 +1324,7 @@ def _synthetic_release_inputs(builder: MultilevelBuilder) -> dict[str, Any]:
                 "status": "CLEARED",
                 "pii_detected": False,
                 "error_code": None,
+                "pages_scanned": pii_pages_scanned,
             }
         )
         chunk_sha = hashlib.sha256(f"text:{content_sha}".encode()).hexdigest()
@@ -1332,15 +1345,20 @@ def _synthetic_release_inputs(builder: MultilevelBuilder) -> dict[str, Any]:
                 "empty_extracted_pages": 0,
                 "chunking_complete": True,
                 "page_coverage": 1.0,
+                "page_coverage_digest": builder._set_digest([1]),
+                "ignored_empty_pages": [],
                 "empty_chunks": 0,
                 "oversized_model_chunks": 0,
                 "null_page_metadata": 0,
                 "min_real_e5_tokens": 32,
                 "max_real_e5_tokens": 64,
                 "rights": "officiel_public",
+                "error_code": None,
                 "profile_conformity": True,
                 "programme_conformity": True,
                 "placement_clear": True,
+                "chunk_id_set_digest": builder._set_digest([chunk_id]),
+                "chunk_sha256_set_digest": builder._set_digest([chunk_sha]),
                 "chunks": [
                     {
                         "chunk_index": 0,
@@ -1606,9 +1624,18 @@ def _synthetic_release_inputs(builder: MultilevelBuilder) -> dict[str, Any]:
         },
     }
     rights_sha = hashlib.sha256(builder.canonical_json_bytes(rights)).hexdigest()
+    import nexus_pdf_page_policy as page_policy
+
     preflight = {
-        "evidence_kind": "MULTILEVEL_RELEASE_PREFLIGHT_V1",
+        "evidence_kind": "MULTILEVEL_RELEASE_PREFLIGHT_V2",
         "school_year": "2026-2027",
+        "extraction_runtime": {
+            "pypdf_version": page_policy.CANONICAL_PYPDF_VERSION,
+            "page_policy_id": page_policy.POLICY_ID,
+            "page_policy_sha256": page_policy.policy_source_sha256(),
+        },
+        "chunk_target_tokens": 384,
+        "embedding_model_revision": builder.EMBEDDING_MODEL_REVISION,
         "candidate_inventory_sha256": inventory_sha,
         "corpus_manifest_sha256": inventory["corpus_manifest_sha256"],
         "currentness_evidence_sha256": currentness_sha,
@@ -1813,7 +1840,14 @@ def test_digest_bound_rights_exception_makes_only_that_artifact_noneligible() ->
     ]
     preflight["selection"]["current_and_pii_cleared"] = 9
     preflight["selection"]["excluded_current_pii_sha256"] = [excepted_sha]
-    for field in ("required", "evaluated", "pass", "total_chunks", "total_pages"):
+    for field in (
+        "required",
+        "evaluated",
+        "pass",
+        "full_page_coverage_artifacts",
+        "total_chunks",
+        "total_pages",
+    ):
         preflight["summary"][field] = 9
     inputs["preflight_evidence_sha256"] = hashlib.sha256(
         builder.canonical_json_bytes(preflight)
@@ -1857,7 +1891,14 @@ def test_release_eligibility_is_complete_and_never_invents_currentness() -> None
     ]
     inputs["preflight_evidence"]["selection"]["current_artifacts"] = 9
     inputs["preflight_evidence"]["selection"]["current_and_pii_cleared"] = 9
-    for field in ("required", "evaluated", "pass", "total_chunks", "total_pages"):
+    for field in (
+        "required",
+        "evaluated",
+        "pass",
+        "full_page_coverage_artifacts",
+        "total_chunks",
+        "total_pages",
+    ):
         inputs["preflight_evidence"]["summary"][field] = 9
     inputs["preflight_evidence_sha256"] = hashlib.sha256(
         builder.canonical_json_bytes(inputs["preflight_evidence"])
