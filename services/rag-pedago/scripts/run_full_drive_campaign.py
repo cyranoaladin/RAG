@@ -207,12 +207,20 @@ def _postgres_observe(connection: object) -> dict:
         ligne = curseur.fetchone()
         pgvector = str(ligne[0]) if ligne else "ABSENTE"
     conteneur = os.environ.get("NEXUS_STAGING_PG_CONTAINER", "")
-    depot = _sortie(
-        ["docker", "inspect", conteneur, "--format", "{{index .RepoDigests 0}}"]
-    ) if conteneur else ""
-    image = _sortie(
-        ["docker", "inspect", conteneur, "--format", "{{.Image}}"]
-    ) if conteneur else ""
+    # Le conteneur ne porte pas `RepoDigests` : c'est son IMAGE qui le porte.
+    # On remonte donc du conteneur à l'image qu'il exécute réellement, puis on
+    # lit le digest de cette image — jamais celui d'un tag, qui peut avoir
+    # bougé depuis.
+    image = (
+        _sortie(["docker", "inspect", conteneur, "--format", "{{.Image}}"])
+        if conteneur
+        else ""
+    )
+    depot = (
+        _sortie(["docker", "inspect", image, "--format", "{{index .RepoDigests 0}}"])
+        if image
+        else ""
+    )
     attendu = os.environ.get("NEXUS_STAGING_PG_DIGEST", "")
     return {
         "POSTGRES_SERVER_VERSION": version,
