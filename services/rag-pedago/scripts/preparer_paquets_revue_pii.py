@@ -462,7 +462,12 @@ def preparer_depuis_entree_canonique(
         pages_text: list[str] = []
         for numero in range(1, int(document["page_count"]) + 1):
             nom = f"pages/page-{numero:04d}.txt"
-            texte = (dossier / nom).read_text(encoding="utf-8")
+            # Lu en OCTETS puis décodé : `read_text` traduit les fins de ligne
+            # (`\r\n` et `\r` deviennent `\n`). Le texte canonique du corpus
+            # gouverné contient de vrais `\r` — les traduire présenterait au
+            # reviewer un texte différent de celui qui a été scanné, ce que ce
+            # lot existe précisément pour empêcher.
+            texte = (dossier / nom).read_bytes().decode("utf-8")
             if _sha256_bytes(texte.encode("utf-8")) != document["files"][nom]:
                 raise ValueError(
                     f"{sha[:16]}… page {numero} : le texte de l'entrée canonique "
@@ -528,7 +533,10 @@ def preparer_depuis_entree_canonique(
         for page in concerned:
             nom = f"pages/page-{page:04d}.txt"
             texte = pages_text[page - 1]
-            (bundle_dir / nom).write_text(texte, encoding="utf-8")
+            # Écrit en OCTETS pour la même raison : `write_text` traduirait
+            # `\n` en fin de ligne de la plateforme et l'empreinte scellée ne
+            # désignerait plus le texte scanné.
+            (bundle_dir / nom).write_bytes(texte.encode("utf-8"))
             os.chmod(bundle_dir / nom, 0o600)
             files[nom] = _sha256_bytes(texte.encode("utf-8"))
 

@@ -48,7 +48,10 @@ def _canonique(document: object) -> bytes:
 
 #: Deux pages : la seconde est OCÉRISÉE. Elle porte la PII, pour que le paquet
 #: doive nommer la provenance OCR d'un finding réel (§ 10).
-PAGES = ["Page une, sans rien.", "Contact : m.durand@courrier-prive.org"]
+#: La seconde page porte un vrai retour chariot : le texte canonique du corpus
+#: gouverné en contient, et une relecture en mode texte les traduirait —
+#: présentant au reviewer un texte différent de celui qui a été scanné.
+PAGES = ["Page une, sans rien.", "Contact :\r\nm.durand@courrier-prive.org"]
 OCR_ID = "a" * 64
 
 
@@ -59,10 +62,10 @@ def _entree_canonique(racine: Path, sha: str) -> dict[str, object]:
     for numero, texte in enumerate(PAGES, start=1):
         nom = f"pages/page-{numero:04d}.txt"
         (dossier / "pages").mkdir(parents=True, exist_ok=True)
-        (dossier / nom).write_text(texte, encoding="utf-8")
+        (dossier / nom).write_bytes(texte.encode("utf-8"))
         fichiers[nom] = _sha(texte)
     canonique = "\n".join(PAGES)
-    (dossier / "canonical_text.txt").write_text(canonique, encoding="utf-8")
+    (dossier / "canonical_text.txt").write_bytes(canonique.encode("utf-8"))
     fichiers["canonical_text.txt"] = _sha(canonique)
     provenance = [
         {
@@ -159,8 +162,9 @@ def test_le_texte_du_paquet_est_celui_du_run_pas_une_extraction_du_pdf(atelier) 
     il ne pourrait pas produire la page de revue attendue."""
     preparer, args, sha = atelier
     index = preparer.preparer_depuis_entree_canonique(**args)
-    page = (args["output_root"] / sha / "pages/page-0002.txt").read_text(encoding="utf-8")
+    page = (args["output_root"] / sha / "pages/page-0002.txt").read_bytes().decode("utf-8")
     assert page == PAGES[1]
+    assert "\r\n" in page, "un retour chariot traduit serait un autre texte"
     assert index["entries"][0]["canonical_text_sha256"] == _sha("\n".join(PAGES))
 
 
@@ -177,8 +181,8 @@ def test_une_page_alteree_dans_l_entree_canonique_est_refusee(atelier) -> None:
     """L'entrée canonique s'épingle elle-même : une page modifiée après export
     ne doit pas pouvoir entrer dans un paquet."""
     preparer, args, sha = atelier
-    (args["canonical_input_root"] / sha / "pages/page-0002.txt").write_text(
-        "autre chose", encoding="utf-8"
+    (args["canonical_input_root"] / sha / "pages/page-0002.txt").write_bytes(
+        b"autre chose"
     )
     with pytest.raises(ValueError, match="ne correspond pas à son empreinte déclarée"):
         preparer.preparer_depuis_entree_canonique(**args)
