@@ -37,7 +37,13 @@ def _path_components(cas_root: Path, locator: str) -> list[Path]:
     return parts
 
 
-def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[int, list[str]]:
+def verify(
+    cas_root: Path,
+    expected_digest: str,
+    expected_count: int,
+    *,
+    promoted: set[str] | None = None,
+) -> tuple[int, list[str]]:
     manifest_path = cas_root / "manifest.json"
     if not manifest_path.is_file():
         return 1, ["le store ne porte aucun manifeste"]
@@ -59,6 +65,23 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
             f"alors que la lignée scellée attend {expected_digest[:16]}… — ce "
             "n'est pas le corpus que la revue humaine a couvert"
         )
+
+    info: list[str] = []
+    if promoted is not None:
+        # Le store peut être plus grand que la lignée COURANTE — un contenu
+        # candidat retiré ou superseded n'est pas un défaut. L'inverse l'est :
+        # un contenu que la lignée promeut et sert aujourd'hui, absent du
+        # store, est un trou de reproductibilité pour un document servable.
+        manquants = sorted(promoted - set(declared))
+        surplus = sorted(set(declared) - promoted)
+        if manquants:
+            problems.append(
+                f"{len(manquants)} contenu(s) promu(s) et servable(s) "
+                "aujourd'hui, absent(s) du store : "
+                + ", ".join(sha[:16] + "…" for sha in manquants[:5])
+            )
+        info.append(f"PROMOTED_CAS_COVERAGE_MISSING={len(manquants)}")
+        info.append(f"PROMOTED_CAS_COVERAGE_EXTRA={len(surplus)}")
 
     verified = 0
     root = cas_root.resolve(strict=False)
@@ -115,7 +138,8 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
             )
             continue
         verified += 1
-    return (0 if not problems else 1), problems or [f"{verified} objets vérifiés"]
+    messages = problems or [f"{verified} objets vérifiés"]
+    return (0 if not problems else 1), messages + info
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -127,10 +151,30 @@ def main(argv: list[str] | None = None) -> int:
         help="empreinte de l'ensemble de contenus que la lignée scellée produit",
     )
     parser.add_argument("--expect-count", required=True, type=int)
+    parser.add_argument(
+        "--promoted-content-set",
+        type=Path,
+        default=None,
+        help=(
+            "JSON produit par compute_promoted_content_set.py — refuse tout "
+            "contenu promu et servable aujourd'hui qui serait absent du store"
+        ),
+    )
     args = parser.parse_args(argv)
 
+    promoted = None
+    if args.promoted_content_set is not None:
+        promoted = set(
+            json.loads(args.promoted_content_set.read_text(encoding="utf-8"))[
+                "content_sha256"
+            ]
+        )
+
     code, messages = verify(
-        args.cas_root, args.expect_content_set_sha256, args.expect_count
+        args.cas_root,
+        args.expect_content_set_sha256,
+        args.expect_count,
+        promoted=promoted,
     )
     for message in messages:
         print(("::error::" if code else "  ") + message, file=sys.stderr if code else sys.stdout)
