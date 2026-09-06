@@ -16,7 +16,11 @@ REPARES     = 0        (échecs présents en baseline et absents au HEAD)
 Les deux ensembles d'échecs sont **identiques nom par nom** — comparés par
 `comm` sur les listes triées, pas par leur cardinalité, qu'une compensation
 aurait pu rendre trompeuse. L'écart de `+12 passed` est exactement le nombre
-d'épreuves ajoutées par ce lot.
+d'épreuves ajoutées par **cette étape du lot** (la disposition de fraîcheur,
+mesurée contre la pointe de la branche telle qu'elle existait juste avant —
+donc après le registre des URL sources lui-même, déjà présent dans le
+« baseline » ci-dessus). Ce n'est pas le total du lot entier contre `main` ;
+voir la section « Après rebase », plus bas, pour ce total.
 
 Protocole : même interpréteur, même `PYTHONPATH`, deux arbres — l'un vierge
 depuis `origin/glr/url-registry`, l'autre l'arbre de travail.
@@ -68,6 +72,15 @@ ne corrige que le chemin d'import, pas les dépendances résolues.
 
 L'écart `+27 passed` tient aux épreuves que cette branche ajoute et que `main`
 n'a pas.
+
+Mesure directe, par commit du lot, contre le `main` sur lequel il a été créé
+(`7c3abab`) : `git diff 7c3abab..origin/glr/url-registry -- '*.py' | grep -c
+'^+def test_'` donne exactement **27** — identique au delta mesuré ci-dessus,
+confirmé indépendamment. Le `+12` de la section précédente et ce `+27` ne
+sont donc pas deux comptes contradictoires du même total : ce sont deux
+échelles différentes (une étape du lot mesurée contre la pointe antérieure de
+la branche, puis le lot entier mesuré contre `main`) — aucune des deux n'est
+fausse.
 
 **Ce que cela change pour le lot précédent :** les 107 échecs mesurés avant
 rebase l'étaient contre l'ancienne base ; la mesure reste valide pour ce
