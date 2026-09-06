@@ -52,6 +52,19 @@ CREATE TABLE IF NOT EXISTS drive_staging.artifacts (
     matiere         text,
     nature          text,
     millesime       text,
+    -- Ce que la SOURCE dit de l'actualité du document, distinct de sa nature.
+    -- Sans cette colonne, un document « à vérifier » et un document confirmé
+    -- se ressemblent en base : la décision de servabilité n'aurait alors rien
+    -- sur quoi s'exercer.
+    statut_source   text,
+    voie            text,
+    statut_enseignement text,
+    institution     text,
+    famille_provenance  text,
+    -- Empreinte du texte canonique RÉELLEMENT indexé. C'est la même entrée
+    -- que le scanner PII a lue : sans elle, rien ne prouverait qu'un document
+    -- déclaré propre est celui qui a été découpé.
+    canonical_text_sha256 text,
     servable        boolean NOT NULL,
     review_status   text NOT NULL DEFAULT 'needs_review'
                     CHECK (review_status = 'needs_review'),
@@ -117,8 +130,10 @@ class PostgresStagingStore(StagingStore):
                 INSERT INTO drive_staging.artifacts (
                     artifact_id, content_sha256, source_kind, mime_type,
                     size_bytes, modified_time, zone, cycle, niveau, matiere,
-                    nature, millesime, servable, review_status
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    nature, millesime, statut_source, voie,
+                    statut_enseignement, institution, famille_provenance,
+                    canonical_text_sha256, servable, review_status
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (artifact_id) DO NOTHING
                 """,
                 (
@@ -134,6 +149,12 @@ class PostgresStagingStore(StagingStore):
                     placement.matiere,
                     placement.nature,
                     placement.millesime,
+                    placement.statut_source,
+                    placement.voie,
+                    placement.statut_enseignement,
+                    placement.institution,
+                    placement.famille_provenance,
+                    artifact.canonical_text_sha256,
                     placement.servable,
                     artifact.review_status,
                 ),

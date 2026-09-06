@@ -233,6 +233,10 @@ class StagedArtifact:
     size_bytes: int
     modified_time: str
     placement: Placement
+    #: Empreinte du texte canonique indexé — l'entrée commune du scanner PII
+    #: et du découpage. Deux extractions donneraient deux vérités : un document
+    #: déclaré propre sur un texte, indexé sur un autre.
+    canonical_text_sha256: str | None = None
     review_status: str = STAGING_REVIEW_STATUS
 
 
