@@ -82,6 +82,7 @@ def _row(*, chunk_id: str = "chunk-001", chunk_index: int = 0) -> dict[str, obje
         "attribution_type_doc": "programme_officiel",
         "placements": [
             {
+                "placement_id": "c" * 64,
                 "collection": "terminale_maths",
                 "currentness": "current",
                 "placement_status": "active",
@@ -252,3 +253,209 @@ def test_export_query_uses_one_snapshot_and_separate_aggregations() -> None:
     assert "ir.status = 'succeeded'" in EXPORT_SQL
     assert "r.collection = ANY(%(release_collections)s)" in EXPORT_SQL
     assert "ra.content_sha256 = ANY(%(release_artifact_sha256s)s)" in EXPORT_SQL
+
+
+# --- Multi-placement: one physical artifact shared across NSI Première and ---
+# --- NSI Terminale, ingested under Première, chunks tagged Première.       ---
+
+NSI_PREMIERE_PLACEMENT_ID = "c" * 64
+NSI_TERMINALE_PLACEMENT_ID = "d" * 64
+NSI_SOURCE_URI = "https://eduscol.education.fr/nsi.pdf"
+
+
+def _nsi_premiere_scope() -> dict[str, object]:
+    return {
+        "tenant": "nexus",
+        "collection": "nsi_premiere",
+        "niveau": "premiere",
+        "voie": "generale",
+        "matiere": "nsi",
+        "candidat": "scolarise",
+        "audience": ["aefe"],
+        "visibility": "internal",
+        "school_year": "2026-2027",
+        "programme_version": "fr-national-2026",
+    }
+
+
+def _nsi_terminale_scope() -> dict[str, object]:
+    return {**_nsi_premiere_scope(), "collection": "nsi_terminale", "niveau": "terminale"}
+
+
+def _nsi_placement(scope: dict[str, object], placement_id: str) -> dict[str, object]:
+    return {
+        "placement_id": placement_id,
+        **scope,
+        "currentness": "current",
+        "placement_status": "active",
+        "review_status": "reviewed",
+        "source_uri": NSI_SOURCE_URI,
+        "statut_enseignement": "specialite",
+    }
+
+
+def _multi_placement_row(
+    *,
+    placements: list[dict[str, object]] | None = None,
+    chunk_scope: dict[str, object] | None = None,
+) -> dict[str, object]:
+    """Artifact X: physical chunks stored once, authoritative placements in
+    both NSI Première (the ingestion resource anchor) and NSI Terminale, the
+    resource's own legacy chunk scope tagged Première."""
+    anchor_scope = _nsi_premiere_scope()
+    if placements is None:
+        placements = [
+            _nsi_placement(_nsi_premiere_scope(), NSI_PREMIERE_PLACEMENT_ID),
+            _nsi_placement(_nsi_terminale_scope(), NSI_TERMINALE_PLACEMENT_ID),
+        ]
+    if chunk_scope is None:
+        chunk_scope = _nsi_premiere_scope()
+    artifact_payload = {
+        "artifact_id": str(VERSION_ID),
+        "resource_id": str(RESOURCE_ID),
+        "run_id": str(RUN_ID),
+        "scope": anchor_scope,
+        "sha256": SHA_A,
+        "size_bytes": 42,
+        "mime_declared": "application/pdf",
+        "mime_detected": "application/pdf",
+        "original_url": NSI_SOURCE_URI,
+        "final_url": NSI_SOURCE_URI,
+        "collected_at": "2026-08-30T10:00:00Z",
+        "domain": "eduscol.education.fr",
+        "publisher": "Ministère de l'Éducation nationale",
+        "title": "Programme officiel de NSI",
+        "license": "Licence Ouverte 2.0",
+        "rights_status": "officiel_public",
+        "pages_count": 10,
+        "version": "2026",
+        "extracted_text_ref": None,
+    }
+    return {
+        "resource_id": RESOURCE_ID,
+        "resource_version_id": VERSION_ID,
+        "run_id": RUN_ID,
+        "run_status": "succeeded",
+        "resource_state": "RETRIEVAL_ELIGIBLE",
+        **anchor_scope,
+        "content_sha256": SHA_A,
+        "size_bytes": 42,
+        "mime_detected": "application/pdf",
+        "artifact_payload": artifact_payload,
+        "rag_artifact_id": SHA_A,
+        "rag_content_sha256": SHA_A,
+        "rag_source_label": "Programme officiel de NSI",
+        "rag_source_uri": NSI_SOURCE_URI,
+        "rag_rights": "officiel_public",
+        "rag_official": True,
+        "rag_source_kind": "eduscol",
+        "rag_type_doc": "programme_officiel",
+        "attribution_resource_id": RESOURCE_ID,
+        "attribution_source_label": "Programme officiel de NSI",
+        "attribution_official": True,
+        "attribution_source_kind": "eduscol",
+        "attribution_type_doc": "programme_officiel",
+        "placements": placements,
+        "chunks": [
+            {
+                "chunk_id": "chunk-nsi-001",
+                "artifact_id": SHA_A,
+                "doc_id": SHA_A,
+                "chunk_index": 0,
+                "page_start": 2,
+                "page_end": 4,
+                "source_uri": NSI_SOURCE_URI,
+                "rights": "officiel_public",
+                "source_label": "Programme officiel de NSI",
+                "official": True,
+                "source_kind": "eduscol",
+                "type_doc": "programme_officiel",
+                "review_status": "reviewed",
+                **chunk_scope,
+                "statut_enseignement": "specialite",
+            }
+        ],
+    }
+
+
+def test_bootstrap_reaches_one_resource_one_version_one_chunk_set_two_placements() -> None:
+    """The exact scenario: artifact X, physical chunks stored once,
+    authoritative placements in NSI Première (anchor) and NSI Terminale,
+    legacy chunk scope tagged Première. The bootstrap must accept this as
+    one resource / one ResourceVersion / one physical chunk set / two
+    placements -- not reject the second, legitimately different-scoped
+    placement."""
+    inventory = _build([_multi_placement_row()])
+
+    assert len(inventory.resources) == 1
+    item = inventory.resources[0]
+    assert item.resource_id == RESOURCE_ID
+    assert item.resource_version_id == VERSION_ID
+    assert len(item.chunks) == 1
+    assert len(item.placements) == 2
+    assert {p.collection for p in item.placements} == {"nsi_premiere", "nsi_terminale"}
+
+
+def test_legacy_chunk_scope_matching_either_placement_is_accepted() -> None:
+    # Legacy chunk scope = placement A (the anchor, Première).
+    premiere_scoped = _build([_multi_placement_row(chunk_scope=_nsi_premiere_scope())])
+    assert len(premiere_scoped.resources[0].chunks) == 1
+
+    # Legacy chunk scope = placement B (Terminale) -- still a chunk of the
+    # same physical artifact, reachable because Terminale is an
+    # authoritative placement too, even though it is not the ingestion
+    # resource's own anchor.
+    terminale_scoped = _build([_multi_placement_row(chunk_scope=_nsi_terminale_scope())])
+    assert len(terminale_scoped.resources[0].chunks) == 1
+
+
+def test_chunk_scope_outside_the_placement_set_is_refused() -> None:
+    outside_scope = {**_nsi_premiere_scope(), "collection": "nsi_second_langue"}
+    with pytest.raises(BootstrapInventoryError, match="chunk"):
+        _build([_multi_placement_row(chunk_scope=outside_scope)])
+
+
+def test_duplicate_placement_id_is_refused() -> None:
+    duplicated = [
+        _nsi_placement(_nsi_premiere_scope(), NSI_PREMIERE_PLACEMENT_ID),
+        _nsi_placement(_nsi_terminale_scope(), NSI_PREMIERE_PLACEMENT_ID),
+    ]
+    with pytest.raises(BootstrapInventoryError, match="duplicated"):
+        _build([_multi_placement_row(placements=duplicated)])
+
+
+def test_placement_missing_the_resource_anchor_scope_is_refused() -> None:
+    # Both placements share a foreign scope; neither represents the
+    # ingestion resource's own anchor (NSI Première) at all.
+    only_terminale = [_nsi_placement(_nsi_terminale_scope(), NSI_TERMINALE_PLACEMENT_ID)]
+    with pytest.raises(BootstrapInventoryError, match="anchor scope"):
+        _build([_multi_placement_row(placements=only_terminale)])
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"currentness": "archive"},
+        {"placement_status": "disabled"},
+        {"review_status": "needs_review"},
+        {"source_uri": "https://example.invalid/other.pdf"},
+    ],
+)
+def test_second_placement_still_enforces_state_and_source_guards(
+    mutation: dict[str, object],
+) -> None:
+    divergent_second = {
+        **_nsi_placement(_nsi_terminale_scope(), NSI_TERMINALE_PLACEMENT_ID),
+        **mutation,
+    }
+    with pytest.raises(BootstrapInventoryError, match="placement"):
+        _build(
+            [
+                _multi_placement_row(
+                    placements=[
+                        _nsi_placement(_nsi_premiere_scope(), NSI_PREMIERE_PLACEMENT_ID),
+                        divergent_second,
+                    ]
+                )
+            ]
+        )
