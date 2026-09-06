@@ -34,7 +34,7 @@ def test_guided_review_produces_a_sealable_draft(tmp_path: Path) -> None:
     placements = tmp_path / "placements.json"
     placements.write_text(json.dumps({sha: {"title": "t", "source_path": "x.pdf", "placements": ["c"]}}))
     index_path = tmp_path / "index.json"
-    preparer.preparer(
+    preparer.preparer_par_extraction_locale(
         pdf_root=root, content_sha256=[sha], placements_path=placements, policy_path=POLICY,
         output_root=tmp_path / "revue", index_path=index_path, campaign_id="pii-review-test",
         require_frozen=False,
@@ -70,7 +70,7 @@ def test_a_personal_finding_forbids_approval_in_the_guided_review(tmp_path: Path
     placements = tmp_path / "placements.json"
     placements.write_text(json.dumps({sha: {"title": "t", "source_path": "x.pdf", "placements": ["c"]}}))
     index_path = tmp_path / "index.json"
-    preparer.preparer(
+    preparer.preparer_par_extraction_locale(
         pdf_root=root, content_sha256=[sha], placements_path=placements, policy_path=POLICY,
         output_root=tmp_path / "revue", index_path=index_path, campaign_id="pii-review-test",
         require_frozen=False,
