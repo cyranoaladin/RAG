@@ -211,18 +211,109 @@ PAGE_OCR_HASH_MATCH=87
 PAGE_OCR_HASH_MISMATCH=0
 ```
 
-## 8. Ce qui reste dû avant toute revue humaine PII
+## 8. Campagne V2 — `8bbaa039…`
 
-- campagne V2 complète sur un PostgreSQL **neuf** (aucun `UPDATE` de la base V1) ;
-- re-scan PII et reconstruction des chunks sur le texte V2 ;
-- preuve d'identité PII ↔ découpage (`bundle_canonical_text_sha256 ==
-  DB_canonical_text_sha256 == PII_input_sha256`) ;
-- disposition des 9 documents non évaluables (aucun ne peut être servi).
+PostgreSQL **neuf** (`nexus-drive-staging-v2`, image confrontée au digest
+épinglé). Aucun `UPDATE` de la base V1, qui reste intacte.
+
+```
+FULL_DRIVE_RUN_ID=8bbaa039cfd4e99b69a6f4a72fe23f5fe9bb07e6f242f564380fd35a91e68611
+CODE_COMMIT=6b6de0fa5fe9dd1c4e2ed60b3c7367f88b18735c   CODE_DIRTY=False
+EXTRACTION_POLICY_ID=NEXUS-DRIVE-PDF-EXTRACTION-V2
+MANIFEST_REVERIFIED=b14bad4bf358e0d86838d7daddc49d32bd61d9b9a5175649040afb9164d3eaf5
+OCR_RUNTIME_IDENTITY=4090ff0754b32f2e4eca110f3e5378d3a02562e898a1f5aeaee7931696a04af2
+OCR_CAPABILITY_SHA256=9095568785b27fd96edc4c9f127a8ef4bdf8a321f40f604355dd4ff635a84fe6
+POSTGRES_IMAGE_MATCH=True   POSTGRES_SERVER_VERSION=16.14
+PGVECTOR_EXTENSION_VERSION=ABSENTE
+```
+
+### 8.1 Partition des documents
+
+```
+DRIVE_PDF_DISTINCT_ARTIFACTS=2473
+DRIVE_PDF_CLEARED_AND_STAGED=2315
+DRIVE_PDF_QUARANTINED_PII=149
+DRIVE_PDF_NOT_ASSESSABLE=9
+DRIVE_PDF_UNCLASSIFIABLE=0
+DRIVE_PDF_PROCESSING_ERRORS=0
+DRIVE_PDF_UNACCOUNTED=0
+PII_ATTEMPTED=2464   PII_CLEARED=2315   PII_DETECTED=149
+PII_NOT_ASSESSABLE=9   PII_UNACCOUNTED=0
+```
+
+`2315 + 149 + 9 = 2473`. `PII_ATTEMPTED = 2473 − 9` : les 9 documents non
+évaluables ne sont pas soumis au scanner — un « aucune PII » obtenu sur une
+page que personne n'a lue ne parlerait que du silence de l'instrument.
+
+L'écart avec V1 est exactement celui attendu : `PII_CLEARED` passe de 2324 à
+2315, les 9 documents non évaluables sortant du seau « clair ». Les 149
+détections restent 149.
+
+### 8.2 Partition des pages
+
+```
+PAGES_TOTAL=26736
+PAGES_NATIVE_TEXT=26595
+PAGES_STRUCTURAL_EMPTY=54
+PAGES_OCR_FALLBACK=72
+PAGES_NOT_ASSESSABLE=15
+```
+
+`26595 + 54 + 72 + 15 = 26736` — identique au `PAGE_TOTAL` de l'audit §3.
+
+### 8.3 Réconciliation en base
+
+```
+ARTIFACTS_TOTAL=2473          PROVENANCES_TOTAL=2473
+CHUNKS_TOTAL=23744            PAGE_PROVENANCES_TOTAL=26736
+ARTIFACTS_WITHOUT_PAGE_PROVENANCE=0
+ARTIFACTS_WITHOUT_CHUNKS=158            (149 quarantaine + 9 non évaluables)
+NOT_ASSESSABLE_DOCS_WITH_CHUNKS=0
+OCR_PAGES_WITHOUT_RUNTIME_IDENTITY=0    DISTINCT_OCR_RUNTIMES=1
+DUPLICATE_ARTIFACT_IDENTITIES=0         DUPLICATE_CHUNK_IDENTITIES=0
+PII_CANONICAL_TEXT_SHA_MISMATCH=0
+NOT_ASSESSABLE_CANONICAL_TEXT_SHA_MISMATCH=0
+```
+
+### 8.4 Reproductibilité depuis le corpus scellé
+
+Extraction et découpage rejoués sur les 2473 documents, confrontés à ce que la
+base porte :
+
+```
+CANONICAL_TEXT_REPRODUCED=2473    CANONICAL_TEXT_MISMATCH=0
+PAGE_PROVENANCE_REPRODUCED=2473   PAGE_PROVENANCE_MISMATCH=0
+CHUNK_SET_REPRODUCED=2473         CHUNK_SET_MISMATCH=0
+```
+
+C'est aussi la preuve d'identité PII ↔ découpage : le texte réextrait qui
+redonne les mêmes chunks est celui dont l'empreinte a été soumise au scanner.
+
+### 8.5 Un lien physique dans le corpus scellé
+
+La campagne a d'abord **refusé** de démarrer : `generate_sealed_manifest` a
+détecté 149 fichiers à `nlink=2`. La préparation des paquets de revue PII avait
+créé un miroir adressé par contenu par liens physiques — les mêmes octets
+atteignables par deux chemins rendent le corpus scellé mutable par une seconde
+voie.
+
+Corrigé **à la cause**, pas à la garde : le miroir a été détaché (copies
+indépendantes, `0600`), `MIROIR_DETACHE=149`, `DIVERGENCES=0`, corpus revenu à
+`nlink=1` partout.
+
+## 9. Ce qui reste dû avant toute revue humaine PII
+
+- **préparateur de paquets** : lui faire consommer le texte canonique de la
+  base V2 au lieu de re-décider du sens d'une page, et prouver
+  `bundle_canonical_text_sha256 == DB_canonical_text_sha256` sur les 149 ;
+- **disposition des 9 documents non évaluables** — aucun ne peut être servi ;
+  la décision (réparer la source, accepter la perte, exclure) revient au
+  commanditaire.
 
 Les 149 paquets de revue PII préparés sous V1 ne sont **pas** soumis : ils
 porteraient un texte amputé.
 
-## 9. Preuves scellées (hors dépôt, `0600`, adressées par contenu)
+## 10. Preuves scellées (hors dépôt, `0600`, adressées par contenu)
 
 | Preuve | sha256 |
 |---|---|
@@ -231,3 +322,6 @@ porteraient un texte amputé.
 | différentiel V1→V2 | `2aa3badf893545f5f90ca4274f9a3d85f5a7effee7d099871132a9c8e55db7fe` |
 | provenance de page V2 (2473 documents) | `ed0d2d37a1e98d0b4e1f50e3c1668cd48c7b6ac2d06203c082b3f1d69b74f389` |
 | rejeu OCR par page | `0cee17e179c6e66246087dbacc3fbfd61a1d6dea33fbe29307fd8211cd81247a` |
+| rapport de campagne V2 | `10b685b9cb84ae3b57b297fa6df049f992dbbb5b409daa7d3b4d0e2a97ba2168` |
+| reproductibilité V2 | `383c3e3ac1f7d274932bd71e537cc7157f0459aac04f11536bed4fddbe1e9472` |
+| réconciliation base V2 | `91529db2d81a4f009bbeb73ddb491833437e3f8d9861cd632c700c41fb6f82aa` |
