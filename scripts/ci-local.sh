@@ -222,6 +222,14 @@ run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && s
 run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/export_source_validation_evidence.py --check"
 
 # --- governance guard tests ---
+# --- qualification C1 (revue PR #153) ---
+# AGENTS.md fait de cette CI locale le garde-fou quand GitHub Actions est
+# indisponible. Sans ces cibles, elle rendait vert sans avoir exercé le
+# périmètre promu : le gate C1 n'existait alors que dans un workflow distant.
+# Aucune clé n'est requise — seul le job POST-FUSION confronte le store privé.
+run_target "qualification-tests" bash -c "cd $REPO_ROOT && PYTHONPATH=$REPO_ROOT/packages/release-chain/src:$REPO_ROOT/packages/contracts/src:$REPO_ROOT/packages/pdf-page-policy/src $PYTHON_BIN -m pytest -q scripts/qualification/tests"
+run_target "promoted-content-set" bash -c "cd $REPO_ROOT && PYTHONPATH=$REPO_ROOT/packages/release-chain/src:$REPO_ROOT/packages/contracts/src:$REPO_ROOT/packages/pdf-page-policy/src $PYTHON_BIN scripts/qualification/compute_promoted_content_set.py --output \"\${TMPDIR:-/tmp}/promoted-content-set.json\""
+
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
 
 # --- ci failsafe tests ---

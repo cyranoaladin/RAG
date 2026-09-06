@@ -245,7 +245,14 @@ main post-merge  → clé CAS, confrontation au store privé
 
 Les deux jobs installent la même chaîne de paquets locaux — `contracts`,
 `pdf-page-policy`, `release-chain` — aucun n'étant publié. Vérifié dans un
-venv vierge : installation, 25 épreuves vertes, 319 contenus rendus.
+venv vierge : installation, mypy sans problème, 26 épreuves vertes, 319
+contenus rendus.
+
+**La CI locale porte les mêmes contrôles.** AGENTS.md en fait le garde-fou
+quand GitHub Actions est indisponible ; sans les cibles `qualification-tests`
+et `promoted-content-set`, elle rendait vert sans avoir exercé le périmètre
+promu, et le gate C1 n'existait alors que dans un workflow distant. Aucune clé
+n'y est requise — seul le job post-fusion confronte le store privé.
 
 ## Ce qui reste à prouver après la fusion
 
