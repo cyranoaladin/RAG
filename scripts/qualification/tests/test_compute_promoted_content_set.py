@@ -480,7 +480,7 @@ def _sujets_v2(base: Path, sceau_registre: str) -> list[dict]:
                 "path": "../artifacts.release.json",
                 "sha256": sceau_registre,
             },
-            "expected_counts": {"placements": 3},
+            "expected_counts": {"placements": 3, "unique_artifact_references": 3},
             "placements": [
                 {"artifact_id": s} for s in (SHA_A, SHA_B, SHA_SHARED)
             ],
@@ -789,6 +789,7 @@ def test_un_artefact_place_mais_absent_du_registre_v2_est_refuse(
     donnees = json.loads(sujet.read_text(encoding="utf-8"))
     donnees["placements"].append({"artifact_id": "d" * 64})
     donnees["expected_counts"]["placements"] = 4
+    donnees["expected_counts"]["unique_artifact_references"] = 4
     _write(sujet, donnees)
     manifeste = profil / "production.release.json"
     agr = json.loads(manifeste.read_text(encoding="utf-8"))
@@ -854,4 +855,37 @@ def test_le_nombre_de_sujets_declare_par_l_agregat_v2_est_confronte(
     reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
     _write(registre, reg)
     with pytest.raises(PromotedContentSetError, match="sujet\\(s\\) portés contre"):
+        collect_promoted_content_set(registre)
+
+
+def test_un_sujet_v2_qui_remplace_un_artefact_par_des_doublons_est_refuse(
+    tmp_path: Path,
+) -> None:
+    """Le défaut que seul `unique_artifact_references` attrape.
+
+    Retirer un artefact et remplacer ses placements par des doublons d'un
+    autre préserve TOUS les totaux vérifiés — le compte local de placements
+    comme celui de l'agrégat — et rétrécit pourtant l'ensemble promu.
+    """
+    registre = _seed_v2(tmp_path)
+    profil = registre.parent / "profile_gate"
+    sujet = profil / "subjects" / "sujet-v2.release.json"
+    donnees = json.loads(sujet.read_text(encoding="utf-8"))
+    # SHA_A disparaît, remplacé par un doublon de SHA_B : trois placements
+    # toujours, mais deux artefacts distincts au lieu de trois.
+    donnees["placements"] = [
+        {"artifact_id": SHA_B},
+        {"artifact_id": SHA_B},
+        {"artifact_id": SHA_SHARED},
+    ]
+    _write(sujet, donnees)
+    manifeste = profil / "production.release.json"
+    agr = json.loads(manifeste.read_text(encoding="utf-8"))
+    agr["subjects"][0]["sha256"] = _sceau(sujet)
+    _write(manifeste, agr)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+
+    with pytest.raises(PromotedContentSetError, match="distinct\\(s\\) référencé"):
         collect_promoted_content_set(registre)
