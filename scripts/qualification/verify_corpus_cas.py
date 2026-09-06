@@ -66,33 +66,13 @@ def verify(
             "n'est pas le corpus que la revue humaine a couvert"
         )
 
-    info: list[str] = []
-    if promoted is not None and not promoted:
-        # Un ensemble promu vide ne manque jamais de rien : il traverserait le
-        # contrôle en publiant MISSING=0. Le refuser est la seule façon que
-        # « 0 manquant » veuille dire « rien ne manque » plutôt que « rien n'a
-        # été demandé ».
-        problems.append(
-            "l'ensemble des contenus promus est vide : la couverture serait "
-            "vraie par vacuité"
-        )
-    elif promoted is not None:
-        # Le store peut être plus grand que la lignée COURANTE — un contenu
-        # candidat retiré ou superseded n'est pas un défaut. L'inverse l'est :
-        # un contenu que la lignée promeut et sert aujourd'hui, absent du
-        # store, est un trou de reproductibilité pour un document servable.
-        manquants = sorted(promoted - set(declared))
-        surplus = sorted(set(declared) - promoted)
-        if manquants:
-            problems.append(
-                f"{len(manquants)} contenu(s) promu(s) et servable(s) "
-                "aujourd'hui, absent(s) du store : "
-                + ", ".join(sha[:16] + "…" for sha in manquants[:5])
-            )
-        info.append(f"PROMOTED_CAS_COVERAGE_MISSING={len(manquants)}")
-        info.append(f"PROMOTED_CAS_COVERAGE_EXTRA={len(surplus)}")
-
     verified = 0
+    #: Contenus dont les OCTETS ont été relus et vérifiés — pas
+    #: seulement déclarés au manifeste.
+    prouves: set[str] = set()
+    absents: set[str] = set()
+    discordants: set[str] = set()
+    invalides: set[str] = set()
     root = cas_root.resolve(strict=False)
     for content_sha256 in sorted(declared):
         entry = declared[content_sha256]
@@ -110,6 +90,7 @@ def verify(
                 f"{content_sha256[:16]}… : le localisateur {locator!r} sort du "
                 "store — un objet hors du store n'est pas un objet récupéré"
             )
+            invalides.add(content_sha256)
             continue
         # CHAQUE composant, pas seulement le dernier. Un lien de répertoire
         # interne — `alias -> objects` — laisse la résolution finale à
@@ -128,9 +109,11 @@ def verify(
                 f"{content_sha256[:16]}… : {redirected!r} est un lien symbolique "
                 "— un chemin gouverné ne redirige sur aucun de ses composants"
             )
+            invalides.add(content_sha256)
             continue
         if not blob.is_file():
             problems.append(f"{content_sha256[:16]}… : objet absent du store")
+            absents.add(content_sha256)
             continue
         payload = blob.read_bytes()
         actual = hashlib.sha256(payload).hexdigest()
@@ -139,14 +122,55 @@ def verify(
                 f"{content_sha256[:16]}… : les octets hachent vers {actual[:16]}… "
                 "— le localisateur ne prouve rien, les octets si"
             )
+            discordants.add(content_sha256)
             continue
         if int(entry["byte_size"]) != len(payload):
             problems.append(
                 f"{content_sha256[:16]}… : taille déclarée {entry['byte_size']}, "
                 f"lue {len(payload)}"
             )
+            discordants.add(content_sha256)
             continue
         verified += 1
+        prouves.add(content_sha256)
+
+    info: list[str] = []
+    if promoted is not None:
+        if not promoted:
+            # Un ensemble promu vide ne manque jamais de rien : il traverserait
+            # le contrôle en publiant MISSING=0. Le refuser est la seule façon
+            # que « 0 manquant » veuille dire « rien ne manque » plutôt que
+            # « rien n'a été demandé ».
+            problems.append(
+                "l'ensemble des contenus promus est vide : la couverture serait "
+                "vraie par vacuité"
+            )
+        else:
+            # « Couvert » ne veut pas dire « déclaré au manifeste » : un
+            # contenu dont le blob manque, dont les octets hachent ailleurs ou
+            # dont le localisateur sort du store est DÉCLARÉ et pourtant
+            # irrécupérable. Compter la déclaration ferait passer pour
+            # reproductible un document qu'on ne sait pas relire.
+            declares = set(declared)
+            sans_declaration = sorted(promoted - declares)
+            sans_blob = sorted(promoted & absents)
+            discordance = sorted(promoted & (discordants | invalides))
+            sans_couverture = sorted(promoted - prouves)
+            surplus = sorted(declares - promoted)
+
+            if sans_couverture:
+                problems.append(
+                    f"{len(sans_couverture)} contenu(s) promu(s) et servable(s) "
+                    "aujourd'hui sans objet CAS vérifié : "
+                    + ", ".join(sha[:16] + "…" for sha in sans_couverture[:5])
+                )
+            info.append(f"CURRENT_PROMOTED_CONTENTS={len(promoted)}")
+            info.append(f"PROMOTED_CAS_DECLARATION_MISSING={len(sans_declaration)}")
+            info.append(f"PROMOTED_CAS_BLOB_MISSING={len(sans_blob)}")
+            info.append(f"PROMOTED_CAS_HASH_MISMATCH={len(discordance)}")
+            info.append(f"PROMOTED_CAS_COVERAGE_MISSING={len(sans_couverture)}")
+            info.append(f"PROMOTED_CAS_COVERAGE_EXTRA={len(surplus)}")
+
     messages = problems or [f"{verified} objets vérifiés"]
     return (0 if not problems else 1), messages + info
 
