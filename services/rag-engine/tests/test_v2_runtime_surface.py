@@ -1509,6 +1509,11 @@ def test_canonical_operations_docs_describe_the_closed_v2_runtime() -> None:
         "RAG_RERANKER_MODEL_INVENTORY_SHA256=",
         "RAG_SERVABLE_CORPUS_HOST_DIR=",
         "RAG_SERVABLE_CORPUS_INDEX_SHA256=",
+        # Les deux autorités que le Compose canonique exige et qu'un
+        # opérateur ne peut pas deviner : le chemin hôte du registre de
+        # clients, et le secret d'empreinte du journal d'accès.
+        "RAG_API_CLIENTS_HOST_FILE=",
+        "RAG_ACCESS_LOG_HMAC_SECRET=",
     ):
         assert required_env in env_example
     for forbidden_env in (

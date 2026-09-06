@@ -118,13 +118,23 @@ def _make_dummy_env_file(
         "NEXUS_SSO_AUDIENCE": f"test-sso-audience-{uuid.uuid4().hex[:8]}",
         "NEXUS_SSO_ISSUER": f"test-sso-issuer-{uuid.uuid4().hex[:8]}",
     }
+    # Une source de montage doit avoir la FORME d'un chemin. Compose lit
+    # toute source qui n'en est pas un comme le nom d'un volume nommé, et
+    # rejette alors le projet entier — « refers to undefined volume » —, ce
+    # qui fait échouer les trois tests de ce fichier sur une erreur qui n'a
+    # rien à voir avec ce qu'ils mesurent. Un répertoire hôte reçoit donc un
+    # répertoire, et un FICHIER hôte un fichier réellement créé.
+    host_file = host_dir / "host-file.json"
+    host_file.write_text("[]\n", encoding="utf-8")
     for name in _required_compose_variables():
         if name in shaped:
             continue
-        shaped[name] = (
-            str(host_dir) if name.endswith(("_HOST_DIR", "_CACHE_DIR"))
-            else secrets.token_urlsafe(24)
-        )
+        if name.endswith(("_HOST_DIR", "_CACHE_DIR")):
+            shaped[name] = str(host_dir)
+        elif name.endswith("_HOST_FILE"):
+            shaped[name] = str(host_file)
+        else:
+            shaped[name] = secrets.token_urlsafe(24)
     lines = [f"{name}={value}" for name, value in sorted(shaped.items())]
     assert len({line.split("=", 1)[0] for line in lines}) == len(lines), (
         "le fichier d'environnement porte une clé en double"

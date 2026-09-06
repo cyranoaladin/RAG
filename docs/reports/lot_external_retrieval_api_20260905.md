@@ -293,6 +293,34 @@ alors que le canal lexical a rendu ses candidats.
 | `test_signed_identity_to_http_scope_and_real_database_is_end_to_end` | le double de comptage recopiait une signature devenue fausse | `**options` suit la signature réelle : le double compte, il ne décide pas de la forme |
 | `test_runtime_blocks_review_update_while_trigger_drift_is_detected` | la porte de portée refusait en 503 avant d'atteindre la dérive de trigger mesurée | le banc provisionne un registre et envoie les **deux** credentials |
 
+## Un montage de plus, et un banc qui ne le savait pas
+
+Le montage du registre de clients a fait rougir
+`test_lot44f_ingestion_up_failure.py` en CI — trois tests, sur une erreur sans
+rapport avec ce qu'ils mesurent :
+
+```
+service "ingestor" refers to undefined volume 4DzlF7KBD7MejMuteknu33V5FWZC7kIt:
+invalid compose project
+```
+
+Le banc synthétise une valeur factice pour chaque variable `${VAR:?…}` des deux
+Compose, en donnant un **chemin** à ce qui finit par `_HOST_DIR`/`_CACHE_DIR` et
+un jeton aléatoire à tout le reste. `RAG_API_CLIENTS_HOST_FILE` recevait donc un
+jeton ; Compose lit toute source de montage qui n'est pas un chemin comme un
+volume **nommé**, et rejette le projet entier.
+
+Une source de montage doit avoir la **forme** d'un chemin — c'est exactement la
+règle que le commentaire du banc énonce déjà pour les empreintes. Un fichier
+hôte reçoit désormais un fichier réellement créé. Vert localement sur un vrai
+démon Docker (`3 passed`).
+
+`infra/.env.example` déclare les deux variables qu'un opérateur ne peut pas
+deviner — `RAG_API_CLIENTS_HOST_FILE` et `RAG_ACCESS_LOG_HMAC_SECRET` — et dit
+pourquoi `RAG_API_CLIENTS` doit rester vide : le Compose canonique fixe déjà
+`RAG_API_CLIENTS_FILE`, et une seconde source ferait échouer le démarrage.
+`test_v2_runtime_surface.py` exige leur présence.
+
 ## Un point mesuré, non corrigé ici
 
 Le schéma OpenAPI est rendu par Pydantic, et deux versions rendent le même
