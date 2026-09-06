@@ -87,7 +87,11 @@ def _seed(
         )
     release = _write(
         base / "profile_gate" / "production.release.json",
-        {"expected_counts": {"artifacts": occurrences}, "subjects": entrees},
+        {
+            "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
+            "expected_counts": {"artifacts": occurrences},
+            "subjects": entrees,
+        },
     )
     registre = _write(
         base / "release-registry.json",
@@ -180,7 +184,7 @@ def test_une_release_sans_sujet_est_refusee(tmp_path: Path) -> None:
     base = tmp_path / "prerentree_2026_2027"
     release = _write(
         base / "profile_gate" / "production.release.json",
-        {"expected_counts": {"artifacts": 4}, "subjects": []},
+        {"release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1", "expected_counts": {"artifacts": 4}, "subjects": []},
     )
     registre = _write(
         base / "release-registry.json",
@@ -204,6 +208,7 @@ def test_un_sujet_sans_artefact_est_refuse(tmp_path: Path) -> None:
     release = _write(
         base / "profile_gate" / "production.release.json",
         {
+            "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1",
             "expected_counts": {"artifacts": 1},
             "subjects": [
                 {"collection": "vide", "path": "subjects/vide.release.json", "sha256": _sceau(sujet)}
@@ -275,7 +280,7 @@ def test_un_chemin_qui_sort_de_la_racine_gouvernee_est_refuse(
     base.mkdir(parents=True)
     monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
 
-    dehors = _write(tmp_path / "dehors" / "release.json", {"subjects": []})
+    dehors = _write(tmp_path / "dehors" / "release.json", {"release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V1", "subjects": []})
     registre = _write(
         base / "release-registry.json",
         {
@@ -444,3 +449,106 @@ def test_un_content_sha256_qui_n_en_est_pas_un_est_refuse(
 
     with pytest.raises(PromotedContentSetError, match="content_sha256 invalide"):
         collect_promoted_content_set(registre)
+
+
+# --- les deux formes de release ----------------------------------------
+
+
+def _seed_v2(tmp_path: Path, *, uniques: int | None = 3) -> Path:
+    """Une lignée V2 : registre d'artefacts SCELLÉ, déjà dédupliqué."""
+    base = tmp_path / "prerentree_2026_2027"
+    artefacts = _write(
+        base / "profile_gate" / "artifacts.release.json",
+        {"artifacts": [{"content_sha256": s} for s in (SHA_A, SHA_B, SHA_SHARED)]},
+    )
+    release = _write(
+        base / "profile_gate" / "production.release.json",
+        {
+            "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+            "expected_counts": {"unique_artifacts": uniques},
+            "artifact_registry": {
+                "path": "artifacts.release.json",
+                "sha256": _sceau(artefacts),
+            },
+            "subjects": [],
+        },
+    )
+    return _write(
+        base / "release-registry.json",
+        {
+            "releases": [
+                {
+                    "release_id": "v2",
+                    "manifest_path": "profile_gate/production.release.json",
+                    "expected_manifest_sha256": _sceau(release),
+                }
+            ]
+        },
+    )
+
+
+def test_une_release_v2_est_lue_par_son_registre_d_artefacts(tmp_path: Path) -> None:
+    """La candidate complète emploiera cette forme. N'en connaître qu'une
+    obligerait à réécrire ce gate au moment précis où il doit servir."""
+    assert collect_promoted_content_set(_seed_v2(tmp_path)) == {
+        SHA_A,
+        SHA_B,
+        SHA_SHARED,
+    }
+
+
+def test_le_registre_d_artefacts_v2_est_confronte_a_son_sceau(tmp_path: Path) -> None:
+    registre = _seed_v2(tmp_path)
+    _write(
+        registre.parent / "profile_gate" / "artifacts.release.json",
+        {"artifacts": [{"content_sha256": SHA_A}]},
+    )
+    with pytest.raises(PromotedContentSetError, match="l'autorité déclare"):
+        collect_promoted_content_set(registre)
+
+
+def test_un_compte_v2_qui_ne_correspond_pas_est_refuse(tmp_path: Path) -> None:
+    with pytest.raises(PromotedContentSetError, match="contre 9 déclarés"):
+        collect_promoted_content_set(_seed_v2(tmp_path, uniques=9))
+
+
+def test_un_release_kind_inconnu_est_refuse(tmp_path: Path) -> None:
+    """Le ranger d'office dans l'une des formes connues lirait ses artefacts
+    au mauvais endroit — et rendrait un ensemble faux plutôt qu'un refus."""
+    registre = _seed_v2(tmp_path)
+    manifeste = registre.parent / "profile_gate" / "production.release.json"
+    donnees = json.loads(manifeste.read_text(encoding="utf-8"))
+    donnees["release_kind"] = "MULTILEVEL_AGGREGATE_RELEASE_V9"
+    _write(manifeste, donnees)
+    reg = json.loads(registre.read_text(encoding="utf-8"))
+    reg["releases"][0]["expected_manifest_sha256"] = _sceau(manifeste)
+    _write(registre, reg)
+    with pytest.raises(PromotedContentSetError, match="release_kind inconnu"):
+        collect_promoted_content_set(registre)
+
+
+@pytest.mark.racine_propre
+def test_les_deux_formes_reelles_rendent_le_meme_ensemble() -> None:
+    """Sur le dépôt RÉEL : la V1 canonique et la V2 de répétition décrivent le
+    même ensemble promu par des structures entièrement différentes — l'une
+    énumère sujet par sujet avec répétitions, l'autre porte un registre déjà
+    dédupliqué. L'égalité de leurs empreintes est la corroboration la plus
+    forte que le gate lit la même chose des deux côtés."""
+    racine = (
+        Path(__file__).resolve().parents[3]
+        / "services"
+        / "rag-pedago"
+        / "data"
+        / "releases"
+    )
+    v1 = racine / "prerentree_2026_2027" / "release-registry.json"
+    v2 = (
+        racine
+        / "prerentree_2026_2027"
+        / "rehearsal_v2"
+        / "release-1d756b6243ecb16f"
+        / "release-registry.json"
+    )
+    if not (v1.is_file() and v2.is_file()):
+        pytest.skip("lignées réelles absentes de ce checkout")
+    assert collect_promoted_content_set(v1) == collect_promoted_content_set(v2)

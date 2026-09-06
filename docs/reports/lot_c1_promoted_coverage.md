@@ -60,6 +60,27 @@ release-registry.json
 `--release-registry` accepte un registre figé : la qualification du
 `FULL_GO_LIVE_CANDIDATE` réutilisera ce script tel quel, sans réécriture.
 
+### Deux formes de release, un seul gate
+
+La gouvernance produit deux formes de manifeste, et la candidate complète
+emploiera la seconde. N'en connaître qu'une obligerait à réécrire ce gate au
+moment précis où il doit servir.
+
+| | `…_RELEASE_V1` | `…_RELEASE_V2` |
+|---|---|---|
+| Où sont les contenus | `subjects[].artifacts[]` | `artifact_registry` scellé |
+| Répétitions | oui — un contenu partagé apparaît par sujet | non — déjà dédupliqué |
+| Compte déclaré | `expected_counts.artifacts` = 486 occurrences | `expected_counts.unique_artifacts` = 319 |
+
+Un `release_kind` inconnu est refusé plutôt que rangé d'office dans l'une des
+deux : le lire au mauvais endroit rendrait un ensemble faux au lieu d'un refus.
+
+**Corroboration.** Sur le dépôt réel, la V1 canonique et la V2 de répétition
+rendent le **même ensemble** et la **même empreinte**
+`d06d6051e7037372acf4dca4675a1c999c198129433d68491221a9d03bb821cd`, par des
+structures entièrement différentes. Une épreuve le vérifie contre les deux
+lignées réelles.
+
 ## Le compte mesuré
 
 ```
