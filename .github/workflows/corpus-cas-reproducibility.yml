@@ -52,7 +52,9 @@ jobs:
           python-version: "3.11"
 
       - name: Unit tests for the qualification scripts
-        run: python -m pip install --quiet pytest && python -m pytest -q scripts/qualification/tests/
+        run: |
+          python -m pip install --quiet pytest -e packages/release-chain
+          python -m pytest -q scripts/qualification/tests/
 
       - name: Compute the content set the current lineage promotes
         run: |

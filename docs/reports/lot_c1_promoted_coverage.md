@@ -43,97 +43,57 @@ Un ensemble promu **vide** ne manque jamais de rien. C'est la manière exacte
 dont un gate devient vert en *perdant* ses données : moins on en sait, plus le
 compte est bon.
 
-## L'autorité lue
+## L'autorité lue — une seule, celle du runtime
 
-Le producteur ne part plus d'un manifeste historique nommé en dur. Il part du
-**registre canonique**, seule autorité qui désigne les releases actives, et
-descend la chaîne en confrontant chaque maillon à son sceau :
+Le producteur ne décide **rien** de la structure des releases. Natures
+supportées, sceaux, comptes déclarés, autorités, partitions de pages,
+collisions de collection et d'artefact : tout appartient à
+`nexus_release_chain.release_readiness`, le module que le **runtime de
+production consomme déjà** via `load_release_registry_file`.
 
-```
-release-registry.json
-→ manifestes de release actifs      (expected_manifest_sha256)
-→ manifestes de sujet scellés       (subjects[].sha256)
-→ occurrences de contenu promu      (expected_counts.artifacts)
-→ ensemble de contenus distincts
-```
+Une première version réimplémentait ces règles. C'était un second runtime, et
+il en a le coût exact : chaque règle omise devenait un faux vert, chaque règle
+ajoutée en amont demandait d'être redécouverte ici. Onze rondes de revue l'ont
+mesuré — dix-neuf constats, tous légitimes, tous des variantes du même défaut.
+La douzième aurait porté sur `WAVE0_AGGREGATE_RELEASE_V1`, que le registre et
+le runtime acceptent et que le qualificateur refusait.
 
-`--release-registry` accepte un registre figé : la qualification du
-`FULL_GO_LIVE_CANDIDATE` réutilisera ce script tel quel, sans réécriture.
+Ce fichier ne fait donc plus que deux choses que le chargeur ne peut pas faire
+à sa place :
 
-### Deux formes de release, un seul gate
+1. **borner le chemin du registre** à la racine gouvernée — une autorité
+   d'entrée extérieure au périmètre qu'elle prétend gouverner ne le gouverne
+   pas, et ses empreintes internes fussent-elles cohérentes ne prouveraient
+   que la lecture du fichier désigné ;
+2. **réduire** ce que le chargeur rend à l'ensemble des `content_sha256`
+   distincts, avec la formule d'empreinte du vérificateur CAS.
 
-La gouvernance produit deux formes de manifeste, et la candidate complète
-emploiera la seconde. N'en connaître qu'une obligerait à réécrire ce gate au
-moment précis où il doit servir.
+`--release-registry` accepte un registre figé et `--release-registry-sha256`
+son empreinte externe : la qualification du `FULL_GO_LIVE_CANDIDATE`
+réutilisera ce script tel quel, sans réécriture.
 
-| | `…_RELEASE_V1` | `…_RELEASE_V2` |
-|---|---|---|
-| Où sont les contenus | `subjects[].artifacts[]` | `artifact_registry` scellé |
-| Répétitions | oui — un contenu partagé apparaît par sujet | non — déjà dédupliqué |
-| Compte déclaré | `expected_counts.artifacts` = 486 occurrences | `expected_counts.unique_artifacts` = 319 |
+### Le gate anti-divergence
 
-Un `release_kind` inconnu est refusé plutôt que rangé d'office dans l'une des
-deux : le lire au mauvais endroit rendrait un ensemble faux au lieu d'un refus.
+Pour **chaque** lignée versionnée du dépôt, découverte par parcours et non
+nommée en dur, une épreuve confronte ce que C1 rend à ce que le chargeur
+runtime rend — ensemble d'artefacts et ensemble de collections. L'égalité est
+structurelle, puisqu'il s'agit du même appel ; l'épreuve existe pour qu'elle
+le reste.
 
-Trois sceaux, pas un. Le registre **déclare** la nature de chaque release, et
-cette déclaration est **obligatoire** : la rendre facultative laissait le
-manifeste choisir seul son lecteur, et faisait disparaître le contrôle croisé
-précisément sur les registres tronqués ou malformés. Une lignée dont le
-registre annonce V1 et dont le fichier est V2 est refusée, sans quoi elle
-produirait un ensemble que le runtime rejettera.
+Une seconde épreuve interdit que C1 nomme la moindre nature de release dans
+son source : un `if kind == …` dupliqué dans deux modules diverge le jour où
+l'un des deux gagne une nature. **Wave0 est ainsi couvert sans que ce fichier
+n'ait jamais à le nommer.**
 
-**Chaque compte déclaré est confronté, à chaque étage.** Le total de l'agrégat
-ne suffit pas : un sujet tronqué et un autre porteur d'un doublon rendent la
-même somme, l'ensemble dédupliqué rétrécit sans que rien ne le dise, et la
-couverture CAS passerait sur un périmètre incomplet. Chaque sujet V1 tient
-donc son propre `expected_counts.artifacts` — mesuré sur la lignée réelle :
-les onze le déclarent, et il tombe juste pour chacun, pour un total de 486.
-Le registre d'artefacts V2 porte de même **son propre**
-`expected_counts.unique_artifacts` : ne confronter qu'à celui de l'agrégat
-laissait passer un registre tronqué dont on aurait rescellé l'agrégat.
-
-Ce dernier sabotage a été reproduit sur la lignée V2 réelle — un artefact
-retiré, le registre d'artefacts rescellé, le compte de l'agrégat ramené à 318,
-le registre de releases rescellé :
+Les sabotages que la version manuelle gardait sont refusés par le chargeur
+canonique, par ses propres règles :
 
 ```
-REFUSÉ : … registre d'artefacts : 318 contenu(s) distinct(s) lus contre 319 qu'il déclare
+V2, artefact retiré + registre et agrégat rescellés
+  → ReleaseReadinessError: artifact registry.expected_counts mismatch
+V1, sujet retiré + comptes et sceaux refaits
+  → ReleaseReadinessError: expected_counts mismatch
 ```
-
-**Le registre est l'autorité du périmètre servi.** Il déclare les
-`collections` que chaque release sert. Sans cette confrontation, une release
-amputée d'un sujet — comptes et sceaux refaits — était acceptée alors que
-l'autorité continue de déclarer la collection disparue active : l'ensemble
-promu rétrécissait sur un périmètre toujours servi. Sabotage reproduit sur la
-V1 réelle (`rag_nexus_svt_terminale_specialite` retiré, 38 artefacts) :
-
-```
-REFUSÉ : le registre déclare 11 collection(s) et la release en porte 10
-```
-
-**Les sujets V2 sont lus, et croisés.** Le registre d'artefacts et l'agrégat
-peuvent être rescellés ensemble sur un ensemble amputé ; les manifestes de
-sujet, eux, continuent de placer l'artefact retiré et de déclarer l'ancien
-sceau du registre. Ne pas les lire laissait donc passer un ensemble plus petit
-que le périmètre servi. Chaque sujet est désormais descellé, son
-`artifact_registry.sha256` confronté à celui de l'agrégat, son compte de
-placements vérifié, et tout artefact placé absent du registre est un refus.
-Sabotage reproduit sur la V2 réelle :
-
-```
-REFUSÉ : … sujet rag_nexus_dgemc_terminale_option : suppose le registre d'artefacts d…
-```
-
-**Corroboration sur données réelles.** Toutes les lignées versionnées du dépôt
-sont lues de bout en bout par une épreuve qui les découvre par parcours, sans
-nommer de répertoire : nommer en dur celui d'une répétition ferait taire la
-corroboration à la répétition suivante, et un `skip` silencieux est la manière
-dont une épreuve cesse d'exister sans que personne ne le voie. L'épreuve
-n'affirme pas non plus l'égalité entre la V1 promue et une candidate de
-répétition — deux jeux qui évoluent séparément, et dont la divergence est
-légitime. Elle éprouve la propriété qui vaut pour toutes : chaque registre se
-lit, ses sceaux tombent juste, ses comptes correspondent, son ensemble n'est
-pas vide.
 
 ## Le compte mesuré
 
