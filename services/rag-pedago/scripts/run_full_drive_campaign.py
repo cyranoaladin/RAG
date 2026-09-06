@@ -132,47 +132,71 @@ def _sortie(commande: list[str]) -> str:
     ).stdout.strip()
 
 
+#: Chaque input du run, classifié. `required` dit si son absence est fatale :
+#: le sentinelle `ABSENT:` empêche deux configurations de partager un
+#: RUN_ID, mais il n'a de sens que pour une dépendance VRAIMENT optionnelle.
+#: Une autorité obligatoire manquante doit arrêter la campagne AVANT toute
+#: écriture, pas la laisser produire une preuve incomplète.
+_ENGINE = _RACINE / "services" / "rag-engine"
+
+_AUTORITES: tuple[tuple[str, Path, bool, str], ...] = (
+    # nom, chemin, obligatoire, portée d'effet
+    ("SCHEMA_VERSION", _PEDAGO / "rag_pedago" / "governance" / "drive_staging_pg.py",
+     True, "stockage"),
+    ("EXTRACTOR_CONFIG_SHA256", _PEDAGO / "rag_pedago" / "governance" / "drive_extraction.py",
+     True, "texte,chunk"),
+    ("CHUNKER_CONFIG_SHA256", _PEDAGO / "rag_pedago" / "governance" / "drive_slice.py",
+     True, "chunk,classification"),
+    ("TAXONOMY_AUTHORITY_SHA256", _PEDAGO / "rag_pedago" / "governance" / "drive_slice.py",
+     True, "classification,placement"),
+    ("PII_SCANNER_SHA256", _PEDAGO / "rag_pedago" / "imports" / "pii_scanner.py",
+     True, "servabilite"),
+    ("PII_POLICY_SHA256", _PEDAGO / "configs" / "pii_gate_policy.yml",
+     True, "servabilite"),
+    ("DOCUMENT_TYPE_MAPPING_SHA256",
+     _ENGINE / "configs" / "mappings" / "eduscol_multilevel_document_types.yml",
+     True, "taxonomie,placement,release"),
+    ("LEVEL_MAPPING_SHA256",
+     _ENGINE / "configs" / "mappings" / "eduscol_multilevel_levels.yml",
+     True, "taxonomie,placement"),
+    ("SUBJECT_MAPPING_SHA256",
+     _ENGINE / "configs" / "mappings" / "eduscol_multilevel_subjects.yml",
+     True, "taxonomie,placement"),
+    ("RIGHTS_POLICY_SHA256", _PEDAGO / "configs" / "rights_evidence_registry.yml",
+     True, "servabilite"),
+    ("PYTHON_LOCK_SHA256", _PEDAGO / "requirements.lock", True, "runtime"),
+)
+
+_manquantes = [
+    (nom, chemin) for nom, chemin, requis, _ in _AUTORITES
+    if requis and not chemin.is_file()
+]
+if _manquantes:
+    raise SystemExit(
+        "CAMPAGNE_REFUSEE : "
+        + f"{len(_manquantes)} autorité(s) obligatoire(s) absente(s) — "
+        + ", ".join(f"{nom} ({chemin})" for nom, chemin in _manquantes)
+        + ". Une campagne qui les remplacerait par un sentinelle produirait "
+        "une preuve dont la lignée ne dit pas ce qui l'a décidée."
+    )
+
 _CAMPAGNE = {
     # -- ce qui décrit le périmètre --
     "INVENTORY_SHA256": _sha_fichier(Path(os.environ["NEXUS_DRIVE_INVENTORY"])),
     "MANIFEST_SHA256_ATTENDU": os.environ["NEXUS_DRIVE_MANIFEST_SHA256"],
     # -- ce qui décrit le code exécuté --
     "CODE_COMMIT": _sortie(["git", "-C", str(_PEDAGO), "rev-parse", "HEAD"]),
-    "CODE_DIRTY": bool(
-        _sortie(["git", "-C", str(_PEDAGO), "status", "--porcelain"])
-    ),
+    "CODE_DIRTY": bool(_sortie(["git", "-C", str(_PEDAGO), "status", "--porcelain"])),
     "RUNNER_SHA256": _sha_fichier(Path(__file__).resolve()),
-    "SCHEMA_VERSION": _sha_fichier(
-        _PEDAGO / "rag_pedago" / "governance" / "drive_staging_pg.py"
-    ),
-    # -- ce qui décide du texte --
+    # -- les autorités classifiées --
+    **{nom: _sha_fichier(chemin) for nom, chemin, _, _ in _AUTORITES},
+    # -- identités non fichiers --
     "EXTRACTOR_ID": "pypdf",
     "EXTRACTOR_VERSION": _version_pypdf(),
-    "EXTRACTOR_CONFIG_SHA256": _sha_fichier(
-        _PEDAGO / "rag_pedago" / "governance" / "drive_extraction.py"
-    ),
     "PAGE_POLICY_ID": _POLICY_ID,
-    "PAGE_POLICY_SHA256": _sha_page_policy(),
     "TEXT_NORMALIZATION_VERSION": TEXT_NORMALISATION_ID,
     "OCR_RUNTIME_IDENTITY": _OCR_RUNTIME.identity_sha256(),
-    # -- ce qui décide du découpage --
     "CHUNKER_ID": "nexus-drive-slice",
-    "CHUNKER_CONFIG_SHA256": _sha_fichier(
-        _PEDAGO / "rag_pedago" / "governance" / "drive_slice.py"
-    ),
-    # -- ce qui décide de la classification et de la disposition --
-    "TAXONOMY_AUTHORITY_SHA256": _sha_fichier(
-        _PEDAGO / "rag_pedago" / "governance" / "drive_slice.py"
-    ),
-    "DOCUMENT_TYPE_MAPPING_SHA256": _sha_fichier(
-        _PEDAGO / "configs" / "document_type_mapping.yml"
-    ),
-    "PII_SCANNER_SHA256": _sha_fichier(
-        _PEDAGO / "rag_pedago" / "imports" / "pii_scanner.py"
-    ),
-    "PII_POLICY_SHA256": _sha_fichier(_PEDAGO / "configs" / "pii_gate_policy.yml"),
-    # -- ce qui décide du stockage --
-    "PYTHON_LOCK_SHA256": _sha_fichier(_PEDAGO / "requirements.lock"),
     "POSTGRES_IMAGE_DIGEST": os.environ.get("NEXUS_STAGING_PG_DIGEST", "NON_DECLARE"),
 }
 
@@ -253,6 +277,16 @@ def _write_report(done: int) -> None:
                 ),
                 "MANIFEST_SHA256": manifest.manifest_sha256,
                 "campagne": _CAMPAGNE,
+                "autorites_du_run": [
+                    {
+                        "nom": nom,
+                        "chemin": str(chemin.relative_to(_RACINE)),
+                        "sha256": _CAMPAGNE[nom],
+                        "required": requis,
+                        "effect_scope": portee,
+                    }
+                    for nom, chemin, requis, portee in _AUTORITES
+                ],
                 "totals": dict(totals),
                 "errors": errors,
                 "unclassifiable": unclassifiable,
