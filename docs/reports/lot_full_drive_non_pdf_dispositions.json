@@ -1,0 +1,1245 @@
+{
+  "comptes": {
+    "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE": 19,
+    "INTERACTIVE_RESOURCE_SERVABLE": 37,
+    "OPERATIONAL_DOCUMENTATION_NON_INDEXABLE": 1
+  },
+  "entries": [
+    {
+      "content_sha256": "a659b2b46e589502407a53a3230a6e135468ce7625d09b8bb924345c01cec66e",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1kd6qWI8sR6Q2TkMpmMzti8i1Kg7uIozN",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/3E/FRANCAIS/02_BANQUES_SOURCE/entree-troisieme-francais-v1.yaml",
+      "size": 25109,
+      "size_fetched": 25109,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "5619710c5ac391dc3de7513f16cdc88043250e8451262f075fef942004e9bcf5",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1uPOGdWCvUGUYYHTAT7LhRvFxvWN_Cn4M",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/3E/MATHEMATIQUES/02_BANQUES_SOURCE/entree-troisieme-maths-v1.yaml",
+      "size": 20706,
+      "size_fetched": 20706,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "e683dfa74da519c769496fa8183c4e870b735985c0ce0d0b74a4fd167b01497b",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1P3gZDjcDT5nUzwQLC35ao2FKAqwve5ED",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/4E/FRANCAIS/02_BANQUES_SOURCE/entree-quatrieme-francais-v1.yaml",
+      "size": 21533,
+      "size_fetched": 21533,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "9a9b1ef3bb61e4e9ae979787f2a91e588d483504bc03d73fbc59c3c1d6359a40",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1WbWh36Cd7t3FyIFAezEe_v2S1Nhfpqe5",
+      "mime_type": "text/markdown",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/99_A_CLASSER/03_DOCUMENTATION/positionnements-pre-rentree-2026-tous-niveaux.md",
+      "size": 78967,
+      "size_fetched": 78967,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "82d3f340250c8549cab45a83949bf96f36760d23a397a96ea93efcd9f2ed8a03",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1OEEj1sMcT59ADrv-t-UXjJezaBLjD2O2",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/PREMIERE/FRANCAIS/02_BANQUES_SOURCE/entree-premiere-francais-v1.yaml",
+      "size": 24814,
+      "size_fetched": 24814,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "98189c63056fda5a6a4fb173e799b113468fae6f18a1ddb24366e8b6388bd200",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1_ysyZ1dkSRH01rbwuu7glCNqcwYzlOR7",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/PREMIERE/MATHEMATIQUES/02_BANQUES_SOURCE/entree-premiere-maths-v1.yaml",
+      "size": 23533,
+      "size_fetched": 23533,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "10148f0c5a9b3e06dedda596a854dae959ae99ee761f9fc40b7f756647f1feb1",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1v1Np_0W6KEyT4XexkAcT2iTRKJDz7FAv",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/PREMIERE/NSI/02_BANQUES_SOURCE/entree-premiere-nsi-v1.yaml",
+      "size": 23672,
+      "size_fetched": 23672,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "30e967924df8180ba5bf1f7814fa04f0a3fb7706c031cbb6b44b24b53032cb32",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "16y7xcLpo9ZloAf4VrW5CL_oCK3NFSNqW",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/PREMIERE/PHYSIQUE_CHIMIE/02_BANQUES_SOURCE/entree-premiere-physique-chimie-v1.yaml",
+      "size": 24593,
+      "size_fetched": 24593,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "c989ecd9fa74a5dfb1be01195d2d959d605641abab99afb7df885b857bfffda2",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1o98U8B4Q_ukoATI1_b-5-YpI3lrvY-Ue",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/PREMIERE/SVT/02_BANQUES_SOURCE/entree-premiere-svt-v1.yaml",
+      "size": 26892,
+      "size_fetched": 26892,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "9b187e02de3ebd7a7ed64fec5b0c4a312e3dce7578fa375b517691b81ea9dcc2",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1p5xBLemDbJiXQwhzrjdB-iZqOqNcABq8",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/SECONDE/FRANCAIS/02_BANQUES_SOURCE/entree-seconde-francais-v1.yaml",
+      "size": 24811,
+      "size_fetched": 24811,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "aff21bd1b45974f366589eca74536a08d0809a486256edaa906d7af623053113",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1wSkB_HHzABtVyzm_tKBPduLIKdwDbdNt",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/SECONDE/MATHEMATIQUES/02_BANQUES_SOURCE/3e-maths-vers-seconde.v1.yaml",
+      "size": 3726,
+      "size_fetched": 3726,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "d9ee370d9a11acaf650c190cd9689ca38bb054220c9dab68c03ef793e392e3d3",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1rWPJW7_C82YAuLTr0p0iQ_qMvnFRtwuA",
+      "mime_type": "application/json",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/SECONDE/MATHEMATIQUES/02_BANQUES_SOURCE/entree-seconde-maths-v1.json",
+      "size": 37440,
+      "size_fetched": 37440,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "e06be98db83bab984fcd2d6959900cfa4ac4480da2f1901d1e725f9048789b4a",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1YqbM4CHZQdW4lceNPYsy-PYVTw4jZkMf",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/SECONDE/MATHEMATIQUES/02_BANQUES_SOURCE/entree-seconde-maths-v1.yaml",
+      "size": 22554,
+      "size_fetched": 22554,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "0ecb2a0c97d773f4ac714fc23abf6fcca7b358c9edada95485f2fc44d2460985",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1hU02yteCJzB3vyLYVwemSnGvJAw-1h8N",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/TERMINALE/MATHEMATIQUES/02_BANQUES_SOURCE/entree-terminale-maths-v1.yaml",
+      "size": 24028,
+      "size_fetched": 24028,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "fd68b29bc3b73ba73b41ea3dc1a515fe3fa9a07dd470456bac8bc997dd43386c",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "197KGbuHMFW4hLAdCA1FUlVrduym62xRA",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/TERMINALE/MATHEMATIQUES_EXPERTES/02_BANQUES_SOURCE/entree-terminale-maths-expertes-v1.yaml",
+      "size": 19794,
+      "size_fetched": 19794,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "888ee3768e2791d3a044921692ea2c0c0123b382630fb8fcf156720443469257",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1_XTJGV2B36uepdXy2Pt0leVwgb_OA6hl",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/TERMINALE/NSI/02_BANQUES_SOURCE/entree-terminale-nsi-v1.yaml",
+      "size": 19874,
+      "size_fetched": 19874,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "ddebe183ab34f96e6f9c663f39b5fcb2ea0727448a6854f8a2c4fcbbe90b17d2",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1WQc54FWqEgUhsU4ZxAxQxydhPQ-O_632",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/TERMINALE/PHILOSOPHIE/02_BANQUES_SOURCE/entree-terminale-philosophie-v1.yaml",
+      "size": 26658,
+      "size_fetched": 26658,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "eb386af8ffbf40ff826f2bcc1a0e0383d494102cd6df85516c4f94cf26fb8fb5",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1ohO74Dojd9PAZVD2p-TMVNct3x35-lJ1",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/TERMINALE/PHYSIQUE_CHIMIE/02_BANQUES_SOURCE/entree-terminale-physique-chimie-v1.yaml",
+      "size": 25051,
+      "size_fetched": 25051,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "content_sha256": "e5467321953dd6baa0bbec22a26363d24d55c499cf2555527a689b8d658675b8",
+      "disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+      "drive_file_id": "1rSBrzqik4KUuMeuQdXPSQBkrDgqlIFD5",
+      "mime_type": "application/yaml",
+      "raison": "banque de questions de diagnostic sous 02_BANQUES_SOURCE : donnée source d une autre surface produit, pas un document qui enseigne — ne relève pas du corpus de retrieval",
+      "relative_path": "02_NEXUS_DIAGNOSTICS/TERMINALE/SVT/02_BANQUES_SOURCE/entree-terminale-svt-v1.yaml",
+      "size": 26774,
+      "size_fetched": 26774,
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "4620d777fbb2943913398bcc84cf3ecc2d9ac3917ad4aae56bdb4f2e080466c4",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1vtfnAHlzW5INk5k3-csE0NnTHkApzEIg",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "c32b44103961970a63dc3da415c9d73c4196879724d44d356c71d72e50bad5fd",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths23circuirtelectriquevsgraphe1227109ggb-91917.ggb",
+      "size": 31416,
+      "size_fetched": 31416,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "a91a9ebbbddf3d060cf64bf695f62d3f70d7fd7b9a8d4bb1d1b430a11dab9460",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1CmGgKaQx-GI6EL73Urv1Yuq1qnzquqLQ",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.573.0",
+        "geogebra_xml_sha256": "15829bfeeb688b39d98b8a06f4486278d8e57b9b9edcddf42552aab65a78ee54",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths23etudeexemples1227111ggb-91914.ggb",
+      "size": 40437,
+      "size_fetched": 40437,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "2dd0929fd2f461291b784e5028f3e1828f28b1cc81cca54cfaf6bcaad4c56de9",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1In92LO3FpiIlLyoK7m-0wRNJXRdgz-86",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.573.0",
+        "geogebra_xml_sha256": "cdbba97d34e3691610848df249170269546006452ae3b3372ab61e87cac7fa1a",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths23minimisationperteseffetjoule1227113ggb-91941.ggb",
+      "size": 70292,
+      "size_fetched": 70292,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "6dd1df34f7acaf9f5343bd45e14bc090706aed5460e89227be32ccc2d5bf9cb8",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1rW6Q8PrqO7Mj-IRq9EZ_f_0F1tlSNJxf",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.570.0",
+        "geogebra_xml_sha256": "6aed32304ffe202291fd1b63d43f5af6c7490879171fb84a642e48c7ffd7383a",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths31cmrexplicationmethode1227118ggb-91998.ggb",
+      "size": 83167,
+      "size_fetched": 83167,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "0f7cd29050cee987999e20f25909bb4ca946839af6d09b8530f1788d01a240f0",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1wiQdsjvYGS7mIGB7_jEjQPdMk1BOABG2",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.570.0",
+        "geogebra_xml_sha256": "4b8e5b72c83d16f0665718b16cc80c0e0d0a08a7ab1e4c4d0b375ff52c938068",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths31hardyweinbergdiagrammedefinetti1227121ggb-91911.ggb",
+      "size": 32628,
+      "size_fetched": 32628,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "e1c3538a334d0e42d7adda79570ecd59eea0db4ed2a4c9f1b2e0c8fc67ebc8fa",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1pUpUIA4SS1uYOgGWRb5mRSH4RqwyIDwO",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "05e6d107144d95e7f17a24b6159b94ee648efd8cf67c521e48b084ec4b2543f5",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths31hardyweinbergtableur1227124ggb-91995.ggb",
+      "size": 30371,
+      "size_fetched": 30371,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "a551834bc1a24b489ef7b14e236157d6f8be6b81bfa53b78c88d693dfe4d1ead",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1p2G0I2LacqBDFDLiAlMf7vnNvVn1qBOB",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.570.0",
+        "geogebra_xml_sha256": "94c20e2a83b3ed3f45b5758ccf47a28ff0a29e5095db95b3c2904ce1714a056d",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths31intervalleconfiancefluctuationechantillonnage1227129ggb-91932.ggb",
+      "size": 37342,
+      "size_fetched": 37342,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "b6df63afc38c1340447bbfe7d64be4aa2a58d75c74ab6eb3939ef0b7dc6866ee",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1ol1pi5kc0bvAqAz1Eo1n0vUyoAp1MqGk",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.570.0",
+        "geogebra_xml_sha256": "479c50316c7f4f169b021fc453dc9a0fedff1a435370e15859b9916e6c7406e9",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths34croissanceexponentielletempsdoublement1227131ggb-91989.ggb",
+      "size": 26973,
+      "size_fetched": 26973,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "38391ae99c72ca03059eb74a71daf799493226013fc5cb1a5d6ac12f21b44d5a",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1-AL1CxXpXN-xLr8hhg_7mfbC-4LRgY4x",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.570.0",
+        "geogebra_xml_sha256": "12cca99c552924fd9668c2096edc068d2bca4dc25e410c1d96aef6e87fafd6c4",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths34croissanceexponentiellevslineaire1227133ggb-91980.ggb",
+      "size": 31320,
+      "size_fetched": 31320,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "7aee175c61dc637c8b52cc9d240f84debee583bc26a254a6ee3cf166deea4037",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1qIW5gtgR3hUodmpRDO_A4uVFnzECLd0N",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.570.0",
+        "geogebra_xml_sha256": "f33b6914224c3f53f68aa177259f449ce7f31bfba9753f3cf248752efacd4228",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths34modeleexponentielevolutionpopulationjapon1900-20101227135ggb-91926.ggb",
+      "size": 73630,
+      "size_fetched": 73630,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "7b34fe6eca0f8f7291ae1c6b799033a43cd5d6255433e5c9aeae7c2e79775184",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1RmrbkVQ3rPLXvTfUQpS_uXUvo_utwynB",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.570.0",
+        "geogebra_xml_sha256": "b1ee850f2f22ac592226029fc0f8cccaa1cac03279f5a4231aba2b178a601132",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths34modeleexponentielevolutionpopulationjapon1950-20101227141ggb-91977.ggb",
+      "size": 51150,
+      "size_fetched": 51150,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "fccb804bb585821a28e75482fba3ee92a8eea866d87aca7ae56a9566354cf3c7",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1d6fQZnGWrD8TT-hmVcSYMCVVYXtep8VQ",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "bb42d165e5d848cf79bfabb49011a2b884b2cd9a0642b190a256f8da7a7beff3",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths35algorithme5plusprochesvoisins1227143ggb-91974.ggb",
+      "size": 32844,
+      "size_fetched": 32844,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "c533f10b818e773072e2c136df77b0731fe8f1267088f940dbcb3bb9052550de",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1RsiNRK6xc9xpu4SSIhkkZ_eI7glZKVLt",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "bf33a6c50566252a1bf2cce02c317284d8fd3e795fd35dbfa6bcb644f8f9cfe2",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths35algorithmeplusprochesvoisins1227145ggb-91962.ggb",
+      "size": 28933,
+      "size_fetched": 28933,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "2de685ac82249d848f2161fa3c084ae0dcee341c7946b85ac9eb1f3551056181",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1CLaaHNa4PmEl8dlb4jjCV0tmsJHIu5XK",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "8fe206362008ce36e44c79618ad5164e9d9a24db3597669a7c719c808d599204",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths35exercicesensibilitespecificitevaleurspredictivestestdepistage1227147ggb-91902.ggb",
+      "size": 35487,
+      "size_fetched": 35487,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "ed32ff2daa76ff850b066b6c52823f07f2cfc5df4f629d0dcb1ce2ca618feec4",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1joBFh2OOjJMlpjOLRRS7GhmkSn8QRRRC",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "5e9a3006e9f395ba8625a25e2e0bb6eabab3b9b948f1bf44be816a9c2b44d1af",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths35inferencebayesiennedepistagearbre1227151ggb-91956.ggb",
+      "size": 50293,
+      "size_fetched": 50293,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "4ce9cb76847c91474cdc3b0dbfe97be00174ec9f94354e61ce01942e9f724db6",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1z7UxNzYuKFNr57DnxxPizotyLVRHeNQz",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "c1e1050aeb278633c42748a396e8819130806fe7d13eddb7188bd6b5d54c7b98",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths35probabilitesconditionnellesvisualisation1227154ggb-91905.ggb",
+      "size": 48657,
+      "size_fetched": 48657,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "52b61911119c3fbac5467116e75e71aaaab969b7d7123ba4feb05833cd74c3de",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1PaDIdbupUiktFSNHc9KZfjnDLSpD5wVb",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.569.0",
+        "geogebra_xml_sha256": "2830fbf6e2cc83cb422d98af0a8b5ae60cb55c15775b9e753909ca21f015f999",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths35regressionlineairemethodemoindrescarres1227159ggb-91947.ggb",
+      "size": 37067,
+      "size_fetched": 37067,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "6422aded773cd1e058e59be705dfc36bc6175c658812d470a6449f3565f30585",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1-2Y1lCh7XT-UMHac4hizwIsE2elZtHpZ",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.564.0",
+        "geogebra_xml_sha256": "b02eba0842927264b136feecff51b6061cc9c78512d261246c156d9f059d9384",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/ra19tesmaths35valeurpredictivefonctionprevalence1227161ggb-91908.ggb",
+      "size": 45466,
+      "size_fetched": 45466,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "1e2b50a8e585b84eab09d6eefb6c38e35906599ebf023ec8c758e90fae22a318",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1oDqvo7yCMxS_wQ-o7GKJY8b48qFAa6Xf",
+      "ggb": {
+        "geogebra_app": null,
+        "geogebra_version": "5.0.309.0",
+        "geogebra_xml_sha256": "424136860854c832b2d2aeb10c015216bff46e84194ba2817734156fed3b2bec",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t1-r1-a1-notion-demi-vie1136015ggb-92004.ggb",
+      "size": 40667,
+      "size_fetched": 40667,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "d5a9c064ace533bfe1467ceeb587ee400a40b0f83ac5a29319d229f1a3eb24d9",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "10UrYIv9o_Er-h76qtyCH-RRxOcV0bDgM",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "db9ed1f41792295cfafd0b697b7c18c418c16eb162035b4ff3853236218545ba",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t1-r1-a3-desintegration-radioactive1136017ggb-91899.ggb",
+      "size": 79215,
+      "size_fetched": 79215,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "51b4eca7200e20c76df68fb7f12c3c8d9078b9adb11c5234a9bd2aabe2255253",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1L1omMiTs8kGLYPc18dGR2u3UPy_euMhI",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "e3dbd9e64393d7e45fc3898b47cf2b6ae3b761cba214adb2636ff23b8b65f0bb",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t1-r2-a1-maille-cfc-compacite1136456ggb-92001.ggb",
+      "size": 76893,
+      "size_fetched": 76893,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "f8d0925eabfbe58536dd27d3d3e0034af763b80f0e4507bcb77954b711122a6d",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1XFko7Xg3HkVEKIwYCgZSdQh622IOsj8-",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "13646a5bf8f72f7793f711eaa27c5d44b6a4d8228d4f843d7e39696679aee010",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t1-r2-a2-empilement-de-disques-cristallographie-2d1136026ggb-91920.ggb",
+      "size": 46388,
+      "size_fetched": 46388,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "fb2ae8e31c652f35ea6865734877653279f1efeceb25243541efff97bb8be155",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1e5rJZ26OR_Kqggaw2zyrVj4yNpaRB5YR",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "7c95bac5497592f6736fe542a86f4ed06327ec1c949f88df9a41d631e8eec5d1",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t1-r2-a3-structure-cristalline-cubique1136028ggb-91950.ggb",
+      "size": 85730,
+      "size_fetched": 85730,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "db33cc4175b19b8d6b8173223516e5626f9c9a2c2e677e34e3e1f7ed2be949d2",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1ZCeky5NnsKm9XJygt5VuhZ_VSP8WQEzM",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.532.0",
+        "geogebra_xml_sha256": "3f3901447c9cd84b655cb4a84bb493d6e5aeadf75ce33a44b0c695b8350cbc6d",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t1-r2-a4-empilement-tetraedrique-spheres-maillecfc1136030ggb-91953.ggb",
+      "size": 23532,
+      "size_fetched": 23532,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "ffb160c32ed9fa7ca4a3afbd8a5ccd806c0c4919dd9dff5626deed302e8a5593",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1olGWCtATZf8yy17jleSpshPph0zpl8X-",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "e55331783b2a29e0465d7038c11e90a66080fa9b584ba9a1eda5c6654128ca80",
+        "lecture": "OK",
+        "membres": 6,
+        "noms": [
+          "627d7b10ccfb25a0978e7491a36fc647/TerreAfrique.png",
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t2-r-a1-astronomie1136009ggb-91965.ggb",
+      "size": 1184442,
+      "size_fetched": 1184442,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "6827250f4aea8529963211c1d146aff2ac39cee025a0de45e16c2cba9fb74cf2",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1R59LGcVeKLNDG38-QFgcdBhf8j9fxLqm",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.529.0",
+        "geogebra_xml_sha256": "d85f43d231460911e9a13bc1a6360e3674d83fd3f04d549ba91a6a003a438830",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t2-r-a2-etalement-pinceau-lumiere-surface-terre1136011ggb-91968.ggb",
+      "size": 46722,
+      "size_fetched": 46722,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "e453171bdab7bc8b48712049cfbed8b77145d87a8e37d0249a95bc966f21e6f7",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1QYAQxCpEK-tl4USzCv8ufN6GlcSI05q7",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "18d4be82469fa84f3f852bc43c9e644af827991cda6d5f316ad7c149a6e205af",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t2-r-a3-puissance-recue-modele-discret1136013ggb-92007.ggb",
+      "size": 71868,
+      "size_fetched": 71868,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "5a766c69edd32a37e60f060ed741f591ede55a70c650629847c0d1cdc2f25eb1",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1xpAgbMlhJtrCfLG0NBBFd8ljkPGcLW3_",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.529.0",
+        "geogebra_xml_sha256": "431e21b5ebeeacb5136e6285e1fa19318e35ebb5af549a2e8b295611f831dad0",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t3-r-a1-anaxagore-vs-eratosthene1135999ggb-91923.ggb",
+      "size": 17878,
+      "size_fetched": 17878,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "20141a130e575240824b15b50cce94b574d4259a5504aa6d37f6ec31fa5e75a1",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1n2y469fvI_PezJ7sxp1ivfzdeHIN1T0y",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.529.0",
+        "geogebra_xml_sha256": "a1f942af16208d49f795ee5a3a140ddb416706251bce13f45a926d99bced8457",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t3-r-a2-chemin-plus-court-surface-terre1136001ggb-91983.ggb",
+      "size": 117849,
+      "size_fetched": 117849,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "c270a91788083e6e0ccd43516389136f7475e48099b0977ae93fdb0ac167d194",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1djjpBFuqInJyu-KWqx2IpNcIXoVjO-yN",
+      "ggb": {
+        "geogebra_app": null,
+        "geogebra_version": "5.0.305.0",
+        "geogebra_xml_sha256": "9bc69ad2a69dcb28f693d483c99121dc7a4076a910e9ae19b5ae2179bfddbb95",
+        "lecture": "OK",
+        "membres": 23,
+        "noms": [
+          "02b1b6fecbe4bdeefeccc3a97bbd95c6/MeridienAngle32x32.png",
+          "0a5faa2f1b6715f31192a17a11e36c54/GrandCerclePole32x32.png",
+          "1555634ff2f703f51975181022a82cde/AfficheLatitudeLongitudeIcon32x32.png",
+          "1c8faa050115bb7f96f4c4df8f30aa78/DistanceOrthodromique32x32.png",
+          "220194da73c28d6fcdbf4ebc43861f8a\\PointDistantSurCercleIcon32x32.png",
+          "47f000fa5948bd624b6aa4236b2dc82e\\PoleIcon32x32.png",
+          "480b2d2b9c4d9ad3d8a57f559b1a0602/Lune32x32.png",
+          "5e042bd8017e6e1ffea504b8e7f846a7\\CercleDistancePointIcon32x32.png",
+          "61f4e0c106bc2eaf27889c9e00b793ea/TriangleSpherique32x32.png",
+          "7df2f57e88568e9de81345b2488b7225/AngleAuCentreIcon32x32.png",
+          "86423c5861e3cc3f6c12efa0a312c1f4/GrandCercleIcon32x32.png",
+          "a808f9d738becc3e7068cb63600088c1/GrandCercleAngeIcon32x32.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t3-r-a3-constructions-terre1136003ggb-91986.ggb",
+      "size": 111089,
+      "size_fetched": 111089,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "2c84783a7d87cfbf4acfc3c3c34cd99cf0b38a8c091fd8ad28ec6bef554ee76e",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1PrSlpeDMzsFzrBLr_w2HyzHmWGdU1dja",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.526.0",
+        "geogebra_xml_sha256": "219c1fc489545e470b3014bc0c40bbd0d01ed745e29ba0b704cf2aabee2e3695",
+        "lecture": "OK",
+        "membres": 6,
+        "noms": [
+          "aecf34b813a48533426f1e91f2ce7aa4/earth.png",
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t3-r-a4-experience-eratosthene1136005ggb-91929.ggb",
+      "size": 3467610,
+      "size_fetched": 3467610,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "2a32ab6091a6dea33191a2204c130422f95a10703ab57bc6ef26fbdcb51d3792",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1BBQ3PxLmXBLM_a7T9JEv6WlySbACV7ky",
+      "ggb": {
+        "geogebra_app": null,
+        "geogebra_version": "5.0.205.0",
+        "geogebra_xml_sha256": "f833df660411b775e9cf747b94e09a2ec0a1db623042b8d05b928aa756a9e16e",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t3-r-a5-latitude-longitude-terre1136007ggb-91992.ggb",
+      "size": 99255,
+      "size_fetched": 99255,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "e59f0c6ec82996c3d5a8fc96d008bd6f95db09d8d005654c57de3311e4ca7978",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1k_JtOyCHpFqteDAD6OA5QUBEEr-cYNlH",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.529.0",
+        "geogebra_xml_sha256": "0cdca09b97c89adc4e0d37dcd9d8a351060145ffbe921f14be3233136adf8abd",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t4-r-construction-gamme-pythagoricienne1135987ggb-91935.ggb",
+      "size": 13661,
+      "size_fetched": 13661,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "9afa8a46d94fc6b4288dfb2378cb092b0ff8737f875c31d341218b8676780556",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1Vvt6T9eNHfEaBU9AeXyGAaVfIXvfk2vD",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "9d3b0c54ab0ea80f07ea838d9b20970437434066f1d7fd0b6689503a836f95b6",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t4-r-echantillonnage-quantification-son1135990ggb-91938.ggb",
+      "size": 43169,
+      "size_fetched": 43169,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "8cc98e7a10f19868b09ad5a5e0963bb6a7edf38ed9a02a6b4cb59c06fdd2591d",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1I9BqmuDDB9zk3vE1ziFk0m4PAb9eXKOC",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.529.0",
+        "geogebra_xml_sha256": "89b8d46d4b184a832fb4f3090cbd8438ebe6ade5a62975ae364be13412d18ea2",
+        "lecture": "OK",
+        "membres": 9,
+        "noms": [
+          "geogebra.xml",
+          "geogebra/gui/images/go-next.png",
+          "geogebra/gui/images/go-previous.png",
+          "geogebra/main/nav_pause.png",
+          "geogebra/main/nav_play.png",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t4-r-ecouter-f-2f1135993ggb-91944.ggb",
+      "size": 85981,
+      "size_fetched": 85981,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "005351d341714294b6ea5fb8cb8f59d57e0f8a4c239ac702db94af2756a85dac",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1q75frr9pC5pvwQ9oWWVId0fonhB_LONT",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.526.0",
+        "geogebra_xml_sha256": "39dc62c21b94435ce66b54bc0c2b1e213bd863d2f36b58ee905236cba64d250c",
+        "lecture": "OK",
+        "membres": 6,
+        "noms": [
+          "1148e4e24e9054b8b1fcfad20712e58f/notes.png",
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t4-r-gamme-son-et-note1135995ggb-91971.ggb",
+      "size": 32535,
+      "size_fetched": 32535,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "classification": "INTERACTIVE_RESOURCE",
+      "content_sha256": "f3a145dcefcd2a3076715475eb3126258d9336f393d60545b7417a73e4a425da",
+      "disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+      "drive_file_id": "1DWWWTwao2SeMe8N9WZNeCTESDQi7lBQO",
+      "ggb": {
+        "geogebra_app": "classic",
+        "geogebra_version": "5.0.535.0",
+        "geogebra_xml_sha256": "ba554962c34b8211cd4942144e287100ef5b7b784998debf95500a9337c931e7",
+        "lecture": "OK",
+        "membres": 5,
+        "noms": [
+          "geogebra.xml",
+          "geogebra_defaults2d.xml",
+          "geogebra_defaults3d.xml",
+          "geogebra_javascript.js",
+          "geogebra_thumbnail.png"
+        ]
+      },
+      "mime_type": "application/x-zip",
+      "provider": "GeoGebra",
+      "raison": "ressource GeoGebra de la zone 03_RESSOURCES_INTERACTIVES : servable comme ressource interactive, identifiée par son sha256 ; aucun texte n en est extrait et le moteur ne prétend pas que ce soit un document textuel",
+      "relative_path": "03_RESSOURCES_INTERACTIVES/GEOGEBRA/FICHIERS/t4-r-sinusoides-amplitude-periode1135997ggb-91959.ggb",
+      "size": 11773,
+      "size_fetched": 11773,
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "content_sha256": "d1c0c2be5326b73a8e1dcce12526207240480baba5a3acd7cf8b3b04aafb92f7",
+      "disposition": "OPERATIONAL_DOCUMENTATION_NON_INDEXABLE",
+      "drive_file_id": "1Idt-bqbUo762d0zBCEQj_N32ITn-ted5",
+      "mime_type": "text/markdown",
+      "raison": "documentation operationnelle d import, sans contenu pedagogique",
+      "relative_path": "README_GDRIVE_IMPORT.md",
+      "size": 5574,
+      "size_fetched": 5574,
+      "zone": ""
+    }
+  ],
+  "kind": "DRIVE_NON_PDF_DISPOSITION_V1",
+  "non_pdf_total": 57,
+  "non_pdf_unaccounted": 0
+}
