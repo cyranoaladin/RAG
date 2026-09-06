@@ -23,8 +23,10 @@ SHA_B = "b" * 64
 SHA_EXTRA = "c" * 64
 
 
-def _seed_store(cas_root: Path, content_shas: list[str]) -> None:
-    entries = []
+def _seed_store(cas_root: Path, content_shas: list[str]) -> set[str]:
+    """Sème un store d'épreuve et rend les contenus qu'il déclare."""
+    entries: list[dict[str, object]] = []
+    declares: set[str] = set()
     for sha in content_shas:
         payload = sha.encode("ascii")
         real_sha = hashlib.sha256(payload).hexdigest()
@@ -34,10 +36,11 @@ def _seed_store(cas_root: Path, content_shas: list[str]) -> None:
         entries.append(
             {"content_sha256": real_sha, "locator": locator, "byte_size": len(payload)}
         )
+        declares.add(real_sha)
     (cas_root / "manifest.json").write_text(
         json.dumps({"schema": SCHEMA, "entries": entries}), encoding="utf-8"
     )
-    return {e["content_sha256"] for e in entries}
+    return declares
 
 
 def test_a_promoted_content_missing_from_the_store_is_refused(tmp_path: Path) -> None:
