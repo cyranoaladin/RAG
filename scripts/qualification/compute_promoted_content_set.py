@@ -212,7 +212,7 @@ def collect_promoted_content_set(registry_path: Path) -> set[str]:
                 f"{quoi} : le registre annonce {annonce!r} et le manifeste porte "
                 f"{manifeste.get('release_kind')!r}"
             )
-        contenus |= _contenus_dune_release(manifeste, chemin, identifiant)
+        contenus |= _contenus_dune_release(manifeste, chemin, identifiant, release)
 
     if not contenus:
         raise PromotedContentSetError(
@@ -232,13 +232,13 @@ RELEASE_V2 = "MULTILEVEL_AGGREGATE_RELEASE_V2"
 
 
 def _contenus_dune_release(
-    manifeste: dict, chemin: Path, identifiant: str
+    manifeste: dict, chemin: Path, identifiant: str, entree: dict | None = None
 ) -> set[str]:
     nature = manifeste.get("release_kind")
     if nature == RELEASE_V2:
-        return _contenus_v2(manifeste, chemin, identifiant)
+        return _contenus_v2(manifeste, chemin, identifiant, entree or {})
     if nature == RELEASE_V1:
-        return _contenus_v1(manifeste, chemin, identifiant)
+        return _contenus_v1(manifeste, chemin, identifiant, entree or {})
     raise PromotedContentSetError(
         f"release {identifiant} : release_kind inconnu ({nature!r}) — le ranger "
         f"d'office dans l'une des formes connues ({RELEASE_V1}, {RELEASE_V2}) "
@@ -246,7 +246,9 @@ def _contenus_dune_release(
     )
 
 
-def _contenus_v2(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
+def _contenus_v2(
+    manifeste: dict, chemin: Path, identifiant: str, entree: dict
+) -> set[str]:
     """V2 : un registre d'artefacts scellé, déjà dédupliqué."""
     quoi = f"release {identifiant}"
     attendus = _compte_declare(manifeste, "unique_artifacts", quoi)
@@ -281,10 +283,82 @@ def _contenus_v2(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
             f"{quoi} : {len(contenus)} contenu(s) distinct(s) lus contre "
             f"{attendus} déclarés par l'agrégat"
         )
+
+    _croiser_les_placements_v2(manifeste, chemin, registre, contenus, quoi, entree)
     return contenus
 
 
-def _contenus_v1(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
+def _croiser_les_placements_v2(
+    manifeste: dict,
+    chemin: Path,
+    registre: dict,
+    contenus: set[str],
+    quoi: str,
+    entree: dict,
+) -> None:
+    """Les sujets scellés doivent placer EXACTEMENT ce que le registre porte.
+
+    Le registre d'artefacts et l'agrégat peuvent être rescellés ensemble sur
+    un ensemble amputé ; les manifestes de sujet, eux, continuent de placer
+    l'artefact retiré et de déclarer l'ancien sceau du registre. Ne pas les
+    lire laissait donc passer un ensemble plus petit que le périmètre servi.
+    """
+    sujets = manifeste.get("subjects")
+    if not isinstance(sujets, list) or not sujets:
+        raise PromotedContentSetError(
+            f"{quoi} : aucun sujet — une release qui sert n'est pas vide"
+        )
+    _exiger_les_collections(sujets, entree, quoi)
+
+    base = chemin.parent
+    places: set[str] = set()
+    for sujet in sujets:
+        if not isinstance(sujet, dict):
+            raise PromotedContentSetError(
+                f"{quoi} : une entrée de sujet est {type(sujet).__name__}, pas un objet"
+            )
+        nom = str(sujet.get("collection", sujet.get("path", "?")))
+        ou = f"{quoi}, sujet {nom}"
+        octets = _lire_gouverne(base / str(sujet["path"]), ou)
+        _sceau_verifie(octets, sujet.get("sha256"), ou)
+        charge = _charge_objet(octets, ou)
+
+        # Le sujet déclare le sceau du registre d'artefacts qu'il suppose.
+        propre = charge.get("artifact_registry")
+        if not isinstance(propre, dict) or propre.get("sha256") != registre.get("sha256"):
+            raise PromotedContentSetError(
+                f"{ou} : suppose le registre d'artefacts "
+                f"{str((propre or {}).get('sha256'))[:16]}… quand l'agrégat porte "
+                f"{str(registre.get('sha256'))[:16]}…"
+            )
+
+        placements = charge.get("placements")
+        if not isinstance(placements, list) or not placements:
+            raise PromotedContentSetError(f"{ou} : aucun placement")
+        if len(placements) != _compte_declare(charge, "placements", ou):
+            raise PromotedContentSetError(
+                f"{ou} : {len(placements)} placement(s) lus contre "
+                f"{charge['expected_counts']['placements']} qu'il déclare"
+            )
+        for placement in placements:
+            if not isinstance(placement, dict) or "artifact_id" not in placement:
+                raise PromotedContentSetError(
+                    f"{ou} : un placement ne porte pas d'artifact_id"
+                )
+            places.add(str(placement["artifact_id"]))
+
+    orphelins = sorted(places - contenus)
+    if orphelins:
+        raise PromotedContentSetError(
+            f"{quoi} : {len(orphelins)} artefact(s) placé(s) par un sujet et "
+            "absent(s) du registre d'artefacts : "
+            + ", ".join(sha[:16] + "…" for sha in orphelins[:3])
+        )
+
+
+def _contenus_v1(
+    manifeste: dict, chemin: Path, identifiant: str, entree: dict
+) -> set[str]:
     """V1 : les artefacts sont énumérés sujet par sujet, avec répétitions."""
     quoi = f"release {identifiant}"
     sujets = manifeste.get("subjects")
@@ -293,6 +367,7 @@ def _contenus_v1(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
             f"{quoi} : aucun sujet — une release qui sert n'est pas vide"
         )
     attendues = _compte_declare(manifeste, "artifacts", quoi)
+    _exiger_les_collections(sujets, entree, quoi)
 
     base = chemin.parent
     contenus: set[str] = set()
@@ -329,6 +404,31 @@ def _contenus_v1(manifeste: dict, chemin: Path, identifiant: str) -> set[str]:
             f"{attendues} déclarées — lecture tronquée ou manifeste incohérent"
         )
     return contenus
+
+
+def _exiger_les_collections(sujets: list, entree: dict, quoi: str) -> None:
+    """Le registre déclare les collections que la release SERT.
+
+    Sans cette confrontation, une release amputée d'un sujet — comptes et
+    sceaux refaits — était acceptée, alors que le registre continue de
+    déclarer la collection disparue active. L'ensemble promu rétrécissait
+    donc sur un périmètre que l'autorité dit toujours servi.
+    """
+    declarees = entree.get("collections")
+    if declarees is None:
+        return
+    if not isinstance(declarees, list) or not declarees:
+        raise PromotedContentSetError(f"{quoi} : collections déclarées illisibles")
+    portees = {str(s.get("collection")) for s in sujets if isinstance(s, dict)}
+    manquantes = sorted(set(map(str, declarees)) - portees)
+    surplus = sorted(portees - set(map(str, declarees)))
+    if manquantes or surplus:
+        raise PromotedContentSetError(
+            f"{quoi} : le registre déclare {len(declarees)} collection(s) et la "
+            f"release en porte {len(portees)}"
+            + (f" — absentes : {', '.join(manquantes[:3])}" if manquantes else "")
+            + (f" — en trop : {', '.join(surplus[:3])}" if surplus else "")
+        )
 
 
 def _contenus_des_artefacts(artefacts: list, quoi: str) -> set[str]:
