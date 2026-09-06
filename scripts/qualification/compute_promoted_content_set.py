@@ -329,6 +329,16 @@ def _croiser_les_placements_v2(
         octets = _lire_gouverne(base / str(sujet["path"]), ou)
         _sceau_verifie(octets, sujet.get("sha256"), ou)
         charge = _charge_objet(octets, ou)
+        # Le descripteur annonce la collection ; le manifeste la déclare. Ne
+        # pas les lier laissait deux descripteurs pointer le MÊME manifeste :
+        # l'ensemble des collections restait complet en apparence, et un
+        # périmètre était servi deux fois pendant qu'un autre disparaissait.
+        portee = charge.get("collection")
+        if portee is not None and str(portee) != nom:
+            raise PromotedContentSetError(
+                f"{ou} : le descripteur annonce {nom!r} et le manifeste "
+                f"déclare {str(portee)!r}"
+            )
 
         # Le sujet déclare le sceau du registre d'artefacts qu'il suppose.
         propre = charge.get("artifact_registry")
@@ -412,6 +422,16 @@ def _contenus_v1(
         octets = _lire_gouverne(base / str(sujet["path"]), ou)
         _sceau_verifie(octets, sujet.get("sha256"), ou)
         charge = _charge_objet(octets, ou)
+        # Le descripteur annonce la collection ; le manifeste la déclare. Ne
+        # pas les lier laissait deux descripteurs pointer le MÊME manifeste :
+        # l'ensemble des collections restait complet en apparence, et un
+        # périmètre était servi deux fois pendant qu'un autre disparaissait.
+        portee = charge.get("collection")
+        if portee is not None and str(portee) != nom:
+            raise PromotedContentSetError(
+                f"{ou} : le descripteur annonce {nom!r} et le manifeste "
+                f"déclare {str(portee)!r}"
+            )
         artefacts = charge.get("artifacts")
         if not isinstance(artefacts, list) or not artefacts:
             raise PromotedContentSetError(f"{ou} : aucun artefact")
@@ -425,7 +445,19 @@ def _contenus_v1(
                 f"{ou} : {len(artefacts)} artefact(s) lus contre "
                 f"{charge['expected_counts']['artifacts']} qu'il déclare"
             )
-        contenus |= _contenus_des_artefacts(artefacts, ou)
+        propres = _contenus_des_artefacts(artefacts, ou)
+        # Un sujet V1 ne déclare pas de compte de contenus DISTINCTS : sans
+        # cette garde, remplacer un artefact unique par un doublon d'un autre
+        # préserve son compte d'occurrences ET celui de l'agrégat, tandis que
+        # l'ensemble promu rétrécit en silence. Vérifié : aucun sujet réel ne
+        # porte de doublon interne.
+        if len(propres) != len(artefacts):
+            raise PromotedContentSetError(
+                f"{ou} : {len(artefacts)} artefact(s) pour {len(propres)} "
+                "contenu(s) distinct(s) — un sujet ne référence pas deux fois "
+                "le même contenu"
+            )
+        contenus |= propres
         occurrences += len(artefacts)
 
     if occurrences != attendues:
