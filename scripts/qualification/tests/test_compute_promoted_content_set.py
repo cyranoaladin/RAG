@@ -454,12 +454,18 @@ def test_un_content_sha256_qui_n_en_est_pas_un_est_refuse(
 # --- les deux formes de release ----------------------------------------
 
 
-def _seed_v2(tmp_path: Path, *, uniques: int | None = 3) -> Path:
+def _seed_v2(
+    tmp_path: Path, *, uniques: int | None = 3, propre: int | None = None
+) -> Path:
     """Une lignée V2 : registre d'artefacts SCELLÉ, déjà dédupliqué."""
     base = tmp_path / "prerentree_2026_2027"
     artefacts = _write(
         base / "profile_gate" / "artifacts.release.json",
-        {"artifacts": [{"content_sha256": s} for s in (SHA_A, SHA_B, SHA_SHARED)]},
+        {
+            "release_kind": "MULTILEVEL_ARTIFACT_REGISTRY_V2",
+            "expected_counts": {"unique_artifacts": propre if propre is not None else 3},
+            "artifacts": [{"content_sha256": s} for s in (SHA_A, SHA_B, SHA_SHARED)],
+        },
     )
     release = _write(
         base / "profile_gate" / "production.release.json",
@@ -507,9 +513,35 @@ def test_le_registre_d_artefacts_v2_est_confronte_a_son_sceau(tmp_path: Path) ->
         collect_promoted_content_set(registre)
 
 
-def test_un_compte_v2_qui_ne_correspond_pas_est_refuse(tmp_path: Path) -> None:
-    with pytest.raises(PromotedContentSetError, match="contre 9 déclarés"):
+def test_un_compte_v2_de_l_agregat_qui_ne_correspond_pas_est_refuse(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(PromotedContentSetError, match="déclarés par l'agrégat"):
         collect_promoted_content_set(_seed_v2(tmp_path, uniques=9))
+
+
+def test_le_registre_d_artefacts_v2_doit_tenir_son_PROPRE_compte(
+    tmp_path: Path,
+) -> None:
+    """Ne confronter qu'au compte de l'agrégat laissait passer un registre
+    tronqué dont on aurait rescellé l'agrégat : les deux comptes doivent
+    tomber juste, faute de quoi l'un des deux ment."""
+    with pytest.raises(PromotedContentSetError, match="qu'il déclare"):
+        collect_promoted_content_set(_seed_v2(tmp_path, propre=9))
+
+
+def test_une_nature_de_release_annoncee_et_dementie_est_refusee(
+    tmp_path: Path,
+) -> None:
+    """Le registre DÉCLARE la nature de chaque release. Se fier au seul
+    manifeste laisserait une lignée dont le registre annonce V1 et dont le
+    fichier est V2 produire un ensemble que le runtime, lui, refusera."""
+    registre = _seed_v2(tmp_path)
+    donnees = json.loads(registre.read_text(encoding="utf-8"))
+    donnees["releases"][0]["release_kind"] = "MULTILEVEL_AGGREGATE_RELEASE_V1"
+    _write(registre, donnees)
+    with pytest.raises(PromotedContentSetError, match="le registre annonce"):
+        collect_promoted_content_set(registre)
 
 
 def test_un_release_kind_inconnu_est_refuse(tmp_path: Path) -> None:
@@ -528,12 +560,20 @@ def test_un_release_kind_inconnu_est_refuse(tmp_path: Path) -> None:
 
 
 @pytest.mark.racine_propre
-def test_les_deux_formes_reelles_rendent_le_meme_ensemble() -> None:
-    """Sur le dépôt RÉEL : la V1 canonique et la V2 de répétition décrivent le
-    même ensemble promu par des structures entièrement différentes — l'une
-    énumère sujet par sujet avec répétitions, l'autre porte un registre déjà
-    dédupliqué. L'égalité de leurs empreintes est la corroboration la plus
-    forte que le gate lit la même chose des deux côtés."""
+def test_chaque_lignee_reelle_du_depot_est_lisible_et_coherente() -> None:
+    """Toutes les lignées versionnées sont lues, quelle que soit leur forme.
+
+    Deux pièges évités. Nommer en dur le répertoire haché d'une répétition
+    ferait taire l'épreuve à la répétition suivante — un `skip` silencieux est
+    la manière dont une corroboration cesse d'exister sans que personne ne le
+    voie. Et comparer la V1 promue à une candidate de répétition ferait échouer
+    l'épreuve sur une divergence LÉGITIME de contenu, sans aucun défaut de
+    code : ce sont deux jeux qui évoluent séparément.
+
+    Ce qui est donc éprouvé est la propriété qui vaut pour toutes : chaque
+    registre versionné se lit de bout en bout, ses sceaux tombent juste, ses
+    comptes déclarés correspondent, et il rend un ensemble non vide.
+    """
     racine = (
         Path(__file__).resolve().parents[3]
         / "services"
@@ -541,14 +581,14 @@ def test_les_deux_formes_reelles_rendent_le_meme_ensemble() -> None:
         / "data"
         / "releases"
     )
-    v1 = racine / "prerentree_2026_2027" / "release-registry.json"
-    v2 = (
-        racine
-        / "prerentree_2026_2027"
-        / "rehearsal_v2"
-        / "release-1d756b6243ecb16f"
-        / "release-registry.json"
-    )
-    if not (v1.is_file() and v2.is_file()):
-        pytest.skip("lignées réelles absentes de ce checkout")
-    assert collect_promoted_content_set(v1) == collect_promoted_content_set(v2)
+    registres = sorted(racine.rglob("release-registry.json"))
+    assert registres, "aucune lignée versionnée : la corroboration n'aurait pas lieu"
+
+    for registre in registres:
+        contenus = collect_promoted_content_set(registre)
+        assert contenus, registre.as_posix()
+        assert all(_est_un_sha256(sha) for sha in contenus), registre.as_posix()
+
+
+def _est_un_sha256(valeur: str) -> bool:
+    return len(valeur) == 64 and all(c in "0123456789abcdef" for c in valeur)
