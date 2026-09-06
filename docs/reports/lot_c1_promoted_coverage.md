@@ -72,6 +72,36 @@ Ce fichier ne fait donc plus que deux choses que le chargeur ne peut pas faire
 son empreinte externe : la qualification du `FULL_GO_LIVE_CANDIDATE`
 réutilisera ce script tel quel, sans réécriture.
 
+### L'autorité de déploiement
+
+Le chemin hôte (`RAG_RELEASE_REGISTRY_HOST_DIR`) est un **locator de
+transport** : il change d'une machine à l'autre, et staging comme production
+peuvent monter des répertoires différents. L'**autorité sémantique** est le
+couple identité + empreinte : deux stacks servent la même lignée si et
+seulement si elles servent les mêmes octets.
+
+Cette règle vivait dans un seul consommateur — le runtime. C1 l'a d'abord
+réimplémentée, et réimplémentée **faux** : il acceptait un chemin sans
+empreinte que le runtime refuse, et calculait alors l'empreinte lui-même, ce
+qui fait du fichier observé sa propre autorité. Elle est désormais énoncée une
+seule fois, dans `nexus_release_chain.deployment_binding` :
+
+| `PATH` | `SHA256` | Verdict |
+|---|---|---|
+| absent | absent | politique par défaut de l'appelant |
+| présent | présent | lignée épinglée, chemin **et** octets |
+| présent | absent | **refus** |
+| absent | présent | **refus** |
+
+En mode déploiement, C1 n'auto-hache jamais : l'empreinte est exigée telle
+qu'elle est transmise. En mode dépôt — aucun déploiement ne parle — le
+registre *est* l'autorité d'entrée, et le bornage à la racine gouvernée en est
+la garde.
+
+Le filtre du workflow couvre en conséquence `services/rag-engine/infra/**` :
+un changement de montage sans déclenchement laisserait C1 vert sur l'ancien
+corpus.
+
 ### Le gate anti-divergence
 
 Pour **chaque** lignée versionnée du dépôt, découverte par parcours et non

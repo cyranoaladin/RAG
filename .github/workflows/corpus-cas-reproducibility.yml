@@ -31,6 +31,10 @@ name: Corpus CAS reproducibility (C1)
       - "packages/release-chain/**"
       - "packages/contracts/**"
       - "packages/pdf-page-policy/**"
+      # Le câblage de déploiement décide QUEL registre est monté et contre
+      # quelle empreinte il est vérifié. Un changement de montage sans
+      # déclenchement laisserait C1 vert sur l'ancien corpus.
+      - "services/rag-engine/infra/**"
       - "docs/reports/evidence-index/pii_review_index_20260903.json"
       - ".github/workflows/corpus-cas-reproducibility.yml"
   workflow_dispatch: {}
