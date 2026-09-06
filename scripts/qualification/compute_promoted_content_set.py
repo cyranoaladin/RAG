@@ -36,6 +36,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -46,6 +47,19 @@ from nexus_release_chain.release_readiness import (  # noqa: E402
     load_release_registry_file,
 )
 from verify_corpus_cas import content_set_digest  # noqa: E402
+
+#: Variables par lesquelles un DÉPLOIEMENT désigne le registre qu'il sert.
+#: Ce sont celles que le runtime lit (`retrieval_v2_endpoint`), et non un
+#: second câblage : sans elles, une stack pointée ailleurs par
+#: `RAG_RELEASE_REGISTRY_HOST_DIR` verrait C1 qualifier l'ancien registre et
+#: rendre vert sur un périmètre que personne ne sert.
+REGISTRY_PATH_ENV = "RAG_RELEASE_REGISTRY_PATH"
+REGISTRY_SHA256_ENV = "RAG_RELEASE_REGISTRY_SHA256"
+
+#: Racine gouvernée, quand le registre vient d'un déploiement. La borne reste
+#: exercée — mais contre la racine de CE déploiement, pas contre celle du
+#: dépôt, qu'un conteneur ne connaît pas.
+GOVERNED_ROOT_ENV = "NEXUS_C1_GOVERNED_ROOT"
 
 #: Registre canonique de l'année scolaire servie. C'est un DÉFAUT, pas une
 #: vérité en dur : `--release-registry` permet de qualifier une candidate
@@ -70,6 +84,24 @@ class PromotedContentSetError(RuntimeError):
     """L'ensemble promu n'est pas celui que les autorités déclarent — refus."""
 
 
+def _racine_gouvernee() -> Path:
+    """La racine contre laquelle borner, telle que le déploiement la déclare."""
+    declaree = os.environ.get(GOVERNED_ROOT_ENV)
+    if declaree:
+        return Path(declaree)
+    return GOVERNED_ROOT
+
+
+def registre_du_deploiement() -> tuple[Path | None, str | None]:
+    """Le registre que la stack SERT, s'il en désigne un.
+
+    Un déploiement peut monter un autre registre. Lire les mêmes variables que
+    le runtime évite que C1 qualifie une lignée pendant qu'une autre est
+    servie."""
+    chemin = os.environ.get(REGISTRY_PATH_ENV)
+    return (Path(chemin) if chemin else None, os.environ.get(REGISTRY_SHA256_ENV))
+
+
 def _borner(chemin: Path) -> Path:
     """Prouve que le registre est DANS le périmètre gouverné, avant lecture.
 
@@ -77,7 +109,7 @@ def _borner(chemin: Path) -> Path:
     refusés. Un lien vers l'extérieur est déjà attrapé par la borne de racine ;
     un lien INTERNE ne l'est pas — sa résolution reste à l'intérieur — et
     seule l'inspection de chaque composant le voit."""
-    ancre = GOVERNED_ROOT.resolve(strict=False)
+    ancre = _racine_gouvernee().resolve(strict=False)
     resolu = chemin.resolve(strict=False)
     try:
         resolu.relative_to(ancre)
@@ -154,10 +186,11 @@ def collect_promoted_collections(
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    depuis_deploiement, sceau_deploiement = registre_du_deploiement()
     parser.add_argument(
         "--release-registry",
         type=Path,
-        default=DEFAULT_REGISTRY,
+        default=depuis_deploiement or DEFAULT_REGISTRY,
         help=(
             "registre désignant les releases actives ; le registre figé d'une "
             "candidate permet de qualifier celle-ci sans réécrire ce script"
@@ -165,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--release-registry-sha256",
-        default=None,
+        default=sceau_deploiement,
         help="empreinte externe du registre, quand une candidate figée en fournit une",
     )
     parser.add_argument("--output", type=Path, required=True)

@@ -227,3 +227,45 @@ def test_le_chargeur_du_service_ne_derive_pas_de_l_autorite_canonique() -> None:
         "qualifierait alors un périmètre que le runtime ne sert pas de la "
         "même façon"
     )
+
+
+# --- C1 qualifie le registre que le DÉPLOIEMENT sert -------------------
+
+
+def test_le_registre_du_deploiement_prime_sur_le_defaut(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une stack peut monter un autre registre via
+    `RAG_RELEASE_REGISTRY_HOST_DIR`. C1 lit les MÊMES variables que le runtime
+    — un second câblage laisserait C1 qualifier une lignée pendant qu'une
+    autre est servie, et rendre vert sur un périmètre que personne ne sert.
+    """
+    import compute_promoted_content_set as module
+
+    autre = (
+        GOVERNED_ROOT / "prerentree_2026_2027" / "rehearsal_v2"
+        / "release-1d756b6243ecb16f" / "release-registry.json"
+    )
+    if not autre.is_file():
+        pytest.skip("seconde lignée absente de ce checkout")
+
+    monkeypatch.setenv(module.REGISTRY_PATH_ENV, str(autre))
+    chemin, _sceau = module.registre_du_deploiement()
+    assert chemin == autre
+
+    monkeypatch.delenv(module.REGISTRY_PATH_ENV, raising=False)
+    assert module.registre_du_deploiement() == (None, None)
+
+
+def test_la_racine_gouvernee_suit_le_deploiement(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La borne reste exercée, mais contre la racine de CE déploiement : un
+    conteneur ne connaît pas celle du dépôt."""
+    import compute_promoted_content_set as module
+
+    monkeypatch.setenv(module.GOVERNED_ROOT_ENV, str(tmp_path))
+    dehors = tmp_path.parent / "ailleurs.json"
+    dehors.write_text("{}", encoding="utf-8")
+    with pytest.raises(PromotedContentSetError, match="hors de la racine gouvernée"):
+        module.collect_promoted_content_set(dehors)
