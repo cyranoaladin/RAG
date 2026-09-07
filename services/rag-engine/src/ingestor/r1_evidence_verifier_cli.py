@@ -11,6 +11,11 @@ import json
 import sys
 from pathlib import Path
 
+from ingestor.atomic_artifact import (
+    AtomicArtifactError,
+    assert_publishable,
+    publish_atomic_no_clobber,
+)
 from ingestor.r1_evidence_verifier import R1EvidenceVerifierError, verify_r1_evidence
 
 
@@ -46,6 +51,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    if args.out is not None:
+        try:
+            assert_publishable(args.out)
+        except AtomicArtifactError as exc:
+            print(f"R1_EVIDENCE_VERIFIER_ERROR={exc}", file=sys.stderr)
+            return 2
+
     try:
         report = verify_r1_evidence(
             bootstrap_path=args.bootstrap,
@@ -61,7 +73,11 @@ def main(argv: list[str] | None = None) -> int:
     payload = report.to_json()
     serialized = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False)
     if args.out is not None:
-        args.out.write_text(serialized + "\n", encoding="utf-8")
+        try:
+            publish_atomic_no_clobber(args.out, (serialized + "\n").encode("utf-8"))
+        except AtomicArtifactError as exc:
+            print(f"R1_EVIDENCE_VERIFIER_ERROR={exc}", file=sys.stderr)
+            return 2
     else:
         print(serialized)
 
