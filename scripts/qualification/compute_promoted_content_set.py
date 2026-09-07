@@ -43,6 +43,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from nexus_release_chain.deployment_binding import (  # noqa: E402
+    REGISTRY_PATH_ENV,
     DeploymentBindingError,
     configured_release_registry,
 )
@@ -102,6 +103,25 @@ def racine_gouvernee_pour(mode: str, registre: Path) -> Path:
     if declaree:
         return Path(declaree)
     if mode == MODE_DEPLOYMENT:
+        # La racine est DÉRIVÉE du chemin : elle ne peut donc pas servir de
+        # borne si ce chemin sait remonter. `/app/release/../../etc/r.json`
+        # aurait donné la racine `/etc`, et le bornage — comme la marche qui
+        # cherche les liens symboliques, qui s'arrête à la racine — aurait été
+        # vrai par construction. Une borne dérivée d'une valeur que la borne
+        # est censée contrôler ne contrôle rien.
+        if not registre.is_absolute():
+            raise PromotedContentSetError(
+                f"{REGISTRY_PATH_ENV} : {registre.as_posix()} n'est pas absolu — "
+                "un déploiement désigne un chemin monté, pas un chemin relatif "
+                "au répertoire courant du processus"
+            )
+        if ".." in registre.parts:
+            raise PromotedContentSetError(
+                f"{REGISTRY_PATH_ENV} : {registre.as_posix()} remonte hors de "
+                "son propre répertoire — la racine gouvernée en serait dérivée, "
+                "et la borne serait vraie par construction. Déclarez "
+                f"{GOVERNED_ROOT_ENV} si le montage est ailleurs."
+            )
         return registre.parent
     return GOVERNED_ROOT
 

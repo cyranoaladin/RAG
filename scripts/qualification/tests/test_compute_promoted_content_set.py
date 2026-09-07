@@ -510,6 +510,50 @@ class TestLaRacineGouverneeSuitLeModeDeDeploiement:
             MODE_DEPLOYMENT, registre, monkeypatch, declaree=tmp_path
         ) == tmp_path
 
+    def test_un_chemin_de_deploiement_qui_remonte_est_refuse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """La borne ne peut pas être dérivée de ce qu'elle contrôle.
+
+        `/app/release/../../etc/r.json` aurait donné la racine `/etc` : le
+        bornage, et la marche qui cherche les liens symboliques — qui s'arrête
+        à la racine — auraient été vrais par construction.
+        """
+        from compute_promoted_content_set import MODE_DEPLOYMENT, PromotedContentSetError
+
+        with pytest.raises(PromotedContentSetError, match="remonte hors de"):
+            self._racine(
+                MODE_DEPLOYMENT,
+                Path("/app/release/../../etc/release-registry.json"),
+                monkeypatch,
+            )
+
+    def test_un_chemin_de_deploiement_relatif_est_refuse(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Un déploiement désigne un chemin monté, pas un chemin relatif au
+        répertoire courant du processus — qui n'est pas le sien."""
+        from compute_promoted_content_set import MODE_DEPLOYMENT, PromotedContentSetError
+
+        with pytest.raises(PromotedContentSetError, match="n'est pas absolu"):
+            self._racine(MODE_DEPLOYMENT, Path("release/r.json"), monkeypatch)
+
+    def test_une_racine_declaree_accepte_un_chemin_qui_remonte_car_elle_borne(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """Le refus vise la racine DÉRIVÉE, pas le chemin en soi.
+
+        Quand la racine est déclarée, elle borne réellement : un chemin qui
+        remonte hors d'elle est attrapé par `_borner`, à sa place."""
+        from compute_promoted_content_set import MODE_DEPLOYMENT
+
+        assert self._racine(
+            MODE_DEPLOYMENT,
+            Path("/app/release/../autre/r.json"),
+            monkeypatch,
+            declaree=tmp_path,
+        ) == tmp_path
+
     def test_les_modes_du_depot_restent_bornes_a_la_racine_des_releases(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
