@@ -180,6 +180,8 @@ def test_preflight_fails_on_release_registry_digest_mismatch(
 
 
 def test_preflight_fails_when_evidence_dir_is_inside_the_repo(git_repo: Path) -> None:
+    forbidden_evidence_dir = git_repo / "evidence"
+
     head = _head(git_repo)
 
     result = r1_attempt_preflight_cli.main(
@@ -189,10 +191,38 @@ def test_preflight_fails_when_evidence_dir_is_inside_the_repo(git_repo: Path) ->
             "--qualified-exporter-commit",
             head,
             "--evidence-dir",
-            str(git_repo / "evidence"),
+            str(forbidden_evidence_dir),
         ]
     )
     assert result == 2
+    assert not forbidden_evidence_dir.exists()
+
+
+def test_forbidden_evidence_dir_is_never_created_even_as_an_empty_directory(
+    git_repo: Path,
+) -> None:
+    """R1F Section 6: filesystem mutation is a consequence of
+    authorization, never a side effect of merely attempting it -- a
+    forbidden evidence directory (here, several levels deep and entirely
+    nonexistent beforehand) must never be ``mkdir``'d, not even empty,
+    while any preflight gate is still failing."""
+    forbidden_evidence_dir = git_repo / "nested" / "does" / "not" / "exist" / "evidence"
+    assert not forbidden_evidence_dir.parent.exists()
+
+    result = r1_attempt_preflight_cli.main(
+        [
+            "--repo-root",
+            str(git_repo),
+            "--qualified-exporter-commit",
+            "0" * 40,  # deliberately wrong, so preflight fails before evidence-dir checks
+            "--evidence-dir",
+            str(forbidden_evidence_dir),
+        ]
+    )
+
+    assert result == 2
+    assert not forbidden_evidence_dir.exists()
+    assert not forbidden_evidence_dir.parent.exists()
 
 
 def test_second_invocation_without_explicit_attempt_id_gets_distinct_paths(
@@ -250,6 +280,81 @@ def test_test_only_attempt_id_help_text_warns_against_real_use(
     with pytest.raises(SystemExit):
         r1_attempt_preflight_cli.main(["--help"])
     assert "TEST-ONLY" in capsys.readouterr().out
+
+
+def test_print_state_path_only_prints_nothing_but_the_path_on_success(
+    git_repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    head = _head(git_repo)
+    evidence_dir = tmp_path / "evidence"
+
+    result = r1_attempt_preflight_cli.main(
+        [
+            "--repo-root",
+            str(git_repo),
+            "--qualified-exporter-commit",
+            head,
+            "--evidence-dir",
+            str(evidence_dir),
+            "--print-state-path-only",
+        ]
+    )
+
+    assert result == 0
+    captured = capsys.readouterr()
+    assert captured.err == ""
+    lines = captured.out.splitlines()
+    assert len(lines) == 1
+    state_path = Path(lines[0])
+    assert state_path.is_file()
+    assert load_attempt_state(state_path).qualified_exporter_commit == head
+
+
+def test_print_state_path_only_prints_nothing_to_stdout_on_failure(
+    git_repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = r1_attempt_preflight_cli.main(
+        [
+            "--repo-root",
+            str(git_repo),
+            "--qualified-exporter-commit",
+            "0" * 40,
+            "--evidence-dir",
+            str(tmp_path / "evidence"),
+            "--print-state-path-only",
+        ]
+    )
+
+    assert result == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "R1_OPERATOR_FLOW_ERROR=" in captured.err
+
+
+def test_evidence_dir_containing_a_space_succeeds(
+    git_repo: Path, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """R1F Section 8: an evidence directory is a filesystem path, not an
+    identifier -- an ordinary space must remain valid."""
+    head = _head(git_repo)
+    evidence_dir = tmp_path / "R1 evidence" / "sub dir"
+
+    result = r1_attempt_preflight_cli.main(
+        [
+            "--repo-root",
+            str(git_repo),
+            "--qualified-exporter-commit",
+            head,
+            "--evidence-dir",
+            str(evidence_dir),
+            "--print-state-path-only",
+        ]
+    )
+
+    assert result == 0
+    state_path = Path(capsys.readouterr().out.strip())
+    assert state_path.is_file()
+    assert load_attempt_state(state_path).qualified_exporter_commit == head
 
 
 def test_actual_cli_refuses_a_qualified_commit_mismatch_across_a_real_subprocess_boundary(

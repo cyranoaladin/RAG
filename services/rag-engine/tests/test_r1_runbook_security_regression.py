@@ -1,17 +1,21 @@
-"""R1C/R1D/R1E — the canonical R1 runbook must never regress on operator
-security discipline: not on the R1D fix for the subshell variable-
-continuity bug (a real shell semantics bug the R1C runbook demonstrated:
-variables assigned inside a subshell do not propagate to its parent), and
-not on the R1E fix for the `eval` hand-off R1D introduced while fixing that
-(a real shell semantics bug of its own: `eval` executes its argument as
-shell code, so any Phase-A-printed value containing shell metacharacters
-becomes arbitrary command execution). Deliberately narrow, literal checks
-(not a broad credential regex, which would false-positive on this file's
-own harmless prose about DSNs) so this test stays meaningful rather than
+"""R1C/R1D/R1E/R1F — the canonical R1 runbook must never regress on
+operator security discipline: not on the R1D fix for the subshell
+variable-continuity bug (a real shell semantics bug the R1C runbook
+demonstrated: variables assigned inside a subshell do not propagate to its
+parent), not on the R1E fix for the `eval` hand-off R1D introduced while
+fixing that (a real shell semantics bug of its own: `eval` executes its
+argument as shell code, so any Phase-A-printed value containing shell
+metacharacters becomes arbitrary command execution), and not on the R1F
+fix for the `grep`/`cut` capture pipeline R1E introduced while fixing
+*that* (a pipeline's exit code is its last stage's, so a failed Phase A
+whose output simply didn't match the `grep` could still be captured as an
+empty, "successful" value). Deliberately narrow, literal checks (not a
+broad credential regex, which would false-positive on this file's own
+harmless prose about DSNs) so this test stays meaningful rather than
 brittle. These checks cannot themselves prove the underlying mechanics --
-that is what ``test_r1_export_and_verify_cli.py``'s end-to-end and TOCTOU
-tests prove executably; this file only guards against the runbook's
-*prose* regressing back to either broken shape.
+that is what ``test_r1_export_and_verify_cli.py``'s end-to-end, TOCTOU, and
+canonical-binding tests prove executably; this file only guards against
+the runbook's *prose* regressing back to any of these broken shapes.
 """
 
 from __future__ import annotations
@@ -157,3 +161,52 @@ def test_runbook_documents_revalidation_against_the_live_repository() -> None:
     text = _text()
     assert "revalidate_attempt_state_against_live_repo" in text
     assert "before any database connection" in text.lower() or "before ever opening a database" in text.lower()
+
+
+def test_runbook_never_captures_phase_a_output_through_grep_or_cut() -> None:
+    """R1F: no actual operator-instruction (``bash``) code block may use
+    ``grep``/``cut`` to extract a value from Phase A's stdout -- the final
+    pipeline stage's own exit status can mask a failed Phase A. The
+    reproduction of exactly this danger lives in an illustrative
+    ``console`` block, which this check deliberately does not scan."""
+    for block in _bash_code_blocks(_text()):
+        assert "grep" not in block
+        assert "cut " not in block and not block.rstrip().endswith("cut")
+
+
+def test_runbook_documents_the_capture_pipeline_masking_bug_it_fixed() -> None:
+    """Not merely fixed silently -- the runbook records why a future edit
+    must not reintroduce a pipeline whose last stage can mask Phase A's
+    own exit code."""
+    text = _text()
+    assert "R1_RUNBOOK_CAPTURE_PIPELINE_MASKS_PHASE_A_FAILURE" in text
+    assert "mask" in text.lower()
+
+
+def test_runbook_uses_print_state_path_only_with_exit_code_checked_capture() -> None:
+    """R1F: Phase A's real hand-off must go through ``--print-state-path-only``
+    and a form that checks the actual command's own exit code -- not a
+    pipeline, not ``eval``."""
+    text = _text()
+    assert "--print-state-path-only" in text
+    assert "if !" in text and "; then" in text
+
+
+def test_runbook_documents_evidence_dir_created_only_after_preflight_passes() -> None:
+    """R1F: a forbidden evidence-directory request must never leave even an
+    empty directory behind -- this ordering guarantee must be documented,
+    not merely implemented silently."""
+    text = _text().lower()
+    assert "before this process creates anything on disk" in text
+
+
+def test_runbook_documents_canonical_output_path_and_worktree_rebinding() -> None:
+    """R1F: Phase B's canonical-path re-derivation and its live
+    multi-worktree re-exclusion must both be documented as closing a real
+    self-consistent-redirection gap, not left implicit."""
+    text = _text()
+    assert "canonical" in text.lower()
+    assert "self-consistent" in text.lower()
+    assert "git worktree list --porcelain" in text
+
+
