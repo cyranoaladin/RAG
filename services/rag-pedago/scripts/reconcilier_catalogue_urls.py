@@ -18,6 +18,21 @@ une réconciliation dont personne ne peut dire sur quoi elle porte.
 Il ne prononce jamais ``VERIFIED_CURRENT`` : le catalogue prouve qu'un SHA
 était lié à une URL, pas que cette URL est encore actuelle. La vérification
 d'actualité est un second gate, sur le réseau, hors de ce script.
+
+Un contenu peut légitimement avoir PLUSIEURS provenances : le même document
+publié sous deux scopes, ou référencé par deux pages institutionnelles. Réduire
+à une URL par artefact perdrait cette information et la remplacerait par un
+choix arbitraire. La sortie porte donc ``1..N`` relations de preuve, chacune
+avec son scope, son objet source, son statut de catalogue et sa ligne d'origine.
+
+``AMBIGUOUS_URL_EVIDENCE`` est réservé à une CONTRADICTION : deux lignes qui
+décrivent la même relation source — même scope, même objet — et lui attribuent
+des URL différentes. Plusieurs URL ne sont pas une ambiguïté ; deux URL pour la
+même relation en sont une.
+
+Le statut de catalogue n'est jamais écrasé : il reste porté par la relation.
+Un contenu peut apparaître sous plusieurs statuts, et choisir par précédence
+arbitraire ferait décider ici ce qui relève de l'autorité de servabilité.
 """
 
 from __future__ import annotations
@@ -57,10 +72,21 @@ SOURCE_AUCUNE = "NONE"
 #: En-têtes acceptés, par rôle. Une liste explicite plutôt qu'une heuristique :
 #: on veut pouvoir dire au refus CE QUI a été cherché.
 COLONNES_EMPREINTE = ("sha256", "content_sha256", "empreinte", "checksum", "hash")
-COLONNES_CHEMIN = ("chemin", "path", "relative_path", "fichier", "file", "filename", "nom_fichier")
-COLONNES_URL_NAVIGATION = ("url", "page_url", "url_page", "source_url", "lien", "url_navigation")
+COLONNES_CHEMIN = (
+    "chemin_technique_existant", "objet_source", "chemin", "path",
+    "relative_path", "fichier", "file", "filename", "nom_fichier",
+)
+COLONNES_URL_NAVIGATION = (
+    "url_source", "url", "page_url", "url_page", "source_url", "lien", "url_navigation",
+)
 COLONNES_URL_DIRECTE = ("download_url", "url_download", "url_directe", "direct_url", "url_fichier")
 COLONNES_IDENTIFIANT = ("id", "row_id", "identifiant", "doc_id", "document_id")
+#: Le contexte d'une relation de provenance : sans lui, deux lignes du même
+#: contenu deviennent indiscernables et « plusieurs URL » se confond avec
+#: « contradiction ».
+COLONNES_SCOPE = ("scope", "perimetre", "scope_source")
+COLONNES_OBJET = ("objet_source", "objet", "cas_locator")
+COLONNES_STATUT = ("statut", "statut_source", "status")
 
 _LIGNE_SHA256 = re.compile(r"\A([0-9a-fA-F]{64})[ \t]+\*?(.+)\Z")
 
@@ -99,15 +125,20 @@ def charger_manifeste_empreintes(chemin: Path) -> dict[str, list[str]]:
 
 def _delimiteur(chemin: Path, entete: str) -> str:
     """Le séparateur, déduit de l'extension puis CONFIRMÉ par l'en-tête."""
-    attendu = "\t" if chemin.suffix.lower() in (".tsv", ".tab") else ","
-    if attendu in entete:
-        return attendu
-    autre = "," if attendu == "\t" else "\t"
-    if autre in entete:
-        return autre
+    # L'extension propose, l'en-tête dispose. Le catalogue réel est un « CSV »
+    # séparé par `;` : croire l'extension produirait une seule colonne portant
+    # toute la ligne, et un refus « aucune colonne d'URL » trompeur.
+    ordre = (
+        ["\t", ";", ","]
+        if chemin.suffix.lower() in (".tsv", ".tab")
+        else [";", ",", "\t"]
+    )
+    for candidat in ordre:
+        if candidat in entete:
+            return candidat
     raise ReconciliationError(
-        f"{chemin.name} : l'en-tête ne porte ni tabulation ni virgule — "
-        "ce fichier n'est pas la table attendue"
+        f"{chemin.name} : l'en-tête ne porte ni tabulation, ni point-virgule, "
+        "ni virgule — ce fichier n'est pas la table attendue"
     )
 
 
@@ -157,14 +188,31 @@ class Catalogue:
         # pour qu'on sache que c'est une position et non une clé.
         return f"{self.chemin.name}#row{index + 1}"
 
-    def urls(self, index: int) -> tuple[str | None, str | None]:
-        ligne = self.lignes[index]
-        navigation = self.colonnes["url_navigation"]
-        directe = self.colonnes["url_directe"]
-        return (
-            (ligne.get(navigation) or "").strip() or None if navigation else None,
-            (ligne.get(directe) or "").strip() or None if directe else None,
-        )
+    def _champ(self, index: int, role: str) -> str | None:
+        colonne = self.colonnes.get(role)
+        if not colonne:
+            return None
+        return (self.lignes[index].get(colonne) or "").strip() or None
+
+    def relation(self, index: int) -> dict[str, object]:
+        """Une relation de provenance ENTIÈRE.
+
+        Le scope et l'objet source ne sont pas décoratifs : sans eux, deux
+        lignes du même contenu deviennent indiscernables, et « plusieurs
+        provenances légitimes » se confond avec « contradiction »."""
+        return {
+            # L'empreinte que porte la LIGNE, distincte de celle qu'on
+            # cherchait : c'est elle qui révèle une jointure par chemin qui a
+            # ramené un autre document.
+            "row_content_sha256": (self._champ(index, "empreinte") or "").lower() or None,
+            "url_source": self._champ(index, "url_navigation"),
+            "direct_url": self._champ(index, "url_directe"),
+            "scope": self._champ(index, "scope"),
+            "objet_source": self._champ(index, "objet"),
+            "catalogue_status": self._champ(index, "statut"),
+            "evidence_file": self.chemin.name,
+            "evidence_row": self.identifiant(index),
+        }
 
 
 def charger_catalogue(chemin: Path) -> Catalogue:
@@ -174,7 +222,9 @@ def charger_catalogue(chemin: Path) -> Catalogue:
     cherché et ce qui a été vu : un catalogue sans URL n'est pas un catalogue
     d'URL, et le lire quand même ne produirait que des lignes vides.
     """
-    texte = chemin.read_text(encoding="utf-8", errors="strict")
+    # `utf-8-sig` : le catalogue réel porte une marque d'ordre d'octets, qui
+    # collerait au premier en-tête et le rendrait introuvable.
+    texte = chemin.read_text(encoding="utf-8-sig", errors="strict")
     premiere = texte.split("\n", 1)[0]
     lecteur = csv.DictReader(texte.splitlines(), delimiter=_delimiteur(chemin, premiere))
     entetes = list(lecteur.fieldnames or [])
@@ -186,6 +236,9 @@ def charger_catalogue(chemin: Path) -> Catalogue:
         "url_navigation": _colonne(entetes, COLONNES_URL_NAVIGATION),
         "url_directe": _colonne(entetes, COLONNES_URL_DIRECTE),
         "identifiant": _colonne(entetes, COLONNES_IDENTIFIANT),
+        "scope": _colonne(entetes, COLONNES_SCOPE),
+        "objet": _colonne(entetes, COLONNES_OBJET),
+        "statut": _colonne(entetes, COLONNES_STATUT),
     }
     if not colonnes["url_navigation"] and not colonnes["url_directe"]:
         raise ReconciliationError(
@@ -207,9 +260,13 @@ def reconcilier(
     catalogues: Sequence[Catalogue],
     manifestes: Mapping[str, list[str]],
 ) -> dict[str, object]:
-    """Rend une disposition par relation, et le compte de chacune."""
+    """Rend, par relation du handoff, ses 1..N preuves d'URL et sa disposition."""
     resultats: list[dict[str, object]] = []
     comptes: dict[str, int] = dict.fromkeys(DISPOSITIONS, 0)
+    urls_distinctes: set[str] = set()
+    paires: set[tuple[str, str]] = set()
+    multi_statut: list[dict[str, object]] = []
+    non_indexables_en_attente = 0
 
     for relation in relations:
         empreinte = str(relation.get("content_sha256") or "")
@@ -217,26 +274,20 @@ def reconcilier(
             "artifact_id": relation.get("artifact_id"),
             "drive_file_id": relation.get("drive_file_id"),
             "content_sha256": relation.get("content_sha256"),
+            "source_role": relation.get("source_role"),
+            "serving_relevance": relation.get("serving_relevance"),
             "catalogue_match": False,
             "manifest_match": False,
-            "navigation_url": None,
-            "direct_url": None,
+            "url_evidence": [],
+            "distinct_urls": 0,
+            "catalogue_statuses": [],
             "evidence_source": SOURCE_AUCUNE,
-            "evidence_row_id": None,
             "disposition": DISPOSITION_ABSENTE,
         }
 
-        if relation.get("serving_relevance") == "NON_INDEXABLE":
-            # Un document non indexable n'aura aucune citation à porter. C'est
-            # une disposition assumée, pas une absence de preuve.
-            sortie["disposition"] = DISPOSITION_SANS_OBJET
-            comptes[DISPOSITION_SANS_OBJET] += 1
-            resultats.append(sortie)
-            continue
-
         if len(empreinte) != 64:
             sortie["disposition"] = DISPOSITION_ERREUR
-            sortie["evidence_row_id"] = "content_sha256 absente ou malformée"
+            sortie["error_detail"] = "content_sha256 absente ou malformée"
             comptes[DISPOSITION_ERREUR] += 1
             resultats.append(sortie)
             continue
@@ -245,63 +296,116 @@ def reconcilier(
         sortie["manifest_match"] = bool(chemins)
 
         # 1. La jointure la plus forte : l'empreinte, portée par le catalogue.
-        candidats: list[tuple[Catalogue, int, str]] = []
+        trouvees: list[tuple[Catalogue, int, str]] = []
         for catalogue in catalogues:
             for index in catalogue.par_empreinte.get(empreinte, []):
-                candidats.append((catalogue, index, SOURCE_JOINTURE_SHA))
+                trouvees.append((catalogue, index, SOURCE_JOINTURE_SHA))
         # 2. À défaut, le chemin — mais SEULEMENT celui que le manifeste
         #    d'empreintes a rendu. Partir du nom de fichier de la relation
         #    serait une jointure lexicale, exactement ce qui est interdit.
-        if not candidats:
+        if not trouvees:
             for chemin in chemins:
                 for catalogue in catalogues:
                     for index in catalogue.par_chemin.get(chemin, []):
-                        candidats.append((catalogue, index, SOURCE_JOINTURE_CHEMIN))
+                        trouvees.append((catalogue, index, SOURCE_JOINTURE_CHEMIN))
                     nom = chemin.rsplit("/", 1)[-1]
                     for index in catalogue.par_chemin.get(nom, []):
-                        candidats.append((catalogue, index, SOURCE_JOINTURE_CHEMIN))
+                        trouvees.append((catalogue, index, SOURCE_JOINTURE_CHEMIN))
 
-        # Deux lignes qui rendent la MÊME url ne sont pas une ambiguïté.
-        distinctes = {}
-        for catalogue, index, source in candidats:
-            distinctes.setdefault(catalogue.urls(index), (catalogue, index, source))
-
-        if not distinctes:
+        if not trouvees:
+            if relation.get("serving_relevance") == "NON_INDEXABLE":
+                # NON_INDEXABLE n'est PAS NOT_APPLICABLE : un objet non
+                # indexable peut quand même exiger provenance, droits et
+                # actualité. Sans autorité métier déclarant sa classe sans URL
+                # pertinente, il reste en attente de preuve.
+                sortie["non_indexable_pending_url_evidence"] = True
+                non_indexables_en_attente += 1
             comptes[DISPOSITION_ABSENTE] += 1
             resultats.append(sortie)
             continue
 
-        sortie["catalogue_match"] = True
-        if len(distinctes) > 1:
-            sortie["disposition"] = DISPOSITION_AMBIGUE
-            sortie["evidence_row_id"] = sorted(
-                catalogue.identifiant(index) for catalogue, index, _ in distinctes.values()
+        # Deux lignes identiques ne sont pas deux preuves.
+        vues: dict[tuple, dict[str, object]] = {}
+        source_jointure = SOURCE_AUCUNE
+        for catalogue, index, source in trouvees:
+            preuve = catalogue.relation(index)
+            cle = (
+                preuve["row_content_sha256"],
+                preuve["url_source"],
+                preuve["direct_url"],
+                preuve["scope"],
+                preuve["objet_source"],
+                preuve["catalogue_status"],
             )
-            comptes[DISPOSITION_AMBIGUE] += 1
-            resultats.append(sortie)
-            continue
+            vues.setdefault(cle, preuve)
+            source_jointure = source if source_jointure == SOURCE_AUCUNE else source_jointure
+        preuves = sorted(
+            vues.values(),
+            key=lambda p: (str(p["scope"] or ""), str(p["url_source"] or ""), str(p["evidence_row"])),
+        )
+        sortie["catalogue_match"] = True
+        sortie["evidence_source"] = source_jointure
+        sortie["url_evidence"] = preuves
 
-        (navigation, directe), (catalogue, index, source) = next(iter(distinctes.items()))
-        if not navigation and not directe:
-            # La ligne existe mais ne porte aucune URL : c'est une absence de
-            # preuve, pas une preuve trouvée.
-            comptes[DISPOSITION_ABSENTE] += 1
-            resultats.append(sortie)
-            continue
-        sortie.update(
+        urls = {str(p["url_source"]) for p in preuves if p["url_source"]}
+        sortie["distinct_urls"] = len(urls)
+        urls_distinctes |= urls
+        paires |= {(empreinte, u) for u in urls}
+
+        statuts = sorted({str(p["catalogue_status"]) for p in preuves if p["catalogue_status"]})
+        sortie["catalogue_statuses"] = statuts
+        if len(statuts) > 1:
+            # Le statut reste porté par la RELATION. Choisir par précédence
+            # arbitraire ferait décider ici ce qui relève de l'autorité de
+            # servabilité.
+            multi_statut.append(
+                {
+                    "content_sha256": empreinte,
+                    "status_set": statuts,
+                    "source_relation_ids": [str(p["evidence_row"]) for p in preuves],
+                    "url_evidence_ids": sorted(urls),
+                }
+            )
+
+        # Ce qui est une AMBIGUÏTÉ, et ce qui n'en est pas une.
+        #
+        # Un même contenu référencé par deux pages institutionnelles — la page
+        # de programme et une page thématique, ou `eduscol` et `sti.eduscol` —
+        # a deux provenances également vraies. Les marquer ambiguës effacerait
+        # une information et forcerait un choix arbitraire entre deux faits
+        # établis. Un premier critère les attrapait à tort : `objet_source`
+        # étant dérivé de l'empreinte, « même scope, même objet » ne veut dire
+        # que « même contenu », et la règle revenait à interdire la
+        # multi-provenance qu'on venait d'admettre.
+        #
+        # L'ambiguïté RÉELLE est une preuve qu'on ne peut pas attribuer : une
+        # jointure par CHEMIN qui ramène des lignes portant une AUTRE empreinte.
+        # Le chemin a alors désigné un autre document, et rien ne dit laquelle
+        # de ces lignes parle du nôtre.
+        etrangeres = sorted(
             {
-                "navigation_url": navigation,
-                "direct_url": directe,
-                "evidence_source": source,
-                "evidence_row_id": catalogue.identifiant(index),
-                "disposition": DISPOSITION_TROUVEE,
+                str(preuve["row_content_sha256"])
+                for preuve in preuves
+                if preuve.get("row_content_sha256")
+                and str(preuve["row_content_sha256"]).lower() != empreinte
             }
         )
-        comptes[DISPOSITION_TROUVEE] += 1
+        if etrangeres:
+            sortie["disposition"] = DISPOSITION_AMBIGUE
+            sortie["unattributable_reason"] = "PATH_JOIN_MATCHED_OTHER_CONTENT"
+            sortie["foreign_content_sha256"] = etrangeres
+            comptes[DISPOSITION_AMBIGUE] += 1
+        elif urls:
+            sortie["disposition"] = DISPOSITION_TROUVEE
+            comptes[DISPOSITION_TROUVEE] += 1
+        else:
+            # Des lignes existent mais aucune ne porte d'URL : absence de
+            # preuve, pas preuve trouvée.
+            comptes[DISPOSITION_ABSENTE] += 1
         resultats.append(sortie)
 
     total = len(resultats)
-    rendu = {
+    rendu: dict[str, object] = {
         "kind": KIND,
         "URL_RELATIONS_TOTAL": total,
         "URL_PROVENANCE_FOUND": comptes[DISPOSITION_TROUVEE],
@@ -309,9 +413,22 @@ def reconcilier(
         "URL_AMBIGUOUS": comptes[DISPOSITION_AMBIGUE],
         "URL_NOT_APPLICABLE": comptes[DISPOSITION_SANS_OBJET],
         "URL_ERRORS": comptes[DISPOSITION_ERREUR],
+        # Deux dénominateurs, jamais confondus : une page institutionnelle
+        # partagée par cent documents est UNE url et cent relations.
+        "FULL_DISTINCT_URLS": len(urls_distinctes),
+        "FULL_ARTIFACT_URL_RELATIONS": len(paires),
+        "NEEDS_URL_EVIDENCE_BUT_NON_INDEXABLE": non_indexables_en_attente,
+        "TRUE_NOT_APPLICABLE": comptes[DISPOSITION_SANS_OBJET],
+        "MULTI_STATUS_CONTENT_SHA": len(multi_statut),
         # Une relation sans URL est NO_URL_EVIDENCE, jamais « non comptée ».
         "URL_RELATIONS_ACCOUNTED": sum(comptes.values()),
         "URL_UNACCOUNTED": total - sum(comptes.values()),
+        # La provenance n'est PAS l'actualité. Ce script ferme la première.
+        "URL_PROVENANCE_ACCOUNTING": "PASS" if total == sum(comptes.values()) else "FAIL",
+        "URL_CURRENTNESS_VERIFICATION": "NOT_STARTED",
+        "multi_status_ledger": sorted(
+            multi_statut, key=lambda e: str(e["content_sha256"])
+        ),
         "relations": resultats,
     }
     return rendu
@@ -379,7 +496,11 @@ def main(argv: list[str] | None = None) -> int:
     for cle in (
         "URL_RELATIONS_TOTAL", "URL_PROVENANCE_FOUND", "URL_NO_EVIDENCE",
         "URL_AMBIGUOUS", "URL_NOT_APPLICABLE", "URL_ERRORS",
+        "FULL_DISTINCT_URLS", "FULL_ARTIFACT_URL_RELATIONS",
+        "NEEDS_URL_EVIDENCE_BUT_NON_INDEXABLE", "TRUE_NOT_APPLICABLE",
+        "MULTI_STATUS_CONTENT_SHA",
         "URL_RELATIONS_ACCOUNTED", "URL_UNACCOUNTED",
+        "URL_PROVENANCE_ACCOUNTING", "URL_CURRENTNESS_VERIFICATION",
     ):
         print(f"{cle}={rendu[cle]}")
     return 0 if rendu["URL_UNACCOUNTED"] == 0 else 1
