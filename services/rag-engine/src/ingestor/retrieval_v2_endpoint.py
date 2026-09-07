@@ -92,8 +92,10 @@ try:
         runtime_request_budget,
     )
     from .release_readiness import (
+        DeploymentBindingError,
         ReleaseReadinessError,
         ReleaseRegistryExpectation,
+        configured_release_registry,
         load_release_registry,
         load_release_registry_file,
         validate_release_collection_readiness,
@@ -179,8 +181,10 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         runtime_request_budget,
     )
     from release_readiness import (  # type: ignore[no-redef]
+        DeploymentBindingError,
         ReleaseReadinessError,
         ReleaseRegistryExpectation,
+        configured_release_registry,
         load_release_registry,
         load_release_registry_file,
         validate_release_collection_readiness,
@@ -461,13 +465,18 @@ def _configured_release_manifest() -> tuple[Path, str] | None:
 
 
 def _configured_release_registry_file() -> tuple[Path, str] | None:
-    path_raw = os.environ.get("RAG_RELEASE_REGISTRY_PATH")
-    digest = os.environ.get("RAG_RELEASE_REGISTRY_SHA256")
-    if path_raw is None and digest is None:
-        return None
-    if not path_raw or not digest:
-        raise ReleaseReadinessError("release registry configuration incomplete")
-    return Path(path_raw), digest
+    """Façade : la règle est celle du contrat, pas une seconde écriture.
+
+    Ce corps réimplémentait la liaison de déploiement. Deux écritures de la
+    même règle de configuration divergent : le qualificateur C1 pouvait alors
+    déclarer servable une lignée que ce service refuse — ou l'inverse — sans
+    que rien ne le signale. Ne reste ici que la traduction du type d'erreur
+    vers celui que ce module fait remonter à l'appelant HTTP.
+    """
+    try:
+        return configured_release_registry()
+    except DeploymentBindingError as exc:
+        raise ReleaseReadinessError(str(exc)) from exc
 
 
 def _configured_release_registry() -> ReleaseRegistryExpectation | None:

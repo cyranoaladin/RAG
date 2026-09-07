@@ -237,12 +237,16 @@ run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago &&
 run_target "qualification-c1" bash -c '
   set -euo pipefail
   cd "'"$REPO_ROOT"'"
-  venv="${TMPDIR:-/tmp}/nexus-qualification-venv"
-  # Reconstruit à chaque fois. Un environnement réutilisé fait passer la cible
-  # grâce à un paquet installé par une exécution antérieure : elle resterait
-  # verte en local le jour où la CI, elle, part de rien.
-  # (Pas d apostrophe dans ce bloc : il est lui-même entre quotes simples.)
-  rm -rf "$venv"
+  # Un environnement UNIQUE par exécution, détruit à la sortie.
+  #
+  # Un chemin fixe portait deux défauts. Réutilise, il faisait passer la cible
+  # grâce a un paquet installe par une execution anterieure. Detruit par
+  # "rm -rf" au demarrage, il supprimait l interpreteur d une execution
+  # concurrente en plein travail : la cible devenait instable pour une raison
+  # que rien dans sa sortie ne nommait.
+  # (Pas d apostrophe dans ce bloc : il est lui-meme entre quotes simples.)
+  venv="$(mktemp -d "${TMPDIR:-/tmp}/nexus-qualification-venv.XXXXXX")"
+  trap "rm -rf -- \"$venv\"" EXIT
   "'"$PYTHON_BIN"'" -m venv "$venv"
   "$venv/bin/pip" install --quiet --upgrade pip
   "$venv/bin/pip" install --quiet pytest \

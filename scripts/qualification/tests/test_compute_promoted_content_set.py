@@ -249,23 +249,16 @@ def test_la_racine_gouvernee_suit_le_deploiement(
 # --- parité de configuration C1 / runtime ------------------------------
 
 
-def test_c1_et_le_runtime_lisent_la_meme_regle_de_configuration() -> None:
-    """La matrice PATH/SHA, éprouvée sur les DEUX implémentations.
+def test_le_runtime_ne_reimplemente_plus_la_regle_de_configuration() -> None:
+    """Une seule écriture de la règle, prouvée dans le source du runtime.
 
-    Le runtime porte encore sa propre copie de la règle
-    (`_configured_release_registry_file`). Tant que le doublon existe, cette
-    épreuve confronte les deux verdicts case par case : une divergence de
-    configuration ferait qualifier par C1 une lignée que le runtime refuse.
+    Cette épreuve confrontait autrefois DEUX implémentations case par case.
+    Confronter deux écritures, c'est accepter qu'elles existent : il suffisait
+    qu'une branche change d'un côté pour que C1 qualifie une lignée que le
+    service refuse. Le runtime appelle désormais la primitive du contrat et ne
+    fait que traduire le type d'erreur ; l'épreuve vérifie donc l'ABSENCE de
+    la seconde écriture, pas son accord.
     """
-    import os
-
-    from nexus_release_chain.deployment_binding import (
-        REGISTRY_PATH_ENV,
-        REGISTRY_SHA256_ENV,
-        DeploymentBindingError,
-        configured_release_registry,
-    )
-
     racine = Path(__file__).resolve().parents[3]
     module_runtime = (
         racine / "services" / "rag-engine" / "src" / "ingestor"
@@ -273,13 +266,64 @@ def test_c1_et_le_runtime_lisent_la_meme_regle_de_configuration() -> None:
     )
     if not module_runtime.is_file():
         pytest.skip("module runtime absent de ce checkout")
-
     source = module_runtime.read_text(encoding="utf-8")
-    assert "_configured_release_registry_file" in source
-    # La sémantique du runtime, lue dans son source : mêmes trois branches.
-    assert 'path_raw is None and digest is None' in source
-    assert 'if not path_raw or not digest' in source
-    assert "release registry configuration incomplete" in source
+
+    assert "configured_release_registry" in source, (
+        "le runtime doit appeler la primitive du contrat"
+    )
+    # Les littéraux de la règle du REGISTRE, nommément. Les réintroduire serait
+    # une seconde écriture de cette règle, quel que soit son accord du jour.
+    #
+    # L'assertion porte sur ces deux variables SEULEMENT : le mécanisme
+    # historique `RAG_RELEASE_MANIFEST_PATH` est une autre liaison, avec ses
+    # propres variables, et interdire sa forme ici ferait échouer cette
+    # épreuve sur du code qu'elle ne juge pas.
+    for litteral in ("RAG_RELEASE_REGISTRY_PATH", "RAG_RELEASE_REGISTRY_SHA256"):
+        assert litteral not in source, (
+            f"le runtime relit {litteral} lui-même : la règle du registre y est "
+            "réécrite une seconde fois"
+        )
+
+
+def test_la_regle_vit_dans_le_module_que_le_runtime_embarque() -> None:
+    """La règle doit être là où le runtime peut réellement la lire.
+
+    Le runtime de lecture est une allowlist sans parseur : y installer le
+    paquet entier ferait entrer `pypdf`. La règle vit donc dans le module que
+    ce runtime embarque octet pour octet, et le paquet ne fait que la
+    ré-exporter.
+    """
+    racine = Path(__file__).resolve().parents[3]
+    canonique = (
+        racine / "packages" / "release-chain" / "src" / "nexus_release_chain"
+        / "release_readiness.py"
+    )
+    vendoree = (
+        racine / "services" / "rag-engine" / "src" / "ingestor" / "release_readiness.py"
+    )
+    if not vendoree.is_file():
+        pytest.skip("copie vendorée absente de ce checkout")
+    assert "def configured_release_registry(" in canonique.read_text(encoding="utf-8")
+    assert vendoree.read_bytes() == canonique.read_bytes()
+
+    liaison = (
+        racine / "packages" / "release-chain" / "src" / "nexus_release_chain"
+        / "deployment_binding.py"
+    ).read_text(encoding="utf-8")
+    # Un ré-export ne DÉCIDE rien : ni lecture d'environnement, ni branche.
+    assert "os.environ" not in liaison
+    assert "def configured_release_registry(" not in liaison
+    assert "from nexus_release_chain.release_readiness import" in liaison
+
+
+def test_la_matrice_path_sha_de_la_regle_unique() -> None:
+    """Trois cas, et trois seulement."""
+    from nexus_release_chain.deployment_binding import (
+        REGISTRY_PATH_ENV,
+        REGISTRY_SHA256_ENV,
+        DeploymentBindingError,
+        configured_release_registry,
+    )
 
     sha = "b" * 64
     matrice = [
@@ -295,8 +339,6 @@ def test_c1_et_le_runtime_lisent_la_meme_regle_de_configuration() -> None:
         except DeploymentBindingError:
             obtenu = "REFUS"
         assert obtenu == attendu, (environnement, attendu, obtenu)
-
-    assert os.environ is not None  # la lecture par défaut reste l'environnement
 
 
 def test_le_mode_deploiement_ne_calcule_jamais_l_empreinte_lui_meme(
@@ -425,3 +467,193 @@ class TestLaMatriceDePrecedenceEstExplicite:
             self._resoudre(
                 registre_demande=None, empreinte_demandee="0" * 64, liaison=None
             )
+
+
+# --- la racine gouvernée en mode DÉPLOIEMENT ---------------------------
+
+
+class TestLaRacineGouverneeSuitLeModeDeDeploiement:
+    """Le cas réel : un conteneur qui monte `/app/release/…`.
+
+    Une racine unique — celle du dépôt — faisait échouer le mode déploiement
+    AVANT toute lecture : le conteneur ne possède pas le checkout hôte, et la
+    borne refusait donc le seul registre qu'il ait à servir. C1 rendait rouge
+    sur une configuration parfaitement valide, pour une raison qui n'avait
+    rien à voir avec le corpus.
+    """
+
+    def _racine(self, mode, registre, monkeypatch, declaree=None):
+        from compute_promoted_content_set import GOVERNED_ROOT_ENV, racine_gouvernee_pour
+
+        if declaree is None:
+            monkeypatch.delenv(GOVERNED_ROOT_ENV, raising=False)
+        else:
+            monkeypatch.setenv(GOVERNED_ROOT_ENV, str(declaree))
+        return racine_gouvernee_pour(mode, registre)
+
+    def test_le_mode_deploiement_borne_sur_le_namespace_monte(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from compute_promoted_content_set import MODE_DEPLOYMENT
+
+        registre = Path("/app/release/release-registry.json")
+        assert self._racine(MODE_DEPLOYMENT, registre, monkeypatch) == Path("/app/release")
+
+    def test_une_racine_declaree_prime_meme_en_deploiement(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """C'est ainsi qu'un exploitant restreint le périmètre monté."""
+        from compute_promoted_content_set import MODE_DEPLOYMENT
+
+        registre = Path("/app/release/release-registry.json")
+        assert self._racine(
+            MODE_DEPLOYMENT, registre, monkeypatch, declaree=tmp_path
+        ) == tmp_path
+
+    def test_les_modes_du_depot_restent_bornes_a_la_racine_des_releases(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from compute_promoted_content_set import (
+            GOVERNED_ROOT,
+            MODE_DEFAULT,
+            MODE_EXPLICIT_CANDIDATE,
+        )
+
+        for mode in (MODE_DEFAULT, MODE_EXPLICIT_CANDIDATE):
+            assert (
+                self._racine(mode, Path("/app/release/r.json"), monkeypatch)
+                == GOVERNED_ROOT
+            )
+
+
+class TestLeRegistreDeploye:
+    """Le chemin `/app/release/release-registry.json`, éprouvé sur un vrai
+    système de fichiers plutôt que sur une intention."""
+
+    def _monter(self, tmp_path: Path) -> tuple[Path, Path]:
+        """Reproduit le montage : un répertoire, un registre dedans."""
+        monte = tmp_path / "app" / "release"
+        monte.mkdir(parents=True)
+        registre = monte / "release-registry.json"
+        registre.write_text("{}", encoding="utf-8")
+        return monte, registre
+
+    def test_le_registre_monte_passe_la_borne(self, tmp_path: Path) -> None:
+        """DEPLOYMENT_REGISTRY_PATH_BOUND=PASS — le cas POSITIF réel."""
+        from compute_promoted_content_set import _borner
+
+        monte, registre = self._monter(tmp_path)
+        assert _borner(registre, monte) == registre.resolve()
+
+    def test_un_registre_hors_de_la_racine_declaree_est_refuse(
+        self, tmp_path: Path
+    ) -> None:
+        """DEPLOYMENT_REGISTRY_OUTSIDE_ROOT=REFUSED."""
+        from compute_promoted_content_set import PromotedContentSetError, _borner
+
+        monte, _registre = self._monter(tmp_path)
+        dehors = tmp_path / "ailleurs.json"
+        dehors.write_text("{}", encoding="utf-8")
+        with pytest.raises(PromotedContentSetError, match="hors de la racine"):
+            _borner(dehors, monte)
+
+    def test_un_lien_symbolique_interne_est_refuse(self, tmp_path: Path) -> None:
+        """DEPLOYMENT_REGISTRY_INTERNAL_SYMLINK=REFUSED.
+
+        Le lien résout DANS le montage : la borne de racine le laisse passer,
+        et seule l'inspection de chaque composant le voit."""
+        from compute_promoted_content_set import PromotedContentSetError, _borner
+
+        monte, registre = self._monter(tmp_path)
+        alias = monte / "alias.json"
+        alias.symlink_to(registre)
+        with pytest.raises(PromotedContentSetError, match="lien symbolique"):
+            _borner(alias, monte)
+
+    def test_un_repertoire_composant_qui_redirige_est_refuse(
+        self, tmp_path: Path
+    ) -> None:
+        from compute_promoted_content_set import PromotedContentSetError, _borner
+
+        monte, registre = self._monter(tmp_path)
+        faux_montage = tmp_path / "monte-ailleurs"
+        faux_montage.symlink_to(monte, target_is_directory=True)
+        with pytest.raises(PromotedContentSetError, match="lien symbolique"):
+            _borner(faux_montage / "release-registry.json", faux_montage)
+
+    def test_un_registre_absent_est_nomme_comme_tel(self, tmp_path: Path) -> None:
+        from compute_promoted_content_set import PromotedContentSetError, _borner
+
+        monte, _registre = self._monter(tmp_path)
+        with pytest.raises(PromotedContentSetError, match="introuvable"):
+            _borner(monte / "absent.json", monte)
+
+
+# --- le déclencheur C1 ne doit pas se périmer en silence ---------------
+
+
+def test_le_declencheur_c1_couvre_la_surface_runtime() -> None:
+    """Tout module qui décide du registre doit redéclencher C1.
+
+    Le défaut que cette épreuve interdit : un appelant runtime change sa
+    manière de SÉLECTIONNER ou d'INTERPRÉTER le registre, le corpus servi
+    change, et C1 ne se relance pas — la couverture du store privé n'est pas
+    reconfrontée, et le gate reste vert en décrivant un périmètre que le
+    runtime ne calcule plus.
+
+    La liste de chemins du workflow ne peut pas être maintenue à la main : elle
+    se périme au premier module ajouté. On mesure donc la surface RÉELLE dans
+    le source, et on exige que chaque fichier soit couvert par au moins un
+    motif déclaré.
+    """
+    import fnmatch
+    import re
+
+    racine = Path(__file__).resolve().parents[3]
+    workflow = racine / ".github/workflows/corpus-cas-reproducibility.yml"
+    if not workflow.is_file():
+        pytest.skip("workflow absent de ce checkout")
+
+    motifs = re.findall(r'^\s+-\s+"([^"]+)"', workflow.read_text(encoding="utf-8"), re.M)
+    assert motifs, "le workflow ne déclare aucun chemin"
+
+    #: Ce qui fait d'un module une AUTORITÉ sur le registre : le charger, le
+    #: désigner, ou lire la configuration qui le désigne.
+    marqueurs = (
+        "load_release_registry",
+        "load_release_registry_file",
+        "configured_release_registry",
+        "RAG_RELEASE_REGISTRY_PATH",
+        "ReleaseRegistryExpectation",
+    )
+    surface: list[str] = []
+    for chemin in sorted(racine.rglob("*.py")):
+        relatif = chemin.relative_to(racine).as_posix()
+        if relatif.startswith((".venv", ".worktrees")) or "/.venv/" in relatif:
+            continue
+        if "/tests/" in relatif or relatif.startswith("tests/"):
+            continue
+        try:
+            source = chemin.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):  # pragma: no cover
+            continue
+        if any(marqueur in source for marqueur in marqueurs):
+            surface.append(relatif)
+
+    assert surface, "aucune surface mesurée : le marqueur est probablement faux"
+
+    def couvert(relatif: str) -> bool:
+        for motif in motifs:
+            if fnmatch.fnmatch(relatif, motif):
+                return True
+            # `a/**` en syntaxe GitHub couvre tout ce qui est sous `a/`, ce que
+            # `fnmatch` ne rend pas seul.
+            if motif.endswith("/**") and relatif.startswith(motif[:-2]):
+                return True
+        return False
+
+    decouverts = sorted(r for r in surface if not couvert(r))
+    assert not decouverts, (
+        "ces modules décident du registre servi sans redéclencher C1 : "
+        f"{decouverts}"
+    )
