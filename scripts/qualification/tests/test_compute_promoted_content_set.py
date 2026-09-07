@@ -22,6 +22,22 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+
+@pytest.fixture(autouse=True)
+def _sans_liaison_de_deploiement(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Aucune épreuve ne doit dépendre de l'environnement du poste.
+
+    `RAG_RELEASE_REGISTRY_PATH` / `_SHA256` exportées — un développeur travaillant
+    contre un registre déployé — feraient basculer en mode DÉPLOIEMENT les
+    épreuves qui supposent le mode DÉFAUT : elles compareraient l'ensemble
+    promu du dépôt au résultat d'une autre lignée. Une épreuve dont le verdict
+    dépend du shell qui la lance ne prouve rien.
+
+    Les épreuves qui VEULENT une liaison la posent explicitement.
+    """
+    for variable in ("RAG_RELEASE_REGISTRY_PATH", "RAG_RELEASE_REGISTRY_SHA256"):
+        monkeypatch.delenv(variable, raising=False)
+
 from compute_promoted_content_set import (  # noqa: E402
     GOVERNED_ROOT,
     PromotedContentSetError,
@@ -144,12 +160,27 @@ def test_un_registre_illisible_rend_un_code_nomme_pas_une_trace(
     racine.mkdir()
     monkeypatch.setattr(module, "GOVERNED_ROOT", racine)
     registre = racine / "release-registry.json"
-    registre.write_text("{ ceci n'est pas du JSON", encoding="utf-8")
+    charge = "{ ceci n'est pas du JSON"
+    registre.write_text(charge, encoding="utf-8")
+
+    # L'empreinte est FOURNIE : sans elle, la matrice de précédence refuse la
+    # candidate avant toute lecture (« sa propre autorité »), et cette épreuve
+    # passait pour une raison qui n'était pas la sienne — le JSON malformé
+    # n'était jamais analysé.
+    import hashlib
 
     assert module.main(
-        ["--release-registry", str(registre), "--output", str(tmp_path / "o.json")]
+        [
+            "--release-registry", str(registre),
+            "--release-registry-sha256", hashlib.sha256(charge.encode()).hexdigest(),
+            "--output", str(tmp_path / "o.json"),
+        ]
     ) == 2
-    assert "PROMOTED_CONTENT_SET_INVALID" in capsys.readouterr().err
+    erreur = capsys.readouterr().err
+    assert "PROMOTED_CONTENT_SET_INVALID" in erreur
+    assert "sa propre autorité" not in erreur, (
+        "l'épreuve doit atteindre l'analyse du JSON, pas la matrice de précédence"
+    )
 
 
 @pytest.mark.parametrize("charge", ["[]", '"registry"', "42", "null", '{"releases": 7}'])
@@ -235,15 +266,35 @@ def test_le_chargeur_du_service_ne_derive_pas_de_l_autorite_canonique() -> None:
 def test_la_racine_gouvernee_suit_le_deploiement(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """La borne reste exercée, mais contre la racine de CE déploiement : un
-    conteneur ne connaît pas celle du dépôt."""
+    """La borne reste exercée, mais contre la racine de CE déploiement.
+
+    Cette épreuve posait `NEXUS_C1_GOVERNED_ROOT` puis appelait
+    `collect_promoted_content_set`, qui ne lit PAS cette variable : le setenv
+    était mort, et l'épreuve se contentait de revérifier qu'un chemin hors du
+    dépôt est refusé — elle passait à l'identique sans lui. Elle traverse
+    maintenant `racine_gouvernee_pour`, qui est le seul endroit où la variable
+    décide de quoi que ce soit.
+    """
     import compute_promoted_content_set as module
 
     monkeypatch.setenv(module.GOVERNED_ROOT_ENV, str(tmp_path))
+    racine = module.racine_gouvernee_pour(
+        module.MODE_DEPLOYMENT, tmp_path / "release-registry.json"
+    )
+    assert racine == tmp_path, "la racine déclarée doit primer"
+
     dehors = tmp_path.parent / "ailleurs.json"
     dehors.write_text("{}", encoding="utf-8")
     with pytest.raises(PromotedContentSetError, match="hors de la racine gouvernée"):
-        module.collect_promoted_content_set(dehors)
+        module.collect_promoted_content_set(dehors, governed_root=racine)
+
+    dedans = tmp_path / "release-registry.json"
+    dedans.write_text("{}", encoding="utf-8")
+    # Le cas POSITIF : le registre du montage franchit la borne et échoue plus
+    # loin, sur son contenu — preuve que la borne l'a bien laissé passer.
+    with pytest.raises(PromotedContentSetError) as refus:
+        module.collect_promoted_content_set(dedans, governed_root=racine)
+    assert "hors de la racine gouvernée" not in str(refus.value)
 
 
 # --- parité de configuration C1 / runtime ------------------------------
@@ -662,13 +713,23 @@ def test_le_declencheur_c1_couvre_la_surface_runtime() -> None:
     assert motifs, "le workflow ne déclare aucun chemin"
 
     #: Ce qui fait d'un module une AUTORITÉ sur le registre : le charger, le
-    #: désigner, ou lire la configuration qui le désigne.
+    #: désigner, lire la configuration qui le désigne — ou le MATÉRIALISER.
+    #:
+    #: La première version de cette liste ne portait que les symboles du
+    #: chargeur. Elle manquait l'outillage de déploiement, qui ne charge pas le
+    #: registre mais décide de celui qui sera monté : `--release-registry-path`
+    #: n'est aucun des symboles ci-dessus, et pourtant changer ce script change
+    #: le corpus servi. Un invariant qui ne mesure que ce qu'on avait déjà en
+    #: tête ne protège que ce qu'on avait déjà en tête.
     marqueurs = (
         "load_release_registry",
         "load_release_registry_file",
         "configured_release_registry",
         "RAG_RELEASE_REGISTRY_PATH",
         "ReleaseRegistryExpectation",
+        "release_registry_path",
+        "release-registry-path",
+        "release-registry.json",
     )
     surface: list[str] = []
     for chemin in sorted(racine.rglob("*.py")):
