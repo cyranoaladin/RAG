@@ -66,7 +66,63 @@ REJECTED_VALUES_NOT_A_PROGRAMME_VERSION = {"2026-2027" [tier_a_…]: 138}
 
 Ces 138 restent `UNKNOWN`, ce qu'ils sont.
 
-## 5. Ce que la découverte change
+## 5. Rendement mesuré par famille d'autorité
+
+```
+docs_reports        66 fichiers   158 candidats   10 explicites   148 rejetés
+release_manifests   70 fichiers   486 candidats    0 explicites   486 rejetés
+engine_configs       1 fichier      0 candidats    0 explicites     0 rejetés
+pedago_configs       2 fichiers     0 candidats    0 explicites     0 rejetés
+```
+
+Une seule famille produit des liaisons. Les manifestes de release portent
+486 candidats dont **aucun** n'est une référence de programme : leur valeur
+dominante est `EDUSCOL_CORPUS_20260808`, un identifiant de corpus.
+
+C'est le chiffre qui dit où ne PAS investir.
+
+## 6. Un faux négatif de ma part, corrigé
+
+Dix valeurs étaient des **listes** contenant une référence valide
+(`['BOEN_special_1_2019-01-22']`). Mon contrôle de forme exigeait une chaîne et
+les rejetait. Un faux négatif est moins visible qu'un faux positif, et tout
+aussi faux.
+
+Les listes sont désormais admises, chaque élément validé. Elles corroborent les
+mêmes 10 documents depuis une seconde autorité — elles n'en ajoutent aucun.
+
+## 7. Partition scellée par ensembles
+
+```
+PROGRAM_COMPATIBLE_SHA_SET_SHA256=2caa5baf09142b8438fe29eb2791afb9e8090dbb921797cd009b65d91330bdf6
+PROGRAM_INCOMPATIBLE_SHA_SET_SHA256=01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b
+PROGRAM_UNKNOWN_SHA_SET_SHA256=723454413764d0d9d870601e3b93fbb5335cb76013af2a9097db99b44f17a714
+
+PROGRAM_PARTITION_INTERSECTION_COUNT=0
+PROGRAM_PARTITION_UNION_COUNT=2451
+PROGRAM_PARTITION_UNACCOUNTED=0
+```
+
+## 8. Les dix liaisons, auditables une par une
+
+Toutes portent `binding_basis=GOVERNED_MANIFEST`, champ `programme_version`,
+preuve `production_profile_resolution_records_20260825.json`
+(`sha256=f22f3aad371e…`), et sont compatibles avec l'autorité courante :
+`BOEN_special_1_2019-01-22` (7), `BOEN_special_8_2019-07-25` (2),
+`BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A` (1).
+
+```
+ARTIFACT_PROGRAM_BINDINGS_TOTAL=10
+BINDINGS_WITH_MISSING_EVIDENCE=0
+BINDINGS_WITH_INVALID_PROGRAM_REFERENCE=0
+BINDINGS_WITH_SCOPE_CONFLICT=0
+```
+
+Aucune ne se réclame de `INFERRED_FROM_FILENAME`, `PUBLICATION_YEAR`,
+`FOLDER_PROXIMITY` ni `LEXICAL_SIMILARITY` — une épreuve vérifie que ces bases
+n'appartiennent pas à l'enum admissible.
+
+## 9. Ce que la découverte change
 
 Le résidu passe de 2451 à **2441**. La découverte structurée a résolu 10
 contenus — peu, mais elle a surtout établi que les autorités disponibles ne
