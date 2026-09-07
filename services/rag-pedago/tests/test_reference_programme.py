@@ -181,3 +181,127 @@ def test_le_parseur_est_versionne() -> None:
     """Deux corpus analysés sous des parseurs différents ne sont pas
     comparables : l'identifiant doit entrer dans la preuve."""
     assert PARSER_ID == "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1"
+
+
+# --- l'applicabilité n'est pas la date de publication -----------------
+
+
+class TestLApplicabiliteNeSeDeduitPasDeLaDate:
+    """Le défaut que ce groupe interdit : « le BO le plus récent gagne ».
+
+    Cas réel. Le BO n° 14 du 2 avril 2026 porte DEUX programmes de
+    mathématiques :
+
+        maths spécialité Première  → applicable à la rentrée 2026-2027
+        maths spécialité Terminale → applicable à la rentrée 2027-2028
+
+    Au 7 septembre 2026, la Première suit donc le nouveau programme pendant que
+    la Terminale suit encore le précédent. Un moteur qui choisit la publication
+    la plus récente attribue le nouveau programme aux deux — et déclare
+    incompatible tout document de Terminale conforme au programme en vigueur.
+
+    `effective_from_school_year` est donc obligatoire, et distinct de
+    `bulletin_date` : une date de publication ne dit pas quand un texte
+    s'applique.
+    """
+
+    #: Une autorité d'épreuve, portant la distinction que le cas réel impose.
+    AUTORITES = [
+        {
+            "niveau": "premiere", "matiere": "maths",
+            "programme_version": "BOEN_14_2026-04-02_MENE2602917A",
+            "bulletin_date": "2026-04-02",
+            "effective_from_school_year": "2026-2027",
+        },
+        {
+            "niveau": "terminale", "matiere": "maths",
+            "programme_version": "BOEN_14_2026-04-02_MENE2602914A",
+            "bulletin_date": "2026-04-02",
+            "effective_from_school_year": "2027-2028",
+        },
+        {
+            "niveau": "terminale", "matiere": "maths",
+            "programme_version": "BOEN_special_8_2019-07-25",
+            "bulletin_date": "2019-07-25",
+            "effective_from_school_year": "2020-2021",
+        },
+    ]
+
+    @staticmethod
+    def resoudre_courant(niveau, matiere, annee_scolaire, autorites):
+        """Le programme applicable à CE scope pour CETTE année scolaire.
+
+        Rend ``(verdict, entrées)``. ``MULTIPLE`` est un refus de gouvernance,
+        pas un choix par date ni par ordre de fichier."""
+        applicables = [
+            a for a in autorites
+            if a["niveau"] == niveau
+            and a["matiere"] == matiere
+            and a["effective_from_school_year"] <= annee_scolaire
+        ]
+        if not applicables:
+            return "NONE", []
+        # Plusieurs textes déjà en vigueur : sans chaîne de supersession
+        # explicite, on ne tranche pas — le plus récent n'est pas
+        # automatiquement celui qui s'applique.
+        if len(applicables) > 1:
+            return "MULTIPLE", applicables
+        return "EXACTLY_ONE", applicables
+
+    def test_la_premiere_suit_le_nouveau_programme_en_2026_2027(self) -> None:
+        verdict, entrees = self.resoudre_courant(
+            "premiere", "maths", "2026-2027", self.AUTORITES
+        )
+        assert verdict == "EXACTLY_ONE"
+        assert entrees[0]["programme_version"] == "BOEN_14_2026-04-02_MENE2602917A"
+
+    def test_la_terminale_ne_suit_PAS_encore_le_nouveau_en_2026_2027(self) -> None:
+        """LE mutant. Choisir « le BO le plus récent » donnerait ici le
+        programme de 2026, applicable seulement en 2027-2028."""
+        verdict, entrees = self.resoudre_courant(
+            "terminale", "maths", "2026-2027", self.AUTORITES
+        )
+        assert verdict == "EXACTLY_ONE"
+        assert entrees[0]["programme_version"] == "BOEN_special_8_2019-07-25"
+        assert entrees[0]["bulletin_date"] < "2026-04-02", (
+            "le texte applicable est PLUS ANCIEN que le plus récemment publié"
+        )
+
+    def test_le_nouveau_programme_de_terminale_devient_applicable_en_2027_2028(
+        self,
+    ) -> None:
+        """Deux textes en vigueur, aucune chaîne de supersession déclarée :
+        c'est un refus de gouvernance, pas un arbitrage par date."""
+        verdict, entrees = self.resoudre_courant(
+            "terminale", "maths", "2027-2028", self.AUTORITES
+        )
+        assert verdict == "MULTIPLE"
+        assert {e["programme_version"] for e in entrees} == {
+            "BOEN_14_2026-04-02_MENE2602914A",
+            "BOEN_special_8_2019-07-25",
+        }
+
+    def test_un_scope_sans_autorite_rend_none_jamais_un_repli(self) -> None:
+        assert self.resoudre_courant("terminale", "danse", "2026-2027", self.AUTORITES) == (
+            "NONE",
+            [],
+        )
+
+    def test_choisir_la_publication_la_plus_recente_serait_faux(self) -> None:
+        """La règle naïve, exécutée, donne un résultat que l'épreuve refuse."""
+        naif = max(
+            (a for a in self.AUTORITES if a["niveau"] == "terminale" and a["matiere"] == "maths"),
+            key=lambda a: a["bulletin_date"],
+        )
+        correct, entrees = self.resoudre_courant(
+            "terminale", "maths", "2026-2027", self.AUTORITES
+        )
+        assert naif["programme_version"] != entrees[0]["programme_version"], (
+            "la règle naïve et la règle correcte doivent diverger sur ce cas"
+        )
+
+    def test_la_date_de_bulletin_ne_suffit_jamais(self) -> None:
+        """`effective_from_school_year` est obligatoire dans le schéma."""
+        for autorite in self.AUTORITES:
+            assert "effective_from_school_year" in autorite
+            assert autorite["effective_from_school_year"] != autorite["bulletin_date"]

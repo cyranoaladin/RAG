@@ -14,18 +14,46 @@ requires_adr: true
 
 CurrentProgramAuthorityV1:
   authority_id: NEXUS-CURRENT-PROGRAM-AUTHORITY-V1
-  answers: "Quel programme est actuellement applicable à CE scope pédagogique ?"
+  answers: "Quel programme est applicable à CE scope pédagogique, CETTE année ?"
   fields:
+    - program_authority_id
     - niveau
     - matiere
     - voie                      # générale, technologique, professionnelle
-    - specialite_ou_option      # si applicable
-    - programme_version         # ex. BOEN_special_1_2019-01-22
-    - school_year               # ex. 2026-2027
-    - evidence_ref              # le texte officiel qui l'établit
+    - specialite_or_option      # si applicable
+    - official_reference        # ex. BOEN_special_1_2019-01-22
+    - NOR
+    - bulletin_number
+    - bulletin_date
+    - decree_or_order_date
+    # OBLIGATOIRE, et distinct de bulletin_date : une date de publication ne
+    # dit pas quand un texte s'applique. Le BO n°14 du 2 avril 2026 porte le
+    # programme de maths Première applicable en 2026-2027 ET celui de Terminale
+    # applicable en 2027-2028. Un moteur qui choisit « le BO le plus récent »
+    # attribue le nouveau programme aux deux, et déclare incompatible tout
+    # document de Terminale pourtant conforme au programme en vigueur.
+    - effective_from_school_year
+    - effective_until_school_year
+    - supersedes_program_authority_id
+    - superseded_by_program_authority_id
+    - source_url
+    - source_content_sha256_if_available
+    - evidence_ref
     - evidence_sha256
+  resolver:
+    signature: "resolve_current_program(niveau, matiere, voie, specialite_or_option, school_year)"
+    verdicts: [EXACTLY_ONE, NONE, MULTIPLE]
+    multiple_is: >-
+      un REFUS de gouvernance, jamais un choix par date de publication ni par
+      ordre de fichier. Sans chaîne de supersession explicite, deux textes en
+      vigueur ne se départagent pas.
   existing_partial_source: services/rag-engine/configs/ingestion_profiles/*.yml
-  coverage_today: "18 scopes déclarent programme_version et school_year"
+  coverage_today: "18 scopes déclarent une version de programme et une année scolaire"
+  completeness_gap: >-
+    L'autorité couvre 18 scopes sur les 34 matières du catalogue. C'est la
+    cause directe de PROGRAM_COMPATIBILITY_UNKNOWN=2375 et de
+    REFERENCES_UNKNOWN=213 : le corpus cite des textes que l'autorité ne
+    déclare pas, et rien ne permet de dire s'ils sont en vigueur.
 
 ArtifactProgramBindingV1:
   authority_id: NEXUS-ARTIFACT-PROGRAM-BINDING-V1
