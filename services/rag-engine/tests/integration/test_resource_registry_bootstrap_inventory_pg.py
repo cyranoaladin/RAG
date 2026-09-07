@@ -455,3 +455,113 @@ def test_unknown_extra_release_placement_binding_fails_closed(pg: dict[str, str]
                     {("terminale_maths", SHA_A), (SECOND_COLLECTION, SHA_A)}
                 ),
             )
+
+
+# ---------------------------------------------------------------------------
+# R1A -- same-(artifact, collection) semantic-placement hole.
+#
+# ``observed_bindings`` is a set of exactly (collection, content_sha256)
+# pairs: it can only ever prove or refuse WHICH collections a given artifact
+# reaches, never what a placement inside an already-authorized collection
+# actually asserts about candidat/audience/visibility/etc. A second placement
+# row sharing the anchor's own (collection, sha256) contributes no new
+# element to that set -- it is structurally invisible to the guard, whatever
+# it says on every dimension the guard does not look at.
+# ---------------------------------------------------------------------------
+
+CONFLICTING_PLACEMENT_ID = "d" * 64
+
+
+def _seed_conflicting_same_collection_placement(
+    connection: psycopg.Connection, *, candidat: str
+) -> None:
+    """A second, DIFFERENT placement row for the SAME artifact in the SAME
+    collection as the one seeded by ``_seed`` -- differing only in
+    ``candidat`` (an authorization-relevant dimension). Every dimension the
+    ``observed_bindings`` guard actually compares (collection, sha256) is
+    identical to the legitimate placement, so this row is designed to be
+    invisible to it."""
+    with connection.cursor() as cursor:
+        cursor.execute(
+            """
+            INSERT INTO public.rag_artifact_placements (
+                placement_id, artifact_id, collection, tenant, niveau, voie,
+                audience, matiere, statut_enseignement, candidat, visibility,
+                school_year, programme_version, currentness, placement_status,
+                review_status, source_scope, source_placement_id, source_path,
+                source_uri, authorization_id, publication_attestation_id
+            ) VALUES (
+                %s, %s, 'terminale_maths', 'nexus', 'terminale', 'generale',
+                ARRAY['aefe'], 'mathematiques', 'specialite', %s,
+                'internal', '2026-2027', 'fr-national-2026', 'current', 'active',
+                'reviewed', 'fixture-scope', 'fixture-placement-conflict',
+                '/governed/private/programme.pdf', %s, 'fixture-auth',
+                '77777777-7777-4777-8777-777777777777'
+            )
+            """,
+            (CONFLICTING_PLACEMENT_ID, SHA_A, candidat, SOURCE_URI),
+        )
+    connection.commit()
+
+
+def test_same_collection_placement_with_different_candidat_fails_closed(
+    pg: dict[str, str],
+) -> None:
+    """GREEN (was RED): the (collection, sha256) binding-set guard alone
+    cannot detect a spurious same-collection placement asserting a
+    DIFFERENT ``candidat`` than the one legitimately promoted for that
+    collection -- ``_validate_placements``'s per-collection semantic
+    consistency check now closes exactly that gap. The release registry
+    only ever authorized ``scolarise`` for ``terminale_maths``; a second,
+    conflicting ``libre`` placement in that same collection must refuse the
+    export outright rather than silently ship both."""
+    with psycopg.connect(superuser_dsn(pg)) as connection:
+        _seed(connection)  # candidat="scolarise", the only ever-promoted value
+        _seed_conflicting_same_collection_placement(connection, candidat="libre")
+
+    with pytest.raises(BootstrapInventoryError, match="conflicting semantic placements"):
+        _export(pg)
+
+
+def test_same_collection_placement_with_different_visibility_fails_closed(
+    pg: dict[str, str],
+) -> None:
+    """Same proof, second independent dimension: visibility."""
+    with psycopg.connect(superuser_dsn(pg)) as connection_scope:
+        _seed(connection_scope)
+        with connection_scope.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO public.rag_artifact_placements (
+                    placement_id, artifact_id, collection, tenant, niveau, voie,
+                    audience, matiere, statut_enseignement, candidat, visibility,
+                    school_year, programme_version, currentness, placement_status,
+                    review_status, source_scope, source_placement_id, source_path,
+                    source_uri, authorization_id, publication_attestation_id
+                ) VALUES (
+                    %s, %s, 'terminale_maths', 'nexus', 'terminale', 'generale',
+                    ARRAY['aefe'], 'mathematiques', 'specialite', 'scolarise',
+                    'public', '2026-2027', 'fr-national-2026', 'current', 'active',
+                    'reviewed', 'fixture-scope', 'fixture-placement-conflict-vis',
+                    '/governed/private/programme.pdf', %s, 'fixture-auth',
+                    '88888888-8888-4888-8888-888888888888'
+                )
+                """,
+                ("9" * 64, SHA_A, SOURCE_URI),
+            )
+        connection_scope.commit()
+
+    with pytest.raises(BootstrapInventoryError, match="conflicting semantic placements"):
+        _export(pg)
+
+
+# Note: a THIRD case -- two placement rows sharing one collection with an
+# otherwise IDENTICAL semantic tuple -- is not exercised here because
+# ``rag_artifact_placements_canonical_scope_unique`` (migration 004) already
+# makes that state unreachable at the schema level: it is a table-wide
+# UNIQUE constraint on exactly
+# (artifact_id, collection, tenant, niveau, voie, audience, matiere,
+# statut_enseignement, candidat, visibility, school_year, programme_version).
+# The new check above only ever has work to do because that constraint's key
+# is the full semantic tuple, not (collection, sha256) alone -- it does not
+# by itself prevent two DIFFERENT semantic tuples from sharing a collection.

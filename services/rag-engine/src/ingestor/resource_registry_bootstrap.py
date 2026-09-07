@@ -318,6 +318,33 @@ def _validate_identity(row: _BootstrapSourceRow) -> None:
         )
 
 
+_PLACEMENT_SEMANTIC_FIELDS = (
+    "tenant",
+    "niveau",
+    "voie",
+    "matiere",
+    "statut_enseignement",
+    "candidat",
+    "audience",
+    "visibility",
+    "school_year",
+    "programme_version",
+)
+
+
+def _placement_semantic_tuple(placement: _PlacementRow) -> tuple[object, ...]:
+    """Every authorization-relevant dimension a placement carries EXCEPT
+    ``collection`` itself -- the key a caller groups placements by before
+    calling this. Two placements can legitimately reach the same artifact
+    through two DIFFERENT collections with two different semantic tuples
+    (that is the whole point of a shared cross-subject resource); two
+    placements can never legitimately assert two different semantic tuples
+    for the SAME collection -- a resource cannot simultaneously be
+    ``candidat=libre`` and ``candidat=scolarise``, or ``visibility=public``
+    and ``visibility=internal``, within one identical collection."""
+    return tuple(getattr(placement, field) for field in _PLACEMENT_SEMANTIC_FIELDS)
+
+
 def _validate_placements(row: _BootstrapSourceRow) -> None:
     """A shared artifact is legitimately placed in more than one collection
     (e.g. a première/terminale common-trunk resource): every placement must
@@ -325,7 +352,18 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
     and no placement_id may repeat, but only the ingestion resource's own
     anchor scope -- not every placement -- must be represented among them.
     A placement whose scope differs from the anchor (a second, legitimate
-    collection) is not itself a violation."""
+    collection) is not itself a violation.
+
+    What IS always a violation: two placements sharing the SAME collection
+    but asserting DIFFERENT semantic dimensions (candidat, audience,
+    visibility, niveau, voie, matiere, statut_enseignement, school_year,
+    programme_version, tenant). The exporter's separate
+    ``observed_bindings == release_artifact_bindings`` guard is keyed only
+    by (collection, content_sha256): a second placement sharing its
+    anchor's own collection contributes no new element to that set and is
+    therefore structurally invisible to it, however it diverges on every
+    other dimension. This check closes exactly that gap, independently of
+    what any release registry claims to have promoted."""
     if not row.placements:
         raise BootstrapInventoryError(
             f"placements are missing for {row.resource_version_id}"
@@ -333,6 +371,7 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
     seen_placement_ids: set[str] = set()
     anchor_scope = _scope_tuple(row)
     anchor_represented = False
+    semantic_tuple_by_collection: dict[str, tuple[object, ...]] = {}
     for placement in row.placements:
         if placement.placement_id in seen_placement_ids:
             raise BootstrapInventoryError(
@@ -348,6 +387,14 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
             raise BootstrapInventoryError(
                 f"placement state or source differs for {row.resource_version_id}"
             )
+        semantic_tuple = _placement_semantic_tuple(placement)
+        existing = semantic_tuple_by_collection.get(placement.collection)
+        if existing is not None and existing != semantic_tuple:
+            raise BootstrapInventoryError(
+                f"conflicting semantic placements share collection "
+                f"{placement.collection!r} for {row.resource_version_id}"
+            )
+        semantic_tuple_by_collection[placement.collection] = semantic_tuple
         if _scope_tuple(placement) == anchor_scope:
             anchor_represented = True
     if not anchor_represented:
