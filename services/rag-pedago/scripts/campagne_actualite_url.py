@@ -124,8 +124,17 @@ class _SansRedirection(urllib.request.HTTPRedirectHandler):
 
 def observer(url: str, *, politique: dict) -> dict[str, object]:
     """Une observation complète d'UNE URL, erreurs comprises."""
+    # Le contexte TLS est porté par le HANDLER, pas passé à `open()` :
+    # `OpenerDirector.open()` n'accepte pas `context`, et le lui donner lève un
+    # TypeError que la boucle de reprise enregistrait comme NETWORK_ERROR — un
+    # défaut de code se lisant comme une panne du serveur observé. C'est
+    # exactement la confusion qu'une campagne d'observation ne doit pas produire.
     contexte = ssl.create_default_context()
-    ouvreur = urllib.request.build_opener(_SansRedirection)
+    contexte.check_hostname = True
+    contexte.verify_mode = ssl.CERT_REQUIRED
+    ouvreur = urllib.request.build_opener(
+        _SansRedirection, urllib.request.HTTPSHandler(context=contexte)
+    )
     normalisee, fusion = normaliser(url)
     chaine: list[dict[str, object]] = []
     observation: dict[str, object] = {
@@ -160,7 +169,7 @@ def observer(url: str, *, politique: dict) -> dict[str, object]:
                 )
                 try:
                     with ouvreur.open(
-                        requete, timeout=politique["read_timeout"], context=contexte
+                        requete, timeout=politique["read_timeout"]
                     ) as reponse:
                         statut = reponse.status
                         entetes = reponse.headers
