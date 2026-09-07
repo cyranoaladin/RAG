@@ -1,0 +1,144 @@
+# Autorité de programme 2026-2027 — SEED, deux niveaux séparés.
+#
+# Pourquoi deux niveaux. Un BO est l'autorité RÉGLEMENTAIRE du contenu : il dit
+# « ce texte est un programme officiel ». Une page Éduscol est l'autorité
+# d'APPLICABILITÉ : elle dit « ce programme s'applique à ce scope, cette
+# année ». Les fondre ferait croire soit qu'une page Éduscol remplace
+# juridiquement un BO, soit qu'un vieux BO reste courant au seul motif qu'il
+# existe.
+#
+# PROVENANCE DES VALEURS. Les références et calendriers ci-dessous sont
+# DÉCLARÉS par le canal commanditaire depuis les pages Éduscol 2026-2027. Cette
+# session n'a pas pu les vérifier : eduscol.education.gouv.fr rend 403 à tout
+# agent non navigateur (110 refus mesurés, campagne 422356d3…). Chaque entrée
+# porte donc `applicability_evidence_status: DECLARED_BY_COMMANDITAIRE`, et non
+# `VERIFIED`. Les présenter comme vérifiées serait leur donner un niveau de
+# preuve qu'elles n'ont pas.
+
+authority_id: NEXUS-CURRENT-PROGRAM-AUTHORITY-SEED-2026-2027
+status: PROPOSED
+applied: false
+school_year: "2026-2027"
+
+authority_levels:
+  RegulatoryProgramAuthority:
+    answers: "Ce texte est-il un programme officiel ?"
+    source: "Bulletin officiel (BO / BOEN)"
+  CurrentApplicabilityAuthority:
+    answers: "Ce programme s'applique-t-il à CE scope, CETTE année scolaire ?"
+    source: "pages Éduscol 2026-2027"
+    note: >-
+      Ne remplace pas le BO : elle en date l'application. Un BO reste
+      l'autorité du contenu même quand une page Éduscol dit qu'il n'est plus
+      applicable à un scope donné.
+
+authority_kind_enum: [CURRICULUM, LIMITATIVE_PROGRAM]
+
+# --- collège, cycle 4 -------------------------------------------------
+# Le calendrier VARIE par classe : cycle_4 ne devient jamais un programme
+# unique. Le niveau exact est donc obligatoire.
+college_cycle_4:
+  - {niveau_exact: [cinquieme, quatrieme, troisieme], matiere: arts_plastiques,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  - {niveau_exact: [cinquieme, quatrieme, troisieme], matiere: histoire_des_arts,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  - {niveau_exact: [cinquieme, quatrieme, troisieme], matiere: lca,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  - {niveau_exact: [cinquieme, quatrieme, troisieme], matiere: eps,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  - {niveau_exact: [cinquieme, quatrieme, troisieme], matiere: physique_chimie,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  - {niveau_exact: [cinquieme, quatrieme, troisieme], matiere: svt,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  # Remplacement postérieur : le BO31/2020 n'est plus l'autorité courante ici.
+  - {niveau_exact: [cinquieme, quatrieme, troisieme], matiere: technologie,
+     official_reference: BOEN_9_2024-02-29, authority_kind: CURRICULUM,
+     supersedes: [BOEN_31_2020-07-30]}
+  # Entrée en vigueur PROGRESSIVE : la cinquième bascule, pas la quatrième
+  # ni la troisième. C'est précisément ce qu'un « cycle 4 → un programme »
+  # effacerait.
+  - {niveau_exact: [cinquieme], matiere: francais,
+     official_reference: BOEN_10_2026-03-05, authority_kind: CURRICULUM,
+     supersedes: [BOEN_31_2020-07-30]}
+  - {niveau_exact: [quatrieme, troisieme], matiere: francais,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  - {niveau_exact: [cinquieme], matiere: mathematiques,
+     official_reference: BOEN_10_2026-03-05, authority_kind: CURRICULUM,
+     supersedes: [BOEN_31_2020-07-30]}
+  - {niveau_exact: [quatrieme, troisieme], matiere: mathematiques,
+     official_reference: BOEN_31_2020-07-30, authority_kind: CURRICULUM}
+  - {niveau_exact: [cinquieme], matiere: langues_vivantes, modality: LVE,
+     official_reference: BOEN_22_2025-05-29, authority_kind: CURRICULUM}
+  # 4e et 3e LVE : l'autorité Éduscol n'a pas été relevée. Ne pas extrapoler
+  # depuis la cinquième — c'est exactement le calendrier progressif qui
+  # interdit de le faire.
+  - {niveau_exact: [quatrieme, troisieme], matiere: langues_vivantes, modality: LVE,
+     official_reference: null, applicability: PENDING_AUTHORITY_LOOKUP}
+
+# --- lycée, langues ---------------------------------------------------
+# LVE et LVR ont des calendriers différents : ne jamais les fusionner.
+lycee_langues:
+  - {niveau_exact: [seconde, premiere, terminale], matiere: langues_vivantes,
+     modality: LVE_COMMUN, voie: [generale, technologique],
+     official_reference: BOEN_22_2025-05-29, authority_kind: CURRICULUM,
+     effective_from_school_year: "2026-2027"}
+  - {niveau_exact: [seconde, premiere, terminale], matiere: langues_vivantes,
+     modality: LVR, applicability: PENDING_AUTHORITY_LOOKUP,
+     note: "calendrier progressif distinct des LVE"}
+  - {niveau_exact: [premiere, terminale], matiere: llcer,
+     modality: LLCER_SPECIALITE, applicability: PENDING_AUTHORITY_LOOKUP,
+     note: "textes propres, différents du programme commun de LVE"}
+
+# --- lycée, EPS : trois scopes distincts ------------------------------
+lycee_eps:
+  - {niveau_exact: [seconde, premiere, terminale], matiere: eps,
+     modality: EPS_COMMUN_GT, voie: [generale, technologique],
+     official_reference: BOEN_special_1_2019-01-22, authority_kind: CURRICULUM}
+  - {niveau_exact: [seconde, premiere, terminale], matiere: eps,
+     modality: EPS_OPTION_GT, voie: [generale, technologique],
+     official_reference: BOEN_25_2021-06-24, authority_kind: CURRICULUM}
+  - {niveau_exact: [premiere, terminale], matiere: eps,
+     modality: EPPCS_SPECIALITE,
+     official_reference: BOEN_25_2021-06-24, authority_kind: CURRICULUM}
+
+# --- lycée, arts : le scope est (niveau, voie, modalité) --------------
+lycee_arts:
+  - {matiere: arts_du_cirque, applicability: PENDING_AUTHORITY_LOOKUP}
+  - {matiere: arts_plastiques, applicability: PENDING_AUTHORITY_LOOKUP}
+  - {matiere: cinema_audiovisuel, applicability: PENDING_AUTHORITY_LOOKUP,
+     note: "option seconde / option 1re-Tle / spécialité 1re / spécialité Tle : quatre scopes"}
+  - {matiere: danse, applicability: PENDING_AUTHORITY_LOOKUP,
+     note: "mêmes quatre scopes ; un programme limitatif s'y ajoute"}
+  - {matiere: histoire_des_arts, applicability: PENDING_AUTHORITY_LOOKUP}
+  - {matiere: education_musicale, applicability: PENDING_AUTHORITY_LOOKUP}
+  - {matiere: theatre, applicability: PENDING_AUTHORITY_LOOKUP}
+
+# Un programme limitatif ne remplace jamais l'autorité du programme
+# d'enseignement : il désigne des œuvres ou thématiques pour une session.
+limitative_programs:
+  - {matiere: danse, modality: SPECIALITE, authority_kind: LIMITATIVE_PROGRAM,
+     niveau_exact: [premiere], effective_from_school_year: "2026-2027"}
+  - {matiere: danse, modality: SPECIALITE, authority_kind: LIMITATIVE_PROGRAM,
+     niveau_exact: [terminale], effective_from_school_year: "2027-2028"}
+
+# --- lycée, langues et cultures de l'Antiquité ------------------------
+# LCA (option) et LLCA (spécialité) ne sont jamais un seul scope.
+lycee_lca:
+  - {niveau_exact: [seconde], matiere: lca, modality: LCA_OPTION,
+     official_reference: BOEN_special_1_2019-01-22, authority_kind: CURRICULUM}
+  - {niveau_exact: [premiere], matiere: lca, modality: LCA_OPTION,
+     official_reference: BOEN_special_1_2019-01-22, authority_kind: CURRICULUM}
+  - {niveau_exact: [terminale], matiere: lca, modality: LCA_OPTION,
+     official_reference: BOEN_special_8_2019-07-25, authority_kind: CURRICULUM}
+  - {niveau_exact: [premiere], matiere: llca, modality: LLCA_SPECIALITE,
+     official_reference: BOEN_special_1_2019-01-22, authority_kind: CURRICULUM}
+  - {niveau_exact: [terminale], matiere: llca, modality: LLCA_SPECIALITE,
+     official_reference: BOEN_special_8_2019-07-25, authority_kind: CURRICULUM}
+
+applicability_evidence_status: DECLARED_BY_COMMANDITAIRE
+applicability_evidence_note: >-
+  Aucune de ces applicabilités n'a été vérifiée par cette session. La campagne
+  d'observation réseau 422356d3 a mesuré 110 refus HTTP 403 sur les 111 URL
+  institutionnelles : eduscol.education.gouv.fr et www.education.gouv.fr
+  refusent tout agent non navigateur. Ces valeurs viennent du canal
+  commanditaire et attendent une preuve (evidence_url + evidence_sha256).

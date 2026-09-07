@@ -1,0 +1,1371 @@
+{
+  "AMBIGUOUS_PRE": 12,
+  "AMBIGUOUS_REMAINING": 11,
+  "AMBIGUOUS_RESOLVED_TO_MULTI_SCOPE": 0,
+  "AMBIGUOUS_RESOLVED_TO_SCOPE_MATCH": 0,
+  "AMBIGUOUS_RESOLVED_TO_SCOPE_MISMATCH": 1,
+  "BINDING_CAPABLE_REFERENCE_OCCURRENCES": 148,
+  "BLOCKER_ANALYSIS": {
+    "binding_capable_occurrences": 148,
+    "conclusion": "83 % des occurrences liantes portent sur un artefact au placement TRANSVERSAL. Aucune extension d autorite ne peut y produire un MATCH : le blocage est la granularite du PLACEMENT, pas la couverture de l autorite.",
+    "concrete_scope_match": 0,
+    "on_concrete_placement": 24,
+    "on_transversal_artifact": 124
+  },
+  "CURRENT_PROGRAM_AUTHORITIES_POST": 11,
+  "CURRENT_PROGRAM_AUTHORITIES_PRE": 6,
+  "CURRENT_PROGRAM_SCOPES_COVERED_POST": 56,
+  "POST_AUTHORITY_SCOPE_MATCH_OCCURRENCES": 0,
+  "POST_AUTHORITY_SCOPE_MISMATCH_OCCURRENCES": 23,
+  "POST_AUTHORITY_SCOPE_UNKNOWN_OCCURRENCES": 125,
+  "PRE_AUTHORITY_SCOPE_MATCH_OCCURRENCES": 0,
+  "PRE_AUTHORITY_SCOPE_MISMATCH_OCCURRENCES": 22,
+  "PRE_AUTHORITY_SCOPE_UNKNOWN_OCCURRENCES": 120,
+  "PROGRAM_COMPATIBILITY_PROVEN": 10,
+  "PROGRAM_COMPATIBILITY_UNKNOWN": 2441,
+  "PROGRAM_INCOMPATIBILITY_PROVEN": 0,
+  "PROGRAM_PARTITION_UNACCOUNTED": 0,
+  "applied": false,
+  "kind": "NEXUS-POST-AUTHORITY-RESOLVER-RERUN-V1",
+  "no_rescan": "texte canonique, OCR, découpage et PII inchangés : seul le resolver a rejoué",
+  "scope_detail": [
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "01042dbd95765884c7d01f1e51cef5966c8df2fdb7ef357049270e1459c28415",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "019c6602174f190f4ae8b5c20eec2f5b2f0d13f7345f8bfb24cb249a47e0a6b6",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "arts_plastiques"
+      ],
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "arts_plastiques"
+      ],
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "03b98a7814c5203abd74e1dc94dc2013574d9f2bd0688e44164967b0ad9ad2ad",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "philosophie"
+      ],
+      "content_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "0414c121cb58c82beb36a632bcb568b8353ce5258ef742f7f4b8975e1bf99d8f",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "046c1b6fa94cff3abc6d48c139b8b2ad9534fb5e1aab5ad5c84d3304d74fc28f",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "0b9a40eb0706d976cabd3259f0f4f3bd87037ef41f3aebda4b67b1ae85b667f2",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "seconde",
+        "arts_plastiques"
+      ],
+      "content_sha256": "0c4d33e649e22c6d77c50dd82e2de4f266e2717ebad2bc0d6705797765e15cb6",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7",
+      "official_reference": "BOEN_25_2021-06-24",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "eps"
+      ],
+      "content_sha256": "10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8",
+      "official_reference": "BOEN_25_2021-06-24",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "11fb17663dfd81b864454593dc5d4ffb2936462d893bbdda1bc440d8cd5273ce",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "159711eada0ee841f9a6ae5812e6a8c724056894b8d65de913f94091e710a2d5",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "mathematiques"
+      ],
+      "content_sha256": "163bbd7248a3764e3b299dd658545b07cceef8bcda7027c3c02292a681f59d65",
+      "official_reference": "BOEN_10_2026-03-05",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "18d76dea1ba3f2bfcc81c4a3b1f5887ba5cf8a9c5aac1ecfe35c0089cd5704a5",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "1e7c6ffe6aa6d9cc69cb43944f455954d525d68c55834619572feb3c196ca603",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "2400a70e3338652a7917eece2046727450aae799060b09e28b1b02fef1137d61",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "langues_vivantes"
+      ],
+      "content_sha256": "284fc2dd2c244b03640cb1d8abe932a09f61e3d9359f1c2db543f108f3637320",
+      "official_reference": "BOEN_25_2021-06-24",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "28ca41343f7c9f1475e171ae677f4b60bc6b610c6ad2e5442f3771bb2b92754d",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "technologie"
+      ],
+      "content_sha256": "2a5edb1e3d169ea9bd6f11b01ff72525e034a2fb466c7e8727d41c6990298bbf",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "mathematiques"
+      ],
+      "content_sha256": "2bc7ba7ced53d5cc3d2665e82a9385c51858dd442294410d553034b008163846",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "lca_llca"
+      ],
+      "content_sha256": "2d5d82b9719da17b370841b632be5b7a9e1b9282df74f67a0c6ed66230a3a39e",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_LEVEL"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "physique_chimie"
+      ],
+      "content_sha256": "2fee69b41b9c47cc13f90289501176a336673a18707ce9299aeb03eb2f00b520",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "theatre"
+      ],
+      "content_sha256": "3052a07b16ee59439ffafee3bf4806351f68fbef1c09bf876047772d43fd9314",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "3177a1099fe1679616ec00193ffbc838cefc1e976b64d5fd1f7c350f66ccb7c2",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "danse"
+      ],
+      "content_sha256": "31cbea425ee2a8b1752365dd6074150cec94660a34f3fa3851685409308c0a28",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "danse"
+      ],
+      "content_sha256": "31cbea425ee2a8b1752365dd6074150cec94660a34f3fa3851685409308c0a28",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "336f98ded652b77fb1beb4966f073a42be20e15a241d1b5337e366d17bb57e9f",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "336f98ded652b77fb1beb4966f073a42be20e15a241d1b5337e366d17bb57e9f",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "338a6490de04c66986cd348cf38e7fed6e83e9cc3bcd4ec4b73f043c35da034a",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "physique_chimie"
+      ],
+      "content_sha256": "3455b99d834bc598584a188a10ef12cda978e91c905bad693a7815dc84052665",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "musique"
+      ],
+      "content_sha256": "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "musique"
+      ],
+      "content_sha256": "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "36c8bb572e84aee5aae7c5204cdba079f6b910b8127f872ad50a10c1e444b5fd",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "philosophie"
+      ],
+      "content_sha256": "37778b675e275091d4e7b090ef2cede6e97380edcc638e280046aa3d030e43a8",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "3885f344e9026c3909e022c480b2c8806af772eef5d3f0cf3dfba2aa23627b7a",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_LEVEL"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "hggsp"
+      ],
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "hggsp"
+      ],
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "francais"
+      ],
+      "content_sha256": "3cee72738f32175ac368a9a0f5e29690c001520d79dc944ad41ea76540c1d10d",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "lsf"
+      ],
+      "content_sha256": "4011ccc8b4c1f8401e724af873cb57290dfd061ce7463ebec779f79d432cdc8d",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "lsf"
+      ],
+      "content_sha256": "4011ccc8b4c1f8401e724af873cb57290dfd061ce7463ebec779f79d432cdc8d",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "technologie"
+      ],
+      "content_sha256": "40d6df533665899e5819e29ae279dd449c76c83851b4baf0498ca8b41f934537",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "theatre"
+      ],
+      "content_sha256": "45d122da2901256728828d173982478961f513b3664b7552f019da653f4e9dda",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "theatre"
+      ],
+      "content_sha256": "4703f1cebd91eacc1ad7924a89b56b5d0c5e00274c95d11a39088548cc6d8596",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "4b41cb9d8b9d06072c78d73b6809d3a5f09c54b6a72feb757915fc957cbd4447",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "4c9c68e2a10130b3e6d692529ad0bb89ee3e4e93f2753b6f8496bd36a0925f43",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "premiere",
+        "theatre"
+      ],
+      "content_sha256": "4cb2425405e7f7e6efcdb5bf62ce431143296953bbfed20c0e50d8d9248276ab",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "seconde",
+        "physique_chimie"
+      ],
+      "content_sha256": "4ea2cde3f6ff818189bdfb31f2960c4cc9e6e06d876286ab317f8727ba680b1c",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_MISMATCH_LEVEL"
+    },
+    {
+      "artifact_scope": [
+        "premiere",
+        "lsf"
+      ],
+      "content_sha256": "4eeb770804686d813f599f1e470a8cf18789c66225cc2cb16796234ba71822dd",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "51528bf9197c61ef7d6059fc4eca2422b4c1177c0dcc03c2531db1f2eaac0618",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "52a161bf6a96d96be2262f484aa4fcb9338e4eef07cf0e2fe0a4fdc3ba432cd5",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "5376af2a265e4ca47a319b1df842f3659bddf3f0c53d317d48da036e02346f82",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "physique_chimie"
+      ],
+      "content_sha256": "55b38a1d0d48f969131ebcc76bb40f4ab18bdf1afdff9a0319d57f1b616d6867",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "lca_llca"
+      ],
+      "content_sha256": "5725150723f559dd9cf4f72157e05c84a5fd704f651a322a834cbcd7d64ebc29",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "llcer"
+      ],
+      "content_sha256": "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "llcer"
+      ],
+      "content_sha256": "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "",
+        ""
+      ],
+      "content_sha256": "58f36f35bec3dfe168a9101772870cb210af603264b0d1dc541cff401f84b6cd",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "5980c083692d023e53867b8bb4e7115dcdb825b6ac6c12ac189acd0575203dae",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "seconde",
+        "physique_chimie"
+      ],
+      "content_sha256": "6093f2c9ec1f47bc600e9eb0c86061858a00ef936c598e7193ba6a65f1dfb325",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_LEVEL"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "technologie"
+      ],
+      "content_sha256": "60ed416d187fe449ca2639bc0efe289af61d88a32b618e05f5e5ee7dd08a4086",
+      "official_reference": "BOEN_9_2024-02-29",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "histoire_des_arts"
+      ],
+      "content_sha256": "62d8bbed56ee71d6c7ecdbeb7e28322f1e67a9dd74c8cd1d4d880ed2392f04ba",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "6322c2a135dbb5ce20b819cfbe00dfbbb253f3ad63c8c414d87c5f2287c41656",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "63b9e44f68e4d3e1bc59383364b8ead6ca9287817fb2c5816b4652bea7376712",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "theatre"
+      ],
+      "content_sha256": "63f93b838db43c4f68b747facb1af3971a51c2f20ad8008cac3f3818b82c8a53",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "physique_chimie"
+      ],
+      "content_sha256": "65205f54dfaa421d487b936eb1f25c2c77f6308ab0e7ed5dcda257d242e2f823",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "histoire_des_arts"
+      ],
+      "content_sha256": "673a537c3248b4eeed52f50e5c39f44086db569b821ee8a606e56d9a1427399b",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "6e2ed9a43b095e43ca6ab71cc7f4099921cc6733f02571ec54194a5675e774da",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "arts_plastiques"
+      ],
+      "content_sha256": "6f1e862cc2ad50a35397c80303093dea37755ab66528ad71e7121a7d752e4597",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "arts_plastiques"
+      ],
+      "content_sha256": "6f1e862cc2ad50a35397c80303093dea37755ab66528ad71e7121a7d752e4597",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "arts_plastiques"
+      ],
+      "content_sha256": "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "arts_plastiques"
+      ],
+      "content_sha256": "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "histoire_des_arts"
+      ],
+      "content_sha256": "7095e69ecedda7c344c9459fabb4f11296d64478a564e27d807abf7dce672c6b",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "7746ed8f2ba30d8d99ebf4f7c8a938e107343e1802a5439c9d09ebd4e952955d",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "arts_du_cirque"
+      ],
+      "content_sha256": "78a50ce402eb5f39540c2bc1fff39f01032512f0d70874fc591256f43078947e",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "78d0a07a64cb13bd3c82785e519464e80a006e7c55d7b17f7c9b75fdc339948c",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "7ded8c5fa537be3418ab350497281db554afccb4f26a9da8f6f1de9cb5cb0fb3",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_LEVEL"
+    },
+    {
+      "artifact_scope": [
+        "premiere",
+        "lsf"
+      ],
+      "content_sha256": "7eb3b943dde0d0eca48e574ea51b03793f09f56ef834f25f175490228fa9beba",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "7fcd4a8180dcc45973f30ae43bc992f82638ae78936a4b3260785fa2d8ad0467",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "dgemc"
+      ],
+      "content_sha256": "802a6c9edf9ed1239f47c52f222d57d57b1e198068ce91ab329138a95f638a11",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "llcer"
+      ],
+      "content_sha256": "808846fe52d111ebb1a46907bf9756dfbfae35f4958e578695504969a38f586c",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "81e9ecc62a381c533af8e06b715177611eaea5d3f0dc656ac0aef2a2ec609fea",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "84a4fae056f43805cbccd901f4adad163721723f717dc55a1ad3c05068913b72",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "theatre"
+      ],
+      "content_sha256": "853ad7535a182a459d31e21af6d0b182a73bf40996e21d2379a4bc60921ef113",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "theatre"
+      ],
+      "content_sha256": "853ad7535a182a459d31e21af6d0b182a73bf40996e21d2379a4bc60921ef113",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "lca_llca"
+      ],
+      "content_sha256": "867c55813a05c3620efc58777ce8cda97aa11458fce36d3fcfe373ac181a22b5",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "histoire_des_arts"
+      ],
+      "content_sha256": "873667ed2a3fa2daf5cf17f0dcddeea0c967a4815511d9949c35bd5152492845",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "873c1af6ad0c901a652869fdf1317540fad914331c003a3a949b2ca0cf7a2ef7",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "8991aebbb39a1d6fe12e9baac0864ece825de42be3f847cb9fd66d4fef30d055",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "8ed77a1ff4c1f8f1aadeaf76bc3e80370ddd0aa6acad2e86f51c48bb28d5d4ac",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "8ef3ee78ab8c47fe8da2863f849fd04f22b968c3dcb60e4db3d68e1c8cc05f27",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "9226a11096d4c5d47ea95d9799118df9cec8de572ffd23b95735128bb6a4d016",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "9c59323c9e47e57a835a1772d5f4a48b47c4c9cc6a4c95feec86ef55c6335053",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "physique_chimie"
+      ],
+      "content_sha256": "9ce8650fe176dbc95236168f11bf859ff99f9717ebf92bd71edf5ceb8c0325f6",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "histoire_des_arts"
+      ],
+      "content_sha256": "a2967c28700733a4db3326b6d014d2084ecb50a129fe6c53b95236d76100228b",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "a3495a1c4bbbd54a26d4b15b7a2b3b6eb7e72f555a83fe386bf124f929cd7faf",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "theatre"
+      ],
+      "content_sha256": "a3e57217b46f1b2b863f3ef6157b198053fcd2c89487026fdbe536cc86bad6f5",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "a7124b82151269c4038f269228656efbc7a19738776f21a57ceeffad0df365aa",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "b09affabc1fc80310e5a42ed9014ae6208889e9a554c377cd8b7bbdf3c6370cd",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "b0b9b8ca80a003106052b3bdddaded3c6f73d39e5bb52a15fb9c94041ce46976",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "b34a60dcccbcd87b1d65c05b5919bb6c374b5205437bb8543132409f39459fd2",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "arts_plastiques"
+      ],
+      "content_sha256": "b420ef10c1825bb553773c25637b4d9372cbc5854ce07d8472a4f1ac266b4612",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "seconde",
+        "hlp"
+      ],
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_LEVEL"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "eps"
+      ],
+      "content_sha256": "b9622390f7945098bbdbdaeb625c891d9dd0a6273058ec6e91445ce3307683b5",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "bbec6df9198f4da42f9e02dc31da27f18a2eab6e0891089ce91d9751f1b3221e",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "bc615d67c0a5df2e28497ab0d7685567187d2175e3cfb0f7b3d02ea7da0f26c9",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "danse"
+      ],
+      "content_sha256": "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "danse"
+      ],
+      "content_sha256": "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "eps"
+      ],
+      "content_sha256": "c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b",
+      "official_reference": "BOEN_25_2021-06-24",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "c5c032cbfb9452a29a31f90104cfc5613d473e60b1b4f18566d0aacf5a68fe90",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "histoire_des_arts"
+      ],
+      "content_sha256": "c6acc5f8e2df96f406672ab48291dd1ed977e1c80d7dbd66c8e653af3c608f23",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "c8920cfbb959190547037b53e9eaa297a48774df6a38aceab2d87c83b1b69461",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "c99d2e3e39dc103a50d9eb2893bd47d3e43f6c1ac48baa8631792a298d95740f",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "cba6057239aa6f3cf0185becd3e79b588fafc980e7aadaf361bf51e95c76ed3c",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "francais"
+      ],
+      "content_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_LEVEL"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "cef9d77b41dd2f384de04eeea7bbfb8c06d7a227edb0f266759c46fe1cef3139",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "d33f64ad4eac352e99cad8d654d85c38a9e8f51b9d7c461bcec8aaff393d54a1",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "musique"
+      ],
+      "content_sha256": "d517797e42092075cdc0962d032fe0e971e7a62d51b4c7872d8ff1dafde64dbc",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "cinema_audiovisuel"
+      ],
+      "content_sha256": "d6a88a39544b7144e49288af6d57550eafe112fe21d99b99e2a71d09b7fc09e2",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "d6bf1aabdf85ab6da6ba04ce58d9e19198597a25cad28d9899b5c7a53a235ac4",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "technologie"
+      ],
+      "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "terminale",
+        "theatre"
+      ],
+      "content_sha256": "df2ba34f19095f7ed85c1fd6ca1a26fc8e958515f3a5dad8b32c9d873413aa21",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_MISMATCH_SUBJECT"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "e47c125b1693167465f1f101f75c9b87092fa83426c5ed46dd30aa1f1236eb3d",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "dgemc"
+      ],
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "theatre"
+      ],
+      "content_sha256": "e6c3888defc742513e3f1055cf02dfbc080fd24fec53c65c2f7ef5736ec86686",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "e88ec473a570e86c70f7254acfe8efe36bf36ca4d2bc245df6ec0aac8ecdb45d",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "lca_llca"
+      ],
+      "content_sha256": "eb9c1fad8b61784dc8e46c89ae66cbf16710167051472939df77b83b8876f62c",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "physique_chimie"
+      ],
+      "content_sha256": "ef6a8cea93b7487d2bb0ba1cd615acce0ea6c37c2c52729c24275eb661ec0030",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "dgemc"
+      ],
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "dgemc"
+      ],
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "physique_chimie"
+      ],
+      "content_sha256": "f1918c6a1f60ba01fa0ef7bdf7bafdd645cb31c69a58285807c5440c5a372b55",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "dgemc"
+      ],
+      "content_sha256": "f1adebff9abb216e601e1eeac23e9fba8c6fadf49d8eaa65401630baa1967948",
+      "official_reference": "BOEN_31_2020-07-30",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "langues_vivantes"
+      ],
+      "content_sha256": "f50f8062cf249133b2ef36d057e5abe205ccd736eefbb5a36dddbfc272d66261",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "physique_chimie"
+      ],
+      "content_sha256": "f530cf5529857fa1925cb429261f014d46d25b176844e5350ffb43caf0514528",
+      "official_reference": "BOEN_special_8_2019-07-25",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "cycle_4_transversal",
+        "education_musicale"
+      ],
+      "content_sha256": "f96f770c5b60c2d84565b60b4651b9c3dcdadd46cafc0bab98db560651c1992a",
+      "official_reference": "BOEN_special_11_2015-11-26",
+      "verdict": "SCOPE_UNKNOWN"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "_multi_disciplines"
+      ],
+      "content_sha256": "fc285d7c356bdaaac489a77c5fa2e19da7c581ef5e497ffce0c0d1b4e21f53cf",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    },
+    {
+      "artifact_scope": [
+        "transversal_multi_niveaux",
+        "histoire_des_arts"
+      ],
+      "content_sha256": "fda7d475cc7393e3105e114dd4d9159b053ce6e7d876ec5775249f0b24786db0",
+      "official_reference": "BOEN_special_1_2019-01-22",
+      "verdict": "SCOPE_NOT_ATTRIBUTABLE"
+    }
+  ],
+  "verdict_breakdown": {
+    "SCOPE_MISMATCH_LEVEL": 7,
+    "SCOPE_MISMATCH_SUBJECT": 16,
+    "SCOPE_NOT_ATTRIBUTABLE": 96,
+    "SCOPE_UNKNOWN": 29
+  }
+}
