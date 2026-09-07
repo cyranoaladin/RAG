@@ -279,10 +279,20 @@ venv vierge : installation, mypy sans problème, 26 épreuves vertes, 319
 contenus rendus.
 
 **La CI locale porte les mêmes contrôles.** AGENTS.md en fait le garde-fou
-quand GitHub Actions est indisponible ; sans les cibles `qualification-tests`
-et `promoted-content-set`, elle rendait vert sans avoir exercé le périmètre
+quand GitHub Actions est indisponible ; sans la cible `qualification-c1` de
+`scripts/ci-local.sh` — qui exécute les épreuves de qualification PUIS le
+calcul de l'ensemble promu —, elle rendait vert sans avoir exercé le périmètre
 promu, et le gate C1 n'existait alors que dans un workflow distant. Aucune clé
-n'y est requise — seul le job post-fusion confronte le store privé.
+n'y est requise : seul le job post-fusion confronte le store privé.
+
+C'est bien UNE cible, pas deux : un exploitant qui chercherait
+`qualification-tests` ou `promoted-content-set` ne trouverait rien, et
+conclurait à tort que le garde-fou est absent.
+
+Elle alloue son environnement par `mktemp -d` et le détruit à la sortie, et
+écrit sa preuve dedans : un chemin partagé laissait deux exécutions
+concurrentes se supprimer l'interpréteur, ou l'une remplacer l'ensemble promu
+de l'autre.
 
 ## Ce qui reste à prouver après la fusion
 

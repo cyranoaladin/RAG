@@ -254,8 +254,11 @@ run_target "qualification-c1" bash -c '
     -e packages/pdf-page-policy \
     -e packages/release-chain
   "$venv/bin/python" -m pytest -q scripts/qualification/tests
+  # La preuve est écrite sous le venv UNIQUE de cette exécution. Un chemin
+  # partagé laissait une exécution concurrente remplacer l ensemble promu d une
+  # autre lignée par le sien, sans que rien ne le dise.
   "$venv/bin/python" scripts/qualification/compute_promoted_content_set.py \
-    --output "${TMPDIR:-/tmp}/promoted-content-set.json"
+    --output "$venv/promoted-content-set.json"
 '
 
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh

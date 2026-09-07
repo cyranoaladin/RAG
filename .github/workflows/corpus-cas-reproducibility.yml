@@ -41,7 +41,15 @@ name: Corpus CAS reproducibility (C1)
       # confronte cette couverture à la surface réellement mesurée dans le
       # source, pour qu'un module nouveau échoue au lieu de passer inaperçu.
       - "services/rag-engine/src/ingestor/**"
-      - "services/rag-pedago/scripts/build_production_profile_release.py"
+      # L'outillage de DÉPLOIEMENT ne charge pas le registre : il décide de
+      # celui qui sera monté (`--release-registry-path`). Le changer change le
+      # corpus servi tout autant qu'un changement du chargeur.
+      - "services/rag-engine/scripts/**"
+      # Le plan de contrôle produit et rescelle les registres et leurs
+      # autorités : sa gouvernance et ses scripts décident de ce qui devient
+      # servable.
+      - "services/rag-pedago/rag_pedago/**"
+      - "services/rag-pedago/scripts/**"
       - "packages/contracts/**"
       - "packages/pdf-page-policy/**"
       # Le câblage de déploiement décide QUEL registre est monté et contre
