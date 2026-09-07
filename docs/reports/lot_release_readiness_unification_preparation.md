@@ -51,7 +51,59 @@ en ajoutant simplement la dépendance à l'image de lecture.
 `test_build_production_profile_release.py`, et côté qualification
 `compute_promoted_content_set.py` + son épreuve.
 
-## 3. Les trois voies possibles, et ce qu'elles coûtent
+## 3. Pourquoi `release-chain` tire `pypdf` — mesuré
+
+```
+packages/release-chain/pyproject.toml
+dependencies = ["pydantic", "pyyaml", "nexus-contracts", "nexus-pdf-page-policy"]
+```
+
+Où cette dépendance est-elle réellement utilisée ?
+
+| Module du paquet | Importe `nexus_pdf_page_policy` / `pypdf` |
+|---|---|
+| `pdf_extractor.py` | **oui** — c'est le seul |
+| `release_readiness.py` | non — **stdlib uniquement** |
+| `collection_config.py`, `pedagogical_chunker.py`, `publication_chunking.py`, `ingestion_profiles/` | non (`publication_chunking` importe `pdf_extractor`) |
+| `__init__.py` | **n'importe rien** |
+
+Le fait décisif : `import nexus_release_chain.release_readiness` ne charge
+**aucun** parseur. La dépendance `pypdf` est un fait d'**empaquetage**, pas de
+graphe d'import.
+
+Consommateurs de `pdf_extractor` : `publication_chunking.py` (interne) et
+`services/rag-pedago/scripts/build_multilevel_preflight.py`. Aucun n'est dans
+l'image de lecture.
+
+## 4. Ce que cette mesure change
+
+La voie la plus simple n'était pas dans ma liste précédente, parce que je
+n'avais pas mesuré : **déplacer `nexus-pdf-page-policy` des dépendances vers un
+extra optionnel**.
+
+```
+dependencies = ["pydantic", "pyyaml", "nexus-contracts"]
+[project.optional-dependencies]
+pdf = ["nexus-pdf-page-policy>=1.0.0"]
+```
+
+- `pip install nexus-release-chain` → sans `pypdf` → installable dans l'image
+  de lecture, dont l'allowlist reste sans parseur ;
+- `pip install nexus-release-chain[pdf]` → pour le producteur et le worker qui
+  découpent réellement des PDF ;
+- `pdf_extractor.py` refuse en nommant l'extra manquant, plutôt que de lever un
+  `ImportError` nu.
+
+Une seule autorité, une seule distribution, aucune ligne déplacée pour la forme.
+C'est le contraire d'une duplication renommée : les 1913 lignes restent où elles
+sont, et la copie vendorée disparaît parce que le paquet devient installable là
+où elle servait.
+
+Reste à établir avant de s'engager : que le worker de production et le
+producteur installent bien l'extra, et que le refus de `pdf_extractor` sans
+extra soit éprouvé.
+
+## 5. Les autres voies, pour mémoire
 
 **(a) Dépendance de paquet dans les deux images.** La plus directe. Coût réel :
 `pypdf` entre dans le runtime de lecture, dont l'allowlist a été construite
@@ -73,7 +125,7 @@ Ma recommandation est **(b)**, précédée d'une mesure : combien des 1913 ligne
 touchent la politique de page. Si la réponse est « peu », (b) devient courte et
 supprime la duplication sans élargir aucune surface.
 
-## 4. Ce que le lot devra prouver
+## 6. Ce que le lot devra prouver
 
 ```
 RELEASE_READINESS_IMPLEMENTATIONS=1
