@@ -11,6 +11,11 @@ from pathlib import Path
 import psycopg
 from nexus_contracts.canonical_json import canonical_model_bytes
 
+from ingestor.atomic_artifact import (
+    AtomicArtifactError,
+    assert_publishable,
+    publish_atomic_no_clobber,
+)
 from ingestor.release_readiness import load_release_registry_file
 from ingestor.resource_registry_bootstrap import (
     export_resource_registry_bootstrap_inventory,
@@ -44,6 +49,15 @@ def main(argv: list[str] | None = None) -> int:
     if not dsn:
         raise SystemExit(f"{DSN_ENV} is required and is never accepted on argv")
 
+    # Fail before ever touching the production database: an operator must
+    # never discover an unusable --output only after the DB round trip.
+    # This is a fast pre-flight only -- publish_atomic_no_clobber below is
+    # the authoritative, race-free no-clobber guard.
+    try:
+        assert_publishable(args.output)
+    except AtomicArtifactError as exc:
+        raise SystemExit(str(exc)) from exc
+
     release_registry = load_release_registry_file(
         args.release_registry_path,
         args.release_registry_sha256,
@@ -64,7 +78,10 @@ def main(argv: list[str] | None = None) -> int:
             release_artifact_bindings=release_artifact_bindings,
         )
 
-    args.output.write_bytes(canonical_model_bytes(inventory) + b"\n")
+    try:
+        publish_atomic_no_clobber(args.output, canonical_model_bytes(inventory) + b"\n")
+    except AtomicArtifactError as exc:
+        raise SystemExit(str(exc)) from exc
     print(f"RESOURCE_REGISTRY_BOOTSTRAP_SHA256={inventory.inventory_sha256}")
     print(f"RESOURCE_REGISTRY_BOOTSTRAP_ROWS={len(inventory.resources)}")
     return 0
