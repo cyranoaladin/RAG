@@ -1,0 +1,19 @@
+{
+  "POST_KIND_AMBIGUOUS_BINDINGS": 0,
+  "POST_KIND_REJECTED_BINDINGS": 124,
+  "POST_KIND_VALID_BINDINGS": 10,
+  "PRE_KIND_BINDINGS": 76,
+  "PROGRAM_COMPATIBILITY_PROVEN": 10,
+  "PROGRAM_COMPATIBILITY_UNKNOWN": 2441,
+  "PROGRAM_COMPATIBLE_SHA_SET_SHA256": "2caa5baf09142b8438fe29eb2791afb9e8090dbb921797cd009b65d91330bdf6",
+  "PROGRAM_HUMAN_REVIEW_STARTED": false,
+  "PROGRAM_INCOMPATIBILITY_PROVEN": 0,
+  "PROGRAM_PARTITION_INTERSECTION_COUNT": 0,
+  "PROGRAM_PARTITION_UNACCOUNTED": 0,
+  "PROGRAM_PARTITION_UNION_COUNT": 2451,
+  "PROGRAM_UNKNOWN_SHA_SET_SHA256": "723454413764d0d9d870601e3b93fbb5335cb76013af2a9097db99b44f17a714",
+  "applied": false,
+  "correction": "Les 66 liaisons issues de citations explicites sont retirées : elles reposaient sur « le document cite une reference resolue », sans verifier que le SCOPE de cette reference couvre le document. Aucune des 99 references de programme resolues ne couvre le placement du document qui la cite. C est une correction de preuve, pas une regression.",
+  "kind": "NEXUS-PROGRAM-PARTITION-V3",
+  "supersedes": "NEXUS-PROGRAM-PARTITION-V2"
+}

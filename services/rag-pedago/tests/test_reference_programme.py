@@ -305,3 +305,136 @@ class TestLApplicabiliteNeSeDeduitPasDeLaDate:
         for autorite in self.AUTORITES:
             assert "effective_from_school_year" in autorite
             assert autorite["effective_from_school_year"] != autorite["bulletin_date"]
+
+
+# --- un BOEN n'est pas nécessairement un programme --------------------
+
+
+class TestLaNatureDuTexteOfficielEstUneDimension:
+    """`BOEN_*` ne veut pas dire « programme d'enseignement ».
+
+    Le BO spécial n° 2 du 13 février 2020 porte les MODALITÉS D'ÉPREUVES du
+    baccalauréat 2021 — spécialités artistiques, philosophie, Grand oral.
+    Dix-sept documents le citent. En déduire leur version de programme ferait
+    dériver une autorité pédagogique d'un règlement d'examen.
+    """
+
+    import pathlib
+
+    REGISTRE = (
+        pathlib.Path(__file__).resolve().parents[1]
+        / "configs/proposals/official_reference_kinds_v1.yml"
+    )
+
+    @staticmethod
+    def _registre():
+        import yaml
+
+        return yaml.safe_load(
+            TestLaNatureDuTexteOfficielEstUneDimension.REGISTRE.read_text(encoding="utf-8")
+        )
+
+    def test_le_bo_special_2_de_2020_est_un_reglement_d_examen(self) -> None:
+        """LE mutant : le déclarer PROGRAM doit échouer."""
+        registre = self._registre()
+        entree = registre["references"]["BOEN_special_2_2020-02-13"]
+        assert entree["official_reference_kind"] == "EXAM_REGULATION"
+        assert entree["official_reference_kind"] != "PROGRAM"
+        assert entree["binding_capable"] is False
+
+    def test_un_reglement_d_examen_ne_peut_pas_lier_un_programme(self) -> None:
+        """PROGRAM_BINDING_FROM_EXAM_REGULATION=REFUSED."""
+        from rag_pedago.governance.reference_programme import NATURES_LIANTES
+
+        assert "EXAM_REGULATION" not in NATURES_LIANTES
+        assert "ASSESSMENT_REGULATION" not in NATURES_LIANTES
+        assert set(NATURES_LIANTES) == {"PROGRAM", "PROGRAM_MODIFICATION"}
+
+    def test_le_bo_31_de_2020_modifie_il_ne_remplace_pas_tout_le_college(self) -> None:
+        registre = self._registre()
+        entree = registre["references"]["BOEN_31_2020-07-30"]
+        assert entree["official_reference_kind"] == "PROGRAM_MODIFICATION"
+        assert entree["NOR"] == "MENE2018714A"
+        assert entree["current_in_2026_2027"] == "UNKNOWN_PER_SCOPE"
+
+    def test_le_bo_special_11_de_2015_est_un_programme_mais_pas_courant_partout(
+        self,
+    ) -> None:
+        """La currentness dépend du scope exact ; elle ne se conclut pas
+        globalement."""
+        entree = self._registre()["references"]["BOEN_special_11_2015-11-26"]
+        assert entree["official_reference_kind"] == "PROGRAM"
+        assert entree["NOR"] == "MENE1526483A"
+        assert entree["effective_from_school_year"] == "2016-2017"
+        assert entree["current_in_2026_2027"] == "UNKNOWN_PER_SCOPE"
+
+    def test_une_reference_non_declaree_est_de_nature_inconnue(self) -> None:
+        """Jamais PROGRAM par défaut."""
+        from rag_pedago.governance.reference_programme import KIND_INCONNU
+
+        assert "BOEN_special_6_2020-07-31" not in self._registre()["references"]
+        assert KIND_INCONNU == "UNKNOWN_OFFICIAL_KIND"
+
+    def test_l_enum_des_natures_est_fermee(self) -> None:
+        from rag_pedago.governance.reference_programme import NATURES_OFFICIELLES
+
+        assert set(self._registre()["kind_enum"]) == set(NATURES_OFFICIELLES)
+
+
+# --- `special` fait partie de l'identité ------------------------------
+
+
+class TestLeQualificatifDeSerieEstStructurel:
+    """Le 26 novembre 2015 ont paru un BO SPÉCIAL n° 11 et un BO n° 44.
+
+    Perdre `special` fait désigner deux textes différents par le même
+    identifiant — et « BO n° 11 du 26 novembre 2015 » ne correspond alors
+    proprement à aucune autorité canonique.
+    """
+
+    def test_le_special_est_conserve_dans_l_identifiant(self) -> None:
+        """LE mutant : normaliser vers `BOEN_11_2015-11-26` doit échouer."""
+        from rag_pedago.governance.reference_programme import citations_structurees
+
+        (citation,) = citations_structurees("BO spécial n°11 du 26 novembre 2015")
+        assert citation["official_reference"] == "BOEN_special_11_2015-11-26"
+        assert citation["official_reference"] != "BOEN_11_2015-11-26"
+        assert citation["bulletin_series"] == "SPECIAL"
+
+    def test_l_absence_de_special_est_conservee_telle_quelle(self) -> None:
+        """Aucun alias automatique : corriger silencieusement un texte officiel
+        cité par une source, ce serait réécrire sa citation."""
+        from rag_pedago.governance.reference_programme import citations_structurees
+
+        (citation,) = citations_structurees("BO n°11 du 26 novembre 2015")
+        assert citation["official_reference"] == "BOEN_11_2015-11-26"
+        assert citation["bulletin_series"] == "STANDARD"
+
+    def test_le_registre_refuse_l_alias_automatique(self) -> None:
+        import pathlib
+
+        import yaml
+
+        registre = yaml.safe_load(
+            (
+                pathlib.Path(__file__).resolve().parents[1]
+                / "configs/proposals/official_reference_kinds_v1.yml"
+            ).read_text(encoding="utf-8")
+        )
+        entree = registre["references"]["BOEN_11_2015-11-26"]
+        assert entree["auto_alias"] is False
+        assert entree["resolution_status"] == "POSSIBLE_MISSING_SPECIAL_QUALIFIER"
+        assert entree["official_reference_kind"] == "UNKNOWN_OFFICIAL_KIND"
+
+    def test_la_structure_porte_serie_numero_et_date(self) -> None:
+        """Faire de `special` un détail lexical le rendrait perdable au premier
+        refactor."""
+        from rag_pedago.governance.reference_programme import citations_structurees
+
+        (citation,) = citations_structurees("Bulletin officiel spécial n° 8 du 25 juillet 2019")
+        assert citation == {
+            "official_reference": "BOEN_special_8_2019-07-25",
+            "bulletin_series": "SPECIAL",
+            "bulletin_number": 8,
+            "bulletin_date": "2019-07-25",
+        }

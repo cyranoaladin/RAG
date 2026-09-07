@@ -59,6 +59,37 @@ _CITATION_NUMERIQUE = re.compile(
 )
 
 
+#: La NATURE du texte officiel. Un identifiant `BOEN_*` ne désigne pas
+#: nécessairement un programme d'enseignement : le BO spécial n° 2 du
+#: 13 février 2020 porte les modalités d'épreuves du baccalauréat 2021, pas un
+#: programme. Le confondre ferait dériver la version de programme de 17
+#: documents à partir d'un règlement d'examen.
+#:
+#: Enum FERMÉE. Une nature inconnue est nommée comme telle, jamais supposée.
+KIND_PROGRAMME = "PROGRAM"
+KIND_MODIFICATION = "PROGRAM_MODIFICATION"
+KIND_EXAMEN = "EXAM_REGULATION"
+KIND_EVALUATION = "ASSESSMENT_REGULATION"
+KIND_ORIENTATION = "CURRICULUM_GUIDANCE"
+KIND_AUTRE = "OTHER_OFFICIAL_TEXT"
+KIND_INCONNU = "UNKNOWN_OFFICIAL_KIND"
+NATURES_OFFICIELLES = (
+    KIND_PROGRAMME, KIND_MODIFICATION, KIND_EXAMEN,
+    KIND_EVALUATION, KIND_ORIENTATION, KIND_AUTRE, KIND_INCONNU,
+)
+#: Seules ces deux natures peuvent alimenter une autorité de programme ou une
+#: liaison d'artefact. Les autres sont des textes officiels réels, mais qui ne
+#: disent rien de la version de programme d'un document.
+NATURES_LIANTES = (KIND_PROGRAMME, KIND_MODIFICATION)
+
+#: Les séries de bulletin. `special` n'est PAS un détail lexical : le
+#: 26 novembre 2015 a vu paraître un BO spécial n° 11 ET un BO hebdomadaire
+#: n° 44. Perdre le qualificatif fait désigner deux textes différents par le
+#: même identifiant.
+SERIE_STANDARD = "STANDARD"
+SERIE_SPECIALE = "SPECIAL"
+
+
 def _sans_accents(texte: str) -> str:
     return "".join(
         c for c in unicodedata.normalize("NFD", texte) if unicodedata.category(c) != "Mn"
@@ -82,6 +113,39 @@ def references_canoniques(valeur: object) -> list[str]:
     if isinstance(valeur, (list, tuple)):
         return [v for v in valeur if est_reference_canonique(v)]
     return []
+
+
+def citations_structurees(texte: str) -> list[dict[str, object]]:
+    """Les citations du texte, avec leur STRUCTURE conservée.
+
+    Rend ``bulletin_series``, ``bulletin_number``, ``bulletin_date`` et
+    l'identifiant canonique. Réduire une citation à sa seule chaîne ferait de
+    ``special`` un détail que le premier refactor peut perdre — et deux textes
+    parus le même jour deviendraient le même."""
+    aplati = _sans_accents(texte)
+    trouvees: list[dict[str, object]] = []
+    vus: set[str] = set()
+    for motif, numerique in ((_CITATION, False), (_CITATION_NUMERIQUE, True)):
+        for m in motif.finditer(aplati):
+            mois = int(m.group("mois")) if numerique else _MOIS[m.group("mois").lower()]
+            jour = int(m.group("jour"))
+            if not (1 <= mois <= 12 and 1 <= jour <= 31):
+                continue
+            serie = SERIE_SPECIALE if m.group("special") else SERIE_STANDARD
+            numero = int(m.group("numero"))
+            date = f"{int(m.group('annee')):04d}-{mois:02d}-{jour:02d}"
+            prefixe = "BOEN_special" if serie == SERIE_SPECIALE else "BOEN"
+            identifiant = f"{prefixe}_{numero}_{date}"
+            if not est_reference_canonique(identifiant) or identifiant in vus:
+                continue
+            vus.add(identifiant)
+            trouvees.append({
+                "official_reference": identifiant,
+                "bulletin_series": serie,
+                "bulletin_number": numero,
+                "bulletin_date": date,
+            })
+    return trouvees
 
 
 def citations_officielles(texte: str) -> list[str]:
@@ -134,8 +198,13 @@ def resoudre(reference: str, autorites: set[str]) -> tuple[str, list[str]]:
 
 __all__ = [
     "FORME_CANONIQUE",
+    "NATURES_LIANTES",
+    "NATURES_OFFICIELLES",
     "PARSER_ID",
+    "SERIE_SPECIALE",
+    "SERIE_STANDARD",
     "citations_officielles",
+    "citations_structurees",
     "est_reference_canonique",
     "references_canoniques",
     "resoudre",
