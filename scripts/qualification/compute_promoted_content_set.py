@@ -80,22 +80,40 @@ class PromotedContentSetError(RuntimeError):
     """L'ensemble promu n'est pas celui que les autorités déclarent — refus."""
 
 
-def _racine_gouvernee() -> Path:
-    """La racine contre laquelle borner, telle que le déploiement la déclare."""
+def racine_gouvernee_pour(mode: str, registre: Path) -> Path:
+    """La racine contre laquelle borner — elle DÉPEND du mode.
+
+    Une racine unique, celle du dépôt, faisait échouer le mode déploiement
+    avant toute lecture : un conteneur qui monte
+    ``/app/release/release-registry.json`` ne possède pas le checkout hôte, et
+    la borne refusait donc le seul registre qu'il ait à servir.
+
+    * racine DÉCLARÉE (``NEXUS_C1_GOVERNED_ROOT``) — elle prime toujours, y
+      compris en déploiement : c'est ainsi qu'un exploitant restreint le
+      périmètre monté, et un registre hors d'elle reste refusé ;
+    * ``DEPLOYMENT`` sans racine déclarée — le namespace monté est le
+      répertoire que la liaison désigne. Le déploiement a NOMMÉ ce chemin ;
+      ici la borne sert à refuser une redirection, pas à deviner un point de
+      montage ;
+    * ``DEFAULT`` et ``EXPLICIT_CANDIDATE`` — le registre est un artefact du
+      dépôt, borné à la racine des releases.
+    """
     declaree = os.environ.get(GOVERNED_ROOT_ENV)
     if declaree:
         return Path(declaree)
+    if mode == MODE_DEPLOYMENT:
+        return registre.parent
     return GOVERNED_ROOT
 
 
-def _borner(chemin: Path) -> Path:
+def _borner(chemin: Path, racine: Path) -> Path:
     """Prouve que le registre est DANS le périmètre gouverné, avant lecture.
 
     `..`, chemin absolu et lien symbolique sur n'importe quel composant sont
     refusés. Un lien vers l'extérieur est déjà attrapé par la borne de racine ;
     un lien INTERNE ne l'est pas — sa résolution reste à l'intérieur — et
     seule l'inspection de chaque composant le voit."""
-    ancre = _racine_gouvernee().resolve(strict=False)
+    ancre = racine.resolve(strict=False)
     resolu = chemin.resolve(strict=False)
     try:
         resolu.relative_to(ancre)
@@ -146,14 +164,20 @@ def _empreinte_attendue(resolu: Path, fournie: str | None) -> str:
 
 
 def collect_promoted_content_set(
-    registry_path: Path, expected_sha256: str | None = None
+    registry_path: Path,
+    expected_sha256: str | None = None,
+    *,
+    governed_root: Path | None = None,
 ) -> set[str]:
     """L'union des contenus que TOUTES les releases actives du registre servent.
 
     La validation entière — natures supportées, sceaux, comptes, autorités,
     partitions de pages, collisions — est celle du chargeur canonique, celui
     que le runtime consomme. On n'en refait aucune."""
-    resolu = _borner(registry_path)
+    resolu = _borner(
+        registry_path,
+        governed_root if governed_root is not None else GOVERNED_ROOT,
+    )
     attendue = _empreinte_attendue(resolu, expected_sha256)
     try:
         registre = load_release_registry_file(resolu, attendue)
@@ -175,10 +199,16 @@ def collect_promoted_content_set(
 
 
 def collect_promoted_collections(
-    registry_path: Path, expected_sha256: str | None = None
+    registry_path: Path,
+    expected_sha256: str | None = None,
+    *,
+    governed_root: Path | None = None,
 ) -> set[str]:
     """Les collections que la lignée active sert, telles que le chargeur les rend."""
-    resolu = _borner(registry_path)
+    resolu = _borner(
+        registry_path,
+        governed_root if governed_root is not None else GOVERNED_ROOT,
+    )
     attendue = _empreinte_attendue(resolu, expected_sha256)
     try:
         return set(load_release_registry_file(resolu, attendue).collections)
@@ -284,7 +314,11 @@ def main(argv: list[str] | None = None) -> int:
             empreinte_demandee=args.release_registry_sha256,
             liaison=binding,
         )
-        contents = collect_promoted_content_set(registre, empreinte)
+        contents = collect_promoted_content_set(
+            registre,
+            empreinte,
+            governed_root=racine_gouvernee_pour(mode, registre),
+        )
     except (PromotedContentSetError, KeyError, TypeError, ValueError, OSError) as exc:
         # Une trace Python en CI dit où le code s'est arrêté, pas ce qui est
         # faux dans la lignée. Le gate doit nommer le défaut.
