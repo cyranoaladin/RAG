@@ -1,0 +1,15 @@
+{
+  "BLOCKED_ARCHIVE_ONLY": 31,
+  "CONTENTS_PROJECTED": 2451,
+  "CURRENTNESS_POLICY_APPLIED": false,
+  "CURRENTNESS_POLICY_PROPOSED": true,
+  "MIXED_ARCHIVE_RELATION_LEVEL_DECISION": 9,
+  "PROGRAM_COMPATIBLE": 0,
+  "PROGRAM_INCOMPATIBLE": 0,
+  "PROGRAM_UNKNOWN": 2451,
+  "REVIEW_REQUIRED_PROGRAM_UNKNOWN": 2411,
+  "decisive_fact": "Aucun contenu n atteint la disposition de repli aujourd hui, parce que PROGRAM_VERSION_COMPATIBLE est faux pour les 2451 : le catalogue ne porte aucune version de programme. Ce n est donc pas la politique qui bloque, c est une autorite manquante.",
+  "kind": "NEXUS-CURRENTNESS-POLICY-IMPACT-PROJECTION-V1",
+  "policy_id": "NEXUS-RAG-CURRENTNESS-POLICY-V1",
+  "what_unlocks_it": "Une autorite (niveau, matiere, annee|type_document) -> programme_version ferait passer les contenus compatibles de REVIEW_REQUIRED a CANDIDATE, sans changer une ligne de la politique."
+}

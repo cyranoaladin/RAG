@@ -1,0 +1,126 @@
+# NEXUS-RAG-CURRENTNESS-POLICY-V1 — PROPOSITION, non appliquée.
+#
+# Elle existe pour qu'une question de POLITIQUE cesse d'être traitée comme une
+# question de preuve. Le réseau a répondu : 110 refus, 1 page atteignable,
+# aucune identité de contenu vérifiable. Aucune campagne HTTP ne changera cela,
+# parce que le catalogue ne porte que des pages de navigation.
+#
+# La règle centrale, et la raison d'être de ce fichier :
+#
+#     l'absence de preuve réseau vivante N'EST PAS une preuve d'obsolescence
+#
+# Une politique peut donc autoriser la servabilité d'un instantané
+# institutionnel versionné — mais elle ne falsifie JAMAIS le niveau de preuve.
+# `OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE` n'est pas `VERIFIED_CURRENT`, et ces
+# deux valeurs ne doivent jamais se confondre dans une release.
+
+policy_id: NEXUS-RAG-CURRENTNESS-POLICY-V1
+status: PROPOSED
+applied: false
+requires_adr: true
+
+# Cinq dimensions, tenues séparées. Les fondre serait le défaut d'origine :
+# un `200` deviendrait une preuve d'actualité pédagogique, et un `403` une
+# preuve d'obsolescence.
+dimensions:
+  PROVENANCE:
+    question: "Quelle autorité a publié ce contenu, et sous quelle URL ?"
+    proven_by: "jointure par empreinte sur le catalogue institutionnel"
+    current_state: PROVEN_FOR_2451_CONTENTS
+  SOURCE_STATUS:
+    question: "Ce que la SOURCE dit de l'actualité de son propre document."
+    proven_by: "colonne statut du catalogue, au niveau de la relation"
+    current_state: CARRIED_PER_RELATION
+  NETWORK_CURRENTNESS:
+    question: "L'URL répond-elle, et sert-elle encore ce document ?"
+    proven_by: "observation HTTP + identité d'octets"
+    current_state: UNVERIFIABLE
+  PROGRAM_VERSION:
+    question: "Le document sert-il un programme en vigueur ?"
+    proven_by: "autorité de version de programme"
+    current_state: UNKNOWN_FOR_ALL
+  SERVABILITY:
+    question: "Le document peut-il être servi ?"
+    proven_by: "la présente politique, une fois adoptée"
+    current_state: NOT_DECIDED
+
+# --- dispositions d'actualité ----------------------------------------
+currentness_dispositions:
+  VERIFIED_CURRENT:
+    meaning: "l'URL sert des octets identiques au document détenu"
+    requires: [DIRECT_RESOURCE_URL, CONTENT_SHA_MATCH]
+    reachable_today: false
+    why_not: "aucune URL directe de document dans le catalogue reçu"
+  OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE:
+    meaning: >-
+      instantané d'une source institutionnelle officielle, dont la provenance
+      est prouvée par empreinte, et dont l'actualité réseau n'a pas pu être
+      établie — sans qu'aucune preuve d'obsolescence n'existe
+    never_equivalent_to: VERIFIED_CURRENT
+  NOT_CURRENT_DECLARED_BY_SOURCE:
+    meaning: "la source elle-même déclare le document archivé"
+  UNKNOWN:
+    meaning: "aucune des dimensions ne permet de trancher"
+
+# --- statut de source : la traduction, sans invention -----------------
+source_status_mapping:
+  archive:
+    source_status: ARCHIVE
+    servable: false
+    rationale: >-
+      Information explicite de la source. Le repli réseau ne ressuscite pas une
+      archive : ne pas pouvoir vérifier une URL n'annule pas une déclaration
+      positive d'archivage.
+    override: "autorité métier explicitement documentée, jamais implicite"
+  actuel:
+    source_status: CURRENT_DECLARED_BY_CATALOGUE
+    servable: candidate
+    rationale: >-
+      Déclaration institutionnelle exploitable. Ce n'est PAS
+      NETWORK_VERIFIED_CURRENT : les deux dimensions restent distinctes.
+  transition-ou-actuel:
+    source_status: TRANSITION_OR_CURRENT
+    servable: policy_dependent
+    rationale: >-
+      La source n'a pas tranché. Renommer cette valeur en CURRENT serait
+      décider à sa place. La servabilité se décide par compatibilité de
+      programme, portée de release et autres relations du même contenu.
+  a-verifier:
+    source_status: NEEDS_SECONDARY_EVIDENCE
+    servable: policy_dependent
+    rationale: >-
+      Ni servable ni exclu automatiquement. « À vérifier » est une absence de
+      vérification ; l'exclure d'office retirerait 2158 contenus sur une
+      absence, et l'inclure d'office ferait dire à la source ce qu'elle n'a pas
+      dit.
+    secondary_evidence_order:
+      - programme/version explicitement compatible
+      - autre relation du même content_sha256 portant un statut plus fort
+      - release pédagogique gouvernée explicitement compatible
+      - validation humaine de statut de source
+
+# --- la règle de repli -------------------------------------------------
+fallback_rule:
+  disposition: OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE
+  # TOUTES doivent être vraies. Une seule fausse bloque.
+  conditions_all_required:
+    - OFFICIAL_INSTITUTIONAL_PROVENANCE
+    - CONTENT_SHA_PROVENANCE_MATCH
+    - SOURCE_STATUS_NOT_EXPLICIT_ARCHIVE
+    - PROGRAM_VERSION_COMPATIBLE
+    - PII_GATE_PASS
+    - RIGHTS_GATE_PASS
+    - CLASSIFICATION_GATE_PASS
+    - PLACEMENT_GATE_PASS
+    - NO_KNOWN_SUPERSEDING_CONFLICT
+  forbidden_effects:
+    - "produire VERIFIED_CURRENT sans identité d'octets"
+    - "traiter un 403 comme une preuve d'obsolescence"
+    - "ressusciter un document déclaré archive par la source"
+    - "servir un document dont la PII n'est pas évaluable ou est rejetée"
+
+# --- ce que la politique ne décide pas --------------------------------
+out_of_scope:
+  - "l'ordre de priorité entre plusieurs URL d'un même contenu"
+  - "l'écrasement d'un statut par précédence sur le contenu"
+  - "toute disposition de servabilité avant la clôture de la revue PII humaine"

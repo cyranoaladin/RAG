@@ -72,10 +72,22 @@ CUR_VERIFIED = "VERIFIED_CURRENT"
 CUR_UNVERIFIED = "UNVERIFIED"
 CUR_ERREUR = "ERROR"
 
-#: Rôle de l'URL. Une page de navigation n'est pas la ressource.
-ROLE_DIRECT = "DIRECT_RESOURCE"
-ROLE_NAVIGATION = "NAVIGATION_PAGE"
-ROLE_INCONNU = "UNKNOWN_ROLE"
+#: Rôle OBSERVÉ de l'URL, et seulement observé.
+#:
+#: Une URL sans `.pdf` peut parfaitement servir un PDF, rediriger vers lui,
+#: négocier le contenu, ou l'exposer par une route sans extension. Conclure du
+#: seul suffixe serait une inférence lexicale — la même faute que déduire une
+#: URL d'un slug. Et sur une réponse d'ERREUR, le `Content-Type` est celui de
+#: la page d'erreur : il ne dit rien de la ressource. Le rôle n'est donc
+#: observable que sur une réponse réussie.
+ROLE_DIRECT = "CONFIRMED_DIRECT_RESOURCE"
+ROLE_NAVIGATION = "CONFIRMED_NAVIGATION"
+ROLE_INOBSERVABLE = "ROLE_UNOBSERVABLE"
+
+#: Ce que le CATALOGUE dit du rôle, distinct de ce que HTTP montre. Les deux
+#: sont conservés séparément : une sémantique documentaire n'est pas une
+#: observation réseau.
+INDICE_CATALOGUE_NAVIGATION = "NAVIGATION"
 
 
 def normaliser(url: str) -> tuple[str, str | None]:
@@ -99,16 +111,21 @@ def normaliser(url: str) -> tuple[str, str | None]:
     return parts._replace(netloc=hote).geturl(), raison
 
 
-def _role(url: str, content_type: str | None) -> str:
-    """Le rôle se lit sur la RÉPONSE quand elle existe, sinon sur l'URL."""
-    if content_type:
-        principal = content_type.split(";", 1)[0].strip().lower()
-        if principal in ("application/pdf", "application/octet-stream"):
-            return ROLE_DIRECT
-        if principal.startswith("text/html"):
-            return ROLE_NAVIGATION
-        return ROLE_INCONNU
-    return ROLE_DIRECT if url.lower().endswith(".pdf") else ROLE_INCONNU
+def _role_observe(statut: int | None, content_type: str | None) -> str:
+    """Le rôle n'est OBSERVÉ que sur une réponse réussie.
+
+    Sur un 403, le `Content-Type` décrit la page de refus, pas la ressource :
+    l'employer ferait dire à 110 refus qu'ils sont des pages de navigation.
+    Et l'absence de `.pdf` dans l'URL ne prouve rien — une route sans extension
+    peut servir un PDF."""
+    if statut is None or not (200 <= statut < 300) or not content_type:
+        return ROLE_INOBSERVABLE
+    principal = content_type.split(";", 1)[0].strip().lower()
+    if principal in ("application/pdf", "application/octet-stream"):
+        return ROLE_DIRECT
+    if principal.startswith("text/html"):
+        return ROLE_NAVIGATION
+    return ROLE_INOBSERVABLE
 
 
 class _SansRedirection(urllib.request.HTTPRedirectHandler):
@@ -232,8 +249,15 @@ def qualifier(observation: dict[str, object], *, source_sha: str | None = None) 
     """Sépare l'ACCESSIBILITÉ de l'ACTUALITÉ. Jamais `200 → VERIFIED_CURRENT`."""
     statut = observation.get("status_code")
     erreur = observation.get("error_class")
-    role = _role(str(observation["final_url"]), observation.get("content_type"))  # type: ignore[arg-type]
-    resultat = {"url_role": role, "content_identity_match": None}
+    role = _role_observe(statut, observation.get("content_type"))  # type: ignore[arg-type]
+    resultat = {
+        "http_observed_role": role,
+        # Le catalogue documente `url_source` comme page de publication ; c'est
+        # une sémantique DOCUMENTAIRE, enregistrée séparément et jamais
+        # présentée comme une observation HTTP.
+        "catalogue_role_hint": INDICE_CATALOGUE_NAVIGATION,
+        "content_identity_match": None,
+    }
 
     if erreur:
         resultat["observation"] = OBS_RESEAU
@@ -340,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     obs = Counter(str(o["observation"]) for o in observations)
     cur = Counter(str(o["currentness"]) for o in observations)
-    roles = Counter(str(o["url_role"]) for o in observations)
+    roles = Counter(str(o["http_observed_role"]) for o in observations)
 
     verifies = cur[CUR_VERIFIED]
     rendu = {
@@ -360,9 +384,10 @@ def main(argv: list[str] | None = None) -> int:
         "NETWORK_ERRORS_FINAL": obs[OBS_RESEAU],
         "REDIRECTED_URLS": sum(1 for o in observations if o["redirect_chain"]),
         "FINAL_DISTINCT_URLS": len({str(o["final_url"]) for o in observations}),
-        "DIRECT_RESOURCE_URLS": roles[ROLE_DIRECT],
-        "NAVIGATION_URLS": roles[ROLE_NAVIGATION],
-        "UNKNOWN_ROLE_URLS": roles[ROLE_INCONNU],
+        "CONFIRMED_DIRECT_RESOURCE_URLS": roles[ROLE_DIRECT],
+        "CONFIRMED_NAVIGATION_URLS": roles[ROLE_NAVIGATION],
+        "ROLE_UNOBSERVABLE": roles[ROLE_INOBSERVABLE],
+        "CATALOGUE_SEMANTIC_ROLE": INDICE_CATALOGUE_NAVIGATION,
         "DIRECT_CONTENT_MATCH": sum(1 for o in observations if o["content_identity_match"] is True),
         "DIRECT_CONTENT_MISMATCH": sum(
             1 for o in observations if o["content_identity_match"] is False
@@ -370,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
         "NAVIGATION_PAGE_REACHABLE": sum(
             1
             for o in observations
-            if o["url_role"] == ROLE_NAVIGATION
+            if o["http_observed_role"] == ROLE_NAVIGATION
             and o["observation"] in (OBS_REACHABLE, OBS_REDIRECT)
         ),
         "UNVERIFIABLE_WITH_EVIDENCE": obs[OBS_UNVERIFIABLE],
