@@ -74,9 +74,10 @@ measurement_today:
   EXACT_ARTIFACT_PROGRAM_BINDING: 0
 
 sequencing:
-  - "1. étendre CurrentProgramAuthorityV1 au-delà des 18 scopes actuels"
-  - "2. chercher les liaisons ArtifactProgramBindingV1 dans les autorités structurées"
-  - "3. ne soumettre à revue humaine que le résidu réellement ambigu"
+  steps:
+    - "1. étendre CurrentProgramAuthorityV1 au-delà des 18 scopes actuels"
+    - "2. chercher les liaisons ArtifactProgramBindingV1 dans les autorités structurées"
+    - "3. ne soumettre à revue humaine que le résidu réellement ambigu"
   note: >-
     La revue humaine est le dernier recours, pas le mécanisme de classification
     principal. Lancer une revue de 2411 contenus avant d'avoir épuisé les
