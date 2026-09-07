@@ -341,8 +341,19 @@ def _placement_semantic_tuple(placement: _PlacementRow) -> tuple[object, ...]:
     placements can never legitimately assert two different semantic tuples
     for the SAME collection -- a resource cannot simultaneously be
     ``candidat=libre`` and ``candidat=scolarise``, or ``visibility=public``
-    and ``visibility=internal``, within one identical collection."""
-    return tuple(getattr(placement, field) for field in _PLACEMENT_SEMANTIC_FIELDS)
+    and ``visibility=internal``, within one identical collection.
+
+    ``audience`` is list-valued and order-insensitive (a producer emitting
+    ``["aefe", "libre"]`` vs ``["libre", "aefe"]`` asserts the identical
+    authorization fact); it is canonicalized to a sorted tuple both so
+    equality here ignores order and so the resulting tuple stays hashable
+    for callers that need to deduplicate placements by full identity."""
+    return tuple(
+        tuple(sorted(value)) if field == "audience" else value
+        for field, value in (
+            (field_name, getattr(placement, field_name)) for field_name in _PLACEMENT_SEMANTIC_FIELDS
+        )
+    )
 
 
 def _validate_placements(row: _BootstrapSourceRow) -> None:
@@ -363,12 +374,24 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
     anchor's own collection contributes no new element to that set and is
     therefore structurally invisible to it, however it diverges on every
     other dimension. This check closes exactly that gap, independently of
-    what any release registry claims to have promoted."""
+    what any release registry claims to have promoted.
+
+    Also always a violation, and distinct from the above: two placements
+    minted under two DIFFERENT ``placement_id`` values but asserting the
+    exact SAME (collection + every semantic dimension) tuple. Real
+    PostgreSQL data can never reach this exact state (migration 004's
+    ``rag_artifact_placements_canonical_scope_unique`` constraint already
+    makes it schema-impossible there), but this pure function has no
+    database behind it and must not silently accept a duplicate an upstream
+    caller manages to construct -- issue #155's own rule is that an
+    unexplained producer duplicate is never silently deduplicated, only
+    ever refused."""
     if not row.placements:
         raise BootstrapInventoryError(
             f"placements are missing for {row.resource_version_id}"
         )
     seen_placement_ids: set[str] = set()
+    seen_full_semantic_tuples: set[tuple[object, ...]] = set()
     anchor_scope = _scope_tuple(row)
     anchor_represented = False
     semantic_tuple_by_collection: dict[str, tuple[object, ...]] = {}
@@ -388,6 +411,14 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
                 f"placement state or source differs for {row.resource_version_id}"
             )
         semantic_tuple = _placement_semantic_tuple(placement)
+        full_semantic_tuple = (placement.collection, *semantic_tuple)
+        if full_semantic_tuple in seen_full_semantic_tuples:
+            raise BootstrapInventoryError(
+                f"duplicate semantic placement for collection "
+                f"{placement.collection!r} under a different placement_id "
+                f"for {row.resource_version_id}"
+            )
+        seen_full_semantic_tuples.add(full_semantic_tuple)
         existing = semantic_tuple_by_collection.get(placement.collection)
         if existing is not None and existing != semantic_tuple:
             raise BootstrapInventoryError(

@@ -6,30 +6,52 @@ This is deliberately NOT another exporter and NOT a redesign of the
 ``ResourceRegistryBootstrap`` contract. It consumes:
 
   * the bootstrap file an operator already produced with the existing
-    ``resource_registry_bootstrap_cli`` command, and
+    ``resource_registry_bootstrap_cli`` command,
   * the same sealed release chain that command's own
     ``--release-registry-path``/``--release-registry-sha256`` arguments
     already pin (``ingestor.release_readiness.load_release_registry_file``,
     unmodified, reused as-is for its digest-verified parse of the release
-    authority),
+    authority), and
+  * the declarative profile registry + its signed manifest
+    (``ingestor.ingestion_profiles.registry``/``.manifest``, both reused
+    unmodified), which is the transitive authority for ``audience``.
 
 and proves the bootstrap's semantic placement universe is exactly the
-sealed release's -- not merely that per-artifact ``(collection,
-content_sha256)`` bindings match, which is the narrower invariant the
-exporter's own ``export_resource_registry_bootstrap_inventory`` already
-enforces at write time (see ``resource_registry_bootstrap.py``).
+sealed release's across all 11 canonical dimensions -- not merely that
+per-artifact ``(collection, content_sha256)`` bindings match, which is the
+narrower invariant the exporter's own
+``export_resource_registry_bootstrap_inventory`` already enforces at write
+time (see ``resource_registry_bootstrap.py``).
 
-Structural note on ``audience``: the sealed release chain (the top-level
-``production-profile-gate.release.json`` and every per-subject
-``subjects/*.release.json`` it SHA256-pins) carries no ``audience`` field
-anywhere in committed data -- confirmed by direct inspection, not assumed.
-``BootstrapPlacement.audience`` is a live PostgreSQL column with no sealed,
-digest-bound authoritative expected value. The canonical placement tuple
-used for equality comparison here is therefore the 10 dimensions the sealed
-release DOES carry; ``audience`` is reported as an observed DISTRIBUTION
-only (see ``distributions``), never compared against an expectation that
-does not exist. This is reported explicitly in the result, not silently
-narrowed.
+R1B correction to R1A's ``audience`` conclusion
+------------------------------------------------
+R1A reported ``audience`` as structurally unsealed because it only looked at
+subject-release placement files, which indeed never carry it. That was
+incomplete. The full chain, proven here at runtime (not merely asserted):
+
+    sealed release . authorities.profile_manifest_sha256
+        (authority_bindings.json labels this SEMANTIC_PROFILE_FINGERPRINT)
+    == verify_profile_manifest(load_profile_registry(profile_root),
+                                profile_manifest_path).manifest_fingerprint
+        (recomputed from the REAL committed profile YAML files, not trusted
+        from a familiar path -- a wrong or tampered profile directory fails
+        this equality)
+    == every ExpectedPlacement.profile_manifest_digest already parsed by
+       load_release_registry_file (release_readiness.py's own subject/
+       aggregate authority cross-checks already require these to agree
+       inside the release documents themselves; this module additionally
+       ties them to the REAL local profile files)
+    -> CollectionProfile.scope.audience is therefore sealed exactly as
+       every other ResourceScope dimension is.
+
+``audience`` is compared against this proven authority like every other
+canonical dimension. Before trusting ``profile.scope.audience`` for a given
+collection, this module also proves that profile's OTHER shared scope
+dimensions (tenant/niveau/voie/matiere/candidat/visibility/school_year/
+programme_version) agree with the sealed subject-release placement for that
+collection, and that the profile's own recomputed fingerprint matches the
+release's declared ``profile_fingerprint`` for it -- a profile that merely
+shares a collection name is not accepted on that basis alone.
 """
 
 from __future__ import annotations
@@ -44,12 +66,28 @@ from urllib.parse import urlparse
 
 from nexus_contracts import ResourceRegistryBootstrap
 
+from ingestor.ingestion_profiles.manifest import (
+    ManifestVerification,
+    ProfileManifestError,
+    verify_profile_manifest,
+)
+from ingestor.ingestion_profiles.registry import (
+    ProfileRegistry,
+    ProfileRegistryError,
+    load_profile_registry,
+    profile_fingerprint,
+    select_profile,
+)
 from ingestor.release_readiness import (
+    ExpectedPlacement,
     ReleaseReadinessError,
     ReleaseRegistryExpectation,
     load_release_registry_file,
 )
 
+#: The 10 SCALAR canonical dimensions. ``audience`` (set-valued) is handled
+#: separately and appended as its own canonicalized element -- see
+#: ``_audience_tuple`` and every call site that builds a full placement key.
 CANONICAL_PLACEMENT_FIELDS: tuple[str, ...] = (
     "tenant",
     "collection",
@@ -63,9 +101,26 @@ CANONICAL_PLACEMENT_FIELDS: tuple[str, ...] = (
     "programme_version",
 )
 
+#: Dimensions a CollectionProfile's ``scope`` shares with a sealed
+#: subject-release placement -- everything ResourceScope carries except
+#: ``audience`` itself (that is the value under proof) and ``collection``
+#: (the lookup key, checked separately for defense in depth).
+_PROFILE_RELEASE_SHARED_SCOPE_FIELDS: tuple[str, ...] = (
+    "tenant",
+    "niveau",
+    "voie",
+    "matiere",
+    "candidat",
+    "visibility",
+    "school_year",
+    "programme_version",
+)
+
 
 class R1EvidenceVerifierError(ValueError):
-    """The bootstrap or the release authority cannot be evaluated safely."""
+    """The bootstrap or an authority it must be checked against cannot be
+    evaluated safely (unreadable, malformed, or fails its own internal
+    digest/fingerprint proof)."""
 
 
 @dataclass(frozen=True)
@@ -103,20 +158,140 @@ def _load_bootstrap(path: Path) -> ResourceRegistryBootstrap:
         ) from exc
 
 
+def _load_profile_authority(
+    profile_root: Path, profile_manifest_path: Path
+) -> tuple[ProfileRegistry, ManifestVerification]:
+    try:
+        registry = load_profile_registry(profile_root)
+    except ProfileRegistryError as exc:
+        raise R1EvidenceVerifierError(f"profile registry is not sound: {exc}") from exc
+    if not registry:
+        raise R1EvidenceVerifierError(f"profile registry at {profile_root} is empty")
+    try:
+        verified = verify_profile_manifest(registry, profile_manifest_path)
+    except ProfileManifestError as exc:
+        raise R1EvidenceVerifierError(f"profile manifest authority is not sound: {exc}") from exc
+    return registry, verified
+
+
+def _all_expected_placements(
+    registry: ReleaseRegistryExpectation,
+) -> list[ExpectedPlacement]:
+    return [
+        placement
+        for manifest in registry.manifests
+        for placement in manifest.expectation.placements
+    ]
+
+
+def _audience_tuple(values: list[Any]) -> tuple[str, ...]:
+    # Audience is a str-mixin Enum: str(Audience.libre) == "Audience.libre"
+    # (Enum.__str__ takes precedence over str.__str__), so plain str() would
+    # silently make every profile-side audience value disagree with the
+    # already-plain-string bootstrap side. ``.value`` extracts the true
+    # string for enum members; already-plain strings pass through unchanged.
+    return tuple(sorted(getattr(value, "value", value) for value in values))
+
+
+@dataclass(frozen=True)
+class _ProfileAuthorityResult:
+    profile_manifest_authority_pass: bool
+    scope_consistency_pass: bool
+    scope_mismatches: tuple[str, ...]
+    audience_by_collection: dict[str, tuple[str, ...]]
+    verified_manifest_fingerprint: str
+
+
+def _cross_check_profile_authority(
+    expected_placements: list[ExpectedPlacement],
+    profile_registry: ProfileRegistry,
+    verified_manifest: ManifestVerification,
+) -> _ProfileAuthorityResult:
+    manifest_authority_pass = True
+    scope_mismatches: list[str] = []
+    audience_by_collection: dict[str, tuple[str, ...]] = {}
+
+    for placement in expected_placements:
+        if placement.profile_manifest_digest != verified_manifest.manifest_fingerprint:
+            manifest_authority_pass = False
+            continue
+
+        try:
+            profile = select_profile(
+                profile_registry,
+                collection=placement.collection,
+                profile_version=placement.profile_version,
+            )
+        except ProfileRegistryError as exc:
+            scope_mismatches.append(
+                f"{placement.collection}: no usable profile for "
+                f"profile_version={placement.profile_version!r} ({exc})"
+            )
+            continue
+
+        declared_fingerprint = profile_fingerprint(profile)
+        if declared_fingerprint != placement.profile_fingerprint:
+            scope_mismatches.append(
+                f"{placement.collection}: profile fingerprint {declared_fingerprint} "
+                f"does not match the release's declared {placement.profile_fingerprint}"
+            )
+            continue
+
+        if profile.scope.collection != placement.collection:
+            scope_mismatches.append(
+                f"{placement.collection}: profile scope.collection is "
+                f"{profile.scope.collection!r}"
+            )
+            continue
+
+        payload = placement.payload
+        disagreements = [
+            field_name
+            for field_name in _PROFILE_RELEASE_SHARED_SCOPE_FIELDS
+            # ResourceScope's fields are str-mixin enums (e.g. Niveau,
+            # Candidat): compared directly against the release's plain
+            # strings, never through str(), whose default Enum.__str__
+            # ("Niveau.terminale") would falsely disagree with "terminale".
+            if getattr(profile.scope, field_name) != payload.get(field_name)
+        ]
+        if disagreements:
+            scope_mismatches.append(
+                f"{placement.collection}: profile/release scope disagree on "
+                f"{disagreements}"
+            )
+            continue
+
+        audience_by_collection[placement.collection] = _audience_tuple(profile.scope.audience)
+
+    return _ProfileAuthorityResult(
+        profile_manifest_authority_pass=manifest_authority_pass,
+        scope_consistency_pass=not scope_mismatches,
+        scope_mismatches=tuple(scope_mismatches),
+        audience_by_collection=audience_by_collection,
+        verified_manifest_fingerprint=verified_manifest.manifest_fingerprint,
+    )
+
+
 def _canonical_tuple(values: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(values[field_name] for field_name in CANONICAL_PLACEMENT_FIELDS)
 
 
 def _expected_placement_tuples(
-    registry: ReleaseRegistryExpectation,
+    expected_placements: list[ExpectedPlacement],
+    audience_by_collection: dict[str, tuple[str, ...]],
 ) -> tuple[set[tuple[Any, ...]], set[str]]:
     tuples: set[tuple[Any, ...]] = set()
     collections: set[str] = set()
-    for manifest in registry.manifests:
-        for artifact in manifest.expectation.artifacts:
-            for placement in artifact.placements:
-                tuples.add(_canonical_tuple(placement))
-                collections.add(str(placement["collection"]))
+    for placement in expected_placements:
+        collections.add(placement.collection)
+        audience = audience_by_collection.get(placement.collection)
+        if audience is None:
+            # Scope authority for this collection did not check out --
+            # already reported as a blocker via scope_mismatches. Building a
+            # tuple with a fabricated audience would be worse than omitting
+            # it: it could accidentally "match" by coincidence.
+            continue
+        tuples.add(_canonical_tuple(placement.payload) + (audience,))
     return tuples, collections
 
 
@@ -128,7 +303,7 @@ def _actual_placement_tuples(
     for resource in bootstrap.resources:
         for placement in resource.placements:
             values = placement.model_dump(mode="json")
-            tuples.add(_canonical_tuple(values))
+            tuples.add(_canonical_tuple(values) + (_audience_tuple(values["audience"]),))
             collections.add(placement.collection)
     return tuples, collections
 
@@ -196,7 +371,7 @@ def _multiplacement_evidence(bootstrap: ResourceRegistryBootstrap) -> dict[str, 
             continue
         multiplacement_resources += 1
         candidats = {p.candidat for p in resource.placements}
-        audiences = {tuple(sorted(p.audience)) for p in resource.placements}
+        audiences = {_audience_tuple(p.audience) for p in resource.placements}
         visibilities = {p.visibility for p in resource.placements}
         programme_versions = {p.programme_version for p in resource.placements}
         # "Course tuple" here means the academic-identity dimensions a
@@ -240,7 +415,7 @@ def _collisions(bootstrap: ResourceRegistryBootstrap) -> dict[str, Any]:
         semantic_by_collection: dict[str, tuple[Any, ...]] = {}
         for placement in resource.placements:
             values = placement.model_dump(mode="json")
-            full_tuple = _canonical_tuple(values) + (tuple(sorted(values["audience"])),)
+            full_tuple = _canonical_tuple(values) + (_audience_tuple(values["audience"]),)
             if full_tuple in seen_tuples:
                 duplicate_identical_placements += 1
             seen_tuples.add(full_tuple)
@@ -272,15 +447,32 @@ def verify_r1_evidence(
     bootstrap_path: Path,
     release_registry_path: Path,
     release_registry_sha256: str,
+    profile_root: Path,
+    profile_manifest_path: Path,
 ) -> R1EvidenceReport:
-    """Pure, read-only, no PostgreSQL connection ever opened."""
+    """Pure, read-only, no PostgreSQL connection ever opened.
+
+    ``profile_root``/``profile_manifest_path`` are operator-supplied paths,
+    never trusted merely for sitting at a familiar location: their content
+    is accepted only once its fingerprint chain is proven against the
+    sealed release (see the module docstring)."""
     bootstrap = _load_bootstrap(bootstrap_path)
     try:
         registry = load_release_registry_file(release_registry_path, release_registry_sha256)
     except ReleaseReadinessError as exc:
         raise R1EvidenceVerifierError(f"release authority is not sound: {exc}") from exc
 
-    expected_tuples, expected_collections = _expected_placement_tuples(registry)
+    profile_registry, verified_manifest = _load_profile_authority(
+        profile_root, profile_manifest_path
+    )
+    expected_placements = _all_expected_placements(registry)
+    profile_authority = _cross_check_profile_authority(
+        expected_placements, profile_registry, verified_manifest
+    )
+
+    expected_tuples, expected_collections = _expected_placement_tuples(
+        expected_placements, profile_authority.audience_by_collection
+    )
     actual_tuples, actual_collections = _actual_placement_tuples(bootstrap)
 
     exported_minus_sealed = actual_tuples - expected_tuples
@@ -299,11 +491,24 @@ def verify_r1_evidence(
     collisions = _collisions(bootstrap)
 
     gates: dict[str, Any] = {
-        "PRODUCER_REPOSITORY": bootstrap.producer_repository,
-        "PRODUCER_COMMIT": bootstrap.producer_commit,
+        "BOOTSTRAP_PRODUCER_REPOSITORY": bootstrap.producer_repository,
+        "BOOTSTRAP_PRODUCER_COMMIT": bootstrap.producer_commit,
         "BOOTSTRAP_PROTOCOL_VERSION": bootstrap.protocol_version,
         "BOOTSTRAP_PACKAGE_VERSION": bootstrap.package_version,
         "BOOTSTRAP_SOURCE_SNAPSHOT_SHA256": bootstrap.source_snapshot_sha256,
+        "SOURCE_SNAPSHOT_SHA256_VERIFICATION": "PRODUCER_ATTESTED_NOT_STATICALLY_RECOMPUTABLE",
+        "SOURCE_SNAPSHOT_SHA256_VERIFICATION_REASON": (
+            "source_snapshot_sha256 is computed producer-side over "
+            "_safe_snapshot_row material (per-placement currentness/"
+            "placement_status/review_status/source_placement_id/source_scope) "
+            "that the final BootstrapPlacement contract deliberately does not "
+            "carry; this verifier has no DB access and cannot reconstruct "
+            "those rows from the bootstrap file alone. It is transitively "
+            "protected by inventory_sha256 (which this verifier DOES "
+            "independently recompute and which the pinned contract's own "
+            "validator already enforces at load time), not independently "
+            "recomputable itself."
+        ),
         "BOOTSTRAP_INVENTORY_SHA256": bootstrap.inventory_sha256,
         "BOOTSTRAP_FILE_SHA256": _sha256_file(bootstrap_path),
         "BOOTSTRAP_RESOURCE_ROWS": len(bootstrap.resources),
@@ -315,8 +520,19 @@ def verify_r1_evidence(
         "DISTINCT_CONTENT_SHA256": len(content_sha256s),
         "DISTINCT_RAG_ARTIFACT_IDS": len(rag_artifact_ids),
         "DISTINCT_CHUNK_IDS": len(chunk_ids),
-        "RELEASE_ID": registry.manifests[0].expectation.release_id,
+        "SEALED_RELEASE_ID": registry.manifests[0].expectation.release_id,
+        "SEALED_RELEASE_AUTHORITY_SHA": release_registry_sha256,
         "RELEASE_SCHOOL_YEAR": registry.manifests[0].expectation.school_year,
+        "R1_PROFILE_MANIFEST_AUTHORITY": (
+            "PASS" if profile_authority.profile_manifest_authority_pass else "FAIL"
+        ),
+        "R1_PROFILE_RELEASE_SCOPE_CONSISTENCY": (
+            "PASS" if profile_authority.scope_consistency_pass else "FAIL"
+        ),
+        "profile_scope_mismatches": list(profile_authority.scope_mismatches),
+        "VERIFIED_PROFILE_MANIFEST_FINGERPRINT": profile_authority.verified_manifest_fingerprint,
+        "R1_CANONICAL_PLACEMENT_DIMENSIONS": 11,
+        "AUDIENCE_COMPARED_AGAINST_SEALED_AUTHORITY": True,
         "EXPECTED_PLACEMENT_TUPLES": len(expected_tuples),
         "ACTUAL_PLACEMENT_TUPLES": len(actual_tuples),
         "EXPORTED_COLLECTIONS_MINUS_SEALED_COLLECTIONS": sorted(
@@ -327,15 +543,17 @@ def verify_r1_evidence(
         ),
         "EXPORTED_PLACEMENT_SET_MINUS_SEALED_PLACEMENT_SET_COUNT": len(exported_minus_sealed),
         "SEALED_PLACEMENT_SET_MINUS_EXPORTED_PLACEMENT_SET_COUNT": len(sealed_minus_exported),
-        "AUDIENCE_COMPARED_AGAINST_SEALED_AUTHORITY": False,
-        "AUDIENCE_STRUCTURAL_GAP_REASON": (
-            "no committed sealed-release artifact carries an audience field; "
-            "reported as an observed distribution only"
-        ),
     }
     gates.update(_multiplacement_evidence(bootstrap))
 
     blockers: list[str] = []
+    if not profile_authority.profile_manifest_authority_pass:
+        blockers.append("R1_PROFILE_MANIFEST_AUTHORITY=FAIL")
+    if not profile_authority.scope_consistency_pass:
+        blockers.append(
+            f"R1_PROFILE_RELEASE_SCOPE_CONSISTENCY=FAIL "
+            f"{list(profile_authority.scope_mismatches)}"
+        )
     if exported_minus_sealed:
         blockers.append(
             f"EXPORTED_PLACEMENT_SET_MINUS_SEALED_PLACEMENT_SET="
@@ -365,6 +583,14 @@ def verify_r1_evidence(
         blockers.append(
             "CONFLICTING_SAME_COLLECTION_PLACEMENT_COUNT="
             f"{collisions['CONFLICTING_SAME_COLLECTION_PLACEMENT_COUNT']}"
+        )
+    if collisions["DUPLICATE_IDENTICAL_PLACEMENT_COUNT"]:
+        # An unexplained producer duplicate is never silently deduplicated
+        # (issue #155's own rule) -- a bootstrap containing one is never
+        # ready, even though it disagrees with nothing else.
+        blockers.append(
+            "DUPLICATE_IDENTICAL_PLACEMENT_COUNT="
+            f"{collisions['DUPLICATE_IDENTICAL_PLACEMENT_COUNT']}"
         )
     if bootstrap.inventory_sha256 != bootstrap.compute_sha256():
         # Unreachable in practice -- ResourceRegistryBootstrap already

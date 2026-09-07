@@ -459,3 +459,17 @@ def test_second_placement_still_enforces_state_and_source_guards(
                 )
             ]
         )
+
+
+def test_duplicate_semantic_placement_under_different_ids_is_refused() -> None:
+    """RED->GREEN (R1B): two placement rows sharing one collection with an
+    IDENTICAL semantic tuple, minted under two DIFFERENT placement_ids, is
+    not itself a 'conflicting' semantic placement (existing != semantic_tuple
+    is False here) -- it must still be refused as a genuine, unexplained
+    producer duplicate, distinctly labeled from the conflicting case."""
+    duplicated_identical = [
+        _nsi_placement(_nsi_premiere_scope(), NSI_PREMIERE_PLACEMENT_ID),
+        _nsi_placement(_nsi_premiere_scope(), NSI_TERMINALE_PLACEMENT_ID),
+    ]
+    with pytest.raises(BootstrapInventoryError, match="duplicate semantic placement"):
+        _build([_multi_placement_row(placements=duplicated_identical)])
