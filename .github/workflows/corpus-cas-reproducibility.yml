@@ -29,6 +29,11 @@ name: Corpus CAS reproducibility (C1)
       # déclencher ici laisserait le chargeur évoluer sans que le store privé
       # soit reconfronté — un C1 vert sur un périmètre qu'il ne décrit plus.
       - "packages/release-chain/**"
+      # Le service porte un duplicata OCTET POUR OCTET du chargeur canonique,
+      # gardé par un contrôle d'égalité. Ne pas déclencher C1 sur lui
+      # laisserait la copie servante diverger — et C1 resterait vert en
+      # décrivant un périmètre que le runtime ne calcule plus.
+      - "services/rag-engine/src/ingestor/release_readiness.py"
       - "packages/contracts/**"
       - "packages/pdf-page-policy/**"
       # Le câblage de déploiement décide QUEL registre est monté et contre
