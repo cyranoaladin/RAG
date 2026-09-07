@@ -26,6 +26,22 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--release-registry-path", required=True, type=Path)
     parser.add_argument("--release-registry-sha256", required=True)
     parser.add_argument(
+        "--profile-root",
+        required=True,
+        type=Path,
+        help=(
+            "Directory of declarative CollectionProfile YAML files. Never "
+            "trusted merely for sitting at this path -- accepted only once "
+            "its fingerprint chain is proven against the sealed release."
+        ),
+    )
+    parser.add_argument(
+        "--profile-manifest-path",
+        required=True,
+        type=Path,
+        help="Path to the signed ingestion profile manifest (e.g. ingestion_manifest_v2_livraison_319.yml).",
+    )
+    parser.add_argument(
         "--out", type=Path, default=None, help="Optional path to write the JSON report to."
     )
     args = parser.parse_args(argv)
@@ -35,6 +51,8 @@ def main(argv: list[str] | None = None) -> int:
             bootstrap_path=args.bootstrap,
             release_registry_path=args.release_registry_path,
             release_registry_sha256=args.release_registry_sha256,
+            profile_root=args.profile_root,
+            profile_manifest_path=args.profile_manifest_path,
         )
     except R1EvidenceVerifierError as exc:
         print(f"R1_EVIDENCE_VERIFIER_ERROR={exc}", file=sys.stderr)
