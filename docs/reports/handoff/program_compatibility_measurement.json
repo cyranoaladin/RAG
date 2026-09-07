@@ -1,7 +1,6 @@
 {
-  "CONTENTS_IN_SCOPE_WITHOUT_GOVERNED_PROGRAMME_VERSION": 2328,
-  "CONTENTS_IN_SCOPE_WITH_GOVERNED_PROGRAMME_VERSION": 123,
   "CONTENTS_TOTAL": 2451,
+  "EXACT_ARTIFACT_PROGRAM_BINDING": 0,
   "PROGRAMME_VERSIONS_DECLARED": [
     "BOEN_14_2026-04-02_MENE2602914A",
     "BOEN_14_2026-04-02_MENE2602917A",
@@ -11,16 +10,15 @@
     "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
   ],
   "PROGRAMME_VERSION_AUTHORITY_SCOPES": 18,
-  "PROGRAM_COMPATIBLE": 0,
-  "PROGRAM_INCOMPATIBLE": 0,
-  "PROGRAM_UNKNOWN": 2451,
+  "PROGRAM_COMPATIBILITY_PROVEN": 0,
+  "PROGRAM_COMPATIBILITY_UNKNOWN": 2451,
+  "PROGRAM_INCOMPATIBILITY_PROVEN": 0,
+  "PROGRAM_PROFILE_SCOPE_MATCH": 123,
+  "PROGRAM_PROFILE_SCOPE_NO_MATCH": 2328,
   "SCHOOL_YEAR_DECLARED": "2026-2027",
   "authority": "services/rag-engine/configs/ingestion_profiles/*.yml (programme_version, school_year, niveau, matiere)",
   "blocking_fact": "Le catalogue ne porte AUCUNE colonne de version de programme. Sa colonne annee est l'annee de PUBLICATION du document, pas le programme qu'il sert : un document de 2016 peut parfaitement mettre en oeuvre un programme encore en vigueur, et un document de 2026 en servir un abroge. Deduire la compatibilite de l'annee serait une inference de la meme nature que deduire une URL d'un slug de nom de fichier.",
-  "kind": "NEXUS-PROGRAM-VERSION-COMPATIBILITY-MEASUREMENT-V1",
-  "what_would_close_it": [
-    "une colonne de version de programme dans une autorité de catalogue, ou",
-    "un mapping gouverné (niveau, matiere, annee|type_document) -> programme_version, ou",
-    "une déclaration par document dans une autorité de provenance"
-  ]
+  "kind": "NEXUS-PROGRAM-COMPATIBILITY-MEASUREMENT-V2",
+  "publication_year_is_not_evidence": "La regle generique (niveau, matiere, annee_publication, type_document) -> programme_version est REFUSEE comme autorite automatique. Elle peut prioriser une investigation ; elle ne peut pas en tenir lieu de preuve.",
+  "scope_match_is_not_binding": "Un croisement (niveau, matiere) prouve qu une autorite de programme existe pour ce scope pedagogique. Il ne prouve pas que ce document-la met en oeuvre cette version : le catalogue ne porte aucune liaison document -> programme."
 }

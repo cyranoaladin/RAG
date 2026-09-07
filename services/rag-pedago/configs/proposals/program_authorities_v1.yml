@@ -1,0 +1,84 @@
+# Deux autorités de programme, SÉPARÉES. Propositions, non appliquées.
+#
+# Les confondre était la tentation : « ce scope a un programme en vigueur »
+# glisserait en « ce document met en œuvre ce programme ». La première est une
+# propriété du niveau et de la matière ; la seconde est une propriété du
+# DOCUMENT, et rien dans les autorités reçues ne l'établit aujourd'hui.
+#
+# Mesuré : 18 profils déclarent une version de programme, croisant 123 des
+# 2451 contenus par (niveau, matière) — et 0 contenu porte une liaison réelle.
+
+status: PROPOSED
+applied: false
+requires_adr: true
+
+CurrentProgramAuthorityV1:
+  authority_id: NEXUS-CURRENT-PROGRAM-AUTHORITY-V1
+  answers: "Quel programme est actuellement applicable à CE scope pédagogique ?"
+  fields:
+    - niveau
+    - matiere
+    - voie                      # générale, technologique, professionnelle
+    - specialite_ou_option      # si applicable
+    - programme_version         # ex. BOEN_special_1_2019-01-22
+    - school_year               # ex. 2026-2027
+    - evidence_ref              # le texte officiel qui l'établit
+    - evidence_sha256
+  existing_partial_source: services/rag-engine/configs/ingestion_profiles/*.yml
+  coverage_today: "18 scopes déclarent programme_version et school_year"
+
+ArtifactProgramBindingV1:
+  authority_id: NEXUS-ARTIFACT-PROGRAM-BINDING-V1
+  answers: "CE contenu met-il en œuvre CETTE version de programme ?"
+  fields:
+    - content_sha256
+    - source_relation_id        # la liaison est RELATIONNELLE, pas globale
+    - programme_version
+    - binding_basis
+    - evidence_ref
+    - evidence_sha256
+  binding_basis_allowed:
+    EXPLICIT_SOURCE_METADATA:
+      meaning: "la source déclare elle-même le programme du document"
+    GOVERNED_MANIFEST:
+      meaning: "un manifeste gouverné porte la liaison"
+    OFFICIAL_PROGRAM_REFERENCE:
+      meaning: "le document cite le texte officiel qu'il met en œuvre"
+    HUMAN_REVIEW:
+      meaning: "un humain a établi la liaison, tracée et signée"
+    GOVERNED_RULE:
+      meaning: "une règle versionnée, dont la PORTÉE a elle-même une preuve"
+      constraint: >-
+        Une règle n'est admise que si son domaine d'application est prouvé.
+        Une règle dont la portée est supposée est une supposition qui a pris
+        la forme d'une règle.
+  forbidden_as_evidence:
+    - nom_de_fichier
+    - slug
+    - annee_de_publication_seule
+    - proximite_lexicale
+    - croisement_niveau_matiere_seul
+  why_forbidden: >-
+    Chacune produirait une liaison ayant la forme d'une preuve sans en être
+    une : un lecteur ne pourrait plus distinguer une liaison établie d'une
+    liaison devinée. L'année de publication en est le cas le plus trompeur —
+    un document de 2016 peut mettre en œuvre un programme encore en vigueur,
+    et un document de 2026 en servir un abrogé.
+
+measurement_today:
+  PROGRAM_COMPATIBILITY_PROVEN: 0
+  PROGRAM_INCOMPATIBILITY_PROVEN: 0
+  PROGRAM_COMPATIBILITY_UNKNOWN: 2451
+  PROGRAM_PROFILE_SCOPE_MATCH: 123
+  PROGRAM_PROFILE_SCOPE_NO_MATCH: 2328
+  EXACT_ARTIFACT_PROGRAM_BINDING: 0
+
+sequencing:
+  - "1. étendre CurrentProgramAuthorityV1 au-delà des 18 scopes actuels"
+  - "2. chercher les liaisons ArtifactProgramBindingV1 dans les autorités structurées"
+  - "3. ne soumettre à revue humaine que le résidu réellement ambigu"
+  note: >-
+    La revue humaine est le dernier recours, pas le mécanisme de classification
+    principal. Lancer une revue de 2411 contenus avant d'avoir épuisé les
+    autorités structurées ferait faire à des humains le travail qu'une liaison
+    gouvernée rendrait automatique.
