@@ -332,3 +332,96 @@ def test_le_mode_deploiement_ne_calcule_jamais_l_empreinte_lui_meme(
     monkeypatch.delenv(REGISTRY_SHA256_ENV)
     with pytest.raises(module.PromotedContentSetError):
         module.collect_promoted_content_set(registre)  # registre vide, autre refus
+
+
+# --- la matrice de précédence du registre ------------------------------
+
+
+class TestLaMatriceDePrecedenceEstExplicite:
+    """Trois sources possibles, mutuellement exclusives.
+
+    Sans ces noms, elles se recouvraient en silence : un déploiement pouvait
+    désigner un registre et un argument de ligne de commande en imposer un
+    autre, et la preuve produite ne disait pas laquelle avait décidé du
+    périmètre servi.
+    """
+
+    def _resoudre(self, **kwargs):
+        from compute_promoted_content_set import resoudre_source_du_registre
+
+        return resoudre_source_du_registre(**kwargs)
+
+    def test_sans_deploiement_ni_argument_le_mode_est_le_defaut(self) -> None:
+        from compute_promoted_content_set import DEFAULT_REGISTRY, MODE_DEFAULT
+
+        mode, registre, empreinte = self._resoudre(
+            registre_demande=None, empreinte_demandee=None, liaison=None
+        )
+        assert (mode, registre, empreinte) == (MODE_DEFAULT, DEFAULT_REGISTRY, None)
+
+    def test_un_deploiement_seul_impose_son_registre_et_son_empreinte(
+        self, tmp_path: Path
+    ) -> None:
+        from compute_promoted_content_set import MODE_DEPLOYMENT
+
+        chemin, sceau = tmp_path / "r.json", "a" * 64
+        assert self._resoudre(
+            registre_demande=None, empreinte_demandee=None, liaison=(chemin, sceau)
+        ) == (MODE_DEPLOYMENT, chemin, sceau)
+
+    def test_une_candidate_explicite_exige_son_empreinte(self, tmp_path: Path) -> None:
+        """Hacher le fichier observé ferait de la candidate sa propre autorité :
+        elle serait alors qualifiée contre elle-même."""
+        from compute_promoted_content_set import PromotedContentSetError
+
+        with pytest.raises(PromotedContentSetError, match="sa propre autorité"):
+            self._resoudre(
+                registre_demande=tmp_path / "candidate.json",
+                empreinte_demandee=None,
+                liaison=None,
+            )
+
+    def test_une_candidate_explicite_avec_empreinte_est_acceptee(
+        self, tmp_path: Path
+    ) -> None:
+        from compute_promoted_content_set import MODE_EXPLICIT_CANDIDATE
+
+        chemin, sceau = tmp_path / "candidate.json", "b" * 64
+        assert self._resoudre(
+            registre_demande=chemin, empreinte_demandee=sceau, liaison=None
+        ) == (MODE_EXPLICIT_CANDIDATE, chemin, sceau)
+
+    def test_un_deploiement_et_une_candidate_ensemble_sont_refuses(
+        self, tmp_path: Path
+    ) -> None:
+        """Deux autorités pour un même périmètre : rien ne dirait laquelle a
+        décidé de ce qui est servi."""
+        from compute_promoted_content_set import PromotedContentSetError
+
+        with pytest.raises(PromotedContentSetError, match="deux autorités"):
+            self._resoudre(
+                registre_demande=tmp_path / "candidate.json",
+                empreinte_demandee="c" * 64,
+                liaison=(tmp_path / "deploye.json", "d" * 64),
+            )
+
+    def test_une_empreinte_qui_contredit_le_deploiement_est_refusee(
+        self, tmp_path: Path
+    ) -> None:
+        from compute_promoted_content_set import PromotedContentSetError
+
+        with pytest.raises(PromotedContentSetError, match="contredit"):
+            self._resoudre(
+                registre_demande=None,
+                empreinte_demandee="e" * 64,
+                liaison=(tmp_path / "deploye.json", "f" * 64),
+            )
+
+    def test_une_empreinte_sans_registre_designe_est_refusee(self) -> None:
+        """L'empreinte ne porterait sur rien de nommé."""
+        from compute_promoted_content_set import PromotedContentSetError
+
+        with pytest.raises(PromotedContentSetError, match="ne porterait sur rien"):
+            self._resoudre(
+                registre_demande=None, empreinte_demandee="0" * 64, liaison=None
+            )

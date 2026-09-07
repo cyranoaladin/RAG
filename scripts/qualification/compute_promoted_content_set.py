@@ -188,6 +188,66 @@ def collect_promoted_collections(
         ) from exc
 
 
+#: Les trois SOURCES possibles du registre, mutuellement exclusives. Sans ces
+#: noms, elles se recouvraient en silence : un déploiement pouvait désigner un
+#: registre et un argument de ligne de commande en imposer un autre, sans que
+#: rien ne dise lequel avait décidé du périmètre servi.
+MODE_DEFAULT = "DEFAULT"
+MODE_DEPLOYMENT = "DEPLOYMENT"
+MODE_EXPLICIT_CANDIDATE = "EXPLICIT_CANDIDATE"
+
+
+def resoudre_source_du_registre(
+    *,
+    registre_demande: Path | None,
+    empreinte_demandee: str | None,
+    liaison: tuple[Path, str] | None,
+) -> tuple[str, Path, str | None]:
+    """Rend (mode, registre, empreinte attendue) — ou refuse.
+
+    La matrice, en toutes lettres :
+
+    ==================  ====================  ==============================
+    déploiement lié     ``--release-registry``  mode
+    ==================  ====================  ==============================
+    non                 non                   ``DEFAULT``
+    oui                 non                   ``DEPLOYMENT``
+    non                 oui                   ``EXPLICIT_CANDIDATE``
+    oui                 oui                   **refus** — deux autorités
+    ==================  ====================  ==============================
+
+    En ``EXPLICIT_CANDIDATE``, ``--release-registry-sha256`` est EXIGÉE :
+    hacher le fichier observé ferait de la candidate sa propre autorité, et
+    qualifier une candidate contre elle-même ne prouve rien.
+    """
+    if liaison is not None and registre_demande is not None:
+        raise PromotedContentSetError(
+            "un déploiement désigne un registre ET --release-registry en impose "
+            "un autre : deux autorités pour un même périmètre, rien ne dirait "
+            "laquelle a décidé de ce qui est servi"
+        )
+    if registre_demande is not None:
+        if not empreinte_demandee:
+            raise PromotedContentSetError(
+                "--release-registry sans --release-registry-sha256 : hacher le "
+                "fichier observé ferait de la candidate sa propre autorité"
+            )
+        return MODE_EXPLICIT_CANDIDATE, registre_demande, empreinte_demandee
+    if liaison is not None:
+        chemin, sceau = liaison
+        if empreinte_demandee and empreinte_demandee != sceau:
+            raise PromotedContentSetError(
+                "--release-registry-sha256 contredit l'empreinte du déploiement"
+            )
+        return MODE_DEPLOYMENT, chemin, sceau
+    if empreinte_demandee:
+        raise PromotedContentSetError(
+            "--release-registry-sha256 sans registre désigné : l'empreinte ne "
+            "porterait sur rien de nommé"
+        )
+    return MODE_DEFAULT, DEFAULT_REGISTRY, None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     try:
@@ -197,28 +257,34 @@ def main(argv: list[str] | None = None) -> int:
         # refus, jamais un repli sur le défaut du dépôt.
         print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
         return 2
-    depuis_deploiement, sceau_deploiement = binding or (None, None)
+    # Aucun défaut ici : le défaut est une DÉCISION de la matrice de
+    # précédence, pas un effet de bord de l'analyse des arguments. Laisser
+    # `default=` porter la liaison de déploiement rendait indiscernables « le
+    # déploiement a décidé » et « l'appelant a imposé ».
     parser.add_argument(
         "--release-registry",
         type=Path,
-        default=depuis_deploiement or DEFAULT_REGISTRY,
+        default=None,
         help=(
-            "registre désignant les releases actives ; le registre figé d'une "
-            "candidate permet de qualifier celle-ci sans réécrire ce script"
+            "registre figé d'une candidate à qualifier ; exige "
+            "--release-registry-sha256 et exclut toute liaison de déploiement"
         ),
     )
     parser.add_argument(
         "--release-registry-sha256",
-        default=sceau_deploiement,
-        help="empreinte externe du registre, quand une candidate figée en fournit une",
+        default=None,
+        help="empreinte externe du registre désigné",
     )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
 
     try:
-        contents = collect_promoted_content_set(
-            args.release_registry, args.release_registry_sha256
+        mode, registre, empreinte = resoudre_source_du_registre(
+            registre_demande=args.release_registry,
+            empreinte_demandee=args.release_registry_sha256,
+            liaison=binding,
         )
+        contents = collect_promoted_content_set(registre, empreinte)
     except (PromotedContentSetError, KeyError, TypeError, ValueError, OSError) as exc:
         # Une trace Python en CI dit où le code s'est arrêté, pas ce qui est
         # faux dans la lignée. Le gate doit nommer le défaut.
@@ -229,7 +295,10 @@ def main(argv: list[str] | None = None) -> int:
         "content_sha256": sorted(contents),
         "count": len(contents),
         "content_set_sha256": content_set_digest(contents),
-        "release_registry": args.release_registry.name,
+        "release_registry": registre.name,
+        # Le mode est PUBLIÉ : une preuve qui ne dit pas quelle autorité a
+        # désigné le registre ne se relit pas.
+        "release_registry_source": mode,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
@@ -237,6 +306,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"PROMOTED_CONTENT_SET_COUNT={payload['count']}")
     print(f"PROMOTED_CONTENT_SET_SHA256={payload['content_set_sha256']}")
+    print(f"RELEASE_REGISTRY_SOURCE={mode}")
     return 0
 
 
