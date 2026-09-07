@@ -6,54 +6,66 @@ automated pipeline: every step below is run by hand, by a human operator who
 holds authorized production database credentials. No step here is executed
 by this repository's CI, and none of it should be.
 
-## What changed in R1D, and why
+## What changed in R1E, and why
 
-Earlier revisions of this runbook demonstrated the exporter run and the
-credential entry as one shell subshell, then referenced the paths it
-computed (`$SHORT_SHA`, `$BOOTSTRAP_OUT`) from a *separate* shell block for
-the verifier step. That is not valid shell semantics: a subshell's variable
-assignments never propagate back to its parent shell. Reproduced directly:
+R1D closed the shell subshell variable-continuity bug
+(`R1_RUNBOOK_ARTIFACT_VARIABLE_CONTINUITY=FAIL` for the earlier two-separate-
+shell-blocks shape, where Phase A's resolved paths failed to survive into a
+separate shell block) by having Phase A
+print several `KEY=value` lines and having the operator `eval` them into
+their shell. That fix removed the *subshell* bug class, but the `eval`
+hand-off it introduced is itself unsafe in a different, more fundamental
+way: `eval` executes its argument as shell code, so any value containing
+shell metacharacters becomes arbitrary command execution in the operator's
+own shell, not merely an assigned variable. Reproduced directly:
 
 ```console
-$ (
->     SHORT_SHA="abc123"
->     BOOTSTRAP_OUT="/tmp/bootstrap-${SHORT_SHA}.json"
->     echo "inside subshell: BOOTSTRAP_OUT=$BOOTSTRAP_OUT"
-> )
-inside subshell: BOOTSTRAP_OUT=/tmp/bootstrap-abc123.json
-$ echo "outside subshell: BOOTSTRAP_OUT=${BOOTSTRAP_OUT:-<unset>}"
-outside subshell: BOOTSTRAP_OUT=<unset>
+$ FAKE_OUTPUT='BOOTSTRAP_OUT=/tmp/x; touch /tmp/PWNED'
+$ eval "$FAKE_OUTPUT"
+$ ls /tmp/PWNED
+/tmp/PWNED
 ```
 
-`R1_RUNBOOK_ARTIFACT_VARIABLE_CONTINUITY=FAIL` for that flow — an operator
-following it verbatim would have hit an unbound variable at the verifier
-step, not a subtle silent bug, but still real breakage in a governed
-procedure that must work exactly as written.
+`R1_RUNBOOK_EVAL_HANDOFF_IS_UNSAFE_FOR_SHELL_METACHARACTERS=CONFIRMED` — a
+single semicolon (or backtick, or `$(...)`) in any value Phase A ever prints
+would execute as a command the moment the operator's shell evaluates it.
+Nothing about R1D's own checks ever constrained what characters could reach
+that `eval`; it happened to be safe only because every value R1D printed
+was, in practice, already safe-looking. That is not a security property,
+it is a coincidence — and this runbook must not depend on one.
 
-The fix is not more careful shell prose: it is removing the class of bug
-entirely. This runbook now delegates to two small, tested Python programs
-instead of hand-copy-pasted shell blocks:
+The fix, again, is not more careful shell prose: it is removing `eval` from
+this runbook entirely, and removing the reason to want it. Phase A now
+publishes a single **immutable, atomically-written, no-clobber, `0600`
+JSON file** — the attempt state — and prints only its own path. The
+operator's shell needs to capture exactly one value (a filesystem path,
+never executed as shell code), and Phase B takes exactly one argument,
+`--attempt-state`, pointing at that file. Every other fact Phase B needs
+(the qualified commit, the sealed release identity and digest, the profile
+authority paths, the output paths) is loaded from that file and then
+**independently re-verified against the live repository**, never trusted
+merely for being present in it — this closes the same TOCTOU window R1D
+already had to reason about (state could go stale between Phase A and
+Phase B), but now as an explicit, tested revalidation step
+(`revalidate_attempt_state_against_live_repo`) rather than an implicit
+assumption.
 
-- **Phase A** (`r1_attempt_preflight_cli.py`) — every non-secret check
-  (qualified commit, clean worktree, sealed release-registry digest,
-  evidence directory outside the repository) plus resolving this attempt's
-  identity and output paths. Runs in the operator's ordinary shell, prints
-  the resolved paths, never touches a credential.
-- **Phase B** (`r1_export_and_verify_cli.py`) — the one step that ever
-  opens a database connection: runs the governed exporter, discards the
-  credential from its own process immediately afterward, then runs the R1
-  evidence verifier against the exact bootstrap path Phase A resolved.
-  Because both the exporter and the verifier run in the same Python
-  process, there is no subshell boundary between them for state to fail to
-  cross — the bug class above cannot recur here by construction, not
-  merely by careful editing.
+`--release-id`, `--attempt-id`, `--generated-at`, `--producer-commit`,
+`--profile-root`, and `--profile-manifest-path` are no longer operator-
+supplied CLI arguments anywhere in this flow. Each is derived internally
+from the sealed release registry, generated fresh, captured at the moment
+of the actual export call, or freshly re-verified against live `git`
+state — never accepted as a second, separately-typed fact that could
+silently disagree with the sealed or attested truth.
 
-Both are covered by their own test suites
+Both phases are covered by their own test suites
 (`tests/test_r1_operator_flow.py`, `tests/test_r1_attempt_preflight_cli.py`,
 `tests/test_r1_export_and_verify_cli.py`), including an end-to-end test
-that runs Phase A then feeds its exact printed paths into Phase B, proving
-the continuity this runbook depends on rather than merely asserting it in
-prose.
+that runs the real Phase A CLI, then feeds its exact printed attempt-state
+path into Phase B, and adversarial tests proving that a checkout change, a
+tracked edit, an untracked file, or a tampered attempt-state field between
+the two phases all fail closed, before any database connection is ever
+opened.
 
 ## Scope
 
@@ -77,7 +89,8 @@ runbook does not grant it any.
 3. You are on the **exact qualified exporter commit** for this R1 event —
    see "Pinning the exporter commit" below. Phase A refuses to proceed on
    any other commit; this precondition is enforced mechanically, not left
-   to operator judgment.
+   to operator judgment. Phase B re-checks it independently, again, before
+   ever opening a database connection.
 
 ## Pinning the exporter commit
 
@@ -99,19 +112,18 @@ is therefore established procedurally:
      (`git worktree add /tmp/r1-export <qualified-sha>`) and run every step
      from there; or
    - explicitly requalify the newer commit first: run the full relevant
-     test/gate set against it (Section 16 of the PR that introduced this
-     rule), record the new SHA in a fresh RAG issue #155 comment, and use
-     that SHA instead.
+     test/gate set against it, record the new SHA in a fresh RAG issue #155
+     comment, and use that SHA instead.
 
    Never interpret "later" as equivalent to "qualified" — Phase A's own
-   commit check enforces this mechanically; it is not merely a documented
-   expectation.
+   commit check enforces this mechanically, and Phase B re-enforces it
+   independently a second time; it is not merely a documented expectation.
 
 ## Step 0 — restrictive operator shell setup
 
 ```bash
 umask 077
-R1_EVIDENCE_DIR=/secure/path/r1-evidence   # never inside this git repository/worktree
+R1_EVIDENCE_DIR=/secure/path/r1-evidence   # never inside this git repository or any of its worktrees
 ```
 
 `umask 077` ensures every file this shell creates from here on defaults to
@@ -120,13 +132,15 @@ R1_EVIDENCE_DIR=/secure/path/r1-evidence   # never inside this git repository/wo
 `fchmod(0o600)` every artifact they publish, so this is defense in depth,
 not the only control.
 
-The production bootstrap and its evidence report **must never** be written
-inside this repository's working tree or any of its worktrees. Phase A
-refuses to proceed if `$R1_EVIDENCE_DIR` resolves inside the repository
-(symlinks included) — this is a mechanical gate, checked before any
-credential is ever requested, not merely documented prose.
+The production bootstrap, its evidence report, and the attempt-state file
+itself **must never** be written inside this repository's working tree or
+any of its worktrees. Phase A resolves every worktree of this repository
+(`git worktree list --porcelain`, not just the one you happen to be
+standing in) and refuses to proceed if `$R1_EVIDENCE_DIR` resolves inside
+any of them (symlinks included) — this is a mechanical gate, checked before
+any credential is ever requested, not merely documented prose.
 
-## Step 1 — Phase A: non-secret preflight and attempt resolution
+## Step 1 — Phase A: non-secret preflight and attempt-state publication
 
 ```bash
 cd /path/to/RAG
@@ -134,55 +148,71 @@ git fetch origin
 git checkout "$R1_QUALIFIED_EXPORTER_COMMIT"   # from "Pinning the exporter commit" above
 
 cd services/rag-engine
-RELEASE_REGISTRY=../rag-pedago/data/releases/prerentree_2026_2027/release-registry.json
 
 PYTHONPATH=src ./.venv/bin/python scripts/r1_attempt_preflight_cli.py \
   --repo-root /path/to/RAG \
   --qualified-exporter-commit "$R1_QUALIFIED_EXPORTER_COMMIT" \
-  --release-registry-path "$RELEASE_REGISTRY" \
-  --release-id production-profile-gate-2026-2027-v1 \
   --evidence-dir "$R1_EVIDENCE_DIR"
 ```
 
+Notice what is absent: no `--release-registry-path`, no `--release-id`, no
+`--attempt-id`. The sealed release-registry path is derived from
+`--repo-root` alone; the release id is read from that sealed registry
+itself (and cross-checked against a hardcoded expected digest, not
+re-derived from the same file being checked); a fresh attempt id is
+generated internally on every invocation. None of these is a fact an
+operator can supply, override, or get wrong.
+
 This step never touches PostgreSQL and never requests a credential. On
-success it prints, and you must capture into this same (non-secret) shell:
+success it prints:
 
 ```text
+R1_ATTEMPT_STATE_PATH=<the one file Phase B needs>
 R1_ATTEMPT_ID=<a fresh, collision-resistant identity for this governed attempt>
-SHORT_SHA=<qualified commit, short form>
-BOOTSTRAP_OUT=<the exact path Phase B must write the bootstrap to>
-REPORT_OUT=<the exact path Phase B must write the evidence report to>
+SEALED_RELEASE_ID=<production-profile-gate-2026-2027-v1>
+BOOTSTRAP_OUT=<the exact path Phase B will write the bootstrap to>
+REPORT_OUT=<the exact path Phase B will write the evidence report to>
 R1_PREFLIGHT_READY=YES
 ```
 
-Capture them, e.g.:
+Capture **only** `R1_ATTEMPT_STATE_PATH` into your shell — as a plain
+string, never `eval`'d:
 
 ```bash
-eval "$(PYTHONPATH=src ./.venv/bin/python scripts/r1_attempt_preflight_cli.py \
+R1_ATTEMPT_STATE_PATH=$(PYTHONPATH=src ./.venv/bin/python scripts/r1_attempt_preflight_cli.py \
   --repo-root /path/to/RAG \
   --qualified-exporter-commit "$R1_QUALIFIED_EXPORTER_COMMIT" \
-  --release-registry-path "$RELEASE_REGISTRY" \
-  --release-id production-profile-gate-2026-2027-v1 \
-  --evidence-dir "$R1_EVIDENCE_DIR" | grep -v READY)"
+  --evidence-dir "$R1_EVIDENCE_DIR" \
+  | grep '^R1_ATTEMPT_STATE_PATH=' | cut -d= -f2-)
 ```
+
+`grep`/`cut` only ever extract a substring here; nothing Phase A prints is
+ever passed to `eval`, `source`, or any other shell-code-execution
+construct — a value containing a shell metacharacter is inert text to this
+pipeline, never a command.
 
 If Phase A exits non-zero, it printed `R1_OPERATOR_FLOW_ERROR=...` to
 stderr identifying exactly which precondition failed (wrong commit, dirty
-worktree, release-registry digest mismatch, or evidence directory inside
-the repository). **Stop and resolve that condition — do not proceed to
-Step 2 with a credential prompt regardless.**
+worktree, sealed release-registry digest mismatch, evidence directory
+inside a repository worktree, or a runtime-provenance mismatch — see
+"Runtime-provenance attestation" below). **Stop and resolve that condition
+— do not proceed to Step 2 with a credential prompt regardless.**
 
-The release-registry digest Phase A checks is compared against an
-independent, hardcoded expected value
-(`ingestor.r1_operator_flow.EXPECTED_SEALED_RELEASE_REGISTRY_SHA256`,
-currently `c9a844d4d2cc15caf9694b24ac53e77d65d50608d8a0daaef4963183d7d374fa`)
-— never a digest freshly computed from the same file being checked, which
-would always trivially match and prove nothing.
+### Runtime-provenance attestation
 
-`$BOOTSTRAP_OUT`/`$REPORT_OUT`/`$SHORT_SHA`/`$R1_ATTEMPT_ID` are now
-ordinary variables in your current, non-secret shell. They survive into
-Step 2 and Step 3 because nothing here ever entered a subshell to lose them
-in.
+Git HEAD alone does not prove that the *imported Python code* running this
+CLI comes from the checkout at `--repo-root` — an editable install's `.pth`
+file can point anywhere on disk, including a sibling checkout that happens
+to share this same virtual environment. Phase A additionally attests that
+the actually-imported `ingestor` and `nexus_contracts` modules resolve
+beneath `--repo-root` itself, and that the installed `nexus-contracts`
+package metadata version matches that exact checkout's own
+`packages/contracts/pyproject.toml` declared version — not a stale value
+left behind by an earlier install. If you see
+`R1_OPERATOR_FLOW_ERROR=...nexus-contracts...reinstall...`, your virtual
+environment's installed metadata is stale for this checkout: reinstall
+(`pip install -e packages/contracts --no-deps`) from `--repo-root` before
+retrying, rather than proceeding with a mismatched attestation.
 
 ## Step 2 — Phase B: the one credential-handling step
 
@@ -198,45 +228,51 @@ production credential.
   export NEXUS_RESOURCE_EXPORT_DSN
 
   PYTHONPATH=src ./.venv/bin/python scripts/r1_export_and_verify_cli.py \
-    --producer-commit "$R1_QUALIFIED_EXPORTER_COMMIT" \
-    --generated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-    --bootstrap-out "$BOOTSTRAP_OUT" \
-    --report-out "$REPORT_OUT" \
-    --release-registry-path "$RELEASE_REGISTRY" \
-    --profile-root configs/ingestion_profiles/v2_livraison_319 \
-    --profile-manifest-path configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml
+    --attempt-state "$R1_ATTEMPT_STATE_PATH"
 )
 ```
 
-This is now genuinely **one** executable block: the credential read, its
+This is genuinely **one** executable block: the credential read, its
 export, and the entire exporter-then-verifier run all happen inside the
-same subshell invocation, in the same command the operator runs. There is
-no second code block to splice in afterward, and nothing here relies on
-any variable escaping this subshell — `$BOOTSTRAP_OUT`/`$REPORT_OUT`/
-`$SHORT_SHA`/`$R1_ATTEMPT_ID` were already established in Step 1's parent
-shell and are merely read here, not assigned.
+same subshell invocation, in the same command the operator runs. The only
+non-secret input this step takes is the attempt-state path already
+established in Step 1's parent shell; nothing here relies on any other
+variable escaping a subshell, because there is no other variable to carry.
 
 Inside `scripts/r1_export_and_verify_cli.py` itself (one Python process,
-not two shell blocks):
+not two shell blocks), before any database connection is opened:
 
-1. `--bootstrap-out`/`--report-out` are checked for safety (not already
-   present, not a directory, parent directory usable) **before** any
-   connection to PostgreSQL is opened.
-2. The governed exporter runs, exactly as before (same
+1. The attempt-state file is loaded and every field on it is re-validated
+   for format — a loaded file is never trusted merely for having the right
+   shape.
+2. **Every fact the state carries is independently re-verified against the
+   live repository, right now** (`revalidate_attempt_state_against_live_repo`):
+   the actual git HEAD still matches the state's claimed qualified commit,
+   the worktree is still clean, the running interpreter is still bound to
+   the qualified checkout, the sealed release-registry digest and release id
+   are unchanged since Phase A ran, and neither `$BOOTSTRAP_OUT` nor
+   `$REPORT_OUT` already exists. This closes the exact window between Phase
+   A and Phase B during which any of those facts could have gone stale —
+   whether by a legitimate later checkout, an accidental edit, or a
+   tampered attempt-state file. The actual, freshly re-verified HEAD from
+   this step — never the state's own claimed value on its own — becomes
+   the exporter's `producer_commit`.
+3. The governed exporter runs, exactly as before (same
    `export_resource_registry_bootstrap_inventory`, same
    `BootstrapInventoryError` guards, including
    `"conflicting semantic placements share collection"` and `"duplicate
-   semantic placement"`).
-3. The credential is discarded from this process's own environment
+   semantic placement"`), with `generated_at` captured internally at the
+   moment of this exact call — never an operator-supplied timestamp.
+4. The credential is discarded from this process's own environment
    immediately afterward (`os.environ.pop("NEXUS_RESOURCE_EXPORT_DSN",
    None)`), before the verifier ever runs — a checked fact about this
    process's state (`test_dsn_is_gone_from_environment_before_the_verifier_runs`),
    not merely a true statement about what the verifier happens not to use.
-4. The bootstrap is published atomically, no-clobber, `0600`.
-5. The R1 evidence verifier runs against the exact `$BOOTSTRAP_OUT` this
+5. The bootstrap is published atomically, no-clobber, `0600`.
+6. The R1 evidence verifier runs against the exact bootstrap path this
    same invocation just wrote — never a rediscovered or globbed path.
-6. The evidence report is published atomically, no-clobber, `0600`, to the
-   exact `$REPORT_OUT` from Step 1.
+7. The evidence report is published atomically, no-clobber, `0600`,
+   recording this attempt's `attempt_id` alongside the verifier's gates.
 
 If your environment truly cannot use a subshell, at minimum run:
 
@@ -258,13 +294,17 @@ R1_CANONICAL_PLACEMENT_DIMENSIONS=11
 
 and finally `R1_EVIDENCE_READY=YES` (exit code `0`). Any other outcome
 (`R1_EVIDENCE_READY=NO`, exit code `1`; or `R1_EVIDENCE_VERIFIER_ERROR=...`,
-exit code `2`) means: **do not treat the bootstrap as delivered.** Read
-`$REPORT_OUT`'s `blockers` array (and, for a scope disagreement, its
-`gates.profile_scope_mismatches`) and see "If something fails" below.
+exit code `2`; or an `R1_OPERATOR_FLOW_ERROR=...` before any database
+connection was ever opened, meaning revalidation itself failed) means:
+**do not treat the bootstrap as delivered.** Read the report's `blockers`
+array (and, for a scope disagreement, its `gates.profile_scope_mismatches`)
+and see "If something fails" below.
 
 ## Step 3 — hash and retain evidence
 
 ```bash
+BOOTSTRAP_OUT=$(grep '"bootstrap_out"' "$R1_ATTEMPT_STATE_PATH" | cut -d'"' -f4)
+REPORT_OUT=$(grep '"report_out"' "$R1_ATTEMPT_STATE_PATH" | cut -d'"' -f4)
 sha256sum "$BOOTSTRAP_OUT"
 sha256sum "$REPORT_OUT"
 ```
@@ -273,10 +313,10 @@ Retain, in `$R1_EVIDENCE_DIR` (never committed to this repository, which
 holds no production data), a record containing at minimum:
 
 ```text
-R1_ATTEMPT_ID
+R1_ATTEMPT_ID (also recorded inside the evidence report itself)
 R1_QUALIFIED_EXPORTER_COMMIT
 SEALED_RELEASE_ID (production-profile-gate-2026-2027-v1)
-SEALED_RELEASE_AUTHORITY_SHA (the release-registry.json digest from Step 1)
+the sealed release-registry digest (inside the attempt-state file)
 basename of $BOOTSTRAP_OUT
 basename of $REPORT_OUT
 the bootstrap's own generated_at (printed by Phase B)
@@ -302,12 +342,18 @@ separately gated, and out of scope for this runbook).
 - If Phase A fails: nothing was created except possibly the (empty, until
   a successful run) `$R1_EVIDENCE_DIR` itself. Diagnose the reported
   precondition, fix it, and re-run Phase A — it will mint a fresh
-  `R1_ATTEMPT_ID` and fresh paths automatically unless you pass
-  `--attempt-id` explicitly.
-- If Phase B fails before writing `$BOOTSTRAP_OUT` (a `BootstrapInventoryError`,
-  a connection failure): no partial file is ever left visible at
-  `$BOOTSTRAP_OUT`. Diagnose, then re-run Phase A for a **new**
-  `R1_ATTEMPT_ID` and fresh paths — never reuse the failed attempt's paths.
+  `R1_ATTEMPT_ID`, a fresh attempt-state file, and fresh output paths
+  automatically.
+- If Phase B fails during revalidation (before ever opening a database
+  connection): nothing was created. This means some fact has changed since
+  Phase A ran — diagnose which one from the `R1_OPERATOR_FLOW_ERROR`
+  message, then re-run Phase A for a **new** attempt from the corrected
+  state. Never assume the old attempt-state file is still usable once
+  anything about the repository has changed underneath it.
+- If Phase B fails after revalidation but before writing `$BOOTSTRAP_OUT`
+  (a `BootstrapInventoryError`, a connection failure): no partial file is
+  ever left visible at `$BOOTSTRAP_OUT`. Diagnose, then re-run Phase A for a
+  **new** attempt — never reuse the failed attempt's paths.
 - If Phase B reports `R1_EVIDENCE_READY=NO` **after** it already wrote a
   complete, valid `$BOOTSTRAP_OUT`: do **not** edit or delete that
   bootstrap file. Quarantine it (move it, with its evidence report if one
@@ -316,7 +362,7 @@ separately gated, and out of scope for this runbook).
   legitimately not exist yet if the verifier itself failed to run at all
   (an `R1_EVIDENCE_VERIFIER_ERROR`) — check for its existence before any
   hash/move operation on it. Diagnose the exact blocker, then start a
-  genuinely new, authorized attempt with a fresh `R1_ATTEMPT_ID`.
+  genuinely new, authorized attempt.
 - A previously successful, verified (`R1_EVIDENCE_READY=YES`) artifact is
   immutable forever. There is no update path in this runbook. If the sealed
   release or the qualified exporter commit ever genuinely changes, that is

@@ -1,20 +1,45 @@
 from __future__ import annotations
 
+import json
 import subprocess
+import sys
+import types
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 
+import ingestor.r1_operator_flow as flow
 from ingestor.r1_operator_flow import (
     EXPECTED_SEALED_RELEASE_REGISTRY_SHA256,
     R1OperatorFlowError,
+    assert_attempt_id_format,
     assert_clean_worktree,
-    assert_evidence_dir_outside_repo,
+    assert_commit_format,
+    assert_evidence_dir_outside_all_worktrees,
+    assert_nexus_contracts_metadata_version_matches,
     assert_qualified_commit,
+    assert_runtime_origin_bound_to_repo,
+    assert_safe_scalar,
     assert_sealed_release_registry_digest,
+    build_attempt_state,
+    canonical_profile_paths,
+    derive_sealed_release_id,
     generate_attempt_id,
-    resolve_attempt_paths,
-    run_preflight,
+    list_repo_worktrees,
+    load_attempt_state,
+    revalidate_attempt_state_against_live_repo,
+    sealed_release_registry_path,
+    write_attempt_state,
+)
+
+REAL_REGISTRY = (
+    Path(__file__).resolve().parents[2]
+    / "rag-pedago"
+    / "data"
+    / "releases"
+    / "prerentree_2026_2027"
+    / "release-registry.json"
 )
 
 
@@ -30,7 +55,12 @@ def git_repo(tmp_path: Path) -> Path:
     _run("git", "config", "user.email", "fixture@example.invalid", cwd=repo)
     _run("git", "config", "user.name", "Fixture", cwd=repo)
     (repo / "README.md").write_text("fixture\n", encoding="utf-8")
-    _run("git", "add", "README.md", cwd=repo)
+    registry = (
+        repo / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
+    )
+    registry.parent.mkdir(parents=True)
+    registry.write_bytes(REAL_REGISTRY.read_bytes())
+    _run("git", "add", "README.md", str(registry.relative_to(repo)), cwd=repo)
     _run("git", "commit", "-q", "-m", "initial", cwd=repo)
     return repo
 
@@ -41,8 +71,88 @@ def _head(repo: Path) -> str:
     ).stdout.strip()
 
 
+def _sealed_registry(tmp_path: Path) -> Path:
+    target = tmp_path / "release-registry.json"
+    target.write_bytes(REAL_REGISTRY.read_bytes())
+    return target
+
+
+def _sealed_registry_at(git_repo: Path) -> Path:
+    """The ``git_repo`` fixture already commits the real sealed registry
+    into the initial commit (so capturing HEAD and asserting a clean
+    worktree both remain valid); this just returns its path."""
+    target = (
+        git_repo
+        / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
+    )
+    assert target.is_file()
+    return target
+
+
+def _no_runtime_check(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Most tests here are not about runtime-provenance attestation itself
+    (that has its own dedicated tests below, with controlled fake modules)
+    -- they use throwaway temp git repos as ``repo_root``, which obviously
+    is never where the real running ``ingestor``/``nexus_contracts``
+    modules live. Bypassing the check here isolates those unrelated tests
+    from this repository's own current (possibly dirty, mid-development)
+    working state."""
+    monkeypatch.setattr(flow, "assert_runtime_bound_to_qualified_checkout", lambda repo_root: None)
+
+
 # ---------------------------------------------------------------------------
-# assert_qualified_commit
+# Safe-scalar / format validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("value", ["ok", "ok-value", "ok_value", "ok.value", "a" * 128])
+def test_assert_safe_scalar_accepts_safe_values(value: str) -> None:
+    assert assert_safe_scalar(value, label="x") == value
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "../escape",
+        "a/b",
+        "a b",
+        "a;b",
+        "$(whoami)",
+        "a'b",
+        "a\nb",
+        "a\x00b",
+        "",
+        "a" * 129,
+    ],
+)
+def test_assert_safe_scalar_refuses_unsafe_values(value: str) -> None:
+    with pytest.raises(R1OperatorFlowError):
+        assert_safe_scalar(value, label="x")
+
+
+def test_assert_commit_format_accepts_exactly_40_hex_chars() -> None:
+    assert assert_commit_format("a" * 40) == "a" * 40
+
+
+@pytest.mark.parametrize("value", ["A" * 40, "a" * 39, "a" * 41, "g" * 40, ""])
+def test_assert_commit_format_refuses_everything_else(value: str) -> None:
+    with pytest.raises(R1OperatorFlowError):
+        assert_commit_format(value)
+
+
+def test_assert_attempt_id_format_accepts_uuid4_hex() -> None:
+    value = generate_attempt_id()
+    assert assert_attempt_id_format(value) == value
+
+
+@pytest.mark.parametrize("value", ["not-hex-and-wrong-length", "a" * 31, "a" * 33, "G" * 32])
+def test_assert_attempt_id_format_refuses_everything_else(value: str) -> None:
+    with pytest.raises(R1OperatorFlowError):
+        assert_attempt_id_format(value)
+
+
+# ---------------------------------------------------------------------------
+# Git-state preconditions
 # ---------------------------------------------------------------------------
 
 
@@ -56,13 +166,8 @@ def test_assert_qualified_commit_fails_on_mismatch(git_repo: Path) -> None:
         assert_qualified_commit(git_repo, "0" * 40)
 
 
-# ---------------------------------------------------------------------------
-# assert_clean_worktree
-# ---------------------------------------------------------------------------
-
-
 def test_assert_clean_worktree_passes_when_clean(git_repo: Path) -> None:
-    assert_clean_worktree(git_repo)  # must not raise
+    assert_clean_worktree(git_repo)
 
 
 def test_assert_clean_worktree_fails_when_dirty(git_repo: Path) -> None:
@@ -77,35 +182,68 @@ def test_assert_clean_worktree_fails_with_untracked_file(git_repo: Path) -> None
         assert_clean_worktree(git_repo)
 
 
-# ---------------------------------------------------------------------------
-# assert_sealed_release_registry_digest
-# ---------------------------------------------------------------------------
+def test_list_repo_worktrees_includes_the_primary_checkout(git_repo: Path) -> None:
+    worktrees = list_repo_worktrees(git_repo)
+    assert git_repo.resolve() in worktrees
 
 
-def test_assert_sealed_release_registry_digest_passes_for_matching_content(
+def test_list_repo_worktrees_includes_a_linked_worktree(git_repo: Path, tmp_path: Path) -> None:
+    linked = tmp_path / "linked"
+    _run("git", "-C", str(git_repo), "worktree", "add", str(linked), "-b", "other", cwd=git_repo)
+    worktrees = list_repo_worktrees(git_repo)
+    assert linked.resolve() in worktrees
+    assert len(worktrees) == 2
+
+
+def test_assert_evidence_dir_outside_all_worktrees_passes(tmp_path: Path) -> None:
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    assert_evidence_dir_outside_all_worktrees(evidence, [worktree.resolve()])
+
+
+def test_assert_evidence_dir_outside_all_worktrees_fails_inside_primary(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    evidence = primary / "evidence"
+    evidence.mkdir()
+    with pytest.raises(R1OperatorFlowError, match="resolves inside repository worktree"):
+        assert_evidence_dir_outside_all_worktrees(evidence, [primary.resolve(), linked.resolve()])
+
+
+def test_assert_evidence_dir_outside_all_worktrees_fails_inside_linked(tmp_path: Path) -> None:
+    primary = tmp_path / "primary"
+    primary.mkdir()
+    linked = tmp_path / "linked"
+    linked.mkdir()
+    evidence = linked / "evidence"
+    evidence.mkdir()
+    with pytest.raises(R1OperatorFlowError, match="resolves inside repository worktree"):
+        assert_evidence_dir_outside_all_worktrees(evidence, [primary.resolve(), linked.resolve()])
+
+
+def test_assert_evidence_dir_outside_all_worktrees_fails_for_symlink_into_a_worktree(
     tmp_path: Path,
 ) -> None:
-    # A file whose real sha256 is the pinned sealed value is required to
-    # exercise the PASS path without depending on the real, large release
-    # registry: construct bytes and confirm the constant is what it claims
-    # to be, then verify against a fixture we know matches.
-    import hashlib
+    worktree = tmp_path / "worktree"
+    worktree.mkdir()
+    (worktree / "evidence").mkdir()
+    outside = tmp_path / "looks-external"
+    outside.symlink_to(worktree / "evidence")
+    with pytest.raises(R1OperatorFlowError, match="resolves inside repository worktree"):
+        assert_evidence_dir_outside_all_worktrees(outside, [worktree.resolve()])
 
-    target = tmp_path / "release-registry.json"
-    # Brute-search is infeasible; instead assert the function compares
-    # against the real repo's real release registry, which is the actual
-    # sealed artifact this constant was pinned against.
-    real_registry = (
-        Path(__file__).resolve().parents[2]
-        / "rag-pedago"
-        / "data"
-        / "releases"
-        / "prerentree_2026_2027"
-        / "release-registry.json"
-    )
-    target.write_bytes(real_registry.read_bytes())
-    actual = hashlib.sha256(target.read_bytes()).hexdigest()
-    assert actual == EXPECTED_SEALED_RELEASE_REGISTRY_SHA256
+
+# ---------------------------------------------------------------------------
+# Sealed release identity
+# ---------------------------------------------------------------------------
+
+
+def test_assert_sealed_release_registry_digest_passes_for_real_file(tmp_path: Path) -> None:
+    target = _sealed_registry(tmp_path)
     assert assert_sealed_release_registry_digest(target) == EXPECTED_SEALED_RELEASE_REGISTRY_SHA256
 
 
@@ -116,111 +254,326 @@ def test_assert_sealed_release_registry_digest_fails_for_wrong_content(tmp_path:
         assert_sealed_release_registry_digest(target)
 
 
-# ---------------------------------------------------------------------------
-# assert_evidence_dir_outside_repo
-# ---------------------------------------------------------------------------
+def test_derive_sealed_release_id_reads_the_real_registry(tmp_path: Path) -> None:
+    target = _sealed_registry(tmp_path)
+    assert derive_sealed_release_id(target) == "production-profile-gate-2026-2027-v1"
 
 
-def test_assert_evidence_dir_outside_repo_passes(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    evidence = tmp_path / "evidence"
-    evidence.mkdir()
-    assert_evidence_dir_outside_repo(evidence, repo)  # must not raise
-
-
-def test_assert_evidence_dir_outside_repo_fails_when_equal(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    with pytest.raises(R1OperatorFlowError, match="IS the repository root"):
-        assert_evidence_dir_outside_repo(repo, repo)
-
-
-def test_assert_evidence_dir_outside_repo_fails_when_nested(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    nested = repo / "evidence"
-    nested.mkdir()
-    with pytest.raises(R1OperatorFlowError, match="resolves inside the repository"):
-        assert_evidence_dir_outside_repo(nested, repo)
-
-
-def test_assert_evidence_dir_outside_repo_fails_for_symlink_into_repo(tmp_path: Path) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    (repo / "evidence").mkdir()
-    outside = tmp_path / "looks-external"
-    outside.symlink_to(repo / "evidence")
-    with pytest.raises(R1OperatorFlowError, match="resolves inside the repository"):
-        assert_evidence_dir_outside_repo(outside, repo)
-
-
-# ---------------------------------------------------------------------------
-# attempt identity + path resolution
-# ---------------------------------------------------------------------------
-
-
-def test_generate_attempt_id_is_collision_resistant() -> None:
-    first = generate_attempt_id()
-    second = generate_attempt_id()
-    assert first != second
-    assert len(first) == 32  # uuid4 hex
-
-
-def test_resolve_attempt_paths_deterministic_with_explicit_attempt_id(tmp_path: Path) -> None:
-    first = resolve_attempt_paths(
-        evidence_dir=tmp_path,
-        release_id="production-profile-gate-2026-2027-v1",
-        qualified_commit="6b9ef7a75fa8dd0a34efa1d61bc7d5e8f604f73b",
-        attempt_id="fixedattemptid0000000000000000",
+def test_derive_sealed_release_id_refuses_path_traversal_payload(tmp_path: Path) -> None:
+    target = tmp_path / "release-registry.json"
+    target.write_text(
+        json.dumps({"releases": [{"release_id": "../../etc/passwd"}]}), encoding="utf-8"
     )
-    second = resolve_attempt_paths(
-        evidence_dir=tmp_path,
-        release_id="production-profile-gate-2026-2027-v1",
-        qualified_commit="6b9ef7a75fa8dd0a34efa1d61bc7d5e8f604f73b",
-        attempt_id="fixedattemptid0000000000000000",
+    with pytest.raises(R1OperatorFlowError):
+        derive_sealed_release_id(target)
+
+
+def test_derive_sealed_release_id_refuses_multiple_releases(tmp_path: Path) -> None:
+    target = tmp_path / "release-registry.json"
+    target.write_text(
+        json.dumps({"releases": [{"release_id": "a"}, {"release_id": "b"}]}), encoding="utf-8"
     )
-    assert first == second
-    assert first.bootstrap_out != first.report_out
+    with pytest.raises(R1OperatorFlowError, match="exactly one release"):
+        derive_sealed_release_id(target)
 
 
-def test_resolve_attempt_paths_generates_distinct_paths_when_attempt_id_omitted(
-    tmp_path: Path,
+def test_sealed_release_registry_path_is_derived_not_operator_supplied(tmp_path: Path) -> None:
+    resolved = sealed_release_registry_path(tmp_path)
+    expected = (
+        tmp_path / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json"
+    )
+    assert resolved == expected
+
+
+def test_canonical_profile_paths_are_derived_from_repo_root(tmp_path: Path) -> None:
+    root, manifest = canonical_profile_paths(tmp_path)
+    assert root == tmp_path / "services/rag-engine/configs/ingestion_profiles/v2_livraison_319"
+    assert (
+        manifest
+        == tmp_path
+        / "services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Runtime-provenance attestation -- controlled fake modules, never this
+# repository's own (possibly mid-development, dirty) real state.
+# ---------------------------------------------------------------------------
+
+
+def _fake_module(origin: Path) -> types.ModuleType:
+    module = types.ModuleType("fake")
+    module.__file__ = str(origin)
+    return module
+
+
+def test_assert_runtime_origin_bound_to_repo_passes_when_beneath_qualified_root(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    first = resolve_attempt_paths(
-        evidence_dir=tmp_path,
-        release_id="production-profile-gate-2026-2027-v1",
-        qualified_commit="6b9ef7a75fa8dd0a34efa1d61bc7d5e8f604f73b",
+    ingestor_dir = tmp_path / "services/rag-engine/src/ingestor"
+    ingestor_dir.mkdir(parents=True)
+    contracts_dir = tmp_path / "packages/contracts/src/nexus_contracts"
+    contracts_dir.mkdir(parents=True)
+
+    monkeypatch.setitem(sys.modules, "ingestor", _fake_module(ingestor_dir / "__init__.py"))
+    monkeypatch.setitem(
+        sys.modules, "nexus_contracts", _fake_module(contracts_dir / "__init__.py")
     )
-    second = resolve_attempt_paths(
-        evidence_dir=tmp_path,
-        release_id="production-profile-gate-2026-2027-v1",
-        qualified_commit="6b9ef7a75fa8dd0a34efa1d61bc7d5e8f604f73b",
+
+    assert_runtime_origin_bound_to_repo(tmp_path)
+
+
+def test_assert_runtime_origin_bound_to_repo_fails_for_sibling_checkout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    qualified_root = tmp_path / "qualified"
+    (qualified_root / "services/rag-engine/src/ingestor").mkdir(parents=True)
+    (qualified_root / "packages/contracts/src/nexus_contracts").mkdir(parents=True)
+
+    sibling_root = tmp_path / "sibling"
+    sibling_ingestor = sibling_root / "services/rag-engine/src/ingestor"
+    sibling_ingestor.mkdir(parents=True)
+
+    monkeypatch.setitem(sys.modules, "ingestor", _fake_module(sibling_ingestor / "__init__.py"))
+    monkeypatch.setitem(
+        sys.modules,
+        "nexus_contracts",
+        _fake_module(qualified_root / "packages/contracts/src/nexus_contracts/__init__.py"),
     )
+
+    with pytest.raises(R1OperatorFlowError, match="ingestor module resolves to"):
+        assert_runtime_origin_bound_to_repo(qualified_root)
+
+
+def test_assert_nexus_contracts_metadata_version_matches_passes_when_equal(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pyproject = tmp_path / "packages/contracts/pyproject.toml"
+    pyproject.parent.mkdir(parents=True)
+    pyproject.write_text(
+        '[project]\nname = "nexus-contracts"\nversion = "1.2.3"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(flow.metadata, "version", lambda name: "1.2.3")
+
+    assert_nexus_contracts_metadata_version_matches(tmp_path)
+
+
+def test_assert_nexus_contracts_metadata_version_matches_fails_when_stale(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    pyproject = tmp_path / "packages/contracts/pyproject.toml"
+    pyproject.parent.mkdir(parents=True)
+    pyproject.write_text(
+        '[project]\nname = "nexus-contracts"\nversion = "1.2.3"\n', encoding="utf-8"
+    )
+    monkeypatch.setattr(flow.metadata, "version", lambda name: "0.0.1-stale")
+
+    with pytest.raises(R1OperatorFlowError, match="reinstall"):
+        assert_nexus_contracts_metadata_version_matches(tmp_path)
+
+
+def test_runtime_attestation_reflects_this_repositorys_own_real_environment() -> None:
+    """Not mocked: the interpreter actually running this test suite genuinely
+    is imported from this real, qualified checkout -- proves the check
+    passes end-to-end against real (not fabricated) module origins and a
+    real, current metadata version, not merely against controlled fakes."""
+    real_repo_root = Path(__file__).resolve().parents[3]
+    flow.assert_runtime_bound_to_qualified_checkout(real_repo_root)
+
+
+# ---------------------------------------------------------------------------
+# Attempt state: build, write, load, and TOCTOU revalidation
+# ---------------------------------------------------------------------------
+
+
+def test_build_attempt_state_success(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    assert state.qualified_exporter_commit == head
+    assert state.sealed_release_id == "production-profile-gate-2026-2027-v1"
+    assert Path(state.bootstrap_out).parent == evidence_dir.resolve()
+    assert Path(state.report_out).parent == evidence_dir.resolve()
+    assert state.bootstrap_out != state.report_out
+    datetime.fromisoformat(state.created_at)  # must not raise
+
+
+def test_write_then_load_attempt_state_round_trips(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+    state_path = evidence_dir / f"r1-attempt-state-{state.attempt_id}.json"
+    write_attempt_state(state_path, state)
+
+    loaded = load_attempt_state(state_path)
+    assert loaded == state
+
+
+def test_write_attempt_state_refuses_to_overwrite_existing(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+    state_path = evidence_dir / "state.json"
+    write_attempt_state(state_path, state)
+
+    from ingestor.atomic_artifact import AtomicArtifactError
+
+    with pytest.raises(AtomicArtifactError, match="already exists"):
+        write_attempt_state(state_path, state)
+
+
+def test_load_attempt_state_refuses_tampered_commit_format(tmp_path: Path) -> None:
+    state_path = tmp_path / "state.json"
+    payload = {
+        "protocol_version": "1",
+        "attempt_id": generate_attempt_id(),
+        "qualified_exporter_commit": "not-a-commit",
+        "repo_root": str(tmp_path),
+        "sealed_release_id": "production-profile-gate-2026-2027-v1",
+        "sealed_release_registry_path": str(tmp_path / "release-registry.json"),
+        "sealed_release_registry_sha256": "a" * 64,
+        "evidence_dir": str(tmp_path),
+        "bootstrap_out": str(tmp_path / "bootstrap.json"),
+        "report_out": str(tmp_path / "report.json"),
+        "created_at": datetime.now(UTC).isoformat(),
+    }
+    state_path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(R1OperatorFlowError, match="hexadecimal"):
+        load_attempt_state(state_path)
+
+
+def test_revalidate_attempt_state_fails_after_checkout_changes(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    (git_repo / "README.md").write_text("changed\n", encoding="utf-8")
+    _run("git", "add", "README.md", cwd=git_repo)
+    _run("git", "commit", "-q", "-m", "second", cwd=git_repo)
+
+    with pytest.raises(R1OperatorFlowError, match="not the qualified exporter commit"):
+        revalidate_attempt_state_against_live_repo(state)
+
+
+def test_revalidate_attempt_state_fails_after_tracked_edit(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    (git_repo / "README.md").write_text("dirtied after preflight\n", encoding="utf-8")
+
+    with pytest.raises(R1OperatorFlowError, match="not clean"):
+        revalidate_attempt_state_against_live_repo(state)
+
+
+def test_revalidate_attempt_state_fails_after_untracked_file(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    (git_repo / "untracked-after-preflight.txt").write_text("x\n", encoding="utf-8")
+
+    with pytest.raises(R1OperatorFlowError, match="not clean"):
+        revalidate_attempt_state_against_live_repo(state)
+
+
+def test_revalidate_attempt_state_fails_when_bootstrap_output_already_exists(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+    Path(state.bootstrap_out).write_bytes(b"already published")
+
+    with pytest.raises(R1OperatorFlowError, match="already exists"):
+        revalidate_attempt_state_against_live_repo(state)
+
+
+def test_revalidate_attempt_state_succeeds_for_a_genuinely_untouched_attempt(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    assert revalidate_attempt_state_against_live_repo(state) == head
+
+
+def test_two_attempts_without_explicit_attempt_id_get_distinct_state_and_paths(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+
+    first = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+    second = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
     assert first.attempt_id != second.attempt_id
     assert first.bootstrap_out != second.bootstrap_out
     assert first.report_out != second.report_out
-
-
-# ---------------------------------------------------------------------------
-# run_preflight ordering
-# ---------------------------------------------------------------------------
-
-
-def test_run_preflight_checks_qualified_commit_before_worktree_cleanliness(
-    git_repo: Path, tmp_path: Path
-) -> None:
-    """Both would fail here (wrong commit AND, incidentally, a dirty tree
-    would also fail if reached) -- the commit check must fire first, so the
-    operator is never told to clean a tree they should not even be using."""
-    (git_repo / "README.md").write_text("dirty\n", encoding="utf-8")
-    release_registry = tmp_path / "release-registry.json"
-    release_registry.write_bytes(b"irrelevant, never reached")
-
-    with pytest.raises(R1OperatorFlowError, match="not the qualified exporter commit"):
-        run_preflight(
-            repo_root=git_repo,
-            qualified_commit="0" * 40,
-            release_registry_path=release_registry,
-            evidence_dir=tmp_path / "evidence",
-        )
