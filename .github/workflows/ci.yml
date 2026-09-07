@@ -32,6 +32,36 @@ jobs:
       - working-directory: packages/pdf-page-policy
         run: python -m pytest -q tests
 
+  qualification-scripts:
+    name: "scripts/qualification"
+    runs-on: ubuntu-latest
+    # Le workflow C1 refuse de tourner sur `pull_request` — à raison : il porte
+    # la clé du corpus privé, qu'un job de PR non revu pourrait exfiltrer. Mais
+    # ses épreuves UNITAIRES n'ont besoin d'aucun secret, et ne tournaient donc
+    # nulle part avant la fusion : une PR pouvait casser le producteur de
+    # l'ensemble promu sans que rien ne le dise avant `main`.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Le qualificateur consomme l'autorité canonique de release, celle que
+      # le runtime utilise. L'installer coûte une ligne ; la dupliquer coûtait
+      # onze rondes de revue et un second runtime à maintenir.
+      # `nexus-release-chain` dépend de `nexus-contracts`, qui n'est pas
+      # publié : les deux paquets locaux s'installent ensemble, dans l'ordre.
+      - run: |
+          pip install --quiet pytest \
+            -e packages/contracts \
+            -e packages/pdf-page-policy \
+            -e packages/release-chain
+      - run: python -m pytest -q scripts/qualification/tests
+      # Le producteur ne lit que des données publiques du dépôt : il doit
+      # rendre l'ensemble promu ici, sans clé, ou nommer ce qui est faux.
+      - run: |
+          python scripts/qualification/compute_promoted_content_set.py \
+            --output /tmp/promoted-content-set.json
+
   rag-pedago:
     name: "services/rag-pedago"
     runs-on: ubuntu-latest

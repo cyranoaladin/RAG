@@ -222,6 +222,38 @@ run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && s
 run_target "source-evidence-check" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/export_source_validation_evidence.py --check"
 
 # --- governance guard tests ---
+# --- qualification C1 (revue PR #153) ---
+# AGENTS.md fait de cette CI locale le garde-fou quand GitHub Actions est
+# indisponible. Sans ces cibles, elle rendait vert sans avoir exercé le
+# périmètre promu : le gate C1 n'existait alors que dans un workflow distant.
+#
+# La cible est HERMÉTIQUE : elle construit son propre environnement avec les
+# trois paquets locaux dont le chargeur canonique dépend. S'appuyer sur le
+# `python` de l'hôte supposerait pytest installé globalement ; s'appuyer sur
+# le venv d'un service supposerait que ce service dépende de
+# `nexus-release-chain`, ce qu'aucun ne fait.
+#
+# Aucune clé n'est requise — seul le job POST-FUSION confronte le store privé.
+run_target "qualification-c1" bash -c '
+  set -euo pipefail
+  cd "'"$REPO_ROOT"'"
+  venv="${TMPDIR:-/tmp}/nexus-qualification-venv"
+  # Reconstruit à chaque fois. Un environnement réutilisé fait passer la cible
+  # grâce à un paquet installé par une exécution antérieure : elle resterait
+  # verte en local le jour où la CI, elle, part de rien.
+  # (Pas d apostrophe dans ce bloc : il est lui-même entre quotes simples.)
+  rm -rf "$venv"
+  "'"$PYTHON_BIN"'" -m venv "$venv"
+  "$venv/bin/pip" install --quiet --upgrade pip
+  "$venv/bin/pip" install --quiet pytest \
+    -e packages/contracts \
+    -e packages/pdf-page-policy \
+    -e packages/release-chain
+  "$venv/bin/python" -m pytest -q scripts/qualification/tests
+  "$venv/bin/python" scripts/qualification/compute_promoted_content_set.py \
+    --output "${TMPDIR:-/tmp}/promoted-content-set.json"
+'
+
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
 
 # --- ci failsafe tests ---
