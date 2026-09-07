@@ -315,19 +315,24 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
 
+    # Le dénominateur est la PAIRE (contenu, url), pas la ligne de preuve : un
+    # même contenu peut être décrit par plusieurs lignes de catalogue portant
+    # la même URL sous des scopes différents. Compter les lignes gonflait le
+    # dénominateur — 2929 au lieu de 2542 — et faisait mentir la couverture.
     par_url = {str(o["original_url"]): o for o in observations}
-    avec = sans = 0
-    paires = set()
+    paires: set[tuple[str, str]] = set()
+    paires_observees: set[tuple[str, str]] = set()
     for relation in relations:
         for preuve in relation["url_evidence"]:
             url = preuve.get("url_source")
             if not url:
                 continue
-            paires.add((relation["content_sha256"], url))
+            paire = (str(relation["content_sha256"]), str(url))
+            paires.add(paire)
             if url in par_url:
-                avec += 1
-            else:
-                sans += 1
+                paires_observees.add(paire)
+    avec = len(paires_observees)
+    sans = len(paires - paires_observees)
 
     statuts = Counter(
         (o["status_code"] // 100 if isinstance(o["status_code"], int) else None)
