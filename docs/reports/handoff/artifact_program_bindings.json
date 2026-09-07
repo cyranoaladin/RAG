@@ -1,0 +1,196 @@
+{
+  "CATALOGUE_CONTENTS": 2451,
+  "EXACT_ARTIFACT_PROGRAM_BINDING": 10,
+  "PROGRAM_COMPATIBILITY_PROVEN": 10,
+  "PROGRAM_COMPATIBILITY_UNKNOWN": 2441,
+  "PROGRAM_INCOMPATIBILITY_PROVEN": 0,
+  "PROVEN_SET_SHA256": "2caa5baf09142b8438fe29eb2791afb9e8090dbb921797cd009b65d91330bdf6",
+  "REJECTED_VALUES_NOT_A_PROGRAMME_VERSION": {
+    "2026-2027 [tier_a_set_algebra_reconciliation_20260822.json]": 138
+  },
+  "UNKNOWN_SET_SHA256": "723454413764d0d9d870601e3b93fbb5335cb76013af2a9097db99b44f17a714",
+  "applied": false,
+  "authorities_examined": [
+    "docs/reports/production_profile_resolution_records_20260825.json",
+    "docs/reports/tier_a_set_algebra_reconciliation_20260822.json"
+  ],
+  "binding_basis_enum": [
+    "EXPLICIT_SOURCE_METADATA",
+    "GOVERNED_MANIFEST",
+    "OFFICIAL_PROGRAM_REFERENCE",
+    "HUMAN_REVIEW",
+    "GOVERNED_RULE"
+  ],
+  "bindings": [
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_1_2019-01-22"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_8_2019-07-25"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_8_2019-07-25"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_1_2019-01-22"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_1_2019-01-22"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_1_2019-01-22"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_1_2019-01-22"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_1_2019-01-22"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_8_2019-07-25"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_8_2019-07-25"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "db43d342edf55e162d0153028b43287e4ece0ce81b4dc75f0730bf368b98c0f0",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_1_2019-01-22"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_1_2019-01-22"
+      ]
+    },
+    {
+      "binding_basis": "GOVERNED_MANIFEST",
+      "compatible_with_current_authority": true,
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "evidence": [
+        {
+          "binding_basis": "GOVERNED_MANIFEST",
+          "evidence_ref": "docs/reports/production_profile_resolution_records_20260825.json",
+          "evidence_sha256": "f22f3aad371eb8b8058af36c5100b30f96554d06e35a7b42d23dea1e63a211f0",
+          "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
+        }
+      ],
+      "programme_version": [
+        "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
+      ]
+    }
+  ],
+  "current_program_versions": [
+    "BOEN_14_2026-04-02_MENE2602914A",
+    "BOEN_14_2026-04-02_MENE2602917A",
+    "BOEN_special_11_2018-07-26_aj_2020",
+    "BOEN_special_1_2019-01-22",
+    "BOEN_special_8_2019-07-25",
+    "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A"
+  ],
+  "kind": "NEXUS-ARTIFACT-PROGRAM-BINDING-DISCOVERY-V1",
+  "value_shape_rule": "Une version de programme est une reference de texte officiel (BOEN_...). La cle `programme_version` du rapport tier-A porte une ANNEE SCOLAIRE : la compter aurait conclu INCOMPATIBLE sur 138 documents dont rien n etablit le programme."
+}
