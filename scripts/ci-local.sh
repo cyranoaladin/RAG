@@ -238,9 +238,12 @@ run_target "qualification-c1" bash -c '
   set -euo pipefail
   cd "'"$REPO_ROOT"'"
   venv="${TMPDIR:-/tmp}/nexus-qualification-venv"
-  if [ ! -x "$venv/bin/python" ]; then
-    "'"$PYTHON_BIN"'" -m venv "$venv"
-  fi
+  # Reconstruit à chaque fois. Un environnement réutilisé fait passer la cible
+  # grâce à un paquet installé par une exécution antérieure : elle resterait
+  # verte en local le jour où la CI, elle, part de rien.
+  # (Pas d apostrophe dans ce bloc : il est lui-même entre quotes simples.)
+  rm -rf "$venv"
+  "'"$PYTHON_BIN"'" -m venv "$venv"
   "$venv/bin/pip" install --quiet --upgrade pip
   "$venv/bin/pip" install --quiet pytest \
     -e packages/contracts \
