@@ -67,6 +67,57 @@ tracked edit, an untracked file, or a tampered attempt-state field between
 the two phases all fail closed, before any database connection is ever
 opened.
 
+## What changed in R1F, and why
+
+A further audit of the merged R1E flow found the attempt-state hand-off
+was correct in its *content* but incomplete in two ways, plus one real bug
+in this runbook's own capture pattern.
+
+**The state's internal consistency was checked, but not its *placement*.**
+R1E's `_validate_attempt_state_fields` correctly refused a state whose
+`bootstrap_out`/`report_out` were not direct children of its own
+`evidence_dir`. It never asked whether that `evidence_dir` itself was a
+value Phase A would ever have produced. A state entirely self-consistent
+with itself — `evidence_dir` redirected inside a repository worktree,
+`bootstrap_out`/`report_out` correctly computed as children of that same
+(forbidden) directory — passed every R1E check and would have reached the
+database. Phase B now re-derives the live worktree list
+(`git worktree list --porcelain`) and re-excludes `evidence_dir` from every
+one of them, and separately re-derives the canonical output filenames from
+the attempt's own (freshly re-verified) release id, commit, and attempt id
+— rejecting a state whose `bootstrap_out`/`report_out`, or whose own
+on-disk location, do not match. The sealed release-registry path is
+likewise re-derived from the qualified checkout and compared to the
+state's claim, so a redirected-but-byte-identical copy of the registry
+file cannot substitute for the real one.
+
+**Phase A used to create the evidence directory before knowing it was
+allowed to.** `mkdir` ran, then preflight ran. A forbidden request (an
+evidence directory inside a worktree, say) still left an empty directory
+behind. Every preflight gate — including evidence-directory exclusion —
+now runs to completion before this process creates anything on disk at
+all.
+
+**This runbook's own Step 1 capture pattern could mask a failed Phase A.**
+The previous form,
+
+```console
+$ R1_ATTEMPT_STATE_PATH=$(phase-a-command | grep '^R1_ATTEMPT_STATE_PATH=' | cut -d= -f2-)
+```
+
+captures the exit status of the *last* command in the pipeline (`cut`), not
+of `phase-a-command` itself.
+`R1_RUNBOOK_CAPTURE_PIPELINE_MASKS_PHASE_A_FAILURE=CONFIRMED` — if Phase A
+fails and prints nothing matching that `grep`, `$R1_ATTEMPT_STATE_PATH` is
+simply empty and the pipeline as a whole can still report success —
+nothing in that line stopped the operator from proceeding straight to
+Step 2's credential prompt on a failed Phase A.
+Phase A now supports `--print-state-path-only`: on success its stdout is
+*exactly* the attempt-state path and nothing else; on failure, stdout is
+empty and the process exits non-zero. Step 1 below captures it with plain
+command substitution and checks the real exit code directly — no `eval`,
+no `grep`, no `cut`, no `source`, and no pipeline to mask a failure behind.
+
 ## Scope
 
 Delivers **R1 only**: the governed `ResourceRegistryBootstrap` artifact for
@@ -148,7 +199,14 @@ git fetch origin
 git checkout "$R1_QUALIFIED_EXPORTER_COMMIT"   # from "Pinning the exporter commit" above
 
 cd services/rag-engine
+```
 
+The command below is shown first **without** `--print-state-path-only`, run
+directly (not captured), purely so you can see what Phase A actually
+checks and prints — do not use this exact form for the real attempt, go
+straight to the capturing form further down:
+
+```bash
 PYTHONPATH=src ./.venv/bin/python scripts/r1_attempt_preflight_cli.py \
   --repo-root /path/to/RAG \
   --qualified-exporter-commit "$R1_QUALIFIED_EXPORTER_COMMIT" \
@@ -175,28 +233,44 @@ REPORT_OUT=<the exact path Phase B will write the evidence report to>
 R1_PREFLIGHT_READY=YES
 ```
 
-Capture **only** `R1_ATTEMPT_STATE_PATH` into your shell — as a plain
-string, never `eval`'d:
+For the real attempt, run it instead with `--print-state-path-only`, which
+makes stdout on success contain nothing but the attempt-state path, and
+capture it with plain command substitution while checking the real exit
+code directly — never through a pipeline that could mask it:
 
 ```bash
-R1_ATTEMPT_STATE_PATH=$(PYTHONPATH=src ./.venv/bin/python scripts/r1_attempt_preflight_cli.py \
-  --repo-root /path/to/RAG \
-  --qualified-exporter-commit "$R1_QUALIFIED_EXPORTER_COMMIT" \
-  --evidence-dir "$R1_EVIDENCE_DIR" \
-  | grep '^R1_ATTEMPT_STATE_PATH=' | cut -d= -f2-)
+if ! R1_ATTEMPT_STATE_PATH="$(
+  PYTHONPATH=src ./.venv/bin/python scripts/r1_attempt_preflight_cli.py \
+    --repo-root /path/to/RAG \
+    --qualified-exporter-commit "$R1_QUALIFIED_EXPORTER_COMMIT" \
+    --evidence-dir "$R1_EVIDENCE_DIR" \
+    --print-state-path-only
+)"; then
+  echo "R1 Phase A failed; refusing to request a production credential" >&2
+  exit 1
+fi
+
+test -n "$R1_ATTEMPT_STATE_PATH" || {
+  echo "R1 Phase A returned no attempt state" >&2
+  exit 1
+}
 ```
 
-`grep`/`cut` only ever extract a substring here; nothing Phase A prints is
-ever passed to `eval`, `source`, or any other shell-code-execution
-construct — a value containing a shell metacharacter is inert text to this
-pipeline, never a command.
+No `eval`. No `grep`. No `cut`. No `source`. The `if ! VAR=$(...); then`
+form checks the command substitution's own exit code directly — there is
+no intermediate pipeline stage whose own (unrelated) success could mask a
+failed Phase A, and no way to reach Step 2's credential prompt on a run
+that did not actually succeed.
 
-If Phase A exits non-zero, it printed `R1_OPERATOR_FLOW_ERROR=...` to
-stderr identifying exactly which precondition failed (wrong commit, dirty
+If Phase A fails, it printed `R1_OPERATOR_FLOW_ERROR=...` to stderr
+identifying exactly which precondition failed (wrong commit, dirty
 worktree, sealed release-registry digest mismatch, evidence directory
 inside a repository worktree, or a runtime-provenance mismatch — see
-"Runtime-provenance attestation" below). **Stop and resolve that condition
-— do not proceed to Step 2 with a credential prompt regardless.**
+"Runtime-provenance attestation" below), stdout was empty, and — because
+every preflight gate runs before this process creates anything on disk —
+nothing was written, not even an empty `$R1_EVIDENCE_DIR`. **Stop and
+resolve that condition — do not proceed to Step 2 with a credential prompt
+regardless.**
 
 ### Runtime-provenance attestation
 
@@ -302,9 +376,12 @@ and see "If something fails" below.
 
 ## Step 3 — hash and retain evidence
 
+The attempt-state file is JSON; parse it as JSON, not with `grep`/`cut`
+against a text representation that happens to look regular:
+
 ```bash
-BOOTSTRAP_OUT=$(grep '"bootstrap_out"' "$R1_ATTEMPT_STATE_PATH" | cut -d'"' -f4)
-REPORT_OUT=$(grep '"report_out"' "$R1_ATTEMPT_STATE_PATH" | cut -d'"' -f4)
+BOOTSTRAP_OUT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["bootstrap_out"])' "$R1_ATTEMPT_STATE_PATH")
+REPORT_OUT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["report_out"])' "$R1_ATTEMPT_STATE_PATH")
 sha256sum "$BOOTSTRAP_OUT"
 sha256sum "$REPORT_OUT"
 ```
@@ -339,11 +416,11 @@ separately gated, and out of scope for this runbook).
 
 ## If something fails: never retry in place
 
-- If Phase A fails: nothing was created except possibly the (empty, until
-  a successful run) `$R1_EVIDENCE_DIR` itself. Diagnose the reported
-  precondition, fix it, and re-run Phase A — it will mint a fresh
-  `R1_ATTEMPT_ID`, a fresh attempt-state file, and fresh output paths
-  automatically.
+- If Phase A fails: nothing was created at all, not even an empty
+  `$R1_EVIDENCE_DIR` — every preflight gate runs to completion before this
+  process creates anything on disk. Diagnose the reported precondition, fix
+  it, and re-run Phase A — it will mint a fresh `R1_ATTEMPT_ID`, a fresh
+  attempt-state file, and fresh output paths automatically.
 - If Phase B fails during revalidation (before ever opening a database
   connection): nothing was created. This means some fact has changed since
   Phase A ran — diagnose which one from the `R1_OPERATOR_FLOW_ERROR`

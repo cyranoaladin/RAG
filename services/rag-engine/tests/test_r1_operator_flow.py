@@ -23,6 +23,8 @@ from ingestor.r1_operator_flow import (
     assert_safe_scalar,
     assert_sealed_release_registry_digest,
     build_attempt_state,
+    canonical_attempt_output_paths,
+    canonical_attempt_state_path,
     canonical_profile_paths,
     derive_sealed_release_id,
     generate_attempt_id,
@@ -577,3 +579,268 @@ def test_two_attempts_without_explicit_attempt_id_get_distinct_state_and_paths(
     assert first.attempt_id != second.attempt_id
     assert first.bootstrap_out != second.bootstrap_out
     assert first.report_out != second.report_out
+
+
+# ---------------------------------------------------------------------------
+# R1F: canonical output-path and attempt-state-path derivation.
+# ---------------------------------------------------------------------------
+
+
+def test_canonical_attempt_output_paths_is_deterministic(tmp_path: Path) -> None:
+    evidence_dir = tmp_path / "evidence"
+    args = dict(
+        release_id="production-profile-gate-2026-2027-v1",
+        qualified_exporter_commit="a" * 40,
+        attempt_id=generate_attempt_id(),
+    )
+    first = canonical_attempt_output_paths(evidence_dir, **args)
+    second = canonical_attempt_output_paths(evidence_dir, **args)
+    assert first == second
+    bootstrap_out, report_out = first
+    assert bootstrap_out.parent == evidence_dir.resolve()
+    assert report_out.parent == evidence_dir.resolve()
+    assert bootstrap_out != report_out
+
+
+def test_canonical_attempt_output_paths_changes_with_any_input(tmp_path: Path) -> None:
+    evidence_dir = tmp_path / "evidence"
+    baseline = canonical_attempt_output_paths(
+        evidence_dir,
+        release_id="production-profile-gate-2026-2027-v1",
+        qualified_exporter_commit="a" * 40,
+        attempt_id=generate_attempt_id(),
+    )
+    different_commit = canonical_attempt_output_paths(
+        evidence_dir,
+        release_id="production-profile-gate-2026-2027-v1",
+        qualified_exporter_commit="b" * 40,
+        attempt_id=generate_attempt_id(),
+    )
+    assert baseline != different_commit
+
+
+def test_canonical_attempt_output_paths_rejects_unsafe_release_id(tmp_path: Path) -> None:
+    with pytest.raises(R1OperatorFlowError):
+        canonical_attempt_output_paths(
+            tmp_path,
+            release_id="../escape",
+            qualified_exporter_commit="a" * 40,
+            attempt_id=generate_attempt_id(),
+        )
+
+
+def test_canonical_attempt_state_path_is_deterministic(tmp_path: Path) -> None:
+    attempt_id = generate_attempt_id()
+    first = canonical_attempt_state_path(tmp_path, attempt_id)
+    second = canonical_attempt_state_path(tmp_path, attempt_id)
+    assert first == second
+    assert first.name == f"r1-attempt-state-{attempt_id}.json"
+    assert first.parent == tmp_path.resolve()
+
+
+def test_canonical_attempt_state_path_rejects_malformed_attempt_id(tmp_path: Path) -> None:
+    with pytest.raises(R1OperatorFlowError):
+        canonical_attempt_state_path(tmp_path, "not-a-valid-attempt-id")
+
+
+# ---------------------------------------------------------------------------
+# R1F: load_attempt_state refuses a file loaded from a noncanonical location.
+# ---------------------------------------------------------------------------
+
+
+def test_load_attempt_state_refuses_a_copy_at_a_noncanonical_path(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+    canonical_path = canonical_attempt_state_path(evidence_dir, state.attempt_id)
+    write_attempt_state(canonical_path, state)
+
+    copied_path = evidence_dir / "a-copy-of-the-state.json"
+    copied_path.write_bytes(canonical_path.read_bytes())
+
+    with pytest.raises(R1OperatorFlowError, match="not the canonical location"):
+        load_attempt_state(copied_path)
+
+
+def test_load_attempt_state_accepts_its_own_canonical_location(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+    canonical_path = canonical_attempt_state_path(evidence_dir, state.attempt_id)
+    write_attempt_state(canonical_path, state)
+
+    assert load_attempt_state(canonical_path) == state
+
+
+# ---------------------------------------------------------------------------
+# R1F: revalidate_attempt_state_against_live_repo's new canonical-binding
+# and multi-worktree re-exclusion checks.
+# ---------------------------------------------------------------------------
+
+
+def test_revalidate_reexcludes_evidence_dir_from_every_worktree(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    """A state that is internally self-consistent (evidence_dir and the
+    canonical output paths derived from it all agree) but whose
+    evidence_dir has been redirected into a worktree that came into
+    existence AFTER Phase A ran must still be caught: Phase B re-derives
+    the worktree list live, never trusting Phase A's now-stale check."""
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    real_evidence_dir = tmp_path / "real-evidence"
+    real_evidence_dir.mkdir()
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=real_evidence_dir
+    )
+
+    new_worktree = tmp_path / "new-worktree"
+    subprocess.run(
+        ["git", "worktree", "add", str(new_worktree), "-b", "later-branch"],
+        cwd=git_repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    redirected_evidence_dir = new_worktree / "evidence"
+    bootstrap_out, report_out = canonical_attempt_output_paths(
+        redirected_evidence_dir,
+        release_id=state.sealed_release_id,
+        qualified_exporter_commit=state.qualified_exporter_commit,
+        attempt_id=state.attempt_id,
+    )
+    redirected_state = flow.R1AttemptState(
+        protocol_version=state.protocol_version,
+        attempt_id=state.attempt_id,
+        qualified_exporter_commit=state.qualified_exporter_commit,
+        repo_root=state.repo_root,
+        sealed_release_id=state.sealed_release_id,
+        sealed_release_registry_path=state.sealed_release_registry_path,
+        sealed_release_registry_sha256=state.sealed_release_registry_sha256,
+        evidence_dir=str(redirected_evidence_dir.resolve()),
+        bootstrap_out=str(bootstrap_out),
+        report_out=str(report_out),
+        created_at=state.created_at,
+    )
+
+    with pytest.raises(R1OperatorFlowError, match="repository worktree"):
+        revalidate_attempt_state_against_live_repo(redirected_state)
+
+
+def test_revalidate_rejects_bootstrap_out_that_is_not_the_canonical_path(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    tampered = flow.R1AttemptState(
+        **{**state.to_json(), "bootstrap_out": str(evidence_dir / "not-canonical.json")}
+    )
+
+    with pytest.raises(R1OperatorFlowError, match="bootstrap_out is not the canonical path"):
+        revalidate_attempt_state_against_live_repo(tampered)
+
+
+def test_revalidate_rejects_report_out_that_is_not_the_canonical_path(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    tampered = flow.R1AttemptState(
+        **{**state.to_json(), "report_out": str(evidence_dir / "not-canonical.json")}
+    )
+
+    with pytest.raises(R1OperatorFlowError, match="report_out is not the canonical path"):
+        revalidate_attempt_state_against_live_repo(tampered)
+
+
+def test_revalidate_rejects_release_registry_path_redirected_to_an_external_copy(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    registry_path = _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    external_copy = tmp_path / "external-copy-release-registry.json"
+    external_copy.write_bytes(registry_path.read_bytes())
+
+    tampered = flow.R1AttemptState(
+        **{**state.to_json(), "sealed_release_registry_path": str(external_copy)}
+    )
+
+    with pytest.raises(R1OperatorFlowError, match="not the canonical path"):
+        revalidate_attempt_state_against_live_repo(tampered)
+
+
+def test_revalidate_still_succeeds_for_a_genuinely_untouched_attempt_with_all_r1f_checks(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    """Confirms the new R1F gates (worktree re-exclusion, canonical output
+    paths, canonical release-registry path) do not, together, break the
+    ordinary successful path any of the R1E-era tests already exercise."""
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+
+    assert revalidate_attempt_state_against_live_repo(state) == head
+
+
+def test_evidence_directory_containing_a_space_is_accepted(
+    monkeypatch: pytest.MonkeyPatch, git_repo: Path, tmp_path: Path
+) -> None:
+    """R1F Section 8: evidence_dir is a filesystem path, not an identifier
+    -- safe-scalar validation must never reach it."""
+    _no_runtime_check(monkeypatch)
+    head = _head(git_repo)
+    _sealed_registry_at(git_repo)
+    evidence_dir = tmp_path / "R1 evidence" / "sub dir"
+    evidence_dir.mkdir(parents=True)
+
+    state = build_attempt_state(
+        repo_root=git_repo, qualified_exporter_commit=head, evidence_dir=evidence_dir
+    )
+    state_path = canonical_attempt_state_path(evidence_dir, state.attempt_id)
+    write_attempt_state(state_path, state)
+    loaded = load_attempt_state(state_path)
+
+    assert revalidate_attempt_state_against_live_repo(loaded) == head

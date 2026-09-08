@@ -256,6 +256,39 @@ def derive_sealed_release_id(release_registry_path: Path) -> str:
 # ---------------------------------------------------------------------------
 
 
+def canonical_attempt_output_paths(
+    evidence_dir: Path,
+    *,
+    release_id: str,
+    qualified_exporter_commit: str,
+    attempt_id: str,
+) -> tuple[Path, Path]:
+    """The single canonical stem-derivation rule for a governed attempt's
+    output filenames -- used identically by Phase A (to construct them) and
+    Phase B (to re-derive them from the freshly re-verified live facts and
+    compare against what a loaded attempt state merely claims), never two
+    independent implementations that could silently drift apart."""
+    resolved_evidence_dir = evidence_dir.resolve()
+    short_sha = assert_commit_format(qualified_exporter_commit)[:12]
+    assert_safe_scalar(release_id, label="sealed release id")
+    assert_safe_scalar(short_sha, label="short commit")
+    assert_safe_scalar(attempt_id, label="attempt id")
+    stem = f"{release_id}-{short_sha}-{attempt_id}"
+    bootstrap_out = resolved_evidence_dir / f"resource-registry-bootstrap-{stem}.json"
+    report_out = resolved_evidence_dir / f"r1-evidence-{stem}.json"
+    return bootstrap_out, report_out
+
+
+def canonical_attempt_state_path(evidence_dir: Path, attempt_id: str) -> Path:
+    """The single canonical location and name for an attempt-state file
+    itself. Phase A publishes here; Phase B refuses to trust a state loaded
+    from anywhere else, closing off a copied or renamed attempt-state file
+    as a way to smuggle a self-consistent-but-wrong attempt past Phase A's
+    own checks."""
+    assert_attempt_id_format(attempt_id)
+    return evidence_dir.resolve() / f"r1-attempt-state-{attempt_id}.json"
+
+
 def canonical_profile_paths(repo_root: Path) -> tuple[Path, Path]:
     """Derived from the validated repository root, never from an operator-
     supplied ``--profile-root``/``--profile-manifest-path`` for the
@@ -424,17 +457,13 @@ def build_attempt_state(
     resolved_attempt_id = (
         assert_attempt_id_format(attempt_id) if attempt_id else generate_attempt_id()
     )
-    short_sha = assert_commit_format(qualified_exporter_commit)[:12]
-    assert_safe_scalar(release_id, label="sealed release id")
-    assert_safe_scalar(short_sha, label="short commit")
-    assert_safe_scalar(resolved_attempt_id, label="attempt id")
-
     resolved_evidence_dir = evidence_dir.resolve()
-    stem = f"{release_id}-{short_sha}-{resolved_attempt_id}"
-    bootstrap_out = resolved_evidence_dir / f"resource-registry-bootstrap-{stem}.json"
-    report_out = resolved_evidence_dir / f"r1-evidence-{stem}.json"
-    if bootstrap_out.parent != resolved_evidence_dir or report_out.parent != resolved_evidence_dir:
-        raise R1OperatorFlowError("resolved output paths escaped the evidence directory")
+    bootstrap_out, report_out = canonical_attempt_output_paths(
+        evidence_dir,
+        release_id=release_id,
+        qualified_exporter_commit=qualified_exporter_commit,
+        attempt_id=resolved_attempt_id,
+    )
 
     created_at = (now or datetime.now(UTC)).isoformat()
 
@@ -500,6 +529,14 @@ def load_attempt_state(path: Path) -> R1AttemptState:
     except TypeError as exc:
         raise R1OperatorFlowError(f"attempt state {path} has an unexpected shape: {exc}") from exc
     _validate_attempt_state_fields(state)
+
+    canonical_path = canonical_attempt_state_path(Path(state.evidence_dir), state.attempt_id)
+    if path.resolve() != canonical_path:
+        raise R1OperatorFlowError(
+            f"refusing to proceed: attempt-state file at {path} is not the "
+            f"canonical location for this attempt ({canonical_path}) -- refusing "
+            "to trust a copied or renamed attempt-state file"
+        )
     return state
 
 
@@ -515,7 +552,16 @@ def revalidate_attempt_state_against_live_repo(state: R1AttemptState) -> str:
     assert_clean_worktree(repo_root)
     assert_runtime_bound_to_qualified_checkout(repo_root)
 
+    expected_registry_path = sealed_release_registry_path(repo_root)
     registry_path = Path(state.sealed_release_registry_path)
+    if registry_path.resolve() != expected_registry_path.resolve():
+        raise R1OperatorFlowError(
+            "refusing to proceed: sealed_release_registry_path is not the canonical "
+            f"path for the qualified checkout ({expected_registry_path}) -- refusing "
+            "to trust a redirected release-registry location even if its bytes "
+            "happen to match"
+        )
+
     actual_digest = assert_sealed_release_registry_digest(registry_path)
     if actual_digest != state.sealed_release_registry_sha256:
         raise R1OperatorFlowError(
@@ -529,8 +575,31 @@ def revalidate_attempt_state_against_live_repo(state: R1AttemptState) -> str:
             "this attempt state"
         )
 
+    evidence_dir = Path(state.evidence_dir)
+    worktrees = list_repo_worktrees(repo_root)
+    assert_evidence_dir_outside_all_worktrees(evidence_dir, worktrees)
+
     bootstrap_out = Path(state.bootstrap_out)
     report_out = Path(state.report_out)
+    derived_bootstrap_out, derived_report_out = canonical_attempt_output_paths(
+        evidence_dir,
+        release_id=actual_release_id,
+        qualified_exporter_commit=actual_head,
+        attempt_id=state.attempt_id,
+    )
+    if bootstrap_out != derived_bootstrap_out:
+        raise R1OperatorFlowError(
+            "refusing to proceed: bootstrap_out is not the canonical path derived "
+            "from this attempt's own sealed release id, qualified commit, and "
+            "attempt id"
+        )
+    if report_out != derived_report_out:
+        raise R1OperatorFlowError(
+            "refusing to proceed: report_out is not the canonical path derived "
+            "from this attempt's own sealed release id, qualified commit, and "
+            "attempt id"
+        )
+
     if bootstrap_out.exists() or bootstrap_out.is_symlink():
         raise R1OperatorFlowError(f"bootstrap output already exists: {bootstrap_out}")
     if report_out.exists() or report_out.is_symlink():
@@ -555,6 +624,8 @@ __all__ = [
     "assert_safe_scalar",
     "assert_sealed_release_registry_digest",
     "build_attempt_state",
+    "canonical_attempt_output_paths",
+    "canonical_attempt_state_path",
     "canonical_profile_paths",
     "derive_sealed_release_id",
     "generate_attempt_id",
