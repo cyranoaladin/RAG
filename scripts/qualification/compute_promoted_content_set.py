@@ -2,7 +2,8 @@
 
 `pii_review_index_20260903.json` scelle l'ensemble d'une revue humaine passée
 — il ne dit rien de ce que la lignée courante sert. Ce script part donc de
-l'autorité qui désigne les releases actives, le **registre canonique**.
+l'autorité qui désigne les releases actives : celle que le déploiement
+sélectionne, ou, quand aucun déploiement ne parle, le **registre canonique**.
 
 **Il ne décide rien de la structure des releases.** Toute la sémantique —
 quelles natures de release existent, comment leurs sujets sont scellés, où
@@ -12,11 +13,20 @@ consomme déjà. La réimplémenter ici produisait un second runtime : chaque
 règle omise devenait un faux vert, chaque règle ajoutée en amont demandait
 d'être redécouverte ici. Onze rondes de revue ont mesuré ce coût.
 
+**Il ne décide rien non plus de QUEL mécanisme désigne les releases.** Le
+runtime en reconnaît trois — registre canonique, liste explicite de manifests,
+manifest historique unique — et refuse qu'ils parlent à deux. Ce script n'en
+connaissait qu'un : sous un manifest Wave 0, il retombait sur le registre par
+défaut et certifiait 319 contenus là où le service en servait 2 ; sous deux
+mécanismes simultanés, il acceptait ce que le service refuse. La sélection
+est désormais celle du contrat, ``select_release_authority``, consommée telle
+quelle.
+
 Une seule autorité, donc. Ce fichier ne fait plus que deux choses que le
 chargeur ne peut pas faire à sa place :
 
-1. borner le chemin du registre à la racine gouvernée — une autorité
-   d'entrée extérieure au périmètre qu'elle prétend gouverner ne le gouverne
+1. borner le chemin de l'autorité d'entrée à la racine gouvernée — une
+   autorité extérieure au périmètre qu'elle prétend gouverner ne le gouverne
    pas, et ses empreintes internes fussent-elles cohérentes ne prouveraient
    que la lecture du fichier désigné ;
 2. réduire ce que le chargeur rend à l'ensemble des ``content_sha256``
@@ -44,16 +54,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from nexus_release_chain.deployment_binding import (  # noqa: E402
     REGISTRY_PATH_ENV,
+    RELEASE_AUTHORITY_REGISTRY_FILE,
     DeploymentBindingError,
-    configured_release_registry,
+    ReleaseAuthoritySelection,
+    select_release_authority,
 )
 from nexus_release_chain.release_readiness import (  # noqa: E402
     ReleaseReadinessError,
+    ReleaseRegistryExpectation,
+    load_release_registry,
     load_release_registry_file,
 )
 from verify_corpus_cas import content_set_digest  # noqa: E402
 
-#: Racine gouvernée, quand le registre vient d'un déploiement. La borne reste
+#: Racine gouvernée, quand l'autorité vient d'un déploiement. La borne reste
 #: exercée — mais contre la racine de CE déploiement, pas celle du dépôt,
 #: qu'un conteneur ne connaît pas.
 GOVERNED_ROOT_ENV = "NEXUS_C1_GOVERNED_ROOT"
@@ -95,14 +109,15 @@ def racine_gouvernee_pour(mode: str, registre: Path) -> Path:
     * ``DEPLOYMENT`` sans racine déclarée — le namespace monté est le
       répertoire que la liaison désigne. Le déploiement a NOMMÉ ce chemin ;
       ici la borne sert à refuser une redirection, pas à deviner un point de
-      montage ;
+      montage. La même règle s'applique à chaque manifest d'une liaison par
+      manifests : le fichier désigné est borné à son propre répertoire ;
     * ``DEFAULT`` et ``EXPLICIT_CANDIDATE`` — le registre est un artefact du
       dépôt, borné à la racine des releases.
     """
     declaree = os.environ.get(GOVERNED_ROOT_ENV)
     if declaree:
         return Path(declaree)
-    if mode == MODE_DEPLOYMENT:
+    if mode in (MODE_DEPLOYMENT, MODE_DEPLOYMENT_MANIFESTS):
         # La racine est DÉRIVÉE du chemin : elle ne peut donc pas servir de
         # borne si ce chemin sait remonter. `/app/release/../../etc/r.json`
         # aurait donné la racine `/etc`, et le bornage — comme la marche qui
@@ -161,6 +176,18 @@ def _borner(chemin: Path, racine: Path) -> Path:
     return resolu
 
 
+def _un_deploiement_parle() -> bool:
+    """Un déploiement désigne-t-il des releases — par n'importe quel mécanisme ?
+
+    Une configuration incohérente (paire incomplète, mécanismes concurrents)
+    est un déploiement qui parle, même de travers : on ne se scelle pas contre
+    soi-même sous prétexte qu'il bafouille."""
+    try:
+        return select_release_authority() is not None
+    except DeploymentBindingError:
+        return True
+
+
 def _empreinte_attendue(resolu: Path, fournie: str | None) -> str:
     """L'empreinte contre laquelle le chargeur confrontera le registre.
 
@@ -174,7 +201,7 @@ def _empreinte_attendue(resolu: Path, fournie: str | None) -> str:
     """
     if fournie:
         return fournie
-    if configured_release_registry() is not None:
+    if _un_deploiement_parle():
         raise PromotedContentSetError(
             "un déploiement désigne un registre mais aucune empreinte n'a été "
             "transmise — le calculer ici ferait du fichier observé sa propre "
@@ -183,13 +210,13 @@ def _empreinte_attendue(resolu: Path, fournie: str | None) -> str:
     return hashlib.sha256(resolu.read_bytes()).hexdigest()
 
 
-def collect_promoted_content_set(
+def charger_registre_promu(
     registry_path: Path,
     expected_sha256: str | None = None,
     *,
     governed_root: Path | None = None,
-) -> set[str]:
-    """L'union des contenus que TOUTES les releases actives du registre servent.
+) -> ReleaseRegistryExpectation:
+    """Le registre canonique, borné puis chargé par le chargeur du runtime.
 
     La validation entière — natures supportées, sceaux, comptes, autorités,
     partitions de pages, collisions — est celle du chargeur canonique, celui
@@ -200,12 +227,35 @@ def collect_promoted_content_set(
     )
     attendue = _empreinte_attendue(resolu, expected_sha256)
     try:
-        registre = load_release_registry_file(resolu, attendue)
+        return load_release_registry_file(resolu, attendue)
     except (ReleaseReadinessError, OSError, ValueError) as exc:
         raise PromotedContentSetError(
             f"{registry_path.name} : {type(exc).__name__}: {exc}"
         ) from exc
 
+
+def charger_manifestes_promus(
+    liaisons: tuple[tuple[Path, str], ...],
+) -> ReleaseRegistryExpectation:
+    """Les manifests qu'un déploiement désigne — liste explicite ou couple
+    historique — bornés un par un, puis chargés par le chargeur du runtime.
+
+    L'empreinte de chaque manifest est celle que le déploiement a transmise :
+    rien n'est calculé ici. Le chargeur est ``load_release_registry``, le même
+    appel que le runtime fait sur ces mêmes couples ; les collisions, le
+    contrat modèle unique et l'année scolaire commune sont ses règles."""
+    bornees: list[tuple[Path, str]] = []
+    for chemin, empreinte in liaisons:
+        racine = racine_gouvernee_pour(MODE_DEPLOYMENT_MANIFESTS, chemin)
+        bornees.append((_borner(chemin, racine), empreinte))
+    try:
+        return load_release_registry(tuple(bornees))
+    except (ReleaseReadinessError, OSError, ValueError) as exc:
+        raise PromotedContentSetError(f"manifests : {type(exc).__name__}: {exc}") from exc
+
+
+def reduire_aux_contenus(registre: ReleaseRegistryExpectation) -> set[str]:
+    """L'union des contenus que TOUTES les releases chargées servent."""
     contenus = {
         artefact.content_sha256
         for manifeste in registre.manifests
@@ -218,6 +268,18 @@ def collect_promoted_content_set(
     return contenus
 
 
+def collect_promoted_content_set(
+    registry_path: Path,
+    expected_sha256: str | None = None,
+    *,
+    governed_root: Path | None = None,
+) -> set[str]:
+    """L'union des contenus que TOUTES les releases actives du registre servent."""
+    return reduire_aux_contenus(
+        charger_registre_promu(registry_path, expected_sha256, governed_root=governed_root)
+    )
+
+
 def collect_promoted_collections(
     registry_path: Path,
     expected_sha256: str | None = None,
@@ -225,25 +287,20 @@ def collect_promoted_collections(
     governed_root: Path | None = None,
 ) -> set[str]:
     """Les collections que la lignée active sert, telles que le chargeur les rend."""
-    resolu = _borner(
-        registry_path,
-        governed_root if governed_root is not None else GOVERNED_ROOT,
+    return set(
+        charger_registre_promu(
+            registry_path, expected_sha256, governed_root=governed_root
+        ).collections
     )
-    attendue = _empreinte_attendue(resolu, expected_sha256)
-    try:
-        return set(load_release_registry_file(resolu, attendue).collections)
-    except (ReleaseReadinessError, OSError, ValueError) as exc:
-        raise PromotedContentSetError(
-            f"{registry_path.name} : {type(exc).__name__}: {exc}"
-        ) from exc
 
 
-#: Les trois SOURCES possibles du registre, mutuellement exclusives. Sans ces
+#: Les SOURCES possibles de l'autorité, mutuellement exclusives. Sans ces
 #: noms, elles se recouvraient en silence : un déploiement pouvait désigner un
 #: registre et un argument de ligne de commande en imposer un autre, sans que
 #: rien ne dise lequel avait décidé du périmètre servi.
 MODE_DEFAULT = "DEFAULT"
 MODE_DEPLOYMENT = "DEPLOYMENT"
+MODE_DEPLOYMENT_MANIFESTS = "DEPLOYMENT_MANIFESTS"
 MODE_EXPLICIT_CANDIDATE = "EXPLICIT_CANDIDATE"
 
 
@@ -251,8 +308,8 @@ def resoudre_source_du_registre(
     *,
     registre_demande: Path | None,
     empreinte_demandee: str | None,
-    liaison: tuple[Path, str] | None,
-) -> tuple[str, Path, str | None]:
+    liaison: ReleaseAuthoritySelection | None,
+) -> tuple[str, Path | None, str | None]:
     """Rend (mode, registre, empreinte attendue) — ou refuse.
 
     La matrice, en toutes lettres :
@@ -261,10 +318,17 @@ def resoudre_source_du_registre(
     déploiement lié     ``--release-registry``  mode
     ==================  ====================  ==============================
     non                 non                   ``DEFAULT``
-    oui                 non                   ``DEPLOYMENT``
+    oui, registre       non                   ``DEPLOYMENT``
+    oui, manifests      non                   ``DEPLOYMENT_MANIFESTS``
     non                 oui                   ``EXPLICIT_CANDIDATE``
     oui                 oui                   **refus** — deux autorités
     ==================  ====================  ==============================
+
+    ``liaison`` est la sélection du CONTRAT — ``select_release_authority`` —
+    jamais une lecture d'environnement faite ici. En ``DEPLOYMENT_MANIFESTS``
+    le registre rendu est ``None`` : ce sont les couples de la liaison qui
+    désignent les releases, et ``--release-registry-sha256`` n'a rien à
+    sceller.
 
     En ``EXPLICIT_CANDIDATE``, ``--release-registry-sha256`` est EXIGÉE :
     hacher le fichier observé ferait de la candidate sa propre autorité, et
@@ -272,8 +336,8 @@ def resoudre_source_du_registre(
     """
     if liaison is not None and registre_demande is not None:
         raise PromotedContentSetError(
-            "un déploiement désigne un registre ET --release-registry en impose "
-            "un autre : deux autorités pour un même périmètre, rien ne dirait "
+            "un déploiement désigne des releases ET --release-registry en impose "
+            "d'autres : deux autorités pour un même périmètre, rien ne dirait "
             "laquelle a décidé de ce qui est servi"
         )
     if registre_demande is not None:
@@ -284,12 +348,19 @@ def resoudre_source_du_registre(
             )
         return MODE_EXPLICIT_CANDIDATE, registre_demande, empreinte_demandee
     if liaison is not None:
-        chemin, sceau = liaison
-        if empreinte_demandee and empreinte_demandee != sceau:
+        if liaison.mechanism == RELEASE_AUTHORITY_REGISTRY_FILE:
+            chemin, sceau = liaison.bindings[0]
+            if empreinte_demandee and empreinte_demandee != sceau:
+                raise PromotedContentSetError(
+                    "--release-registry-sha256 contredit l'empreinte du déploiement"
+                )
+            return MODE_DEPLOYMENT, chemin, sceau
+        if empreinte_demandee:
             raise PromotedContentSetError(
-                "--release-registry-sha256 contredit l'empreinte du déploiement"
+                "--release-registry-sha256 ne s'applique pas : le déploiement "
+                "désigne des manifests, chacun avec sa propre empreinte"
             )
-        return MODE_DEPLOYMENT, chemin, sceau
+        return MODE_DEPLOYMENT_MANIFESTS, None, None
     if empreinte_demandee:
         raise PromotedContentSetError(
             "--release-registry-sha256 sans registre désigné : l'empreinte ne "
@@ -301,10 +372,11 @@ def resoudre_source_du_registre(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     try:
-        binding = configured_release_registry()
+        binding = select_release_authority()
     except DeploymentBindingError as exc:
-        # Exactement la sémantique du runtime : une paire incomplète est un
-        # refus, jamais un repli sur le défaut du dépôt.
+        # Exactement la sémantique du runtime : une paire incomplète, deux
+        # mécanismes concurrents ou une liste malformée sont un refus, jamais
+        # un repli sur le défaut du dépôt.
         print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
         return 2
     # Aucun défaut ici : le défaut est une DÉCISION de la matrice de
@@ -334,25 +406,43 @@ def main(argv: list[str] | None = None) -> int:
             empreinte_demandee=args.release_registry_sha256,
             liaison=binding,
         )
-        contents = collect_promoted_content_set(
-            registre,
-            empreinte,
-            governed_root=racine_gouvernee_pour(mode, registre),
-        )
+        if mode == MODE_DEPLOYMENT_MANIFESTS:
+            assert binding is not None  # la matrice ne rend ce mode que lié
+            charge = charger_manifestes_promus(binding.bindings)
+        else:
+            assert registre is not None  # les modes registre nomment un fichier
+            charge = charger_registre_promu(
+                registre,
+                empreinte,
+                governed_root=racine_gouvernee_pour(mode, registre),
+            )
+        contents = reduire_aux_contenus(charge)
     except (PromotedContentSetError, KeyError, TypeError, ValueError, OSError) as exc:
         # Une trace Python en CI dit où le code s'est arrêté, pas ce qui est
         # faux dans la lignée. Le gate doit nommer le défaut.
         print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
         return 2
 
+    mecanisme = binding.mechanism if binding is not None else RELEASE_AUTHORITY_REGISTRY_FILE
     payload = {
         "content_sha256": sorted(contents),
         "count": len(contents),
         "content_set_sha256": content_set_digest(contents),
-        "release_registry": registre.name,
+        "release_registry": registre.name if registre is not None else None,
         # Le mode est PUBLIÉ : une preuve qui ne dit pas quelle autorité a
         # désigné le registre ne se relit pas.
         "release_registry_source": mode,
+        # L'autorité RÉELLEMENT interprétée : le mécanisme du contrat et les
+        # manifests que le chargeur a liés, avec leurs empreintes. C'est
+        # exactement ce que le runtime tient en main pour la même
+        # configuration — la parité se lit ici, couple par couple.
+        "release_authority": {
+            "mechanism": mecanisme,
+            "bindings": sorted(
+                [str(manifeste.path), manifeste.expected_sha256]
+                for manifeste in charge.manifests
+            ),
+        },
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
@@ -361,6 +451,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"PROMOTED_CONTENT_SET_COUNT={payload['count']}")
     print(f"PROMOTED_CONTENT_SET_SHA256={payload['content_set_sha256']}")
     print(f"RELEASE_REGISTRY_SOURCE={mode}")
+    print(f"RELEASE_AUTHORITY_MECHANISM={mecanisme}")
     return 0
 
 

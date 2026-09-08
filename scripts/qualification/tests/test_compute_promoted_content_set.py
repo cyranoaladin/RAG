@@ -30,12 +30,20 @@ def _sans_liaison_de_deploiement(monkeypatch: pytest.MonkeyPatch) -> None:
     `RAG_RELEASE_REGISTRY_PATH` / `_SHA256` exportées — un développeur travaillant
     contre un registre déployé — feraient basculer en mode DÉPLOIEMENT les
     épreuves qui supposent le mode DÉFAUT : elles compareraient l'ensemble
-    promu du dépôt au résultat d'une autre lignée. Une épreuve dont le verdict
-    dépend du shell qui la lance ne prouve rien.
+    promu du dépôt au résultat d'une autre lignée. Il en va de même des deux
+    autres mécanismes que le runtime reconnaît, la liste explicite et le
+    manifest historique. Une épreuve dont le verdict dépend du shell qui la
+    lance ne prouve rien.
 
     Les épreuves qui VEULENT une liaison la posent explicitement.
     """
-    for variable in ("RAG_RELEASE_REGISTRY_PATH", "RAG_RELEASE_REGISTRY_SHA256"):
+    for variable in (
+        "RAG_RELEASE_REGISTRY_PATH",
+        "RAG_RELEASE_REGISTRY_SHA256",
+        "RAG_RELEASE_MANIFESTS_JSON",
+        "RAG_RELEASE_MANIFEST_PATH",
+        "RAG_RELEASE_MANIFEST_SHA256",
+    ):
         monkeypatch.delenv(variable, raising=False)
 
 from compute_promoted_content_set import (  # noqa: E402
@@ -319,19 +327,27 @@ def test_le_runtime_ne_reimplemente_plus_la_regle_de_configuration() -> None:
         pytest.skip("module runtime absent de ce checkout")
     source = module_runtime.read_text(encoding="utf-8")
 
-    assert "configured_release_registry" in source, (
-        "le runtime doit appeler la primitive du contrat"
+    assert "select_release_authority(" in source, (
+        "le runtime doit appeler la sélection du contrat"
     )
-    # Les littéraux de la règle du REGISTRE, nommément. Les réintroduire serait
-    # une seconde écriture de cette règle, quel que soit son accord du jour.
+    assert "load_selected_release_registry(" in source, (
+        "le runtime doit charger ce que la sélection du contrat désigne"
+    )
+    # Les littéraux des TROIS mécanismes, nommément. Les réintroduire serait
+    # une seconde écriture de la règle, quel que soit son accord du jour.
     #
-    # L'assertion porte sur ces deux variables SEULEMENT : le mécanisme
-    # historique `RAG_RELEASE_MANIFEST_PATH` est une autre liaison, avec ses
-    # propres variables, et interdire sa forme ici ferait échouer cette
-    # épreuve sur du code qu'elle ne juge pas.
-    for litteral in ("RAG_RELEASE_REGISTRY_PATH", "RAG_RELEASE_REGISTRY_SHA256"):
+    # Une première version ne portait que la paire du registre, et laissait
+    # au runtime sa propre écriture des deux autres mécanismes « qu'elle ne
+    # jugeait pas » : c'est exactement par là que C1 a divergé (P2 Astra).
+    for litteral in (
+        "RAG_RELEASE_REGISTRY_PATH",
+        "RAG_RELEASE_REGISTRY_SHA256",
+        "RAG_RELEASE_MANIFESTS_JSON",
+        "RAG_RELEASE_MANIFEST_PATH",
+        "RAG_RELEASE_MANIFEST_SHA256",
+    ):
         assert litteral not in source, (
-            f"le runtime relit {litteral} lui-même : la règle du registre y est "
+            f"le runtime relit {litteral} lui-même : la règle de sélection y est "
             "réécrite une seconde fois"
         )
 
@@ -444,6 +460,16 @@ class TestLaMatriceDePrecedenceEstExplicite:
 
         return resoudre_source_du_registre(**kwargs)
 
+    @staticmethod
+    def _registre_lie(chemin: Path, sceau: str):
+        """La liaison telle que le CONTRAT la rend : un registre sélectionné."""
+        from nexus_release_chain.deployment_binding import (
+            RELEASE_AUTHORITY_REGISTRY_FILE,
+            ReleaseAuthoritySelection,
+        )
+
+        return ReleaseAuthoritySelection(RELEASE_AUTHORITY_REGISTRY_FILE, ((chemin, sceau),))
+
     def test_sans_deploiement_ni_argument_le_mode_est_le_defaut(self) -> None:
         from compute_promoted_content_set import DEFAULT_REGISTRY, MODE_DEFAULT
 
@@ -459,7 +485,7 @@ class TestLaMatriceDePrecedenceEstExplicite:
 
         chemin, sceau = tmp_path / "r.json", "a" * 64
         assert self._resoudre(
-            registre_demande=None, empreinte_demandee=None, liaison=(chemin, sceau)
+            registre_demande=None, empreinte_demandee=None, liaison=self._registre_lie(chemin, sceau)
         ) == (MODE_DEPLOYMENT, chemin, sceau)
 
     def test_une_candidate_explicite_exige_son_empreinte(self, tmp_path: Path) -> None:
@@ -495,7 +521,7 @@ class TestLaMatriceDePrecedenceEstExplicite:
             self._resoudre(
                 registre_demande=tmp_path / "candidate.json",
                 empreinte_demandee="c" * 64,
-                liaison=(tmp_path / "deploye.json", "d" * 64),
+                liaison=self._registre_lie(tmp_path / "deploye.json", "d" * 64),
             )
 
     def test_une_empreinte_qui_contredit_le_deploiement_est_refusee(
@@ -507,7 +533,7 @@ class TestLaMatriceDePrecedenceEstExplicite:
             self._resoudre(
                 registre_demande=None,
                 empreinte_demandee="e" * 64,
-                liaison=(tmp_path / "deploye.json", "f" * 64),
+                liaison=self._registre_lie(tmp_path / "deploye.json", "f" * 64),
             )
 
     def test_une_empreinte_sans_registre_designe_est_refusee(self) -> None:
