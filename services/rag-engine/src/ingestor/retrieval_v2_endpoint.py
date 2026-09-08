@@ -13,7 +13,6 @@ Retrieval seulement : aucun champ ni appel de génération LLM.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 import re
@@ -95,9 +94,8 @@ try:
         DeploymentBindingError,
         ReleaseReadinessError,
         ReleaseRegistryExpectation,
-        configured_release_registry,
-        load_release_registry,
-        load_release_registry_file,
+        load_selected_release_registry,
+        select_release_authority,
         validate_release_collection_readiness,
         validate_release_registry_readiness,
     )
@@ -184,9 +182,8 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         DeploymentBindingError,
         ReleaseReadinessError,
         ReleaseRegistryExpectation,
-        configured_release_registry,
-        load_release_registry,
-        load_release_registry_file,
+        load_selected_release_registry,
+        select_release_authority,
         validate_release_collection_readiness,
         validate_release_registry_readiness,
     )
@@ -454,68 +451,26 @@ def _check_retrievable(
     return defn
 
 
-def _configured_release_manifest() -> tuple[Path, str] | None:
-    path_raw = os.environ.get("RAG_RELEASE_MANIFEST_PATH")
-    digest = os.environ.get("RAG_RELEASE_MANIFEST_SHA256")
-    if path_raw is None and digest is None:
-        return None
-    if not path_raw or not digest:
-        raise ReleaseReadinessError("release manifest configuration incomplete")
-    return Path(path_raw), digest
+def _configured_release_registry() -> ReleaseRegistryExpectation | None:
+    """Façade : la sélection ET le chargement sont ceux du contrat, jamais une
+    seconde écriture.
 
-
-def _configured_release_registry_file() -> tuple[Path, str] | None:
-    """Façade : la règle est celle du contrat, pas une seconde écriture.
-
-    Ce corps réimplémentait la liaison de déploiement. Deux écritures de la
-    même règle de configuration divergent : le qualificateur C1 pouvait alors
-    déclarer servable une lignée que ce service refuse — ou l'inverse — sans
-    que rien ne le signale. Ne reste ici que la traduction du type d'erreur
-    vers celui que ce module fait remonter à l'appelant HTTP.
+    Ce module portait sa propre écriture des trois mécanismes — registre
+    canonique borné, liste explicite de manifests, manifest historique unique
+    — et de leur exclusion mutuelle. Le qualificateur C1 n'en consommait qu'un
+    tiers : sous un manifest Wave 0 il certifiait le registre par défaut, et
+    sous deux mécanismes il acceptait ce que ce service refuse. La règle vit
+    désormais dans ``release_readiness``, le module que cette image embarque
+    octet pour octet ; ne reste ici que la traduction du type d'erreur vers
+    celui que ce module fait remonter à l'appelant HTTP.
     """
     try:
-        return configured_release_registry()
+        selection = select_release_authority()
     except DeploymentBindingError as exc:
         raise ReleaseReadinessError(str(exc)) from exc
-
-
-def _configured_release_registry() -> ReleaseRegistryExpectation | None:
-    """Charger l'autorité release active : registre canonique borné, couple
-    de manifests explicite (``RAG_RELEASE_MANIFESTS_JSON``), ou manifest
-    historique unique — jamais plus d'un mécanisme à la fois."""
-    registry_file = _configured_release_registry_file()
-    registry_raw = os.environ.get("RAG_RELEASE_MANIFESTS_JSON")
-    legacy = _configured_release_manifest()
-    configured_mechanisms = sum(
-        mechanism is not None for mechanism in (registry_file, registry_raw, legacy)
-    )
-    if configured_mechanisms > 1:
-        raise ReleaseReadinessError("release manifest configuration is ambiguous")
-    if registry_file is not None:
-        registry_file_path, registry_file_digest = registry_file
-        return load_release_registry_file(registry_file_path, registry_file_digest)
-    if registry_raw is None:
-        return load_release_registry((legacy,)) if legacy is not None else None
-    try:
-        payload = json.loads(registry_raw)
-    except json.JSONDecodeError as exc:
-        raise ReleaseReadinessError("release manifest registry is not valid JSON") from exc
-    if not isinstance(payload, list):
-        raise ReleaseReadinessError("release manifest registry must be an array")
-    configurations: list[tuple[Path, str]] = []
-    for index, entry in enumerate(payload):
-        if not isinstance(entry, Mapping) or set(entry) != {"path", "sha256"}:
-            raise ReleaseReadinessError(
-                f"release manifest registry entry {index} is invalid"
-            )
-        path = entry.get("path")
-        digest = entry.get("sha256")
-        if not isinstance(path, str) or not path.strip() or not isinstance(digest, str):
-            raise ReleaseReadinessError(
-                f"release manifest registry entry {index} is invalid"
-            )
-        configurations.append((Path(path), digest))
-    return load_release_registry(tuple(configurations))
+    if selection is None:
+        return None
+    return load_selected_release_registry(selection)
 
 
 def configured_release_model_contract() -> tuple[str, str, int, str, str] | None:
