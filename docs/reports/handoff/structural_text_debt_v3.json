@@ -1,0 +1,39 @@
+{
+  "V2_REEXTRACTION_AUTHORIZED": false,
+  "applied": false,
+  "how_each_loss_was_observed": {
+    "blank_line_structure_not_preserved": "7 chunks sur 4000 contiennent une ligne vide ; 3155 lignes vides sur 172748 lignes. L'isolement typographique d'un titre n'a pas survecu.",
+    "heading_levels_not_preserved": "Un intitulé de section et une cellule de tableau sont la même chose dans le texte V2 : une ligne courte. Rien ne les distingue.",
+    "stable_layout_spans_not_preserved": "Aucune coordonnee ni bloc n'est conserve : la position d'une citation ne peut etre rattachee a aucun bloc structurel.",
+    "table_boundaries_not_preserved": "Constaté sur un document reel : « Classe de ⏎ terminale » etait une cellule repliee, et passait pour un intitule de section."
+  },
+  "kind": "NEXUS-PDF-STRUCTURAL-TEXT-V3",
+  "measurement": {
+    "STRUCTURAL_CITATION_ATTRIBUTABLE": 3,
+    "STRUCTURAL_CITATION_ATTRIBUTION_RATE_PERCENT": 2.419,
+    "STRUCTURAL_CITATION_ATTRIBUTION_TOTAL": 124,
+    "STRUCTURAL_CITATION_UNATTRIBUTABLE": 121
+  },
+  "reextraction_prohibition_reason": "Toute ré-extraction changerait le texte gouverné, le scan PII et potentiellement le content review set. Les décisions humaines PII portent sur REVIEW_CONTENT_SET_SHA256 ; un texte neuf les invaliderait.",
+  "status": "DEBT_RECORDED",
+  "v2_structural_losses_measured": {
+    "blank_line_structure_not_preserved": true,
+    "heading_levels_not_preserved": true,
+    "stable_layout_spans_not_preserved": true,
+    "table_boundaries_not_preserved": true
+  },
+  "v3_goal": "citation -> bloc structurel -> titre/tableau -> scope, sans heuristique de proximite",
+  "v3_implementation_in_current_lot": false,
+  "v3_minimal_contract_required_fields": [
+    "page_number",
+    "block_id",
+    "block_type",
+    "heading_level",
+    "table_id",
+    "row_id",
+    "cell_id",
+    "source_bbox_or_equivalent",
+    "normalized_text_span",
+    "canonical_text_offset_map"
+  ]
+}
