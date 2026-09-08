@@ -1,0 +1,15 @@
+{
+  "applied": false,
+  "campaign_manifest_sha256": "8bb11c521618dbf78b852dd8f2e96e8eeed047332669c2c2f435df461bf14d75",
+  "campaign_run_id": "422356d3f7f51f93ea9a8dbff7c37fac13586334bb32e3f30eb4297ab3c5a139",
+  "frozen": true,
+  "frozen_source": "CURRENTNESS_CAMPAIGN_FROZEN, lu dans le manifeste lui-meme",
+  "kind": "NEXUS-CURRENTNESS-CAMPAIGN-FREEZE-RECEIPT-V1",
+  "modifies_sealed_artifacts": false,
+  "no_network_request_issued": true,
+  "note": "Ce recu ne modifie aucun des quatre artefacts scelles : il les cite par empreinte. Le manifeste porte deja son propre drapeau de gel ; le recu le rend opposable de l exterieur, sans y toucher.",
+  "observation_ledger_sha256": "15bf725d8d8c0c26930f175fd2c7d06fc86cf1ac4b91bd0e9cf7d27a2627fc48",
+  "policy_input_sha256": "b0e735d4592d38ce14f982454dd61133508ab07e3cc0118371fa37ed4eb4c1f7",
+  "receipt_sha256": "352d68f6d6b80838c26bff93e3c7a98bb531f469cfe8b73da1427e2be3924543",
+  "relation_ledger_sha256": "b223fe3de23267a9a6c8d9bf4dcc36097ce775f87681ea2a49b9fecb6edc1fe7"
+}
