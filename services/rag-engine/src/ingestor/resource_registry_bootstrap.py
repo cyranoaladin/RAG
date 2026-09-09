@@ -595,10 +595,6 @@ def _release_chunk_owner(binding: ReleaseChunkBinding) -> str:
     return binding[0]
 
 
-def _release_chunk_id(binding: ReleaseChunkBinding) -> str:
-    return binding[1]
-
-
 def export_resource_registry_bootstrap_inventory(
     connection: psycopg.Connection[Any],
     *,
