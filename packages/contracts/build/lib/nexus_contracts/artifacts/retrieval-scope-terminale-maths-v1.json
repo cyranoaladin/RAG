@@ -1,0 +1,29 @@
+{
+  "artifact_version": "2",
+  "scope_id": "terminale_maths_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "e6e7adc97b5904eec39a9fca05a10795f8d2cd81662f9df1275c6f6ba4e516ff",
+  "target_identity": {
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "maths",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": ["libre"]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_maths_terminale_gen_specialite",
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "maths",
+    "statut_enseignement": "specialite",
+    "candidat": "libre",
+    "audiences": ["libre", "tous"],
+    "visibility": "internal",
+    "rights": ["officiel_public"],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_8_2019-07-25"
+  }
+}

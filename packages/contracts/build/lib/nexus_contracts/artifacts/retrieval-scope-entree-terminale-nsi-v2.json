@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "entree_terminale_nsi_v2",
+  "status": "eligible_for_promotion",
+  "source_sha256": "32aaa3ad8cc1efd26148276a0879180243667cb87b71e259e64538bfd10b0d38",
+  "target_identity": {
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "nsi",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_nsi_premiere_specialite",
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "nsi",
+    "statut_enseignement": "specialite",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_1_2019-01-22"
+  }
+}

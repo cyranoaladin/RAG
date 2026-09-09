@@ -1,0 +1,31 @@
+{
+  "artifact_version": "1",
+  "scope_id": "libre_terminale_maths_nsi_real_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "b55ef1383fceabbbe0bf30c47a45a1fce607697f56bac340162156fabcf0fe26",
+  "school_year": "2026-2027",
+  "identity": {
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": [
+      "cned_libre",
+      "individuel",
+      "libre"
+    ]
+  },
+  "subjects": [
+    {
+      "matiere": "maths",
+      "collection": "rag_nexus_maths_terminale_gen_specialite",
+      "programme_version": "BOEN_special_8_2019-07-25"
+    },
+    {
+      "matiere": "nsi",
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "programme_version": "BOEN_special_8_2019-07-25"
+    }
+  ]
+}

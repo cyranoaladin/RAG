@@ -40,6 +40,20 @@ from nexus_contracts import (
     load_retrieval_scope_registry,
 )
 from nexus_contracts.canonical_json import canonical_model_bytes
+
+# L'autorité de release vient du PAQUET, pas d'un module voisin : son import
+# ne dépend donc PAS du montage de l'image, contrairement aux modules que le
+# repli à plat ci-dessous renomme. La placer dans les deux branches créait une
+# redéfinition et laissait croire l'inverse.
+from nexus_release_chain.release_readiness import (
+    DeploymentBindingError,
+    ReleaseReadinessError,
+    ReleaseRegistryExpectation,
+    load_selected_release_registry,
+    select_release_authority,
+    validate_release_collection_readiness,
+    validate_release_registry_readiness,
+)
 from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 
@@ -61,7 +75,6 @@ def _missing_sibling(exc: ImportError) -> bool:
     return name == name.rsplit(".", 1)[-1] or name in (
         "src", "src.ingestor", "ingestor",
     )
-
 
 try:
     from .collection_config import (
@@ -89,15 +102,6 @@ try:
         remaining_database_budget_ms,
         runtime_database_budget,
         runtime_request_budget,
-    )
-    from .release_readiness import (
-        DeploymentBindingError,
-        ReleaseReadinessError,
-        ReleaseRegistryExpectation,
-        load_selected_release_registry,
-        select_release_authority,
-        validate_release_collection_readiness,
-        validate_release_registry_readiness,
     )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
@@ -177,15 +181,6 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         remaining_database_budget_ms,
         runtime_database_budget,
         runtime_request_budget,
-    )
-    from release_readiness import (  # type: ignore[no-redef]
-        DeploymentBindingError,
-        ReleaseReadinessError,
-        ReleaseRegistryExpectation,
-        load_selected_release_registry,
-        select_release_authority,
-        validate_release_collection_readiness,
-        validate_release_registry_readiness,
     )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]

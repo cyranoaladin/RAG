@@ -86,6 +86,12 @@
 !packages/contracts/
 !packages/contracts/**
 
+# Autorité de release, installée comme PAQUET par les images qui la servent.
+# Elle y entrait auparavant comme fichier vendoré recopié depuis le service :
+# le contexte n'avait donc pas à connaître ce chemin. Il le doit désormais.
+!packages/release-chain/
+!packages/release-chain/**
+
 # Required for the UI image dependency smoke.
 !scripts/
 !scripts/e2e/

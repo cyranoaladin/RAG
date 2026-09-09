@@ -12,8 +12,21 @@ dependencies = [
     "pydantic>=2.0.0",
     "pyyaml>=6.0",
     "nexus-contracts>=0.15.0",
-    "nexus-pdf-page-policy>=1.0.0",
 ]
+
+# La pile PDF est un EXTRA, pas une dépendance du coeur.
+#
+# Mesuré : `release_readiness.py` n'importe que la bibliothèque standard, et
+# `__init__.py` n'importe rien. Seul `pdf_extractor.py` a besoin de
+# `nexus-pdf-page-policy`, donc de `pypdf`. La déclarer obligatoire imposait un
+# parseur au runtime de LECTURE, dont l'allowlist est volontairement sans
+# parseur — et c'est précisément ce qui avait rendu nécessaire une copie
+# vendorée du module dans le service.
+#
+# `pip install nexus-release-chain`        → coeur, sans pypdf
+# `pip install "nexus-release-chain[pdf]"` → capacité PDF
+[project.optional-dependencies]
+pdf = ["nexus-pdf-page-policy>=1.0.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

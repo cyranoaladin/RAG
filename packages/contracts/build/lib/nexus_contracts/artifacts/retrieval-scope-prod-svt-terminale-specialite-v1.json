@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_svt_terminale_specialite_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "29bd5d9363e737e49b9fca9654a46c04f4a6e23224b306897c57f12d2e9f5d8d",
+  "target_identity": {
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "svt",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_svt_terminale_specialite",
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "svt",
+    "statut_enseignement": "specialite",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_8_2019-07-25"
+  }
+}

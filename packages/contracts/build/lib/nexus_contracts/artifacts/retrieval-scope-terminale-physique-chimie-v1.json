@@ -1,0 +1,29 @@
+{
+  "artifact_version": "2",
+  "scope_id": "terminale_physique_chimie_v1",
+  "status": "eligible_for_promotion",
+  "source_sha256": "6522eff27c492a4a8a3e934093b12e5ad6a09f135a96196604689bb95f9eb563",
+  "target_identity": {
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "physique_chimie",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": ["libre"]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_pc_terminale_specialite",
+    "tenant": "libre_terminale",
+    "niveau": "terminale",
+    "voie": "generale",
+    "matiere": "physique_chimie",
+    "statut_enseignement": "specialite",
+    "candidat": "libre",
+    "audiences": ["libre", "tous"],
+    "visibility": "internal",
+    "rights": ["officiel_public"],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_8_2019-07-25"
+  }
+}

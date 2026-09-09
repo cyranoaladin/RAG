@@ -12,6 +12,10 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from nexus_contracts.document import Voie
+from nexus_release_chain.release_readiness import (
+    ReleaseReadinessError,
+    load_release_expectation,
+)
 
 from .collection_config import CollectionConfigError, canonicalize_catalogue_voie
 from .ingestion_profiles.manifest import ManifestVerification
@@ -29,7 +33,6 @@ from .multilevel_evidence import (
 )
 from .multilevel_mapping import ClosedMultilevelMapping, MultilevelMappingError
 from .programme_registry import ProgrammeIndexRegistry, ProgrammeRegistryError
-from .release_readiness import ReleaseReadinessError, load_release_expectation
 from .staging_profile_manifest import StagingProfileManifestVerification
 from .verified_pedagogical_placement import VerifiedPedagogicalPlacement
 
