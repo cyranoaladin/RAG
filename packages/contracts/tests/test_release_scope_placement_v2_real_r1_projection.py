@@ -13,8 +13,11 @@ from pathlib import Path
 from nexus_contracts.authorization_set import release_placement_binding_key
 from nexus_contracts.release_scope_placement import produce_release_scope_placement_v2_from_blobs
 
-from ingestor.ingestion_profiles.manifest import verify_profile_manifest
-from ingestor.ingestion_profiles.registry import load_profile_registry, profile_fingerprint
+from nexus_release_chain.ingestion_profiles.manifest import verify_profile_manifest
+from nexus_release_chain.ingestion_profiles.registry import (
+    load_profile_registry,
+    profile_fingerprint,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _RAG_ENGINE = _REPO_ROOT / "services" / "rag-engine"
