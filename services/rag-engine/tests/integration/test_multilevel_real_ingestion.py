@@ -919,6 +919,7 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
                 headers = {
                     "Authorization": f"Bearer {bff_token}",
                     "X-Nexus-Identity": token,
+                    "X-RAG-API-Key": api_client_token,
                 }
                 headers_by_scope[scope_id] = headers
                 picker = client.get("/collections/v2", headers=headers)
@@ -995,6 +996,7 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
                 headers={
                     "Authorization": f"Bearer {bff_token}",
                     "X-Nexus-Identity": fr_token,
+                    "X-RAG-API-Key": api_client_token,
                 },
                 json=_search_payload(
                     fr_scope,
