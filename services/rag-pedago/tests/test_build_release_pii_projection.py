@@ -293,13 +293,19 @@ class TestCurrentnessVerdictNamesItsOwnRelease:
             "production-profile-gate-2026-2027-v2-candidate-xyz"
         )
 
-    def test_without_an_explicit_identity_the_historical_one_is_kept(self) -> None:
-        """Aucune émission existante ne change de cible du fait de ce correctif."""
+    def test_without_an_explicit_identity_the_producer_refuses(self) -> None:
+        """ADR-0050 : plus aucun repli sur l'identité historique.
+
+        Cette épreuve affirmait l'inverse — sans identité explicite, le verdict
+        prenait celle de la release historique. C'est exactement ce que l'ADR
+        ferme : une chaîne scellée nouvelle sortait sous une identité déjà
+        publiée. Le silence de l'appelant est désormais un refus."""
+        import pytest as _pytest
         from conftest import load_producer
 
         module = load_producer()
-        audit = self._audit(None)
-        assert audit["verdict_scope"]["release_id"] == module.RELEASE_ID
+        with _pytest.raises(module.ReleaseIdentityError, match="aucune identité"):
+            self._audit(None)
 
     def test_the_verdict_never_claims_a_verification_took_place(self) -> None:
         audit = self._audit("candidate-x")
