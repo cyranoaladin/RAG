@@ -1,5 +1,20 @@
 # LOT — C1 : couvrir la lignée COURANTE, pas seulement la revue passée
 
+> **Portée sous ADR-0050.** Ce lot prouve une propriété de *reproductibilité* :
+> le store adressable par contenu couvre exactement l'ensemble dérivé de
+> l'autorité de release **sélectionnée**. Il ne prouve ni matérialisation ni
+> promotion. La release `production-profile-gate-2026-2027-v1` est inscrite au
+> registre et sa chaîne de digests est vérifiable, mais elle **n'a jamais été
+> matérialisée sur la PostgreSQL de production `korrigo`** : lire « promu et
+> servable » comme « servi en production » serait faux. Vocabulaire à six
+> états et audit ligne à ligne : `NEXUS-C1-ADR0050-SEMANTIC-AUDIT-V1`.
+>
+> ```text
+> C1_REPRODUCIBILITY_AUTHORITY=SELECTED_RELEASE_REGISTRY_CHAIN
+> C1_PRODUCTION_MATERIALIZATION_AUTHORITY=false
+> C1_PRODUCTION_PROMOTION_AUTHORITY=false
+> ```
+
 ## Le défaut
 
 `Corpus CAS reproducibility (C1)` confronte le store adressable par contenu à
@@ -9,9 +24,10 @@ l'ensemble de **320 objets** que la revue humaine du 2026-09-03 a scellé
 
 Cette épreuve prouve que le store est celui d'une lignée **figée**. Elle ne
 demande jamais si l'ensemble que la lignée **promeut aujourd'hui** y est
-couvert. Une lignée régénérée après la revue servirait donc des documents
+couvert. Une lignée régénérée après la revue rendrait donc servables des documents
 irreproductibles hors poste, et C1 resterait vert : il vérifierait toujours,
-fidèlement, un corpus qui n'est plus celui qu'on sert.
+fidèlement, un corpus qui n'est plus celui que l'autorité de release
+sélectionnée désigne.
 
 L'écart n'est pas théorique. L'index a été produit à `21:53:59Z`, trois
 minutes après `a4b1f96` — le dernier changement de la lignée à cette date. Rien
@@ -27,7 +43,8 @@ python scripts/qualification/verify_corpus_cas.py --cas-root … \
 → RC=0
 ```
 
-vert, sans qu'aucune assertion ne porte sur les contenus servis aujourd'hui.
+vert, sans qu'aucune assertion ne porte sur les contenus que la release
+sélectionnée désigne.
 
 Le premier correctif — celui de la contribution entrante — introduisait
 `--promoted-content-set`. Il portait toutefois la faille qu'il prétendait
