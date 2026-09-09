@@ -59,6 +59,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -324,7 +325,10 @@ def _actual_chunk_tuples(bootstrap: ResourceRegistryBootstrap) -> set[tuple[Any,
     return tuples
 
 
-def _canonical_tuple(values: dict[str, Any]) -> tuple[Any, ...]:
+def _canonical_tuple(values: Mapping[str, Any]) -> tuple[Any, ...]:
+    # `Mapping` et non `dict` : l'autorité canonique est désormais un paquet
+    # typé, et mypy voit que ses placements sont des mappings en lecture seule.
+    # La copie du service n'étant pas typée, l'écart restait invisible.
     return tuple(values[field_name] for field_name in CANONICAL_PLACEMENT_FIELDS)
 
 
