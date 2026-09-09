@@ -65,6 +65,12 @@ from typing import Any
 from urllib.parse import urlparse
 
 from nexus_contracts import ResourceRegistryBootstrap
+from nexus_release_chain.release_readiness import (
+    ExpectedPlacement,
+    ReleaseReadinessError,
+    ReleaseRegistryExpectation,
+    load_release_registry_file,
+)
 
 from ingestor.ingestion_profiles.manifest import (
     ManifestVerification,
@@ -77,12 +83,6 @@ from ingestor.ingestion_profiles.registry import (
     load_profile_registry,
     profile_fingerprint,
     select_profile,
-)
-from nexus_release_chain.release_readiness import (
-    ExpectedPlacement,
-    ReleaseReadinessError,
-    ReleaseRegistryExpectation,
-    load_release_registry_file,
 )
 
 #: The 10 SCALAR canonical dimensions. ``audience`` (set-valued) is handled
