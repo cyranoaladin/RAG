@@ -18,7 +18,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ingestor import release_readiness as readiness  # noqa: E402
+from nexus_release_chain import release_readiness as readiness  # noqa: E402
 from ingestor import retrieval_v2_endpoint as endpoint  # noqa: E402
 
 RELEASES = (

@@ -24,7 +24,7 @@ from ingestor.r1_operator_flow import (  # noqa: E402
     _RELEASE_REGISTRY_RELATIVE_PATH,
     EXPECTED_SEALED_RELEASE_REGISTRY_SHA256,
 )
-from ingestor.release_readiness import (  # noqa: E402
+from nexus_release_chain.release_readiness import (  # noqa: E402
     ReleaseReadinessError,
     load_release_registry_file,
 )

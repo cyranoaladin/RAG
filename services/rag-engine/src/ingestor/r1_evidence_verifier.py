@@ -9,7 +9,7 @@ This is deliberately NOT another exporter and NOT a redesign of the
     ``resource_registry_bootstrap_cli`` command,
   * the same sealed release chain that command's own
     ``--release-registry-path``/``--release-registry-sha256`` arguments
-    already pin (``ingestor.release_readiness.load_release_registry_file``,
+    already pin (``nexus_release_chain.release_readiness.load_release_registry_file``,
     unmodified, reused as-is for its digest-verified parse of the release
     authority), and
   * the declarative profile registry + its signed manifest
@@ -78,7 +78,7 @@ from ingestor.ingestion_profiles.registry import (
     profile_fingerprint,
     select_profile,
 )
-from ingestor.release_readiness import (
+from nexus_release_chain.release_readiness import (
     ExpectedPlacement,
     ReleaseReadinessError,
     ReleaseRegistryExpectation,
