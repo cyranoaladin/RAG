@@ -97,6 +97,7 @@ def _row(*, chunk_id: str = "chunk-001", chunk_index: int = 0) -> dict[str, obje
                 "chunk_id": chunk_id,
                 "artifact_id": SHA_A,
                 "doc_id": SHA_A,
+                "chunk_sha256": "e" * 64,
                 "chunk_index": chunk_index,
                 "page_start": 2,
                 "page_end": 4,
@@ -361,6 +362,7 @@ def _multi_placement_row(
                 "chunk_id": "chunk-nsi-001",
                 "artifact_id": SHA_A,
                 "doc_id": SHA_A,
+                "chunk_sha256": "e" * 64,
                 "chunk_index": 0,
                 "page_start": 2,
                 "page_end": 4,
@@ -459,3 +461,17 @@ def test_second_placement_still_enforces_state_and_source_guards(
                 )
             ]
         )
+
+
+def test_duplicate_semantic_placement_under_different_ids_is_refused() -> None:
+    """RED->GREEN (R1B): two placement rows sharing one collection with an
+    IDENTICAL semantic tuple, minted under two DIFFERENT placement_ids, is
+    not itself a 'conflicting' semantic placement (existing != semantic_tuple
+    is False here) -- it must still be refused as a genuine, unexplained
+    producer duplicate, distinctly labeled from the conflicting case."""
+    duplicated_identical = [
+        _nsi_placement(_nsi_premiere_scope(), NSI_PREMIERE_PLACEMENT_ID),
+        _nsi_placement(_nsi_premiere_scope(), NSI_TERMINALE_PLACEMENT_ID),
+    ]
+    with pytest.raises(BootstrapInventoryError, match="duplicate semantic placement"):
+        _build([_multi_placement_row(placements=duplicated_identical)])

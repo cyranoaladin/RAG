@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import stat
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -96,6 +97,15 @@ class _ReleaseRegistry:
                                 {
                                     "collection": "terminale_maths",
                                     "content_sha256": SHA_A,
+                                    "chunks": (
+                                        {
+                                            "chunk_id": "chunk-001",
+                                            "chunk_index": 0,
+                                            "chunk_sha256": SHA_B,
+                                            "page_start": 2,
+                                            "page_end": 4,
+                                        },
+                                    ),
                                 },
                             )(),
                         )
@@ -112,16 +122,22 @@ def test_cli_writes_canonical_inventory_without_disclosing_dsn(
     output = tmp_path / "inventory.json"
     secret_dsn = "postgresql://operator:super-secret@example.invalid/rag"
     inventory = _inventory()
+    captured_kwargs: dict[str, object] = {}
     monkeypatch.setenv("NEXUS_RESOURCE_EXPORT_DSN", secret_dsn)
     monkeypatch.setattr(
         resource_registry_bootstrap_cli.psycopg,
         "connect",
         lambda dsn: _ConnectionContext() if dsn == secret_dsn else None,
     )
+
+    def _fake_export(*_args: object, **kwargs: object):
+        captured_kwargs.update(kwargs)
+        return inventory
+
     monkeypatch.setattr(
         resource_registry_bootstrap_cli,
         "export_resource_registry_bootstrap_inventory",
-        lambda *_args, **_kwargs: inventory,
+        _fake_export,
     )
     monkeypatch.setattr(
         resource_registry_bootstrap_cli.metadata,
@@ -154,10 +170,78 @@ def test_cli_writes_canonical_inventory_without_disclosing_dsn(
     assert result == 0
     assert output.read_bytes().endswith(b"\n")
     assert inventory.inventory_sha256.encode() in output.read_bytes()
+    assert stat.S_IMODE(output.stat().st_mode) == 0o600
     captured = capsys.readouterr()
     assert inventory.inventory_sha256 in captured.out
     assert secret_dsn not in captured.out + captured.err
     assert "super-secret" not in captured.out + captured.err
+    assert "R1_DB_CHUNK_IDENTITY_BINDING=PASS" in captured.out
+    assert captured_kwargs["release_chunk_bindings"] == frozenset(
+        {(SHA_A, "chunk-001", 0, SHA_B, 2, 4)}
+    )
+
+
+def test_cli_refuses_existing_output_before_touching_the_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A governed bootstrap is a one-time artifact: an existing --output
+    must be refused BEFORE any production database connection is opened,
+    never merely before the write."""
+    output = tmp_path / "inventory.json"
+    output.write_bytes(b"already published")
+    monkeypatch.setenv("NEXUS_RESOURCE_EXPORT_DSN", "postgresql://fixture")
+
+    def _connect_must_never_be_called(dsn: str) -> None:
+        raise AssertionError("psycopg.connect must never be called when --output already exists")
+
+    monkeypatch.setattr(resource_registry_bootstrap_cli.psycopg, "connect", _connect_must_never_be_called)
+
+    with pytest.raises(SystemExit, match="already exists"):
+        resource_registry_bootstrap_cli.main(
+            [
+                "--producer-commit",
+                SHA_A[:40],
+                "--generated-at",
+                "2026-08-30T12:00:00Z",
+                "--output",
+                str(output),
+                "--release-registry-path",
+                str(tmp_path / "release-registry.json"),
+                "--release-registry-sha256",
+                SHA_B,
+            ]
+        )
+
+    assert output.read_bytes() == b"already published"
+
+
+def test_cli_refuses_a_directory_as_output_before_touching_the_database(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    output = tmp_path / "inventory.json"
+    output.mkdir()
+    monkeypatch.setenv("NEXUS_RESOURCE_EXPORT_DSN", "postgresql://fixture")
+
+    def _connect_must_never_be_called(dsn: str) -> None:
+        raise AssertionError("psycopg.connect must never be called when --output is a directory")
+
+    monkeypatch.setattr(resource_registry_bootstrap_cli.psycopg, "connect", _connect_must_never_be_called)
+
+    with pytest.raises(SystemExit, match="directory"):
+        resource_registry_bootstrap_cli.main(
+            [
+                "--producer-commit",
+                SHA_A[:40],
+                "--generated-at",
+                "2026-08-30T12:00:00Z",
+                "--output",
+                str(output),
+                "--release-registry-path",
+                str(tmp_path / "release-registry.json"),
+                "--release-registry-sha256",
+                SHA_B,
+            ]
+        )
 
 
 def test_cli_fails_closed_without_explicit_operator_dsn(

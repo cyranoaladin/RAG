@@ -54,6 +54,7 @@ class _ChunkRow(StrictBaseModel):
     chunk_id: str = Field(min_length=1)
     artifact_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     doc_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    chunk_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     chunk_index: int = Field(ge=0)
     page_start: int | None = Field(default=None, ge=1)
     page_end: int | None = Field(default=None, ge=1)
@@ -208,6 +209,7 @@ JOIN LATERAL (
                 'chunk_id', c.chunk_id,
                 'artifact_id', c.artifact_id,
                 'doc_id', c.doc_id,
+                'chunk_sha256', c.chunk_sha256,
                 'chunk_index', c.chunk_index,
                 'page_start', c.page_start,
                 'page_end', c.page_end,
@@ -318,6 +320,44 @@ def _validate_identity(row: _BootstrapSourceRow) -> None:
         )
 
 
+_PLACEMENT_SEMANTIC_FIELDS = (
+    "tenant",
+    "niveau",
+    "voie",
+    "matiere",
+    "statut_enseignement",
+    "candidat",
+    "audience",
+    "visibility",
+    "school_year",
+    "programme_version",
+)
+
+
+def _placement_semantic_tuple(placement: _PlacementRow) -> tuple[object, ...]:
+    """Every authorization-relevant dimension a placement carries EXCEPT
+    ``collection`` itself -- the key a caller groups placements by before
+    calling this. Two placements can legitimately reach the same artifact
+    through two DIFFERENT collections with two different semantic tuples
+    (that is the whole point of a shared cross-subject resource); two
+    placements can never legitimately assert two different semantic tuples
+    for the SAME collection -- a resource cannot simultaneously be
+    ``candidat=libre`` and ``candidat=scolarise``, or ``visibility=public``
+    and ``visibility=internal``, within one identical collection.
+
+    ``audience`` is list-valued and order-insensitive (a producer emitting
+    ``["aefe", "libre"]`` vs ``["libre", "aefe"]`` asserts the identical
+    authorization fact); it is canonicalized to a sorted tuple both so
+    equality here ignores order and so the resulting tuple stays hashable
+    for callers that need to deduplicate placements by full identity."""
+    return tuple(
+        tuple(sorted(value)) if field == "audience" else value
+        for field, value in (
+            (field_name, getattr(placement, field_name)) for field_name in _PLACEMENT_SEMANTIC_FIELDS
+        )
+    )
+
+
 def _validate_placements(row: _BootstrapSourceRow) -> None:
     """A shared artifact is legitimately placed in more than one collection
     (e.g. a première/terminale common-trunk resource): every placement must
@@ -325,14 +365,38 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
     and no placement_id may repeat, but only the ingestion resource's own
     anchor scope -- not every placement -- must be represented among them.
     A placement whose scope differs from the anchor (a second, legitimate
-    collection) is not itself a violation."""
+    collection) is not itself a violation.
+
+    What IS always a violation: two placements sharing the SAME collection
+    but asserting DIFFERENT semantic dimensions (candidat, audience,
+    visibility, niveau, voie, matiere, statut_enseignement, school_year,
+    programme_version, tenant). The exporter's separate
+    ``observed_bindings == release_artifact_bindings`` guard is keyed only
+    by (collection, content_sha256): a second placement sharing its
+    anchor's own collection contributes no new element to that set and is
+    therefore structurally invisible to it, however it diverges on every
+    other dimension. This check closes exactly that gap, independently of
+    what any release registry claims to have promoted.
+
+    Also always a violation, and distinct from the above: two placements
+    minted under two DIFFERENT ``placement_id`` values but asserting the
+    exact SAME (collection + every semantic dimension) tuple. Real
+    PostgreSQL data can never reach this exact state (migration 004's
+    ``rag_artifact_placements_canonical_scope_unique`` constraint already
+    makes it schema-impossible there), but this pure function has no
+    database behind it and must not silently accept a duplicate an upstream
+    caller manages to construct -- issue #155's own rule is that an
+    unexplained producer duplicate is never silently deduplicated, only
+    ever refused."""
     if not row.placements:
         raise BootstrapInventoryError(
             f"placements are missing for {row.resource_version_id}"
         )
     seen_placement_ids: set[str] = set()
+    seen_full_semantic_tuples: set[tuple[object, ...]] = set()
     anchor_scope = _scope_tuple(row)
     anchor_represented = False
+    semantic_tuple_by_collection: dict[str, tuple[object, ...]] = {}
     for placement in row.placements:
         if placement.placement_id in seen_placement_ids:
             raise BootstrapInventoryError(
@@ -348,6 +412,22 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
             raise BootstrapInventoryError(
                 f"placement state or source differs for {row.resource_version_id}"
             )
+        semantic_tuple = _placement_semantic_tuple(placement)
+        full_semantic_tuple = (placement.collection, *semantic_tuple)
+        if full_semantic_tuple in seen_full_semantic_tuples:
+            raise BootstrapInventoryError(
+                f"duplicate semantic placement for collection "
+                f"{placement.collection!r} under a different placement_id "
+                f"for {row.resource_version_id}"
+            )
+        seen_full_semantic_tuples.add(full_semantic_tuple)
+        existing = semantic_tuple_by_collection.get(placement.collection)
+        if existing is not None and existing != semantic_tuple:
+            raise BootstrapInventoryError(
+                f"conflicting semantic placements share collection "
+                f"{placement.collection!r} for {row.resource_version_id}"
+            )
+        semantic_tuple_by_collection[placement.collection] = semantic_tuple
         if _scope_tuple(placement) == anchor_scope:
             anchor_represented = True
     if not anchor_represented:
@@ -503,6 +583,18 @@ def build_resource_registry_bootstrap_inventory(
     return seal_resource_registry_bootstrap(payload)
 
 
+#: The canonical, digest-verified identity of one sealed-release chunk:
+#: (content_sha256, chunk_id, chunk_index, chunk_sha256, page_start, page_end).
+#: This is the R1G authority tuple -- see ``resource_registry_bootstrap_cli``
+#: for how it is derived, without re-parsing, from
+#: ``ingestor.release_readiness.ExpectedArtifact.chunks``.
+ReleaseChunkBinding = tuple[str, str, int, str, int, int]
+
+
+def _release_chunk_owner(binding: ReleaseChunkBinding) -> str:
+    return binding[0]
+
+
 def export_resource_registry_bootstrap_inventory(
     connection: psycopg.Connection[Any],
     *,
@@ -512,6 +604,7 @@ def export_resource_registry_bootstrap_inventory(
     package_version: str,
     release_collections: frozenset[str],
     release_artifact_bindings: frozenset[tuple[str, str]],
+    release_chunk_bindings: frozenset[ReleaseChunkBinding],
 ) -> ResourceRegistryBootstrap:
     """Read both schemas through one repeatable, read-only PostgreSQL snapshot."""
 
@@ -527,6 +620,44 @@ def export_resource_registry_bootstrap_inventory(
     release_artifact_sha256s = frozenset(
         digest for _collection, digest in release_artifact_bindings
     )
+    if not release_chunk_bindings:
+        raise BootstrapInventoryError("release registry chunk bindings are required")
+    chunk_binding_by_id: dict[str, ReleaseChunkBinding] = {}
+    for binding in release_chunk_bindings:
+        content_sha256, chunk_id, chunk_index, chunk_sha256, page_start, page_end = binding
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", content_sha256)
+            or not chunk_id
+            or not isinstance(chunk_index, int)
+            or isinstance(chunk_index, bool)
+            or chunk_index < 0
+            or not re.fullmatch(r"[0-9a-f]{64}", chunk_sha256)
+            or not isinstance(page_start, int)
+            or isinstance(page_start, bool)
+            or page_start < 1
+            or not isinstance(page_end, int)
+            or isinstance(page_end, bool)
+            or page_end < page_start
+        ):
+            raise BootstrapInventoryError("release registry chunk bindings are malformed")
+        # ``load_release_registry_file`` already refuses a chunk_id reused
+        # under a different owning content_sha256 or a different payload
+        # WITHIN one manifest (``_require_consistent_shared_chunks``) and
+        # across manifests (artifacts cannot collide across manifests, so
+        # neither can their chunks) -- this is deliberate defense in depth
+        # for a caller that builds the set some other way, not a trust of
+        # the loader alone: a sealed release chunk authority that disagrees
+        # with itself is refused here too, never silently deduplicated.
+        existing = chunk_binding_by_id.get(chunk_id)
+        if existing is not None and existing != binding:
+            raise BootstrapInventoryError(
+                f"sealed release chunk authority conflict for chunk_id={chunk_id!r}"
+            )
+        chunk_binding_by_id[chunk_id] = binding
+    if {_release_chunk_owner(binding) for binding in release_chunk_bindings} - (
+        release_artifact_sha256s
+    ):
+        raise BootstrapInventoryError("release chunk binding uses an unknown artifact")
     with connection.transaction():
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -554,6 +685,35 @@ def export_resource_registry_bootstrap_inventory(
         raise BootstrapInventoryError(
             "governed inventory differs from the exact promoted release artifact bindings"
         )
+    # R1G: the placement-bindings guard above proves WHICH (collection,
+    # artifact) pairs are reachable, never WHICH chunks the DB actually
+    # holds for them. A chunk added, removed, or swapped for a sealed
+    # artifact leaves ``observed_bindings`` untouched (it is keyed by
+    # placement, not by chunk) and previously reached the bootstrap
+    # unnoticed. This compares the DB's real chunk rows -- including
+    # ``chunk_sha256``, which never travels in ``BootstrapChunk`` itself --
+    # against the sealed release's own chunk authority, before the
+    # bootstrap is ever built.
+    observed_chunks: set[ReleaseChunkBinding] = {
+        (
+            str(row["rag_content_sha256"]),
+            str(chunk["chunk_id"]),
+            chunk["chunk_index"],
+            str(chunk["chunk_sha256"]),
+            chunk["page_start"],
+            chunk["page_end"],
+        )
+        for row in rows
+        for chunk in row["chunks"]
+    }
+    if observed_chunks != release_chunk_bindings:
+        extra = observed_chunks - release_chunk_bindings
+        missing = release_chunk_bindings - observed_chunks
+        raise BootstrapInventoryError(
+            "governed inventory chunk set differs from the exact sealed release chunk "
+            f"set (EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET={len(extra)}, "
+            f"SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET={len(missing)})"
+        )
     return build_resource_registry_bootstrap_inventory(
         rows,
         producer_repository=producer_repository,
@@ -566,6 +726,7 @@ def export_resource_registry_bootstrap_inventory(
 __all__ = [
     "BootstrapInventoryError",
     "EXPORT_SQL",
+    "ReleaseChunkBinding",
     "build_resource_registry_bootstrap_inventory",
     "export_resource_registry_bootstrap_inventory",
 ]
