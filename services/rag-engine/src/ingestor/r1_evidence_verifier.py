@@ -272,6 +272,58 @@ def _cross_check_profile_authority(
     )
 
 
+#: The R1G canonical chunk dimensions this verifier independently compares.
+#: ``chunk_sha256`` is deliberately excluded: it is checked once, DB-side, by
+#: the exporter's own pre-publication guard (``resource_registry_bootstrap
+#: .export_resource_registry_bootstrap_inventory``) and never travels in the
+#: ``BootstrapChunk`` contract (chunk_id + locator only) for this
+#: no-DB-access, static verifier to re-derive.
+CANONICAL_CHUNK_DIMENSIONS: tuple[str, ...] = (
+    "content_sha256",
+    "chunk_id",
+    "chunk_index",
+    "page_start",
+    "page_end",
+)
+
+
+def _expected_chunk_tuples(
+    registry: ReleaseRegistryExpectation,
+) -> tuple[set[tuple[Any, ...]], set[str]]:
+    tuples: set[tuple[Any, ...]] = set()
+    artifact_shas: set[str] = set()
+    for manifest in registry.manifests:
+        for artifact in manifest.expectation.artifacts:
+            artifact_shas.add(artifact.content_sha256)
+            for chunk in artifact.chunks:
+                tuples.add(
+                    (
+                        artifact.content_sha256,
+                        str(chunk["chunk_id"]),
+                        int(chunk["chunk_index"]),
+                        int(chunk["page_start"]),
+                        int(chunk["page_end"]),
+                    )
+                )
+    return tuples, artifact_shas
+
+
+def _actual_chunk_tuples(bootstrap: ResourceRegistryBootstrap) -> set[tuple[Any, ...]]:
+    tuples: set[tuple[Any, ...]] = set()
+    for resource in bootstrap.resources:
+        for chunk in resource.chunks:
+            tuples.add(
+                (
+                    resource.content_sha256,
+                    chunk.chunk_id,
+                    chunk.locator.chunk_index,
+                    chunk.locator.page_start,
+                    chunk.locator.page_end,
+                )
+            )
+    return tuples
+
+
 def _canonical_tuple(values: dict[str, Any]) -> tuple[Any, ...]:
     return tuple(values[field_name] for field_name in CANONICAL_PLACEMENT_FIELDS)
 
@@ -480,6 +532,17 @@ def verify_r1_evidence(
     exported_collections_minus_sealed = actual_collections - expected_collections
     sealed_collections_minus_exported = expected_collections - actual_collections
 
+    expected_chunk_tuples, expected_chunk_artifact_shas = _expected_chunk_tuples(registry)
+    actual_chunk_tuples = _actual_chunk_tuples(bootstrap)
+    exported_chunks_minus_sealed = actual_chunk_tuples - expected_chunk_tuples
+    sealed_chunks_minus_exported = expected_chunk_tuples - actual_chunk_tuples
+    out_of_release_chunks = {
+        chunk_tuple
+        for chunk_tuple in actual_chunk_tuples
+        if chunk_tuple[0] not in expected_chunk_artifact_shas
+    }
+    chunk_binding_pass = not exported_chunks_minus_sealed and not sealed_chunks_minus_exported
+
     resource_ids = {str(r.resource_id) for r in bootstrap.resources}
     resource_version_ids = {str(r.resource_version_id) for r in bootstrap.resources}
     content_sha256s = {r.content_sha256 for r in bootstrap.resources}
@@ -543,6 +606,14 @@ def verify_r1_evidence(
         ),
         "EXPORTED_PLACEMENT_SET_MINUS_SEALED_PLACEMENT_SET_COUNT": len(exported_minus_sealed),
         "SEALED_PLACEMENT_SET_MINUS_EXPORTED_PLACEMENT_SET_COUNT": len(sealed_minus_exported),
+        "R1_CANONICAL_CHUNK_DIMENSIONS": list(CANONICAL_CHUNK_DIMENSIONS),
+        "EXPECTED_CHUNK_TUPLES": len(expected_chunk_tuples),
+        "ACTUAL_CHUNK_TUPLES": len(actual_chunk_tuples),
+        "EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET": len(exported_chunks_minus_sealed),
+        "SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET": len(sealed_chunks_minus_exported),
+        "OUT_OF_RELEASE_CHUNKS": len(out_of_release_chunks),
+        "R1_BOOTSTRAP_CHUNK_IDENTITY_BINDING": "PASS" if chunk_binding_pass else "FAIL",
+        "R1_CHUNK_RELEASE_BINDING": "PASS" if chunk_binding_pass else "FAIL",
     }
     gates.update(_multiplacement_evidence(bootstrap))
 
@@ -573,6 +644,19 @@ def verify_r1_evidence(
         blockers.append(
             "SEALED_COLLECTIONS_MINUS_EXPORTED_COLLECTIONS="
             f"{sorted(sealed_collections_minus_exported)}"
+        )
+    if exported_chunks_minus_sealed:
+        # R1G: the bootstrap's own chunk set (chunk_id + locator, per
+        # artifact) disagrees with the sealed release's chunk authority --
+        # an extra, swapped, or otherwise unsealed chunk reached the
+        # bootstrap. Distinct from the placement-set checks above, which
+        # never looked below the artifact/collection level at all.
+        blockers.append(
+            f"EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET={len(exported_chunks_minus_sealed)}"
+        )
+    if sealed_chunks_minus_exported:
+        blockers.append(
+            f"SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET={len(sealed_chunks_minus_exported)}"
         )
     if collisions["CHUNK_ID_SHARED_ACROSS_RESOURCES_COUNT"]:
         blockers.append(
@@ -609,6 +693,7 @@ def verify_r1_evidence(
 
 
 __all__ = [
+    "CANONICAL_CHUNK_DIMENSIONS",
     "CANONICAL_PLACEMENT_FIELDS",
     "R1EvidenceReport",
     "R1EvidenceVerifierError",
