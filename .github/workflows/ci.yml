@@ -19,6 +19,22 @@ jobs:
       - run: python -m pytest packages/contracts/tests -q
       - run: python packages/contracts/scripts/export_schemas.py --output packages/contracts/schema --check
 
+  release-chain:
+    name: "packages/release-chain"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Ce paquet n'avait aucun job GitHub Actions : l'autorité de sélection de
+      # release, la liaison de déploiement et la séparation de l'extra PDF
+      # n'étaient éprouvées qu'en CI locale, donc nulle part sur une PR.
+      - run: pip install -e packages/contracts -e packages/pdf-page-policy -e packages/release-chain
+      - run: pip install pytest==9.1.1
+      - working-directory: packages/release-chain
+        run: python -m pytest -q tests
+
   pdf-page-policy:
     name: "packages/pdf-page-policy"
     runs-on: ubuntu-latest
