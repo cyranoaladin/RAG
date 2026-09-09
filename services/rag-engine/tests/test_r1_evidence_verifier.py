@@ -451,6 +451,7 @@ def _bootstrap_row(
                 "chunk_id": chunk_id,
                 "artifact_id": content_sha256,
                 "doc_id": content_sha256,
+                "chunk_sha256": CHUNK_SHA,
                 "chunk_index": 0,
                 "page_start": 1,
                 "page_end": 1,
@@ -583,6 +584,71 @@ def test_exact_release_passes(tmp_path: Path) -> None:
     assert report.gates["R1_PROFILE_RELEASE_SCOPE_CONSISTENCY"] == "PASS"
     assert report.gates["AUDIENCE_COMPARED_AGAINST_SEALED_AUTHORITY"] is True
     assert report.gates["R1_CANONICAL_PLACEMENT_DIMENSIONS"] == 11
+    assert report.gates["EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET"] == 0
+    assert report.gates["SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET"] == 0
+    assert report.gates["OUT_OF_RELEASE_CHUNKS"] == 0
+    assert report.gates["R1_BOOTSTRAP_CHUNK_IDENTITY_BINDING"] == "PASS"
+    assert report.gates["R1_CHUNK_RELEASE_BINDING"] == "PASS"
+    assert report.gates["R1_CANONICAL_CHUNK_DIMENSIONS"] == [
+        "content_sha256",
+        "chunk_id",
+        "chunk_index",
+        "page_start",
+        "page_end",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# R1G -- exact chunk-release binding, independently re-derived by the
+# verifier from the bootstrap file alone (no DB access), against the same
+# sealed ``ExpectedArtifact.chunks`` authority the exporter itself compares
+# DB rows to. The R1 pré-GO forensic reproduced acceptance of an extra and a
+# same-count swapped chunk against the pre-R1G verifier -- these are the
+# static-file-level proof that the fix actually changed ``ready``/blockers,
+# not merely computed unused gate values (the exact defect: BOOTSTRAP_CHUNKS
+# and DISTINCT_CHUNK_IDS were already in ``gates`` before R1G, but no
+# ``blockers.append`` call ever consulted them).
+# ---------------------------------------------------------------------------
+
+
+def test_extra_bootstrap_chunk_not_in_sealed_release_fails(tmp_path: Path) -> None:
+    registry_path, registry_sha, profile_root, manifest_path = _default_fixture(tmp_path)
+    row = _bootstrap_row()
+    row["chunks"] = [
+        *row["chunks"],
+        {**row["chunks"][0], "chunk_id": "9" * 64, "chunk_index": 1, "page_start": 2, "page_end": 2},
+    ]
+    bootstrap_path = _write_bootstrap(tmp_path, [row], name="bootstrap.json")
+
+    report = _verify(bootstrap_path, registry_path, registry_sha, profile_root, manifest_path)
+
+    assert report.ready is False
+    assert report.gates["EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET"] == 1
+    assert report.gates["SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET"] == 0
+    assert report.gates["R1_CHUNK_RELEASE_BINDING"] == "FAIL"
+    assert any(
+        blocker.startswith("EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET=")
+        for blocker in report.blockers
+    )
+
+
+def test_same_count_swapped_chunk_locator_fails(tmp_path: Path) -> None:
+    """|expected chunks| == |actual chunks| == 1, but the bootstrap's own
+    chunk asserts a different ``chunk_index`` than the sealed release
+    declares for that exact ``chunk_id`` -- a set-membership defect a bare
+    count comparison cannot see."""
+    registry_path, registry_sha, profile_root, manifest_path = _default_fixture(tmp_path)
+    row = _bootstrap_row()
+    row["chunks"][0]["chunk_index"] = 1
+    bootstrap_path = _write_bootstrap(tmp_path, [row], name="bootstrap.json")
+
+    report = _verify(bootstrap_path, registry_path, registry_sha, profile_root, manifest_path)
+
+    assert report.gates["EXPECTED_CHUNK_TUPLES"] == report.gates["ACTUAL_CHUNK_TUPLES"] == 1
+    assert report.ready is False
+    assert report.gates["EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET"] == 1
+    assert report.gates["SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET"] == 1
+    assert report.gates["R1_BOOTSTRAP_CHUNK_IDENTITY_BINDING"] == "FAIL"
 
 
 def test_missing_sealed_placement_fails(tmp_path: Path) -> None:
