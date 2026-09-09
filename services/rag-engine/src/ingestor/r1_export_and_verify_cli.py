@@ -93,6 +93,21 @@ def run_governed_attempt(
         for manifest in release_registry.manifests
         for artifact in manifest.expectation.artifacts
     )
+    # R1G: the same digest-verified ``ExpectedArtifact.chunks`` already
+    # parsed above -- no parallel JSON parsing, no filename heuristics.
+    release_chunk_bindings = frozenset(
+        (
+            artifact.content_sha256,
+            str(chunk["chunk_id"]),
+            int(chunk["chunk_index"]),
+            str(chunk["chunk_sha256"]),
+            int(chunk["page_start"]),
+            int(chunk["page_end"]),
+        )
+        for manifest in release_registry.manifests
+        for artifact in manifest.expectation.artifacts
+        for chunk in artifact.chunks
+    )
 
     generated_at = clock()
     try:
@@ -105,6 +120,7 @@ def run_governed_attempt(
                 package_version=metadata.version("nexus-contracts"),
                 release_collections=frozenset(release_registry.collections),
                 release_artifact_bindings=release_artifact_bindings,
+                release_chunk_bindings=release_chunk_bindings,
             )
     finally:
         # The DSN is never needed again in this process. Discarding both

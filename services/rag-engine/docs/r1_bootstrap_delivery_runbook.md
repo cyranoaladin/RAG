@@ -118,6 +118,47 @@ empty and the process exits non-zero. Step 1 below captures it with plain
 command substitution and checks the real exit code directly — no `eval`,
 no `grep`, no `cut`, no `source`, and no pipeline to mask a failure behind.
 
+## What changed in R1G, and why
+
+A pré-GO forensic pass adversarially reproduced, against the real R1F
+exporter and verifier code (no DB mocking, no reimplementation), that an
+extra, a missing, or a same-cardinality swapped chunk on an already-sealed
+artifact all reached `export_resource_registry_bootstrap_inventory`
+unrefused and still produced `R1_EVIDENCE_READY=YES` from
+`verify_r1_evidence`. `R1_CHUNK_RELEASE_BINDING_GAP=CONFIRMED`.
+
+**The exporter proved WHICH artifacts were reachable, never WHICH chunks the
+DB actually held for them.** `export_resource_registry_bootstrap_inventory`'s
+`observed_bindings` guard is a set of `(collection, content_sha256)` pairs —
+it can only ever refuse a wrong *placement* universe. A chunk added,
+deleted, or substituted for a sealed artifact leaves that set completely
+untouched. `EXPORT_SQL` and `_ChunkRow` now also carry `chunk_sha256` (never
+exposed in the `BootstrapChunk` contract itself — checked once, DB-side,
+then discarded), and the exporter compares the DB's real
+`(content_sha256, chunk_id, chunk_index, chunk_sha256, page_start,
+page_end)` tuples against the sealed release's own chunk authority — the
+same digest-verified `ExpectedArtifact.chunks` `load_release_registry_file`
+already parses, reused as-is — before the bootstrap is ever built.
+
+**The verifier computed the numbers but never looked at them.** `gates`
+already carried `BOOTSTRAP_CHUNKS` and `DISTINCT_CHUNK_IDS` before R1G; no
+`blockers.append` call ever consulted either one. `verify_r1_evidence` now
+independently re-derives the same sealed chunk authority from the bootstrap
+file and the release registry alone (no DB access, no trust of the
+exporter's own check) and compares
+`(content_sha256, chunk_id, chunk_index, page_start, page_end)` — every
+dimension `BootstrapChunk` actually carries — refusing readiness on any
+`EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET` or
+`SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET`.
+
+A chunk reattributed to a placement outside the sealed release
+(`_validated_chunks`'s `_scope_tuple(chunk) in placement_scopes` check) was
+already refused before R1G and remains unchanged.
+
+No `ResourceRegistryBootstrap` contract change: `chunk_sha256` stops at the
+producer's own pre-publication check and the verifier's independent
+re-derivation, exactly as `chunk_id`/`locator` already did.
+
 ## Scope
 
 Delivers **R1 only**: the governed `ResourceRegistryBootstrap` artifact for

@@ -172,7 +172,19 @@ class _ReleaseRegistry:
                             type(
                                 "Artifact",
                                 (),
-                                {"collection": "terminale_maths", "content_sha256": SHA_A},
+                                {
+                                    "collection": "terminale_maths",
+                                    "content_sha256": SHA_A,
+                                    "chunks": (
+                                        {
+                                            "chunk_id": "chunk-001",
+                                            "chunk_index": 0,
+                                            "chunk_sha256": SHA_B,
+                                            "page_start": 1,
+                                            "page_end": 1,
+                                        },
+                                    ),
+                                },
                             )(),
                         )
                     },

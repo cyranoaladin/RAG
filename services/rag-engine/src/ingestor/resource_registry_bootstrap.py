@@ -54,6 +54,7 @@ class _ChunkRow(StrictBaseModel):
     chunk_id: str = Field(min_length=1)
     artifact_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     doc_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    chunk_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     chunk_index: int = Field(ge=0)
     page_start: int | None = Field(default=None, ge=1)
     page_end: int | None = Field(default=None, ge=1)
@@ -208,6 +209,7 @@ JOIN LATERAL (
                 'chunk_id', c.chunk_id,
                 'artifact_id', c.artifact_id,
                 'doc_id', c.doc_id,
+                'chunk_sha256', c.chunk_sha256,
                 'chunk_index', c.chunk_index,
                 'page_start', c.page_start,
                 'page_end', c.page_end,
@@ -581,6 +583,22 @@ def build_resource_registry_bootstrap_inventory(
     return seal_resource_registry_bootstrap(payload)
 
 
+#: The canonical, digest-verified identity of one sealed-release chunk:
+#: (content_sha256, chunk_id, chunk_index, chunk_sha256, page_start, page_end).
+#: This is the R1G authority tuple -- see ``resource_registry_bootstrap_cli``
+#: for how it is derived, without re-parsing, from
+#: ``ingestor.release_readiness.ExpectedArtifact.chunks``.
+ReleaseChunkBinding = tuple[str, str, int, str, int, int]
+
+
+def _release_chunk_owner(binding: ReleaseChunkBinding) -> str:
+    return binding[0]
+
+
+def _release_chunk_id(binding: ReleaseChunkBinding) -> str:
+    return binding[1]
+
+
 def export_resource_registry_bootstrap_inventory(
     connection: psycopg.Connection[Any],
     *,
@@ -590,6 +608,7 @@ def export_resource_registry_bootstrap_inventory(
     package_version: str,
     release_collections: frozenset[str],
     release_artifact_bindings: frozenset[tuple[str, str]],
+    release_chunk_bindings: frozenset[ReleaseChunkBinding],
 ) -> ResourceRegistryBootstrap:
     """Read both schemas through one repeatable, read-only PostgreSQL snapshot."""
 
@@ -605,6 +624,44 @@ def export_resource_registry_bootstrap_inventory(
     release_artifact_sha256s = frozenset(
         digest for _collection, digest in release_artifact_bindings
     )
+    if not release_chunk_bindings:
+        raise BootstrapInventoryError("release registry chunk bindings are required")
+    chunk_binding_by_id: dict[str, ReleaseChunkBinding] = {}
+    for binding in release_chunk_bindings:
+        content_sha256, chunk_id, chunk_index, chunk_sha256, page_start, page_end = binding
+        if (
+            not re.fullmatch(r"[0-9a-f]{64}", content_sha256)
+            or not chunk_id
+            or not isinstance(chunk_index, int)
+            or isinstance(chunk_index, bool)
+            or chunk_index < 0
+            or not re.fullmatch(r"[0-9a-f]{64}", chunk_sha256)
+            or not isinstance(page_start, int)
+            or isinstance(page_start, bool)
+            or page_start < 1
+            or not isinstance(page_end, int)
+            or isinstance(page_end, bool)
+            or page_end < page_start
+        ):
+            raise BootstrapInventoryError("release registry chunk bindings are malformed")
+        # ``load_release_registry_file`` already refuses a chunk_id reused
+        # under a different owning content_sha256 or a different payload
+        # WITHIN one manifest (``_require_consistent_shared_chunks``) and
+        # across manifests (artifacts cannot collide across manifests, so
+        # neither can their chunks) -- this is deliberate defense in depth
+        # for a caller that builds the set some other way, not a trust of
+        # the loader alone: a sealed release chunk authority that disagrees
+        # with itself is refused here too, never silently deduplicated.
+        existing = chunk_binding_by_id.get(chunk_id)
+        if existing is not None and existing != binding:
+            raise BootstrapInventoryError(
+                f"sealed release chunk authority conflict for chunk_id={chunk_id!r}"
+            )
+        chunk_binding_by_id[chunk_id] = binding
+    if {_release_chunk_owner(binding) for binding in release_chunk_bindings} - (
+        release_artifact_sha256s
+    ):
+        raise BootstrapInventoryError("release chunk binding uses an unknown artifact")
     with connection.transaction():
         with connection.cursor(row_factory=dict_row) as cursor:
             cursor.execute(
@@ -632,6 +689,35 @@ def export_resource_registry_bootstrap_inventory(
         raise BootstrapInventoryError(
             "governed inventory differs from the exact promoted release artifact bindings"
         )
+    # R1G: the placement-bindings guard above proves WHICH (collection,
+    # artifact) pairs are reachable, never WHICH chunks the DB actually
+    # holds for them. A chunk added, removed, or swapped for a sealed
+    # artifact leaves ``observed_bindings`` untouched (it is keyed by
+    # placement, not by chunk) and previously reached the bootstrap
+    # unnoticed. This compares the DB's real chunk rows -- including
+    # ``chunk_sha256``, which never travels in ``BootstrapChunk`` itself --
+    # against the sealed release's own chunk authority, before the
+    # bootstrap is ever built.
+    observed_chunks: set[ReleaseChunkBinding] = {
+        (
+            str(row["rag_content_sha256"]),
+            str(chunk["chunk_id"]),
+            chunk["chunk_index"],
+            str(chunk["chunk_sha256"]),
+            chunk["page_start"],
+            chunk["page_end"],
+        )
+        for row in rows
+        for chunk in row["chunks"]
+    }
+    if observed_chunks != release_chunk_bindings:
+        extra = observed_chunks - release_chunk_bindings
+        missing = release_chunk_bindings - observed_chunks
+        raise BootstrapInventoryError(
+            "governed inventory chunk set differs from the exact sealed release chunk "
+            f"set (EXPORTED_CHUNK_SET_MINUS_SEALED_CHUNK_SET={len(extra)}, "
+            f"SEALED_CHUNK_SET_MINUS_EXPORTED_CHUNK_SET={len(missing)})"
+        )
     return build_resource_registry_bootstrap_inventory(
         rows,
         producer_repository=producer_repository,
@@ -644,6 +730,7 @@ def export_resource_registry_bootstrap_inventory(
 __all__ = [
     "BootstrapInventoryError",
     "EXPORT_SQL",
+    "ReleaseChunkBinding",
     "build_resource_registry_bootstrap_inventory",
     "export_resource_registry_bootstrap_inventory",
 ]
