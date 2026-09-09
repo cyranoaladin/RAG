@@ -803,6 +803,23 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
 
     bff_token = secrets.token_urlsafe(48)
     identity_secret = secrets.token_urlsafe(48)
+    # The app's own startup lifespan (`_validate_runtime_authorities` ->
+    # `load_api_clients`) refuses to boot without a syntactically valid API
+    # client registry, independently of the BFF/identity headers this test's
+    # own search probe actually authenticates with. Generated fresh per run,
+    # exactly like every other secret below -- never a real credential.
+    api_client_token = secrets.token_urlsafe(32)
+    api_clients_registry = json.dumps(
+        [
+            {
+                "client_id": "multilevel-real-ingestion-rehearsal",
+                "token_sha256": hashlib.sha256(
+                    api_client_token.encode("utf-8")
+                ).hexdigest(),
+                "scopes": ["rag:search"],
+            }
+        ]
+    )
     token_issuer = "multilevel-http-bff"
     token_audience = "multilevel-rag-engine"
     identity_issuer = "multilevel-nexus-sso"
@@ -817,10 +834,12 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
     child_env.pop("RAG_RELEASE_MANIFEST_PATH", None)
     child_env.pop("RAG_RELEASE_MANIFEST_SHA256", None)
     child_env.pop("RAG_RELEASE_MANIFESTS_JSON", None)
+    child_env.pop("RAG_API_CLIENTS_FILE", None)
     child_env.update(
         {
             "PYTHONPATH": str(ENGINE_ROOT),
             "RAG_ENV": "production",
+            "RAG_API_CLIENTS": api_clients_registry,
             "RAG_BFF_SERVICE_TOKEN": bff_token,
             "NEXUS_INTERNAL_TOKEN_SECRET": identity_secret,
             "NEXUS_INTERNAL_TOKEN_ISSUER": token_issuer,
