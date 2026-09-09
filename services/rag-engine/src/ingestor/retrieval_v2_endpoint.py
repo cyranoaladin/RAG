@@ -466,11 +466,11 @@ def _configured_release_registry() -> ReleaseRegistryExpectation | None:
     """
     try:
         selection = select_release_authority()
+        if selection is None:
+            return None
+        return load_selected_release_registry(selection)
     except DeploymentBindingError as exc:
         raise ReleaseReadinessError(str(exc)) from exc
-    if selection is None:
-        return None
-    return load_selected_release_registry(selection)
 
 
 def configured_release_model_contract() -> tuple[str, str, int, str, str] | None:

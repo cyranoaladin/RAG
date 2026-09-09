@@ -53,7 +53,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from nexus_release_chain.deployment_binding import (  # noqa: E402
-    REGISTRY_PATH_ENV,
     RELEASE_AUTHORITY_REGISTRY_FILE,
     DeploymentBindingError,
     ReleaseAuthoritySelection,
@@ -126,13 +125,13 @@ def racine_gouvernee_pour(mode: str, registre: Path) -> Path:
         # est censée contrôler ne contrôle rien.
         if not registre.is_absolute():
             raise PromotedContentSetError(
-                f"{REGISTRY_PATH_ENV} : {registre.as_posix()} n'est pas absolu — "
+                f"chemin de déploiement : {registre.as_posix()} n'est pas absolu — "
                 "un déploiement désigne un chemin monté, pas un chemin relatif "
                 "au répertoire courant du processus"
             )
         if ".." in registre.parts:
             raise PromotedContentSetError(
-                f"{REGISTRY_PATH_ENV} : {registre.as_posix()} remonte hors de "
+                f"chemin de déploiement : {registre.as_posix()} remonte hors de "
                 "son propre répertoire — la racine gouvernée en serait dérivée, "
                 "et la borne serait vraie par construction. Déclarez "
                 f"{GOVERNED_ROOT_ENV} si le montage est ailleurs."
@@ -203,7 +202,7 @@ def _empreinte_attendue(resolu: Path, fournie: str | None) -> str:
         return fournie
     if _un_deploiement_parle():
         raise PromotedContentSetError(
-            "un déploiement désigne un registre mais aucune empreinte n'a été "
+            "un déploiement désigne des releases mais aucune empreinte n'a été "
             "transmise — le calculer ici ferait du fichier observé sa propre "
             "autorité"
         )
