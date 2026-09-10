@@ -1,0 +1,8 @@
+{
+  "kind": "NEXUS-EXPECTED-WORKTREES-V1",
+  "note": "Un worktree n est legitime que s il est NOMME ici, ou s il est le checkout principal, ou s il est temporaire a une session. Tout autre est obsolete. Nommer plutot que deviner : un chemin machine-local dans du code versionne ne survit pas au premier autre poste.",
+  "expected_basenames": {
+    "gate-closure-h2c-multilevel": "session H2-C externe, PR #167 et #168 ouvertes. Ni son worktree ni ses processus ne sont touches."
+  },
+  "session_temporary_path_marker": "/scratchpad/"
+}

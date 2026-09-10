@@ -1,3 +1,12 @@
+> **HISTORIQUE.** Ce rapport decrit l etat observe au commit
+> `3f0317e91c9ac8eff8ff1089d100a25f7c875793`. Il n est PAS la source de verite
+> du go-live et ne doit pas etre lu comme telle.
+>
+> La source unique est calculee par
+> `scripts/go_live/check_go_live_readiness.py` et publiee dans
+> `docs/reports/go_live/go_live_readiness_state.json`, dont
+> `docs/reports/go_live/GO_LIVE_READINESS.md` est la projection lisible.
+
 # Master Go-Live State — candidat profils production
 
 Ce document remplace l'interprétation historique « final eligible = 72 » par

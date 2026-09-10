@@ -1,0 +1,57 @@
+{
+  "kind": "NEXUS-OPEN-PR-DISPOSITIONS-V1",
+  "observed_at_main_sha": "0c0548ea113ab73c05cc11da5cfda55b8e05b24b",
+  "note": "Chaque disposition est justifiee par une mesure, jamais par une intuition. Une PR sans disposition est UNKNOWN et bloque le gate, par construction.",
+  "dispositions": {
+    "98": {
+      "disposition": "BLOCKING",
+      "reason": "Introduit une autorisation V1 dans governance/authorizations/, repertoire ABSENT de main. Elle ne mettrait pas a jour une autorite, elle en creerait une en V1 au moment ou la cible est V2. Doit etre reportee en V2 ou fermee sur decision humaine.",
+      "measured": "GOVERNANCE_AUTHORIZATIONS_DIR_ON_MAIN=0 ; PR_ADDS_V1_AUTHORIZATIONS=1"
+    },
+    "132": {
+      "disposition": "BLOCKING",
+      "reason": "Repetition de deploiement Docker et rollback. Le mecanisme de rollback est un GO_LIVE_QUALIFICATION_BLOCKER : tant qu il n est ni porte ni remplace, il manque au go-live.",
+      "measured": "UNIQUE_FILES=10 ; ROLLBACK_MECHANISM_ON_MAIN=absent"
+    },
+    "134": {
+      "disposition": "BLOCKING",
+      "reason": "18 autorisations V1 dans un repertoire absent de main. Meme motif que #98, a plus grande echelle.",
+      "measured": "GOVERNANCE_AUTHORIZATIONS_DIR_ON_MAIN=0 ; PR_ADDS_V1_AUTHORIZATIONS=18"
+    },
+    "135": {
+      "disposition": "CLOSE_SUPERSEDED",
+      "reason": "Rapport de baseline go-live du 25/08, supersede par le rapport pilote courant et par le present etat calcule. Un seul fichier, aucune donnee unique encore requise.",
+      "measured": "PR_FILES=1 ; UNIQUE_FILES=1 ; SUPERSEDED_BY=docs/reports/go_live/GO_LIVE_READINESS.md"
+    },
+    "138": {
+      "disposition": "BLOCKING",
+      "reason": "Porte une semantique de rescellement en place, interdite par ADR-0050, et trois numeros d ADR deja pris sur main par des decisions sans rapport. Sa base n est pas main.",
+      "measured": "ADR_NUMBER_COLLISIONS=3 ; BASE_REF!=main"
+    },
+    "139": {
+      "disposition": "MERGE_CANDIDATE",
+      "reason": "Porte le registre de reservation de numeros d ADR et son controle CI, qui corrigent un defaut PRESENT sur main : ADR-0046 y designe deux decisions distinctes. Aucun conflit, aucune autorite concurrente.",
+      "measured": "ADR_FILES_ON_MAIN=51 ; ADR_DISTINCT_NUMBERS=50 ; ADR_0046_USED_TWICE=yes"
+    },
+    "140": {
+      "disposition": "BLOCKING",
+      "reason": "Quatre numeros d ADR entrent en collision avec des decisions fusionnees sur main. La fusion serait PROPRE pour git — les noms de fichiers different — et la collision ne se verrait qu apres coup. En conflit avec main par ailleurs.",
+      "measured": "ADR_NUMBER_COLLISIONS=4 ; mergeable=CONFLICTING ; UNIQUE_FILES=338"
+    },
+    "151": {
+      "disposition": "BLOCKING",
+      "reason": "Trois modules runtime uniques, absents de main. Non supersedee, contrairement a ce que le plan supposait. Porte aussi deux artefacts a deposer dans un repertoire de release deja publie, ce qui reste a trancher.",
+      "measured": "UNIQUE_CODE_FILES=3 ; SUPERSEDED_BY_PR174=false"
+    },
+    "167": {
+      "disposition": "KEEP_OPEN_EXTERNAL_REVIEW",
+      "reason": "Ferme le gate 2 de la session H2-C externe. Une seule epreuve d integration modifiee. Ni son worktree ni ses processus ne sont touches par cette session.",
+      "measured": "PR_FILES=1 ; DIFF_VS_MAIN=+25/-4 ; OWNER=session H2-C externe"
+    },
+    "168": {
+      "disposition": "KEEP_OPEN_EXTERNAL_REVIEW",
+      "reason": "Ferme le gate 3 de la session H2-C externe. Une seule epreuve d integration modifiee.",
+      "measured": "PR_FILES=1 ; DIFF_VS_MAIN=+3/-3 ; OWNER=session H2-C externe"
+    }
+  }
+}
