@@ -423,8 +423,12 @@ def test_unreachable_source_audit_names_the_corpus_it_did_not_verify(
         {**_v2_placement_rows()[1], "content_sha256": "b" * 64},
     ]
 
+    # ADR-0050 : plus de repli implicite. Cette épreuve porte sur le corpus
+    # HISTORIQUE, elle le nomme donc explicitement.
     audit, network_rows = builder.resolve_currentness_network_audit(
-        rows, verify_official_downloads=False
+        rows,
+        verify_official_downloads=False,
+        release_id=builder.HISTORICAL_RELEASE_ID,
     )
 
     assert network_rows == []
@@ -1508,6 +1512,9 @@ def test_v2_release_scope_separates_unique_final_set_from_placements(
         matrix=matrix,
         profiles=profiles,
         profile_manifest_digest=V2_PROFILE_DIGEST,
+        # La portée nomme la release produite : cette épreuve reconstruit la
+        # portée historique, elle la nomme donc explicitement (ADR-0050).
+        release_id=builder.HISTORICAL_RELEASE_ID,
     )
 
     assert final_set_raw.decode("utf-8").splitlines() == [V2_ARTIFACT_SHA]
