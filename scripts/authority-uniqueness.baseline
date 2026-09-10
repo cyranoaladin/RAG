@@ -28,6 +28,13 @@ MATRIX_READER	services/rag-pedago/scripts/construire_matrice_servabilite.py
 # sont pires qu une seule imparfaite.
 AUTHORIZATION_V2_PRODUCER	packages/release-chain/src/nexus_release_chain/authorization_v2_producer.py
 
+# --- R4b : chargeur d autorisation ----------------------------------------
+# EXACTEMENT un chargeur. Il accepte les deux protocoles et prefere la V2 ; il
+# ne verifie rien. Neuf consommateurs qui choisiraient chacun entre V1 et V2
+# finiraient par ne pas choisir pareil, et le meme document serait autorise ici
+# et refuse la.
+AUTHORIZATION_LOADER	packages/contracts/src/nexus_contracts/authorization_loader.py
+
 # --- R5 : selection de release --------------------------------------------
 # select_release_authority est le mecanisme contractuel.
 # compute_promoted_content_set.py superpose une SECONDE matrice de

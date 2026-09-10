@@ -84,6 +84,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import deployment_image_inventory as dii  # noqa: E402
 import sign_production_readiness_manifest_cli as signer  # noqa: E402
 import verify_release_image_provenance_cli as vri  # noqa: E402
+from nexus_contracts.authorization_loader import (  # noqa: E402
+    load_authorization_set,
+)
 from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessError,
     ProductionReadinessManifestV1,
@@ -494,9 +497,12 @@ def materialize_verified_bundle(
             _VERIFIED_PROFILES_BUNDLE_NAME: (
                 json.dumps(
                     {
-                        "profile_manifest_digest": signer.parse_authorization_set(
+                        # Chargeur canonique. `profile_manifest_digest` est
+                        # commun aux deux protocoles : ce site accepte donc un
+                        # document V2 sans changer ce qu il publie.
+                        "profile_manifest_digest": load_authorization_set(
                             v2_release_material.authorization_set_raw
-                        ).profile_manifest_digest,
+                        ).authorization_set.profile_manifest_digest,
                         "profiles": [
                             fact.model_dump(mode="json")
                             for fact in v2_release_material.verified_profiles
@@ -1571,7 +1577,9 @@ def _load_v2_release_material_from_bundle(
     authorization_set_raw = read(_AUTHORIZATION_SET_BUNDLE_NAME)
     h2_coverage_raw = read(_H2_COVERAGE_BUNDLE_NAME)
     try:
-        authorization_set = signer.parse_authorization_set(authorization_set_raw)
+        authorization_set = load_authorization_set(
+            authorization_set_raw
+        ).authorization_set
         h2_coverage = signer.parse_h2_coverage_evidence_v2(h2_coverage_raw)
     except (signer.AuthorizationSetError, signer.H2CoverageEvidenceError) as exc:
         raise DeploymentWrapperError(f"V2 bundle mappings cannot be derived: {exc}") from exc

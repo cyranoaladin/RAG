@@ -128,9 +128,9 @@ def _write_runtime_material_root(
         "verified-profiles.json": (
             json.dumps(
                 {
-                    "profile_manifest_digest": signer.parse_authorization_set(
+                    "profile_manifest_digest": signer.load_authorization_set(
                         material.authorization_set_raw
-                    ).profile_manifest_digest,
+                    ).authorization_set.profile_manifest_digest,
                     "profiles": [
                         fact.model_dump(mode="json") for fact in material.verified_profiles
                     ],
@@ -243,7 +243,7 @@ def test_runtime_context_rereads_revocations_bindings_and_expiry(
     readiness.write_bytes(original_readiness)
     readiness.chmod(0o444)
 
-    member = signer.parse_authorization_set(material.authorization_set_raw).members[0]
+    member = signer.load_authorization_set(material.authorization_set_raw).authorization_set.members[0]
     binding = root / "release-material" / member.review_binding_path
     original_binding = binding.read_bytes()
     binding.write_bytes(b"{}\n")
@@ -367,7 +367,7 @@ def test_v2_startup_refuses_invalid_live_authority_material(
                 {
                     "protocol_version": "NEXUS-AUTHORIZATION-REVOCATIONS-V1",
                     "revoked_authorization_ids": [
-                        next(iter(signer.parse_authorization_set(material.authorization_set_raw).members)).authorization_id
+                        next(iter(signer.load_authorization_set(material.authorization_set_raw).authorization_set.members)).authorization_id
                     ],
                 },
                 sort_keys=True,
