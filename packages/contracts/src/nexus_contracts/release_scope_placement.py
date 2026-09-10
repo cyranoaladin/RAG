@@ -17,9 +17,12 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol, cast
 
+from pydantic import ValidationError
+
 from nexus_contracts.authorization_set import (
     ReleaseScopePlacementEntryV1,
     ReleaseScopePlacementV1,
+    ReleaseScopePlacementV2,
     VerifiedProfileFactV1,
     scope_digest,
 )
@@ -36,7 +39,6 @@ from nexus_contracts.profile_manifest import (
     strict_yaml_mapping,
     validate_production_profile_manifest,
 )
-from pydantic import ValidationError
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -77,6 +79,22 @@ class VerifiedReleaseScopePlacement:
     """Projection produite uniquement depuis un ensemble de blobs gelés."""
 
     placement: ReleaseScopePlacementV1
+    verified_profile_facts: tuple[VerifiedProfileFactV1, ...]
+    input_blob_sha256: Mapping[str, str]
+
+
+@dataclass(frozen=True)
+class ProducedReleaseScopePlacementV2:
+    placement: ReleaseScopePlacementV2
+    verified_profile_facts: tuple[VerifiedProfileFactV1, ...]
+    provenance: ReleaseScopePlacementProvenance
+
+
+@dataclass(frozen=True)
+class VerifiedReleaseScopePlacementV2:
+    """Projection V2 produite uniquement depuis un ensemble de blobs gelés."""
+
+    placement: ReleaseScopePlacementV2
     verified_profile_facts: tuple[VerifiedProfileFactV1, ...]
     input_blob_sha256: Mapping[str, str]
 
@@ -354,14 +372,23 @@ def _validated_matrix_partitions(
     proposal_matrix: Any,
     *,
     expected_content_sha256: set[str],
+    require_content_uniqueness: bool = True,
 ) -> tuple[_MatrixPartition, ...]:
-    """Valide d'abord couverture/décisions, puis les scopes représentables."""
+    """Valide d'abord couverture/décisions, puis les scopes représentables.
+
+    ``require_content_uniqueness`` (V1, par défaut) refuse qu'un contenu
+    apparaisse dans deux partitions distinctes -- un seul placement par
+    contenu. En V2, un contenu multi-placé gouverne légitimement plusieurs
+    partitions (une par collection) ; l'anti-doublon devient alors une
+    identité de LIAISON (content_sha256, collection déclarée par la
+    partition), jamais le contenu seul."""
     if not isinstance(proposal_matrix, list) or not proposal_matrix:
         raise _fail("INVALID_PROPOSAL_MATRIX", "top-level value must be a non-empty list")
 
     scope_fields = set(ResourceScope.model_fields)
     seen_partition_ids: set[str] = set()
     seen_contents: set[str] = set()
+    seen_bindings: set[tuple[str, str]] = set()
     raw_partitions: list[
         tuple[
             str,
@@ -422,13 +449,34 @@ def _validated_matrix_partitions(
                 "MATRIX_DUPLICATE_CONTENT",
                 f"partition {partition_id!r} repeats a content",
             )
-        overlap = seen_contents.intersection(typed_contents)
-        if overlap:
-            raise _fail(
-                "MATRIX_DUPLICATE_CONTENT",
-                f"contents occur in multiple partitions: {sorted(overlap)}",
+        if require_content_uniqueness:
+            overlap = seen_contents.intersection(typed_contents)
+            if overlap:
+                raise _fail(
+                    "MATRIX_DUPLICATE_CONTENT",
+                    f"contents occur in multiple partitions: {sorted(overlap)}",
+                )
+            seen_contents.update(typed_contents)
+        else:
+            # V2: a content may legitimately govern several partitions --
+            # one per collection it is actually placed in. The anti-
+            # duplicate identity becomes the BINDING (content, collection),
+            # never the content alone.
+            partition_collection = (
+                dimensions.get("collection", {}).get("value")
+                if isinstance(dimensions, Mapping) and isinstance(dimensions.get("collection"), Mapping)
+                else None
             )
-        seen_contents.update(typed_contents)
+            bindings = {(content, partition_collection) for content in typed_contents}
+            overlap_bindings = seen_bindings.intersection(bindings)
+            if overlap_bindings:
+                raise _fail(
+                    "MATRIX_DUPLICATE_CONTENT",
+                    f"(content, collection) bindings occur in multiple partitions: "
+                    f"{sorted(overlap_bindings)}",
+                )
+            seen_bindings.update(bindings)
+            seen_contents.update(typed_contents)
         if type(decision_required) is not bool:
             raise _fail(
                 "INVALID_PROPOSAL_MATRIX",
@@ -690,6 +738,182 @@ def _compose_release_scope_placement(
         raise _fail("INVALID_PROJECTION", str(exc)) from exc
 
 
+def _compose_release_scope_placement_v2(
+    *,
+    accepted_placements: Sequence[Mapping[str, Any]],
+    release_registry: Mapping[str, Any],
+    verified_profiles: Sequence[VerifiedProfileFactV1 | Mapping[str, Any]],
+    profile_proposal_matrix: Any,
+    profile_manifest_digest: str,
+    expected_content_sha256: Iterable[str],
+    profile_source_loader: Callable[[str], CollectionProfile],
+    evidence_blob_loader: Callable[[str], bytes],
+    profile_source_path_by_identity: Mapping[tuple[str, str], str],
+) -> ReleaseScopePlacementV2:
+    """V2, additive à ``_compose_release_scope_placement`` : un
+    ``content_sha256`` PEUT porter plusieurs placements légitimes, un par
+    scope LOT41A distinct qu'il occupe réellement. L'identité qui doit
+    rester unique n'est donc plus le contenu seul mais la LIAISON
+    (content_sha256, collection) -- deux placements identiques pour la
+    même liaison restent un doublon strict, jamais un second placement."""
+    releases = _release_collections(release_registry)
+    expected = _sha_set(expected_content_sha256, label="expected content set")
+    matrix_partitions = _validated_matrix_partitions(
+        profile_proposal_matrix,
+        expected_content_sha256=expected,
+        require_content_uniqueness=False,
+    )
+    for partition in matrix_partitions:
+        for evidence_path in partition.evidence_paths:
+            evidence_blob_loader(evidence_path)
+    profiles = _profile_index(verified_profiles)
+    entries_by_binding: dict[tuple[str, str], ReleaseScopePlacementEntryV1] = {}
+    identity_by_binding: dict[tuple[str, str], tuple[str, str, str]] = {}
+
+    for index, placement in enumerate(accepted_placements):
+        if not isinstance(placement, Mapping):
+            raise _fail("INVALID_PLACEMENT", f"placement #{index} must be an object")
+        content_sha256 = placement.get("content_sha256")
+        release_id = placement.get("release_id")
+        collection = placement.get("collection")
+        profile_version = placement.get("profile_version")
+        if not isinstance(content_sha256, str) or _HEX64.fullmatch(content_sha256) is None:
+            raise _fail("INVALID_CONTENT_SHA256", f"placement #{index} has invalid content")
+        if not all(
+            isinstance(value, str) and value for value in (release_id, collection, profile_version)
+        ):
+            raise _fail("INVALID_PLACEMENT", f"placement #{index} is incomplete")
+        release_id = cast(str, release_id)
+        collection = cast(str, collection)
+        profile_version = cast(str, profile_version)
+        identity = (release_id, collection, profile_version)
+        binding = (content_sha256, collection)
+        previous = identity_by_binding.get(binding)
+        if previous is not None:
+            raise _fail(
+                "DUPLICATE_PLACEMENT",
+                f"content {content_sha256} repeats the exact same placement "
+                f"(collection {collection!r}) -- this is a duplicate of one "
+                "placement, not a second legitimate one",
+            )
+        identity_by_binding[binding] = identity
+
+        accepted_collections = releases.get(release_id)
+        if accepted_collections is None:
+            raise _fail("UNKNOWN_RELEASE", f"release_id {release_id!r} is not registered")
+        if collection not in accepted_collections:
+            raise _fail(
+                "UNACCEPTED_COLLECTION",
+                f"collection {collection!r} is not in release {release_id!r}",
+            )
+        profile = profiles.get((collection, profile_version))
+        if profile is None:
+            raise _fail(
+                "UNKNOWN_PROFILE",
+                f"profile {(collection, profile_version)!r} was not verified",
+            )
+        entries_by_binding[binding] = ReleaseScopePlacementEntryV1(
+            content_sha256=content_sha256,
+            profile_id=profile.profile_id,
+            profile_version=profile.profile_version,
+            profile_fingerprint=profile.profile_fingerprint,
+            scope=profile.scope,
+        )
+
+    actual = {content for content, _ in entries_by_binding}
+    missing = sorted(expected - actual)
+    if missing:
+        raise _fail("MISSING_CONTENT", f"missing {len(missing)} contents: {missing}")
+    extra = sorted(actual - expected)
+    if extra:
+        raise _fail("EXTRA_CONTENT", f"unexpected {len(extra)} contents: {extra}")
+
+    registry_school_year = release_registry.get("school_year")
+    if not isinstance(registry_school_year, str) or not registry_school_year:
+        raise _fail("INVALID_RELEASE_REGISTRY", "release registry has no school_year")
+    for partition in matrix_partitions:
+        # A partition is scoped to exactly one collection (its own
+        # `scope.collection`) -- select the bindings it actually governs by
+        # that collection, never by content alone (a shared content may
+        # also appear under an entirely different partition/collection).
+        partition_bindings = [
+            (content, partition.scope.collection) for content in partition.content_sha256
+        ]
+        missing_bindings = [b for b in partition_bindings if b not in identity_by_binding]
+        if missing_bindings:
+            raise _fail(
+                "MATRIX_PROFILE_MISMATCH",
+                f"partition {partition.partition_id!r} names bindings not present "
+                f"in accepted placements: {missing_bindings!r}",
+            )
+        selected_identities = {identity_by_binding[b] for b in partition_bindings}
+        selected_profiles = {
+            (collection, profile_version) for _, collection, profile_version in selected_identities
+        }
+        selected_releases = {release_id for release_id, _, _ in selected_identities}
+        if len(selected_profiles) != 1 or len(selected_releases) != 1:
+            raise _fail(
+                "MATRIX_PROFILE_MISMATCH",
+                f"partition {partition.partition_id!r} does not select one profile/release",
+            )
+        collection, profile_version = next(iter(selected_profiles))
+        if partition.scope.collection != collection:
+            raise _fail(
+                "MATRIX_PROFILE_MISMATCH",
+                f"partition {partition.partition_id!r} names collection "
+                f"{partition.scope.collection!r}, placement selects {collection!r}",
+            )
+        selected_profile = profiles[(collection, profile_version)]
+        expected_profile_source = profile_source_path_by_identity.get((collection, profile_version))
+        if expected_profile_source is None:
+            raise _fail(
+                "MISSING_PROFILE_SOURCE",
+                f"profile {(collection, profile_version)!r} has no governed source",
+            )
+        if partition.scope.school_year != registry_school_year:
+            raise _fail(
+                "MATRIX_RELEASE_MISMATCH",
+                f"partition {partition.partition_id!r} school_year differs from registry",
+            )
+        if scope_digest(partition.scope) != scope_digest(selected_profile.scope):
+            raise _fail(
+                "MATRIX_SCOPE_MISMATCH",
+                f"partition {partition.partition_id!r} differs from selected profile scope",
+            )
+        for source_path in partition.source_paths:
+            if source_path != expected_profile_source:
+                raise _fail(
+                    "MATRIX_PROFILE_SOURCE_MISMATCH",
+                    f"partition {partition.partition_id!r} source {source_path!r} "
+                    f"differs from governed source {expected_profile_source!r}",
+                )
+            source_profile = profile_source_loader(source_path)
+            if not source_profile.enabled:
+                raise _fail(
+                    "PROFILE_SOURCE_DISABLED",
+                    f"partition {partition.partition_id!r} source {source_path!r} is disabled",
+                )
+            if (
+                source_profile.scope.collection != collection
+                or source_profile.profile_version != profile_version
+                or scope_digest(source_profile.scope) != scope_digest(selected_profile.scope)
+                or collection_profile_fingerprint(source_profile)
+                != selected_profile.profile_fingerprint
+            ):
+                raise _fail(
+                    "PROFILE_SOURCE_MISMATCH",
+                    f"partition {partition.partition_id!r} source {source_path!r} "
+                    "does not prove the selected profile fact",
+                )
+    try:
+        return ReleaseScopePlacementV2.build(
+            placements=tuple(entries_by_binding.values()),
+            profile_manifest_digest=profile_manifest_digest,
+        )
+    except Exception as exc:  # noqa: BLE001 - frontière du contrat partagé
+        raise _fail("INVALID_PROJECTION", str(exc)) from exc
+
+
 def _parse_profile_source(raw: bytes, *, path: str) -> CollectionProfile:
     try:
         document = strict_yaml_mapping(raw, source=path)
@@ -700,7 +924,20 @@ def _parse_profile_source(raw: bytes, *, path: str) -> CollectionProfile:
         raise _fail("INVALID_PROFILE_SOURCE", f"{path}: {exc}") from exc
 
 
-def _produce_release_scope_placement(
+@dataclass(frozen=True)
+class _ParsedReleaseScopePlacementInputs:
+    matrix: Any
+    placements: list[Any]
+    registry: Mapping[str, Any]
+    expected: tuple[str, ...]
+    profile_manifest_digest: str
+    profile_facts: tuple[VerifiedProfileFactV1, ...]
+    profile_source_paths: Mapping[tuple[str, str], str]
+    load_profile_source: Callable[[str], CollectionProfile]
+    read_blob: Callable[[str], bytes]
+
+
+def _parse_release_scope_placement_inputs(
     *,
     reader: _BlobReader,
     profile_proposal_matrix_path: str,
@@ -709,7 +946,13 @@ def _produce_release_scope_placement(
     expected_contents_path: str,
     verified_profiles_path: str,
     profile_manifest_path: str,
-) -> tuple[ReleaseScopePlacementV1, tuple[VerifiedProfileFactV1, ...]]:
+) -> _ParsedReleaseScopePlacementInputs:
+    """Analyse et vérifie tout ce qui est COMMUN aux producteurs V1 et V2 :
+    la matrice, les placements bruts, le registre, l'ensemble attendu, et
+    surtout la chaîne complète de vérification des profils/manifeste. Seule
+    la composition finale (identité contenu-seul en V1, identité
+    (contenu, collection) en V2) diverge -- volontairement isolée dans
+    ``_compose_release_scope_placement``/``_compose_release_scope_placement_v2``."""
     matrix = _parse_strict_json(
         reader.read_blob(profile_proposal_matrix_path),
         path=profile_proposal_matrix_path,
@@ -819,20 +1062,88 @@ def _produce_release_scope_placement(
             source_cache[path] = _parse_profile_source(reader.read_blob(path), path=path)
         return source_cache[path]
 
-    placement = _compose_release_scope_placement(
-        accepted_placements=placements,
-        release_registry=registry,
-        verified_profiles=profile_facts,
-        profile_proposal_matrix=matrix,
+    return _ParsedReleaseScopePlacementInputs(
+        matrix=matrix,
+        placements=placements,
+        registry=registry,
+        expected=expected,
         profile_manifest_digest=profile_manifest_digest,
-        expected_content_sha256=expected,
-        profile_source_loader=load_profile_source,
-        evidence_blob_loader=reader.read_blob,
-        profile_source_path_by_identity=profile_source_paths,
+        profile_facts=tuple(
+            sorted(profile_facts, key=lambda fact: (fact.profile_id, fact.profile_version))
+        ),
+        profile_source_paths=profile_source_paths,
+        load_profile_source=load_profile_source,
+        read_blob=reader.read_blob,
     )
-    return placement, tuple(
-        sorted(profile_facts, key=lambda fact: (fact.profile_id, fact.profile_version))
+
+
+def _produce_release_scope_placement(
+    *,
+    reader: _BlobReader,
+    profile_proposal_matrix_path: str,
+    accepted_placements_path: str,
+    release_registry_path: str,
+    expected_contents_path: str,
+    verified_profiles_path: str,
+    profile_manifest_path: str,
+) -> tuple[ReleaseScopePlacementV1, tuple[VerifiedProfileFactV1, ...]]:
+    parsed = _parse_release_scope_placement_inputs(
+        reader=reader,
+        profile_proposal_matrix_path=profile_proposal_matrix_path,
+        accepted_placements_path=accepted_placements_path,
+        release_registry_path=release_registry_path,
+        expected_contents_path=expected_contents_path,
+        verified_profiles_path=verified_profiles_path,
+        profile_manifest_path=profile_manifest_path,
     )
+    placement = _compose_release_scope_placement(
+        accepted_placements=parsed.placements,
+        release_registry=parsed.registry,
+        verified_profiles=parsed.profile_facts,
+        profile_proposal_matrix=parsed.matrix,
+        profile_manifest_digest=parsed.profile_manifest_digest,
+        expected_content_sha256=parsed.expected,
+        profile_source_loader=parsed.load_profile_source,
+        evidence_blob_loader=parsed.read_blob,
+        profile_source_path_by_identity=parsed.profile_source_paths,
+    )
+    return placement, parsed.profile_facts
+
+
+def _produce_release_scope_placement_v2(
+    *,
+    reader: _BlobReader,
+    profile_proposal_matrix_path: str,
+    accepted_placements_path: str,
+    release_registry_path: str,
+    expected_contents_path: str,
+    verified_profiles_path: str,
+    profile_manifest_path: str,
+) -> tuple[ReleaseScopePlacementV2, tuple[VerifiedProfileFactV1, ...]]:
+    """Même analyse et mêmes preuves de profil que le producteur V1 --
+    seule la composition finale change, pour autoriser un contenu à
+    occuper plusieurs placements légitimes."""
+    parsed = _parse_release_scope_placement_inputs(
+        reader=reader,
+        profile_proposal_matrix_path=profile_proposal_matrix_path,
+        accepted_placements_path=accepted_placements_path,
+        release_registry_path=release_registry_path,
+        expected_contents_path=expected_contents_path,
+        verified_profiles_path=verified_profiles_path,
+        profile_manifest_path=profile_manifest_path,
+    )
+    placement = _compose_release_scope_placement_v2(
+        accepted_placements=parsed.placements,
+        release_registry=parsed.registry,
+        verified_profiles=parsed.profile_facts,
+        profile_proposal_matrix=parsed.matrix,
+        profile_manifest_digest=parsed.profile_manifest_digest,
+        expected_content_sha256=parsed.expected,
+        profile_source_loader=parsed.load_profile_source,
+        evidence_blob_loader=parsed.read_blob,
+        profile_source_path_by_identity=parsed.profile_source_paths,
+    )
+    return placement, parsed.profile_facts
 
 
 def produce_release_scope_placement_from_git(
@@ -902,12 +1213,85 @@ def produce_release_scope_placement_from_blobs(
     )
 
 
+def produce_release_scope_placement_v2_from_git(
+    *,
+    repository_root: Path,
+    source_tree_sha: str,
+    profile_proposal_matrix_path: str,
+    accepted_placements_path: str,
+    release_registry_path: str,
+    expected_contents_path: str,
+    verified_profiles_path: str,
+    profile_manifest_path: str,
+) -> ProducedReleaseScopePlacementV2:
+    """Produit une projection V2 depuis les seuls blobs d'un tree Git
+    explicitement nommé -- une même content_sha256 peut légitimement
+    apparaître dans plusieurs placements."""
+    reader = _GitTreeReader(
+        repository_root=repository_root,
+        source_tree_sha=source_tree_sha,
+    )
+    placement, profile_facts = _produce_release_scope_placement_v2(
+        reader=reader,
+        profile_proposal_matrix_path=profile_proposal_matrix_path,
+        accepted_placements_path=accepted_placements_path,
+        release_registry_path=release_registry_path,
+        expected_contents_path=expected_contents_path,
+        verified_profiles_path=verified_profiles_path,
+        profile_manifest_path=profile_manifest_path,
+    )
+    return ProducedReleaseScopePlacementV2(
+        placement=placement,
+        verified_profile_facts=profile_facts,
+        provenance=ReleaseScopePlacementProvenance(
+            source_tree_sha=source_tree_sha,
+            input_blob_sha256=dict(sorted(reader.input_blob_sha256.items())),
+            input_git_entries=dict(sorted(reader.input_git_entries.items())),
+        ),
+    )
+
+
+def produce_release_scope_placement_v2_from_blobs(
+    *,
+    source_blobs: Mapping[str, bytes],
+    profile_proposal_matrix_path: str,
+    accepted_placements_path: str,
+    release_registry_path: str,
+    expected_contents_path: str,
+    verified_profiles_path: str,
+    profile_manifest_path: str,
+) -> VerifiedReleaseScopePlacementV2:
+    """Produit et vérifie la projection V2 depuis les seuls octets fournis."""
+    reader = _FrozenBlobReader(source_blobs)
+    placement, profile_facts = _produce_release_scope_placement_v2(
+        reader=reader,
+        profile_proposal_matrix_path=profile_proposal_matrix_path,
+        accepted_placements_path=accepted_placements_path,
+        release_registry_path=release_registry_path,
+        expected_contents_path=expected_contents_path,
+        verified_profiles_path=verified_profiles_path,
+        profile_manifest_path=profile_manifest_path,
+    )
+    unused = sorted(set(reader._source_blobs) - set(reader.input_blob_sha256))
+    if unused:
+        raise _fail("UNCONSUMED_SOURCE_BLOB", f"unconsumed exact source blobs: {unused!r}")
+    return VerifiedReleaseScopePlacementV2(
+        placement=placement,
+        verified_profile_facts=profile_facts,
+        input_blob_sha256=dict(sorted(reader.input_blob_sha256.items())),
+    )
+
+
 __all__ = [
     "ProducedReleaseScopePlacement",
+    "ProducedReleaseScopePlacementV2",
     "ReleaseScopePlacementGitInputs",
     "ReleaseScopePlacementProducerError",
     "ReleaseScopePlacementProvenance",
     "VerifiedReleaseScopePlacement",
+    "VerifiedReleaseScopePlacementV2",
     "produce_release_scope_placement_from_blobs",
     "produce_release_scope_placement_from_git",
+    "produce_release_scope_placement_v2_from_blobs",
+    "produce_release_scope_placement_v2_from_git",
 ]

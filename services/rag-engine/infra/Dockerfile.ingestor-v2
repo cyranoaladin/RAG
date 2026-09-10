@@ -21,6 +21,21 @@ RUN pip install --no-cache-dir /tmp/nexus-contracts \
  && python -m pip check \
  && rm -rf /tmp/nexus-contracts
 
+# L'autorité de release, installée comme PAQUET et non recopiée comme module.
+#
+# Ce fichier recopiait `release_readiness.py`, une copie vendorée du module
+# canonique tenue égale octet pour octet par une épreuve. Deux copies du même
+# contrat restent deux copies : l'égalité rendait la divergence détectable, pas
+# impossible. Le paquet est installé en mode COEUR — `nexus-release-chain` sans
+# l'extra `[pdf]` — pour que l'allowlist de ce runtime reste sans parseur : y
+# faire entrer `pypdf` élargirait sa surface sans qu'aucun module servi ici ne
+# le demande.
+COPY packages/release-chain /tmp/nexus-release-chain
+RUN pip install --no-cache-dir /tmp/nexus-release-chain \
+ && python -m pip check \
+ && python -c "import importlib.util as u, sys; sys.exit(0 if u.find_spec('pypdf') is None else 'pypdf ne doit pas entrer dans le runtime de lecture')" \
+ && rm -rf /tmp/nexus-release-chain
+
 # Allowlist applicative : aucun writer, parseur ou client de source distante.
 COPY services/rag-engine/src/ingestor/api_scopes.py /app/api_scopes.py
 COPY services/rag-engine/src/ingestor/api_v2.py /app/api_v2.py
@@ -32,7 +47,6 @@ COPY services/rag-engine/src/ingestor/metrics.py /app/metrics.py
 COPY services/rag-engine/src/ingestor/model_artifact.py /app/model_artifact.py
 COPY services/rag-engine/src/ingestor/pg_pool.py /app/pg_pool.py
 COPY services/rag-engine/src/ingestor/readiness_db.py /app/readiness_db.py
-COPY services/rag-engine/src/ingestor/release_readiness.py /app/release_readiness.py
 COPY services/rag-engine/src/ingestor/retrieval_contract_adapter.py /app/retrieval_contract_adapter.py
 COPY services/rag-engine/src/ingestor/retrieval_hybrid_v2.py /app/retrieval_hybrid_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_metadata_v2.py /app/retrieval_metadata_v2.py

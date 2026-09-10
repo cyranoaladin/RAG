@@ -20,13 +20,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from nexus_release_chain.release_readiness import (  # noqa: E402
+    ReleaseReadinessError,
+    load_release_registry_file,
+)
+
 from ingestor.r1_operator_flow import (  # noqa: E402
     _RELEASE_REGISTRY_RELATIVE_PATH,
     EXPECTED_SEALED_RELEASE_REGISTRY_SHA256,
-)
-from ingestor.release_readiness import (  # noqa: E402
-    ReleaseReadinessError,
-    load_release_registry_file,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]

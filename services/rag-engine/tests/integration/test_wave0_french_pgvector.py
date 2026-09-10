@@ -66,6 +66,7 @@ from nexus_contracts.authority_artifacts import (  # noqa: E402
 )
 from nexus_contracts.document import Rights  # noqa: E402
 from nexus_contracts.resource_state import ResourceState  # noqa: E402
+from nexus_release_chain.release_readiness import validate_release_readiness  # noqa: E402
 
 from ingestor.collection_config import load_collection_config  # noqa: E402
 from ingestor.embedding_contract import CANONICAL_EMBED_MODEL  # noqa: E402
@@ -98,7 +99,6 @@ from ingestor.ingestion_worker.storage import (  # noqa: E402
     make_filesystem_artifact_reader,
     make_filesystem_artifact_store,
 )
-from ingestor.release_readiness import validate_release_readiness  # noqa: E402
 from ingestor.retrieval_hybrid_v2 import EMBED_DIMENSION  # noqa: E402
 from ingestor.verified_pedagogical_placement import (  # noqa: E402
     VerifiedPedagogicalPlacementResolver,

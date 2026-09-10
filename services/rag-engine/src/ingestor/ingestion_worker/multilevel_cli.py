@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 import psycopg
+from nexus_release_chain.release_readiness import load_release_registry_file
 
 from ingestor.ingestion_control.attestation import (
     WorkerAttestationError,
@@ -26,7 +27,6 @@ from ingestor.ingestion_profiles.readiness_gate import (
     enforce_readiness_gate,
 )
 from ingestor.ingestion_profiles.registry import load_profile_registry
-from ingestor.release_readiness import load_release_registry_file
 from ingestor.resource_identity_freeze import (
     load_optional_pinned_resource_identity_freeze,
 )

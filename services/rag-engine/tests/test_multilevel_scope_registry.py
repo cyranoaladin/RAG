@@ -376,7 +376,7 @@ def test_v2_reader_accepts_normalized_rehearsal_registry() -> None:
     """Test A : lecture structurelle V2 de la release de répétition normalisée."""
     import hashlib
 
-    from ingestor.release_readiness import load_release_registry_file
+    from nexus_release_chain.release_readiness import load_release_registry_file
 
     rehearsal_dir = (
         ENGINE_ROOT.parent

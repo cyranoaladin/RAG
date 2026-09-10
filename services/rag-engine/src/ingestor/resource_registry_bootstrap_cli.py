@@ -10,13 +10,13 @@ from pathlib import Path
 
 import psycopg
 from nexus_contracts.canonical_json import canonical_model_bytes
+from nexus_release_chain.release_readiness import load_release_registry_file
 
 from ingestor.atomic_artifact import (
     AtomicArtifactError,
     assert_publishable,
     publish_atomic_no_clobber,
 )
-from ingestor.release_readiness import load_release_registry_file
 from ingestor.resource_registry_bootstrap import (
     export_resource_registry_bootstrap_inventory,
 )

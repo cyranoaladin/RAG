@@ -55,13 +55,13 @@ from nexus_contracts.production_readiness import (  # noqa: E402
     public_readiness_key_hex,
     sign_production_readiness_manifest,
 )
+from nexus_release_chain.release_readiness import load_release_expectation  # noqa: E402
 
 from ingestor.ingestion_control.jobs import create_job  # noqa: E402
 from ingestor.ingestion_profiles.registry import (  # noqa: E402
     load_profile_registry,
     profile_fingerprint,
 )
-from ingestor.release_readiness import load_release_expectation  # noqa: E402
 
 pytestmark = [pytest.mark.integration, requires_docker]
 
