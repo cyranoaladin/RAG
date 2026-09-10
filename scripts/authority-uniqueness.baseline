@@ -1,0 +1,36 @@
+# NEXUS-AUTHORITY-UNIQUENESS-BASELINE-V1
+#
+# Un concept, une autorite. Ce fichier epingle l etat CONNU. Le controle
+# echoue quand un fichier NON epingle se met a decider, pas quand la dette
+# existante reste stable : figer un objectif non atteint rendrait le controle
+# rouge en permanence, et un controle toujours rouge n est plus lu.
+#
+# Retirer une ligne est un progres et doit etre fait dans le lot qui converge.
+# En ajouter une exige de dire pourquoi une seconde autorite est acceptable.
+#
+# Format : REGLE<TAB>chemin
+# Lignes vides et lignes commencant par # ignorees.
+
+# --- R1 : la matrice de servabilite est DERIVEE, jamais une autorite -----
+# Seul son constructeur la lit. Aucun chemin de production ne doit consommer
+# son verdict comme source de verite.
+MATRIX_READER	services/rag-pedago/scripts/construire_matrice_servabilite.py
+
+# --- R2 : la politique d actualite n a aucun lecteur de production -------
+# Elle est applied=false. Un lecteur de production l appliquerait de fait,
+# sans passer par l ADR qui l adopte.
+# (aucune ligne : la liste doit rester vide)
+
+# --- R4 : producteur AuthorizationSetV2 -----------------------------------
+# Doit finir a EXACTEMENT un producteur canonique hors du contrat. Aucun
+# aujourd hui : c est pourquoi aucun consommateur n est migre.
+# (aucune ligne)
+
+# --- R5 : selection de release --------------------------------------------
+# select_release_authority est le mecanisme contractuel.
+# compute_promoted_content_set.py superpose une SECONDE matrice de
+# precedence : c est une dette reconnue, epinglee ici, a resorber.
+RELEASE_SELECTION	packages/release-chain/src/nexus_release_chain/release_readiness.py
+RELEASE_SELECTION	packages/release-chain/src/nexus_release_chain/deployment_binding.py
+RELEASE_SELECTION	services/rag-engine/src/ingestor/retrieval_v2_endpoint.py
+RELEASE_SELECTION	scripts/qualification/compute_promoted_content_set.py

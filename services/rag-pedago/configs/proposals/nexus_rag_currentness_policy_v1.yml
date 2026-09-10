@@ -19,6 +19,31 @@ status: PROPOSED
 applied: false
 requires_adr: true
 
+# --- ce que cette politique possède, et ce qu'elle ne possède pas ------
+#
+# Une version antérieure exigeait PROGRAM_VERSION_COMPATIBLE, PII_GATE_PASS,
+# RIGHTS_GATE_PASS, CLASSIFICATION_GATE_PASS et PLACEMENT_GATE_PASS dans sa
+# règle de repli. Elle s'arrogeait donc cinq décisions appartenant à cinq
+# autres autorités, et contredisait ADR-0051, qui décide qu'une compatibilité
+# programme inconnue ne bloque pas. Sur la population mesurée, cette seule
+# condition écartait 2520 contenus sur 2530.
+#
+# Ces conditions ne sont pas supprimées : elles sont RENDUES à leur autorité.
+# Le gate de servabilité les compose. Une politique d'actualité qui refuse un
+# document pour une raison de PII n'a pas renforcé la PII, elle a créé un
+# second endroit où la PII se décide.
+ownership:
+  CURRENTNESS_POLICY_OWNS_CURRENTNESS_DISPOSITION: true
+  CURRENTNESS_POLICY_OWNS_PROGRAM_DECISION: false
+  CURRENTNESS_POLICY_OWNS_PII_DECISION: false
+  CURRENTNESS_POLICY_OWNS_AUTHORIZATION_DECISION: false
+  CURRENTNESS_POLICY_OWNS_RIGHTS_DECISION: false
+  CURRENTNESS_POLICY_OWNS_CLASSIFICATION_DECISION: false
+  CURRENTNESS_POLICY_OWNS_PLACEMENT_DECISION: false
+  CURRENTNESS_POLICY_OWNS_SERVABILITY_VERDICT: false
+  composed_by: SERVABILITY_GATE
+  output: currentness_disposition
+
 # Cinq dimensions, tenues séparées. Les fondre serait le défaut d'origine :
 # un `200` deviendrait une preuve d'actualité pédagogique, et un `403` une
 # preuve d'obsolescence.
@@ -38,11 +63,19 @@ dimensions:
   PROGRAM_VERSION:
     question: "Le document sert-il un programme en vigueur ?"
     proven_by: "autorité de version de programme"
-    current_state: UNKNOWN_FOR_ALL
+    # Mesuré par NEXUS-PROGRAM-PARTITION-V4 : 10 compatibles prouvés,
+    # 1 incompatible prouvé, 2440 inconnus, sur 2451.
+    current_state: PARTITIONED_BY_PROGRAM_AUTHORITY
+    decided_elsewhere: PROGRAM_GATE
   SERVABILITY:
     question: "Le document peut-il être servi ?"
-    proven_by: "la présente politique, une fois adoptée"
+    proven_by: "le gate de servabilité, qui COMPOSE les dimensions ci-dessus"
     current_state: NOT_DECIDED
+    not_owned_here: >-
+      La présente politique ne décide pas la servabilité. Elle produit UNE
+      dimension parmi celles que le gate compose. Lui faire rendre un verdict
+      de servabilité en ferait une seconde autorité, et deux autorités qui se
+      contredisent ne protègent plus rien.
 
 # --- dispositions d'actualité ----------------------------------------
 currentness_dispositions:
@@ -66,7 +99,7 @@ currentness_dispositions:
 source_status_mapping:
   archive:
     source_status: ARCHIVE
-    servable: false
+    currentness_disposition: NOT_CURRENT_DECLARED_BY_SOURCE
     rationale: >-
       Information explicite de la source. Le repli réseau ne ressuscite pas une
       archive : ne pas pouvoir vérifier une URL n'annule pas une déclaration
@@ -74,45 +107,54 @@ source_status_mapping:
     override: "autorité métier explicitement documentée, jamais implicite"
   actuel:
     source_status: CURRENT_DECLARED_BY_CATALOGUE
-    servable: candidate
+    currentness_disposition: OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE
     rationale: >-
       Déclaration institutionnelle exploitable. Ce n'est PAS
       NETWORK_VERIFIED_CURRENT : les deux dimensions restent distinctes.
   transition-ou-actuel:
     source_status: TRANSITION_OR_CURRENT
-    servable: policy_dependent
+    currentness_disposition: OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE
     rationale: >-
       La source n'a pas tranché. Renommer cette valeur en CURRENT serait
       décider à sa place. La servabilité se décide par compatibilité de
       programme, portée de release et autres relations du même contenu.
   a-verifier:
     source_status: NEEDS_SECONDARY_EVIDENCE
-    servable: policy_dependent
+    currentness_disposition: OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE
     rationale: >-
       Ni servable ni exclu automatiquement. « À vérifier » est une absence de
       vérification ; l'exclure d'office retirerait 2158 contenus sur une
       absence, et l'inclure d'office ferait dire à la source ce qu'elle n'a pas
       dit.
+    # Ordre d'INVESTIGATION, jamais un ordre de décision. Chaque élément est
+    # produit par une autre autorité ; la politique dit seulement lequel
+    # regarder en premier pour réduire l'incertitude d'actualité.
     secondary_evidence_order:
       - programme/version explicitement compatible
       - autre relation du même content_sha256 portant un statut plus fort
       - release pédagogique gouvernée explicitement compatible
       - validation humaine de statut de source
+    secondary_evidence_role: INPUT_ONLY
 
 # --- la règle de repli -------------------------------------------------
 fallback_rule:
   disposition: OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE
   # TOUTES doivent être vraies. Une seule fausse bloque.
+  # N'y figurent QUE des conditions d'actualité et de provenance. Une
+  # condition qu'une autre autorité décide n'a rien à faire ici.
   conditions_all_required:
     - OFFICIAL_INSTITUTIONAL_PROVENANCE
     - CONTENT_SHA_PROVENANCE_MATCH
     - SOURCE_STATUS_NOT_EXPLICIT_ARCHIVE
-    - PROGRAM_VERSION_COMPATIBLE
-    - PII_GATE_PASS
-    - RIGHTS_GATE_PASS
-    - CLASSIFICATION_GATE_PASS
-    - PLACEMENT_GATE_PASS
     - NO_KNOWN_SUPERSEDING_CONFLICT
+  # Rendues à leur autorité. Le gate de servabilité les compose avec la
+  # disposition d'actualité ci-dessus ; aucune n'est perdue.
+  conditions_returned_to_their_authority:
+    PROGRAM_VERSION_COMPATIBLE: PROGRAM_GATE
+    PII_GATE_PASS: PII_GATE
+    RIGHTS_GATE_PASS: RIGHTS_GATE
+    CLASSIFICATION_GATE_PASS: CLASSIFICATION_GATE
+    PLACEMENT_GATE_PASS: PLACEMENT_GATE
   forbidden_effects:
     - "produire VERIFIED_CURRENT sans identité d'octets"
     - "traiter un 403 comme une preuve d'obsolescence"
