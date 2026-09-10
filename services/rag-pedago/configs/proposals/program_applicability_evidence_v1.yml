@@ -1,0 +1,114 @@
+# Applicabilités de programme et NIVEAU DE PREUVE — propositions, non appliquées.
+#
+# Deux propriétés distinctes, jamais fondues :
+#
+#   evidence_status                        ce que le canal commanditaire a
+#                                          vérifié dans le texte officiel
+#   local_official_evidence_reproducible   si cette session sait re-télécharger
+#                                          les octets officiels et les rehacher
+#
+# Un serveur qui rend 403 à un agent non navigateur ne rend pas le fait moins
+# vrai ; un téléchargement réussi ne vérifie rien à lui seul. Le second champ
+# n'entre dans aucune décision de statut.
+
+contract_id: NEXUS-PROGRAM-APPLICABILITY-EVIDENCE-V1
+status: PROPOSED
+applied: false
+requires_adr: true
+school_year: "2026-2027"
+
+evidence_status_enum:
+  - PENDING_AUTHORITY_LOOKUP
+  - DECLARED_BY_COMMANDITAIRE
+  - VERIFIED_OFFICIAL_BY_COMMANDITAIRE
+
+# Seul VERIFIED_OFFICIAL_BY_COMMANDITAIRE peut fonder une INCOMPATIBILITÉ.
+# Un fait déclaré nourrit une hypothèse ; il ne condamne pas un artefact.
+opposable_status: [VERIFIED_OFFICIAL_BY_COMMANDITAIRE]
+
+# --- technologie, cycle 4 ---------------------------------------------
+# Le BO n°9 du 29 février 2024 est une MODIFICATION de programme : il remplace
+# la partie technologie du programme de cycle 4 antérieur, sans remplacer ce
+# programme dans son entier. L'entrée en vigueur est PROGRESSIVE par classe —
+# c'est exactement ce qu'un « cycle 4 → un programme » effacerait.
+technologie_cycle_4:
+  official_reference: BOEN_9_2024-02-29
+  nor: MENE2402802A
+  official_reference_kind: PROGRAM_MODIFICATION
+  official_source_identifier: "BOEN n°9 du 29 février 2024 (NOR MENE2402802A)"
+  replaces: "section technologie du programme de cycle 4 antérieur"
+  supersedes: [BOEN_31_2020-07-30]
+  evidence_status: VERIFIED_OFFICIAL_BY_COMMANDITAIRE
+  verified_at: "2026-09-08"
+  evidence_receipt_sha256: 9ad2c783b96d7996c8441d01ea745af8b2fbc2bac78ad05a6970e8dd3a873f33
+  local_official_evidence_reproducible: false
+  local_official_evidence_note: >-
+    Aucun instantané officiel n'a été acquis par cette session. La campagne
+    d'observation 422356d3 a mesuré 110 refus HTTP 403 sur 111 URL
+    institutionnelles, et le mandat en cours a ARRÊTÉ les requêtes Éduscol.
+    Aucune nouvelle requête n'a donc été émise, et aucun contournement de
+    protection n'a été tenté. L'absence d'instantané ne rétrograde pas le fait
+    vérifié : elle est portée séparément.
+  official_snapshot_sha256: null
+  scopes:
+    - {scope_id: cinquieme/technologie, niveau: cinquieme, effective_from: "2024-2025"}
+    - {scope_id: quatrieme/technologie, niveau: quatrieme, effective_from: "2025-2026"}
+    - {scope_id: troisieme/technologie, niveau: troisieme, effective_from: "2026-2027"}
+  applicable_in_2026_2027: [cinquieme, quatrieme, troisieme]
+
+# --- LCA, cycle 4 : enseignement de complément ------------------------
+# Ferme LCA_AUTHORITY_NEEDS_MODALITY_DISAMBIGUATION pour le collège SEULEMENT.
+# Le lycée garde ses cinq scopes propres, ci-dessous.
+lca_cycle_4_complement:
+  scope_id: LCA_CYCLE4_COMPLEMENT
+  modality: ENSEIGNEMENT_COMPLEMENT_LCA
+  cycle: cycle_4
+  levels: [cinquieme, quatrieme, troisieme]
+  official_reference: BOEN_11_2016-03-17
+  nor: MENE1603855A
+  official_reference_kind: PROGRAM
+  official_source_identifier: "BOEN n°11 du 17 mars 2016 (NOR MENE1603855A)"
+  effective_from: "2016-2017"
+  evidence_status: VERIFIED_OFFICIAL_BY_COMMANDITAIRE
+  verified_at: "2026-09-08"
+  evidence_receipt_sha256: 257bfeb874403c8708d464756a89aee71dd633b9304f1087584a16a0f3812e72
+  local_official_evidence_reproducible: false
+  official_snapshot_sha256: null
+  note: >-
+    Présenté par Éduscol en mars 2026 comme PROGRAMME_EN_VIGUEUR. Un texte de
+    2016 encore en vigueur est précisément le cas que l'interdiction de dater
+    un programme par son année de publication existe pour protéger.
+
+# --- LCA / LLCA au lycée : cinq scopes, jamais fondus -----------------
+# LCA_COLLÈGE, LCA_OPTION_LYCÉE et LLCA relèvent de textes différents, et
+# l'option de lycée relève elle-même de deux textes selon le niveau. Les
+# confondre attribuerait à un document de collège un programme de terminale.
+lca_lycee_scopes:
+  - {scope_id: LCA_GT_OPTION_SECONDE, niveau: seconde, modality: LCA_OPTION,
+     official_reference: BOEN_special_1_2019-01-22,
+     evidence_status: DECLARED_BY_COMMANDITAIRE}
+  - {scope_id: LCA_GT_OPTION_PREMIERE, niveau: premiere, modality: LCA_OPTION,
+     official_reference: BOEN_special_1_2019-01-22,
+     evidence_status: DECLARED_BY_COMMANDITAIRE}
+  - {scope_id: LCA_GT_OPTION_TERMINALE, niveau: terminale, modality: LCA_OPTION,
+     official_reference: BOEN_special_8_2019-07-25,
+     evidence_status: DECLARED_BY_COMMANDITAIRE}
+  - {scope_id: LLCA_SPECIALITE_PREMIERE, niveau: premiere, modality: LLCA_SPECIALITE,
+     official_reference: BOEN_special_1_2019-01-22,
+     evidence_status: DECLARED_BY_COMMANDITAIRE}
+  - {scope_id: LLCA_SPECIALITE_TERMINALE, niveau: terminale, modality: LLCA_SPECIALITE,
+     official_reference: BOEN_special_8_2019-07-25,
+     evidence_status: DECLARED_BY_COMMANDITAIRE}
+
+forbidden_identities:
+  - "LCA_CYCLE4_COMPLEMENT == LCA_GT_OPTION_*"
+  - "LCA_GT_OPTION_* == LLCA_SPECIALITE_*"
+  - "LCA_GT_OPTION_PREMIERE == LCA_GT_OPTION_TERMINALE"
+
+# --- métadonnées pauvres --------------------------------------------
+# Une autorité nouvelle permet de résoudre des scopes précis ; elle ne
+# transforme pas une métadonnée pauvre en preuve.
+poor_metadata_disposition:
+  when: "un artefact porte matiere=lca sans cycle, sans niveau ou sans modalité"
+  disposition: LCA_SCOPE_MODALITY_UNKNOWN
+  never: "appliquer automatiquement BOEN_11_2016-03-17"

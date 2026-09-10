@@ -15,8 +15,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from ingestor import release_readiness as readiness  # noqa: E402
-from ingestor.release_readiness import (  # noqa: E402
+import nexus_release_chain.release_readiness as readiness  # noqa: E402
+from nexus_release_chain.release_readiness import (  # noqa: E402
     ReleaseDatabaseSnapshot,
     ReleaseReadinessError,
     collect_release_snapshot,
@@ -3227,7 +3227,7 @@ def test_runtime_blocks_retrieval_for_a_collection_outside_the_active_registry(
 # Dérivé du module, jamais recopié : si la chaîne s'allonge ou se raccourcit,
 # les tests paramétrés doivent suivre d'eux-mêmes plutôt que de continuer à
 # valider une liste devenue fausse.
-from ingestor.release_readiness import _PII_REVIEW_AUTHORITY_FIELDS  # noqa: E402
+from nexus_release_chain.release_readiness import _PII_REVIEW_AUTHORITY_FIELDS  # noqa: E402
 
 _PII_REVIEW_AUTHORITIES = tuple(sorted(_PII_REVIEW_AUTHORITY_FIELDS))
 
@@ -3295,17 +3295,74 @@ class TestPiiReviewAuthoritiesAreAdmissible:
             self._with(tmp_path, extra)
 
 
-def test_the_vendored_release_readiness_copy_is_byte_identical() -> None:
-    """Deux copies du même contrat doivent rester le même contrat.
+def test_the_service_no_longer_carries_a_release_readiness_implementation() -> None:
+    """Une seule autorité, prouvée par son ABSENCE ailleurs.
 
-    `services/rag-engine/src/ingestor/release_readiness.py` est une copie
-    vendorée de `packages/release-chain/…/release_readiness.py`. Les laisser
-    diverger ferait accepter au producteur ce que le worker refuse, ou
-    l'inverse — sans que rien ne le signale."""
+    Ce contrôle exigeait auparavant que la copie vendorée du service soit
+    octet pour octet identique au module canonique. L'égalité rendait la
+    divergence DÉTECTABLE, pas impossible : deux copies du même contrat
+    restaient deux copies, et rien n'empêchait qu'une image parte avec l'une
+    pendant que le qualificateur lisait l'autre.
+
+    Le service n'en porte plus aucune. La preuve n'est plus une comparaison,
+    c'est une absence.
+    """
     root = Path(__file__).resolve().parents[3]
     vendored = root / "services/rag-engine/src/ingestor/release_readiness.py"
     canonical = root / "packages/release-chain/src/nexus_release_chain/release_readiness.py"
-    assert vendored.read_bytes() == canonical.read_bytes()
+    assert canonical.is_file(), "l'autorité canonique doit exister"
+    assert not vendored.exists(), (
+        "le service a réintroduit une implémentation de release_readiness : "
+        "une seconde autorité qui divergera"
+    )
+
+
+def test_no_module_of_the_service_reimplements_the_release_authority() -> None:
+    """Le fichier peut renaître sous un autre nom.
+
+    Contrôler le seul chemin historique laisserait un `release_readiness_v2.py`
+    ou un `readiness_local.py` rétablir la duplication sans rien déclencher.
+    On cherche donc la SIGNATURE du contrat, pas son ancien nom.
+    """
+    root = Path(__file__).resolve().parents[3]
+    marqueurs = (
+        "def load_release_registry_file(",
+        "def load_release_expectation(",
+        "class ReleaseRegistryExpectation",
+    )
+    coupables = []
+    for chemin in (root / "services").rglob("*.py"):
+        relatif = chemin.relative_to(root).as_posix()
+        if "/tests/" in relatif or "/.venv/" in relatif:
+            continue
+        try:
+            source = chemin.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):  # pragma: no cover
+            continue
+        if any(marqueur in source for marqueur in marqueurs):
+            coupables.append(relatif)
+    assert not coupables, f"implémentation parallèle de l'autorité de release : {coupables}"
+
+
+def test_the_public_contract_is_importable_from_the_package_alone() -> None:
+    """Les neuf symboles que les six consommateurs emploient.
+
+    Un import réussi du MODULE ne prouve pas qu'un appelant fonctionnera : un
+    symbole retiré passe l'import du module et casse l'appelant."""
+    import nexus_release_chain.release_readiness as autorite
+
+    for symbole in (
+        "DeploymentBindingError",
+        "ReleaseReadinessError",
+        "ReleaseRegistryExpectation",
+        "configured_release_registry",
+        "load_release_expectation",
+        "load_release_registry",
+        "load_release_registry_file",
+        "validate_release_collection_readiness",
+        "validate_release_registry_readiness",
+    ):
+        assert hasattr(autorite, symbole), symbole
 
 
 class TestTheReviewChainIsCarriedNotDropped:
@@ -3364,7 +3421,7 @@ class TestV1StaysClosedToV2ReviewAuthorities:
         assert load_release_expectation(manifest, digest).release_kind.endswith("_V2")
 
     def test_the_v1_authority_set_refuses_a_single_review_field(self) -> None:
-        from ingestor.release_readiness import (
+        from nexus_release_chain.release_readiness import (
             _MULTILEVEL_AUTHORITY_FIELDS,
             _require_authority_chain,
         )
@@ -3381,7 +3438,7 @@ class TestV1StaysClosedToV2ReviewAuthorities:
             )
 
     def test_the_v1_authority_set_refuses_the_complete_review_chain(self) -> None:
-        from ingestor.release_readiness import (
+        from nexus_release_chain.release_readiness import (
             _MULTILEVEL_AUTHORITY_FIELDS,
             _require_authority_chain,
         )
@@ -3399,7 +3456,7 @@ class TestV1StaysClosedToV2ReviewAuthorities:
             )
 
     def test_the_v1_authority_set_without_review_fields_still_passes(self) -> None:
-        from ingestor.release_readiness import (
+        from nexus_release_chain.release_readiness import (
             _MULTILEVEL_AUTHORITY_FIELDS,
             _require_authority_chain,
         )

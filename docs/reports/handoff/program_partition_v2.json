@@ -1,0 +1,647 @@
+{
+  "DOCS_CITING_OUTSIDE_DECLARED_AUTHORITY": 172,
+  "NEW_UNIQUE_ARTIFACT_PROGRAM_BINDINGS": 66,
+  "PROGRAM_BINDING_CONFLICTS": 16,
+  "PROGRAM_COMPATIBILITY_PROVEN": 76,
+  "PROGRAM_COMPATIBILITY_UNKNOWN": 2375,
+  "PROGRAM_COMPATIBLE_SHA_SET_SHA256": "f30c9196e7e353552dc960fb2b6a98df4ee8a581f2b9b950efa909ff78997dee",
+  "PROGRAM_INCOMPATIBILITY_PROVEN": 0,
+  "PROGRAM_INCOMPATIBLE_SHA_SET_SHA256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+  "PROGRAM_PARTITION_INTERSECTION_COUNT": 0,
+  "PROGRAM_PARTITION_UNACCOUNTED": 0,
+  "PROGRAM_PARTITION_UNION_COUNT": 2451,
+  "PROGRAM_UNKNOWN_SHA_SET_SHA256": "c0a47c31ad63175b9d8e951524a6c997384778051ce63399420afe5dbbec7ab5",
+  "UNIQUE_ARTIFACT_PROGRAM_BINDINGS": 76,
+  "applied": false,
+  "citing_outside_authority": {
+    "01042dbd95765884c7d01f1e51cef5966c8df2fdb7ef357049270e1459c28415": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "019c6602174f190f4ae8b5c20eec2f5b2f0d13f7345f8bfb24cb249a47e0a6b6": [
+      "BOEN_17_2019-04-25"
+    ],
+    "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51": [
+      "BOEN_25_1996-06-20",
+      "BOEN_5_1997-01-30"
+    ],
+    "03b98a7814c5203abd74e1dc94dc2013574d9f2bd0688e44164967b0ad9ad2ad": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "0414c121cb58c82beb36a632bcb568b8353ce5258ef742f7f4b8975e1bf99d8f": [
+      "BOEN_9_1990-03-01"
+    ],
+    "046c1b6fa94cff3abc6d48c139b8b2ad9534fb5e1aab5ad5c84d3304d74fc28f": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "04a601862b056936041f99d67a7ecf8f96db6750d2aef9314acf65bfe846f530": [
+      "BOEN_11_2015-11-26"
+    ],
+    "08783097205b7e908c49fde8ba9c5326f5931e2c8814c3a3c6598165fab08a67": [
+      "BOEN_13_2015-03-26"
+    ],
+    "0cfe5bbeaa15a71ac33faf3d9c67dcc1b3ddf3b19cf049ca329d73bcc3461bfa": [
+      "BOEN_11_2015-11-26"
+    ],
+    "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7": [
+      "BOEN_25_2021-06-24",
+      "BOEN_30_2021-07-29",
+      "BOEN_31_2022-08-25"
+    ],
+    "0f81d2b7e2e9169b3aa3b3f97d2843d8a798975e97fe74c88c539e9c21eb10f3": [
+      "BOEN_special_6_2020-07-31"
+    ],
+    "10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8": [
+      "BOEN_25_2021-06-24"
+    ],
+    "11fb17663dfd81b864454593dc5d4ffb2936462d893bbdda1bc440d8cd5273ce": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f": [
+      "BOEN_special_6_2020-07-31"
+    ],
+    "163bbd7248a3764e3b299dd658545b07cceef8bcda7027c3c02292a681f59d65": [
+      "BOEN_10_2026-03-05"
+    ],
+    "18d76dea1ba3f2bfcc81c4a3b1f5887ba5cf8a9c5aac1ecfe35c0089cd5704a5": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "1e7c6ffe6aa6d9cc69cb43944f455954d525d68c55834619572feb3c196ca603": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "1ed57e3eeff4c2a03699435375bf75ddc54e1bb0863e2ca3879f73bbcefaa8ff": [
+      "BOEN_11_2015-11-26"
+    ],
+    "24e1e002c915f7653f599d6886aace4089a47cfd19af3ec5d8a59b635d5962f1": [
+      "BOEN_11_2016-03-17",
+      "BOEN_12_2018-03-22",
+      "BOEN_15_2013-04-11",
+      "BOEN_32_2007-09-13"
+    ],
+    "28038f78352792d691e2e4de2817443cefd79bf5228c7d9f5b9f1423b3bc4c84": [
+      "BOEN_30_2021-07-29"
+    ],
+    "284fc2dd2c244b03640cb1d8abe932a09f61e3d9359f1c2db543f108f3637320": [
+      "BOEN_25_2021-06-24",
+      "BOEN_2_2015-03-26"
+    ],
+    "289199725ef7e2a7565a038fa30bdfcc75ee75de7e4de7e64ad447e8622e8084": [
+      "BOEN_13_2022-03-31"
+    ],
+    "28abdff5197f37ebce1a74e1818192ffcb8003b1382765b8149d379622bf40ca": [
+      "BOEN_21_2020-05-21"
+    ],
+    "2a5edb1e3d169ea9bd6f11b01ff72525e034a2fb466c7e8727d41c6990298bbf": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "2ae4ec82cb81801f11de511191f9bf8a4b3f3fe7aa5fec86dc1db5accc0418ee": [
+      "BOEN_27_2021-07-08"
+    ],
+    "2bc7ba7ced53d5cc3d2665e82a9385c51858dd442294410d553034b008163846": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "2ee96bc451ab4d4ef593c583afaa3040cb1f01c4f86ca1d62f10394dcd7213c0": [
+      "BOEN_17_2015-04-23",
+      "BOEN_5_2016-02-04"
+    ],
+    "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "3137f54eb345fa75c1878e7d7da7f0a1a613e4a149cb3bda9928df8864deb72c": [
+      "BOEN_45_2019-12-05"
+    ],
+    "3177a1099fe1679616ec00193ffbc838cefc1e976b64d5fd1f7c350f66ccb7c2": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "369c09e39b97c976f47d8d40592b1652a7b1ff3b343719382f4eb1ff2d2fdcfe": [
+      "BOEN_5_1997-01-30",
+      "BOEN_8_2002-02-21"
+    ],
+    "36c8bb572e84aee5aae7c5204cdba079f6b910b8127f872ad50a10c1e444b5fd": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "38832ba321cf876dfa209058e88b574103203e4eb08ca693cb93257603538c70": [
+      "BOEN_11_2015-11-26"
+    ],
+    "3885f344e9026c3909e022c480b2c8806af772eef5d3f0cf3dfba2aa23627b7a": [
+      "BOEN_31_2020-07-30"
+    ],
+    "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611": [
+      "BOEN_11_2017-03-16",
+      "BOEN_1_2019-01-22",
+      "BOEN_30_2020-07-23",
+      "BOEN_special_11_2015-11-26",
+      "BOEN_special_1_2020-02-06",
+      "BOEN_special_5_2019-04-11"
+    ],
+    "3cee72738f32175ac368a9a0f5e29690c001520d79dc944ad41ea76540c1d10d": [
+      "BOEN_31_2020-07-30"
+    ],
+    "3f57dccde06007516113e9ffe29680d88516e8395a5021f4a19f9ead5d4c6583": [
+      "BOEN_26_2022-06-30"
+    ],
+    "40d6df533665899e5819e29ae279dd449c76c83851b4baf0498ca8b41f934537": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "4187543b0997eb3c4d3efd44f81e6d06c5c9bae4ce9cfc5706d795114d14d577": [
+      "BOEN_2_2020-02-16"
+    ],
+    "46246e914b31cc7893d5dc793e2143477bdd6d7a78861ef9732116535a06d2da": [
+      "BOEN_48_2015-12-24"
+    ],
+    "46c617baf5f17f9038c8676229904d08bcfb2eb958e98ba3f5d9e39cf104465e": [
+      "BOEN_31_2019-08-29"
+    ],
+    "4703f1cebd91eacc1ad7924a89b56b5d0c5e00274c95d11a39088548cc6d8596": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "487cca5955634fd53376831fb7290c14ba044792a1b9fc9c7a8d240c79e537a9": [
+      "BOEN_29_2016-07-21"
+    ],
+    "4952dc081ee9b8984718e7f13f3203516e7a2e012b813619870ea552727c3ecb": [
+      "BOEN_31_2019-08-29"
+    ],
+    "497f786b8ea8a0be530ba1e4ff296bf8acd9502a57fe0127f67fd555f7e0f108": [
+      "BOEN_10_2021-03-11"
+    ],
+    "49a6fa316d8363eae89615e276008160662f22b71c03e39e7123240668842663": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "4a539c7245f96a2feadb34dbabd82d3beb71af88fa3cd56ee8893310bc9364d6": [
+      "BOEN_11_2024-03-14"
+    ],
+    "4b41cb9d8b9d06072c78d73b6809d3a5f09c54b6a72feb757915fc957cbd4447": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "4c53a739398b86e2ac8a8dcbd6a84535ebedd91062610d8932ee61cdf9f64ffd": [
+      "BOEN_11_2016-03-17"
+    ],
+    "4c9c68e2a10130b3e6d692529ad0bb89ee3e4e93f2753b6f8496bd36a0925f43": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "4cb9993b81744809244fe1ff249141467afd39cefd7bb6464c824fa3dcbed725": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "4d15250f151a7c76b752876ec2bf9bb35250e2d2dfb0c88f321e7844c5ea55b5": [
+      "BOEN_27_2021-07-08"
+    ],
+    "4d821707474ad5a565a1e130ac0c301ab36d70d59009f64ecab4f9e502e2021b": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "4ea2cde3f6ff818189bdfb31f2960c4cc9e6e06d876286ab317f8727ba680b1c": [
+      "BOEN_30_2013-07-25",
+      "BOEN_31_2020-07-30"
+    ],
+    "50f424c25d598297607cbabda32754524c846412bd7eb122d5ed5acd94160ed4": [
+      "BOEN_27_2021-07-08"
+    ],
+    "513aed206d724e25392b7d798c5dd5f0c3ef481c3419e7a4a54214b1f28075d1": [
+      "BOEN_11_2015-11-26"
+    ],
+    "5279f82d27212021a2ec3c3d238ed3fa31b622d2069ee5d5dd985b41c0652108": [
+      "BOEN_30_2021-07-29"
+    ],
+    "52a161bf6a96d96be2262f484aa4fcb9338e4eef07cf0e2fe0a4fdc3ba432cd5": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "5376af2a265e4ca47a319b1df842f3659bddf3f0c53d317d48da036e02346f82": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "55186f7f2587d7d3cb458a21621fd0b5e761040002ce6b71d33768ca9f878d38": [
+      "BOEN_31_2019-08-29"
+    ],
+    "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10": [
+      "BOEN_special_6_2020-07-31"
+    ],
+    "58d85b7d843140449c41c738759d995d315f1ca3c2364aa386fd7f5ad34e4d9b": [
+      "BOEN_13_2022-03-31"
+    ],
+    "58f36f35bec3dfe168a9101772870cb210af603264b0d1dc541cff401f84b6cd": [
+      "BOEN_29_2018-07-19"
+    ],
+    "5c522bc9cf9f90120e986d8e938b71ec1bf3e3da50c9af8367512208e8ddfdf9": [
+      "BOEN_31_2021-08-26",
+      "BOEN_36_2023-09-28"
+    ],
+    "5cc235fe087df99e69de1810665eb0b7ea510448b0e1177ff2ce1927d8dec701": [
+      "BOEN_39_2004-10-28"
+    ],
+    "60ed416d187fe449ca2639bc0efe289af61d88a32b618e05f5e5ee7dd08a4086": [
+      "BOEN_9_2024-02-29"
+    ],
+    "6322c2a135dbb5ce20b819cfbe00dfbbb253f3ad63c8c414d87c5f2287c41656": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "63fe5bd9b23ed329a22b5998e4c292b614ddd92770608e16eb40c4fbec3318ea": [
+      "BOEN_45_2019-12-05"
+    ],
+    "65205f54dfaa421d487b936eb1f25c2c77f6308ab0e7ed5dcda257d242e2f823": [
+      "BOEN_special_11_2015-11-26",
+      "BOEN_special_6_2015-06-25"
+    ],
+    "67513c28975e5d4f801e21089d1606be40664f30aa60f3a5fd2fb4c15735dd04": [
+      "BOEN_11_2015-11-26"
+    ],
+    "68602195b5beb2b732229d13399965a9e4883b3e3cfa10c53038e4db4887b205": [
+      "BOEN_44_2020-11-19"
+    ],
+    "6bfb5ee6ec37334c4e4325ebd041aaf3fadb38a8465aaac9154bebbac09d5f6c": [
+      "BOEN_special_6_2008-08-28"
+    ],
+    "6e2ed9a43b095e43ca6ab71cc7f4099921cc6733f02571ec54194a5675e774da": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda": [
+      "BOEN_special_4_2010-04-29",
+      "BOEN_special_9_2010-09-30"
+    ],
+    "7018947af2bce4a77a2fbe79cfa56acee8b59bd9d8c40649083521feb7c020df": [
+      "BOEN_25_1996-06-20",
+      "BOEN_8_2002-02-21"
+    ],
+    "71fa715e226d415da585b31cc699f793f66b50405ad9a822984d56f725e8e7ae": [
+      "BOEN_11_2015-11-26"
+    ],
+    "7746ed8f2ba30d8d99ebf4f7c8a938e107343e1802a5439c9d09ebd4e952955d": [
+      "BOEN_31_2020-07-30"
+    ],
+    "77d0c64231685fc9e84c66d30522767de2c3ad09a2d1e3ea67b7702e9d54f6b3": [
+      "BOEN_special_6_2020-07-31"
+    ],
+    "786eb1939b5396d62a72fd844aaafe58adeaa926ba97ee0e4db848ed81454881": [
+      "BOEN_special_2_2020-02-13",
+      "BOEN_special_6_2020-07-31"
+    ],
+    "78d0a07a64cb13bd3c82785e519464e80a006e7c55d7b17f7c9b75fdc339948c": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "7aad76ae15e49e8e9858c1e3e10ffbfa1d76bc030db4f04c832ba516caebe622": [
+      "BOEN_special_6_2008-08-28"
+    ],
+    "7aebac4fde019c261e71fb7e7609a6f827f7a320cdc398f2a1927bed4ddf0f9b": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "7c635cd207598edcdabe3e81bc0c78b1ac45a9f9b3ebabac76400725e386d025": [
+      "BOEN_25_1996-06-20",
+      "BOEN_8_2002-02-21"
+    ],
+    "7ded8c5fa537be3418ab350497281db554afccb4f26a9da8f6f1de9cb5cb0fb3": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "7ff9fe693e198a2ac675579f87c9ec7b99873115530474a2304e15ef0d9ceb03": [
+      "BOEN_23_2016-06-07",
+      "BOEN_special_6_2015-06-25"
+    ],
+    "802a6c9edf9ed1239f47c52f222d57d57b1e198068ce91ab329138a95f638a11": [
+      "BOEN_31_2020-07-30"
+    ],
+    "808846fe52d111ebb1a46907bf9756dfbfae35f4958e578695504969a38f586c": [
+      "BOEN_6_2020-07-31"
+    ],
+    "82809ea2bfd4c16ee963a5f5fbd3ad1be3738648f78e7f581abe3138c2222afa": [
+      "BOEN_10_2021-03-11"
+    ],
+    "83a3342a3daad3deee758665adc91d3f01052b5e501bb7d34977b764ee88f318": [
+      "BOEN_4_2026-01-22"
+    ],
+    "84a4fae056f43805cbccd901f4adad163721723f717dc55a1ad3c05068913b72": [
+      "BOEN_18_2020-04-30",
+      "BOEN_40_2020-10-22"
+    ],
+    "85319cb509247343b082abed6012c50ebd157134fd6ce84150cf852ae4f870fb": [
+      "BOEN_36_2023-09-28"
+    ],
+    "8e26db9aee74ceb10b17ebd38bea1a9da2cb77a8bccfd018824181e9087c8e63": [
+      "BOEN_9_2026-02-26"
+    ],
+    "92246187695a862a0ce55a8ca7a92611d727f5849bf5f9889a3486ecb1751884": [
+      "BOEN_11_2015-11-26"
+    ],
+    "9226a11096d4c5d47ea95d9799118df9cec8de572ffd23b95735128bb6a4d016": [
+      "BOEN_31_2020-07-30"
+    ],
+    "9244005e03f7f86e9c730b243a63176f6415277edf0d4cd8002cbe709ec0d0bc": [
+      "BOEN_31_2019-08-29"
+    ],
+    "93c1cec42600166c14634b3714f4298dbd6f5805f1fee1753f33e6631cfa616a": [
+      "BOEN_25_2023-06-22"
+    ],
+    "95225f74d1d7d61abe01864ca33e0167893c99daf2bcae9490079aa2fdb2538b": [
+      "BOEN_13_2022-03-31"
+    ],
+    "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "97f65f055e7444e1e5f28ba4f4c116443b508fbad52b5fdb1b355e26b80772eb": [
+      "BOEN_11_2015-11-26"
+    ],
+    "9af15e9a80385102471c0a73e7a725dfc1b15713b78b231b1eaa8d9ad74c8d93": [
+      "BOEN_31_2019-08-29"
+    ],
+    "9c59323c9e47e57a835a1772d5f4a48b47c4c9cc6a4c95feec86ef55c6335053": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "9d48749326cd1e7710833997419ecd201f703452e319b21122c947d6af5c766b": [
+      "BOEN_11_2015-11-26"
+    ],
+    "9e48694b9ab6d8b444fc0898d92cfa6c9813179380fd7d9db02d9793bc3ff4f9": [
+      "BOEN_11_2015-11-26"
+    ],
+    "9e831b8426da587d04cb7fe222d4a135f7afe513ec688a158ac9815d2f60d6ad": [
+      "BOEN_29_2006-07-20"
+    ],
+    "a2fe7f150091b0936541cfeb680ec40c90b06ed566ba5db5a4600f05891263c9": [
+      "BOEN_13_2022-03-31"
+    ],
+    "a3495a1c4bbbd54a26d4b15b7a2b3b6eb7e72f555a83fe386bf124f929cd7faf": [
+      "BOEN_31_2020-07-30"
+    ],
+    "a34b681ee66b554691250c942b796b1ea9634d1eb13ebbac169214faa8cfd1cf": [
+      "BOEN_11_2015-11-26"
+    ],
+    "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc": [
+      "BOEN_15_1994-04-14",
+      "BOEN_19_2013-05-09",
+      "BOEN_26_2023-06-29",
+      "BOEN_33_2006-09-14",
+      "BOEN_3_1993-01-21",
+      "BOEN_43_1973-11-22"
+    ],
+    "a7124b82151269c4038f269228656efbc7a19738776f21a57ceeffad0df365aa": [
+      "BOEN_31_2020-07-30"
+    ],
+    "ab8ca902fca026bc76d2e418ee5df869c74a871a9fdcba9916a08df9ec03f00f": [
+      "BOEN_15_2016-04-14"
+    ],
+    "abf783e609dea342439e602efdcd6e51b3f48351ae6999dee6f3e51fc22b64cb": [
+      "BOEN_11_2024-03-14"
+    ],
+    "af3eaa9c37d902063bcdb6a35d1973307c78f1bbb58ee3aec0b6c56770b05ac8": [
+      "BOEN_special_6_2020-07-31"
+    ],
+    "b09affabc1fc80310e5a42ed9014ae6208889e9a554c377cd8b7bbdf3c6370cd": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "b0b9b8ca80a003106052b3bdddaded3c6f73d39e5bb52a15fb9c94041ce46976": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "b303a250dc79f4bf858be342487f0aaa347e93460ea21334ca24acf2712c49e9": [
+      "BOEN_25_2023-06-22"
+    ],
+    "b420ef10c1825bb553773c25637b4d9372cbc5854ce07d8472a4f1ac266b4612": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "b7e64098c099b6176e10242116034fac6c0b0b2e893dbe5c849d6fd7b989ee0c": [
+      "BOEN_3_2016-01-21"
+    ],
+    "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a": [
+      "BOEN_18_2020-04-30",
+      "BOEN_40_2020-10-22",
+      "BOEN_special_6_2020-07-31"
+    ],
+    "b9622390f7945098bbdbdaeb625c891d9dd0a6273058ec6e91445ce3307683b5": [
+      "BOEN_31_2020-07-30"
+    ],
+    "bc615d67c0a5df2e28497ab0d7685567187d2175e3cfb0f7b3d02ea7da0f26c9": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "bceeb6ff608a23d7adb20027e80282829c154c1fdc719f218d4150d4648be845": [
+      "BOEN_27_2022-07-07"
+    ],
+    "bdc79819ca80fb9701ba5d004a526a125b23892baf20aa1758f05688f776314b": [
+      "BOEN_3_2012-01-19"
+    ],
+    "bea01d14ddad74ce2aff09a50d2fb23d4372f0cfcaff156113e115d5ee5d5b50": [
+      "BOEN_9_2026-02-26"
+    ],
+    "bf225ac7f6db883f196af06cc29fdcfe2fdd1c56d78ed6f10e0c945698b70009": [
+      "BOEN_23_2014-06-05",
+      "BOEN_30_2013-07-25"
+    ],
+    "bffc9d9415d1ca2f8e9afa36f8e56ff74a4685a6a6d2fe442071e4d0f42873cb": [
+      "BOEN_11_2015-11-26"
+    ],
+    "c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b": [
+      "BOEN_25_2021-06-24"
+    ],
+    "c1f1580913a73af8d6078cca7d5ae5dbfb2bcb9285d57063632ec2f0401ee60b": [
+      "BOEN_15_2022-04-14"
+    ],
+    "c5c032cbfb9452a29a31f90104cfc5613d473e60b1b4f18566d0aacf5a68fe90": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "c5ebfd4ba370328471d93c35c712755281facda81c2e74dfee58bf24f24896e3": [
+      "BOEN_11_2015-11-26"
+    ],
+    "c7cdcfb565cb6cd28e732ecb1948ce230ae7dc016fa2ef58cc45ce61d98ff428": [
+      "BOEN_11_2015-11-26"
+    ],
+    "c99d2e3e39dc103a50d9eb2893bd47d3e43f6c1ac48baa8631792a298d95740f": [
+      "BOEN_31_2020-07-30"
+    ],
+    "cba6057239aa6f3cf0185becd3e79b588fafc980e7aadaf361bf51e95c76ed3c": [
+      "BOEN_31_2020-07-30"
+    ],
+    "cc387d8bbfe49f79bdfda95c73724085fc4f8c8c8e361a534dee4a2350885008": [
+      "BOEN_17_2015-04-23"
+    ],
+    "ccda3a3dfbf9b77dd5a78abc58d14683e3d91e43e8f3236453a63e51c7ea8d23": [
+      "BOEN_31_2019-08-29"
+    ],
+    "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "cef9d77b41dd2f384de04eeea7bbfb8c06d7a227edb0f266759c46fe1cef3139": [
+      "BOEN_18_2020-04-30",
+      "BOEN_40_2020-10-22"
+    ],
+    "d2b4edc5938e84cbf3e3f419e8395edff3c7674ab44422f1a7a056ba7ad9639c": [
+      "BOEN_25_2008-06-19"
+    ],
+    "d507816af9b06ddf799aaac9a1cf34b08722b4c55bcca4bd75852874933e2bf1": [
+      "BOEN_17_2019-04-25"
+    ],
+    "d517797e42092075cdc0962d032fe0e971e7a62d51b4c7872d8ff1dafde64dbc": [
+      "BOEN_17_2019-04-25"
+    ],
+    "d64a27c7506b17599f639ab927f0af27c3c0dc54f6b202cfb7c3af0b776505bd": [
+      "BOEN_21_2020-05-21"
+    ],
+    "d9079f79992de3dbce0b238423d7f8a87273fcce74f8aa5bb17e25dc7dcd528a": [
+      "BOEN_special_6_2020-07-31"
+    ],
+    "db70d4be3391370ddf08d8365221cbd6f8ec7c9c041467fa8fb1131daee88344": [
+      "BOEN_11_2016-03-11",
+      "BOEN_31_2021-08-26",
+      "BOEN_8_2019-07-25",
+      "BOEN_special_2_2020-02-13"
+    ],
+    "dcb967f9e287c70564ab06b503233569416eda4a0ffa45b2054d191398d3f121": [
+      "BOEN_11_2015-11-26"
+    ],
+    "de009dd5a8ed55eaba029ec7e9b4f46e27fbea3adbe0534c65dfaa620ec31a1b": [
+      "BOEN_10_2021-03-11"
+    ],
+    "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9": [
+      "BOEN_31_2020-07-30"
+    ],
+    "deab5ed03e32d12d0a9f8c01542028f91005c3fb1ac8b97ba4897bc24e462c36": [
+      "BOEN_44_2020-11-19"
+    ],
+    "e0be456b922916602e36f346910310379b94bed5b0aff8d16ce72b766e6896d2": [
+      "BOEN_11_2015-11-26"
+    ],
+    "e194f9e267838471c48d84b52db7883cedf50178b056aa54b1ef10f077e23281": [
+      "BOEN_30_2024-07-25",
+      "BOEN_39_2024-10-17"
+    ],
+    "e2c927a4d43967b015e12411567846ae55ed755e5023533747c7130a26533ba4": [
+      "BOEN_29_2009-07-16"
+    ],
+    "e3bd4a56f2c72738a3be1700041a9176c55de434bbf8220e64acc2d9d974e8d2": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "e4b0460e2b9d92849e986bdccac28750e7e2a0ce6c0136acc272af3393eae622": [
+      "BOEN_47_2021-12-16",
+      "BOEN_48_2025-12-18"
+    ],
+    "e4d1d8a9746d5d6d59137bab4c906fae4cc1f6fdf47a70454766afcfc622d5ec": [
+      "BOEN_25_1996-06-20",
+      "BOEN_5_1997-01-30"
+    ],
+    "e67405d31052636abec6fa1f2adfd1e025a27b60e1779d639c1e3f5366e0e72e": [
+      "BOEN_2_2023-01-12"
+    ],
+    "e88ec473a570e86c70f7254acfe8efe36bf36ca4d2bc245df6ec0aac8ecdb45d": [
+      "BOEN_31_2020-07-30"
+    ],
+    "e92a7c2458f84a14e9eaf0cd96032c0d1c3fe0de554eb14f1d3bed92cf617bae": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "e92c195f9210cf8e209dacbad9c6d4c609f1676dbc4aa6d0754304a29fac58c0": [
+      "BOEN_10_2021-03-11"
+    ],
+    "e938314178c2198be07ab3d14a953fc87898320c3ec17c1e9dc50aaebf9ae578": [
+      "BOEN_27_2022-07-07"
+    ],
+    "ea07a671eb9508115855028a8d082a82af83e1b9e6bb155786a0a314afafa45c": [
+      "BOEN_11_1994-03-17"
+    ],
+    "ef6a8cea93b7487d2bb0ba1cd615acce0ea6c37c2c52729c24275eb661ec0030": [
+      "BOEN_17_2019-04-25"
+    ],
+    "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134": [
+      "BOEN_special_1_2020-02-06",
+      "BOEN_special_2_2009-02-19",
+      "BOEN_special_5_2019-04-11"
+    ],
+    "f100b191bc76474e35ca807cb7b1ff473c9e5bd23057c18a0202dafbd6b834b8": [
+      "BOEN_32_2007-09-13"
+    ],
+    "f1918c6a1f60ba01fa0ef7bdf7bafdd645cb31c69a58285807c5440c5a372b55": [
+      "BOEN_special_2_2020-02-13"
+    ],
+    "f1adebff9abb216e601e1eeac23e9fba8c6fadf49d8eaa65401630baa1967948": [
+      "BOEN_31_2020-07-30"
+    ],
+    "f269ee86b193e4327874b071e88cb20afe0606f651ad82b1515e2ecd9efb6544": [
+      "BOEN_2_2020-02-16"
+    ],
+    "f50f8062cf249133b2ef36d057e5abe205ccd736eefbb5a36dddbfc272d66261": [
+      "BOEN_special_11_2015-11-26"
+    ],
+    "f897e0844c72d05189fcc0bb9418ce8bf313006ba97fb0e500386956ad3d7e7b": [
+      "BOEN_6_2020-07-31"
+    ],
+    "f96f770c5b60c2d84565b60b4651b9c3dcdadd46cafc0bab98db560651c1992a": [
+      "BOEN_17_2015-04-23",
+      "BOEN_special_11_2015-11-26"
+    ],
+    "fefbcd622e5f7e10014d8cf3ad25eeec9fc83910bafaebaa9f9af20279983bce": [
+      "BOEN_11_2015-11-26"
+    ]
+  },
+  "conflicts": {
+    "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "31cbea425ee2a8b1752365dd6074150cec94660a34f3fa3851685409308c0a28": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "336f98ded652b77fb1beb4966f073a42be20e15a241d1b5337e366d17bb57e9f": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "4011ccc8b4c1f8401e724af873cb57290dfd061ce7463ebec779f79d432cdc8d": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "6f1e862cc2ad50a35397c80303093dea37755ab66528ad71e7121a7d752e4597": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "853ad7535a182a459d31e21af6d0b182a73bf40996e21d2379a4bc60921ef113": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ],
+    "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134": [
+      "BOEN_special_1_2019-01-22",
+      "BOEN_special_8_2019-07-25"
+    ]
+  },
+  "kind": "NEXUS-PROGRAM-PARTITION-V2",
+  "sources": [
+    "GOVERNED_MANIFEST (10)",
+    "EXPLICIT_SOURCE_PROGRAM_REFERENCE"
+  ],
+  "why_no_incompatible": "Une citation hors de l autorite declaree ne prouve pas l incompatibilite : l autorite courante ne couvre que 18 scopes, et pour les autres on ignore quel programme est en vigueur. UNKNOWN n est pas INCOMPATIBLE."
+}

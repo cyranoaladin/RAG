@@ -1,0 +1,35 @@
+{
+  "PROGRAM_COMPATIBILITY_PROVEN": 10,
+  "PROGRAM_COMPATIBILITY_UNKNOWN": 2440,
+  "PROGRAM_COMPATIBLE_SHA_SET_SHA256": "2caa5baf09142b8438fe29eb2791afb9e8090dbb921797cd009b65d91330bdf6",
+  "PROGRAM_INCOMPATIBILITY_PROVEN": 1,
+  "PROGRAM_INCOMPATIBLE_SHA_SET_SHA256": "0698209f85f0195fa21df136a3fa37766a7631cfeaa10b79bbef9c2b4d09dfa5",
+  "PROGRAM_PARTITION_INTERSECTION_COUNT": 0,
+  "PROGRAM_PARTITION_SET_EQUALITY": true,
+  "PROGRAM_PARTITION_UNACCOUNTED": 0,
+  "PROGRAM_PARTITION_UNION_COUNT": 2451,
+  "PROGRAM_PARTITION_UNION_SHA256": "baa2a8501ccbf94b0d46cbe5cc4b843c44fabeb95b91543980fb14b81f9c030a",
+  "PROGRAM_POPULATION_SHA_SET_SHA256": "baa2a8501ccbf94b0d46cbe5cc4b843c44fabeb95b91543980fb14b81f9c030a",
+  "PROGRAM_POPULATION_TOTAL": 2451,
+  "PROGRAM_UNKNOWN_SHA_SET_SHA256": "20620a1646b7b1ec1ae5ddf50d775d1c5ea36f98962aed8ddc31153bbfe531db",
+  "applied": false,
+  "incompatibility_evidence": {
+    "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9": {
+      "attribution_basis": "MULTI_SCOPE_EXPLICIT_SECTION",
+      "authority_current_references": [
+        "BOEN_9_2024-02-29"
+      ],
+      "authority_evidence_status": [
+        "VERIFIED_OFFICIAL_BY_COMMANDITAIRE"
+      ],
+      "cited_reference": "BOEN_31_2020-07-30",
+      "matiere": "technologie",
+      "scope_level": "troisieme"
+    }
+  },
+  "incompatible_artifacts": [
+    "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9"
+  ],
+  "kind": "NEXUS-PROGRAM-PARTITION-V4",
+  "supersedes": "NEXUS-PROGRAM-PARTITION-V3"
+}

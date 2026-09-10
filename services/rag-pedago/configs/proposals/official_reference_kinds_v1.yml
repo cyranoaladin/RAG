@@ -1,0 +1,85 @@
+# Nature des textes officiels cités par le corpus — PROPOSITION.
+#
+# Le défaut que ce registre existe pour empêcher : `BOEN_*` traité comme
+# synonyme de « programme d'enseignement ». Le BO spécial n° 2 du 13 février
+# 2020 porte les MODALITÉS D'ÉPREUVES du baccalauréat 2021 — spécialités
+# artistiques, philosophie, Grand oral. Dix-sept documents le citent ; en
+# déduire leur version de programme ferait dériver une autorité pédagogique
+# d'un règlement d'examen.
+#
+# Seuls PROGRAM et PROGRAM_MODIFICATION peuvent alimenter
+# CurrentProgramAuthorityV1 ou ArtifactProgramBindingV1. Les autres natures
+# désignent des textes officiels parfaitement réels, qui ne disent simplement
+# rien de la version de programme d'un document.
+
+registry_id: NEXUS-OFFICIAL-REFERENCE-KIND-REGISTRY-V1
+status: PROPOSED
+applied: false
+
+kind_enum:
+  - PROGRAM
+  - PROGRAM_MODIFICATION
+  - EXAM_REGULATION
+  - ASSESSMENT_REGULATION
+  - CURRICULUM_GUIDANCE
+  - OTHER_OFFICIAL_TEXT
+  - UNKNOWN_OFFICIAL_KIND
+
+binding_capable_kinds: [PROGRAM, PROGRAM_MODIFICATION]
+
+references:
+  BOEN_special_11_2015-11-26:
+    official_reference_kind: PROGRAM
+    NOR: MENE1526483A
+    bulletin_series: SPECIAL
+    bulletin_number: 11
+    bulletin_date: "2015-11-26"
+    effective_from_school_year: "2016-2017"
+    scope_note: >-
+      Programmes des cycles 2, 3 et 4. La currentness dépend du SCOPE EXACT :
+      « en vigueur en 2026-2027 » ne se conclut pas globalement, discipline par
+      discipline ni classe par classe.
+    current_in_2026_2027: UNKNOWN_PER_SCOPE
+
+  BOEN_31_2020-07-30:
+    official_reference_kind: PROGRAM_MODIFICATION
+    NOR: MENE2018714A
+    bulletin_series: STANDARD
+    bulletin_number: 31
+    bulletin_date: "2020-07-30"
+    scope_note: >-
+      Modifie les programmes des cycles 2, 3 et 4. Ne devient JAMAIS « le
+      programme courant de toute matière du collège » : la résolution passe par
+      (school_year, niveau, matiere, voie).
+    current_in_2026_2027: UNKNOWN_PER_SCOPE
+
+  BOEN_special_2_2020-02-13:
+    official_reference_kind: EXAM_REGULATION
+    bulletin_series: SPECIAL
+    bulletin_number: 2
+    bulletin_date: "2020-02-13"
+    scope_note: >-
+      Modalités d'épreuves du baccalauréat 2021 : spécialités artistiques,
+      philosophie, Grand oral. Utile à la gouvernance des examens ; ne prouve
+      aucune version de programme.
+    binding_capable: false
+
+  BOEN_11_2015-11-26:
+    official_reference_kind: UNKNOWN_OFFICIAL_KIND
+    resolution_status: POSSIBLE_MISSING_SPECIAL_QUALIFIER
+    auto_alias: false
+    scope_note: >-
+      Le 26 novembre 2015 ont paru un BO SPÉCIAL n° 11 et un BO hebdomadaire
+      n° 44. « BO n° 11 du 26 novembre 2015 » ne correspond donc proprement à
+      aucune autorité canonique. Il faut revenir à la preuve source : si le
+      document écrit « BO spécial n° 11 », la normalisation vers
+      BOEN_special_11_2015-11-26 est légitime ; s'il écrit seulement
+      « BO n° 11 », la référence reste REFERENCE_SOURCE_INCONSISTENT.
+      Corriger silencieusement un texte officiel cité par une source serait
+      réécrire sa citation.
+
+rules:
+  - "Une référence sans nature déclarée est UNKNOWN_OFFICIAL_KIND, jamais PROGRAM par défaut."
+  - "Une référence dont la nature n'est pas liante ne produit aucun ArtifactProgramBinding."
+  - "Une référence liante hors du scope de l'artefact produit REFERENCE_SCOPE_MISMATCH."
+  - "Aucun alias automatique entre séries de bulletin."
