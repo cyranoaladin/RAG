@@ -15,11 +15,21 @@
 # Seul son constructeur la lit. Aucun chemin de production ne doit consommer
 # son verdict comme source de verite.
 MATRIX_READER	services/rag-pedago/scripts/construire_matrice_servabilite.py
+# L evaluateur de readiness lit les compteurs de la matrice pour en RENDRE
+# COMPTE, jamais pour decider qu un contenu est servable. Il ne rend aucun
+# verdict de servabilite, et il ne peut que REFUSER le go-live : une epreuve le
+# tient (test_le_lecteur_de_readiness_ne_peut_que_refuser).
+MATRIX_READER	scripts/go_live/check_go_live_readiness.py
 
 # --- R2 : la politique d actualite n a aucun lecteur de production -------
 # Elle est applied=false. Un lecteur de production l appliquerait de fait,
 # sans passer par l ADR qui l adopte.
-# (aucune ligne : la liste doit rester vide)
+#
+# L evaluateur de readiness lit le champ `applied` pour DIRE qu il est faux et
+# bloquer le go-live. Lire un drapeau pour signaler qu il n est pas leve est
+# l inverse de l appliquer : ce lecteur ne peut jamais rendre la politique
+# effective, il peut seulement refuser tant qu elle ne l est pas.
+CURRENTNESS_POLICY_READER	scripts/go_live/check_go_live_readiness.py
 
 # --- R4 : producteur AuthorizationSetV2 -----------------------------------
 # EXACTEMENT un producteur canonique hors du contrat. Il DERIVE les contenus

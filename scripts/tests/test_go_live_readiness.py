@@ -330,3 +330,67 @@ def test_un_worktree_supplementaire_non_nomme_bloque(
     assert etat["obsolete_worktrees_remaining"] == 1
     assert "obsolete_worktrees_remaining" in etat["blocking_reasons"]
     assert etat["go_live_ready"] is False
+
+
+# --- pourquoi ce lecteur est admis par le garde-fou d unicite ---------
+
+
+def test_le_lecteur_de_readiness_ne_peut_que_refuser(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Ce script LIT la matrice de servabilite et le drapeau `applied` de la
+    politique d actualite. Le garde-fou d unicite d autorite l epingle a ce
+    titre, et cette epreuve est la justification de cet epinglage.
+
+    La propriete : quelle que soit la valeur lue, ce script ne peut jamais
+    RENDRE un contenu servable ni RENDRE la politique effective. Il peut
+    seulement refuser le go-live. Lire un drapeau pour signaler qu il n est
+    pas leve est l inverse de l appliquer.
+    """
+    module = _module(depot_sans_bloqueur, monkeypatch)
+
+    # Aucun verdict de servabilite n est produit : le script ne porte aucune
+    # des valeurs par lesquelles la matrice decide.
+    etat = module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    interdits = {
+        "CANDIDATE_NO_BLOCKING_DIMENSION",
+        "GOVERNED_NOT_SERVABLE",
+        "SERVABLE",
+    }
+    rendu = json.dumps(etat)
+    assert not (interdits & set(rendu.split('"'))), (
+        "l evaluateur de readiness rend un verdict de servabilite : il "
+        "deviendrait une seconde autorite"
+    )
+
+    # `applied: true` ne suffit jamais a rendre le go-live vrai : d autres
+    # bloqueurs continuent de compter. Le lecteur ne peut donc pas, a lui
+    # seul, faire passer quoi que ce soit.
+    _ecrire(depot_sans_bloqueur, POLITIQUE, "applied: true\n")
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1}, "by_pii": {}},
+    )
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["go_live_ready"] is False
+
+
+def test_le_lecteur_n_ecrit_jamais_dans_ses_entrees(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Un lecteur qui ecrit dans sa source n est plus un lecteur."""
+    import hashlib
+
+    entrees = [MATRICE, NON_PDF, POLITIQUE, DISPOSITIONS, QUALIFICATION, ATTENDUS]
+    avant = {
+        r: hashlib.sha256((depot_sans_bloqueur / r).read_bytes()).hexdigest()
+        for r in entrees
+    }
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    apres = {
+        r: hashlib.sha256((depot_sans_bloqueur / r).read_bytes()).hexdigest()
+        for r in entrees
+    }
+    assert avant == apres

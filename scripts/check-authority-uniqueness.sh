@@ -72,12 +72,37 @@ compare() {  # compare <REGLE> <libelle> <observes>
 
 echo "== NEXUS-AUTHORITY-UNIQUENESS-V1"
 
+# `git grep` ne voit que les fichiers SUIVIS. Un fichier de code non suivi est
+# donc invisible a ce controle, qui passe alors pour la mauvaise raison : il n a
+# pas trouve de seconde autorite parce qu il n a pas pu regarder.
+#
+# C est arrive trois fois pendant la mise au point de ce controle, et chaque
+# fois la CI l a vu apres coup — parce que la CI, elle, part d un arbre propre.
+NON_SUIVIS="$(git -C "$REPO_ROOT" ls-files --others --exclude-standard \
+    -- '*.py' '*.sh' 2>/dev/null || true)"
+NON_SUIVIS="$(printf '%s\n' "$NON_SUIVIS" | sed '/^$/d')"
+if [ -n "$NON_SUIVIS" ]; then
+    echo "ERROR: fichiers de code non suivis — ce controle ne peut PAS les voir :" >&2
+    printf '  %s\n' $NON_SUIVIS >&2
+    echo "  Ajoute-les a l index avant de conclure : un controle aveugle qui" >&2
+    echo "  passe ne prouve rien." >&2
+    STATUS=1
+fi
+printf 'UNTRACKED_CODE_FILES_INVISIBLE\t%s\n' \
+    "$(printf '%s\n' "$NON_SUIVIS" | sed '/^$/d' | wc -l)"
+
 # R1 — la matrice de servabilite reste derivee, jamais une autorite.
 compare MATRIX_READER "matrice de servabilite lue en production" \
     "$(observed 'servability_matrix_v1' -- ':!*tests/*' ':!docs/*')"
 
 # R2 — la politique d actualite n a aucun lecteur de production.
 POLICY_READERS="$(observed 'nexus_rag_currentness_policy_v1' -- ':!*tests/*' ':!docs/*')"
+POLICY_READERS="$(printf '%s\n' "$POLICY_READERS" | sed '/^$/d')"
+# Les lecteurs epingles sont ceux dont il est PROUVE qu ils ne peuvent
+# qu observer le drapeau, jamais l appliquer.
+LECTEURS_ADMIS="$(pinned CURRENTNESS_POLICY_READER)"
+POLICY_READERS="$(comm -23 <(printf '%s\n' "$POLICY_READERS") \
+                           <(printf '%s\n' "$LECTEURS_ADMIS" | sed '/^$/d'))"
 POLICY_READERS="$(printf '%s\n' "$POLICY_READERS" | sed '/^$/d')"
 if [ -n "$POLICY_READERS" ]; then
     echo "ERROR: la politique d actualite est applied=false et a un lecteur de production :" >&2
