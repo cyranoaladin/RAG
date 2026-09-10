@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import psycopg
+from nexus_release_chain.release_readiness import load_release_registry_file
 
 from ingestor.embedding_provider import VerifiedE5EmbeddingProvider
 from ingestor.ingestion_control.attestation import (
@@ -27,7 +28,6 @@ from ingestor.ingestion_profiles.readiness_gate import (
     enforce_readiness_gate,
 )
 from ingestor.ingestion_profiles.registry import load_profile_registry
-from ingestor.release_readiness import load_release_registry_file
 
 from .multilevel_runtime_authority import (
     add_multilevel_runtime_authority_arguments,

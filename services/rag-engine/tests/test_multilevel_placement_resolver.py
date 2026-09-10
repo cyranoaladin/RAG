@@ -12,6 +12,7 @@ from typing import cast
 import pytest
 from nexus_contracts.document import Niveau, TypeDoc, Voie
 from nexus_contracts.ingestion import CollectionProfile
+from nexus_release_chain.release_readiness import load_release_expectation
 
 from ingestor import multilevel_verified_placement as multilevel_release
 from ingestor.ingestion_profiles.registry import profile_fingerprint
@@ -29,7 +30,6 @@ from ingestor.multilevel_verified_placement import (
     load_multilevel_release_eligibility,
 )
 from ingestor.programme_registry import ProgrammeIndexRegistry
-from ingestor.release_readiness import load_release_expectation
 from ingestor.staging_profile_manifest import StagingProfileManifestVerification
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]

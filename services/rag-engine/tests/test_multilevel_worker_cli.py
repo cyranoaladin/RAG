@@ -8,6 +8,7 @@ from pathlib import Path
 from types import ModuleType
 
 import pytest
+from nexus_release_chain.release_readiness import ReleaseReadinessError
 
 from ingestor.ingestion_control.revocation_registry import RevocationRegistryError
 from ingestor.ingestion_worker import (
@@ -16,7 +17,6 @@ from ingestor.ingestion_worker import (
     multilevel_runtime_authority,
 )
 from ingestor.ingestion_worker.runtime_authority import RuntimeAuthorityStartupError
-from ingestor.release_readiness import ReleaseReadinessError
 
 SHA = "a" * 64
 

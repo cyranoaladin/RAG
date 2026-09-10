@@ -17,7 +17,45 @@ name: Corpus CAS reproducibility (C1)
   push:
     branches: [main]
     paths:
-      - "scripts/qualification/verify_corpus_cas.py"
+      # Volontairement LARGE plutôt qu'une allowlist fragile : l'ensemble
+      # servi dépend du registre, des manifestes de release qu'il désigne et
+      # des manifestes de sujet joignables depuis eux. Énumérer ces chemins un
+      # par un laisserait un changement de registre seul — ou une release
+      # nouvellement désignée — éviter C1 sans que rien ne le dise.
+      - "services/rag-pedago/data/releases/**"
+      - "scripts/qualification/**"
+      # C1 consomme désormais DIRECTEMENT l'autorité canonique de release.
+      # Un changement de sa sémantique change le périmètre servi : ne pas le
+      # déclencher ici laisserait le chargeur évoluer sans que le store privé
+      # soit reconfronté — un C1 vert sur un périmètre qu'il ne décrit plus.
+      - "packages/release-chain/**"
+      # TOUTE la surface runtime qui lit, sélectionne, résout ou interprète le
+      # registre — pas le seul duplicata du chargeur. Un appelant qui change sa
+      # manière de choisir le registre change le corpus servi tout autant qu'un
+      # changement du chargeur ; ne déclencher que sur ce dernier laissait C1
+      # vert en décrivant un périmètre que le runtime ne calcule plus.
+      #
+      # Le périmètre est BORNÉ à un répertoire plutôt qu'énuméré fichier par
+      # fichier : une liste de fichiers se périme au premier module ajouté, en
+      # silence. Une épreuve (`test_le_declencheur_c1_couvre_la_surface_runtime`)
+      # confronte cette couverture à la surface réellement mesurée dans le
+      # source, pour qu'un module nouveau échoue au lieu de passer inaperçu.
+      - "services/rag-engine/src/ingestor/**"
+      # L'outillage de DÉPLOIEMENT ne charge pas le registre : il décide de
+      # celui qui sera monté (`--release-registry-path`). Le changer change le
+      # corpus servi tout autant qu'un changement du chargeur.
+      - "services/rag-engine/scripts/**"
+      # Le plan de contrôle produit et rescelle les registres et leurs
+      # autorités : sa gouvernance et ses scripts décident de ce qui devient
+      # servable.
+      - "services/rag-pedago/rag_pedago/**"
+      - "services/rag-pedago/scripts/**"
+      - "packages/contracts/**"
+      - "packages/pdf-page-policy/**"
+      # Le câblage de déploiement décide QUEL registre est monté et contre
+      # quelle empreinte il est vérifié. Un changement de montage sans
+      # déclenchement laisserait C1 vert sur l'ancien corpus.
+      - "services/rag-engine/infra/**"
       - "docs/reports/evidence-index/pii_review_index_20260903.json"
       - ".github/workflows/corpus-cas-reproducibility.yml"
   workflow_dispatch: {}
@@ -45,6 +83,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Unit tests for the qualification scripts
+        run: |
+          python -m pip install --quiet pytest \
+            -e packages/contracts \
+            -e packages/pdf-page-policy \
+            -e packages/release-chain
+          python -m pytest -q scripts/qualification/tests/
+
+      - name: Compute the content set the current lineage promotes
+        run: |
+          set -euo pipefail
+          # Données publiques du dépôt uniquement — aucune clé requise ici.
+          # Le store peut légitimement porter plus que cet ensemble (candidat
+          # retiré, contenu superseded) ; il ne peut jamais en porter moins.
+          python scripts/qualification/compute_promoted_content_set.py \
+            --output /tmp/promoted-content-set.json
+
       - name: Fetch the private content-addressed corpus
         uses: actions/checkout@v4
         with:
@@ -69,4 +124,5 @@ jobs:
           python scripts/qualification/verify_corpus_cas.py \
             --cas-root .corpus-cas \
             --expect-content-set-sha256 "$expected" \
-            --expect-count "$count"
+            --expect-count "$count" \
+            --promoted-content-set /tmp/promoted-content-set.json

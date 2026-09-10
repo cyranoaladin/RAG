@@ -6,6 +6,19 @@ import io
 import re
 from typing import Final
 
+try:
+    import nexus_pdf_page_policy as _capacite_pdf  # noqa: F401
+except ModuleNotFoundError as exc:  # pragma: no cover - dépend de l'installation
+    # Un `ModuleNotFoundError` nu, levé au milieu d'un traitement, nomme un
+    # paquet interne que l'exploitant n'a jamais demandé et ne dit pas quoi
+    # faire. La pile PDF est un EXTRA de ce paquet : le défaut doit le dire.
+    raise ImportError(
+        "nexus_release_chain.pdf_extractor exige la pile PDF, qui est un extra "
+        "de ce paquet. Installez « nexus-release-chain[pdf] ». Le paquet de base "
+        "s'en passe volontairement : le runtime de lecture est une allowlist "
+        "sans parseur, et y faire entrer pypdf élargirait sa surface."
+    ) from exc
+
 from nexus_pdf_page_policy import (
     PAGE_INSPECTION_ECHOUEE,
     SENS_DES_MOTIFS,
