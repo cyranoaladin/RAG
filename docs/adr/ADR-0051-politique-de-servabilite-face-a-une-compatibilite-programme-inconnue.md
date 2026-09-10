@@ -6,12 +6,18 @@
 - Périmètre : gouvernance de la servabilité au regard du programme scolaire.
   Ne produit, ne rescelle, ne promeut et ne matérialise aucune release.
 - S'appuie sur : ADR-0025, ADR-0050, et la partition qualifiée
-  `NEXUS-PROGRAM-PARTITION-V4`.
+  `NEXUS-PROGRAM-PARTITION-V4`, versionnée dans le dépôt sous
+  `docs/reports/handoff/program_partition_v4.json`.
 
 ## Autorité citée
 
 Cette ADR s'appuie sur `NEXUS-PROGRAM-PARTITION-V4`, qui supersède V3 et
-constitue la mesure qualifiée courante. Une version antérieure de ce texte
+constitue la mesure qualifiée courante. Elle ne cite pas une copie locale :
+l'artefact est versionné dans le dépôt sous
+`docs/reports/handoff/program_partition_v4.json`, et les chiffres repris
+ci-dessous en sont la lecture directe. Cette ADR n'a donc de sens qu'une fois
+cet artefact présent sur `main` ; c'est la raison pour laquelle elle est
+fusionnée après le lot qui le publie. Une version antérieure de ce texte
 citait `NEXUS-PROGRAM-COMPATIBILITY-MEASUREMENT-V2` et ses chiffres
 `0 / 0 / 2451` : **cette citation était périmée** et sa conclusion
 `PROGRAM_GO_LIVE_BLOCKER_COUNT=0` en découlait à tort.
