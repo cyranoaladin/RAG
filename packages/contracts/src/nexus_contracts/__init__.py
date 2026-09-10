@@ -208,6 +208,7 @@ from nexus_contracts.authorization_set import (
     scope_digest,
     verify_authorization_binding_set_v2,
     verify_authorization_set,
+    verify_authorization_set_v2,
 )
 from nexus_contracts.h2_coverage_evidence import (
     H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION,
@@ -435,6 +436,7 @@ __all__ = [
     "scope_digest",
     "verify_authorization_binding_set_v2",
     "verify_authorization_set",
+    "verify_authorization_set_v2",
     "H2_COVERAGE_EVIDENCE_V2_PROTOCOL_VERSION",
     "H2CoverageEvidenceV2",
     "parse_h2_coverage_evidence_v2",
