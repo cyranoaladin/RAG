@@ -1,0 +1,189 @@
+{
+  "CURRENT_PROGRAM_PROFILES": 18,
+  "CURRENT_PROGRAM_PROFILE_CONFLICTS": 0,
+  "CURRENT_PROGRAM_PROFILE_DUPLICATES": 0,
+  "conflicts": {},
+  "kind": "NEXUS-CURRENT-PROGRAM-PROFILE-INVENTORY-V1",
+  "profiles": [
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/dgemc_terminale_option_profile_gate_v1.yml",
+      "authority_sha256": "9d46cfbd2c09ad101e498cc275207e0ca6674241deaf91a0dc4085c51aab8039",
+      "matiere": "dgemc",
+      "niveau": "terminale",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/francais_premiere_tc_multilevel_v1.yml",
+      "authority_sha256": "7bd762576cbd6168a73a7f33b8011aa741df676a4244dff067a0320c6591ecaa",
+      "matiere": "francais",
+      "niveau": "premiere",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/francais_quatrieme_tc_multilevel_v1.yml",
+      "authority_sha256": "d4aa9ddd6f7596471780d9426bda04d1f0bc7f8172a0ef2b2e97e1b032a3c6a2",
+      "matiere": "francais",
+      "niveau": "quatrieme",
+      "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "college"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/francais_seconde_tc_multilevel_v1.yml",
+      "authority_sha256": "d0008af19356feb548093aba535aba45d6207a0141429cc074ade1000df69095",
+      "matiere": "francais",
+      "niveau": "seconde",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/hlp_premiere_specialite_profile_gate_v1.yml",
+      "authority_sha256": "6534786b5a13699a053c6f4a29702beedf7273abd743e5a27ec093e045e95ee4",
+      "matiere": "hlp",
+      "niveau": "premiere",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/maths_premiere_gen_specialite_multilevel_v1.yml",
+      "authority_sha256": "19acab9ae9e66db55b62daee3f6493fc213f3c6e3d1bfbb2df9e3c15726acb8e",
+      "matiere": "maths",
+      "niveau": "premiere",
+      "programme_version": "BOEN_14_2026-04-02_MENE2602917A",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/maths_quatrieme_tc_multilevel_v1.yml",
+      "authority_sha256": "794f8fb125fb84e0c5ecbd025f223992639786aaf637d35bf9da8ed11edb8cab",
+      "matiere": "maths",
+      "niveau": "quatrieme",
+      "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "college"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/maths_seconde_tc_multilevel_v1.yml",
+      "authority_sha256": "5354d4cbeabcfa3c6c06d5c999769e69ad428fc34352a22ee9fb0c60a714d833",
+      "matiere": "maths",
+      "niveau": "seconde",
+      "programme_version": "BOEN_14_2026-04-02_MENE2602914A",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/maths_terminale_gen_specialite_multilevel_v1.yml",
+      "authority_sha256": "2ebad00535220db8e34e2a19a3574b0c61c5a44b51221f9e2384c7ec195f7c8d",
+      "matiere": "maths",
+      "niveau": "terminale",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/nsi_premiere_specialite_multilevel_v1.yml",
+      "authority_sha256": "be7e84039db505d7f80c4b74211198303504f8ceb21c5d3c1857e0408689e50b",
+      "matiere": "nsi",
+      "niveau": "premiere",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/nsi_terminale_specialite_multilevel_v1.yml",
+      "authority_sha256": "4c0736d1251c6fa45f12f75380f75fdfc42ab65cbcf115d1fb456ce1ab9793c0",
+      "matiere": "nsi",
+      "niveau": "terminale",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/pc_premiere_specialite_profile_gate_v1.yml",
+      "authority_sha256": "d16de2aa78eee39238797dfd6a00a942e5d779c73bec83f2f1a84c59193edf6f",
+      "matiere": "physique_chimie",
+      "niveau": "premiere",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/pc_terminale_specialite_multilevel_v1.yml",
+      "authority_sha256": "3e5a64bc35de17a530138c2208fc8d9287fe1826e30bd6cdb59a364b4b77248b",
+      "matiere": "physique_chimie",
+      "niveau": "terminale",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/philosophie_terminale_tc_h2c_v1.yml",
+      "authority_sha256": "1f7ee61e0b1eb413481fe199e6420403a1e08285b13b5f1f429b273c2c380d3c",
+      "matiere": "philosophie",
+      "niveau": "terminale",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/ses_premiere_specialite_profile_gate_v1.yml",
+      "authority_sha256": "1b33c029d683fe2f522acad1d3f5615d94c94ae0ad9e004898bf9f214719b7b6",
+      "matiere": "ses",
+      "niveau": "premiere",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/ses_terminale_specialite_profile_gate_v1.yml",
+      "authority_sha256": "0c30f2c674615655203a710853b3640f49e082aae0b1cdc1b09d0b122f2417e4",
+      "matiere": "ses",
+      "niveau": "terminale",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/svt_premiere_specialite_profile_gate_v1.yml",
+      "authority_sha256": "e43d84120d4ae96289eafdd19589726566804bca3e9ce27dd51d7a4f39a77444",
+      "matiere": "svt",
+      "niveau": "premiere",
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    },
+    {
+      "authority_file": "services/rag-engine/configs/ingestion_profiles/svt_terminale_specialite_profile_gate_v1.yml",
+      "authority_sha256": "96e620cf6892f50b24527cb62ca8d6657aad386b27eec099be4ee2acd9328140",
+      "matiere": "svt",
+      "niveau": "terminale",
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "school_year": "2026-2027",
+      "specialite_or_option": null,
+      "voie": "generale"
+    }
+  ]
+}
