@@ -462,6 +462,9 @@ def _verify_v2_material(
             authority_required_content_sha256=(
                 material.authority_required_content_sha256
             ),
+            # Le gate LIT deja ce placement : le transmettre est tout ce qui
+            # manquait pour qu un document V2 soit verifiable ici.
+            release_scope_placement_raw=material.release_scope_placement_raw,
         )
     except rv2.V2ReleaseVerificationError as exc:
         raise _fail(f"V2 authorization material refused: {exc}") from exc
