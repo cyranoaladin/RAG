@@ -12,8 +12,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from nexus_release_chain.release_readiness import load_release_registry
+
 from ingestor.collection_config import load_collection_config
-from ingestor.release_readiness import load_release_registry
 from ingestor.retrieval_v2_endpoint import _list_retrievable_collections
 
 SERVICE_ROOT = Path(__file__).resolve().parents[1]

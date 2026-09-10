@@ -9,7 +9,7 @@ This is deliberately NOT another exporter and NOT a redesign of the
     ``resource_registry_bootstrap_cli`` command,
   * the same sealed release chain that command's own
     ``--release-registry-path``/``--release-registry-sha256`` arguments
-    already pin (``ingestor.release_readiness.load_release_registry_file``,
+    already pin (``nexus_release_chain.release_readiness.load_release_registry_file``,
     unmodified, reused as-is for its digest-verified parse of the release
     authority), and
   * the declarative profile registry + its signed manifest
@@ -59,12 +59,19 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from nexus_contracts import ResourceRegistryBootstrap
+from nexus_release_chain.release_readiness import (
+    ExpectedPlacement,
+    ReleaseReadinessError,
+    ReleaseRegistryExpectation,
+    load_release_registry_file,
+)
 
 from ingestor.ingestion_profiles.manifest import (
     ManifestVerification,
@@ -77,12 +84,6 @@ from ingestor.ingestion_profiles.registry import (
     load_profile_registry,
     profile_fingerprint,
     select_profile,
-)
-from ingestor.release_readiness import (
-    ExpectedPlacement,
-    ReleaseReadinessError,
-    ReleaseRegistryExpectation,
-    load_release_registry_file,
 )
 
 #: The 10 SCALAR canonical dimensions. ``audience`` (set-valued) is handled
@@ -324,7 +325,10 @@ def _actual_chunk_tuples(bootstrap: ResourceRegistryBootstrap) -> set[tuple[Any,
     return tuples
 
 
-def _canonical_tuple(values: dict[str, Any]) -> tuple[Any, ...]:
+def _canonical_tuple(values: Mapping[str, Any]) -> tuple[Any, ...]:
+    # `Mapping` et non `dict` : l'autorité canonique est désormais un paquet
+    # typé, et mypy voit que ses placements sont des mappings en lecture seule.
+    # La copie du service n'étant pas typée, l'écart restait invisible.
     return tuple(values[field_name] for field_name in CANONICAL_PLACEMENT_FIELDS)
 
 

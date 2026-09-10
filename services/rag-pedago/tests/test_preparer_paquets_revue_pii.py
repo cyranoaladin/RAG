@@ -86,7 +86,7 @@ def test_bundles_are_generated_only_for_detected_contents_and_sealed(tmp_path: P
     out = tmp_path / "revue"
     index_path = tmp_path / "index.json"
 
-    index = preparer.preparer(
+    index = preparer.preparer_par_extraction_locale(
         pdf_root=root,
         content_sha256=sorted(shas.values()),
         placements_path=placements,
@@ -134,7 +134,7 @@ def test_verification_detects_any_modification_after_generation(tmp_path: Path) 
     root, placements, shas = _corpus(tmp_path)
     out = tmp_path / "revue"
     index_path = tmp_path / "index.json"
-    preparer.preparer(
+    preparer.preparer_par_extraction_locale(
         pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
         policy_path=POLICY, output_root=out, index_path=index_path, campaign_id="pii-review-test", require_frozen=False,
     )
@@ -153,7 +153,7 @@ def test_a_mirror_file_that_does_not_match_its_name_is_refused(tmp_path: Path) -
     root, placements, shas = _corpus(tmp_path)
     (root / f"{shas['detecte']}.pdf").write_bytes(_pdf([_PAGE_AVEC_TELEPHONE]))
     with pytest.raises(ValueError, match="does not match"):
-        preparer.preparer(
+        preparer.preparer_par_extraction_locale(
             pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
             policy_path=POLICY, output_root=tmp_path / "revue", index_path=tmp_path / "index.json",
             campaign_id="pii-review-test", require_frozen=False,
@@ -163,12 +163,12 @@ def test_a_mirror_file_that_does_not_match_its_name_is_refused(tmp_path: Path) -
 def test_generation_is_deterministic(tmp_path: Path) -> None:
     preparer = _module()
     root, placements, shas = _corpus(tmp_path)
-    first = preparer.preparer(
+    first = preparer.preparer_par_extraction_locale(
         pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
         policy_path=POLICY, output_root=tmp_path / "a", index_path=tmp_path / "a.json",
         campaign_id="pii-review-test", require_frozen=False,
     )
-    second = preparer.preparer(
+    second = preparer.preparer_par_extraction_locale(
         pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
         policy_path=POLICY, output_root=tmp_path / "b", index_path=tmp_path / "b.json",
         campaign_id="pii-review-test", require_frozen=False,
@@ -183,7 +183,7 @@ def test_each_finding_has_an_identity_and_the_producer_is_frozen(tmp_path: Path)
     root, placements, shas = _corpus(tmp_path)
     out = tmp_path / "revue"
     index_path = tmp_path / "index.json"
-    index = preparer.preparer(
+    index = preparer.preparer_par_extraction_locale(
         pdf_root=root, content_sha256=sorted(shas.values()), placements_path=placements,
         policy_path=POLICY, output_root=out, index_path=index_path, campaign_id="pii-review-test", require_frozen=False,
     )
@@ -223,7 +223,7 @@ def test_a_french_ssn_finding_carries_its_checksum_verdict_without_deciding(tmp_
     (root / f"{sha}.pdf").write_bytes(invalid)
     placements = tmp_path / "placements.json"
     placements.write_text(json.dumps({sha: {"title": "t", "source_path": "x.pdf", "placements": ["c"]}}))
-    index = preparer.preparer(
+    index = preparer.preparer_par_extraction_locale(
         pdf_root=root, content_sha256=[sha], placements_path=placements, policy_path=POLICY,
         output_root=tmp_path / "revue", index_path=tmp_path / "index.json", campaign_id="pii-review-test", require_frozen=False,
     )

@@ -1,0 +1,93 @@
+{
+  "CONTRACT_SIGNATURE_SHA256": "79f366266186f39714fbb223cb2cf46aa78ee009971c1d07cdb1ba463e1b8893",
+  "EXCEPTION_SEMANTICS_DRIFT": 0,
+  "PUBLIC_CONTRACT_SYMBOLS": 9,
+  "SIGNATURE_DRIFT": 0,
+  "authority_module": "nexus_release_chain.release_readiness",
+  "kind": "NEXUS-RELEASE-AUTHORITY-PUBLIC-CONTRACT-LEDGER-V1",
+  "symbols": [
+    {
+      "consumer_count": 1,
+      "exception_contract": [
+        "ValueError",
+        "Exception",
+        "BaseException"
+      ],
+      "signature": "class DeploymentBindingError",
+      "symbol_kind": "exception",
+      "symbol_name": "DeploymentBindingError"
+    },
+    {
+      "consumer_count": 2,
+      "exception_contract": [
+        "ValueError",
+        "Exception",
+        "BaseException"
+      ],
+      "signature": "class ReleaseReadinessError",
+      "symbol_kind": "exception",
+      "symbol_name": "ReleaseReadinessError"
+    },
+    {
+      "consumer_count": 1,
+      "exception_contract": [],
+      "fields": [
+        "collections",
+        "manifests"
+      ],
+      "signature": "class ReleaseRegistryExpectation",
+      "symbol_kind": "dataclass",
+      "symbol_name": "ReleaseRegistryExpectation"
+    },
+    {
+      "consumer_count": 1,
+      "exception_contract": [
+        "DeploymentBindingError"
+      ],
+      "signature": "configured_release_registry(environ: 'Mapping[str, str] | None' = None) -> 'tuple[Path, str] | None'",
+      "symbol_kind": "function",
+      "symbol_name": "configured_release_registry"
+    },
+    {
+      "consumer_count": 2,
+      "exception_contract": [
+        "ReleaseReadinessError"
+      ],
+      "signature": "load_release_expectation(path: 'Path', expected_sha256: 'str') -> 'ReleaseExpectation'",
+      "symbol_kind": "function",
+      "symbol_name": "load_release_expectation"
+    },
+    {
+      "consumer_count": 1,
+      "exception_contract": [
+        "ReleaseReadinessError"
+      ],
+      "signature": "load_release_registry(configurations: 'Sequence[tuple[Path, str]]') -> 'ReleaseRegistryExpectation'",
+      "symbol_kind": "function",
+      "symbol_name": "load_release_registry"
+    },
+    {
+      "consumer_count": 5,
+      "exception_contract": [
+        "ReleaseReadinessError"
+      ],
+      "signature": "load_release_registry_file(path: 'Path', expected_sha256: 'str') -> 'ReleaseRegistryExpectation'",
+      "symbol_kind": "function",
+      "symbol_name": "load_release_registry_file"
+    },
+    {
+      "consumer_count": 1,
+      "exception_contract": [],
+      "signature": "validate_release_collection_readiness(registry: 'ReleaseRegistryExpectation', collection: 'str', connection: 'Any') -> 'ReleaseReadinessReport'",
+      "symbol_kind": "function",
+      "symbol_name": "validate_release_collection_readiness"
+    },
+    {
+      "consumer_count": 1,
+      "exception_contract": [],
+      "signature": "validate_release_registry_readiness(registry: 'ReleaseRegistryExpectation', connection: 'Any') -> 'dict[str, ReleaseReadinessReport]'",
+      "symbol_kind": "function",
+      "symbol_name": "validate_release_registry_readiness"
+    }
+  ]
+}
