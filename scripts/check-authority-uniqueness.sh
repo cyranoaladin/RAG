@@ -108,13 +108,21 @@ fi
 
 # R4 — un seul PRODUCTEUR AuthorizationSetV2 hors du contrat.
 #
-#      Produire et charger sont deux choses. Confondre les deux ferait passer
-#      le chargeur pour un second producteur, et l erreur pousserait a fusionner
-#      deux modules qui n ont pas le meme role. Produire, c est appeler
-#      `AuthorizationSetV2.build` ou tenir le gate d egalite d ensemble.
+#      Produire, charger et verifier sont trois choses. Produire, c est appeler
+#      `AuthorizationSetV2.build`. Une premiere version comptait aussi le gate
+#      d egalite d ensemble comme une production : elle signalait alors chaque
+#      consommateur migre comme un second producteur, c est-a-dire qu elle
+#      punissait exactement le progres qu on cherche.
 compare AUTHORIZATION_V2_PRODUCER "producteur AuthorizationSetV2" \
-    "$(observed 'AuthorizationSetV2\.build\|verify_authorization_binding_set_v2' \
+    "$(observed 'AuthorizationSetV2\.build' \
         -- ':!packages/contracts/*' ':!*tests/*' ':!docs/*')"
+
+# Mesure, pas regle : combien de consommateurs runtime tiennent le gate V2.
+# Ce compte doit MONTER jusqu a couvrir les neuf. L epingler le figerait.
+AUTH_V2_GATE_CONSUMERS="$(observed 'verify_authorization_binding_set_v2' \
+    -- ':!packages/contracts/*' ':!packages/release-chain/*' ':!*tests/*' ':!docs/*')"
+printf 'AUTH_V2_GATE_CONSUMERS\t%s\n' \
+    "$(printf '%s\n' "$AUTH_V2_GATE_CONSUMERS" | sed '/^$/d' | wc -l)"
 
 # R4b — un seul CHARGEUR. Neuf consommateurs qui choisissent chacun entre V1 et
 #       V2 finissent par ne pas choisir pareil : le choix se fait une fois.

@@ -13,11 +13,13 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 
+from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.authorization_set import (
     AuthorizationSetError,
     content_set_digest,
-    parse_authorization_set,
+    parse_release_scope_placement_v2,
     scope_digest,
+    verify_authorization_binding_set_v2,
 )
 from nexus_contracts.ingestion import ResourceScope
 
@@ -113,6 +115,7 @@ def build_authorization_mapping(
     authorization_set_bytes: bytes | bytearray,
     expected_authorization_set_digest: str,
     authority_required_content_sha256: Sequence[str],
+    release_scope_placement_raw: bytes | bytearray | None = None,
 ) -> AuthorizationMapping:
     """Valide l'identité signée et l'union réelle avant tout lookup.
 
@@ -120,6 +123,12 @@ def build_authorization_mapping(
     La liste requise est l'artefact Tier A figé. Leur vérification conjointe
     empêche qu'un set intrinsèquement cohérent mais incomplet devienne une
     autorité par simple auto-déclaration.
+
+    ``release_scope_placement_raw`` n'est requis que pour un document V2. La V2
+    compare un ensemble de LIAISONS ``(content_sha256, scope)`` ; la comparaison
+    par contenu seul ne distingue pas deux placements légitimes d'un même
+    contenu partagé. Sans le placement, un document V2 est **refusé**, jamais
+    accepté sur une comparaison par contenu qui passerait sans rien prouver.
     """
     expected_digest = _require_digest(
         expected_authorization_set_digest,
@@ -134,9 +143,10 @@ def build_authorization_mapping(
         )
 
     try:
-        authorization_set = parse_authorization_set(raw)
+        charge = load_authorization_set(raw)
     except AuthorizationSetError as exc:
         raise AuthorizationMappingError(str(exc)) from exc
+    authorization_set = charge.authorization_set
 
     required = tuple(authority_required_content_sha256)
     if len(required) != len(set(required)):
@@ -163,10 +173,30 @@ def build_authorization_mapping(
         raise AuthorizationMappingError(f"authorization union has extra content: {extra!r}")
 
     required_digest = content_set_digest(required_contents)
-    if authorization_set.authority_required_count != len(required_contents):
-        raise AuthorizationMappingError("authority_required_count mismatch")
-    if authorization_set.authority_required_set_sha256 != required_digest:
-        raise AuthorizationMappingError("authority_required_set_sha256 mismatch")
+    if charge.is_v2:
+        # La V2 ne porte pas de compte par contenu : elle porte un compte de
+        # LIAISONS. Comparer les deux serait mettre côte à côte deux compteurs
+        # de natures différentes, et obtenir un accord qui ne prouve rien.
+        if release_scope_placement_raw is None:
+            raise AuthorizationMappingError(
+                "un document V2 exige le placement de release pour être vérifié : "
+                "la V2 compare un ensemble de liaisons (contenu, scope), que la "
+                "liste de contenus seule ne peut pas établir"
+            )
+        try:
+            placement = parse_release_scope_placement_v2(
+                bytes(release_scope_placement_raw)
+            )
+            verify_authorization_binding_set_v2(
+                authorization_set, release_scope_placement=placement
+            )
+        except AuthorizationSetError as exc:
+            raise AuthorizationMappingError(str(exc)) from exc
+    else:
+        if authorization_set.authority_required_count != len(required_contents):
+            raise AuthorizationMappingError("authority_required_count mismatch")
+        if authorization_set.authority_required_set_sha256 != required_digest:
+            raise AuthorizationMappingError("authority_required_set_sha256 mismatch")
 
     scope_owners = tuple(
         sorted(

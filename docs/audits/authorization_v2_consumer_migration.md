@@ -4,8 +4,8 @@
 
 ```text
 AUTH_V2_RUNTIME_CONSUMERS_TOTAL=9
-AUTH_V2_RUNTIME_CONSUMERS_MIGRATED=3
-AUTH_V2_RUNTIME_CONSUMERS_REMAINING=6
+AUTH_V2_RUNTIME_CONSUMERS_MIGRATED=4
+AUTH_V2_RUNTIME_CONSUMERS_REMAINING=5
 ```
 
 Trois consommateurs passent par le chargeur canonique et acceptent désormais les
@@ -61,16 +61,61 @@ Migrer l'un d'eux en remplaçant simplement le nom du champ produirait une
 comparaison qui **passe** sans rien prouver : deux compteurs de natures
 différentes, mis côte à côte.
 
+## Correction : l'obstacle était plus étroit que je ne l'avais écrit
+
+La première version de cet audit disait qu'« aucun des six n'a le placement à
+son point de comparaison ». La vérification, fichier par fichier, contredit
+cette phrase :
+
+```text
+release_verification_v2.py     references au placement : 16
+catalog_republish.py           references au placement : 16
+h2b_coverage_report.py         references au placement : 9
+h2_evidence.py                 references au placement : 6
+corpus_campaign.py             references au placement : 3
+authorization_mapping.py       references au placement : 0
+```
+
+J'avais inféré l'absence du placement depuis le seul site de comparaison, au
+lieu de regarder ce que chaque module porte déjà. Cinq des six l'ont.
+
+Et le sixième, `authorization_mapping.py`, ne l'avait pas — mais **son appelant
+l'avait**. Le gate de readiness lit `release-scope-placement.jsonl` depuis
+toujours ; il ne le transmettait simplement pas. Le transmettre est tout ce qui
+manquait, et ce consommateur est désormais migré.
+
+## L'obstacle réel des cinq restants
+
+Ce n'est donc pas la disponibilité du placement, c'est **la forme des artefacts
+croisés**. `release_verification_v2.py` compare `authority_required_count` non
+seulement au document d'autorisation, mais à quatre autres artefacts :
+
+```text
+h2_coverage.authority_required_count
+h2_coverage.authority_covered_count
+h2_bundle.authority_required_count
+h2_bundle.authority_covered_count
+promotion.authority_required_count
+```
+
+Ces quatre-là portent des compteurs **par contenu**. Migrer la comparaison vers
+les liaisons exige que ces artefacts portent aussi un compte de liaisons —
+sinon la comparaison croisée n'a plus de terme commun. C'est un changement de
+format d'artefact de preuve, pas un changement d'appel.
+
 ## L'ordre qui reste
 
-1. Rendre le `ReleaseScopePlacementV2` disponible au point de comparaison de
-   chacun des six.
-2. Porter en version liaison les compteurs de couverture H2 dont trois d'entre
-   eux dépendent.
-3. Alors seulement, faire consommer `verify_authorization_binding_set_v2`.
+1. Porter un compte et une empreinte de **liaisons** dans les artefacts de
+   preuve croisés : couverture H2, paquet H2, évidence de promotion.
+2. Alors seulement, faire consommer `verify_authorization_binding_set_v2` aux
+   cinq comparaisons croisées.
 
-Tant que 1 et 2 ne sont pas faits, migrer les six ne rapprocherait pas du but :
-cela remplacerait une vérification vraie par une vérification vide.
+Tant que 1 n'est pas fait, migrer les cinq remplacerait une vérification vraie
+par une comparaison sans terme commun. Un consommateur qui reçoit un document
+V2 sans pouvoir le vérifier doit donc **refuser**, et c'est ce que fait
+désormais le mapping d'autorisation : un document V2 sans son placement est
+refusé, jamais accepté sur une comparaison par contenu qui passerait sans rien
+prouver.
 
 ## Où vit le chargeur, et pourquoi une épreuve d'image l'a décidé
 
