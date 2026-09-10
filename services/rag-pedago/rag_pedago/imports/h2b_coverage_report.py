@@ -57,6 +57,7 @@ from nexus_contracts.authority_artifacts import (
     git_blob_sha1,
     parse_scope_authorization_artifact,
 )
+from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.authorization_revocations import (
     REVOCATIONS_PROTOCOL_VERSION,
     parse_revoked_authorization_ids,
@@ -65,7 +66,6 @@ from nexus_contracts.authorization_set import (
     AuthorizationSetError,
     AuthorizationSetV1,
     VerifiedAuthorizationSetV1,
-    parse_authorization_set,
     resolve_authorization_set_material,
     verify_authorization_set,
 )
@@ -1872,7 +1872,17 @@ def generate_coverage_report(
         authorization_set_input = _freeze_input(
             authorization_set_path, label="authorization set"
         )
-        parsed_authorization_set = parse_authorization_set(authorization_set_input.raw)
+        charge_autorisation = load_authorization_set(authorization_set_input.raw)
+        parsed_authorization_set = charge_autorisation.authorization_set
+        if charge_autorisation.is_v2:
+            # Le rapport de couverture compare `authority_required_*`, propres
+            # a la V1. La V2 porte un compte de liaisons ; les confronter
+            # donnerait un accord entre deux compteurs de natures differentes.
+            raise ValueError(
+                "le rapport de couverture H2b ne sait pas encore recouper un "
+                "document d autorisation V2 : il compare un ensemble de "
+                "contenus, la V2 porte un ensemble de liaisons"
+            )
         if parsed_authorization_set.corpus_manifest_sha256 != manifest_sha256:
             raise ValueError(
                 "AUTHORIZATION_SET_VALIDATION failed: corpus manifest digest differs "

@@ -13,15 +13,17 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.authorization_set import (
     AuthorizationSetError,
     AuthorizationSetV1,
     ReleaseScopePlacementV1,
     VerifiedAuthorizationSetV1,
     VerifiedProfileFactV1,
-    parse_authorization_set,
     parse_release_scope_placement,
+    parse_release_scope_placement_v2,
     verify_authorization_set,
+    verify_authorization_set_v2,
 )
 from nexus_contracts.h2_coverage_evidence import (
     H2CoverageEvidenceError,
@@ -210,8 +212,19 @@ def verify_v2_release_material(
     if material.now.tzinfo is None:
         raise V2ReleaseVerificationError("V2 verification time must be timezone-aware")
     try:
-        authorization_set = parse_authorization_set(material.authorization_set_raw)
-        placement = parse_release_scope_placement(material.release_scope_placement_raw)
+        # Chargeur canonique : le protocole est LU dans le document. Le
+        # placement est ensuite lu sous LE MEME protocole — melanger un set V2
+        # avec un placement V1 comparerait des liaisons a des contenus.
+        charge = load_authorization_set(material.authorization_set_raw)
+        authorization_set = charge.authorization_set
+        if charge.is_v2:
+            placement = parse_release_scope_placement_v2(
+                material.release_scope_placement_raw
+            )
+        else:
+            placement = parse_release_scope_placement(
+                material.release_scope_placement_raw
+            )
         produced_placement, produced_profiles, produced_source_digests = (
             _produce_release_scope_from_frozen_blobs(material)
         )
@@ -236,19 +249,38 @@ def verify_v2_release_material(
         expected_repository, accepted_reviewers = _trusted_reviewers(
             material.trusted_reviewers_raw
         )
-        verified_set = verify_authorization_set(
-            authorization_set,
-            release_files=material.release_files,
-            trust_anchor=review_anchor,
-            environment="production",
-            now=material.now,
-            expected_repository=expected_repository,
-            accepted_reviewers=accepted_reviewers,
-            release_scope_placement=placement,
-            verified_profiles=produced_profiles,
-            revocation_registry_raw=material.revocation_registry_raw,
-            authority_required_content_sha256=material.authority_required_content_sha256,
-        )
+        if charge.is_v2:
+            # La liste exigee n est PAS transmise : la V2 la derive du
+            # placement. Transmettre une liste ressaisie rouvrirait la porte
+            # que la V2 ferme.
+            verified_set = verify_authorization_set_v2(
+                authorization_set,
+                release_files=material.release_files,
+                trust_anchor=review_anchor,
+                environment="production",
+                now=material.now,
+                expected_repository=expected_repository,
+                accepted_reviewers=accepted_reviewers,
+                release_scope_placement=placement,
+                verified_profiles=produced_profiles,
+                revocation_registry_raw=material.revocation_registry_raw,
+            )
+        else:
+            verified_set = verify_authorization_set(
+                authorization_set,
+                release_files=material.release_files,
+                trust_anchor=review_anchor,
+                environment="production",
+                now=material.now,
+                expected_repository=expected_repository,
+                accepted_reviewers=accepted_reviewers,
+                release_scope_placement=placement,
+                verified_profiles=produced_profiles,
+                revocation_registry_raw=material.revocation_registry_raw,
+                authority_required_content_sha256=(
+                    material.authority_required_content_sha256
+                ),
+            )
     except (AuthorizationSetError, ReviewBindingError, ValueError) as exc:
         raise V2ReleaseVerificationError(
             f"authorization set verification refused: {exc}"
@@ -335,17 +367,41 @@ def verify_v2_release_material(
         h2_coverage.authorization_count, h2_bundle.authorization_count,
         promotion.authorization_count,
     )
-    _require_equal(
-        "authority_required_count", authorization_set.authority_required_count,
-        h2_coverage.authority_required_count, h2_coverage.authority_covered_count,
-        h2_bundle.authority_required_count, h2_bundle.authority_covered_count,
-        promotion.authority_required_count,
-    )
-    _require_equal(
-        "authority_required_set_sha256", authorization_set.authority_required_set_sha256,
-        h2_coverage.authority_required_set_sha256,
-        h2_bundle.authority_required_set_sha256, promotion.authority_required_set_sha256,
-    )
+    if charge.is_v2:
+        # La V2 ne porte pas de compte PAR CONTENU : elle porte un compte de
+        # liaisons, et `verify_authorization_set_v2` a deja prouve l egalite
+        # d ensemble EXACTE contre le placement — une preuve plus forte que ce
+        # recoupement, et portant sur le meme placement auquel les quatre
+        # artefacts sont epingles ci-dessous.
+        #
+        # Le recoupement des artefacts de preuve entre eux, lui, est conserve :
+        # seul le terme venant du document d autorisation disparait.
+        _require_equal(
+            "authority_required_count",
+            h2_coverage.authority_required_count, h2_coverage.authority_covered_count,
+            h2_bundle.authority_required_count, h2_bundle.authority_covered_count,
+            promotion.authority_required_count,
+        )
+        _require_equal(
+            "authority_required_set_sha256",
+            h2_coverage.authority_required_set_sha256,
+            h2_bundle.authority_required_set_sha256,
+            promotion.authority_required_set_sha256,
+        )
+    else:
+        _require_equal(
+            "authority_required_count", authorization_set.authority_required_count,
+            h2_coverage.authority_required_count, h2_coverage.authority_covered_count,
+            h2_bundle.authority_required_count, h2_bundle.authority_covered_count,
+            promotion.authority_required_count,
+        )
+        _require_equal(
+            "authority_required_set_sha256",
+            authorization_set.authority_required_set_sha256,
+            h2_coverage.authority_required_set_sha256,
+            h2_bundle.authority_required_set_sha256,
+            promotion.authority_required_set_sha256,
+        )
     _require_equal(
         "release scope placement digest", placement.digest(), placement_digest,
         authorization_set.release_scope_placement_digest,

@@ -3,10 +3,35 @@
 ## Où en est la migration
 
 ```text
-AUTH_V2_RUNTIME_CONSUMERS_TOTAL=9
-AUTH_V2_RUNTIME_CONSUMERS_MIGRATED=4
-AUTH_V2_RUNTIME_CONSUMERS_REMAINING=5
+AUTH_V2_RUNTIME_CONSUMERS_TOTAL=8      (9 était un compte de trop, voir plus bas)
+AUTH_LOADER_CONSUMERS=8                tous passent par le chargeur canonique
+AUTH_V2_FULLY_VERIFIED=2               vérifient un document V2 de bout en bout
+AUTH_V2_EXPLICITLY_REFUSED=3           acceptent le protocole, refusent de mal comparer
+AUTH_V2_PROTOCOL_AGNOSTIC=3            ne lisent que des champs communs
 ```
+
+## Le neuvième n'en était pas un
+
+`corpus_campaign.py` figurait dans le compte des neuf. Il ne lit aucun document
+d'autorisation : il porte `authority_required_count` et son empreinte dans son
+propre modèle, comme n'importe quel champ. Le compter parmi les consommateurs
+gonflait le dénominateur d'une unité, et la migration paraissait plus loin de
+son terme qu'elle ne l'était.
+
+## Trois consommateurs refusent, et c'est le comportement voulu
+
+`h2_evidence.py`, `catalog_republish.py` et `h2b_coverage_report.py` recoupent
+`authority_required_count` et son empreinte contre d'autres artefacts de preuve
+qui portent des compteurs **par contenu**. La V2 porte un compte de liaisons.
+
+Ils passent désormais par le chargeur canonique — donc ils *reconnaissent* un
+document V2 — et **refusent explicitement** de le recouper, en disant pourquoi.
+C'est le seul comportement acceptable : renommer le champ aurait produit un
+accord entre deux compteurs de natures différentes, c'est-à-dire une
+vérification qui passe sans rien prouver.
+
+Le jour où leurs artefacts croisés porteront un compte de liaisons, le refus
+deviendra une comparaison. D'ici là, il est visible.
 
 Trois consommateurs passent par le chargeur canonique et acceptent désormais les
 deux protocoles :

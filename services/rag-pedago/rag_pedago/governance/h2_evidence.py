@@ -39,7 +39,7 @@ from dataclasses import dataclass, fields
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from nexus_contracts.authorization_set import parse_authorization_set
+from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.h2_coverage_evidence import parse_h2_coverage_evidence_v2
 from nexus_contracts.release_evidence import (
     H2_EVIDENCE_V2_PROTOCOL_VERSION,
@@ -408,9 +408,22 @@ def build_h2_evidence_bundle_v2(
     except ValueError as exc:
         raise ReleaseEvidenceError(f"campaign V2 is invalid: {exc}") from exc
     try:
-        authorization_set = parse_authorization_set(authorization_set_raw)
+        # Chargeur canonique : les deux protocoles, le choix fait une seule fois.
+        charge = load_authorization_set(authorization_set_raw)
+        authorization_set = charge.authorization_set
     except ValueError as exc:
         raise ReleaseEvidenceError(f"authorization set is invalid: {exc}") from exc
+    if charge.is_v2:
+        # Les recoupements ci-dessous portent sur `authority_required_*`, qui
+        # n existent qu en V1. La V2 les remplace par un compte de LIAISONS,
+        # deja prouve exact contre le placement par le verificateur V2 : ce
+        # paquet de preuve n a donc pas a le refaire, et surtout pas a le
+        # refaire avec un terme d une autre nature.
+        raise ReleaseEvidenceError(
+            "le paquet de preuve H2 ne sait pas encore recouper un document "
+            "d autorisation V2 : ses artefacts portent des compteurs par "
+            "contenu, la V2 porte des compteurs de liaisons"
+        )
     try:
         h2_coverage = parse_h2_coverage_evidence_v2(h2_coverage_evidence_raw)
     except ValueError as exc:
