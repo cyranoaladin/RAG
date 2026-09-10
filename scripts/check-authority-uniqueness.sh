@@ -117,10 +117,20 @@ compare AUTHORIZATION_V2_PRODUCER "producteur AuthorizationSetV2" \
     "$(observed 'AuthorizationSetV2\.build' \
         -- ':!packages/contracts/*' ':!*tests/*' ':!docs/*')"
 
-# Mesure, pas regle : combien de consommateurs runtime tiennent le gate V2.
-# Ce compte doit MONTER jusqu a couvrir les neuf. L epingler le figerait.
-AUTH_V2_GATE_CONSUMERS="$(observed 'verify_authorization_binding_set_v2' \
+# Mesure, pas regle : combien de consommateurs runtime verifient un document
+# V2. Les DEUX points d entree comptent — le gate d egalite d ensemble seul,
+# ou la verification complete qui le contient. Ne compter que le premier
+# sous-estimait la migration : un consommateur qui appelle le verificateur
+# complet tient le gate, par construction.
+AUTH_V2_GATE_CONSUMERS="$(observed \
+    'verify_authorization_binding_set_v2\|verify_authorization_set_v2' \
     -- ':!packages/contracts/*' ':!packages/release-chain/*' ':!*tests/*' ':!docs/*')"
+
+# Mesure : combien de consommateurs passent par le chargeur canonique.
+AUTH_LOADER_CONSUMERS="$(observed 'load_authorization_set' \
+    -- ':!packages/contracts/*' ':!*tests/*' ':!docs/*')"
+printf 'AUTH_LOADER_CONSUMERS\t%s\n' \
+    "$(printf '%s\n' "$AUTH_LOADER_CONSUMERS" | sed '/^$/d' | wc -l)"
 printf 'AUTH_V2_GATE_CONSUMERS\t%s\n' \
     "$(printf '%s\n' "$AUTH_V2_GATE_CONSUMERS" | sed '/^$/d' | wc -l)"
 

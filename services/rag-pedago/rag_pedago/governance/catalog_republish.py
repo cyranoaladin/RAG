@@ -61,6 +61,7 @@ from nexus_contracts.authority_artifacts import (
     canonical_authorization_path,
     parse_scope_authorization_artifact,
 )
+from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.authorization_set import (
     AuthorizationSetV1,
     ReleaseScopePlacementEntryV1,
@@ -1209,9 +1210,17 @@ def republish_catalog_v2(
                 authorization_set_relative_path
             )
         }
-        authorization_set = parse_authorization_set(
-            set_files[authorization_set_relative_path]
-        )
+        charge = load_authorization_set(set_files[authorization_set_relative_path])
+        authorization_set = charge.authorization_set
+        if charge.is_v2:
+            # La comparaison ci-dessous porte sur `authority_required_*`, qui
+            # n existent qu en V1. La V2 porte un compte de LIAISONS : mettre
+            # les deux cote a cote donnerait un accord qui ne prouve rien.
+            raise CatalogRepublishError(
+                "la republication de catalogue ne sait pas encore recouper un "
+                "document d autorisation V2 : elle compare un ensemble de "
+                "contenus, la V2 porte un ensemble de liaisons"
+            )
         if authorization_set.corpus_manifest_sha256 != manifest_sha256:
             raise CatalogRepublishError(
                 "authorization set corpus manifest differs from the catalog manifest"
