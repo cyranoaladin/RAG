@@ -1,0 +1,42 @@
+{
+  "CATALOGUE_ROWS": 2956,
+  "SERVING_SEMANTICS_DEFINED": 0,
+  "SERVING_SEMANTICS_PENDING": 4,
+  "UNMAPPED_RAW_STATUSES": [],
+  "kind": "NEXUS-CATALOGUE-STATUS-NORMALISATION-V1",
+  "policy_authority": "services/rag-pedago/rag_pedago/governance/drive_slice.py::STATUTS_SOURCE définit le VOCABULAIRE. Aucune configuration versionnée ne définit la sémantique de SERVICE par statut : elle reste à établir.",
+  "rows": [
+    {
+      "canonical_statut_source": "A_VERIFIER",
+      "canonical_vocabulary_authority": "drive_slice.STATUTS_SOURCE",
+      "note": "a-verifier n'est PAS servable : « à vérifier » est une absence de vérification, pas une vérification négative — ni positive.",
+      "raw_status": "a-verifier",
+      "rows": 2585,
+      "serving_semantics": "UNDEFINED_PENDING_AUTHORITY"
+    },
+    {
+      "canonical_statut_source": "ACTUEL_CONFIRME",
+      "canonical_vocabulary_authority": "drive_slice.STATUTS_SOURCE",
+      "note": "actuel : le seul statut que la source affirme positivement.",
+      "raw_status": "actuel",
+      "rows": 225,
+      "serving_semantics": "UNDEFINED_PENDING_AUTHORITY"
+    },
+    {
+      "canonical_statut_source": "TRANSITION_OU_ACTUEL",
+      "canonical_vocabulary_authority": "drive_slice.STATUTS_SOURCE",
+      "note": "transition-ou-actuel : la source elle-même n'a pas tranché ; choisir ici serait inventer le mapping.",
+      "raw_status": "transition-ou-actuel",
+      "rows": 101,
+      "serving_semantics": "UNDEFINED_PENDING_AUTHORITY"
+    },
+    {
+      "canonical_statut_source": "ARCHIVE_CATALOGUE",
+      "canonical_vocabulary_authority": "drive_slice.STATUTS_SOURCE",
+      "note": "archive : conservé, hors périmètre servable a priori — à confirmer par l'autorité.",
+      "raw_status": "archive",
+      "rows": 45,
+      "serving_semantics": "UNDEFINED_PENDING_AUTHORITY"
+    }
+  ]
+}

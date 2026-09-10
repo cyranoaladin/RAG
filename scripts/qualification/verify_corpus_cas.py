@@ -37,7 +37,13 @@ def _path_components(cas_root: Path, locator: str) -> list[Path]:
     return parts
 
 
-def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[int, list[str]]:
+def verify(
+    cas_root: Path,
+    expected_digest: str,
+    expected_count: int,
+    *,
+    promoted: set[str] | None = None,
+) -> tuple[int, list[str]]:
     manifest_path = cas_root / "manifest.json"
     if not manifest_path.is_file():
         return 1, ["le store ne porte aucun manifeste"]
@@ -61,6 +67,15 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
         )
 
     verified = 0
+    #: Contenus dont les OCTETS ont été relus et vérifiés — pas
+    #: seulement déclarés au manifeste.
+    prouves: set[str] = set()
+    absents: set[str] = set()
+    discordants: set[str] = set()
+    #: Octets corrects, taille déclarée fausse. Distinct d'une discordance
+    #: d'empreinte : le manifeste ment sur une propriété différente.
+    tailles: set[str] = set()
+    invalides: set[str] = set()
     root = cas_root.resolve(strict=False)
     for content_sha256 in sorted(declared):
         entry = declared[content_sha256]
@@ -78,6 +93,7 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
                 f"{content_sha256[:16]}… : le localisateur {locator!r} sort du "
                 "store — un objet hors du store n'est pas un objet récupéré"
             )
+            invalides.add(content_sha256)
             continue
         # CHAQUE composant, pas seulement le dernier. Un lien de répertoire
         # interne — `alias -> objects` — laisse la résolution finale à
@@ -96,9 +112,11 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
                 f"{content_sha256[:16]}… : {redirected!r} est un lien symbolique "
                 "— un chemin gouverné ne redirige sur aucun de ses composants"
             )
+            invalides.add(content_sha256)
             continue
         if not blob.is_file():
             problems.append(f"{content_sha256[:16]}… : objet absent du store")
+            absents.add(content_sha256)
             continue
         payload = blob.read_bytes()
         actual = hashlib.sha256(payload).hexdigest()
@@ -107,15 +125,109 @@ def verify(cas_root: Path, expected_digest: str, expected_count: int) -> tuple[i
                 f"{content_sha256[:16]}… : les octets hachent vers {actual[:16]}… "
                 "— le localisateur ne prouve rien, les octets si"
             )
+            discordants.add(content_sha256)
             continue
         if int(entry["byte_size"]) != len(payload):
             problems.append(
                 f"{content_sha256[:16]}… : taille déclarée {entry['byte_size']}, "
                 f"lue {len(payload)}"
             )
+            tailles.add(content_sha256)
             continue
         verified += 1
-    return (0 if not problems else 1), problems or [f"{verified} objets vérifiés"]
+        prouves.add(content_sha256)
+
+    info: list[str] = []
+    if promoted is not None:
+        if not promoted:
+            # Un ensemble promu vide ne manque jamais de rien : il traverserait
+            # le contrôle en publiant MISSING=0. Le refuser est la seule façon
+            # que « 0 manquant » veuille dire « rien ne manque » plutôt que
+            # « rien n'a été demandé ».
+            problems.append(
+                "l'ensemble des contenus promus est vide : la couverture serait "
+                "vraie par vacuité"
+            )
+        else:
+            # « Couvert » ne veut pas dire « déclaré au manifeste » : un
+            # contenu dont le blob manque, dont les octets hachent ailleurs ou
+            # dont le localisateur sort du store est DÉCLARÉ et pourtant
+            # irrécupérable. Compter la déclaration ferait passer pour
+            # reproductible un document qu'on ne sait pas relire.
+            declares = set(declared)
+            sans_declaration = sorted(promoted - declares)
+            sans_blob = sorted(promoted & absents)
+            discordance = sorted(promoted & (discordants | invalides))
+            desaccord_taille = sorted(promoted & tailles)
+            # L'agrégat bloquant : déclaration absente, blob absent, taille
+            # fausse ou empreinte discordante. Un contenu promu n'est couvert
+            # que si ses octets ont été RELUS et vérifiés.
+            sans_couverture = sorted(promoted - prouves)
+            surplus = sorted(declares - promoted)
+
+            if sans_couverture:
+                problems.append(
+                    f"{len(sans_couverture)} contenu(s) promu(s) et servable(s) "
+                    "aujourd'hui sans objet CAS vérifié : "
+                    + ", ".join(sha[:16] + "…" for sha in sans_couverture[:5])
+                )
+            info.append(f"CURRENT_PROMOTED_CONTENTS={len(promoted)}")
+            info.append(f"PROMOTED_CAS_DECLARATION_MISSING={len(sans_declaration)}")
+            info.append(f"PROMOTED_CAS_BLOB_MISSING={len(sans_blob)}")
+            info.append(f"PROMOTED_CAS_SIZE_MISMATCH={len(desaccord_taille)}")
+            info.append(f"PROMOTED_CAS_HASH_MISMATCH={len(discordance)}")
+            info.append(f"PROMOTED_CAS_COVERAGE_MISSING={len(sans_couverture)}")
+            info.append(f"PROMOTED_CAS_COVERAGE_EXTRA={len(surplus)}")
+
+    messages = problems or [f"{verified} objets vérifiés"]
+    return (0 if not problems else 1), messages + info
+
+
+def _est_sha256_minuscule(valeur: object) -> bool:
+    return (
+        isinstance(valeur, str)
+        and len(valeur) == 64
+        and all(caractere in "0123456789abcdef" for caractere in valeur)
+    )
+
+
+def _charge_ensemble_promu(chemin: Path) -> set[str]:
+    """Lit l'ensemble promu en le confrontant à ses PROPRES champs d'intégrité.
+
+    Le fichier porte `count` et `content_set_sha256`. Les ignorer laissait un
+    fichier tronqué mais non vide passer pour complet : la couverture était
+    alors calculée contre moins de contenus qu'il n'y en a de promus, et
+    « 0 manquant » ne voulait plus rien dire.
+    """
+    charge = json.loads(chemin.read_text(encoding="utf-8"))
+    if not isinstance(charge, dict):
+        raise ValueError(f"{chemin.name} : la racine n'est pas un objet")
+    liste = charge.get("content_sha256")
+    if not isinstance(liste, list) or not liste:
+        raise ValueError(f"{chemin.name} : content_sha256 absent ou vide")
+    for valeur in liste:
+        # Un identifiant qui n'est pas un sha256 ne peut par construction
+        # désigner aucun objet du store : le traiter comme promu ferait
+        # échouer la couverture plus tard, sur un défaut dont l'origine
+        # serait perdue.
+        if not _est_sha256_minuscule(valeur):
+            raise ValueError(f"{chemin.name} : content_sha256 invalide ({valeur!r})")
+    promus = {str(valeur) for valeur in liste}
+    if len(promus) != len(liste):
+        raise ValueError(f"{chemin.name} : contient des doublons")
+    if charge.get("count") != len(promus):
+        raise ValueError(
+            f"{chemin.name} : annonce {charge.get('count')!r} contenus et en "
+            f"porte {len(promus)}"
+        )
+    attendu = charge.get("content_set_sha256")
+    obtenu = content_set_digest(promus)
+    if attendu != obtenu:
+        raise ValueError(
+            f"{chemin.name} : annonce l'empreinte {str(attendu)[:16]}… et ses "
+            f"contenus hachent vers {obtenu[:16]}…"
+        )
+    return promus
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -127,10 +239,30 @@ def main(argv: list[str] | None = None) -> int:
         help="empreinte de l'ensemble de contenus que la lignée scellée produit",
     )
     parser.add_argument("--expect-count", required=True, type=int)
+    parser.add_argument(
+        "--promoted-content-set",
+        type=Path,
+        default=None,
+        help=(
+            "JSON produit par compute_promoted_content_set.py — refuse tout "
+            "contenu promu et servable aujourd'hui qui serait absent du store"
+        ),
+    )
     args = parser.parse_args(argv)
 
+    promoted = None
+    if args.promoted_content_set is not None:
+        try:
+            promoted = _charge_ensemble_promu(args.promoted_content_set)
+        except (ValueError, OSError) as exc:
+            print(f"::error::PROMOTED_CONTENT_SET_INVALID: {exc}", file=sys.stderr)
+            return 2
+
     code, messages = verify(
-        args.cas_root, args.expect_content_set_sha256, args.expect_count
+        args.cas_root,
+        args.expect_content_set_sha256,
+        args.expect_count,
+        promoted=promoted,
     )
     for message in messages:
         print(("::error::" if code else "  ") + message, file=sys.stderr if code else sys.stdout)

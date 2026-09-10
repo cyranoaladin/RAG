@@ -37,3 +37,8 @@ node_modules/
 # HTTP debug files containing API responses
 rag-local/dev/http/rest-settings.http
 .aider*
+
+# Répertoires de construction setuptools. Un miroir versionné de `src/`
+# dérive en silence : 71 fichiers de `packages/contracts/build/lib/` étaient
+# entrés par accident et divergeaient déjà des sources.
+build/

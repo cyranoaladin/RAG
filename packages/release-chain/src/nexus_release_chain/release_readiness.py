@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -1855,3 +1856,179 @@ def validate_release_readiness(
             ready=False,
             blockers=("release database reconciliation unavailable",),
         )
+
+
+# --- comment un DÉPLOIEMENT désigne le registre qu'il sert -------------
+#
+# Le chemin hôte est un LOCATOR DE TRANSPORT : il change d'une machine à
+# l'autre, et un staging comme une production peuvent monter des répertoires
+# différents. L'AUTORITÉ SÉMANTIQUE est le couple identité + empreinte : deux
+# stacks servent la même lignée si et seulement si elles servent les mêmes
+# octets.
+#
+# Cette règle vit ICI, dans le module que le runtime de lecture embarque déjà
+# octet pour octet, parce que c'est le seul endroit où « le qualificateur et
+# le service appliquent la même règle » se PROUVE au lieu de se tester. La
+# placer dans un module que seul le qualificateur peut importer aurait laissé
+# le runtime en garder une seconde copie — et une règle de configuration
+# écrite deux fois est une règle qui divergera. Le runtime de lecture est une
+# allowlist sans parseur : y installer le paquet entier y ferait entrer pypdf.
+
+#: Les deux variables par lesquelles un déploiement s'exprime. Elles vont par
+#: paire : un chemin sans empreinte laisserait le fichier observé devenir sa
+#: propre autorité.
+REGISTRY_PATH_ENV = "RAG_RELEASE_REGISTRY_PATH"
+REGISTRY_SHA256_ENV = "RAG_RELEASE_REGISTRY_SHA256"
+
+
+class DeploymentBindingError(ValueError):
+    """La configuration de déploiement ne désigne pas une lignée — refus."""
+
+
+def configured_release_registry(
+    environ: Mapping[str, str] | None = None,
+) -> tuple[Path, str] | None:
+    """Le registre que le déploiement sert, ou ``None`` s'il n'en désigne aucun.
+
+    Trois cas, et trois seulement :
+
+    * les deux absents — aucun déploiement ne parle, l'appelant retombe sur sa
+      politique par défaut ;
+    * les deux présents — la lignée est explicitement épinglée, chemin ET
+      octets ;
+    * un seul présent — **refus**. Un chemin sans empreinte transformerait le
+      fichier observé en sa propre autorité ; une empreinte sans chemin ne
+      désigne rien.
+    """
+    source = os.environ if environ is None else environ
+    chemin = source.get(REGISTRY_PATH_ENV)
+    empreinte = source.get(REGISTRY_SHA256_ENV)
+    if chemin is None and empreinte is None:
+        return None
+    if not chemin or not empreinte:
+        raise DeploymentBindingError(
+            "release registry configuration incomplete: "
+            f"{REGISTRY_PATH_ENV}={chemin!r} {REGISTRY_SHA256_ENV}={empreinte!r}"
+        )
+    return Path(chemin), empreinte
+
+
+# --- les TROIS mécanismes par lesquels un déploiement désigne ses releases -
+#
+# Le registre canonique n'est pas le seul mécanisme que le runtime de lecture
+# reconnaît : une liste explicite de manifests (``RAG_RELEASE_MANIFESTS_JSON``)
+# et le couple historique d'un manifest unique (activation Wave 0, ADR-0039)
+# désignent eux aussi ce qui est servi. Cette sélection vivait dans le seul
+# runtime ; le qualificateur C1 n'en connaissait qu'un tiers. Sous un manifest
+# Wave 0, il retombait sur le registre par défaut du dépôt et certifiait 319
+# contenus là où le service en servait 2 ; sous deux mécanismes simultanés, il
+# acceptait ce que le service refuse comme ambigu. Une sélection écrite UNE
+# fois ici, consommée des deux côtés, est la seule qui ne peut pas diverger.
+
+#: Liste explicite de manifests pinnés, en JSON : ``[{"path": …, "sha256": …}]``.
+MANIFESTS_JSON_ENV = "RAG_RELEASE_MANIFESTS_JSON"
+#: Couple historique : un manifest agrégé unique. Il va par paire, comme le
+#: registre — un chemin sans empreinte ferait du fichier observé sa propre
+#: autorité.
+MANIFEST_PATH_ENV = "RAG_RELEASE_MANIFEST_PATH"
+MANIFEST_SHA256_ENV = "RAG_RELEASE_MANIFEST_SHA256"
+
+#: Les noms des mécanismes, PUBLIÉS par les consommateurs : une preuve qui ne
+#: dit pas lequel a désigné les releases ne se relit pas.
+RELEASE_AUTHORITY_REGISTRY_FILE = "REGISTRY_FILE"
+RELEASE_AUTHORITY_MANIFEST_LIST = "MANIFEST_LIST"
+RELEASE_AUTHORITY_LEGACY_MANIFEST = "LEGACY_MANIFEST"
+
+
+@dataclass(frozen=True)
+class ReleaseAuthoritySelection:
+    """Ce qu'un déploiement a DÉSIGNÉ : un mécanisme, et ses couples (chemin, empreinte).
+
+    Pour ``REGISTRY_FILE`` l'unique couple est le registre lui-même ; pour les
+    deux autres, ce sont les manifests agrégés. Rien n'est lu ici. Ce que ces
+    couples SERVENT réellement — les releases interprétées et leurs artefacts —
+    est rendu par :func:`load_selected_release_registry`, et par lui seul.
+    """
+
+    mechanism: str
+    bindings: tuple[tuple[Path, str], ...]
+
+
+def configured_release_manifest(
+    environ: Mapping[str, str] | None = None,
+) -> tuple[Path, str] | None:
+    """Le manifest historique unique, ou ``None`` — même règle de paire que le registre."""
+    source = os.environ if environ is None else environ
+    chemin = source.get(MANIFEST_PATH_ENV)
+    empreinte = source.get(MANIFEST_SHA256_ENV)
+    if chemin is None and empreinte is None:
+        return None
+    if not chemin or not empreinte:
+        raise DeploymentBindingError("release manifest configuration incomplete")
+    return Path(chemin), empreinte
+
+
+def parse_release_manifest_list(raw: str) -> tuple[tuple[Path, str], ...]:
+    """La liste explicite de manifests, telle que ``RAG_RELEASE_MANIFESTS_JSON`` la porte."""
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise DeploymentBindingError("release manifest registry is not valid JSON") from exc
+    if not isinstance(payload, list):
+        raise DeploymentBindingError("release manifest registry must be an array")
+    configurations: list[tuple[Path, str]] = []
+    for index, entry in enumerate(payload):
+        if not isinstance(entry, Mapping) or set(entry) != {"path", "sha256"}:
+            raise DeploymentBindingError(f"release manifest registry entry {index} is invalid")
+        path = entry.get("path")
+        digest = entry.get("sha256")
+        if not isinstance(path, str) or not path.strip() or not isinstance(digest, str):
+            raise DeploymentBindingError(f"release manifest registry entry {index} is invalid")
+        configurations.append((Path(path), digest))
+    return tuple(configurations)
+
+
+def select_release_authority(
+    environ: Mapping[str, str] | None = None,
+) -> ReleaseAuthoritySelection | None:
+    """Le mécanisme qui parle — un seul, ou aucun ; jamais deux à la fois.
+
+    L'ordre des refus est celui que le runtime a toujours appliqué : paire de
+    registre incomplète, puis couple historique incomplet, puis ambiguïté, et
+    seulement alors l'analyse de la liste — une liste malformée à côté d'un
+    registre est d'abord une ambiguïté.
+    """
+    source = os.environ if environ is None else environ
+    registry = configured_release_registry(source)
+    manifests_raw = source.get(MANIFESTS_JSON_ENV)
+    legacy = configured_release_manifest(source)
+    if sum(mechanism is not None for mechanism in (registry, manifests_raw, legacy)) > 1:
+        raise DeploymentBindingError("release manifest configuration is ambiguous")
+    if registry is not None:
+        return ReleaseAuthoritySelection(RELEASE_AUTHORITY_REGISTRY_FILE, (registry,))
+    if manifests_raw is not None:
+        return ReleaseAuthoritySelection(
+            RELEASE_AUTHORITY_MANIFEST_LIST, parse_release_manifest_list(manifests_raw)
+        )
+    if legacy is not None:
+        return ReleaseAuthoritySelection(RELEASE_AUTHORITY_LEGACY_MANIFEST, (legacy,))
+    return None
+
+
+def load_selected_release_registry(
+    selection: ReleaseAuthoritySelection,
+) -> ReleaseRegistryExpectation:
+    """Charger ce que la sélection désigne — avec les chargeurs existants, sans troisième."""
+    if selection.mechanism == RELEASE_AUTHORITY_REGISTRY_FILE:
+        if len(selection.bindings) != 1:
+            raise DeploymentBindingError("release registry selection must name exactly one file")
+        path, expected_sha256 = selection.bindings[0]
+        return load_release_registry_file(path, expected_sha256)
+    if selection.mechanism in (
+        RELEASE_AUTHORITY_MANIFEST_LIST,
+        RELEASE_AUTHORITY_LEGACY_MANIFEST,
+    ):
+        return load_release_registry(selection.bindings)
+    raise DeploymentBindingError(
+        f"release authority mechanism is unsupported: {selection.mechanism!r}"
+    )

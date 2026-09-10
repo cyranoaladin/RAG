@@ -1,0 +1,129 @@
+{
+  "NOT_ASSESSABLE_SOURCE_REQUESTS": 9,
+  "interim_disposition": {
+    "blocker_codes": [
+      "PII_NOT_ASSESSABLE",
+      "SOURCE_EXTRACTION_INCOMPLETE"
+    ],
+    "disposition": "GOVERNED_NOT_SERVABLE"
+  },
+  "kind": "NEXUS-NOT-ASSESSABLE-SOURCE-LOOKUP-V1",
+  "note": "Aucun texte : la page est justement celle que personne n'a su lire. Une source alternative doit être gouvernée et tracée ; le PDF existant n'est jamais remplacé en silence.",
+  "requests": [
+    {
+      "affected_pages": [
+        2
+      ],
+      "content_sha256": "1d56280991413e937a8d3246d20879ff9771570db5b681d8071e0fc496d25b69",
+      "current_source_sha256": "1d56280991413e937a8d3246d20879ff9771570db5b681d8071e0fc496d25b69",
+      "drive_file_id": "12JKzMDuNRfLWqEW-gtvzpGoeXJrYKFYy",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/DEPP/SECONDE/TESTS_POSITIONNEMENT/2025/test-positionnement-debut-seconde-2025-resultats-depp-fevrier-2026.pdf",
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        3
+      ],
+      "content_sha256": "1f2f6c57eb4b4cca8a1c3e7230095cbbb168801a9d3c9a62dbe6d3105c67e040",
+      "current_source_sha256": "1f2f6c57eb4b4cca8a1c3e7230095cbbb168801a9d3c9a62dbe6d3105c67e040",
+      "drive_file_id": "1xvXZXEzKkC0Vz2MuhNhW9UrnQrpKZVdG",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/90_ARCHIVE_CATALOGUE/MUSIQUE/03_RESSOURCES_ACCOMPAGNEMENT/2025/liberte--1f2f6c57eb.pdf",
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        2
+      ],
+      "content_sha256": "54fb0ddff44bbfe372675f1c7bfb6ca40c12454b634cd90ad4e2f6eff91241ea",
+      "current_source_sha256": "54fb0ddff44bbfe372675f1c7bfb6ca40c12454b634cd90ad4e2f6eff91241ea",
+      "drive_file_id": "1wHNKCc5DJpzz1Yh48KWvzj61784cNWHe",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/04_COMPLEMENTS_PEDAGOGIQUES/01_SOURCES_INSTITUTIONNELLES/DEPP/SECONDE/MATHEMATIQUES/TESTS_POSITIONNEMENT/2025/test-positionnement-seconde-mathematiques-2025-exercices-competences.pdf",
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        2
+      ],
+      "content_sha256": "862ca1220a92a34061574f691ddfd859033888d4fee94ed24c33cb8dec557b08",
+      "current_source_sha256": "862ca1220a92a34061574f691ddfd859033888d4fee94ed24c33cb8dec557b08",
+      "drive_file_id": "1XYPYcWqzV_2SJU3pJulAxb_UH-5JTSlt",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/LANGUES_VIVANTES/06_GUIDES/2020/calcul-mental-division-pdf-pdf-349-18-ko--862ca1220a.pdf",
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        3
+      ],
+      "content_sha256": "8d8cce4b88f3c1bc10d503641c76f98cf298f7a21ada7d6e55a071f1b7a508de",
+      "current_source_sha256": "8d8cce4b88f3c1bc10d503641c76f98cf298f7a21ada7d6e55a071f1b7a508de",
+      "drive_file_id": "1QuXcqNpzcCIOzUSmlAWv1rS_D_eTmv6s",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/90_ARCHIVE_CATALOGUE/MUSIQUE/03_RESSOURCES_ACCOMPAGNEMENT/2025/je-trahirai-demain--8d8cce4b88.pdf",
+      "page_policy_verdicts": [
+        "PAGE_TEXTE_NON_DECODABLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        4,
+        8,
+        9,
+        19
+      ],
+      "content_sha256": "979c90b54c82fa0d073c8794d08941449e319d18125ebcf6bdbb3cd326eb1408",
+      "current_source_sha256": "979c90b54c82fa0d073c8794d08941449e319d18125ebcf6bdbb3cd326eb1408",
+      "drive_file_id": "1zGgzpBnVXDeGoef8Uj5g1lqA__T6ekDd",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/PHILOSOPHIE/09_AUTRES/2023/travailler-travailler-encore-utopies-et-theories--979c90b54c.pdf",
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        15
+      ],
+      "content_sha256": "a009392fc284f5cfb8dd335fe3bc08e4e5b5d9041110140daa9ab9bfbef71b9a",
+      "current_source_sha256": "a009392fc284f5cfb8dd335fe3bc08e4e5b5d9041110140daa9ab9bfbef71b9a",
+      "drive_file_id": "1Zchak005WkCZtyqov_MroG_Eh39KY0yY",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/01_EDUSCOL_OFFICIEL/STMG/COMMUN/07_DIAPORAMAS_SUPPORTS/2019/diaporama-de-la-presentation-pdf-550-62-ko--a009392fc2.pdf",
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        12
+      ],
+      "content_sha256": "b9fa5c5db51aa3b6031cd514f3dfcd792d64d808cea473c9721e7ad6ce831cbb",
+      "current_source_sha256": "b9fa5c5db51aa3b6031cd514f3dfcd792d64d808cea473c9721e7ad6ce831cbb",
+      "drive_file_id": "1bsvWcnNfssZUFccYT55Zk4F2TREuCIru",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/PHILOSOPHIE/07_DIAPORAMAS_SUPPORTS/2022/le-support-de-presentation--b9fa5c5db5.pdf",
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE"
+      ]
+    },
+    {
+      "affected_pages": [
+        4,
+        6,
+        16,
+        19
+      ],
+      "content_sha256": "dece93e1dc0fe0b8e5a51eb91bc065ae453539d0745bb87a16746a68f5546148",
+      "current_source_sha256": "dece93e1dc0fe0b8e5a51eb91bc065ae453539d0745bb87a16746a68f5546148",
+      "drive_file_id": "1VNRO6UQAtbZSN_PQrpq27Csi5Jm96zmg",
+      "drive_path": "NEXUS_RAG_GDRIVE_READY/01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/ARTS_CIRQUE/06_GUIDES/2022/guide-pratique-la-troupe-de-theatre-en-etablissement-scolaire--dece93e1dc.pdf",
+      "page_policy_verdicts": [
+        "PAGE_IMAGE_NON_LISIBLE",
+        "PAGE_TRACE_VECTORIEL"
+      ]
+    }
+  ]
+}
