@@ -214,6 +214,8 @@ run_target "trusted-human-review-workflow-tests" "$REPO_ROOT/services/rag-pedago
 
 # --- governance locks ---
 run_target "governance-locks" bash scripts/check-governance-locks.sh
+run_target "authority-uniqueness" bash scripts/check-authority-uniqueness.sh
+run_target "authority-uniqueness-guard" bash scripts/tests/test-authority-uniqueness.sh
 
 # --- taxonomy validation ---
 run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/validate_taxonomy.py"

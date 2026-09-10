@@ -195,6 +195,8 @@ expected_steps = [
     },
     {"run": "pip install PyYAML==6.0.3"},
     {"run": "bash scripts/check-repository-hygiene.sh"},
+    {"run": "bash scripts/check-authority-uniqueness.sh"},
+    {"run": "bash scripts/tests/test-authority-uniqueness.sh"},
     {
         "run": (
             "YAML_PYTHON_BIN=python "
