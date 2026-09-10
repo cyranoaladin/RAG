@@ -68,6 +68,10 @@ from nexus_contracts.authority_artifacts import (  # noqa: E402
     canonical_authorization_path,
 )
 from nexus_contracts.document import Rights  # noqa: E402
+from nexus_release_chain.release_readiness import (  # noqa: E402
+    load_release_expectation,
+    validate_release_readiness,
+)
 
 from ingestor.collection_config import load_collection_config  # noqa: E402
 from ingestor.embedding_contract import CANONICAL_EMBED_MODEL  # noqa: E402
@@ -106,10 +110,6 @@ from ingestor.multilevel_verified_placement import (  # noqa: E402
     load_multilevel_release_eligibility,
 )
 from ingestor.programme_registry import load_programme_index_registry  # noqa: E402
-from ingestor.release_readiness import (  # noqa: E402
-    load_release_expectation,
-    validate_release_readiness,
-)
 from ingestor.staging_profile_manifest import (  # noqa: E402
     verify_staging_profile_manifest,
 )

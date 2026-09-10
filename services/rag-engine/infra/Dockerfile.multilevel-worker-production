@@ -48,6 +48,17 @@ RUN pip install --no-cache-dir --no-deps /tmp/nexus-pdf-page-policy \
  && python -m pip check \
  && rm -rf /tmp/nexus-pdf-page-policy
 
+# L'autorité de release, installée comme PAQUET. Mesuré : les modules servis
+# par cette image n'importent du paquet que `release_readiness` — leur chaîne
+# PDF passe par le `publication_chunking` local et la politique de page déjà
+# installée ci-dessus. L'extra `[pdf]` ne lui est donc PAS imposé : on
+# n'installe pas une capacité par habitude, on l'installe quand la mesure la
+# demande.
+COPY packages/release-chain /tmp/nexus-release-chain
+RUN pip install --no-cache-dir /tmp/nexus-release-chain \
+ && python -m pip check \
+ && rm -rf /tmp/nexus-release-chain
+
 # Allowlist applicative, profondeur réelle préservée sous
 # /app/services/rag-engine/src (jamais /app/ingestor/... à plat — cf.
 # l'en-tête de ce fichier). Même périmètre de fichiers que
@@ -75,7 +86,6 @@ COPY services/rag-engine/src/ingestor/pedagogical_chunker.py /app/services/rag-e
 COPY services/rag-engine/src/ingestor/publication_chunking.py /app/services/rag-engine/src/ingestor/publication_chunking.py
 COPY services/rag-engine/src/ingestor/retrieval_hybrid_v2.py /app/services/rag-engine/src/ingestor/retrieval_hybrid_v2.py
 COPY services/rag-engine/src/ingestor/reranker_contract.py /app/services/rag-engine/src/ingestor/reranker_contract.py
-COPY services/rag-engine/src/ingestor/release_readiness.py /app/services/rag-engine/src/ingestor/release_readiness.py
 COPY services/rag-engine/src/ingestor/programme_registry.py /app/services/rag-engine/src/ingestor/programme_registry.py
 COPY services/rag-engine/src/ingestor/multilevel_evidence.py /app/services/rag-engine/src/ingestor/multilevel_evidence.py
 COPY services/rag-engine/src/ingestor/multilevel_mapping.py /app/services/rag-engine/src/ingestor/multilevel_mapping.py

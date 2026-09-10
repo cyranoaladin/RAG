@@ -56,7 +56,85 @@ from rag_pedago.imports.raw_pii_guard import require_no_raw_pii
 REPOSITORY_ROOT = Path(os.environ.get("NEXUS_REPO_ROOT") or Path(__file__).resolve().parents[3])
 
 SCHOOL_YEAR = "2026-2027"
-RELEASE_ID = "production-profile-gate-2026-2027-v1"
+#: Identité de la release HISTORIQUE. ADR-0050 §1 en fait un enregistrement
+#: immuable, jamais rescellé en place, et §3-§4 interdisent qu'une nouvelle
+#: release la réutilise. Cette constante n'est donc PLUS un défaut : elle ne
+#: sert qu'à nommer l'historique et à refuser une collision. Un producteur qui
+#: retombait dessus en silence émettait une chaîne scellée différente sous une
+#: identité déjà publiée — exactement la confusion qu'ADR-0050 ferme.
+HISTORICAL_RELEASE_ID = "production-profile-gate-2026-2027-v1"
+
+#: Identités déjà publiées dans ce dépôt, qu'aucune nouvelle release ne peut
+#: reprendre (ADR-0050 §4). La liste est un plancher : le garde interroge en
+#: plus le registre réellement présent sur disque.
+PUBLISHED_RELEASE_IDS = frozenset(
+    {
+        HISTORICAL_RELEASE_ID,
+        "production-profile-gate-2026-2027-v2-rehearsal",
+        "production-profile-gate-2026-2027-v2-candidate-candidate-v2-20260904T084521Z",
+    }
+)
+
+#: Forme admise : minuscules, chiffres, tiret et point, bornée. Une identité
+#: libre laisserait passer un chemin, un espace ou un caractère qui casserait
+#: la comparaison d'un registre à l'autre.
+RELEASE_ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9.\-]{7,127}$")
+
+
+class ReleaseIdentityError(ValueError):
+    """L'identité proposée pour une release est absente, malformée ou déjà prise."""
+
+
+def require_governed_release_id(
+    release_id: str | None,
+    *,
+    registry_path: Path | None = None,
+    allow_historical: bool = False,
+) -> str:
+    """Exiger une identité de release explicitement gouvernée.
+
+    ADR-0050 : aucune release ne se rescelle en place et aucune nouvelle
+    release ne reprend une identité publiée. Le producteur ne peut donc plus
+    retomber sur une constante quand l'appelant ne dit rien — ce silence
+    produisait une chaîne scellée nouvelle sous une identité ancienne.
+
+    ``allow_historical`` n'existe que pour rejouer la release historique
+    elle-même : une épreuve qui reconstruit V1 doit pouvoir la nommer.
+    """
+    if not release_id or not release_id.strip():
+        raise ReleaseIdentityError(
+            "aucune identité de release n'a été fournie : ADR-0050 exige une "
+            "identité explicitement gouvernée, jamais un repli sur l'identité "
+            "historique. Passez --release-id."
+        )
+    release_id = release_id.strip()
+    if not allow_historical:
+        deja = set(PUBLISHED_RELEASE_IDS)
+        registry = (
+            registry_path
+            if registry_path is not None
+            else RELEASE_ROOT.parent / "release-registry.json"
+        )
+        try:
+            payload = json.loads(Path(registry).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            payload = None
+        if isinstance(payload, dict):
+            for entree in payload.get("releases", []) or []:
+                identifiant = entree.get("release_id")
+                if identifiant:
+                    deja.add(str(identifiant))
+        if release_id in deja:
+            raise ReleaseIdentityError(
+                f"identité déjà publiée : {release_id!r}. ADR-0050 §4 interdit "
+                "qu'une nouvelle chaîne scellée reprenne une identité existante."
+            )
+    if not RELEASE_ID_PATTERN.fullmatch(release_id) and not allow_historical:
+        raise ReleaseIdentityError(
+            f"identité de release malformée : {release_id!r}. Attendu : "
+            "minuscules, chiffres, tiret ou point, de 8 à 128 caractères."
+        )
+    return release_id
 #: Empreinte de l'ensemble de contenus que la lignée canonique produit. Ce
 #: n'est pas une affirmation : un test recalcule l'ensemble depuis la matrice
 #: et les profils déclarés, et exige ce digest. Il coïncide par ailleurs avec
@@ -938,6 +1016,7 @@ def _release_scope_inputs(
     matrix: list[dict[str, Any]],
     profiles: Mapping[str, Any],
     profile_manifest_digest: str,
+    release_id: str,
 ) -> tuple[bytes, bytes, bytes]:
     placements: list[dict[str, str]] = []
     profile_sources: dict[str, str] = {}
@@ -965,7 +1044,7 @@ def _release_scope_inputs(
             placements.append(
                 {
                     "content_sha256": content_sha256,
-                    "release_id": RELEASE_ID,
+                    "release_id": release_id,
                     "collection": collection,
                     "profile_version": profile.profile_version,
                 }
@@ -1238,7 +1317,9 @@ def resolve_currentness_network_audit(
                 # de l'identifiant d'une autre release ferait lire à l'auditeur
                 # — seul consommateur déclaré de ce champ — une portée qui
                 # n'est pas la sienne.
-                "release_id": release_id or RELEASE_ID,
+                "release_id": require_governed_release_id(
+                    release_id, allow_historical=True
+                ),
                 "school_year": SCHOOL_YEAR,
                 # Un champ scellé que rien ne lit à l'exécution a exactement un
                 # consommateur : l'humain qui vérifie une release et ne peut pas
@@ -3028,6 +3109,10 @@ def build_release(
             matrix=matrix,
             profiles=profiles,
             profile_manifest_digest=manifest.manifest_fingerprint,
+            # La portée nomme LA release produite, jamais la constante
+            # historique : sans quoi une candidate scellerait ses placements
+            # sous l'identité d'une autre chaîne.
+            release_id=require_governed_release_id(release_id),
         )
     )
     pdfs = validate_pdf_mirror(
@@ -3191,7 +3276,7 @@ def build_release(
             # l'identifiant historique ferait passer une nouvelle release pour
             # celle dont la sémantique a déjà dérivé — et rendrait indécidable
             # laquelle des deux un registre désigne.
-            release_id=release_id or RELEASE_ID,
+            release_id=require_governed_release_id(release_id),
             school_year=SCHOOL_YEAR,
             # §9-§10 : le corpus peut être final et la release rester non
             # activable. Le gate PII n'est qu'un des gates de go-live, et le

@@ -316,10 +316,17 @@ def test_assert_runtime_origin_bound_to_repo_passes_when_beneath_qualified_root(
     ingestor_dir.mkdir(parents=True)
     contracts_dir = tmp_path / "packages/contracts/src/nexus_contracts"
     contracts_dir.mkdir(parents=True)
+    release_chain_dir = tmp_path / "packages/release-chain/src/nexus_release_chain"
+    release_chain_dir.mkdir(parents=True)
 
     monkeypatch.setitem(sys.modules, "ingestor", _fake_module(ingestor_dir / "__init__.py"))
     monkeypatch.setitem(
         sys.modules, "nexus_contracts", _fake_module(contracts_dir / "__init__.py")
+    )
+    # Le runtime importe désormais l'autorité depuis le paquet : le garde la
+    # contrôle dès qu'elle est chargée, donc la racine synthétique doit la porter.
+    monkeypatch.setitem(
+        sys.modules, "nexus_release_chain", _fake_module(release_chain_dir / "__init__.py")
     )
 
     assert_runtime_origin_bound_to_repo(tmp_path)
