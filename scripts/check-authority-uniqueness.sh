@@ -23,21 +23,38 @@ fi
 
 STATUS=0
 
+# Le controle et sa baseline CITENT les motifs qu ils cherchent. Sans cette
+# exclusion, ils se detectent eux-memes comme secondes autorites — et le faux
+# positif n apparait qu une fois les fichiers SUIVIS par git, donc apres le
+# commit, jamais pendant la mise au point.
+SOI=(
+    ":!scripts/check-authority-uniqueness.sh"
+    ":!scripts/authority-uniqueness.baseline"
+    ":!scripts/tests/test-authority-uniqueness.sh"
+)
+
 pinned() {  # pinned <REGLE> -> chemins epingles, un par ligne
     awk -v r="$1" -F'\t' '!/^#/ && NF==2 && $1==r {print $2}' "$BASELINE" | sort -u
 }
 
 # git grep rend 1 quand il ne trouve rien. Ici, "rien" est un resultat
 # legitime — souvent le resultat SOUHAITE — pas une erreur.
-observed() { git -C "$REPO_ROOT" grep -lI "$@" 2>/dev/null | sort -u || true; }
+observed() {
+    git -C "$REPO_ROOT" grep -lI "$@" "${SOI[@]}" 2>/dev/null | sort -u || true
+}
 
-compare() {  # compare <REGLE> <libelle> <observes...>
-    local regle="$1" libelle="$2"; shift 2
-    local pin obs new gone
+# ATTENTION : compare doit etre appelee DIRECTEMENT, jamais au bout d un
+# pipeline. Dans `observed ... | compare ...`, compare tourne dans un
+# sous-shell : son STATUS=1 meurt avec lui, et le controle rend 0 alors qu il
+# vient d imprimer une erreur. Les observes passent donc en 3e argument.
+compare() {  # compare <REGLE> <libelle> <observes>
+    local regle="$1" libelle="$2" obs="$3"
+    local pin new gone
     pin="$(pinned "$regle")"
-    obs="$(cat)"
-    new="$(comm -13 <(printf '%s\n' "$pin") <(printf '%s\n' "$obs") | sed '/^$/d')"
-    gone="$(comm -23 <(printf '%s\n' "$pin") <(printf '%s\n' "$obs") | sed '/^$/d')"
+    new="$(comm -13 <(printf '%s\n' "$pin" | sed '/^$/d') \
+                    <(printf '%s\n' "$obs" | sed '/^$/d'))"
+    gone="$(comm -23 <(printf '%s\n' "$pin" | sed '/^$/d') \
+                     <(printf '%s\n' "$obs" | sed '/^$/d'))"
     if [ -n "$new" ]; then
         echo "ERROR: $libelle — autorite non epinglee :" >&2
         printf '  %s\n' $new >&2
@@ -55,12 +72,12 @@ compare() {  # compare <REGLE> <libelle> <observes...>
 
 echo "== NEXUS-AUTHORITY-UNIQUENESS-V1"
 
-# R1 — la matrice de servabilite reste derivee.
-observed 'servability_matrix_v1' -- ':!*tests/*' ':!docs/*' \
-    | compare MATRIX_READER "matrice de servabilite lue en production"
+# R1 — la matrice de servabilite reste derivee, jamais une autorite.
+compare MATRIX_READER "matrice de servabilite lue en production" \
+    "$(observed 'servability_matrix_v1' -- ':!*tests/*' ':!docs/*')"
 
 # R2 — la politique d actualite n a aucun lecteur de production.
-POLICY_READERS="$(observed 'nexus_rag_currentness_policy_v1' -- ':!*tests/*' ':!docs/*' || true)"
+POLICY_READERS="$(observed 'nexus_rag_currentness_policy_v1' -- ':!*tests/*' ':!docs/*')"
 POLICY_READERS="$(printf '%s\n' "$POLICY_READERS" | sed '/^$/d')"
 if [ -n "$POLICY_READERS" ]; then
     echo "ERROR: la politique d actualite est applied=false et a un lecteur de production :" >&2
@@ -90,18 +107,18 @@ if [ -f "$POLICY" ]; then
 fi
 
 # R4 — un seul producteur AuthorizationSetV2 hors du contrat.
-observed 'AuthorizationSetV2\.build\|parse_authorization_set_v2\|verify_authorization_binding_set_v2' \
-    -- ':!packages/contracts/*' ':!*tests/*' ':!docs/*' \
-    | compare AUTHORIZATION_V2_PRODUCER "producteur AuthorizationSetV2"
+compare AUTHORIZATION_V2_PRODUCER "producteur AuthorizationSetV2" \
+    "$(observed 'AuthorizationSetV2\.build\|parse_authorization_set_v2\|verify_authorization_binding_set_v2' \
+        -- ':!packages/contracts/*' ':!*tests/*' ':!docs/*')"
 
 # R5 — un seul mecanisme de selection de release.
-observed 'select_release_authority\|resoudre_source_du_registre' \
-    -- ':!*tests/*' ':!docs/*' \
-    | compare RELEASE_SELECTION "selection de release"
+compare RELEASE_SELECTION "selection de release" \
+    "$(observed 'select_release_authority\|resoudre_source_du_registre' \
+        -- ':!*tests/*' ':!docs/*')"
 
 # R6 — aucune autorisation V1 ne doit servir une nouvelle release.
 V1_NEW="$(observed 'AUTHORIZATION_SET_PROTOCOL_VERSION[^_]' \
-    -- 'services/rag-pedago/data/releases/**' 'governance/**' || true)"
+    -- 'services/rag-pedago/data/releases/**' 'governance/**')"
 V1_NEW="$(printf '%s\n' "$V1_NEW" | sed '/^$/d')"
 if [ -n "$V1_NEW" ]; then
     echo "ERROR: autorisation V1 posee dans un repertoire de release :" >&2

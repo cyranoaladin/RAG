@@ -79,13 +79,37 @@ printf '{"protocol": "AUTHORIZATION_SET_PROTOCOL_VERSION-x"}\n' \
 git -C "$D" add -A >/dev/null 2>&1
 exige_echec "autorisation V1 dans un repertoire de release" "$D"
 
-# 7. controle negatif : le depot intact doit passer
-if bash "$GUARD" "$REPO_ROOT" >/dev/null 2>&1; then
-    echo "detecte: le depot intact passe"
+# 7. controle negatif : un depot intact et COMMITE doit passer.
+#
+#    Le banc commite tout. C est essentiel : `git grep` ne voit que les
+#    fichiers SUIVIS. Lancer ce controle negatif sur le worktree vivant, ou
+#    les fichiers du garde-fou peuvent encore etre non suivis, laisserait
+#    passer un garde-fou qui se detecte lui-meme — le defaut exact que le
+#    cas 8 verifie.
+D="$(banc)"
+if bash "$GUARD" "$D" >/dev/null 2>&1; then
+    echo "detecte: le depot intact et commite passe"
 else
     echo "NON DETECTE: le depot intact devrait passer" >&2
+    bash "$GUARD" "$D" >&2 || true
     FAILURES=$((FAILURES + 1))
 fi
+rm -rf -- "$D"
+
+# 8. le garde-fou ne doit pas se prendre lui-meme pour une seconde autorite.
+#
+#    Il CITE les motifs qu il cherche. Sans exclusion de ses propres fichiers,
+#    il se signale des qu il est suivi par git — donc apres le commit, jamais
+#    pendant la mise au point.
+D="$(banc)"
+SORTIE="$(bash "$GUARD" "$D" 2>&1 || true)"
+if printf '%s' "$SORTIE" | grep -q 'scripts/check-authority-uniqueness.sh\|scripts/authority-uniqueness.baseline\|scripts/tests/test-authority-uniqueness.sh'; then
+    echo "NON DETECTE: le garde-fou se signale lui-meme" >&2
+    FAILURES=$((FAILURES + 1))
+else
+    echo "detecte: le garde-fou ne se signale pas lui-meme"
+fi
+rm -rf -- "$D"
 
 if [ "$FAILURES" -ne 0 ]; then
     echo "test-authority-uniqueness: $FAILURES cas non detectes" >&2
