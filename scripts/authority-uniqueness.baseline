@@ -22,9 +22,11 @@ MATRIX_READER	services/rag-pedago/scripts/construire_matrice_servabilite.py
 # (aucune ligne : la liste doit rester vide)
 
 # --- R4 : producteur AuthorizationSetV2 -----------------------------------
-# Doit finir a EXACTEMENT un producteur canonique hors du contrat. Aucun
-# aujourd hui : c est pourquoi aucun consommateur n est migre.
-# (aucune ligne)
+# EXACTEMENT un producteur canonique hors du contrat. Il DERIVE les contenus
+# autorises des placements de la release ; il ne ressaisit rien. Un second
+# producteur pourrait deriver autrement, et deux autorisations qui divergent
+# sont pires qu une seule imparfaite.
+AUTHORIZATION_V2_PRODUCER	packages/release-chain/src/nexus_release_chain/authorization_v2_producer.py
 
 # --- R5 : selection de release --------------------------------------------
 # select_release_authority est le mecanisme contractuel.
