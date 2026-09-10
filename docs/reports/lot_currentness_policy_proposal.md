@@ -140,3 +140,52 @@ FULL_CURRENTNESS_COMPLETE=false        (politique non adoptée, réseau inconclu
 Les 79 passent de `UNACCOUNTED` à
 `NO_URL_EVIDENCE_IN_EXAMINED_AUTHORITIES` : comptablement fermés, pas
 vérifiés.
+
+## 8. Autorité d'adoption de la politique — identifiée, et absente
+
+La politique se déclare elle-même non appliquée et subordonnée à une décision
+d'architecture :
+
+```
+policy_id: NEXUS-RAG-CURRENTNESS-POLICY-V1
+status: PROPOSED
+applied: false
+requires_adr: true
+```
+
+Restait à nommer **quelle** décision. La recherche a été menée sur les deux
+surfaces où elle pourrait exister :
+
+```
+ADRS_ON_MAIN_CITING_THE_POLICY=0
+ADRS_IN_THIS_LOT_CITING_THE_POLICY=0
+HIGHEST_ADR_ON_MAIN=ADR-0050
+CURRENTNESS_POLICY_ADOPTION_AUTHORITY=ABSENT
+```
+
+Aucune ADR n'adopte cette politique, ni sur `main`, ni dans ce lot. L'autorité
+d'adoption n'est donc pas introuvable : elle n'existe pas encore. Elle doit
+prendre la forme d'une ADR distincte, portée par une PR distincte, devenant
+Acceptée par une review humaine `APPROVED` du Code Owner selon ADR-0025.
+
+Cette ADR ne peut pas être écrite dans ce lot, et ce n'est pas une commodité de
+séquencement. Ce lot **mesure** ; adopter une politique de servabilité est un
+acte de gouvernance. Les confondre reviendrait à laisser une mesure s'auto-
+autoriser, ce qui est exactement le défaut que la politique elle-même interdit
+en refusant qu'un `200` devienne une preuve d'actualité pédagogique.
+
+Conséquence pour le go-live : la dimension actualité reste sans autorité
+appliquée, et `FULL_CURRENTNESS_COMPLETE=false` n'est pas un défaut de ce lot
+mais l'état exact de la gouvernance. Aucun contenu n'est déclaré servable au
+titre de l'actualité.
+
+### Chaîne d'autorité, telle qu'elle se présente
+
+| Autorité | Portée | État |
+| --- | --- | --- |
+| `programme_version` déclarée | servabilité au regard du programme | ADR proposée, non fusionnée |
+| `program_authorities_v1` | liaison périmètre → programme en vigueur | proposition, hors ADR |
+| `NEXUS-RAG-CURRENTNESS-POLICY-V1` | servabilité au regard de l'actualité | proposition, **sans ADR** |
+
+Les trois sont proposées, aucune n'est appliquée. Le go-live ne peut donc pas
+s'appuyer sur l'actualité comme critère de servabilité.
