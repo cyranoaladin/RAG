@@ -961,10 +961,10 @@ def _verify_authorization_set_material(
 
 
 def _verify_authorization_set_scope_facts(
-    authorization_set: AuthorizationSetV1,
+    authorization_set: AuthorizationSetV1 | AuthorizationSetV2,
     *,
     verified_members: Mapping[str, _ResolvedAuthorizationSetMemberV1],
-    release_scope_placement: ReleaseScopePlacementV1,
+    release_scope_placement: ReleaseScopePlacementV1 | ReleaseScopePlacementV2,
     verified_profiles: Sequence[VerifiedProfileFactV1],
 ) -> None:
     """Compare les quatre branches de la preuve contenu → scope.
@@ -984,15 +984,27 @@ def _verify_authorization_set_scope_facts(
     if set(verified_members) != expected_member_ids:
         raise AuthorizationSetError("verified member identities do not match the set")
 
-    placement_by_content = {
-        item.content_sha256: item for item in release_scope_placement.placements
+    # Indexation par LIAISON (contenu, scope), pas par contenu seul.
+    #
+    # L'indexation par contenu supposait qu'un contenu n'occupe qu'un seul
+    # placement. C'est faux dès qu'un contenu est partagé entre deux périmètres
+    # pédagogiques — le cas que la V2 existe pour permettre. Sous cette
+    # indexation, le second placement écrasait le premier, et la vérification
+    # comparait l'autorisation d'un scope aux faits de profil d'un autre.
+    #
+    # La V1 n'était pas exposée au défaut : elle refuse le contenu partagé plus
+    # tôt, par son anti-overlap. L'indexation par liaison est donc correcte
+    # pour les deux protocoles, et nécessaire pour un seul.
+    placement_by_binding = {
+        release_placement_binding_key(item): item
+        for item in release_scope_placement.placements
     }
-    set_contents = {
-        content
+    set_bindings = {
+        (content, member.scope_digest)
         for member in authorization_set.members
         for content in member.allowed_content_sha256
     }
-    if set(placement_by_content) != set_contents:
+    if set(placement_by_binding) != set_bindings:
         raise AuthorizationSetError("placement content mapping does not match the set")
 
     profiles_by_identity: dict[tuple[str, str], VerifiedProfileFactV1] = {}
@@ -1033,7 +1045,7 @@ def _verify_authorization_set_scope_facts(
             )
 
         for content in member.allowed_content_sha256:
-            placement = placement_by_content[content]
+            placement = placement_by_binding[(content, member.scope_digest)]
             if placement.profile_id != authorization.profile_id:
                 raise AuthorizationSetError(f"profile_id mismatch for content {content!r}")
             if placement.profile_version != authorization.profile_version:
@@ -1268,6 +1280,220 @@ def verify_authorization_set(
     )
 
 
+
+def _verify_authorization_set_v2_invariants(
+    authorization_set: AuthorizationSetV2,
+    *,
+    revocation_registry_raw: bytes,
+    now: datetime,
+    release_scope_placement: ReleaseScopePlacementV2,
+) -> tuple[datetime, datetime]:
+    """Vérifie révocation, temps, anti-overlap et égalité d'ensemble EXACTE.
+
+    La différence essentielle avec la V1 tient en une ligne : l'anti-overlap
+    porte sur la LIAISON ``(content_sha256, scope)``, pas sur le contenu seul.
+
+    En V1, un contenu ne pouvait appartenir qu'à une seule autorisation. Cette
+    règle refusait, comme un défaut, le cas parfaitement légitime d'un contenu
+    partagé entre deux périmètres pédagogiques. C'est précisément ce que la V2
+    existe pour permettre — et ce qu'elle doit continuer d'interdire, c'est
+    qu'une MÊME liaison soit couverte deux fois.
+
+    La fenêtre reste demi-ouverte pour chaque membre :
+    ``valid_from <= now < valid_until``.
+    """
+    if now.tzinfo is None:
+        raise AuthorizationSetError("now must be timezone-aware")
+    try:
+        revoked = parse_revoked_authorization_ids(revocation_registry_raw)
+    except ValueError as exc:
+        raise AuthorizationSetError(str(exc)) from exc
+
+    if authorization_set.authorization_count != len(authorization_set.members):
+        raise AuthorizationSetError("authorization_count does not match members")
+
+    binding_owners: dict[tuple[str, str], str] = {}
+    valid_froms: list[datetime] = []
+    valid_untils: list[datetime] = []
+    for member in authorization_set.members:
+        if member.authorization_id in revoked:
+            raise AuthorizationSetError(
+                f"authorization {member.authorization_id!r} is revoked"
+            )
+        if member.valid_until <= member.valid_from:
+            raise AuthorizationSetError(
+                f"invalid validity window for {member.authorization_id!r}"
+            )
+        if now < member.valid_from:
+            raise AuthorizationSetError(
+                f"authorization {member.authorization_id!r} is not valid yet"
+            )
+        if now >= member.valid_until:
+            raise AuthorizationSetError(
+                f"authorization {member.authorization_id!r} is expired"
+            )
+        valid_froms.append(member.valid_from)
+        valid_untils.append(member.valid_until)
+
+        contents = member.allowed_content_sha256
+        if len(contents) != len(set(contents)):
+            raise AuthorizationSetError(
+                f"duplicate content inside authorization {member.authorization_id!r}"
+            )
+        if tuple(sorted(contents)) != contents:
+            raise AuthorizationSetError(
+                f"allowed content is not canonical for {member.authorization_id!r}"
+            )
+        if any(re.fullmatch(_HEX64, content) is None for content in contents):
+            raise AuthorizationSetError(
+                f"invalid content SHA for {member.authorization_id!r}"
+            )
+        if member.allowed_content_count != len(contents):
+            raise AuthorizationSetError(
+                f"allowed_content_count mismatch for {member.authorization_id!r}"
+            )
+        if member.allowed_content_set_sha256 != content_set_digest(contents):
+            raise AuthorizationSetError(
+                f"allowed_content_set_sha256 mismatch for {member.authorization_id!r}"
+            )
+        for content in contents:
+            binding = (content, member.scope_digest)
+            previous = binding_owners.get(binding)
+            if previous is not None:
+                raise AuthorizationSetError(
+                    f"authorization overlap for binding {binding!r}: "
+                    f"{previous!r} and {member.authorization_id!r}"
+                )
+            binding_owners[binding] = member.authorization_id
+
+    # L'égalité d'ensemble exacte, tenue par le gate partagé : c'est LA preuve
+    # que la V2 apporte, et elle est plus forte qu'une comparaison de contenus.
+    verify_authorization_binding_set_v2(
+        authorization_set, release_scope_placement=release_scope_placement
+    )
+
+    bindings = tuple(sorted(binding_owners))
+    if authorization_set.authorization_binding_count != len(bindings):
+        raise AuthorizationSetError("authorization_binding_count mismatch")
+    if authorization_set.authorization_binding_set_sha256 != _binding_set_digest(
+        bindings
+    ):
+        raise AuthorizationSetError("authorization_binding_set_sha256 mismatch")
+
+    unique_contents = tuple(sorted({content for content, _ in bindings}))
+    if authorization_set.unique_content_count != len(unique_contents):
+        raise AuthorizationSetError("unique_content_count mismatch")
+    if authorization_set.unique_content_sha256_digest != content_set_digest(
+        unique_contents
+    ):
+        raise AuthorizationSetError("unique_content_sha256_digest mismatch")
+
+    effective_from = max(valid_froms)
+    effective_until = min(valid_untils)
+    if authorization_set.authorizations_effective_valid_from != effective_from:
+        raise AuthorizationSetError("authorizations_effective_valid_from mismatch")
+    if authorization_set.authorizations_effective_valid_until != effective_until:
+        raise AuthorizationSetError("authorizations_effective_valid_until mismatch")
+    return effective_from, effective_until
+
+
+def verify_authorization_set_v2(
+    authorization_set: AuthorizationSetV2,
+    *,
+    release_files: Mapping[str, bytes],
+    trust_anchor: TrustAnchor,
+    environment: Literal["production", "test"],
+    now: datetime,
+    expected_repository: str,
+    accepted_reviewers: tuple[str, ...] | None,
+    release_scope_placement: ReleaseScopePlacementV2,
+    verified_profiles: Sequence[VerifiedProfileFactV1],
+    revocation_registry_raw: bytes,
+) -> VerifiedAuthorizationSetV1:
+    """Boundary fail-closed V2 : toutes les preuves, ou aucun résultat vérifié.
+
+    Même chaîne de preuves que la V1 — matériau de release, ancre de confiance,
+    revue humaine, révocations, fenêtres de validité — avec une seule
+    substitution : l'union par contenu cède la place à l'égalité d'ensemble
+    exacte des liaisons contre le placement de release.
+
+    Elle ne prend donc PAS de ``authority_required_content_sha256`` : la liste
+    exigée n'est plus fournie par l'appelant, elle est DÉRIVÉE du placement.
+    Une liste fournie par l'appelant pouvait diverger de la release ; un
+    placement, non.
+    """
+    validated_set = parse_authorization_set_v2(authorization_set.canonical_bytes())
+    resolved = _verify_authorization_set_material(
+        validated_set,
+        release_files=release_files,
+        trust_anchor=trust_anchor,
+        environment=environment,
+        now=now,
+        expected_repository=expected_repository,
+        accepted_reviewers=accepted_reviewers,
+    )
+    for member in validated_set.members:
+        binding = resolved[member.authorization_id].review_binding.binding
+        if binding.submitted_at > binding.verified_at:
+            raise AuthorizationSetError(
+                f"review binding {member.authorization_id!r} has submitted_at "
+                "after verified_at"
+            )
+        if binding.verified_at > now:
+            raise AuthorizationSetError(
+                f"review binding {member.authorization_id!r} has verified_at "
+                "in the future"
+            )
+    _verify_authorization_set_scope_facts(
+        validated_set,
+        verified_members=resolved,
+        release_scope_placement=release_scope_placement,
+        verified_profiles=verified_profiles,
+    )
+    effective_from, effective_until = _verify_authorization_set_v2_invariants(
+        validated_set,
+        revocation_registry_raw=revocation_registry_raw,
+        now=now,
+        release_scope_placement=release_scope_placement,
+    )
+    content_authorization_ids = tuple(
+        sorted(
+            (content, member.authorization_id)
+            for member in validated_set.members
+            for content in member.allowed_content_sha256
+        )
+    )
+    scope_authorization_ids = tuple(
+        sorted(
+            (member.scope_digest, member.authorization_id)
+            for member in validated_set.members
+        )
+    )
+    verified_bindings = tuple(
+        resolved[member.authorization_id].review_binding.binding
+        for member in validated_set.members
+    )
+    authorization_set_bytes = validated_set.canonical_bytes()
+    return VerifiedAuthorizationSetV1(
+        authorization_set_bytes=authorization_set_bytes,
+        authorization_set_digest=sha256(authorization_set_bytes).hexdigest(),
+        authorization_ids=tuple(
+            member.authorization_id for member in validated_set.members
+        ),
+        content_authorization_ids=content_authorization_ids,
+        scope_authorization_ids=scope_authorization_ids,
+        authorizations_effective_valid_from=effective_from,
+        authorizations_effective_valid_until=effective_until,
+        earliest_review_submitted_at=min(b.submitted_at for b in verified_bindings),
+        earliest_review_binding_verified_at=min(
+            b.verified_at for b in verified_bindings
+        ),
+        earliest_review_binding_expires_at=min(
+            b.expires_at for b in verified_bindings
+        ),
+        verified_at=now,
+    )
+
 __all__ = [
     "AUTHORIZATION_SET_PROTOCOL_VERSION",
     "AUTHORIZATION_SET_PROTOCOL_VERSION_V2",
@@ -1293,4 +1519,5 @@ __all__ = [
     "scope_digest",
     "verify_authorization_binding_set_v2",
     "verify_authorization_set",
+    "verify_authorization_set_v2",
 ]

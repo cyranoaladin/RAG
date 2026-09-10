@@ -890,7 +890,12 @@ class TestIndependentPlacementAndProfileFactsContinued:
                         collection="francais_interne", matiere="francais"
                     )
                 },
-                "scope",
+                # Refusé plus tôt, et pour une raison plus fondamentale, depuis
+                # que les placements sont indexés par LIAISON (contenu, scope)
+                # et non par contenu seul : un placement dont le scope a changé
+                # ne correspond plus à aucune liaison autorisée, au lieu d'être
+                # retrouvé par son contenu puis recalé sur son scope.
+                "placement content mapping does not match the set",
             ),
         ],
     )
