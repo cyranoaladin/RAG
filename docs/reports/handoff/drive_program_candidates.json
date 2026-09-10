@@ -1,0 +1,10 @@
+{
+  "DRIVE_PROGRAM_AUTHORITIES_VERIFIED": 58,
+  "DRIVE_PROGRAM_CANDIDATES_PENDING": 489,
+  "DRIVE_PROGRAM_CANDIDATES_REJECTED": 0,
+  "DRIVE_PROGRAM_DOCUMENTS_EXAMINED": 645,
+  "DRIVE_PROGRAM_DOCUMENT_CANDIDATES": 645,
+  "candidates_cited_without_resolved_reference": 98,
+  "kind": "NEXUS-DRIVE-PROGRAM-CANDIDATE-INVENTORY-V1",
+  "note": "Un document dont le type porte « programme » est un CANDIDAT. Il ne devient autorite qu apres mesure de sa reference officielle, de son scope et de sa periode d effet."
+}

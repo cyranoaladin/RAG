@@ -1,0 +1,677 @@
+{
+  "DISTINCT_UNKNOWN_REFERENCES": 80,
+  "REFERENCES_UNKNOWN_OCCURRENCES": 213,
+  "histogram": [
+    {
+      "distinct_artifacts": 29,
+      "normalized_reference": "BOEN_special_11_2015-11-26",
+      "occurrences": 29,
+      "subjects": {
+        "education_musicale": 22,
+        "langues_vivantes": 1,
+        "mathematiques": 1,
+        "technologie": 2
+      }
+    },
+    {
+      "distinct_artifacts": 18,
+      "normalized_reference": "BOEN_11_2015-11-26",
+      "occurrences": 18,
+      "subjects": {
+        "histoire_geographie": 18
+      }
+    },
+    {
+      "distinct_artifacts": 17,
+      "normalized_reference": "BOEN_special_2_2020-02-13",
+      "occurrences": 17,
+      "subjects": {
+        "arts_cirque": 2,
+        "danse": 4,
+        "francais": 4,
+        "svt": 2
+      }
+    },
+    {
+      "distinct_artifacts": 14,
+      "normalized_reference": "BOEN_31_2020-07-30",
+      "occurrences": 14,
+      "subjects": {
+        "dgemc": 2,
+        "eps": 1,
+        "francais": 1,
+        "langues_vivantes": 8
+      }
+    },
+    {
+      "distinct_artifacts": 8,
+      "normalized_reference": "BOEN_special_6_2020-07-31",
+      "occurrences": 8,
+      "subjects": {
+        "_multi_disciplines": 2,
+        "francais": 2,
+        "llcer": 4
+      }
+    },
+    {
+      "distinct_artifacts": 6,
+      "normalized_reference": "BOEN_31_2019-08-29",
+      "occurrences": 6,
+      "subjects": {
+        "danse": 5,
+        "physique_chimie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 4,
+      "normalized_reference": "BOEN_10_2021-03-11",
+      "occurrences": 4,
+      "subjects": {
+        "_multi_disciplines": 2,
+        "langues_vivantes": 2
+      }
+    },
+    {
+      "distinct_artifacts": 4,
+      "normalized_reference": "BOEN_13_2022-03-31",
+      "occurrences": 4,
+      "subjects": {
+        "lca_llca": 4
+      }
+    },
+    {
+      "distinct_artifacts": 4,
+      "normalized_reference": "BOEN_17_2019-04-25",
+      "occurrences": 4,
+      "subjects": {
+        "_multi_disciplines": 2,
+        "musique": 1,
+        "physique_chimie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 4,
+      "normalized_reference": "BOEN_25_1996-06-20",
+      "occurrences": 4,
+      "subjects": {
+        "arts_plastiques": 4
+      }
+    },
+    {
+      "distinct_artifacts": 4,
+      "normalized_reference": "BOEN_25_2021-06-24",
+      "occurrences": 4,
+      "subjects": {
+        "_multi_disciplines": 1,
+        "eps": 2,
+        "langues_vivantes": 1
+      }
+    },
+    {
+      "distinct_artifacts": 3,
+      "normalized_reference": "BOEN_17_2015-04-23",
+      "occurrences": 3,
+      "subjects": {
+        "education_musicale": 1,
+        "histoire_des_arts": 1,
+        "technologie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 3,
+      "normalized_reference": "BOEN_18_2020-04-30",
+      "occurrences": 3,
+      "subjects": {
+        "_multi_disciplines": 3
+      }
+    },
+    {
+      "distinct_artifacts": 3,
+      "normalized_reference": "BOEN_27_2021-07-08",
+      "occurrences": 3,
+      "subjects": {
+        "lca": 3
+      }
+    },
+    {
+      "distinct_artifacts": 3,
+      "normalized_reference": "BOEN_30_2021-07-29",
+      "occurrences": 3,
+      "subjects": {
+        "_multi_disciplines": 1,
+        "arts_plastiques": 2
+      }
+    },
+    {
+      "distinct_artifacts": 3,
+      "normalized_reference": "BOEN_40_2020-10-22",
+      "occurrences": 3,
+      "subjects": {
+        "_multi_disciplines": 3
+      }
+    },
+    {
+      "distinct_artifacts": 3,
+      "normalized_reference": "BOEN_5_1997-01-30",
+      "occurrences": 3,
+      "subjects": {
+        "arts_plastiques": 3
+      }
+    },
+    {
+      "distinct_artifacts": 3,
+      "normalized_reference": "BOEN_8_2002-02-21",
+      "occurrences": 3,
+      "subjects": {
+        "arts_plastiques": 3
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_11_2016-03-17",
+      "occurrences": 2,
+      "subjects": {
+        "arts_cirque": 1,
+        "lca": 1
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_11_2024-03-14",
+      "occurrences": 2,
+      "subjects": {
+        "lca_llca": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_21_2020-05-21",
+      "occurrences": 2,
+      "subjects": {
+        "danse": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_25_2023-06-22",
+      "occurrences": 2,
+      "subjects": {
+        "enseignement_scientifique": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_27_2022-07-07",
+      "occurrences": 2,
+      "subjects": {
+        "mathematiques": 1,
+        "theatre": 1
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_2_2020-02-16",
+      "occurrences": 2,
+      "subjects": {
+        "danse": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_30_2013-07-25",
+      "occurrences": 2,
+      "subjects": {
+        "mathematiques": 1,
+        "physique_chimie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_31_2021-08-26",
+      "occurrences": 2,
+      "subjects": {
+        "svt": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_32_2007-09-13",
+      "occurrences": 2,
+      "subjects": {
+        "arts_cirque": 1,
+        "lca": 1
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_36_2023-09-28",
+      "occurrences": 2,
+      "subjects": {
+        "svt": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_44_2020-11-19",
+      "occurrences": 2,
+      "subjects": {
+        "lsf": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_45_2019-12-05",
+      "occurrences": 2,
+      "subjects": {
+        "danse": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_6_2020-07-31",
+      "occurrences": 2,
+      "subjects": {
+        "llcer": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_9_2026-02-26",
+      "occurrences": 2,
+      "subjects": {
+        "eps": 2
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_special_1_2020-02-06",
+      "occurrences": 2,
+      "subjects": {
+        "dgemc": 1,
+        "hggsp": 1
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_special_5_2019-04-11",
+      "occurrences": 2,
+      "subjects": {
+        "dgemc": 1,
+        "hggsp": 1
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_special_6_2008-08-28",
+      "occurrences": 2,
+      "subjects": {
+        "arts_plastiques": 1,
+        "physique_chimie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 2,
+      "normalized_reference": "BOEN_special_6_2015-06-25",
+      "occurrences": 2,
+      "subjects": {
+        "eps": 1,
+        "physique_chimie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_10_2026-03-05",
+      "occurrences": 1,
+      "subjects": {
+        "mathematiques": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_11_1994-03-17",
+      "occurrences": 1,
+      "subjects": {
+        "eps": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_11_2016-03-11",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_11_2017-03-16",
+      "occurrences": 1,
+      "subjects": {
+        "hggsp": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_12_2018-03-22",
+      "occurrences": 1,
+      "subjects": {
+        "arts_cirque": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_13_2015-03-26",
+      "occurrences": 1,
+      "subjects": {
+        "arts_plastiques": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_15_1994-04-14",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_15_2013-04-11",
+      "occurrences": 1,
+      "subjects": {
+        "arts_cirque": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_15_2016-04-14",
+      "occurrences": 1,
+      "subjects": {
+        "education_musicale": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_15_2022-04-14",
+      "occurrences": 1,
+      "subjects": {
+        "arts_cirque": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_19_2013-05-09",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_1_2019-01-22",
+      "occurrences": 1,
+      "subjects": {
+        "hggsp": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_23_2014-06-05",
+      "occurrences": 1,
+      "subjects": {
+        "mathematiques": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_23_2016-06-07",
+      "occurrences": 1,
+      "subjects": {
+        "eps": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_25_2008-06-19",
+      "occurrences": 1,
+      "subjects": {
+        "eps": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_26_2022-06-30",
+      "occurrences": 1,
+      "subjects": {
+        "_multi_disciplines": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_26_2023-06-29",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_29_2006-07-20",
+      "occurrences": 1,
+      "subjects": {
+        "arts_plastiques": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_29_2009-07-16",
+      "occurrences": 1,
+      "subjects": {
+        "lsf": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_29_2016-07-21",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_29_2018-07-19",
+      "occurrences": 1,
+      "subjects": {
+        "?": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_2_2015-03-26",
+      "occurrences": 1,
+      "subjects": {
+        "langues_vivantes": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_2_2023-01-12",
+      "occurrences": 1,
+      "subjects": {
+        "physique_chimie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_30_2020-07-23",
+      "occurrences": 1,
+      "subjects": {
+        "hggsp": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_30_2024-07-25",
+      "occurrences": 1,
+      "subjects": {
+        "eps": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_31_2022-08-25",
+      "occurrences": 1,
+      "subjects": {
+        "_multi_disciplines": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_33_2006-09-14",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_39_2004-10-28",
+      "occurrences": 1,
+      "subjects": {
+        "lca": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_39_2024-10-17",
+      "occurrences": 1,
+      "subjects": {
+        "eps": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_3_1993-01-21",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_3_2012-01-19",
+      "occurrences": 1,
+      "subjects": {
+        "mathematiques": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_3_2016-01-21",
+      "occurrences": 1,
+      "subjects": {
+        "arts_plastiques": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_43_1973-11-22",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_47_2021-12-16",
+      "occurrences": 1,
+      "subjects": {
+        "langues_vivantes": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_48_2015-12-24",
+      "occurrences": 1,
+      "subjects": {
+        "physique_chimie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_48_2025-12-18",
+      "occurrences": 1,
+      "subjects": {
+        "langues_vivantes": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_4_2026-01-22",
+      "occurrences": 1,
+      "subjects": {
+        "_multi_disciplines": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_5_2016-02-04",
+      "occurrences": 1,
+      "subjects": {
+        "technologie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_8_2019-07-25",
+      "occurrences": 1,
+      "subjects": {
+        "svt": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_9_1990-03-01",
+      "occurrences": 1,
+      "subjects": {
+        "_multi_disciplines": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_9_2024-02-29",
+      "occurrences": 1,
+      "subjects": {
+        "technologie": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_special_2_2009-02-19",
+      "occurrences": 1,
+      "subjects": {
+        "dgemc": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_special_4_2010-04-29",
+      "occurrences": 1,
+      "subjects": {
+        "arts_plastiques": 1
+      }
+    },
+    {
+      "distinct_artifacts": 1,
+      "normalized_reference": "BOEN_special_9_2010-09-30",
+      "occurrences": 1,
+      "subjects": {
+        "arts_plastiques": 1
+      }
+    }
+  ],
+  "kind": "NEXUS-UNKNOWN-PROGRAM-REFERENCE-HISTOGRAM-V1",
+  "note": "Priorise par artefacts distincts : une seule autorite officielle ajoutee peut resoudre des dizaines de references.",
+  "raw_context_excluded": true
+}

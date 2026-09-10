@@ -1,0 +1,64 @@
+{
+  "BINDING_CAPABLE_OCCURRENCE_UNACCOUNTED": 0,
+  "BINDING_CAPABLE_REFERENCE_OCCURRENCES_POST": 148,
+  "BINDING_CAPABLE_REFERENCE_OCCURRENCES_PRE": 142,
+  "NEWLY_BINDING_CAPABLE_ACCOUNTED": 6,
+  "NEWLY_BINDING_CAPABLE_REFERENCE_OCCURRENCES": 6,
+  "entries": [
+    {
+      "authority_added": "NEXUS-CURRENT-PROGRAM-AUTHORITY-SEED-2026-2027",
+      "content_sha256": "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7",
+      "new_reference_kind": "PROGRAM",
+      "normalized_reference": "BOEN_25_2021-06-24",
+      "previous_reference_kind": "UNKNOWN_OFFICIAL_KIND",
+      "reason": "le seed declare cette reference comme programme pour un scope",
+      "reference_occurrence_id": "fa94725f8bd1719a"
+    },
+    {
+      "authority_added": "NEXUS-CURRENT-PROGRAM-AUTHORITY-SEED-2026-2027",
+      "content_sha256": "10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8",
+      "new_reference_kind": "PROGRAM",
+      "normalized_reference": "BOEN_25_2021-06-24",
+      "previous_reference_kind": "UNKNOWN_OFFICIAL_KIND",
+      "reason": "le seed declare cette reference comme programme pour un scope",
+      "reference_occurrence_id": "a06301ea41dec1ee"
+    },
+    {
+      "authority_added": "NEXUS-CURRENT-PROGRAM-AUTHORITY-SEED-2026-2027",
+      "content_sha256": "163bbd7248a3764e3b299dd658545b07cceef8bcda7027c3c02292a681f59d65",
+      "new_reference_kind": "PROGRAM",
+      "normalized_reference": "BOEN_10_2026-03-05",
+      "previous_reference_kind": "UNKNOWN_OFFICIAL_KIND",
+      "reason": "le seed declare cette reference comme programme pour un scope",
+      "reference_occurrence_id": "942b1b85d0f098ca"
+    },
+    {
+      "authority_added": "NEXUS-CURRENT-PROGRAM-AUTHORITY-SEED-2026-2027",
+      "content_sha256": "284fc2dd2c244b03640cb1d8abe932a09f61e3d9359f1c2db543f108f3637320",
+      "new_reference_kind": "PROGRAM",
+      "normalized_reference": "BOEN_25_2021-06-24",
+      "previous_reference_kind": "UNKNOWN_OFFICIAL_KIND",
+      "reason": "le seed declare cette reference comme programme pour un scope",
+      "reference_occurrence_id": "9129dd65a15932f4"
+    },
+    {
+      "authority_added": "NEXUS-CURRENT-PROGRAM-AUTHORITY-SEED-2026-2027",
+      "content_sha256": "60ed416d187fe449ca2639bc0efe289af61d88a32b618e05f5e5ee7dd08a4086",
+      "new_reference_kind": "PROGRAM",
+      "normalized_reference": "BOEN_9_2024-02-29",
+      "previous_reference_kind": "UNKNOWN_OFFICIAL_KIND",
+      "reason": "le seed declare cette reference comme programme pour un scope",
+      "reference_occurrence_id": "e642d641ad200032"
+    },
+    {
+      "authority_added": "NEXUS-CURRENT-PROGRAM-AUTHORITY-SEED-2026-2027",
+      "content_sha256": "c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b",
+      "new_reference_kind": "PROGRAM",
+      "normalized_reference": "BOEN_25_2021-06-24",
+      "previous_reference_kind": "UNKNOWN_OFFICIAL_KIND",
+      "reason": "le seed declare cette reference comme programme pour un scope",
+      "reference_occurrence_id": "94091ea2c0459da4"
+    }
+  ],
+  "kind": "NEXUS-BINDING-CAPABILITY-DELTA-LEDGER-V1"
+}
