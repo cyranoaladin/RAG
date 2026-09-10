@@ -394,3 +394,25 @@ def test_le_lecteur_n_ecrit_jamais_dans_ses_entrees(
         for r in entrees
     }
     assert avant == apres
+
+
+def test_main_head_n_est_pas_le_head_courant(depot_sans_bloqueur, monkeypatch) -> None:
+    """`main_head` doit venir de `origin/main`, pas de la branche courante.
+
+    Les confondre ferait dire au fichier d etat qu une branche de travail EST
+    main — et un etat de go-live attribue au mauvais commit ne vaut rien.
+    """
+    subprocess.run(["git", "-C", str(depot_sans_bloqueur), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(depot_sans_bloqueur),
+            "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "-qm", "base",
+        ],
+        check=True,
+    )
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["computed_from_head"], "le commit lu doit toujours etre nomme"
+    # Aucun `origin/main` dans ce depot fictif : le champ doit rester vide
+    # plutot que de recopier le HEAD courant.
+    assert etat["main_head"] != etat["computed_from_head"]

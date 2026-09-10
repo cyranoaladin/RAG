@@ -256,7 +256,11 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
             "Fichier GENERE. Toute valeur de go-live citee ailleurs dans le "
             "depot est une projection de celle-ci, jamais une autorite."
         ),
-        "main_head": _git("rev-parse", "HEAD"),
+        # Deux commits distincts, et les confondre ferait dire au fichier
+        # qu une branche de travail EST main. `main_head` est resolu depuis
+        # `origin/main` ; `computed_from_head` est le commit reellement lu.
+        "main_head": _git("rev-parse", "origin/main") or None,
+        "computed_from_head": _git("rev-parse", "HEAD"),
         "open_prs_total": len(dispositions),
         "open_prs_blocking": len(bloquantes),
         "open_prs_disposition_unknown": len(inconnues),

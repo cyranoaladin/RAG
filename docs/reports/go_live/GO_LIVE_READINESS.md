@@ -28,6 +28,7 @@
 | Cle | Valeur |
 | --- | ---: |
 | `main_head` | 0c0548ea113ab73c05cc11da5cfda55b8e05b24b |
+| `computed_from_head` | 748aa4cfd90707aa690a55b602855d32e14b9919 |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -42,7 +43,7 @@
 | `non_pdf_servable_total` | 37 |
 | `non_pdf_servable_reacquired` | 0 |
 | `non_pdf_servable_complete` | False |
-| `disk_free_bytes` | 99332722688 |
+| `disk_free_bytes` | 97499566080 |
 | `disk_used_percent` | 85 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |

@@ -9,9 +9,10 @@
   "open_prs_blocking",
   "root_owned_worktree_residues"
  ],
+ "computed_from_head": "748aa4cfd90707aa690a55b602855d32e14b9919",
  "current_switch": 0,
  "currentness_policy_applied": false,
- "disk_free_bytes": 99332722688,
+ "disk_free_bytes": 97499566080,
  "disk_policy_ok": true,
  "disk_used_percent": 85,
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
