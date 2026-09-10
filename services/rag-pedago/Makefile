@@ -22,6 +22,7 @@ install: venv
 	"$(PY_VENV)" -m pip install -e ../../packages/contracts --no-deps
 	"$(PY_VENV)" -m pip install -e ../../packages/pdf-page-policy --no-deps
 	"$(PY_VENV)" -m pip install -e ../../packages/release-chain --no-deps
+	"$(PY_VENV)" -m pip install -e ../../packages/pdf-ocr --no-deps
 	"$(PY_VENV)" -m pip install -e ".[dev]"
 
 doctor:

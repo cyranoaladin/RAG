@@ -1,0 +1,336 @@
+{
+  "MULTI_STATUS_CONTENT_SHA": 21,
+  "entries": [
+    {
+      "content_sha256": "16efa795f59f25f726e3f443934198e22c01fad04e1ba78a01ed10a11a3a14eb",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row78",
+        "catalogue-complet.tsv#row290",
+        "catalogue-complet.tsv#row366",
+        "catalogue-complet.tsv#row734"
+      ],
+      "status_set": [
+        "a-verifier",
+        "archive",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4",
+        "https://eduscol.education.gouv.fr/4758/ressources-d-accompagnement-pour-les-langues-vivantes-etrangeres-et-regionales-au-college",
+        "https://www.education.gouv.fr/bo/20/Hebdo31/MENE2018714A.htm"
+      ]
+    },
+    {
+      "content_sha256": "2e1ad50536f7f7e542c41509e44c5d31bbf4d8e2070044c5df0822c134451bd0",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row160",
+        "catalogue-complet.tsv#row2275"
+      ],
+      "status_set": [
+        "a-verifier",
+        "actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5724/ressources-d-accompagnement-du-programme-d-education-physique-et-sportive-au-cycle-4",
+        "https://eduscol.education.gouv.fr/5865/programmes-et-ressources-en-theatre-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "2ee96bc451ab4d4ef593c583afaa3040cb1f01c4f86ca1d62f10394dcd7213c0",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row41",
+        "catalogue-complet.tsv#row953"
+      ],
+      "status_set": [
+        "archive",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5745/ressources-d-accompagnement-du-programme-de-technologie-au-cycle-4",
+        "https://sti.eduscol.education.fr/domaines/technologie-au-college"
+      ]
+    },
+    {
+      "content_sha256": "3547df9ce09a9ef310658a63accf04eba52f42f7e0c11c68733e0f9fcfe38c05",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1926",
+        "catalogue-complet.tsv#row1612"
+      ],
+      "status_set": [
+        "a-verifier",
+        "archive"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5664/modalites-d-evaluation-de-langues-vivantes-aux-baccalaureats-general-et-technologique-et-attestation-de-langues"
+      ]
+    },
+    {
+      "content_sha256": "36030e39160a511e5338736c0898c459255062e05b4a8a595922a9b65eec0e5f",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row818",
+        "catalogue-complet.tsv#row1500",
+        "catalogue-complet.tsv#row1636",
+        "catalogue-complet.tsv#row2010"
+      ],
+      "status_set": [
+        "a-verifier",
+        "archive"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/4446/enseignement-moral-et-civique",
+        "https://eduscol.education.gouv.fr/4470/histoire-geographie",
+        "https://eduscol.education.gouv.fr/4494/langues-vivantes-etrangeres-et-regionales"
+      ]
+    },
+    {
+      "content_sha256": "523b1689383b325d02ab6fa03d0f58f5838155abe6b2c70b639505d2f300e5ac",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row2831",
+        "catalogue-complet.tsv#row2794"
+      ],
+      "status_set": [
+        "a-verifier",
+        "archive"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5664/modalites-d-evaluation-de-langues-vivantes-aux-baccalaureats-general-et-technologique-et-attestation-de-langues"
+      ]
+    },
+    {
+      "content_sha256": "6093f2c9ec1f47bc600e9eb0c86061858a00ef936c598e7193ba6a65f1dfb325",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row2636",
+        "catalogue-complet.tsv#row2619"
+      ],
+      "status_set": [
+        "a-verifier",
+        "actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5832/programmes-et-ressources-en-sciences-de-l-ingenieur-voie-gt",
+        "https://eduscol.education.gouv.fr/5856/programmes-et-ressources-en-serie-sti2d"
+      ]
+    },
+    {
+      "content_sha256": "60ed416d187fe449ca2639bc0efe289af61d88a32b618e05f5e5ee7dd08a4086",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row746",
+        "catalogue-complet.tsv#row949"
+      ],
+      "status_set": [
+        "a-verifier",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4",
+        "https://sti.eduscol.education.fr/domaines/technologie-au-college"
+      ]
+    },
+    {
+      "content_sha256": "6df4bf3b942c64956696e26f44b5760e9755e435b239098e1aa9d79f44472d4b",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1676",
+        "catalogue-complet.tsv#row1818"
+      ],
+      "status_set": [
+        "a-verifier",
+        "actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "76aa1a711ef085073ce9a5f2df8a1348b6042974e30612add8d4ba0c34e71795",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1715",
+        "catalogue-complet.tsv#row1875"
+      ],
+      "status_set": [
+        "a-verifier",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "7e48c40413ca57a5dcf66230648ea69eaef55d40e620736f0c7eff7bbc82069f",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row2448",
+        "catalogue-complet.tsv#row2280"
+      ],
+      "status_set": [
+        "a-verifier",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5790/programmes-et-ressources-en-enseignement-scientifique-voie-g",
+        "https://eduscol.education.gouv.fr/5817/programmes-et-ressources-en-mathematiques-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "7eb3b943dde0d0eca48e574ea51b03793f09f56ef834f25f175490228fa9beba",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row2407",
+        "catalogue-complet.tsv#row2437",
+        "catalogue-complet.tsv#row2283"
+      ],
+      "status_set": [
+        "a-verifier",
+        "archive"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5664/modalites-d-evaluation-de-langues-vivantes-aux-baccalaureats-general-et-technologique-et-attestation-de-langues",
+        "https://eduscol.education.gouv.fr/5694/candidats-individuels-au-baccalaureat-general-et-au-baccalaureat-technologique"
+      ]
+    },
+    {
+      "content_sha256": "89a508c498054ee35518bae5cb886b95aa2e91afa95394fb24d47326439a3d0a",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row39",
+        "catalogue-complet.tsv#row948"
+      ],
+      "status_set": [
+        "archive",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5745/ressources-d-accompagnement-du-programme-de-technologie-au-cycle-4",
+        "https://sti.eduscol.education.fr/domaines/technologie-au-college"
+      ]
+    },
+    {
+      "content_sha256": "8ca2ae69cf68e738c73a347bac1315b6d8f32f142a7045b08ce14af0bc21468e",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1716",
+        "catalogue-complet.tsv#row1876"
+      ],
+      "status_set": [
+        "a-verifier",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1672",
+        "catalogue-complet.tsv#row1813"
+      ],
+      "status_set": [
+        "a-verifier",
+        "actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "bc8c0740aecbb2cd2bb49c52a88da0c52197ca98c348fb77d3e629096e5ca3f5",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1434",
+        "catalogue-complet.tsv#row1450",
+        "catalogue-complet.tsv#row2777",
+        "catalogue-complet.tsv#row982",
+        "catalogue-complet.tsv#row2379",
+        "catalogue-complet.tsv#row1236",
+        "catalogue-complet.tsv#row1420"
+      ],
+      "status_set": [
+        "a-verifier",
+        "archive"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5769/programmes-et-ressources-en-arts-du-cirque-voie-gt",
+        "https://eduscol.education.gouv.fr/5772/programmes-et-ressources-en-arts-plastiques-voie-gt",
+        "https://eduscol.education.gouv.fr/5775/programmes-et-ressources-en-cinema-audiovisuel-voie-gt",
+        "https://eduscol.education.gouv.fr/5778/programmes-et-ressources-en-danse-voie-gt",
+        "https://eduscol.education.gouv.fr/5796/programmes-et-ressources-en-histoire-des-arts-voie-gt",
+        "https://eduscol.education.gouv.fr/5820/programmes-et-ressources-en-musique-voie-gt",
+        "https://eduscol.education.gouv.fr/5865/programmes-et-ressources-en-theatre-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "d3d16eb28582b1fd999be4f290c0b2c32e8d26defdf83b4ba88dd079bc3f4dc9",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1713",
+        "catalogue-complet.tsv#row1873"
+      ],
+      "status_set": [
+        "a-verifier",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row2837",
+        "catalogue-complet.tsv#row1409",
+        "catalogue-complet.tsv#row2723"
+      ],
+      "status_set": [
+        "a-verifier",
+        "archive"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5661/presentation-du-grand-oral",
+        "https://eduscol.education.gouv.fr/5808/programmes-et-ressources-en-langues-et-cultures-de-l-antiquite-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row742",
+        "catalogue-complet.tsv#row947"
+      ],
+      "status_set": [
+        "actuel",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/4362/enseigner-au-cycle-4",
+        "https://sti.eduscol.education.fr/domaines/technologie-au-college"
+      ]
+    },
+    {
+      "content_sha256": "eb41272a7a574bdb64c8547982892dadf1bd1324895d5b4a1e206de2493b9b1d",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row1674",
+        "catalogue-complet.tsv#row1815"
+      ],
+      "status_set": [
+        "a-verifier",
+        "actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt"
+      ]
+    },
+    {
+      "content_sha256": "f5df79e89a122b72e544be9f29ac57b8f1a9c01fc5449bb30ce7e1c5f5071077",
+      "source_relation_ids": [
+        "catalogue-complet.tsv#row819",
+        "catalogue-complet.tsv#row1499",
+        "catalogue-complet.tsv#row1745",
+        "catalogue-complet.tsv#row2011"
+      ],
+      "status_set": [
+        "a-verifier",
+        "transition-ou-actuel"
+      ],
+      "url_evidence_ids": [
+        "https://eduscol.education.gouv.fr/4446/enseignement-moral-et-civique",
+        "https://eduscol.education.gouv.fr/4470/histoire-geographie",
+        "https://eduscol.education.gouv.fr/4494/langues-vivantes-etrangeres-et-regionales"
+      ]
+    }
+  ],
+  "kind": "NEXUS-MULTI-STATUS-CONTENT-LEDGER-V1",
+  "note": "Un même contenu appartenant à plusieurs relations de provenance peut légitimement porter plusieurs statuts. Le service se décide au niveau de la RELATION, jamais par précédence arbitraire sur le contenu."
+}
