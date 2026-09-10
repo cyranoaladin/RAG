@@ -1,0 +1,19 @@
+{
+  "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V1",
+  "note": "Fermer les bloqueurs de pre-release ne suffit PAS a deployer. Ces treize-la sont les gates de qualification et de deploiement, tenus separement pour qu on ne confonde pas les deux.",
+  "blockers": [
+    {"id": "C1", "titre": "Autorite de release et couverture promue", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "C2", "titre": "Ingestion multilevel reelle bout en bout", "owner": "session H2-C externe", "closed": false, "proof": null},
+    {"id": "C3", "titre": "Worker CLI multilevel bout en bout", "owner": "session H2-C externe", "closed": false, "proof": null},
+    {"id": "C4", "titre": "Contrat de retrieval sur corpus servable", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "C5", "titre": "Autorite d acces et portees", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "C6", "titre": "Qualification CAS et couverture de magasin", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "COCKPIT_E2E", "titre": "Cockpit bout en bout contre l API de retrieval", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "STAGING_EXTERNE", "titre": "Staging externe ingere et qualifie", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "CONCURRENCE", "titre": "Comportement sous concurrence", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "SYNC_INCREMENTALE", "titre": "Synchronisation incrementale", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "ROLLBACK", "titre": "Mecanisme de rollback eprouve", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "MANIFESTE_PRODUCTION", "titre": "Manifeste de readiness de production signe", "owner": "operateur", "closed": false, "proof": null},
+    {"id": "NON_PDF_REACQUISITION", "titre": "Reacquisition des 37 ressources interactives servables", "owner": "operateur", "closed": false, "proof": null}
+  ]
+}
