@@ -1,0 +1,3022 @@
+{
+  "ARTIFACTS_WITH_EXPLICIT_PROGRAM_REFERENCE": 232,
+  "CANONICAL_TEXT_ARTIFACTS_SCANNED": 2464,
+  "EXPLICIT_REFERENCES_TOTAL": 312,
+  "NOT_ASSESSABLE_EXCLUDED": 9,
+  "REFERENCES_AMBIGUOUS": 0,
+  "REFERENCES_INVALID": 0,
+  "REFERENCES_RESOLVED": 99,
+  "REFERENCES_UNKNOWN": 213,
+  "REFERENCE_SCAN_UNACCOUNTED": 0,
+  "kind": "NEXUS-EXPLICIT-PROGRAM-REFERENCE-SCAN-V1",
+  "raw_context_excluded": true,
+  "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+  "references": [
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "01042dbd95765884c7d01f1e51cef5966c8df2fdb7ef357049270e1459c28415",
+      "evidence_digest": "aad86cab57874397ddc7ecd03fffa0aef1a838ac821567da3915c12032c08142",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "019c6602174f190f4ae8b5c20eec2f5b2f0d13f7345f8bfb24cb249a47e0a6b6",
+      "evidence_digest": "c6c6d857f7f8b334ef1c7888f3a44ea2eca2728cfd26401a2d2e86947828d7b3",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_17_2019-04-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "019c6602174f190f4ae8b5c20eec2f5b2f0d13f7345f8bfb24cb249a47e0a6b6",
+      "evidence_digest": "7acf5c9796ed7ab33dede45bddf4fb84d963426b90160b3cfc2d6132a5d66b45",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "evidence_digest": "d13deafab93a41801da67d2cca641ce37897ba9754a588dfa5147d122d96a1cb",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "evidence_digest": "f9f35aa9ca4f2aa7ff02ae362d2c0c4bdf59b757a9cbcac49ddfc4b96ea9d17c",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "evidence_digest": "18a5cdad13317228ade11faee24b50d6bd921ce9253be00d29fe76114405680d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_1996-06-20",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "evidence_digest": "e990bc4cb2fcdcbbe588327516fdfa708a756c0be4aecf55f8aca997328205ac",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_5_1997-01-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "03b98a7814c5203abd74e1dc94dc2013574d9f2bd0688e44164967b0ad9ad2ad",
+      "evidence_digest": "19d6e5d02edbdcae6b2fb2b9b5e4aa23189d372e2fdd8985a1cfdcee60adf994",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "03f268dc1f2628dbc76c58921ed868624437f06a15432ea055fff844f12aaf91",
+      "evidence_digest": "5afe9b8f561098851c412d76db835c3c0d2a81d7ba27d62b53604b30f5c317a1",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0414c121cb58c82beb36a632bcb568b8353ce5258ef742f7f4b8975e1bf99d8f",
+      "evidence_digest": "da8d8e522eb51589a7e128c3c03c3ed65b5b344bafc0aacd3dd45de1d98b2958",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0414c121cb58c82beb36a632bcb568b8353ce5258ef742f7f4b8975e1bf99d8f",
+      "evidence_digest": "5e726882dd74ad0997758ee5d086979014ad06377d9b8d80e7821ce9925393a5",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_9_1990-03-01",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "046c1b6fa94cff3abc6d48c139b8b2ad9534fb5e1aab5ad5c84d3304d74fc28f",
+      "evidence_digest": "519244e5429542b9f1a89d4aac5e1cd1bfd0e2752f99334608f730af07c64514",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "04a601862b056936041f99d67a7ecf8f96db6750d2aef9314acf65bfe846f530",
+      "evidence_digest": "ca9a8349e90f4ddf45be22f168c053f80c38b886794ab2091cb8f7bcd50c433e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "08783097205b7e908c49fde8ba9c5326f5931e2c8814c3a3c6598165fab08a67",
+      "evidence_digest": "de88b03d48a641734bbac0f85399606086bc33e37a7f359b066aa57de756dc13",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_13_2015-03-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0b9a40eb0706d976cabd3259f0f4f3bd87037ef41f3aebda4b67b1ae85b667f2",
+      "evidence_digest": "9185beaf2a150f253421c8097cda3e4d898719f3327497b8b139548f4e29ce55",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0c4d33e649e22c6d77c50dd82e2de4f266e2717ebad2bc0d6705797765e15cb6",
+      "evidence_digest": "7bc113fbb4613abd48b63ea9c519166f5fcbf85b00d36766adeab149dcaa47a4",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0cfe5bbeaa15a71ac33faf3d9c67dcc1b3ddf3b19cf049ca329d73bcc3461bfa",
+      "evidence_digest": "257cc804ecab10c96c179e9ee4aa57ca534178be5868acd33bff82ee1dbbb742",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd",
+      "evidence_digest": "fa5700911a74c56fa4e93c4423782b435d554e642e92ecba6c20100997f70dbd",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd",
+      "evidence_digest": "624abd45b21cdc12b4c819e48fb894a9d2b00747b2c8d9df32ee82b6888391e6",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7",
+      "evidence_digest": "7f767eb62c7b9d9be351d8c65543a5a1bacdddacb141524169c5eddd5f161392",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_30_2021-07-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7",
+      "evidence_digest": "e3006c922e3fa0ea105938c3201a81bc43fbef80cadd5bf1843fb7bfd0c68a65",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2022-08-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7",
+      "evidence_digest": "b332bc7c67dbba4b97d40aca1eaca244ae9a1928a07c571919723e2ae97b6a0e",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0f3c9d3ca49f37b1aa86a6f46fad796fe25d19fb7af2b1b6df39ccdec242f8e7",
+      "evidence_digest": "fa94725f8bd1719ad12e632e6cdef237fe7e7b90b76ba2caf663a8e73e9a2b2b",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_2021-06-24",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "0f81d2b7e2e9169b3aa3b3f97d2843d8a798975e97fe74c88c539e9c21eb10f3",
+      "evidence_digest": "8a356243b398b84ba31820a6ea25397b582c27052417c370b4ad478be50f9f54",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8",
+      "evidence_digest": "a06301ea41dec1ee1535e619660f8b5f3f5ad8a8dd14c3e0cced7214711d34b3",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_2021-06-24",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "11fb17663dfd81b864454593dc5d4ffb2936462d893bbdda1bc440d8cd5273ce",
+      "evidence_digest": "a2b44134042654ae71a97b72ff4bc9f949c29f5116d6d974622aeaf00c3c0a80",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "evidence_digest": "487b7ae63497334c5f56daab2e217d45e21e45f7daedb0ec6c6bba53475ead7c",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "159711eada0ee841f9a6ae5812e6a8c724056894b8d65de913f94091e710a2d5",
+      "evidence_digest": "44d5be0cc6fe1c98487ea5a871d13f3fb5898434f0819b29cc597eac9de5ca00",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "163bbd7248a3764e3b299dd658545b07cceef8bcda7027c3c02292a681f59d65",
+      "evidence_digest": "942b1b85d0f098ca453829a4d66b53a42dbfe3f28dfad38f59d85e4562468f10",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_10_2026-03-05",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "18d76dea1ba3f2bfcc81c4a3b1f5887ba5cf8a9c5aac1ecfe35c0089cd5704a5",
+      "evidence_digest": "d989343a84f79dee5c6b3b20b6b85cddda2bfef4967d7b4336d29779a07c97d7",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "1e7c6ffe6aa6d9cc69cb43944f455954d525d68c55834619572feb3c196ca603",
+      "evidence_digest": "a690347cfe4fda023e30ea331819210bb99a082baa68f27cc3af302b59798082",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "1ed57e3eeff4c2a03699435375bf75ddc54e1bb0863e2ca3879f73bbcefaa8ff",
+      "evidence_digest": "edb0b33ba489cce5417cacb5c2e5390a4beb1a615f7877e5cd67a47faf9ffa90",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2400a70e3338652a7917eece2046727450aae799060b09e28b1b02fef1137d61",
+      "evidence_digest": "491c254f60e5936d5f5edd0048bf17ae4723e90a7c311de21522bed94485c407",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "24e1e002c915f7653f599d6886aace4089a47cfd19af3ec5d8a59b635d5962f1",
+      "evidence_digest": "14879e32714275d76a6a5c6c1def7bc887e787f09ea7b8a9fdb43c191d3e6431",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_12_2018-03-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "24e1e002c915f7653f599d6886aace4089a47cfd19af3ec5d8a59b635d5962f1",
+      "evidence_digest": "ddaa796a636208ef8086fbaaa70875635b78b3c42f7274af7e7e50f2366fb06e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2016-03-17",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "24e1e002c915f7653f599d6886aace4089a47cfd19af3ec5d8a59b635d5962f1",
+      "evidence_digest": "62f5d7c95264341032af679e503cee8ca6fc55906c1020891311e85b5211561b",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_32_2007-09-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "24e1e002c915f7653f599d6886aace4089a47cfd19af3ec5d8a59b635d5962f1",
+      "evidence_digest": "5af06ad0bcee8386ebbd69e4291ec8688307e8d5396b7bd1cadb76bb267a3d9d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_15_2013-04-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "28038f78352792d691e2e4de2817443cefd79bf5228c7d9f5b9f1423b3bc4c84",
+      "evidence_digest": "b986d9a9ba3b05ae127b40982cccdb139ea95cce9777de8f25ba970eb1870ea4",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_30_2021-07-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "284fc2dd2c244b03640cb1d8abe932a09f61e3d9359f1c2db543f108f3637320",
+      "evidence_digest": "9129dd65a15932f443c8c6445900cbd14f6841b8ae89d9a9ad14fe9a7d1e57a6",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_2021-06-24",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "284fc2dd2c244b03640cb1d8abe932a09f61e3d9359f1c2db543f108f3637320",
+      "evidence_digest": "cf56a1c9d9db105fa2535728a97b75aa57d65cd2d451563cb281c80583c841a5",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_2_2015-03-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "289199725ef7e2a7565a038fa30bdfcc75ee75de7e4de7e64ad447e8622e8084",
+      "evidence_digest": "0f16316fabe381a70b0e38d250e34baa18ed24ed491ce5921edacb8461582595",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_13_2022-03-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "28abdff5197f37ebce1a74e1818192ffcb8003b1382765b8149d379622bf40ca",
+      "evidence_digest": "58f97d6c52ea1b61d1eb528eab87db41334c4f44768418bb6db3310e87135605",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_21_2020-05-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "28ca41343f7c9f1475e171ae677f4b60bc6b610c6ad2e5442f3771bb2b92754d",
+      "evidence_digest": "44d9708f516f2a9b776d89816878956079d6d631999a923c0eb9ffd939339672",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2a5edb1e3d169ea9bd6f11b01ff72525e034a2fb466c7e8727d41c6990298bbf",
+      "evidence_digest": "072a2389eb6703b1b0d578fd363094a65d345fbc5fd8d5e5876081982d385ea8",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2ae4ec82cb81801f11de511191f9bf8a4b3f3fe7aa5fec86dc1db5accc0418ee",
+      "evidence_digest": "dcdebdecd3da946b3a385130ea7082451f7fd087011f18685019fb7d321da7d1",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_27_2021-07-08",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2bc7ba7ced53d5cc3d2665e82a9385c51858dd442294410d553034b008163846",
+      "evidence_digest": "93e56b83d217d0e136928aef59a003680dd3fbe481a579d7ab9b64768072978d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2d5d82b9719da17b370841b632be5b7a9e1b9282df74f67a0c6ed66230a3a39e",
+      "evidence_digest": "4a2de435af4e2daf6877563dd9462b247f63994a0ca45563262ed9993d9ff7d8",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2ee96bc451ab4d4ef593c583afaa3040cb1f01c4f86ca1d62f10394dcd7213c0",
+      "evidence_digest": "cbacdee443e6b31b9ff8c02d9463f19f0afd870223fdb29283ce248bb5c59165",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_17_2015-04-23",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2ee96bc451ab4d4ef593c583afaa3040cb1f01c4f86ca1d62f10394dcd7213c0",
+      "evidence_digest": "fa59569908b6359213373f3a067c8c77f6146e546407ac717bc879fd4c81bb62",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_5_2016-02-04",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+      "evidence_digest": "f75d1eb95b95a9394649bb1fdd821f463b964929aa73a94993a24af15d4138a9",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+      "evidence_digest": "d6d38ec68f4ed46f222c288582c349b35ba19ff9e5a6d35fd1e7af48384b5462",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+      "evidence_digest": "71687614df6ed6d291e26f61ef058189c31ddbf656e7f101e568ce06e676ca44",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "2fee69b41b9c47cc13f90289501176a336673a18707ce9299aeb03eb2f00b520",
+      "evidence_digest": "21c59c118d9d6a195c9ca00dd9edce52dff65c4d3ee151a3df361ae521e39b22",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3052a07b16ee59439ffafee3bf4806351f68fbef1c09bf876047772d43fd9314",
+      "evidence_digest": "6a2c46f5a29886315b8b5eab3b21d97dd7c2f9ecd1c42a22eec1c29dae309c24",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3137f54eb345fa75c1878e7d7da7f0a1a613e4a149cb3bda9928df8864deb72c",
+      "evidence_digest": "4318a47fc752ca39a69c268f32f854c160f9420587eb36d095003b5dd2750f05",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_45_2019-12-05",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3177a1099fe1679616ec00193ffbc838cefc1e976b64d5fd1f7c350f66ccb7c2",
+      "evidence_digest": "3c026b4f06b4bc314491c87656fed06b9ecfa94efe6e1731fdf258c6fcb19e27",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "31cbea425ee2a8b1752365dd6074150cec94660a34f3fa3851685409308c0a28",
+      "evidence_digest": "bc8235741fb6952ac77370fe414f4eb5aacb72b3c301bd1c99d2f45445faf304",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "31cbea425ee2a8b1752365dd6074150cec94660a34f3fa3851685409308c0a28",
+      "evidence_digest": "124f34d4c250a8a9fdad199ad3b4e9f2658469a43e3abb5e0f950ca1cf33dfec",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "336f98ded652b77fb1beb4966f073a42be20e15a241d1b5337e366d17bb57e9f",
+      "evidence_digest": "e6a6e0f9b87ee79164c211670f0fbac8de45036d8d774b80000bac178fb279b4",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "336f98ded652b77fb1beb4966f073a42be20e15a241d1b5337e366d17bb57e9f",
+      "evidence_digest": "523916a303a1b7dc0c70426695cd9177e0f585cee4b40e30401d1feb7f787a25",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "338a6490de04c66986cd348cf38e7fed6e83e9cc3bcd4ec4b73f043c35da034a",
+      "evidence_digest": "c116b605a5ea3b1a482f041a4da756c28ade5c56269e6cab7340fa564ee3a1f3",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3455b99d834bc598584a188a10ef12cda978e91c905bad693a7815dc84052665",
+      "evidence_digest": "e2c1b0f6d97a4c2049cce10f13b685ba1eb8fc00b9b78e603f721b4c9d50fd26",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "evidence_digest": "897aa445688fb4994c397e29a7b6f273d095dd6371e6bb09c33e925c53169897",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "evidence_digest": "1c771d38f3a0b53d89f3b9fa05f030acb98ea0813bebde0848eab7937a4ea4d4",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "evidence_digest": "e513ce324fd4b6996e9c30946dbc31d4636bce7b71ff765464732f8271895bdb",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "369c09e39b97c976f47d8d40592b1652a7b1ff3b343719382f4eb1ff2d2fdcfe",
+      "evidence_digest": "000f84c931da8835f8fc820d2f176ca918bdd6c2bed5c15d72970621e6347747",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_5_1997-01-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "369c09e39b97c976f47d8d40592b1652a7b1ff3b343719382f4eb1ff2d2fdcfe",
+      "evidence_digest": "7f95fd6b5a9009c7fa10880f9621ce56506c519cb210134a8eb07bc67ce183e9",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_8_2002-02-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "36c8bb572e84aee5aae7c5204cdba079f6b910b8127f872ad50a10c1e444b5fd",
+      "evidence_digest": "c366b97e68cb0fb29ccf248cae677c6395115196eb827b9acc17cd3cdc2b9b29",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "37778b675e275091d4e7b090ef2cede6e97380edcc638e280046aa3d030e43a8",
+      "evidence_digest": "90c2f84702b1377132f1ebdbea81fc6128a82e3bf0db1a801397032cd7f27007",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "38832ba321cf876dfa209058e88b574103203e4eb08ca693cb93257603538c70",
+      "evidence_digest": "14cba2bd389b64daad833eb27f00de1b5a02d709d78a54421f4a4e2d048157ed",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3885f344e9026c3909e022c480b2c8806af772eef5d3f0cf3dfba2aa23627b7a",
+      "evidence_digest": "f1cc005fdcc405e2fa5d88de5cb8cf6df5d3c0778143292713ab72b9c2984b6e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c",
+      "evidence_digest": "77f9412ca6d93a34ffbcfd0d951241af46417031e50c01384a10b22a3a5accc2",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c",
+      "evidence_digest": "906769d47ba58127089dd69bff2f33d7fc9ee41440f3c09728bbf2434706852d",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c",
+      "evidence_digest": "2fe4b477c9e5d745401e7bb222a2a80fbd46f65f2df72b04d8a74a96116da249",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_digest": "c9865436f55739962a4aa8849600f31d7662eb7e4e13e4ad7aae9abe78e59a1b",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_digest": "45caaa41b9ef01f48f1c6fac42f9301110345e022d850f1a5113fc7477ab5c7c",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_digest": "65a1084f5c1064444ef79f35c6abade6bea71317669d55f7aaef3d2189e58387",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_5_2019-04-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_digest": "f0be77ea01a5e50354f279ecdee30089549dc1ca640c0a43488391b553d83b57",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_1_2020-02-06",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_digest": "6a06e6a533ebf98df7d142b41cd400522c375cf230ea83e1b7fbdf185a7dedd4",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_digest": "53feecafd3adaabc77c2107b95160c4b9a837c03093805d72cc16f78ad43cb17",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2017-03-16",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611",
+      "evidence_digest": "a9f745db1716bb6f4f8be0caf8fc188c6dc0d509238315ed79bdd7b40ddb2bbb",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_30_2020-07-23",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3cee72738f32175ac368a9a0f5e29690c001520d79dc944ad41ea76540c1d10d",
+      "evidence_digest": "41fd6f106b4d3dcd2b267749db0f4fd454ae20e01fdba4e365e5ee7f8d2c14e2",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "3f57dccde06007516113e9ffe29680d88516e8395a5021f4a19f9ead5d4c6583",
+      "evidence_digest": "9ac0c75cb23a0d9b457afc1c439ef91fed1e595c651f55a99407b4ad61ca18f0",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_26_2022-06-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4011ccc8b4c1f8401e724af873cb57290dfd061ce7463ebec779f79d432cdc8d",
+      "evidence_digest": "cc6b3abfc5f56d88de9c406e2e6c144906a7e85bc0cf2ecf956c2fba1f06d65f",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4011ccc8b4c1f8401e724af873cb57290dfd061ce7463ebec779f79d432cdc8d",
+      "evidence_digest": "c567aa3f641bfc36fdd4a1a646e4165632d9556749eebdef84d79941b6a8aaf6",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "40d6df533665899e5819e29ae279dd449c76c83851b4baf0498ca8b41f934537",
+      "evidence_digest": "cf66b1a84dfecb42db0ca3c95446a8f568fa5289b556b92c9e07acf75694c025",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4187543b0997eb3c4d3efd44f81e6d06c5c9bae4ce9cfc5706d795114d14d577",
+      "evidence_digest": "f7ccd43cd7604d990d7e061e2e9416c3943d0cb3b5f047be0d165e2636c1e363",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_2_2020-02-16",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "45d122da2901256728828d173982478961f513b3664b7552f019da653f4e9dda",
+      "evidence_digest": "b1611634c02af75d6a0440c19d3c72ca533a6dc266445ecc8af85df4b3602d8a",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "46246e914b31cc7893d5dc793e2143477bdd6d7a78861ef9732116535a06d2da",
+      "evidence_digest": "a1d0d8826577f7c8e5b0e6b790b53ea1b5b4af75b9d5166ec9b5628eb90e1217",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_48_2015-12-24",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "46c617baf5f17f9038c8676229904d08bcfb2eb958e98ba3f5d9e39cf104465e",
+      "evidence_digest": "a735cc9c92a63b1d9d2441312aaf54c61b95008f6f6b7f737cffd99ce929f902",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2019-08-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4703f1cebd91eacc1ad7924a89b56b5d0c5e00274c95d11a39088548cc6d8596",
+      "evidence_digest": "64c37e7e3a9ca8320cc69a1ffa16453772d95d54ccdfa18b83089b65507ab08d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4703f1cebd91eacc1ad7924a89b56b5d0c5e00274c95d11a39088548cc6d8596",
+      "evidence_digest": "9449f704384c757b47eb03d7b21f64a643c30def1f5c4060f6c446fde106d11c",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "487cca5955634fd53376831fb7290c14ba044792a1b9fc9c7a8d240c79e537a9",
+      "evidence_digest": "eb4f7a7b5c321986756b5ead7130720c3f1102e3016deb5f8c4ea32ce965c2bd",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_29_2016-07-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4952dc081ee9b8984718e7f13f3203516e7a2e012b813619870ea552727c3ecb",
+      "evidence_digest": "4909af59ef5db299b8cdccac98eb2fbe5adb929794409246ee19e9f89428d746",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2019-08-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "497f786b8ea8a0be530ba1e4ff296bf8acd9502a57fe0127f67fd555f7e0f108",
+      "evidence_digest": "5288395ed550ecb7e579614379f7448b3de3e7b0f0eedf8e95029b06c883367d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_10_2021-03-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "49a6fa316d8363eae89615e276008160662f22b71c03e39e7123240668842663",
+      "evidence_digest": "6475915d91b5e977c1f5aaae287e7a96f01831093ca304f6b087046369f0719b",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4a539c7245f96a2feadb34dbabd82d3beb71af88fa3cd56ee8893310bc9364d6",
+      "evidence_digest": "756e0d55fd76848d26a922c0c36d3cb267eb8e8c10136cfdc1ed8e3834f5a8ef",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2024-03-14",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4b41cb9d8b9d06072c78d73b6809d3a5f09c54b6a72feb757915fc957cbd4447",
+      "evidence_digest": "51c64b1c77287f3836a4fc84e78f83999d985cfa07303426dc60472b610cd771",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4c53a739398b86e2ac8a8dcbd6a84535ebedd91062610d8932ee61cdf9f64ffd",
+      "evidence_digest": "944b9909832fe6252e3dbaa915c0a9d660d05d50c57d19f8ffea6c571ff42781",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2016-03-17",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4c9c68e2a10130b3e6d692529ad0bb89ee3e4e93f2753b6f8496bd36a0925f43",
+      "evidence_digest": "534da0f7a6ec6c4ecc52d1e46d44030361239eaebe2683f086caede0be287361",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4cb2425405e7f7e6efcdb5bf62ce431143296953bbfed20c0e50d8d9248276ab",
+      "evidence_digest": "ed0c5f452298b8e7675b9cbe4bd1e08488c5df7d1b32e36ece19cc70407d1c1a",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4cb9993b81744809244fe1ff249141467afd39cefd7bb6464c824fa3dcbed725",
+      "evidence_digest": "d231ccb3721a2fc7b2edd9d9c5397c78db9d8f3c522c6d206a955685ef3a15d0",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4d15250f151a7c76b752876ec2bf9bb35250e2d2dfb0c88f321e7844c5ea55b5",
+      "evidence_digest": "8d44faa31cb44e7aaa5f8d10bb62689eee7967f3eb84f3d9cc650b09f854523c",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_27_2021-07-08",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4d821707474ad5a565a1e130ac0c301ab36d70d59009f64ecab4f9e502e2021b",
+      "evidence_digest": "d1fdfb638f6c9feb411417609758b8b984e36549fec6433bc5fd1f14ba9193d0",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4ea2cde3f6ff818189bdfb31f2960c4cc9e6e06d876286ab317f8727ba680b1c",
+      "evidence_digest": "9102bbbb6e093ccef2fe01051feba7e70c0d610fb99aad58dbec28d9b98ece90",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_30_2013-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4ea2cde3f6ff818189bdfb31f2960c4cc9e6e06d876286ab317f8727ba680b1c",
+      "evidence_digest": "933df02ad00ddef7f62fd25060098ac0a98260dc5eed900fff25608634e1f121",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "4eeb770804686d813f599f1e470a8cf18789c66225cc2cb16796234ba71822dd",
+      "evidence_digest": "c0b0b417abb176058ab89c4589609d5a2dec3d7bda7ba10201da0f3c349aa406",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "50f424c25d598297607cbabda32754524c846412bd7eb122d5ed5acd94160ed4",
+      "evidence_digest": "b61127addeaf455ddcd8bd51ce44d1ba30e7acf655f5c4073701f7ac89c11aad",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_27_2021-07-08",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "513aed206d724e25392b7d798c5dd5f0c3ef481c3419e7a4a54214b1f28075d1",
+      "evidence_digest": "35bb30b190fc52123ddd2d90deea51be95bd3d1b6d6792a6d5eece7f55bfeaea",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "51528bf9197c61ef7d6059fc4eca2422b4c1177c0dcc03c2531db1f2eaac0618",
+      "evidence_digest": "ad45b39e8352bae07a4e07bc645e09ccd064905049ff0e7f99fe0c948c0caadf",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "5279f82d27212021a2ec3c3d238ed3fa31b622d2069ee5d5dd985b41c0652108",
+      "evidence_digest": "7c38cef0f57d52a63a5f5584f2281a44b26bfb098465bfbfe1f79775832acc34",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_30_2021-07-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "52a161bf6a96d96be2262f484aa4fcb9338e4eef07cf0e2fe0a4fdc3ba432cd5",
+      "evidence_digest": "faaa6da440fbf12b40c48398aa35dfa0967b09ea3db4cd5ea9351ef516ccd17d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "5376af2a265e4ca47a319b1df842f3659bddf3f0c53d317d48da036e02346f82",
+      "evidence_digest": "e0c94a659801b7d8aa3bfedb2aef6e0cff36b030a95cbb72378c371f2fb9cfe8",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "55186f7f2587d7d3cb458a21621fd0b5e761040002ce6b71d33768ca9f878d38",
+      "evidence_digest": "1475eb264113ac849b0b36ff54463a4db73c18b3bc97bedc291984747882296a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2019-08-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "55b38a1d0d48f969131ebcc76bb40f4ab18bdf1afdff9a0319d57f1b616d6867",
+      "evidence_digest": "09c358daaae551b2d152a6c532a627bb7190df262a4621344dd6a420a8492525",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "5725150723f559dd9cf4f72157e05c84a5fd704f651a322a834cbcd7d64ebc29",
+      "evidence_digest": "f2d239a8932c145d066ee3e9c44def271827f4edf7acfe2cef4a8b6f02c36461",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10",
+      "evidence_digest": "eed5e3f66706df80b40768915e3f810ff14a52f4d526c26121afc02965353abf",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10",
+      "evidence_digest": "812edc6775ed6d58abef1bde1951dde7baaace39d8abb3df5279c1df03be8a11",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10",
+      "evidence_digest": "3bd04b4db4f87252aee315f1a119113283758750ddf2d113502520ec38cd382d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "58d85b7d843140449c41c738759d995d315f1ca3c2364aa386fd7f5ad34e4d9b",
+      "evidence_digest": "b13ed260d87ef802684e447a3619db7a5b16088994a67b499c8e6a21117226dd",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_13_2022-03-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "58f36f35bec3dfe168a9101772870cb210af603264b0d1dc541cff401f84b6cd",
+      "evidence_digest": "af995f970bb2572ca48bc06e075f6768182dbe4ce49c76eb890ae44247a5f633",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_29_2018-07-19",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "58f36f35bec3dfe168a9101772870cb210af603264b0d1dc541cff401f84b6cd",
+      "evidence_digest": "80f51f91830a9a8169bf659ea9fdf013dde0c13ff0bc51805da92c662241cacd",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "5980c083692d023e53867b8bb4e7115dcdb825b6ac6c12ac189acd0575203dae",
+      "evidence_digest": "59e08a399b7692bda10e83579a4c73ddbb68ad6998fb89caa93fa2ed23f4324e",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "5c522bc9cf9f90120e986d8e938b71ec1bf3e3da50c9af8367512208e8ddfdf9",
+      "evidence_digest": "0a616b4d388505652abc1debdf77b64f742ed34b689d4425403b1b88c6624045",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2021-08-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "5c522bc9cf9f90120e986d8e938b71ec1bf3e3da50c9af8367512208e8ddfdf9",
+      "evidence_digest": "9a3a78ad8ee6f63187e7af8ebf0242d7a8cd645717a2ae5bf70b4a2d25b4feef",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_36_2023-09-28",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "5cc235fe087df99e69de1810665eb0b7ea510448b0e1177ff2ce1927d8dec701",
+      "evidence_digest": "3a2904ebad601c37585c3c38956eb39d6c353e7ce866f2277ff53798ecff1ab7",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_39_2004-10-28",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6093f2c9ec1f47bc600e9eb0c86061858a00ef936c598e7193ba6a65f1dfb325",
+      "evidence_digest": "2a5b899e36308b8580c8b0afaf3d5e47ef90bb963c8fca769945395a3fc142f7",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "60ed416d187fe449ca2639bc0efe289af61d88a32b618e05f5e5ee7dd08a4086",
+      "evidence_digest": "e642d641ad20003297c6eb83bcfc28b98c8bb856db29580fd5cb8fa8781b6b54",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_9_2024-02-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "62d8bbed56ee71d6c7ecdbeb7e28322f1e67a9dd74c8cd1d4d880ed2392f04ba",
+      "evidence_digest": "dc73aaf7fdd538d5925d07cf6db8cf88b4d6480a25341013b18c050e751500dd",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6322c2a135dbb5ce20b819cfbe00dfbbb253f3ad63c8c414d87c5f2287c41656",
+      "evidence_digest": "a522f51814dfafd552b9b6aaef8ea181ad2d59846d13b5f607eaecb74176e174",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "63b9e44f68e4d3e1bc59383364b8ead6ca9287817fb2c5816b4652bea7376712",
+      "evidence_digest": "126276a0edcd74b424704275408222fad6fefc4d8c759f54d34f8ca1d712387d",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "63f93b838db43c4f68b747facb1af3971a51c2f20ad8008cac3f3818b82c8a53",
+      "evidence_digest": "22b8b58bcc4a9025722dd66db0f72edb9b324b28d52733ad9123b75f92db864c",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "63fe5bd9b23ed329a22b5998e4c292b614ddd92770608e16eb40c4fbec3318ea",
+      "evidence_digest": "bd8cc8bbac293a0e0bc69962d16b71c8edc17f8fc81ae24bee61bc56f639b379",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_45_2019-12-05",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "65205f54dfaa421d487b936eb1f25c2c77f6308ab0e7ed5dcda257d242e2f823",
+      "evidence_digest": "aa369c24242676fd48cb5f2d578c883f96bfd400a3dccc56ad28086c279b8f34",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2015-06-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "65205f54dfaa421d487b936eb1f25c2c77f6308ab0e7ed5dcda257d242e2f823",
+      "evidence_digest": "a46e79924fa5a156d6cbf1349076afcce4d4514fd1480914832224f36b88bbeb",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "673a537c3248b4eeed52f50e5c39f44086db569b821ee8a606e56d9a1427399b",
+      "evidence_digest": "95a10c5e5da1605ef138875b48c814e425dfe392f7fdbcabf1e7d27b08d003e0",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "67513c28975e5d4f801e21089d1606be40664f30aa60f3a5fd2fb4c15735dd04",
+      "evidence_digest": "abc5df26c242f42baa9fdff0b7b4e4ba162c0c3a8df8710107644c7944c66e11",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "68602195b5beb2b732229d13399965a9e4883b3e3cfa10c53038e4db4887b205",
+      "evidence_digest": "2ab9fa0a24798c3b4e40840fb9fccfdde8b6d57cbdeae534efa64da5761cce2f",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_44_2020-11-19",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6bfb5ee6ec37334c4e4325ebd041aaf3fadb38a8465aaac9154bebbac09d5f6c",
+      "evidence_digest": "249884af850517686ac5296a7420294d6e54dcefc1e8046001906adc2977fadd",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2008-08-28",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6e2ed9a43b095e43ca6ab71cc7f4099921cc6733f02571ec54194a5675e774da",
+      "evidence_digest": "eee057d46d47b0c8d48d1feca42af5d5357f473612525f6f4f5bb402b9c3f2a2",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6f1e862cc2ad50a35397c80303093dea37755ab66528ad71e7121a7d752e4597",
+      "evidence_digest": "bb60ac03d4a705c209da67c39b37b6063201bf4fe479a5c0f8ac25df9b0b3b28",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6f1e862cc2ad50a35397c80303093dea37755ab66528ad71e7121a7d752e4597",
+      "evidence_digest": "0a35f08f327ad9e7cfc139b611b91ccdf9ece5edeebaab1dca2868d1397fea9e",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda",
+      "evidence_digest": "7a2b5c1bdb32f43ac644d50fd3563985f432f90380520797a3464fc2b4435dda",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_4_2010-04-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda",
+      "evidence_digest": "8d9a4d8c5debe1c57ed4cc3eff588c1346c721ea126c977568b718f8ce510271",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda",
+      "evidence_digest": "43a21628994cf074f4de20435b4ea4a27ee054cf3d3baf186a645874d5b48e19",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_9_2010-09-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda",
+      "evidence_digest": "90dfa62a422bb08fa8f2a283a18231c6c3a119bb5defc24a634a725dba369943",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7018947af2bce4a77a2fbe79cfa56acee8b59bd9d8c40649083521feb7c020df",
+      "evidence_digest": "01d11368682b1428ced4ad00e79be983284072d4a8c54710b3e6a8d0add99abc",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_1996-06-20",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7018947af2bce4a77a2fbe79cfa56acee8b59bd9d8c40649083521feb7c020df",
+      "evidence_digest": "a1b6d174b741f2e005df547b5880d7b1b4eba384a161cf309c6300257df1a194",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_8_2002-02-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7095e69ecedda7c344c9459fabb4f11296d64478a564e27d807abf7dce672c6b",
+      "evidence_digest": "ca73109d453092e2eaa0aa0cc8b950f017032b6390f7cf3e9c2df949961098d2",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "71fa715e226d415da585b31cc699f793f66b50405ad9a822984d56f725e8e7ae",
+      "evidence_digest": "524359a29e23bacd81833318ff66f70613b93b01f6ddab35b752b3032a8abaa3",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7746ed8f2ba30d8d99ebf4f7c8a938e107343e1802a5439c9d09ebd4e952955d",
+      "evidence_digest": "bd78824eacc2edc9aaa9c2293c230fd7c4db52b64ed221db2ef478f52012ea7f",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "77d0c64231685fc9e84c66d30522767de2c3ad09a2d1e3ea67b7702e9d54f6b3",
+      "evidence_digest": "985717e7a0f13031e61a02f35a4aa0c90efa3f8231377a1415f3e8d0c660d028",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "786eb1939b5396d62a72fd844aaafe58adeaa926ba97ee0e4db848ed81454881",
+      "evidence_digest": "9a6a508db3d99bcbcb622618c43ef8dd6c8636939da6097a94f2e1591bd893ed",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "786eb1939b5396d62a72fd844aaafe58adeaa926ba97ee0e4db848ed81454881",
+      "evidence_digest": "2d95a338a45f37141153690085d31efa810717c741f3a01b4056a0277599455e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "78a50ce402eb5f39540c2bc1fff39f01032512f0d70874fc591256f43078947e",
+      "evidence_digest": "de2ce96abe15a7a527fac59790ca16dd6916c94cedc8da83c1718f7232fc7e99",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "78d0a07a64cb13bd3c82785e519464e80a006e7c55d7b17f7c9b75fdc339948c",
+      "evidence_digest": "86694e42e995f6ca0f329c635ec165a1f659f7c7c9a344ea22fc3c737998911a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7aad76ae15e49e8e9858c1e3e10ffbfa1d76bc030db4f04c832ba516caebe622",
+      "evidence_digest": "c7a2274e0020a1d99f6489b7083877dd3d126773948a8b698675a33e7ea1c3d1",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2008-08-28",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7aebac4fde019c261e71fb7e7609a6f827f7a320cdc398f2a1927bed4ddf0f9b",
+      "evidence_digest": "b42c1b3bb29e2bad3719736e305e2d129b709f569a1f493504d5c92d2bf1e075",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7c635cd207598edcdabe3e81bc0c78b1ac45a9f9b3ebabac76400725e386d025",
+      "evidence_digest": "13606f1f0df5f778b92f925b4506dc1add1f5865963c858318a7e1088f39d08a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_1996-06-20",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7c635cd207598edcdabe3e81bc0c78b1ac45a9f9b3ebabac76400725e386d025",
+      "evidence_digest": "7b2589a888bb8b76eb2cc274dafc636faf96ad503bd6a7fb9855d88dd12331db",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_8_2002-02-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7ded8c5fa537be3418ab350497281db554afccb4f26a9da8f6f1de9cb5cb0fb3",
+      "evidence_digest": "8b35a27bfe340b85f4ec5bcb7eb13e34ac49455dbf6b3501cba38aeefc4adf00",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55",
+      "evidence_digest": "24c3be6351fffecb59f5893ed587e329aa5f1d4b56655d56534a3390aa71cdd6",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55",
+      "evidence_digest": "0a097980be6ee77f4c3a9edeab58e30e6a808a87b47d25b956d64bba49935d2a",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55",
+      "evidence_digest": "b71f70611c991a1b6191b7ebf308776097b937bd9428dd7f89435b401dd044a5",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7eb3b943dde0d0eca48e574ea51b03793f09f56ef834f25f175490228fa9beba",
+      "evidence_digest": "e70e6f52c7b24461afc029a44ab05d521c6f6d619ab3fbd203534882df840585",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7fcd4a8180dcc45973f30ae43bc992f82638ae78936a4b3260785fa2d8ad0467",
+      "evidence_digest": "a6f609828415cb6ff54f717b82fc742837958d85223db831f63a13719ffa3ff1",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7ff9fe693e198a2ac675579f87c9ec7b99873115530474a2304e15ef0d9ceb03",
+      "evidence_digest": "cd696a6c7089e0a975e0638b2d898a6f73e08d7bbc23224990c2c5db3f2d3ad5",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2015-06-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "7ff9fe693e198a2ac675579f87c9ec7b99873115530474a2304e15ef0d9ceb03",
+      "evidence_digest": "b003bb48af5ed6fcbc4b88f996dd029fe2b456df01c976d78cf5525c292b6026",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_23_2016-06-07",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "802a6c9edf9ed1239f47c52f222d57d57b1e198068ce91ab329138a95f638a11",
+      "evidence_digest": "ab2ec2e2e39317df1229d8abfbd009f8bed742a679fb7432a189cdb1c31d5a90",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "808846fe52d111ebb1a46907bf9756dfbfae35f4958e578695504969a38f586c",
+      "evidence_digest": "5f0b2423e815d31911eb848cca97c77010102bc3bfe96adddaee1653082b10b9",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "808846fe52d111ebb1a46907bf9756dfbfae35f4958e578695504969a38f586c",
+      "evidence_digest": "97175f85bd5404f4445e192491aa50f202dbde8d005af5ccb6baa5e8f579a5c2",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "81e9ecc62a381c533af8e06b715177611eaea5d3f0dc656ac0aef2a2ec609fea",
+      "evidence_digest": "1f8c503d7eaa238ae5d063734d611c35b7b00ff65b60883f2b71fd683769bf2e",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "82809ea2bfd4c16ee963a5f5fbd3ad1be3738648f78e7f581abe3138c2222afa",
+      "evidence_digest": "84ac1f338a02579a65a9ed637bfec456fd1b4610228a10e9a666292b98d44dca",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_10_2021-03-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "83a3342a3daad3deee758665adc91d3f01052b5e501bb7d34977b764ee88f318",
+      "evidence_digest": "d20638edc72b2b09569954f1a991779d98961c0482b7cabc1a24b5ea9e4542d7",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_4_2026-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "84a4fae056f43805cbccd901f4adad163721723f717dc55a1ad3c05068913b72",
+      "evidence_digest": "b7b5c3a072b6ce12500f8ca7ecf5e6eb234007c6c30881ded6f2ccc24f548b63",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "84a4fae056f43805cbccd901f4adad163721723f717dc55a1ad3c05068913b72",
+      "evidence_digest": "5a9bffd15419fb2030696b9e7ea58ecf968b75ab225003ee875bad0eaf5fe890",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_18_2020-04-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "84a4fae056f43805cbccd901f4adad163721723f717dc55a1ad3c05068913b72",
+      "evidence_digest": "d7e930ac466a0b89e31043df758eaeb9306d25de663fbbde8f0457eb91d8f967",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_40_2020-10-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "85319cb509247343b082abed6012c50ebd157134fd6ce84150cf852ae4f870fb",
+      "evidence_digest": "bd9b2c60552f2d4c3990098e1e762ba7dfba475b838996adb6133d613f3b3319",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_36_2023-09-28",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "853ad7535a182a459d31e21af6d0b182a73bf40996e21d2379a4bc60921ef113",
+      "evidence_digest": "7d36072bf814eb99680afcb71a8a6dac3917e09d884a5499236553922607d591",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "853ad7535a182a459d31e21af6d0b182a73bf40996e21d2379a4bc60921ef113",
+      "evidence_digest": "88f419ef5b48fdc585f55992c77fafbbead111752b89b8d488d49102f9924e55",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "867c55813a05c3620efc58777ce8cda97aa11458fce36d3fcfe373ac181a22b5",
+      "evidence_digest": "cd495184ee0824f017d5a772e9ee460505fb0823128396c9724da54d464ff5bd",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "873667ed2a3fa2daf5cf17f0dcddeea0c967a4815511d9949c35bd5152492845",
+      "evidence_digest": "76b5bfbaae6f4a832fe7a142931165208ae622dd24b55e325735a9d0e3e46b12",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "873c1af6ad0c901a652869fdf1317540fad914331c003a3a949b2ca0cf7a2ef7",
+      "evidence_digest": "82842c85e825ada00e6dcd274deb133532f1ec216320c346bca9a5bcc5364977",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "8991aebbb39a1d6fe12e9baac0864ece825de42be3f847cb9fd66d4fef30d055",
+      "evidence_digest": "18f2f99dc8a6ef70af88a10f4c17d8b3c270b3c49f822a8071c3598139733568",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "8e26db9aee74ceb10b17ebd38bea1a9da2cb77a8bccfd018824181e9087c8e63",
+      "evidence_digest": "9b7f5de5de92abd13b20ce4053aee8e8276aeea6e78e1c0b63677cbf2b8655d1",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_9_2026-02-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "8ed77a1ff4c1f8f1aadeaf76bc3e80370ddd0aa6acad2e86f51c48bb28d5d4ac",
+      "evidence_digest": "255bfa4a2f83895c65be2b6c66cf0a3475f5d7fbd48812bf9cf77a3bd037b756",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "8ef3ee78ab8c47fe8da2863f849fd04f22b968c3dcb60e4db3d68e1c8cc05f27",
+      "evidence_digest": "894e65cfb42d05b8266f497fc0e181a7e958347279a010f445f1fd4945f27439",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "92246187695a862a0ce55a8ca7a92611d727f5849bf5f9889a3486ecb1751884",
+      "evidence_digest": "9af28e8cebca9dc777163f8bb96655995efd6adf76c38644f4876d5bdba76ec1",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9226a11096d4c5d47ea95d9799118df9cec8de572ffd23b95735128bb6a4d016",
+      "evidence_digest": "2e96fe6ba9ef7af1d694fa5edca8bec49930e29cd156a76ac953732498c09fd5",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9244005e03f7f86e9c730b243a63176f6415277edf0d4cd8002cbe709ec0d0bc",
+      "evidence_digest": "37081548c06978d6e5612342637eb17ecb0e4fe9ad605b00b0d901fba90d37ae",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2019-08-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "93c1cec42600166c14634b3714f4298dbd6f5805f1fee1753f33e6631cfa616a",
+      "evidence_digest": "fd2f1866fff10fe8a3fbb7efb2f185df2c1cf5be9fc982e1caa796f228dcac4a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_2023-06-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "95225f74d1d7d61abe01864ca33e0167893c99daf2bcae9490079aa2fdb2538b",
+      "evidence_digest": "1c4e766f0fc62622bd70071e5317df6bfc5d6878a5cc521a87083f33e9a14892",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_13_2022-03-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "evidence_digest": "a1484db444693fb4a8f2d4ca719df4e71289df1d73c9a38d1c1ac76c3e041c53",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "97f65f055e7444e1e5f28ba4f4c116443b508fbad52b5fdb1b355e26b80772eb",
+      "evidence_digest": "14883c5eef0ac6f189161752b6718b3d5e1c3c3a9fa0a05eb311bed4469c0f33",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9af15e9a80385102471c0a73e7a725dfc1b15713b78b231b1eaa8d9ad74c8d93",
+      "evidence_digest": "23bae230ccd47746ee03921dac5af14bb6983372fec3199e54bde3bb1c327b73",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2019-08-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9c59323c9e47e57a835a1772d5f4a48b47c4c9cc6a4c95feec86ef55c6335053",
+      "evidence_digest": "cd7cd11299c2da7d071c9daae16562e90aa6ed52025f7eeb7d72d11c911e93c0",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9ce8650fe176dbc95236168f11bf859ff99f9717ebf92bd71edf5ceb8c0325f6",
+      "evidence_digest": "f184f7b0759932097d4b122d38d1dda30f6978219c2b0fbc547ebe70042ff707",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9d48749326cd1e7710833997419ecd201f703452e319b21122c947d6af5c766b",
+      "evidence_digest": "0a03157c55b1dfe43d2842f21b8c773f9714462a5e2f0d1762bb7b097d394fed",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9e48694b9ab6d8b444fc0898d92cfa6c9813179380fd7d9db02d9793bc3ff4f9",
+      "evidence_digest": "7ca9993941bdb88ad99b56d390c610c324f4eb57284d785cbb8ff7032b42d7ab",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "9e831b8426da587d04cb7fe222d4a135f7afe513ec688a158ac9815d2f60d6ad",
+      "evidence_digest": "43796bba79159e1ba30682bf35f51d8f7b468478fab369a844751ec2803c8818",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_29_2006-07-20",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a2967c28700733a4db3326b6d014d2084ecb50a129fe6c53b95236d76100228b",
+      "evidence_digest": "a7eba3b4605df68b88b0441def69765f84881b826aadcaebccdc5511f1c69118",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a2fe7f150091b0936541cfeb680ec40c90b06ed566ba5db5a4600f05891263c9",
+      "evidence_digest": "ad9fcb27ff8f4b8f036407212abd89d97149d0c6da62cac3c65cb61beeffe98f",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_13_2022-03-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a3495a1c4bbbd54a26d4b15b7a2b3b6eb7e72f555a83fe386bf124f929cd7faf",
+      "evidence_digest": "d26ddbbc455b1cecba0287d4663f6c3d86bf8681f064cc013cd26639aeb4f1ef",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a34b681ee66b554691250c942b796b1ea9634d1eb13ebbac169214faa8cfd1cf",
+      "evidence_digest": "bdc3d1403c0840d9ace6eb4f37deb68d0fe6e2f7d42a4704945b0c0731fdad63",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a3e57217b46f1b2b863f3ef6157b198053fcd2c89487026fdbe536cc86bad6f5",
+      "evidence_digest": "81bb9fb9c34c60babacfe56d31f7e3df7b6befdb82711835dd42fcafc219d799",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc",
+      "evidence_digest": "cae164a4d540a0c54d45b59f0e52436473a8a56b101eae22ed0a7c43c1e45d16",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_19_2013-05-09",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc",
+      "evidence_digest": "8a66ba1c0820e6c8f8d4386d5dfeb858fc2e5c51cf205a1b62125a83a5429437",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_26_2023-06-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc",
+      "evidence_digest": "0e1ed09d4df90643f217df82e95535e6fe5a48377b968037add4d0835c17a4c0",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_3_1993-01-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc",
+      "evidence_digest": "567f14757317b1ea41ddb60c3cc27a88c0df3e11e2d736a7b5c38772e0181051",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_33_2006-09-14",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc",
+      "evidence_digest": "115a9922a943446ccb47fd140f67ecd45ae948a552d401ca0f607dbf60e0ff2f",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_15_1994-04-14",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc",
+      "evidence_digest": "06dd29890764a7f3e4be53a61ac2333728f64e18bfd170822da4a31e1e051c62",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_43_1973-11-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "a7124b82151269c4038f269228656efbc7a19738776f21a57ceeffad0df365aa",
+      "evidence_digest": "499d5490004e2cc6b7d0c2fd1291196b10ce67b540c7bcac68a17b7785d326f4",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ab8ca902fca026bc76d2e418ee5df869c74a871a9fdcba9916a08df9ec03f00f",
+      "evidence_digest": "4b3cbfba709f5e5db03776be711780ef0095edfb3af615a1e1e18ef6af0efa81",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_15_2016-04-14",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "abf783e609dea342439e602efdcd6e51b3f48351ae6999dee6f3e51fc22b64cb",
+      "evidence_digest": "f806a0a47649b42f05158e081bd5e7636f36ec5a78357475a8f9e99375b7c69c",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2024-03-14",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "af3eaa9c37d902063bcdb6a35d1973307c78f1bbb58ee3aec0b6c56770b05ac8",
+      "evidence_digest": "1a2b6d97e67e2d7b0ca9058180d037781ac48de81d47afdc37a5d817bbd22348",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b09affabc1fc80310e5a42ed9014ae6208889e9a554c377cd8b7bbdf3c6370cd",
+      "evidence_digest": "a4fd6361e18de2027a9597571407ca56ff39ab0952fab8bca42da8c065b5d75e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b0b9b8ca80a003106052b3bdddaded3c6f73d39e5bb52a15fb9c94041ce46976",
+      "evidence_digest": "6fdbdddca70ab22e141c657366b2722a85ad52a4c0b87aa2060040bb73047f78",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b303a250dc79f4bf858be342487f0aaa347e93460ea21334ca24acf2712c49e9",
+      "evidence_digest": "26222589216f98897174f2e3583c675e14e737488bf2779f1335747de2e5eefd",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_2023-06-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b34a60dcccbcd87b1d65c05b5919bb6c374b5205437bb8543132409f39459fd2",
+      "evidence_digest": "c27880a0d220e21821bcef170ff650c15ec25a1356aec93d8b6e62da17bbe125",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b420ef10c1825bb553773c25637b4d9372cbc5854ce07d8472a4f1ac266b4612",
+      "evidence_digest": "ef17470860f751563cdf78f151e4844962005ddf00306cec682567608992e35a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+      "evidence_digest": "50b42088f69444788017a207e1b4b5f5524fdd1b1d51e5a3206ba48748668a39",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b7e64098c099b6176e10242116034fac6c0b0b2e893dbe5c849d6fd7b989ee0c",
+      "evidence_digest": "e2b0174fed66fbff7607bf294dda0693ce2b0107846ff976310a51d5dfbbeb0a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_3_2016-01-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "evidence_digest": "5df536a778ddac478ab7eaa15a37091a4daccd4cfc3eb9b5adf822210ca18ba3",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "evidence_digest": "0cb5890c2fc188f29157710a82005498163b9529a3b0f3cc2f054d9b2b5e0f49",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_18_2020-04-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "evidence_digest": "15eebc6bfd0c9341ccd81693f029fbec2ef227874138efc9750b3aca8b4eda0e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_40_2020-10-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "evidence_digest": "0effb892af94741b9fb1533f15c7a559439a33e37692f05360cefc860fd76843",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "b9622390f7945098bbdbdaeb625c891d9dd0a6273058ec6e91445ce3307683b5",
+      "evidence_digest": "fab935fae4f657a7af040d0229d47de5dbd14fa53a0e3480fc7d324751efc07c",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bbec6df9198f4da42f9e02dc31da27f18a2eab6e0891089ce91d9751f1b3221e",
+      "evidence_digest": "deaf03ce2f45fa3c33ef496db5bd054acad110884cd03164cee48155a6050611",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bc615d67c0a5df2e28497ab0d7685567187d2175e3cfb0f7b3d02ea7da0f26c9",
+      "evidence_digest": "d84032742c76b6aae2fed28b414e509453e26b0b68482a13772386ffbc2645b4",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250",
+      "evidence_digest": "5985a41d5272586e9b88783237137090ecbb0948490ce5f512663d4e72fad8ec",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250",
+      "evidence_digest": "2512722d5dc1561fbe05f35d2008d8301137e10a480473b91968adef8489e58d",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250",
+      "evidence_digest": "feee9bffcb68060704820c5d3c2ff3d340aad4e7c76c68a077018947b40cd6e3",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bceeb6ff608a23d7adb20027e80282829c154c1fdc719f218d4150d4648be845",
+      "evidence_digest": "594439fafeaf9da007983774dd9439daa470d098e9a263787a90ae9b5832bb78",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_27_2022-07-07",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bdc79819ca80fb9701ba5d004a526a125b23892baf20aa1758f05688f776314b",
+      "evidence_digest": "051248079d199ca5bcbd4e57d1ed3e30b8a0e589ee173d2524d1b54ccddb1947",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_3_2012-01-19",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bea01d14ddad74ce2aff09a50d2fb23d4372f0cfcaff156113e115d5ee5d5b50",
+      "evidence_digest": "c769d13a57828d01c2505fd79e54f080565185f4ce93d15a7a41fc6c55a5cfa4",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_9_2026-02-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bf225ac7f6db883f196af06cc29fdcfe2fdd1c56d78ed6f10e0c945698b70009",
+      "evidence_digest": "682847f0c245a75c4f11d7e7bf06935d07298834e9b4b6aca1bca1f110d12e19",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_23_2014-06-05",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bf225ac7f6db883f196af06cc29fdcfe2fdd1c56d78ed6f10e0c945698b70009",
+      "evidence_digest": "5970ecb654ddde41b03140d383e2c4d618b73490879244a52cf53341e665fcf6",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_30_2013-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "bffc9d9415d1ca2f8e9afa36f8e56ff74a4685a6a6d2fe442071e4d0f42873cb",
+      "evidence_digest": "3ddb1a6c3c7dfb7069ef34c11c320d082e217283319bb4e42f43859cf039bb56",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b",
+      "evidence_digest": "94091ea2c0459da4d5e91eb3e51c50fa1dbd83ab6ff1fcbfaeed81fcb836db09",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_2021-06-24",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c1f1580913a73af8d6078cca7d5ae5dbfb2bcb9285d57063632ec2f0401ee60b",
+      "evidence_digest": "fd359ee8ebf6a831fce992e5abdcb0bc62f6cc58640c6845cd31f4156c25c5d4",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_15_2022-04-14",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c5c032cbfb9452a29a31f90104cfc5613d473e60b1b4f18566d0aacf5a68fe90",
+      "evidence_digest": "9abafaafcd97b57b7b52412fe96b05b3891ae0b8a9adf109f75ed06ba2557f28",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c5ebfd4ba370328471d93c35c712755281facda81c2e74dfee58bf24f24896e3",
+      "evidence_digest": "34c022b57fe2af38bcc01505eb6e12125c43b46ea1924776e61dfc0536620709",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c6acc5f8e2df96f406672ab48291dd1ed977e1c80d7dbd66c8e653af3c608f23",
+      "evidence_digest": "90fdbc8f94655ceaf437bace0fb9429c78633c434c1733419c609b301cf2ed60",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c7cdcfb565cb6cd28e732ecb1948ce230ae7dc016fa2ef58cc45ce61d98ff428",
+      "evidence_digest": "64fdcd65ab6ead7915c61e3e96b9ea18a962edaa40dccdad586dfd661f307e38",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c8920cfbb959190547037b53e9eaa297a48774df6a38aceab2d87c83b1b69461",
+      "evidence_digest": "144d4ee6c17dedbcc0644aa4d6f3867e0cb7b1f90b042a7438763b42ea824883",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "c99d2e3e39dc103a50d9eb2893bd47d3e43f6c1ac48baa8631792a298d95740f",
+      "evidence_digest": "4886094a81dab1d7af5ac041ac3b6440b8273f643445fbc24d64b40a2294a9ba",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "cba6057239aa6f3cf0185becd3e79b588fafc980e7aadaf361bf51e95c76ed3c",
+      "evidence_digest": "f17b325b79273db36e87bb3c9487674ef984e4e8ada5b5de15cfe6219b32607f",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "cc387d8bbfe49f79bdfda95c73724085fc4f8c8c8e361a534dee4a2350885008",
+      "evidence_digest": "8d341c64285e256856cf9bedb92222a005173a586960996f8f387b4579add10c",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_17_2015-04-23",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ccda3a3dfbf9b77dd5a78abc58d14683e3d91e43e8f3236453a63e51c7ea8d23",
+      "evidence_digest": "97412dff846fd57439f82f7a4ea8a03fa631a47e4ef58acde3de27298795b563",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2019-08-29",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255",
+      "evidence_digest": "e6898f3fc2cb7971adbcd6d9f2d8da07ed073af632c877d3af34aaaff96b6c52",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255",
+      "evidence_digest": "e3e6ec9db1884313038a320a5cc729c5740106d846e9a21183da80a7b965d9ad",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255",
+      "evidence_digest": "fb6b1cda6c181f37af4e8ef137f87f87d52bce05e4a2744d079b8e5aac7da337",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "cef9d77b41dd2f384de04eeea7bbfb8c06d7a227edb0f266759c46fe1cef3139",
+      "evidence_digest": "561329f724bc789dc0ecb437b41ec694ed8c3f9f7e11ae5022ae744e9f04af7c",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "cef9d77b41dd2f384de04eeea7bbfb8c06d7a227edb0f266759c46fe1cef3139",
+      "evidence_digest": "75d0f7c4d5e98867279a23b64049db4511197d2ec93c598a528dc9b9cbebd200",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_18_2020-04-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "cef9d77b41dd2f384de04eeea7bbfb8c06d7a227edb0f266759c46fe1cef3139",
+      "evidence_digest": "09d67a5fae510c595850ddd20e59f25e1d762a5c217eed9e7e9350dae9ffba7d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_40_2020-10-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d2b4edc5938e84cbf3e3f419e8395edff3c7674ab44422f1a7a056ba7ad9639c",
+      "evidence_digest": "3c449c4a2a7d805948e224edcfa38b5611feab6c62bc37f053bdd0542fb6defd",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_2008-06-19",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d33f64ad4eac352e99cad8d654d85c38a9e8f51b9d7c461bcec8aaff393d54a1",
+      "evidence_digest": "61a9b5baba2c93b51de8db26a0e5741973609c75726c3fda02016d81dd840ef0",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d507816af9b06ddf799aaac9a1cf34b08722b4c55bcca4bd75852874933e2bf1",
+      "evidence_digest": "0c87b97a71fb7c2b0db82451b6a621ee064061ec33368b0175513eeffb255921",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_17_2019-04-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d517797e42092075cdc0962d032fe0e971e7a62d51b4c7872d8ff1dafde64dbc",
+      "evidence_digest": "c2467d8081e56000789980628cc95bfa576f3e0101354721814fe9df4deaa407",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_17_2019-04-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d517797e42092075cdc0962d032fe0e971e7a62d51b4c7872d8ff1dafde64dbc",
+      "evidence_digest": "2f23235c1a67e82d6cba2f21bd820021242d3aad439a1cb920449d71ec4f0bdf",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d64a27c7506b17599f639ab927f0af27c3c0dc54f6b202cfb7c3af0b776505bd",
+      "evidence_digest": "b2df2f0ef785aee990561d683c094d98cd3c7786e33f4cb8c6a13af88c4a0ec6",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_21_2020-05-21",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d6a88a39544b7144e49288af6d57550eafe112fe21d99b99e2a71d09b7fc09e2",
+      "evidence_digest": "cbb381bc77fce28fc911797e34cd670d8b09ec74260ee328a6fb17391297d3ca",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d6bf1aabdf85ab6da6ba04ce58d9e19198597a25cad28d9899b5c7a53a235ac4",
+      "evidence_digest": "2ac3c9801b5112ff48c673a0c65373660c2f379ff6442b2a1ff83f9ebcf89048",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "d9079f79992de3dbce0b238423d7f8a87273fcce74f8aa5bb17e25dc7dcd528a",
+      "evidence_digest": "cd85d70b2fcb4adce5840c80b0657d0699bde0208460042ccec04c051f4d3638",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "db70d4be3391370ddf08d8365221cbd6f8ec7c9c041467fa8fb1131daee88344",
+      "evidence_digest": "fad6323bb1ea0db427947965bfd1b7652daba69d19a87d2feec0590b075e2ccd",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "db70d4be3391370ddf08d8365221cbd6f8ec7c9c041467fa8fb1131daee88344",
+      "evidence_digest": "36803b0c2591d873cd8689f76225643f2d3ee5a945f6641557852bf69a4ea0cc",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2021-08-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "db70d4be3391370ddf08d8365221cbd6f8ec7c9c041467fa8fb1131daee88344",
+      "evidence_digest": "78caad49f3d498b7768c9020f7e419a262120a4d527ffa896dd22d15c9b5f7ff",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "db70d4be3391370ddf08d8365221cbd6f8ec7c9c041467fa8fb1131daee88344",
+      "evidence_digest": "416a14680978f768e4dcea5174e5c1df5d01e11921bb2d99da054693ea2ec819",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2016-03-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "dcb967f9e287c70564ab06b503233569416eda4a0ffa45b2054d191398d3f121",
+      "evidence_digest": "a48dbe64d03ba283c7fb02b098505776c068099e23e843edbf67f6ba1b7d2340",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "de009dd5a8ed55eaba029ec7e9b4f46e27fbea3adbe0534c65dfaa620ec31a1b",
+      "evidence_digest": "46087120a80ce0bf4cbd61bcabc44d892c03fa512f14b8d4387150e75a420374",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_10_2021-03-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+      "evidence_digest": "4b3ff0d2919d09e3ff09bcc081fb90add268acf14e32a69860ca2acc6faf0396",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "deab5ed03e32d12d0a9f8c01542028f91005c3fb1ac8b97ba4897bc24e462c36",
+      "evidence_digest": "e3f7c61f00d2d63965e2199d3c7dc397eac6d77dc4b60f74b4d7561e426f6f4e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_44_2020-11-19",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "df2ba34f19095f7ed85c1fd6ca1a26fc8e958515f3a5dad8b32c9d873413aa21",
+      "evidence_digest": "77468008d873c3aca131581627f24564e66c972037da8f1e43f4b8f252c09bb2",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e0be456b922916602e36f346910310379b94bed5b0aff8d16ce72b766e6896d2",
+      "evidence_digest": "47473c50a1e692ea544b242dca09f51131d889447c0094338600665df374752a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e194f9e267838471c48d84b52db7883cedf50178b056aa54b1ef10f077e23281",
+      "evidence_digest": "52343227c57f84af2eac265e1b8f2e63d655135cc42cde9b35dfa561fd59990c",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_30_2024-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e194f9e267838471c48d84b52db7883cedf50178b056aa54b1ef10f077e23281",
+      "evidence_digest": "f1a30c4d543b531e8bf6ac9fc7b5a0ba511746dd9c24a3be0722d5ad9bf2cef9",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_39_2024-10-17",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e2c927a4d43967b015e12411567846ae55ed755e5023533747c7130a26533ba4",
+      "evidence_digest": "8b1f9b7db294a4e5b655a477a35decf485dcd8231c9a609fd6a7eda37fb3018b",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_29_2009-07-16",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e3bd4a56f2c72738a3be1700041a9176c55de434bbf8220e64acc2d9d974e8d2",
+      "evidence_digest": "81847c0b1b610270b0519e7f7a8bf5715d7ff3107afe3bd15ef561baa0570ad9",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e47c125b1693167465f1f101f75c9b87092fa83426c5ed46dd30aa1f1236eb3d",
+      "evidence_digest": "216d84ce2ea4499f2c79a2652031275af7fd714fc4de6fdac47974e5bcd984ba",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e4b0460e2b9d92849e986bdccac28750e7e2a0ce6c0136acc272af3393eae622",
+      "evidence_digest": "eaf96c5de0b7755876719d684f82104f410ebf40b9d369700516b5371fef99fb",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_47_2021-12-16",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e4b0460e2b9d92849e986bdccac28750e7e2a0ce6c0136acc272af3393eae622",
+      "evidence_digest": "3cdd7d35f732fd303da5cc371aaf52b28c29fa6a4148bda0c43a4ca539254fb8",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_48_2025-12-18",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e4d1d8a9746d5d6d59137bab4c906fae4cc1f6fdf47a70454766afcfc622d5ec",
+      "evidence_digest": "e53fc072d6977563864df6c32affa7f76949b20675e2b49d8d542237a46562af",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_25_1996-06-20",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e4d1d8a9746d5d6d59137bab4c906fae4cc1f6fdf47a70454766afcfc622d5ec",
+      "evidence_digest": "daacbdae47896535f2603b5fd09aa8b99724e421509282587cd0fc60a468d2ef",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_5_1997-01-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+      "evidence_digest": "55e02f0e8c49e7f4ca87fff3ff1fb06967ed467bcd8bc4e65d8ada9f999746cf",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e67405d31052636abec6fa1f2adfd1e025a27b60e1779d639c1e3f5366e0e72e",
+      "evidence_digest": "1ba3437a6cf509e0848dba7f168d80aefd1c259869301b2eec7fb0c15df0edba",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_2_2023-01-12",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e6c3888defc742513e3f1055cf02dfbc080fd24fec53c65c2f7ef5736ec86686",
+      "evidence_digest": "eac04535f873af5f165cd62d505d7643367474a0021f43ef4c68db7111c1eac7",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e88ec473a570e86c70f7254acfe8efe36bf36ca4d2bc245df6ec0aac8ecdb45d",
+      "evidence_digest": "ad916a513e540b1dd7ae646ce9353b61859e4715f5db60677491965346abcd03",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e92a7c2458f84a14e9eaf0cd96032c0d1c3fe0de554eb14f1d3bed92cf617bae",
+      "evidence_digest": "e4dd796490b4c5672c10f04c683baed817399648f121fd5472797053e0213a1d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e92c195f9210cf8e209dacbad9c6d4c609f1676dbc4aa6d0754304a29fac58c0",
+      "evidence_digest": "e069ebfb0e9484cac592cdc314846006c13ed7761dcd22781e067eea74a495df",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_10_2021-03-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "e938314178c2198be07ab3d14a953fc87898320c3ec17c1e9dc50aaebf9ae578",
+      "evidence_digest": "19bdf5af4cf57d73ed2244b384ca107ee6b3300c2817dce1213376d2f7b1f58f",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_27_2022-07-07",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ea07a671eb9508115855028a8d082a82af83e1b9e6bb155786a0a314afafa45c",
+      "evidence_digest": "002156b2b60ad25d4f084c9530d76b24324df3fffe42731ff73f83c9a5421e6d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_1994-03-17",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "eb9c1fad8b61784dc8e46c89ae66cbf16710167051472939df77b83b8876f62c",
+      "evidence_digest": "ae0c5725304c8efba857cbedf4c147264f52fd2a550e82c546a62d5ded538a4c",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ef6a8cea93b7487d2bb0ba1cd615acce0ea6c37c2c52729c24275eb661ec0030",
+      "evidence_digest": "30945e2bbc112a84ba7849170956c760c5daa5aebcc5e98aac8b539ad1d3be4b",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "ef6a8cea93b7487d2bb0ba1cd615acce0ea6c37c2c52729c24275eb661ec0030",
+      "evidence_digest": "26fcdb1512cbfb8c487aa30709672aa9625c96b6094ad0c1e7010754ffa9cbc1",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_17_2019-04-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "evidence_digest": "28a8ed8fb2c8ffe13214c7682cc93563bd0b0c5538f9d45c90206088392f4a8b",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "evidence_digest": "191db646da6d2c6189ed15654cfc18f1b5f0d94cd2b7ace18d522a11cc6bddd8",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "evidence_digest": "4ec524138f11d820c5d42fa28000f69bc86ddad1bf894e5029af5938052cd4a5",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2009-02-19",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "evidence_digest": "2d50b372da66c4a7fb38495872b73e916897d9e8e391bfc2638380e68248a236",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_5_2019-04-11",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "evidence_digest": "fc8e50534a8d4b913eaeedd2b6e63c3e557c679edb87b92be5fea08ef554ffb3",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_1_2020-02-06",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f100b191bc76474e35ca807cb7b1ff473c9e5bd23057c18a0202dafbd6b834b8",
+      "evidence_digest": "efbf444510b84dd17887101c2d26397b83f493383c9fff3e7b25e2c688d54e7e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_32_2007-09-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f1918c6a1f60ba01fa0ef7bdf7bafdd645cb31c69a58285807c5440c5a372b55",
+      "evidence_digest": "e966360224202ed80ff17a34bd80db183e3887f3a7c6803ef69d5057a16c0131",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f1918c6a1f60ba01fa0ef7bdf7bafdd645cb31c69a58285807c5440c5a372b55",
+      "evidence_digest": "c4199d18e2142eb501db9619b5fa041caad0af46ab64bce9cf9774cb8389a907",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_2_2020-02-13",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f1adebff9abb216e601e1eeac23e9fba8c6fadf49d8eaa65401630baa1967948",
+      "evidence_digest": "2eb0c884f919f351bdb0a02ebc1a8f8730e07c673c8e7af5662a2fd0fb85823e",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_31_2020-07-30",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f269ee86b193e4327874b071e88cb20afe0606f651ad82b1515e2ecd9efb6544",
+      "evidence_digest": "25a6f1ac4d498d423becb3615df3c2ccd9beb19f13995a54661f391a3ef666b4",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_2_2020-02-16",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f50f8062cf249133b2ef36d057e5abe205ccd736eefbb5a36dddbfc272d66261",
+      "evidence_digest": "8c9175a89cdb792a257abd2ea756a54423bd7a8096fd49236673c14a11561cba",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f530cf5529857fa1925cb429261f014d46d25b176844e5350ffb43caf0514528",
+      "evidence_digest": "bb54d26cd21d715a5523a0ea021c85e5e79e8739d5f35eea82ef7946fbad9790",
+      "matched_program_authority_id": [
+        "BOEN_special_8_2019-07-25"
+      ],
+      "normalized_official_reference": "BOEN_special_8_2019-07-25",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f897e0844c72d05189fcc0bb9418ce8bf313006ba97fb0e500386956ad3d7e7b",
+      "evidence_digest": "de8eb222bfd7ffd652b0d9f3f633b87ce450cec8962f71de0337610571322e6d",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_6_2020-07-31",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f96f770c5b60c2d84565b60b4651b9c3dcdadd46cafc0bab98db560651c1992a",
+      "evidence_digest": "2a45835e99ebe28c7397edd80d451e99e901372773d5cd8bd4d204ba3dda7773",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_17_2015-04-23",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "f96f770c5b60c2d84565b60b4651b9c3dcdadd46cafc0bab98db560651c1992a",
+      "evidence_digest": "70d0d93536c57cb7c17d287430b33962a9bac06a68eb4cb4291c616e65eb404a",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_special_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "fc285d7c356bdaaac489a77c5fa2e19da7c581ef5e497ffce0c0d1b4e21f53cf",
+      "evidence_digest": "4c95ac4621d9e50000130929e60186aa1c7c47c5541b53f5bc09d763e6ec521a",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "fda7d475cc7393e3105e114dd4d9159b053ce6e7d876ec5775249f0b24786db0",
+      "evidence_digest": "a5cdaa1ed9a968b9965b1d35ddf2e55dbd49e27130d12ce4f85ae008aa12b2fa",
+      "matched_program_authority_id": [
+        "BOEN_special_1_2019-01-22"
+      ],
+      "normalized_official_reference": "BOEN_special_1_2019-01-22",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "RESOLVED"
+    },
+    {
+      "binding_basis": "EXPLICIT_SOURCE_PROGRAM_REFERENCE",
+      "content_sha256": "fefbcd622e5f7e10014d8cf3ad25eeec9fc83910bafaebaa9f9af20279983bce",
+      "evidence_digest": "4a1fa3db70819d105fe0f1bd9db71bae2a9b2cd9b1ce01c86f590b4c0fa66ee2",
+      "matched_program_authority_id": [],
+      "normalized_official_reference": "BOEN_11_2015-11-26",
+      "reference_parser_version": "NEXUS-OFFICIAL-PROGRAM-REFERENCE-PARSER-V1",
+      "resolution": "UNKNOWN"
+    }
+  ]
+}

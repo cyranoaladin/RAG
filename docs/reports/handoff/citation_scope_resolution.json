@@ -1,0 +1,98 @@
+{
+  "ARTIFACT_PROGRAM_COMPATIBLE": 0,
+  "ARTIFACT_PROGRAM_INCOMPATIBLE": 1,
+  "ARTIFACT_PROGRAM_MIXED": 0,
+  "ARTIFACT_PROGRAM_UNKNOWN": 111,
+  "RESOLVED_OCCURRENCE_SCOPES": 5,
+  "TRANSVERSAL_ARTIFACTS_TOTAL": 112,
+  "applied": false,
+  "artifact_verdicts": {
+    "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9": "INCOMPATIBLE"
+  },
+  "kind": "NEXUS-CITATION-SCOPE-RESOLUTION-V1",
+  "resolution_histogram": {
+    "CITED_REFERENCE_SUPERSEDED_FOR_SCOPE": 3,
+    "SCOPE_AUTHORITY_UNKNOWN": 2
+  },
+  "resolutions": [
+    {
+      "attributed_scope_level": "cinquieme",
+      "attribution_basis": "MULTI_SCOPE_EXPLICIT_SECTION",
+      "authority_current_references": [
+        "BOEN_9_2024-02-29"
+      ],
+      "authority_evidence_status": [
+        "VERIFIED_OFFICIAL_BY_COMMANDITAIRE"
+      ],
+      "authority_opposable": true,
+      "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+      "matiere": "technologie",
+      "normalized_reference": "BOEN_31_2020-07-30",
+      "reference_occurrence_id": "928b72d85801d8480436578a75a47cafb37f0375dcbfad0aeb7951415fc5680e",
+      "resolution": "CITED_REFERENCE_SUPERSEDED_FOR_SCOPE"
+    },
+    {
+      "attributed_scope_level": "quatrieme",
+      "attribution_basis": "MULTI_SCOPE_EXPLICIT_SECTION",
+      "authority_current_references": [
+        "BOEN_9_2024-02-29"
+      ],
+      "authority_evidence_status": [
+        "VERIFIED_OFFICIAL_BY_COMMANDITAIRE"
+      ],
+      "authority_opposable": true,
+      "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+      "matiere": "technologie",
+      "normalized_reference": "BOEN_31_2020-07-30",
+      "reference_occurrence_id": "928b72d85801d8480436578a75a47cafb37f0375dcbfad0aeb7951415fc5680e",
+      "resolution": "CITED_REFERENCE_SUPERSEDED_FOR_SCOPE"
+    },
+    {
+      "attributed_scope_level": "troisieme",
+      "attribution_basis": "MULTI_SCOPE_EXPLICIT_SECTION",
+      "authority_current_references": [
+        "BOEN_9_2024-02-29"
+      ],
+      "authority_evidence_status": [
+        "VERIFIED_OFFICIAL_BY_COMMANDITAIRE"
+      ],
+      "authority_opposable": true,
+      "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+      "matiere": "technologie",
+      "normalized_reference": "BOEN_31_2020-07-30",
+      "reference_occurrence_id": "928b72d85801d8480436578a75a47cafb37f0375dcbfad0aeb7951415fc5680e",
+      "resolution": "CITED_REFERENCE_SUPERSEDED_FOR_SCOPE"
+    },
+    {
+      "attributed_scope_level": "seconde",
+      "attribution_basis": "EXPLICIT_SECTION_HEADING",
+      "authority_current_references": [],
+      "authority_evidence_status": [
+        "NO_AUTHORITY"
+      ],
+      "authority_opposable": false,
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "matiere": "dgemc",
+      "normalized_reference": "BOEN_special_1_2019-01-22",
+      "reference_occurrence_id": "e20283c3a3d102a19757491cea220037764253d80f25e116026dc0d4c3e1e606",
+      "resolution": "SCOPE_AUTHORITY_UNKNOWN"
+    },
+    {
+      "attributed_scope_level": "seconde",
+      "attribution_basis": "EXPLICIT_SECTION_HEADING",
+      "authority_current_references": [],
+      "authority_evidence_status": [
+        "NO_AUTHORITY"
+      ],
+      "authority_opposable": false,
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "matiere": "dgemc",
+      "normalized_reference": "BOEN_special_8_2019-07-25",
+      "reference_occurrence_id": "d7846212157b82f4e895ebb756e77f224d6e28c36d461a5e5d73dbd6f94ac1c0",
+      "resolution": "SCOPE_AUTHORITY_UNKNOWN"
+    }
+  ],
+  "resolved_from": "NEXUS-CITATION-SCOPE-ATTRIBUTION-V1",
+  "sealed_applicability_evidence": "program_applicability_evidence_v1.yml",
+  "seed_applicability_evidence_status": "DECLARED_BY_COMMANDITAIRE"
+}

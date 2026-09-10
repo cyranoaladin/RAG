@@ -1,0 +1,1195 @@
+{
+  "MULTI_PROGRAM_ARTIFACTS": 16,
+  "MULTI_SCOPE_PROGRAM_BINDING": 4,
+  "PROGRAM_BINDING_AMBIGUOUS": 12,
+  "PROGRAM_BINDING_CONFLICT": 0,
+  "applied": false,
+  "artifacts": [
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "arts_plastiques",
+        "nature": "diaporamas_supports",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "reason": "la matiere de l artefact (arts_plastiques) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "_multi_disciplines",
+        "nature": "programmes_officiels",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "0db1ad85cb67e6b9cdf91f5cab888f94d8711cab3512f364355bdd756a21d0dd",
+      "reason": "la matiere de l artefact (_multi_disciplines) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "francais",
+        "nature": "annales_sujets_corriges",
+        "niveau": "terminale",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+      "reason": "une reference par niveau pour la matiere francais : ['premiere', 'seconde'] — le systeme supporte les placements multiples",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "MULTI_SCOPE_PROGRAM_BINDING"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "danse",
+        "nature": "programmes_limitatifs",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "31cbea425ee2a8b1752365dd6074150cec94660a34f3fa3851685409308c0a28",
+      "reason": "la matiere de l artefact (danse) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "_multi_disciplines",
+        "nature": "evaluations_examens",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "336f98ded652b77fb1beb4966f073a42be20e15a241d1b5337e366d17bb57e9f",
+      "reason": "la matiere de l artefact (_multi_disciplines) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "musique",
+        "nature": "programmes_officiels",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "reason": "la matiere de l artefact (musique) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "francais",
+        "nature": "annales_sujets_corriges",
+        "niveau": "terminale",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c",
+      "reason": "une reference par niveau pour la matiere francais : ['premiere', 'seconde'] — le systeme supporte les placements multiples",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "MULTI_SCOPE_PROGRAM_BINDING"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "lsf",
+        "nature": "evaluations_examens",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "4011ccc8b4c1f8401e724af873cb57290dfd061ce7463ebec779f79d432cdc8d",
+      "reason": "la matiere de l artefact (lsf) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "llcer",
+        "nature": "programmes_officiels",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "58c64f5b581f94cbddc64f3c74982ac22dbc38078b10c5fc0511450651da2b10",
+      "reason": "la matiere de l artefact (llcer) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "arts_plastiques",
+        "nature": "diaporamas_supports",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "6f1e862cc2ad50a35397c80303093dea37755ab66528ad71e7121a7d752e4597",
+      "reason": "la matiere de l artefact (arts_plastiques) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "arts_plastiques",
+        "nature": "diaporamas_supports",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "6f3954f76e58f61ce52421f98a89959e1ae50fd2e7719ce816a3139e6b210cda",
+      "reason": "la matiere de l artefact (arts_plastiques) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "francais",
+        "nature": "annales_sujets_corriges",
+        "niveau": "terminale",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55",
+      "reason": "une reference par niveau pour la matiere francais : ['premiere', 'seconde'] — le systeme supporte les placements multiples",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "MULTI_SCOPE_PROGRAM_BINDING"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "theatre",
+        "nature": "programmes_officiels",
+        "niveau": "terminale",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "853ad7535a182a459d31e21af6d0b182a73bf40996e21d2379a4bc60921ef113",
+      "reason": "la matiere de l artefact (theatre) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "danse",
+        "nature": "programmes_officiels",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "bcbe33bb70a950d2034c8ce30ea9192d4de21bf30456a4e70a4a36cb38260250",
+      "reason": "la matiere de l artefact (danse) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "francais",
+        "nature": "annales_sujets_corriges",
+        "niveau": "terminale",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255",
+      "reason": "une reference par niveau pour la matiere francais : ['premiere', 'seconde'] — le systeme supporte les placements multiples",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "MULTI_SCOPE_PROGRAM_BINDING"
+    },
+    {
+      "artifact_placement": {
+        "cycle": "lycee",
+        "matiere": "dgemc",
+        "nature": "ressources_accompagnement",
+        "niveau": "transversal_multi_niveaux",
+        "zone": "01_EDUSCOL_OFFICIEL"
+      },
+      "content_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+      "reason": "la matiere de l artefact (dgemc) n est couverte par aucune reference : l autorite courante ne la declare pas",
+      "reference_scopes": {
+        "BOEN_special_1_2019-01-22": [
+          [
+            "premiere",
+            "francais"
+          ],
+          [
+            "premiere",
+            "hlp"
+          ],
+          [
+            "premiere",
+            "nsi"
+          ],
+          [
+            "premiere",
+            "physique_chimie"
+          ],
+          [
+            "premiere",
+            "ses"
+          ],
+          [
+            "premiere",
+            "svt"
+          ],
+          [
+            "seconde",
+            "francais"
+          ]
+        ],
+        "BOEN_special_8_2019-07-25": [
+          [
+            "terminale",
+            "maths"
+          ],
+          [
+            "terminale",
+            "nsi"
+          ],
+          [
+            "terminale",
+            "philosophie"
+          ],
+          [
+            "terminale",
+            "physique_chimie"
+          ],
+          [
+            "terminale",
+            "ses"
+          ],
+          [
+            "terminale",
+            "svt"
+          ]
+        ]
+      },
+      "resolved_program_reference_set": [
+        "BOEN_special_1_2019-01-22",
+        "BOEN_special_8_2019-07-25"
+      ],
+      "verdict": "PROGRAM_BINDING_AMBIGUOUS"
+    }
+  ],
+  "classification_axis": "Le niveau, pas la matiere. Chaque BO couvre sept matieres : l union est toujours multi-matieres, et un critere fonde sur elle ne mesure rien. Un conflit est deux programmes pour le MEME couple (niveau, matiere).",
+  "kind": "NEXUS-MULTI-PROGRAM-ARTIFACT-CLASSIFICATION-V1"
+}
