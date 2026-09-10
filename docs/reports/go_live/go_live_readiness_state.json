@@ -6,13 +6,12 @@
   "program_incompatible_in_servable_set",
   "currentness_policy_applied",
   "non_pdf_servable_reacquired",
-  "open_prs_blocking",
-  "root_owned_worktree_residues"
+  "open_prs_blocking"
  ],
- "computed_from_head": "748aa4cfd90707aa690a55b602855d32e14b9919",
+ "computed_from_head": "afbd8cb5b129b0962c68400df5d922953230d8a1",
  "current_switch": 0,
  "currentness_policy_applied": false,
- "disk_free_bytes": 97499566080,
+ "disk_free_bytes": 96377020416,
  "disk_policy_ok": true,
  "disk_used_percent": 85,
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
@@ -62,10 +61,7 @@
  "production_deployments": 0,
  "production_facts_are_declared_not_measured": true,
  "program_incompatible_in_servable_set": 1,
- "root_owned_worktree_residue_paths": [
-  ".worktrees/external-api",
-  ".worktrees/lot1-2-reprise"
- ],
- "root_owned_worktree_residues": 2,
+ "root_owned_worktree_residue_paths": [],
+ "root_owned_worktree_residues": 0,
  "worktrees_total": 3
 }
