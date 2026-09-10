@@ -1,0 +1,151 @@
+{
+ "blockers": [
+  {
+   "automation_possible": false,
+   "blocking": true,
+   "blocking_when": "value > 0",
+   "category": "BUSINESS",
+   "close_condition": "0 PII indecise dans le perimetre servable, ou exclusion gouvernee et versionnee de ces contenus.",
+   "current_value": 149,
+   "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+   "evidence_source": "docs/reports/handoff/servability_matrix_v1.json (by_pii.PII_UNDECIDED)",
+   "human_decision_required": true,
+   "id": "PII_UNDECIDED",
+   "owner_type": "HUMAN_REVIEWER",
+   "regression_tests_required": [
+    "une PII indecise dans le perimetre servable bloque le gate"
+   ],
+   "related_prs": [],
+   "required_action": "Trancher chaque paquet de revue, ou exclure explicitement ces contenus du perimetre servable par une decision gouvernee."
+  },
+  {
+   "automation_possible": false,
+   "blocking": true,
+   "blocking_when": "value > 0",
+   "category": "BUSINESS",
+   "close_condition": "Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique.",
+   "current_value": 1,
+   "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+   "evidence_source": "docs/reports/handoff/servability_matrix_v1.json (by_verdict.REFUSED_PROGRAM_INCOMPATIBLE)",
+   "human_decision_required": true,
+   "id": "PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET",
+   "owner_type": "HUMAN_DECISION",
+   "regression_tests_required": [
+    "un artefact prouve incompatible dans le perimetre servable bloque"
+   ],
+   "related_prs": [],
+   "required_action": "L artefact est nomme dans la partition programme. L exclure de la prochaine release, ou corriger sa liaison de perimetre. Ne jamais corriger sa verite pour faire passer le gate."
+  },
+  {
+   "automation_possible": true,
+   "blocking": true,
+   "blocking_when": "value is false",
+   "category": "GOVERNANCE",
+   "close_condition": "Un consommateur de production applique la politique et le gate le constate ; un registre seulement present ne suffit pas.",
+   "current_value": false,
+   "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+   "evidence_source": "services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml (champ applied)",
+   "human_decision_required": false,
+   "id": "CURRENTNESS_POLICY_APPLIED",
+   "owner_type": "ENGINEERING",
+   "regression_tests_required": [
+    "applied=false bloque le gate",
+    "la politique ne decide rien qui appartienne a un autre gate"
+   ],
+   "related_prs": [
+    151
+   ],
+   "required_action": "Cabler la politique dans le runtime. ADR-0055 l adopte ; adopter et cabler sont deux actes distincts, et les confondre ferait d une revue de texte un changement de comportement."
+  },
+  {
+   "automation_possible": true,
+   "blocking": true,
+   "blocking_when": "value < non_pdf_servable_total",
+   "category": "DATA",
+   "close_condition": "Octets disponibles pour chaque ressource servable, empreintes concordantes, ou exclusion gouvernee.",
+   "current_value": "0/37",
+   "deployment_dependency": "BLOQUE_L_INGESTION_STAGING",
+   "evidence_source": "docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json (NON_PDF_LOCAL_COPY_RETAINED)",
+   "human_decision_required": false,
+   "id": "NON_PDF_SERVABLE_REACQUIRED",
+   "owner_type": "OPERATOR",
+   "regression_tests_required": [
+    "une reacquisition incomplete bloque le gate"
+   ],
+   "related_prs": [],
+   "required_action": "Reacquerir les ressources interactives servables depuis Drive, empreinte et taille attendues au manifeste, ou les exclure par une decision gouvernee et non silencieuse."
+  },
+  {
+   "automation_possible": false,
+   "blocking": true,
+   "blocking_when": "value > 0",
+   "category": "QUALIFICATION",
+   "close_condition": "Chaque entree du tableau porte closed=true et sa preuve.",
+   "current_value": 13,
+   "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
+   "evidence_source": "docs/reports/go_live/qualification_blockers.json",
+   "human_decision_required": true,
+   "id": "GO_LIVE_QUALIFICATION_BLOCKERS",
+   "owner_type": "MIXED",
+   "regression_tests_required": [
+    "un bloqueur de qualification ouvert bloque le gate"
+   ],
+   "related_prs": [
+    132,
+    167,
+    168
+   ],
+   "required_action": "Fermer chaque gate avec sa preuve. Fermer les bloqueurs metier ne suffit PAS a deployer : ces gates-la restent entiers."
+  },
+  {
+   "automation_possible": false,
+   "blocking": true,
+   "blocking_when": "value > 0",
+   "category": "REPOSITORY",
+   "close_condition": "Aucune disposition BLOCKING ni UNKNOWN.",
+   "current_value": 6,
+   "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+   "evidence_source": "docs/reports/go_live/open_pr_dispositions.json",
+   "human_decision_required": true,
+   "id": "OPEN_PRS_BLOCKING",
+   "owner_type": "HUMAN_DECISION",
+   "regression_tests_required": [
+    "une PR BLOCKING bloque",
+    "une PR UNKNOWN bloque",
+    "une disposition inventee est refusee"
+   ],
+   "related_prs": [
+    98,
+    132,
+    134,
+    138,
+    140,
+    151
+   ],
+   "required_action": "Fusionner, fermer sur preuve, ou reclasser avec justification mesuree. Une PR non classee est UNKNOWN et bloque par construction."
+  },
+  {
+   "automation_possible": false,
+   "blocking": true,
+   "blocking_when": "value > 0",
+   "category": "AGGREGATE",
+   "close_condition": "Se ferme seul quand ses trois sources se ferment.",
+   "current_value": 3,
+   "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+   "evidence_source": "agregat calcule",
+   "human_decision_required": false,
+   "id": "PRE_RELEASE_BLOCKERS",
+   "owner_type": "DERIVED",
+   "regression_tests_required": [],
+   "related_prs": [],
+   "required_action": "Rien directement. Ce compteur DERIVE de PII, programme et actualite. Le fermer par lui-meme reviendrait a maquiller les trois."
+  }
+ ],
+ "blockers_open": 7,
+ "blockers_total": 7,
+ "evaluated_head": "cc5f95eb61637026829ae7c984b6e8bca71b23ee",
+ "generated_by": "scripts/go_live/check_go_live_readiness.py",
+ "go_live_ready": false,
+ "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",
+ "note": "Fichier DERIVE. Les valeurs viennent de l etat calcule ; seules les conditions de fermeture sont declarees, une fois."
+}

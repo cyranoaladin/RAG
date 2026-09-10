@@ -8,7 +8,7 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=0c0548ea113ab73c05cc11da5cfda55b8e05b24b`
+`main_head=cc5f95eb61637026829ae7c984b6e8bca71b23ee`
 
 ## Ce qui empeche le go-live
 
@@ -26,8 +26,14 @@
 
 | Cle | Valeur |
 | --- | ---: |
-| `main_head` | 0c0548ea113ab73c05cc11da5cfda55b8e05b24b |
-| `computed_from_head` | afbd8cb5b129b0962c68400df5d922953230d8a1 |
+| `state_freshness_kind` | COMMITTED_SNAPSHOT |
+| `snapshot_contains_self_commit` | False |
+| `snapshot_is_operational_current` | False |
+| `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
+| `main_head` | cc5f95eb61637026829ae7c984b6e8bca71b23ee |
+| `origin_main_at_generation` | cc5f95eb61637026829ae7c984b6e8bca71b23ee |
+| `evaluated_ref` | go-live/readiness-freshness |
+| `evaluated_head` | cc5f95eb61637026829ae7c984b6e8bca71b23ee |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -42,7 +48,7 @@
 | `non_pdf_servable_total` | 37 |
 | `non_pdf_servable_reacquired` | 0 |
 | `non_pdf_servable_complete` | False |
-| `disk_free_bytes` | 96377020416 |
+| `disk_free_bytes` | 97753276416 |
 | `disk_used_percent` | 85 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |
@@ -50,6 +56,23 @@
 | `current_switch` | 0 |
 | `production_facts_are_declared_not_measured` | True |
 | `go_live_ready` | False |
+
+## Ce fichier n autorise aucun deploiement
+
+L autorite operatoire est le script, **relance en direct**. Ce fichier
+est un instantane : genere avant le commit qui le contient, il ne peut
+pas etre l etat operatoire de ce commit.
+
+Pour une decision de deploiement :
+
+```
+python3 scripts/go_live/check_go_live_readiness.py --check-only
+python3 scripts/go_live/check_go_live_readiness.py \
+    --verify-snapshot docs/reports/go_live/go_live_readiness_state.json
+```
+
+Un instantane perime n autorise rien, et un instantane a jour non plus :
+il ne fait que concorder.
 
 ## Ce que ce fichier ne mesure pas
 

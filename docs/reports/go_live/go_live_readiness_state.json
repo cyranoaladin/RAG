@@ -8,12 +8,13 @@
   "non_pdf_servable_reacquired",
   "open_prs_blocking"
  ],
- "computed_from_head": "afbd8cb5b129b0962c68400df5d922953230d8a1",
  "current_switch": 0,
  "currentness_policy_applied": false,
- "disk_free_bytes": 96377020416,
+ "disk_free_bytes": 97753276416,
  "disk_policy_ok": true,
  "disk_used_percent": 85,
+ "evaluated_head": "cc5f95eb61637026829ae7c984b6e8bca71b23ee",
+ "evaluated_ref": "go-live/readiness-freshness",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_qualification_blocker_ids": [
   "C1",
@@ -33,7 +34,7 @@
  "go_live_qualification_blockers": 13,
  "go_live_ready": false,
  "kind": "NEXUS-GO-LIVE-READINESS-STATE-V1",
- "main_head": "0c0548ea113ab73c05cc11da5cfda55b8e05b24b",
+ "main_head": "cc5f95eb61637026829ae7c984b6e8bca71b23ee",
  "non_pdf_servable_complete": false,
  "non_pdf_servable_reacquired": 0,
  "non_pdf_servable_total": 37,
@@ -50,6 +51,7 @@
  ],
  "open_prs_disposition_unknown": 0,
  "open_prs_total": 10,
+ "origin_main_at_generation": "cc5f95eb61637026829ae7c984b6e8bca71b23ee",
  "pii_undecided": 149,
  "pre_release_blocker_ids": [
   "PII_UNDECIDED=149",
@@ -63,5 +65,9 @@
  "program_incompatible_in_servable_set": 1,
  "root_owned_worktree_residue_paths": [],
  "root_owned_worktree_residues": 0,
+ "snapshot_contains_self_commit": false,
+ "snapshot_freshness_note": "Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct.",
+ "snapshot_is_operational_current": false,
+ "state_freshness_kind": "COMMITTED_SNAPSHOT",
  "worktrees_total": 3
 }
