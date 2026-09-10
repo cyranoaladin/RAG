@@ -1,7 +1,8 @@
 {
-  "state_generated_at": "2026-08-25T05:03:17Z",
-  "state_observed_at_main_sha": "3f0317e91c9ac8eff8ff1089d100a25f7c875793",
-  "state_scope": "CURRENT_MAIN_SHA 3f0317e91c9ac8eff8ff1089d100a25f7c875793 plus the production-profile release candidate; this file is not a live pointer to main",
+  "state_generated_at": "2026-08-25T08:59:03Z",
+  "state_observed_at_main_sha": "3566cafb44138d6a7f00296dc0654257f9bf0ad6",
+  "state_observed_at_main_tree_sha": "8c5081a52096d531f1bd027790e600eb83b05bd5",
+  "state_scope": "CURRENT_MAIN_SHA 3566cafb44138d6a7f00296dc0654257f9bf0ad6 plus the production-authorization candidates; this file is not a live pointer to the candidate branch",
   "pr_merges": {
     "PR100_SIGNER_MERGED": true,
     "PR107_ATOMIC_DEPLOY_MERGED": true,
@@ -24,7 +25,8 @@
     "PR127_MERGED": true,
     "PR129_MERGED": true,
     "PR130_MERGED": true,
-    "PR131_MERGED": true
+    "PR131_MERGED": true,
+    "PR133_PRODUCTION_PROFILES_MERGED": true
   },
   "governance_gate": {
     "TRUSTED_REQUIRED_GATE_RELIABLY_ENFORCED": true,
@@ -320,6 +322,26 @@
     "PLACEMENT_SOURCE_TREE": "fc225ae2ca0bb6d6d1f7c73e2616c5d57d58d152",
     "RELEASE_REGISTRY_SHA256": "2a963bd956ff434384f990c60493917789f69ef4fce8fb724dd17a6bc8eb6468",
     "PRODUCTION_RELEASE_SHA256": "2aadfa96e6ce669abcaa6d336bdd44c680d4d3206d33e464a9eccc90f8a5944c"
+  },
+  "production_authorization_candidates_20260825": {
+    "SOURCE_MAIN_SHA": "3566cafb44138d6a7f00296dc0654257f9bf0ad6",
+    "SOURCE_MAIN_TREE_SHA": "8c5081a52096d531f1bd027790e600eb83b05bd5",
+    "AUTHORIZATION_CANDIDATE_COUNT": 18,
+    "AUTHORIZATION_CANDIDATE_CONTENT_UNION": 26,
+    "AUTHORIZATION_CANDIDATE_OVERLAP": 0,
+    "AUTHORIZATION_CANDIDATE_GAP": 0,
+    "AUTHORIZATION_CANDIDATE_EXTRA": 0,
+    "AUTHORIZATION_CANDIDATE_UNION_SHA256": "fe97b3410791fa78d4734a8c495443296b3f2ec3e77627e12fc34f90e0b2b5f0",
+    "AUTHORIZATION_CANDIDATES_MATERIALIZED": true,
+    "AUTHORIZATION_CANDIDATE_REPLAY_CHECK": true,
+    "AUTHORIZATION_MATRIX_PATH": "docs/reports/production_authorization_matrix_20260825.json",
+    "AUTHORIZATION_MATRIX_SHA256": "9ac6a4fb4959dac8449ea418d4d92151e18f823a523e5f85b80791176cacfa74",
+    "PRODUCER_PATH": "services/rag-pedago/scripts/build_production_authorization_candidates.py",
+    "PRODUCER_SHA256": "fcebece713d1df0800d1959068420d420d1da6e98f32afb5d29cdd1ccbf0532c",
+    "EFFECTIVE_AUTHORIZATION_COUNT": 0,
+    "TRUSTED_HUMAN_REVIEW_COMPLETE": false,
+    "SIGNED_REVIEW_BINDING_COUNT": 0,
+    "REAL_AUTHORIZATION_SET_CREATED": false
   },
   "production_database_read_only_audit_20260825": {
     "EVIDENCE_STATUS": "ATTESTED_SANITIZED_V2",
