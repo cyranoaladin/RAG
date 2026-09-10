@@ -10,10 +10,10 @@
  ],
  "current_switch": 0,
  "currentness_policy_applied": false,
- "disk_free_bytes": 97753276416,
+ "disk_free_bytes": 98002292736,
  "disk_policy_ok": true,
  "disk_used_percent": 85,
- "evaluated_head": "cc5f95eb61637026829ae7c984b6e8bca71b23ee",
+ "evaluated_head": "b8a17fba8aee34451e120289cefdf477e45ac1b9",
  "evaluated_ref": "go-live/readiness-freshness",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_qualification_blocker_ids": [

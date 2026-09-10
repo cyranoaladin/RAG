@@ -24,6 +24,21 @@ deploiements, bascule courante. Aucune lecture du depot ne prouve qu ils sont
 restes a zero. Ils sont donc DECLARES par le lot, et le script le dit au lieu
 de faire croire qu il les a mesures.
 
+Trois modes, et un seul est un garde
+------------------------------------
+
+`--check-only`     diagnostic. Calcule et imprime. Rend 0 des lors que le
+                   CALCUL a pu s executer, meme si le systeme n est pas pret.
+                   Ne jamais s en servir dans une chaine de deploiement : un
+                   mode qui rend 0 quand rien n est pret est un faux vert.
+
+`--verify-snapshot` concordance. Dit si un instantane vaut encore pour le HEAD
+                   courant. N autorise RIEN, jamais, meme concordant.
+
+`--assert-ready`   LE garde. Rend 0 seulement si le systeme est reellement
+                   pret, 1 s il ne l est pas, 2 si une entree manque. C est le
+                   seul mode utilisable comme condition de deploiement.
+
 Les chemins sont derives de l emplacement de ce fichier ; `NEXUS_REPO_ROOT`
 permet de les surcharger.
 """
@@ -642,16 +657,22 @@ def rendre_markdown(etat: dict[str, Any]) -> str:
         "est un instantane : genere avant le commit qui le contient, il ne peut",
         "pas etre l etat operatoire de ce commit.",
         "",
-        "Pour une decision de deploiement :",
+        "Trois modes, et un seul est un garde :",
+        "",
+        "| Mode | Code de retour | Role |",
+        "| --- | --- | --- |",
+        "| `--check-only` | 0 des que le calcul s execute | diagnostic |",
+        "| `--verify-snapshot` | 0 si concordant | concordance |",
+        "| `--assert-ready` | 0 seulement si pret, 1 sinon, 2 si entree manquante | **garde** |",
+        "",
+        "**Seul `--assert-ready` peut conditionner un deploiement.**",
+        "`--check-only` rend 0 meme quand rien n est pret : c est un faux vert",
+        "si on s en sert comme garde. Et un instantane, perime ou non,",
+        "n autorise rien : il ne fait que concorder.",
         "",
         "```",
-        "python3 scripts/go_live/check_go_live_readiness.py --check-only",
-        "python3 scripts/go_live/check_go_live_readiness.py \\",
-        "    --verify-snapshot docs/reports/go_live/go_live_readiness_state.json",
+        "python3 scripts/go_live/check_go_live_readiness.py --assert-ready",
         "```",
-        "",
-        "Un instantane perime n autorise rien, et un instantane a jour non plus :",
-        "il ne fait que concorder.",
         "",
         "## Ce que ce fichier ne mesure pas",
         "",
@@ -702,6 +723,14 @@ def main() -> int:
     parser.add_argument("--ledger-markdown", default=SORTIE_LEDGER_MD)
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument(
+        "--assert-ready",
+        action="store_true",
+        help=(
+            "Garde de deploiement : rend 0 seulement si le systeme est pret, "
+            "1 sinon, 2 si une entree manque. N ecrit aucun fichier."
+        ),
+    )
+    parser.add_argument(
         "--verify-snapshot",
         metavar="CHEMIN",
         help=(
@@ -714,6 +743,33 @@ def main() -> int:
     parser.add_argument("--current-switch", type=int, default=0)
     args = parser.parse_args()
 
+    if args.assert_ready:
+        try:
+            etat = evaluer(
+                declared_lot_facts={
+                    "production_db_writes": args.production_db_writes,
+                    "production_deployments": args.production_deployments,
+                    "current_switch": args.current_switch,
+                }
+            )
+        except EntreeManquante as exc:
+            # Une entree manquante n est pas un refus ordinaire : c est
+            # l impossibilite de conclure. Elle merite son propre code.
+            print(f"REFUS : {exc}", file=sys.stderr)
+            print("GO_LIVE_READY=unknown", file=sys.stderr)
+            return 2
+        pret = etat["go_live_ready"]
+        print(f"GO_LIVE_READY={'true' if pret else 'false'}")
+        print("blocking_reasons=" + ",".join(etat["blocking_reasons"]))
+        if not pret:
+            print(
+                "ASSERT_READY=failed — ce code de retour non nul est le seul "
+                "signal fiable pour une chaine de deploiement.",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
+
     if args.verify_snapshot:
         try:
             verdict = verifier_instantane(REPO_ROOT / args.verify_snapshot)
@@ -722,6 +778,11 @@ def main() -> int:
             return 2
         for cle, valeur in verdict.items():
             print(f"{cle}={valeur}")
+        # Repete en clair : le code de retour de ce mode dit CONCORDANT, pas
+        # AUTORISE. Les confondre transformerait un simple accord de commits en
+        # feu vert de deploiement.
+        print("SNAPSHOT_AUTHORIZATION=false")
+        print("USE_ASSERT_READY_TO_GATE_A_DEPLOYMENT=true")
         return 0 if verdict["snapshot_is_operational_current"] else 1
 
     try:

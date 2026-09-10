@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import pathlib
 import subprocess
+import sys
 
 import pytest
 
@@ -696,3 +698,157 @@ def test_une_ref_absente_ne_donne_pas_une_empreinte_bidon(
     assert etat["main_head"] is None
     assert etat["evaluated_head"] is not None
     assert len(etat["evaluated_head"]) == 40
+
+
+# --- trois modes, et un seul est un garde -----------------------------
+
+def _lancer(racine: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
+    env = dict(os.environ, NEXUS_REPO_ROOT=str(racine))
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+
+def test_assert_ready_echoue_quand_le_systeme_n_est_pas_pret(
+    depot_sans_bloqueur,
+) -> None:
+    """LE garde. Un code de retour non nul est le seul signal fiable pour une
+    chaine de deploiement."""
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}},
+    )
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 1
+    assert "GO_LIVE_READY=false" in resultat.stdout
+    assert "blocking_reasons=" in resultat.stdout
+
+
+def test_assert_ready_rend_zero_seulement_si_tout_est_ferme(
+    depot_sans_bloqueur,
+) -> None:
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 0, resultat.stderr
+    assert "GO_LIVE_READY=true" in resultat.stdout
+
+
+@pytest.mark.parametrize(
+    "relative, contenu",
+    [
+        (MATRICE, {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}}),
+        (MATRICE, {"by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1}, "by_pii": {}}),
+        (POLITIQUE, "applied: false\n"),
+        (
+            NON_PDF,
+            {
+                "NON_PDF_SERVABLE": 3,
+                "NON_PDF_LOCAL_COPY_RETAINED": 1,
+                "NON_PDF_TOTAL": 3,
+            },
+        ),
+        (
+            DISPOSITIONS,
+            {"dispositions": {"9": {"disposition": "BLOCKING", "reason": "x"}}},
+        ),
+        (QUALIFICATION, {"blockers": [{"id": "C1", "closed": False}]}),
+    ],
+)
+def test_un_seul_bloqueur_suffit_a_faire_echouer_assert_ready(
+    depot_sans_bloqueur, relative: str, contenu
+) -> None:
+    """Chaque bloqueur, isole, doit suffire. Sans cela, un seul oubli suffirait
+    a rendre le garde permissif."""
+    _ecrire(depot_sans_bloqueur, relative, contenu)
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 1, f"{relative} n a pas fait echouer le garde"
+
+
+def test_assert_ready_rend_deux_si_une_entree_manque(depot_sans_bloqueur) -> None:
+    """Ne pas pouvoir conclure n est pas la meme chose que conclure non.
+
+    Un code distinct evite qu une chaine de deploiement traite une entree
+    manquante comme un simple refus, ou pire, comme un accord.
+    """
+    (depot_sans_bloqueur / MATRICE).unlink()
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 2
+    assert "GO_LIVE_READY=unknown" in resultat.stderr
+
+
+def test_assert_ready_n_ecrit_aucun_fichier(depot_sans_bloqueur) -> None:
+    """Un garde qui ecrit modifie ce qu il mesure."""
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}},
+    )
+    avant = sorted(p.name for p in (depot_sans_bloqueur / "docs/reports/go_live").iterdir())
+    _lancer(depot_sans_bloqueur, "--assert-ready")
+    apres = sorted(p.name for p in (depot_sans_bloqueur / "docs/reports/go_live").iterdir())
+    assert avant == apres
+
+
+def test_check_only_est_un_diagnostic_pas_un_garde(depot_sans_bloqueur) -> None:
+    """`--check-only` rend 0 MEME quand rien n est pret.
+
+    Ce n est pas un defaut : c est un mode diagnostic. Mais s en servir comme
+    garde serait un faux vert, et cette epreuve fige la distinction pour que
+    personne ne les confonde par megarde.
+    """
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}},
+    )
+    diagnostic = _lancer(depot_sans_bloqueur, "--check-only")
+    garde = _lancer(depot_sans_bloqueur, "--assert-ready")
+
+    assert diagnostic.returncode == 0
+    assert "GO_LIVE_READY=false" in diagnostic.stdout
+    assert garde.returncode == 1
+    # Les deux disent la meme chose ; seul le code de retour differe.
+    assert "GO_LIVE_READY=false" in garde.stdout
+
+
+def test_le_module_documente_que_seul_assert_ready_est_un_garde() -> None:
+    """La distinction entre diagnostic et garde doit etre ECRITE, pas devinee.
+
+    On la cherche sur le texte normalise : la mise en page du docstring coupe
+    les phrases, et une epreuve qui depend de l endroit ou tombe un retour a la
+    ligne casse au premier reformatage.
+    """
+    source = " ".join(SCRIPT.read_text(encoding="utf-8").split())
+    assert "seul mode utilisable comme condition de deploiement" in source
+    assert "faux vert" in source
+    assert "--assert-ready" in source
+
+
+# --- verify-snapshot n autorise jamais --------------------------------
+
+
+def test_verify_snapshot_dit_explicitement_qu_il_n_autorise_rien(
+    depot_sans_bloqueur, tmp_path
+) -> None:
+    subprocess.run(["git", "-C", str(depot_sans_bloqueur), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(depot_sans_bloqueur),
+            "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "-qm", "base",
+        ],
+        check=True,
+    )
+    _lancer(depot_sans_bloqueur, "--json", "docs/reports/go_live/s.json")
+    resultat = _lancer(
+        depot_sans_bloqueur, "--verify-snapshot", "docs/reports/go_live/s.json"
+    )
+    assert "snapshot_may_authorize_go_live=False" in resultat.stdout
+    assert "SNAPSHOT_AUTHORIZATION=false" in resultat.stdout
+    assert "USE_ASSERT_READY_TO_GATE_A_DEPLOYMENT=true" in resultat.stdout
+    # Concordant rend 0 — mais concordant n est pas autorise, et la sortie le dit.
+    assert resultat.returncode == 0
