@@ -15,7 +15,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e 'packages/contracts[dev]'
+      # La preuve de projection R1 à l'échelle réelle construit ses entrées depuis
+      # les profils d'ingestion, dont le foyer canonique est `nexus-release-chain`.
+      # Elle les importait depuis `services/rag-engine` : un test de paquet qui
+      # dépend d'un service, ce qu'AGENTS.md interdit et que ce job n'installe pas.
+      - run: pip install -e 'packages/contracts[dev]' -e packages/pdf-page-policy -e packages/release-chain
       - run: python -m pytest packages/contracts/tests -q
       - run: python packages/contracts/scripts/export_schemas.py --output packages/contracts/schema --check
 
