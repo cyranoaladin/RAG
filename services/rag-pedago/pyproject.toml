@@ -26,6 +26,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Client Google, requis uniquement par `drive_transport` — le transport
+# réel. Tout le reste de la chaîne d'acquisition est testable sans lui,
+# et le rendre obligatoire ferait dépendre l'installation du service d'un
+# SDK dont 99 % du code n'a pas besoin.
+drive = [
+  "google-api-python-client==2.147.0",
+  "google-auth==2.34.0",
+]
 dev = [
   "mypy==2.1.0",
   "pytest==9.1.1",
