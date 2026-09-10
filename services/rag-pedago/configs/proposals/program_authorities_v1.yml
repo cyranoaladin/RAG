@@ -1,0 +1,113 @@
+# Deux autorités de programme, SÉPARÉES. Propositions, non appliquées.
+#
+# Les confondre était la tentation : « ce scope a un programme en vigueur »
+# glisserait en « ce document met en œuvre ce programme ». La première est une
+# propriété du niveau et de la matière ; la seconde est une propriété du
+# DOCUMENT, et rien dans les autorités reçues ne l'établit aujourd'hui.
+#
+# Mesuré : 18 profils déclarent une version de programme, croisant 123 des
+# 2451 contenus par (niveau, matière) — et 0 contenu porte une liaison réelle.
+
+status: PROPOSED
+applied: false
+requires_adr: true
+
+CurrentProgramAuthorityV1:
+  authority_id: NEXUS-CURRENT-PROGRAM-AUTHORITY-V1
+  answers: "Quel programme est applicable à CE scope pédagogique, CETTE année ?"
+  fields:
+    - program_authority_id
+    - niveau
+    - matiere
+    - voie                      # générale, technologique, professionnelle
+    - specialite_or_option      # si applicable
+    - official_reference        # ex. BOEN_special_1_2019-01-22
+    - NOR
+    - bulletin_number
+    - bulletin_date
+    - decree_or_order_date
+    # OBLIGATOIRE, et distinct de bulletin_date : une date de publication ne
+    # dit pas quand un texte s'applique. Le BO n°14 du 2 avril 2026 porte le
+    # programme de maths Première applicable en 2026-2027 ET celui de Terminale
+    # applicable en 2027-2028. Un moteur qui choisit « le BO le plus récent »
+    # attribue le nouveau programme aux deux, et déclare incompatible tout
+    # document de Terminale pourtant conforme au programme en vigueur.
+    - effective_from_school_year
+    - effective_until_school_year
+    - supersedes_program_authority_id
+    - superseded_by_program_authority_id
+    - source_url
+    - source_content_sha256_if_available
+    - evidence_ref
+    - evidence_sha256
+  resolver:
+    signature: "resolve_current_program(niveau, matiere, voie, specialite_or_option, school_year)"
+    verdicts: [EXACTLY_ONE, NONE, MULTIPLE]
+    multiple_is: >-
+      un REFUS de gouvernance, jamais un choix par date de publication ni par
+      ordre de fichier. Sans chaîne de supersession explicite, deux textes en
+      vigueur ne se départagent pas.
+  existing_partial_source: services/rag-engine/configs/ingestion_profiles/*.yml
+  coverage_today: "18 scopes déclarent une version de programme et une année scolaire"
+  completeness_gap: >-
+    L'autorité couvre 18 scopes sur les 34 matières du catalogue. C'est la
+    cause directe de PROGRAM_COMPATIBILITY_UNKNOWN=2375 et de
+    REFERENCES_UNKNOWN=213 : le corpus cite des textes que l'autorité ne
+    déclare pas, et rien ne permet de dire s'ils sont en vigueur.
+
+ArtifactProgramBindingV1:
+  authority_id: NEXUS-ARTIFACT-PROGRAM-BINDING-V1
+  answers: "CE contenu met-il en œuvre CETTE version de programme ?"
+  fields:
+    - content_sha256
+    - source_relation_id        # la liaison est RELATIONNELLE, pas globale
+    - programme_version
+    - binding_basis
+    - evidence_ref
+    - evidence_sha256
+  binding_basis_allowed:
+    EXPLICIT_SOURCE_METADATA:
+      meaning: "la source déclare elle-même le programme du document"
+    GOVERNED_MANIFEST:
+      meaning: "un manifeste gouverné porte la liaison"
+    OFFICIAL_PROGRAM_REFERENCE:
+      meaning: "le document cite le texte officiel qu'il met en œuvre"
+    HUMAN_REVIEW:
+      meaning: "un humain a établi la liaison, tracée et signée"
+    GOVERNED_RULE:
+      meaning: "une règle versionnée, dont la PORTÉE a elle-même une preuve"
+      constraint: >-
+        Une règle n'est admise que si son domaine d'application est prouvé.
+        Une règle dont la portée est supposée est une supposition qui a pris
+        la forme d'une règle.
+  forbidden_as_evidence:
+    - nom_de_fichier
+    - slug
+    - annee_de_publication_seule
+    - proximite_lexicale
+    - croisement_niveau_matiere_seul
+  why_forbidden: >-
+    Chacune produirait une liaison ayant la forme d'une preuve sans en être
+    une : un lecteur ne pourrait plus distinguer une liaison établie d'une
+    liaison devinée. L'année de publication en est le cas le plus trompeur —
+    un document de 2016 peut mettre en œuvre un programme encore en vigueur,
+    et un document de 2026 en servir un abrogé.
+
+measurement_today:
+  PROGRAM_COMPATIBILITY_PROVEN: 0
+  PROGRAM_INCOMPATIBILITY_PROVEN: 0
+  PROGRAM_COMPATIBILITY_UNKNOWN: 2451
+  PROGRAM_PROFILE_SCOPE_MATCH: 123
+  PROGRAM_PROFILE_SCOPE_NO_MATCH: 2328
+  EXACT_ARTIFACT_PROGRAM_BINDING: 0
+
+sequencing:
+  steps:
+    - "1. étendre CurrentProgramAuthorityV1 au-delà des 18 scopes actuels"
+    - "2. chercher les liaisons ArtifactProgramBindingV1 dans les autorités structurées"
+    - "3. ne soumettre à revue humaine que le résidu réellement ambigu"
+  note: >-
+    La revue humaine est le dernier recours, pas le mécanisme de classification
+    principal. Lancer une revue de 2411 contenus avant d'avoir épuisé les
+    autorités structurées ferait faire à des humains le travail qu'une liaison
+    gouvernée rendrait automatique.
