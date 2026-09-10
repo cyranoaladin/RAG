@@ -44,6 +44,7 @@ from pathlib import Path
 
 import psycopg
 from nexus_contracts.canonical_json import canonical_model_bytes
+from nexus_release_chain.release_readiness import load_release_registry_file
 
 from ingestor.atomic_artifact import AtomicArtifactError, publish_atomic_no_clobber
 from ingestor.r1_evidence_verifier import (
@@ -59,7 +60,6 @@ from ingestor.r1_operator_flow import (
     load_attempt_state,
     revalidate_attempt_state_against_live_repo,
 )
-from ingestor.release_readiness import load_release_registry_file
 from ingestor.resource_registry_bootstrap import (
     export_resource_registry_bootstrap_inventory,
 )

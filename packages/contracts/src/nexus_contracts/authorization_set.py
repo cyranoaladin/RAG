@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import Any, Iterable, Literal, Mapping, Sequence
+from typing import Any, Literal
 
 from pydantic import (
     AwareDatetime,
@@ -22,7 +23,6 @@ from pydantic import (
     model_validator,
 )
 
-from nexus_contracts.document import StrictBaseModel
 from nexus_contracts.authority_artifacts import (
     ScopeAuthorizationArtifactV2,
     canonical_authorization_path,
@@ -30,6 +30,7 @@ from nexus_contracts.authority_artifacts import (
     parse_scope_authorization_artifact,
 )
 from nexus_contracts.authorization_revocations import parse_revoked_authorization_ids
+from nexus_contracts.document import StrictBaseModel
 from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.review_binding import (
     SignedScopeAuthorizationReviewBinding,
@@ -42,6 +43,8 @@ from nexus_contracts.review_binding import (
 
 AUTHORIZATION_SET_PROTOCOL_VERSION = "NEXUS-AUTHORIZATION-SET-V1"
 RELEASE_SCOPE_PLACEMENT_PROTOCOL_VERSION = "NEXUS-RELEASE-SCOPE-PLACEMENT-V1"
+AUTHORIZATION_SET_PROTOCOL_VERSION_V2 = "NEXUS-AUTHORIZATION-SET-V2"
+RELEASE_SCOPE_PLACEMENT_PROTOCOL_VERSION_V2 = "NEXUS-RELEASE-SCOPE-PLACEMENT-V2"
 
 _HEX64 = r"^[0-9a-f]{64}$"
 
@@ -238,6 +241,94 @@ class ReleaseScopePlacementV1(StrictBaseModel):
         return sha256(self.canonical_bytes()).hexdigest()
 
 
+def release_placement_binding_key(entry: ReleaseScopePlacementEntryV1) -> tuple[str, str]:
+    """L'identité de liaison d'autorité d'un placement : le contenu physique
+    et le scope LOT41A exact qu'il occupe -- jamais le contenu seul, qui ne
+    distingue pas deux placements légitimes d'un même contenu partagé."""
+    return (entry.content_sha256, scope_digest(entry.scope))
+
+
+class ReleaseScopePlacementV2(StrictBaseModel):
+    """Projection V2, additive à V1 : un ``content_sha256`` PEUT apparaître
+    dans plusieurs entrées si -- et seulement si -- chacune porte un scope
+    LOT41A distinct. Deux entrées ne peuvent jamais partager exactement le
+    même (content_sha256, scope) : ce serait un doublon strict du même
+    placement, pas un second placement légitime.
+
+    ``ReleaseScopePlacementV1`` reste inchangé, byte-identique, et continue
+    de refuser tout contenu multi-placé -- il reste le protocole correct
+    pour toute release historique mono-placement."""
+
+    protocol_version: Literal["NEXUS-RELEASE-SCOPE-PLACEMENT-V2"]
+    profile_manifest_digest: StrictStr = Field(pattern=_HEX64)
+    placements: tuple[ReleaseScopePlacementEntryV1, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def _placement_bindings_are_unique(self) -> ReleaseScopePlacementV2:
+        seen: set[tuple[str, str]] = set()
+        for item in self.placements:
+            key = release_placement_binding_key(item)
+            if key in seen:
+                raise ValueError(
+                    "release scope placement repeats the exact (content_sha256, scope) "
+                    "binding -- this is a duplicate of the same placement, not a second one"
+                )
+            seen.add(key)
+        return self
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        placements: Sequence[ReleaseScopePlacementEntryV1],
+        profile_manifest_digest: str,
+    ) -> ReleaseScopePlacementV2:
+        try:
+            return cls.model_validate(
+                {
+                    "protocol_version": RELEASE_SCOPE_PLACEMENT_PROTOCOL_VERSION_V2,
+                    "profile_manifest_digest": profile_manifest_digest,
+                    "placements": tuple(
+                        sorted(
+                            placements,
+                            key=lambda item: (item.content_sha256, scope_digest(item.scope)),
+                        )
+                    ),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001 - frontière de contrat
+            raise AuthorizationSetError(
+                f"release scope placement v2 is invalid: {exc}"
+            ) from exc
+
+    def canonical_bytes(self) -> bytes:
+        """JSONL canonique : une en-tête puis une ligne par (contenu, scope),
+        LF final -- même forme que V1, ordonnée par (content, scope_digest)
+        pour rester déterministe même si un content_sha256 se répète."""
+        header = {
+            "profile_manifest_digest": self.profile_manifest_digest,
+            "protocol_version": self.protocol_version,
+        }
+        documents = [
+            header,
+            *(
+                item.canonical_document()
+                for item in sorted(
+                    self.placements,
+                    key=lambda value: (value.content_sha256, scope_digest(value.scope)),
+                )
+            ),
+        ]
+        return "".join(
+            json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+            + "\n"
+            for document in documents
+        ).encode("utf-8")
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+
 class AuthorizationSetV1(StrictBaseModel):
     protocol_version: Literal["NEXUS-AUTHORIZATION-SET-V1"]
     members: tuple[AuthorizationSetMemberV1, ...] = Field(min_length=1)
@@ -379,6 +470,218 @@ class AuthorizationSetV1(StrictBaseModel):
         return sha256(self.canonical_bytes()).hexdigest()
 
 
+class AuthorizationSetV2(StrictBaseModel):
+    """Composition V2, additive à V1 : un même ``content_sha256`` PEUT être
+    couvert par deux membres différents si -- et seulement si -- ils portent
+    des scopes distincts. Deux membres ne peuvent jamais couvrir le même
+    (content_sha256, scope) : ce serait deux autorisations pour la même
+    liaison, jamais toléré, en V1 comme en V2.
+
+    Distingue explicitement (section 13 du mandat R1G) deux cardinalités
+    qui ne se substituent jamais l'une à l'autre : le nombre de contenus
+    physiques uniques couverts (``unique_content_count``) et le nombre de
+    liaisons d'autorité distinctes qu'ils requièrent au total
+    (``authorization_binding_count`` -- un contenu multi-placé compte pour
+    autant de liaisons que de scopes légitimes qu'il occupe)."""
+
+    protocol_version: Literal["NEXUS-AUTHORIZATION-SET-V2"]
+    members: tuple[AuthorizationSetMemberV1, ...] = Field(min_length=1)
+    authorization_count: StrictInt = Field(gt=0)
+    corpus_manifest_sha256: StrictStr = Field(pattern=_HEX64)
+    profile_manifest_digest: StrictStr = Field(pattern=_HEX64)
+    release_scope_placement_digest: StrictStr = Field(pattern=_HEX64)
+    unique_content_count: StrictInt = Field(gt=0)
+    unique_content_sha256_digest: StrictStr = Field(pattern=_HEX64)
+    authorization_binding_count: StrictInt = Field(gt=0)
+    authorization_binding_set_sha256: StrictStr = Field(pattern=_HEX64)
+    authorizations_effective_valid_from: AwareDatetime
+    authorizations_effective_valid_until: AwareDatetime
+
+    @model_validator(mode="after")
+    def _intrinsic_semantics_are_exact(self) -> AuthorizationSetV2:
+        dimensions: tuple[tuple[str, list[str]], ...] = (
+            ("authorization_id", [item.authorization_id for item in self.members]),
+            ("authorization_digest", [item.authorization_digest for item in self.members]),
+            ("review_binding_digest", [item.review_binding_digest for item in self.members]),
+            ("scope", [scope_digest(item.scope) for item in self.members]),
+        )
+        for name, values in dimensions:
+            if len(values) != len(set(values)):
+                raise ValueError(f"members repeat {name}")
+
+        if self.authorization_count != len(self.members):
+            raise ValueError("authorization_count does not match members")
+        effective_from = max(item.valid_from for item in self.members)
+        effective_until = min(item.valid_until for item in self.members)
+        if self.authorizations_effective_valid_from != effective_from:
+            raise ValueError("authorizations_effective_valid_from does not match members")
+        if self.authorizations_effective_valid_until != effective_until:
+            raise ValueError("authorizations_effective_valid_until does not match members")
+
+        # Never keyed by content alone: the same content legitimately
+        # recurs across members with DIFFERENT scopes in V2. What must
+        # stay globally unique is the (content, scope) BINDING.
+        binding_owners: dict[tuple[str, str], str] = {}
+        for member in self.members:
+            member_scope_digest = scope_digest(member.scope)
+            for content in member.allowed_content_sha256:
+                key = (content, member_scope_digest)
+                previous = binding_owners.get(key)
+                if previous is not None:
+                    raise ValueError(
+                        f"authorization overlap for (content, scope) {key!r}: "
+                        f"{previous!r} and {member.authorization_id!r}"
+                    )
+                binding_owners[key] = member.authorization_id
+
+        bindings = tuple(sorted(binding_owners))
+        binding_digest = _binding_set_digest(bindings)
+        if self.authorization_binding_count != len(bindings):
+            raise ValueError("authorization_binding_count does not match member bindings")
+        if self.authorization_binding_set_sha256 != binding_digest:
+            raise ValueError("authorization_binding_set_sha256 does not match member bindings")
+
+        unique_contents = tuple(sorted({content for content, _ in bindings}))
+        if self.unique_content_count != len(unique_contents):
+            raise ValueError("unique_content_count does not match member union")
+        if self.unique_content_sha256_digest != content_set_digest(unique_contents):
+            raise ValueError("unique_content_sha256_digest does not match member union")
+        return self
+
+    @classmethod
+    def build(
+        cls,
+        *,
+        members: Sequence[AuthorizationSetMemberV1],
+        corpus_manifest_sha256: str,
+        profile_manifest_digest: str,
+        release_scope_placement_digest: str,
+    ) -> AuthorizationSetV2:
+        if not members:
+            raise AuthorizationSetError("authorization set requires at least one member")
+        ordered = tuple(sorted(members, key=lambda item: item.authorization_id))
+        bindings = tuple(
+            sorted(
+                (content, scope_digest(member.scope))
+                for member in ordered
+                for content in member.allowed_content_sha256
+            )
+        )
+        unique_contents = tuple(sorted({content for content, _ in bindings}))
+        try:
+            return cls.model_validate(
+                {
+                    "protocol_version": AUTHORIZATION_SET_PROTOCOL_VERSION_V2,
+                    "members": ordered,
+                    "authorization_count": len(ordered),
+                    "corpus_manifest_sha256": corpus_manifest_sha256,
+                    "profile_manifest_digest": profile_manifest_digest,
+                    "release_scope_placement_digest": release_scope_placement_digest,
+                    "unique_content_count": len(unique_contents),
+                    "unique_content_sha256_digest": content_set_digest(unique_contents),
+                    "authorization_binding_count": len(bindings),
+                    "authorization_binding_set_sha256": _binding_set_digest(bindings),
+                    "authorizations_effective_valid_from": max(
+                        item.valid_from for item in ordered
+                    ),
+                    "authorizations_effective_valid_until": min(
+                        item.valid_until for item in ordered
+                    ),
+                }
+            )
+        except Exception as exc:  # noqa: BLE001 - frontière de contrat
+            raise AuthorizationSetError(f"authorization set v2 is invalid: {exc}") from exc
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "authorization_binding_count": self.authorization_binding_count,
+            "authorization_binding_set_sha256": self.authorization_binding_set_sha256,
+            "authorization_count": self.authorization_count,
+            "authorizations_effective_valid_from": _canonical_moment(
+                self.authorizations_effective_valid_from
+            ),
+            "authorizations_effective_valid_until": _canonical_moment(
+                self.authorizations_effective_valid_until
+            ),
+            "corpus_manifest_sha256": self.corpus_manifest_sha256,
+            "members": [
+                member.canonical_document()
+                for member in sorted(self.members, key=lambda item: item.authorization_id)
+            ],
+            "profile_manifest_digest": self.profile_manifest_digest,
+            "protocol_version": self.protocol_version,
+            "release_scope_placement_digest": self.release_scope_placement_digest,
+            "unique_content_count": self.unique_content_count,
+            "unique_content_sha256_digest": self.unique_content_sha256_digest,
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _canonical_bytes(self.canonical_document())
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+
+def verify_authorization_binding_set_v2(
+    authorization_set: AuthorizationSetV2,
+    *,
+    release_scope_placement: ReleaseScopePlacementV2,
+) -> None:
+    """Le gate d'égalité d'ensemble exact du mandat R1G (§14) : l'ensemble
+    des liaisons (content_sha256, scope) que le set d'autorisations couvre
+    doit être EXACTEMENT celui que la release scellée exige -- jamais une
+    simple égalité de cardinalité, jamais une comparaison contenu-seul qui
+    masquerait un contenu autorisé sous le mauvais scope."""
+    if release_scope_placement.digest() != authorization_set.release_scope_placement_digest:
+        raise AuthorizationSetError("release scope placement digest mismatch")
+    if (
+        release_scope_placement.profile_manifest_digest
+        != authorization_set.profile_manifest_digest
+    ):
+        raise AuthorizationSetError("profile manifest digest mismatch")
+
+    authorized_bindings = {
+        (content, scope_digest(member.scope))
+        for member in authorization_set.members
+        for content in member.allowed_content_sha256
+    }
+    required_bindings = {
+        release_placement_binding_key(entry) for entry in release_scope_placement.placements
+    }
+
+    extra = sorted(authorized_bindings - required_bindings)
+    gap = sorted(required_bindings - authorized_bindings)
+    if extra or gap:
+        raise AuthorizationSetError(
+            "authorization binding set does not exactly equal the required release "
+            f"authority binding set: authorized_minus_required={extra!r}, "
+            f"required_minus_authorized={gap!r}"
+        )
+
+    placement_by_binding = {
+        release_placement_binding_key(entry): entry
+        for entry in release_scope_placement.placements
+    }
+    for member in authorization_set.members:
+        member_scope_digest = scope_digest(member.scope)
+        for content in member.allowed_content_sha256:
+            placement = placement_by_binding[(content, member_scope_digest)]
+            if scope_digest(placement.scope) != member_scope_digest:
+                raise AuthorizationSetError(
+                    f"scope mismatch for binding ({content!r}, {member_scope_digest!r})"
+                )
+
+
+def _binding_set_digest(bindings: Iterable[tuple[str, str]]) -> str:
+    """Digest d'un ensemble de liaisons (content_sha256, scope_digest),
+    trié, une paire par ligne, LF final -- même discipline que
+    ``content_set_digest`` pour un ensemble de simples contenus."""
+    ordered = sorted(bindings)
+    return sha256(
+        "".join(f"{content}:{scope}\n" for content, scope in ordered).encode()
+    ).hexdigest()
+
+
 def parse_authorization_set(raw: bytes) -> AuthorizationSetV1:
     try:
         document = json.loads(raw.decode("utf-8"))
@@ -397,6 +700,78 @@ def parse_authorization_set(raw: bytes) -> AuthorizationSetV1:
     if parsed.canonical_bytes() != raw:
         raise AuthorizationSetError("authorization set bytes are not in canonical form")
     return parsed
+
+
+def parse_authorization_set_v2(raw: bytes) -> AuthorizationSetV2:
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise AuthorizationSetError(f"authorization set is not valid UTF-8 JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise AuthorizationSetError("authorization set must be a JSON object")
+    if document.get("protocol_version") != AUTHORIZATION_SET_PROTOCOL_VERSION_V2:
+        raise AuthorizationSetError(
+            "authorization set declares an unsupported protocol_version"
+        )
+    try:
+        parsed = AuthorizationSetV2.model_validate(document)
+    except Exception as exc:  # noqa: BLE001 - frontière de parsing stricte
+        raise AuthorizationSetError(f"authorization set failed strict validation: {exc}") from exc
+    if parsed.canonical_bytes() != raw:
+        raise AuthorizationSetError("authorization set bytes are not in canonical form")
+    return parsed
+
+
+def parse_release_scope_placement_v2(raw: bytes) -> ReleaseScopePlacementV2:
+    """Parse strict du JSONL de projection V2 -- même discipline que le V1
+    (``parse_release_scope_placement``), un document V1 est refusé ici
+    (protocol_version différent) et réciproquement."""
+    if not raw.endswith(b"\n") or raw.endswith(b"\n\n"):
+        raise AuthorizationSetError(
+            "release scope placement bytes are not in canonical form"
+        )
+    try:
+        text = raw[:-1].decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise AuthorizationSetError(
+            f"release scope placement is not valid UTF-8: {exc}"
+        ) from exc
+    documents: list[Any] = []
+    for line_number, line in enumerate(text.split("\n"), start=1):
+        try:
+            documents.append(json.loads(line))
+        except json.JSONDecodeError as exc:
+            raise AuthorizationSetError(
+                f"release scope placement line {line_number} is not valid JSON: {exc}"
+            ) from exc
+    if not documents or not isinstance(documents[0], dict):
+        raise AuthorizationSetError("release scope placement must start with a JSON header")
+    header = documents[0]
+    if set(header) != {"profile_manifest_digest", "protocol_version"}:
+        raise AuthorizationSetError("release scope placement header has unexpected fields")
+    if header.get("protocol_version") != RELEASE_SCOPE_PLACEMENT_PROTOCOL_VERSION_V2:
+        raise AuthorizationSetError(
+            "release scope placement declares an unsupported protocol_version"
+        )
+    if any(not isinstance(document, dict) for document in documents[1:]):
+        raise AuthorizationSetError("release scope placement rows must be JSON objects")
+    try:
+        placement = ReleaseScopePlacementV2.model_validate(
+            {
+                "protocol_version": header["protocol_version"],
+                "profile_manifest_digest": header["profile_manifest_digest"],
+                "placements": documents[1:],
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 - frontière de parsing stricte
+        raise AuthorizationSetError(
+            f"release scope placement failed strict validation: {exc}"
+        ) from exc
+    if placement.canonical_bytes() != raw:
+        raise AuthorizationSetError(
+            "release scope placement bytes are not in canonical form"
+        )
+    return placement
 
 
 def parse_release_scope_placement(raw: bytes) -> ReleaseScopePlacementV1:
@@ -895,19 +1270,27 @@ def verify_authorization_set(
 
 __all__ = [
     "AUTHORIZATION_SET_PROTOCOL_VERSION",
+    "AUTHORIZATION_SET_PROTOCOL_VERSION_V2",
     "RELEASE_SCOPE_PLACEMENT_PROTOCOL_VERSION",
+    "RELEASE_SCOPE_PLACEMENT_PROTOCOL_VERSION_V2",
     "AuthorizationSetError",
     "AuthorizationSetMemberV1",
     "AuthorizationSetV1",
+    "AuthorizationSetV2",
     "ReleaseScopePlacementEntryV1",
     "ReleaseScopePlacementV1",
+    "ReleaseScopePlacementV2",
     "VerifiedProfileFactV1",
     "VerifiedAuthorizationSetV1",
     "canonical_review_binding_path",
     "content_set_digest",
     "parse_authorization_set",
+    "parse_authorization_set_v2",
     "parse_release_scope_placement",
+    "parse_release_scope_placement_v2",
+    "release_placement_binding_key",
     "resolve_authorization_set_material",
     "scope_digest",
+    "verify_authorization_binding_set_v2",
     "verify_authorization_set",
 ]

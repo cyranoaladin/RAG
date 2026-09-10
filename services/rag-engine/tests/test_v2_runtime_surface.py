@@ -306,14 +306,31 @@ def test_v2_application_exposes_only_the_governed_runtime_surface() -> None:
         assert not any(path.startswith(forbidden_prefix) for path in routes)
 
 
-def test_v2_image_packages_release_readiness_runtime() -> None:
-    """L'image aplatie doit embarquer chaque import de l'API activée."""
+def test_v2_image_installs_the_release_authority_as_a_package() -> None:
+    """L'image doit embarquer l'autorité de release — comme PAQUET.
+
+    Elle recopiait un module vendoré. Une image qui transporte une copie du
+    contrat peut partir avec une version que le qualificateur ne lit pas :
+    l'égalité octet pour octet rendait cela détectable, pas impossible.
+    """
     dockerfile = V2_DOCKERFILE.read_text(encoding="utf-8")
 
+    assert "COPY packages/release-chain /tmp/nexus-release-chain" in dockerfile
+    assert "pip install --no-cache-dir /tmp/nexus-release-chain" in dockerfile
     assert (
-        "COPY services/rag-engine/src/ingestor/release_readiness.py "
-        "/app/release_readiness.py"
-    ) in dockerfile
+        "COPY services/rag-engine/src/ingestor/release_readiness.py" not in dockerfile
+    ), "la copie vendorée est réintroduite dans l'image"
+
+
+def test_v2_image_refuses_the_pdf_stack() -> None:
+    """L'allowlist de ce runtime est sans parseur, et l'image le VÉRIFIE.
+
+    Sans ce contrôle dans le Dockerfile, une dépendance transitive pourrait y
+    faire entrer `pypdf` sans que rien ne l'annonce."""
+    dockerfile = V2_DOCKERFILE.read_text(encoding="utf-8")
+
+    assert "find_spec('pypdf') is None" in dockerfile
+    assert "nexus-release-chain[pdf]" not in dockerfile
 
 
 def test_lot41u_plan_contains_no_machine_local_absolute_path() -> None:
@@ -1642,3 +1659,44 @@ def test_une_route_hors_perimetre_metier_n_est_pas_journalisee(
 
     assert response.status_code == 200
     assert _access_records(caplog) == []
+
+
+def test_the_pdf_worker_lock_pins_the_canonical_pypdf_version() -> None:
+    """Le contrat PDF est « extra + lock du consommateur ». Alors le lock doit
+    être PROUVÉ, pas constaté.
+
+    Le paquet `nexus-pdf-page-policy` ne pose volontairement qu'une borne basse
+    (`pypdf>=4.2`) : la version exacte vient du lock du service. Une
+    installation non contrainte résout donc vers une version plus récente, et
+    `require_canonical_pypdf()` refuse — correctement, mais à l'exécution.
+
+    Ce contrôle-ci attrape la dérive AVANT la construction de l'image : sans
+    lui, un lock qui glisse ne se verrait qu'au premier worker qui refuse de
+    démarrer en production.
+    """
+    import re
+
+    from nexus_pdf_page_policy import CANONICAL_PYPDF_VERSION
+
+    lock = (
+        REPOSITORY_ROOT
+        / "services/rag-engine/src/ingestor/requirements.ingestion-worker.txt"
+    ).read_text(encoding="utf-8")
+    epingle = re.search(r"^pypdf==(\S+)", lock, re.M)
+    assert epingle, "le lock du worker n'épingle aucune version de pypdf"
+    assert epingle.group(1) == CANONICAL_PYPDF_VERSION, (
+        f"le lock épingle pypdf {epingle.group(1)} alors que la politique de "
+        f"page déclare {CANONICAL_PYPDF_VERSION} comme canonique — une seule "
+        "de ces deux valeurs peut être l'autorité"
+    )
+
+
+def test_the_read_runtime_lock_carries_no_pdf_parser() -> None:
+    """L'allowlist sans parseur, vérifiée sur le lock lui-même."""
+    lock = (
+        REPOSITORY_ROOT / "services/rag-engine/src/ingestor/requirements.runtime-v2.txt"
+    ).read_text(encoding="utf-8")
+    for parseur in ("pypdf", "pdfminer", "pdfplumber", "pypdfium"):
+        assert parseur not in lock.lower(), (
+            f"{parseur} entre dans le runtime de lecture par son lock"
+        )
