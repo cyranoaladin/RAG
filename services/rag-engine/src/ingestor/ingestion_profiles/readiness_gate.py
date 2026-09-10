@@ -41,11 +41,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TypeAlias
 
+from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.authorization_set import (
     AuthorizationSetError,
     VerifiedAuthorizationSetV1,
     VerifiedProfileFactV1,
-    parse_authorization_set,
 )
 from nexus_contracts.h2_coverage_evidence import parse_h2_coverage_evidence_v2
 from nexus_contracts.production_readiness import (
@@ -370,7 +370,12 @@ def _load_runtime_v2_material_from_environment(
         Path(set_path_raw), label="authorization set"
     )
     try:
-        authorization_set = parse_authorization_set(authorization_set_raw)
+        # Chargeur canonique : accepte les deux protocoles, prefere la V2, et
+        # ne devine jamais. Ce gate ne lit que `members`, commun aux deux, donc
+        # il accepte un document V2 sans changer ce qu il verifie.
+        authorization_set = load_authorization_set(
+            authorization_set_raw
+        ).authorization_set
     except AuthorizationSetError as exc:
         raise _fail(str(exc)) from exc
     release_files = {

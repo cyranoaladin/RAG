@@ -106,10 +106,30 @@ if [ -f "$POLICY" ]; then
     printf 'CURRENTNESS_FOREIGN_GATE_CONDITIONS\t%s\n' "$(printf '%s' "$INTRUS" | wc -w)"
 fi
 
-# R4 — un seul producteur AuthorizationSetV2 hors du contrat.
+# R4 — un seul PRODUCTEUR AuthorizationSetV2 hors du contrat.
+#
+#      Produire et charger sont deux choses. Confondre les deux ferait passer
+#      le chargeur pour un second producteur, et l erreur pousserait a fusionner
+#      deux modules qui n ont pas le meme role. Produire, c est appeler
+#      `AuthorizationSetV2.build` ou tenir le gate d egalite d ensemble.
 compare AUTHORIZATION_V2_PRODUCER "producteur AuthorizationSetV2" \
-    "$(observed 'AuthorizationSetV2\.build\|parse_authorization_set_v2\|verify_authorization_binding_set_v2' \
+    "$(observed 'AuthorizationSetV2\.build\|verify_authorization_binding_set_v2' \
         -- ':!packages/contracts/*' ':!*tests/*' ':!docs/*')"
+
+# R4b — un seul CHARGEUR. Neuf consommateurs qui choisissent chacun entre V1 et
+#       V2 finissent par ne pas choisir pareil : le choix se fait une fois.
+#
+#       Le foyer canonique est DANS le contrat : choisir entre deux versions
+#       d un contrat est une affaire de contrat, et l image du worker
+#       d ingestion n embarque pas la chaine de release. Le module qui DEFINIT
+#       les parseurs est donc exclu, pas le paquet entier — sinon le chargeur
+#       canonique lui-meme deviendrait invisible. Le fichier d exports du
+#       paquet l est aussi : re-exporter un nom n est pas decider avec.
+compare AUTHORIZATION_LOADER "chargeur d autorisation" \
+    "$(observed 'parse_authorization_set_v2' \
+        -- ':!packages/contracts/src/nexus_contracts/authorization_set.py' \
+           ':!packages/contracts/src/nexus_contracts/__init__.py' \
+           ':!*tests/*' ':!docs/*')"
 
 # R5 — un seul mecanisme de selection de release.
 compare RELEASE_SELECTION "selection de release" \

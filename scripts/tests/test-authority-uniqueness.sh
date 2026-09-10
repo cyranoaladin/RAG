@@ -64,6 +64,13 @@ printf 'from nexus_contracts.authorization_set import AuthorizationSetV2\nx = Au
 git -C "$D" add -A >/dev/null 2>&1
 exige_echec "second producteur AuthorizationSetV2" "$D"
 
+# 4b. un second chargeur d autorisation
+D="$(banc)"
+printf 'from nexus_contracts import parse_authorization_set_v2\nx = parse_authorization_set_v2\n' \
+    > "$D/services/rag-engine/src/ingestor/faux_chargeur.py"
+git -C "$D" add -A >/dev/null 2>&1
+exige_echec "second chargeur d autorisation" "$D"
+
 # 5. un troisieme selecteur de release
 D="$(banc)"
 printf 'def select_release_authority():\n    return "moi"\n' \

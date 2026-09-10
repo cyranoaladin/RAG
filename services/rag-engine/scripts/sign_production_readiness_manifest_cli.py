@@ -119,6 +119,9 @@ from nexus_contracts.authority_artifacts import (  # noqa: E402
     git_blob_sha1,
     parse_scope_authorization_artifact,
 )
+from nexus_contracts.authorization_loader import (  # noqa: E402
+    load_authorization_set,
+)
 from nexus_contracts.authorization_revocations import (  # noqa: E402
     AuthorizationRevocationsError,
     parse_revoked_authorization_ids,
@@ -126,7 +129,6 @@ from nexus_contracts.authorization_revocations import (  # noqa: E402
 from nexus_contracts.authorization_set import (  # noqa: E402
     AuthorizationSetError,
     VerifiedProfileFactV1,
-    parse_authorization_set,
 )
 from nexus_contracts.h2_coverage_evidence import (  # noqa: E402
     H2CoverageEvidenceError,
@@ -1294,7 +1296,11 @@ def _load_v2_release_material(
         args.authorization_set_file, label="authorization_set"
     )
     try:
-        authorization_set = parse_authorization_set(authorization_set_raw)
+        # Chargeur canonique : les deux protocoles, la V2 preferee, aucun essai
+        # successif. Ce site ne lit que `members`, commun aux deux.
+        authorization_set = load_authorization_set(
+            authorization_set_raw
+        ).authorization_set
     except AuthorizationSetError as exc:
         raise SigningToolError(f"authorization set refused: {exc}") from exc
     governed_root = args.governed_root.resolve(strict=True)
@@ -1477,7 +1483,11 @@ def _reject_v2_output_aliasing_an_input(args: argparse.Namespace) -> None:
         args.authorization_set_file, label="authorization_set"
     )
     try:
-        authorization_set = parse_authorization_set(authorization_set_raw)
+        # Chargeur canonique : les deux protocoles, la V2 preferee, aucun essai
+        # successif. Ce site ne lit que `members`, commun aux deux.
+        authorization_set = load_authorization_set(
+            authorization_set_raw
+        ).authorization_set
     except AuthorizationSetError as exc:
         raise SigningToolError(f"authorization set refused: {exc}") from exc
     for member in authorization_set.members:
