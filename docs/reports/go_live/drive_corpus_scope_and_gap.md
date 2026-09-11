@@ -118,6 +118,13 @@ même chose :
    coûteuse : « tout est ingéré » se lit spontanément comme « le RAG
    fonctionne », et ici les deux sont séparés par une étape entière.
 
+   Une recherche des bases locales portant des vecteurs n'en a trouvé qu'une,
+   applicative, dont la table vectorielle ne porte **aucune identité de
+   contenu** — ni empreinte, ni référence au corpus. Elle ne peut donc pas
+   témoigner d'un corpus indexé, et rien ne permet de la rattacher à ces
+   documents. Cette observation est datée et ne remplace pas une mesure : seule
+   une base nommée passée à l'audit fait foi.
+
 3. **Rien n'est prouvé sur la production.** Cette base n'est pas prouvée être
    celle de la production, et aucune mesure prise ici ne peut en témoigner. Le
    niveau « servi en production » n'est pas prononcé.
