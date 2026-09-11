@@ -69,6 +69,88 @@ SORTIE_JSON = "docs/reports/go_live/go_live_readiness_state.json"
 SORTIE_MD = "docs/reports/go_live/GO_LIVE_READINESS.md"
 SORTIE_LEDGER_JSON = "docs/reports/go_live/blocker_closure_ledger.json"
 SORTIE_LEDGER_MD = "docs/reports/go_live/BLOCKER_CLOSURE_LEDGER.md"
+SORTIE_PLAN_JSON = "docs/reports/go_live/closure_plan.json"
+SORTIE_PLAN_MD = "docs/reports/go_live/CLOSURE_PLAN.md"
+
+#: Cinq niveaux distincts, souvent confondus. Les confondre fait croire qu un
+#: contenu compte parmi les servis parce qu il figure dans une matrice.
+#:
+#: Trois d entre eux ne se mesurent PAS depuis le depot : ils exigent une
+#: base et un service identifies. Rendre zero pour eux serait une fausse
+#: assurance ; ils sont donc declares non mesurables, et le disent.
+NIVEAUX_DE_CONTENU = (
+    {
+        "id": "PROMOTED",
+        "libelle": "contenu promu",
+        "mesure": "ensemble promu canonique",
+        "measurable_from_repository": True,
+    },
+    {
+        "id": "SERVABLE_CANDIDATE",
+        "libelle": "contenu candidat a la servabilite",
+        "mesure": "matrice de servabilite, applied=false",
+        "measurable_from_repository": True,
+    },
+    {
+        "id": "INGESTED",
+        "libelle": "contenu ingere",
+        "mesure": "base pgvector d un environnement identifie",
+        "measurable_from_repository": False,
+    },
+    {
+        "id": "SEARCHABLE",
+        "libelle": "contenu exploitable par recherche",
+        "mesure": "contrat de retrieval sur un service identifie",
+        "measurable_from_repository": False,
+    },
+    {
+        "id": "SERVED_IN_PRODUCTION",
+        "libelle": "contenu reellement servi en production",
+        "mesure": "production, hors de portee de ce lot",
+        "measurable_from_repository": False,
+    },
+)
+
+#: L ordre impose. Une etape ne s ouvre pas tant que celles dont elle depend
+#: ne sont pas fermees : l annoncer evite de qualifier un staging qu on devra
+#: refaire.
+PHASES_DE_CLOTURE = (
+    {
+        "id": "P1_PRE_RELEASE",
+        "titre": "Fermer les bloqueurs de pre-release",
+        "blockers": ["PII_UNDECIDED", "CURRENTNESS_POLICY_APPLIED"],
+        "depends_on": [],
+        "gate": "pre_release_blockers == 0",
+    },
+    {
+        "id": "P2_DEPOT",
+        "titre": "Vider le depot de ses PR bloquantes",
+        "blockers": ["OPEN_PRS_BLOCKING"],
+        "depends_on": [],
+        "gate": "open_prs_blocking == 0",
+    },
+    {
+        "id": "P3_OCTETS",
+        "titre": "Disposer des octets des contenus servables",
+        "blockers": ["NON_PDF_SERVABLE_REACQUIRED"],
+        "depends_on": ["P1_PRE_RELEASE"],
+        "gate": "non_pdf_servable_reacquired == non_pdf_servable_total",
+    },
+    {
+        "id": "P4_QUALIFICATION",
+        "titre": "Fermer les gates de qualification",
+        "blockers": ["GO_LIVE_QUALIFICATION_BLOCKERS"],
+        "depends_on": ["P1_PRE_RELEASE", "P2_DEPOT", "P3_OCTETS"],
+        "gate": "go_live_qualification_blockers == 0",
+    },
+    {
+        "id": "P5_DEPLOIEMENT",
+        "titre": "Deployer, apres et seulement apres",
+        "blockers": [],
+        "depends_on": ["P4_QUALIFICATION"],
+        "gate": "--assert-ready rend 0",
+    },
+)
 
 #: Le calculateur canonique d ensemble promu, deja present dans le depot. Il
 #: passe par `select_release_authority` et le contrat de release — le MEME que
@@ -602,6 +684,9 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         "pre_release_blocker_ids": pre_release,
         "go_live_qualification_blockers": len(qualification_ouverts),
         "go_live_qualification_blocker_ids": [b["id"] for b in qualification_ouverts],
+        "servable_candidate_count": par_verdict.get(
+            "CANDIDATE_NO_BLOCKING_DIMENSION", 0
+        ),
         "pii_undecided": pii_undecided,
         "program_incompatible_in_servable_set": programme_incompatible,
         "program_incompatible_in_servable_set_ids": incompatibles_promus,
@@ -732,6 +817,127 @@ def rendre_ledger_markdown(ledger: dict[str, Any]) -> str:
     return "\n".join(lignes)
 
 
+def construire_plan(etat: dict[str, Any], ledger: dict[str, Any]) -> dict[str, Any]:
+    """Derive le plan de cloture de l etat et du ledger. Rien n y est saisi."""
+    par_id = {b["id"]: b for b in ledger["blockers"]}
+    ouverts = {b["id"] for b in ledger["blockers"] if b["blocking"]}
+
+    niveaux = []
+    for niveau in NIVEAUX_DE_CONTENU:
+        entree = dict(niveau)
+        if niveau["id"] == "PROMOTED":
+            entree["value"] = etat["promoted_content_set_size"]
+        elif niveau["id"] == "SERVABLE_CANDIDATE":
+            entree["value"] = etat.get("servable_candidate_count")
+        else:
+            entree["value"] = None
+            entree["why_not_measured"] = (
+                "exige une base ou un service identifies ; rendre zero serait "
+                "une fausse assurance"
+            )
+        niveaux.append(entree)
+
+    phases = []
+    for phase in PHASES_DE_CLOTURE:
+        bloqueurs = [b for b in phase["blockers"] if b in ouverts]
+        amont_ouvertes = [
+            autre["id"]
+            for autre in PHASES_DE_CLOTURE
+            if autre["id"] in phase["depends_on"]
+            and any(b in ouverts for b in autre["blockers"])
+        ]
+        phases.append(
+            {
+                **phase,
+                "open_blockers": bloqueurs,
+                "blocked_by_phases": amont_ouvertes,
+                "actionable_now": not amont_ouvertes and bool(bloqueurs),
+                "closed": not bloqueurs and not amont_ouvertes,
+                "owners": sorted(
+                    {par_id[b]["owner_type"] for b in bloqueurs if b in par_id}
+                ),
+            }
+        )
+
+    return {
+        "kind": "NEXUS-GO-LIVE-CLOSURE-PLAN-V1",
+        "generated_by": "scripts/go_live/check_go_live_readiness.py",
+        "note": (
+            "Fichier DERIVE de l etat calcule et du ledger. Il ordonne ce qui "
+            "reste ; il n autorise rien."
+        ),
+        "evaluated_head": etat["evaluated_head"],
+        "go_live_ready": etat["go_live_ready"],
+        "content_levels": niveaux,
+        "phases": phases,
+        "phases_closed": sum(1 for p in phases if p["closed"]),
+        "phases_total": len(phases),
+    }
+
+
+def rendre_plan_markdown(plan: dict[str, Any]) -> str:
+    lignes = [
+        "# Plan de cloture go-live",
+        "",
+        "> **Fichier derive.** Regenere par",
+        "> `scripts/go_live/check_go_live_readiness.py`. Il ordonne ce qui reste ;",
+        "> il n autorise rien. Le seul garde est `--assert-ready`.",
+        "",
+        f"`go_live_ready={'true' if plan['go_live_ready'] else 'false'}`",
+        f" — phases fermees : {plan['phases_closed']} sur {plan['phases_total']}",
+        "",
+        "## Cinq niveaux, souvent confondus",
+        "",
+        "Un contenu qui figure dans une matrice n est pas pour autant servi.",
+        "",
+        "| Niveau | Mesure | Valeur |",
+        "| --- | --- | --- |",
+    ]
+    for n in plan["content_levels"]:
+        valeur = (
+            str(n["value"])
+            if n["measurable_from_repository"] and n["value"] is not None
+            else "non mesurable depuis le depot"
+        )
+        lignes.append(f"| {n['libelle']} | {n['mesure']} | {valeur} |")
+    lignes += [
+        "",
+        "Trois de ces cinq niveaux **ne se mesurent pas depuis le depot**. Ils",
+        "exigent une base et un service identifies. Rendre zero pour eux serait",
+        "une fausse assurance, et c est pourquoi ils sont declares non mesurables",
+        "plutot que remplis.",
+        "",
+        "## Ordre impose",
+        "",
+        "| Phase | Etat | Bloqueurs ouverts | Bloquee par | Qui agit |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for p in plan["phases"]:
+        etat_phase = (
+            "fermee"
+            if p["closed"]
+            else ("actionnable" if p["actionable_now"] else "en attente")
+        )
+        lignes.append(
+            f"| `{p['id']}` {p['titre']} | {etat_phase} | "
+            f"{', '.join(p['open_blockers']) or '—'} | "
+            f"{', '.join(p['blocked_by_phases']) or '—'} | "
+            f"{', '.join(p['owners']) or '—'} |"
+        )
+    lignes += [
+        "",
+        "Une phase ne s ouvre pas tant que celles dont elle depend restent",
+        "ouvertes. Qualifier un staging avant d avoir les octets, ou deployer",
+        "avant d avoir qualifie, oblige a tout refaire.",
+        "",
+        "## Conditions de fermeture",
+        "",
+    ]
+    for p in plan["phases"]:
+        lignes += [f"### {p['id']} — {p['titre']}", "", f"Gate : `{p['gate']}`", ""]
+    return "\n".join(lignes)
+
+
 def rendre_markdown(etat: dict[str, Any]) -> str:
     lignes = [
         "# Etat de readiness go-live",
@@ -834,6 +1040,8 @@ def main() -> int:
     parser.add_argument("--markdown", default=SORTIE_MD)
     parser.add_argument("--ledger-json", default=SORTIE_LEDGER_JSON)
     parser.add_argument("--ledger-markdown", default=SORTIE_LEDGER_MD)
+    parser.add_argument("--plan-json", default=SORTIE_PLAN_JSON)
+    parser.add_argument("--plan-markdown", default=SORTIE_PLAN_MD)
     parser.add_argument("--check-only", action="store_true")
     parser.add_argument(
         "--assert-ready",
@@ -929,6 +1137,16 @@ def main() -> int:
         )
         (REPO_ROOT / args.ledger_markdown).write_text(
             rendre_ledger_markdown(ledger), encoding="utf-8"
+        )
+        plan = construire_plan(etat, ledger)
+        chemin_plan = REPO_ROOT / args.plan_json
+        chemin_plan.parent.mkdir(parents=True, exist_ok=True)
+        chemin_plan.write_text(
+            json.dumps(plan, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (REPO_ROOT / args.plan_markdown).write_text(
+            rendre_plan_markdown(plan), encoding="utf-8"
         )
 
     print(f"GO_LIVE_READY={'true' if etat['go_live_ready'] else 'false'}")

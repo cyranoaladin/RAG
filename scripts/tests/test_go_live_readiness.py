@@ -1093,3 +1093,115 @@ def test_le_gate_ne_selectionne_aucune_release(depot_sans_bloqueur) -> None:
         )
     # Le corps passe par la constante, pas par le nom de fichier en dur.
     assert "CALCULATEUR_ENSEMBLE_PROMU" in corps
+
+
+# --- le plan de cloture : derive, ordonne, honnete ---------------------
+
+
+def _plan(racine, monkeypatch):
+    module = _module(racine, monkeypatch)
+    etat = module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    return module, etat, module.construire_plan(etat, module.construire_ledger(etat))
+
+
+def test_trois_niveaux_sur_cinq_sont_declares_non_mesurables(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Ingere, exploitable et servi en production ne se mesurent PAS depuis le
+    depot. Rendre zero pour eux serait une fausse assurance."""
+    _module_, _etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
+    par_id = {n["id"]: n for n in plan["content_levels"]}
+    assert len(par_id) == 5
+    for identifiant in ("INGESTED", "SEARCHABLE", "SERVED_IN_PRODUCTION"):
+        niveau = par_id[identifiant]
+        assert niveau["measurable_from_repository"] is False
+        assert niveau["value"] is None
+        assert "fausse assurance" in niveau["why_not_measured"]
+    for identifiant in ("PROMOTED", "SERVABLE_CANDIDATE"):
+        assert par_id[identifiant]["measurable_from_repository"] is True
+        assert par_id[identifiant]["value"] is not None
+
+
+def test_promu_et_candidat_ne_sont_pas_le_meme_nombre(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Les confondre ferait croire qu un candidat est servi."""
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {
+            "by_verdict": {"CANDIDATE_NO_BLOCKING_DIMENSION": 7},
+            "by_pii": {},
+            "rows": [],
+        },
+    )
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=["a" * 64, "b" * 64])
+    _module_, etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
+    par_id = {n["id"]: n for n in plan["content_levels"]}
+    assert par_id["PROMOTED"]["value"] == 2
+    assert par_id["SERVABLE_CANDIDATE"]["value"] == 7
+    assert etat["promoted_content_set_size"] != etat["servable_candidate_count"]
+
+
+def test_une_phase_aval_reste_fermee_tant_que_l_amont_est_ouverte(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Qualifier un staging avant d avoir les octets oblige a tout refaire."""
+    _ecrire(
+        depot_sans_bloqueur,
+        NON_PDF,
+        {"NON_PDF_SERVABLE": 3, "NON_PDF_LOCAL_COPY_RETAINED": 0, "NON_PDF_TOTAL": 3},
+    )
+    _ecrire(
+        depot_sans_bloqueur,
+        QUALIFICATION,
+        {"blockers": [{"id": "C1", "closed": False}]},
+    )
+    _module_, _etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
+    par_id = {p["id"]: p for p in plan["phases"]}
+
+    assert par_id["P3_OCTETS"]["actionable_now"] is True
+    assert par_id["P4_QUALIFICATION"]["actionable_now"] is False
+    assert "P3_OCTETS" in par_id["P4_QUALIFICATION"]["blocked_by_phases"]
+    assert par_id["P5_DEPLOIEMENT"]["closed"] is False
+
+
+def test_le_deploiement_est_la_derniere_phase(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    _module_, _etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
+    derniere = plan["phases"][-1]
+    assert derniere["id"] == "P5_DEPLOIEMENT"
+    assert derniere["depends_on"] == ["P4_QUALIFICATION"]
+    assert "--assert-ready" in derniere["gate"]
+
+
+def test_chaque_phase_nomme_qui_agit(depot_sans_bloqueur, monkeypatch) -> None:
+    """Une phase sans proprietaire n avance pas."""
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 3}, "rows": []},
+    )
+    _module_, _etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
+    ouvertes = [p for p in plan["phases"] if p["open_blockers"]]
+    assert ouvertes, "le depot fictif doit avoir au moins une phase ouverte"
+    for p in ouvertes:
+        assert p["owners"], f"{p['id']} n a pas de proprietaire"
+
+
+def test_le_plan_n_autorise_rien(depot_sans_bloqueur, monkeypatch) -> None:
+    module, _etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
+    rendu = module.rendre_plan_markdown(plan)
+    assert "il n autorise rien" in rendu
+    assert "--assert-ready" in rendu
+    assert "Fichier derive" in rendu
+
+
+def test_le_plan_se_ferme_quand_tout_se_ferme(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Sans ce cas, on ne saurait pas si le plan sait dire « fini »."""
+    _module_, etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
+    assert etat["go_live_ready"] is True
+    assert plan["phases_closed"] == plan["phases_total"]

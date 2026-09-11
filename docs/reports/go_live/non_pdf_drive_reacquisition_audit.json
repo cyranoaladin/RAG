@@ -1,0 +1,26 @@
+{
+  "acceptance_criteria": {
+    "NON_PDF_UNACCOUNTED": 0,
+    "REACQUIRED_NON_PDF": 57,
+    "SHA256_MISMATCH": 0,
+    "SIZE_MISMATCH": 0
+  },
+  "durable_copy_note": "La conservation durable est une décision de gouvernance sur un emplacement. Ce rapport atteste une vérification d'identité, pas une rétention.",
+  "durable_copy_retained": false,
+  "failures": [],
+  "kind": "NEXUS-NON-PDF-REACQUISITION-AUDIT-V1",
+  "measurements": {
+    "FETCH_FAILED": 0,
+    "NON_PDF_REQUESTS": 57,
+    "REACQUIRED_NON_PDF": 57,
+    "SHA256_MISMATCH": 0,
+    "SIZE_MISMATCH": 0
+  },
+  "proves_nothing_about": [
+    "provenance URL du contenu",
+    "servabilité",
+    "ingestion",
+    "exploitabilité par recherche"
+  ],
+  "verdict": "CONFORME"
+}

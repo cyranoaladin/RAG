@@ -20,6 +20,18 @@ MATRIX_READER	services/rag-pedago/scripts/construire_matrice_servabilite.py
 # verdict de servabilite, et il ne peut que REFUSER le go-live : une epreuve le
 # tient (test_le_lecteur_de_readiness_ne_peut_que_refuser).
 MATRIX_READER	scripts/go_live/check_go_live_readiness.py
+# L inventaire du corpus Drive lit la matrice pour la CONFRONTER au corpus
+# reel et compter ses verdicts, jamais pour en rendre un. Il ne nomme aucun
+# verdict bloquant dans son code, et un contenu que la matrice bloque ne peut
+# pas ressortir candidat de son cote. Deux epreuves le tiennent
+# (test_l_inventaire_ne_rend_aucun_verdict_de_servabilite,
+#  test_le_module_ne_definit_aucun_verdict_de_servabilite).
+MATRIX_READER	scripts/go_live/build_drive_corpus_inventory.py
+# L audit d ingestion lit la matrice pour une seule chose : nommer un contenu
+# ingere qu elle ne recense pas. Il ne lit aucun verdict et n en produit aucun.
+# Deux epreuves le tiennent (test_l_audit_ne_rend_aucun_verdict_de_servabilite,
+# test_le_module_ne_lit_aucun_verdict_de_la_matrice).
+MATRIX_READER	scripts/go_live/audit_ingestion_from_dsn.py
 
 # --- R2 : la politique d actualite n a aucun lecteur de production -------
 # Elle est applied=false. Un lecteur de production l appliquerait de fait,

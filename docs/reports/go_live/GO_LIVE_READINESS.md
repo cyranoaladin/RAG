@@ -8,7 +8,7 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=8ac2f9300c46cef398d977c909b1b73ae59b4ca5`
+`main_head=8be276db3fad0e40123ea334363026d3ceb4e94a`
 
 ## Ce qui empeche le go-live
 
@@ -29,10 +29,10 @@
 | `snapshot_contains_self_commit` | False |
 | `snapshot_is_operational_current` | False |
 | `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
-| `main_head` | 8ac2f9300c46cef398d977c909b1b73ae59b4ca5 |
-| `origin_main_at_generation` | 8ac2f9300c46cef398d977c909b1b73ae59b4ca5 |
-| `evaluated_ref` | go-live/program-incompatible-resolution |
-| `evaluated_head` | 06498a4e89afd288556e81d75550bef5b0e33888 |
+| `main_head` | 8be276db3fad0e40123ea334363026d3ceb4e94a |
+| `origin_main_at_generation` | 8be276db3fad0e40123ea334363026d3ceb4e94a |
+| `evaluated_ref` | go-live/closure-plan |
+| `evaluated_head` | 8be276db3fad0e40123ea334363026d3ceb4e94a |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -41,6 +41,7 @@
 | `root_owned_worktree_residues` | 0 |
 | `pre_release_blockers` | 2 |
 | `go_live_qualification_blockers` | 13 |
+| `servable_candidate_count` | 2301 |
 | `pii_undecided` | 149 |
 | `program_incompatible_in_servable_set` | 0 |
 | `program_incompatible_total` | 1 |
@@ -54,7 +55,7 @@
 | `non_pdf_servable_total` | 37 |
 | `non_pdf_servable_reacquired` | 0 |
 | `non_pdf_servable_complete` | False |
-| `disk_free_bytes` | 91252977664 |
+| `disk_free_bytes` | 86294925312 |
 | `disk_used_percent` | 86 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |

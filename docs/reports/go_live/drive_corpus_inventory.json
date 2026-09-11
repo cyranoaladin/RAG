@@ -1,0 +1,204 @@
+{
+  "distinct_content_sha256": 2582,
+  "drive_root_folder": "NEXUS_RAG_GDRIVE_READY",
+  "kind": "NEXUS-DRIVE-CORPUS-INVENTORY-V1",
+  "manifest_entries": 2583,
+  "matrix": {
+    "absentes_du_drive": [],
+    "hors_zone_pedagogique": [
+      "d1c0c2be5326b73a8e1dcce12526207240480baba5a3acd7cf8b3b04aafb92f7"
+    ],
+    "lignes": 2530
+  },
+  "not_measured_here": [
+    "contenu ingéré",
+    "contenu exploitable par recherche",
+    "contenu réellement servi en production"
+  ],
+  "pedagogical_scope": {
+    "candidats_servables": 2301,
+    "contenus": 2529,
+    "non_recenses_par_la_matrice": [],
+    "promus": 319,
+    "recenses_par_la_matrice": 2529
+  },
+  "promoted": {
+    "hors_drive": [],
+    "hors_zone_pedagogique": [],
+    "non_candidats_par_verdict": {
+      "BLOCKED_PII_HUMAN_REVIEW": 23
+    },
+    "non_candidats_servables": 23,
+    "total": 319
+  },
+  "url_provenance": {
+    "contenus_couverts_par_le_catalogue": 2451,
+    "zone_pedagogique_sans_url": [
+      "005351d341714294b6ea5fb8cb8f59d57e0f8a4c239ac702db94af2756a85dac",
+      "0ecb2a0c97d773f4ac714fc23abf6fcca7b358c9edada95485f2fc44d2460985",
+      "0f7cd29050cee987999e20f25909bb4ca946839af6d09b8530f1788d01a240f0",
+      "10148f0c5a9b3e06dedda596a854dae959ae99ee761f9fc40b7f756647f1feb1",
+      "166f898f9f324580bee0731df55bd5bec99b774fc4017739c7d430af1db1b592",
+      "18e1a3e205db0dbd0ad2ac1eaf1e3867c7bf0a9881d79944df77c71a6bbe82e0",
+      "1b1929798e95c2cb232a3051c1427cc07b46fe690efd706f74368b5aec72e0cd",
+      "1d56280991413e937a8d3246d20879ff9771570db5b681d8071e0fc496d25b69",
+      "1e2b50a8e585b84eab09d6eefb6c38e35906599ebf023ec8c758e90fae22a318",
+      "1f2737cbea80128d38a1ba6de9642482d07f58e03819e60816225e62caf9bf86",
+      "20141a130e575240824b15b50cce94b574d4259a5504aa6d37f6ec31fa5e75a1",
+      "2a32ab6091a6dea33191a2204c130422f95a10703ab57bc6ef26fbdcb51d3792",
+      "2c84783a7d87cfbf4acfc3c3c34cd99cf0b38a8c091fd8ad28ec6bef554ee76e",
+      "2dd0929fd2f461291b784e5028f3e1828f28b1cc81cca54cfaf6bcaad4c56de9",
+      "2de685ac82249d848f2161fa3c084ae0dcee341c7946b85ac9eb1f3551056181",
+      "30e967924df8180ba5bf1f7814fa04f0a3fb7706c031cbb6b44b24b53032cb32",
+      "38391ae99c72ca03059eb74a71daf799493226013fc5cb1a5d6ac12f21b44d5a",
+      "39b4903272be5ba8b11143bd1d024862014832067c369593ed93b4b8f79f089c",
+      "4620d777fbb2943913398bcc84cf3ecc2d9ac3917ad4aae56bdb4f2e080466c4",
+      "4a924fb80f46d3ce27dad29818055aaaacd6b1cc6d1347b5336e0a99d16e83f6",
+      "4ce9cb76847c91474cdc3b0dbfe97be00174ec9f94354e61ce01942e9f724db6",
+      "51b4eca7200e20c76df68fb7f12c3c8d9078b9adb11c5234a9bd2aabe2255253",
+      "52b61911119c3fbac5467116e75e71aaaab969b7d7123ba4feb05833cd74c3de",
+      "54fb0ddff44bbfe372675f1c7bfb6ca40c12454b634cd90ad4e2f6eff91241ea",
+      "5619710c5ac391dc3de7513f16cdc88043250e8451262f075fef942004e9bcf5",
+      "56e4abba098f7ac51f2ca9d8921a5000f65478b9915ebdf6312867d1af868967",
+      "5a766c69edd32a37e60f060ed741f591ede55a70c650629847c0d1cdc2f25eb1",
+      "6422aded773cd1e058e59be705dfc36bc6175c658812d470a6449f3565f30585",
+      "6827250f4aea8529963211c1d146aff2ac39cee025a0de45e16c2cba9fb74cf2",
+      "6892b40409b76cedd4479a62dbede74826f196d2f385eba45402ae77b4681d98",
+      "6dd1df34f7acaf9f5343bd45e14bc090706aed5460e89227be32ccc2d5bf9cb8",
+      "719984e8ab3ad8e31ad7151184b3af201ce526fba7dd1b9ab6aead828cdbb51c",
+      "7aee175c61dc637c8b52cc9d240f84debee583bc26a254a6ee3cf166deea4037",
+      "7b34fe6eca0f8f7291ae1c6b799033a43cd5d6255433e5c9aeae7c2e79775184",
+      "82d3f340250c8549cab45a83949bf96f36760d23a397a96ea93efcd9f2ed8a03",
+      "888ee3768e2791d3a044921692ea2c0c0123b382630fb8fcf156720443469257",
+      "8cc98e7a10f19868b09ad5a5e0963bb6a7edf38ed9a02a6b4cb59c06fdd2591d",
+      "98189c63056fda5a6a4fb173e799b113468fae6f18a1ddb24366e8b6388bd200",
+      "9a9b1ef3bb61e4e9ae979787f2a91e588d483504bc03d73fbc59c3c1d6359a40",
+      "9afa8a46d94fc6b4288dfb2378cb092b0ff8737f875c31d341218b8676780556",
+      "9b187e02de3ebd7a7ed64fec5b0c4a312e3dce7578fa375b517691b81ea9dcc2",
+      "a2f20e5fbecdfe148d0c92183e0dd04194a5441a035c87a586b2448cb63d2ba0",
+      "a551834bc1a24b489ef7b14e236157d6f8be6b81bfa53b78c88d693dfe4d1ead",
+      "a659b2b46e589502407a53a3230a6e135468ce7625d09b8bb924345c01cec66e",
+      "a91a9ebbbddf3d060cf64bf695f62d3f70d7fd7b9a8d4bb1d1b430a11dab9460",
+      "ad9197c33a8244174e9288c2393f4e8f744f9853aacbc1a2360002ca6250820e",
+      "aff21bd1b45974f366589eca74536a08d0809a486256edaa906d7af623053113",
+      "b5f724adb3bf91c60c9e3399c5ef6eeabd153839fd8be1ce8b7474df289e4f96",
+      "b681c8421baadf7b20644c124d6d9a221033cc0426e9889bd632b57f2858e3c9",
+      "b6df63afc38c1340447bbfe7d64be4aa2a58d75c74ab6eb3939ef0b7dc6866ee",
+      "c270a91788083e6e0ccd43516389136f7475e48099b0977ae93fdb0ac167d194",
+      "c533f10b818e773072e2c136df77b0731fe8f1267088f940dbcb3bb9052550de",
+      "c8e570406d81c1ce5ae20a114c8302a8bb2ea3624802338795474794b219f9a2",
+      "c989ecd9fa74a5dfb1be01195d2d959d605641abab99afb7df885b857bfffda2",
+      "cdffa06083968835ad44fe6a7659c0d021a0f39f426bcc1fc8df8281be80b837",
+      "ceaa73cb415a0740487bd3b3c53fbbedc566e323f77e156d2477a209dfa9b067",
+      "d5a9c064ace533bfe1467ceeb587ee400a40b0f83ac5a29319d229f1a3eb24d9",
+      "d9ee370d9a11acaf650c190cd9689ca38bb054220c9dab68c03ef793e392e3d3",
+      "db33cc4175b19b8d6b8173223516e5626f9c9a2c2e677e34e3e1f7ed2be949d2",
+      "db941cbce787a63e5f1af988174b1a9f54b8fb7146b1277ef60de608997e80ad",
+      "ddebe183ab34f96e6f9c663f39b5fcb2ea0727448a6854f8a2c4fcbbe90b17d2",
+      "e06be98db83bab984fcd2d6959900cfa4ac4480da2f1901d1e725f9048789b4a",
+      "e1c3538a334d0e42d7adda79570ecd59eea0db4ed2a4c9f1b2e0c8fc67ebc8fa",
+      "e453171bdab7bc8b48712049cfbed8b77145d87a8e37d0249a95bc966f21e6f7",
+      "e544c6a26fb234c8bcd6a500c25d3db4fb4f1375e155d53b525edbf800dff335",
+      "e5467321953dd6baa0bbec22a26363d24d55c499cf2555527a689b8d658675b8",
+      "e59f0c6ec82996c3d5a8fc96d008bd6f95db09d8d005654c57de3311e4ca7978",
+      "e683dfa74da519c769496fa8183c4e870b735985c0ce0d0b74a4fd167b01497b",
+      "eb386af8ffbf40ff826f2bcc1a0e0383d494102cd6df85516c4f94cf26fb8fb5",
+      "ed32ff2daa76ff850b066b6c52823f07f2cfc5df4f629d0dcb1ce2ca618feec4",
+      "f3a145dcefcd2a3076715475eb3126258d9336f393d60545b7417a73e4a425da",
+      "f8d0925eabfbe58536dd27d3d3e0034af763b80f0e4507bcb77954b711122a6d",
+      "f92a778ab2a6d1b7ccba16290e8fa4c363d1498aaa5740b025e66c19145b8d5b",
+      "fb2ae8e31c652f35ea6865734877653279f1efeceb25243541efff97bb8be155",
+      "fbe36d2458fc678e21e6ddb8ed875b3fe02608b6a1a7474e9cbf43c19da11cf0",
+      "fccb804bb585821a28e75482fba3ee92a8eea866d87aca7ae56a9566354cf3c7",
+      "fd68b29bc3b73ba73b41ea3dc1a515fe3fa9a07dd470456bac8bc997dd43386c",
+      "ffb160c32ed9fa7ca4a3afbd8a5ccd806c0c4919dd9dff5626deed302e8a5593"
+    ]
+  },
+  "zones": [
+    {
+      "avec_url_de_provenance": 0,
+      "contenus_uniques": 29,
+      "fichiers": 29,
+      "promus": 0,
+      "recenses_par_la_matrice": 0,
+      "role": "GESTION",
+      "verdicts": {},
+      "zone": "00_ADMIN"
+    },
+    {
+      "avec_url_de_provenance": 1,
+      "contenus_uniques": 24,
+      "fichiers": 24,
+      "promus": 0,
+      "recenses_par_la_matrice": 1,
+      "role": "GESTION",
+      "verdicts": {
+        "CANDIDATE_NO_BLOCKING_DIMENSION": 1
+      },
+      "zone": "00_INDEX_PROVENANCE"
+    },
+    {
+      "avec_url_de_provenance": 2451,
+      "contenus_uniques": 2451,
+      "fichiers": 2451,
+      "promus": 319,
+      "recenses_par_la_matrice": 2451,
+      "role": "PEDAGOGIQUE",
+      "verdicts": {
+        "BLOCKED_PII_HUMAN_REVIEW": 149,
+        "CANDIDATE_NO_BLOCKING_DIMENSION": 2301,
+        "REFUSED_PROGRAM_INCOMPATIBLE": 1
+      },
+      "zone": "01_EDUSCOL_OFFICIEL"
+    },
+    {
+      "avec_url_de_provenance": 0,
+      "contenus_uniques": 38,
+      "fichiers": 38,
+      "promus": 0,
+      "recenses_par_la_matrice": 38,
+      "role": "PEDAGOGIQUE",
+      "verdicts": {
+        "BLOCKED_NO_URL_PROVENANCE": 19,
+        "NOT_INDEXABLE_BY_ROLE": 19
+      },
+      "zone": "02_NEXUS_DIAGNOSTICS"
+    },
+    {
+      "avec_url_de_provenance": 0,
+      "contenus_uniques": 37,
+      "fichiers": 37,
+      "promus": 0,
+      "recenses_par_la_matrice": 37,
+      "role": "PEDAGOGIQUE",
+      "verdicts": {
+        "BLOCKED_NO_URL_PROVENANCE": 37
+      },
+      "zone": "03_RESSOURCES_INTERACTIVES"
+    },
+    {
+      "avec_url_de_provenance": 0,
+      "contenus_uniques": 3,
+      "fichiers": 3,
+      "promus": 0,
+      "recenses_par_la_matrice": 3,
+      "role": "PEDAGOGIQUE",
+      "verdicts": {
+        "BLOCKED_NO_URL_PROVENANCE": 3
+      },
+      "zone": "04_COMPLEMENTS_PEDAGOGIQUES"
+    },
+    {
+      "avec_url_de_provenance": 0,
+      "contenus_uniques": 1,
+      "fichiers": 1,
+      "promus": 0,
+      "recenses_par_la_matrice": 1,
+      "role": "RACINE",
+      "verdicts": {
+        "NOT_INDEXABLE_BY_ROLE": 1
+      },
+      "zone": "RACINE"
+    }
+  ]
+}
