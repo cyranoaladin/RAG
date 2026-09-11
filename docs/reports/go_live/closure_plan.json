@@ -1,0 +1,154 @@
+{
+ "content_levels": [
+  {
+   "id": "PROMOTED",
+   "libelle": "contenu promu",
+   "measurable_from_repository": true,
+   "mesure": "ensemble promu canonique",
+   "value": 319
+  },
+  {
+   "id": "SERVABLE_CANDIDATE",
+   "libelle": "contenu candidat a la servabilite",
+   "measurable_from_repository": true,
+   "mesure": "matrice de servabilite, applied=false",
+   "value": 2301
+  },
+  {
+   "id": "INGESTED",
+   "libelle": "contenu ingere",
+   "measurable_from_repository": false,
+   "mesure": "base pgvector d un environnement identifie",
+   "value": null,
+   "why_not_measured": "exige une base ou un service identifies ; rendre zero serait une fausse assurance"
+  },
+  {
+   "id": "SEARCHABLE",
+   "libelle": "contenu exploitable par recherche",
+   "measurable_from_repository": false,
+   "mesure": "contrat de retrieval sur un service identifie",
+   "value": null,
+   "why_not_measured": "exige une base ou un service identifies ; rendre zero serait une fausse assurance"
+  },
+  {
+   "id": "SERVED_IN_PRODUCTION",
+   "libelle": "contenu reellement servi en production",
+   "measurable_from_repository": false,
+   "mesure": "production, hors de portee de ce lot",
+   "value": null,
+   "why_not_measured": "exige une base ou un service identifies ; rendre zero serait une fausse assurance"
+  }
+ ],
+ "evaluated_head": "8be276db3fad0e40123ea334363026d3ceb4e94a",
+ "generated_by": "scripts/go_live/check_go_live_readiness.py",
+ "go_live_ready": false,
+ "kind": "NEXUS-GO-LIVE-CLOSURE-PLAN-V1",
+ "note": "Fichier DERIVE de l etat calcule et du ledger. Il ordonne ce qui reste ; il n autorise rien.",
+ "phases": [
+  {
+   "actionable_now": true,
+   "blocked_by_phases": [],
+   "blockers": [
+    "PII_UNDECIDED",
+    "CURRENTNESS_POLICY_APPLIED"
+   ],
+   "closed": false,
+   "depends_on": [],
+   "gate": "pre_release_blockers == 0",
+   "id": "P1_PRE_RELEASE",
+   "open_blockers": [
+    "PII_UNDECIDED",
+    "CURRENTNESS_POLICY_APPLIED"
+   ],
+   "owners": [
+    "ENGINEERING",
+    "HUMAN_REVIEWER"
+   ],
+   "titre": "Fermer les bloqueurs de pre-release"
+  },
+  {
+   "actionable_now": true,
+   "blocked_by_phases": [],
+   "blockers": [
+    "OPEN_PRS_BLOCKING"
+   ],
+   "closed": false,
+   "depends_on": [],
+   "gate": "open_prs_blocking == 0",
+   "id": "P2_DEPOT",
+   "open_blockers": [
+    "OPEN_PRS_BLOCKING"
+   ],
+   "owners": [
+    "HUMAN_DECISION"
+   ],
+   "titre": "Vider le depot de ses PR bloquantes"
+  },
+  {
+   "actionable_now": false,
+   "blocked_by_phases": [
+    "P1_PRE_RELEASE"
+   ],
+   "blockers": [
+    "NON_PDF_SERVABLE_REACQUIRED"
+   ],
+   "closed": false,
+   "depends_on": [
+    "P1_PRE_RELEASE"
+   ],
+   "gate": "non_pdf_servable_reacquired == non_pdf_servable_total",
+   "id": "P3_OCTETS",
+   "open_blockers": [
+    "NON_PDF_SERVABLE_REACQUIRED"
+   ],
+   "owners": [
+    "OPERATOR"
+   ],
+   "titre": "Disposer des octets des contenus servables"
+  },
+  {
+   "actionable_now": false,
+   "blocked_by_phases": [
+    "P1_PRE_RELEASE",
+    "P2_DEPOT",
+    "P3_OCTETS"
+   ],
+   "blockers": [
+    "GO_LIVE_QUALIFICATION_BLOCKERS"
+   ],
+   "closed": false,
+   "depends_on": [
+    "P1_PRE_RELEASE",
+    "P2_DEPOT",
+    "P3_OCTETS"
+   ],
+   "gate": "go_live_qualification_blockers == 0",
+   "id": "P4_QUALIFICATION",
+   "open_blockers": [
+    "GO_LIVE_QUALIFICATION_BLOCKERS"
+   ],
+   "owners": [
+    "MIXED"
+   ],
+   "titre": "Fermer les gates de qualification"
+  },
+  {
+   "actionable_now": false,
+   "blocked_by_phases": [
+    "P4_QUALIFICATION"
+   ],
+   "blockers": [],
+   "closed": false,
+   "depends_on": [
+    "P4_QUALIFICATION"
+   ],
+   "gate": "--assert-ready rend 0",
+   "id": "P5_DEPLOIEMENT",
+   "open_blockers": [],
+   "owners": [],
+   "titre": "Deployer, apres et seulement apres"
+  }
+ ],
+ "phases_closed": 0,
+ "phases_total": 5
+}

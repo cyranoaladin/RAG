@@ -105,9 +105,17 @@ POLICY_READERS="$(comm -23 <(printf '%s\n' "$POLICY_READERS") \
                            <(printf '%s\n' "$LECTEURS_ADMIS" | sed '/^$/d'))"
 POLICY_READERS="$(printf '%s\n' "$POLICY_READERS" | sed '/^$/d')"
 if [ -n "$POLICY_READERS" ]; then
-    echo "ERROR: la politique d actualite est applied=false et a un lecteur de production :" >&2
+    # Ce message annoncait « applied=false », que ce controle ne LIT PAS. Il
+    # affirmait donc une condition qu il ne verifiait pas, et aurait envoye
+    # chercher au mauvais endroit quiconque le rencontre.
+    #
+    # Ce qui est reellement verifie : un lecteur de production non epingle.
+    # La regle vaut quelle que soit la valeur du drapeau — un lecteur qui
+    # appliquerait la politique doit etre declare, applied=true ou non.
+    echo "ERROR: lecteur de production non epingle de la politique d actualite :" >&2
     printf '  %s\n' $POLICY_READERS >&2
-    echo "  La lire en production revient a l appliquer sans son ADR." >&2
+    echo "  Un lecteur qui APPLIQUE la politique doit etre declare dans la" >&2
+    echo "  baseline, avec la preuve de ce qu il en fait." >&2
     STATUS=1
 fi
 printf 'CURRENTNESS_POLICY_PRODUCTION_READERS\t%s\n' \
