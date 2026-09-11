@@ -11,7 +11,7 @@ l'audit d'ingestion, qui a interrogé une base nommée.
 - **vecteurs présents : 0**
 - colonnes vectorielles : 0
 - extension vectorielle : False
-- périmètre cible : **2529**
+- périmètre cible : **2264**
 
 ## Ce qui n'est pas mesuré
 

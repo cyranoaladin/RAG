@@ -28,6 +28,11 @@ KIND = "NEXUS-RAG-SEARCHABILITY-GAP-V1"
 
 AUDIT = "docs/reports/go_live/ingestion_audit.json"
 INVENTAIRE = "docs/reports/go_live/drive_corpus_inventory.json"
+MATRICE = "docs/reports/handoff/servability_matrix_v1.json"
+
+#: Le seul verdict qui autorise l'indexation. Tout autre verdict est un refus,
+#: et un contenu refusé ne doit jamais devenir atteignable par une requête.
+VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
 
 #: Les conditions de fermeture. Toutes doivent être vraies ; aucune ne suffit.
 #: Des vecteurs sans retrieval validé ne servent personne, et un retrieval
@@ -73,7 +78,24 @@ def construire(racine: Path) -> dict:
     colonnes = audit["searchable"]["vector_columns"]
     extension = audit["searchable"]["vector_extension"]
     ingérés = audit["ingested"]["contenus"]
-    cible = inventaire["pedagogical_scope"]["contenus"]
+    corpus_pedagogique = inventaire["pedagogical_scope"]["contenus"]
+
+    # LE périmètre d'indexation n'est pas le corpus. Viser le corpus brut
+    # exigerait d'indexer les contenus que le gate refuse — un index construit
+    # sur eux deviendrait une porte dérobée autour du gate, et la condition
+    # serait inatteignable sans violer la règle qui l'accompagne.
+    lignes = json.loads((racine / MATRICE).read_text(encoding="utf-8"))["rows"]
+    indexables = {
+        ligne["content_sha256"]
+        for ligne in lignes
+        if ligne["verdict"] == VERDICT_CANDIDAT
+    }
+    refuses = {
+        ligne["content_sha256"]
+        for ligne in lignes
+        if ligne["verdict"] != VERDICT_CANDIDAT
+    }
+    cible = len(indexables)
 
     vecteurs = recherchables if (colonnes and extension) else 0
 
@@ -94,9 +116,22 @@ def construire(racine: Path) -> dict:
 
     return {
         "kind": KIND,
+        "indexable_scope": {
+            "definition": "les contenus que le gate de servabilité ne refuse pas",
+            "count": cible,
+            "pedagogical_corpus_count": corpus_pedagogique,
+            "gate_refused_count": len(refuses),
+            "why_not_the_raw_corpus": (
+                "viser le corpus brut exigerait d'indexer les contenus refusés : "
+                "la condition serait inatteignable sans violer la règle "
+                "d'exclusion qui l'accompagne"
+            ),
+            "never_indexable": sorted(refuses),
+        },
         "measured": {
             "canonical_text_in_staging": audit["ingested"]["avec_texte_canonique"],
             "ingested_contents": ingérés,
+            "pedagogical_corpus_contents": corpus_pedagogique,
             "staging_vectors_present": vecteurs,
             "vector_columns": colonnes,
             "vector_extension": extension,

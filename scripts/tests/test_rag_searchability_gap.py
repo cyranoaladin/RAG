@@ -46,6 +46,24 @@ def _poser(
     (racine / gap.INVENTAIRE).write_text(
         json.dumps({"pedagogical_scope": {"contenus": target}}), encoding="utf-8"
     )
+    # La matrice est nécessaire : le périmètre indexable s'en déduit. Par
+    # défaut, autant de contenus candidats que le périmètre visé.
+    (racine / "docs/reports/handoff").mkdir(parents=True, exist_ok=True)
+    if not (racine / gap.MATRICE).exists():
+        (racine / gap.MATRICE).write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "content_sha256": f"{index:064d}",
+                            "verdict": gap.VERDICT_CANDIDAT,
+                        }
+                        for index in range(target)
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
     return racine
 
 
@@ -133,3 +151,95 @@ def test_le_markdown_nomme_le_blocage(tmp_path: Path):
     assert "Ne pas éditer à la main" in rendu
     assert "vecteurs présents : 0" in rendu
     assert "rag_searchability_blocker=true" in rendu
+
+
+# --- Le périmètre indexable ne peut pas inclure un contenu refusé -----------
+
+
+def _poser_avec_matrice(tmp_path: Path, verdicts: dict, **kw) -> Path:
+    racine = _poser(tmp_path, **kw)
+    (racine / "docs/reports/handoff").mkdir(parents=True, exist_ok=True)
+    # On écrase la matrice par défaut : ce test veut ses propres verdicts.
+    (racine / gap.MATRICE).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {"content_sha256": sha, "verdict": verdict}
+                    for sha, verdict in sorted(verdicts.items())
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    return racine
+
+
+def test_le_perimetre_indexable_exclut_tout_contenu_refuse(tmp_path: Path):
+    """La garantie est structurelle : l'intersection est vide par construction."""
+    verdicts = {
+        "a" * 64: gap.VERDICT_CANDIDAT,
+        "b" * 64: gap.VERDICT_CANDIDAT,
+        "c" * 64: "BLOCKED_PII_HUMAN_REVIEW",
+        "d" * 64: "BLOCKED_NOT_CURRENT_BY_SOURCE",
+        "e" * 64: "NOT_INDEXABLE_BY_ROLE",
+    }
+    racine = _poser_avec_matrice(tmp_path, verdicts, target=5)
+    etat = gap.construire(racine)
+
+    perimetre = etat["indexable_scope"]
+    assert perimetre["count"] == 2
+    assert perimetre["gate_refused_count"] == 3
+    refuses = set(perimetre["never_indexable"])
+    assert refuses == {"c" * 64, "d" * 64, "e" * 64}
+
+
+def test_la_cible_n_est_pas_le_corpus_brut(tmp_path: Path):
+    """Viser le corpus brut rendrait la condition inatteignable sans violer
+    la règle d'exclusion qui l'accompagne."""
+    verdicts = {
+        "a" * 64: gap.VERDICT_CANDIDAT,
+        "c" * 64: "BLOCKED_PII_HUMAN_REVIEW",
+    }
+    racine = _poser_avec_matrice(tmp_path, verdicts, target=99)
+    etat = gap.construire(racine)
+    assert etat["measured"]["target_scope_contents"] == 1
+    assert etat["measured"]["pedagogical_corpus_contents"] == 99
+    assert etat["indexable_scope"]["count"] != 99
+
+
+def test_couvrir_le_perimetre_indexable_suffit_a_cette_condition(tmp_path: Path):
+    """Le gate doit pouvoir se fermer sans indexer un seul contenu refusé."""
+    verdicts = {
+        "a" * 64: gap.VERDICT_CANDIDAT,
+        "c" * 64: "BLOCKED_PII_HUMAN_REVIEW",
+    }
+    racine = _poser_avec_matrice(
+        tmp_path, verdicts, searchable_contents=1, vector_columns=1,
+        vector_extension=True, target=99,
+    )
+    etat = gap.construire(racine)
+    assert etat["closing_conditions"]["target_scope_searchable"] is True
+    # Le blocage tient encore, pour les conditions de retrieval.
+    assert etat["rag_searchability_blocker"] is True
+
+
+def test_le_module_ne_rend_aucun_verdict_de_servabilite():
+    """Il lit la matrice pour EXCLURE, jamais pour décider.
+
+    Cette épreuve tient la ligne `MATRIX_READER` de la baseline d'unicité
+    d'autorité : le seul verdict nommé est celui qui autorise l'indexation, et
+    il sert à écarter tous les autres — pas à en prononcer un.
+    """
+    source = (
+        RACINE / "scripts/go_live/build_rag_searchability_gap.py"
+    ).read_text(encoding="utf-8")
+    for interdit in (
+        "BLOCKED_PII_HUMAN_REVIEW",
+        "BLOCKED_NOT_CURRENT_BY_SOURCE",
+        "BLOCKED_NO_URL_PROVENANCE",
+        "NOT_INDEXABLE_BY_ROLE",
+        "REFUSED_PROGRAM_INCOMPATIBLE",
+    ):
+        assert interdit not in source, (
+            f"{interdit} est écrit ici : le module déciderait au lieu d'exclure"
+        )

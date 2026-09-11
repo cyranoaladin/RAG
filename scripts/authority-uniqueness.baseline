@@ -47,6 +47,13 @@ MATRIX_READER	scripts/go_live/export_pii_review_packets.py
 # PREFLIGHT_ONLY_NOT_APPLIED. Une epreuve le tient
 # (test_le_preflight_ne_lit_aucun_verdict_de_servabilite_qu_il_ne_compose).
 MATRIX_READER	scripts/go_live/preflight_currentness_reseal.py
+# Le generateur d ecart de recherche lit la matrice pour EXCLURE: le perimetre
+# indexable est defini comme ce que le gate ne refuse PAS, de sorte qu aucun
+# contenu refuse ne puisse devenir atteignable par une requete. L intersection
+# est vide par construction, pas par oubli repare. Il ne nomme aucun verdict de
+# refus et n en produit aucun. Une epreuve le tient
+# (test_le_module_ne_rend_aucun_verdict_de_servabilite).
+MATRIX_READER	scripts/go_live/build_rag_searchability_gap.py
 
 # --- R2 : la politique d actualite n a aucun lecteur de production -------
 # Elle est applied=false. Un lecteur de production l appliquerait de fait,
