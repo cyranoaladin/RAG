@@ -1,0 +1,31 @@
+{
+  "kind": "NEXUS-CI-LATENCY-DEBT-NOTE-V1",
+  "job": "governance postgres",
+  "workflow_timeout_minutes": 25,
+  "observations": [
+    {"ref": "PR #188 (ae68e4e1)", "conclusion": "success", "minutes": 5.7},
+    {"ref": "PR #189 (c3cf1388) — run initial", "conclusion": "cancelled", "minutes": 25.3,
+     "note": "atteint le timeout du workflow ; l etape make test-governance-pg a ete annulee, pas mise en echec"},
+    {"ref": "PR #189 (c3cf1388) — relance", "conclusion": "success", "minutes": 5.7},
+    {"ref": "main apres #189 (e61d0e26)", "conclusion": "success", "minutes": 5.6},
+    {"ref": "PR #190 (17fbe3c3)", "conclusion": "success", "minutes": 5.9},
+    {"ref": "main apres #190 (f2289b8e)", "conclusion": "success", "minutes": 11.9}
+  ],
+  "baseline_minutes": 5.7,
+  "anomalies": 2,
+  "status": {
+    "blocking_for_190": false,
+    "ci_debt_to_follow": true,
+    "evidence_of_currentness_regression": false,
+    "why_not_a_regression": "les deux anomalies portent sur des lots qui ne touchent AUCUN fichier de services/ ni packages/ ; le meme arbre passe en 5,7 min ailleurs"
+  },
+  "surviving_containers_after_anomaly": 0,
+  "surviving_containers_evidence": "l etape 'Assert no test container survived' est success y compris sur le run annule",
+  "proposed_actions": [
+    "mesurer la duree de ce job sur les prochains runs plutot que de conclure sur deux points",
+    "isoler le cout reel : demarrage du conteneur PostgreSQL, migrations, jeu de donnees",
+    "verifier a chaque anomalie l absence de conteneur survivant",
+    "n ajuster le timeout ou optimiser que si la recurrence est etablie, dans un lot separe"
+  ],
+  "does_not_close_any_blocker": true
+}

@@ -1630,3 +1630,37 @@ def test_un_promu_absent_de_la_matrice_n_est_pas_repute_candidat(
     assert etat["go_live_ready"] is False
     # Et il n'est surtout pas compté comme un refus : on ne sait pas.
     assert etat["release_promoted_refused_contents"] == 0
+
+
+def test_exclure_les_contenus_d_actualite_laisse_ceux_de_la_pii(
+    depot_sans_bloqueur,
+):
+    """Simule le reseal d'actualité : il ne ferme pas tout, et doit le montrer.
+
+    Le piège serait de présenter ce reseal comme assainissant la release.
+    Après lui, les contenus promus bloqués par la PII restent promus, restent
+    refusés, et le compteur reste non nul.
+    """
+    par_actualite = "3" * 64
+    par_pii = "4" * 64
+    _poser_matrice_par_contenu(
+        depot_sans_bloqueur,
+        {par_actualite: VERDICT_NON_ACTUEL, par_pii: VERDICT_PII},
+    )
+    _poser_calculateur_promu(
+        depot_sans_bloqueur, contenus=[par_actualite, par_pii]
+    )
+    avant = _etat(depot_sans_bloqueur)
+    assert avant["release_promoted_refused_contents"] == 2
+    assert avant["release_promoted_refused_by_currentness"] == 1
+
+    # Le reseal exclut le contenu archivé, et lui seul.
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[par_pii])
+    apres = _etat(depot_sans_bloqueur)
+
+    assert apres["release_promoted_refused_by_currentness"] == 0
+    # Mais la release reste incohérente, pour l'autre raison.
+    assert apres["release_promoted_refused_contents"] == 1
+    assert apres["release_promoted_refused_by_verdict"] == {VERDICT_PII: 1}
+    assert "release_promoted_refused_contents" in apres["blocking_reasons"]
+    assert apres["go_live_ready"] is False

@@ -1,0 +1,55 @@
+{
+  "closes_no_blocker": true,
+  "governance_blockers_unaffected": {
+    "go_live_qualification_blockers": 13,
+    "open_prs_blocking": 6,
+    "pii_undecided": 149,
+    "release_promoted_refused_contents": 26
+  },
+  "kind": "NEXUS-RAG-SEARCHABILITY-GAP-V1",
+  "levels": {
+    "canonical_text_present_in_staging": {
+      "measured": true,
+      "value": 2473
+    },
+    "chunks_present": {
+      "measured": true,
+      "note": "la base de preparation porte des chunks de texte",
+      "value": true
+    },
+    "production_searchable": {
+      "measured": false,
+      "value": null,
+      "why": "aucune base de production n a ete identifiee ni interrogee"
+    },
+    "rag_searchable": {
+      "measured": true,
+      "value": false
+    },
+    "target_scope_searchable": {
+      "measured": true,
+      "target_scope": 2529,
+      "value": false
+    },
+    "vectors_present": {
+      "evidence": "aucune colonne de type vector, extension pgvector absente du schema mesure",
+      "measured": true,
+      "value": 0
+    }
+  },
+  "next_steps_after_governance": [
+    "ingestion vectorielle complete en staging",
+    "validation du retrieval",
+    "citations",
+    "top-k",
+    "filtres de scope",
+    "latence",
+    "rollback"
+  ],
+  "what_would_be_wrong_to_say": [
+    "RAG fully ingested : le texte est stocke, pas indexe",
+    "RAG searchable : aucun vecteur n existe",
+    "corpus pret a servir : la servabilite est une qualification, pas une capacite de recherche"
+  ],
+  "why_closes_nothing": "aucun gate de readiness ne mesure aujourd hui l exploitabilite par recherche ; ce rapport constate un ecart, il ne ferme rien"
+}
