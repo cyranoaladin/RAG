@@ -1,0 +1,40 @@
+{
+ "kind": "NEXUS-PROGRAM-INCOMPATIBLE-RESOLUTION-V1",
+ "measurements": {
+  "DISTINCT_SHA256_IN_RELEASE_TREE": 21241,
+  "PROGRAM_INCOMPATIBLE_AND_CANDIDATE": 0,
+  "PROGRAM_INCOMPATIBLE_IN_RELEASE_TREE": 0,
+  "PROGRAM_INCOMPATIBLE_REFUSED_BY_MATRIX": 1,
+  "PROGRAM_INCOMPATIBLE_TOTAL": 1,
+  "RELEASE_JSON_FILES_SCANNED": 77
+ },
+ "note": "Fichier de constat. Il ne decide rien et ne modifie aucun verdict : il etablit ou se trouve l objet incompatible, et pourquoi le compteur qui le comptait etait mal porte.",
+ "object": {
+  "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+  "incompatibility_evidence": {
+   "attribution_basis": "MULTI_SCOPE_EXPLICIT_SECTION",
+   "authority_current_references": [
+    "BOEN_9_2024-02-29"
+   ],
+   "authority_evidence_status": [
+    "VERIFIED_OFFICIAL_BY_COMMANDITAIRE"
+   ],
+   "cited_reference": "BOEN_31_2020-07-30",
+   "matiere": "technologie",
+   "scope_level": "troisieme"
+  },
+  "matrix_row": {
+   "content_sha256": "de42e9816d7d012fd5d6b3349171cf43dd038c1e50fa0fe9e664bcc8521194b9",
+   "currentness": "TRANSITION_OR_CURRENT",
+   "indexability": "INDEXABLE",
+   "pii": "PII_CLEARED_OR_NOT_SCANNED",
+   "program": "INCOMPATIBLE_PROVEN",
+   "provenance": "URL_EVIDENCE_FOUND",
+   "source_role": "INSTITUTIONAL_PUBLICATION",
+   "verdict": "REFUSED_PROGRAM_INCOMPATIBLE"
+  }
+ },
+ "object_removed_from_history": false,
+ "resolution": "COUNTER_SCOPE_CORRECTED",
+ "verdict_unchanged": true
+}

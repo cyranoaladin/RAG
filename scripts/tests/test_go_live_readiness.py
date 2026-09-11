@@ -125,14 +125,35 @@ def test_une_pii_non_tranchee_bloque(depot_sans_bloqueur, monkeypatch) -> None:
     assert "pii_undecided" in etat["blocking_reasons"]
 
 
-def test_un_programme_incompatible_bloque(depot_sans_bloqueur, monkeypatch) -> None:
+def test_un_programme_incompatible_PROMU_bloque(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Ce qui bloque, c est un incompatible encore PROMU.
+
+    Une version anterieure de cette epreuve suffisait a bloquer avec un simple
+    compteur d histogramme, sans qu aucune release ne contienne le contenu.
+    Elle figeait donc une semantique fausse : un contenu que la matrice refuse
+    n est pas servi.
+    """
     _ecrire(
         depot_sans_bloqueur,
         MATRICE,
         {
             "by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1},
             "by_pii": {"PII_CLEARED_OR_NOT_SCANNED": 1},
+            "rows": [
+                {
+                    "content_sha256": "d" * 64,
+                    "program": "INCOMPATIBLE_PROVEN",
+                    "verdict": "REFUSED_PROGRAM_INCOMPATIBLE",
+                }
+            ],
         },
+    )
+    _ecrire(
+        depot_sans_bloqueur,
+        "services/rag-pedago/data/releases/r/release.json",
+        {"contents": ["d" * 64]},
     )
     etat = _evaluer(depot_sans_bloqueur, monkeypatch)
     assert etat["go_live_ready"] is False
@@ -386,7 +407,22 @@ def test_le_lecteur_de_readiness_ne_peut_que_refuser(
     _ecrire(
         depot_sans_bloqueur,
         MATRICE,
-        {"by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1}, "by_pii": {}},
+        {
+            "by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1},
+            "by_pii": {},
+            "rows": [
+                {
+                    "content_sha256": "d" * 64,
+                    "program": "INCOMPATIBLE_PROVEN",
+                    "verdict": "REFUSED_PROGRAM_INCOMPATIBLE",
+                }
+            ],
+        },
+    )
+    _ecrire(
+        depot_sans_bloqueur,
+        "services/rag-pedago/data/releases/r/release.json",
+        {"contents": ["d" * 64]},
     )
     etat = _evaluer(depot_sans_bloqueur, monkeypatch)
     assert etat["go_live_ready"] is False
@@ -550,13 +586,27 @@ def test_un_instantane_absent_est_un_refus(depot_sans_bloqueur, monkeypatch) -> 
 
 def test_le_ledger_derive_ses_valeurs_de_l_etat(depot_sans_bloqueur, monkeypatch) -> None:
     """Ecrire les valeurs du ledger a la main recreerait une seconde source."""
+    incompatibles = [f"{i:064x}" for i in range(1, 5)]
     _ecrire(
         depot_sans_bloqueur,
         MATRICE,
         {
             "by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 4},
             "by_pii": {"PII_UNDECIDED": 17},
+            "rows": [
+                {
+                    "content_sha256": sha,
+                    "program": "INCOMPATIBLE_PROVEN",
+                    "verdict": "REFUSED_PROGRAM_INCOMPATIBLE",
+                }
+                for sha in incompatibles
+            ],
         },
+    )
+    _ecrire(
+        depot_sans_bloqueur,
+        "services/rag-pedago/data/releases/r/release.json",
+        {"contents": incompatibles},
     )
     module = _module(depot_sans_bloqueur, monkeypatch)
     etat = module.evaluer(declared_lot_facts=FAITS_PROPRES)
@@ -741,7 +791,10 @@ def test_assert_ready_rend_zero_seulement_si_tout_est_ferme(
     "relative, contenu",
     [
         (MATRICE, {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}}),
-        (MATRICE, {"by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1}, "by_pii": {}}),
+        # Le cas programme n est PAS ici : il exige d ecrire deux fichiers, la
+        # matrice et une release qui promeut le contenu. Il est eprouve seul,
+        # dans les deux sens, par test_un_programme_incompatible_PROMU_bloque
+        # et test_un_incompatible_absent_des_releases_ne_bloque_pas.
         (POLITIQUE, "applied: false\n"),
         (
             NON_PDF,
@@ -852,3 +905,115 @@ def test_verify_snapshot_dit_explicitement_qu_il_n_autorise_rien(
     assert "USE_ASSERT_READY_TO_GATE_A_DEPLOYMENT=true" in resultat.stdout
     # Concordant rend 0 — mais concordant n est pas autorise, et la sortie le dit.
     assert resultat.returncode == 0
+
+
+# --- programme incompatible : la portee du compteur -------------------
+
+SHA_INCOMPATIBLE = "d" * 64
+RELEASES = "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel"
+
+
+def _matrice_avec_incompatible(candidat: bool = False) -> dict:
+    """Une matrice portant UN contenu prouve incompatible."""
+    return {
+        "by_verdict": {
+            "CANDIDATE_NO_BLOCKING_DIMENSION": 1 if candidat else 0,
+            "REFUSED_PROGRAM_INCOMPATIBLE": 0 if candidat else 1,
+        },
+        "by_pii": {},
+        "rows": [
+            {
+                "content_sha256": SHA_INCOMPATIBLE,
+                "program": "INCOMPATIBLE_PROVEN",
+                "verdict": (
+                    "CANDIDATE_NO_BLOCKING_DIMENSION"
+                    if candidat
+                    else "REFUSED_PROGRAM_INCOMPATIBLE"
+                ),
+            }
+        ],
+    }
+
+
+def test_un_incompatible_absent_des_releases_ne_bloque_pas(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """LE defaut corrige. Le compteur lisait un histogramme de TOUTE la
+    population et comptait comme « dans le perimetre servable » un contenu que
+    la matrice REFUSE — ce que son propre verdict dit.
+
+    Un incompatible que rien ne promeut n est pas servi. Le compter comme tel
+    bloquerait un go-live sur un fait faux.
+    """
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+
+    assert etat["program_incompatible_total"] == 1, "l incompatibilite reste visible"
+    assert etat["program_incompatible_refused_by_matrix"] == 1
+    assert etat["program_incompatible_in_servable_set"] == 0
+    assert "program_incompatible_in_servable_set" not in etat["blocking_reasons"]
+
+
+def test_un_incompatible_present_dans_une_release_bloque(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """L autre sens, celui qui compte vraiment : une release materialisee qui
+    contient un contenu prouve incompatible DOIT bloquer.
+
+    Sans cette epreuve, le compteur corrige serait vide de sens — il ne
+    pourrait jamais etre non nul, et une mesure qui ne peut pas alerter ne
+    protege rien.
+    """
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    _ecrire(
+        depot_sans_bloqueur,
+        f"{RELEASES}/multilevel.release.json",
+        {"release_id": "r1", "contents": [SHA_INCOMPATIBLE]},
+    )
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+
+    assert etat["program_incompatible_in_servable_set"] == 1
+    assert SHA_INCOMPATIBLE in etat["program_incompatible_in_servable_set_ids"]
+    assert "program_incompatible_in_servable_set" in etat["blocking_reasons"]
+    assert etat["go_live_ready"] is False
+
+
+def test_une_release_sans_incompatible_ne_bloque_pas(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Une release peuplee d autres contenus ne doit pas declencher le gate."""
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    _ecrire(
+        depot_sans_bloqueur,
+        f"{RELEASES}/multilevel.release.json",
+        {"release_id": "r1", "contents": ["a" * 64, "b" * 64]},
+    )
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+
+    assert etat["promoted_content_set_size"] == 2
+    assert etat["program_incompatible_in_servable_set"] == 0
+
+
+def test_l_incompatibilite_reste_visible_meme_sans_bloquer(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Retirer le fait du rapport parce qu il ne bloque plus reviendrait a le
+    maquiller."""
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["program_incompatible_total"] == 1
+    assert etat["program_incompatible_refused_by_matrix"] == 1
+    # Dans ce depot fictif tout le reste est ferme : le fait reste VISIBLE sans
+    # bloquer, ce qui est precisement la propriete recherchee.
+    assert "program_incompatible_in_servable_set" not in etat["blocking_reasons"]
+
+
+def test_aucune_release_materialisee_donne_un_ensemble_promu_vide(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Rien de promu, donc rien d incompatible promu. C est vrai, pas commode."""
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["promoted_content_set_size"] == 0
+    assert etat["promoted_release_files_scanned"] == 0
+    assert etat["program_incompatible_in_servable_set"] == 0
