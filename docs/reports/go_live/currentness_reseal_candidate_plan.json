@@ -1,0 +1,68 @@
+{
+  "authorization_required": true,
+  "contents_to_exclude": [
+    {
+      "content_sha256": "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
+      "currentness_status": "ARCHIVE_DECLARED",
+      "drive_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/90_ARCHIVE_CATALOGUE/DGEMC/07_DIAPORAMAS_SUPPORTS/2021/glossaire--174f273ff2.pdf",
+      "pii_status": "PII_CLEARED_OR_NOT_SCANNED"
+    },
+    {
+      "content_sha256": "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
+      "currentness_status": "ARCHIVE_DECLARED",
+      "drive_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2024/pour-la-voie-technologique--ccffe628bb.pdf",
+      "pii_status": "PII_CLEARED_OR_NOT_SCANNED"
+    },
+    {
+      "content_sha256": "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2",
+      "currentness_status": "ARCHIVE_DECLARED",
+      "drive_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2024/pour-la-voie-generale--dc58fcc42e.pdf",
+      "pii_status": "PII_CLEARED_OR_NOT_SCANNED"
+    }
+  ],
+  "current_release_authority": {
+    "manifest": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/production-profile-gate.release.json",
+    "manifest_sha256": "50162cad2ca5e19a5db8fdac44fe3b9ea021854d132c433c0cc7ff6445636efa",
+    "mechanism": "REGISTRY_FILE",
+    "promoted_content_set_sha256": "d06d6051e7037372acf4dca4675a1c999c198129433d68491221a9d03bb821cd",
+    "promoted_content_set_size": 319
+  },
+  "expected_impact": {
+    "GO_LIVE_READY": {
+      "after": false,
+      "before": false
+    },
+    "pii_undecided": {
+      "after": 149,
+      "before": 149
+    },
+    "promoted_content_set_size": {
+      "after": 316,
+      "before": 319
+    },
+    "release_promoted_refused_by_currentness": {
+      "after": 0,
+      "before": 3
+    },
+    "release_promoted_refused_contents": {
+      "after": 23,
+      "before": 26
+    },
+    "why_still_false": "PII (149), qualification (13) et PR bloquantes (6) persistent ; ce reseal ne ferme qu une raison sur cinq"
+  },
+  "explicitly_out_of_scope": [
+    "les 23 contenus promus bloques par PII",
+    "toute decision PII",
+    "tout deploiement ou current switch",
+    "toute ecriture en base de production"
+  ],
+  "files_modified_by_this_lot": [],
+  "kind": "NEXUS-CURRENTNESS-RESEAL-CANDIDATE-PLAN-V1",
+  "new_release_identity": {
+    "identity_not_chosen_here": "nommer la release est une decision de gouvernance, pas un effet de script",
+    "must_differ_from": "production-profile-gate-2026-2027-v1 et toute identite deja utilisee",
+    "reason": "ADR-0050 : aucune release ne se rescelle en place ; une exclusion exige une identite NEUVE",
+    "required": true
+  },
+  "status": "PREPARED_NOT_APPLIED"
+}

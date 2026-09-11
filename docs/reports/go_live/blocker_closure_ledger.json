@@ -1,6 +1,21 @@
 {
  "blockers": [
   {
+   "automation_possible": true,
+   "blocking": true,
+   "blocking_when": "value is true",
+   "category": "DATA",
+   "close_condition": "toutes les conditions de fermeture de l ecart de recherche sont tenues, mesurees et non supposees",
+   "current_value": true,
+   "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
+   "evidence_source": "docs/reports/go_live/rag_searchability_gap.json (derive de l audit d ingestion sur une base nommee)",
+   "human_decision_required": false,
+   "id": "RAG_SEARCHABILITY",
+   "owner_type": "OPERATOR",
+   "related_prs": [],
+   "required_action": "Indexer le perimetre cible en vecteurs, puis valider le retrieval : top-k, citations, filtres de portee, latence, rollback. Un corpus qualifie servable reste inatteignable tant qu aucun vecteur ne le reference."
+  },
+  {
    "automation_possible": false,
    "blocking": true,
    "blocking_when": "value > 0",
@@ -156,9 +171,9 @@
    "required_action": "Rien directement. Ce compteur DERIVE de PII, programme et actualite. Le fermer par lui-meme reviendrait a maquiller les trois."
   }
  ],
- "blockers_open": 5,
- "blockers_total": 8,
- "evaluated_head": "1429331eacafe60f5db6cf6b3231456f6a2b014f",
+ "blockers_open": 6,
+ "blockers_total": 9,
+ "evaluated_head": "2beb07234a05f9b2fcf87fb503e5705597d33c74",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",
