@@ -1,0 +1,113 @@
+{
+  "closing_this_blocker_does_not": [
+    "fermer pii_undecided",
+    "fermer release_promoted_refused_contents",
+    "fermer les bloqueurs de qualification",
+    "autoriser un deploiement",
+    "rendre GO_LIVE_READY vrai"
+  ],
+  "conditions": {
+    "citations_validated": {
+      "action": "verifier que chaque reponse cite un contenu servable existant",
+      "currently_met": false,
+      "phase": "B_RETRIEVAL_VALIDATION",
+      "proof": "toute citation resout vers un content_sha256 du perimetre servable"
+    },
+    "latency_validated": {
+      "action": "mesurer la latence sur le perimetre complet",
+      "currently_met": false,
+      "phase": "B_RETRIEVAL_VALIDATION",
+      "proof": "mesure sur le corpus entier, jamais sur un echantillon"
+    },
+    "retrieval_top_k_validated": {
+      "action": "valider le top-k contre les golden queries",
+      "currently_met": false,
+      "phase": "B_RETRIEVAL_VALIDATION",
+      "proof": "resultats non vides, ordonnes, et stables entre deux executions"
+    },
+    "rollback_validated": {
+      "action": "eprouver le retour a l etat anterieur",
+      "currently_met": false,
+      "phase": "B_RETRIEVAL_VALIDATION",
+      "proof": "rollback execute et verifie, pas seulement documente"
+    },
+    "scope_filters_validated": {
+      "action": "verifier le filtrage par niveau et matiere",
+      "currently_met": false,
+      "phase": "B_RETRIEVAL_VALIDATION",
+      "proof": "aucune fuite inter-scope sur un jeu de requetes couvrant chaque scope"
+    },
+    "staging_vectors_present": {
+      "action": "vectoriser le perimetre cible dans la base de preparation",
+      "currently_met": false,
+      "phase": "A_STAGING_VECTORIZATION",
+      "proof": "count des vecteurs egal au perimetre cible, mesure par l audit d ingestion"
+    },
+    "target_scope_searchable": {
+      "action": "couvrir le perimetre cible entier",
+      "currently_met": false,
+      "phase": "A_STAGING_VECTORIZATION",
+      "proof": "vecteurs >= perimetre cible ; une couverture partielle ne compte pas"
+    },
+    "vector_dimensions_consistent": {
+      "action": "verifier que toutes les dimensions correspondent au modele declare",
+      "currently_met": false,
+      "phase": "A_STAGING_VECTORIZATION",
+      "proof": "une seule dimension observee, egale a celle du manifeste de modele"
+    }
+  },
+  "conditions_not_met": [
+    "citations_validated",
+    "latency_validated",
+    "retrieval_top_k_validated",
+    "rollback_validated",
+    "scope_filters_validated",
+    "staging_vectors_present",
+    "target_scope_searchable",
+    "vector_dimensions_consistent"
+  ],
+  "current_state": {
+    "canonical_text_in_staging": 2473,
+    "rag_searchability_blocker": true,
+    "rag_searchable": false,
+    "staging_vectors_present": 0,
+    "target_scope_contents": 2529
+  },
+  "executed_in_this_lot": false,
+  "kind": "NEXUS-RAG-SEARCHABILITY-EXECUTION-PLAN-V1",
+  "phases": {
+    "A_STAGING_VECTORIZATION": {
+      "excluded_content": "les contenus refuses par le gate de servabilite ne sont pas vectorises : ni les 26 promus refuses, ni les contenus bloques PII",
+      "forbidden": [
+        "toute ecriture en production",
+        "tout deploiement",
+        "tout current switch"
+      ],
+      "scope": "base de preparation uniquement",
+      "why_exclusion": "vectoriser un contenu refuse le rendrait atteignable par une requete alors qu une autorite le refuse"
+    },
+    "B_RETRIEVAL_VALIDATION": {
+      "forbidden": [
+        "toute validation contre la production"
+      ],
+      "scope": "contre la base de preparation"
+    },
+    "C_PRODUCTION_DEPLOYMENT_AUTHORIZATION": {
+      "requires": "decision humaine explicite, distincte de la fermeture de RAG_SEARCHABILITY",
+      "status": "NOT_REQUESTED",
+      "why_separate": "fermer le blocage de recherche prouve que le corpus est interrogeable en preparation ; cela n autorise pas a le servir"
+    },
+    "D_CURRENT_SWITCH_AUTHORIZATION": {
+      "requires": "decision humaine explicite, posterieure a C",
+      "status": "NOT_REQUESTED"
+    }
+  },
+  "readiness_after_phase_B_expected": {
+    "GO_LIVE_READY": false,
+    "pii_undecided": 149,
+    "rag_searchability_blocker": false,
+    "release_promoted_refused_contents": 26,
+    "why_still_false": "PII, release, qualification et PR bloquantes persistent"
+  },
+  "status": "PLANNED_NOT_EXECUTED"
+}

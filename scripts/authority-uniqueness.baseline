@@ -40,6 +40,13 @@ MATRIX_READER	scripts/go_live/audit_ingestion_from_dsn.py
 #  test_l_accord_est_constate_quand_les_deux_recensements_coincident,
 #  test_le_module_ne_lit_aucun_verdict_autre_que_le_blocage_pii).
 MATRIX_READER	scripts/go_live/export_pii_review_packets.py
+# Le preflight de reseal lit la matrice pour SELECTIONNER les contenus a
+# exclure - ceux que le gate refuse pour cause d archive - et pour verifier qu
+# aucun contenu en attente de decision PII n est touche. Il ne rend aucun
+# verdict, n en invente aucun, et ne rescelle rien: son statut est
+# PREFLIGHT_ONLY_NOT_APPLIED. Une epreuve le tient
+# (test_le_preflight_ne_lit_aucun_verdict_de_servabilite_qu_il_ne_compose).
+MATRIX_READER	scripts/go_live/preflight_currentness_reseal.py
 
 # --- R2 : la politique d actualite n a aucun lecteur de production -------
 # Elle est applied=false. Un lecteur de production l appliquerait de fait,
