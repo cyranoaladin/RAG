@@ -1,0 +1,49 @@
+{
+  "container_id": "a7c3a2b0fd3f421e",
+  "container_name": "nexus-drive-staging-v2",
+  "env": [
+    "POSTGRES_DB=drivestaging",
+    "POSTGRES_USER=drive",
+    "POSTGRES_PASSWORD=<masqué>",
+    "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/lib/postgresql/16/bin",
+    "GOSU_VERSION=1.19",
+    "LANG=en_US.utf8",
+    "PG_MAJOR=16",
+    "PG_VERSION=16.14-1.pgdg12+1",
+    "PGDATA=/var/lib/postgresql/data"
+  ],
+  "health": "NO_HEALTHCHECK",
+  "image": "pgvector/pgvector@sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc",
+  "kind": "NEXUS-STAGING-PRESERVATION-INVENTORY-V1",
+  "labels": {},
+  "mounts": [
+    {
+      "anonymous_volume": true,
+      "destination": "/var/lib/postgresql/data",
+      "name": "e4eb093913421bb0f5605c4effc2a0b527facbc66a55978986e6a8b883a6de62",
+      "read_write": true,
+      "type": "volume"
+    }
+  ],
+  "networks": [
+    "bridge"
+  ],
+  "ports": {
+    "5432/tcp": [
+      {
+        "HostIp": "127.0.0.1",
+        "HostPort": "55435"
+      }
+    ]
+  },
+  "restart_count": 0,
+  "restart_policy": "no",
+  "risk": {
+    "anonymous_volumes": 1,
+    "restart_policy_is_none": true,
+    "why_it_matters": "un volume anonyme est supprimé par un élagage de volumes sans qu'aucun nom ne le rattache à ce travail"
+  },
+  "secrets_published": false,
+  "started_at": "2026-09-06T21:47:26.87628041Z",
+  "state": "running"
+}

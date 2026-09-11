@@ -1,0 +1,27 @@
+{
+  "checks": {
+    "colonnes_vectorielles": 0,
+    "contenus_distincts": 2473,
+    "extension_vector": 0,
+    "pages_avec_texte_canonique": 26736,
+    "pdf_avec_texte_canonique": 2473
+  },
+  "count_mismatches": [],
+  "digest_mismatches": [],
+  "kind": "NEXUS-STAGING-BACKUP-RESTORE-PROOF-V1",
+  "restore_proven": true,
+  "review_text_digests_match": true,
+  "table_counts_restored": {
+    "artifacts": 2473,
+    "chunks": 23744,
+    "page_provenances": 26736,
+    "provenances": 2473
+  },
+  "table_counts_source": {
+    "artifacts": 2473,
+    "chunks": 23744,
+    "page_provenances": 26736,
+    "provenances": 2473
+  },
+  "why": "comptages et digests logiques du texte de revue identiques"
+}

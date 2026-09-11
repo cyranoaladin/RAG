@@ -32,6 +32,14 @@ MATRIX_READER	scripts/go_live/build_drive_corpus_inventory.py
 # Deux epreuves le tiennent (test_l_audit_ne_rend_aucun_verdict_de_servabilite,
 # test_le_module_ne_lit_aucun_verdict_de_la_matrice).
 MATRIX_READER	scripts/go_live/audit_ingestion_from_dsn.py
+# L export des paquets PII lit la matrice pour la CONTREDIRE si elle l est: il
+# verifie que l index de revue et la matrice recensent le meme ensemble en
+# attente, et refuse en cas de desaccord. Il ne lit aucun verdict autre que le
+# blocage PII et n en produit aucun. Trois epreuves le tiennent
+# (test_un_desaccord_entre_l_index_et_la_matrice_est_signale,
+#  test_l_accord_est_constate_quand_les_deux_recensements_coincident,
+#  test_le_module_ne_lit_aucun_verdict_autre_que_le_blocage_pii).
+MATRIX_READER	scripts/go_live/export_pii_review_packets.py
 
 # --- R2 : la politique d actualite n a aucun lecteur de production -------
 # Elle est applied=false. Un lecteur de production l appliquerait de fait,
