@@ -24,7 +24,7 @@ Racine Drive : `NEXUS_RAG_GDRIVE_READY`
 
 - contenus : **2529**
 - recensés par la matrice : **2529**
-- candidats servables : **2301**
+- candidats servables : **2264**
 - promus : **319**
 
 ## Confrontation
@@ -32,7 +32,7 @@ Racine Drive : `NEXUS_RAG_GDRIVE_READY`
 - lignes de matrice absentes du Drive : **0**
 - contenus pédagogiques non recensés par la matrice : **0**
 - contenus promus hors du Drive : **0**
-- contenus promus qui ne sont pas candidats servables : **23**
+- contenus promus qui ne sont pas candidats servables : **26**
 
 ## Ce que ce document ne mesure pas
 

@@ -1,4 +1,4 @@
-# NEXUS-RAG-CURRENTNESS-POLICY-V1 — PROPOSITION, non appliquée.
+# NEXUS-RAG-CURRENTNESS-POLICY-V1 — APPLIQUÉE (ADR-0055).
 #
 # Elle existe pour qu'une question de POLITIQUE cesse d'être traitée comme une
 # question de preuve. Le réseau a répondu : 110 refus, 1 page atteignable,
@@ -15,9 +15,19 @@
 # deux valeurs ne doivent jamais se confondre dans une release.
 
 policy_id: NEXUS-RAG-CURRENTNESS-POLICY-V1
-status: PROPOSED
-applied: false
+status: ACCEPTED
+applied: true
 requires_adr: true
+# Appliquée par ADR-0055. `applied: true` n'est pas une déclaration : le
+# constructeur de la matrice de servabilité CHARGE cette politique et REFUSE
+# de se construire si elle ne s'applique pas. Le drapeau et le comportement ne
+# peuvent donc pas diverger — remettre `false` casse la matrice, ce qui est le
+# comportement voulu.
+applied_by_adr: ADR-0055
+consumed_by:
+  - services/rag-pedago/rag_pedago/governance/currentness_disposition.py
+  - services/rag-pedago/rag_pedago/governance/servability_gate.py
+  - services/rag-pedago/scripts/construire_matrice_servabilite.py
 
 # --- ce que cette politique possède, et ce qu'elle ne possède pas ------
 #

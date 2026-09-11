@@ -248,11 +248,29 @@ def test_les_gates_etrangers_bloquent_toujours_mais_ailleurs(politique) -> None:
         assert actualite == SNAPSHOT
 
 
-def test_la_politique_reste_une_proposition(politique) -> None:
-    """Elle ne doit pas pouvoir être appliquée par inadvertance."""
-    assert politique["status"] == "PROPOSED"
-    assert politique["applied"] is False
+def test_la_politique_est_appliquee_et_consommee(politique) -> None:
+    """Elle est appliquée — et le drapeau ne peut pas mentir.
+
+    Ce test figeait `applied is False` : il protégeait contre une bascule par
+    inadvertance, à une époque où rien ne consommait la politique. Un drapeau
+    seul aurait alors fait baisser un compteur sans qu'aucun comportement ne
+    change.
+
+    Ce n'est plus le cas. Le constructeur de la matrice CHARGE la politique et
+    REFUSE de se construire si elle ne s'applique pas : le drapeau et le
+    comportement ne peuvent plus diverger. Ce qui est protégé ici n'est donc
+    plus la valeur du drapeau, mais l'existence de ses consommateurs.
+    """
+    assert politique["status"] == "ACCEPTED"
+    assert politique["applied"] is True
     assert politique["requires_adr"] is True
+    assert politique["applied_by_adr"] == "ADR-0055"
+
+    consommateurs = politique["consumed_by"]
+    assert consommateurs, "appliquée sans consommateur : le drapeau mentirait"
+    racine = POLITIQUE.resolve().parents[4]
+    for relatif in consommateurs:
+        assert (racine / relatif).is_file(), f"consommateur déclaré absent : {relatif}"
 
 
 def test_les_cinq_dimensions_restent_separees(politique) -> None:

@@ -66,6 +66,15 @@ def depot_sans_bloqueur(tmp_path: pathlib.Path) -> pathlib.Path:
         {
             "by_verdict": {"CANDIDATE_NO_BLOCKING_DIMENSION": 10},
             "by_pii": {"PII_CLEARED_OR_NOT_SCANNED": 10},
+            # Le contenu promu doit être recensé par la matrice : sans sa
+            # ligne, l'impact de release n'est pas mesurable, et un dépôt
+            # « sans bloqueur » en aurait un.
+            "rows": [
+                {
+                    "content_sha256": "a" * 64,
+                    "verdict": "CANDIDATE_NO_BLOCKING_DIMENSION",
+                }
+            ],
         },
     )
     _ecrire(
@@ -1477,3 +1486,147 @@ def test_un_magasin_declare_mais_inexistant_est_refuse(depot_sans_bloqueur, tmp_
     etat = _mesurer(depot_sans_bloqueur, tmp_path / "magasin-qui-n-existe-pas")
     assert etat["non_pdf_servable_reacquired"] == 0
     assert etat["non_pdf_retention_reason"] == "DURABLE_STORE_UNREADABLE"
+
+
+# --- Incohérence de release : un contenu promu que le gate refuse -----------
+#
+# Le cas se produit quand une dimension se met à bloquer APRÈS la promotion.
+# Le contenu reste dans la release, et plus rien ne le signale — d'autant
+# moins que le drapeau qui l'a révélé, lui, vient de se fermer.
+
+VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
+VERDICT_NON_ACTUEL = "BLOCKED_NOT_CURRENT_BY_SOURCE"
+VERDICT_PII = "BLOCKED_PII_HUMAN_REVIEW"
+
+
+def _poser_matrice_par_contenu(depot: pathlib.Path, verdicts: dict[str, str]) -> None:
+    """Pose une matrice avec des lignes nommées, pas seulement des totaux."""
+    par_verdict: dict[str, int] = {}
+    for verdict in verdicts.values():
+        par_verdict[verdict] = par_verdict.get(verdict, 0) + 1
+    _ecrire(
+        depot,
+        MATRICE,
+        {
+            "by_verdict": par_verdict,
+            "by_pii": {"PII_CLEARED_OR_NOT_SCANNED": len(verdicts)},
+            "rows": [
+                {"content_sha256": sha, "verdict": verdict}
+                for sha, verdict in sorted(verdicts.items())
+            ],
+        },
+    )
+
+
+def test_un_contenu_promu_refuse_par_l_actualite_bloque_le_go_live(
+    depot_sans_bloqueur,
+):
+    promu = "a" * 64
+    _poser_matrice_par_contenu(depot_sans_bloqueur, {promu: VERDICT_NON_ACTUEL})
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[promu])
+    etat = _etat(depot_sans_bloqueur)
+
+    assert etat["release_promoted_refused_contents"] == 1
+    assert etat["release_promoted_refused_by_currentness"] == 1
+    assert etat["release_promoted_refused_content_ids"] == [promu]
+    assert etat["release_reseal_required"] is True
+    assert "release_promoted_refused_contents" in etat["blocking_reasons"]
+    assert etat["go_live_ready"] is False
+
+
+def test_l_actualite_appliquee_ne_suffit_pas_si_la_release_est_incoherente(
+    depot_sans_bloqueur,
+):
+    """Fermer le drapeau ne doit pas faire disparaître ce qu'il a révélé."""
+    promu = "b" * 64
+    _poser_matrice_par_contenu(depot_sans_bloqueur, {promu: VERDICT_NON_ACTUEL})
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[promu])
+    etat = _etat(depot_sans_bloqueur)
+
+    assert etat["currentness_policy_applied"] is True
+    assert "currentness_policy_applied" not in etat["blocking_reasons"]
+    # Et pourtant le go-live reste refusé, pour une autre raison, nommée.
+    assert etat["go_live_ready"] is False
+    assert "release_promoted_refused_contents" in etat["blocking_reasons"]
+
+
+def test_une_release_sans_contenu_refuse_ne_declenche_pas_ce_blocage(
+    depot_sans_bloqueur,
+):
+    promu = "c" * 64
+    _poser_matrice_par_contenu(depot_sans_bloqueur, {promu: VERDICT_CANDIDAT})
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[promu])
+    etat = _etat(depot_sans_bloqueur)
+
+    assert etat["release_promoted_refused_contents"] == 0
+    assert etat["release_reseal_required"] is False
+    assert "release_promoted_refused_contents" not in etat["blocking_reasons"]
+
+
+def test_un_contenu_refuse_mais_NON_promu_ne_declenche_pas_ce_blocage(
+    depot_sans_bloqueur,
+):
+    """Le blocage porte sur l'incohérence de RELEASE, pas sur les refus."""
+    promu, autre = "d" * 64, "e" * 64
+    _poser_matrice_par_contenu(
+        depot_sans_bloqueur, {promu: VERDICT_CANDIDAT, autre: VERDICT_NON_ACTUEL}
+    )
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[promu])
+    etat = _etat(depot_sans_bloqueur)
+    assert etat["release_promoted_refused_contents"] == 0
+
+
+def test_les_raisons_de_refus_ne_sont_pas_fondues(depot_sans_bloqueur):
+    """PII et actualité disent deux choses différentes ; les fondre ferait
+    disparaître l'une derrière l'autre."""
+    par_pii, par_actualite = "f" * 64, "9" * 64
+    _poser_matrice_par_contenu(
+        depot_sans_bloqueur,
+        {par_pii: VERDICT_PII, par_actualite: VERDICT_NON_ACTUEL},
+    )
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[par_pii, par_actualite])
+    etat = _etat(depot_sans_bloqueur)
+
+    assert etat["release_promoted_refused_contents"] == 2
+    assert etat["release_promoted_refused_by_currentness"] == 1
+    assert etat["release_promoted_refused_by_verdict"] == {
+        VERDICT_NON_ACTUEL: 1,
+        VERDICT_PII: 1,
+    }
+    # Le contenu bloqué par l'actualité est nommé à part.
+    assert etat["release_currentness_impact"] == [par_actualite]
+
+
+def test_les_contenus_refuses_sont_nommes_pas_seulement_comptes(
+    depot_sans_bloqueur,
+):
+    """Un compteur seul n'est pas actionnable : il faut savoir lesquels."""
+    a, b = "1" * 64, "2" * 64
+    _poser_matrice_par_contenu(
+        depot_sans_bloqueur, {a: VERDICT_NON_ACTUEL, b: VERDICT_PII}
+    )
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[a, b])
+    etat = _etat(depot_sans_bloqueur)
+    assert sorted(etat["release_promoted_refused_content_ids"]) == sorted([a, b])
+
+
+def test_un_promu_absent_de_la_matrice_n_est_pas_repute_candidat(
+    depot_sans_bloqueur,
+):
+    """Ne pas avoir pu croiser n'est pas la même chose que n'avoir rien trouvé.
+
+    Sans cette épreuve, un contenu promu que la matrice ne recense pas serait
+    compté comme candidat : un zéro NON mesuré présenté comme un zéro mesuré,
+    exactement ce que ce compteur existe pour empêcher.
+    """
+    promu, recense = "7" * 64, "8" * 64
+    _poser_matrice_par_contenu(depot_sans_bloqueur, {recense: VERDICT_CANDIDAT})
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[promu])
+    etat = _etat(depot_sans_bloqueur)
+
+    assert etat["release_promoted_unmatched_in_matrix"] == 1
+    assert etat["release_impact_measurable"] is False
+    assert "release_impact_measurable" in etat["blocking_reasons"]
+    assert etat["go_live_ready"] is False
+    # Et il n'est surtout pas compté comme un refus : on ne sait pas.
+    assert etat["release_promoted_refused_contents"] == 0

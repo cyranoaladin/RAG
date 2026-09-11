@@ -1,8 +1,15 @@
 """Construit NEXUS-SERVABILITY-MATRIX-V1 : une ligne par relation d'artefact.
 
-La matrice ne décide rien. Elle croise les dimensions déjà mesurées et rend un
-verdict par cascade, de sorte qu'une seule dimension bloquante suffise à
-refuser. Elle est émise `applied=false`.
+La matrice ne décide rien. Elle croise les dimensions déjà mesurées et délègue
+la composition au gate de servabilité, de sorte qu'une seule dimension
+bloquante suffise à refuser, et que chaque refus nomme l'autorité qui l'a
+prononcé.
+
+Un défaut a rendu cette délégation nécessaire. La matrice calculait une colonne
+`currentness` que son verdict ne consultait jamais : quarante contenus déclarés
+archivés par la source ressortaient candidats servables, dont trois figuraient
+déjà dans la release promue. Une dimension calculée mais non consommée est pire
+qu'une dimension absente — elle donne l'apparence d'un contrôle.
 
 Les chemins sont dérivés de l'emplacement de ce fichier ; `NEXUS_REPO_ROOT`
 permet de les surcharger.
@@ -15,6 +22,37 @@ import json
 import os
 import pathlib
 import sys
+
+SERVICE_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(SERVICE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVICE_ROOT))
+
+from rag_pedago.governance.currentness_disposition import (  # noqa: E402
+    NOT_CURRENT_DECLARED_BY_SOURCE,
+    charger_politique,
+    disposition_actualite,
+)
+from rag_pedago.governance.servability_gate import (  # noqa: E402
+    AUTORITE_ACTUALITE,
+    AUTORITE_PII,
+    AUTORITE_PROGRAMME,
+    AUTORITE_PROVENANCE,
+    AUTORITE_ROLE,
+    composer,
+)
+
+#: Un refus par autorité. Le verdict nomme QUI refuse, pas seulement QUE l on
+#: refuse : sans cela, corriger la cause supposerait de deviner la dimension.
+VERDICT_PAR_AUTORITE = {
+    AUTORITE_PII: "BLOCKED_PII_HUMAN_REVIEW",
+    AUTORITE_PROGRAMME: "REFUSED_PROGRAM_INCOMPATIBLE",
+    AUTORITE_ROLE: "NOT_INDEXABLE_BY_ROLE",
+    AUTORITE_PROVENANCE: "BLOCKED_NO_URL_PROVENANCE",
+}
+
+VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
+VERDICT_ARCHIVE = "BLOCKED_NOT_CURRENT_BY_SOURCE"
+VERDICT_ACTUALITE_INCONNUE = "BLOCKED_CURRENTNESS_UNKNOWN"
 
 REPO_ROOT = pathlib.Path(
     os.environ.get("NEXUS_REPO_ROOT", pathlib.Path(__file__).resolve().parents[3])
@@ -66,19 +104,50 @@ def _actualite(relation: dict) -> str:
     return "MIXED:" + "|".join(sorted(statuses))
 
 
-def _verdict(row: dict) -> str:
-    if row["program"] == "INCOMPATIBLE_PROVEN":
-        return "REFUSED_PROGRAM_INCOMPATIBLE"
-    if row["pii"] == "PII_UNDECIDED":
-        return "BLOCKED_PII_HUMAN_REVIEW"
-    if row["indexability"] == "NON_INDEXABLE":
-        return "NOT_INDEXABLE_BY_ROLE"
-    if row["provenance"] == "NO_URL_EVIDENCE":
-        return "BLOCKED_NO_URL_PROVENANCE"
-    return "CANDIDATE_NO_BLOCKING_DIMENSION"
+def _cas_d_actualite(row: dict) -> dict:
+    """Traduit une ligne en cas d actualite, sans rien inventer.
+
+    `content_identity_match` reste absent : seule une identite d octets
+    prouverait l actualite, et le catalogue ne la porte pas. Le supposer
+    fabriquerait un VERIFIED_CURRENT que rien n etablit.
+    """
+    provenance_officielle = row["provenance"] == "URL_EVIDENCE_FOUND"
+    return {
+        "source_status": "ARCHIVE" if row["currentness"] == "ARCHIVE_DECLARED" else row["currentness"],
+        "official_provenance": provenance_officielle,
+        "sha_provenance_match": provenance_officielle,
+        "superseding_conflict": False,
+    }
+
+
+def _verdict(row: dict, politique: dict) -> str:
+    """Delegue la composition au gate. La matrice ne compose plus elle-meme."""
+    actualite = disposition_actualite(_cas_d_actualite(row), politique)
+    row["currentness_disposition"] = actualite
+    verdict, autorite = composer(
+        {
+            "pii_gate": "PII_UNDECIDED" if row["pii"] == "PII_UNDECIDED" else "PASS",
+            "program": "INCOMPATIBLE" if row["program"] == "INCOMPATIBLE_PROVEN" else row["program"],
+            "indexable": row["indexability"] != "NON_INDEXABLE",
+            "url_provenance": row["provenance"] != "NO_URL_EVIDENCE",
+        },
+        actualite,
+    )
+    if autorite is None:
+        return VERDICT_CANDIDAT
+    if autorite == AUTORITE_ACTUALITE:
+        return (
+            VERDICT_ARCHIVE
+            if actualite == NOT_CURRENT_DECLARED_BY_SOURCE
+            else VERDICT_ACTUALITE_INCONNUE
+        )
+    return VERDICT_PAR_AUTORITE[autorite]
 
 
 def build() -> dict:
+    # La politique d actualite est chargee ICI : si elle n est pas appliquee,
+    # la matrice refuse de se construire plutot que d ignorer l actualite.
+    politique = charger_politique()
     relations = _load(RELATIONS)["relations"]
     partition = _load(PARTITION)
     bindings = _load(BINDINGS)["bindings"]
@@ -105,7 +174,7 @@ def build() -> dict:
             "indexability": relation["serving_relevance"],
             "source_role": relation["source_role"],
         }
-        row["verdict"] = _verdict(row)
+        row["verdict"] = _verdict(row, politique)
         rows.append(row)
     rows.sort(key=lambda r: r["content_sha256"])
 
