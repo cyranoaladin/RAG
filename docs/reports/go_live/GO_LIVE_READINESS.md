@@ -8,7 +8,7 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=e61d0e26f1aa3087d96bed3573c3f274c82979bd`
+`main_head=f2289b8e120257b828d25266e005d1dce7aa281c`
 
 ## Ce qui empeche le go-live
 
@@ -18,6 +18,7 @@
 | `go_live_qualification_blockers` | 13 |
 | `pii_undecided` | 149 |
 | `release_promoted_refused_contents` | 26 |
+| `rag_searchability_blocker` | True |
 | `open_prs_blocking` | 6 |
 
 ## Etat calcule
@@ -28,10 +29,10 @@
 | `snapshot_contains_self_commit` | False |
 | `snapshot_is_operational_current` | False |
 | `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
-| `main_head` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
-| `origin_main_at_generation` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
-| `evaluated_ref` | go-live/currentness-policy-wiring |
-| `evaluated_head` | 1429331eacafe60f5db6cf6b3231456f6a2b014f |
+| `main_head` | f2289b8e120257b828d25266e005d1dce7aa281c |
+| `origin_main_at_generation` | f2289b8e120257b828d25266e005d1dce7aa281c |
+| `evaluated_ref` | go-live/release-reseal-plan |
+| `evaluated_head` | 2beb07234a05f9b2fcf87fb503e5705597d33c74 |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -57,14 +58,20 @@
 | `release_reseal_required` | True |
 | `release_promoted_unmatched_in_matrix` | 0 |
 | `release_impact_measurable` | True |
+| `rag_searchable` | False |
+| `staging_vectors_present` | 0 |
+| `target_scope_searchable` | False |
+| `production_searchable` | False |
+| `retrieval_contract_validated` | False |
+| `rag_searchability_blocker` | True |
 | `non_pdf_servable_total` | 37 |
 | `non_pdf_servable_reacquired` | 37 |
 | `non_pdf_servable_complete` | True |
 | `non_pdf_retention_policy_versioned` | True |
 | `non_pdf_retention_reason` | MEASURED |
 | `non_pdf_retention_store_named` | True |
-| `disk_free_bytes` | 76487831552 |
-| `disk_used_percent` | 87 |
+| `disk_free_bytes` | 72519249920 |
+| `disk_used_percent` | 88 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |
 | `production_deployments` | 0 |

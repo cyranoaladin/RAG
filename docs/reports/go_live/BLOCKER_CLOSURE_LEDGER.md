@@ -5,10 +5,11 @@
 > l etat calcule ; les editer a la main les rendrait faux sans les
 > rendre fermes.
 
-`blockers_open=5` sur 8
+`blockers_open=6` sur 9
 
 | Bloqueur | Valeur | Bloque | Qui agit | Condition de fermeture |
 | --- | ---: | :---: | --- | --- |
+| `RAG_SEARCHABILITY` | True | oui | OPERATOR | toutes les conditions de fermeture de l ecart de recherche sont tenues, mesurees et non supposees |
 | `RELEASE_PROMOTED_REFUSED_CONTENTS` | 26 | oui | HUMAN_REVIEWER | aucun contenu de l ensemble promu ne porte un verdict de refus dans la matrice de servabilite |
 | `PII_UNDECIDED` | 149 | oui | HUMAN_REVIEWER | 0 PII indecise dans le perimetre servable, ou exclusion gouvernee et versionnee de ces contenus. |
 | `PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET` | 0 | non | HUMAN_DECISION | Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique. |
@@ -19,6 +20,17 @@
 | `PRE_RELEASE_BLOCKERS` | 1 | oui | DERIVED | Se ferme seul quand ses trois sources se ferment. |
 
 ## Detail
+
+### RAG_SEARCHABILITY
+
+- categorie : `DATA`
+- valeur : `True`, bloque : `oui`
+- source de preuve : `docs/reports/go_live/rag_searchability_gap.json (derive de l audit d ingestion sur une base nommee)`
+- action requise : Indexer le perimetre cible en vecteurs, puis valider le retrieval : top-k, citations, filtres de portee, latence, rollback. Un corpus qualifie servable reste inatteignable tant qu aucun vecteur ne le reference.
+- decision humaine requise : `non`
+- automatisable : `oui`
+- PR liees : aucune
+- dependance de deploiement : `BLOQUE_LE_DEPLOIEMENT`
 
 ### RELEASE_PROMOTED_REFUSED_CONTENTS
 
