@@ -1,0 +1,46 @@
+{
+  "all_guarantees_hold": true,
+  "answer": {
+    "chosen_scope": "SERVABLE_CANDIDATE_SET",
+    "count": 2264,
+    "rejected_alternatives": {
+      "PROMOTED_RELEASE_SET": {
+        "count": 319,
+        "why_rejected": "la release promue est un sous-ensemble arbitraire du servable : un contenu servable non promu doit rester interrogeable en preparation, et la release changera au prochain reseal"
+      },
+      "RAW_DRIVE_PEDAGOGICAL_CORPUS": {
+        "count": 2529,
+        "why_rejected": "exigerait d indexer les contenus refuses par le gate ; la condition serait inatteignable sans violer la regle d exclusion"
+      }
+    }
+  },
+  "counters_edited_by_hand": false,
+  "guarantees": {
+    "archived_refused_never_indexed": true,
+    "no_url_provenance_never_indexed": true,
+    "non_indexable_by_role_never_indexed": true,
+    "pii_undecided_never_indexed": true
+  },
+  "kind": "NEXUS-VECTORIZATION-TARGET-SCOPE-AUDIT-V1",
+  "never_indexable": {
+    "by_verdict": {
+      "BLOCKED_NOT_CURRENT_BY_SOURCE": 37,
+      "BLOCKED_NO_URL_PROVENANCE": 59,
+      "BLOCKED_PII_HUMAN_REVIEW": 149,
+      "NOT_INDEXABLE_BY_ROLE": 20,
+      "REFUSED_PROGRAM_INCOMPATIBLE": 1
+    },
+    "count": 266,
+    "includes_promoted_pii_pending": 149,
+    "intersection_with_indexable": 0,
+    "proof": "aucun de ces content_sha256 n appartient au perimetre indexable ; l intersection est vide par construction"
+  },
+  "question": "quel perimetre la fermeture de RAG_SEARCHABILITY vise-t-elle ?",
+  "target_scope_searchable_declared_true": false,
+  "tension_resolved": {
+    "after": "la cible est l ensemble servable candidat (2264)",
+    "before": "le rapport visait 2529 tout en interdisant d indexer les contenus refuses",
+    "contradiction": "viser le corpus brut exigeait d indexer 265 contenus refuses"
+  },
+  "vectorization_executed": false
+}

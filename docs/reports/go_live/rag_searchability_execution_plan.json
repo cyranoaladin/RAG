@@ -109,5 +109,12 @@
     "release_promoted_refused_contents": 26,
     "why_still_false": "PII, release, qualification et PR bloquantes persistent"
   },
-  "status": "PLANNED_NOT_EXECUTED"
+  "status": "PLANNED_NOT_EXECUTED",
+  "target_scope": {
+    "authority": "docs/reports/go_live/vectorization_target_scope_audit.json",
+    "chosen": "SERVABLE_CANDIDATE_SET",
+    "count": 2264,
+    "never_indexable": 266,
+    "why": "viser le corpus brut exigerait d indexer des contenus refuses par le gate"
+  }
 }

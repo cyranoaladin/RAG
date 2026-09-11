@@ -5286,5 +5286,7 @@
       "risk_level": "A_QUALIFIER"
     }
   ],
-  "raw_pii_in_output": false
+  "raw_pii_in_output": false,
+  "review_order": "23_PROMOTED_FIRST_THEN_126_REMAINING",
+  "review_order_decided_by": "proprietaire du corpus"
 }
