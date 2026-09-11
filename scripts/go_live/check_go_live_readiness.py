@@ -45,6 +45,7 @@ permet de les surcharger.
 from __future__ import annotations
 
 import argparse
+import collections
 import json
 import os
 import pathlib
@@ -165,6 +166,32 @@ CALCULATEUR_ENSEMBLE_PROMU = "scripts/qualification/compute_promoted_content_set
 #: Seule la partie non calculable — qui doit agir, sous quelle condition la
 #: fermeture est acquise — est declaree ici, une fois.
 LEDGER_SPEC: tuple[dict[str, Any], ...] = (
+    {
+        "id": "RELEASE_PROMOTED_REFUSED_CONTENTS",
+        "category": "BUSINESS",
+        "value_key": "release_promoted_refused_contents",
+        "blocking_when": "value > 0",
+        "evidence_source": (
+            MATRICE
+            + " croisee avec l ensemble promu canonique : un contenu promu dont"
+            " le gate de servabilite refuse le verdict"
+        ),
+        "required_action": (
+            "Decider du sort de chaque contenu promu desormais refuse : le"
+            " retirer et resceller la release sous une identite neuve, ou"
+            " documenter une derogation gouvernee. Ni l un ni l autre ne peut"
+            " etre fait par un script."
+        ),
+        "owner_type": "HUMAN_REVIEWER",
+        "automation_possible": False,
+        "human_decision_required": True,
+        "close_condition": (
+            "aucun contenu de l ensemble promu ne porte un verdict de refus"
+            " dans la matrice de servabilite"
+        ),
+        "related_prs": [],
+        "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+    },
     {
         "id": "PII_UNDECIDED",
         "category": "BUSINESS",
@@ -331,6 +358,11 @@ LEDGER_SPEC: tuple[dict[str, Any], ...] = (
 
 #: Dispositions qui empechent le go-live. `UNKNOWN` en fait partie par
 #: construction : une PR qu on n a pas classee est une PR qu on n a pas lue.
+#: Le verdict qui n oppose aucun refus. Tout autre verdict, sur un contenu
+#: PROMU, est une incoherence de release.
+VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
+VERDICT_NON_ACTUEL = "BLOCKED_NOT_CURRENT_BY_SOURCE"
+
 DISPOSITIONS_BLOQUANTES = frozenset({"BLOCKING", "UNKNOWN"})
 
 #: Dispositions qui laissent une PR ouverte sans bloquer, chacune devant etre
@@ -687,6 +719,11 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
     qualification = _charger(BLOQUEURS_QUALIFICATION)["blockers"]
 
     par_verdict = matrice["by_verdict"]
+    matrice_par_contenu = {
+        ligne["content_sha256"]: ligne["verdict"]
+        for ligne in matrice.get("rows", ())
+        if "content_sha256" in ligne and "verdict" in ligne
+    }
     pii_undecided = matrice["by_pii"].get("PII_UNDECIDED", 0)
 
     # --- programme incompatible : compter ce que le nom annonce
@@ -712,6 +749,30 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         "REFUSED_PROGRAM_INCOMPATIBLE", 0
     )
     actualite_appliquee = _politique_actualite_appliquee()
+
+    # Une release promue ne doit pas contenir un contenu que le gate de
+    # servabilite refuse. Le cas se produit quand une dimension se met a
+    # bloquer APRES la promotion : le contenu reste dans la release, et plus
+    # rien ne le signale. Compter ces contenus est le seul moyen de ne pas
+    # laisser une incoherence de release passer pour une release saine.
+    # Un contenu promu que la matrice ne recense pas ne peut pas etre croise.
+    # Le compter comme candidat serait un zero NON MESURE presente comme un
+    # zero mesure : on dit donc qu on n a pas pu mesurer, et cela bloque.
+    promus_hors_matrice = sorted(promus - set(matrice_par_contenu))
+    refuses_promus = sorted(
+        sha
+        for sha in promus
+        if sha in matrice_par_contenu
+        and matrice_par_contenu[sha] != VERDICT_CANDIDAT
+    )
+    refuses_par_verdict = collections.Counter(
+        matrice_par_contenu[sha] for sha in refuses_promus
+    )
+    refuses_par_actualite = [
+        sha
+        for sha in refuses_promus
+        if matrice_par_contenu[sha] == VERDICT_NON_ACTUEL
+    ]
 
     non_pdf_servables = non_pdf["NON_PDF_SERVABLE"]
     # Le compteur fige de la consolidation reste le PLANCHER: la mesure ne peut
@@ -808,6 +869,20 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         "program_incompatible_refused_by_matrix": programme_incompatible_refuse,
         **provenance_promus,
         "currentness_policy_applied": actualite_appliquee,
+        # Le blocage de release est SEPARE du blocage PII et du drapeau
+        # d actualite : ils ne disent pas la meme chose. La PII parle d une
+        # decision humaine sur des donnees personnelles ; l actualite, de ce
+        # que la source declare ; l impact de release, du fait qu une release
+        # deja promue contient un contenu desormais refuse. Les fondre ferait
+        # disparaitre le troisieme derriere les deux autres.
+        "release_promoted_refused_contents": len(refuses_promus),
+        "release_promoted_refused_content_ids": refuses_promus,
+        "release_promoted_refused_by_verdict": dict(sorted(refuses_par_verdict.items())),
+        "release_promoted_refused_by_currentness": len(refuses_par_actualite),
+        "release_currentness_impact": refuses_par_actualite,
+        "release_reseal_required": bool(refuses_promus),
+        "release_promoted_unmatched_in_matrix": len(promus_hors_matrice),
+        "release_impact_measurable": not promus_hors_matrice,
         "non_pdf_servable_total": non_pdf_servables,
         "non_pdf_servable_reacquired": non_pdf_reacquis,
         "non_pdf_servable_complete": non_pdf_reacquis >= non_pdf_servables,
@@ -834,6 +909,16 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         refus.append("program_incompatible_in_servable_set")
     if not etat["currentness_policy_applied"]:
         refus.append("currentness_policy_applied")
+    # Appliquer la politique d actualite ne suffit pas : si une release DEJA
+    # promue contient un contenu que le gate refuse desormais, la release est
+    # incoherente. Fermer le drapeau d actualite en laissant cette incoherence
+    # non bloquante ferait disparaitre le risque au moment meme ou on le
+    # decouvre.
+    if etat["release_promoted_refused_contents"]:
+        refus.append("release_promoted_refused_contents")
+    # Ne pas avoir pu croiser n est pas la meme chose que n avoir rien trouve.
+    if not etat["release_impact_measurable"]:
+        refus.append("release_impact_measurable")
     if not etat["non_pdf_servable_complete"]:
         refus.append("non_pdf_servable_reacquired")
     if etat["open_prs_blocking"]:

@@ -17,6 +17,7 @@
 | `pre_release_blockers` | 1 |
 | `go_live_qualification_blockers` | 13 |
 | `pii_undecided` | 149 |
+| `release_promoted_refused_contents` | 26 |
 | `open_prs_blocking` | 6 |
 
 ## Etat calcule
@@ -30,7 +31,7 @@
 | `main_head` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
 | `origin_main_at_generation` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
 | `evaluated_ref` | go-live/currentness-policy-wiring |
-| `evaluated_head` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
+| `evaluated_head` | 1429331eacafe60f5db6cf6b3231456f6a2b014f |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -50,13 +51,19 @@
 | `promoted_release_authority_mechanism` | REGISTRY_FILE |
 | `promoted_release_registry_source` | DEFAULT |
 | `currentness_policy_applied` | True |
+| `release_promoted_refused_contents` | 26 |
+| `release_promoted_refused_by_verdict` | {'BLOCKED_NOT_CURRENT_BY_SOURCE': 3, 'BLOCKED_PII_HUMAN_REVIEW': 23} |
+| `release_promoted_refused_by_currentness` | 3 |
+| `release_reseal_required` | True |
+| `release_promoted_unmatched_in_matrix` | 0 |
+| `release_impact_measurable` | True |
 | `non_pdf_servable_total` | 37 |
 | `non_pdf_servable_reacquired` | 37 |
 | `non_pdf_servable_complete` | True |
 | `non_pdf_retention_policy_versioned` | True |
 | `non_pdf_retention_reason` | MEASURED |
 | `non_pdf_retention_store_named` | True |
-| `disk_free_bytes` | 76454486016 |
+| `disk_free_bytes` | 76487831552 |
 | `disk_used_percent` | 87 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |

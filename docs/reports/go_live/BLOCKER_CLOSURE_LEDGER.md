@@ -5,10 +5,11 @@
 > l etat calcule ; les editer a la main les rendrait faux sans les
 > rendre fermes.
 
-`blockers_open=4` sur 7
+`blockers_open=5` sur 8
 
 | Bloqueur | Valeur | Bloque | Qui agit | Condition de fermeture |
 | --- | ---: | :---: | --- | --- |
+| `RELEASE_PROMOTED_REFUSED_CONTENTS` | 26 | oui | HUMAN_REVIEWER | aucun contenu de l ensemble promu ne porte un verdict de refus dans la matrice de servabilite |
 | `PII_UNDECIDED` | 149 | oui | HUMAN_REVIEWER | 0 PII indecise dans le perimetre servable, ou exclusion gouvernee et versionnee de ces contenus. |
 | `PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET` | 0 | non | HUMAN_DECISION | Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique. |
 | `CURRENTNESS_POLICY_APPLIED` | True | non | ENGINEERING | Un consommateur de production applique la politique et le gate le constate ; un registre seulement present ne suffit pas. |
@@ -18,6 +19,17 @@
 | `PRE_RELEASE_BLOCKERS` | 1 | oui | DERIVED | Se ferme seul quand ses trois sources se ferment. |
 
 ## Detail
+
+### RELEASE_PROMOTED_REFUSED_CONTENTS
+
+- categorie : `BUSINESS`
+- valeur : `26`, bloque : `oui`
+- source de preuve : `docs/reports/handoff/servability_matrix_v1.json croisee avec l ensemble promu canonique : un contenu promu dont le gate de servabilite refuse le verdict`
+- action requise : Decider du sort de chaque contenu promu desormais refuse : le retirer et resceller la release sous une identite neuve, ou documenter une derogation gouvernee. Ni l un ni l autre ne peut etre fait par un script.
+- decision humaine requise : `oui`
+- automatisable : `non`
+- PR liees : aucune
+- dependance de deploiement : `BLOQUE_LE_SCELLEMENT`
 
 ### PII_UNDECIDED
 
