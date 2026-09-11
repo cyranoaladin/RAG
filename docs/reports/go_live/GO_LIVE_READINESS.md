@@ -8,7 +8,7 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=8be276db3fad0e40123ea334363026d3ceb4e94a`
+`main_head=60cec782e821fcf5e1403a1675a7e6348ef93ee5`
 
 ## Ce qui empeche le go-live
 
@@ -29,10 +29,10 @@
 | `snapshot_contains_self_commit` | False |
 | `snapshot_is_operational_current` | False |
 | `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
-| `main_head` | 8be276db3fad0e40123ea334363026d3ceb4e94a |
-| `origin_main_at_generation` | 8be276db3fad0e40123ea334363026d3ceb4e94a |
-| `evaluated_ref` | go-live/closure-plan |
-| `evaluated_head` | 8be276db3fad0e40123ea334363026d3ceb4e94a |
+| `main_head` | 60cec782e821fcf5e1403a1675a7e6348ef93ee5 |
+| `origin_main_at_generation` | 60cec782e821fcf5e1403a1675a7e6348ef93ee5 |
+| `evaluated_ref` | go-live/non-pdf-retention-policy |
+| `evaluated_head` | 60cec782e821fcf5e1403a1675a7e6348ef93ee5 |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -55,8 +55,10 @@
 | `non_pdf_servable_total` | 37 |
 | `non_pdf_servable_reacquired` | 0 |
 | `non_pdf_servable_complete` | False |
-| `disk_free_bytes` | 86294925312 |
-| `disk_used_percent` | 86 |
+| `non_pdf_retention_policy_versioned` | True |
+| `non_pdf_retention_reason` | DURABLE_STORE_UNREADABLE |
+| `disk_free_bytes` | 74015449088 |
+| `disk_used_percent` | 87 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |
 | `production_deployments` | 0 |

@@ -56,7 +56,7 @@
 
 - categorie : `DATA`
 - valeur : `0/37`, bloque : `oui`
-- source de preuve : `docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json (NON_PDF_LOCAL_COPY_RETAINED)`
+- source de preuve : `docs/reports/go_live/non_pdf_retention_policy.json (magasin durable mesure) ; plancher : docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json (NON_PDF_LOCAL_COPY_RETAINED)`
 - action requise : Reacquerir les ressources interactives servables depuis Drive, empreinte et taille attendues au manifeste, ou les exclure par une decision gouvernee et non silencieuse.
 - decision humaine requise : `non`
 - automatisable : `oui`

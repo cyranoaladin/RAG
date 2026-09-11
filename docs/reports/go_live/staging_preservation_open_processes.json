@@ -1,0 +1,20 @@
+{
+  "kind": "NEXUS-STAGING-PRESERVATION-OPEN-PROCESSES-V1",
+  "policy": {
+    "never_kill": ["nexus-drive-staging-v2"],
+    "never_run": ["docker system prune", "docker volume prune"],
+    "why": "le volume de la base de revue est anonyme ; un elagage l emporterait sans qu aucun nom ne le rattache a ce travail"
+  },
+  "rules": [
+    "un processus de sauvegarde ou de restauration n est jamais interrompu sans preuve qu il est termine",
+    "un shell residuel est soit ferme, soit justifie par son PID, sa commande, son role et son risque",
+    "un conteneur cree pour une preuve est supprime apres usage ; la base protegee ne l est jamais"
+  ],
+  "observed_20260911": {
+    "residual_shells": 0,
+    "backup_or_restore_running": 0,
+    "protected_container_state": "running",
+    "proof_container_removed": true,
+    "note": "le seul shell residuel constate pendant le lot AO etait un observateur de CI en lecture seule, termine de lui-meme a la fin de la CI"
+  }
+}
