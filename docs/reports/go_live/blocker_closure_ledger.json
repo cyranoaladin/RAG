@@ -59,11 +59,11 @@
   },
   {
    "automation_possible": true,
-   "blocking": true,
+   "blocking": false,
    "blocking_when": "value < non_pdf_servable_total",
    "category": "DATA",
    "close_condition": "Octets disponibles pour chaque ressource servable, empreintes concordantes, ou exclusion gouvernee.",
-   "current_value": "0/37",
+   "current_value": "37/37",
    "deployment_dependency": "BLOQUE_L_INGESTION_STAGING",
    "evidence_source": "docs/reports/go_live/non_pdf_retention_policy.json (magasin durable mesure) ; plancher : docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json (NON_PDF_LOCAL_COPY_RETAINED)",
    "human_decision_required": false,
@@ -141,9 +141,9 @@
    "required_action": "Rien directement. Ce compteur DERIVE de PII, programme et actualite. Le fermer par lui-meme reviendrait a maquiller les trois."
   }
  ],
- "blockers_open": 6,
+ "blockers_open": 5,
  "blockers_total": 7,
- "evaluated_head": "60cec782e821fcf5e1403a1675a7e6348ef93ee5",
+ "evaluated_head": "f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",

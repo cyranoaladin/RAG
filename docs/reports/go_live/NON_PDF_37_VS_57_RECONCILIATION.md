@@ -22,7 +22,7 @@ Ce que le gate mesure : le sous-ensemble SERVABLE, soit les ressources interacti
 - dont servables : **37**
 - non retenus : **0**
 
-Ferme le compteur du gate : **non** — la politique de conservation n'est pas versionnée ; un emplacement choisi en séance n'est pas une décision de gouvernance.
+Ferme le compteur du gate : **non** — ce rapport mesure la rétention ; la décision de fermeture appartient au gate, qui lit la politique de conservation.
 
 ## Lignes
 

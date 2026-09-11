@@ -134,13 +134,31 @@ def test_des_octets_de_meme_taille_mais_differents_sont_refuses(tmp_path: Path):
 
 
 def test_une_conservation_complete_ne_ferme_aucun_compteur(tmp_path: Path):
-    """Le piège : tout retenir ne vaut pas décision de gouvernance."""
+    """Le piège : tout retenir ne vaut pas décision de fermeture."""
     demandes = [_demande("a.ggb", b"a")]
     racine = _poser(tmp_path, demandes)
     etat = reco.reconcilier(racine, _magasin(tmp_path, {"id-a.ggb": b"a"}))
     assert etat["retention"]["retained_verified"] == 1
     assert etat["retention"]["closes_gate_counter"] is False
     assert etat["gate_counts"]["NON_PDF_LOCAL_COPY_RETAINED"] == 0
+
+
+def test_le_rapport_n_affirme_rien_sur_une_politique_qu_il_ne_lit_pas(tmp_path: Path):
+    """Il ne lit pas la politique de conservation : il ne doit rien en dire.
+
+    Le message disait « la politique n'est pas versionnée ». Le jour où elle
+    l'a été, il est devenu faux sans que rien ne le signale — un rapport qui
+    parle de ce qu'il n'a pas regardé se périme en silence.
+    """
+    demandes = [_demande("a.ggb", b"a")]
+    etat = reco.reconcilier(_poser(tmp_path, demandes), None)
+    motif = etat["retention"]["why_not"]
+    assert "versionn" not in motif, motif
+    assert "gate" in motif
+    source = (
+        RACINE / "scripts/go_live/reconcile_non_pdf_counts.py"
+    ).read_text(encoding="utf-8")
+    assert "non_pdf_retention_policy" not in source
 
 
 def test_sans_magasin_rien_n_est_retenu(tmp_path: Path):

@@ -3,7 +3,7 @@
   "closes_gate_counter": false,
   "complete": true,
   "coverage_authority": "docs/reports/go_live/non_pdf_37_vs_57_reconciliation.json porte la couverture ligne à ligne ; ce manifeste ne décrit que l'emplacement",
-  "durable_location": "~/nexus-backups/rag/non-pdf-reacquired/20260911T155246Z",
+  "durable_location": "/backup/rag/non-pdf-reacquired/20260911T155246Z",
   "expected_requests": 57,
   "files": 57,
   "kind": "NEXUS-NON-PDF-DURABLE-STORAGE-MANIFEST-V1",
@@ -294,5 +294,5 @@
       "size": 48657
     }
   ],
-  "why_not": "la politique de conservation n'est pas versionnée ; des octets mis à l'abri ne valent pas décision de gouvernance"
+  "why_not": "ce manifeste décrit un emplacement ; la décision de fermeture appartient au gate, qui mesure sous la politique de conservation"
 }
