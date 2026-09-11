@@ -50,6 +50,17 @@ MATRIX_READER	scripts/go_live/export_pii_review_packets.py
 # l inverse de l appliquer : ce lecteur ne peut jamais rendre la politique
 # effective, il peut seulement refuser tant qu elle ne l est pas.
 CURRENTNESS_POLICY_READER	scripts/go_live/check_go_live_readiness.py
+# Depuis ADR-0055, la politique est APPLIQUEE. Ces trois lecteurs sont ceux qui
+# l appliquent, et c est voulu :
+#  - currentness_disposition.py la charge et REFUSE si elle ne s applique pas ;
+#    il ne produit qu une disposition d actualite, jamais un verdict ;
+#  - servability_gate.py compose les autorites sans en posseder aucune ;
+#  - construire_matrice_servabilite.py delegue sa composition au gate et refuse
+#    de se construire si la politique n est pas appliquee.
+# Le drapeau et le comportement ne peuvent donc pas diverger.
+CURRENTNESS_POLICY_READER	services/rag-pedago/rag_pedago/governance/currentness_disposition.py
+CURRENTNESS_POLICY_READER	services/rag-pedago/rag_pedago/governance/servability_gate.py
+CURRENTNESS_POLICY_READER	services/rag-pedago/scripts/construire_matrice_servabilite.py
 
 # --- R4 : producteur AuthorizationSetV2 -----------------------------------
 # EXACTEMENT un producteur canonique hors du contrat. Il DERIVE les contenus

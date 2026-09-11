@@ -12,7 +12,7 @@
    "libelle": "contenu candidat a la servabilite",
    "measurable_from_repository": true,
    "mesure": "matrice de servabilite, applied=false",
-   "value": 2301
+   "value": 2264
   },
   {
    "id": "INGESTED",
@@ -39,7 +39,7 @@
    "why_not_measured": "exige une base ou un service identifies ; rendre zero serait une fausse assurance"
   }
  ],
- "evaluated_head": "f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b",
+ "evaluated_head": "e61d0e26f1aa3087d96bed3573c3f274c82979bd",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-GO-LIVE-CLOSURE-PLAN-V1",
@@ -57,11 +57,9 @@
    "gate": "pre_release_blockers == 0",
    "id": "P1_PRE_RELEASE",
    "open_blockers": [
-    "PII_UNDECIDED",
-    "CURRENTNESS_POLICY_APPLIED"
+    "PII_UNDECIDED"
    ],
    "owners": [
-    "ENGINEERING",
     "HUMAN_REVIEWER"
    ],
    "titre": "Fermer les bloqueurs de pre-release"

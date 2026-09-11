@@ -156,3 +156,54 @@ contenu ne devient servable.
 
 Ce qui change est vérifiable : la politique cesse de contredire ADR-0051, et
 cesse de pouvoir décider à la place de quatre autres autorités.
+
+## Amendement — le câblage, et le défaut qu'il a révélé
+
+*Ajouté par la PR qui câble la politique. L'ADR passe d'Proposé à Accepté par
+l'approbation de cette PR, selon le mécanisme fixé en tête de document.*
+
+### Le câblage change la portée ci-dessus
+
+```text
+CURRENTNESS_POLICY_AUTHORITY_COUNT=1
+CURRENTNESS_POLICY_APPLIED=true
+```
+
+Le texte précédent disait : « l'adoption d'une politique et son câblage dans le
+runtime sont deux actes distincts ; les confondre ferait d'une review de texte
+un changement de comportement. » Cela reste vrai, et c'est pourquoi le câblage
+fait l'objet d'une PR distincte, avec son propre comportement vérifiable.
+
+### Le défaut
+
+En câblant, on a constaté que la matrice de servabilité calculait une colonne
+`currentness` que son verdict **ne consultait jamais**. Quarante contenus
+déclarés archivés par la source ressortaient candidats servables — dont trois
+déjà dans la release promue, l'un rangé sous `90_ARCHIVE_CATALOGUE/`.
+
+Le défaut n'était donc pas une politique manquante : la politique existait,
+interdisait explicitement de « ressusciter un document déclaré archive par la
+source », et n'était appliquée nulle part. Une dimension calculée mais non
+consommée est pire qu'une dimension absente, parce qu'elle donne l'apparence
+d'un contrôle.
+
+### Ce que l'application produit
+
+- la politique produit une disposition d'actualité, et rien d'autre ;
+- `SERVABILITY_GATE` compose les autorités et nomme celle qui refuse ;
+- l'ordre décidé antérieurement est préservé : une incompatibilité de programme
+  prouvée prime, la PII vient ensuite, puis l'actualité ;
+- 37 contenus passent de candidat servable à refusé par le gate d'actualité ;
+- les candidats servables passent de 2301 à 2264.
+
+`applied: true` n'est pas une déclaration : le constructeur de la matrice charge
+la politique et refuse de se construire si elle ne s'applique pas. Le drapeau et
+le comportement ne peuvent pas diverger.
+
+### Ce que cette ADR ne décide toujours pas
+
+Trois contenus déjà promus sont désormais refusés. Les retirer de la release
+exigerait une nouvelle identité de release, ce qui relève d'ADR-0050 et du
+propriétaire du corpus. **Aucune release n'est modifiée ici.** Les trois sont
+nommés, avec empreinte et chemin, dans
+`docs/reports/go_live/currentness_archive_gate_impact.json`.

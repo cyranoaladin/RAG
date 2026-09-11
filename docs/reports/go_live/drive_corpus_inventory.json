@@ -16,7 +16,7 @@
     "contenu réellement servi en production"
   ],
   "pedagogical_scope": {
-    "candidats_servables": 2301,
+    "candidats_servables": 2264,
     "contenus": 2529,
     "non_recenses_par_la_matrice": [],
     "promus": 319,
@@ -26,9 +26,10 @@
     "hors_drive": [],
     "hors_zone_pedagogique": [],
     "non_candidats_par_verdict": {
+      "BLOCKED_NOT_CURRENT_BY_SOURCE": 3,
       "BLOCKED_PII_HUMAN_REVIEW": 23
     },
-    "non_candidats_servables": 23,
+    "non_candidats_servables": 26,
     "total": 319
   },
   "url_provenance": {
@@ -145,8 +146,9 @@
       "recenses_par_la_matrice": 2451,
       "role": "PEDAGOGIQUE",
       "verdicts": {
+        "BLOCKED_NOT_CURRENT_BY_SOURCE": 37,
         "BLOCKED_PII_HUMAN_REVIEW": 149,
-        "CANDIDATE_NO_BLOCKING_DIMENSION": 2301,
+        "CANDIDATE_NO_BLOCKING_DIMENSION": 2264,
         "REFUSED_PROGRAM_INCOMPATIBLE": 1
       },
       "zone": "01_EDUSCOL_OFFICIEL"

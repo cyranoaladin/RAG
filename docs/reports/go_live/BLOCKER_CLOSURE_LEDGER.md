@@ -5,17 +5,17 @@
 > l etat calcule ; les editer a la main les rendrait faux sans les
 > rendre fermes.
 
-`blockers_open=5` sur 7
+`blockers_open=4` sur 7
 
 | Bloqueur | Valeur | Bloque | Qui agit | Condition de fermeture |
 | --- | ---: | :---: | --- | --- |
 | `PII_UNDECIDED` | 149 | oui | HUMAN_REVIEWER | 0 PII indecise dans le perimetre servable, ou exclusion gouvernee et versionnee de ces contenus. |
 | `PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET` | 0 | non | HUMAN_DECISION | Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique. |
-| `CURRENTNESS_POLICY_APPLIED` | False | oui | ENGINEERING | Un consommateur de production applique la politique et le gate le constate ; un registre seulement present ne suffit pas. |
+| `CURRENTNESS_POLICY_APPLIED` | True | non | ENGINEERING | Un consommateur de production applique la politique et le gate le constate ; un registre seulement present ne suffit pas. |
 | `NON_PDF_SERVABLE_REACQUIRED` | 37/37 | non | OPERATOR | Octets disponibles pour chaque ressource servable, empreintes concordantes, ou exclusion gouvernee. |
 | `GO_LIVE_QUALIFICATION_BLOCKERS` | 13 | oui | MIXED | Chaque entree du tableau porte closed=true et sa preuve. |
 | `OPEN_PRS_BLOCKING` | 6 | oui | HUMAN_DECISION | Aucune disposition BLOCKING ni UNKNOWN. |
-| `PRE_RELEASE_BLOCKERS` | 2 | oui | DERIVED | Se ferme seul quand ses trois sources se ferment. |
+| `PRE_RELEASE_BLOCKERS` | 1 | oui | DERIVED | Se ferme seul quand ses trois sources se ferment. |
 
 ## Detail
 
@@ -44,7 +44,7 @@
 ### CURRENTNESS_POLICY_APPLIED
 
 - categorie : `GOVERNANCE`
-- valeur : `False`, bloque : `oui`
+- valeur : `True`, bloque : `non`
 - source de preuve : `services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml (champ applied)`
 - action requise : Cabler la politique dans le runtime. ADR-0055 l adopte ; adopter et cabler sont deux actes distincts, et les confondre ferait d une revue de texte un changement de comportement.
 - decision humaine requise : `non`
@@ -88,7 +88,7 @@
 ### PRE_RELEASE_BLOCKERS
 
 - categorie : `AGGREGATE`
-- valeur : `2`, bloque : `oui`
+- valeur : `1`, bloque : `oui`
 - source de preuve : `agregat calcule`
 - action requise : Rien directement. Ce compteur DERIVE de PII, programme et actualite. Le fermer par lui-meme reviendrait a maquiller les trois.
 - decision humaine requise : `non`

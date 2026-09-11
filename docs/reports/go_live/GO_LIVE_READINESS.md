@@ -8,16 +8,15 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b`
+`main_head=e61d0e26f1aa3087d96bed3573c3f274c82979bd`
 
 ## Ce qui empeche le go-live
 
 | Raison | Valeur |
 | --- | ---: |
-| `pre_release_blockers` | 2 |
+| `pre_release_blockers` | 1 |
 | `go_live_qualification_blockers` | 13 |
 | `pii_undecided` | 149 |
-| `currentness_policy_applied` | False |
 | `open_prs_blocking` | 6 |
 
 ## Etat calcule
@@ -28,19 +27,19 @@
 | `snapshot_contains_self_commit` | False |
 | `snapshot_is_operational_current` | False |
 | `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
-| `main_head` | f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b |
-| `origin_main_at_generation` | f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b |
-| `evaluated_ref` | go-live/record-non-pdf-durable-retention |
-| `evaluated_head` | f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b |
+| `main_head` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
+| `origin_main_at_generation` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
+| `evaluated_ref` | go-live/currentness-policy-wiring |
+| `evaluated_head` | e61d0e26f1aa3087d96bed3573c3f274c82979bd |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
 | `worktrees_total` | 3 |
 | `obsolete_worktrees_remaining` | 0 |
 | `root_owned_worktree_residues` | 0 |
-| `pre_release_blockers` | 2 |
+| `pre_release_blockers` | 1 |
 | `go_live_qualification_blockers` | 13 |
-| `servable_candidate_count` | 2301 |
+| `servable_candidate_count` | 2264 |
 | `pii_undecided` | 149 |
 | `program_incompatible_in_servable_set` | 0 |
 | `program_incompatible_total` | 1 |
@@ -50,14 +49,14 @@
 | `promoted_content_set_size` | 319 |
 | `promoted_release_authority_mechanism` | REGISTRY_FILE |
 | `promoted_release_registry_source` | DEFAULT |
-| `currentness_policy_applied` | False |
+| `currentness_policy_applied` | True |
 | `non_pdf_servable_total` | 37 |
 | `non_pdf_servable_reacquired` | 37 |
 | `non_pdf_servable_complete` | True |
 | `non_pdf_retention_policy_versioned` | True |
 | `non_pdf_retention_reason` | MEASURED |
 | `non_pdf_retention_store_named` | True |
-| `disk_free_bytes` | 74164633600 |
+| `disk_free_bytes` | 76454486016 |
 | `disk_used_percent` | 87 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |

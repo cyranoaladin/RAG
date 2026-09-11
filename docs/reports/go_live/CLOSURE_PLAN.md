@@ -14,7 +14,7 @@ Un contenu qui figure dans une matrice n est pas pour autant servi.
 | Niveau | Mesure | Valeur |
 | --- | --- | --- |
 | contenu promu | ensemble promu canonique | 319 |
-| contenu candidat a la servabilite | matrice de servabilite, applied=false | 2301 |
+| contenu candidat a la servabilite | matrice de servabilite, applied=false | 2264 |
 | contenu ingere | base pgvector d un environnement identifie | non mesurable depuis le depot |
 | contenu exploitable par recherche | contrat de retrieval sur un service identifie | non mesurable depuis le depot |
 | contenu reellement servi en production | production, hors de portee de ce lot | non mesurable depuis le depot |
@@ -28,7 +28,7 @@ plutot que remplis.
 
 | Phase | Etat | Bloqueurs ouverts | Bloquee par | Qui agit |
 | --- | --- | --- | --- | --- |
-| `P1_PRE_RELEASE` Fermer les bloqueurs de pre-release | actionnable | PII_UNDECIDED, CURRENTNESS_POLICY_APPLIED | — | ENGINEERING, HUMAN_REVIEWER |
+| `P1_PRE_RELEASE` Fermer les bloqueurs de pre-release | actionnable | PII_UNDECIDED | — | HUMAN_REVIEWER |
 | `P2_DEPOT` Vider le depot de ses PR bloquantes | actionnable | OPEN_PRS_BLOCKING | — | HUMAN_DECISION |
 | `P3_OCTETS` Disposer des octets des contenus servables | en attente | — | P1_PRE_RELEASE | — |
 | `P4_QUALIFICATION` Fermer les gates de qualification | en attente | GO_LIVE_QUALIFICATION_BLOCKERS | P1_PRE_RELEASE, P2_DEPOT | MIXED |
