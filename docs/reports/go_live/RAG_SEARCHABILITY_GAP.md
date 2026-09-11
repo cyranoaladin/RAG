@@ -1,45 +1,60 @@
 # L'écart entre un corpus gouverné et un RAG interrogeable
 
-Les valeurs font autorité dans `rag_searchability_gap.json`.
+Document dérivé. Ne pas éditer à la main :
+`scripts/go_live/build_rag_searchability_gap.py` le régénère depuis
+l'audit d'ingestion, qui a interrogé une base nommée.
 
-## Ce qui existe
+## Ce qui est mesuré
 
-Le texte canonique de tous les PDF pédagogiques du Drive est présent dans la
-base de préparation, avec ses chunks. Rien ne manque de ce côté : le corpus a
-été collecté, extrait, découpé et conservé.
+- texte canonique en préparation : **2473**
+- contenus ingérés : **2473**
+- **vecteurs présents : 0**
+- colonnes vectorielles : 0
+- extension vectorielle : False
+- périmètre cible : **2529**
 
-## Ce qui n'existe pas
+## Ce qui n'est pas mesuré
 
-**Aucun vecteur.** Pas une colonne de type vectoriel, pas l'extension dans le
-schéma mesuré. Le texte est stocké ; il n'est indexé pour aucune recherche.
+- `production_searchable` — aucune base de production n'a été identifiée ni interrogée ; ne pas savoir n'est pas une autorisation.
 
-`rag_searchable` vaut donc faux, et la question de la production ne se pose
-même pas : aucune base de production n'a été identifiée ni interrogée.
+## Pourquoi zéro vecteur rend le RAG inexploitable
+
+le texte est stocké, pas indexé : aucune requête ne peut l'atteindre. Un corpus qualifié servable reste inatteignable tant qu'aucun vecteur ne le référence.
+
+La confusion joue dans un sens précis : « tout est ingéré » se lit
+spontanément comme « le RAG fonctionne ». Les deux sont séparés par une
+étape entière.
+
+## Le blocage qui porte ce refus
+
+`RAG_SEARCHABILITY` — `rag_searchability_blocker=true`.
+
+Ce document ne se contente plus de constater : tant que les conditions
+ci-dessous ne sont pas toutes tenues, le readiness refuse le go-live et
+nomme cette raison.
+
+## Conditions de fermeture
+
+| condition | tenue |
+| --- | :---: |
+| `staging_vectors_present` | **non** |
+| `vector_dimensions_consistent` | **non** |
+| `retrieval_top_k_validated` | **non** |
+| `citations_validated` | **non** |
+| `scope_filters_validated` | **non** |
+| `latency_validated` | **non** |
+| `rollback_validated` | **non** |
+| `target_scope_searchable` | **non** |
+
+Aucune ne suffit seule. Des vecteurs sans retrieval validé ne servent
+personne ; un retrieval validé sur un échantillon ne dit rien du
+périmètre cible.
+
+Le déploiement en production n'est pas autorisé par la fermeture de ce
+blocage : il relève d'une décision distincte.
 
 ## Trois phrases qu'il serait faux de dire
 
-- « le RAG est complètement ingéré » — le texte est stocké, pas indexé ;
-- « le corpus est interrogeable » — aucun vecteur n'existe ;
-- « le corpus est prêt à servir » — la servabilité est une qualification de
-  gouvernance, pas une capacité de recherche.
-
-La confusion la plus coûteuse est la première. « Tout est ingéré » se lit
-spontanément comme « le RAG fonctionne », alors que les deux sont séparés par
-une étape entière que personne n'a encore faite.
-
-## Ce que ce rapport ne ferme pas
-
-**Rien.** Aucun gate de readiness ne mesure aujourd'hui l'exploitabilité par
-recherche. Ce document constate un écart ; il ne fait baisser aucun compteur et
-n'en ferme aucun.
-
-C'est d'ailleurs le point : fermer les blocages de gouvernance — PII, release,
-qualification, PR — ne rendra toujours pas le corpus interrogeable. Un go-live
-prononcé sur les seuls compteurs de gouvernance livrerait un RAG qui ne répond
-à rien.
-
-## Ce qui viendra ensuite
-
-L'ingestion vectorielle complète en préparation, puis la validation du
-retrieval : citations, top-k, filtres de scope, latence, rollback. Chacun de
-ces points est une mesure, pas une déclaration.
+- RAG fully ingested : le texte est stocké, pas indexé
+- RAG searchable : aucun vecteur n'existe
+- corpus prêt à servir : la servabilité est une qualification, pas une capacité de recherche

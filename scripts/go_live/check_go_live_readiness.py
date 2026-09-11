@@ -68,6 +68,7 @@ POLITIQUE_ACTUALITE = (
 )
 DISPOSITIONS_PR = "docs/reports/go_live/open_pr_dispositions.json"
 BLOQUEURS_QUALIFICATION = "docs/reports/go_live/qualification_blockers.json"
+ECART_RECHERCHE = "docs/reports/go_live/rag_searchability_gap.json"
 SORTIE_JSON = "docs/reports/go_live/go_live_readiness_state.json"
 SORTIE_MD = "docs/reports/go_live/GO_LIVE_READINESS.md"
 SORTIE_LEDGER_JSON = "docs/reports/go_live/blocker_closure_ledger.json"
@@ -166,6 +167,30 @@ CALCULATEUR_ENSEMBLE_PROMU = "scripts/qualification/compute_promoted_content_set
 #: Seule la partie non calculable — qui doit agir, sous quelle condition la
 #: fermeture est acquise — est declaree ici, une fois.
 LEDGER_SPEC: tuple[dict[str, Any], ...] = (
+    {
+        "id": "RAG_SEARCHABILITY",
+        "category": "DATA",
+        "value_key": "rag_searchability_blocker",
+        "blocking_when": "value is true",
+        "evidence_source": (
+            ECART_RECHERCHE + " (derive de l audit d ingestion sur une base nommee)"
+        ),
+        "required_action": (
+            "Indexer le perimetre cible en vecteurs, puis valider le retrieval :"
+            " top-k, citations, filtres de portee, latence, rollback. Un corpus"
+            " qualifie servable reste inatteignable tant qu aucun vecteur ne le"
+            " reference."
+        ),
+        "owner_type": "OPERATOR",
+        "automation_possible": True,
+        "human_decision_required": False,
+        "close_condition": (
+            "toutes les conditions de fermeture de l ecart de recherche sont"
+            " tenues, mesurees et non supposees"
+        ),
+        "related_prs": [],
+        "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
+    },
     {
         "id": "RELEASE_PROMOTED_REFUSED_CONTENTS",
         "category": "BUSINESS",
@@ -715,6 +740,10 @@ def _disque() -> tuple[int, int]:
 def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
     matrice = _charger(MATRICE)
     non_pdf = _charger(NON_PDF)
+    # Un corpus gouverne n est pas un corpus interrogeable. L ecart est LU,
+    # jamais suppose : sans ce fichier, on ne saurait pas si le corpus est
+    # atteignable, et ne pas savoir n est pas une autorisation.
+    ecart_recherche = _charger(ECART_RECHERCHE)
     dispositions = _charger(DISPOSITIONS_PR)["dispositions"]
     qualification = _charger(BLOQUEURS_QUALIFICATION)["blockers"]
 
@@ -883,6 +912,16 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         "release_reseal_required": bool(refuses_promus),
         "release_promoted_unmatched_in_matrix": len(promus_hors_matrice),
         "release_impact_measurable": not promus_hors_matrice,
+        # L exploitabilite par RECHERCHE, distincte de la servabilite. Un
+        # contenu peut etre promu, servable et ingere sans qu aucune requete ne
+        # puisse l atteindre.
+        "rag_searchable": ecart_recherche["rag_searchable"],
+        "staging_vectors_present": ecart_recherche["measured"]["staging_vectors_present"],
+        "target_scope_searchable": ecart_recherche["target_scope_searchable"],
+        "production_searchable": ecart_recherche["production_searchable"],
+        "retrieval_contract_validated": ecart_recherche["retrieval_contract_validated"],
+        "rag_searchability_blocker": ecart_recherche["rag_searchability_blocker"],
+        "rag_searchability_conditions_not_met": ecart_recherche["conditions_not_met"],
         "non_pdf_servable_total": non_pdf_servables,
         "non_pdf_servable_reacquired": non_pdf_reacquis,
         "non_pdf_servable_complete": non_pdf_reacquis >= non_pdf_servables,
@@ -916,6 +955,11 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
     # decouvre.
     if etat["release_promoted_refused_contents"]:
         refus.append("release_promoted_refused_contents")
+    # Fermer PII, release, qualification et PR ne rendra pas le corpus
+    # interrogeable. Un go-live prononce sur les seuls compteurs de gouvernance
+    # livrerait un RAG qui ne repond a rien.
+    if etat["rag_searchability_blocker"]:
+        refus.append("rag_searchability_blocker")
     # Ne pas avoir pu croiser n est pas la meme chose que n avoir rien trouve.
     if not etat["release_impact_measurable"]:
         refus.append("release_impact_measurable")

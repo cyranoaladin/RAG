@@ -1,55 +1,52 @@
 {
-  "closes_no_blocker": true,
-  "governance_blockers_unaffected": {
-    "go_live_qualification_blockers": 13,
-    "open_prs_blocking": 6,
-    "pii_undecided": 149,
-    "release_promoted_refused_contents": 26
+  "blocker_id": "RAG_SEARCHABILITY",
+  "closing_conditions": {
+    "citations_validated": false,
+    "latency_validated": false,
+    "retrieval_top_k_validated": false,
+    "rollback_validated": false,
+    "scope_filters_validated": false,
+    "staging_vectors_present": false,
+    "target_scope_searchable": false,
+    "vector_dimensions_consistent": false
   },
+  "conditions_not_met": [
+    "citations_validated",
+    "latency_validated",
+    "retrieval_top_k_validated",
+    "rollback_validated",
+    "scope_filters_validated",
+    "staging_vectors_present",
+    "target_scope_searchable",
+    "vector_dimensions_consistent"
+  ],
   "kind": "NEXUS-RAG-SEARCHABILITY-GAP-V1",
-  "levels": {
-    "canonical_text_present_in_staging": {
-      "measured": true,
-      "value": 2473
+  "measured": {
+    "canonical_text_in_staging": 2473,
+    "ingested_contents": 2473,
+    "measurement_source": {
+      "dbname": "drivestaging",
+      "host": "127.0.0.1",
+      "port": 55435
     },
-    "chunks_present": {
-      "measured": true,
-      "note": "la base de preparation porte des chunks de texte",
-      "value": true
-    },
-    "production_searchable": {
-      "measured": false,
-      "value": null,
-      "why": "aucune base de production n a ete identifiee ni interrogee"
-    },
-    "rag_searchable": {
-      "measured": true,
-      "value": false
-    },
-    "target_scope_searchable": {
-      "measured": true,
-      "target_scope": 2529,
-      "value": false
-    },
-    "vectors_present": {
-      "evidence": "aucune colonne de type vector, extension pgvector absente du schema mesure",
-      "measured": true,
-      "value": 0
-    }
+    "staging_vectors_present": 0,
+    "target_scope_contents": 2529,
+    "vector_columns": 0,
+    "vector_extension": false
   },
-  "next_steps_after_governance": [
-    "ingestion vectorielle complete en staging",
-    "validation du retrieval",
-    "citations",
-    "top-k",
-    "filtres de scope",
-    "latence",
-    "rollback"
-  ],
+  "not_measured": {
+    "production_searchable": null,
+    "why": "aucune base de production n'a été identifiée ni interrogée ; ne pas savoir n'est pas une autorisation"
+  },
+  "production_searchable": false,
+  "rag_searchability_blocker": true,
+  "rag_searchable": false,
+  "retrieval_contract_validated": false,
+  "target_scope_searchable": false,
   "what_would_be_wrong_to_say": [
-    "RAG fully ingested : le texte est stocke, pas indexe",
-    "RAG searchable : aucun vecteur n existe",
-    "corpus pret a servir : la servabilite est une qualification, pas une capacite de recherche"
+    "RAG fully ingested : le texte est stocké, pas indexé",
+    "RAG searchable : aucun vecteur n'existe",
+    "corpus prêt à servir : la servabilité est une qualification, pas une capacité de recherche"
   ],
-  "why_closes_nothing": "aucun gate de readiness ne mesure aujourd hui l exploitabilite par recherche ; ce rapport constate un ecart, il ne ferme rien"
+  "why_vectors_zero_means_unusable": "le texte est stocké, pas indexé : aucune requête ne peut l'atteindre. Un corpus qualifié servable reste inatteignable tant qu'aucun vecteur ne le référence"
 }

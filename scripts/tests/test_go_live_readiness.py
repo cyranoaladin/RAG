@@ -28,6 +28,7 @@ NON_PDF = "docs/reports/evidence-index/non_pdf_disposition_consolidation_2026090
 POLITIQUE = "services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml"
 DISPOSITIONS = "docs/reports/go_live/open_pr_dispositions.json"
 QUALIFICATION = "docs/reports/go_live/qualification_blockers.json"
+ECART_RECHERCHE = "docs/reports/go_live/rag_searchability_gap.json"
 ATTENDUS = "docs/reports/go_live/expected_worktrees.json"
 
 FAITS_PROPRES = {
@@ -93,6 +94,7 @@ def depot_sans_bloqueur(tmp_path: pathlib.Path) -> pathlib.Path:
         },
     )
     _ecrire(tmp_path, QUALIFICATION, {"blockers": [{"id": "C1", "closed": True}]})
+    _ecrire(tmp_path, ECART_RECHERCHE, _ecart_recherche())
     _ecrire(
         tmp_path,
         ATTENDUS,
@@ -103,6 +105,26 @@ def depot_sans_bloqueur(tmp_path: pathlib.Path) -> pathlib.Path:
     )
     _poser_calculateur_promu(tmp_path, contenus=["a" * 64])
     return tmp_path
+
+
+def _ecart_recherche(**surcharges) -> dict:
+    """Un ecart de recherche FERME : le corpus est indexe et le retrieval valide.
+
+    C est le seul etat qui ne bloque pas. Tout le reste — vecteurs absents,
+    retrieval non valide, portee cible non couverte — doit refuser.
+    """
+    base = {
+        "kind": "NEXUS-RAG-SEARCHABILITY-GAP-V1",
+        "measured": {"staging_vectors_present": 10, "target_scope_contents": 10},
+        "rag_searchable": True,
+        "target_scope_searchable": True,
+        "production_searchable": True,
+        "retrieval_contract_validated": True,
+        "rag_searchability_blocker": False,
+        "conditions_not_met": [],
+    }
+    base.update(surcharges)
+    return base
 
 
 #: Le gate delegue l ensemble promu au calculateur canonique. Les epreuves
@@ -1664,3 +1686,133 @@ def test_exclure_les_contenus_d_actualite_laisse_ceux_de_la_pii(
     assert apres["release_promoted_refused_by_verdict"] == {VERDICT_PII: 1}
     assert "release_promoted_refused_contents" in apres["blocking_reasons"]
     assert apres["go_live_ready"] is False
+
+
+# --- Exploitabilité par recherche : un corpus gouverné n'est pas interrogeable -
+
+
+def test_sans_vecteur_le_go_live_est_refuse(depot_sans_bloqueur):
+    """Le cas réel : tout le corpus est ingéré, aucun vecteur ne le référence."""
+    _ecrire(
+        depot_sans_bloqueur,
+        ECART_RECHERCHE,
+        _ecart_recherche(
+            measured={"staging_vectors_present": 0, "target_scope_contents": 2529},
+            rag_searchable=False,
+            target_scope_searchable=False,
+            rag_searchability_blocker=True,
+            conditions_not_met=["staging_vectors_present", "target_scope_searchable"],
+        ),
+    )
+    etat = _etat(depot_sans_bloqueur)
+    assert etat["staging_vectors_present"] == 0
+    assert etat["rag_searchable"] is False
+    assert etat["rag_searchability_blocker"] is True
+    assert "rag_searchability_blocker" in etat["blocking_reasons"]
+    assert etat["go_live_ready"] is False
+
+
+def test_un_retrieval_non_valide_bloque_meme_avec_des_vecteurs(depot_sans_bloqueur):
+    """Des vecteurs sans retrieval validé ne servent personne."""
+    _ecrire(
+        depot_sans_bloqueur,
+        ECART_RECHERCHE,
+        _ecart_recherche(
+            rag_searchable=False,
+            retrieval_contract_validated=False,
+            rag_searchability_blocker=True,
+            conditions_not_met=["retrieval_top_k_validated"],
+        ),
+    )
+    etat = _etat(depot_sans_bloqueur)
+    assert etat["retrieval_contract_validated"] is False
+    assert "rag_searchability_blocker" in etat["blocking_reasons"]
+    assert etat["go_live_ready"] is False
+
+
+def test_une_portee_cible_non_couverte_bloque(depot_sans_bloqueur):
+    """Un retrieval validé sur un échantillon ne dit rien du périmètre cible."""
+    _ecrire(
+        depot_sans_bloqueur,
+        ECART_RECHERCHE,
+        _ecart_recherche(
+            measured={"staging_vectors_present": 5, "target_scope_contents": 2529},
+            rag_searchable=False,
+            target_scope_searchable=False,
+            rag_searchability_blocker=True,
+            conditions_not_met=["target_scope_searchable"],
+        ),
+    )
+    etat = _etat(depot_sans_bloqueur)
+    assert etat["target_scope_searchable"] is False
+    assert etat["go_live_ready"] is False
+
+
+def test_un_rapport_purement_documentaire_ne_suffit_pas(depot_sans_bloqueur):
+    """Le drapeau du blocage est LU ; il ne se déduit pas du ton du rapport.
+
+    Un rapport qui décrirait l'écart sans lever le drapeau laisserait passer le
+    go-live — c'est exactement ce que ce test interdit.
+    """
+    _ecrire(
+        depot_sans_bloqueur,
+        ECART_RECHERCHE,
+        _ecart_recherche(
+            measured={"staging_vectors_present": 0, "target_scope_contents": 2529},
+            rag_searchable=False,
+            rag_searchability_blocker=True,
+        ),
+    )
+    etat = _etat(depot_sans_bloqueur)
+    assert "rag_searchability_blocker" in etat["blocking_reasons"]
+
+
+def test_fermer_la_gouvernance_ne_rend_pas_le_corpus_interrogeable(
+    depot_sans_bloqueur,
+):
+    """PII, release et PR fermées, mais aucun vecteur : le go-live reste refusé.
+
+    C'est le piège central : un go-live prononcé sur les seuls compteurs de
+    gouvernance livrerait un RAG qui ne répond à rien.
+    """
+    _ecrire(
+        depot_sans_bloqueur,
+        ECART_RECHERCHE,
+        _ecart_recherche(
+            measured={"staging_vectors_present": 0, "target_scope_contents": 2529},
+            rag_searchable=False,
+            rag_searchability_blocker=True,
+        ),
+    )
+    etat = _etat(depot_sans_bloqueur)
+    # La gouvernance est close dans cette fixture.
+    assert etat["pii_undecided"] == 0
+    assert etat["release_promoted_refused_contents"] == 0
+    assert etat["open_prs_blocking"] == 0
+    # Et pourtant :
+    assert etat["blocking_reasons"] == ["rag_searchability_blocker"]
+    assert etat["go_live_ready"] is False
+
+
+def test_un_corpus_indexe_et_valide_ne_bloque_pas(depot_sans_bloqueur):
+    """Sans ce cas, on ne saurait pas si le gate sait dire oui."""
+    etat = _etat(depot_sans_bloqueur)
+    assert etat["rag_searchable"] is True
+    assert etat["rag_searchability_blocker"] is False
+    assert "rag_searchability_blocker" not in etat["blocking_reasons"]
+
+
+def test_l_ecart_de_recherche_absent_est_refuse(depot_sans_bloqueur):
+    """Ne pas savoir si le corpus est atteignable n'est pas une autorisation."""
+    (depot_sans_bloqueur / ECART_RECHERCHE).unlink()
+    execution = subprocess.run(
+        [
+            sys.executable,
+            str(pathlib.Path("scripts/go_live/check_go_live_readiness.py").resolve()),
+            "--assert-ready",
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, "NEXUS_REPO_ROOT": str(depot_sans_bloqueur)},
+    )
+    assert execution.returncode == 2, execution.stdout[-400:]
