@@ -177,12 +177,15 @@ def reconcilier(racine: Path, magasin: Path | None) -> dict:
             "retained_verified": len(retenus),
             "retained_servable": len(retenus_servables),
             "not_retained": total_57 - len(retenus),
-            # La rétention mesurée ne ferme aucun compteur par elle-même : la
-            # politique de conservation doit d'abord être versionnée.
+            # Ce rapport ne ferme aucun compteur par lui-même, et il ne peut
+            # pas dire s'il est ferme ailleurs : il ne lit pas la politique de
+            # conservation. Affirmer ici qu'elle n'est pas versionnée serait
+            # parler de ce qu'on n'a pas regardé — et le jour où elle l'est, le
+            # message devient faux sans que rien ne le signale.
             "closes_gate_counter": False,
             "why_not": (
-                "la politique de conservation n'est pas versionnée ; un emplacement "
-                "choisi en séance n'est pas une décision de gouvernance"
+                "ce rapport mesure la rétention ; la décision de fermeture "
+                "appartient au gate, qui lit la politique de conservation"
             ),
         },
         "rows": sorted(lignes, key=lambda ligne: (not ligne["counted_in_37"], ligne["filename"])),

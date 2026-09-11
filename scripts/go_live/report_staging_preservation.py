@@ -189,8 +189,8 @@ def construire_manifeste_non_pdf(
         "complete": len(fichiers) == total_attendu,
         "closes_gate_counter": False,
         "why_not": (
-            "la politique de conservation n'est pas versionnée ; des octets mis à "
-            "l'abri ne valent pas décision de gouvernance"
+            "ce manifeste décrit un emplacement ; la décision de fermeture "
+            "appartient au gate, qui mesure sous la politique de conservation"
         ),
         "coverage_authority": (
             "docs/reports/go_live/non_pdf_37_vs_57_reconciliation.json porte la "

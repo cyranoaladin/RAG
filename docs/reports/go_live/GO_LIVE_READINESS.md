@@ -8,7 +8,7 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=60cec782e821fcf5e1403a1675a7e6348ef93ee5`
+`main_head=f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b`
 
 ## Ce qui empeche le go-live
 
@@ -18,7 +18,6 @@
 | `go_live_qualification_blockers` | 13 |
 | `pii_undecided` | 149 |
 | `currentness_policy_applied` | False |
-| `non_pdf_servable_reacquired` | 0 |
 | `open_prs_blocking` | 6 |
 
 ## Etat calcule
@@ -29,10 +28,10 @@
 | `snapshot_contains_self_commit` | False |
 | `snapshot_is_operational_current` | False |
 | `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
-| `main_head` | 60cec782e821fcf5e1403a1675a7e6348ef93ee5 |
-| `origin_main_at_generation` | 60cec782e821fcf5e1403a1675a7e6348ef93ee5 |
-| `evaluated_ref` | go-live/non-pdf-retention-policy |
-| `evaluated_head` | 60cec782e821fcf5e1403a1675a7e6348ef93ee5 |
+| `main_head` | f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b |
+| `origin_main_at_generation` | f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b |
+| `evaluated_ref` | go-live/record-non-pdf-durable-retention |
+| `evaluated_head` | f601d6ea4dd709b8213ce2cf72ff81e2eb892c8b |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -53,11 +52,12 @@
 | `promoted_release_registry_source` | DEFAULT |
 | `currentness_policy_applied` | False |
 | `non_pdf_servable_total` | 37 |
-| `non_pdf_servable_reacquired` | 0 |
-| `non_pdf_servable_complete` | False |
+| `non_pdf_servable_reacquired` | 37 |
+| `non_pdf_servable_complete` | True |
 | `non_pdf_retention_policy_versioned` | True |
-| `non_pdf_retention_reason` | DURABLE_STORE_UNREADABLE |
-| `disk_free_bytes` | 74015449088 |
+| `non_pdf_retention_reason` | MEASURED |
+| `non_pdf_retention_store_named` | True |
+| `disk_free_bytes` | 74164633600 |
 | `disk_used_percent` | 87 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |
