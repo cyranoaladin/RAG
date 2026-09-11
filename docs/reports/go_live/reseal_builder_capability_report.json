@@ -1,0 +1,58 @@
+{
+  "answer": "NON",
+  "builder": "services/rag-pedago/scripts/build_production_profile_release.py",
+  "builder_options": [
+    "--activation-status",
+    "--authority-change-motive",
+    "--embedding-snapshot",
+    "--output-dir",
+    "--pdf-root",
+    "--pii-decision-set",
+    "--pii-review-index",
+    "--pii-review-receipt",
+    "--pii-review-reviewer",
+    "--promotion-status",
+    "--reference-release",
+    "--release-id",
+    "--release-mode",
+    "--reranker-snapshot",
+    "--review-status",
+    "--review-trust-anchor",
+    "--source-release-root",
+    "--verify-official-downloads"
+  ],
+  "consequence": "un reseal excluant les 3 contenus ne peut pas etre exprime par le constructeur ; il faudrait l editer a la main, ce qui produirait une release scellee sur des empreintes que son propre constructeur ne reproduirait pas",
+  "evidence": {
+    "currentness_is_recorded_not_filtered": true,
+    "currentness_occurrences_in_builder": 34,
+    "no_exclusion_option": true
+  },
+  "exclusion_mechanisms_found": {
+    "by_currentness": {
+      "note": "aucune option, aucun filtre : l actualite est PRODUITE comme preuve et jamais consommee comme filtre",
+      "present": false
+    },
+    "by_explicit_content_list": {
+      "note": "aucune option n accepte une liste de contenus a retirer",
+      "present": false
+    },
+    "by_pii_decision": {
+      "note": "le seul mecanisme d exclusion expose ; il appartient a l autorite PII",
+      "present": true
+    }
+  },
+  "kind": "NEXUS-RESEAL-BUILDER-CAPABILITY-REPORT-V1",
+  "published_release_ids_known_to_authority": [
+    "production-profile-gate-2026-2027-v1",
+    "production-profile-gate-2026-2027-v2-candidate-candidate-v2-20260904T084521Z",
+    "production-profile-gate-2026-2027-v2-rehearsal"
+  ],
+  "question": "le constructeur de release sait-il exclure des contenus pour raison d actualite ?",
+  "release_produced": false,
+  "same_defect_one_floor_up": "la matrice de servabilite calculait une colonne d actualite que son verdict ne lisait pas ; le constructeur produit une preuve d actualite qu aucune selection ne consulte. Le defaut se repete a un autre etage.",
+  "what_is_required": [
+    "une option gouvernee d exclusion par disposition d actualite, ou",
+    "un filtre en amont sur la selection des contenus, adosse au SERVABILITY_GATE",
+    "dans les deux cas: une PR d outillage, pas une release"
+  ]
+}
