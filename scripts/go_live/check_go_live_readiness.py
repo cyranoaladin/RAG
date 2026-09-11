@@ -24,6 +24,21 @@ deploiements, bascule courante. Aucune lecture du depot ne prouve qu ils sont
 restes a zero. Ils sont donc DECLARES par le lot, et le script le dit au lieu
 de faire croire qu il les a mesures.
 
+Trois modes, et un seul est un garde
+------------------------------------
+
+`--check-only`     diagnostic. Calcule et imprime. Rend 0 des lors que le
+                   CALCUL a pu s executer, meme si le systeme n est pas pret.
+                   Ne jamais s en servir dans une chaine de deploiement : un
+                   mode qui rend 0 quand rien n est pret est un faux vert.
+
+`--verify-snapshot` concordance. Dit si un instantane vaut encore pour le HEAD
+                   courant. N autorise RIEN, jamais, meme concordant.
+
+`--assert-ready`   LE garde. Rend 0 seulement si le systeme est reellement
+                   pret, 1 s il ne l est pas, 2 si une entree manque. C est le
+                   seul mode utilisable comme condition de deploiement.
+
 Les chemins sont derives de l emplacement de ce fichier ; `NEXUS_REPO_ROOT`
 permet de les surcharger.
 """
@@ -51,6 +66,172 @@ DISPOSITIONS_PR = "docs/reports/go_live/open_pr_dispositions.json"
 BLOQUEURS_QUALIFICATION = "docs/reports/go_live/qualification_blockers.json"
 SORTIE_JSON = "docs/reports/go_live/go_live_readiness_state.json"
 SORTIE_MD = "docs/reports/go_live/GO_LIVE_READINESS.md"
+SORTIE_LEDGER_JSON = "docs/reports/go_live/blocker_closure_ledger.json"
+SORTIE_LEDGER_MD = "docs/reports/go_live/BLOCKER_CLOSURE_LEDGER.md"
+
+#: Le ledger est DERIVE de l etat calcule. Ecrire ses valeurs a la main
+#: recreerait une seconde source, et deux sources finissent par diverger.
+#: Seule la partie non calculable — qui doit agir, sous quelle condition la
+#: fermeture est acquise — est declaree ici, une fois.
+LEDGER_SPEC: tuple[dict[str, Any], ...] = (
+    {
+        "id": "PII_UNDECIDED",
+        "category": "BUSINESS",
+        "value_key": "pii_undecided",
+        "blocking_when": "value > 0",
+        "evidence_source": MATRICE + " (by_pii.PII_UNDECIDED)",
+        "required_action": (
+            "Trancher chaque paquet de revue, ou exclure explicitement ces "
+            "contenus du perimetre servable par une decision gouvernee."
+        ),
+        "owner_type": "HUMAN_REVIEWER",
+        "automation_possible": False,
+        "human_decision_required": True,
+        "related_prs": [],
+        "close_condition": (
+            "0 PII indecise dans le perimetre servable, ou exclusion gouvernee "
+            "et versionnee de ces contenus."
+        ),
+        "regression_tests_required": [
+            "une PII indecise dans le perimetre servable bloque le gate"
+        ],
+        "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+    },
+    {
+        "id": "PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET",
+        "category": "BUSINESS",
+        "value_key": "program_incompatible_in_servable_set",
+        "blocking_when": "value > 0",
+        "evidence_source": MATRICE + " (by_verdict.REFUSED_PROGRAM_INCOMPATIBLE)",
+        "required_action": (
+            "L artefact est nomme dans la partition programme. L exclure de la "
+            "prochaine release, ou corriger sa liaison de perimetre. Ne jamais "
+            "corriger sa verite pour faire passer le gate."
+        ),
+        "owner_type": "HUMAN_DECISION",
+        "automation_possible": False,
+        "human_decision_required": True,
+        "related_prs": [],
+        "close_condition": (
+            "Artefact exclu du perimetre servable ou reattribue, avec une "
+            "epreuve discriminante ; il reste comptabilise dans les 2530 en "
+            "GOVERNED_NOT_SERVABLE, jamais supprime de l historique."
+        ),
+        "regression_tests_required": [
+            "un artefact prouve incompatible dans le perimetre servable bloque"
+        ],
+        "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+    },
+    {
+        "id": "CURRENTNESS_POLICY_APPLIED",
+        "category": "GOVERNANCE",
+        "value_key": "currentness_policy_applied",
+        "blocking_when": "value is false",
+        "evidence_source": POLITIQUE_ACTUALITE + " (champ applied)",
+        "required_action": (
+            "Cabler la politique dans le runtime. ADR-0055 l adopte ; adopter "
+            "et cabler sont deux actes distincts, et les confondre ferait d une "
+            "revue de texte un changement de comportement."
+        ),
+        "owner_type": "ENGINEERING",
+        "automation_possible": True,
+        "human_decision_required": False,
+        "related_prs": [151],
+        "close_condition": (
+            "Un consommateur de production applique la politique et le gate le "
+            "constate ; un registre seulement present ne suffit pas."
+        ),
+        "regression_tests_required": [
+            "applied=false bloque le gate",
+            "la politique ne decide rien qui appartienne a un autre gate",
+        ],
+        "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+    },
+    {
+        "id": "NON_PDF_SERVABLE_REACQUIRED",
+        "category": "DATA",
+        "value_key": "non_pdf_servable_reacquired",
+        "blocking_when": "value < non_pdf_servable_total",
+        "evidence_source": NON_PDF + " (NON_PDF_LOCAL_COPY_RETAINED)",
+        "required_action": (
+            "Reacquerir les ressources interactives servables depuis Drive, "
+            "empreinte et taille attendues au manifeste, ou les exclure par une "
+            "decision gouvernee et non silencieuse."
+        ),
+        "owner_type": "OPERATOR",
+        "automation_possible": True,
+        "human_decision_required": False,
+        "related_prs": [],
+        "close_condition": (
+            "Octets disponibles pour chaque ressource servable, empreintes "
+            "concordantes, ou exclusion gouvernee."
+        ),
+        "regression_tests_required": [
+            "une reacquisition incomplete bloque le gate"
+        ],
+        "deployment_dependency": "BLOQUE_L_INGESTION_STAGING",
+    },
+    {
+        "id": "GO_LIVE_QUALIFICATION_BLOCKERS",
+        "category": "QUALIFICATION",
+        "value_key": "go_live_qualification_blockers",
+        "blocking_when": "value > 0",
+        "evidence_source": BLOQUEURS_QUALIFICATION,
+        "required_action": (
+            "Fermer chaque gate avec sa preuve. Fermer les bloqueurs metier ne "
+            "suffit PAS a deployer : ces gates-la restent entiers."
+        ),
+        "owner_type": "MIXED",
+        "automation_possible": False,
+        "human_decision_required": True,
+        "related_prs": [132, 167, 168],
+        "close_condition": "Chaque entree du tableau porte closed=true et sa preuve.",
+        "regression_tests_required": [
+            "un bloqueur de qualification ouvert bloque le gate"
+        ],
+        "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
+    },
+    {
+        "id": "OPEN_PRS_BLOCKING",
+        "category": "REPOSITORY",
+        "value_key": "open_prs_blocking",
+        "blocking_when": "value > 0",
+        "evidence_source": DISPOSITIONS_PR,
+        "required_action": (
+            "Fusionner, fermer sur preuve, ou reclasser avec justification "
+            "mesuree. Une PR non classee est UNKNOWN et bloque par construction."
+        ),
+        "owner_type": "HUMAN_DECISION",
+        "automation_possible": False,
+        "human_decision_required": True,
+        "related_prs": [98, 132, 134, 138, 140, 151],
+        "close_condition": "Aucune disposition BLOCKING ni UNKNOWN.",
+        "regression_tests_required": [
+            "une PR BLOCKING bloque",
+            "une PR UNKNOWN bloque",
+            "une disposition inventee est refusee",
+        ],
+        "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+    },
+    {
+        "id": "PRE_RELEASE_BLOCKERS",
+        "category": "AGGREGATE",
+        "value_key": "pre_release_blockers",
+        "blocking_when": "value > 0",
+        "evidence_source": "agregat calcule",
+        "required_action": (
+            "Rien directement. Ce compteur DERIVE de PII, programme et "
+            "actualite. Le fermer par lui-meme reviendrait a maquiller les trois."
+        ),
+        "owner_type": "DERIVED",
+        "automation_possible": False,
+        "human_decision_required": False,
+        "related_prs": [],
+        "close_condition": "Se ferme seul quand ses trois sources se ferment.",
+        "regression_tests_required": [],
+        "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
+    },
+)
 
 #: Dispositions qui empechent le go-live. `UNKNOWN` en fait partie par
 #: construction : une PR qu on n a pas classee est une PR qu on n a pas lue.
@@ -101,6 +282,29 @@ def _git(*args: str) -> str:
         text=True,
         check=False,
     ).stdout.strip()
+
+
+def _git_sha(ref: str) -> str | None:
+    """Resout une ref en empreinte, ou rend None.
+
+    `git rev-parse <ref>` ne se contente PAS d echouer quand la ref n existe
+    pas : il RECOPIE la chaine sur la sortie standard. Sans `--verify`, un
+    champ cense porter une empreinte porte alors le texte `origin/main` — une
+    valeur absurde d apparence plausible, qui ne se voit que sur un depot ou la
+    ref manque.
+    """
+    # Deux protections, volontairement redondantes : `--verify --quiet` fait
+    # taire la sortie, et le code de retour la confirme. Retirer une seule des
+    # deux ne change rien — c est le but. Les retirer toutes les deux fait
+    # tomber une epreuve.
+    resultat = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "--verify", "--quiet", ref],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    sortie = resultat.stdout.strip()
+    return sortie if resultat.returncode == 0 and sortie else None
 
 
 def _politique_actualite_appliquee() -> bool:
@@ -256,11 +460,30 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
             "Fichier GENERE. Toute valeur de go-live citee ailleurs dans le "
             "depot est une projection de celle-ci, jamais une autorite."
         ),
+        # --- fraicheur : ce fichier est-il l etat COURANT, ou un instantane ?
+        #
+        # La question n est pas rhetorique. Un fichier ecrit puis commite ne
+        # peut pas, par construction, contenir le commit qui le contient : il
+        # est genere AVANT. Il ne pourra donc jamais etre l etat operatoire du
+        # commit ou il vit. Le dire une fois, ici, ferme l ambiguite pour de
+        # bon — au lieu de la laisser se reposer a chaque lecture.
+        #
+        # L autorite operatoire est le script, relance en direct. Ce fichier en
+        # est la trace, utile pour comparer, jamais pour autoriser.
+        "state_freshness_kind": "COMMITTED_SNAPSHOT",
+        "snapshot_contains_self_commit": False,
+        "snapshot_is_operational_current": False,
+        "snapshot_freshness_note": (
+            "Instantane derive. Genere AVANT le commit qui le contient, il ne "
+            "peut donc jamais etre l etat operatoire de ce commit. Pour une "
+            "decision de deploiement, relancer le script en direct."
+        ),
         # Deux commits distincts, et les confondre ferait dire au fichier
-        # qu une branche de travail EST main. `main_head` est resolu depuis
-        # `origin/main` ; `computed_from_head` est le commit reellement lu.
-        "main_head": _git("rev-parse", "origin/main") or None,
-        "computed_from_head": _git("rev-parse", "HEAD"),
+        # qu une branche de travail EST main.
+        "main_head": _git_sha("origin/main"),
+        "origin_main_at_generation": _git_sha("origin/main"),
+        "evaluated_ref": _git("rev-parse", "--abbrev-ref", "HEAD") or "DETACHED",
+        "evaluated_head": _git_sha("HEAD"),
         "open_prs_total": len(dispositions),
         "open_prs_blocking": len(bloquantes),
         "open_prs_disposition_unknown": len(inconnues),
@@ -325,6 +548,77 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
     return etat
 
 
+def construire_ledger(etat: dict[str, Any]) -> dict[str, Any]:
+    """Derive le ledger de l etat calcule. Aucune valeur n y est saisie."""
+    entrees = []
+    for spec in LEDGER_SPEC:
+        valeur = etat[spec["value_key"]]
+        if spec["id"] == "NON_PDF_SERVABLE_REACQUIRED":
+            bloque = not etat["non_pdf_servable_complete"]
+            valeur = f"{valeur}/{etat['non_pdf_servable_total']}"
+        elif spec["id"] == "CURRENTNESS_POLICY_APPLIED":
+            bloque = not valeur
+        else:
+            bloque = bool(valeur)
+        entree = {k: v for k, v in spec.items() if k != "value_key"}
+        entree["current_value"] = valeur
+        entree["blocking"] = bloque
+        entrees.append(entree)
+    return {
+        "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",
+        "generated_by": "scripts/go_live/check_go_live_readiness.py",
+        "note": (
+            "Fichier DERIVE. Les valeurs viennent de l etat calcule ; seules "
+            "les conditions de fermeture sont declarees, une fois."
+        ),
+        "evaluated_head": etat["evaluated_head"],
+        "go_live_ready": etat["go_live_ready"],
+        "blockers_total": len(entrees),
+        "blockers_open": sum(1 for e in entrees if e["blocking"]),
+        "blockers": entrees,
+    }
+
+
+def rendre_ledger_markdown(ledger: dict[str, Any]) -> str:
+    lignes = [
+        "# Ledger de fermeture des bloqueurs go-live",
+        "",
+        "> **Fichier derive.** Regenere par",
+        "> `scripts/go_live/check_go_live_readiness.py`. Les valeurs viennent de",
+        "> l etat calcule ; les editer a la main les rendrait faux sans les",
+        "> rendre fermes.",
+        "",
+        f"`blockers_open={ledger['blockers_open']}` sur {ledger['blockers_total']}",
+        "",
+        "| Bloqueur | Valeur | Bloque | Qui agit | Condition de fermeture |",
+        "| --- | ---: | :---: | --- | --- |",
+    ]
+    for e in ledger["blockers"]:
+        lignes.append(
+            f"| `{e['id']}` | {e['current_value']} | "
+            f"{'oui' if e['blocking'] else 'non'} | {e['owner_type']} | "
+            f"{e['close_condition']} |"
+        )
+    lignes += ["", "## Detail", ""]
+    for e in ledger["blockers"]:
+        lignes += [
+            f"### {e['id']}",
+            "",
+            f"- categorie : `{e['category']}`",
+            f"- valeur : `{e['current_value']}`, bloque : "
+            f"`{'oui' if e['blocking'] else 'non'}`",
+            f"- source de preuve : `{e['evidence_source']}`",
+            f"- action requise : {e['required_action']}",
+            f"- decision humaine requise : "
+            f"`{'oui' if e['human_decision_required'] else 'non'}`",
+            f"- automatisable : `{'oui' if e['automation_possible'] else 'non'}`",
+            f"- PR liees : {e['related_prs'] or 'aucune'}",
+            f"- dependance de deploiement : `{e['deployment_dependency']}`",
+            "",
+        ]
+    return "\n".join(lignes)
+
+
 def rendre_markdown(etat: dict[str, Any]) -> str:
     lignes = [
         "# Etat de readiness go-live",
@@ -357,6 +651,29 @@ def rendre_markdown(etat: dict[str, Any]) -> str:
         lignes.append(f"| `{cle}` | {valeur} |")
     lignes += [
         "",
+        "## Ce fichier n autorise aucun deploiement",
+        "",
+        "L autorite operatoire est le script, **relance en direct**. Ce fichier",
+        "est un instantane : genere avant le commit qui le contient, il ne peut",
+        "pas etre l etat operatoire de ce commit.",
+        "",
+        "Trois modes, et un seul est un garde :",
+        "",
+        "| Mode | Code de retour | Role |",
+        "| --- | --- | --- |",
+        "| `--check-only` | 0 des que le calcul s execute | diagnostic |",
+        "| `--verify-snapshot` | 0 si concordant | concordance |",
+        "| `--assert-ready` | 0 seulement si pret, 1 sinon, 2 si entree manquante | **garde** |",
+        "",
+        "**Seul `--assert-ready` peut conditionner un deploiement.**",
+        "`--check-only` rend 0 meme quand rien n est pret : c est un faux vert",
+        "si on s en sert comme garde. Et un instantane, perime ou non,",
+        "n autorise rien : il ne fait que concorder.",
+        "",
+        "```",
+        "python3 scripts/go_live/check_go_live_readiness.py --assert-ready",
+        "```",
+        "",
         "## Ce que ce fichier ne mesure pas",
         "",
         "Trois compteurs sont **declares par le lot**, pas mesures :",
@@ -368,15 +685,105 @@ def rendre_markdown(etat: dict[str, Any]) -> str:
     return "\n".join(lignes)
 
 
+def verifier_instantane(chemin: pathlib.Path) -> dict[str, Any]:
+    """Repond, a la LECTURE, si un instantane vaut encore pour aujourd hui.
+
+    C est la seule facon honnete de repondre : `snapshot_is_operational_current`
+    ne peut pas etre une valeur stockee, puisqu elle serait vraie l instant de
+    l ecriture et fausse aussitot apres.
+    """
+    if not chemin.is_file():
+        raise EntreeManquante(f"instantane absent : {chemin}")
+    instantane = json.loads(chemin.read_text(encoding="utf-8"))
+    tete_courante = _git_sha("HEAD")
+    main_courant = _git_sha("origin/main")
+    a_jour = (
+        instantane.get("evaluated_head") == tete_courante
+        and instantane.get("origin_main_at_generation") == main_courant
+    )
+    return {
+        "snapshot_path": str(chemin),
+        "snapshot_evaluated_head": instantane.get("evaluated_head"),
+        "snapshot_origin_main": instantane.get("origin_main_at_generation"),
+        "current_head": tete_courante,
+        "current_origin_main": main_courant,
+        "snapshot_is_operational_current": bool(a_jour),
+        "snapshot_go_live_ready": instantane.get("go_live_ready"),
+        # Un instantane perime ne peut RIEN autoriser. Meme a jour, il n est
+        # qu une trace : l autorite reste le calcul en direct.
+        "snapshot_may_authorize_go_live": False,
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--json", default=SORTIE_JSON)
     parser.add_argument("--markdown", default=SORTIE_MD)
+    parser.add_argument("--ledger-json", default=SORTIE_LEDGER_JSON)
+    parser.add_argument("--ledger-markdown", default=SORTIE_LEDGER_MD)
     parser.add_argument("--check-only", action="store_true")
+    parser.add_argument(
+        "--assert-ready",
+        action="store_true",
+        help=(
+            "Garde de deploiement : rend 0 seulement si le systeme est pret, "
+            "1 sinon, 2 si une entree manque. N ecrit aucun fichier."
+        ),
+    )
+    parser.add_argument(
+        "--verify-snapshot",
+        metavar="CHEMIN",
+        help=(
+            "Repond si un instantane committe vaut encore pour le HEAD courant. "
+            "N ecrit rien."
+        ),
+    )
     parser.add_argument("--production-db-writes", type=int, default=0)
     parser.add_argument("--production-deployments", type=int, default=0)
     parser.add_argument("--current-switch", type=int, default=0)
     args = parser.parse_args()
+
+    if args.assert_ready:
+        try:
+            etat = evaluer(
+                declared_lot_facts={
+                    "production_db_writes": args.production_db_writes,
+                    "production_deployments": args.production_deployments,
+                    "current_switch": args.current_switch,
+                }
+            )
+        except EntreeManquante as exc:
+            # Une entree manquante n est pas un refus ordinaire : c est
+            # l impossibilite de conclure. Elle merite son propre code.
+            print(f"REFUS : {exc}", file=sys.stderr)
+            print("GO_LIVE_READY=unknown", file=sys.stderr)
+            return 2
+        pret = etat["go_live_ready"]
+        print(f"GO_LIVE_READY={'true' if pret else 'false'}")
+        print("blocking_reasons=" + ",".join(etat["blocking_reasons"]))
+        if not pret:
+            print(
+                "ASSERT_READY=failed — ce code de retour non nul est le seul "
+                "signal fiable pour une chaine de deploiement.",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
+
+    if args.verify_snapshot:
+        try:
+            verdict = verifier_instantane(REPO_ROOT / args.verify_snapshot)
+        except EntreeManquante as exc:
+            print(f"REFUS : {exc}", file=sys.stderr)
+            return 2
+        for cle, valeur in verdict.items():
+            print(f"{cle}={valeur}")
+        # Repete en clair : le code de retour de ce mode dit CONCORDANT, pas
+        # AUTORISE. Les confondre transformerait un simple accord de commits en
+        # feu vert de deploiement.
+        print("SNAPSHOT_AUTHORIZATION=false")
+        print("USE_ASSERT_READY_TO_GATE_A_DEPLOYMENT=true")
+        return 0 if verdict["snapshot_is_operational_current"] else 1
 
     try:
         etat = evaluer(
@@ -399,6 +806,16 @@ def main() -> int:
         )
         (REPO_ROOT / args.markdown).write_text(
             rendre_markdown(etat), encoding="utf-8"
+        )
+        ledger = construire_ledger(etat)
+        chemin_ledger = REPO_ROOT / args.ledger_json
+        chemin_ledger.parent.mkdir(parents=True, exist_ok=True)
+        chemin_ledger.write_text(
+            json.dumps(ledger, ensure_ascii=False, indent=1, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        (REPO_ROOT / args.ledger_markdown).write_text(
+            rendre_ledger_markdown(ledger), encoding="utf-8"
         )
 
     print(f"GO_LIVE_READY={'true' if etat['go_live_ready'] else 'false'}")

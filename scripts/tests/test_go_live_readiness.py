@@ -10,8 +10,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import pathlib
 import subprocess
+import sys
 
 import pytest
 
@@ -267,13 +269,27 @@ def test_le_markdown_dit_ce_qu_il_ne_mesure_pas(
     assert "declares par le lot" in rendu
 
 
+#: Le seul champ que deux calculs successifs peuvent legitimement rendre
+#: different : l espace disque bouge tout seul.
+CHAMPS_VOLATILS = {"disk_free_bytes", "disk_used_percent"}
+
+
 def test_le_json_est_stable_entre_deux_calculs(
     depot_sans_bloqueur, monkeypatch
 ) -> None:
+    """Tout doit etre stable SAUF le disque, qui bouge sans qu on y touche.
+
+    Une premiere version comparait les deux etats entiers : elle etait donc
+    instable par intermittence, et une epreuve intermittente finit par etre
+    ignoree plutot que corrigee.
+    """
     module = _module(depot_sans_bloqueur, monkeypatch)
     un = module.evaluer(declared_lot_facts=FAITS_PROPRES)
     deux = module.evaluer(declared_lot_facts=FAITS_PROPRES)
-    assert un == deux
+    def sans_volatils(etat: dict) -> dict:
+        return {k: v for k, v in etat.items() if k not in CHAMPS_VOLATILS}
+
+    assert sans_volatils(un) == sans_volatils(deux)
 
 
 # --- les residus que git ne voit pas ----------------------------------
@@ -412,7 +428,427 @@ def test_main_head_n_est_pas_le_head_courant(depot_sans_bloqueur, monkeypatch) -
         check=True,
     )
     etat = _evaluer(depot_sans_bloqueur, monkeypatch)
-    assert etat["computed_from_head"], "le commit lu doit toujours etre nomme"
+    assert etat["evaluated_head"], "le commit lu doit toujours etre nomme"
     # Aucun `origin/main` dans ce depot fictif : le champ doit rester vide
     # plutot que de recopier le HEAD courant.
-    assert etat["main_head"] != etat["computed_from_head"]
+    assert etat["main_head"] != etat["evaluated_head"]
+
+
+# --- fraicheur : un instantane n autorise rien ------------------------
+
+
+def test_un_instantane_ne_pretend_jamais_etre_l_etat_courant(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """La question que ce lot ferme : le fichier committe est-il l etat
+    courant ?
+
+    Non, et il ne peut pas l etre : genere AVANT le commit qui le contient, il
+    ne contiendra jamais ce commit. Le dire une fois ferme l ambiguite pour de
+    bon, au lieu de la laisser se reposer a chaque lecture.
+    """
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["state_freshness_kind"] == "COMMITTED_SNAPSHOT"
+    assert etat["snapshot_contains_self_commit"] is False
+    assert etat["snapshot_is_operational_current"] is False
+    assert "relancer le script en direct" in etat["snapshot_freshness_note"]
+
+
+def test_l_instantane_nomme_la_ref_et_le_commit_evalues(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Un depot sans commit n a pas de HEAD, et le champ doit rester vide.
+
+    Avant la correction de `rev-parse`, il portait la chaine `HEAD` : le
+    fichier nommait alors un commit qui n existe pas, sans que rien ne le
+    signale.
+    """
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["evaluated_head"] is None, "sans commit, aucun HEAD a nommer"
+
+    subprocess.run(["git", "-C", str(depot_sans_bloqueur), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(depot_sans_bloqueur),
+            "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "-qm", "base",
+        ],
+        check=True,
+    )
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["evaluated_head"] and len(etat["evaluated_head"]) == 40
+    assert etat["evaluated_ref"]
+    assert "origin_main_at_generation" in etat
+
+
+def test_un_instantane_perime_est_detecte_a_la_lecture(
+    depot_sans_bloqueur, monkeypatch, tmp_path
+) -> None:
+    """`snapshot_is_operational_current` ne peut pas etre une valeur STOCKEE :
+    elle serait vraie l instant de l ecriture et fausse aussitot apres. Elle se
+    calcule donc a la lecture."""
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    chemin = tmp_path / "vieux.json"
+    chemin.write_text(
+        json.dumps(
+            {
+                "evaluated_head": "0" * 40,
+                "origin_main_at_generation": "1" * 40,
+                "go_live_ready": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    verdict = module.verifier_instantane(chemin)
+    assert verdict["snapshot_is_operational_current"] is False
+    # Meme un instantane qui se declare pret n autorise rien.
+    assert verdict["snapshot_go_live_ready"] is True
+    assert verdict["snapshot_may_authorize_go_live"] is False
+
+
+def test_un_instantane_a_jour_n_autorise_pas_davantage(
+    depot_sans_bloqueur, monkeypatch, tmp_path
+) -> None:
+    """Un instantane concordant n est pas une autorisation : il concorde."""
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    subprocess.run(["git", "-C", str(depot_sans_bloqueur), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(depot_sans_bloqueur),
+            "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "-qm", "base",
+        ],
+        check=True,
+    )
+    etat = module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    chemin = tmp_path / "frais.json"
+    chemin.write_text(json.dumps(etat), encoding="utf-8")
+
+    verdict = module.verifier_instantane(chemin)
+    assert verdict["snapshot_is_operational_current"] is True
+    assert verdict["snapshot_may_authorize_go_live"] is False
+
+
+def test_le_markdown_dirige_vers_le_calcul_en_direct(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    rendu = module.rendre_markdown(module.evaluer(declared_lot_facts=FAITS_PROPRES))
+    assert "n autorise aucun deploiement" in rendu
+    assert "--verify-snapshot" in rendu
+    assert "relance en direct" in rendu
+
+
+def test_un_instantane_absent_est_un_refus(depot_sans_bloqueur, monkeypatch) -> None:
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    with pytest.raises(module.EntreeManquante):
+        module.verifier_instantane(depot_sans_bloqueur / "inexistant.json")
+
+
+# --- le ledger est derive, jamais saisi -------------------------------
+
+
+def test_le_ledger_derive_ses_valeurs_de_l_etat(depot_sans_bloqueur, monkeypatch) -> None:
+    """Ecrire les valeurs du ledger a la main recreerait une seconde source."""
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {
+            "by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 4},
+            "by_pii": {"PII_UNDECIDED": 17},
+        },
+    )
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    etat = module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    ledger = module.construire_ledger(etat)
+    par_id = {b["id"]: b for b in ledger["blockers"]}
+    assert par_id["PII_UNDECIDED"]["current_value"] == 17
+    assert par_id["PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET"]["current_value"] == 4
+
+
+def test_chaque_bloqueur_du_ledger_est_actionnable(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Un bloqueur sans action requise ni condition de fermeture n avance a
+    rien : il constate."""
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    ledger = module.construire_ledger(
+        module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    )
+    for b in ledger["blockers"]:
+        assert b["required_action"].strip(), b["id"]
+        assert b["close_condition"].strip(), b["id"]
+        assert b["evidence_source"].strip(), b["id"]
+        assert b["owner_type"], b["id"]
+
+
+def test_l_agregat_ne_se_ferme_jamais_directement(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """`PRE_RELEASE_BLOCKERS` derive de trois autres. Le fermer par lui-meme
+    reviendrait a maquiller les trois."""
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    ledger = module.construire_ledger(
+        module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    )
+    agregat = next(
+        b for b in ledger["blockers"] if b["id"] == "PRE_RELEASE_BLOCKERS"
+    )
+    assert agregat["category"] == "AGGREGATE"
+    assert agregat["owner_type"] == "DERIVED"
+    assert "Se ferme seul" in agregat["close_condition"]
+
+
+def test_le_ledger_compte_les_bloqueurs_ouverts(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    ledger = module.construire_ledger(
+        module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    )
+    assert ledger["blockers_open"] == sum(
+        1 for b in ledger["blockers"] if b["blocking"]
+    )
+    assert ledger["blockers_total"] == len(ledger["blockers"])
+
+
+def test_le_ledger_markdown_se_declare_derive(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    rendu = module.rendre_ledger_markdown(
+        module.construire_ledger(module.evaluer(declared_lot_facts=FAITS_PROPRES))
+    )
+    assert "Fichier derive" in rendu
+    assert "les editer a la main" in rendu
+
+
+def test_un_head_different_suffit_a_perimer_l_instantane(
+    depot_sans_bloqueur, monkeypatch, tmp_path
+) -> None:
+    """Un seul champ discordant suffit, et il faut l eprouver SEUL.
+
+    Une premiere version de l epreuve du perime faisait diverger le HEAD ET
+    l origin/main a la fois : elle passait donc meme si la comparaison de HEAD
+    disparaissait. Une mutation l a montre.
+    """
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    chemin = tmp_path / "head_seul.json"
+    chemin.write_text(
+        json.dumps(
+            {
+                # `origin_main_at_generation` concorde (aucun origin/main ici,
+                # donc None des deux cotes) ; SEUL le HEAD differe.
+                "evaluated_head": "0" * 40,
+                "origin_main_at_generation": None,
+                "go_live_ready": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    verdict = module.verifier_instantane(chemin)
+    assert verdict["snapshot_is_operational_current"] is False
+
+
+def test_un_origin_main_different_suffit_aussi(
+    depot_sans_bloqueur, monkeypatch, tmp_path
+) -> None:
+    """L autre moitie de la comparaison, eprouvee seule elle aussi."""
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    tete = module._git_sha("HEAD")
+    chemin = tmp_path / "main_seul.json"
+    chemin.write_text(
+        json.dumps(
+            {
+                "evaluated_head": tete,
+                "origin_main_at_generation": "9" * 40,
+                "go_live_ready": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    verdict = module.verifier_instantane(chemin)
+    assert verdict["snapshot_is_operational_current"] is False
+
+
+def test_une_ref_absente_ne_donne_pas_une_empreinte_bidon(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """`git rev-parse <ref>` RECOPIE la chaine quand la ref n existe pas.
+
+    Sans `--verify`, `main_head` portait le texte `origin/main` au lieu d une
+    empreinte : une valeur absurde d apparence plausible, invisible sur un
+    depot ou la ref existe. Un etat de go-live qui nomme un commit inexistant
+    ne vaut rien.
+    """
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    assert module._git_sha("origin/main") is None
+    assert module._git_sha("une-ref-qui-n-existe-pas") is None
+
+    subprocess.run(["git", "-C", str(depot_sans_bloqueur), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(depot_sans_bloqueur),
+            "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "-qm", "base",
+        ],
+        check=True,
+    )
+    etat = module.evaluer(declared_lot_facts=FAITS_PROPRES)
+    assert etat["main_head"] is None
+    assert etat["evaluated_head"] is not None
+    assert len(etat["evaluated_head"]) == 40
+
+
+# --- trois modes, et un seul est un garde -----------------------------
+
+def _lancer(racine: pathlib.Path, *args: str) -> subprocess.CompletedProcess:
+    env = dict(os.environ, NEXUS_REPO_ROOT=str(racine))
+    return subprocess.run(
+        [sys.executable, str(SCRIPT), *args],
+        capture_output=True,
+        text=True,
+        env=env,
+        check=False,
+    )
+
+
+def test_assert_ready_echoue_quand_le_systeme_n_est_pas_pret(
+    depot_sans_bloqueur,
+) -> None:
+    """LE garde. Un code de retour non nul est le seul signal fiable pour une
+    chaine de deploiement."""
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}},
+    )
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 1
+    assert "GO_LIVE_READY=false" in resultat.stdout
+    assert "blocking_reasons=" in resultat.stdout
+
+
+def test_assert_ready_rend_zero_seulement_si_tout_est_ferme(
+    depot_sans_bloqueur,
+) -> None:
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 0, resultat.stderr
+    assert "GO_LIVE_READY=true" in resultat.stdout
+
+
+@pytest.mark.parametrize(
+    "relative, contenu",
+    [
+        (MATRICE, {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}}),
+        (MATRICE, {"by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1}, "by_pii": {}}),
+        (POLITIQUE, "applied: false\n"),
+        (
+            NON_PDF,
+            {
+                "NON_PDF_SERVABLE": 3,
+                "NON_PDF_LOCAL_COPY_RETAINED": 1,
+                "NON_PDF_TOTAL": 3,
+            },
+        ),
+        (
+            DISPOSITIONS,
+            {"dispositions": {"9": {"disposition": "BLOCKING", "reason": "x"}}},
+        ),
+        (QUALIFICATION, {"blockers": [{"id": "C1", "closed": False}]}),
+    ],
+)
+def test_un_seul_bloqueur_suffit_a_faire_echouer_assert_ready(
+    depot_sans_bloqueur, relative: str, contenu
+) -> None:
+    """Chaque bloqueur, isole, doit suffire. Sans cela, un seul oubli suffirait
+    a rendre le garde permissif."""
+    _ecrire(depot_sans_bloqueur, relative, contenu)
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 1, f"{relative} n a pas fait echouer le garde"
+
+
+def test_assert_ready_rend_deux_si_une_entree_manque(depot_sans_bloqueur) -> None:
+    """Ne pas pouvoir conclure n est pas la meme chose que conclure non.
+
+    Un code distinct evite qu une chaine de deploiement traite une entree
+    manquante comme un simple refus, ou pire, comme un accord.
+    """
+    (depot_sans_bloqueur / MATRICE).unlink()
+    resultat = _lancer(depot_sans_bloqueur, "--assert-ready")
+    assert resultat.returncode == 2
+    assert "GO_LIVE_READY=unknown" in resultat.stderr
+
+
+def test_assert_ready_n_ecrit_aucun_fichier(depot_sans_bloqueur) -> None:
+    """Un garde qui ecrit modifie ce qu il mesure."""
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}},
+    )
+    avant = sorted(p.name for p in (depot_sans_bloqueur / "docs/reports/go_live").iterdir())
+    _lancer(depot_sans_bloqueur, "--assert-ready")
+    apres = sorted(p.name for p in (depot_sans_bloqueur / "docs/reports/go_live").iterdir())
+    assert avant == apres
+
+
+def test_check_only_est_un_diagnostic_pas_un_garde(depot_sans_bloqueur) -> None:
+    """`--check-only` rend 0 MEME quand rien n est pret.
+
+    Ce n est pas un defaut : c est un mode diagnostic. Mais s en servir comme
+    garde serait un faux vert, et cette epreuve fige la distinction pour que
+    personne ne les confonde par megarde.
+    """
+    _ecrire(
+        depot_sans_bloqueur,
+        MATRICE,
+        {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}},
+    )
+    diagnostic = _lancer(depot_sans_bloqueur, "--check-only")
+    garde = _lancer(depot_sans_bloqueur, "--assert-ready")
+
+    assert diagnostic.returncode == 0
+    assert "GO_LIVE_READY=false" in diagnostic.stdout
+    assert garde.returncode == 1
+    # Les deux disent la meme chose ; seul le code de retour differe.
+    assert "GO_LIVE_READY=false" in garde.stdout
+
+
+def test_le_module_documente_que_seul_assert_ready_est_un_garde() -> None:
+    """La distinction entre diagnostic et garde doit etre ECRITE, pas devinee.
+
+    On la cherche sur le texte normalise : la mise en page du docstring coupe
+    les phrases, et une epreuve qui depend de l endroit ou tombe un retour a la
+    ligne casse au premier reformatage.
+    """
+    source = " ".join(SCRIPT.read_text(encoding="utf-8").split())
+    assert "seul mode utilisable comme condition de deploiement" in source
+    assert "faux vert" in source
+    assert "--assert-ready" in source
+
+
+# --- verify-snapshot n autorise jamais --------------------------------
+
+
+def test_verify_snapshot_dit_explicitement_qu_il_n_autorise_rien(
+    depot_sans_bloqueur, tmp_path
+) -> None:
+    subprocess.run(["git", "-C", str(depot_sans_bloqueur), "add", "-A"], check=True)
+    subprocess.run(
+        [
+            "git", "-C", str(depot_sans_bloqueur),
+            "-c", "user.email=t@t", "-c", "user.name=t",
+            "commit", "-qm", "base",
+        ],
+        check=True,
+    )
+    _lancer(depot_sans_bloqueur, "--json", "docs/reports/go_live/s.json")
+    resultat = _lancer(
+        depot_sans_bloqueur, "--verify-snapshot", "docs/reports/go_live/s.json"
+    )
+    assert "snapshot_may_authorize_go_live=False" in resultat.stdout
+    assert "SNAPSHOT_AUTHORIZATION=false" in resultat.stdout
+    assert "USE_ASSERT_READY_TO_GATE_A_DEPLOYMENT=true" in resultat.stdout
+    # Concordant rend 0 — mais concordant n est pas autorise, et la sortie le dit.
+    assert resultat.returncode == 0
