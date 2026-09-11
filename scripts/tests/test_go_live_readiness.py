@@ -92,7 +92,47 @@ def depot_sans_bloqueur(tmp_path: pathlib.Path) -> pathlib.Path:
             "session_temporary_path_marker": "/scratchpad/",
         },
     )
+    _poser_calculateur_promu(tmp_path, contenus=["a" * 64])
     return tmp_path
+
+
+#: Le gate delegue l ensemble promu au calculateur canonique. Les epreuves
+#: posent donc un calculateur de banc qui rend ce qu on lui demande — jamais
+#: une reimplementation de la regle, seulement une source controlable.
+CALCULATEUR = "scripts/qualification/compute_promoted_content_set.py"
+
+
+def _poser_calculateur_promu(
+    racine: pathlib.Path,
+    *,
+    contenus: list[str] | None,
+    echoue: bool = False,
+) -> None:
+    chemin = racine / CALCULATEUR
+    chemin.parent.mkdir(parents=True, exist_ok=True)
+    if echoue:
+        chemin.write_text(
+            "import sys\n"
+            "print('PROMOTED_CONTENT_SET_INVALID: refus simule', file=sys.stderr)\n"
+            "sys.exit(2)\n",
+            encoding="utf-8",
+        )
+        return
+    charge = {
+        "content_sha256": contenus or [],
+        "content_set_sha256": "f" * 64,
+        "count": len(contenus or []),
+        "release_authority": {"mechanism": "REGISTRY_FILE"},
+        "release_registry_source": "DEFAULT",
+    }
+    chemin.write_text(
+        "import argparse, json, pathlib\n"
+        "p = argparse.ArgumentParser()\n"
+        "p.add_argument('--output', required=True)\n"
+        "a = p.parse_args()\n"
+        f"pathlib.Path(a.output).write_text(json.dumps({charge!r}))\n",
+        encoding="utf-8",
+    )
 
 
 def _evaluer(racine, monkeypatch):
@@ -125,15 +165,32 @@ def test_une_pii_non_tranchee_bloque(depot_sans_bloqueur, monkeypatch) -> None:
     assert "pii_undecided" in etat["blocking_reasons"]
 
 
-def test_un_programme_incompatible_bloque(depot_sans_bloqueur, monkeypatch) -> None:
+def test_un_programme_incompatible_PROMU_bloque(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Ce qui bloque, c est un incompatible encore PROMU.
+
+    Une version anterieure de cette epreuve suffisait a bloquer avec un simple
+    compteur d histogramme, sans qu aucune release ne contienne le contenu.
+    Elle figeait donc une semantique fausse : un contenu que la matrice refuse
+    n est pas servi.
+    """
     _ecrire(
         depot_sans_bloqueur,
         MATRICE,
         {
             "by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1},
             "by_pii": {"PII_CLEARED_OR_NOT_SCANNED": 1},
+            "rows": [
+                {
+                    "content_sha256": "d" * 64,
+                    "program": "INCOMPATIBLE_PROVEN",
+                    "verdict": "REFUSED_PROGRAM_INCOMPATIBLE",
+                }
+            ],
         },
     )
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=["d" * 64])
     etat = _evaluer(depot_sans_bloqueur, monkeypatch)
     assert etat["go_live_ready"] is False
     assert "program_incompatible_in_servable_set" in etat["blocking_reasons"]
@@ -386,8 +443,19 @@ def test_le_lecteur_de_readiness_ne_peut_que_refuser(
     _ecrire(
         depot_sans_bloqueur,
         MATRICE,
-        {"by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1}, "by_pii": {}},
+        {
+            "by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1},
+            "by_pii": {},
+            "rows": [
+                {
+                    "content_sha256": "d" * 64,
+                    "program": "INCOMPATIBLE_PROVEN",
+                    "verdict": "REFUSED_PROGRAM_INCOMPATIBLE",
+                }
+            ],
+        },
     )
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=["d" * 64])
     etat = _evaluer(depot_sans_bloqueur, monkeypatch)
     assert etat["go_live_ready"] is False
 
@@ -550,14 +618,24 @@ def test_un_instantane_absent_est_un_refus(depot_sans_bloqueur, monkeypatch) -> 
 
 def test_le_ledger_derive_ses_valeurs_de_l_etat(depot_sans_bloqueur, monkeypatch) -> None:
     """Ecrire les valeurs du ledger a la main recreerait une seconde source."""
+    incompatibles = [f"{i:064x}" for i in range(1, 5)]
     _ecrire(
         depot_sans_bloqueur,
         MATRICE,
         {
             "by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 4},
             "by_pii": {"PII_UNDECIDED": 17},
+            "rows": [
+                {
+                    "content_sha256": sha,
+                    "program": "INCOMPATIBLE_PROVEN",
+                    "verdict": "REFUSED_PROGRAM_INCOMPATIBLE",
+                }
+                for sha in incompatibles
+            ],
         },
     )
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=incompatibles)
     module = _module(depot_sans_bloqueur, monkeypatch)
     etat = module.evaluer(declared_lot_facts=FAITS_PROPRES)
     ledger = module.construire_ledger(etat)
@@ -741,7 +819,10 @@ def test_assert_ready_rend_zero_seulement_si_tout_est_ferme(
     "relative, contenu",
     [
         (MATRICE, {"by_verdict": {}, "by_pii": {"PII_UNDECIDED": 1}}),
-        (MATRICE, {"by_verdict": {"REFUSED_PROGRAM_INCOMPATIBLE": 1}, "by_pii": {}}),
+        # Le cas programme n est PAS ici : il exige d ecrire deux fichiers, la
+        # matrice et une release qui promeut le contenu. Il est eprouve seul,
+        # dans les deux sens, par test_un_programme_incompatible_PROMU_bloque
+        # et test_un_incompatible_absent_des_releases_ne_bloque_pas.
         (POLITIQUE, "applied: false\n"),
         (
             NON_PDF,
@@ -852,3 +933,163 @@ def test_verify_snapshot_dit_explicitement_qu_il_n_autorise_rien(
     assert "USE_ASSERT_READY_TO_GATE_A_DEPLOYMENT=true" in resultat.stdout
     # Concordant rend 0 — mais concordant n est pas autorise, et la sortie le dit.
     assert resultat.returncode == 0
+
+
+# --- programme incompatible : la portee du compteur -------------------
+
+SHA_INCOMPATIBLE = "d" * 64
+RELEASES = "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel"
+
+
+def _matrice_avec_incompatible(candidat: bool = False) -> dict:
+    """Une matrice portant UN contenu prouve incompatible."""
+    return {
+        "by_verdict": {
+            "CANDIDATE_NO_BLOCKING_DIMENSION": 1 if candidat else 0,
+            "REFUSED_PROGRAM_INCOMPATIBLE": 0 if candidat else 1,
+        },
+        "by_pii": {},
+        "rows": [
+            {
+                "content_sha256": SHA_INCOMPATIBLE,
+                "program": "INCOMPATIBLE_PROVEN",
+                "verdict": (
+                    "CANDIDATE_NO_BLOCKING_DIMENSION"
+                    if candidat
+                    else "REFUSED_PROGRAM_INCOMPATIBLE"
+                ),
+            }
+        ],
+    }
+
+
+def test_un_incompatible_absent_du_set_promu_ne_bloque_pas(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """LE defaut d origine. Le compteur lisait un histogramme de TOUTE la
+    population et comptait comme « dans le perimetre servable » un contenu que
+    la matrice REFUSE — ce que son propre verdict dit.
+    """
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=["a" * 64])
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+
+    assert etat["program_incompatible_total"] == 1, "l incompatibilite reste visible"
+    assert etat["program_incompatible_refused_by_matrix"] == 1
+    assert etat["program_incompatible_in_servable_set"] == 0
+    assert "program_incompatible_in_servable_set" not in etat["blocking_reasons"]
+
+
+def test_un_incompatible_PROMU_par_l_autorite_canonique_bloque(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Sans cette epreuve, le compteur corrige serait vide de sens : une mesure
+    qui ne peut pas alerter ne protege rien."""
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    _poser_calculateur_promu(
+        depot_sans_bloqueur, contenus=["a" * 64, SHA_INCOMPATIBLE]
+    )
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+
+    assert etat["program_incompatible_in_servable_set"] == 1
+    assert SHA_INCOMPATIBLE in etat["program_incompatible_in_servable_set_ids"]
+    assert "program_incompatible_in_servable_set" in etat["blocking_reasons"]
+    assert etat["go_live_ready"] is False
+
+
+def test_une_empreinte_technique_dans_un_json_de_release_ne_bloque_pas(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Le defaut que cette remediation corrige.
+
+    Une premiere version balayait tous les JSON de `data/releases` a la
+    recherche de chaines de 64 caracteres hexadecimaux, et trouvait 20739
+    empreintes la ou l autorite canonique en compte 319 : elle ramassait des
+    empreintes d arbres, de modeles, de manifestes — tout ce qui a la FORME
+    d un sha256 sans en avoir le ROLE.
+    """
+    _ecrire(depot_sans_bloqueur, MATRICE, _matrice_avec_incompatible())
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=["a" * 64])
+    _ecrire(
+        depot_sans_bloqueur,
+        "services/rag-pedago/data/releases/r/models.json",
+        {"embedding_model_sha256": SHA_INCOMPATIBLE, "tree_sha": "b" * 64},
+    )
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+
+    assert etat["program_incompatible_in_servable_set"] == 0
+    assert etat["promoted_content_set_size"] == 1
+
+
+def test_le_gate_ne_definit_pas_lui_meme_l_ensemble_promu() -> None:
+    """Le readiness ne redefinit pas ce qu est un contenu promu : il le demande
+    a l autorite qui le sait."""
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert "compute_promoted_content_set.py" in source
+    corps = source.split("def _ensemble_promu", 1)[1].split("\ndef ", 1)[0]
+    assert "rglob" not in corps, "le gate rescanne des fichiers de release"
+    assert "0-9a-f" not in corps, "le gate redefinit une empreinte"
+    assert "CALCULATEUR_ENSEMBLE_PROMU" in corps
+
+
+def test_un_calculateur_canonique_absent_est_un_refus(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Ne pas pouvoir calculer l ensemble promu n est pas « rien n est promu »."""
+    (depot_sans_bloqueur / CALCULATEUR).unlink()
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    with pytest.raises(module.EntreeManquante, match="calculateur canonique absent"):
+        module.evaluer(declared_lot_facts=FAITS_PROPRES)
+
+
+def test_un_refus_du_calculateur_canonique_remonte(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Un refus de l autorite n est jamais traduit en ensemble vide."""
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=None, echoue=True)
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    with pytest.raises(module.EntreeManquante, match="refuse de rendre"):
+        module.evaluer(declared_lot_facts=FAITS_PROPRES)
+
+
+def test_un_ensemble_promu_vide_est_refuse(depot_sans_bloqueur, monkeypatch) -> None:
+    """Comparer avec un ensemble vide serait vrai par vacuite."""
+    _poser_calculateur_promu(depot_sans_bloqueur, contenus=[])
+    module = _module(depot_sans_bloqueur, monkeypatch)
+    with pytest.raises(module.EntreeManquante, match="vide"):
+        module.evaluer(declared_lot_facts=FAITS_PROPRES)
+
+
+def test_la_provenance_du_set_promu_est_publiee(
+    depot_sans_bloqueur, monkeypatch
+) -> None:
+    """Un chiffre sans provenance ne se verifie pas."""
+    etat = _evaluer(depot_sans_bloqueur, monkeypatch)
+    assert etat["promoted_content_set_source"].endswith(
+        "compute_promoted_content_set.py"
+    )
+    assert etat["promoted_content_set_sha256"]
+    assert etat["promoted_release_authority_mechanism"] == "REGISTRY_FILE"
+    assert etat["promoted_release_registry_source"] == "DEFAULT"
+
+
+def test_le_gate_ne_selectionne_aucune_release(depot_sans_bloqueur) -> None:
+    """Il NOMME l autorite de selection, il ne l exerce pas.
+
+    Le garde-fou d unicite d autorite l epingle a ce titre ; cette epreuve est
+    la justification de cet epinglage. Nommer l autorite a laquelle on delegue
+    n est pas decider a sa place.
+    """
+    corps = SCRIPT.read_text(encoding="utf-8").split("def _ensemble_promu", 1)[1]
+    corps = corps.split("\ndef ", 1)[0]
+    for interdit in (
+        "select_release_authority(",
+        "resoudre_source_du_registre(",
+        "ReleaseRegistryExpectation",
+        "load_release_registry",
+    ):
+        assert interdit not in corps, (
+            f"le gate exerce lui-meme la selection de release : {interdit}"
+        )
+    # Le corps passe par la constante, pas par le nom de fichier en dur.
+    assert "CALCULATEUR_ENSEMBLE_PROMU" in corps

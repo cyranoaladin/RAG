@@ -49,6 +49,7 @@ import json
 import os
 import pathlib
 import shutil
+import tempfile
 import subprocess
 import sys
 from typing import Any
@@ -68,6 +69,12 @@ SORTIE_JSON = "docs/reports/go_live/go_live_readiness_state.json"
 SORTIE_MD = "docs/reports/go_live/GO_LIVE_READINESS.md"
 SORTIE_LEDGER_JSON = "docs/reports/go_live/blocker_closure_ledger.json"
 SORTIE_LEDGER_MD = "docs/reports/go_live/BLOCKER_CLOSURE_LEDGER.md"
+
+#: Le calculateur canonique d ensemble promu, deja present dans le depot. Il
+#: passe par `select_release_authority` et le contrat de release — le MEME que
+#: le runtime. Le readiness gate ne redefinit donc pas ce qu est un contenu
+#: promu : il le demande a l autorite qui le sait.
+CALCULATEUR_ENSEMBLE_PROMU = "scripts/qualification/compute_promoted_content_set.py"
 
 #: Le ledger est DERIVE de l etat calcule. Ecrire ses valeurs a la main
 #: recreerait une seconde source, et deux sources finissent par diverger.
@@ -401,6 +408,83 @@ def _residus_root() -> list[dict[str, Any]]:
     return residus
 
 
+def _ensemble_promu() -> tuple[frozenset[str], dict[str, Any]]:
+    """Les contenus reellement promus, selon l autorite canonique.
+
+    Pourquoi pas la matrice
+    -----------------------
+
+    La matrice dit ce qui SERAIT servable ; elle est emise `applied=false` et
+    refuse elle-meme un contenu programme-incompatible des la premiere marche
+    de sa cascade. Compter les incompatibles « dans le perimetre servable »
+    depuis cette cascade donnerait toujours zero : une mesure qui ne peut
+    jamais etre non nulle ne protege rien.
+
+    Pourquoi pas un scan de fichiers
+    --------------------------------
+
+    Une premiere version balayait tous les JSON de `data/releases` a la
+    recherche de chaines de 64 caracteres hexadecimaux. Elle trouvait 20739
+    empreintes la ou l autorite canonique en compte 319 : elle ramassait des
+    empreintes d arbres, de modeles, de manifestes — tout ce qui a la FORME
+    d un sha256 sans en avoir le ROLE. Une union de digests techniques n est
+    pas un ensemble de contenus servis, et s en servir comme garde revenait a
+    tirer une conclusion d une coincidence de format.
+
+    Elle rendait de surcroit un ensemble VIDE quand la racine manquait, ce qui
+    transformait « je ne sais pas » en « rien n est promu ».
+
+    L autorite est donc celle qui sait : `select_release_authority` et le
+    contrat de release, le meme chemin que le runtime. Tout refus du chargeur
+    canonique remonte ici comme un refus, jamais comme un ensemble vide.
+    """
+    # L arbre EVALUE, pas le checkout principal. Le readiness rend compte de
+    # l arbre qu on lui donne ; aller chercher le calculateur ailleurs ferait
+    # mesurer un arbre et conclure sur un autre.
+    racine = REPO_ROOT
+    chemin = racine / CALCULATEUR_ENSEMBLE_PROMU
+    if not chemin.is_file():
+        raise EntreeManquante(
+            f"calculateur canonique absent : {CALCULATEUR_ENSEMBLE_PROMU}. "
+            "Le readiness ne redefinit pas ce qu est un contenu promu."
+        )
+    with tempfile.TemporaryDirectory() as bac:
+        sortie = pathlib.Path(bac) / "promoted.json"
+        resultat = subprocess.run(
+            [sys.executable, str(chemin), "--output", str(sortie)],
+            capture_output=True,
+            text=True,
+            cwd=str(racine),
+            check=False,
+        )
+        if resultat.returncode != 0 or not sortie.is_file():
+            raise EntreeManquante(
+                "l autorite canonique refuse de rendre l ensemble promu : "
+                f"{(resultat.stderr or resultat.stdout).strip()[:400]}. "
+                "Un refus n est pas un ensemble vide."
+            )
+        charge = json.loads(sortie.read_text(encoding="utf-8"))
+
+    contenus = frozenset(charge.get("content_sha256") or ())
+    if not contenus:
+        raise EntreeManquante(
+            "l ensemble promu canonique est vide : toute comparaison avec lui "
+            "serait vraie par vacuite."
+        )
+    autorite = charge.get("release_authority")
+    mecanisme = (
+        autorite.get("mechanism") if isinstance(autorite, dict) else autorite
+    )
+    provenance = {
+        "promoted_content_set_source": CALCULATEUR_ENSEMBLE_PROMU,
+        "promoted_content_set_sha256": charge.get("content_set_sha256"),
+        "promoted_content_set_size": len(contenus),
+        "promoted_release_authority_mechanism": mecanisme,
+        "promoted_release_registry_source": charge.get("release_registry_source"),
+    }
+    return contenus, provenance
+
+
 def _disque() -> tuple[int, int]:
     usage = shutil.disk_usage(REPO_ROOT)
     return usage.free, round(usage.used * 100 / usage.total)
@@ -414,7 +498,29 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
 
     par_verdict = matrice["by_verdict"]
     pii_undecided = matrice["by_pii"].get("PII_UNDECIDED", 0)
-    programme_incompatible = par_verdict.get("REFUSED_PROGRAM_INCOMPATIBLE", 0)
+
+    # --- programme incompatible : compter ce que le nom annonce
+    #
+    # Une premiere version lisait `by_verdict["REFUSED_PROGRAM_INCOMPATIBLE"]`,
+    # c est-a-dire un histogramme de TOUTE la population. Elle comptait donc
+    # comme « dans le perimetre servable » un contenu que la matrice REFUSE, ce
+    # que son propre verdict dit. Le nom promettait une portee que le calcul
+    # n avait pas.
+    #
+    # Ce qui est mesure ici : les contenus prouves incompatibles qui sont
+    # encore PROMUS, c est-a-dire presents dans une release materialisee.
+    incompatibles = frozenset(
+        ligne["content_sha256"]
+        for ligne in matrice.get("rows", ())
+        if ligne.get("program") == "INCOMPATIBLE_PROVEN"
+    )
+    promus, provenance_promus = _ensemble_promu()
+    incompatibles_promus = sorted(incompatibles & promus)
+    programme_incompatible = len(incompatibles_promus)
+    programme_incompatible_total = len(incompatibles)
+    programme_incompatible_refuse = par_verdict.get(
+        "REFUSED_PROGRAM_INCOMPATIBLE", 0
+    )
     actualite_appliquee = _politique_actualite_appliquee()
 
     non_pdf_servables = non_pdf["NON_PDF_SERVABLE"]
@@ -498,6 +604,13 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         "go_live_qualification_blocker_ids": [b["id"] for b in qualification_ouverts],
         "pii_undecided": pii_undecided,
         "program_incompatible_in_servable_set": programme_incompatible,
+        "program_incompatible_in_servable_set_ids": incompatibles_promus,
+        # Informatifs, NON bloquants : l incompatibilite reste visible meme
+        # quand elle ne bloque pas. La faire disparaitre du rapport serait la
+        # maquiller.
+        "program_incompatible_total": programme_incompatible_total,
+        "program_incompatible_refused_by_matrix": programme_incompatible_refuse,
+        **provenance_promus,
         "currentness_policy_applied": actualite_appliquee,
         "non_pdf_servable_total": non_pdf_servables,
         "non_pdf_servable_reacquired": non_pdf_reacquis,

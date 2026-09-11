@@ -5,17 +5,17 @@
 > l etat calcule ; les editer a la main les rendrait faux sans les
 > rendre fermes.
 
-`blockers_open=7` sur 7
+`blockers_open=6` sur 7
 
 | Bloqueur | Valeur | Bloque | Qui agit | Condition de fermeture |
 | --- | ---: | :---: | --- | --- |
 | `PII_UNDECIDED` | 149 | oui | HUMAN_REVIEWER | 0 PII indecise dans le perimetre servable, ou exclusion gouvernee et versionnee de ces contenus. |
-| `PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET` | 1 | oui | HUMAN_DECISION | Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique. |
+| `PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET` | 0 | non | HUMAN_DECISION | Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique. |
 | `CURRENTNESS_POLICY_APPLIED` | False | oui | ENGINEERING | Un consommateur de production applique la politique et le gate le constate ; un registre seulement present ne suffit pas. |
 | `NON_PDF_SERVABLE_REACQUIRED` | 0/37 | oui | OPERATOR | Octets disponibles pour chaque ressource servable, empreintes concordantes, ou exclusion gouvernee. |
 | `GO_LIVE_QUALIFICATION_BLOCKERS` | 13 | oui | MIXED | Chaque entree du tableau porte closed=true et sa preuve. |
 | `OPEN_PRS_BLOCKING` | 6 | oui | HUMAN_DECISION | Aucune disposition BLOCKING ni UNKNOWN. |
-| `PRE_RELEASE_BLOCKERS` | 3 | oui | DERIVED | Se ferme seul quand ses trois sources se ferment. |
+| `PRE_RELEASE_BLOCKERS` | 2 | oui | DERIVED | Se ferme seul quand ses trois sources se ferment. |
 
 ## Detail
 
@@ -33,7 +33,7 @@
 ### PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET
 
 - categorie : `BUSINESS`
-- valeur : `1`, bloque : `oui`
+- valeur : `0`, bloque : `non`
 - source de preuve : `docs/reports/handoff/servability_matrix_v1.json (by_verdict.REFUSED_PROGRAM_INCOMPATIBLE)`
 - action requise : L artefact est nomme dans la partition programme. L exclure de la prochaine release, ou corriger sa liaison de perimetre. Ne jamais corriger sa verite pour faire passer le gate.
 - decision humaine requise : `oui`
@@ -88,7 +88,7 @@
 ### PRE_RELEASE_BLOCKERS
 
 - categorie : `AGGREGATE`
-- valeur : `3`, bloque : `oui`
+- valeur : `2`, bloque : `oui`
 - source de preuve : `agregat calcule`
 - action requise : Rien directement. Ce compteur DERIVE de PII, programme et actualite. Le fermer par lui-meme reviendrait a maquiller les trois.
 - decision humaine requise : `non`
