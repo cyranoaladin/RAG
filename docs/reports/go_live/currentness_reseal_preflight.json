@@ -1,0 +1,71 @@
+{
+  "blocking_findings": [],
+  "contents_to_exclude": {
+    "all_pii_cleared": true,
+    "content_sha256": [
+      "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
+      "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
+      "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2"
+    ],
+    "count": 3,
+    "pii_statuses_observed": [
+      "PII_CLEARED_OR_NOT_SCANNED"
+    ]
+  },
+  "expected_impact": {
+    "GO_LIVE_READY": {
+      "after": false,
+      "before": false
+    },
+    "assert_ready": {
+      "after": 1,
+      "before": 1
+    },
+    "pii_undecided_unchanged": true,
+    "promoted_content_set_size": {
+      "after": 316,
+      "before": 319
+    },
+    "release_promoted_refused_by_currentness": {
+      "after": 0,
+      "before": 3
+    },
+    "release_promoted_refused_contents": {
+      "after": 23,
+      "before": 26
+    },
+    "why_still_false": "PII, recherche, qualification et PR bloquantes persistent ; ce reseal ferme une raison sur six"
+  },
+  "kind": "NEXUS-CURRENTNESS-RESEAL-PREFLIGHT-V1",
+  "not_done_here": [
+    "aucune release écrite",
+    "aucun fichier data/releases/ modifié",
+    "aucune identité réservée",
+    "aucune décision PII"
+  ],
+  "pii_contents_untouched": {
+    "count": 23,
+    "intersects_exclusion": false
+  },
+  "preflight_passed": true,
+  "release_identity": {
+    "existing_count": 10,
+    "existing_identities": [
+      "production-profile-gate-2026-2027-v1",
+      "production-profile-gate-2026-2027-v1-rag",
+      "production-profile-gate-2026-2027-v2",
+      "production-profile-gate-2026-2027-v2-candidate-candidate-v2-20260904T084521Z",
+      "production-profile-gate-2026-2027-v2-candidate-xyz",
+      "production-profile-gate-2026-2027-v2-rehearsal",
+      "production-profile-gate-2026-2027-v2-rehearsal-rag",
+      "production-profile-gate-2026-2027-v7",
+      "production-profile-gate-2026-2027-v9-rehearsal",
+      "production-profile-gate-v1"
+    ],
+    "is_free": true,
+    "proposed": "production-profile-gate-2026-2027-v3",
+    "why_it_matters": "ADR-0050 interdit de resceller en place ; une identité réutilisée ferait mentir ce qui a été scellé sous elle. Les répétitions comptent comme des identités utilisées."
+  },
+  "requires_human_authorization": true,
+  "status": "PREFLIGHT_ONLY_NOT_APPLIED"
+}

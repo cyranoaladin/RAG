@@ -1,0 +1,5290 @@
+{
+  "allowed_decisions": [
+    "PII_CLEARED",
+    "PII_REDACTION_REQUIRED",
+    "EXCLUDE_FROM_SERVABLE_SET",
+    "HUMAN_REVIEW_REQUIRED"
+  ],
+  "closing_all_pii_does_not_open_go_live": "trancher les 149 ferme pii_undecided et une partie de l incoherence de release ; la recherche, la qualification et les PR bloquantes restent ouvertes, et le corpus reste sans vecteurs",
+  "counts": {
+    "by_category": {
+      "date_of_birth": 1,
+      "email_address": 42,
+      "french_ssn": 6,
+      "phone_french": 46,
+      "postal_address": 50,
+      "student_name_pattern": 42
+    },
+    "by_risk": {
+      "A_QUALIFIER": 37,
+      "ELEVE": 6,
+      "MOYEN": 106
+    },
+    "non_promoted_packets": 126,
+    "packets_total": 149,
+    "promoted_packets": 23
+  },
+  "current_counters": {
+    "go_live_ready": false,
+    "pii_undecided": 149,
+    "release_promoted_refused_contents": 26
+  },
+  "decisions_made_here": 0,
+  "kind": "NEXUS-PII-HUMAN-DECISION-DASHBOARD-V1",
+  "packets": [
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 6,
+      "pii_categories": [
+        "french_ssn",
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 1,
+      "reviewer": "",
+      "risk_level": "ELEVE"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 2,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 3,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 4,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 4,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 5,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 6,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 7,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 8,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 3,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 9,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 3,
+      "pii_categories": [
+        "email_address",
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 10,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 11,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 12,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address",
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 13,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 14,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 3,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 15,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 16,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 5,
+      "pii_categories": [
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 17,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 2,
+      "pii_categories": [
+        "email_address",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 18,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 19,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 20,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 21,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 3,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 22,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": -1
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": -1,
+        "release_promoted_refused_contents": -1,
+        "requires_release_reseal": true
+      },
+      "expected_human_action": "revoir en priorité : ce contenu est DÉJÀ dans la release promue",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "promoted": true,
+      "raw_pii_included": false,
+      "release_impact": true,
+      "review_order": 23,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "french_ssn"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:02e63adfd41aa043cc23b8d02986916ad6286fbc1dcee0120f5e0b585d654a51",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 24,
+      "reviewer": "",
+      "risk_level": "ELEVE"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "acebc5228c464ee1a5122587c4a407e01db692dc590ef9b33856af33cefffba0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "french_ssn"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:acebc5228c464ee1a5122587c4a407e01db692dc590ef9b33856af33cefffba0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 25,
+      "reviewer": "",
+      "risk_level": "ELEVE"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "b9622390f7945098bbdbdaeb625c891d9dd0a6273058ec6e91445ce3307683b5",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 25,
+      "pii_categories": [
+        "french_ssn",
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:b9622390f7945098bbdbdaeb625c891d9dd0a6273058ec6e91445ce3307683b5",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 26,
+      "reviewer": "",
+      "risk_level": "ELEVE"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "d03137e4a35d987beb6042655e7ffc679be754c880e44fbcf0925bf6a7be2bd1",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 11,
+      "pii_categories": [
+        "french_ssn",
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:d03137e4a35d987beb6042655e7ffc679be754c880e44fbcf0925bf6a7be2bd1",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 27,
+      "reviewer": "",
+      "risk_level": "ELEVE"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "fc811cf6529c67eb14cdf3b8c0d95ebf38cf7c4a24419d0d0541b7509ce3a257",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 6,
+      "pii_categories": [
+        "french_ssn",
+        "phone_french",
+        "postal_address",
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:fc811cf6529c67eb14cdf3b8c0d95ebf38cf7c4a24419d0d0541b7509ce3a257",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 28,
+      "reviewer": "",
+      "risk_level": "ELEVE"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "01eb7ba191d70d7feac4a459cb576e479182c91ceae9a4eeb523afebfb7393db",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 5,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:01eb7ba191d70d7feac4a459cb576e479182c91ceae9a4eeb523afebfb7393db",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 29,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "0233a3503bf85916c7954dc487ebd10eb89127f9ed0d477151a9fddfd1f5605e",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:0233a3503bf85916c7954dc487ebd10eb89127f9ed0d477151a9fddfd1f5605e",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 30,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "0bb239a5dd968b9649ad05c8fadba5a43674152722afaef915bf5bf00abf2c2b",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:0bb239a5dd968b9649ad05c8fadba5a43674152722afaef915bf5bf00abf2c2b",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 31,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "1250bb1ef01d7903637c4384eba89de682d20a9d3bcf7fa1fbaecb57611581b5",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:1250bb1ef01d7903637c4384eba89de682d20a9d3bcf7fa1fbaecb57611581b5",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 32,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "22c557a9e481554e2e87486713fa237bc13ea9cbf7ace69a5868581cad47afb9",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:22c557a9e481554e2e87486713fa237bc13ea9cbf7ace69a5868581cad47afb9",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 33,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "23e38ff901920457ad688bf6db86c580712b424ecdf87836da97510c7c66a6ae",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:23e38ff901920457ad688bf6db86c580712b424ecdf87836da97510c7c66a6ae",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 34,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2a4c9e670c95c5687ce789a761e669aae762235d94ad4f5345a021adb6eb163b",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2a4c9e670c95c5687ce789a761e669aae762235d94ad4f5345a021adb6eb163b",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 35,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2ab1fc88e3be9be54b62cedcd9a21cf21e6edd055ec684e7be6a31be2e29553b",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 7,
+      "pii_categories": [
+        "email_address",
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2ab1fc88e3be9be54b62cedcd9a21cf21e6edd055ec684e7be6a31be2e29553b",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 36,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2c32ad0950fbafe164a7d8c9a34fae76270cb1ff0806801507f0d37c893cba2e",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2c32ad0950fbafe164a7d8c9a34fae76270cb1ff0806801507f0d37c893cba2e",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 37,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2d5ee632b4021d125a23fe95b2e13afe51e526dbebb86421a67887fe9f7d57d9",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2d5ee632b4021d125a23fe95b2e13afe51e526dbebb86421a67887fe9f7d57d9",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 38,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2e23d96917fdaf1696266488a6e696e9747f9a946afcc1eeb31024dd9cd763e7",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2e23d96917fdaf1696266488a6e696e9747f9a946afcc1eeb31024dd9cd763e7",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 39,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2fd77f0dd2d539c14fee767eac87bb8c5a27bdd40a70733082c9161a053b3704",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2fd77f0dd2d539c14fee767eac87bb8c5a27bdd40a70733082c9161a053b3704",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 40,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "30798ecb2283d354a280bb1fd8a18f5b06dadcbb676f543b1ae68886a70f4d76",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:30798ecb2283d354a280bb1fd8a18f5b06dadcbb676f543b1ae68886a70f4d76",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 41,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "32f6473d84fbfbfcdc409b011da4abe7432aa06d82629113ce0ee5a985bb3888",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 7,
+      "pii_categories": [
+        "email_address",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:32f6473d84fbfbfcdc409b011da4abe7432aa06d82629113ce0ee5a985bb3888",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 42,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:35ff6bbd73b3f1f67132ca18afaee7241dc64f5a47895f88a28f283feace4061",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 43,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "392cbd0cc3db9b5b52f74b4039bc0a61d8de511ce0be5eeb01d3a4c2992f2758",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:392cbd0cc3db9b5b52f74b4039bc0a61d8de511ce0be5eeb01d3a4c2992f2758",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 44,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "39c0e01042df4b5bcc1646188ccee09ac5caa461899c21d4a27ab9a7d207deb1",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 4,
+      "pii_categories": [
+        "postal_address",
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:39c0e01042df4b5bcc1646188ccee09ac5caa461899c21d4a27ab9a7d207deb1",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 45,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "3e27038be759e0abc48d45259b61f6a36ae726d798deebca9c679062f65870f0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 6,
+      "pii_categories": [
+        "email_address",
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:3e27038be759e0abc48d45259b61f6a36ae726d798deebca9c679062f65870f0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 46,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "3ea9105313e0e7ce3e581af674459dd15776c656b2dfef39090a6e2c27b5fa0c",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:3ea9105313e0e7ce3e581af674459dd15776c656b2dfef39090a6e2c27b5fa0c",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 47,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "4435dfe9a4ceeef2ac01a58bfb7fc032daebd07a2c6949e68ea4776be4bc88f0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:4435dfe9a4ceeef2ac01a58bfb7fc032daebd07a2c6949e68ea4776be4bc88f0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 48,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "46886d197f5b95c4a45692f21cfd9b39c2489151b620fc270719fd5dc8157cc0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:46886d197f5b95c4a45692f21cfd9b39c2489151b620fc270719fd5dc8157cc0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 49,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "46c0716d91047cdd6bce86159c360bbb44e00b7b7c2ec13cbba7cd5ab747f838",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "email_address",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:46c0716d91047cdd6bce86159c360bbb44e00b7b7c2ec13cbba7cd5ab747f838",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 50,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "4930bc016d6d724af6d3856f8f012b02cdb090deb8bb0184f8b4a06bd59c73d0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:4930bc016d6d724af6d3856f8f012b02cdb090deb8bb0184f8b4a06bd59c73d0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 51,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "4c0d451dcda0acafce44f277880cb109821b188f811be5b28fca3b10766a7555",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 4,
+      "pii_categories": [
+        "email_address",
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:4c0d451dcda0acafce44f277880cb109821b188f811be5b28fca3b10766a7555",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 52,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "5bd4a68affb67675245077139e12771c4d2133efd1d869d1331fef160b7b197a",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 9,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:5bd4a68affb67675245077139e12771c4d2133efd1d869d1331fef160b7b197a",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 53,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "5cc235fe087df99e69de1810665eb0b7ea510448b0e1177ff2ce1927d8dec701",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 18,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:5cc235fe087df99e69de1810665eb0b7ea510448b0e1177ff2ce1927d8dec701",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 54,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "5cd0bd99888d9a550167504b37a659efcdb77a8234c1245cbd9086d18f960bf4",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:5cd0bd99888d9a550167504b37a659efcdb77a8234c1245cbd9086d18f960bf4",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 55,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "5e1e20df24da2cbb2e9c7558c9c157add3d4b486cf178941fd1f68ea58f037d8",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:5e1e20df24da2cbb2e9c7558c9c157add3d4b486cf178941fd1f68ea58f037d8",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 56,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "5ed15770a209503700b6358abfba0fac49af8a65310872487d4ee97db1014a78",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 7,
+      "pii_categories": [
+        "email_address",
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:5ed15770a209503700b6358abfba0fac49af8a65310872487d4ee97db1014a78",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 57,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "60979d66f1b0a1784f18fab1c5a55915f33bafad95aa73732b322156c37be5a9",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "email_address",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:60979d66f1b0a1784f18fab1c5a55915f33bafad95aa73732b322156c37be5a9",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 58,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "62dc1bdc5db66f8284bb519c93396727f861ccecacb86402d1698d22df7f34ba",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:62dc1bdc5db66f8284bb519c93396727f861ccecacb86402d1698d22df7f34ba",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 59,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6517cd6df8910845d4a86c204d84651e4491110d8cfcde5ac827acd6a5c360a4",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 5,
+      "pii_categories": [
+        "email_address",
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6517cd6df8910845d4a86c204d84651e4491110d8cfcde5ac827acd6a5c360a4",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 60,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "69edefd13062eee8752b41bcb08ff08aba16bb3e68828372cd54e4576269f9e6",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:69edefd13062eee8752b41bcb08ff08aba16bb3e68828372cd54e4576269f9e6",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 61,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6ab13ef5da0a614614dc2df9fe60ad214942298198141caa9d8e7c499b4dc376",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6ab13ef5da0a614614dc2df9fe60ad214942298198141caa9d8e7c499b4dc376",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 62,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6c015cc1da2caa87010d7ab5a68f7e0a781c94a06f992b8c2c4a06b1560da8bd",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 10,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6c015cc1da2caa87010d7ab5a68f7e0a781c94a06f992b8c2c4a06b1560da8bd",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 63,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6c0a4c960df8691221264fa0daa74c00ff9cd4f6f6a7eeb2745337f83f747f79",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6c0a4c960df8691221264fa0daa74c00ff9cd4f6f6a7eeb2745337f83f747f79",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 64,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6d2c65a15b11256d6aebbe2be2738325673b8ca2b31bc41f727af3e5e2805c89",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6d2c65a15b11256d6aebbe2be2738325673b8ca2b31bc41f727af3e5e2805c89",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 65,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6f6db8aa4928ae3c0baac48d826068ae4223085daeb1e25c191e8e19cc8ef8a7",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6f6db8aa4928ae3c0baac48d826068ae4223085daeb1e25c191e8e19cc8ef8a7",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 66,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "717a34a5f625709f4d1573c55e9c450e830699535a6db7b4c65deb89bcb6184c",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "email_address",
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:717a34a5f625709f4d1573c55e9c450e830699535a6db7b4c65deb89bcb6184c",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 67,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "72b984955b8a919795dcf91d473f7579965d8b9228d129565b119af9e9981ed1",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "email_address",
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:72b984955b8a919795dcf91d473f7579965d8b9228d129565b119af9e9981ed1",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 68,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7305b8db434287d64254e20b8d668f0e15b944557ca8f2df257eea00f62d5b62",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 32,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7305b8db434287d64254e20b8d668f0e15b944557ca8f2df257eea00f62d5b62",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 69,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "76749ac52564adf56d6203225b36f784fd6ad4e457c7f273c40556e8bfca7cc7",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:76749ac52564adf56d6203225b36f784fd6ad4e457c7f273c40556e8bfca7cc7",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 70,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "79cbc782bee529940145bfcf1e82830610a8bf2adaca23759a10be4ed52aad2a",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:79cbc782bee529940145bfcf1e82830610a8bf2adaca23759a10be4ed52aad2a",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 71,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7c52f1db07bc1e666318ca3540fb8b41da4a93b0a12327a008a883bc3edac562",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 5,
+      "pii_categories": [
+        "email_address",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7c52f1db07bc1e666318ca3540fb8b41da4a93b0a12327a008a883bc3edac562",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 72,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7d9f6a625190ead80a5ac5fb3add8e139e3fb377932342d58309226d3631368f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7d9f6a625190ead80a5ac5fb3add8e139e3fb377932342d58309226d3631368f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 73,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7ff7c4886c7b2c564eccc6f8ec91314cccfe936003d51fa58cd152eb312757b5",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7ff7c4886c7b2c564eccc6f8ec91314cccfe936003d51fa58cd152eb312757b5",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 74,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "80b60094dbfc205cec6b7e29c0ac3ce713cc1c3efdf238aac418675379d51675",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:80b60094dbfc205cec6b7e29c0ac3ce713cc1c3efdf238aac418675379d51675",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 75,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "8a8ec0edf81c51ca90c9c0f75154c7bf3303d550bb2c65dab74c46fd97b3cfd0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:8a8ec0edf81c51ca90c9c0f75154c7bf3303d550bb2c65dab74c46fd97b3cfd0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 76,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "8d58582528e1a3c98465c8b2c1375ab5dc5662373cb6bff42c392d32ff6c5c69",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:8d58582528e1a3c98465c8b2c1375ab5dc5662373cb6bff42c392d32ff6c5c69",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 77,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "93c33ad88251b21c9fc46778f67582b13eb3cfb731a2c4ccf02d2f7cc1698f7a",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 79,
+      "pii_categories": [
+        "email_address",
+        "phone_french",
+        "postal_address",
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:93c33ad88251b21c9fc46778f67582b13eb3cfb731a2c4ccf02d2f7cc1698f7a",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 78,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "945016e2ba546a1313f6c917d4f42fd555d41caabc31db70cec15191c6cf12a5",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:945016e2ba546a1313f6c917d4f42fd555d41caabc31db70cec15191c6cf12a5",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 79,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "9af15e9a80385102471c0a73e7a725dfc1b15713b78b231b1eaa8d9ad74c8d93",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 9,
+      "pii_categories": [
+        "email_address",
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:9af15e9a80385102471c0a73e7a725dfc1b15713b78b231b1eaa8d9ad74c8d93",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 80,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "9ffbf2ad6b5f78afcfbbea88b8fcbd558934ba6bed28d5464d57c4c6c7e7d6f0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:9ffbf2ad6b5f78afcfbbea88b8fcbd558934ba6bed28d5464d57c4c6c7e7d6f0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 81,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "a2967c28700733a4db3326b6d014d2084ecb50a129fe6c53b95236d76100228b",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:a2967c28700733a4db3326b6d014d2084ecb50a129fe6c53b95236d76100228b",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 82,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "a2bf1662d304920239e24a1a6480b38b702a9649c396308fe5046dc523613bdf",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:a2bf1662d304920239e24a1a6480b38b702a9649c396308fe5046dc523613bdf",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 83,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "ad55ea950cfd5a9440c8d5c3b88a8fd8363dd4ff5b8cdde67f0fb66c772c7b75",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:ad55ea950cfd5a9440c8d5c3b88a8fd8363dd4ff5b8cdde67f0fb66c772c7b75",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 84,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "aff96b231f734123e29635b56938dffef5540a2c94ea3b86248d5e522b4bcead",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:aff96b231f734123e29635b56938dffef5540a2c94ea3b86248d5e522b4bcead",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 85,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "b0de0f8dc72121c484734a98075314869b5cf5a891204ca3ff583a6100c856d0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:b0de0f8dc72121c484734a98075314869b5cf5a891204ca3ff583a6100c856d0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 86,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "b0e637d806bc0b9276b2e56ba435d9a6fc6d3170899923511ef435e0ae6ac923",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:b0e637d806bc0b9276b2e56ba435d9a6fc6d3170899923511ef435e0ae6ac923",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 87,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "b1cbc2be06a8a9c69b7ad3a8aa85fa2493096c561a6fbbdfa880368469e5612c",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:b1cbc2be06a8a9c69b7ad3a8aa85fa2493096c561a6fbbdfa880368469e5612c",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 88,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "b79478f0763becd469dbc1ddebef3c9dbe4bfc70e97cf49ca8d165476ed1d1cd",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:b79478f0763becd469dbc1ddebef3c9dbe4bfc70e97cf49ca8d165476ed1d1cd",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 89,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "bb05863ac03f90eeb775dcd26a19559bd66c360963a4d5f3acdcbdf0b1ddcebc",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:bb05863ac03f90eeb775dcd26a19559bd66c360963a4d5f3acdcbdf0b1ddcebc",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 90,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "bf225ac7f6db883f196af06cc29fdcfe2fdd1c56d78ed6f10e0c945698b70009",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:bf225ac7f6db883f196af06cc29fdcfe2fdd1c56d78ed6f10e0c945698b70009",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 91,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "c04e504742e4e69a7b410e01ad5c0613eac99ab1348f5f4dd502de7dba6b529f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:c04e504742e4e69a7b410e01ad5c0613eac99ab1348f5f4dd502de7dba6b529f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 92,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "c3dca34eb3b8c3860979e49702e31381464f8458301f1a08cdfefb16da351abe",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 4,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:c3dca34eb3b8c3860979e49702e31381464f8458301f1a08cdfefb16da351abe",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 93,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "c7937df3d9e3cba6738938cb7be3af265d16fb17448beb0aca2f4c94f95d2f47",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 5,
+      "pii_categories": [
+        "email_address",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:c7937df3d9e3cba6738938cb7be3af265d16fb17448beb0aca2f4c94f95d2f47",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 94,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "c9be166d2f09d7c265de469c2d97ce414085644b1202e3f319a6979c11fb49f7",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:c9be166d2f09d7c265de469c2d97ce414085644b1202e3f319a6979c11fb49f7",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 95,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "d2fcc3e9eebf67cf027e2743d8746ad19bbbb57e8f7d2f88f07d0327ebead59e",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:d2fcc3e9eebf67cf027e2743d8746ad19bbbb57e8f7d2f88f07d0327ebead59e",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 96,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "d9832953fcfde74abf70307026aae5d5b878a7f27cc7b98af88af5bc47469d13",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 4,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:d9832953fcfde74abf70307026aae5d5b878a7f27cc7b98af88af5bc47469d13",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 97,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "dd764a6c8ea8cd1bd091dd78bed4bc1486f27a8d7d62af237c19a3d3ebb6386e",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:dd764a6c8ea8cd1bd091dd78bed4bc1486f27a8d7d62af237c19a3d3ebb6386e",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 98,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "dfb6dcdf9c751bd456387c2e2b945fa0fda52a1547f3f9875dea13729f71053c",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:dfb6dcdf9c751bd456387c2e2b945fa0fda52a1547f3f9875dea13729f71053c",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 99,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e1df146a56150632ba50e603fcb6f9399e3f83e41e37b948f8070634098de1b5",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e1df146a56150632ba50e603fcb6f9399e3f83e41e37b948f8070634098de1b5",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 100,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e28f3aa99b14a0f796df9a76d1c82ccfbcba5eee96d9f71631c1b941e6c9214f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e28f3aa99b14a0f796df9a76d1c82ccfbcba5eee96d9f71631c1b941e6c9214f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 101,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e4b0460e2b9d92849e986bdccac28750e7e2a0ce6c0136acc272af3393eae622",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e4b0460e2b9d92849e986bdccac28750e7e2a0ce6c0136acc272af3393eae622",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 102,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e6686275d37f29fc4b8a5f893a36740dc35c3531fe7e120d7b9fcc1590eeb0b6",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e6686275d37f29fc4b8a5f893a36740dc35c3531fe7e120d7b9fcc1590eeb0b6",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 103,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e70ceaff5258f9b66174c905fcd8d2d5aecc36e0404bec86ca7d8661c6f6ad8f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 8,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e70ceaff5258f9b66174c905fcd8d2d5aecc36e0404bec86ca7d8661c6f6ad8f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 104,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "ed1cb06c311fd157d0fee6c71b97e42da8c02b253ca494b887e4aae7f01dbcb3",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:ed1cb06c311fd157d0fee6c71b97e42da8c02b253ca494b887e4aae7f01dbcb3",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 105,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "edd36e6204bc9c597335f2084c6c855a57766b259661641bf7cc6e22771fc93a",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:edd36e6204bc9c597335f2084c6c855a57766b259661641bf7cc6e22771fc93a",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 106,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "ef10dd5f402ecd51f9f8f3458e808a7a12a4c3a615c3992c447abaa7babbb56b",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:ef10dd5f402ecd51f9f8f3458e808a7a12a4c3a615c3992c447abaa7babbb56b",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 107,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f530cf5529857fa1925cb429261f014d46d25b176844e5350ffb43caf0514528",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f530cf5529857fa1925cb429261f014d46d25b176844e5350ffb43caf0514528",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 108,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f55d5b374be83fbea0754762e799d90fa01a6c60808d88ef708754f7a561c135",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f55d5b374be83fbea0754762e799d90fa01a6c60808d88ef708754f7a561c135",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 109,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f57f064453a7f4d27f0a23f09cb564166a5d3da852833e1a95bebdb5f31a7e80",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f57f064453a7f4d27f0a23f09cb564166a5d3da852833e1a95bebdb5f31a7e80",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 110,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f83187cfa9c7524d91167a74c5bec99d3cbb0e47e6a65ddd73839a48124c3807",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "email_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f83187cfa9c7524d91167a74c5bec99d3cbb0e47e6a65ddd73839a48124c3807",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 111,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f9bdfde7c92ef413eb3ae4d56e6a070c8456675afc616af07bd3b8ea7de8d5d9",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "phone_french",
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f9bdfde7c92ef413eb3ae4d56e6a070c8456675afc616af07bd3b8ea7de8d5d9",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 112,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "fa611d76d8cb9e645514d796d96e1a072ba5dda009c8f8e3e5759ce0e0497172",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 4,
+      "pii_categories": [
+        "email_address",
+        "phone_french"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:fa611d76d8cb9e645514d796d96e1a072ba5dda009c8f8e3e5759ce0e0497172",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 113,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "fd170ebb213b4d29386602c4f5a0889e4be344a12032be7d4d4e639aafae87c8",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 7,
+      "pii_categories": [
+        "phone_french",
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:fd170ebb213b4d29386602c4f5a0889e4be344a12032be7d4d4e639aafae87c8",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 114,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "ff432b6eb7f87bc0605a536e462d436877778a05d44a48ccc32ee2e9b0ecff28",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "postal_address"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:ff432b6eb7f87bc0605a536e462d436877778a05d44a48ccc32ee2e9b0ecff28",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 115,
+      "reviewer": "",
+      "risk_level": "MOYEN"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "0ea7dcd52e65813e767b9e120bd91d49cec535022b63672b0cd0e88ef8a8b869",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 7,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:0ea7dcd52e65813e767b9e120bd91d49cec535022b63672b0cd0e88ef8a8b869",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 116,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "114ff8f7aee256767c789fb86e8532097a85a112c93b1c125ad406b858bb1512",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:114ff8f7aee256767c789fb86e8532097a85a112c93b1c125ad406b858bb1512",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 117,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "171eb6c1276400d7313ae216d449de6b9798ba1ce8910abc02721760a514bf42",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:171eb6c1276400d7313ae216d449de6b9798ba1ce8910abc02721760a514bf42",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 118,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "1d218e4de2f051b46b238d2e8b2d8fa0d1413a1caddaa0da16bae8aa42279cf5",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:1d218e4de2f051b46b238d2e8b2d8fa0d1413a1caddaa0da16bae8aa42279cf5",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 119,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "1fe614cfa4fe21a7366b36c880089f77f13472471f3feb083098716c8f610ed0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:1fe614cfa4fe21a7366b36c880089f77f13472471f3feb083098716c8f610ed0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 120,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "2164e6e372f6f0e69e4786932ee734eb483eec6428f6d75d3b66952784dac2d2",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:2164e6e372f6f0e69e4786932ee734eb483eec6428f6d75d3b66952784dac2d2",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 121,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "283b8518977fd2b8cb6b50596012997c156ea63776c12fed63abab53b576d1fb",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "date_of_birth"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:283b8518977fd2b8cb6b50596012997c156ea63776c12fed63abab53b576d1fb",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 122,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "30317c2043690f14099617077821879df0b56778f811126e185386faa5a9a042",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:30317c2043690f14099617077821879df0b56778f811126e185386faa5a9a042",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 123,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "32bcf9e1aa903cf957e1686a6f637cab139997095b91bfa98670c9ecc227f577",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:32bcf9e1aa903cf957e1686a6f637cab139997095b91bfa98670c9ecc227f577",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 124,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "389d27bec3b421144425798ab99f5282cb0934acfdeac3ea5fd5a640937bd0b6",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:389d27bec3b421144425798ab99f5282cb0934acfdeac3ea5fd5a640937bd0b6",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 125,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "567cf7b55fd5f30e7484a1e7105e4d0c530ef88075488fdb675d9337134b009d",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:567cf7b55fd5f30e7484a1e7105e4d0c530ef88075488fdb675d9337134b009d",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 126,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "57fcfc9938895947d97d84961e287a4eddac952392256a4e324cf58d5f533361",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:57fcfc9938895947d97d84961e287a4eddac952392256a4e324cf58d5f533361",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 127,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "5b726a3426ec07455b22b910cd4e16b735792a068e295ebf19d2169b17f2cbd8",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:5b726a3426ec07455b22b910cd4e16b735792a068e295ebf19d2169b17f2cbd8",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 128,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "6563ba4735e46ae9d8f9af32c3ee224b9ccf568dbcc24b512f7ba8176fe2b007",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:6563ba4735e46ae9d8f9af32c3ee224b9ccf568dbcc24b512f7ba8176fe2b007",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 129,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "76ca6b5039d2f979c9f2cff32a9e77b8d88d61932e2efa336111cb1324376fed",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:76ca6b5039d2f979c9f2cff32a9e77b8d88d61932e2efa336111cb1324376fed",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 130,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7a03171fa3490059ebf5d34d3a21d36f6daa6b09755fa4e922ab982a9e1d10e8",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7a03171fa3490059ebf5d34d3a21d36f6daa6b09755fa4e922ab982a9e1d10e8",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 131,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7a7e0533a3852632afa0ee9dcf31c31c5b8d085ce30a676361970de15cf53edf",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7a7e0533a3852632afa0ee9dcf31c31c5b8d085ce30a676361970de15cf53edf",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 132,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7e657a7b093d39d9aec7205f6e1be2aeba0550ddd39dff0ad220c2342a8460bc",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7e657a7b093d39d9aec7205f6e1be2aeba0550ddd39dff0ad220c2342a8460bc",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 133,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7eb3b943dde0d0eca48e574ea51b03793f09f56ef834f25f175490228fa9beba",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7eb3b943dde0d0eca48e574ea51b03793f09f56ef834f25f175490228fa9beba",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 134,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "7fd90b6ecabb7f5621ba53eba245014a666a4cdc6aefae0efdc6d10d9bc70c7b",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:7fd90b6ecabb7f5621ba53eba245014a666a4cdc6aefae0efdc6d10d9bc70c7b",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 135,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "81496267afa7711120acce36e23cbb9dc4f7bb3d325171ebceb4d420ba3bb79f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:81496267afa7711120acce36e23cbb9dc4f7bb3d325171ebceb4d420ba3bb79f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 136,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "834bb3fac8c33b5d1ffec754f3f66b05bf2b0fd7f6e7bfb652501e6c44009329",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:834bb3fac8c33b5d1ffec754f3f66b05bf2b0fd7f6e7bfb652501e6c44009329",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 137,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "8af8e685982e39068cd84e97a122288c471366ffbc85312c57882ab4c2862e1f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:8af8e685982e39068cd84e97a122288c471366ffbc85312c57882ab4c2862e1f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 138,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "9a6b90a37a4c50cf0e42c27df51ff0ab48f704432c8bcf904722be16b604a250",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:9a6b90a37a4c50cf0e42c27df51ff0ab48f704432c8bcf904722be16b604a250",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 139,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "a83ab5880407907d934bb5ea2d8037e55906cc5d79a563bd3c3a6c7c30f8c881",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:a83ab5880407907d934bb5ea2d8037e55906cc5d79a563bd3c3a6c7c30f8c881",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 140,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "b1a2ab5a3d0e4aca1e1070989847f4df8ed131975e28783b3f6a327e7344cd7d",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:b1a2ab5a3d0e4aca1e1070989847f4df8ed131975e28783b3f6a327e7344cd7d",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 141,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "becc408f54be3e1988205864e5e8ea993f04acee8bb27d879adf99b4c9a2650f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:becc408f54be3e1988205864e5e8ea993f04acee8bb27d879adf99b4c9a2650f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 142,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "cae249e2fd1642d0defc4451f64d7e743d57c75b27adea8be03143348d318807",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:cae249e2fd1642d0defc4451f64d7e743d57c75b27adea8be03143348d318807",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 143,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "ce6cbadb352cf61b798d98fb16120c1ef5baa854de1c712c30eb32d9e9e87096",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:ce6cbadb352cf61b798d98fb16120c1ef5baa854de1c712c30eb32d9e9e87096",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 144,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "d487a7fdce909a2c7ae6c2ceba81bba14bfb71cf6ad506479d98caff5526c59f",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:d487a7fdce909a2c7ae6c2ceba81bba14bfb71cf6ad506479d98caff5526c59f",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 145,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "d6dfc7d63f2bfe55ffdbab2709fe1f939e75c75e84267e516b558ac4edbe47f9",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 2,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:d6dfc7d63f2bfe55ffdbab2709fe1f939e75c75e84267e516b558ac4edbe47f9",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 146,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "deab5ed03e32d12d0a9f8c01542028f91005c3fb1ac8b97ba4897bc24e462c36",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:deab5ed03e32d12d0a9f8c01542028f91005c3fb1ac8b97ba4897bc24e462c36",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 147,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "e3c2f36ca6a2ff5fb1f41b6d2e09b90753f32b0c5221475fb1f2ef53ad24567e",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 3,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:e3c2f36ca6a2ff5fb1f41b6d2e09b90753f32b0c5221475fb1f2ef53ad24567e",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 148,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    },
+    {
+      "allowed_decisions": [
+        "PII_CLEARED",
+        "PII_REDACTION_REQUIRED",
+        "EXCLUDE_FROM_SERVABLE_SET",
+        "HUMAN_REVIEW_REQUIRED"
+      ],
+      "content_sha256": "f548dbc81a9af6f2cad9802033f5fae8764cbc02a6f3fb408a8c80c1b894aec0",
+      "decision": "",
+      "effect_if_cleared": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0
+      },
+      "effect_if_excluded": {
+        "GO_LIVE_READY": false,
+        "pii_undecided": -1,
+        "promoted_content_set_size": 0,
+        "release_promoted_refused_contents": 0,
+        "requires_release_reseal": false
+      },
+      "expected_human_action": "revoir avant toute promotion",
+      "finding_count": 1,
+      "pii_categories": [
+        "student_name_pattern"
+      ],
+      "pii_packet_id": "pii-review-2026-09-07-drive-v2:f548dbc81a9af6f2cad9802033f5fae8764cbc02a6f3fb408a8c80c1b894aec0",
+      "promoted": false,
+      "raw_pii_included": false,
+      "release_impact": false,
+      "review_order": 149,
+      "reviewer": "",
+      "risk_level": "A_QUALIFIER"
+    }
+  ],
+  "raw_pii_in_output": false
+}
