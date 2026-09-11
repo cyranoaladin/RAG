@@ -45,17 +45,49 @@ Le nom promettait une portée que le calcul n'avait pas.
 
 ## Ce qui a été mesuré avant de conclure
 
-| Mesure | Valeur |
-| --- | ---: |
-| Contenus prouvés incompatibles | 1 |
-| Refusés par la matrice | 1 |
-| Encore candidats dans la matrice | 0 |
-| Présents dans l'arbre de release | 0 |
-| Empreintes distinctes dans l'arbre de release | 21 241 |
-| Fichiers de release parcourus | 77 |
+| Mesure | Valeur | Source |
+| --- | ---: | --- |
+| Contenus prouvés incompatibles | 1 | matrice de servabilité |
+| Refusés par la matrice | 1 | matrice de servabilité |
+| Encore candidats dans la matrice | 0 | matrice de servabilité |
+| Contenus réellement promus | 319 | autorité canonique |
+| Incompatibles parmi les promus | 0 | intersection |
 
-L'objet est absent des 21 241 contenus que portent les artefacts de release.
-Rien ne le promeut.
+```
+promoted_content_set_source   = scripts/qualification/compute_promoted_content_set.py
+promoted_content_set_sha256   = d06d6051e7037372acf4dca4675a1c999c198129433d68491221a9d03bb821cd
+release_authority_mechanism   = REGISTRY_FILE
+release_registry_source       = DEFAULT
+```
+
+L'objet est absent des 319 contenus que la lignée canonique sert. Rien ne le
+promeut.
+
+## Une première mesure était fausse, et il faut le dire
+
+La version initiale de cette correction définissait l'ensemble promu par un
+**balayage de fichiers** : tous les JSON sous `data/releases`, et toute chaîne
+de 64 caractères hexadécimaux retenue comme un contenu.
+
+Elle trouvait **20 739** empreintes là où l'autorité canonique en compte
+**319**. Elle ramassait des empreintes d'arbres git, de modèles d'embedding, de
+manifestes — tout ce qui a la *forme* d'un sha256 sans en avoir le *rôle*. Une
+union de digests techniques n'est pas un ensemble de contenus servis, et
+conclure d'une coïncidence de format est un raisonnement faux même quand il
+donne le bon résultat.
+
+Elle rendait de surcroît un ensemble **vide** quand la racine manquait, ce qui
+transformait « je ne sais pas » en « rien n'est promu » — un faux zéro dans un
+compteur de sécurité.
+
+Deux mesures incohérentes coexistaient d'ailleurs dans les artefacts, 77
+fichiers contre 41, selon la racine depuis laquelle on balayait. Une source de
+vérité qui dépend du répertoire courant n'en est pas une.
+
+L'ensemble promu vient désormais de `compute_promoted_content_set.py`, qui passe
+par `select_release_authority` et le contrat de release — le même chemin que le
+runtime. Tout refus de cette autorité remonte comme un refus, jamais comme un
+ensemble vide.
 
 ## Pourquoi ne pas compter simplement « incompatible ∩ candidat »
 
@@ -70,11 +102,15 @@ contienne un contenu prouvé incompatible. C'est cela qui se mesure maintenant.
 ## Ce que le gate compte désormais
 
 ```
-program_incompatible_in_servable_set  = incompatibles ∩ ensemble promu   (bloquant)
-program_incompatible_total            = incompatibles                    (informatif)
-program_incompatible_refused_by_matrix                                   (informatif)
-promoted_content_set_size, promoted_release_files_scanned                (traçabilité)
+program_incompatible_in_servable_set  = incompatibles ∩ ensemble promu canonique  (bloquant)
+program_incompatible_total            = incompatibles                             (informatif)
+program_incompatible_refused_by_matrix                                            (informatif)
+promoted_content_set_source, _sha256, _size                                       (traçabilité)
+promoted_release_authority_mechanism, promoted_release_registry_source            (traçabilité)
 ```
+
+Le gate ne balaie aucun fichier de release et ne redéfinit pas ce qu'est une
+empreinte de contenu. Une épreuve le vérifie sur le corps de la fonction.
 
 Les deux compteurs informatifs existent pour que **le fait reste visible**. Le
 faire disparaître du rapport parce qu'il ne bloque plus reviendrait à le
@@ -84,8 +120,12 @@ maquiller.
 
 | Épreuve | Ce qu'elle tient |
 | --- | --- |
-| `test_un_incompatible_absent_des_releases_ne_bloque_pas` | un incompatible que rien ne promeut ne bloque pas |
-| `test_un_programme_incompatible_PROMU_bloque` | une release qui contient un incompatible **bloque** |
+| `test_un_incompatible_absent_du_set_promu_ne_bloque_pas` | un incompatible que rien ne promeut ne bloque pas |
+| `test_un_incompatible_PROMU_par_l_autorite_canonique_bloque` | un incompatible promu **bloque** |
+| `test_une_empreinte_technique_dans_un_json_de_release_ne_bloque_pas` | une empreinte technique n'est pas un contenu |
+| `test_un_calculateur_canonique_absent_est_un_refus` | ne pas savoir n'est pas « rien n'est promu » |
+| `test_un_refus_du_calculateur_canonique_remonte` | un refus n'est jamais un ensemble vide |
+| `test_un_ensemble_promu_vide_est_refuse` | comparer au vide serait vrai par vacuité |
 
 Sans la seconde, le compteur corrigé serait une mesure qui ne peut pas alerter.
 

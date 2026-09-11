@@ -1,12 +1,11 @@
 {
  "kind": "NEXUS-PROGRAM-INCOMPATIBLE-RESOLUTION-V1",
  "measurements": {
-  "DISTINCT_SHA256_IN_RELEASE_TREE": 21241,
   "PROGRAM_INCOMPATIBLE_AND_CANDIDATE": 0,
-  "PROGRAM_INCOMPATIBLE_IN_RELEASE_TREE": 0,
+  "PROGRAM_INCOMPATIBLE_IN_PROMOTED_SET": 0,
   "PROGRAM_INCOMPATIBLE_REFUSED_BY_MATRIX": 1,
   "PROGRAM_INCOMPATIBLE_TOTAL": 1,
-  "RELEASE_JSON_FILES_SCANNED": 77
+  "PROMOTED_CONTENT_SET_SIZE": 319
  },
  "note": "Fichier de constat. Il ne decide rien et ne modifie aucun verdict : il etablit ou se trouve l objet incompatible, et pourquoi le compteur qui le comptait etait mal porte.",
  "object": {
@@ -35,6 +34,20 @@
   }
  },
  "object_removed_from_history": false,
+ "promoted_content_set": {
+  "content_set_sha256": "d06d6051e7037372acf4dca4675a1c999c198129433d68491221a9d03bb821cd",
+  "release_authority_mechanism": "REGISTRY_FILE",
+  "release_registry_source": "DEFAULT",
+  "source": "scripts/qualification/compute_promoted_content_set.py"
+ },
  "resolution": "COUNTER_SCOPE_CORRECTED",
+ "superseded_measurement": {
+  "method": "balayage regex des JSON de data/releases",
+  "observed_sizes": [
+   20739,
+   21241
+  ],
+  "why_wrong": "retenait toute chaine de 64 hexadecimaux, soit 20739 empreintes contre 319 contenus reellement promus ; rendait un ensemble vide si la racine manquait"
+ },
  "verdict_unchanged": true
 }

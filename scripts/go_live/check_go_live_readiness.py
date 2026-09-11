@@ -46,10 +46,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import re
 import os
 import pathlib
 import shutil
+import tempfile
 import subprocess
 import sys
 from typing import Any
@@ -70,12 +70,11 @@ SORTIE_MD = "docs/reports/go_live/GO_LIVE_READINESS.md"
 SORTIE_LEDGER_JSON = "docs/reports/go_live/blocker_closure_ledger.json"
 SORTIE_LEDGER_MD = "docs/reports/go_live/BLOCKER_CLOSURE_LEDGER.md"
 
-#: Racine des releases materialisees. C est la SEULE source qui dise ce qui est
-#: reellement promu ; la matrice, elle, dit ce qui serait candidat.
-RACINE_RELEASES = "services/rag-pedago/data/releases"
-
-#: Une empreinte de contenu, telle qu elle apparait dans les artefacts.
-_MOTIF_SHA256 = re.compile(r"\b[0-9a-f]{64}\b")
+#: Le calculateur canonique d ensemble promu, deja present dans le depot. Il
+#: passe par `select_release_authority` et le contrat de release — le MEME que
+#: le runtime. Le readiness gate ne redefinit donc pas ce qu est un contenu
+#: promu : il le demande a l autorite qui le sait.
+CALCULATEUR_ENSEMBLE_PROMU = "scripts/qualification/compute_promoted_content_set.py"
 
 #: Le ledger est DERIVE de l etat calcule. Ecrire ses valeurs a la main
 #: recreerait une seconde source, et deux sources finissent par diverger.
@@ -409,36 +408,81 @@ def _residus_root() -> list[dict[str, Any]]:
     return residus
 
 
-def _ensemble_promu() -> tuple[frozenset[str], int]:
-    """Les empreintes de contenu presentes dans les releases materialisees.
+def _ensemble_promu() -> tuple[frozenset[str], dict[str, Any]]:
+    """Les contenus reellement promus, selon l autorite canonique.
 
-    Pourquoi cette source, et pas la matrice
-    ----------------------------------------
+    Pourquoi pas la matrice
+    -----------------------
 
     La matrice dit ce qui SERAIT servable ; elle est emise `applied=false` et
-    refuse elle-meme un contenu programme-incompatible, des la premiere marche
+    refuse elle-meme un contenu programme-incompatible des la premiere marche
     de sa cascade. Compter les incompatibles « dans le perimetre servable »
-    depuis sa propre cascade donnerait donc toujours zero : une mesure qui ne
-    peut jamais etre non nulle ne protege rien.
+    depuis cette cascade donnerait toujours zero : une mesure qui ne peut
+    jamais etre non nulle ne protege rien.
 
-    Ce qui peut reellement mal tourner, c est qu une release MATERIALISEE
-    contienne un contenu prouve incompatible. C est cela qui se mesure ici.
+    Pourquoi pas un scan de fichiers
+    --------------------------------
+
+    Une premiere version balayait tous les JSON de `data/releases` a la
+    recherche de chaines de 64 caracteres hexadecimaux. Elle trouvait 20739
+    empreintes la ou l autorite canonique en compte 319 : elle ramassait des
+    empreintes d arbres, de modeles, de manifestes — tout ce qui a la FORME
+    d un sha256 sans en avoir le ROLE. Une union de digests techniques n est
+    pas un ensemble de contenus servis, et s en servir comme garde revenait a
+    tirer une conclusion d une coincidence de format.
+
+    Elle rendait de surcroit un ensemble VIDE quand la racine manquait, ce qui
+    transformait « je ne sais pas » en « rien n est promu ».
+
+    L autorite est donc celle qui sait : `select_release_authority` et le
+    contrat de release, le meme chemin que le runtime. Tout refus du chargeur
+    canonique remonte ici comme un refus, jamais comme un ensemble vide.
     """
-    racine = _racine_du_checkout_principal() / RACINE_RELEASES
-    if not racine.is_dir():
-        return frozenset(), 0
-    empreintes: set[str] = set()
-    fichiers = 0
-    for chemin in sorted(racine.rglob("*.json")):
-        try:
-            texte = chemin.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        trouvees = set(_MOTIF_SHA256.findall(texte))
-        if trouvees:
-            fichiers += 1
-            empreintes |= trouvees
-    return frozenset(empreintes), fichiers
+    # L arbre EVALUE, pas le checkout principal. Le readiness rend compte de
+    # l arbre qu on lui donne ; aller chercher le calculateur ailleurs ferait
+    # mesurer un arbre et conclure sur un autre.
+    racine = REPO_ROOT
+    chemin = racine / CALCULATEUR_ENSEMBLE_PROMU
+    if not chemin.is_file():
+        raise EntreeManquante(
+            f"calculateur canonique absent : {CALCULATEUR_ENSEMBLE_PROMU}. "
+            "Le readiness ne redefinit pas ce qu est un contenu promu."
+        )
+    with tempfile.TemporaryDirectory() as bac:
+        sortie = pathlib.Path(bac) / "promoted.json"
+        resultat = subprocess.run(
+            [sys.executable, str(chemin), "--output", str(sortie)],
+            capture_output=True,
+            text=True,
+            cwd=str(racine),
+            check=False,
+        )
+        if resultat.returncode != 0 or not sortie.is_file():
+            raise EntreeManquante(
+                "l autorite canonique refuse de rendre l ensemble promu : "
+                f"{(resultat.stderr or resultat.stdout).strip()[:400]}. "
+                "Un refus n est pas un ensemble vide."
+            )
+        charge = json.loads(sortie.read_text(encoding="utf-8"))
+
+    contenus = frozenset(charge.get("content_sha256") or ())
+    if not contenus:
+        raise EntreeManquante(
+            "l ensemble promu canonique est vide : toute comparaison avec lui "
+            "serait vraie par vacuite."
+        )
+    autorite = charge.get("release_authority")
+    mecanisme = (
+        autorite.get("mechanism") if isinstance(autorite, dict) else autorite
+    )
+    provenance = {
+        "promoted_content_set_source": CALCULATEUR_ENSEMBLE_PROMU,
+        "promoted_content_set_sha256": charge.get("content_set_sha256"),
+        "promoted_content_set_size": len(contenus),
+        "promoted_release_authority_mechanism": mecanisme,
+        "promoted_release_registry_source": charge.get("release_registry_source"),
+    }
+    return contenus, provenance
 
 
 def _disque() -> tuple[int, int]:
@@ -470,7 +514,7 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         for ligne in matrice.get("rows", ())
         if ligne.get("program") == "INCOMPATIBLE_PROVEN"
     )
-    promus, fichiers_release = _ensemble_promu()
+    promus, provenance_promus = _ensemble_promu()
     incompatibles_promus = sorted(incompatibles & promus)
     programme_incompatible = len(incompatibles_promus)
     programme_incompatible_total = len(incompatibles)
@@ -566,8 +610,7 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         # maquiller.
         "program_incompatible_total": programme_incompatible_total,
         "program_incompatible_refused_by_matrix": programme_incompatible_refuse,
-        "promoted_content_set_size": len(promus),
-        "promoted_release_files_scanned": fichiers_release,
+        **provenance_promus,
         "currentness_policy_applied": actualite_appliquee,
         "non_pdf_servable_total": non_pdf_servables,
         "non_pdf_servable_reacquired": non_pdf_reacquis,

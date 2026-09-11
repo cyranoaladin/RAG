@@ -53,3 +53,10 @@ RELEASE_SELECTION	packages/release-chain/src/nexus_release_chain/release_readine
 RELEASE_SELECTION	packages/release-chain/src/nexus_release_chain/deployment_binding.py
 RELEASE_SELECTION	services/rag-engine/src/ingestor/retrieval_v2_endpoint.py
 RELEASE_SELECTION	scripts/qualification/compute_promoted_content_set.py
+# L evaluateur de readiness NOMME `select_release_authority` dans sa
+# documentation, pour dire a quelle autorite il delegue. Il ne selectionne
+# aucune release : il invoque le calculateur canonique et lit sa sortie. Une
+# epreuve le tient sur le corps de la fonction — ni balayage de fichiers, ni
+# redefinition d une empreinte, ni matrice de precedence.
+# (test_le_gate_ne_definit_pas_lui_meme_l_ensemble_promu)
+RELEASE_SELECTION	scripts/go_live/check_go_live_readiness.py
