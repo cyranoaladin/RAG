@@ -49,22 +49,17 @@
   },
   "preflight_passed": true,
   "release_identity": {
-    "existing_count": 10,
-    "existing_identities": [
-      "production-profile-gate-2026-2027-v1",
-      "production-profile-gate-2026-2027-v1-rag",
-      "production-profile-gate-2026-2027-v2",
-      "production-profile-gate-2026-2027-v2-candidate-candidate-v2-20260904T084521Z",
-      "production-profile-gate-2026-2027-v2-candidate-xyz",
-      "production-profile-gate-2026-2027-v2-rehearsal",
-      "production-profile-gate-2026-2027-v2-rehearsal-rag",
-      "production-profile-gate-2026-2027-v7",
-      "production-profile-gate-2026-2027-v9-rehearsal",
-      "production-profile-gate-v1"
-    ],
+    "authority": "build_production_profile_release.PUBLISHED_RELEASE_IDS",
+    "existing_count": 3,
     "is_free": true,
     "proposed": "production-profile-gate-2026-2027-v3",
-    "why_it_matters": "ADR-0050 interdit de resceller en place ; une identité réutilisée ferait mentir ce qui a été scellé sous elle. Les répétitions comptent comme des identités utilisées."
+    "published_identities": [
+      "production-profile-gate-2026-2027-v1",
+      "production-profile-gate-2026-2027-v2-candidate-candidate-v2-20260904T084521Z",
+      "production-profile-gate-2026-2027-v2-rehearsal"
+    ],
+    "verdict_reason": "acceptée par require_governed_release_id",
+    "why_it_matters": "ADR-0050 interdit de resceller en place ; une identité réutilisée ferait mentir ce qui a été scellé sous elle. L'autorité consultée est celle du producteur de release, qui refuse toute identité publiée ou inscrite au registre — évoquer une identité dans un document ne la rend pas prise."
   },
   "requires_human_authorization": true,
   "status": "PREFLIGHT_ONLY_NOT_APPLIED"

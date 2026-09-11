@@ -22,7 +22,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -36,12 +35,6 @@ VERDICT_ARCHIVE = "BLOCKED_NOT_CURRENT_BY_SOURCE"
 VERDICT_PII = "BLOCKED_PII_HUMAN_REVIEW"
 VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
 
-#: Toute chaîne de cette forme est une identité de release, quelle que soit sa
-#: place : release effective, candidate, répétition. Les répétitions comptent —
-#: une identité utilisée pour une répétition a été utilisée.
-MOTIF_IDENTITE = re.compile(r"production-profile-gate-[0-9a-zA-Z.-]+")
-
-
 class EntreeManquante(RuntimeError):
     """Une entrée nécessaire au préflight est absente ou inexploitable."""
 
@@ -53,41 +46,62 @@ def racine_depot() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
-#: Le rapport de préflight NOMME l'identité proposée. S'il était recensé, la
-#: proposition se retrouverait « déjà utilisée » au passage suivant, et le
-#: préflight s'invaliderait lui-même. On l'exclut, comme on exclut un contrôle
-#: qui citerait ses propres motifs.
-SORTIES_EXCLUES_DU_RECENSEMENT = (
-    ":!docs/reports/go_live/currentness_reseal_preflight.json",
-    ":!docs/reports/go_live/currentness_reseal_candidate_plan.json",
-    ":!docs/reports/go_live/CURRENTNESS_RESEAL_CANDIDATE_PLAN.md",
-)
+def identites_existantes(racine: Path) -> tuple[set[str], str]:
+    """Délègue à l'autorité canonique d'identité de release.
 
+    Une version antérieure recensait les identités par `git grep` sur tout le
+    dépôt. Elle produisait deux défauts, et les deux étaient des faux positifs :
 
-def identites_existantes(racine: Path) -> set[str]:
-    """Recense toute identité de release nommée quelque part dans le dépôt.
+    - le rapport de préflight NOMME l'identité proposée, donc au passage
+      suivant elle ressortait « déjà utilisée » : le préflight s'invalidait
+      lui-même, et chaque nouveau rapport aggravait le cas ;
+    - une identité seulement ÉVOQUÉE — dans un ADR qui l'envisage, dans un
+      rapport de lot qui la discute — était comptée comme prise. Or évoquer
+      n'est pas publier.
 
-    Les rapports de préflight sont exclus : ils citent la proposition, et la
-    compter reviendrait à refuser toute identité dès qu'on l'a proposée une
-    fois.
+    Surtout, ce recensement était une SECONDE autorité sur un concept qui en a
+    déjà une : le producteur de release refuse lui-même toute identité publiée,
+    en consultant ses identités publiées et le registre sur disque. Deux
+    autorités sur l'unicité d'identité finiraient par ne pas dire la même
+    chose — c'est d'ailleurs arrivé ici.
     """
-    execution = subprocess.run(
-        ["git", "grep", "-rhoE", MOTIF_IDENTITE.pattern, "--", ".", *SORTIES_EXCLUES_DU_RECENSEMENT],
-        cwd=str(racine),
-        capture_output=True,
-        text=True,
-    )
-    trouvees = {
-        valeur.rstrip(".,);:\"'")
-        for valeur in execution.stdout.split()
-        if MOTIF_IDENTITE.fullmatch(valeur.rstrip(".,);:\"'"))
-    }
-    if not trouvees:
-        raise EntreeManquante(
-            "aucune identité de release trouvée : le recensement a échoué, et "
-            "un recensement vide ne prouve pas qu'une identité est libre"
+    import sys as _sys
+
+    chemin_scripts = racine / "services/rag-pedago/scripts"
+    if str(chemin_scripts) not in _sys.path:
+        _sys.path.insert(0, str(chemin_scripts))
+    try:
+        from build_production_profile_release import (  # noqa: PLC0415
+            PUBLISHED_RELEASE_IDS,
         )
-    return trouvees
+    except ImportError as erreur:
+        raise EntreeManquante(
+            f"autorité d'identité de release introuvable : {erreur}"
+        ) from erreur
+    return set(PUBLISHED_RELEASE_IDS), "build_production_profile_release.PUBLISHED_RELEASE_IDS"
+
+
+def identite_est_libre(racine: Path, identite: str) -> tuple[bool, str]:
+    """Interroge l'autorité canonique. Elle seule décide."""
+    import sys as _sys
+
+    chemin_scripts = racine / "services/rag-pedago/scripts"
+    if str(chemin_scripts) not in _sys.path:
+        _sys.path.insert(0, str(chemin_scripts))
+    try:
+        from build_production_profile_release import (  # noqa: PLC0415
+            ReleaseIdentityError,
+            require_governed_release_id,
+        )
+    except ImportError as erreur:
+        raise EntreeManquante(
+            f"autorité d'identité de release introuvable : {erreur}"
+        ) from erreur
+    try:
+        require_governed_release_id(identite)
+    except ReleaseIdentityError as refus:
+        return False, str(refus)
+    return True, "acceptée par require_governed_release_id"
 
 
 def ensemble_promu(racine: Path) -> set[str]:
@@ -119,7 +133,8 @@ def preflight(racine: Path, identite_proposee: str) -> dict:
     par_contenu = {ligne["content_sha256"]: ligne for ligne in lignes}
 
     promus = ensemble_promu(racine)
-    existantes = identites_existantes(racine)
+    existantes, source_autorite = identites_existantes(racine)
+    identite_libre, motif_identite = identite_est_libre(racine, identite_proposee)
 
     a_exclure = sorted(
         sha
@@ -141,20 +156,22 @@ def preflight(racine: Path, identite_proposee: str) -> dict:
     tous_pii_clairs = pii_des_exclus == {"PII_CLEARED_OR_NOT_SCANNED"} if a_exclure else False
     aucun_pii_touche = not (set(a_exclure) & set(promus_pii))
 
-    identite_libre = identite_proposee not in existantes
-
     return {
         "kind": KIND,
         "status": "PREFLIGHT_ONLY_NOT_APPLIED",
         "release_identity": {
             "proposed": identite_proposee,
             "is_free": identite_libre,
-            "existing_identities": sorted(existantes),
+            "verdict_reason": motif_identite,
+            "authority": source_autorite,
+            "published_identities": sorted(existantes),
             "existing_count": len(existantes),
             "why_it_matters": (
                 "ADR-0050 interdit de resceller en place ; une identité réutilisée "
-                "ferait mentir ce qui a été scellé sous elle. Les répétitions "
-                "comptent comme des identités utilisées."
+                "ferait mentir ce qui a été scellé sous elle. L'autorité "
+                "consultée est celle du producteur de release, qui refuse toute "
+                "identité publiée ou inscrite au registre — évoquer une identité "
+                "dans un document ne la rend pas prise."
             ),
         },
         "contents_to_exclude": {
