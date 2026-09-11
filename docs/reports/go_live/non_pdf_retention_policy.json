@@ -1,0 +1,45 @@
+{
+  "kind": "NEXUS-NON-PDF-RETENTION-POLICY-V1",
+  "adopted": true,
+  "what_the_gate_measures": {
+    "set": "SERVABLE_INTERACTIVE_RESOURCES",
+    "classification": "INTERACTIVE_RESOURCE_SERVABLE",
+    "expected_count": 37,
+    "why_not_57": "les 57 sont les demandes de reacquisition non-PDF ; 20 d'entre elles sont non indexables par role et n'entrent pas au numerateur servable"
+  },
+  "non_indexable_companions": {
+    "count": 20,
+    "extensions": {".yaml": 17, ".json": 1, ".md": 2},
+    "disposition": "TRACE_ONLY",
+    "retained": true,
+    "why": "ils sont conserves comme traces de provenance ; ils ne sont jamais indexes ni servis"
+  },
+  "durable_store": {
+    "canonical_root": "/backup/rag/non-pdf-reacquired",
+    "env_override": "NEXUS_NON_PDF_STORE",
+    "layout": "un fichier par demande, nomme par drive_file_id, sous le sous-repertoire <timestamp>/bytes",
+    "emergency_local_preservation": "~/nexus-backups/rag/non-pdf-reacquired",
+    "emergency_is_not_canonical": true
+  },
+  "rules": [
+    "un contenu n'est retenu que si ses OCTETS sont presents au store durable",
+    "l'empreinte SHA-256 observee doit egaler l'empreinte attendue du manifeste",
+    "la taille observee doit egaler la taille attendue du manifeste",
+    "aucune reacquisition par lien seul : un identifiant Drive ne prouve aucune retention",
+    "aucune copie sans hash : une copie non verifiee ne compte pas",
+    "un store illisible ou absent laisse le bloqueur ouvert, il ne vaut jamais zero silencieux",
+    "une preservation locale d'urgence ne vaut pas conservation canonique",
+    "les 20 non indexables ne comptent jamais au numerateur servable"
+  ],
+  "exploitation_strategy": {
+    ".ggb": "binaire conserve ; extraction gouvernee puis gate PII requis avant toute recherche ; aucune execution de macro",
+    ".yaml/.json/.md": "trace uniquement ; jamais indexe, jamais servi"
+  },
+  "closes_blocker_when": "les 37 ressources servables sont presentes au store durable canonique, taille et SHA-256 conformes",
+  "does_not_close": [
+    "la revue PII",
+    "l'adoption de la politique d'actualite",
+    "les bloqueurs de qualification",
+    "le go-live lui-meme"
+  ]
+}

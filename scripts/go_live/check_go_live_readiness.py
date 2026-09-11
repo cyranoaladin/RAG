@@ -60,6 +60,8 @@ REPO_ROOT = pathlib.Path(
 
 MATRICE = "docs/reports/handoff/servability_matrix_v1.json"
 NON_PDF = "docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json"
+POLITIQUE_RETENTION_NON_PDF = "docs/reports/go_live/non_pdf_retention_policy.json"
+RECONCILIATEUR_NON_PDF = "scripts/go_live/reconcile_non_pdf_counts.py"
 POLITIQUE_ACTUALITE = (
     "services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml"
 )
@@ -241,7 +243,12 @@ LEDGER_SPEC: tuple[dict[str, Any], ...] = (
         "category": "DATA",
         "value_key": "non_pdf_servable_reacquired",
         "blocking_when": "value < non_pdf_servable_total",
-        "evidence_source": NON_PDF + " (NON_PDF_LOCAL_COPY_RETAINED)",
+        "evidence_source": (
+            POLITIQUE_RETENTION_NON_PDF
+            + " (magasin durable mesure) ; plancher : "
+            + NON_PDF
+            + " (NON_PDF_LOCAL_COPY_RETAINED)"
+        ),
         "required_action": (
             "Reacquerir les ressources interactives servables depuis Drive, "
             "empreinte et taille attendues au manifeste, ou les exclure par une "
@@ -394,6 +401,107 @@ def _git_sha(ref: str) -> str | None:
     )
     sortie = resultat.stdout.strip()
     return sortie if resultat.returncode == 0 and sortie else None
+
+
+def _store_non_pdf(politique: dict) -> pathlib.Path | None:
+    """Resout l emplacement durable nomme par la politique.
+
+    Ordre: la variable d environnement declaree par la politique, puis la
+    racine canonique du projet, dont on prend le sous-repertoire le plus
+    recent. Aucun chemin machine-local n est ecrit dans le code: la politique
+    nomme la racine, l environnement la surcharge.
+    """
+    magasin = politique.get("durable_store") or {}
+    surcharge = os.environ.get(magasin.get("env_override") or "")
+    if surcharge:
+        chemin = pathlib.Path(surcharge)
+        return chemin if chemin.is_dir() else None
+    racine = magasin.get("canonical_root")
+    if not racine:
+        return None
+    racine_chemin = pathlib.Path(racine)
+    if not racine_chemin.is_dir():
+        return None
+    horodatages = sorted(
+        (d for d in racine_chemin.iterdir() if (d / "bytes").is_dir()),
+        key=lambda d: d.name,
+    )
+    return (horodatages[-1] / "bytes") if horodatages else None
+
+
+def _non_pdf_servables_retenus() -> tuple[int, dict[str, Any]]:
+    """Compte les ressources servables RETENUES, en deleguant la mesure.
+
+    Le compteur ne lit plus une valeur figee: il mesure. Mais il ne mesure que
+    sous une politique versionnee, et seulement au magasin durable qu elle
+    nomme. Sans politique, ou sans magasin lisible, le bloqueur reste ouvert:
+    un zero non mesure et un zero mesure se ressemblent dans un rapport et ne
+    disent pas la meme chose.
+
+    La mesure elle-meme n est pas refaite ici. Elle est deleguee au
+    reconciliateur canonique, qui est deja l autorite du rapport 37/57 et de la
+    verification des octets. Deux implementations de la retention finiraient
+    par ne pas compter pareil.
+    """
+    chemin_politique = REPO_ROOT / POLITIQUE_RETENTION_NON_PDF
+    if not chemin_politique.is_file():
+        return 0, {
+            "non_pdf_retention_policy_versioned": False,
+            "non_pdf_retention_reason": "POLICY_ABSENT",
+        }
+    politique = json.loads(chemin_politique.read_text(encoding="utf-8"))
+    if not politique.get("adopted"):
+        return 0, {
+            "non_pdf_retention_policy_versioned": False,
+            "non_pdf_retention_reason": "POLICY_NOT_ADOPTED",
+        }
+
+    magasin = _store_non_pdf(politique)
+    if magasin is None:
+        return 0, {
+            "non_pdf_retention_policy_versioned": True,
+            "non_pdf_retention_reason": "DURABLE_STORE_UNREADABLE",
+        }
+
+    reconciliateur = REPO_ROOT / RECONCILIATEUR_NON_PDF
+    if not reconciliateur.is_file():
+        raise EntreeManquante(f"reconciliateur canonique absent : {reconciliateur}")
+
+    with tempfile.TemporaryDirectory() as repertoire:
+        sortie = pathlib.Path(repertoire) / "reconciliation.json"
+        execution = subprocess.run(
+            [
+                sys.executable,
+                str(reconciliateur),
+                "--durable-store",
+                str(magasin),
+                "--output-json",
+                str(sortie),
+                "--output-md",
+                str(pathlib.Path(repertoire) / "reconciliation.md"),
+            ],
+            cwd=str(REPO_ROOT),
+            capture_output=True,
+            text=True,
+            env={**os.environ, "NEXUS_REPO_ROOT": str(REPO_ROOT)},
+        )
+        if not sortie.is_file():
+            raise EntreeManquante(
+                "le reconciliateur canonique n a produit aucune sortie : "
+                f"{execution.stderr.strip()[:300]}"
+            )
+        etat = json.loads(sortie.read_text(encoding="utf-8"))
+
+    if not etat.get("reconciled"):
+        return 0, {
+            "non_pdf_retention_policy_versioned": True,
+            "non_pdf_retention_reason": "RECONCILIATION_REFUSED",
+        }
+    return int(etat["retention"]["retained_servable"]), {
+        "non_pdf_retention_policy_versioned": True,
+        "non_pdf_retention_reason": "MEASURED",
+        "non_pdf_retention_store_named": True,
+    }
 
 
 def _politique_actualite_appliquee() -> bool:
@@ -606,7 +714,10 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
     actualite_appliquee = _politique_actualite_appliquee()
 
     non_pdf_servables = non_pdf["NON_PDF_SERVABLE"]
-    non_pdf_reacquis = non_pdf["NON_PDF_LOCAL_COPY_RETAINED"]
+    # Le compteur fige de la consolidation reste le PLANCHER: la mesure ne peut
+    # que le confirmer ou le depasser, jamais le faire baisser.
+    non_pdf_mesure, provenance_non_pdf = _non_pdf_servables_retenus()
+    non_pdf_reacquis = max(non_pdf["NON_PDF_LOCAL_COPY_RETAINED"], non_pdf_mesure)
 
     inconnues = [n for n, d in dispositions.items() if d["disposition"] == "UNKNOWN"]
     bloquantes = [
@@ -700,6 +811,7 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         "non_pdf_servable_total": non_pdf_servables,
         "non_pdf_servable_reacquired": non_pdf_reacquis,
         "non_pdf_servable_complete": non_pdf_reacquis >= non_pdf_servables,
+        **provenance_non_pdf,
         "disk_free_bytes": disque_libre,
         "disk_used_percent": disque_pourcent,
         "disk_policy_ok": disque_libre >= DISQUE_LIBRE_MINIMUM_OCTETS,

@@ -1205,3 +1205,275 @@ def test_le_plan_se_ferme_quand_tout_se_ferme(
     _module_, etat, plan = _plan(depot_sans_bloqueur, monkeypatch)
     assert etat["go_live_ready"] is True
     assert plan["phases_closed"] == plan["phases_total"]
+
+
+# --- Retention non-PDF : le compteur MESURE, sous politique versionnee -------
+#
+# Avant ce lot, le gate lisait une valeur figee. Une valeur figee ne peut ni
+# se fermer par le travail, ni s ouvrir quand le magasin disparait. Ces
+# epreuves tiennent la seule chose qui doit fermer ce bloqueur : des octets
+# presents, verifies, dans un magasin nomme par une politique versionnee.
+
+POLITIQUE_RETENTION = "docs/reports/go_live/non_pdf_retention_policy.json"
+MANIFESTE_REACQ = "docs/reports/handoff/non_pdf_reacquisition_manifest.json"
+CONSOLIDATION_NON_PDF = NON_PDF
+
+
+def _poser_retention(
+    depot: pathlib.Path,
+    magasin: pathlib.Path,
+    *,
+    servables: int = 3,
+    non_indexables: int = 2,
+    octets_par_fichier: dict[str, bytes] | None = None,
+    politique: bool = True,
+    adoptee: bool = True,
+) -> None:
+    """Pose une politique, un manifeste et un magasin coherents."""
+    import hashlib
+
+    demandes = []
+    octets_par_fichier = octets_par_fichier or {}
+    for index in range(servables):
+        ident = f"serv-{index}"
+        octets = octets_par_fichier.get(ident, f"servable-{index}".encode())
+        demandes.append(
+            {
+                "drive_file_id": ident,
+                "drive_path": f"zone/{ident}.ggb",
+                "expected_content_sha256": hashlib.sha256(octets).hexdigest(),
+                "expected_size": len(octets),
+                "classification": "INTERACTIVE_RESOURCE_SERVABLE",
+                "target_disposition": "INTERACTIVE_RESOURCE_SERVABLE",
+            }
+        )
+    for index in range(non_indexables):
+        ident = f"trace-{index}"
+        octets = f"trace-{index}".encode()
+        demandes.append(
+            {
+                "drive_file_id": ident,
+                "drive_path": f"zone/{ident}.yaml",
+                "expected_content_sha256": hashlib.sha256(octets).hexdigest(),
+                "expected_size": len(octets),
+                "classification": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+                "target_disposition": "DIAGNOSTIC_QUESTION_BANK_NON_INDEXABLE",
+            }
+        )
+    _ecrire(depot, MANIFESTE_REACQ, {"requests": demandes})
+    _ecrire(
+        depot,
+        CONSOLIDATION_NON_PDF,
+        {
+            "NON_PDF_SERVABLE": servables,
+            "NON_PDF_LOCAL_COPY_RETAINED": 0,
+            "NON_PDF_TOTAL": servables + non_indexables,
+        },
+    )
+    if politique:
+        _ecrire(
+            depot,
+            POLITIQUE_RETENTION,
+            {
+                "kind": "NEXUS-NON-PDF-RETENTION-POLICY-V1",
+                "adopted": adoptee,
+                "durable_store": {
+                    "canonical_root": "/inexistant/pour/le/test",
+                    "env_override": "NEXUS_NON_PDF_STORE",
+                },
+            },
+        )
+    # Le reconciliateur canonique doit exister : le gate lui delegue la mesure.
+    source = pathlib.Path("scripts/go_live/reconcile_non_pdf_counts.py").resolve()
+    cible = depot / "scripts/go_live/reconcile_non_pdf_counts.py"
+    cible.parent.mkdir(parents=True, exist_ok=True)
+    cible.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    magasin.mkdir(parents=True, exist_ok=True)
+
+
+def _remplir_magasin(depot: pathlib.Path, magasin: pathlib.Path, *, sauf=()) -> None:
+    demandes = json.loads((depot / MANIFESTE_REACQ).read_text(encoding="utf-8"))["requests"]
+    for demande in demandes:
+        ident = demande["drive_file_id"]
+        if ident in sauf:
+            continue
+        nom = ident.split("-")[0]
+        index = ident.split("-")[1]
+        octets = (f"servable-{index}" if nom == "serv" else f"trace-{index}").encode()
+        (magasin / ident).write_bytes(octets)
+
+
+def _mesurer(depot: pathlib.Path, magasin: pathlib.Path | None) -> dict:
+    environnement = {"NEXUS_REPO_ROOT": str(depot)}
+    if magasin is not None:
+        environnement["NEXUS_NON_PDF_STORE"] = str(magasin)
+    return _etat(depot, env=environnement)
+
+
+def _etat(depot: pathlib.Path, env: dict | None = None) -> dict:
+    sortie = depot / "etat.json"
+    execution = subprocess.run(
+        [
+            sys.executable,
+            str(pathlib.Path("scripts/go_live/check_go_live_readiness.py").resolve()),
+            "--json",
+            "etat.json",
+        ],
+        capture_output=True,
+        text=True,
+        env={**os.environ, **(env or {"NEXUS_REPO_ROOT": str(depot)})},
+    )
+    assert sortie.is_file(), execution.stderr[-600:]
+    return json.loads(sortie.read_text(encoding="utf-8"))
+
+
+def test_des_octets_verifies_au_magasin_ferment_le_bloqueur_non_pdf(
+    depot_sans_bloqueur, tmp_path
+):
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 3
+    assert etat["non_pdf_servable_total"] == 3
+    assert etat["non_pdf_servable_complete"] is True
+    assert etat["non_pdf_retention_reason"] == "MEASURED"
+
+
+def test_un_seul_fichier_manquant_laisse_le_bloqueur_ouvert(
+    depot_sans_bloqueur, tmp_path
+):
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _remplir_magasin(depot_sans_bloqueur, magasin, sauf=("serv-2",))
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 2
+    assert etat["non_pdf_servable_complete"] is False
+
+
+def test_une_empreinte_differente_laisse_le_bloqueur_ouvert(
+    depot_sans_bloqueur, tmp_path
+):
+    """Meme taille, autres octets : seul le SHA peut l attraper."""
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    original = (magasin / "serv-0").read_bytes()
+    (magasin / "serv-0").write_bytes(b"X" * len(original))
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 2
+    assert etat["non_pdf_servable_complete"] is False
+
+
+def test_une_taille_differente_laisse_le_bloqueur_ouvert(
+    depot_sans_bloqueur, tmp_path
+):
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    (magasin / "serv-1").write_bytes(b"beaucoup plus long que l attendu")
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_complete"] is False
+
+
+def test_les_non_indexables_ne_comptent_jamais_au_numerateur(
+    depot_sans_bloqueur, tmp_path
+):
+    """Retenir les 20 traces ne doit pas faire croire que les servables le sont."""
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin, servables=3, non_indexables=5)
+    # Seules les traces sont deposees.
+    _remplir_magasin(
+        depot_sans_bloqueur, magasin, sauf=("serv-0", "serv-1", "serv-2")
+    )
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 0
+    assert etat["non_pdf_servable_complete"] is False
+
+
+def test_un_identifiant_drive_seul_ne_ferme_rien(depot_sans_bloqueur, tmp_path):
+    """Le manifeste porte les identifiants ; aucun octet n est depose."""
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 0
+    assert etat["non_pdf_servable_complete"] is False
+
+
+def test_sans_politique_versionnee_le_bloqueur_reste_ouvert(
+    depot_sans_bloqueur, tmp_path
+):
+    """Des octets presents ne suffisent pas : la politique doit exister."""
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin, politique=False)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 0
+    assert etat["non_pdf_retention_policy_versioned"] is False
+    assert etat["non_pdf_retention_reason"] == "POLICY_ABSENT"
+
+
+def test_une_politique_non_adoptee_ne_ferme_rien(depot_sans_bloqueur, tmp_path):
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin, adoptee=False)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 0
+    assert etat["non_pdf_retention_reason"] == "POLICY_NOT_ADOPTED"
+
+
+def test_un_magasin_non_nomme_laisse_le_bloqueur_ouvert(
+    depot_sans_bloqueur, tmp_path
+):
+    """Un magasin hors politique n est pas un magasin gouverne."""
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    etat = _mesurer(depot_sans_bloqueur, None)  # aucun override : racine absente
+    assert etat["non_pdf_servable_reacquired"] == 0
+    assert etat["non_pdf_retention_reason"] == "DURABLE_STORE_UNREADABLE"
+
+
+def test_le_compteur_fige_reste_un_plancher(depot_sans_bloqueur, tmp_path):
+    """La mesure ne peut pas faire BAISSER un compteur deja acquis."""
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _ecrire(
+        depot_sans_bloqueur,
+        CONSOLIDATION_NON_PDF,
+        {"NON_PDF_SERVABLE": 3, "NON_PDF_LOCAL_COPY_RETAINED": 3, "NON_PDF_TOTAL": 5},
+    )
+    etat = _mesurer(depot_sans_bloqueur, magasin)  # magasin vide
+    assert etat["non_pdf_servable_reacquired"] == 3
+
+
+def test_une_reconciliation_refusee_ne_ferme_rien(depot_sans_bloqueur, tmp_path):
+    """Si les totaux ne se reconcilient pas, la mesure n est pas opposable.
+
+    Des octets peuvent etre presents et verifies alors que le recensement est
+    incoherent — un compteur de consolidation qui ne correspond plus au
+    manifeste. Compter quand meme reviendrait a fermer un bloqueur sur un
+    denombrement dont personne ne peut dire ce qu il denombre.
+    """
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    # Le compteur servable ne correspond plus au manifeste : reconciliation NON.
+    _ecrire(
+        depot_sans_bloqueur,
+        CONSOLIDATION_NON_PDF,
+        {"NON_PDF_SERVABLE": 99, "NON_PDF_LOCAL_COPY_RETAINED": 0, "NON_PDF_TOTAL": 5},
+    )
+    etat = _mesurer(depot_sans_bloqueur, magasin)
+    assert etat["non_pdf_servable_reacquired"] == 0
+    assert etat["non_pdf_retention_reason"] == "RECONCILIATION_REFUSED"
+
+
+def test_un_magasin_declare_mais_inexistant_est_refuse(depot_sans_bloqueur, tmp_path):
+    """Nommer un magasin ne le rend pas lisible."""
+    magasin = tmp_path / "magasin"
+    _poser_retention(depot_sans_bloqueur, magasin)
+    _remplir_magasin(depot_sans_bloqueur, magasin)
+    etat = _mesurer(depot_sans_bloqueur, tmp_path / "magasin-qui-n-existe-pas")
+    assert etat["non_pdf_servable_reacquired"] == 0
+    assert etat["non_pdf_retention_reason"] == "DURABLE_STORE_UNREADABLE"
