@@ -27,6 +27,11 @@ MATRIX_READER	scripts/go_live/check_go_live_readiness.py
 # (test_l_inventaire_ne_rend_aucun_verdict_de_servabilite,
 #  test_le_module_ne_definit_aucun_verdict_de_servabilite).
 MATRIX_READER	scripts/go_live/build_drive_corpus_inventory.py
+# L audit d ingestion lit la matrice pour une seule chose : nommer un contenu
+# ingere qu elle ne recense pas. Il ne lit aucun verdict et n en produit aucun.
+# Deux epreuves le tiennent (test_l_audit_ne_rend_aucun_verdict_de_servabilite,
+# test_le_module_ne_lit_aucun_verdict_de_la_matrice).
+MATRIX_READER	scripts/go_live/audit_ingestion_from_dsn.py
 
 # --- R2 : la politique d actualite n a aucun lecteur de production -------
 # Elle est applied=false. Un lecteur de production l appliquerait de fait,

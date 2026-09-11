@@ -1,0 +1,33 @@
+{
+  "ingested": {
+    "avec_texte_canonique": 2473,
+    "contenus": 2473,
+    "inconnus_de_la_matrice": []
+  },
+  "kind": "NEXUS-INGESTION-AUDIT-V1",
+  "never_asserted_here": [
+    "contenu réellement servi en production"
+  ],
+  "schema": "drive_staging",
+  "searchable": {
+    "searchable_contents": 0,
+    "vector_columns": 0,
+    "vector_extension": false,
+    "why": "aucun vecteur : le texte est stocké, pas indexé pour la recherche"
+  },
+  "served_in_production": {
+    "measured": false,
+    "why": "cette base n'est pas prouvée être celle de la production ; aucune mesure prise ici ne peut en témoigner"
+  },
+  "source": {
+    "dbname": "drivestaging",
+    "host": "127.0.0.1",
+    "port": 55435
+  },
+  "tables": [
+    "artifacts",
+    "chunks",
+    "page_provenances",
+    "provenances"
+  ]
+}

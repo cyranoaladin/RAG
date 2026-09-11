@@ -95,10 +95,43 @@ Lever ce second point suppose une source de provenance que le Drive ne contient
 pas — le catalogue technique du run de collecte, qui n'est pas dans le corpus
 livré.
 
-## 6. Ce qui reste non mesurable ici
+## 6. L'ingestion, désormais mesurée
 
-Rien dans ce document ne dit qu'un contenu est ingéré, exploitable par
-recherche, ou réellement servi en production. Ces trois niveaux s'observent
-dans une base de données, pas dans un manifeste. Aucune base n'a été
-interrogée. Les traiter comme acquis parce que le corpus est complet
-reviendrait à confondre la disponibilité d'un document et son service.
+Le plan de clôture déclarait trois niveaux « non mesurables depuis le dépôt » :
+ingéré, exploitable par recherche, servi en production. C'était exact depuis le
+dépôt seul. Ce n'était pas une raison de les laisser indéterminés : ils sont
+mesurables dès qu'une base est nommée.
+
+Une base de préparation a été nommée et mesurée, en lecture seule, par
+`scripts/go_live/audit_ingestion_from_dsn.py`. Le résultat est porté par
+`ingestion_audit.json`. Trois faits en ressortent, et ils ne disent pas la
+même chose :
+
+1. **Tous les PDF pédagogiques du Drive sont ingérés**, avec leur texte
+   canonique. Aucun contenu ingéré n'est inconnu de la matrice. Les seuls
+   contenus pédagogiques absents sont exactement les non-PDF — ce que le
+   pipeline PDF ne traite pas.
+
+2. **Rien n'est exploitable par recherche vectorielle.** La base ne porte aucun
+   vecteur et l'extension n'y est pas installée. Le texte est stocké, pas
+   indexé pour la recherche. C'est le point où la confusion serait la plus
+   coûteuse : « tout est ingéré » se lit spontanément comme « le RAG
+   fonctionne », et ici les deux sont séparés par une étape entière.
+
+3. **Rien n'est prouvé sur la production.** Cette base n'est pas prouvée être
+   celle de la production, et aucune mesure prise ici ne peut en témoigner. Le
+   niveau « servi en production » n'est pas prononcé.
+
+## 7. Ce que cela change pour la revue PII
+
+La revue PII n'était pas bloquée par l'absence d'outillage : le dépôt porte
+déjà l'index des paquets, le CLI de revue et le scellement des décisions. Ce
+qui manquait était la matière locale, et elle ne se recalcule pas depuis les
+PDF : l'exporteur d'entrée canonique **retrouve** le texte dans la base du run
+et refuse toute divergence — un texte de revue qui n'est pas celui qui a été
+scanné ne prouve rien de ce sur quoi on statue.
+
+Cette base existe et porte le texte canonique de tous les documents ingérés.
+La revue PII est donc réamorçable, ce qu'elle n'était pas tant que le Drive
+seul était en cause. C'est une condition nécessaire, pas la décision : celle-ci
+reste humaine, et une partie des contenus concernés est déjà dans la release.
