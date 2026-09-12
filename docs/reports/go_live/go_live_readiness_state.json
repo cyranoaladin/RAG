@@ -5,16 +5,15 @@
   "pii_undecided",
   "release_promoted_refused_contents",
   "rag_searchability_blocker",
-  "open_prs_blocking",
-  "disk_policy_ok"
+  "open_prs_blocking"
  ],
  "current_switch": 0,
  "currentness_policy_applied": true,
- "disk_free_bytes": 37468524544,
- "disk_policy_ok": false,
- "disk_used_percent": 91,
- "evaluated_head": "ae5eb76caab5638dab54bd5b64f59b73fda4d34e",
- "evaluated_ref": "bf-main-validation",
+ "disk_free_bytes": 102314307584,
+ "disk_policy_ok": true,
+ "disk_used_percent": 84,
+ "evaluated_head": "e0eb928a9cba1c637d04da254edb881bf076e3b8",
+ "evaluated_ref": "go-live/disk-cleanup-result",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_qualification_blocker_ids": [
   "C1",
@@ -44,7 +43,7 @@
   "services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml": "4226aba5cd13d60558d049df73d4df06554bc1a6d603111d02de166f1db17c29"
  },
  "kind": "NEXUS-GO-LIVE-READINESS-STATE-V1",
- "main_head": "ae5eb76caab5638dab54bd5b64f59b73fda4d34e",
+ "main_head": "cf5108c50fcc8c73a9af51b9b5ef67e22acdb83e",
  "non_pdf_retention_policy_versioned": true,
  "non_pdf_retention_reason": "MEASURED",
  "non_pdf_retention_store_named": true,
@@ -64,7 +63,7 @@
  ],
  "open_prs_disposition_unknown": 0,
  "open_prs_total": 10,
- "origin_main_at_generation": "ae5eb76caab5638dab54bd5b64f59b73fda4d34e",
+ "origin_main_at_generation": "cf5108c50fcc8c73a9af51b9b5ef67e22acdb83e",
  "pii_undecided": 149,
  "pre_release_blocker_ids": [
   "PII_UNDECIDED=149"

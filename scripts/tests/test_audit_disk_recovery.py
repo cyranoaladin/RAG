@@ -124,10 +124,47 @@ def etat() -> dict:
     return audit.construire(RACINE, mesures=MESURES)
 
 
-def test_l_audit_ne_supprime_rien(etat):
-    assert etat["deletions_executed"] == 0
+def test_le_module_ne_sait_pas_supprimer(etat):
+    """L'audit RAPPORTE des suppressions ; il n'en exécute aucune.
+
+    `deletions_executed` compte ce qu'un humain a autorisé et lancé à la main,
+    pas ce que ce code ferait. La distinction se prouve sur le code lui-même :
+    aucun chemin d'exécution destructif n'y existe.
+    """
+    source = Path(audit.__file__).read_text(encoding="utf-8")
+    for interdit in ('"rmi"', '"prune"', '"rm"', 'os.remove', 'shutil.rmtree'):
+        assert interdit not in source, f"chemin destructif présent : {interdit}"
     assert etat["vectorization_executed"] is False
     assert etat["production_touched"] is False
+
+
+def test_chaque_operation_rapportee_nomme_qui_l_a_autorisee(etat):
+    for operation in etat["measured_history"]:
+        assert operation["authorized_by"], operation["command"]
+        assert operation["command"]
+        assert "measured_gain_bytes" in operation
+
+
+def test_une_estimation_dementie_est_dite_telle(etat):
+    """Une estimation qu'un fait a démentie ne doit pas survivre en silence."""
+    rmi = [op for op in etat["measured_history"] if op["command"].startswith("docker rmi")]
+    assert rmi, "l'opération docker rmi n'est plus rapportée"
+    operation = rmi[0]
+    assert operation["measured_gain_bytes"] < operation["estimated_gain_bytes"] / 100
+    assert operation["verdict"] == "ESTIMATION_DEMENTIE_PAR_LA_MESURE"
+    assert operation["why"]
+
+
+def test_aucune_operation_rapportee_n_aurait_ete_acceptable_sans_controle(etat):
+    """Ce qui a été exécuté devait déjà passer le contrôle de protection."""
+    for operation in etat["measured_history"]:
+        if operation["command"].startswith("docker rmi"):
+            assert (
+                audit.verifier_commande(
+                    operation["command"], "DELETE_CANDIDATE_SAFE"
+                )
+                == operation["command"]
+            )
 
 
 def test_les_deux_bases_sont_preservees(etat):
@@ -157,8 +194,25 @@ def test_un_disque_au_dessus_du_plancher_ne_manque_de_rien():
     """Sans ce cas, on ne saurait pas si le calcul sait dire « rien à faire »."""
     large = {**MESURES, "disk_free_bytes": 500_000_000_000}
     etat = audit.construire(RACINE, mesures=large)
-    assert etat["disk_policy_ok_before"] is True
+    assert etat["disk_policy_ok_after"] is True
     assert etat["disk_shortfall_bytes"] == 0
+
+
+def test_avant_et_apres_ne_sont_pas_confondus():
+    """Le piège de ce rapport : relire l'état corrigé comme l'état d'origine.
+
+    On pose ici l'espace libre CONSTATÉ après nettoyage. « Avant » doit rester
+    celui d'où la campagne est partie, pas celui-ci.
+    """
+    apres = {**MESURES, "disk_free_bytes": 108_489_826_304}
+    etat = audit.construire(RACINE, mesures=apres)
+    assert etat["disk_policy_ok_before"] is False
+    assert etat["disk_policy_ok_after"] is True
+    assert etat["disk_free_before"] == audit.OPERATIONS_EXECUTEES[0][
+        "free_before_bytes"
+    ]
+    assert etat["disk_free_after"] > etat["disk_free_before"]
+    assert etat["disk_recovered_bytes"] > 0
 
 
 def test_le_gain_estime_est_annonce_comme_une_borne_haute(etat):
@@ -190,10 +244,19 @@ def test_le_rapport_versionne_ne_propose_rien_d_interdit(rapport):
         assert audit.verifier_commande(commande, item["category"]) == commande
 
 
-def test_le_rapport_versionne_n_a_execute_aucune_suppression(rapport):
-    assert rapport["deletions_executed"] == 0
+def test_le_rapport_versionne_preserve_les_deux_bases(rapport):
     assert rapport["review_db_preserved"] is True
     assert rapport["vector_db_preserved"] is True
+    assert rapport["vectorization_executed"] is False
+
+
+def test_le_rapport_versionne_dit_le_gain_reel(rapport):
+    """Le chiffre opposable est celui qui a été mesuré, pas celui espéré."""
+    assert rapport["disk_policy_ok_before"] is False
+    assert rapport["disk_policy_ok_after"] is True
+    assert rapport["disk_recovered_bytes"] > 0
+    for operation in rapport["measured_history"]:
+        assert "measured_gain_bytes" in operation
 
 
 def test_le_rapport_versionne_classe_tout(rapport):
@@ -201,3 +264,35 @@ def test_le_rapport_versionne_classe_tout(rapport):
     for item in rapport["inventory"]:
         assert item["category"] in audit.CATEGORIES
         assert item["reason"]
+
+
+def test_le_rapport_ne_nie_pas_ce_qu_il_consigne(etat):
+    """Le défaut que la revue a attrapé : affirmer « aucune suppression »
+    sur la même page qu'un historique de suppressions.
+
+    Les deux énoncés étaient vrais séparément — le script ne supprime rien,
+    l'humain a supprimé — et faux ensemble. Le rendu les avait mis sous le
+    même titre.
+    """
+    rendu = audit.rendre_markdown(etat)
+    assert "## Ce que ce script ne fait jamais" in rendu
+    if etat["measured_history"]:
+        assert "aucune suppression" not in rendu
+        assert "aucune lancée" not in rendu
+        # L'historique doit précéder les affirmations, pas s'y glisser.
+        assert rendu.index("a autorisé et exécuté") < rendu.index(
+            "## Ce que ce script ne fait jamais"
+        )
+
+
+def test_chaque_titre_du_rendu_est_suivi_de_son_contenu(etat):
+    """Un titre suivi d'un autre titre est le symptôme d'une section insérée
+    au mauvais endroit — exactement ce qui s'était produit."""
+    rendu = audit.rendre_markdown(etat)
+    lignes = [ligne for ligne in rendu.splitlines() if ligne.strip()]
+    for precedent, suivant in zip(lignes, lignes[1:]):
+        if precedent.startswith("## "):
+            assert not suivant.startswith("## "), (
+                f"section vide : « {precedent} » immédiatement suivi de "
+                f"« {suivant} »"
+            )

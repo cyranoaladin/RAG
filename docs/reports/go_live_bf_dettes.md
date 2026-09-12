@@ -55,6 +55,30 @@ produits par ce lot pèsent 47 Mo.
 Voir `docs/reports/go_live/DISK_RECOVERY_AUDIT.md` pour l'inventaire classé et
 les commandes nommées une par une. Aucune n'a été exécutée.
 
+**FERMÉE (lot BH).** Deux opérations autorisées nommément par l'humain :
+
+1. `docker rmi` sur huit images sans étiquette — gain **mesuré : nul**. La taille
+   affichée par `docker images` est virtuelle ; ces images partageaient leurs
+   couches avec des images encore étiquetées. L'estimation de 49,5 Gio était une
+   borne haute, et le fait l'a démentie. C'est consigné comme tel dans le
+   rapport, avec le verdict `ESTIMATION_DEMENTIE_PAR_LA_MESURE`.
+2. `docker buildx prune --force`, après vérification qu'aucun build n'était en
+   cours — gain **mesuré : 70,6 Gio**. Le cache de build ne porte aucune donnée :
+   seul son temps de reconstruction est perdu.
+
+Espace libre 30,4 Gio → **101,0 Gio**. `disk_policy_ok` passe de `false` à
+`true` et disparaît de `blocking_reasons`.
+
+**Les quatre épreuves repassent au vert** : sur l'arbre livré ici,
+`pytest scripts/tests/` rend **276 passed, 0 failed**. Leur échec était bien
+causé par l'espace disque de l'hôte, et par rien d'autre — le retour au vert
+sans toucher à une ligne de test en est la preuve.
+
+Le chiffre porte sur l'arbre FINAL, épreuves ajoutées par ce lot comprises.
+Une première rédaction consignait 269, mesuré avant l'ajout de ces épreuves :
+un résultat antérieur ne peut pas attester que ce qui a été ajouté depuis
+passe.
+
 ## 2. `ruff check` depuis la racine signale 8 `UP038` préexistants
 
 `services/rag-pedago/rag_pedago/governance/reference_programme.py`,

@@ -39,7 +39,7 @@
    "why_not_measured": "exige une base ou un service identifies ; rendre zero serait une fausse assurance"
   }
  ],
- "evaluated_head": "ae5eb76caab5638dab54bd5b64f59b73fda4d34e",
+ "evaluated_head": "e0eb928a9cba1c637d04da254edb881bf076e3b8",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-GO-LIVE-CLOSURE-PLAN-V1",

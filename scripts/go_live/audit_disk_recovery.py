@@ -86,12 +86,73 @@ PRUNES_INTERDITS = (
 )
 
 
+#: Ce qui a REELLEMENT été exécuté, avec les mesures prises de part et d'autre.
+#: Une estimation qu'un fait a démentie ne doit pas rester seule dans un
+#: artefact de preuve : elle y serait relue comme un fait.
+OPERATIONS_EXECUTEES = (
+    {
+        "command": (
+            "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 "
+            "ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46"
+        ),
+        "authorized_by": "décision humaine explicite, 8 identifiants nommés",
+        "free_before_bytes": 32_622_968_832,
+        "free_after_bytes": 32_620_871_680,
+        "images_pool_before_bytes": 109_200_000_000,
+        "images_pool_after_bytes": 108_200_000_000,
+        "estimated_gain_bytes": 53_200_000_000,
+        "measured_gain_bytes": -2_097_152,
+        "verdict": "ESTIMATION_DEMENTIE_PAR_LA_MESURE",
+        "why": (
+            "`docker images` affiche une taille VIRTUELLE, couches partagées "
+            "comprises. Ces huit images partageaient presque toutes leurs "
+            "couches avec des images encore étiquetées (core-v2-auth-*, "
+            "entitlement-*) : supprimer le manifeste n'a libéré aucune donnée. "
+            "Le pool d'images n'a cédé qu'environ 1 Go, et l'espace libre rien "
+            "du tout."
+        ),
+    },
+    {
+        "command": "docker buildx prune --force",
+        "authorized_by": (
+            "décision humaine explicite, sous condition d'absence de build actif"
+        ),
+        "active_build_check": (
+            "cache identique à l'octet et en nombre d'entrées sur 75 s "
+            "(139.2GB / 1907) ; images aria-p7b2-* vieilles de 2 h ; aucun "
+            "processus docker build / buildx / buildkitd"
+        ),
+        "free_before_bytes": 32_540_786_688,
+        "free_after_bytes": 108_489_826_304,
+        "build_cache_before_bytes": 139_200_000_000,
+        "build_cache_after_bytes": 68_710_000_000,
+        "measured_gain_bytes": 75_949_039_616,
+        "verdict": "PLANCHER_FRANCHI",
+        "why": (
+            "le cache de build ne porte aucune donnée : seul son temps de "
+            "reconstruction est perdu. C'est la seule grande réserve dont la "
+            "suppression ne coûte rien d'irremplaçable."
+        ),
+    },
+)
+
+
 class RessourceProtegee(RuntimeError):
     """Une commande proposée vise une ressource qui ne doit pas être touchée."""
 
 
 class EntreeManquante(RuntimeError):
     """Une mesure nécessaire est absente. Jamais un zéro."""
+
+
+def _libre_avant(libre_maintenant: int) -> int:
+    """L'espace libre avant la première opération de la campagne.
+
+    Sans opération exécutée, « avant » et « maintenant » se confondent.
+    """
+    if OPERATIONS_EXECUTEES:
+        return OPERATIONS_EXECUTEES[0]["free_before_bytes"]
+    return libre_maintenant
 
 
 def racine_depot() -> Path:
@@ -319,13 +380,22 @@ def construire(racine: Path, *, mesures=None) -> dict:
 
     return {
         "kind": KIND,
-        "disk_free_before": libre,
-        "disk_free_before_human": humain(libre),
+        # `*_before` désigne l'AVANT DE LA CAMPAGNE de nettoyage, pas l'instant
+        # de ce calcul. Après coup, les deux diffèrent : laisser le présent
+        # sous une étiquette « avant » ferait relire un état corrigé comme
+        # l'état d'origine.
+        "disk_free_before": _libre_avant(libre),
+        "disk_free_before_human": humain(_libre_avant(libre)),
+        "disk_free_after": libre,
+        "disk_free_after_human": humain(libre),
+        "disk_policy_ok_after": libre >= plancher,
+        "disk_recovered_bytes": libre - _libre_avant(libre),
+        "disk_recovered_human": humain(libre - _libre_avant(libre)),
         "disk_required_floor": plancher,
         "disk_required_floor_human": humain(plancher),
         "disk_shortfall_bytes": manque,
         "disk_shortfall_human": humain(manque),
-        "disk_policy_ok_before": libre >= plancher,
+        "disk_policy_ok_before": _libre_avant(libre) >= plancher,
         "unit_note": (
             "34,85 Gio et 37,42 Go sont la MÊME mesure : gibioctets contre "
             "gigaoctets décimaux. Il n'y a pas deux relevés qui divergent."
@@ -354,15 +424,26 @@ def construire(racine: Path, *, mesures=None) -> dict:
             "le gain réel est inférieur à leur somme. Le besoin n'est que de "
             f"{humain(manque)}."
         ),
-        "deletions_executed": 0,
+        "measured_history": list(OPERATIONS_EXECUTEES),
+        "deletions_executed": len(OPERATIONS_EXECUTEES),
         "vector_db_preserved": True,
         "review_db_preserved": True,
         "production_touched": False,
         "vectorization_executed": False,
-        "what_this_does_not_do": [
-            "aucune suppression : toutes les commandes sont proposées, aucune lancée",
-            "aucun prune global : ils n'énumèrent pas ce qu'ils emportent",
-            "ne rend pas le corpus interrogeable : le blocage recherche reste ouvert",
+        # Ce que CE CODE ne fait pas. A ne pas confondre avec ce qu un humain a
+        # autorise et lance a la main : `measured_history` le dit, et les deux
+        # ne doivent jamais se lire comme une seule affirmation.
+        "what_this_script_never_does": [
+            "il ne supprime rien : il n a aucun chemin d execution destructif",
+            "il ne propose aucun prune global : ils n enumerent pas ce qu ils "
+            "emportent, et une commande protegee est refusee a la construction",
+            "il ne touche ni la base de revue, ni la base dediee, ni un volume, "
+            "ni un artefact de modele",
+        ],
+        "what_this_does_not_prove": [
+            "ne rend pas le corpus interrogeable : le blocage recherche reste "
+            "ouvert et aucun vecteur n existe",
+            "ne ferme aucun des six blocages de fond du go-live",
         ],
     }
 
@@ -372,10 +453,13 @@ def rendre_markdown(etat: dict) -> str:
         "# Récupération d'espace disque — audit",
         "",
         f"- kind : `{etat['kind']}`",
-        f"- libre avant : **{etat['disk_free_before_human']}**",
+        f"- libre avant nettoyage : **{etat['disk_free_before_human']}**",
+        f"- libre après nettoyage : **{etat['disk_free_after_human']}**",
+        f"- récupéré : **{etat['disk_recovered_human']}**",
         f"- plancher du gate : **{etat['disk_required_floor_human']}**",
         f"- manque : **{etat['disk_shortfall_human']}**",
         f"- `disk_policy_ok_before` : `{etat['disk_policy_ok_before']}`",
+        f"- `disk_policy_ok_after` : `{etat['disk_policy_ok_after']}`",
         "",
         f"> {etat['unit_note']}",
         "",
@@ -405,16 +489,35 @@ def rendre_markdown(etat: dict) -> str:
         f"- cache de build : {humain(etat['docker_build_cache_reclaimable'])}",
         f"- volumes au total : {etat['volumes_total']}",
         "",
-        "## Après, si l'humain confirme",
+        "## Ce qu'il resterait à récupérer",
         "",
-        f"- estimation haute : {etat['estimated_free_after_human']}",
+        f"- borne haute sur les images sans étiquette : "
+        f"{etat['estimated_free_after_human']}",
         f"- {etat['estimated_free_after_note']}",
-        f"- suppressions exécutées par ce lot : **{etat['deletions_executed']}**",
-        "",
-        "## Ce que ce lot ne fait pas",
         "",
     ]
-    lignes += [f"- {ligne}" for ligne in etat["what_this_does_not_do"]]
+    if etat["measured_history"]:
+        lignes += [
+            "## Ce qu'un humain a autorisé et exécuté, et ce que la mesure en a dit",
+            "",
+            "| Commande | Gain estimé | Gain mesuré | Verdict |",
+            "|---|---:|---:|---|",
+        ]
+        for operation in etat["measured_history"]:
+            estime = operation.get("estimated_gain_bytes")
+            lignes.append(
+                f"| `{operation['command'][:64]}` | "
+                f"{humain(estime) if estime else '—'} | "
+                f"**{humain(operation['measured_gain_bytes'])}** | "
+                f"`{operation['verdict']}` |"
+            )
+        for operation in etat["measured_history"]:
+            lignes += ["", f"> {operation['why']}"]
+        lignes.append("")
+    lignes += ["## Ce que ce script ne fait jamais", ""]
+    lignes += [f"- {ligne}" for ligne in etat["what_this_script_never_does"]]
+    lignes += ["", "## Ce que ce lot ne prouve pas", ""]
+    lignes += [f"- {ligne}" for ligne in etat["what_this_does_not_prove"]]
     return "\n".join(lignes) + "\n"
 
 
