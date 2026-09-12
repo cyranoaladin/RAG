@@ -28,6 +28,10 @@ from pathlib import Path
 KIND = "NEXUS-RAG-SEARCHABILITY-GAP-V1"
 
 AUDIT = "docs/reports/go_live/ingestion_audit.json"
+#: Les vecteurs vivent dans la base DEDIEE, pas dans la base de revue. Mesurer
+#: la seconde rendait zero apres une vectorisation reussie et faisait conclure
+#: qu elle n avait rien produit. Deux bases, deux faits, deux sources.
+MAGASIN_VECTEURS = "docs/reports/go_live/vector_store_audit.json"
 INVENTAIRE = "docs/reports/go_live/drive_corpus_inventory.json"
 MATRICE = "docs/reports/handoff/servability_matrix_v1.json"
 
@@ -85,10 +89,12 @@ def _lire(racine: Path, relatif: str):
 def construire(racine: Path) -> dict:
     audit = _lire(racine, AUDIT)
     inventaire = _lire(racine, INVENTAIRE)
+    # Entree OBLIGATOIRE : sans elle on ne sait pas ou sont les vecteurs, et
+    # retomber sur la base de revue serait exactement l erreur a corriger.
+    magasin = _lire(racine, MAGASIN_VECTEURS)
 
-    recherchables = audit["searchable"]["searchable_contents"]
-    colonnes = audit["searchable"]["vector_columns"]
-    extension = audit["searchable"]["vector_extension"]
+    colonnes = 1 if magasin["staging_vectors_present"] else 0
+    extension = bool(magasin["dedicated"]["vector_extension"])
     ingérés = audit["ingested"]["contenus"]
     corpus_pedagogique = inventaire["pedagogical_scope"]["contenus"]
 
@@ -109,19 +115,29 @@ def construire(racine: Path) -> dict:
     }
     cible = len(indexables)
 
-    vecteurs = recherchables if (colonnes and extension) else 0
+    # Mesure prise sur la base DEDIEE, la seule qui porte des vecteurs.
+    vecteurs = magasin["staging_vectors_present"] if extension else 0
+    contenus_vectorises = magasin["dedicated"]["vectorized_contents"]
 
     # Chaque condition est FAUSSE tant qu'une mesure ne l'a pas établie. Aucune
     # n'est supposée vraie par défaut : c'est le sens d'un gate fail-closed.
     conditions = {
         "staging_vectors_present": vecteurs > 0,
-        "vector_dimensions_consistent": bool(colonnes) and extension,
+        "vector_dimensions_consistent": bool(magasin["vector_dimensions_consistent"]),
         "retrieval_top_k_validated": False,
         "citations_validated": False,
         "scope_filters_validated": False,
         "latency_validated": False,
         "rollback_validated": False,
-        "target_scope_searchable": vecteurs >= cible and cible > 0,
+        # La cible se juge en CONTENUS couverts, pas en nombre de vecteurs :
+        # 54 719 vecteurs sur 3 contenus ne rendraient pas le perimetre
+        # interrogeable, et comparer un compte de vecteurs a un compte de
+        # contenus etait une comparaison entre deux choses differentes.
+        "target_scope_searchable": (
+            cible > 0
+            and contenus_vectorises >= cible
+            and magasin["vector_dimensions_consistent"]
+        ),
     }
     non_tenues = sorted(nom for nom, tenue in conditions.items() if not tenue)
     recherchable = not non_tenues
@@ -154,8 +170,17 @@ def construire(racine: Path) -> dict:
             "staging_vectors_present": vecteurs,
             "vector_columns": colonnes,
             "vector_extension": extension,
+            "vectorized_contents": contenus_vectorises,
             "target_scope_contents": cible,
-            "measurement_source": audit.get("source", {}),
+            # DEUX sources, nommees separement. Les confondre etait le defaut :
+            # le texte est ingere dans la base de revue, les vecteurs vivent
+            # dans la base dediee.
+            "ingestion_measurement_source": audit.get("source", {}),
+            "vector_measurement_source": magasin["dedicated"].get("source", {}),
+            "review_db_intact": magasin["review_db_intact"],
+            "pgvector_installed_in_review_db": magasin[
+                "pgvector_installed_in_review_db"
+            ],
         },
         "not_measured": {
             "production_searchable": None,

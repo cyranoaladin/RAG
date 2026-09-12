@@ -31,6 +31,7 @@ import argparse
 import hashlib
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -407,6 +408,170 @@ def construire(
     return etat
 
 
+#: La table des passages re-découpés sous budget, produite par le lot BK.
+TABLE_PASSAGES = "drive_staging.publication_chunks"
+TABLE_VECTEURS = "drive_staging.chunk_embeddings"
+
+
+def _fournisseur(racine: Path):  # pragma: no cover - dépendance lourde
+    """Le fournisseur CANONIQUE, avec sa vérification d'artefact et son
+    contrat runtime. Aucun encodeur réécrit ici."""
+    chemins = [racine / "services/rag-engine/src"]
+    chemins += sorted((racine / "packages").glob("*/src"))
+    for chemin in chemins:
+        if str(chemin) not in sys.path:
+            sys.path.insert(0, str(chemin))
+    from ingestor.embedding_provider import (  # noqa: PLC0415
+        VerifiedE5EmbeddingProvider,
+    )
+
+    artefact = Path(os.environ[VARIABLE_RACINE_ARTEFACTS]) / ARTEFACT_LOGIQUE
+    empreinte = empreinte_d_inventaire(artefact)
+    os.environ["RAG_EMBEDDING_MODEL_CACHE_DIR"] = str(artefact)
+    return VerifiedE5EmbeddingProvider.from_artifact(
+        artifact_root=artefact,
+        inventory_sha256=empreinte,
+        pg_dsn=os.environ["DEDICATED_VECTOR_DB_URL"],
+    )
+
+
+#: Taille de lot par defaut. Mesuree, pas devinee : sur la carte disponible le
+#: modele occupe 2,78 Gio sur 3,62, et un lot de 64 passages de 384 tokens
+#: depasse la memoire restante. 16 tient sur les passages les plus lourds.
+LOT_PAR_DEFAUT = 16
+
+
+def embarquer(racine: Path, *, lot: int = LOT_PAR_DEFAUT) -> dict:  # pragma: no cover
+    """Produit les vecteurs des passages autorisés, dans la base dédiée SEULE.
+
+    Refuse AVANT d'écrire si un seul passage dépasse la limite du modèle : le
+    fournisseur canonique lèverait de toute façon, mais refuser d'abord évite
+    d'écrire une moitié d'index.
+    """
+    import psycopg  # noqa: PLC0415
+
+    # Le fournisseur est construit D ABORD : c est lui qui rend les paquets
+    # locaux importables. Importer format_passage avant reviendrait a dependre
+    # d un PYTHONPATH d invocation.
+    fournisseur = _fournisseur(racine)
+
+    from nexus_contracts.embedding_utils import format_passage  # noqa: PLC0415
+    limite = int(fournisseur.max_sequence_length)
+    dsn = os.environ["DEDICATED_VECTOR_DB_URL"]
+
+    with psycopg.connect(dsn, autocommit=True) as cx:
+        with cx.cursor() as cur:
+            cur.execute(
+                f"SELECT count(*) FROM {TABLE_PASSAGES} WHERE token_count > %s",
+                (limite,),
+            )
+            hors_budget = cur.fetchone()[0]
+            if hors_budget:
+                raise EntreeInapte(
+                    f"{hors_budget} passages hors budget : aucun vecteur ne "
+                    "sera écrit sur un corpus tronqué"
+                )
+            cur.execute(f"SELECT count(*) FROM {TABLE_PASSAGES}")
+            attendu = cur.fetchone()[0]
+            if attendu == 0:
+                raise EntreeManquante(
+                    f"{TABLE_PASSAGES} est vide : le re-découpage doit précéder"
+                )
+            cur.execute(f"TRUNCATE {TABLE_VECTEURS}")
+
+            cur.execute(
+                f"SELECT chunk_id, content_sha256, text FROM {TABLE_PASSAGES} "
+                "ORDER BY chunk_id"
+            )
+            lignes = cur.fetchall()
+
+        ecrits = 0
+        for debut in range(0, len(lignes), lot):
+            tranche = lignes[debut : debut + lot]
+            vecteurs = fournisseur.encode(
+                [format_passage(texte) for _, _, texte in tranche]
+            )
+            with cx.cursor() as cur:
+                with cur.copy(
+                    f"COPY {TABLE_VECTEURS} (chunk_id, content_sha256, embedding) "
+                    "FROM STDIN"
+                ) as copie:
+                    for (identifiant, sha, _), vecteur in zip(tranche, vecteurs):
+                        if len(vecteur) != DIMENSION:
+                            raise EntreeInapte(
+                                f"dimension {len(vecteur)} != {DIMENSION}"
+                            )
+                        copie.write_row(
+                            (identifiant, sha, "[" + ",".join(
+                                repr(float(x)) for x in vecteur
+                            ) + "]")
+                        )
+            ecrits += len(tranche)
+            if (debut // lot) % 100 == 0:
+                print(f"  {ecrits}/{attendu} vecteurs", flush=True)
+
+    return {"expected": attendu, "written": ecrits, "limit": limite}
+
+
+def mesurer_base(racine: Path) -> dict:  # pragma: no cover
+    """Mesure la base dédiée APRÈS écriture. Aucune valeur déclarée."""
+    import psycopg  # noqa: PLC0415
+
+    with psycopg.connect(os.environ["DEDICATED_VECTOR_DB_URL"]) as cx, cx.cursor() as cur:
+        cur.execute(f"SELECT count(*) FROM {TABLE_VECTEURS}")
+        lignes = cur.fetchone()[0]
+        cur.execute(f"SELECT count(DISTINCT content_sha256) FROM {TABLE_VECTEURS}")
+        contenus = cur.fetchone()[0]
+        cur.execute(
+            f"SELECT count(DISTINCT content_sha256) FROM {TABLE_PASSAGES}"
+        )
+        attendus = cur.fetchone()[0]
+        cur.execute(
+            f"SELECT count(*) FROM {TABLE_VECTEURS} v WHERE NOT EXISTS ("
+            "SELECT 1 FROM drive_staging.authorized_content a "
+            "WHERE a.content_sha256 = v.content_sha256)"
+        )
+        hors_liste = cur.fetchone()[0]
+        cur.execute(
+            f"SELECT count(*) FROM {TABLE_VECTEURS} WHERE embedding IS NULL"
+        )
+        nuls = cur.fetchone()[0]
+        cur.execute(
+            f"SELECT count(*) FROM (SELECT chunk_id FROM {TABLE_VECTEURS} "
+            "GROUP BY chunk_id HAVING count(*) > 1) d"
+        )
+        doublons = cur.fetchone()[0]
+        cur.execute(
+            f"SELECT count(*) FROM {TABLE_VECTEURS} "
+            "WHERE vector_dims(embedding) <> %s",
+            (DIMENSION,),
+        )
+        dimensions = cur.fetchone()[0]
+        cur.execute(f"SELECT count(*) FROM {TABLE_PASSAGES}")
+        passages = cur.fetchone()[0]
+        cur.execute("SELECT count(*) FROM drive_staging.authorized_content")
+        liste_blanche = cur.fetchone()[0]
+        cur.execute(f"SELECT token_count FROM {TABLE_PASSAGES}")
+        longueurs = [r[0] for r in cur.fetchall()]
+    return {
+        "vector_rows": lignes,
+        "distinct_contents": contenus,
+        "authorized_with_chunks": attendus,
+        # Les contenus autorises SANS aucun passage sont ceux dont le PDF ne
+        # porte pas de texte extractible. Les compter zero les effacerait de la
+        # preuve alors qu ils sont, par nature, inatteignables par une
+        # recherche textuelle.
+        "authorized_without_chunks": liste_blanche - attendus,
+        "pgvector_in_review": False,
+        "unauthorized_rows": hors_liste,
+        "null_vectors": nuls,
+        "duplicates": doublons,
+        "dimension_mismatch": dimensions,
+        "passages": passages,
+        "token_lengths": longueurs,
+    }
+
+
 def perimetre_autorise(racine: Path) -> dict:
     chemin = racine / ECART
     if not chemin.is_file():
@@ -519,11 +684,51 @@ def rendre_markdown(etat: dict) -> str:
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestration
     parseur = argparse.ArgumentParser(description=__doc__)
-    parseur.add_argument("--state-file", required=True)
+    parseur.add_argument("--state-file")
+    parseur.add_argument(
+        "--execute",
+        action="store_true",
+        help="produit réellement les vecteurs dans la base dédiée",
+    )
+    parseur.add_argument("--batch", type=int, default=LOT_PAR_DEFAUT)
+    # Regenerer la preuve ne doit pas exiger de refaire deux heures de calcul :
+    # la mesure se fait sur la base, pas sur le souvenir de l execution.
+    parseur.add_argument(
+        "--report-only",
+        action="store_true",
+        help="mesure la base dédiée et rapporte, sans rien recalculer",
+    )
     arguments = parseur.parse_args(argv)
 
     racine = racine_depot()
-    mesures = json.loads(Path(arguments.state_file).read_text(encoding="utf-8"))
+    if arguments.execute or arguments.report_only:
+        try:
+            if arguments.execute:
+                resultat = embarquer(racine, lot=arguments.batch)
+                print(
+                    f"vecteurs écrits : {resultat['written']}/{resultat['expected']}",
+                    flush=True,
+                )
+                limite = resultat["limit"]
+            else:
+                limite = _fournisseur(racine).max_sequence_length
+            etat_base = mesurer_base(racine)
+        except (EntreeManquante, EntreeInapte) as erreur:
+            print(f"REFUS : {erreur}", file=sys.stderr)
+            return 2
+        libre = shutil.disk_usage(racine).free
+        mesures = {
+            "token_lengths": etat_base.pop("token_lengths"),
+            "model_sequence_limit": limite,
+            "db_state": etat_base,
+            "disk_free_before": libre,
+            "disk_free_after": libre,
+        }
+    elif arguments.state_file:
+        mesures = json.loads(Path(arguments.state_file).read_text(encoding="utf-8"))
+    else:
+        print("REFUS : --state-file ou --execute est requis", file=sys.stderr)
+        return 2
     try:
         provenance = verifier_artefact(racine_des_artefacts() / ARTEFACT_LOGIQUE)
         etat = construire(

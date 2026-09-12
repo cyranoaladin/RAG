@@ -1,0 +1,40 @@
+{
+  "dedicated": {
+    "allowlist_rows": 2264,
+    "dimension_mismatch": 0,
+    "passage_contents": 2242,
+    "passages": 54719,
+    "source": {
+      "dbname": "nexus_vector_staging_a_20260912T060731Z",
+      "host": "127.0.0.1",
+      "port": 55436
+    },
+    "unauthorized_rows": 0,
+    "vector_extension": true,
+    "vector_rows": 54719,
+    "vectorized_contents": 2242
+  },
+  "kind": "NEXUS-VECTOR-STORE-AUDIT-V1",
+  "measured_on": "DEDICATED_VECTOR_DB",
+  "pgvector_installed_in_review_db": false,
+  "review": {
+    "artifacts": 2473,
+    "source": {
+      "dbname": "drivestaging",
+      "host": "127.0.0.1",
+      "port": 55435
+    },
+    "vector_columns": 0,
+    "vector_extension": false
+  },
+  "review_db_intact": true,
+  "review_db_written": false,
+  "staging_vectors_present": 54719,
+  "vector_dimensions_consistent": true,
+  "what_this_does_not_prove": [
+    "ne prouve pas que le retrieval fonctionne",
+    "ne prouve pas que les citations sont disponibles",
+    "ne rend pas target_scope_searchable vrai"
+  ],
+  "why_not_the_review_db": "les vecteurs sont écrits dans la base dédiée ; mesurer la base de revue rendrait zéro après une vectorisation réussie et ferait conclure qu'elle n'a rien produit"
+}

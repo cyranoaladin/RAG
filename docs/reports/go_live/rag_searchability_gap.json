@@ -6,9 +6,9 @@
     "retrieval_top_k_validated": false,
     "rollback_validated": false,
     "scope_filters_validated": false,
-    "staging_vectors_present": false,
+    "staging_vectors_present": true,
     "target_scope_searchable": false,
-    "vector_dimensions_consistent": false
+    "vector_dimensions_consistent": true
   },
   "conditions_not_met": [
     "citations_validated",
@@ -16,9 +16,7 @@
     "retrieval_top_k_validated",
     "rollback_validated",
     "scope_filters_validated",
-    "staging_vectors_present",
-    "target_scope_searchable",
-    "vector_dimensions_consistent"
+    "target_scope_searchable"
   ],
   "indexable_scope": {
     "count": 2264,
@@ -2566,16 +2564,24 @@
   "measured": {
     "canonical_text_in_staging": 2473,
     "ingested_contents": 2473,
-    "measurement_source": {
+    "ingestion_measurement_source": {
       "dbname": "drivestaging",
       "host": "127.0.0.1",
       "port": 55435
     },
     "pedagogical_corpus_contents": 2529,
-    "staging_vectors_present": 0,
+    "pgvector_installed_in_review_db": false,
+    "review_db_intact": true,
+    "staging_vectors_present": 54719,
     "target_scope_contents": 2264,
-    "vector_columns": 0,
-    "vector_extension": false
+    "vector_columns": 1,
+    "vector_extension": true,
+    "vector_measurement_source": {
+      "dbname": "nexus_vector_staging_a_20260912T060731Z",
+      "host": "127.0.0.1",
+      "port": 55436
+    },
+    "vectorized_contents": 2242
   },
   "not_measured": {
     "production_searchable": null,
