@@ -1,0 +1,38 @@
+{
+  "allowlist_rows": 2264,
+  "current_switch": false,
+  "currentness_refused_intersection": 0,
+  "dedicated_db_container": "nexus-vector-staging-a-20260912T060731Z",
+  "dedicated_db_host": "127.0.0.1",
+  "dedicated_db_name": "nexus_vector_staging_a_20260912T060731Z",
+  "dedicated_db_port": 55436,
+  "dedicated_db_schema": "drive_staging",
+  "dedicated_db_tables": [
+    "drive_staging.authorized_content",
+    "drive_staging.chunk_embeddings"
+  ],
+  "gate_refused_intersection": 0,
+  "gate_refused_total": 266,
+  "input_count": 2264,
+  "input_digest": "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd",
+  "input_scope": "SERVABLE_CANDIDATE_SET",
+  "kind": "NEXUS-DEDICATED-VECTOR-DB-PROVISIONING-V1",
+  "pgvector_installed_in_dedicated_db": true,
+  "pgvector_installed_in_review_db": false,
+  "pgvector_version": "0.8.2",
+  "pii_undecided_intersection": 0,
+  "production_touched": false,
+  "review_db_written": false,
+  "rollback_command": "docker rm -f nexus-vector-staging-a-20260912T060731Z && docker volume rm $(docker inspect nexus-vector-staging-a-20260912T060731Z --format '{{range .Mounts}}{{.Name}}{{end}}')",
+  "rollback_scope": "la base dédiée et son volume, rien d'autre : aucune table de revue n'est touchée, aucune sauvegarde n'est consommée",
+  "source_review_db": "drivestaging",
+  "source_review_db_readonly": true,
+  "vector_rows": 0,
+  "vectorization_executed": false,
+  "what_this_does_not_prove": [
+    "aucun vecteur n'existe : la recherche reste impossible",
+    "target_scope_searchable reste faux",
+    "le blocage RAG_SEARCHABILITY reste ouvert"
+  ],
+  "why_not_the_review_db": "nexus-drive-staging-v2 porte le texte canonique qui rend rejouables 149 décisions PII, dont 23 sur des contenus déjà promus"
+}

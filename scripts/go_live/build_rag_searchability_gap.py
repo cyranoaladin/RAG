@@ -19,6 +19,7 @@ observé serait aussi faux que de prononcer `true`.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -51,6 +52,17 @@ CONDITIONS_DE_FERMETURE = (
 
 class EntreeManquante(RuntimeError):
     """Une entrée nécessaire au calcul est absente ou inexploitable."""
+
+
+def _empreinte(identifiants) -> str:
+    """Empreinte stable d'un ensemble d'identifiants.
+
+    Triée, une ligne par identifiant, saut de ligne final : un aval peut la
+    recalculer sans connaître ce code, et constater qu'on lui a donné
+    exactement l'ensemble annoncé.
+    """
+    corps = "".join(f"{i}\n" for i in sorted(identifiants))
+    return hashlib.sha256(corps.encode("utf-8")).hexdigest()
 
 
 def racine_depot() -> Path:
@@ -127,6 +139,13 @@ def construire(racine: Path) -> dict:
                 "d'exclusion qui l'accompagne"
             ),
             "never_indexable": sorted(refuses),
+            # Le périmètre est publié en IDENTIFIANTS, pas seulement en
+            # compteur. Un aval qui doit prouver qu'il n'indexe rien de refusé
+            # ne peut pas le faire à partir d'un nombre : il lui faut la liste,
+            # et elle doit venir d'ici — le seul endroit qui lit la matrice
+            # pour définir ce périmètre.
+            "indexable": sorted(indexables),
+            "indexable_digest": _empreinte(indexables),
         },
         "measured": {
             "canonical_text_in_staging": audit["ingested"]["avec_texte_canonique"],
