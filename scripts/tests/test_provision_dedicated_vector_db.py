@@ -24,7 +24,7 @@ ECART = RACINE / "docs/reports/go_live/rag_searchability_gap.json"
 MATRICE = RACINE / "docs/reports/handoff/servability_matrix_v1.json"
 READINESS = RACINE / "docs/reports/go_live/go_live_readiness_state.json"
 
-DSN_REVUE = "postgresql://u:p@127.0.0.1:55435/drivestaging"
+DSN_REVUE = "postgresql://role@127.0.0.1:55435/drivestaging"
 
 
 def _empreinte(ids) -> str:
@@ -77,7 +77,7 @@ def test_viser_la_base_de_revue_par_son_nom_est_refuse():
 
 def test_renommer_la_base_ne_suffit_pas_a_quitter_le_serveur_de_revue():
     """Le nom est cosmétique ; l'hôte et le port ne le sont pas."""
-    cible = provisionnement.decrire_dsn("postgresql://u:p@127.0.0.1:55435/autre")
+    cible = provisionnement.decrire_dsn("postgresql://role@127.0.0.1:55435/autre")
     with pytest.raises(provisionnement.CibleInterdite, match="serveur de"):
         provisionnement.refuser_si_base_de_revue(
             cible, provisionnement.decrire_dsn(DSN_REVUE)
@@ -87,14 +87,14 @@ def test_renommer_la_base_ne_suffit_pas_a_quitter_le_serveur_de_revue():
 def test_un_dsn_sans_nom_de_base_est_refuse():
     with pytest.raises(provisionnement.CibleInterdite):
         provisionnement.refuser_si_base_de_revue(
-            provisionnement.decrire_dsn("postgresql://u:p@127.0.0.1:55436/"), None
+            provisionnement.decrire_dsn("postgresql://role@127.0.0.1:55436/"), None
         )
 
 
 def test_une_base_dediee_sur_un_autre_serveur_est_acceptee():
     """Le refus doit discriminer, sinon il ne prouve rien."""
     provisionnement.refuser_si_base_de_revue(
-        provisionnement.decrire_dsn("postgresql://u:p@127.0.0.1:55436/dediee"),
+        provisionnement.decrire_dsn("postgresql://role@127.0.0.1:55436/dediee"),
         provisionnement.decrire_dsn(DSN_REVUE),
     )
 
@@ -131,7 +131,7 @@ def test_une_liste_blanche_partiellement_chargee_fait_echouer(tmp_path):
     with pytest.raises(provisionnement.EntreeManquante, match="incomplète"):
         provisionnement.construire(
             tmp_path,
-            "postgresql://u:p@127.0.0.1:55436/dediee",
+            "postgresql://role@127.0.0.1:55436/dediee",
             DSN_REVUE,
             "c",
             provisionneur=_provisionneur(loaded=2),
@@ -145,7 +145,7 @@ def test_des_vecteurs_deja_presents_font_echouer(tmp_path):
     with pytest.raises(provisionnement.CibleInterdite, match="vecteurs présents"):
         provisionnement.construire(
             tmp_path,
-            "postgresql://u:p@127.0.0.1:55436/dediee",
+            "postgresql://role@127.0.0.1:55436/dediee",
             DSN_REVUE,
             "c",
             provisionneur=_provisionneur(loaded=None, vector_rows=7),
@@ -157,7 +157,7 @@ def test_le_lot_ne_peut_pas_declarer_une_vectorisation_executee(tmp_path):
     _ecart_jouet(tmp_path, ["aa", "bb"], [])
     etat = provisionnement.construire(
         tmp_path,
-        "postgresql://u:p@127.0.0.1:55436/dediee",
+        "postgresql://role@127.0.0.1:55436/dediee",
         DSN_REVUE,
         "c",
         provisionneur=_provisionneur(loaded=None),
