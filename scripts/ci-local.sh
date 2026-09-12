@@ -218,6 +218,9 @@ run_target "authority-uniqueness" bash scripts/check-authority-uniqueness.sh
 run_target "authority-uniqueness-guard" bash scripts/tests/test-authority-uniqueness.sh
 run_target "go-live-readiness-gate" "$PYTHON_BIN" -m pytest -q scripts/tests/test_go_live_readiness.py
 
+# --- ADR numbering (l'espace des numéros est un registre) ---
+run_target "adr-numbering" bash scripts/check-adr-numbering.sh
+
 # --- taxonomy validation ---
 run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/validate_taxonomy.py"
 
@@ -265,6 +268,7 @@ run_target "qualification-c1" bash -c '
 '
 
 run_target "governance-guard-tests" bash scripts/tests/test-governance-locks.sh
+run_target "adr-numbering-tests" bash scripts/tests/test-adr-numbering.sh
 
 # --- ci failsafe tests ---
 run_target "ci-failsafe-tests" bash scripts/tests/test-ci-local-failsafe.sh
