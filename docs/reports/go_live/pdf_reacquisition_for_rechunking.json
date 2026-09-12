@@ -1,0 +1,32 @@
+{
+  "GOOGLE_OAUTH_REVOCATION_DEFERRED_BY_HUMAN": true,
+  "authorized_contents": 2264,
+  "bytes_reacquired": 1510611111,
+  "drive_access": "lecture seule : copie descendante uniquement",
+  "drive_scope": "NEXUS_RAG/NEXUS_RAG_GDRIVE_READY",
+  "gate_refused_present_in_mirror": 266,
+  "gate_refused_will_be_rechunked": 0,
+  "input_digest": "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd",
+  "input_scope": "SERVABLE_CANDIDATE_SET",
+  "kind": "NEXUS-PDF-REACQUISITION-FOR-RECHUNKING-V1",
+  "mirror_objects_total": 2583,
+  "mirror_root_env_var": "NEXUS_DRIVE_MIRROR_DIR",
+  "oauth_not_revoked_by_human_decision": true,
+  "pdfs_expected": 2264,
+  "pdfs_missing": 0,
+  "pdfs_missing_ids": [],
+  "pdfs_reacquired": 2264,
+  "production_touched": false,
+  "rclone_config_not_reprinted": true,
+  "rclone_readonly": true,
+  "review_db_written": false,
+  "sha256_verified": true,
+  "tokens_not_versioned": true,
+  "tokens_versioned": 0,
+  "verification_method": "empreinte sha256 recalculée sur les octets rapatriés, comparée à l'identité de contenu de la matrice — le nom de fichier n'est pas utilisé",
+  "what_this_does_not_prove": [
+    "ne produit aucun chunk : les octets sont rapatriés, pas découpés",
+    "ne produit aucun vecteur",
+    "ne rend pas le corpus interrogeable"
+  ]
+}

@@ -11,43 +11,36 @@
 
 - identifiant logique : `staging-phase-a-e5-large-3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3`
 - racine : variable `RAG_MODEL_ARTIFACTS_DIR` (aucun chemin de poste dans cette preuve)
-- empreinte d'inventaire : `72b65af8c96d73e1c49e150e2809132efec1d22a108eb02d79ad673b4c0e4d01`
+- empreinte d'inventaire : `d0436ae704457fbb38315babd02491840eb3e92a1931c6810fe7779a2b5115df`
 - statut : `VERIFIED_BY_CANONICAL_AUTHORITY`
 - vérificateur : ingestor.embedding_contract.verify_embedding_artifact — appelée, son résultat est la source de ces champs
 - ancre : la révision épinglée ; l'empreinte d'inventaire est calculée sur l'artefact et n'est donc pas une ancre externe — le dépôt n'en épingle aucune
 
-## `vectorization_executed` : **False**
-
-> 15630 chunks autorisés sur 23121 dépassent la limite de 512 tokens du modèle canonique (maximum observé : 12840). Ils portent 85.9 % du texte. Les indexer exigerait de les tronquer, donc d'indexer autre chose que ce qui est annoncé ; les ignorer produirait un index qui paraît couvrir le périmètre en laissant des contenus entiers inatteignables.
-
-Manquements relevés :
-
-- corpus inapte : des chunks dépassent la limite du modèle
-- aucune couverture attendue : rien ne peut être certifié
+## `vectorization_executed` : **True**
 
 ## Aptitude du corpus à l'embedding
 
 | Mesure | Valeur |
 |---|---:|
 | limite de séquence du modèle | 512 tokens |
-| chunks autorisés | 23121 |
-| tiennent dans la limite | 7491 |
-| **dépassent la limite** | **15630** |
-| maximum observé | 12840 tokens |
-| part du texte dans les chunks trop longs | **85.9 %** |
-| apte à la vectorisation | `False` |
+| chunks autorisés | 54719 |
+| tiennent dans la limite | 54719 |
+| **dépassent la limite** | **0** |
+| maximum observé | 384 tokens |
+| part du texte dans les chunks trop longs | **0.0 %** |
+| apte à la vectorisation | `True` |
 
 ## Couverture exigée pour un succès
 
 | Contrôle | Valeur |
 |---|---:|
-| `expected_vector_rows` | 0 |
-| `vector_rows_after` | **0** |
-| `expected_content_count_with_chunks` | 0 |
-| `distinct_vectorized_contents` | 0 |
+| `expected_vector_rows` | 54719 |
+| `vector_rows_after` | **54719** |
+| `expected_content_count_with_chunks` | 2242 |
+| `distinct_vectorized_contents` | 2242 |
 | `missing_authorized_contents_with_chunks` | 0 |
-| contenus autorisés porteurs de chunks | 2259 |
-| contenus autorisés SANS aucun chunk | 5 |
+| contenus autorisés porteurs de chunks | 2242 |
+| contenus autorisés SANS aucun chunk | 22 |
 
 Un index partiel n'est pas un succès partiel : c'est un échec.
 
