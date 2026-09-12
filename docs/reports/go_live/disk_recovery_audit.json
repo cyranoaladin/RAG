@@ -1,25 +1,25 @@
 {
   "commands_requiring_human_confirmation": [
-    "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46",
+    "docker rmi ef6ae47ee370 5895088302cd f92da3b24a36 b01830f7be86 d1ab3f7e5926 25c809cc6edc 5a865d009b87 1f3845776e7a",
     "docker buildx prune --force",
     "uv cache clean; pip cache purge"
   ],
   "delete_candidates": [
     {
       "category": "DELETE_CANDIDATE_SAFE",
-      "name": "24 images Docker sans étiquette, non référencées",
-      "proposed_command": "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46",
+      "name": "17 images Docker sans étiquette, non référencées",
+      "proposed_command": "docker rmi ef6ae47ee370 5895088302cd f92da3b24a36 b01830f7be86 d1ab3f7e5926 25c809cc6edc 5a865d009b87 1f3845776e7a",
       "reason": "aucune n'est référencée par un conteneur ; restes de rebuilds Node/Playwright d'autres chantiers, dont 16 des 6 dernières heures",
-      "size_bytes": 57085700000,
-      "size_human": "53.2 Gio"
+      "size_bytes": 36015700000,
+      "size_human": "33.5 Gio"
     },
     {
       "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
       "name": "cache de build Docker (buildx)",
       "proposed_command": "docker buildx prune --force",
       "reason": "cache pur, régénérable, aucune donnée ; mais la commande est un prune : elle n'énumère pas ce qu'elle emporte",
-      "size_bytes": 136900000000,
-      "size_human": "127.5 Gio"
+      "size_bytes": 68709999999,
+      "size_human": "64.0 Gio"
     },
     {
       "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
@@ -30,19 +30,24 @@
       "size_human": "13.0 Gio"
     }
   ],
-  "deletions_executed": 0,
-  "disk_free_before": 37383368704,
-  "disk_free_before_human": "34.8 Gio",
+  "deletions_executed": 2,
+  "disk_free_after": 108469747712,
+  "disk_free_after_human": "101.0 Gio",
+  "disk_free_before": 32622968832,
+  "disk_free_before_human": "30.4 Gio",
+  "disk_policy_ok_after": true,
   "disk_policy_ok_before": false,
+  "disk_recovered_bytes": 75846778880,
+  "disk_recovered_human": "70.6 Gio",
   "disk_required_floor": 42949672960,
   "disk_required_floor_human": "40.0 Gio",
-  "disk_shortfall_bytes": 5566304256,
-  "disk_shortfall_human": "5.2 Gio",
-  "docker_build_cache_reclaimable": 67160000000,
-  "docker_images_reclaimable": 77990000000,
-  "estimated_free_after": 94469068704,
-  "estimated_free_after_human": "88.0 Gio",
-  "estimated_free_after_note": "borne HAUTE : les images sans étiquette partagent des couches, le gain réel est inférieur à leur somme. Le besoin n'est que de 5.2 Gio.",
+  "disk_shortfall_bytes": 0,
+  "disk_shortfall_human": "0 o",
+  "docker_build_cache_reclaimable": 0,
+  "docker_images_reclaimable": 76910000000,
+  "estimated_free_after": 144485447712,
+  "estimated_free_after_human": "134.6 Gio",
+  "estimated_free_after_note": "borne HAUTE : les images sans étiquette partagent des couches, le gain réel est inférieur à leur somme. Le besoin n'est que de 0 o.",
   "inventory": [
     {
       "category": "KEEP_REVIEW_PII",
@@ -94,19 +99,19 @@
     },
     {
       "category": "DELETE_CANDIDATE_SAFE",
-      "name": "24 images Docker sans étiquette, non référencées",
-      "proposed_command": "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46",
+      "name": "17 images Docker sans étiquette, non référencées",
+      "proposed_command": "docker rmi ef6ae47ee370 5895088302cd f92da3b24a36 b01830f7be86 d1ab3f7e5926 25c809cc6edc 5a865d009b87 1f3845776e7a",
       "reason": "aucune n'est référencée par un conteneur ; restes de rebuilds Node/Playwright d'autres chantiers, dont 16 des 6 dernières heures",
-      "size_bytes": 57085700000,
-      "size_human": "53.2 Gio"
+      "size_bytes": 36015700000,
+      "size_human": "33.5 Gio"
     },
     {
       "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
       "name": "cache de build Docker (buildx)",
       "proposed_command": "docker buildx prune --force",
       "reason": "cache pur, régénérable, aucune donnée ; mais la commande est un prune : elle n'énumère pas ce qu'elle emporte",
-      "size_bytes": 136900000000,
-      "size_human": "127.5 Gio"
+      "size_bytes": 68709999999,
+      "size_human": "64.0 Gio"
     },
     {
       "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
@@ -134,6 +139,32 @@
     }
   ],
   "kind": "NEXUS-DISK-RECOVERY-AUDIT-V1",
+  "measured_history": [
+    {
+      "authorized_by": "décision humaine explicite, 8 identifiants nommés",
+      "command": "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46",
+      "estimated_gain_bytes": 53200000000,
+      "free_after_bytes": 32620871680,
+      "free_before_bytes": 32622968832,
+      "images_pool_after_bytes": 108200000000,
+      "images_pool_before_bytes": 109200000000,
+      "measured_gain_bytes": -2097152,
+      "verdict": "ESTIMATION_DEMENTIE_PAR_LA_MESURE",
+      "why": "`docker images` affiche une taille VIRTUELLE, couches partagées comprises. Ces huit images partageaient presque toutes leurs couches avec des images encore étiquetées (core-v2-auth-*, entitlement-*) : supprimer le manifeste n'a libéré aucune donnée. Le pool d'images n'a cédé qu'environ 1 Go, et l'espace libre rien du tout."
+    },
+    {
+      "active_build_check": "cache identique à l'octet et en nombre d'entrées sur 75 s (139.2GB / 1907) ; images aria-p7b2-* vieilles de 2 h ; aucun processus docker build / buildx / buildkitd",
+      "authorized_by": "décision humaine explicite, sous condition d'absence de build actif",
+      "build_cache_after_bytes": 68710000000,
+      "build_cache_before_bytes": 139200000000,
+      "command": "docker buildx prune --force",
+      "free_after_bytes": 108489826304,
+      "free_before_bytes": 32540786688,
+      "measured_gain_bytes": 75949039616,
+      "verdict": "PLANCHER_FRANCHI",
+      "why": "le cache de build ne porte aucune donnée : seul son temps de reconstruction est perdu. C'est la seule grande réserve dont la suppression ne coûte rien d'irremplaçable."
+    }
+  ],
   "production_touched": false,
   "protected_resources": [
     {
