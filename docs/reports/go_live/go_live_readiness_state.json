@@ -9,10 +9,10 @@
  ],
  "current_switch": 0,
  "currentness_policy_applied": true,
- "disk_free_bytes": 108412112896,
+ "disk_free_bytes": 102314307584,
  "disk_policy_ok": true,
  "disk_used_percent": 84,
- "evaluated_head": "cf5108c50fcc8c73a9af51b9b5ef67e22acdb83e",
+ "evaluated_head": "e0eb928a9cba1c637d04da254edb881bf076e3b8",
  "evaluated_ref": "go-live/disk-cleanup-result",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_qualification_blocker_ids": [

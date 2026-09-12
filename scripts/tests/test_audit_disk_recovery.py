@@ -264,3 +264,35 @@ def test_le_rapport_versionne_classe_tout(rapport):
     for item in rapport["inventory"]:
         assert item["category"] in audit.CATEGORIES
         assert item["reason"]
+
+
+def test_le_rapport_ne_nie_pas_ce_qu_il_consigne(etat):
+    """Le défaut que la revue a attrapé : affirmer « aucune suppression »
+    sur la même page qu'un historique de suppressions.
+
+    Les deux énoncés étaient vrais séparément — le script ne supprime rien,
+    l'humain a supprimé — et faux ensemble. Le rendu les avait mis sous le
+    même titre.
+    """
+    rendu = audit.rendre_markdown(etat)
+    assert "## Ce que ce script ne fait jamais" in rendu
+    if etat["measured_history"]:
+        assert "aucune suppression" not in rendu
+        assert "aucune lancée" not in rendu
+        # L'historique doit précéder les affirmations, pas s'y glisser.
+        assert rendu.index("a autorisé et exécuté") < rendu.index(
+            "## Ce que ce script ne fait jamais"
+        )
+
+
+def test_chaque_titre_du_rendu_est_suivi_de_son_contenu(etat):
+    """Un titre suivi d'un autre titre est le symptôme d'une section insérée
+    au mauvais endroit — exactement ce qui s'était produit."""
+    rendu = audit.rendre_markdown(etat)
+    lignes = [ligne for ligne in rendu.splitlines() if ligne.strip()]
+    for precedent, suivant in zip(lignes, lignes[1:]):
+        if precedent.startswith("## "):
+            assert not suivant.startswith("## "), (
+                f"section vide : « {precedent} » immédiatement suivi de "
+                f"« {suivant} »"
+            )

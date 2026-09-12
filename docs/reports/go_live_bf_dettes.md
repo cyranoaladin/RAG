@@ -69,10 +69,15 @@ les commandes nommées une par une. Aucune n'a été exécutée.
 Espace libre 30,4 Gio → **101,0 Gio**. `disk_policy_ok` passe de `false` à
 `true` et disparaît de `blocking_reasons`.
 
-**Les quatre épreuves repassent au vert** : `pytest scripts/tests/` rend
-**269 passed, 0 failed**. Leur échec était bien causé par l'espace disque de
-l'hôte, et par rien d'autre — le retour au vert sans toucher à une ligne de
-test en est la preuve.
+**Les quatre épreuves repassent au vert** : sur l'arbre livré ici,
+`pytest scripts/tests/` rend **276 passed, 0 failed**. Leur échec était bien
+causé par l'espace disque de l'hôte, et par rien d'autre — le retour au vert
+sans toucher à une ligne de test en est la preuve.
+
+Le chiffre porte sur l'arbre FINAL, épreuves ajoutées par ce lot comprises.
+Une première rédaction consignait 269, mesuré avant l'ajout de ces épreuves :
+un résultat antérieur ne peut pas attester que ce qui a été ajouté depuis
+passe.
 
 ## 2. `ruff check` depuis la racine signale 8 `UP038` préexistants
 

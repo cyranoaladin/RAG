@@ -430,10 +430,20 @@ def construire(racine: Path, *, mesures=None) -> dict:
         "review_db_preserved": True,
         "production_touched": False,
         "vectorization_executed": False,
-        "what_this_does_not_do": [
-            "aucune suppression : toutes les commandes sont proposées, aucune lancée",
-            "aucun prune global : ils n'énumèrent pas ce qu'ils emportent",
-            "ne rend pas le corpus interrogeable : le blocage recherche reste ouvert",
+        # Ce que CE CODE ne fait pas. A ne pas confondre avec ce qu un humain a
+        # autorise et lance a la main : `measured_history` le dit, et les deux
+        # ne doivent jamais se lire comme une seule affirmation.
+        "what_this_script_never_does": [
+            "il ne supprime rien : il n a aucun chemin d execution destructif",
+            "il ne propose aucun prune global : ils n enumerent pas ce qu ils "
+            "emportent, et une commande protegee est refusee a la construction",
+            "il ne touche ni la base de revue, ni la base dediee, ni un volume, "
+            "ni un artefact de modele",
+        ],
+        "what_this_does_not_prove": [
+            "ne rend pas le corpus interrogeable : le blocage recherche reste "
+            "ouvert et aucun vecteur n existe",
+            "ne ferme aucun des six blocages de fond du go-live",
         ],
     }
 
@@ -485,13 +495,10 @@ def rendre_markdown(etat: dict) -> str:
         f"{etat['estimated_free_after_human']}",
         f"- {etat['estimated_free_after_note']}",
         "",
-        "## Ce que ce lot ne fait pas",
-        "",
     ]
     if etat["measured_history"]:
         lignes += [
-            "",
-            "## Ce qui a été exécuté, et ce que la mesure en a dit",
+            "## Ce qu'un humain a autorisé et exécuté, et ce que la mesure en a dit",
             "",
             "| Commande | Gain estimé | Gain mesuré | Verdict |",
             "|---|---:|---:|---|",
@@ -507,7 +514,10 @@ def rendre_markdown(etat: dict) -> str:
         for operation in etat["measured_history"]:
             lignes += ["", f"> {operation['why']}"]
         lignes.append("")
-    lignes += [f"- {ligne}" for ligne in etat["what_this_does_not_do"]]
+    lignes += ["## Ce que ce script ne fait jamais", ""]
+    lignes += [f"- {ligne}" for ligne in etat["what_this_script_never_does"]]
+    lignes += ["", "## Ce que ce lot ne prouve pas", ""]
+    lignes += [f"- {ligne}" for ligne in etat["what_this_does_not_prove"]]
     return "\n".join(lignes) + "\n"
 
 
