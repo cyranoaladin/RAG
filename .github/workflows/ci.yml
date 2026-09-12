@@ -402,7 +402,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install PyYAML==6.0.3
+      - run: pip install PyYAML==6.0.3 pytest==9.1.1
       - run: bash scripts/check-repository-hygiene.sh
       - run: bash scripts/check-authority-uniqueness.sh
       - run: bash scripts/tests/test-authority-uniqueness.sh
@@ -413,6 +413,12 @@ jobs:
       - run: python scripts/tests/test-trusted-human-review-github.py
       - run: python scripts/tests/test-trusted-human-review-workflow.py
       - run: YAML_PYTHON_BIN=python NEXUS_CI_LOCAL_RUNNING=1 bash scripts/tests/test-ci-local-failsafe.sh
+      # Ce garde-fou existait depuis #195 mais ne tournait nulle part : la CI
+      # ne lance pas `pytest scripts/tests/`, elle nomme ses épreuves une à
+      # une. Un garde-fou que personne n'exécute n'est pas un garde-fou.
+      # Il ne lit que des empreintes de fichiers : aucun historique git requis,
+      # donc il tient sur le clone superficiel de `actions/checkout`.
+      - run: python -m pytest -q scripts/tests/test_readiness_artifacts_coherence.py
 
   governance-locks:
     name: "governance locks guard"

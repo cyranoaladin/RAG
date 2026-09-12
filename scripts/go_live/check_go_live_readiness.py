@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import json
 import os
 import pathlib
@@ -607,6 +608,37 @@ def _worktrees() -> tuple[list[dict[str, Any]], int]:
     return worktrees, obsoletes
 
 
+#: Les fichiers versionnes dont ce gate tire ses faits. Les sorties qu il
+#: produit en sont volontairement absentes : les voir bouger avec lui ne
+#: prouverait rien.
+ENTREES_VERSIONNEES = (
+    MATRICE,
+    NON_PDF,
+    POLITIQUE_RETENTION_NON_PDF,
+    POLITIQUE_ACTUALITE,
+    DISPOSITIONS_PR,
+    BLOQUEURS_QUALIFICATION,
+    ECART_RECHERCHE,
+    WORKTREES_ATTENDUS,
+)
+
+
+def _empreintes_des_entrees() -> dict[str, str]:
+    """Empreinte de chaque entree, ou ABSENT.
+
+    Une entree absente est nommee ABSENT, jamais omise : une cle manquante se
+    lirait comme une entree inchangee.
+    """
+    empreintes = {}
+    for relatif in ENTREES_VERSIONNEES:
+        chemin = REPO_ROOT / relatif
+        if not chemin.is_file():
+            empreintes[relatif] = "ABSENT"
+            continue
+        empreintes[relatif] = hashlib.sha256(chemin.read_bytes()).hexdigest()
+    return empreintes
+
+
 def _racine_du_checkout_principal() -> pathlib.Path:
     """Le checkout PRINCIPAL, pas le worktree courant.
 
@@ -873,6 +905,12 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
         "origin_main_at_generation": _git_sha("origin/main"),
         "evaluated_ref": _git("rev-parse", "--abbrev-ref", "HEAD") or "DETACHED",
         "evaluated_head": _git_sha("HEAD"),
+        # Nommer le commit evalue ne suffit pas : un instantane est produit
+        # AVANT le commit qui le porte, il nomme donc toujours le parent. Ce
+        # qui se verifie, c est que les ENTREES n ont pas bouge depuis. Les
+        # empreintes rendent cela decidable sans historique git, donc aussi
+        # sur un clone superficiel.
+        "input_digests": _empreintes_des_entrees(),
         "open_prs_total": len(dispositions),
         "open_prs_blocking": len(bloquantes),
         "open_prs_disposition_unknown": len(inconnues),

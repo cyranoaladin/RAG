@@ -193,7 +193,7 @@ expected_steps = [
         "uses": "actions/setup-python@v5",
         "with": {"python-version": "3.11"},
     },
-    {"run": "pip install PyYAML==6.0.3"},
+    {"run": "pip install PyYAML==6.0.3 pytest==9.1.1"},
     {"run": "bash scripts/check-repository-hygiene.sh"},
     {"run": "bash scripts/check-authority-uniqueness.sh"},
     {"run": "bash scripts/tests/test-authority-uniqueness.sh"},
@@ -212,6 +212,12 @@ expected_steps = [
         "run": (
             "YAML_PYTHON_BIN=python NEXUS_CI_LOCAL_RUNNING=1 "
             "bash scripts/tests/test-ci-local-failsafe.sh"
+        )
+    },
+    {
+        "run": (
+            "python -m pytest -q "
+            "scripts/tests/test_readiness_artifacts_coherence.py"
         )
     },
 ]
