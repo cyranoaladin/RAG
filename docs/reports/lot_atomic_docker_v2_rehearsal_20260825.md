@@ -1,0 +1,91 @@
+# Lot technique — rehearsal Docker atomique V2 du 25 août 2026
+
+## Verdict
+
+Le harnais reproductible V2 a été exécuté contre le daemon Docker local avec
+une fixture contractuelle `AuthorizationSetV1` +
+`ProductionReadinessManifestV2`. Il utilise uniquement des projets isolés
+préfixés `nexus-go-live-rehearsal-v2-`, l'image Alpine déjà présente et épinglée
+par digest, aucun port et deux clés Ed25519 générées en mémoire pour ce run.
+Les faits de revue utilisent exclusivement les acteurs synthétiques
+`nexus-fixture-reviewer` et `nexus-fixture-author`, jamais les identités GitHub
+humaines prescrites par le protocole de production.
+
+```text
+ATOMIC_DOCKER_V2_REHEARSAL_PASS=true
+BAD_DIGEST_REFUSED=true
+BAD_READINESS_REFUSED=true
+BAD_AUTHORIZATION_SET_REFUSED=true
+FOREIGN_COLLISION_REFUSED=true
+FOREIGN_SERVICES_TOUCHED=0
+ISOLATION_PREFLIGHT_PASS=true
+PRODUCTION_PORTS_PUBLISHED=0
+PRODUCTION_PROJECT_NAME_USED=false
+REMOVE_ORPHANS_USED=false
+ROLLBACK_REHEARSAL_PASS=true
+PROJECT_CONTAINERS_REMAINING=0
+```
+
+Le bundle valide a exécuté exactement une frontière `pull` puis une frontière
+`up`, et ses quatre services de fixture ont atteint l'état `healthy`. Les trois
+bundles invalides et la collision étrangère ont été refusés avec
+`mutation_boundary_calls=0`. Le mauvais readiness est correctement signé par la
+clé éphémère du run mais porte un mauvais digest du Compose résolu : le refus
+atteint donc la liaison sémantique readiness V2, pas seulement l'intégrité
+extérieure du bundle.
+
+## Provenance exacte
+
+```text
+HARNESS_COMMIT=bd0860829879c4d8e0da47ea34a66320aa5f3d91
+HARNESS_TREE=65a9a1cbf986fb2e540ca15e741644796be5141f
+HARNESS_SHA256=af109874ba8c0740734a2446a8de8122e9ce156622a631b396f2242dfd72e2ae
+BUNDLE_DIGEST=82dc182a5acbe00b66527d36a20af82b90934c728d6d301dea1cd0b5c676a6b7
+BUNDLE_MANIFEST_SHA256=3845b7f681f2aa68f43542fd720b0aaccad0765e9413d53195f6939381edbb32
+IMAGE_REF=alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc
+IMAGE_LOCAL_ID=sha256:bf8527eb54c3680e728d5b4b383a8ba730d72dae7236fbc8dff97ed6b224a731
+DOCKER_ENGINE=29.1.3
+DOCKER_COMPOSE=5.5.0
+```
+
+Artefacts :
+
+- `docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.json` — preuve
+  canonique triée ;
+- `docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.transcript.txt` —
+  transcript borné, sans chemin absolu ni valeur de clé ;
+- `docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.sha256` — hashes du
+  harnais, de la fabrique, du JSON et du transcript ;
+- `services/rag-engine/scripts/atomic_docker_v2_rehearsal.py` — harnais ;
+- `services/rag-engine/scripts/atomic_docker_v2_rehearsal_fixture.py` — fabrique
+  V2 paramétrée sans clé par défaut.
+
+La preuve historique V1 du 24 août est conservée byte-identical ; son statut
+`UNVERIFIED` n'est pas réécrit rétrospectivement.
+
+## Isolation et nettoyage
+
+- un préflight Docker prouve les trois inventaires générés vides avant la
+  première mutation ; les noms ont 128 bits d'aléa et `infra` est refusé ;
+- le registre exhaustif des commandes mutantes prouve que
+  `--remove-orphans` n'a jamais été utilisé ;
+- l'inspection Docker après `up` prouve zéro port publié ;
+- la collision réelle est créée dans un projet distinct puis retirée seule ;
+- un service témoin étranger reste identique par ID, instant de démarrage,
+  projet et service avant/après déploiement et rollback ;
+- les inventaires finaux conteneurs, réseaux et volumes sont tous vides pour les
+  trois projets générés ; chaque cible de cleanup est enregistrée avant son
+  premier `compose up`, les codes retour sont vérifiés et un second passage est
+  tenté si le premier laisse un résidu.
+
+Le JSON versionné contient aussi les 38 hashes de membres du bundle, l'identité
+et l'état `healthy` observés pour les quatre services, le code retour du rollback
+et son inventaire Docker vide.
+
+## Limites honnêtes
+
+Cette preuve exerce le mécanisme V2 avec une fixture synthétique réelle et une
+image locale immuable. Elle ne remplace ni les futures images GHCR de production,
+ni le vrai `AuthorizationSet` du corpus final, ni la signature offline de
+readiness, ni le `FINAL CUTOVER GO`. Aucune base de données ou service de
+production n'a été muté par ce lot.
