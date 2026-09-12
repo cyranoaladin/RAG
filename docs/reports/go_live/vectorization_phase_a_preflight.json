@@ -1,0 +1,81 @@
+{
+  "all_conditions_met": false,
+  "blocking_condition": [
+    "dedicated_target_base_provisioned"
+  ],
+  "conditions_to_execute": {
+    "ci_main_proven": true,
+    "dedicated_target_base_provisioned": false,
+    "embedding_model_artifact_available": true,
+    "indexable_set_proven": true,
+    "main_snapshot_aligned": true,
+    "no_refused_content_in_input": true,
+    "pgvector_extension_available": true,
+    "rollback_plan_written": true,
+    "staging_db_identified": true
+  },
+  "embedding_model": {
+    "artifact_location": "cache local du poste, revision epinglee par le manifeste de release",
+    "expected_dimension": 1024,
+    "expected_model_id": "intfloat/multilingual-e5-large",
+    "expected_revision": "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3",
+    "local_revision_matches": true,
+    "local_revision_present": true
+  },
+  "exclusion_proofs": {
+    "gate_refused_total": 266,
+    "intersection_currentness_refused": 0,
+    "intersection_gate_refused": 0,
+    "intersection_no_url_provenance": 0,
+    "intersection_non_indexable_by_role": 0,
+    "intersection_pii_undecided": 0,
+    "intersection_release_promoted_refused": 0,
+    "proof": "le perimetre est DEFINI comme le complement des refuses : les intersections sont vides par construction"
+  },
+  "forbidden_in_phase_a": [
+    "toute production",
+    "tout current switch",
+    "toute ecriture dans la base de revue",
+    "tout contenu refuse par le gate",
+    "tout contenu PII non tranche"
+  ],
+  "input_set": {
+    "count": 2264,
+    "digest": "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd",
+    "name": "SERVABLE_CANDIDATE_SET",
+    "rejected_targets": {
+      "PROMOTED_RELEASE_ONLY": {
+        "count": 319,
+        "why": "sous-ensemble arbitraire du servable ; ferait dependre la recherche d une decision de publication"
+      },
+      "RAW_DRIVE_PEDAGOGICAL_CORPUS": {
+        "count": 2529,
+        "why": "inclut les contenus refuses par le gate"
+      }
+    }
+  },
+  "kind": "NEXUS-VECTORIZATION-PHASE-A-PREFLIGHT-V1",
+  "readiness_before": {
+    "go_live_ready": false,
+    "rag_searchability_blocker": true,
+    "staging_vectors_present": 0,
+    "target_scope_searchable": false
+  },
+  "rollback_plan": {
+    "backup_available": "~/nexus-backups/rag/staging-preservation/20260911T155246Z (restauration prouvee)",
+    "review_base_untouched": true,
+    "strategy": "base dediee et jetable : la supprimer suffit ; aucune table de revue n est touchee",
+    "written": true
+  },
+  "status": "PREFLIGHT_ONLY_NOT_EXECUTED",
+  "target_database": {
+    "must_not_target_review_base": true,
+    "pgvector_available": true,
+    "pgvector_installed_in_review_base": false,
+    "pgvector_version": "0.8.2",
+    "recommended_target": "une base de vectorisation DEDIEE, restaurable depuis la sauvegarde verifiee",
+    "target_table_naming": "drive_staging.chunk_embeddings (schema dedie, jamais les tables de revue)",
+    "why_not": "nexus-drive-staging-v2 porte le texte canonique qui rend la revue PII reamorcable. Y installer une extension et y ecrire des vecteurs mettrait en risque le seul moyen de rejouer 149 decisions humaines, dont 23 sur des contenus deja promus."
+  },
+  "vectorization_executed": false
+}
