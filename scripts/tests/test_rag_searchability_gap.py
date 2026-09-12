@@ -243,3 +243,39 @@ def test_le_module_ne_rend_aucun_verdict_de_servabilite():
         assert interdit not in source, (
             f"{interdit} est écrit ici : le module déciderait au lieu d'exclure"
         )
+
+
+def test_le_perimetre_vectorisable_versionne_exclut_tout_refuse():
+    """Épreuve sur les artefacts VERSIONNÉS, pas sur une fixture.
+
+    Ce qui est protégé : qu'un contenu refusé ne puisse pas entrer dans
+    l'ensemble d'entrée d'une vectorisation. Un index construit sur lui serait
+    une porte dérobée autour du gate.
+    """
+    matrice = json.loads(
+        (RACINE / "docs/reports/handoff/servability_matrix_v1.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    preflight = json.loads(
+        (
+            RACINE / "docs/reports/go_live/vectorization_phase_a_preflight.json"
+        ).read_text(encoding="utf-8")
+    )
+    indexable = {
+        ligne["content_sha256"]
+        for ligne in matrice["rows"]
+        if ligne["verdict"] == gap.VERDICT_CANDIDAT
+    }
+    refuses = {
+        ligne["content_sha256"]
+        for ligne in matrice["rows"]
+        if ligne["verdict"] != gap.VERDICT_CANDIDAT
+    }
+    assert preflight["input_set"]["count"] == len(indexable)
+    assert not (indexable & refuses)
+    for nom, valeur in preflight["exclusion_proofs"].items():
+        if nom.startswith("intersection"):
+            assert valeur == 0, f"{nom} n'est pas vide"
+    assert preflight["vectorization_executed"] is False
+    assert preflight["target_database"]["must_not_target_review_base"] is True

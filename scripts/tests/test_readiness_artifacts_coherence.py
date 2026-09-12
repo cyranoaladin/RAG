@@ -111,3 +111,28 @@ def test_aucun_go_live_vert_ne_peut_etre_commite(etat):
     """Un garde-fou de dernier recours, sur l'artefact lui-même."""
     if etat["blocking_reasons"]:
         assert etat["go_live_ready"] is False
+
+
+def test_le_snapshot_est_aligne_sur_le_commit_courant(etat):
+    """Le garde-fou qui manquait : nommer un commit ne suffit pas, il faut le bon.
+
+    Une version antérieure de ces épreuves vérifiait que `main_head` et
+    `evaluated_head` étaient présents et bien formés. Elle laissait donc passer
+    un snapshot parfaitement formé mais périmé — celui du lot précédent.
+    """
+    import subprocess
+
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=str(RACINE),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    assert etat["evaluated_head"] == head, (
+        f"snapshot périmé : évalué sur {etat['evaluated_head'][:12]}, "
+        f"HEAD est {head[:12]}"
+    )
+    assert etat["main_head"] == head, (
+        f"snapshot périmé : main_head {etat['main_head'][:12]} != HEAD {head[:12]}"
+    )

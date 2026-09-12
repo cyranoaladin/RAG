@@ -8,7 +8,7 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=b78ba50e72776badd6a28cd60c6e2baf635f4f2d`
+`main_head=c452f1446c8701a6d50da29d09a0e5517a0cec3d`
 
 ## Ce qui empeche le go-live
 
@@ -29,10 +29,10 @@
 | `snapshot_contains_self_commit` | False |
 | `snapshot_is_operational_current` | False |
 | `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
-| `main_head` | b78ba50e72776badd6a28cd60c6e2baf635f4f2d |
-| `origin_main_at_generation` | b78ba50e72776badd6a28cd60c6e2baf635f4f2d |
-| `evaluated_ref` | go-live/vector-target-scope-guard |
-| `evaluated_head` | b78ba50e72776badd6a28cd60c6e2baf635f4f2d |
+| `main_head` | c452f1446c8701a6d50da29d09a0e5517a0cec3d |
+| `origin_main_at_generation` | c452f1446c8701a6d50da29d09a0e5517a0cec3d |
+| `evaluated_ref` | go-live/readiness-reconcile-and-vector-preflight |
+| `evaluated_head` | c452f1446c8701a6d50da29d09a0e5517a0cec3d |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -70,8 +70,8 @@
 | `non_pdf_retention_policy_versioned` | True |
 | `non_pdf_retention_reason` | MEASURED |
 | `non_pdf_retention_store_named` | True |
-| `disk_free_bytes` | 75614019584 |
-| `disk_used_percent` | 87 |
+| `disk_free_bytes` | 51032428544 |
+| `disk_used_percent` | 90 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |
 | `production_deployments` | 0 |

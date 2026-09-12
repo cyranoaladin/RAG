@@ -173,7 +173,7 @@
  ],
  "blockers_open": 6,
  "blockers_total": 9,
- "evaluated_head": "b78ba50e72776badd6a28cd60c6e2baf635f4f2d",
+ "evaluated_head": "c452f1446c8701a6d50da29d09a0e5517a0cec3d",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",

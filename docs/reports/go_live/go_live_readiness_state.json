@@ -9,11 +9,11 @@
  ],
  "current_switch": 0,
  "currentness_policy_applied": true,
- "disk_free_bytes": 75614019584,
+ "disk_free_bytes": 51032428544,
  "disk_policy_ok": true,
- "disk_used_percent": 87,
- "evaluated_head": "b78ba50e72776badd6a28cd60c6e2baf635f4f2d",
- "evaluated_ref": "go-live/vector-target-scope-guard",
+ "disk_used_percent": 90,
+ "evaluated_head": "c452f1446c8701a6d50da29d09a0e5517a0cec3d",
+ "evaluated_ref": "go-live/readiness-reconcile-and-vector-preflight",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_qualification_blocker_ids": [
   "C1",
@@ -33,7 +33,7 @@
  "go_live_qualification_blockers": 13,
  "go_live_ready": false,
  "kind": "NEXUS-GO-LIVE-READINESS-STATE-V1",
- "main_head": "b78ba50e72776badd6a28cd60c6e2baf635f4f2d",
+ "main_head": "c452f1446c8701a6d50da29d09a0e5517a0cec3d",
  "non_pdf_retention_policy_versioned": true,
  "non_pdf_retention_reason": "MEASURED",
  "non_pdf_retention_store_named": true,
@@ -53,7 +53,7 @@
  ],
  "open_prs_disposition_unknown": 0,
  "open_prs_total": 10,
- "origin_main_at_generation": "b78ba50e72776badd6a28cd60c6e2baf635f4f2d",
+ "origin_main_at_generation": "c452f1446c8701a6d50da29d09a0e5517a0cec3d",
  "pii_undecided": 149,
  "pre_release_blocker_ids": [
   "PII_UNDECIDED=149"
