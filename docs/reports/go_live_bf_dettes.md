@@ -43,6 +43,18 @@ seuil était déjà franchi avant sa création.
 de 40 GiO n'est pas le bon — mais alors par un changement assumé du gate, pas
 par un contournement dans les épreuves.
 
+**Cause identifiée (lot BG).** L'audit de récupération nomme l'origine : **24
+images Docker sans étiquette et non référencées**, dont **16 créées dans les six
+dernières heures**, à 3,18 Go pièce. Ce sont des restes de reconstructions
+Node/Playwright appartenant à **d'autres chantiers** de la machine
+(`agent-*`, `entitlement-bug-investigation-*`, `core-v2-auth-*`), pas à ce
+dépôt. Aucune n'est référencée par un conteneur. Le franchissement du plancher
+est donc un effet de voisinage, et non une dérive de ce chantier : les artefacts
+produits par ce lot pèsent 47 Mo.
+
+Voir `docs/reports/go_live/DISK_RECOVERY_AUDIT.md` pour l'inventaire classé et
+les commandes nommées une par une. Aucune n'a été exécutée.
+
 ## 2. `ruff check` depuis la racine signale 8 `UP038` préexistants
 
 `services/rag-pedago/rag_pedago/governance/reference_programme.py`,

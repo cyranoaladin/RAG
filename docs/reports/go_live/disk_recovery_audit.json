@@ -1,0 +1,218 @@
+{
+  "commands_requiring_human_confirmation": [
+    "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46",
+    "docker buildx prune --force",
+    "uv cache clean; pip cache purge"
+  ],
+  "delete_candidates": [
+    {
+      "category": "DELETE_CANDIDATE_SAFE",
+      "name": "24 images Docker sans étiquette, non référencées",
+      "proposed_command": "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46",
+      "reason": "aucune n'est référencée par un conteneur ; restes de rebuilds Node/Playwright d'autres chantiers, dont 16 des 6 dernières heures",
+      "size_bytes": 57085700000,
+      "size_human": "53.2 Gio"
+    },
+    {
+      "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
+      "name": "cache de build Docker (buildx)",
+      "proposed_command": "docker buildx prune --force",
+      "reason": "cache pur, régénérable, aucune donnée ; mais la commande est un prune : elle n'énumère pas ce qu'elle emporte",
+      "size_bytes": 136900000000,
+      "size_human": "127.5 Gio"
+    },
+    {
+      "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
+      "name": "~/.cache/uv et ~/.cache/pip",
+      "proposed_command": "uv cache clean; pip cache purge",
+      "reason": "caches de paquets régénérables, hors de ce dépôt ; leur reconstruction coûte du réseau, pas des données",
+      "size_bytes": 14000000000,
+      "size_human": "13.0 Gio"
+    }
+  ],
+  "deletions_executed": 0,
+  "disk_free_before": 37383368704,
+  "disk_free_before_human": "34.8 Gio",
+  "disk_policy_ok_before": false,
+  "disk_required_floor": 42949672960,
+  "disk_required_floor_human": "40.0 Gio",
+  "disk_shortfall_bytes": 5566304256,
+  "disk_shortfall_human": "5.2 Gio",
+  "docker_build_cache_reclaimable": 67160000000,
+  "docker_images_reclaimable": 77990000000,
+  "estimated_free_after": 94469068704,
+  "estimated_free_after_human": "88.0 Gio",
+  "estimated_free_after_note": "borne HAUTE : les images sans étiquette partagent des couches, le gain réel est inférieur à leur somme. Le besoin n'est que de 5.2 Gio.",
+  "inventory": [
+    {
+      "category": "KEEP_REVIEW_PII",
+      "name": "base de revue PII nexus-drive-staging-v2 (+ son volume)",
+      "proposed_command": "",
+      "reason": "seul support rendant rejouables 149 décisions PII, dont 23 promues",
+      "size_bytes": 0,
+      "size_human": "0 o"
+    },
+    {
+      "category": "KEEP_VECTOR_DB",
+      "name": "base dédiée nexus_vector_staging_a_20260912T060731Z (+ son volume)",
+      "proposed_command": "",
+      "reason": "cible de la phase A ; porte la liste blanche des 2264 autorisés",
+      "size_bytes": 0,
+      "size_human": "0 o"
+    },
+    {
+      "category": "KEEP_BACKUP",
+      "name": "/backup/rag/non-pdf-reacquired",
+      "proposed_command": "",
+      "reason": "store durable qui ferme non_pdf_servable_reacquired=37",
+      "size_bytes": 7130000,
+      "size_human": "6.8 Mio"
+    },
+    {
+      "category": "KEEP_BACKUP",
+      "name": "~/nexus-backups (sauvegarde de la base de revue)",
+      "proposed_command": "",
+      "reason": "restauration prouvée du corpus de revue ; 125 Mo, gain nul",
+      "size_bytes": 131000000,
+      "size_human": "124.9 Mio"
+    },
+    {
+      "category": "KEEP_MODEL_ARTIFACT",
+      "name": "~/rag-model-artifacts/intfloat-multilingual-e5-large-3d7cfbda…",
+      "proposed_command": "",
+      "reason": "révision EXACTE épinglée par le manifeste et vérifiée au préflight",
+      "size_bytes": 9700000000,
+      "size_human": "9.0 Gio"
+    },
+    {
+      "category": "KEEP_MODEL_ARTIFACT",
+      "name": "~/.cache/huggingface (E5, bge-reranker-v2-m3, bge-m3, MiniLM)",
+      "proposed_command": "",
+      "reason": "artefacts de modèle ; interdits de suppression par le mandat",
+      "size_bytes": 9200000000,
+      "size_human": "8.6 Gio"
+    },
+    {
+      "category": "DELETE_CANDIDATE_SAFE",
+      "name": "24 images Docker sans étiquette, non référencées",
+      "proposed_command": "docker rmi 3d53b92c6c57 80c4e806c15e a8c65404dc7c e67cac305711 ccc96b0650e4 8838b3c6cc1c fa9d6bbdd381 a1c7447f7d46",
+      "reason": "aucune n'est référencée par un conteneur ; restes de rebuilds Node/Playwright d'autres chantiers, dont 16 des 6 dernières heures",
+      "size_bytes": 57085700000,
+      "size_human": "53.2 Gio"
+    },
+    {
+      "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
+      "name": "cache de build Docker (buildx)",
+      "proposed_command": "docker buildx prune --force",
+      "reason": "cache pur, régénérable, aucune donnée ; mais la commande est un prune : elle n'énumère pas ce qu'elle emporte",
+      "size_bytes": 136900000000,
+      "size_human": "127.5 Gio"
+    },
+    {
+      "category": "DELETE_CANDIDATE_NEEDS_CONFIRMATION",
+      "name": "~/.cache/uv et ~/.cache/pip",
+      "proposed_command": "uv cache clean; pip cache purge",
+      "reason": "caches de paquets régénérables, hors de ce dépôt ; leur reconstruction coûte du réseau, pas des données",
+      "size_bytes": 14000000000,
+      "size_human": "13.0 Gio"
+    },
+    {
+      "category": "UNKNOWN_DO_NOT_TOUCH",
+      "name": "images E2E d'autres chantiers (agent-*, entitlement-*, core-v2-*)",
+      "proposed_command": "",
+      "reason": "appartiennent à d'autres sessions ; leur cycle de vie ne se décide pas depuis ce dépôt",
+      "size_bytes": 0,
+      "size_human": "0 o"
+    },
+    {
+      "category": "UNKNOWN_DO_NOT_TOUCH",
+      "name": "~/nexus-claude-pr153-p2-20260908 (15 Gio)",
+      "proposed_command": "",
+      "reason": "copie de travail d'un lot antérieur, non enregistrée comme worktree ; sa valeur d'archive n'est pas établie ici",
+      "size_bytes": 16100000000,
+      "size_human": "15.0 Gio"
+    }
+  ],
+  "kind": "NEXUS-DISK-RECOVERY-AUDIT-V1",
+  "production_touched": false,
+  "protected_resources": [
+    {
+      "category": "KEEP_REVIEW_PII",
+      "name": "base de revue PII nexus-drive-staging-v2 (+ son volume)",
+      "proposed_command": "",
+      "reason": "seul support rendant rejouables 149 décisions PII, dont 23 promues",
+      "size_bytes": 0,
+      "size_human": "0 o"
+    },
+    {
+      "category": "KEEP_VECTOR_DB",
+      "name": "base dédiée nexus_vector_staging_a_20260912T060731Z (+ son volume)",
+      "proposed_command": "",
+      "reason": "cible de la phase A ; porte la liste blanche des 2264 autorisés",
+      "size_bytes": 0,
+      "size_human": "0 o"
+    },
+    {
+      "category": "KEEP_BACKUP",
+      "name": "/backup/rag/non-pdf-reacquired",
+      "proposed_command": "",
+      "reason": "store durable qui ferme non_pdf_servable_reacquired=37",
+      "size_bytes": 7130000,
+      "size_human": "6.8 Mio"
+    },
+    {
+      "category": "KEEP_BACKUP",
+      "name": "~/nexus-backups (sauvegarde de la base de revue)",
+      "proposed_command": "",
+      "reason": "restauration prouvée du corpus de revue ; 125 Mo, gain nul",
+      "size_bytes": 131000000,
+      "size_human": "124.9 Mio"
+    },
+    {
+      "category": "KEEP_MODEL_ARTIFACT",
+      "name": "~/rag-model-artifacts/intfloat-multilingual-e5-large-3d7cfbda…",
+      "proposed_command": "",
+      "reason": "révision EXACTE épinglée par le manifeste et vérifiée au préflight",
+      "size_bytes": 9700000000,
+      "size_human": "9.0 Gio"
+    },
+    {
+      "category": "KEEP_MODEL_ARTIFACT",
+      "name": "~/.cache/huggingface (E5, bge-reranker-v2-m3, bge-m3, MiniLM)",
+      "proposed_command": "",
+      "reason": "artefacts de modèle ; interdits de suppression par le mandat",
+      "size_bytes": 9200000000,
+      "size_human": "8.6 Gio"
+    },
+    {
+      "category": "UNKNOWN_DO_NOT_TOUCH",
+      "name": "images E2E d'autres chantiers (agent-*, entitlement-*, core-v2-*)",
+      "proposed_command": "",
+      "reason": "appartiennent à d'autres sessions ; leur cycle de vie ne se décide pas depuis ce dépôt",
+      "size_bytes": 0,
+      "size_human": "0 o"
+    },
+    {
+      "category": "UNKNOWN_DO_NOT_TOUCH",
+      "name": "~/nexus-claude-pr153-p2-20260908 (15 Gio)",
+      "proposed_command": "",
+      "reason": "copie de travail d'un lot antérieur, non enregistrée comme worktree ; sa valeur d'archive n'est pas établie ici",
+      "size_bytes": 16100000000,
+      "size_human": "15.0 Gio"
+    }
+  ],
+  "review_db_preserved": true,
+  "unit_note": "34,85 Gio et 37,42 Go sont la MÊME mesure : gibioctets contre gigaoctets décimaux. Il n'y a pas deux relevés qui divergent.",
+  "vector_db_preserved": true,
+  "vectorization_executed": false,
+  "volumes_protected": [
+    "e4eb093913421bb0f5605c4effc2a0b527facbc66a55978986e6a8b883a6de62",
+    "1f52e61ee77d4c1dfee011fe2276437716712176562e2ea77f8981302e2fe6d4"
+  ],
+  "volumes_total": 205,
+  "what_this_does_not_do": [
+    "aucune suppression : toutes les commandes sont proposées, aucune lancée",
+    "aucun prune global : ils n'énumèrent pas ce qu'ils emportent",
+    "ne rend pas le corpus interrogeable : le blocage recherche reste ouvert"
+  ]
+}
