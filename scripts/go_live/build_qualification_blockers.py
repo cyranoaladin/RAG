@@ -80,7 +80,35 @@ def verifier_non_pdf(racine: Path) -> dict:
             "why": f"{len(servables)} lignes servables pour {attendu} annoncées",
         }
 
+    # Le manifeste NOMME un emplacement ; la politique dit lequel est
+    # CANONIQUE. Faire confiance au premier laisserait fermer le blocage sur
+    # une sauvegarde de secours — la politique dit explicitement
+    # `emergency_is_not_canonical` — pourvu qu elle contienne les bonnes
+    # empreintes. Et une surcharge legitime serait ignoree si le chemin du
+    # manifeste, propre a une machine, n existe pas ici.
+    declare = politique.get("durable_store") or {}
+    racine_canonique = os.environ.get(
+        declare.get("env_override") or "", ""
+    ).strip() or declare.get("canonical_root")
+    if not racine_canonique:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "la politique ne declare aucune racine de store canonique",
+        }
     store = Path(manifeste["durable_location"])
+    racine = Path(racine_canonique)
+    try:
+        store.relative_to(racine)
+    except ValueError:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": (
+                f"emplacement hors du store canonique : {store} n est pas sous "
+                f"{racine}"
+            ),
+        }
     if not store.is_dir():
         return {
             "closed": False,
@@ -105,11 +133,27 @@ def verifier_non_pdf(racine: Path) -> dict:
             "missing": manquants,
         }
 
-    tailles = {entree["sha256"]: entree.get("bytes") for entree in manifeste["sha256sums"]}
+    # Le champ du manifeste s appelle `size`. En lisant `bytes`, la comparaison
+    # rendait None partout et acceptait TOUTE taille, y compris une taille
+    # deliberement fausse — pendant que la preuve affirmait les avoir
+    # comparees. Une taille absente est desormais un echec, pas un laissez-
+    # passer : ne pas savoir n est pas verifier.
+    tailles = {
+        entree["sha256"]: entree.get("size") for entree in manifeste["sha256sums"]
+    }
+    sans_taille = [
+        ligne["sha256"] for ligne in servables if tailles.get(ligne["sha256"]) is None
+    ]
+    if sans_taille:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"{len(sans_taille)} ressources sans taille attendue au manifeste",
+        }
     discordances = [
         ligne["sha256"]
         for ligne in servables
-        if tailles.get(ligne["sha256"]) not in (None, presents[ligne["sha256"]])
+        if tailles[ligne["sha256"]] != presents[ligne["sha256"]]
     ]
     if discordances:
         return {
@@ -125,6 +169,8 @@ def verifier_non_pdf(racine: Path) -> dict:
             "servable_resources_expected": attendu,
             "servable_resources_verified": len(servables),
             "durable_store": str(store),
+            "canonical_root": str(racine),
+            "sizes_compared": len(servables),
             "verification": (
                 "empreinte sha256 RECALCULÉE sur les octets présents, comparée "
                 "ligne à ligne à la réconciliation ; les tailles sont comparées "

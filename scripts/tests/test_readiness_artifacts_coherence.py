@@ -294,3 +294,58 @@ def test_aucune_entree_du_gate_n_echappe_a_la_surveillance():
         f"le gate cite des fichiers non surveillés : {sorted(echappees)} — "
         "ajoutez-les à ENTREES_VERSIONNEES ou justifiez leur exclusion"
     )
+
+
+BLOQUEURS = RACINE / "docs/reports/go_live/qualification_blockers.json"
+
+
+def _bloqueurs() -> dict:
+    return json.loads(BLOQUEURS.read_text(encoding="utf-8"))
+
+
+def test_aucun_blocage_de_qualification_ferme_sans_preuve():
+    """Le garde-fou que la CI exécute réellement.
+
+    Le producteur refuse `closed=true` avec `proof=null`, mais son refus ne
+    protège que ses propres exécutions ; le gate le refuse aussi désormais.
+    Cette épreuve-ci est la troisième ligne : elle porte sur l'artefact
+    VERSIONNÉ, dans le seul fichier que la CI lance de bout en bout.
+    """
+    for bloc in _bloqueurs()["blockers"]:
+        if bloc["closed"]:
+            assert bloc["proof"], f"{bloc['id']} fermé sans preuve"
+            assert bloc["proof"].get("verification"), bloc["id"]
+
+
+def test_chaque_blocage_ferme_nomme_ce_qu_il_ne_ferme_pas():
+    """Une fermeture qui ne borne pas sa portée en promet trop."""
+    for bloc in _bloqueurs()["blockers"]:
+        if bloc["closed"]:
+            assert "does_not_close" in bloc["proof"], bloc["id"]
+
+
+def test_les_comptes_du_recensement_sont_coherents():
+    etat = _bloqueurs()
+    ouverts = [b for b in etat["blockers"] if not b["closed"]]
+    assert etat["open_count"] == len(ouverts)
+    assert etat["closed_count"] + etat["open_count"] == len(etat["blockers"])
+
+
+def test_la_revalidation_des_empreintes_exige_le_store_local():
+    """Ce que la CI NE PEUT PAS vérifier, dit plutôt que laissé croire.
+
+    La preuve de `NON_PDF_REACQUISITION` repose sur un store durable dont le
+    chemin est local à la machine d'exploitation. La CI ne le voit pas : elle
+    peut contrôler la forme de la preuve, jamais recalculer les empreintes.
+    Le dire ici évite qu'un lecteur prenne le vert de la CI pour une
+    revalidation des octets.
+    """
+    fermes = [b for b in _bloqueurs()["blockers"] if b["closed"]]
+    for bloc in fermes:
+        magasin = bloc["proof"].get("durable_store")
+        if magasin:
+            assert magasin.startswith("/"), bloc["id"]
+            assert bloc["proof"].get("canonical_root"), (
+                f"{bloc['id']} ne nomme pas la racine canonique par laquelle "
+                "son emplacement a été validé"
+            )

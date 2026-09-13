@@ -114,6 +114,7 @@
       "id": "NON_PDF_REACQUISITION",
       "owner": "operateur",
       "proof": {
+        "canonical_root": "/backup/rag/non-pdf-reacquired",
         "condition": "les 37 ressources servables sont presentes au store durable canonique, taille et SHA-256 conformes",
         "does_not_close": [
           "la revue PII",
@@ -124,6 +125,7 @@
         "durable_store": "/backup/rag/non-pdf-reacquired/20260911T155246Z",
         "servable_resources_expected": 37,
         "servable_resources_verified": 37,
+        "sizes_compared": 37,
         "verification": "empreinte sha256 RECALCULÉE sur les octets présents, comparée ligne à ligne à la réconciliation ; les tailles sont comparées au manifeste"
       },
       "titre": "Reacquisition des 37 ressources interactives servables",

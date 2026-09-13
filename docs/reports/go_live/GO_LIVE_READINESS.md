@@ -33,8 +33,8 @@
 | `main_head` | 8e7e9c9e9e44ac0ab949235bb722775040910eb1 |
 | `origin_main_at_generation` | 8e7e9c9e9e44ac0ab949235bb722775040910eb1 |
 | `evaluated_ref` | bk3-reseal |
-| `evaluated_head` | 8e7e9c9e9e44ac0ab949235bb722775040910eb1 |
-| `input_digests` | {'docs/reports/handoff/servability_matrix_v1.json': '56a4bcb7ad3c49d18127f3201f209a521c824fad2c938e001205675a418e980a', 'docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json': 'c2fb30dd39a347a82c7e9bed96933610444ce784719ddd73b478694010896018', 'docs/reports/go_live/non_pdf_retention_policy.json': '1b400ecc48f72c9b2ec6d6b1f6ec68d82f22dbcbd726a5ef69c5379c3fe41017', 'services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml': '4226aba5cd13d60558d049df73d4df06554bc1a6d603111d02de166f1db17c29', 'docs/reports/go_live/open_pr_dispositions.json': 'efef74ad48083d28f9cbf81c951d256091d0fa67aa294179f3ed64bf72126217', 'docs/reports/go_live/qualification_blockers.json': '4af7cba5efff3a39d94b114f5f077b7a2164e8220cbfe56943dee3138c05da7b', 'docs/reports/go_live/rag_searchability_gap.json': 'b8687cc02340f8eebe33b1e08e4d1fa40e644290f73dbd579a3974969c896129', 'docs/reports/go_live/expected_worktrees.json': '5f04ffa232cf84f4a0246c958ee984b7525b50bfc172e0a1ab6f898848662dcc'} |
+| `evaluated_head` | e54fd1a12403487bb8f78a213785182f002464e1 |
+| `input_digests` | {'docs/reports/handoff/servability_matrix_v1.json': '56a4bcb7ad3c49d18127f3201f209a521c824fad2c938e001205675a418e980a', 'docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json': 'c2fb30dd39a347a82c7e9bed96933610444ce784719ddd73b478694010896018', 'docs/reports/go_live/non_pdf_retention_policy.json': '1b400ecc48f72c9b2ec6d6b1f6ec68d82f22dbcbd726a5ef69c5379c3fe41017', 'services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml': '4226aba5cd13d60558d049df73d4df06554bc1a6d603111d02de166f1db17c29', 'docs/reports/go_live/open_pr_dispositions.json': 'efef74ad48083d28f9cbf81c951d256091d0fa67aa294179f3ed64bf72126217', 'docs/reports/go_live/qualification_blockers.json': 'b86ea5806a6c332905e2ca50d5a8e09959dc36e731333f1f829c0cb5e2393e0c', 'docs/reports/go_live/rag_searchability_gap.json': 'b8687cc02340f8eebe33b1e08e4d1fa40e644290f73dbd579a3974969c896129', 'docs/reports/go_live/expected_worktrees.json': '5f04ffa232cf84f4a0246c958ee984b7525b50bfc172e0a1ab6f898848662dcc'} |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 6 |
 | `open_prs_disposition_unknown` | 0 |
@@ -72,7 +72,7 @@
 | `non_pdf_retention_policy_versioned` | True |
 | `non_pdf_retention_reason` | MEASURED |
 | `non_pdf_retention_store_named` | True |
-| `disk_free_bytes` | 38985285632 |
+| `disk_free_bytes` | 38725971968 |
 | `disk_used_percent` | 91 |
 | `disk_policy_ok` | False |
 | `production_db_writes` | 0 |

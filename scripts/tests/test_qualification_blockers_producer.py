@@ -58,12 +58,30 @@ def test_un_verificateur_qui_prouve_ferme(monkeypatch):
 
 
 def test_un_store_absent_ne_ferme_pas(tmp_path, monkeypatch):
-    """Une preuve qui ne peut pas être recalculée n'est pas une preuve."""
+    """Une preuve qui ne peut pas être recalculée n'est pas une preuve.
+
+    L'emplacement est ici DANS la racine canonique : ce que le cas éprouve est
+    bien l'absence, pas le hors-périmètre, qui a son propre cas.
+    """
+    monkeypatch.setenv("NEXUS_NON_PDF_STORE", str(tmp_path / "store"))
     (tmp_path / "docs/reports/go_live").mkdir(parents=True)
     for nom, contenu in (
         (blocages.RECONCILIATION, {"rows": [], "gate_counts": {"NON_PDF_SERVABLE": 0}}),
-        (blocages.MANIFESTE_STORE, {"durable_location": str(tmp_path / "absent"), "sha256sums": []}),
-        (blocages.POLITIQUE, {"adopted": True, "closes_blocker_when": "x"}),
+        (
+            blocages.MANIFESTE_STORE,
+            {"durable_location": str(tmp_path / "store" / "absent"), "sha256sums": []},
+        ),
+        (
+            blocages.POLITIQUE,
+            {
+                "adopted": True,
+                "closes_blocker_when": "x",
+                "durable_store": {
+                    "canonical_root": str(tmp_path / "store"),
+                    "env_override": "NEXUS_NON_PDF_STORE",
+                },
+            },
+        ),
     ):
         (tmp_path / nom).write_text(json.dumps(contenu), encoding="utf-8")
     resultat = blocages.verifier_non_pdf(tmp_path)
@@ -128,3 +146,106 @@ def test_le_compte_ouvert_correspond_aux_blocages(rapport):
     ouverts = [b for b in rapport["blockers"] if not b["closed"]]
     assert rapport["open_count"] == len(ouverts)
     assert rapport["closed_count"] + rapport["open_count"] == len(rapport["blockers"])
+
+
+# --- Le store doit être le CANONIQUE, pas n'importe lequel ----------------
+
+
+def _poser_non_pdf(tmp_path, *, store: Path, taille: int | None = 10,
+                   canonical_root: str = "/backup/rag/non-pdf-reacquired"):
+    (tmp_path / "docs/reports/go_live").mkdir(parents=True, exist_ok=True)
+    store.mkdir(parents=True, exist_ok=True)
+    octets = b"x" * 10
+    (store / "ressource").write_bytes(octets)
+    import hashlib
+
+    empreinte = hashlib.sha256(octets).hexdigest()
+    entree = {"name": "ressource", "sha256": empreinte}
+    if taille is not None:
+        entree["size"] = taille
+    for nom, contenu in (
+        (
+            blocages.RECONCILIATION,
+            {
+                "rows": [{"sha256": empreinte, "counted_in_37": True}],
+                "gate_counts": {"NON_PDF_SERVABLE": 1},
+            },
+        ),
+        (
+            blocages.MANIFESTE_STORE,
+            {"durable_location": str(store), "sha256sums": [entree]},
+        ),
+        (
+            blocages.POLITIQUE,
+            {
+                "adopted": True,
+                "closes_blocker_when": "condition",
+                "does_not_close": [],
+                "durable_store": {
+                    "canonical_root": canonical_root,
+                    "env_override": "NEXUS_NON_PDF_STORE",
+                },
+            },
+        ),
+    ):
+        (tmp_path / nom).write_text(json.dumps(contenu), encoding="utf-8")
+    return empreinte
+
+
+def test_un_store_hors_racine_canonique_ne_ferme_pas(tmp_path, monkeypatch):
+    """La sauvegarde de secours contient les bonnes empreintes — et ne compte pas.
+
+    La politique dit `emergency_is_not_canonical`. Faire confiance au chemin
+    que le manifeste NOMME laisserait fermer le blocage sur elle.
+    """
+    monkeypatch.delenv("NEXUS_NON_PDF_STORE", raising=False)
+    secours = tmp_path / "secours" / "non-pdf-reacquired" / "20260911T155246Z"
+    _poser_non_pdf(tmp_path, store=secours)
+    resultat = blocages.verifier_non_pdf(tmp_path)
+    assert resultat["closed"] is False
+    assert "hors du store canonique" in resultat["why"]
+
+
+def test_une_surcharge_declaree_par_la_politique_est_honoree(tmp_path, monkeypatch):
+    """Le refus doit discriminer : une surcharge légitime doit passer."""
+    store = tmp_path / "ailleurs" / "20260911T155246Z"
+    monkeypatch.setenv("NEXUS_NON_PDF_STORE", str(tmp_path / "ailleurs"))
+    _poser_non_pdf(tmp_path, store=store)
+    assert blocages.verifier_non_pdf(tmp_path)["closed"] is True
+
+
+def test_une_politique_sans_racine_canonique_ne_ferme_pas(tmp_path, monkeypatch):
+    monkeypatch.delenv("NEXUS_NON_PDF_STORE", raising=False)
+    store = tmp_path / "s" / "t"
+    _poser_non_pdf(tmp_path, store=store, canonical_root="")
+    resultat = blocages.verifier_non_pdf(tmp_path)
+    assert resultat["closed"] is False
+    assert "racine de store canonique" in resultat["why"]
+
+
+# --- La taille doit être LUE, pas seulement prétendue ---------------------
+
+
+def test_une_taille_absente_du_manifeste_ne_ferme_pas(tmp_path, monkeypatch):
+    """Ne pas savoir n'est pas vérifier."""
+    monkeypatch.setenv("NEXUS_NON_PDF_STORE", str(tmp_path / "s"))
+    _poser_non_pdf(tmp_path, store=tmp_path / "s" / "t", taille=None)
+    resultat = blocages.verifier_non_pdf(tmp_path)
+    assert resultat["closed"] is False
+    assert "sans taille attendue" in resultat["why"]
+
+
+def test_une_taille_discordante_ne_ferme_pas(tmp_path, monkeypatch):
+    """Le contrôle lisait `bytes` quand le champ s'appelle `size` : il était
+    inerte, et la preuve affirmait pourtant que les tailles étaient comparées."""
+    monkeypatch.setenv("NEXUS_NON_PDF_STORE", str(tmp_path / "s"))
+    _poser_non_pdf(tmp_path, store=tmp_path / "s" / "t", taille=999999)
+    resultat = blocages.verifier_non_pdf(tmp_path)
+    assert resultat["closed"] is False
+    assert "tailles discordantes" in resultat["why"]
+
+
+def test_la_preuve_nomme_la_racine_et_le_nombre_de_tailles_comparees(rapport):
+    bloc = next(b for b in rapport["blockers"] if b["id"] == "NON_PDF_REACQUISITION")
+    assert bloc["proof"]["canonical_root"]
+    assert bloc["proof"]["sizes_compared"] == 37
