@@ -8,9 +8,9 @@ l'audit d'ingestion, qui a interrogé une base nommée.
 
 - texte canonique en préparation : **2473**
 - contenus ingérés : **2473**
-- **vecteurs présents : 0**
-- colonnes vectorielles : 0
-- extension vectorielle : False
+- **vecteurs présents : 54719**
+- colonnes vectorielles : 1
+- extension vectorielle : True
 - périmètre cible : **2264**
 
 ## Ce qui n'est pas mesuré
@@ -37,8 +37,8 @@ nomme cette raison.
 
 | condition | tenue |
 | --- | :---: |
-| `staging_vectors_present` | **non** |
-| `vector_dimensions_consistent` | **non** |
+| `staging_vectors_present` | oui |
+| `vector_dimensions_consistent` | oui |
 | `retrieval_top_k_validated` | **non** |
 | `citations_validated` | **non** |
 | `scope_filters_validated` | **non** |

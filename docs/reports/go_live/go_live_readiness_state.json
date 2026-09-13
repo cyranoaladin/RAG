@@ -5,15 +5,16 @@
   "pii_undecided",
   "release_promoted_refused_contents",
   "rag_searchability_blocker",
-  "open_prs_blocking"
+  "open_prs_blocking",
+  "disk_policy_ok"
  ],
  "current_switch": 0,
  "currentness_policy_applied": true,
- "disk_free_bytes": 102314307584,
- "disk_policy_ok": true,
- "disk_used_percent": 84,
- "evaluated_head": "e0eb928a9cba1c637d04da254edb881bf076e3b8",
- "evaluated_ref": "go-live/disk-cleanup-result",
+ "disk_free_bytes": 40517234688,
+ "disk_policy_ok": false,
+ "disk_used_percent": 91,
+ "evaluated_head": "a90cf1ec3a19cec8b02e14d96eff7e02d85ebc82",
+ "evaluated_ref": "bj-campaign",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_qualification_blocker_ids": [
   "C1",
@@ -38,12 +39,12 @@
   "docs/reports/go_live/non_pdf_retention_policy.json": "1b400ecc48f72c9b2ec6d6b1f6ec68d82f22dbcbd726a5ef69c5379c3fe41017",
   "docs/reports/go_live/open_pr_dispositions.json": "efef74ad48083d28f9cbf81c951d256091d0fa67aa294179f3ed64bf72126217",
   "docs/reports/go_live/qualification_blockers.json": "71d6ba9e6be889d78c0d979ef30da195788721d150a78135bf4c3390a8f9ecc6",
-  "docs/reports/go_live/rag_searchability_gap.json": "e77aaaf648ef1eb2013ac1ca68826180b13f7e325c545881b86f2df4fccedd4b",
+  "docs/reports/go_live/rag_searchability_gap.json": "537747c88c220517e093491edff46c643d2bbb1b4db012c6f877fa1426673bac",
   "docs/reports/handoff/servability_matrix_v1.json": "56a4bcb7ad3c49d18127f3201f209a521c824fad2c938e001205675a418e980a",
   "services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml": "4226aba5cd13d60558d049df73d4df06554bc1a6d603111d02de166f1db17c29"
  },
  "kind": "NEXUS-GO-LIVE-READINESS-STATE-V1",
- "main_head": "cf5108c50fcc8c73a9af51b9b5ef67e22acdb83e",
+ "main_head": "a90cf1ec3a19cec8b02e14d96eff7e02d85ebc82",
  "non_pdf_retention_policy_versioned": true,
  "non_pdf_retention_reason": "MEASURED",
  "non_pdf_retention_store_named": true,
@@ -63,7 +64,7 @@
  ],
  "open_prs_disposition_unknown": 0,
  "open_prs_total": 10,
- "origin_main_at_generation": "cf5108c50fcc8c73a9af51b9b5ef67e22acdb83e",
+ "origin_main_at_generation": "a90cf1ec3a19cec8b02e14d96eff7e02d85ebc82",
  "pii_undecided": 149,
  "pre_release_blocker_ids": [
   "PII_UNDECIDED=149"
@@ -89,9 +90,7 @@
   "retrieval_top_k_validated",
   "rollback_validated",
   "scope_filters_validated",
-  "staging_vectors_present",
-  "target_scope_searchable",
-  "vector_dimensions_consistent"
+  "target_scope_searchable"
  ],
  "rag_searchable": false,
  "release_currentness_impact": [
@@ -143,7 +142,7 @@
  "snapshot_contains_self_commit": false,
  "snapshot_freshness_note": "Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct.",
  "snapshot_is_operational_current": false,
- "staging_vectors_present": 0,
+ "staging_vectors_present": 54719,
  "state_freshness_kind": "COMMITTED_SNAPSHOT",
  "target_scope_searchable": false,
  "worktrees_total": 3

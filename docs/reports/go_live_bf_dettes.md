@@ -99,3 +99,30 @@ garde-fou de fraîcheur du snapshot livré en #195.
 **Traité dans ce lot** pour le seul fichier concerné
 (`test_readiness_artifacts_coherence.py`), désormais exécuté par
 `repository controls`. Le reste de la suite reste hors CI : dette ouverte.
+
+## 4. Le plancher disque est de nouveau franchi, cette fois par ce chantier
+
+**Constat.** `disk_policy_ok=false`, 37,74 Gio libres contre un plancher de
+40 Gio. Les quatre épreuves de `test_go_live_readiness.py` qui attendent
+`go_live_ready=true` sur une fixture close échouent pour cette seule raison,
+comme au lot BF : `disk_policy_ok` est le seul élément en trop.
+
+**Cause, et elle est de ce chantier cette fois.** La campagne a rapatrié un
+miroir Drive en lecture seule (1,7 Go) et dupliqué l'artefact de modèle (9 Go)
+parce que l'artefact existant échouait la vérification canonique — son
+inventaire omettait `manifest.json`.
+
+**Ce qui a été rendu.** La copie de l'artefact a été ramenée de 9 Go à 2,2 Go
+en retirant les variantes `onnx`, `openvino` et `pytorch_model.bin`, que
+`sentence-transformers` n'utilise pas : il charge `model.safetensors`.
+L'inventaire a été régénéré selon la règle canonique et l'artefact passe
+toujours `verify_embedding_artifact`. **6,8 Go rendus.** L'artefact d'origine
+n'a pas été touché.
+
+**Ce qui n'a pas été touché, et pourquoi.** Le miroir Drive (1,7 Go) reste
+nécessaire pour rejouer le re-découpage. Les 86 Go d'images Docker
+récupérables appartiennent à d'autres chantiers de la machine : leur cycle de
+vie ne se décide pas depuis ce dépôt.
+
+**Fermeture.** Libérer environ 2,3 Gio de plus, ou décider que le plancher de
+40 Gio n'est pas le bon — mais alors par un changement assumé du gate.

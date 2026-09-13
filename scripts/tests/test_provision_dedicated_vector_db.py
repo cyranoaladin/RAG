@@ -269,9 +269,16 @@ def test_un_retour_arriere_est_nomme(rapport):
 
 
 def test_le_go_live_reste_refuse():
-    """Provisionner une base ne rend rien servable."""
+    """Provisionner une base ne rend rien servable.
+
+    L'épreuve portait aussi `staging_vectors_present == 0`. C'était vrai à
+    l'instant du provisionnement, et c'est devenu faux dès que la phase A a
+    produit des vecteurs — sans que la CLAIM de cette épreuve change. Un
+    compteur qui bouge légitimement n'a pas sa place dans une épreuve qui
+    parle d'autre chose : ce qu'elle doit tenir, c'est que provisionner ne
+    rend rien interrogeable.
+    """
     etat = json.loads(READINESS.read_text(encoding="utf-8"))
     assert etat["go_live_ready"] is False
     assert etat["rag_searchability_blocker"] is True
     assert etat["target_scope_searchable"] is False
-    assert etat["staging_vectors_present"] == 0

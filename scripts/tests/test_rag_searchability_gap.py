@@ -26,7 +26,16 @@ def _poser(
     vector_extension: bool = False,
     ingested: int = 2473,
     target: int = 2529,
+    vectorized_contents: int | None = None,
+    dimensions_consistent: bool | None = None,
 ) -> Path:
+    """Pose les entrées de l'écart.
+
+    `searchable_contents` désigne désormais les VECTEURS de la base dédiée, et
+    `vectorized_contents` les CONTENUS qu'ils couvrent. Les deux étaient
+    confondus tant que la mesure venait de la base de revue, où il n'y avait
+    ni l'un ni l'autre.
+    """
     racine = tmp_path / "depot"
     (racine / "docs/reports/go_live").mkdir(parents=True)
     (racine / gap.AUDIT).write_text(
@@ -45,6 +54,34 @@ def _poser(
     )
     (racine / gap.INVENTAIRE).write_text(
         json.dumps({"pedagogical_scope": {"contenus": target}}), encoding="utf-8"
+    )
+    # Les vecteurs vivent dans la base DÉDIÉE : l'écart les y mesure, et refuse
+    # de conclure si cette mesure manque plutôt que de retomber sur la revue.
+    couverts = (
+        vectorized_contents
+        if vectorized_contents is not None
+        else searchable_contents
+    )
+    coherentes = (
+        dimensions_consistent
+        if dimensions_consistent is not None
+        else bool(vector_extension and searchable_contents)
+    )
+    (racine / gap.MAGASIN_VECTEURS).write_text(
+        json.dumps(
+            {
+                "staging_vectors_present": searchable_contents,
+                "vector_dimensions_consistent": coherentes,
+                "review_db_intact": True,
+                "pgvector_installed_in_review_db": False,
+                "dedicated": {
+                    "source": {"host": "h", "port": 2, "dbname": "dediee"},
+                    "vector_extension": vector_extension,
+                    "vectorized_contents": couverts,
+                },
+            }
+        ),
+        encoding="utf-8",
     )
     # La matrice est nécessaire : le périmètre indexable s'en déduit. Par
     # défaut, autant de contenus candidats que le périmètre visé.
