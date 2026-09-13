@@ -28,6 +28,7 @@ def _poser(
     target: int = 2529,
     vectorized_contents: int | None = None,
     dimensions_consistent: bool | None = None,
+    retrieval: dict | None = None,
 ) -> Path:
     """Pose les entrées de l'écart.
 
@@ -66,6 +67,19 @@ def _poser(
         dimensions_consistent
         if dimensions_consistent is not None
         else bool(vector_extension and searchable_contents)
+    )
+    # Les propriétés du retrieval sont MESURÉES ailleurs. Par défaut aucune
+    # n'est tenue : c'est l'état d'un index que personne n'a encore interrogé.
+    conditions = {
+        "retrieval_top_k_validated": False,
+        "citations_validated": False,
+        "scope_filters_validated": False,
+        "latency_validated": False,
+        "rollback_validated": False,
+    }
+    conditions.update(retrieval or {})
+    (racine / gap.VALIDATION_RETRIEVAL).write_text(
+        json.dumps({"conditions": conditions}), encoding="utf-8"
     )
     (racine / gap.MAGASIN_VECTEURS).write_text(
         json.dumps(

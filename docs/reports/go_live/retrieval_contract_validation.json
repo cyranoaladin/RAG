@@ -1,0 +1,62 @@
+{
+  "conditions": {
+    "citations_validated": true,
+    "gate_refused_absent_from_results": true,
+    "latency_validated": false,
+    "out_of_scope_query_stays_in_allowlist": true,
+    "retrieval_top_k_validated": true,
+    "rollback_validated": true,
+    "scope_filters_validated": true
+  },
+  "index": {
+    "dbname": "nexus_vector_staging_a_20260912T060731Z",
+    "host": "127.0.0.1",
+    "port": 55436,
+    "vector_rows": 54719,
+    "vectorized_contents": 2242
+  },
+  "kind": "NEXUS-RETRIEVAL-CONTRACT-VALIDATION-V1",
+  "latency": {
+    "budget_ms": null,
+    "p50_ms": 193.9,
+    "p95_ms": 197.6,
+    "why_not_validated": "le dépôt n'épingle aucun budget de latence : `retrieval_evaluation` porte un champ `latency_ms_p95` mais aucun seuil. Mesurer sans cible ne valide rien, donc `latency_validated` reste faux jusqu'à ce qu'un budget soit décidé."
+  },
+  "measured": {
+    "duplicate_results": 0,
+    "empty_result_queries": [],
+    "gate_refused_results": 0,
+    "queries": 8,
+    "results_outside_allowlist": 0,
+    "results_without_citation": 0
+  },
+  "out_of_scope_query": {
+    "note": "un index vectoriel rend toujours un plus proche voisin : l'exigence n'est pas qu'il refuse, mais qu'il ne sorte pas du périmètre autorisé",
+    "outside_allowlist": 0,
+    "query": "recette de la tarte tatin et cuisson du caramel",
+    "results": 10
+  },
+  "production_touched": false,
+  "review_db_read": false,
+  "review_db_written": false,
+  "rollback": {
+    "dedicated_index_untouched_rows": 54719,
+    "how": "un conteneur jumeau jetable est créé, la procédure documentée lui est appliquée, puis on vérifie qu'il a disparu — conteneur ET volume — et que l'index dédié est intact. L'index en place n'est jamais supprimé pour prouver qu'on saurait le supprimer.",
+    "proven": true,
+    "twin_existed_before": true,
+    "twin_removed": true,
+    "twin_volume_existed_before": true,
+    "twin_volume_removed": true
+  },
+  "scope_filters": {
+    "filtered_queries": 8,
+    "metadata_rows": 2697,
+    "results_off_filter": 0
+  },
+  "top_k": 10,
+  "what_this_does_not_prove": [
+    "ne prouve rien sur la production : aucune base de production n'a été interrogée",
+    "ne valide pas la qualité pédagogique des réponses, seulement les propriétés du contrat",
+    "ne rend pas le go-live prêt"
+  ]
+}

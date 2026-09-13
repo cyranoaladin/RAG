@@ -1,21 +1,17 @@
 {
   "blocker_id": "RAG_SEARCHABILITY",
   "closing_conditions": {
-    "citations_validated": false,
+    "citations_validated": true,
     "latency_validated": false,
-    "retrieval_top_k_validated": false,
-    "rollback_validated": false,
-    "scope_filters_validated": false,
+    "retrieval_top_k_validated": true,
+    "rollback_validated": true,
+    "scope_filters_validated": true,
     "staging_vectors_present": true,
     "target_scope_searchable": false,
     "vector_dimensions_consistent": true
   },
   "conditions_not_met": [
-    "citations_validated",
     "latency_validated",
-    "retrieval_top_k_validated",
-    "rollback_validated",
-    "scope_filters_validated",
     "target_scope_searchable"
   ],
   "indexable_scope": {
@@ -2590,7 +2586,7 @@
   "production_searchable": false,
   "rag_searchability_blocker": true,
   "rag_searchable": false,
-  "retrieval_contract_validated": false,
+  "retrieval_contract_validated": true,
   "target_scope_searchable": false,
   "what_would_be_wrong_to_say": [
     "RAG fully ingested : le texte est stocké, pas indexé",
