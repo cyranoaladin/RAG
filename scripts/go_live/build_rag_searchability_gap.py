@@ -32,6 +32,11 @@ AUDIT = "docs/reports/go_live/ingestion_audit.json"
 #: la seconde rendait zero apres une vectorisation reussie et faisait conclure
 #: qu elle n avait rien produit. Deux bases, deux faits, deux sources.
 MAGASIN_VECTEURS = "docs/reports/go_live/vector_store_audit.json"
+#: Les proprietes du retrieval sont MESUREES ailleurs et lues ici. Les poser
+#: en dur a false etait juste tant que rien n avait ete eprouve ; ca devient
+#: faux des qu une validation existe, et un ecart qui ignore une preuve n est
+#: pas plus honnete qu un ecart qui en invente une.
+VALIDATION_RETRIEVAL = "docs/reports/go_live/retrieval_contract_validation.json"
 INVENTAIRE = "docs/reports/go_live/drive_corpus_inventory.json"
 MATRICE = "docs/reports/handoff/servability_matrix_v1.json"
 
@@ -92,6 +97,7 @@ def construire(racine: Path) -> dict:
     # Entree OBLIGATOIRE : sans elle on ne sait pas ou sont les vecteurs, et
     # retomber sur la base de revue serait exactement l erreur a corriger.
     magasin = _lire(racine, MAGASIN_VECTEURS)
+    retrieval = _lire(racine, VALIDATION_RETRIEVAL)["conditions"]
 
     colonnes = 1 if magasin["staging_vectors_present"] else 0
     extension = bool(magasin["dedicated"]["vector_extension"])
@@ -124,11 +130,11 @@ def construire(racine: Path) -> dict:
     conditions = {
         "staging_vectors_present": vecteurs > 0,
         "vector_dimensions_consistent": bool(magasin["vector_dimensions_consistent"]),
-        "retrieval_top_k_validated": False,
-        "citations_validated": False,
-        "scope_filters_validated": False,
-        "latency_validated": False,
-        "rollback_validated": False,
+        "retrieval_top_k_validated": bool(retrieval["retrieval_top_k_validated"]),
+        "citations_validated": bool(retrieval["citations_validated"]),
+        "scope_filters_validated": bool(retrieval["scope_filters_validated"]),
+        "latency_validated": bool(retrieval["latency_validated"]),
+        "rollback_validated": bool(retrieval["rollback_validated"]),
         # La cible se juge en CONTENUS couverts, pas en nombre de vecteurs :
         # 54 719 vecteurs sur 3 contenus ne rendraient pas le perimetre
         # interrogeable, et comparer un compte de vecteurs a un compte de

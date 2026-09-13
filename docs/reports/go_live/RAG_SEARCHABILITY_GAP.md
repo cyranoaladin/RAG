@@ -39,11 +39,11 @@ nomme cette raison.
 | --- | :---: |
 | `staging_vectors_present` | oui |
 | `vector_dimensions_consistent` | oui |
-| `retrieval_top_k_validated` | **non** |
-| `citations_validated` | **non** |
-| `scope_filters_validated` | **non** |
+| `retrieval_top_k_validated` | oui |
+| `citations_validated` | oui |
+| `scope_filters_validated` | oui |
 | `latency_validated` | **non** |
-| `rollback_validated` | **non** |
+| `rollback_validated` | oui |
 | `target_scope_searchable` | **non** |
 
 Aucune ne suffit seule. Des vecteurs sans retrieval validé ne servent
