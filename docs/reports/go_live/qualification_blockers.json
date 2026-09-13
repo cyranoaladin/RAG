@@ -1,19 +1,137 @@
 {
-  "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V1",
-  "note": "Fermer les bloqueurs de pre-release ne suffit PAS a deployer. Ces treize-la sont les gates de qualification et de deploiement, tenus separement pour qu on ne confonde pas les deux.",
   "blockers": [
-    {"id": "C1", "titre": "Autorite de release et couverture promue", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "C2", "titre": "Ingestion multilevel reelle bout en bout", "owner": "session H2-C externe", "closed": false, "proof": null},
-    {"id": "C3", "titre": "Worker CLI multilevel bout en bout", "owner": "session H2-C externe", "closed": false, "proof": null},
-    {"id": "C4", "titre": "Contrat de retrieval sur corpus servable", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "C5", "titre": "Autorite d acces et portees", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "C6", "titre": "Qualification CAS et couverture de magasin", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "COCKPIT_E2E", "titre": "Cockpit bout en bout contre l API de retrieval", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "STAGING_EXTERNE", "titre": "Staging externe ingere et qualifie", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "CONCURRENCE", "titre": "Comportement sous concurrence", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "SYNC_INCREMENTALE", "titre": "Synchronisation incrementale", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "ROLLBACK", "titre": "Mecanisme de rollback eprouve", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "MANIFESTE_PRODUCTION", "titre": "Manifeste de readiness de production signe", "owner": "operateur", "closed": false, "proof": null},
-    {"id": "NON_PDF_REACQUISITION", "titre": "Reacquisition des 37 ressources interactives servables", "owner": "operateur", "closed": false, "proof": null}
-  ]
+    {
+      "closed": false,
+      "closing_condition": "une release gouvernée couvre l ensemble promu, sans contenu refusé",
+      "id": "C1",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Autorite de release et couverture promue",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "une ingestion multilevel réelle aboutit et est rejouable",
+      "id": "C2",
+      "owner": "session H2-C externe",
+      "proof": null,
+      "titre": "Ingestion multilevel reelle bout en bout",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "le worker CLI traite un lot multilevel de bout en bout",
+      "id": "C3",
+      "owner": "session H2-C externe",
+      "proof": null,
+      "titre": "Worker CLI multilevel bout en bout",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues",
+      "id": "C4",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Contrat de retrieval sur corpus servable",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "l autorité d accès refuse une portée non autorisée, prouvé par épreuve",
+      "id": "C5",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Autorite d acces et portees",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "la qualification CAS couvre le magasin réel",
+      "id": "C6",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Qualification CAS et couverture de magasin",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "le cockpit interroge l API de retrieval de bout en bout",
+      "id": "COCKPIT_E2E",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Cockpit bout en bout contre l API de retrieval",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "un staging externe est ingéré puis qualifié",
+      "id": "STAGING_EXTERNE",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Staging externe ingere et qualifie",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "le comportement sous concurrence est mesuré et borné",
+      "id": "CONCURRENCE",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Comportement sous concurrence",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "une synchronisation incrémentale est prouvée sans perte ni doublon",
+      "id": "SYNC_INCREMENTALE",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Synchronisation incrementale",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "le rollback de la RELEASE de production est éprouvé. Le rollback de la base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : ce ne sont pas les mêmes objets",
+      "id": "ROLLBACK",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Mecanisme de rollback eprouve",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": false,
+      "closing_condition": "un manifeste de readiness de production est signé",
+      "id": "MANIFESTE_PRODUCTION",
+      "owner": "operateur",
+      "proof": null,
+      "titre": "Manifeste de readiness de production signe",
+      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+    },
+    {
+      "closed": true,
+      "closing_condition": "les 37 ressources servables sont présentes au store durable canonique, taille et SHA-256 conformes",
+      "id": "NON_PDF_REACQUISITION",
+      "owner": "operateur",
+      "proof": {
+        "condition": "les 37 ressources servables sont presentes au store durable canonique, taille et SHA-256 conformes",
+        "does_not_close": [
+          "la revue PII",
+          "l'adoption de la politique d'actualite",
+          "les bloqueurs de qualification",
+          "le go-live lui-meme"
+        ],
+        "durable_store": "/backup/rag/non-pdf-reacquired/20260911T155246Z",
+        "servable_resources_expected": 37,
+        "servable_resources_verified": 37,
+        "verification": "empreinte sha256 RECALCULÉE sur les octets présents, comparée ligne à ligne à la réconciliation ; les tailles sont comparées au manifeste"
+      },
+      "titre": "Reacquisition des 37 ressources interactives servables",
+      "why_still_open": null
+    }
+  ],
+  "closed_count": 1,
+  "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
+  "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
+  "open_count": 12
 }
