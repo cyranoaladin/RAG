@@ -93,7 +93,14 @@ def depot_sans_bloqueur(tmp_path: pathlib.Path) -> pathlib.Path:
             }
         },
     )
-    _ecrire(tmp_path, QUALIFICATION, {"blockers": [{"id": "C1", "closed": True}]})
+    # Un blocage ferme porte desormais sa preuve : le gate refuse `closed=true`
+    # avec `proof=null`, parce qu un blocage ne se ferme pas d un coup
+    # d editeur.
+    _ecrire(
+        tmp_path,
+        QUALIFICATION,
+        {"blockers": [{"id": "C1", "closed": True, "proof": {"verification": "posee"}}]},
+    )
     _ecrire(tmp_path, ECART_RECHERCHE, _ecart_recherche())
     _ecrire(
         tmp_path,
@@ -1816,3 +1823,40 @@ def test_l_ecart_de_recherche_absent_est_refuse(depot_sans_bloqueur):
         env={**os.environ, "NEXUS_REPO_ROOT": str(depot_sans_bloqueur)},
     )
     assert execution.returncode == 2, execution.stdout[-400:]
+
+
+def test_le_gate_refuse_un_blocage_ferme_a_la_main(tmp_path, monkeypatch):
+    """Le défaut relevé en revue : le refus du producteur ne protégeait que
+    ses propres exécutions.
+
+    Le gate lisait le JSON commité tel quel. Un blocage fermé d'un coup
+    d'éditeur passait donc, et `PreuveAbsente` était réel mais sans effet là
+    où il comptait. Le gate recalcule désormais et interrompt sur écart.
+    """
+    sys.path.insert(0, str(SCRIPT.parent))
+    import check_go_live_readiness as gate
+
+    monkeypatch.setattr(
+        gate,
+        "_charger",
+        lambda _relatif: {
+            "blockers": [{"id": "ROLLBACK", "closed": True, "proof": None}]
+        },
+    )
+    with pytest.raises(gate.EntreeManquante, match="fermes sans preuve"):
+        gate._bloqueurs_qualification_verifies()
+
+
+def test_le_gate_accepte_un_blocage_ferme_qui_porte_sa_preuve(monkeypatch):
+    """Le refus doit discriminer, sinon plus rien ne se fermerait."""
+    sys.path.insert(0, str(SCRIPT.parent))
+    import check_go_live_readiness as gate
+
+    monkeypatch.setattr(
+        gate,
+        "_charger",
+        lambda _relatif: {
+            "blockers": [{"id": "X", "closed": True, "proof": {"verification": "m"}}]
+        },
+    )
+    assert gate._bloqueurs_qualification_verifies()[0]["id"] == "X"

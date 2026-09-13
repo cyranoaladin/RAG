@@ -623,6 +623,33 @@ ENTREES_VERSIONNEES = (
 )
 
 
+def _bloqueurs_qualification_verifies() -> list[dict[str, Any]]:
+    """Refuse tout blocage ferme sans preuve, au niveau du GATE.
+
+    Le producteur refusait deja `closed=true` avec `proof=null` — mais ce refus
+    ne protegeait que ses propres executions. Le gate, lui, lisait le JSON
+    commite tel quel : un blocage ferme d un coup d editeur passait. Le refus
+    etait reel et sans effet la ou il comptait.
+
+    Ce controle-ci est volontairement etroit : il verifie l integrite de
+    l artefact, pas la validite de chaque preuve. Faire recalculer au gate la
+    liste canonique entiere rendrait ses propres fixtures insatisfiables — une
+    fixture ne pourrait plus poser un corpus ou tout est ferme. La verification
+    COMPLETE, qui recalcule contre les preuves reelles, vit dans le garde-fou
+    de coherence que la CI execute.
+    """
+    bloqueurs = _charger(BLOQUEURS_QUALIFICATION)["blockers"]
+    sans_preuve = [
+        b["id"] for b in bloqueurs if b.get("closed") and not b.get("proof")
+    ]
+    if sans_preuve:
+        raise EntreeManquante(
+            f"blocages fermes sans preuve : {sorted(sans_preuve)}. Un blocage "
+            "ne se ferme pas d un coup d editeur."
+        )
+    return bloqueurs
+
+
 def _empreintes_des_entrees() -> dict[str, str]:
     """Empreinte de chaque entree, ou ABSENT.
 
@@ -777,7 +804,7 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
     # atteignable, et ne pas savoir n est pas une autorisation.
     ecart_recherche = _charger(ECART_RECHERCHE)
     dispositions = _charger(DISPOSITIONS_PR)["dispositions"]
-    qualification = _charger(BLOQUEURS_QUALIFICATION)["blockers"]
+    qualification = _bloqueurs_qualification_verifies()
 
     par_verdict = matrice["by_verdict"]
     matrice_par_contenu = {
