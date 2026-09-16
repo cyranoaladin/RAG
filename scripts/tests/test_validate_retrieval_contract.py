@@ -100,10 +100,33 @@ def test_le_module_ne_touche_pas_la_base_de_revue():
 
 
 def test_la_latence_n_est_jamais_validee_sans_budget():
-    """Un chiffre sans seuil ne valide rien."""
+    """Un chiffre sans seuil ne valide rien : fail-closed sans budget."""
+    valide, etat = vr.evaluer_latence([10.0, 20.0], None)
+    assert valide is False
+    assert etat["budget_ms"] is None
+    assert "aucun budget de latence" in etat["why_not_validated"]
     source = Path(vr.__file__).read_text(encoding="utf-8")
-    assert '"latency_validated": False' in source
-    assert "aucun budget de latence" in source
+    assert "BUDGET_LATENCE" in source
+
+
+def test_evaluer_latence_refuse_si_seuil_depasse():
+    """Un dépassement de p50 ou p95 refuse la validation."""
+    politique = {"adopted": True, "budget": {"p50_ms_max": 200.0, "p95_ms_max": 250.0, "errors_max": 0, "timeouts_max": 0}}
+    valide, etat = vr.evaluer_latence([300.0, 400.0], politique)
+    assert valide is False
+    assert "dépassement" in etat["why_not_validated"]
+
+
+def test_evaluer_latence_refuse_si_timeout_ou_erreur_depasse():
+    """Un timeout ou une erreur au-delà du max refuse la validation."""
+    politique = {"adopted": True, "budget": {"p50_ms_max": 200.0, "p95_ms_max": 250.0, "errors_max": 0, "timeouts_max": 0}}
+    valide, etat = vr.evaluer_latence([100.0, 150.0], politique, timeouts_count=1)
+    assert valide is False
+    assert "timeouts=1/0" in etat["why_not_validated"]
+
+    valide, etat = vr.evaluer_latence([100.0, 150.0], politique, empty_queries_count=1)
+    assert valide is False
+    assert "erreurs=1/0" in etat["why_not_validated"]
 
 
 def test_le_retour_arriere_n_est_pas_un_drapeau_de_l_appelant():
@@ -167,11 +190,13 @@ def test_les_filtres_de_portee_filtrent_reellement(rapport):
     assert rapport["scope_filters"]["filtered_queries"] == rapport["measured"]["queries"]
 
 
-def test_la_latence_est_mesuree_mais_pas_validee(rapport):
+def test_la_latence_est_validee_sous_budget_adopte(rapport):
     assert rapport["latency"]["p50_ms"] > 0
     assert rapport["latency"]["p95_ms"] > 0
-    assert rapport["latency"]["budget_ms"] is None
-    assert rapport["conditions"]["latency_validated"] is False
+    assert rapport["latency"]["budget_ms"] == 250.0
+    assert rapport["latency"]["p50_ms"] <= 200.0
+    assert rapport["latency"]["p95_ms"] <= 250.0
+    assert rapport["conditions"]["latency_validated"] is True
 
 
 def test_le_retour_arriere_a_ete_reellement_execute(rapport):
@@ -208,6 +233,5 @@ def test_le_blocage_de_recherche_reste_ouvert_sur_ce_qui_manque():
     ecart = json.loads(ECART.read_text(encoding="utf-8"))
     assert ecart["rag_searchability_blocker"] is True
     assert set(ecart["conditions_not_met"]) == {
-        "latency_validated",
         "target_scope_searchable",
     }

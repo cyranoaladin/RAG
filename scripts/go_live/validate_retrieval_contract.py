@@ -31,6 +31,7 @@ KIND = "NEXUS-RETRIEVAL-CONTRACT-VALIDATION-V1"
 SORTIE_JSON = "docs/reports/go_live/retrieval_contract_validation.json"
 SORTIE_MD = "docs/reports/go_live/RETRIEVAL_CONTRACT_VALIDATION.md"
 ECART = "docs/reports/go_live/rag_searchability_gap.json"
+BUDGET_LATENCE = "docs/reports/go_live/retrieval_latency_budget.json"
 
 VAR_DEDIEE = "DEDICATED_VECTOR_DB_URL"
 VAR_ARTEFACTS = "RAG_MODEL_ARTIFACTS_DIR"
@@ -300,6 +301,95 @@ def evaluer(resultats_par_requete: list[dict], autorises: set[str], refuses: set
     }
 
 
+def charger_budget_latence(racine: Path) -> dict | None:
+    """Charge la politique de budget de latence adoptée, ou rend None."""
+    chemin = racine / BUDGET_LATENCE
+    if not chemin.is_file():
+        return None
+    try:
+        politique = json.loads(chemin.read_text(encoding="utf-8"))
+        if politique.get("adopted") and "budget" in politique:
+            return politique
+    except (json.JSONDecodeError, OSError):
+        return None
+    return None
+
+
+def evaluer_latence(
+    latences: list[float],
+    politique_budget: dict | None,
+    empty_queries_count: int = 0,
+    timeouts_count: int = 0,
+) -> tuple[bool, dict]:
+    """Évalue la latence mesurée contre le budget de latence staging.
+
+    Fail-closed : sans budget de latence adopté ou si un seuil est dépassé,
+    latency_validated reste False.
+    """
+    if not latences:
+        return False, {
+            "p50_ms": 0.0,
+            "p95_ms": 0.0,
+            "budget_ms": None,
+            "why_not_validated": "aucune mesure de latence disponible : latency_validated reste faux",
+        }
+    p50 = round(statistics.median(latences), 1)
+    p95 = round(sorted(latences)[max(0, int(0.95 * len(latences)) - 1)], 1)
+
+    if not politique_budget or not politique_budget.get("adopted") or "budget" not in politique_budget:
+        return False, {
+            "p50_ms": p50,
+            "p95_ms": p95,
+            "budget_ms": None,
+            "why_not_validated": (
+                "le dépôt n'épingle aucun budget de latence : "
+                f"`{BUDGET_LATENCE}` est absent ou non adopté. "
+                "Mesurer sans cible ne valide rien, donc `latency_validated` reste faux."
+            ),
+        }
+
+    budget_cfg = politique_budget["budget"]
+    p50_max = float(budget_cfg["p50_ms_max"])
+    p95_max = float(budget_cfg["p95_ms_max"])
+    errors_max = int(budget_cfg.get("errors_max", 0))
+    timeouts_max = int(budget_cfg.get("timeouts_max", 0))
+
+    conforme = (
+        p50 <= p50_max
+        and p95 <= p95_max
+        and empty_queries_count <= errors_max
+        and timeouts_count <= timeouts_max
+    )
+    if conforme:
+        motif = (
+            f"validé contre le budget de latence staging adopté ({BUDGET_LATENCE}) : "
+            f"p50={p50} ms <= {p50_max} ms, p95={p95} ms <= {p95_max} ms, "
+            f"0 timeout, 0 erreur"
+        )
+    else:
+        raisons = []
+        if p50 > p50_max:
+            raisons.append(f"p50={p50}/{p50_max} ms")
+        if p95 > p95_max:
+            raisons.append(f"p95={p95}/{p95_max} ms")
+        if empty_queries_count > errors_max:
+            raisons.append(f"erreurs={empty_queries_count}/{errors_max}")
+        if timeouts_count > timeouts_max:
+            raisons.append(f"timeouts={timeouts_count}/{timeouts_max}")
+        motif = (
+            "dépassement du budget de latence staging : "
+            + ", ".join(raisons)
+        )
+
+    return conforme, {
+        "p50_ms": p50,
+        "p95_ms": p95,
+        "budget_ms": p95_max,
+        "budget": budget_cfg,
+        "why_not_validated": motif,
+    }
+
+
 def rendre_markdown(etat: dict) -> str:
     c = etat["conditions"]
     lignes = [
@@ -427,8 +517,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
             autorises,
             refuses,
         )
-        p50 = round(statistics.median(latences), 1)
-        p95 = round(sorted(latences)[max(0, int(0.95 * len(latences)) - 1)], 1)
+        politique_budget = charger_budget_latence(racine)
+        latence_validee, latence_etat = evaluer_latence(
+            latences, politique_budget, len(mesures["empty_result_queries"])
+        )
 
         conditions = {
             "retrieval_top_k_validated": (
@@ -445,9 +537,8 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
                 and mesures_hors["gate_refused_results"] == 0
             ),
             "gate_refused_absent_from_results": mesures["gate_refused_results"] == 0,
-            # Mesurée, jamais validée : le dépôt n'épingle aucun budget p95.
-            # Un chiffre sans seuil ne valide rien.
-            "latency_validated": False,
+            # Condition validée ssi le budget adopté est respecté (fail-closed sans budget)
+            "latency_validated": latence_validee,
             # Éprouvé PAR CE SCRIPT, sur un conteneur jetable équivalent.
             "rollback_validated": retour_arriere["proven"],
         }
@@ -479,18 +570,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
                 "results_off_filter": hors_filtre,
                 "metadata_rows": lignes_meta,
             },
-            "latency": {
-                "p50_ms": p50,
-                "p95_ms": p95,
-                "budget_ms": None,
-                "why_not_validated": (
-                    "le dépôt n'épingle aucun budget de latence : "
-                    "`retrieval_evaluation` porte un champ `latency_ms_p95` mais "
-                    "aucun seuil. Mesurer sans cible ne valide rien, donc "
-                    "`latency_validated` reste faux jusqu'à ce qu'un budget soit "
-                    "décidé."
-                ),
-            },
+            "latency": latence_etat,
             "rollback": retour_arriere,
             "review_db_read": False,
             "review_db_written": False,

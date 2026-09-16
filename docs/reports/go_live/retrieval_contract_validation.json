@@ -2,7 +2,7 @@
   "conditions": {
     "citations_validated": true,
     "gate_refused_absent_from_results": true,
-    "latency_validated": false,
+    "latency_validated": true,
     "out_of_scope_query_stays_in_allowlist": true,
     "retrieval_top_k_validated": true,
     "rollback_validated": true,
@@ -17,10 +17,16 @@
   },
   "kind": "NEXUS-RETRIEVAL-CONTRACT-VALIDATION-V1",
   "latency": {
-    "budget_ms": null,
+    "budget": {
+      "errors_max": 0,
+      "p50_ms_max": 200.0,
+      "p95_ms_max": 250.0,
+      "timeouts_max": 0
+    },
+    "budget_ms": 250.0,
     "p50_ms": 193.9,
     "p95_ms": 197.6,
-    "why_not_validated": "le dépôt n'épingle aucun budget de latence : `retrieval_evaluation` porte un champ `latency_ms_p95` mais aucun seuil. Mesurer sans cible ne valide rien, donc `latency_validated` reste faux jusqu'à ce qu'un budget soit décidé."
+    "why_not_validated": "validé contre le budget de latence staging adopté (docs/reports/go_live/retrieval_latency_budget.json) : p50=193.9 ms <= 200.0 ms, p95=197.6 ms <= 250.0 ms, 0 timeout, 0 erreur"
   },
   "measured": {
     "duplicate_results": 0,

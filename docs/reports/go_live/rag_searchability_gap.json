@@ -2,7 +2,7 @@
   "blocker_id": "RAG_SEARCHABILITY",
   "closing_conditions": {
     "citations_validated": true,
-    "latency_validated": false,
+    "latency_validated": true,
     "retrieval_top_k_validated": true,
     "rollback_validated": true,
     "scope_filters_validated": true,
@@ -11,7 +11,6 @@
     "vector_dimensions_consistent": true
   },
   "conditions_not_met": [
-    "latency_validated",
     "target_scope_searchable"
   ],
   "indexable_scope": {

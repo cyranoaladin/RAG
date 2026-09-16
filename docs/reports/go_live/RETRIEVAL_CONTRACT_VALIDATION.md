@@ -12,7 +12,7 @@
 |---|---|
 | `citations_validated` | **True** |
 | `gate_refused_absent_from_results` | **True** |
-| `latency_validated` | **False** |
+| `latency_validated` | **True** |
 | `out_of_scope_query_stays_in_allowlist` | **True** |
 | `retrieval_top_k_validated` | **True** |
 | `rollback_validated` | **True** |
@@ -31,7 +31,7 @@
 | latence p50 | 193.9 ms |
 | latence p95 | 197.6 ms |
 
-> le dépôt n'épingle aucun budget de latence : `retrieval_evaluation` porte un champ `latency_ms_p95` mais aucun seuil. Mesurer sans cible ne valide rien, donc `latency_validated` reste faux jusqu'à ce qu'un budget soit décidé.
+> validé contre le budget de latence staging adopté (docs/reports/go_live/retrieval_latency_budget.json) : p50=193.9 ms <= 200.0 ms, p95=197.6 ms <= 250.0 ms, 0 timeout, 0 erreur
 
 ## Filtres de portée
 
