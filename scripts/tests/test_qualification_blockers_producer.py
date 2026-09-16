@@ -249,3 +249,104 @@ def test_la_preuve_nomme_la_racine_et_le_nombre_de_tailles_comparees(rapport):
     bloc = next(b for b in rapport["blockers"] if b["id"] == "NON_PDF_REACQUISITION")
     assert bloc["proof"]["canonical_root"]
     assert bloc["proof"]["sizes_compared"] == 37
+
+
+# --- Épreuves C4 : Contrat de retrieval sur corpus servable ----------------
+
+
+def test_le_blocage_c4_est_ferme_par_mesure(rapport):
+    """C4 doit être fermé sur le SERVABLE_CANDIDATE_SET complet, avec preuve."""
+    bloc = next(b for b in rapport["blockers"] if b["id"] == "C4")
+    assert bloc["closed"] is True
+    assert bloc["proof"]["servable_candidate_scope_size"] == 2264
+    assert bloc["proof"]["vectorized_contents_verified"] >= 2264
+    assert bloc["proof"]["staging_vectors_count"] == 55251
+    assert bloc["proof"]["searchability_conditions_met"] == 8
+    assert bloc["proof"]["retrieval_latency_budget_respected"] is True
+    assert "SERVABLE_CANDIDATE_SET" in bloc["proof"]["verification"]
+    assert "does_not_close" in bloc["proof"]
+    assert any("C1" in d for d in bloc["proof"]["does_not_close"])
+    assert any("ROLLBACK" in d for d in bloc["proof"]["does_not_close"])
+
+
+def _poser_c4(tmp_path, *, blocker=False, conditions_not_met=None, target_searchable=True,
+              candidats=None, vectorises=2264, staging_vectors=55251):
+    (tmp_path / "docs/reports/go_live").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs/reports/handoff").mkdir(parents=True, exist_ok=True)
+    if candidats is None:
+        candidats = ["sha_" + str(i).zfill(60) for i in range(10)]
+    if conditions_not_met is None:
+        conditions_not_met = []
+
+    ecart = {
+        "rag_searchability_blocker": blocker,
+        "conditions_not_met": conditions_not_met,
+        "retrieval_contract_validated": True,
+        "target_scope_searchable": target_searchable,
+        "indexable_scope": {
+            "count": len(candidats),
+            "indexable": sorted(candidats),
+        },
+    }
+    magasin = {
+        "staging_vectors_present": staging_vectors,
+        "dedicated": {
+            "vectorized_contents": vectorises,
+        },
+    }
+    retrieval = {
+        "conditions": {
+            "latency_validated": True,
+            "retrieval_top_k_validated": True,
+        }
+    }
+    (tmp_path / blocages.ECART_RECHERCHE).write_text(json.dumps(ecart), encoding="utf-8")
+    (tmp_path / blocages.MAGASIN_VECTEURS).write_text(json.dumps(magasin), encoding="utf-8")
+    (tmp_path / blocages.VALIDATION_RETRIEVAL).write_text(json.dumps(retrieval), encoding="utf-8")
+
+
+def test_verifier_c4_ferme_sur_preuve(tmp_path):
+    _poser_c4(tmp_path)
+    res = blocages.verifier_c4(tmp_path)
+    assert res["closed"] is True
+    assert res["proof"] is not None
+
+
+def test_verifier_c4_refuse_si_rag_searchability_blocker(tmp_path):
+    _poser_c4(tmp_path, blocker=True)
+    res = blocages.verifier_c4(tmp_path)
+    assert res["closed"] is False
+    assert "bloque" in res["why"]
+
+
+def test_verifier_c4_refuse_si_conditions_searchability_non_met(tmp_path):
+    _poser_c4(tmp_path, conditions_not_met=["latency_validated"])
+    res = blocages.verifier_c4(tmp_path)
+    assert res["closed"] is False
+    assert "conditions de recherche non tenues" in res["why"]
+
+
+def test_verifier_c4_refuse_si_target_scope_searchable_faux(tmp_path):
+    _poser_c4(tmp_path, target_searchable=False)
+    res = blocages.verifier_c4(tmp_path)
+    assert res["closed"] is False
+    assert "target_scope_searchable=false" in res["why"]
+
+
+def test_verifier_c4_refuse_si_perimetre_non_aligne_avec_servable_candidate_set(tmp_path):
+    _poser_c4(tmp_path, candidats=["sha_a" * 16])
+    # Mutate indexable_scope to have discordant count
+    ecart = json.loads((tmp_path / blocages.ECART_RECHERCHE).read_text(encoding="utf-8"))
+    ecart["indexable_scope"]["count"] = 999
+    (tmp_path / blocages.ECART_RECHERCHE).write_text(json.dumps(ecart), encoding="utf-8")
+
+    res = blocages.verifier_c4(tmp_path)
+    assert res["closed"] is False
+    assert "périmètre indexable invalide" in res["why"]
+
+
+def test_verifier_c4_refuse_si_vecteurs_manquants(tmp_path):
+    _poser_c4(tmp_path, staging_vectors=0)
+    res = blocages.verifier_c4(tmp_path)
+    assert res["closed"] is False
+    assert "aucun vecteur" in res["why"]

@@ -111,7 +111,7 @@
    "blocking_when": "value > 0",
    "category": "QUALIFICATION",
    "close_condition": "Chaque entree du tableau porte closed=true et sa preuve.",
-   "current_value": 12,
+   "current_value": 11,
    "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
    "evidence_source": "docs/reports/go_live/qualification_blockers.json",
    "human_decision_required": true,
@@ -133,7 +133,7 @@
    "blocking_when": "value > 0",
    "category": "REPOSITORY",
    "close_condition": "Aucune disposition BLOCKING ni UNKNOWN.",
-   "current_value": 6,
+   "current_value": 4,
    "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
    "evidence_source": "docs/reports/go_live/open_pr_dispositions.json",
    "human_decision_required": true,
@@ -145,9 +145,7 @@
     "une disposition inventee est refusee"
    ],
    "related_prs": [
-    98,
     132,
-    134,
     138,
     140,
     151
@@ -173,7 +171,7 @@
  ],
  "blockers_open": 5,
  "blockers_total": 9,
- "evaluated_head": "8364cfd3ba1cc15309e07ee36a55ed4239c2c046",
+ "evaluated_head": "c2732183b1660409500e2792d6442b44e9d99d54",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",
