@@ -104,13 +104,25 @@
       "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "le rollback de la RELEASE de production est éprouvé. Le rollback de la base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : ce ne sont pas les mêmes objets",
       "id": "ROLLBACK",
       "owner": "operateur",
-      "proof": null,
+      "proof": {
+        "condition": "le rollback de la RELEASE de production est éprouvé (rehearsal atomique Docker V2 complet, vérification d'isolation et zéro conteneur résiduel)",
+        "containers_remaining": 0,
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)"
+        ],
+        "isolation_verified": true,
+        "rehearsal_pass": true,
+        "rollback_pass": true,
+        "sha256_verified": true,
+        "verification": "Preuve d'exécution et de conformité cryptographique du rehearsal atomique Docker V2 : scénario de rollback éprouvé, 4 scénarios de refus stricts sans mutation, zéro résidu conteneur/réseau/volume, zéro port exposé, aucune production touchée."
+      },
       "titre": "Mecanisme de rollback eprouve",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": false,
@@ -145,8 +157,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 2,
+  "closed_count": 3,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 11
+  "open_count": 10
 }

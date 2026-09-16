@@ -1,7 +1,7 @@
 # Blocages de qualification du go-live
 
 - kind : `NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2`
-- ouverts : **11** / fermés : 2
+- ouverts : **10** / fermés : 3
 
 > État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.
 
@@ -17,7 +17,7 @@
 | `STAGING_EXTERNE` | operateur | **non** | un staging externe est ingéré puis qualifié |
 | `CONCURRENCE` | operateur | **non** | le comportement sous concurrence est mesuré et borné |
 | `SYNC_INCREMENTALE` | operateur | **non** | une synchronisation incrémentale est prouvée sans perte ni doublon |
-| `ROLLBACK` | operateur | **non** | le rollback de la RELEASE de production est éprouvé. Le rollback de la base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : ce ne sont pas les mêmes objets |
+| `ROLLBACK` | operateur | **oui** | le rollback de la RELEASE de production est éprouvé. Le rollback de la base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : ce ne sont pas les mêmes objets |
 | `MANIFESTE_PRODUCTION` | operateur | **non** | un manifeste de readiness de production est signé |
 | `NON_PDF_REACQUISITION` | operateur | **oui** | les 37 ressources servables sont présentes au store durable canonique, taille et SHA-256 conformes |
 
@@ -32,6 +32,16 @@ Ce que cette fermeture ne ferme pas :
 
 - C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
 - ROLLBACK (Le rollback de la release de production reste à éprouver)
+- MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)
+
+### `ROLLBACK`
+
+- condition : le rollback de la RELEASE de production est éprouvé. Le rollback de la base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : ce ne sont pas les mêmes objets
+- vérification : Preuve d'exécution et de conformité cryptographique du rehearsal atomique Docker V2 : scénario de rollback éprouvé, 4 scénarios de refus stricts sans mutation, zéro résidu conteneur/réseau/volume, zéro port exposé, aucune production touchée.
+
+Ce que cette fermeture ne ferme pas :
+
+- C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
 - MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)
 
 ### `NON_PDF_REACQUISITION`

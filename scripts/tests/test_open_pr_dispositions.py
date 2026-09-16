@@ -121,23 +121,42 @@ def test_dispositions_reconnues_par_le_gate_readiness(dispositions_doc):
         )
 
 
-def test_open_prs_blocking_exactement_quatre_apres_reconciliation(dispositions_doc):
-    """Le calcul doit donner exactement 4 PRs bloquantes : #132, #138, #140, #151."""
+def test_open_prs_blocking_exactement_deux_apres_reconciliation(dispositions_doc):
+    """Le calcul doit donner exactement 2 PRs bloquantes : #138 et #140."""
     bloquantes = [
         num
         for num, item in dispositions_doc["dispositions"].items()
         if item["disposition"] in readiness.DISPOSITIONS_BLOQUANTES
     ]
-    assert len(bloquantes) == 4
-    assert sorted(bloquantes, key=int) == ["132", "138", "140", "151"]
+    assert len(bloquantes) == 2
+    assert sorted(bloquantes, key=int) == ["138", "140"]
+
+
+def test_132_superseded_apres_integration_rehearsal_v2(dispositions_doc):
+    """PR #132 est CLOSE_SUPERSEDED après intégration du rehearsal Docker V2."""
+    pr132 = dispositions_doc["dispositions"].get("132")
+    assert pr132 is not None
+    assert pr132["disposition"] == "CLOSE_SUPERSEDED"
+    assert "INTEGRATED_ON_MAIN=true" in pr132["measured"]
+    assert "REHEARSAL_REPLAYED_PASS=true" in pr132["measured"]
+
+
+def test_151_superseded_apres_extraction_registre_url(dispositions_doc):
+    """PR #151 est CLOSE_SUPERSEDED après extraction de url_source_registry."""
+    pr151 = dispositions_doc["dispositions"].get("151")
+    assert pr151 is not None
+    assert pr151["disposition"] == "CLOSE_SUPERSEDED"
+    assert "AUTONOMOUS_COMPONENTS_INTEGRATED=true" in pr151["measured"]
 
 
 def test_rendu_markdown_est_coherent(dispositions_doc):
     assert MARKDOWN_PATH.is_file()
     rendu = MARKDOWN_PATH.read_text(encoding="utf-8")
     assert "PR ouvertes totales : **10**" in rendu
-    assert "PR bloquantes : **4**" in rendu
+    assert "PR bloquantes : **2**" in rendu
     assert "`#134`" in rendu
+    assert "`#138`" in rendu
+    assert "`#140`" in rendu
     assert "`KEEP_OPEN_GOVERNED_NO_MERGE`" in rendu
     assert "`#98`" in rendu
     assert "`CLOSE_SUPERSEDED`" in rendu

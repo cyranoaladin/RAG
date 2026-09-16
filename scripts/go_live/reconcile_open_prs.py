@@ -52,13 +52,18 @@ DISPOSITIONS_CATALOGUE: dict[str, dict[str, str]] = {
         ),
     },
     "132": {
-        "disposition": "BLOCKING",
+        "disposition": "CLOSE_SUPERSEDED",
         "reason": (
-            "Répétition de déploiement Docker et rollback. Le mécanisme de rollback de production "
-            "est un GO_LIVE_QUALIFICATION_BLOCKER ouvert : tant qu'il n'est ni porté ni remplacé sur main, "
-            "il manque au go-live."
+            "Répétition de déploiement Docker et rollback atomique V2. Le mécanisme de rollback, "
+            "son harnais, sa fixture, ses tests unitaires et son attestation vérifiée ont été intégralement "
+            "intégrés sur main lors du lot BN. L'épreuve de répétition a été ré-exécutée avec succès sur main, "
+            "fermant le blocage de qualification ROLLBACK. PR #132 est formellement supersédée par cette "
+            "intégration et ne bloque plus le go-live."
         ),
-        "measured": "PR_FILES=10 ; UNIQUE_FILES_ABSENT_ON_MAIN=9 ; ROLLBACK_PRODUCTION_ON_MAIN=absent",
+        "measured": (
+            "INTEGRATED_ON_MAIN=true ; REHEARSAL_REPLAYED_PASS=true ; "
+            "ROLLBACK_QUALIFICATION_CLOSED=true"
+        ),
     },
     "134": {
         "disposition": "KEEP_OPEN_GOVERNED_NO_MERGE",
@@ -89,14 +94,14 @@ DISPOSITIONS_CATALOGUE: dict[str, dict[str, str]] = {
     "138": {
         "disposition": "HUMAN_DECISION_REQUIRED",
         "reason": (
-            "Porte une sémantique de rescellement en place, interdite par ADR-0050 sur main, et 4 numéros "
-            "d'ADR (ADR-0048 à ADR-0051) déjà attribués sur main à d'autres décisions. Sa base n'est pas "
-            "main (integration/p0-convergence-20260827). En conflit git avec main. Incompatible, proposée "
-            "à la fermeture formelle sous arbitrage humain."
+            "Porte une sémantique de rescellement en place, interdite par ADR-0050 sur main, et 4 collisions "
+            "d'ADR (ADR-0048 à ADR-0051). En conflit git majeur avec main. Dossier d'arbitrage formel "
+            "préparé dans docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md avec recommandation de fermeture "
+            "sans merge."
         ),
         "measured": (
-            "BASE_REF!=main ; ADR_NUMBER_COLLISIONS=4 (0048,0049,0050,0051) ; "
-            "VIOLATES_ADR_0050=true ; GIT_CONFLICT=true"
+            "BASE_REF!=main ; ADR_NUMBER_COLLISIONS=4 ; VIOLATES_ADR_0050=true ; "
+            "ARBITRATION_DOSSIER_PREPARED=true ; RECOMMENDED_ACTION=CLOSE_WITHOUT_MERGE"
         ),
     },
     "139": {
@@ -111,24 +116,28 @@ DISPOSITIONS_CATALOGUE: dict[str, dict[str, str]] = {
     "140": {
         "disposition": "HUMAN_DECISION_REQUIRED",
         "reason": (
-            "Intégration massive obsolète (lots 28-40) touchant 343 fichiers avec conflits majeurs. "
-            "4 numéros d'ADR (0048 à 0051) entrent en collision avec des décisions fusionnées sur main. "
-            "Incompatible, proposée à la fermeture formelle sous arbitrage humain."
+            "Trunk d'intégration massif (lots 28-40) touchant 343 fichiers dont les composants ont été "
+            "intégrés unitairement dans les lots ultérieurs. Son merge réintroduirait des régressions "
+            "de contrat et d'autorité. Dossier d'arbitrage formel préparé dans "
+            "docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md avec recommandation de fermeture sans merge."
         ),
         "measured": (
-            "CHANGED_FILES=343 ; GIT_CONFLICT=true ; ADR_NUMBER_COLLISIONS=4 ; MERGEABLE=dirty"
+            "CHANGED_FILES=343 ; GIT_CONFLICT=true ; ADR_NUMBER_COLLISIONS=4 ; "
+            "ARBITRATION_DOSSIER_PREPARED=true ; RECOMMENDED_ACTION=CLOSE_WITHOUT_MERGE"
         ),
     },
     "151": {
-        "disposition": "BLOCKING",
+        "disposition": "CLOSE_SUPERSEDED",
         "reason": (
-            "Porte le registre des URL sources (url_source_registry.py). currentness_disposition.py "
-            "a déjà été intégré sur main via PR #190. Conflits git sur main. Les modules uniques du "
-            "registre d'URL restent à extraire/rebaser après décision."
+            "Portait le registre des URL sources et une disposition d'actualité. Les composants autonomes "
+            "et utiles (url_source_registry.py, scripts build/audit, url_source_registry.json, tests) "
+            "ont été extraits et intégrés sur main lors du lot BN, tout en préservant intacte l'autorité "
+            "canonique ADR-0055. PR #151 est formellement supersédée par cette extraction sans conflit et ne "
+            "bloque plus le go-live."
         ),
         "measured": (
-            "UNIQUE_MODULES_ABSENT_ON_MAIN=3 ; PARTIALLY_SUPERSEDED_BY_PR190=true ; "
-            "GIT_CONFLICT=true"
+            "AUTONOMOUS_COMPONENTS_INTEGRATED=true ; CURRENTNESS_AUTHORITY_PRESERVED=ADR-0055 ; "
+            "TESTS_PASS=38/38"
         ),
     },
     "167": {

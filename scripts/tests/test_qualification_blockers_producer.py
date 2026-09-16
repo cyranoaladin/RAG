@@ -7,6 +7,7 @@ fermé d'un coup d'éditeur sans preuve. Ces épreuves portent sur les deux.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -126,12 +127,12 @@ def test_chaque_blocage_porte_sa_condition_de_fermeture(rapport):
         assert len(bloc["closing_condition"]) > 20, bloc["id"]
 
 
-def test_le_rollback_de_staging_ne_ferme_pas_celui_de_production(rapport):
-    """Deux objets différents : les confondre fermerait un blocage à tort."""
+def test_le_rollback_de_production_est_ferme_par_rehearsal_v2(rapport):
+    """Le rollback de production est prouvé par le rehearsal Docker V2, pas par staging."""
     rollback = next(b for b in rapport["blockers"] if b["id"] == "ROLLBACK")
-    assert rollback["closed"] is False
-    assert "staging" in rollback["closing_condition"]
-    assert "pas les mêmes objets" in rollback["closing_condition"]
+    assert rollback["closed"] is True
+    assert rollback["proof"]["rollback_pass"] is True
+    assert "rehearsal atomique Docker V2" in rollback["proof"]["condition"]
 
 
 def test_la_reacquisition_non_pdf_est_fermee_par_mesure(rapport):
@@ -350,3 +351,93 @@ def test_verifier_c4_refuse_si_vecteurs_manquants(tmp_path):
     res = blocages.verifier_c4(tmp_path)
     assert res["closed"] is False
     assert "aucun vecteur" in res["why"]
+
+
+def _poser_rollback(tmp_path: Path, *, status="VERIFIED", rollback_pass=True, containers=0, tamper_sha=False):
+    evidence_dir = tmp_path / "docs/reports/evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    scripts_dir = tmp_path / "services/rag-engine/scripts"
+    scripts_dir.mkdir(parents=True, exist_ok=True)
+
+    harness = scripts_dir / "atomic_docker_v2_rehearsal.py"
+    fixture = scripts_dir / "atomic_docker_v2_rehearsal_fixture.py"
+    json_file = evidence_dir / "atomic_docker_v2_rehearsal_20260825.json"
+    transcript = evidence_dir / "atomic_docker_v2_rehearsal_20260825.transcript.txt"
+    sha_file = evidence_dir / "atomic_docker_v2_rehearsal_20260825.sha256"
+
+    harness.write_text("harness content\n", encoding="utf-8")
+    fixture.write_text("fixture content\n", encoding="utf-8")
+    transcript.write_text("transcript content\n", encoding="utf-8")
+
+    data = {
+        "verification_status": status,
+        "verdicts": {
+            "ATOMIC_DOCKER_V2_REHEARSAL_PASS": True,
+            "ROLLBACK_REHEARSAL_PASS": rollback_pass,
+            "BAD_DIGEST_REFUSED": True,
+            "BAD_READINESS_REFUSED": True,
+            "BAD_AUTHORIZATION_SET_REFUSED": True,
+            "ISOLATION_PREFLIGHT_PASS": True,
+            "FOREIGN_COLLISION_REFUSED": True,
+            "PRODUCTION_PROJECT_NAME_USED": False,
+            "REMOVE_ORPHANS_USED": False,
+            "PROJECT_CONTAINERS_REMAINING": containers,
+            "FOREIGN_SERVICES_TOUCHED": 0,
+            "PRODUCTION_PORTS_PUBLISHED": 0,
+        },
+    }
+    json_file.write_text(json.dumps(data), encoding="utf-8")
+
+    if tamper_sha:
+        sha_file.write_text(f"{'0' * 64}  services/rag-engine/scripts/atomic_docker_v2_rehearsal.py\n", encoding="utf-8")
+    else:
+        lignes = [
+            f"{hashlib.sha256(harness.read_bytes()).hexdigest()}  services/rag-engine/scripts/atomic_docker_v2_rehearsal.py",
+            f"{hashlib.sha256(fixture.read_bytes()).hexdigest()}  services/rag-engine/scripts/atomic_docker_v2_rehearsal_fixture.py",
+            f"{hashlib.sha256(json_file.read_bytes()).hexdigest()}  docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.json",
+            f"{hashlib.sha256(transcript.read_bytes()).hexdigest()}  docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.transcript.txt",
+        ]
+        sha_file.write_text("\n".join(lignes) + "\n", encoding="utf-8")
+
+
+def test_verifier_rollback_nominal(tmp_path):
+    _poser_rollback(tmp_path)
+    res = blocages.verifier_rollback(tmp_path)
+    assert res["closed"] is True
+    assert res["proof"]["rollback_pass"] is True
+    assert res["proof"]["containers_remaining"] == 0
+
+
+def test_verifier_rollback_refuse_si_fichier_json_absent(tmp_path):
+    res = blocages.verifier_rollback(tmp_path)
+    assert res["closed"] is False
+    assert "manquante" in res["why"]
+
+
+def test_verifier_rollback_refuse_si_sha_modifie(tmp_path):
+    _poser_rollback(tmp_path, tamper_sha=True)
+    res = blocages.verifier_rollback(tmp_path)
+    assert res["closed"] is False
+    assert "altérée" in res["why"]
+
+
+def test_verifier_rollback_refuse_si_verdict_rollback_false(tmp_path):
+    _poser_rollback(tmp_path, rollback_pass=False)
+    res = blocages.verifier_rollback(tmp_path)
+    assert res["closed"] is False
+    assert "ROLLBACK_REHEARSAL_PASS=False" in res["why"]
+
+
+def test_verifier_rollback_refuse_si_conteneurs_restants(tmp_path):
+    _poser_rollback(tmp_path, containers=2)
+    res = blocages.verifier_rollback(tmp_path)
+    assert res["closed"] is False
+    assert "PROJECT_CONTAINERS_REMAINING=2" in res["why"]
+
+
+def test_verifier_rollback_sur_depot_reel():
+    racine = Path(__file__).resolve().parents[2]
+    res = blocages.verifier_rollback(racine)
+    assert res["closed"] is True
+    assert res["proof"]["rollback_pass"] is True
+    assert res["proof"]["containers_remaining"] == 0

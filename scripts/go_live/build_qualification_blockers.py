@@ -297,6 +297,131 @@ def verifier_c4(racine: Path) -> dict:
     }
 
 
+def verifier_rollback(racine: Path) -> dict:
+    """Vérifie l'épreuve de répétition du rollback et du déploiement Docker V2."""
+    preuve_json_path = racine / "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.json"
+    preuve_sha_path = racine / "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.sha256"
+
+    if not preuve_json_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"attestation de rehearsal rollback manquante : {preuve_json_path}",
+        }
+    if not preuve_sha_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'empreintes de rehearsal manquant : {preuve_sha_path}",
+        }
+
+    # Vérification cryptographique des empreintes
+    try:
+        lignes = preuve_sha_path.read_text(encoding="utf-8").strip().splitlines()
+        for ligne in lignes:
+            ligne = ligne.strip()
+            if not ligne or ligne.startswith("#"):
+                continue
+            parts = ligne.split(None, 1)
+            if len(parts) != 2:
+                continue
+            sha_attendu, fichier_rel = parts
+            fichier = racine / fichier_rel
+            if not fichier.is_file():
+                return {
+                    "closed": False,
+                    "proof": None,
+                    "why": f"fichier de rehearsal introuvable pour vérification SHA-256 : {fichier_rel}",
+                }
+            sha_reel = hashlib.sha256(fichier.read_bytes()).hexdigest()
+            if sha_reel != sha_attendu:
+                return {
+                    "closed": False,
+                    "proof": None,
+                    "why": (
+                        f"empreinte altérée pour {fichier_rel} : attendu {sha_attendu[:16]}…, "
+                        f"obtenu {sha_reel[:16]}…"
+                    ),
+                }
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"erreur lors de la vérification SHA-256 des fichiers de rehearsal : {exc}",
+        }
+
+    # Vérification des assertions du JSON d'attestation
+    try:
+        data = json.loads(preuve_json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'attestation JSON illisible ou invalide : {exc}",
+        }
+
+    if data.get("verification_status") != "VERIFIED":
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"statut de vérification non VERIFIED : {data.get('verification_status')}",
+        }
+
+    verdicts = data.get("verdicts", {})
+    exigences = {
+        "ATOMIC_DOCKER_V2_REHEARSAL_PASS": True,
+        "ROLLBACK_REHEARSAL_PASS": True,
+        "BAD_DIGEST_REFUSED": True,
+        "BAD_READINESS_REFUSED": True,
+        "BAD_AUTHORIZATION_SET_REFUSED": True,
+        "ISOLATION_PREFLIGHT_PASS": True,
+        "FOREIGN_COLLISION_REFUSED": True,
+        "PRODUCTION_PROJECT_NAME_USED": False,
+        "REMOVE_ORPHANS_USED": False,
+        "PROJECT_CONTAINERS_REMAINING": 0,
+        "FOREIGN_SERVICES_TOUCHED": 0,
+        "PRODUCTION_PORTS_PUBLISHED": 0,
+    }
+
+    non_conformes = [
+        f"{k}={verdicts.get(k)!r} (attendu {attendu!r})"
+        for k, attendu in exigences.items()
+        if verdicts.get(k) != attendu
+    ]
+    if non_conformes:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"verdicts de rehearsal non conformes : {', '.join(non_conformes)}",
+        }
+
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                "le rollback de la RELEASE de production est éprouvé (rehearsal "
+                "atomique Docker V2 complet, vérification d'isolation et zéro conteneur résiduel)"
+            ),
+            "rehearsal_pass": True,
+            "rollback_pass": True,
+            "isolation_verified": True,
+            "containers_remaining": 0,
+            "sha256_verified": True,
+            "verification": (
+                "Preuve d'exécution et de conformité cryptographique du rehearsal "
+                "atomique Docker V2 : scénario de rollback éprouvé, 4 scénarios "
+                "de refus stricts sans mutation, zéro résidu conteneur/réseau/volume, "
+                "zéro port exposé, aucune production touchée."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)",
+            ],
+        },
+        "why": None,
+    }
+
+
 #: Un blocage sans vérificateur reste ouvert. La condition est écrite pour que
 #: son propriétaire sache ce qu'il doit produire, et pour qu'on ne la
 #: redécouvre pas à chaque lot.
@@ -326,7 +451,7 @@ BLOCAGES = (
     ("ROLLBACK", "Mecanisme de rollback eprouve", "operateur",
      "le rollback de la RELEASE de production est éprouvé. Le rollback de la "
      "base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : "
-     "ce ne sont pas les mêmes objets", None),
+     "ce ne sont pas les mêmes objets", verifier_rollback),
     ("MANIFESTE_PRODUCTION", "Manifeste de readiness de production signe", "operateur",
      "un manifeste de readiness de production est signé", None),
     ("NON_PDF_REACQUISITION", "Reacquisition des 37 ressources interactives servables",

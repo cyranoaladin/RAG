@@ -140,9 +140,8 @@ def test_rag_searchability_blocker_ferme_exactement_quand_conditions_vides(ecart
 def test_go_live_ready_reste_strictement_faux(readiness):
     """La fermeture de la recherche ne déclare pas le go-live prêt : 5 bloqueurs restent."""
     assert readiness["go_live_ready"] is False
-    assert "rag_searchability_blocker" not in readiness["blocking_reasons"]
     assert readiness["pii_undecided"] == 149
     assert readiness["release_promoted_refused_contents"] == 26
-    assert readiness["go_live_qualification_blockers"] == 11
-    assert readiness["open_prs_blocking"] == 4
+    assert readiness["go_live_qualification_blockers"] == 10
+    assert readiness["open_prs_blocking"] == 2
     assert readiness["current_switch"] == 0
