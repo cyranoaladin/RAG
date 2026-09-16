@@ -2,8 +2,8 @@
 
 - kind : `NEXUS-RETRIEVAL-CONTRACT-VALIDATION-V1`
 - index : `nexus_vector_staging_a_20260912T060731Z` (`127.0.0.1:55436`)
-- vecteurs interrogés : 54719
-- contenus couverts : 2242
+- vecteurs interrogés : 55251
+- contenus couverts : 2264
 - top-k : 10
 
 ## Conditions

@@ -7,12 +7,10 @@
     "rollback_validated": true,
     "scope_filters_validated": true,
     "staging_vectors_present": true,
-    "target_scope_searchable": false,
+    "target_scope_searchable": true,
     "vector_dimensions_consistent": true
   },
-  "conditions_not_met": [
-    "target_scope_searchable"
-  ],
+  "conditions_not_met": [],
   "indexable_scope": {
     "count": 2264,
     "definition": "les contenus que le gate de servabilité ne refuse pas",
@@ -2567,7 +2565,7 @@
     "pedagogical_corpus_contents": 2529,
     "pgvector_installed_in_review_db": false,
     "review_db_intact": true,
-    "staging_vectors_present": 54719,
+    "staging_vectors_present": 55251,
     "target_scope_contents": 2264,
     "vector_columns": 1,
     "vector_extension": true,
@@ -2576,17 +2574,17 @@
       "host": "127.0.0.1",
       "port": 55436
     },
-    "vectorized_contents": 2242
+    "vectorized_contents": 2264
   },
   "not_measured": {
     "production_searchable": null,
     "why": "aucune base de production n'a été identifiée ni interrogée ; ne pas savoir n'est pas une autorisation"
   },
   "production_searchable": false,
-  "rag_searchability_blocker": true,
-  "rag_searchable": false,
+  "rag_searchability_blocker": false,
+  "rag_searchable": true,
   "retrieval_contract_validated": true,
-  "target_scope_searchable": false,
+  "target_scope_searchable": true,
   "what_would_be_wrong_to_say": [
     "RAG fully ingested : le texte est stocké, pas indexé",
     "RAG searchable : aucun vecteur n'existe",

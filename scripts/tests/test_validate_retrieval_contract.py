@@ -229,9 +229,11 @@ def test_l_ecart_lit_ces_conditions_au_lieu_de_les_supposer():
         assert ecart["closing_conditions"][nom] == rapport["conditions"][nom], nom
 
 
-def test_le_blocage_de_recherche_reste_ouvert_sur_ce_qui_manque():
+def test_le_blocage_de_recherche_est_ferme():
     ecart = json.loads(ECART.read_text(encoding="utf-8"))
-    assert ecart["rag_searchability_blocker"] is True
-    assert set(ecart["conditions_not_met"]) == {
-        "target_scope_searchable",
-    }
+    assert ecart["rag_searchability_blocker"] is False
+    assert ecart["conditions_not_met"] == []
+    assert ecart["closing_conditions"]["target_scope_searchable"] is True
+    assert ecart["target_scope_searchable"] is True
+    assert ecart["rag_searchable"] is True
+

@@ -1,0 +1,223 @@
+{
+  "chunking": {
+    "chunks_over_limit": 0,
+    "max_tokens_observed": 384,
+    "model_sequence_limit": 512,
+    "native_derived_chunks": 347,
+    "ocr_derived_chunks": 185,
+    "target_tokens": 384,
+    "total_chunks": 532,
+    "unique_pages_covered": 323
+  },
+  "documents": {
+    "05ee8978807daeba489bab204783212c59cd7267455376641c009a99842f0758": {
+      "chunks_count": 21,
+      "native_chunks": 20,
+      "native_pages": 14,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 15
+    },
+    "09878d001ac05d0d3b9f9aac2246603d47c6715053d78616df0d9f7ef02b3e3d": {
+      "chunks_count": 64,
+      "native_chunks": 63,
+      "native_pages": 38,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 40
+    },
+    "10a323a860621a9ca9d56f74753f8ad0da9983495912759a0bb2aa3c4f129be8": {
+      "chunks_count": 5,
+      "native_chunks": 3,
+      "native_pages": 3,
+      "ocr_chunks": 2,
+      "ocr_pages": 1,
+      "total_pages": 4
+    },
+    "14e1f3a4581406bf02a7e6b4528440f93e36e8877db5bb1e5f4aed51fdd6f11c": {
+      "chunks_count": 20,
+      "native_chunks": 19,
+      "native_pages": 13,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 14
+    },
+    "22538dd7d9ff27f1b61ef8fe43c53ae05e7b9a8da9e8974e7f213cc5b98367b3": {
+      "chunks_count": 29,
+      "native_chunks": 28,
+      "native_pages": 14,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 15
+    },
+    "25199cb90c86f2942d94b97ca518bb3bc8010534cbf74d5ed68f66cc017f65ff": {
+      "chunks_count": 17,
+      "native_chunks": 16,
+      "native_pages": 10,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 11
+    },
+    "26aad1cd27a924b96282fb0e480cade67ed69dd494436669439a675a7958008b": {
+      "chunks_count": 3,
+      "native_chunks": 2,
+      "native_pages": 1,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 2
+    },
+    "3bc5ff233dc05e967beb0eeb037ec89b14894154cf1b539bfd4b19771c09d611": {
+      "chunks_count": 71,
+      "native_chunks": 23,
+      "native_pages": 23,
+      "ocr_chunks": 48,
+      "ocr_pages": 19,
+      "total_pages": 44
+    },
+    "40d6df533665899e5819e29ae279dd449c76c83851b4baf0498ca8b41f934537": {
+      "chunks_count": 27,
+      "native_chunks": 26,
+      "native_pages": 16,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 17
+    },
+    "643afbd1ce3063acaaf9603a2d054ef9432cb5ff1d20c506381a65432c571c46": {
+      "chunks_count": 54,
+      "native_chunks": 0,
+      "native_pages": 0,
+      "ocr_chunks": 54,
+      "ocr_pages": 11,
+      "total_pages": 11
+    },
+    "862ca1220a92a34061574f691ddfd859033888d4fee94ed24c33cb8dec557b08": {
+      "chunks_count": 10,
+      "native_chunks": 10,
+      "native_pages": 8,
+      "ocr_chunks": 0,
+      "ocr_pages": 0,
+      "total_pages": 9
+    },
+    "979c90b54c82fa0d073c8794d08941449e319d18125ebcf6bdbb3cd326eb1408": {
+      "chunks_count": 17,
+      "native_chunks": 16,
+      "native_pages": 15,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 20
+    },
+    "9d29fad93b0f84b6e4b735691fe221f8ae7456e00f046206b340815b9e75b5bf": {
+      "chunks_count": 27,
+      "native_chunks": 26,
+      "native_pages": 26,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 27
+    },
+    "a009392fc284f5cfb8dd335fe3bc08e4e5b5d9041110140daa9ab9bfbef71b9a": {
+      "chunks_count": 17,
+      "native_chunks": 17,
+      "native_pages": 17,
+      "ocr_chunks": 0,
+      "ocr_pages": 0,
+      "total_pages": 18
+    },
+    "a1b0081d162245f1c179393bca3c8626174eee3454885ce6682342156bc0bfab": {
+      "chunks_count": 18,
+      "native_chunks": 0,
+      "native_pages": 0,
+      "ocr_chunks": 18,
+      "ocr_pages": 8,
+      "total_pages": 8
+    },
+    "b9fa5c5db51aa3b6031cd514f3dfcd792d64d808cea473c9721e7ad6ce831cbb": {
+      "chunks_count": 22,
+      "native_chunks": 20,
+      "native_pages": 19,
+      "ocr_chunks": 2,
+      "ocr_pages": 2,
+      "total_pages": 22
+    },
+    "c11076f9ddd124abcbe5f8691ba9814a3b49b9fb171c4a4b5eac3ddabf09393b": {
+      "chunks_count": 18,
+      "native_chunks": 6,
+      "native_pages": 6,
+      "ocr_chunks": 12,
+      "ocr_pages": 4,
+      "total_pages": 10
+    },
+    "c837e7d780c96da82b01388bebb360b2961720c65732040949d2420567986b05": {
+      "chunks_count": 32,
+      "native_chunks": 0,
+      "native_pages": 0,
+      "ocr_chunks": 32,
+      "ocr_pages": 7,
+      "total_pages": 7
+    },
+    "c8ecb34aa240c7ca50c1f0ecd5037bd147575392fd2013601d39dfa0c9d7715a": {
+      "chunks_count": 15,
+      "native_chunks": 14,
+      "native_pages": 8,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 9
+    },
+    "d3e60c99d52b6a4206c192f1f9a9b14680828743a12db96a2f85515920d6b921": {
+      "chunks_count": 13,
+      "native_chunks": 12,
+      "native_pages": 9,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 10
+    },
+    "dece93e1dc0fe0b8e5a51eb91bc065ae453539d0745bb87a16746a68f5546148": {
+      "chunks_count": 26,
+      "native_chunks": 25,
+      "native_pages": 14,
+      "ocr_chunks": 1,
+      "ocr_pages": 1,
+      "total_pages": 20
+    },
+    "eaa908657ad4e461705455cf9950623fa0323292c5071a7af6c1b4003d1a92f9": {
+      "chunks_count": 6,
+      "native_chunks": 1,
+      "native_pages": 1,
+      "ocr_chunks": 5,
+      "ocr_pages": 4,
+      "total_pages": 5
+    }
+  },
+  "documents_processed": 22,
+  "kind": "NEXUS-TARGET-SCOPE-OCR-EXECUTION-V1",
+  "native_pages_count": 255,
+  "ocr_pages_count": 68,
+  "ocr_runtime": {
+    "dpi": 300,
+    "engine": "tesseract",
+    "engine_version": "5.3.4",
+    "identity_sha256": "4090ff0754b32f2e4eca110f3e5378d3a02562e898a1f5aeaee7931696a04af2",
+    "languages": "fra+eng",
+    "rasterizer": "pdftoppm",
+    "rasterizer_version": "24.02.0"
+  },
+  "pages_processed": 338,
+  "pii_scan": {
+    "clearance": true,
+    "matches_count": 0,
+    "patterns_count": 7,
+    "policy": "services/rag-pedago/configs/pii_gate_policy.yml"
+  },
+  "scope": "SERVABLE_CANDIDATE_SET",
+  "structural_empty_pages_count": 4,
+  "target_documents_count": 22,
+  "vector_store": {
+    "contents_added": 22,
+    "coverage_percentage": 100.0,
+    "new_total_passages": 55251,
+    "new_total_vectorized_contents": 2264,
+    "passages_added": 532,
+    "previous_passages": 54719,
+    "previous_vectorized_contents": 2242,
+    "target_scope_contents": 2264
+  }
+}

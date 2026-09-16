@@ -2,11 +2,11 @@
  "blockers": [
   {
    "automation_possible": true,
-   "blocking": true,
+   "blocking": false,
    "blocking_when": "value is true",
    "category": "DATA",
    "close_condition": "toutes les conditions de fermeture de l ecart de recherche sont tenues, mesurees et non supposees",
-   "current_value": true,
+   "current_value": false,
    "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
    "evidence_source": "docs/reports/go_live/rag_searchability_gap.json (derive de l audit d ingestion sur une base nommee)",
    "human_decision_required": false,
@@ -171,9 +171,9 @@
    "required_action": "Rien directement. Ce compteur DERIVE de PII, programme et actualite. Le fermer par lui-meme reviendrait a maquiller les trois."
   }
  ],
- "blockers_open": 6,
+ "blockers_open": 5,
  "blockers_total": 9,
- "evaluated_head": "f9b4294a5d86c09f35442bd01598faa44711c38e",
+ "evaluated_head": "8364cfd3ba1cc15309e07ee36a55ed4239c2c046",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",
