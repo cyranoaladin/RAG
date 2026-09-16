@@ -1,7 +1,7 @@
 # Blocages de qualification du go-live
 
 - kind : `NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2`
-- ouverts : **10** / fermés : 3
+- ouverts : **9** / fermés : 4
 
 > État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.
 
@@ -11,7 +11,7 @@
 | `C2` | session H2-C externe | **non** | une ingestion multilevel réelle aboutit et est rejouable |
 | `C3` | session H2-C externe | **non** | le worker CLI traite un lot multilevel de bout en bout |
 | `C4` | operateur | **oui** | le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues |
-| `C5` | operateur | **non** | l autorité d accès refuse une portée non autorisée, prouvé par épreuve |
+| `C5` | operateur | **oui** | l autorité d accès refuse une portée non autorisée, prouvé par épreuve |
 | `C6` | operateur | **non** | la qualification CAS couvre le magasin réel |
 | `COCKPIT_E2E` | operateur | **non** | le cockpit interroge l API de retrieval de bout en bout |
 | `STAGING_EXTERNE` | operateur | **non** | un staging externe est ingéré puis qualifié |
@@ -32,6 +32,16 @@ Ce que cette fermeture ne ferme pas :
 
 - C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
 - ROLLBACK (Le rollback de la release de production reste à éprouver)
+- MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)
+
+### `C5`
+
+- condition : l autorité d accès refuse une portée non autorisée, prouvé par épreuve
+- vérification : Preuve d'exécution et de conformité cryptographique du harnais de qualification d'autorité d'accès C5 : 15 scénarios de refus stricts sans mutation, isolation prouvée au niveau contrat, registre d'identité, endpoint de retrieval et prédicat SQL, aucune portée non autorisée ne peut être servie.
+
+Ce que cette fermeture ne ferme pas :
+
+- C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
 - MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)
 
 ### `ROLLBACK`

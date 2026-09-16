@@ -50,13 +50,22 @@
       "why_still_open": null
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "l autorité d accès refuse une portée non autorisée, prouvé par épreuve",
       "id": "C5",
       "owner": "operateur",
-      "proof": null,
+      "proof": {
+        "condition": "l autorité d accès refuse une portée non autorisée, prouvé par épreuve (suite de 15 épreuves adversariales couvrant registre d'identité, endpoint retrieval, mapping d'autorisation et prédicat SQL de placement)",
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)"
+        ],
+        "refusals_verified_count": 15,
+        "sha256_verified": true,
+        "verification": "Preuve d'exécution et de conformité cryptographique du harnais de qualification d'autorité d'accès C5 : 15 scénarios de refus stricts sans mutation, isolation prouvée au niveau contrat, registre d'identité, endpoint de retrieval et prédicat SQL, aucune portée non autorisée ne peut être servie."
+      },
       "titre": "Autorite d acces et portees",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": false,
@@ -157,8 +166,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 3,
+  "closed_count": 4,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 10
+  "open_count": 9
 }

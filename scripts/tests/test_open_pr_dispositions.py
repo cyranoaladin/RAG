@@ -121,15 +121,37 @@ def test_dispositions_reconnues_par_le_gate_readiness(dispositions_doc):
         )
 
 
-def test_open_prs_blocking_exactement_deux_apres_reconciliation(dispositions_doc):
-    """Le calcul doit donner exactement 2 PRs bloquantes : #138 et #140."""
+def test_open_prs_blocking_zero_apres_arbitrage_humain(dispositions_doc):
+    """Le calcul doit donner exactement 0 PR bloquante après arbitrage humain de #138 et #140."""
     bloquantes = [
         num
         for num, item in dispositions_doc["dispositions"].items()
         if item["disposition"] in readiness.DISPOSITIONS_BLOQUANTES
     ]
-    assert len(bloquantes) == 2
-    assert sorted(bloquantes, key=int) == ["138", "140"]
+    assert len(bloquantes) == 0
+    assert bloquantes == []
+
+
+def test_138_closed_rejected_apres_arbitrage_humain(dispositions_doc):
+    """PR #138 est CLOSE_REJECTED suite à arbitrage formel humain."""
+    pr138 = dispositions_doc["dispositions"].get("138")
+    assert pr138 is not None
+    assert pr138["disposition"] == "CLOSE_REJECTED"
+    assert "ARBITRATED_CLOSED=true" in pr138["measured"]
+    assert "VIOLATES_ADR_0050=true" in pr138["measured"]
+    assert "HUMAN_DECISIONS_PR_138_140.md" in pr138["measured"]
+    assert "GITHUB_STATE=closed" in pr138["measured"]
+
+
+def test_140_closed_superseded_apres_arbitrage_humain(dispositions_doc):
+    """PR #140 est CLOSE_SUPERSEDED suite à arbitrage formel humain."""
+    pr140 = dispositions_doc["dispositions"].get("140")
+    assert pr140 is not None
+    assert pr140["disposition"] == "CLOSE_SUPERSEDED"
+    assert "ARBITRATED_CLOSED=true" in pr140["measured"]
+    assert "CHANGED_FILES=343" in pr140["measured"]
+    assert "HUMAN_DECISIONS_PR_138_140.md" in pr140["measured"]
+    assert "GITHUB_STATE=closed" in pr140["measured"]
 
 
 def test_132_superseded_apres_integration_rehearsal_v2(dispositions_doc):
@@ -153,7 +175,7 @@ def test_rendu_markdown_est_coherent(dispositions_doc):
     assert MARKDOWN_PATH.is_file()
     rendu = MARKDOWN_PATH.read_text(encoding="utf-8")
     assert "PR ouvertes totales : **10**" in rendu
-    assert "PR bloquantes : **2**" in rendu
+    assert "PR bloquantes : **0**" in rendu
     assert "`#134`" in rendu
     assert "`#138`" in rendu
     assert "`#140`" in rendu

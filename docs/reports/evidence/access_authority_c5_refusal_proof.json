@@ -1,0 +1,36 @@
+{
+  "kind": "NEXUS-C5-ACCESS-AUTHORITY-REFUSAL-PROOF-V1",
+  "observed_at_main_sha": "eb0fb6a64190a4b6d8de6dbee7e4a2d61450bfcb",
+  "specifications": {
+    "authorization_mapping_guard": "Refus strict de gap, extra, altération de digest ou overlap",
+    "curriculum_scope_guard": "Refus sans repli implicite en l'absence de curriculum_scope",
+    "identity_scope_guard": "Refus strict de scope inconnu, falsifié, ou de digest altéré",
+    "pedagogical_drift_guard": "Refus strict de dérive de niveau ou de matière croisée",
+    "sql_placement_authority_guard": "L'autorité de placement rag_artifact_placements prévaut exclusivement sur toute colonne dénormalisée"
+  },
+  "summary": {
+    "failed_items": [],
+    "failed_proofs": 0,
+    "passed_proofs": 15,
+    "total_adversarial_proofs": 15
+  },
+  "timestamp": "2026-09-16T21:58:52.009514+00:00",
+  "verdicts": {
+    "AUTHORIZATION_MAPPING_INCOMPLETE_REFUSED": true,
+    "AUTHORIZATION_SET_V2_FALSIFIED_OR_DIVERGENT_REFUSED": true,
+    "CONTENT_OUTSIDE_AUTHORIZATION_REFUSED": true,
+    "CROSS_SUBJECT_DRIFT_REFUSED": true,
+    "CURRICULUM_LEVEL_DRIFT_REFUSED": true,
+    "DENORMALIZED_COLUMNS_CANNOT_WIDEN_AUTHORITY": true,
+    "FORGED_SCOPE_ID_REFUSED": true,
+    "INACTIVE_PLACEMENT_REFUSED": true,
+    "OMITTED_CURRICULUM_SCOPE_REFUSED": true,
+    "OVERLAP_OR_DUPLICATION_REFUSED": true,
+    "SCOPE_DIGEST_CORRUPTION_REFUSED": true,
+    "STALE_OR_UNREVIEWED_PLACEMENT_REFUSED": true,
+    "TARGET_LEVEL_DRIFT_REFUSED": true,
+    "UNKNOWN_SCOPE_ID_REFUSED": true,
+    "_EFFECTIVE_SCOPE_FILTER_SQL_ENFORCES_GOVERNED_PLACEMENT": true
+  },
+  "verification_status": "VERIFIED"
+}
