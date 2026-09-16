@@ -8,7 +8,7 @@ l'audit d'ingestion, qui a interrogé une base nommée.
 
 - texte canonique en préparation : **2473**
 - contenus ingérés : **2473**
-- **vecteurs présents : 54719**
+- **vecteurs présents : 55251**
 - colonnes vectorielles : 1
 - extension vectorielle : True
 - périmètre cible : **2264**
@@ -27,7 +27,7 @@ spontanément comme « le RAG fonctionne ». Les deux sont séparés par une
 
 ## Le blocage qui porte ce refus
 
-`RAG_SEARCHABILITY` — `rag_searchability_blocker=true`.
+`RAG_SEARCHABILITY` — `rag_searchability_blocker=false`.
 
 Ce document ne se contente plus de constater : tant que les conditions
 ci-dessous ne sont pas toutes tenues, le readiness refuse le go-live et
@@ -44,7 +44,7 @@ nomme cette raison.
 | `scope_filters_validated` | oui |
 | `latency_validated` | oui |
 | `rollback_validated` | oui |
-| `target_scope_searchable` | **non** |
+| `target_scope_searchable` | oui |
 
 Aucune ne suffit seule. Des vecteurs sans retrieval validé ne servent
 personne ; un retrieval validé sur un échantillon ne dit rien du

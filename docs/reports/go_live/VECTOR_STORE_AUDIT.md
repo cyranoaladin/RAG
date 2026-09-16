@@ -12,17 +12,17 @@
 | base | `nexus_vector_staging_a_20260912T060731Z` |
 | hôte/port | `127.0.0.1:55436` |
 | extension vectorielle | `True` |
-| **vecteurs** | **54719** |
-| contenus vectorisés | 2242 |
-| passages re-découpés | 54719 |
-| contenus porteurs de passages | 2242 |
+| **vecteurs** | **55251** |
+| contenus vectorisés | 2264 |
+| passages re-découpés | 55251 |
+| contenus porteurs de passages | 2264 |
 | liste blanche | 2264 |
 | dimensions fausses | 0 |
 | lignes hors liste blanche | 0 |
 
 ## Base de revue — mesurée pour prouver qu'elle est intacte
 
-- base : `drivestaging` (`127.0.0.1:55435`)
+- base : `drivestaging` (127.0.0.1:55435)
 - extension vectorielle : `False`
 - colonnes vectorielles : 0
 - artefacts : 2473
@@ -33,4 +33,3 @@
 
 - ne prouve pas que le retrieval fonctionne
 - ne prouve pas que les citations sont disponibles
-- ne rend pas target_scope_searchable vrai

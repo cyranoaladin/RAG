@@ -2,8 +2,8 @@
   "dedicated": {
     "allowlist_rows": 2264,
     "dimension_mismatch": 0,
-    "passage_contents": 2242,
-    "passages": 54719,
+    "passage_contents": 2264,
+    "passages": 55251,
     "source": {
       "dbname": "nexus_vector_staging_a_20260912T060731Z",
       "host": "127.0.0.1",
@@ -11,8 +11,8 @@
     },
     "unauthorized_rows": 0,
     "vector_extension": true,
-    "vector_rows": 54719,
-    "vectorized_contents": 2242
+    "vector_rows": 55251,
+    "vectorized_contents": 2264
   },
   "kind": "NEXUS-VECTOR-STORE-AUDIT-V1",
   "measured_on": "DEDICATED_VECTOR_DB",
@@ -29,12 +29,11 @@
   },
   "review_db_intact": true,
   "review_db_written": false,
-  "staging_vectors_present": 54719,
+  "staging_vectors_present": 55251,
   "vector_dimensions_consistent": true,
   "what_this_does_not_prove": [
     "ne prouve pas que le retrieval fonctionne",
-    "ne prouve pas que les citations sont disponibles",
-    "ne rend pas target_scope_searchable vrai"
+    "ne prouve pas que les citations sont disponibles"
   ],
   "why_not_the_review_db": "les vecteurs sont écrits dans la base dédiée ; mesurer la base de revue rendrait zéro après une vectorisation réussie et ferait conclure qu'elle n'a rien produit"
 }

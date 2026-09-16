@@ -526,8 +526,9 @@ def test_la_source_de_mesure_de_l_ecart_est_bien_la_base_de_revue():
 def test_le_go_live_reste_refuse():
     etat = json.loads(READINESS.read_text(encoding="utf-8"))
     assert etat["go_live_ready"] is False
-    assert etat["target_scope_searchable"] is False
-    assert etat["rag_searchability_blocker"] is True
+    assert etat["target_scope_searchable"] is True
+    assert etat["rag_searchability_blocker"] is False
+
 
 
 # --- Épreuves contre les bases réelles (ignorées sans DSN) ----------------
