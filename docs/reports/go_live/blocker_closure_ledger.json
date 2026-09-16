@@ -111,7 +111,7 @@
    "blocking_when": "value > 0",
    "category": "QUALIFICATION",
    "close_condition": "Chaque entree du tableau porte closed=true et sa preuve.",
-   "current_value": 11,
+   "current_value": 10,
    "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
    "evidence_source": "docs/reports/go_live/qualification_blockers.json",
    "human_decision_required": true,
@@ -133,7 +133,7 @@
    "blocking_when": "value > 0",
    "category": "REPOSITORY",
    "close_condition": "Aucune disposition BLOCKING ni UNKNOWN.",
-   "current_value": 4,
+   "current_value": 2,
    "deployment_dependency": "BLOQUE_LE_SCELLEMENT",
    "evidence_source": "docs/reports/go_live/open_pr_dispositions.json",
    "human_decision_required": true,
@@ -145,10 +145,8 @@
     "une disposition inventee est refusee"
    ],
    "related_prs": [
-    132,
     138,
-    140,
-    151
+    140
    ],
    "required_action": "Fusionner, fermer sur preuve, ou reclasser avec justification mesuree. Une PR non classee est UNKNOWN et bloque par construction."
   },
@@ -171,7 +169,7 @@
  ],
  "blockers_open": 5,
  "blockers_total": 9,
- "evaluated_head": "c2732183b1660409500e2792d6442b44e9d99d54",
+ "evaluated_head": "679d9d37c7b3c70a6544d81bbf4703b1b6092118",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",

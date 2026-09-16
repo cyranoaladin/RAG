@@ -353,7 +353,7 @@ LEDGER_SPEC: tuple[dict[str, Any], ...] = (
         "owner_type": "HUMAN_DECISION",
         "automation_possible": False,
         "human_decision_required": True,
-        "related_prs": [132, 138, 140, 151],
+        "related_prs": [138, 140],
         "close_condition": "Aucune disposition BLOCKING ni UNKNOWN.",
         "regression_tests_required": [
             "une PR BLOCKING bloque",
