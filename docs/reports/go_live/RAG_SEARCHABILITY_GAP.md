@@ -42,7 +42,7 @@ nomme cette raison.
 | `retrieval_top_k_validated` | oui |
 | `citations_validated` | oui |
 | `scope_filters_validated` | oui |
-| `latency_validated` | **non** |
+| `latency_validated` | oui |
 | `rollback_validated` | oui |
 | `target_scope_searchable` | **non** |
 

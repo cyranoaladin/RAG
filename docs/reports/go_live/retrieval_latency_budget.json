@@ -1,0 +1,33 @@
+{
+  "kind": "NEXUS-RETRIEVAL-LATENCY-BUDGET-V1",
+  "adopted": true,
+  "scope": "STAGING_READINESS_THRESHOLD_NOT_PRODUCTION_SLA",
+  "budget": {
+    "p50_ms_max": 200.0,
+    "p95_ms_max": 250.0,
+    "timeouts_max": 0,
+    "errors_max": 0
+  },
+  "decision_ref": "LOT_GO_LIVE_FINAL_BL_CLOSE_REMAINING_TECHNICAL_BLOCKERS_NO_OAUTH_REVOCATION",
+  "nature": "Seuil d'admissibilité pour la readiness staging, pas un SLA de production",
+  "governed_suite": {
+    "queries_count": 8,
+    "source": "validate_retrieval_contract.py:REQUETES"
+  },
+  "rules": [
+    "la latence p50 observée doit être inférieure ou égale à 200.0 ms",
+    "la latence p95 observée doit être inférieure ou égale à 250.0 ms",
+    "aucun timeout (0 timeout autorisé)",
+    "aucune erreur d'exécution (0 erreur autorisée)",
+    "mesure reproductible sur la suite de requêtes de validation gouvernée",
+    "source DB = base dédiée de staging, production non touchée",
+    "ce budget est un seuil de readiness staging et non un SLA de production"
+  ],
+  "closes_condition_when": "latency_validated devient vrai si et seulement si p50 <= 200.0 ms, p95 <= 250.0 ms, 0 timeout et 0 erreur sous la politique adoptée",
+  "does_not_close": [
+    "target_scope_searchable",
+    "les bloqueurs de qualification",
+    "les décisions PII",
+    "le go-live lui-même"
+  ]
+}
