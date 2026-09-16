@@ -353,7 +353,7 @@ LEDGER_SPEC: tuple[dict[str, Any], ...] = (
         "owner_type": "HUMAN_DECISION",
         "automation_possible": False,
         "human_decision_required": True,
-        "related_prs": [98, 132, 134, 138, 140, 151],
+        "related_prs": [132, 138, 140, 151],
         "close_condition": "Aucune disposition BLOCKING ni UNKNOWN.",
         "regression_tests_required": [
             "une PR BLOCKING bloque",
@@ -389,7 +389,9 @@ LEDGER_SPEC: tuple[dict[str, Any], ...] = (
 VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
 VERDICT_NON_ACTUEL = "BLOCKED_NOT_CURRENT_BY_SOURCE"
 
-DISPOSITIONS_BLOQUANTES = frozenset({"BLOCKING", "UNKNOWN"})
+DISPOSITIONS_BLOQUANTES = frozenset(
+    {"BLOCKING", "UNKNOWN", "UNKNOWN_BLOCKING", "HUMAN_DECISION_REQUIRED"}
+)
 
 #: Dispositions qui laissent une PR ouverte sans bloquer, chacune devant etre
 #: justifiee dans le fichier de dispositions.
@@ -399,6 +401,7 @@ DISPOSITIONS_NON_BLOQUANTES = frozenset(
         "REBASE_REQUIRED",
         "CLOSE_SUPERSEDED",
         "KEEP_OPEN_GOVERNANCE_ANCHOR",
+        "KEEP_OPEN_GOVERNED_NO_MERGE",
         "KEEP_OPEN_EXTERNAL_REVIEW",
     }
 )
@@ -868,7 +871,11 @@ def evaluer(*, declared_lot_facts: dict[str, int]) -> dict[str, Any]:
     non_pdf_mesure, provenance_non_pdf = _non_pdf_servables_retenus()
     non_pdf_reacquis = max(non_pdf["NON_PDF_LOCAL_COPY_RETAINED"], non_pdf_mesure)
 
-    inconnues = [n for n, d in dispositions.items() if d["disposition"] == "UNKNOWN"]
+    inconnues = [
+        n
+        for n, d in dispositions.items()
+        if d["disposition"] in ("UNKNOWN", "UNKNOWN_BLOCKING")
+    ]
     bloquantes = [
         n
         for n, d in dispositions.items()

@@ -143,6 +143,6 @@ def test_go_live_ready_reste_strictement_faux(readiness):
     assert "rag_searchability_blocker" not in readiness["blocking_reasons"]
     assert readiness["pii_undecided"] == 149
     assert readiness["release_promoted_refused_contents"] == 26
-    assert readiness["go_live_qualification_blockers"] == 12
-    assert readiness["open_prs_blocking"] == 6
+    assert readiness["go_live_qualification_blockers"] == 11
+    assert readiness["open_prs_blocking"] == 4
     assert readiness["current_switch"] == 0

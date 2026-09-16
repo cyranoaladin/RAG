@@ -1,7 +1,7 @@
 # Blocages de qualification du go-live
 
 - kind : `NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2`
-- ouverts : **12** / fermés : 1
+- ouverts : **11** / fermés : 2
 
 > État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.
 
@@ -10,7 +10,7 @@
 | `C1` | operateur | **non** | une release gouvernée couvre l ensemble promu, sans contenu refusé |
 | `C2` | session H2-C externe | **non** | une ingestion multilevel réelle aboutit et est rejouable |
 | `C3` | session H2-C externe | **non** | le worker CLI traite un lot multilevel de bout en bout |
-| `C4` | operateur | **non** | le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues |
+| `C4` | operateur | **oui** | le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues |
 | `C5` | operateur | **non** | l autorité d accès refuse une portée non autorisée, prouvé par épreuve |
 | `C6` | operateur | **non** | la qualification CAS couvre le magasin réel |
 | `COCKPIT_E2E` | operateur | **non** | le cockpit interroge l API de retrieval de bout en bout |
@@ -22,6 +22,17 @@
 | `NON_PDF_REACQUISITION` | operateur | **oui** | les 37 ressources servables sont présentes au store durable canonique, taille et SHA-256 conformes |
 
 ## Preuves des blocages fermés
+
+### `C4`
+
+- condition : le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues
+- vérification : Validation stricte des 8 conditions de retrieval et searchability sur l'intégralité du SERVABLE_CANDIDATE_SET (2 264 contenus sans dimension bloquante de la matrice de servabilité, 55 251 vecteurs en base dédiée, 0 PII OCR, latence conforme au budget).
+
+Ce que cette fermeture ne ferme pas :
+
+- C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
+- ROLLBACK (Le rollback de la release de production reste à éprouver)
+- MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)
 
 ### `NON_PDF_REACQUISITION`
 

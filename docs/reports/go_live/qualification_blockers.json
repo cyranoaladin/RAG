@@ -28,13 +28,26 @@
       "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues",
       "id": "C4",
       "owner": "operateur",
-      "proof": null,
+      "proof": {
+        "condition": "le contrat de retrieval est validé sur le corpus SERVABLE (SERVABLE_CANDIDATE_SET de 2 264 contenus), les huit conditions de l'écart de recherche sont tenues",
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "ROLLBACK (Le rollback de la release de production reste à éprouver)",
+          "MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)"
+        ],
+        "retrieval_latency_budget_respected": true,
+        "searchability_conditions_met": 8,
+        "servable_candidate_scope_size": 2264,
+        "staging_vectors_count": 55251,
+        "vectorized_contents_verified": 2264,
+        "verification": "Validation stricte des 8 conditions de retrieval et searchability sur l'intégralité du SERVABLE_CANDIDATE_SET (2 264 contenus sans dimension bloquante de la matrice de servabilité, 55 251 vecteurs en base dédiée, 0 PII OCR, latence conforme au budget)."
+      },
       "titre": "Contrat de retrieval sur corpus servable",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": false,
@@ -132,8 +145,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 1,
+  "closed_count": 2,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 12
+  "open_count": 11
 }
