@@ -3,7 +3,7 @@
 - Lot : `LOT_GO_LIVE_FINAL_BV_PREPARE_HUMAN_PII_AND_CURRENTNESS_DECISIONS`
 - Branche : `go-live/prepare-pii-currentness-decisions`
 - **Décision : `HUMAN_GATE_REQUIRED_PII_CURRENTNESS`**
-- Dossier scellé : `docs/reports/evidence/pii_currentness_human_decision_packet.json` (`fbccab2743a7cd88e3dc3293892368e9bf3ae1d9059432e39d907203ae672591`)
+- Dossier scellé : `docs/reports/evidence/pii_currentness_human_decision_packet.json` (`a6a9196b5f9ee394d60786b15524bc16b7c271c00a8152a61cbd7441c768a505`)
 - Feuille à remplir : `docs/reports/go_live/pii_currentness_decision_sheet.tsv` (631 lignes)
 
 Ce lot **prépare**. Il ne choisit aucune option, ne caviarde rien, n'exclut rien, ne réduit pas `pii_undecided`,
@@ -14,7 +14,7 @@ ne produit pas de release v3, ne ferme aucun blocker. Tous les compteurs sont in
 | Population | Nombre | Bloque |
 |---|---|---|
 | Contenus `PII_UNDECIDED` | **149** (479 findings) | `pii_undecided` |
-| … dont promus dans la release | **23** (49 findings, 5 en risque HIGH) | `release_promoted_refused_contents`, C1 |
+| … dont promus dans la release | **23** (49 findings) | `release_promoted_refused_contents`, C1 |
 | Contenus promus déclarés archivés par leur source | **3** | `release_promoted_refused_contents`, C1 |
 | Total promus refusés | **26** | C1 |
 
@@ -32,9 +32,21 @@ Les 126 autres (`P2_CANDIDATE`) ne bloquent que `pii_undecided`.
 | `french_ssn` | 10 | 6 |
 | `date_of_birth` | 1 | 1 |
 
-Risque **HIGH** (48 contenus) : présence de `french_ssn`, `date_of_birth` ou `student_name_pattern` — un vrai positif
-y identifie une personne physique, possiblement un élève mineur. Risque **STANDARD** : coordonnées, souvent
-institutionnelles dans une publication officielle, sans que ce soit acquis. Le niveau de risque **trie**, il ne décide pas.
+Niveau de risque, **repris du tableau de pilotage existant** (`pii_human_decision_dashboard.json`), jamais recalculé ici :
+`ELEVE` 6, `MOYEN` 106, `A_QUALIFIER` 37. Il **ordonne** la revue, il ne la remplace pas.
+
+### Articulation avec l'existant
+
+`main` porte déjà, pour la PII, `export_pii_review_packets.py`, `pii_review_decision_sheet.tsv` (149 lignes, une par
+contenu, 0 décision inscrite) et le tableau de pilotage. Ce lot **ne les refait pas** : il les consomme, et ne lit pas la
+matrice de servabilité (garde-fou `check-authority-uniqueness`, qui a refusé une première version de ce script — à
+raison). Ce que la feuille existante ne permettait pas, et que celle-ci ajoute :
+
+- les **3 lignes d'actualité**, absentes de toute feuille ;
+- une ligne **par finding** (479) : le contrat `NEXUS-PII-REVIEW-DECISIONS-V1` exige une disposition pour chacun, une
+  feuille à une ligne par contenu ne peut pas produire une décision valide ;
+- le rappel des décisions V1 non étendues ;
+- un dossier unique, scellé, recoupé avec le readiness.
 
 ### Contexte qui n'est PAS une décision
 
@@ -91,9 +103,10 @@ prérequis technique de BW, à traiter dès que les décisions indiqueront s'il 
 
 ## Garanties
 
-Générateur `scripts/go_live/build_pii_currentness_decision_packet.py` : dossier **dérivé**, refuse si matrice, index PII,
-impact de release et readiness ne se recoupent pas exactement. 8 épreuves : populations recoupées, 0 décision
-pré-remplie, décision V1 citée jamais étendue, aucune matière brute, promus d'abord, colonnes de décision vides,
+Générateur `scripts/go_live/build_pii_currentness_decision_packet.py` : dossier **dérivé**, refuse si pilotage, index PII,
+impact de release et readiness ne se recoupent pas exactement. 9 épreuves : populations recoupées, 0 décision
+pré-remplie, décision V1 citée jamais étendue, aucune matière brute, ordre et risque repris du pilotage, matrice non lue,
+colonnes de décision vides,
 refus d'autorités incohérentes, artefacts versionnés à jour et scellés.
 
 ## Readiness
