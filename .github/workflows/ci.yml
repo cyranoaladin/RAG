@@ -82,6 +82,31 @@ jobs:
           python scripts/qualification/compute_promoted_content_set.py \
             --output /tmp/promoted-content-set.json
 
+  script-tests:
+    name: "scripts/tests"
+    runs-on: ubuntu-latest
+    # `scripts/tests/` porte les épreuves de REFUS des vérificateurs fail-closed du
+    # go-live (blocages de qualification, readiness, dossier et feuille de décision
+    # PII, dispositions de PR…). Elles ne tournaient qu'en local : la CI nommait ses
+    # épreuves une à une et n'en retenait qu'une. Un vérificateur dont personne
+    # n'exécute les tests de refus n'est un garde-fou que sur parole.
+    # Ce job n'a besoin d'aucun secret, d'aucun Docker, d'aucun réseau.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # `test_open_pr_dispositions` vérifie qu'un SHA cité existe dans
+          # l'historique : un clone superficiel le ferait échouer à tort.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install --quiet pytest==9.1.1 PyYAML==6.0.3 "psycopg[binary]" \
+            -e packages/contracts \
+            -e packages/pdf-page-policy \
+            -e packages/release-chain
+      - run: python -m pytest -q scripts/tests/
+
   rag-pedago:
     name: "services/rag-pedago"
     runs-on: ubuntu-latest

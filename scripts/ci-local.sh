@@ -217,6 +217,8 @@ run_target "governance-locks" bash scripts/check-governance-locks.sh
 run_target "authority-uniqueness" bash scripts/check-authority-uniqueness.sh
 run_target "authority-uniqueness-guard" bash scripts/tests/test-authority-uniqueness.sh
 run_target "go-live-readiness-gate" "$PYTHON_BIN" -m pytest -q scripts/tests/test_go_live_readiness.py
+# Toutes les épreuves de refus des vérificateurs fail-closed — même cible que le job CI `scripts/tests`.
+run_target "script-tests" "$PYTHON_BIN" -m pytest -q scripts/tests/
 
 # --- taxonomy validation ---
 run_target "taxonomy-validation" bash -c "cd $REPO_ROOT/services/rag-pedago && source .venv/bin/activate && python scripts/validate_taxonomy.py"
