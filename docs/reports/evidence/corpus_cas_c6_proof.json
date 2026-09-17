@@ -1,0 +1,60 @@
+{
+  "cas_root": "store/corpus_cas_governed",
+  "kind": "NEXUS-C6-CORPUS-CAS-QUALIFICATION-PROOF-V1",
+  "manifest_path": "store/corpus_cas_governed/manifest.json",
+  "manifest_schema": "NEXUS-CORPUS-CAS-MANIFEST-V1",
+  "observed_at_main_sha": "84a235aeb2c7d188ccdf56226a0d0ab73fc8ee0a",
+  "summary": {
+    "failed_check_names": [],
+    "failed_items": 0,
+    "passed_checks": 17,
+    "total_checks": 17,
+    "verified_objects": 2264
+  },
+  "target_scope": {
+    "authority_source": "docs/reports/go_live/rag_searchability_gap.json",
+    "content_set_digest": "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd",
+    "count": 2264,
+    "definition": "les 2 264 contenus que le gate de servabilité ne refuse pas, issus de l'écart de recherche",
+    "name": "SERVABLE_CANDIDATE_SET"
+  },
+  "timestamp": "2026-09-17T02:09:43.613065+00:00",
+  "verdicts": {
+    "ALL_OBJECTS_READ_FROM_DISK": true,
+    "CAS_MANIFEST_EXISTS": true,
+    "CAS_MANIFEST_SCHEMA_CONFORMANT": true,
+    "CAS_ROOT_EXPLICITLY_NAMED": true,
+    "CONTENT_SET_DIGEST_MATCHES_EXPECTED_AUTHORITY": true,
+    "COVERAGE_ON_GOVERNED_SCOPE": true,
+    "DECLARED_SIZES_VERIFIED": true,
+    "EXPECTED_COUNT_MATCHES_EXACTLY": true,
+    "NO_CURRENTNESS_REFUSED_CONTENT_REINTRODUCED": true,
+    "NO_EXPECTED_OBJECTS_MISSING": true,
+    "NO_EXTRA_OBJECTS_SILENTLY_ACCEPTED": true,
+    "NO_LOCATOR_ESCAPES_CAS_ROOT": true,
+    "NO_MATRIX_REFUSED_CONTENT_ADMITTED": true,
+    "NO_PII_UNDECIDED_CONTENT_PROMOTED": true,
+    "NO_SYMLINK_TRAVERSAL": true,
+    "RESULT_SEALED_BY_SHA256": true,
+    "SHA256_RECALCULATED_ON_BYTES": true
+  },
+  "verification_status": "VERIFIED",
+  "verifications": {
+    "cas_root_named": true,
+    "content_set_digest_matched": true,
+    "currentness_refused_reintroduced": 0,
+    "declared_sizes_verified": 2264,
+    "expected_count_matched": true,
+    "expected_objects_missing": 0,
+    "extra_objects_count": 0,
+    "locator_escapes_detected": 0,
+    "manifest_exists": true,
+    "matrix_refused_admitted": 0,
+    "objects_read_from_disk": 2264,
+    "pii_undecided_promoted": 0,
+    "schema_conformant": true,
+    "sha256_recalculated_on_bytes": 2264,
+    "sha256_sealed": true,
+    "symlinks_detected": 0
+  }
+}

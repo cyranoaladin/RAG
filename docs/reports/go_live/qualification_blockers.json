@@ -68,13 +68,34 @@
       "why_still_open": null
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "la qualification CAS couvre le magasin réel",
       "id": "C6",
       "owner": "operateur",
-      "proof": null,
+      "proof": {
+        "cas_root": "store/corpus_cas_governed",
+        "condition": "la qualification CAS couvre le magasin réel sur le périmètre SERVABLE_CANDIDATE_SET (2 264 contenus vérifiés, 0 manquant, 0 extra, 0 PII undecided promu, 0 contenu refusé réintroduit)",
+        "content_set_digest": "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd",
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "C2 (Ingestion multilevel réelle bout en bout)",
+          "C3 (Worker CLI multilevel bout en bout)",
+          "COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)",
+          "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+          "CONCURRENCE (Comportement sous concurrence)",
+          "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+          "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+          "PII_UNDECIDED (149 contenus PII undecided)",
+          "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+          "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)"
+        ],
+        "manifest_schema": "NEXUS-CORPUS-CAS-MANIFEST-V1",
+        "sha256_verified": true,
+        "verification": "Preuve d'exécution et de conformité cryptographique de la qualification CAS (C6) : manifest conforme (NEXUS-CORPUS-CAS-MANIFEST-V1), objets relus depuis le disque, empreintes et tailles recalculées, zéro objet manquant, zéro fuite de portée, exclusion stricte des 266 contenus refusés par la matrice dont les 149 PII undecided et l'actualité périmée.",
+        "verified_objects_count": 2264
+      },
       "titre": "Qualification CAS et couverture de magasin",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": false,
@@ -166,8 +187,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 4,
+  "closed_count": 5,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 9
+  "open_count": 8
 }
