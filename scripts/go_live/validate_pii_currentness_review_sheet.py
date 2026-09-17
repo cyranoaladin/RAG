@@ -76,6 +76,8 @@ def valider(racine: Path, feuille: Path) -> dict:
                 erreurs.append(f"finding {ligne['finding_id'][:12]} : FINDING_DISPOSITION hors liste : {ligne['FINDING_DISPOSITION']!r}")
 
     decides = attente = 0
+    pii_decides = pii_attente = 0
+    logins: set[str] = set()
     for ligne in connues:
         if ligne["row_kind"] == "PII_FINDING":
             continue
@@ -85,12 +87,17 @@ def valider(racine: Path, feuille: Path) -> dict:
         if decision and decision not in options:
             erreurs.append(f"{qui} : HUMAN_DECISION hors liste : {decision!r}")
             continue
+        est_pii = ligne["row_kind"] == "PII_CONTENT"
         if decision in EN_ATTENTE:
             attente += 1
+            pii_attente += est_pii
             continue
         decides += 1
+        pii_decides += est_pii
         if not _LOGIN.fullmatch(ligne["REVIEWER_LOGIN"]):
             erreurs.append(f"{qui} : REVIEWER_LOGIN absent ou invalide")
+        else:
+            logins.add(ligne["REVIEWER_LOGIN"])
         if ligne["row_kind"] == "CURRENTNESS_CONTENT":
             if decision == "KEEP_IF_STILL_CURRENT_WITH_EVIDENCE" and not ligne["EVIDENCE_REFERENCE"].strip():
                 erreurs.append(f"{qui} : EVIDENCE_REFERENCE obligatoire pour KEEP_IF_STILL_CURRENT_WITH_EVIDENCE")
@@ -99,6 +106,9 @@ def valider(racine: Path, feuille: Path) -> dict:
         dispositions = [f["FINDING_DISPOSITION"] for f in findings_par_contenu.get(ligne["content_sha256"], [])]
         if len(dispositions) != attendus or not all(dispositions):
             erreurs.append(f"{qui} : décision rendue sans disposition sur chaque finding ({sum(map(bool, dispositions))}/{attendus})")
+        # `COMMENT` devient `justification.statement` du contrat : 20 à 1000 caractères, sans matière brute.
+        if not 20 <= len(ligne["COMMENT"].strip()) <= 1000:
+            erreurs.append(f"{qui} : COMMENT (motif de la décision) requis, 20 à 1000 caractères, sans donnée personnelle")
         if ligne["JUSTIFICATION_CATEGORY"] not in CATEGORIES:
             erreurs.append(f"{qui} : JUSTIFICATION_CATEGORY absente ou hors liste")
         personnels = dispositions.count("PERSONAL_DATA_PRESENT")
@@ -107,12 +117,17 @@ def valider(racine: Path, feuille: Path) -> dict:
         if decision in REJETS and not personnels:
             erreurs.append(f"{qui} : {decision} exige au moins un finding PERSONAL_DATA_PRESENT (contrat : REJECTED)")
 
+    if len(logins) > 1:
+        erreurs.append(f"plusieurs REVIEWER_LOGIN dans une même feuille : {sorted(logins)} — un jeu de décisions a un seul reviewer")
     return {
         "sheet": str(feuille),
         "rows": len(lignes),
         "counts": {"decided": decides, "pending": attente, "invalid": len(erreurs)},
         # Le scelleur gouverné (ADR-0047) refuse un jeu qui laisse un contenu de son index sans décision.
-        "sealable": not erreurs and attente == 0 and decides > 0,
+        # Les décisions d'actualité n'entrent pas dans le jeu PII : seules les lignes PII comptent ici.
+        "sealable": not erreurs and pii_attente == 0 and pii_decides > 0,
+        "pii": {"decided": pii_decides, "pending": pii_attente},
+        "reviewer_login": next(iter(logins)) if len(logins) == 1 else None,
         "errors": erreurs,
         "imports_nothing": True,
         "note": "contrôle de forme et de cohérence ; l'import reste soumis à votre autorisation explicite",

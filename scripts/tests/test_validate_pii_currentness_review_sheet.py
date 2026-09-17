@@ -54,7 +54,7 @@ def test_decision_complete_et_coherente_acceptee(tmp_path, vierge):
     contenu, findings = _premier_contenu_pii(lignes)
     for f in findings:
         f["FINDING_DISPOSITION"] = "FALSE_POSITIVE_TECHNICAL"
-    contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma")
+    contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma", COMMENT="motif de décision rédigé pour une épreuve")
     bilan = validateur.valider(RACINE, _ecrire(tmp_path, lignes))
     assert bilan["errors"] == [] and bilan["counts"]["decided"] == 1
     assert bilan["sealable"] is False, "25 contenus restent en attente"
@@ -66,7 +66,7 @@ def test_cleared_refuse_si_un_finding_est_personnel(tmp_path, vierge):
     for f in findings:
         f["FINDING_DISPOSITION"] = "FALSE_POSITIVE_TECHNICAL"
     findings[0]["FINDING_DISPOSITION"] = "PERSONAL_DATA_PRESENT"
-    contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma")
+    contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma", COMMENT="motif de décision rédigé pour une épreuve")
     erreurs = validateur.valider(RACINE, _ecrire(tmp_path, lignes))["errors"]
     assert any("PERSONAL_DATA_PRESENT" in e for e in erreurs)
 
@@ -74,7 +74,7 @@ def test_cleared_refuse_si_un_finding_est_personnel(tmp_path, vierge):
 def test_decision_sans_tous_les_findings_refusee(tmp_path, vierge):
     lignes = _copie(vierge)
     contenu, _findings = _premier_contenu_pii(lignes)
-    contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma")
+    contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma", COMMENT="motif de décision rédigé pour une épreuve")
     erreurs = validateur.valider(RACINE, _ecrire(tmp_path, lignes))["errors"]
     assert any("finding" in e for e in erreurs)
 
@@ -84,7 +84,7 @@ def test_rejet_exige_un_finding_personnel(tmp_path, vierge):
     contenu, findings = _premier_contenu_pii(lignes)
     for f in findings:
         f["FINDING_DISPOSITION"] = "PUBLIC_INSTITUTIONAL_DATA"
-    contenu.update(HUMAN_DECISION="EXCLUDE_FROM_SERVABLE_SET", JUSTIFICATION_CATEGORY="PERSONAL_DATA_PRESENT", REVIEWER_LOGIN="abenrhouma")
+    contenu.update(HUMAN_DECISION="EXCLUDE_FROM_SERVABLE_SET", JUSTIFICATION_CATEGORY="PERSONAL_DATA_PRESENT", REVIEWER_LOGIN="abenrhouma", COMMENT="motif de décision rédigé pour une épreuve")
     erreurs = validateur.valider(RACINE, _ecrire(tmp_path, lignes))["errors"]
     assert any("au moins un" in e for e in erreurs)
 
@@ -122,3 +122,16 @@ def test_le_validateur_n_ecrit_rien(tmp_path, vierge):
     avant = {p: p.stat().st_mtime_ns for p in (RACINE / "governance").rglob("*") if p.is_file()}
     validateur.valider(RACINE, _ecrire(tmp_path, _copie(vierge)))
     assert avant == {p: p.stat().st_mtime_ns for p in (RACINE / "governance").rglob("*") if p.is_file()}
+
+
+def test_motif_absent_et_reviewers_multiples_refuses(tmp_path, vierge):
+    lignes = _copie(vierge)
+    contenu, findings = _premier_contenu_pii(lignes)
+    for f in findings:
+        f["FINDING_DISPOSITION"] = "FALSE_POSITIVE_TECHNICAL"
+    contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma", COMMENT="court")
+    actualite = next(x for x in lignes if x["row_kind"] == "CURRENTNESS_CONTENT")
+    actualite.update(HUMAN_DECISION="EXCLUDE_FROM_PROMOTED_RELEASE", REVIEWER_LOGIN="quelquun-dautre")
+    erreurs = validateur.valider(RACINE, _ecrire(tmp_path, lignes))["errors"]
+    assert any("COMMENT" in e for e in erreurs)
+    assert any("plusieurs REVIEWER_LOGIN" in e for e in erreurs)

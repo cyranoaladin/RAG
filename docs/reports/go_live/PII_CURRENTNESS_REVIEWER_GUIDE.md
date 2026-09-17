@@ -11,7 +11,8 @@ Elles ne sont pas suffisantes à elles seules — deux faits vérifiés dans le 
    (`services/rag-pedago/scripts/sceller_decisions_pii.py`, ADR-0047) refuse un brouillon qui laisse un contenu de l'index
    sans décision. L'index V2 recense 149 contenus : décider les 23 promus seuls n'est scellable que contre un **index de
    revue restreint aux 23 promus** — ce que la campagne V1 avait fait (index borné au périmètre de production, 23 décisions).
-   Ce restreint est un lot technique que je prépare ; il ne demande aucune décision de votre part.
+   Cet index existe désormais : `docs/reports/evidence/promoted_pii_currentness_restricted_review_index.json`. Il corrige
+   aussi un défaut bloquant : le scelleur gouverné ne s'exécutait pas du tout sur l'index V2 (clé `page` absente).
 2. **`pii_undecided` ne lit aucune décision aujourd'hui** : la matrice de servabilité déduit `PII_UNDECIDED` de la seule
    présence dans l'index. La faire consommer les décisions scellées est un câblage gouverné (lot BW), revu par vous.
 
@@ -34,10 +35,12 @@ La colonne `WHAT_TO_FILL_ON_THIS_ROW` le dit ligne par ligne ; `open_this_file` 
 | `row_kind` | Vous remplissez | Vous ne touchez pas |
 |---|---|---|
 | `PII_FINDING` (49) | `FINDING_DISPOSITION` | tout le reste |
-| `PII_CONTENT` (23) | `HUMAN_DECISION`, `JUSTIFICATION_CATEGORY`, `REVIEWER_LOGIN` | tout le reste |
+| `PII_CONTENT` (23) | `HUMAN_DECISION`, `JUSTIFICATION_CATEGORY`, `REVIEWER_LOGIN`, `COMMENT` (**obligatoire** : motif, 20 à 1000 caractères) | tout le reste |
 | `CURRENTNESS_CONTENT` (3) | `HUMAN_DECISION`, `REVIEWER_LOGIN`, et `EVIDENCE_REFERENCE` si vous maintenez | tout le reste |
 
-`COMMENT` est libre partout, **sans jamais y recopier une donnée personnelle**. Les colonnes en minuscules sont en
+`COMMENT` est **obligatoire sur chaque contenu PII décidé** : c'est le motif de la décision, que le contrat scelle
+(`justification.statement`, 20 à 1000 caractères). Exemple de forme : « Coordonnées du secrétariat d'un rectorat, publiées
+par l'institution. » Il est libre ailleurs. **Ne jamais y recopier une donnée personnelle.** Un seul `REVIEWER_LOGIN` par feuille. Les colonnes en minuscules sont en
 lecture seule : le validateur refuse une feuille où l'une d'elles a changé.
 
 ## 3. Statuer un finding — `FINDING_DISPOSITION`
@@ -119,7 +122,8 @@ Une feuille partielle est **contrôlable** (le validateur l'accepte et compte le
 ```
 PII_DECISIONS_VALIDATED fichier=docs/reports/go_live/pii_currentness_minimal_c1_review.tsv reviewer=<votre login> — IMPORT AUTORISÉ
 ```
-Sans cette phrase, rien n'est importé. À sa réception : validation, conversion de la feuille en brouillon, scellement
+Sans cette phrase, rien n'est importé. À sa réception : validation, conversion de la feuille en brouillon
+(`convert_review_sheet_to_sealer_draft.py`, hors dépôt), scellement
 par l'outil gouverné existant (`sceller_decisions_pii.py`) en `governance/pii-review-decisions/<decision_set_id>.json`
 sous le contrat `NEXUS-PII-REVIEW-DECISIONS-V1`, PR avec revue humaine épinglée — vos décisions passent donc une seconde
 fois sous vos yeux avant de produire un effet. Les compteurs ne bougeront que par le câblage gouverné du lot BW, et du
