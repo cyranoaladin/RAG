@@ -15,7 +15,6 @@ import argparse
 import hashlib
 import json
 import subprocess
-import sys
 from pathlib import Path
 
 AUTORISATION = "docs/reports/go_live/authorizations/staging_ssh_authorization.json"
