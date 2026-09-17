@@ -1,0 +1,58 @@
+{
+  "budget": {
+    "changed_by_this_decision": false,
+    "path": "docs/reports/go_live/concurrency_load_budget.json",
+    "sha256": "0a8c0dc3384b9522658ee9f77669a3d463c060049bd8b033dfc8c8e6334db0b2"
+  },
+  "closes_concurrence": false,
+  "depends_on": "staging cloisonné autorisé et en place (lots CH et CI)",
+  "granted_by_pull_request_approval_of": "abenrhouma",
+  "kind": "NEXUS-CONCURRENCY-ARBITRATION-DECISION-V1",
+  "load_profile_changed_by_this_decision": false,
+  "measured_basis": {
+    "current_profile_equivalent_active_users": 170,
+    "request_ms_2_threads": 3600,
+    "request_ms_8_threads": 2300,
+    "required_service_ms_for_budget": 375,
+    "rerank_ms_by_candidates_2_threads": {
+      "12": 916,
+      "16": 1440,
+      "35": 3351,
+      "8": 618
+    },
+    "source": "docs/reports/go_live/CONCURRENCY_ARBITRATION_OPTIONS.md"
+  },
+  "pre_registered_protocol": {
+    "fallback_order": [
+      {
+        "path": "B_RERANK_CAP",
+        "requires": "PR dédiée avec ADR : plafond N des candidats rerankés fixé dans l'ADR (N ∈ {16, 12}), non-régression qualité AVANT toute mesure de charge (golden queries, 30 requêtes gouvernées, 8 conditions du contrat de retrieval sur le corpus servable), budget inchangé"
+      },
+      {
+        "path": "C_LAUNCH_LOAD_PROFILE",
+        "requires": "PR dédiée avec ADR et donnée d'usage de lancement ; nouveau profil et nouveau budget fixés avant mesure, dans un commit distinct de toute fermeture ; l'ancien budget et sa mesure en échec restent versionnés"
+      }
+    ],
+    "fixed_before_any_new_measurement": true,
+    "forbidden": [
+      "modifier le budget ou le profil après lecture d'une mesure",
+      "fermer CONCURRENCE avec la preuve BUDGET_FAILED",
+      "activer un cache de recherche publique (interdit par le moteur)",
+      "désactiver E5 ou le reranker",
+      "mesurer sur un hôte non désigné"
+    ],
+    "step_1_sizing": "sur le staging cloisonné : lever la limite `cpus` du conteneur ingestor jusqu'à la capacité de l'hôte relevée en phase 0 (plafond : laisser au moins 2 cœurs et 4 Gio à la production) ; utiliser un GPU si l'hôte en expose un utilisable",
+    "step_2_C0": "mesure séquentielle : 10 requêtes d'échauffement puis les 30 requêtes gouvernées, une à la fois, délai client 7500 ms",
+    "step_3_rule": {
+      "if_sequential_p50_ms_gt_375": "le budget est arithmétiquement inatteignable à 8 clients sérialisés (8 × service > 3000 ms) : NE PAS lancer C1, sceller la mesure C0 comme diagnostic, et ouvrir la voie de repli",
+      "if_sequential_p50_ms_le_375": "rejouer C1 (8 clients, 240 requêtes) contre le budget INCHANGÉ ; CONCURRENCE ne se ferme que sur preuve VERIFIED"
+    }
+  },
+  "retained_path": "A_TARGET_SIZING",
+  "status": "PROPOSED_EFFECTIVE_WHEN_MERGED",
+  "why_A": [
+    "c'est la seule voie qui corrige le défaut réel : la latence d'une requête SEULE sur la cible (≈ 3,6 s à 2 CPU pour un p50 visé de 3 s)",
+    "c'est la seule voie qui ne touche ni à la qualité du retrieval ni au budget",
+    "B seul est insuffisant (N=8 : ≈ 891 ms/requête à 2 CPU, ≈ 7 s sous 8 clients) ; C seul ne corrige pas la latence unitaire"
+  ]
+}
