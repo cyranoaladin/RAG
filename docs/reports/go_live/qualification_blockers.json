@@ -176,7 +176,7 @@
       "owner": "operateur",
       "proof": null,
       "titre": "Comportement sous concurrence",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": "statut CONCURRENCE non VERIFIED : BUDGET_FAILED"
     },
     {
       "closed": false,

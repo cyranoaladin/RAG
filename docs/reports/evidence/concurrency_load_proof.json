@@ -1,0 +1,2049 @@
+{
+  "bench": "services/rag-engine/tests/integration/test_concurrency_load.py",
+  "bench_pytest_exit_code": 0,
+  "budget": {
+    "declared_in_commit": "0a62257f2755a2d93a515da73730c94bd8e38d03",
+    "path": "docs/reports/go_live/concurrency_load_budget.json",
+    "sha256": "0a8c0dc3384b9522658ee9f77669a3d463c060049bd8b033dfc8c8e6334db0b2",
+    "values": {
+      "db_connections_leaked_max": 0,
+      "db_connections_peak_max": 10,
+      "docker_residues_max": 0,
+      "error_rate_max": 0.0,
+      "errors_max": 0,
+      "p50_ms_max": 3000.0,
+      "p95_ms_max": 6000.0,
+      "p99_ms_max": 7500.0,
+      "residual_processes_max": 0,
+      "timeouts_max": 0
+    }
+  },
+  "executed_command": "python3 scripts/qualification/verify_concurrency_load.py --run",
+  "governance_counters_after": {
+    "current_switch": 0,
+    "pii_undecided": 149,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "release_promoted_refused_contents": 26
+  },
+  "governance_counters_before": {
+    "current_switch": 0,
+    "pii_undecided": 149,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "release_promoted_refused_contents": 26
+  },
+  "host": {
+    "accelerator": "none (CUDA_VISIBLE_DEVICES vide)",
+    "cpu_count": 16
+  },
+  "kind": "NEXUS-CONCURRENCY-LOAD-PROOF-V1",
+  "measured_at_branch_head": "660873bc609ec2b538397ccc93dc4da68e1e0b49",
+  "measurements": {
+    "budget_sha256": "0a8c0dc3384b9522658ee9f77669a3d463c060049bd8b033dfc8c8e6334db0b2",
+    "corpus": {
+      "expected_chunks": 353,
+      "indexed_chunks": 353
+    },
+    "database_snapshot_after": {
+      "content_sha256": "72d4317a3782f71cdc6ea3780ebe4d8adf6f37dd945cd48bac7186c60a0e88a8",
+      "counts": {
+        "rag_artifact_placements": 11,
+        "rag_artifacts": 11,
+        "rag_chunks": 353
+      },
+      "duplicate_chunk_ids": 0
+    },
+    "database_snapshot_before": {
+      "content_sha256": "72d4317a3782f71cdc6ea3780ebe4d8adf6f37dd945cd48bac7186c60a0e88a8",
+      "counts": {
+        "rag_artifact_placements": 11,
+        "rag_artifacts": 11,
+        "rag_chunks": 353
+      },
+      "duplicate_chunk_ids": 0
+    },
+    "database_targets": [
+      {
+        "dsn_host": "127.0.0.1",
+        "ephemeral_docker_container": true,
+        "role": "admin"
+      },
+      {
+        "dsn_host": "127.0.0.1",
+        "ephemeral_docker_container": true,
+        "role": "multilevel_retrieval"
+      },
+      {
+        "dsn_host": "127.0.0.1",
+        "ephemeral_docker_container": true,
+        "role": "multilevel_review"
+      }
+    ],
+    "db_connections": {
+      "after_engine_stop": 0,
+      "before_engine_start": 0,
+      "idle_after_load": 5,
+      "peak_during_load": 6,
+      "role": "multilevel_retrieval",
+      "samples_count": 1804
+    },
+    "engine": {
+      "embedding_inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+      "engine_exit_code": -15,
+      "entrypoint": "uvicorn src.ingestor.api_v2:app",
+      "mock_detected": false,
+      "pg_pool_max_size": 10,
+      "rag_env": "production",
+      "real_embedding_model": "intfloat/multilingual-e5-large",
+      "release_sha256": "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26",
+      "reranker_inventory_sha256": "bdcedc4d7cfe647b9aaa5a7546822dfee7826ebb3c64472bf89eae7592e08fe1"
+    },
+    "kind": "NEXUS-CONCURRENCY-LOAD-RAW-MEASUREMENTS-V1",
+    "load_profile_executed": {
+      "client_timeout_ms": 7500,
+      "collections": 10,
+      "concurrent_clients": 8,
+      "distinct_queries": 30,
+      "endpoint": "POST /search/v2",
+      "measured_requests_total": 240,
+      "warmup_requests": 10
+    },
+    "load_wall_seconds": 180.585,
+    "measured_requests": [
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.156,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.408,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.1,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.419,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.502,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": null,
+        "latency_ms": 4852.884,
+        "outcome": "ok",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.027,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.897,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": null,
+        "latency_ms": 5357.235,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.713,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": null,
+        "latency_ms": 5382.938,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.727,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.382,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6021.233,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6018.988,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6016.956,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.677,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.569,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.41,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.649,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6051.816,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6032.53,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6041.502,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6042.681,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.998,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.186,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.027,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6052.827,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6010.781,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6010.514,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6015.103,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.548,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6019.314,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.87,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.189,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.813,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.775,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.588,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.248,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.484,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": null,
+        "latency_ms": 5775.853,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 5769.477,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.89,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6017.737,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6011.4,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6009.61,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.048,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.662,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.811,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.745,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.515,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.587,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.689,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.247,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.612,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.265,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.705,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.075,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.914,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.931,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.54,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.046,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.094,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.308,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.044,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.026,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.959,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.942,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.972,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.488,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.368,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.057,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.173,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.493,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.815,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6008.295,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.511,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.443,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.536,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.826,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.048,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.869,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.53,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.51,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.322,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.524,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.04,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.924,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.883,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.396,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.928,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.107,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.373,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.23,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.935,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.808,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.217,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.841,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.304,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.264,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.29,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.829,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6009.401,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.427,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.913,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.615,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.909,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.32,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.404,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.259,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.606,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.847,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.419,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.077,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.694,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.384,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6008.749,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6019.185,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6016.766,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6013.671,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6012.879,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.325,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.224,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.365,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6012.867,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.836,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6019.167,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6049.889,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": null,
+        "latency_ms": 5398.471,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 5410.482,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 5765.985,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.727,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6030.85,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6026.626,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6039.432,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6015.262,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6017.603,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.574,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.404,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.961,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6020.982,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6019.853,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.651,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.307,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.791,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.012,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.749,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.37,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.12,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.521,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.307,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.776,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.894,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.339,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.271,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.399,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.571,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.279,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.922,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6024.923,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.911,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.397,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.308,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.37,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.932,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6014.825,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.615,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6071.547,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.136,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.83,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.568,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.631,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.174,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.448,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6008.75,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6052.905,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.422,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.881,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.048,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.146,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.45,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6013.785,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.772,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6010.936,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.239,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.766,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.552,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.095,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.539,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6011.498,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6026.108,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6034.478,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.382,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.664,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.243,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.652,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.044,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6058.777,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6042.424,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6024.903,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.204,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.334,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.73,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.117,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.767,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.197,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.06,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6018.512,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.344,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.034,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.446,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.711,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6008.188,
+        "outcome": "error",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.787,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.234,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.001,
+        "outcome": "error",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.471,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.53,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.219,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.161,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.869,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6008.084,
+        "outcome": "error",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.208,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6002.963,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6025.327,
+        "outcome": "error",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.743,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.118,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.274,
+        "outcome": "error",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.633,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6007.649,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6006.09,
+        "outcome": "error",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.622,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6009.839,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.464,
+        "outcome": "error",
+        "scope_id": "terminale_maths_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.239,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.546,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6005.084,
+        "outcome": "error",
+        "scope_id": "terminale_nsi_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.341,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6003.967,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      },
+      {
+        "detail": "http_503",
+        "latency_ms": 6004.279,
+        "outcome": "error",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 503
+      }
+    ],
+    "sequential_baseline": [
+      {
+        "detail": null,
+        "latency_ms": 2652.993,
+        "outcome": "ok",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2693.946,
+        "outcome": "ok",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2768.55,
+        "outcome": "ok",
+        "scope_id": "entree_premiere_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2501.441,
+        "outcome": "ok",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2573.383,
+        "outcome": "ok",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2613.84,
+        "outcome": "ok",
+        "scope_id": "entree_premiere_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1424.698,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1353.737,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1376.273,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1372.553,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1443.337,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1392.145,
+        "outcome": "ok",
+        "scope_id": "entree_troisieme_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2333.924,
+        "outcome": "ok",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2381.184,
+        "outcome": "ok",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2390.376,
+        "outcome": "ok",
+        "scope_id": "entree_terminale_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1297.5,
+        "outcome": "ok",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1441.01,
+        "outcome": "ok",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1270.763,
+        "outcome": "ok",
+        "scope_id": "entree_terminale_nsi_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2134.099,
+        "outcome": "ok",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2259.049,
+        "outcome": "ok",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2294.476,
+        "outcome": "ok",
+        "scope_id": "eaf_premiere_francais_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2848.797,
+        "outcome": "ok",
+        "scope_id": "terminale_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2843.206,
+        "outcome": "ok",
+        "scope_id": "terminale_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 2840.268,
+        "outcome": "ok",
+        "scope_id": "terminale_maths_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1359.443,
+        "outcome": "ok",
+        "scope_id": "terminale_nsi_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1284.733,
+        "outcome": "ok",
+        "scope_id": "terminale_nsi_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 1274.194,
+        "outcome": "ok",
+        "scope_id": "terminale_nsi_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 3001.414,
+        "outcome": "ok",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 3037.635,
+        "outcome": "ok",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 200
+      },
+      {
+        "detail": null,
+        "latency_ms": 3057.092,
+        "outcome": "ok",
+        "scope_id": "terminale_physique_chimie_v2",
+        "status": 200
+      }
+    ]
+  },
+  "observed_at_main_sha": "52f80f6c7a2171498b9fe713d6b7bf7ff0720098",
+  "sealed_at": "2026-09-17T13:13:32Z",
+  "sequential_baseline_summary": {
+    "error_rate": 0.0,
+    "errors": 0,
+    "max_ms": 3057.092,
+    "p50_ms": 2294.476,
+    "p95_ms": 3037.635,
+    "p99_ms": 3057.092,
+    "requests": 30,
+    "timeouts": 0
+  },
+  "summary": {
+    "error_rate": 0.9666666666666667,
+    "errors": 232,
+    "max_ms": 6071.547,
+    "p50_ms": 6004.502,
+    "p95_ms": 6030.85,
+    "p99_ms": 6052.905,
+    "requests": 240,
+    "timeouts": 0
+  },
+  "teardown": {
+    "current_switch": 0,
+    "docker_residue_names": [],
+    "docker_residues_after_test": 0,
+    "measured_after_pytest_exit": true,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "production_touched": false,
+    "production_untouched_basis": "toutes les DSN du banc visent 127.0.0.1 sur des conteneurs jetables créés par le banc ; aucun identifiant ni hôte de production n'est lu",
+    "residual_engine_processes": 0
+  },
+  "throughput_rps": 1.329,
+  "verification_status": "BUDGET_FAILED",
+  "violations": [
+    "p50_ms=6004.502 ms > budget 3000.0 ms",
+    "p95_ms=6030.85 ms > budget 6000.0 ms",
+    "232 erreur(s) > budget 0",
+    "taux d erreur 0.9666666666666667 > budget 0.0"
+  ]
+}

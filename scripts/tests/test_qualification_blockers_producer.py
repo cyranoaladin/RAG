@@ -1219,3 +1219,262 @@ def test_verifier_cockpit_e2e_sur_depot_reel():
     assert res["proof"]["citations_count"] > 0
 
 
+
+
+# --- CONCURRENCE (lot BS) ---------------------------------------------------
+
+_BUDGET_CONCURRENCE = {
+    "kind": "NEXUS-CONCURRENCY-LOAD-BUDGET-V1",
+    "adopted": True,
+    "declared_before_measurement": True,
+    "load_profile": {
+        "concurrent_clients": 4,
+        "measured_requests_total": 20,
+        "warmup_requests": 2,
+        "client_timeout_ms": 7500,
+    },
+    "budget": {
+        "p50_ms_max": 3000.0,
+        "p95_ms_max": 6000.0,
+        "p99_ms_max": 7500.0,
+        "error_rate_max": 0.0,
+        "errors_max": 0,
+        "timeouts_max": 0,
+        "db_connections_peak_max": 10,
+        "db_connections_leaked_max": 0,
+        "docker_residues_max": 0,
+        "residual_processes_max": 0,
+    },
+}
+
+
+def _poser_concurrence(racine: Path, muter=None, *, muter_budget=None, tamper_sha=False) -> None:
+    budget = json.loads(json.dumps(_BUDGET_CONCURRENCE))
+    if muter_budget:
+        muter_budget(budget)
+    budget_path = racine / "docs/reports/go_live/concurrency_load_budget.json"
+    budget_path.parent.mkdir(parents=True, exist_ok=True)
+    budget_octets = (json.dumps(budget, indent=2) + "\n").encode()
+    budget_path.write_bytes(budget_octets)
+
+    snapshot = {
+        "counts": {"rag_chunks": 353, "rag_artifacts": 11, "rag_artifact_placements": 11},
+        "content_sha256": "a" * 64,
+        "duplicate_chunk_ids": 0,
+    }
+    requetes = [
+        {"scope_id": "s", "latency_ms": 500.0 + 10 * i, "status": 200, "outcome": "ok", "detail": None}
+        for i in range(20)
+    ]
+    preuve = {
+        "kind": "NEXUS-CONCURRENCY-LOAD-PROOF-V1",
+        "verification_status": "VERIFIED",
+        "observed_at_main_sha": blocages.CONCURRENCE_MAIN_SHA_ATTENDU,
+        "executed_command": "python3 scripts/qualification/verify_concurrency_load.py --run",
+        "budget": {
+            "path": "docs/reports/go_live/concurrency_load_budget.json",
+            "sha256": hashlib.sha256(budget_octets).hexdigest(),
+        },
+        "measurements": {
+            "budget_sha256": hashlib.sha256(budget_octets).hexdigest(),
+            "load_profile_executed": {"concurrent_clients": 4, "measured_requests_total": 20},
+            "engine": {"mock_detected": False, "pg_pool_max_size": 10},
+            "corpus": {"indexed_chunks": 353},
+            "measured_requests": requetes,
+            "db_connections": {"samples_count": 50, "peak_during_load": 8, "after_engine_stop": 0},
+            "database_snapshot_before": snapshot,
+            "database_snapshot_after": dict(snapshot),
+        },
+        "summary": blocages.resumer_latences_concurrence(requetes),
+        "teardown": {
+            "docker_residues_after_test": 0,
+            "residual_engine_processes": 0,
+            "production_touched": False,
+            "production_db_writes": 0,
+            "production_deployments": 0,
+            "current_switch": 0,
+        },
+    }
+    if muter:
+        muter(preuve)
+    dossier = racine / "docs/reports/evidence"
+    dossier.mkdir(parents=True, exist_ok=True)
+    octets = (json.dumps(preuve, indent=2, sort_keys=True) + "\n").encode()
+    (dossier / "concurrency_load_proof.json").write_bytes(octets)
+    digest = "f" * 64 if tamper_sha else hashlib.sha256(octets).hexdigest()
+    (dossier / "concurrency_load_proof.sha256").write_text(
+        f"{digest}  docs/reports/evidence/concurrency_load_proof.json\n", encoding="utf-8"
+    )
+
+
+def _refus_concurrence(tmp_path, muter=None, **kw) -> str:
+    _poser_concurrence(tmp_path, muter, **kw)
+    res = blocages.verifier_concurrence(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    return res["why"]
+
+
+def test_verifier_concurrence_nominal(tmp_path):
+    _poser_concurrence(tmp_path)
+    res = blocages.verifier_concurrence(tmp_path)
+    assert res["closed"] is True, res["why"]
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["p99_ms"] == 690.0
+    assert any("STAGING_EXTERNE" in x for x in res["proof"]["does_not_close"])
+
+
+def test_verifier_concurrence_refuse_preuve_absente(tmp_path):
+    res = blocages.verifier_concurrence(tmp_path)
+    assert res["closed"] is False and res["proof"] is None
+    assert "manquante" in res["why"]
+
+
+def test_verifier_concurrence_refuse_preuve_alteree(tmp_path):
+    assert "altération" in _refus_concurrence(tmp_path, tamper_sha=True)
+
+
+def test_verifier_concurrence_refuse_statut_non_verified(tmp_path):
+    def m(p):
+        p["verification_status"] = "BUDGET_FAILED"
+    assert "VERIFIED" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_preuve_stale(tmp_path):
+    def m(p):
+        p["observed_at_main_sha"] = "0" * 40
+    assert "stale" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_sans_mesures(tmp_path):
+    def m(p):
+        p["measurements"]["measured_requests"] = []
+    assert "mesure" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_mesures_incompletes(tmp_path):
+    def m(p):
+        p["measurements"]["measured_requests"] = p["measurements"]["measured_requests"][:5]
+    assert "20" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_resume_incoherent_avec_mesures(tmp_path):
+    """Un résumé flatteur ne sert à rien : les percentiles sont recalculés."""
+    def m(p):
+        p["summary"]["p99_ms"] = 1.0
+    assert "résumé" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_sans_budget_explicite(tmp_path):
+    def mb(b):
+        del b["budget"]["p99_ms_max"]
+    assert "budget" in _refus_concurrence(tmp_path, muter_budget=mb)
+
+
+def test_verifier_concurrence_refuse_budget_modifie_apres_mesure(tmp_path):
+    _poser_concurrence(tmp_path)
+    chemin = tmp_path / "docs/reports/go_live/concurrency_load_budget.json"
+    budget = json.loads(chemin.read_text())
+    budget["budget"]["p99_ms_max"] = 99999.0
+    chemin.write_text(json.dumps(budget))
+    res = blocages.verifier_concurrence(tmp_path)
+    assert res["closed"] is False and "budget" in res["why"]
+
+
+def test_verifier_concurrence_refuse_budget_non_declare_avant_mesure(tmp_path):
+    def mb(b):
+        b["declared_before_measurement"] = False
+    assert "avant" in _refus_concurrence(tmp_path, muter_budget=mb)
+
+
+def test_verifier_concurrence_refuse_latence_hors_budget(tmp_path):
+    def m(p):
+        for r in p["measurements"]["measured_requests"]:
+            r["latency_ms"] = 7000.0
+        p["summary"] = blocages.resumer_latences_concurrence(p["measurements"]["measured_requests"])
+    assert "p50" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_erreurs_au_dela_du_budget(tmp_path):
+    def m(p):
+        p["measurements"]["measured_requests"][3].update(outcome="error", status=500)
+        p["summary"] = blocages.resumer_latences_concurrence(p["measurements"]["measured_requests"])
+    assert "erreur" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_timeout_non_accepte(tmp_path):
+    def m(p):
+        p["measurements"]["measured_requests"][3].update(outcome="timeout", status=None)
+        p["summary"] = blocages.resumer_latences_concurrence(p["measurements"]["measured_requests"])
+    assert "timeout" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_mock(tmp_path):
+    def m(p):
+        p["measurements"]["engine"]["mock_detected"] = True
+    assert "mock" in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_refuse_fuite_de_connexion(tmp_path):
+    def m(p):
+        p["measurements"]["db_connections"]["after_engine_stop"] = 2
+    assert "fuite" in _refus_concurrence(tmp_path, m)
+
+    def m2(p):
+        p["measurements"]["db_connections"]["peak_during_load"] = 11
+    assert "pic" in _refus_concurrence(tmp_path, m2)
+
+    def m3(p):
+        p["measurements"]["db_connections"]["samples_count"] = 0
+    assert "échantillon" in _refus_concurrence(tmp_path, m3)
+
+
+def test_verifier_concurrence_refuse_corruption_db(tmp_path):
+    def m(p):
+        p["measurements"]["database_snapshot_after"]["content_sha256"] = "b" * 64
+    assert "base" in _refus_concurrence(tmp_path, m)
+
+    def m2(p):
+        p["measurements"]["database_snapshot_after"]["duplicate_chunk_ids"] = 1
+    assert "base" in _refus_concurrence(tmp_path, m2)
+
+
+def test_verifier_concurrence_refuse_residus(tmp_path):
+    def m(p):
+        p["teardown"]["docker_residues_after_test"] = 1
+    assert "résiduel" in _refus_concurrence(tmp_path, m)
+
+    def m2(p):
+        p["teardown"]["residual_engine_processes"] = 1
+    assert "résiduel" in _refus_concurrence(tmp_path, m2)
+
+
+@pytest.mark.parametrize(
+    ("cle", "valeur"),
+    [
+        ("production_db_writes", 1),
+        ("production_deployments", 1),
+        ("current_switch", 1),
+        ("production_touched", True),
+    ],
+)
+def test_verifier_concurrence_refuse_si_production_touchee(tmp_path, cle, valeur):
+    def m(p):
+        p["teardown"][cle] = valeur
+    assert cle in _refus_concurrence(tmp_path, m)
+
+
+def test_verifier_concurrence_sur_depot_reel():
+    """L'état réel est DÉRIVÉ du statut scellé : seule une preuve VERIFIED ferme.
+    Une mesure BUDGET_FAILED reste consultable comme diagnostic, jamais comme fermeture."""
+    preuve = json.loads((RACINE / blocages.CONCURRENCE_PREUVE).read_text(encoding="utf-8"))
+    res = blocages.verifier_concurrence(RACINE)
+    if preuve["verification_status"] == "VERIFIED":
+        assert res["closed"] is True, res["why"]
+        assert res["proof"]["measured_requests"] == 240
+    else:
+        assert preuve["verification_status"] == "BUDGET_FAILED"
+        assert preuve["violations"]
+        assert res["closed"] is False
+        assert res["proof"] is None
+        assert "VERIFIED" in res["why"]

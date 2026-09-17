@@ -1,0 +1,46 @@
+{
+  "kind": "NEXUS-CONCURRENCY-LOAD-BUDGET-V1",
+  "adopted": true,
+  "scope": "QUALIFICATION_THRESHOLD_NOT_PRODUCTION_SLA",
+  "declared_before_measurement": true,
+  "decision_ref": "LOT_GO_LIVE_FINAL_BS_QUALIFY_CONCURRENCY_AND_LOAD",
+  "anchor": "services/cockpit/src/lib/request-deadlines.ts : SEARCH_ROUTE_BUDGET_MS = 7500 ms. Une requête plus lente que ce délai est une erreur visible côté Cockpit : le délai client du banc et le plafond p99 en découlent.",
+  "load_profile": {
+    "concurrent_clients": 8,
+    "measured_requests_total": 240,
+    "warmup_requests": 10,
+    "endpoint": "POST /search/v2",
+    "retrieval_options": {"k": 8, "hybrid": true, "rerank": true, "include_citations": true},
+    "query_suite": "SEARCH_CASES de test_multilevel_real_ingestion.py (30 requêtes gouvernées, 10 collections)",
+    "client_timeout_ms": 7500
+  },
+  "budget": {
+    "p50_ms_max": 3000.0,
+    "p95_ms_max": 6000.0,
+    "p99_ms_max": 7500.0,
+    "error_rate_max": 0.0,
+    "errors_max": 0,
+    "timeouts_max": 0,
+    "db_connections_peak_max": 10,
+    "db_connections_leaked_max": 0,
+    "docker_residues_max": 0,
+    "residual_processes_max": 0
+  },
+  "rules": [
+    "le budget est déclaré et commité avant toute mesure ; il n'est jamais ajusté après lecture des résultats",
+    "toute mesure hors budget laisse CONCURRENCE ouvert (fail-closed)",
+    "chaque réponse 200 doit porter des résultats avec citations ; une réponse vide ou sans citation compte comme erreur",
+    "le pic de connexions PostgreSQL du rôle de retrieval ne dépasse pas PG_POOL_MAX_SIZE (10)",
+    "après arrêt du moteur, aucune connexion du rôle de retrieval ne subsiste",
+    "les cardinalités et l'empreinte de contenu de la base sont identiques avant et après la charge",
+    "ce budget est un seuil de qualification sur poste CPU, pas un SLA de production"
+  ],
+  "does_not_close": [
+    "STAGING_EXTERNE",
+    "SYNC_INCREMENTALE",
+    "C1",
+    "MANIFESTE_PRODUCTION",
+    "les décisions PII",
+    "le go-live lui-même"
+  ]
+}

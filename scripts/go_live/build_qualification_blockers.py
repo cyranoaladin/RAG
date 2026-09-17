@@ -1338,6 +1338,205 @@ def verifier_cockpit_e2e(racine: Path) -> dict:
     }
 
 
+CONCURRENCE_MAIN_SHA_ATTENDU = "52f80f6c7a2171498b9fe713d6b7bf7ff0720098"
+CONCURRENCE_BUDGET = "docs/reports/go_live/concurrency_load_budget.json"
+CONCURRENCE_PREUVE = "docs/reports/evidence/concurrency_load_proof.json"
+CONCURRENCE_PREUVE_SHA = "docs/reports/evidence/concurrency_load_proof.sha256"
+_CLES_BUDGET_CONCURRENCE = (
+    "p50_ms_max", "p95_ms_max", "p99_ms_max", "errors_max", "timeouts_max",
+    "error_rate_max", "db_connections_peak_max", "db_connections_leaked_max",
+    "docker_residues_max", "residual_processes_max",
+)
+
+
+def _percentile_rang_proche(valeurs_triees: list[float], p: float) -> float:
+    rang = max(1, -(-len(valeurs_triees) * p // 100))  # plafond entier
+    return valeurs_triees[int(rang) - 1]
+
+
+def resumer_latences_concurrence(requetes: list[dict]) -> dict:
+    """Résumé RECALCULÉ depuis les mesures brutes. Les timeouts comptent dans
+    les percentiles : les écarter embellirait la queue de distribution."""
+    latences = sorted(float(r["latency_ms"]) for r in requetes)
+    erreurs = sum(1 for r in requetes if r.get("outcome") == "error")
+    timeouts = sum(1 for r in requetes if r.get("outcome") == "timeout")
+    inconnus = sum(1 for r in requetes if r.get("outcome") not in ("ok", "error", "timeout"))
+    return {
+        "requests": len(requetes),
+        "p50_ms": _percentile_rang_proche(latences, 50),
+        "p95_ms": _percentile_rang_proche(latences, 95),
+        "p99_ms": _percentile_rang_proche(latences, 99),
+        "max_ms": latences[-1],
+        "errors": erreurs + inconnus,
+        "timeouts": timeouts,
+        "error_rate": (erreurs + inconnus + timeouts) / len(requetes),
+    }
+
+
+def evaluer_concurrence(budget_doc: dict, mesures: dict, teardown: dict) -> list[str]:
+    """Violations du budget déclaré. Liste vide = dans le budget. Source unique,
+    partagée par le scelleur et par ce vérificateur."""
+    budget = budget_doc.get("budget") or {}
+    manquantes = [c for c in _CLES_BUDGET_CONCURRENCE if not isinstance(budget.get(c), (int, float))]
+    if manquantes:
+        return [f"budget explicite incomplet : {manquantes}"]
+    if budget_doc.get("adopted") is not True or budget_doc.get("declared_before_measurement") is not True:
+        return ["budget non adopté ou non déclaré avant la mesure"]
+    profil = budget_doc.get("load_profile") or {}
+    violations: list[str] = []
+
+    requetes = mesures.get("measured_requests") or []
+    if not requetes:
+        return ["aucune mesure de latence (p50/p95/p99 incalculables)"]
+    attendu = profil.get("measured_requests_total")
+    if len(requetes) != attendu:
+        violations.append(f"mesures incomplètes : {len(requetes)} requêtes pour {attendu} déclarées")
+    execute = mesures.get("load_profile_executed") or {}
+    if execute.get("concurrent_clients") != profil.get("concurrent_clients"):
+        violations.append(
+            f"concurrence exécutée {execute.get('concurrent_clients')} != déclarée "
+            f"{profil.get('concurrent_clients')}"
+        )
+    if (mesures.get("engine") or {}).get("mock_detected") is not False:
+        violations.append("mock détecté ou absence de mock non attestée")
+    if int((mesures.get("corpus") or {}).get("indexed_chunks") or 0) <= 0:
+        violations.append("corpus indexé vide")
+
+    resume = resumer_latences_concurrence(requetes)
+    for cle in ("p50_ms", "p95_ms", "p99_ms"):
+        if resume[cle] > budget[f"{cle}_max"]:
+            violations.append(f"{cle}={resume[cle]} ms > budget {budget[f'{cle}_max']} ms")
+    if resume["errors"] > budget["errors_max"]:
+        violations.append(f"{resume['errors']} erreur(s) > budget {budget['errors_max']}")
+    if resume["timeouts"] > budget["timeouts_max"]:
+        violations.append(f"{resume['timeouts']} timeout(s) > budget {budget['timeouts_max']}")
+    if resume["error_rate"] > budget["error_rate_max"]:
+        violations.append(f"taux d erreur {resume['error_rate']} > budget {budget['error_rate_max']}")
+
+    connexions = mesures.get("db_connections") or {}
+    if int(connexions.get("samples_count") or 0) <= 0:
+        violations.append("aucun échantillon de connexions pendant la charge")
+    pic = connexions.get("peak_during_load")
+    if not isinstance(pic, int) or pic < 0 or pic > budget["db_connections_peak_max"]:
+        violations.append(f"pic de connexions {pic} > budget {budget['db_connections_peak_max']}")
+    fuite = connexions.get("after_engine_stop")
+    if not isinstance(fuite, int) or fuite > budget["db_connections_leaked_max"]:
+        violations.append(f"fuite de connexion : {fuite} connexion(s) après arrêt du moteur")
+
+    avant = mesures.get("database_snapshot_before")
+    apres = mesures.get("database_snapshot_after")
+    if not avant or avant != apres or avant.get("duplicate_chunk_ids") != 0:
+        violations.append("base altérée par la charge (cardinalités, empreinte ou doublons)")
+
+    if teardown.get("docker_residues_after_test", -1) > budget["docker_residues_max"] or (
+        teardown.get("docker_residues_after_test", -1) < 0
+    ):
+        violations.append(f"conteneur résiduel : {teardown.get('docker_residues_after_test')}")
+    if teardown.get("residual_engine_processes", -1) > budget["residual_processes_max"] or (
+        teardown.get("residual_engine_processes", -1) < 0
+    ):
+        violations.append(f"processus résiduel : {teardown.get('residual_engine_processes')}")
+    if teardown.get("production_touched") is not False:
+        violations.append("production_touched n est pas false")
+    for cle in ("production_db_writes", "production_deployments", "current_switch"):
+        if teardown.get(cle) != 0:
+            violations.append(f"{cle} = {teardown.get(cle)}")
+    return violations
+
+
+def verifier_concurrence(racine: Path) -> dict:
+    """Vérifie le comportement sous concurrence (CONCURRENCE). Rien n est cru
+    sur parole : percentiles et verdict sont recalculés depuis les mesures brutes."""
+
+    def refus(pourquoi: str) -> dict:
+        return {"closed": False, "proof": None, "why": pourquoi}
+
+    preuve_path = racine / CONCURRENCE_PREUVE
+    sha_path = racine / CONCURRENCE_PREUVE_SHA
+    budget_path = racine / CONCURRENCE_BUDGET
+    for chemin, nom in ((preuve_path, "preuve"), (sha_path, "empreinte"), (budget_path, "budget")):
+        if not chemin.is_file():
+            return refus(f"{nom} CONCURRENCE manquante : {chemin}")
+
+    scelle = sha_path.read_text(encoding="utf-8").split()
+    sha_reel = hashlib.sha256(preuve_path.read_bytes()).hexdigest()
+    if not scelle or scelle[0] != sha_reel:
+        return refus(
+            f"altération détectée de la preuve CONCURRENCE : sha calculé {sha_reel} "
+            f"!= sha scellé {scelle[0] if scelle else None}"
+        )
+    try:
+        data = json.loads(preuve_path.read_text(encoding="utf-8"))
+        budget_octets = budget_path.read_bytes()
+        budget_doc = json.loads(budget_octets)
+    except ValueError as exc:
+        return refus(f"preuve ou budget CONCURRENCE illisible : {exc}")
+
+    if data.get("verification_status") != "VERIFIED":
+        return refus(f"statut CONCURRENCE non VERIFIED : {data.get('verification_status')}")
+    if data.get("observed_at_main_sha") != CONCURRENCE_MAIN_SHA_ATTENDU:
+        return refus(
+            f"preuve CONCURRENCE stale : observée à {data.get('observed_at_main_sha')}, "
+            f"attendue à {CONCURRENCE_MAIN_SHA_ATTENDU}"
+        )
+    budget_sha = hashlib.sha256(budget_octets).hexdigest()
+    mesures = data.get("measurements") or {}
+    if (data.get("budget") or {}).get("sha256") != budget_sha or mesures.get("budget_sha256") != budget_sha:
+        return refus("le budget versionné n est pas celui sous lequel la mesure a été prise")
+
+    violations = evaluer_concurrence(budget_doc, mesures, data.get("teardown") or {})
+    if violations:
+        return refus("CONCURRENCE hors budget ou non prouvée : " + " ; ".join(violations))
+
+    resume = resumer_latences_concurrence(mesures["measured_requests"])
+    if data.get("summary") != resume:
+        return refus("résumé de la preuve CONCURRENCE incohérent avec les mesures brutes")
+
+    budget = budget_doc["budget"]
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                "comportement sous concurrence mesuré et borné sur le commit "
+                f"{CONCURRENCE_MAIN_SHA_ATTENDU} : {resume['requests']} requêtes /search/v2 réelles, "
+                f"{budget_doc['load_profile']['concurrent_clients']} clients concurrents, moteur réel "
+                "(E5 + reranker), PostgreSQL/pgvector éphémère, budget déclaré avant mesure"
+            ),
+            "executed_command": data.get("executed_command"),
+            "observed_at_main_sha": data.get("observed_at_main_sha"),
+            "budget_sha256": budget_sha,
+            "measured_requests": resume["requests"],
+            "concurrent_clients": budget_doc["load_profile"]["concurrent_clients"],
+            "p50_ms": resume["p50_ms"],
+            "p95_ms": resume["p95_ms"],
+            "p99_ms": resume["p99_ms"],
+            "budget_ms": {k: budget[k] for k in ("p50_ms_max", "p95_ms_max", "p99_ms_max")},
+            "errors": resume["errors"],
+            "timeouts": resume["timeouts"],
+            "db_connections_peak": mesures["db_connections"]["peak_during_load"],
+            "db_connections_leaked": mesures["db_connections"]["after_engine_stop"],
+            "database_unchanged": True,
+            "sha256_verified": True,
+            "verification": (
+                "Percentiles, erreurs et timeouts RECALCULÉS depuis les mesures brutes scellées, "
+                "confrontés au budget versionné (empreinte liée à la preuve) ; connexions, "
+                "intégrité de la base, résidus Docker et processus vérifiés ; aucune production touchée."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+                "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+                "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+                "PII_UNDECIDED (149 contenus PII undecided)",
+                "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+                "un SLA de production : le budget est un seuil de qualification sur poste CPU",
+                "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+            ],
+        },
+        "why": None,
+    }
+
+
 #: Un blocage sans vérificateur reste ouvert. La condition est écrite pour que
 #: son propriétaire sache ce qu'il doit produire, et pour qu'on ne la
 #: redécouvre pas à chaque lot.
@@ -1361,7 +1560,7 @@ BLOCAGES = (
     ("STAGING_EXTERNE", "Staging externe ingere et qualifie", "operateur",
      "un staging externe est ingéré puis qualifié", None),
     ("CONCURRENCE", "Comportement sous concurrence", "operateur",
-     "le comportement sous concurrence est mesuré et borné", None),
+     "le comportement sous concurrence est mesuré et borné", verifier_concurrence),
     ("SYNC_INCREMENTALE", "Synchronisation incrementale", "operateur",
      "une synchronisation incrémentale est prouvée sans perte ni doublon", None),
     ("ROLLBACK", "Mecanisme de rollback eprouve", "operateur",
