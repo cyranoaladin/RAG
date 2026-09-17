@@ -1537,6 +1537,197 @@ def verifier_concurrence(racine: Path) -> dict:
     }
 
 
+SYNC_MAIN_SHA_ATTENDU = "52f80f6c7a2171498b9fe713d6b7bf7ff0720098"
+SYNC_PREUVE = "docs/reports/evidence/incremental_sync_proof.json"
+SYNC_PREUVE_SHA = "docs/reports/evidence/incremental_sync_proof.sha256"
+_TABLES_PRODUIT = ("rag_artifacts", "rag_artifact_placements", "rag_chunks")
+
+
+def evaluer_sync_incrementale(obs: dict, teardown: dict) -> list[str]:
+    """Violations des règles de synchronisation incrémentale. Liste vide = prouvé.
+    Source unique, partagée par le scelleur et par le vérificateur."""
+    try:
+        return _evaluer_sync_incrementale(obs, teardown)
+    except (KeyError, TypeError, AttributeError) as exc:
+        return [f"observations incomplètes ou mal formées : {exc!r}"]
+
+
+def _evaluer_sync_incrementale(obs: dict, teardown: dict) -> list[str]:
+    v: list[str] = []
+    attendu = obs["release_expected"]
+    vague1, vague2 = obs["wave_one"]["content_sha256"], obs["wave_two"]["content_sha256"]
+    initial, modif = obs["initial_state"], obs["modification_attempt"]
+    incr, repete, retrait = obs["incremental_run"], obs["repeated_run"], obs["withdrawal"]
+
+    if obs["real_engine"].get("mock_detected") is not False:
+        v.append("mock détecté ou absence de mock non attestée")
+    if not vague1 or not vague2 or set(vague1) & set(vague2):
+        v.append("vagues vides ou non disjointes : aucun delta réel")
+    if any(obs["empty_state"]["counts"].get(t) != 0 for t in _TABLES_PRODUIT):
+        v.append("environnement de départ non vierge")
+
+    def doublons(etat: dict, nom: str) -> None:
+        if any(n != 0 for n in etat["duplicates"].values()):
+            v.append(f"doublon dans le magasin produit ({nom})")
+        if etat.get("chunks_without_vector") != 0:
+            v.append(f"perte : chunk sans vecteur ({nom})")
+
+    # État initial : exactement la vague 1, et le détecteur de perte doit la voir partielle.
+    p0 = initial["product"]
+    doublons(p0, "état initial")
+    if p0["counts"]["rag_artifacts"] != len(vague1) or p0["counts"]["rag_chunks"] != initial["expected_chunks"]:
+        v.append("perte ou surplus dans l état initial (cardinalités)")
+    if p0["chunk_id_set_sha256"] != initial["expected_chunk_id_set_sha256"]:
+        v.append("ensemble de chunk_id de l état initial différent de l attendu")
+    if sorted(x["content_sha256"] for x in initial["publications"]) != sorted(vague1) or not all(
+        x["embedded"] is True for x in initial["publications"]
+    ):
+        v.append("publications de l état initial différentes de la vague 1")
+    if initial["full_release_ready"] is not False:
+        v.append("détecteur de perte vacant : la release complète est dite prête sur un état partiel")
+
+    # Modification : jamais dans le produit, produit inchangé.
+    if not modif["worker_outcomes"]:
+        v.append("tentative de modification non exercée")
+    if modif["modified_content_in_product"] != 0 or modif["publications_triggered"]:
+        v.append("contenu modifié parvenu au magasin produit")
+    if modif["product_after"] != p0:
+        v.append("magasin produit altéré par la tentative de modification")
+
+    # Run incrémental : seul le delta, sans dérive de l existant, sans perte.
+    p1 = incr["product"]
+    doublons(p1, "run incrémental")
+    if (
+        p1["counts"]["rag_artifacts"] != attendu["artifacts"]
+        or p1["counts"]["rag_artifact_placements"] != attendu["placements"]
+        or p1["counts"]["rag_chunks"] != attendu["chunks"]
+        or incr["full_release_ready"] is not True
+    ):
+        v.append("perte ou surplus après le run incrémental (cardinalités ou release non prête)")
+    if p1["chunk_id_set_sha256"] != incr["expected_chunk_id_set_sha256"]:
+        v.append("ensemble de chunk_id après run incrémental différent de l attendu")
+    if sorted(x["content_sha256"] for x in incr["publications"]) != sorted(vague2) or not all(
+        x["embedded"] is True for x in incr["publications"]
+    ):
+        v.append("le run incrémental n a pas publié exactement le delta (ré-ingestion inutile ou manque)")
+    apres = incr["wave_one_rows_after"]
+    if apres["content_sha256"] != p0["content_sha256"] or apres["counts"] != p0["counts"]:
+        v.append("dérive de digest des lignes existantes pendant le run incrémental")
+    if incr["control"]["duplicate_resources"] != 0:
+        v.append("doublon de ressource dans le plan de contrôle")
+
+    # Run répété : idempotent, aucun ré-embedding.
+    p2 = repete["product"]
+    doublons(p2, "run répété")
+    rejoues = repete["replays"]
+    if len(rejoues) != attendu["placements"] or any(r["status"] != "succeeded" for r in rejoues):
+        v.append("run répété non idempotent : publications rejouées incomplètes ou en échec")
+    if any(r["embedded"] is not False for r in rejoues):
+        v.append("run répété : contenu ré-embeddé inutilement")
+    if p2 != p1:
+        v.append("run répété non idempotent : magasin produit modifié")
+    if repete["control"]["duplicate_resources"] != 0:
+        v.append("doublon de ressource après run répété")
+
+    # Retrait : hors modèle, et l append-only doit être démontré, pas affirmé.
+    if retrait.get("supported_by_business_model") is not False:
+        v.append("retrait déclaré supporté sans être exercé")
+    privileges = retrait["publisher_privileges"]
+    if set(privileges) != set(_TABLES_PRODUIT) or any(
+        set(p) - {"SELECT", "INSERT"} for p in privileges.values()
+    ):
+        v.append("append-only non démontré : le rôle publisher peut modifier ou supprimer")
+
+    if teardown.get("docker_residues_after_test") != 0:
+        v.append(f"docker_residues_after_test = {teardown.get('docker_residues_after_test')}")
+    if teardown.get("production_touched") is not False:
+        v.append("production_touched n est pas false")
+    for cle in ("production_db_writes", "production_deployments", "current_switch"):
+        if teardown.get(cle) != 0:
+            v.append(f"{cle} = {teardown.get(cle)}")
+    return v
+
+
+def verifier_sync_incrementale(racine: Path) -> dict:
+    """Vérifie la synchronisation incrémentale (SYNC_INCREMENTALE). Le verdict
+    est RECALCULÉ depuis les observations brutes scellées."""
+
+    def refus(pourquoi: str) -> dict:
+        return {"closed": False, "proof": None, "why": pourquoi}
+
+    preuve_path, sha_path = racine / SYNC_PREUVE, racine / SYNC_PREUVE_SHA
+    for chemin, nom in ((preuve_path, "preuve"), (sha_path, "empreinte")):
+        if not chemin.is_file():
+            return refus(f"{nom} SYNC_INCREMENTALE manquante : {chemin}")
+    scelle = sha_path.read_text(encoding="utf-8").split()
+    sha_reel = hashlib.sha256(preuve_path.read_bytes()).hexdigest()
+    if not scelle or scelle[0] != sha_reel:
+        return refus(
+            f"altération détectée de la preuve SYNC_INCREMENTALE : sha calculé {sha_reel} "
+            f"!= sha scellé {scelle[0] if scelle else None}"
+        )
+    try:
+        data = json.loads(preuve_path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        return refus(f"preuve SYNC_INCREMENTALE illisible : {exc}")
+    if data.get("verification_status") != "VERIFIED":
+        return refus(f"statut SYNC_INCREMENTALE non VERIFIED : {data.get('verification_status')}")
+    if data.get("observed_at_main_sha") != SYNC_MAIN_SHA_ATTENDU:
+        return refus(
+            f"preuve SYNC_INCREMENTALE stale : observée à {data.get('observed_at_main_sha')}, "
+            f"attendue à {SYNC_MAIN_SHA_ATTENDU}"
+        )
+    obs = data.get("observations") or {}
+    violations = evaluer_sync_incrementale(obs, data.get("teardown") or {})
+    if violations:
+        return refus("SYNC_INCREMENTALE non prouvée : " + " ; ".join(violations))
+
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                "synchronisation incrémentale append-only prouvée sans perte ni doublon sur le commit "
+                f"{SYNC_MAIN_SHA_ATTENDU} : état initial de {len(obs['wave_one']['content_sha256'])} artefacts, "
+                f"delta de {len(obs['wave_two']['content_sha256'])} artefacts ingéré par resoumission de la "
+                "liste complète, run répété idempotent, pipeline gouverné et embeddings réels"
+            ),
+            "executed_command": data.get("executed_command"),
+            "observed_at_main_sha": data.get("observed_at_main_sha"),
+            "cardinalities_initial": obs["initial_state"]["product"]["counts"],
+            "cardinalities_final": obs["repeated_run"]["product"]["counts"],
+            "digest_initial": obs["initial_state"]["product"]["content_sha256"],
+            "digest_existing_rows_after_sync": obs["incremental_run"]["wave_one_rows_after"]["content_sha256"],
+            "digest_final": obs["repeated_run"]["product"]["content_sha256"],
+            "delta_published": len(obs["incremental_run"]["publications"]),
+            "replays_without_embedding": len(obs["repeated_run"]["replays"]),
+            "modification_semantics": (
+                "artifact_id = content_sha256 : un contenu modifié est un autre artefact, refusé tant "
+                "qu aucune autorité scellée ne le nomme ; aucun remplacement ni supersession n existe"
+            ),
+            "withdrawal_supported_by_business_model": False,
+            "sha256_verified": True,
+            "verification": (
+                "Verdict RECALCULÉ depuis les observations brutes scellées : cardinalités et ensembles de "
+                "chunk_id confrontés à la release, digest des lignes existantes inchangé, delta exact, "
+                "aucun ré-embedding au rejeu, contenu modifié jamais publié, privilèges append-only constatés."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+                "CONCURRENCE (Comportement sous concurrence)",
+                "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+                "PII_UNDECIDED (149 contenus PII undecided)",
+                "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+                "le remplacement ou le retrait d un contenu servi : le modèle métier ne les prévoit pas",
+                "le saut gracieux d une source déjà synchronisée : une resoumission aveugle est rejetée par "
+                "contrainte d unicité (job en retry), sans effet sur le magasin produit",
+                "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+            ],
+        },
+        "why": None,
+    }
+
+
 #: Un blocage sans vérificateur reste ouvert. La condition est écrite pour que
 #: son propriétaire sache ce qu'il doit produire, et pour qu'on ne la
 #: redécouvre pas à chaque lot.
@@ -1562,7 +1753,8 @@ BLOCAGES = (
     ("CONCURRENCE", "Comportement sous concurrence", "operateur",
      "le comportement sous concurrence est mesuré et borné", verifier_concurrence),
     ("SYNC_INCREMENTALE", "Synchronisation incrementale", "operateur",
-     "une synchronisation incrémentale est prouvée sans perte ni doublon", None),
+     "une synchronisation incrémentale est prouvée sans perte ni doublon",
+     verifier_sync_incrementale),
     ("ROLLBACK", "Mecanisme de rollback eprouve", "operateur",
      "le rollback de la RELEASE de production est éprouvé. Le rollback de la "
      "base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : "

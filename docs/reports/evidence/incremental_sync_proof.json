@@ -1,0 +1,441 @@
+{
+  "bench": "services/rag-engine/tests/integration/test_incremental_sync.py",
+  "bench_pytest_exit_code": 0,
+  "executed_command": "python3 scripts/qualification/verify_incremental_sync.py --run",
+  "governance_counters_after": {
+    "current_switch": 0,
+    "pii_undecided": 149,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "release_promoted_refused_contents": 26
+  },
+  "governance_counters_before": {
+    "current_switch": 0,
+    "pii_undecided": 149,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "release_promoted_refused_contents": 26
+  },
+  "kind": "NEXUS-INCREMENTAL-SYNC-PROOF-V1",
+  "measured_at_branch_head": "1f95cae46306f797ff88114fc17b82c3a115ce0b",
+  "observations": {
+    "empty_state": {
+      "chunk_id_set_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "chunks_without_vector": 0,
+      "content_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "counts": {
+        "rag_artifact_placements": 0,
+        "rag_artifacts": 0,
+        "rag_chunks": 0
+      },
+      "duplicates": {
+        "artifact_id": 0,
+        "chunk_id": 0,
+        "placement_id": 0
+      }
+    },
+    "incremental_run": {
+      "control": {
+        "duplicate_resources": 0,
+        "resources_by_state": {
+          "CANDIDATE": 1,
+          "RETRIEVAL_ELIGIBLE": 11
+        },
+        "stored_artifacts": 11
+      },
+      "expected_chunk_id_set_sha256": "d8c818c673e9647686aa0d1e445b4f6b7064768d9a35ade835ac81afa80a76c6",
+      "full_release_blockers": [],
+      "full_release_ready": true,
+      "product": {
+        "chunk_id_set_sha256": "d8c818c673e9647686aa0d1e445b4f6b7064768d9a35ade835ac81afa80a76c6",
+        "chunks_without_vector": 0,
+        "content_sha256": "c41ed5607571e7ee67b9cb185f0624a676a4f1da748ad87ca61f640281bb7729",
+        "counts": {
+          "rag_artifact_placements": 11,
+          "rag_artifacts": 11,
+          "rag_chunks": 353
+        },
+        "duplicates": {
+          "artifact_id": 0,
+          "chunk_id": 0,
+          "placement_id": 0
+        }
+      },
+      "publications": [
+        {
+          "content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+          "embedded": true
+        },
+        {
+          "content_sha256": "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18",
+          "embedded": true
+        }
+      ],
+      "sources_submitted": 11,
+      "wave_one_rows_after": {
+        "chunk_id_set_sha256": "7398288e5fbaba6cf687a9032a2538a67809c96b1b666e93cb7977c85610bb99",
+        "chunks_without_vector": 0,
+        "content_sha256": "c847ff6d6ba09b3562dc578b9c9b3f8c7ca29e4975cb6a5f011a4f85e112d706",
+        "counts": {
+          "rag_artifact_placements": 9,
+          "rag_artifacts": 9,
+          "rag_chunks": 279
+        },
+        "duplicates": {
+          "artifact_id": 0,
+          "chunk_id": 0,
+          "placement_id": 0
+        }
+      },
+      "wave_one_sources_refetched": 0,
+      "worker_outcomes": [
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_maths_premiere_gen_specialite, 63987c322c29fb2224258863962ea6c34c8967e351bd197259945b78af80c3d7) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_maths_quatrieme_tc, 872da3691c06aae96580a9eebcb8e89b6ccc9b9aa10812da9b4c5d75700ea553) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_nsi_premiere_specialite, 2a31d8fcd1aac5e227548c74d8919a55e4c7515366803be61392019cfab297af) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_francais_seconde_tc, 70fc8636263aced33d31c5621d51863d1cbf79d225553988dc2d72e07d77ed0b) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_francais_seconde_tc, b6af1a0e077fb73b7eba3edbe68cb4443256529751604e471540c5e0a14b403a) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_maths_terminale_gen_specialite, 405e5d9bffa14714fd5899844579901ebbba47f593cfcf0a3830a4f683eb3036) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_francais_premiere_tc, 17915a4593dc00cec772ff2dab20ba6ce723a2047fa6a2acd1b19e472ac42b0a) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_maths_seconde_tc, 2aa0bc8cd6dffe4ffdf99583d369ab017542a52ee47ed8a8acd7032c10d607bc) already exists.",
+          "status": "retried",
+          "worked": true
+        },
+        {
+          "error": "duplicate key value violates unique constraint \"resources_collection_dedup_key_unique\"\nDETAIL:  Key (collection, dedup_key)=(rag_nexus_francais_quatrieme_tc, bc87b1f9bf1bd98156d2e3f2c8f80ff49cc87bcd7b53fd075001b73a5b813e01) already exists.",
+          "status": "retried",
+          "worked": true
+        }
+      ]
+    },
+    "initial_state": {
+      "control": {
+        "duplicate_resources": 0,
+        "resources_by_state": {
+          "RETRIEVAL_ELIGIBLE": 9
+        },
+        "stored_artifacts": 9
+      },
+      "expected_chunk_id_set_sha256": "7398288e5fbaba6cf687a9032a2538a67809c96b1b666e93cb7977c85610bb99",
+      "expected_chunks": 279,
+      "full_release_blockers_count": 3,
+      "full_release_ready": false,
+      "product": {
+        "chunk_id_set_sha256": "7398288e5fbaba6cf687a9032a2538a67809c96b1b666e93cb7977c85610bb99",
+        "chunks_without_vector": 0,
+        "content_sha256": "c847ff6d6ba09b3562dc578b9c9b3f8c7ca29e4975cb6a5f011a4f85e112d706",
+        "counts": {
+          "rag_artifact_placements": 9,
+          "rag_artifacts": 9,
+          "rag_chunks": 279
+        },
+        "duplicates": {
+          "artifact_id": 0,
+          "chunk_id": 0,
+          "placement_id": 0
+        }
+      },
+      "publications": [
+        {
+          "content_sha256": "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+          "embedded": true
+        },
+        {
+          "content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+          "embedded": true
+        },
+        {
+          "content_sha256": "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f",
+          "embedded": true
+        },
+        {
+          "content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+          "embedded": true
+        },
+        {
+          "content_sha256": "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+          "embedded": true
+        },
+        {
+          "content_sha256": "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+          "embedded": true
+        },
+        {
+          "content_sha256": "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+          "embedded": true
+        },
+        {
+          "content_sha256": "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+          "embedded": true
+        },
+        {
+          "content_sha256": "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+          "embedded": true
+        }
+      ],
+      "wave_one_rows": {
+        "content_sha256": "c847ff6d6ba09b3562dc578b9c9b3f8c7ca29e4975cb6a5f011a4f85e112d706",
+        "counts": {
+          "rag_artifact_placements": 9,
+          "rag_artifacts": 9,
+          "rag_chunks": 279
+        }
+      },
+      "worker_outcomes": [
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        },
+        {
+          "error": null,
+          "status": "succeeded",
+          "worked": true
+        }
+      ]
+    },
+    "kind": "NEXUS-INCREMENTAL-SYNC-RAW-OBSERVATIONS-V1",
+    "modification_attempt": {
+      "business_model": "artifact_id = content_sha256 ; ni remplacement ni supersession",
+      "modified_content_in_product": 0,
+      "modified_content_sha256": "c2d8235d1851970bbe93eca49a3f431b7435e6f94d51cfd715014efa9839a6fd",
+      "modified_content_stored_in_control_plane": 0,
+      "original_content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+      "product_after": {
+        "chunk_id_set_sha256": "7398288e5fbaba6cf687a9032a2538a67809c96b1b666e93cb7977c85610bb99",
+        "chunks_without_vector": 0,
+        "content_sha256": "c847ff6d6ba09b3562dc578b9c9b3f8c7ca29e4975cb6a5f011a4f85e112d706",
+        "counts": {
+          "rag_artifact_placements": 9,
+          "rag_artifacts": 9,
+          "rag_chunks": 279
+        },
+        "duplicates": {
+          "artifact_id": 0,
+          "chunk_id": 0,
+          "placement_id": 0
+        }
+      },
+      "publications_triggered": [],
+      "source_refetched": 1,
+      "worker_outcomes": [
+        {
+          "error": "[content] downloaded content SHA-256 'c2d8235d1851970bbe93eca49a3f431b7435e6f94d51cfd715014efa9839a6fd' is not in authorization 'incremental-01-scope-v1' allowed_content_sha256",
+          "status": "retried",
+          "worked": true
+        }
+      ]
+    },
+    "real_engine": {
+      "embedding_inventory_sha256": "e2c7384ba36096b3f3bdfff4973f728596104aff0f1d38f1b6463e60765fe22a",
+      "embedding_model": "intfloat/multilingual-e5-large",
+      "governed_pipeline": "create_job -> run_worker_iteration -> attest_publication_cli -> publication_resume -> governed_publisher_v2",
+      "mock_detected": false
+    },
+    "release_expected": {
+      "artifacts": 11,
+      "chunks": 353,
+      "placements": 11
+    },
+    "release_sha256": "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26",
+    "repeated_run": {
+      "control": {
+        "duplicate_resources": 0,
+        "resources_by_state": {
+          "CANDIDATE": 1,
+          "RETRIEVAL_ELIGIBLE": 11
+        },
+        "stored_artifacts": 11
+      },
+      "product": {
+        "chunk_id_set_sha256": "d8c818c673e9647686aa0d1e445b4f6b7064768d9a35ade835ac81afa80a76c6",
+        "chunks_without_vector": 0,
+        "content_sha256": "c41ed5607571e7ee67b9cb185f0624a676a4f1da748ad87ca61f640281bb7729",
+        "counts": {
+          "rag_artifact_placements": 11,
+          "rag_artifacts": 11,
+          "rag_chunks": 353
+        },
+        "duplicates": {
+          "artifact_id": 0,
+          "chunk_id": 0,
+          "placement_id": 0
+        }
+      },
+      "replayed_publications": 11,
+      "replays": [
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        },
+        {
+          "embedded": false,
+          "status": "succeeded"
+        }
+      ]
+    },
+    "wave_one": {
+      "collections": 8,
+      "content_sha256": [
+        "05c5403d45bfc3631fa13b5c334822de09bcd68d850d0611044045cddba270de",
+        "5303df0fcf6335f06d00c969a61dcd82cc3fdfd105271ae5c2ef580ff49b6c08",
+        "73c001b93cf2151924da5245c4d740b56a5194c17e29c37cda2e1c0593711fae",
+        "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+        "b54b6422d0eb2fb906e6ad6c79a2e95e6cae00e3fa113da5f7499eee4cc53ae7",
+        "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+        "c4e3cc6fb201f4dabc78fa47206c1b498b3ed46496cf05165a74e0ecd8856fb1",
+        "d0edabd6a21d6345d36d32c5506ddcf225e819ddca25d27c1ecc3f97b87a8966",
+        "eb8369e7c1611e90f51491fecc5a7c2081a9c57f9c7fbb08d0414677b56ce16f"
+      ]
+    },
+    "wave_two": {
+      "collections": 2,
+      "content_sha256": [
+        "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+        "c07f8b2db9d22a6c2b9ab8386cf7ba323bc2c56abacb3f560dd97d02b383de18"
+      ]
+    },
+    "withdrawal": {
+      "publisher_privileges": {
+        "rag_artifact_placements": [
+          "INSERT",
+          "SELECT"
+        ],
+        "rag_artifacts": [
+          "INSERT",
+          "SELECT"
+        ],
+        "rag_chunks": [
+          "INSERT",
+          "SELECT"
+        ]
+      },
+      "publisher_role": "multilevel_publisher",
+      "supported_by_business_model": false
+    }
+  },
+  "observed_at_main_sha": "52f80f6c7a2171498b9fe713d6b7bf7ff0720098",
+  "sealed_at": "2026-09-17T14:20:53Z",
+  "teardown": {
+    "current_switch": 0,
+    "docker_residue_names": [],
+    "docker_residues_after_test": 0,
+    "ephemeral_environment_reset": "conteneurs PostgreSQL jetables détruits en fin de banc",
+    "measured_after_pytest_exit": true,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "production_touched": false,
+    "production_untouched_basis": "toutes les DSN du banc visent 127.0.0.1 sur des conteneurs jetables créés par le banc ; aucun identifiant ni hôte de production n'est lu"
+  },
+  "verification_status": "VERIFIED",
+  "violations": []
+}
