@@ -20,11 +20,16 @@ Ce script établit les trois, et refuse si l'une manque.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from servable_target import STATUTS_PII_CLAIRS  # noqa: E402
 
 KIND = "NEXUS-CURRENTNESS-RESEAL-PREFLIGHT-V1"
 
@@ -40,12 +45,9 @@ VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
 #: `PII_CLEARED`, que l'import des décisions humaines a rendu valide. La
 #: négation (`!= PII_UNDECIDED`) échouerait OUVERT sur REJECTED ou sur un
 #: statut futur inconnu. Ici, tout ce qui n'est pas nommé est un refus.
-PII_CLEAR_FOR_CURRENTNESS_RESEAL = frozenset(
-    {
-        "PII_CLEARED",
-        "PII_CLEARED_OR_NOT_SCANNED",
-    }
-)
+#: UNE seule autorité : la liste vit dans `servable_target`, et ce nom n'en est
+#: qu'une vue. Deux littéraux finiraient par ne plus dire la même chose.
+PII_CLEAR_FOR_CURRENTNESS_RESEAL = STATUTS_PII_CLAIRS
 
 class EntreeManquante(RuntimeError):
     """Une entrée nécessaire au préflight est absente ou inexploitable."""
@@ -80,8 +82,11 @@ def identites_existantes(racine: Path) -> tuple[set[str], str]:
     import sys as _sys
 
     chemin_scripts = racine / "services/rag-pedago/scripts"
-    if str(chemin_scripts) not in _sys.path:
-        _sys.path.insert(0, str(chemin_scripts))
+    chemin_src = racine / "services/rag-pedago/src"
+    chemin_pedago = racine / "services/rag-pedago"
+    for p in (chemin_scripts, chemin_src, chemin_pedago):
+        if str(p) not in _sys.path:
+            _sys.path.insert(0, str(p))
     try:
         from build_production_profile_release import (  # noqa: PLC0415
             PUBLISHED_RELEASE_IDS,
@@ -98,11 +103,11 @@ def identite_est_libre(racine: Path, identite: str) -> tuple[bool, str]:
     import sys as _sys
 
     chemin_scripts = racine / "services/rag-pedago/scripts"
+    chemin_src = racine / "services/rag-pedago/src"
     chemin_pedago = racine / "services/rag-pedago"
-    if str(chemin_scripts) not in _sys.path:
-        _sys.path.insert(0, str(chemin_scripts))
-    if str(chemin_pedago) not in _sys.path:
-        _sys.path.insert(0, str(chemin_pedago))
+    for p in (chemin_scripts, chemin_src, chemin_pedago):
+        if str(p) not in _sys.path:
+            _sys.path.insert(0, str(p))
     try:
         from build_production_profile_release import (  # noqa: PLC0415
             ReleaseIdentityError,
@@ -140,7 +145,11 @@ def ensemble_promu(racine: Path) -> set[str]:
         return set(json.loads(sortie.read_text(encoding="utf-8"))["content_sha256"])
 
 
-def preflight(racine: Path, identite_proposee: str) -> dict:
+def preflight(
+    racine: Path,
+    identite_proposee: str,
+    exclusion_registry_path: Path | str | None = None,
+) -> dict:
     chemin_matrice = racine / MATRICE
     if not chemin_matrice.is_file():
         raise EntreeManquante(f"matrice absente : {chemin_matrice}")
@@ -171,6 +180,33 @@ def preflight(racine: Path, identite_proposee: str) -> dict:
     tous_pii_clairs = bool(a_exclure) and pii_des_exclus <= PII_CLEAR_FOR_CURRENTNESS_RESEAL
     aucun_pii_touche = not (set(a_exclure) & set(promus_pii))
 
+    registry_concordance = True
+    registry_details: dict[str, object] | None = None
+    if exclusion_registry_path is not None:
+        reg_path = Path(exclusion_registry_path)
+        if not reg_path.is_file():
+            raise EntreeManquante(f"registre d'exclusion introuvable : {reg_path}")
+        reg_bytes = reg_path.read_bytes()
+        reg_sha = hashlib.sha256(reg_bytes).hexdigest()
+        sha_file = reg_path.with_suffix(".sha256")
+        if sha_file.is_file():
+            expected_sha = sha_file.read_text(encoding="utf-8").split()[0].lower()
+            if reg_sha != expected_sha:
+                raise EntreeManquante(
+                    f"hash du registre d'exclusion ne concorde pas : {reg_sha} != {expected_sha}"
+                )
+        reg_data = json.loads(reg_bytes.decode("utf-8"))
+        reg_shas = sorted(e["content_sha256"] for e in reg_data.get("excluded_contents", []))
+        registry_concordance = (a_exclure == reg_shas)
+        registry_details = {
+            "path": str(reg_path.relative_to(racine) if reg_path.is_relative_to(racine) else reg_path),
+            "sha256": reg_sha,
+            "count": len(reg_shas),
+            "concordance": registry_concordance,
+            "kind": reg_data.get("kind"),
+            "governance_reference": reg_data.get("governance_reference"),
+        }
+
     return {
         "kind": KIND,
         "status": "PREFLIGHT_ONLY_NOT_APPLIED",
@@ -195,6 +231,7 @@ def preflight(racine: Path, identite_proposee: str) -> dict:
             "all_pii_cleared": tous_pii_clairs,
             "pii_statuses_observed": sorted(pii_des_exclus),
         },
+        "exclusion_registry": registry_details,
         "pii_contents_untouched": {
             "count": len(promus_pii),
             "intersects_exclusion": not aucun_pii_touche,
@@ -221,7 +258,7 @@ def preflight(racine: Path, identite_proposee: str) -> dict:
             ),
         },
         "preflight_passed": bool(
-            identite_libre and a_exclure and tous_pii_clairs and aucun_pii_touche
+            identite_libre and a_exclure and tous_pii_clairs and aucun_pii_touche and registry_concordance
         ),
         "blocking_findings": sorted(
             nom
@@ -230,6 +267,7 @@ def preflight(racine: Path, identite_proposee: str) -> dict:
                 "no_content_to_exclude": not a_exclure,
                 "excluded_content_has_undecided_pii": not tous_pii_clairs,
                 "exclusion_touches_pii_contents": not aucun_pii_touche,
+                "exclusion_registry_mismatch": not registry_concordance,
             }.items()
             if tenu
         ),
@@ -249,11 +287,20 @@ def main(argv: list[str] | None = None) -> int:
     analyseur.add_argument(
         "--output", default="docs/reports/go_live/currentness_reseal_preflight.json"
     )
+    analyseur.add_argument(
+        "--exclusion-registry",
+        default=None,
+        help="Chemin vers le registre scellé d'exclusion d'actualité",
+    )
     arguments = analyseur.parse_args(argv)
 
     racine = racine_depot()
     try:
-        etat = preflight(racine, arguments.proposed_identity)
+        etat = preflight(
+            racine,
+            arguments.proposed_identity,
+            exclusion_registry_path=arguments.exclusion_registry,
+        )
     except EntreeManquante as erreur:
         print(f"ENTREE_MANQUANTE: {erreur}", file=sys.stderr)
         return 2

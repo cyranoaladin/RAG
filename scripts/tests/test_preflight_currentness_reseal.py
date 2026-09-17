@@ -236,3 +236,13 @@ def test_la_liste_positive_est_exactement_celle_decidee():
         "PII_CLEARED",
         "PII_CLEARED_OR_NOT_SCANNED",
     }
+
+
+def test_il_n_existe_qu_une_autorite_des_statuts_pii_clairs():
+    """Le préflight ne porte aucun littéral : il voit la liste de `servable_target`."""
+    import servable_target
+
+    assert pf.PII_CLEAR_FOR_CURRENTNESS_RESEAL is servable_target.STATUTS_PII_CLAIRS
+    source = (RACINE / "scripts/go_live/preflight_currentness_reseal.py").read_text()
+    assert '"PII_CLEARED"' not in source
+    assert "statuts_pii_sains" not in source
