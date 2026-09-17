@@ -676,3 +676,339 @@ def test_verifier_c6_sur_depot_reel():
     assert res["proof"]["verified_objects_count"] == 2264
 
 
+def _poser_c2(
+    tmp_path: Path,
+    *,
+    status="VERIFIED",
+    main_sha="4e7c40b731823a517f1a29f3838c3794638bde68",
+    docker_residues=0,
+    prod_touched=False,
+    prod_db_writes=0,
+    current_switch=0,
+    tamper_sha=False,
+    bad_auth=False,
+    bad_cardinality=False,
+    bad_verdict=False,
+):
+    evidence_dir = tmp_path / "docs/reports/evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    json_file = evidence_dir / "h2c_c2_multilevel_ingestion_e2e_proof.json"
+    sha_file = evidence_dir / "h2c_c2_multilevel_ingestion_e2e_proof.sha256"
+
+    exp_auth = "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26"
+    act_auth = "0" * 64 if bad_auth else exp_auth
+
+    data = {
+        "kind": "NEXUS-C2-MULTILEVEL-INGESTION-E2E-PROOF-V1",
+        "observed_at_main_sha": main_sha,
+        "timestamp": "2026-09-17T07:40:00.000000+00:00",
+        "executed_command": "pytest -v services/rag-engine/tests/integration/test_multilevel_real_ingestion.py",
+        "ephemeral_environment": {
+            "database": "PostgreSQL 16 éphémère",
+            "docker_residues_after_test": docker_residues,
+            "production_touched": prod_touched,
+            "production_db_writes": prod_db_writes,
+            "current_switch": current_switch,
+            "secrets_contained": 0,
+        },
+        "authorities": {
+            "release_manifest": {
+                "path": "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/multilevel.release.json",
+                "expected_sha256": exp_auth,
+                "actual_sha256": act_auth,
+            },
+        },
+        "cardinalities": {
+            "target_collections": 999 if bad_cardinality else 10,
+            "expected_artifacts": 11,
+            "ingested_artifacts": 11,
+            "expected_placements": 11,
+            "published_placements": 11,
+            "expected_chunks": 353,
+            "stored_chunks": 353,
+            "search_queries_passed": 30,
+            "citations_verified": 30,
+            "cross_scope_isolation_verified": True,
+        },
+        "verdicts": {
+            "MAIN_SHA_MATCHES": True,
+            "ALL_AUTHORITY_DIGESTS_MATCH": not bad_auth,
+            "TARGET_COLLECTIONS_COVERED": True,
+            "ARTIFACT_CARDINALITY_MATCHES": True,
+            "PLACEMENT_CARDINALITY_MATCHES": True,
+            "CHUNK_CARDINALITY_MATCHES": True,
+            "API_V2_ROUTES_AUTHENTICATED": True,
+            "SEARCH_ACCEPTANCE_PASSED": True,
+            "CITATIONS_VERIFIED": not bad_verdict,
+            "CROSS_SCOPE_ISOLATION_VERIFIED": True,
+            "NO_DOCKER_RESIDUES": docker_residues == 0,
+            "NO_PRODUCTION_MUTATIONS": True,
+            "NO_CURRENT_SWITCH": True,
+            "NO_SECRETS_EXPOSED": True,
+            "TEST_EXECUTION_PASSED": not bad_verdict,
+        },
+        "verification_status": status,
+    }
+
+    content = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    json_file.write_text(content, encoding="utf-8")
+
+    if tamper_sha:
+        sha_file.write_text(f"{'f' * 64}  docs/reports/evidence/h2c_c2_multilevel_ingestion_e2e_proof.json\n", encoding="utf-8")
+    else:
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        sha_file.write_text(f"{digest}  docs/reports/evidence/h2c_c2_multilevel_ingestion_e2e_proof.json\n", encoding="utf-8")
+
+
+def test_verifier_c2_nominal(tmp_path):
+    _poser_c2(tmp_path)
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is True
+    assert res["proof"] is not None
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["target_collections"] == 10
+
+
+def test_verifier_c2_refuse_si_fichier_json_absent(tmp_path):
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "manquante" in res["why"]
+
+
+def test_verifier_c2_refuse_si_sha_modifie(tmp_path):
+    _poser_c2(tmp_path, tamper_sha=True)
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "altération" in res["why"]
+
+
+def test_verifier_c2_refuse_si_status_non_verified(tmp_path):
+    _poser_c2(tmp_path, status="FAILED")
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "non VERIFIED" in res["why"]
+
+
+def test_verifier_c2_refuse_si_main_sha_stale(tmp_path):
+    _poser_c2(tmp_path, main_sha="0" * 40)
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "stale" in res["why"]
+
+
+def test_verifier_c2_refuse_si_docker_residues(tmp_path):
+    _poser_c2(tmp_path, docker_residues=1)
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "Docker résiduels" in res["why"]
+
+
+def test_verifier_c2_refuse_si_production_mutations(tmp_path):
+    _poser_c2(tmp_path, prod_db_writes=1)
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "production_db_writes" in res["why"]
+
+    _poser_c2(tmp_path, current_switch=1)
+    res2 = blocages.verifier_c2(tmp_path)
+    assert res2["closed"] is False
+    assert res2["proof"] is None
+    assert "current_switch" in res2["why"]
+
+
+def test_verifier_c2_refuse_si_autorite_divergente(tmp_path):
+    _poser_c2(tmp_path, bad_auth=True)
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "divergente" in res["why"]
+
+
+def test_verifier_c2_refuse_si_cardinalite_invalide(tmp_path):
+    _poser_c2(tmp_path, bad_cardinality=True)
+    res = blocages.verifier_c2(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "nombre de collections" in res["why"]
+
+
+def test_verifier_c2_sur_depot_reel():
+    racine = Path(__file__).resolve().parents[2]
+    res = blocages.verifier_c2(racine)
+    assert res["closed"] is True
+    assert res["proof"] is not None
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["target_collections"] == 10
+    assert res["proof"]["stored_chunks"] == 353
+
+
+def _poser_c3(
+    tmp_path: Path,
+    *,
+    status="VERIFIED",
+    main_sha="4e7c40b731823a517f1a29f3838c3794638bde68",
+    docker_residues=0,
+    prod_touched=False,
+    prod_db_writes=0,
+    current_switch=0,
+    tamper_sha=False,
+    bad_auth=False,
+    bad_cardinality=False,
+    bad_verdict=False,
+):
+    evidence_dir = tmp_path / "docs/reports/evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    json_file = evidence_dir / "h2c_c3_worker_cli_e2e_proof.json"
+    sha_file = evidence_dir / "h2c_c3_worker_cli_e2e_proof.sha256"
+
+    exp_auth = "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26"
+    act_auth = "0" * 64 if bad_auth else exp_auth
+
+    data = {
+        "kind": "NEXUS-C3-WORKER-CLI-E2E-PROOF-V1",
+        "observed_at_main_sha": main_sha,
+        "timestamp": "2026-09-17T07:40:00.000000+00:00",
+        "executed_command": "pytest -v services/rag-engine/tests/integration/test_multilevel_worker_cli_e2e.py",
+        "ephemeral_environment": {
+            "database": "Deux instances PostgreSQL éphémères",
+            "docker_residues_after_test": docker_residues,
+            "production_touched": prod_touched,
+            "production_db_writes": prod_db_writes,
+            "current_switch": current_switch,
+            "secrets_contained": 0,
+        },
+        "authorities": {
+            "release_manifest": {
+                "path": "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/multilevel.release.json",
+                "expected_sha256": exp_auth,
+                "actual_sha256": act_auth,
+            },
+        },
+        "cardinalities": {
+            "target_collections": 999 if bad_cardinality else 2,
+            "worker_a_executed": not bad_cardinality,
+            "worker_b_executed": not bad_cardinality,
+            "proposals_generated": 0 if bad_cardinality else 2,
+            "publications_attested": 0 if bad_cardinality else 2,
+            "collections": [
+                "rag_nexus_maths_quatrieme_tc",
+                "rag_nexus_nsi_premiere_specialite",
+            ],
+        },
+        "verdicts": {
+            "MAIN_SHA_MATCHES": True,
+            "ALL_AUTHORITY_DIGESTS_MATCH": not bad_auth,
+            "WORKER_A_CLI_EXECUTED": True,
+            "WORKER_B_CLI_EXECUTED": True,
+            "PROPOSALS_GENERATED": True,
+            "PUBLICATIONS_ATTESTED": True,
+            "NO_DOCKER_RESIDUES": docker_residues == 0,
+            "NO_PRODUCTION_MUTATIONS": True,
+            "NO_CURRENT_SWITCH": True,
+            "NO_SECRETS_EXPOSED": True,
+            "TEST_EXECUTION_PASSED": not bad_verdict,
+        },
+        "verification_status": status,
+    }
+
+    content = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    json_file.write_text(content, encoding="utf-8")
+
+    if tamper_sha:
+        sha_file.write_text(f"{'f' * 64}  docs/reports/evidence/h2c_c3_worker_cli_e2e_proof.json\n", encoding="utf-8")
+    else:
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        sha_file.write_text(f"{digest}  docs/reports/evidence/h2c_c3_worker_cli_e2e_proof.json\n", encoding="utf-8")
+
+
+def test_verifier_c3_nominal(tmp_path):
+    _poser_c3(tmp_path)
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is True
+    assert res["proof"] is not None
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["target_collections"] == 2
+
+
+def test_verifier_c3_refuse_si_fichier_json_absent(tmp_path):
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "manquante" in res["why"]
+
+
+def test_verifier_c3_refuse_si_sha_modifie(tmp_path):
+    _poser_c3(tmp_path, tamper_sha=True)
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "altération" in res["why"]
+
+
+def test_verifier_c3_refuse_si_status_non_verified(tmp_path):
+    _poser_c3(tmp_path, status="FAILED")
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "non VERIFIED" in res["why"]
+
+
+def test_verifier_c3_refuse_si_main_sha_stale(tmp_path):
+    _poser_c3(tmp_path, main_sha="0" * 40)
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "stale" in res["why"]
+
+
+def test_verifier_c3_refuse_si_docker_residues(tmp_path):
+    _poser_c3(tmp_path, docker_residues=1)
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "Docker résiduels" in res["why"]
+
+
+def test_verifier_c3_refuse_si_production_mutations(tmp_path):
+    _poser_c3(tmp_path, prod_db_writes=1)
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "production_db_writes" in res["why"]
+
+    _poser_c3(tmp_path, current_switch=1)
+    res2 = blocages.verifier_c3(tmp_path)
+    assert res2["closed"] is False
+    assert res2["proof"] is None
+    assert "current_switch" in res2["why"]
+
+
+def test_verifier_c3_refuse_si_autorite_divergente(tmp_path):
+    _poser_c3(tmp_path, bad_auth=True)
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "divergente" in res["why"]
+
+
+def test_verifier_c3_refuse_si_cardinalite_invalide(tmp_path):
+    _poser_c3(tmp_path, bad_cardinality=True)
+    res = blocages.verifier_c3(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "nombre de collections" in res["why"]
+
+
+def test_verifier_c3_sur_depot_reel():
+    racine = Path(__file__).resolve().parents[2]
+    res = blocages.verifier_c3(racine)
+    assert res["closed"] is True
+    assert res["proof"] is not None
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["target_collections"] == 2

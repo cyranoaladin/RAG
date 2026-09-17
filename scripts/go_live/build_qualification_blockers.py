@@ -753,6 +753,399 @@ def verifier_c6(racine: Path) -> dict:
     }
 
 
+def verifier_c2(racine: Path) -> dict:
+    """Vérifie l'ingestion multilevel réelle bout en bout (C2)."""
+    main_sha_attendu = "4e7c40b731823a517f1a29f3838c3794638bde68"
+    preuve_json_path = racine / "docs/reports/evidence/h2c_c2_multilevel_ingestion_e2e_proof.json"
+    preuve_sha_path = racine / "docs/reports/evidence/h2c_c2_multilevel_ingestion_e2e_proof.sha256"
+
+    if not preuve_json_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"attestation de preuve C2 manquante : {preuve_json_path}",
+        }
+    if not preuve_sha_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'empreinte C2 manquant : {preuve_sha_path}",
+        }
+
+    # 1. Vérification cryptographique de l'empreinte SHA-256
+    try:
+        lignes = preuve_sha_path.read_text(encoding="utf-8").strip().splitlines()
+        sha_attendu = None
+        for ligne in lignes:
+            ligne = ligne.strip()
+            if not ligne or ligne.startswith("#"):
+                continue
+            parts = ligne.split(None, 1)
+            if len(parts) == 2:
+                sha_attendu = parts[0]
+                break
+        if not sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": "fichier SHA-256 C2 vide ou mal formé",
+            }
+
+        sha_reel = hashlib.sha256(preuve_json_path.read_bytes()).hexdigest()
+        if sha_reel != sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": (
+                    f"altération détectée de l'attestation C2 : sha calculé {sha_reel} "
+                    f"!= sha scellé {sha_attendu}"
+                ),
+            }
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"erreur lors de la vérification SHA-256 de la preuve C2 : {exc}",
+        }
+
+    # 2. Vérification des assertions du JSON d'attestation
+    try:
+        data = json.loads(preuve_json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'attestation JSON C2 illisible : {exc}",
+        }
+
+    if data.get("verification_status") != "VERIFIED":
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"statut de vérification C2 non VERIFIED : {data.get('verification_status')}",
+        }
+
+    # 3. Refus d'une preuve stale liée à un ancien main
+    observed_main_sha = data.get("observed_at_main_sha")
+    if observed_main_sha != main_sha_attendu:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": (
+                f"preuve C2 stale : observée à {observed_main_sha}, attendue au commit "
+                f"de référence {main_sha_attendu}"
+            ),
+        }
+
+    # 4. Vérification de l'environnement éphémère et absence de production
+    ephemeral = data.get("ephemeral_environment", {})
+    if ephemeral.get("docker_residues_after_test", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"conteneurs Docker résiduels après le test C2 : {ephemeral.get('docker_residues_after_test')}",
+        }
+    if ephemeral.get("production_touched") is not False:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "violation sécurité C2 : environnement de production touché",
+        }
+    if ephemeral.get("production_db_writes", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"violation sécurité C2 : production_db_writes = {ephemeral.get('production_db_writes')}",
+        }
+    if ephemeral.get("current_switch", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"violation sécurité C2 : current_switch = {ephemeral.get('current_switch')}",
+        }
+
+    # 5. Vérification du non-écart des autorités
+    authorities = data.get("authorities", {})
+    for auth_name, auth_data in authorities.items():
+        exp_sha = auth_data.get("expected_sha256")
+        act_sha = auth_data.get("actual_sha256")
+        if not exp_sha or not act_sha or exp_sha != act_sha:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": f"autorité C2 divergente pour {auth_name} : attendu {exp_sha}, obtenu {act_sha}",
+            }
+
+    # 6. Vérification des cardinalités
+    cardinalities = data.get("cardinalities", {})
+    if cardinalities.get("target_collections") != 10:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"nombre de collections C2 invalide : {cardinalities.get('target_collections')}",
+        }
+    if cardinalities.get("ingested_artifacts") != 11:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"nombre d'artefacts C2 invalide : {cardinalities.get('ingested_artifacts')}",
+        }
+    if cardinalities.get("published_placements") != 11:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"nombre de placements C2 invalide : {cardinalities.get('published_placements')}",
+        }
+    if cardinalities.get("stored_chunks") != 353:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"nombre de chunks C2 invalide : {cardinalities.get('stored_chunks')}",
+        }
+
+    # 7. Vérification des verdicts
+    verdicts = data.get("verdicts", {})
+    if not verdicts.get("TEST_EXECUTION_PASSED"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "échec de l'exécution du test C2 (TEST_EXECUTION_PASSED=false)",
+        }
+    if not verdicts.get("CITATIONS_VERIFIED"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "citations non vérifiées dans le test C2",
+        }
+    if not verdicts.get("CROSS_SCOPE_ISOLATION_VERIFIED"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "isolation cross-scope non vérifiée dans le test C2",
+        }
+
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                "ingestion multilevel réelle bout en bout validée sur le commit "
+                f"{main_sha_attendu} (10 collections, 11 artefacts, 11 placements, "
+                "353 chunks, API v2 démarrée avec autorités valides, recherche et citations "
+                "vérifiées, 0 résidu Docker, aucune mutation production)"
+            ),
+            "executed_command": data.get("executed_command"),
+            "observed_at_main_sha": observed_main_sha,
+            "target_collections": cardinalities.get("target_collections"),
+            "stored_chunks": cardinalities.get("stored_chunks"),
+            "sha256_verified": True,
+            "verification": (
+                "Preuve d'exécution et de conformité cryptographique de l'ingestion "
+                "multilevel réelle (C2) : banc de test réel réétabli et rejoué avec succès, "
+                "zéro conteneur résiduel, autorités intègres."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)",
+                "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+                "CONCURRENCE (Comportement sous concurrence)",
+                "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+                "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+                "PII_UNDECIDED (149 contenus PII undecided)",
+                "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+                "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+            ],
+        },
+        "why": None,
+    }
+
+
+def verifier_c3(racine: Path) -> dict:
+    """Vérifie le worker CLI multilevel bout en bout (C3)."""
+    main_sha_attendu = "4e7c40b731823a517f1a29f3838c3794638bde68"
+    preuve_json_path = racine / "docs/reports/evidence/h2c_c3_worker_cli_e2e_proof.json"
+    preuve_sha_path = racine / "docs/reports/evidence/h2c_c3_worker_cli_e2e_proof.sha256"
+
+    if not preuve_json_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"attestation de preuve C3 manquante : {preuve_json_path}",
+        }
+    if not preuve_sha_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'empreinte C3 manquant : {preuve_sha_path}",
+        }
+
+    # 1. Vérification cryptographique de l'empreinte SHA-256
+    try:
+        lignes = preuve_sha_path.read_text(encoding="utf-8").strip().splitlines()
+        sha_attendu = None
+        for ligne in lignes:
+            ligne = ligne.strip()
+            if not ligne or ligne.startswith("#"):
+                continue
+            parts = ligne.split(None, 1)
+            if len(parts) == 2:
+                sha_attendu = parts[0]
+                break
+        if not sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": "fichier SHA-256 C3 vide ou mal formé",
+            }
+
+        sha_reel = hashlib.sha256(preuve_json_path.read_bytes()).hexdigest()
+        if sha_reel != sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": (
+                    f"altération détectée de l'attestation C3 : sha calculé {sha_reel} "
+                    f"!= sha scellé {sha_attendu}"
+                ),
+            }
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"erreur lors de la vérification SHA-256 de la preuve C3 : {exc}",
+        }
+
+    # 2. Vérification des assertions du JSON d'attestation
+    try:
+        data = json.loads(preuve_json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'attestation JSON C3 illisible : {exc}",
+        }
+
+    if data.get("verification_status") != "VERIFIED":
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"statut de vérification C3 non VERIFIED : {data.get('verification_status')}",
+        }
+
+    # 3. Refus d'une preuve stale liée à un ancien main
+    observed_main_sha = data.get("observed_at_main_sha")
+    if observed_main_sha != main_sha_attendu:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": (
+                f"preuve C3 stale : observée à {observed_main_sha}, attendue au commit "
+                f"de référence {main_sha_attendu}"
+            ),
+        }
+
+    # 4. Vérification de l'environnement éphémère et absence de production
+    ephemeral = data.get("ephemeral_environment", {})
+    if ephemeral.get("docker_residues_after_test", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"conteneurs Docker résiduels après le test C3 : {ephemeral.get('docker_residues_after_test')}",
+        }
+    if ephemeral.get("production_touched") is not False:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "violation sécurité C3 : environnement de production touché",
+        }
+    if ephemeral.get("production_db_writes", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"violation sécurité C3 : production_db_writes = {ephemeral.get('production_db_writes')}",
+        }
+    if ephemeral.get("current_switch", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"violation sécurité C3 : current_switch = {ephemeral.get('current_switch')}",
+        }
+
+    # 5. Vérification du non-écart des autorités
+    authorities = data.get("authorities", {})
+    for auth_name, auth_data in authorities.items():
+        exp_sha = auth_data.get("expected_sha256")
+        act_sha = auth_data.get("actual_sha256")
+        if not exp_sha or not act_sha or exp_sha != act_sha:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": f"autorité C3 divergente pour {auth_name} : attendu {exp_sha}, obtenu {act_sha}",
+            }
+
+    # 6. Vérification des cardinalités
+    cardinalities = data.get("cardinalities", {})
+    if cardinalities.get("target_collections") != 2:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"nombre de collections C3 invalide : {cardinalities.get('target_collections')}",
+        }
+    if not cardinalities.get("worker_a_executed") or not cardinalities.get("worker_b_executed"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "exécution incomplète de Worker A ou Worker B dans le test C3",
+        }
+    if cardinalities.get("proposals_generated") != 2 or cardinalities.get("publications_attested") != 2:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "propositions ou publications incomplètes dans le test C3",
+        }
+
+    # 7. Vérification des verdicts
+    verdicts = data.get("verdicts", {})
+    if not verdicts.get("TEST_EXECUTION_PASSED"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "échec de l'exécution du test C3 (TEST_EXECUTION_PASSED=false)",
+        }
+
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                "worker CLI multilevel bout en bout validé sur le commit "
+                f"{main_sha_attendu} (Worker A et B CLI testés sur 2 collections, "
+                "propositions générées et publications attestées, digests d'autorités "
+                "recalculés et intègres, 0 résidu Docker, aucune mutation production)"
+            ),
+            "executed_command": data.get("executed_command"),
+            "observed_at_main_sha": observed_main_sha,
+            "target_collections": cardinalities.get("target_collections"),
+            "sha256_verified": True,
+            "verification": (
+                "Preuve d'exécution et de conformité cryptographique du worker CLI "
+                "multilevel (C3) : test bout en bout validé avec succès, zéro résidu "
+                "Docker, autorités intègres."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)",
+                "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+                "CONCURRENCE (Comportement sous concurrence)",
+                "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+                "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+                "PII_UNDECIDED (149 contenus PII undecided)",
+                "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+                "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+            ],
+        },
+        "why": None,
+    }
+
+
 #: Un blocage sans vérificateur reste ouvert. La condition est écrite pour que
 #: son propriétaire sache ce qu'il doit produire, et pour qu'on ne la
 #: redécouvre pas à chaque lot.
@@ -760,9 +1153,9 @@ BLOCAGES = (
     ("C1", "Autorite de release et couverture promue", "operateur",
      "une release gouvernée couvre l ensemble promu, sans contenu refusé", None),
     ("C2", "Ingestion multilevel reelle bout en bout", "session H2-C externe",
-     "une ingestion multilevel réelle aboutit et est rejouable", None),
+     "une ingestion multilevel réelle aboutit et est rejouable", verifier_c2),
     ("C3", "Worker CLI multilevel bout en bout", "session H2-C externe",
-     "le worker CLI traite un lot multilevel de bout en bout", None),
+     "le worker CLI traite un lot multilevel de bout en bout", verifier_c3),
     ("C4", "Contrat de retrieval sur corpus servable", "operateur",
      "le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement "
      "sur un index de staging : les huit conditions de l écart de recherche "

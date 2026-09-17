@@ -1,15 +1,15 @@
 # Blocages de qualification du go-live
 
 - kind : `NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2`
-- ouverts : **8** / fermés : 5
+- ouverts : **6** / fermés : 7
 
 > État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.
 
 | Blocage | Propriétaire | Fermé | Condition de fermeture |
 |---|---|---|---|
 | `C1` | operateur | **non** | une release gouvernée couvre l ensemble promu, sans contenu refusé |
-| `C2` | session H2-C externe | **non** | une ingestion multilevel réelle aboutit et est rejouable |
-| `C3` | session H2-C externe | **non** | le worker CLI traite un lot multilevel de bout en bout |
+| `C2` | session H2-C externe | **oui** | une ingestion multilevel réelle aboutit et est rejouable |
+| `C3` | session H2-C externe | **oui** | le worker CLI traite un lot multilevel de bout en bout |
 | `C4` | operateur | **oui** | le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues |
 | `C5` | operateur | **oui** | l autorité d accès refuse une portée non autorisée, prouvé par épreuve |
 | `C6` | operateur | **oui** | la qualification CAS couvre le magasin réel |
@@ -22,6 +22,40 @@
 | `NON_PDF_REACQUISITION` | operateur | **oui** | les 37 ressources servables sont présentes au store durable canonique, taille et SHA-256 conformes |
 
 ## Preuves des blocages fermés
+
+### `C2`
+
+- condition : une ingestion multilevel réelle aboutit et est rejouable
+- vérification : Preuve d'exécution et de conformité cryptographique de l'ingestion multilevel réelle (C2) : banc de test réel réétabli et rejoué avec succès, zéro conteneur résiduel, autorités intègres.
+
+Ce que cette fermeture ne ferme pas :
+
+- C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
+- COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)
+- STAGING_EXTERNE (Staging externe ingéré et qualifié)
+- CONCURRENCE (Comportement sous concurrence)
+- SYNC_INCREMENTALE (Synchronisation incrémentale)
+- MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)
+- PII_UNDECIDED (149 contenus PII undecided)
+- RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)
+- GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)
+
+### `C3`
+
+- condition : le worker CLI traite un lot multilevel de bout en bout
+- vérification : Preuve d'exécution et de conformité cryptographique du worker CLI multilevel (C3) : test bout en bout validé avec succès, zéro résidu Docker, autorités intègres.
+
+Ce que cette fermeture ne ferme pas :
+
+- C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
+- COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)
+- STAGING_EXTERNE (Staging externe ingéré et qualifié)
+- CONCURRENCE (Comportement sous concurrence)
+- SYNC_INCREMENTALE (Synchronisation incrémentale)
+- MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)
+- PII_UNDECIDED (149 contenus PII undecided)
+- RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)
+- GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)
 
 ### `C4`
 

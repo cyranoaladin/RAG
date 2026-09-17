@@ -10,22 +10,59 @@
       "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "une ingestion multilevel réelle aboutit et est rejouable",
       "id": "C2",
       "owner": "session H2-C externe",
-      "proof": null,
+      "proof": {
+        "condition": "ingestion multilevel réelle bout en bout validée sur le commit 4e7c40b731823a517f1a29f3838c3794638bde68 (10 collections, 11 artefacts, 11 placements, 353 chunks, API v2 démarrée avec autorités valides, recherche et citations vérifiées, 0 résidu Docker, aucune mutation production)",
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)",
+          "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+          "CONCURRENCE (Comportement sous concurrence)",
+          "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+          "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+          "PII_UNDECIDED (149 contenus PII undecided)",
+          "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+          "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)"
+        ],
+        "executed_command": "pytest -v services/rag-engine/tests/integration/test_multilevel_real_ingestion.py",
+        "observed_at_main_sha": "4e7c40b731823a517f1a29f3838c3794638bde68",
+        "sha256_verified": true,
+        "stored_chunks": 353,
+        "target_collections": 10,
+        "verification": "Preuve d'exécution et de conformité cryptographique de l'ingestion multilevel réelle (C2) : banc de test réel réétabli et rejoué avec succès, zéro conteneur résiduel, autorités intègres."
+      },
       "titre": "Ingestion multilevel reelle bout en bout",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "le worker CLI traite un lot multilevel de bout en bout",
       "id": "C3",
       "owner": "session H2-C externe",
-      "proof": null,
+      "proof": {
+        "condition": "worker CLI multilevel bout en bout validé sur le commit 4e7c40b731823a517f1a29f3838c3794638bde68 (Worker A et B CLI testés sur 2 collections, propositions générées et publications attestées, digests d'autorités recalculés et intègres, 0 résidu Docker, aucune mutation production)",
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)",
+          "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+          "CONCURRENCE (Comportement sous concurrence)",
+          "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+          "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+          "PII_UNDECIDED (149 contenus PII undecided)",
+          "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+          "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)"
+        ],
+        "executed_command": "pytest -v services/rag-engine/tests/integration/test_multilevel_worker_cli_e2e.py",
+        "observed_at_main_sha": "4e7c40b731823a517f1a29f3838c3794638bde68",
+        "sha256_verified": true,
+        "target_collections": 2,
+        "verification": "Preuve d'exécution et de conformité cryptographique du worker CLI multilevel (C3) : test bout en bout validé avec succès, zéro résidu Docker, autorités intègres."
+      },
       "titre": "Worker CLI multilevel bout en bout",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": true,
@@ -187,8 +224,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 5,
+  "closed_count": 7,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 8
+  "open_count": 6
 }
