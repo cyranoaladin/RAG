@@ -151,8 +151,9 @@ Un harnais de qualification formel et adversarial a été développé (`scripts/
 
 | Suite | Commande | Résultat |
 |---|---|---|
-| Qualification C5 (nouveaux tests) | `pytest -q scripts/qualification/tests/test_verify_access_authority_scopes.py` | **4 passed** |
-| Qualification globale | `pytest -q scripts/qualification/tests` | **80 passed, 2 skipped** |
+| Qualification C5 hermétique | `pytest -q scripts/qualification/tests/test_c5_hermetic_proof_integrity.py` | **3 passed** (sans FastAPI ni rag-engine) |
+| Qualification globale hermétique | `pytest -q scripts/qualification/tests` | **79 passed, 2 skipped** (environnement minimal C1) |
+| Qualification C5 intégration | `pytest -q services/rag-engine/tests/integration/test_verify_access_authority_scopes.py` | **4 passed** (environnement rag-engine / CI access authority) |
 | Scripts et garde-fous | `pytest -q scripts/tests/` | **420 passed, 7 skipped** |
 | rag-pedago | `pytest -q services/rag-pedago/tests` | **3 490 passed, 12 skipped** |
 | rag-engine | `pytest -q services/rag-engine/tests -m "not integration"` | **100% passed (0 failed)** |
@@ -166,11 +167,19 @@ Un harnais de qualification formel et adversarial a été développé (`scripts/
 | Hygiène du dépôt | `bash scripts/check-repository-hygiene.sh` | **PASS** |
 | Tests hygiène dépôt | `bash scripts/tests/test-repository-hygiene.sh` | **PASS** |
 | Topologie CI | `bash scripts/tests/test-ci-local-topology.sh` | **PASS** |
-| Linting ruff | `ruff check scripts/ ...` | **All checks passed!** |
+| Linting ruff | `ruff check scripts/ services/` | **All checks passed!** |
 | Intégrité git | `git diff --check` | **Propre (exit 0)** |
+
+---
+
+## Remédiation CI (Solution 1 Renforcée)
+- **Isolation hermétique préservée** : suppression des imports `src.ingestor.*` au niveau module dans `verify_access_authority_scopes.py` (convertis en lazy imports). Le module est prouvé import-safe dans l'environnement hermétique sans FastAPI.
+- **Suite d'intégration rattachée au moteur** : `test_verify_access_authority_scopes.py` déplacé vers `services/rag-engine/tests/integration/` et câblé dans le job CI `access authority (C5)`.
+- **Suite hermétique C5 dédiée** : `test_c5_hermetic_proof_integrity.py` sous `scripts/qualification/tests/` vérifiant sans framework web la conformité SHA-256 et les 15 assertions de refus.
 
 ---
 
 ## Décision
 
-**`GO_LIVE_BO_PR_OPEN`**
+**`GO_LIVE_BO_PR_UPDATED_NEEDS_NEW_TRUSTED_REVIEW`**
+

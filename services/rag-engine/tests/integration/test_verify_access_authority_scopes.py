@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from pathlib import Path
 import sys
+from pathlib import Path
 
-RACINE = Path(__file__).resolve().parents[3]
+RACINE = Path(__file__).resolve().parents[4]
 
 sys.path.extend(
     [

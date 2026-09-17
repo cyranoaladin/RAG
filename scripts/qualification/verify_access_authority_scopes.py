@@ -52,17 +52,6 @@ from nexus_contracts.authorization_set import (  # noqa: E402
 )
 from nexus_contracts.ingestion import ResourceScope  # noqa: E402
 
-from src.ingestor import identity_v2, retrieval_scope_v2  # noqa: E402
-from src.ingestor import retrieval_v2_endpoint as endpoint  # noqa: E402
-from src.ingestor.ingestion_worker.authorization_mapping import (  # noqa: E402
-    AuthorizationMappingError,
-    build_authorization_mapping,
-)
-from src.ingestor.retrieval_pg_v2 import (  # noqa: E402
-    _EFFECTIVE_SCOPE_FILTER_SQL,
-    _GOVERNED_SCOPE_JOINS_SQL,
-    _PLACEMENT_SCOPE_PREDICATE_SQL,
-)
 
 KIND = "NEXUS-C5-ACCESS-AUTHORITY-REFUSAL-PROOF-V1"
 DEFAULT_OUTPUT = "docs/reports/evidence/access_authority_c5_refusal_proof.json"
@@ -120,7 +109,9 @@ def _dummy_set() -> AuthorizationSetV1:
     )
 
 
-def _verified_identity(scope_id: str) -> identity_v2.VerifiedInternalIdentity:
+def _verified_identity(scope_id: str) -> Any:
+    from src.ingestor import identity_v2
+
     artifact = load_retrieval_scope_artifact(scope_id)
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     target = artifact.target_identity
@@ -267,6 +258,9 @@ def eval_governed_scope_predicate(
 
 def run_identity_and_retrieval_scope_refusals() -> dict[str, bool]:
     """Épreuves 1 à 7 : Registre d'identité, jetons et endpoint retrieval."""
+    from src.ingestor import identity_v2, retrieval_scope_v2
+    from src.ingestor import retrieval_v2_endpoint as endpoint
+
     verdicts: dict[str, bool] = {}
 
     config = identity_v2.IdentityVerifierConfig(
@@ -366,6 +360,11 @@ def run_identity_and_retrieval_scope_refusals() -> dict[str, bool]:
 
 def run_authorization_mapping_and_set_refusals() -> dict[str, bool]:
     """Épreuves 8 à 11 : Mapping d'autorisations et intégrité de l'AuthorizationSet."""
+    from src.ingestor.ingestion_worker.authorization_mapping import (
+        AuthorizationMappingError,
+        build_authorization_mapping,
+    )
+
     verdicts: dict[str, bool] = {}
     auth_set = _dummy_set()
 
@@ -433,6 +432,12 @@ def run_authorization_mapping_and_set_refusals() -> dict[str, bool]:
 
 def run_sql_placement_authority_refusals() -> dict[str, bool]:
     """Épreuves 12 à 15 : Prédicat SQL effectif et non-élargissement par rag_chunks."""
+    from src.ingestor.retrieval_pg_v2 import (
+        _EFFECTIVE_SCOPE_FILTER_SQL,
+        _GOVERNED_SCOPE_JOINS_SQL,
+        _PLACEMENT_SCOPE_PREDICATE_SQL,
+    )
+
     verdicts: dict[str, bool] = {}
 
     nominal_scope = {
