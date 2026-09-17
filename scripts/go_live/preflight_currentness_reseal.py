@@ -86,8 +86,11 @@ def identite_est_libre(racine: Path, identite: str) -> tuple[bool, str]:
     import sys as _sys
 
     chemin_scripts = racine / "services/rag-pedago/scripts"
+    chemin_pedago = racine / "services/rag-pedago"
     if str(chemin_scripts) not in _sys.path:
         _sys.path.insert(0, str(chemin_scripts))
+    if str(chemin_pedago) not in _sys.path:
+        _sys.path.insert(0, str(chemin_pedago))
     try:
         from build_production_profile_release import (  # noqa: PLC0415
             ReleaseIdentityError,

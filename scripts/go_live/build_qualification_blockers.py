@@ -1146,6 +1146,198 @@ def verifier_c3(racine: Path) -> dict:
     }
 
 
+def verifier_cockpit_e2e(racine: Path) -> dict:
+    """Vérifie le cockpit bout en bout contre l'API de retrieval (COCKPIT_E2E)."""
+    main_sha_attendu = "7769b72259d8e51749de07ab9a2dbc0a6e86ef28"
+    preuve_json_path = racine / "docs/reports/evidence/cockpit_e2e_retrieval_proof.json"
+    preuve_sha_path = racine / "docs/reports/evidence/cockpit_e2e_retrieval_proof.sha256"
+
+    if not preuve_json_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"attestation de preuve COCKPIT_E2E manquante : {preuve_json_path}",
+        }
+    if not preuve_sha_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'empreinte COCKPIT_E2E manquant : {preuve_sha_path}",
+        }
+
+    # 1. Vérification cryptographique de l'empreinte SHA-256
+    try:
+        lignes = preuve_sha_path.read_text(encoding="utf-8").strip().splitlines()
+        sha_attendu = None
+        for ligne in lignes:
+            ligne = ligne.strip()
+            if not ligne or ligne.startswith("#"):
+                continue
+            parts = ligne.split(None, 1)
+            if len(parts) == 2:
+                sha_attendu = parts[0]
+                break
+        if not sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": "fichier SHA-256 COCKPIT_E2E vide ou mal formé",
+            }
+
+        sha_reel = hashlib.sha256(preuve_json_path.read_bytes()).hexdigest()
+        if sha_reel != sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": (
+                    f"altération détectée de l'attestation COCKPIT_E2E : sha calculé {sha_reel} "
+                    f"!= sha scellé {sha_attendu}"
+                ),
+            }
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"erreur lors de la vérification SHA-256 de la preuve COCKPIT_E2E : {exc}",
+        }
+
+    # 2. Vérification des assertions du JSON d'attestation
+    try:
+        data = json.loads(preuve_json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'attestation JSON COCKPIT_E2E illisible : {exc}",
+        }
+
+    if data.get("verification_status") != "VERIFIED":
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"statut de vérification COCKPIT_E2E non VERIFIED : {data.get('verification_status')}",
+        }
+
+    # 3. Refus d'une preuve stale liée à un ancien main
+    observed_main_sha = data.get("observed_at_main_sha")
+    if observed_main_sha != main_sha_attendu:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": (
+                f"preuve COCKPIT_E2E stale : observée à {observed_main_sha}, attendue au commit "
+                f"de référence {main_sha_attendu}"
+            ),
+        }
+
+    # 4. Refus si mock détecté
+    cockpit_cfg = data.get("cockpit_configuration", {})
+    if cockpit_cfg.get("mock_fallback_detected") is not False:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "violation sécurité COCKPIT_E2E : mock ou fallback silencieux détecté",
+        }
+
+    # 5. Vérification de l'environnement éphémère et absence de production
+    ephemeral = data.get("ephemeral_environment", {})
+    if ephemeral.get("docker_residues_after_test", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"conteneurs Docker résiduels après le test COCKPIT_E2E : {ephemeral.get('docker_residues_after_test')}",
+        }
+    if ephemeral.get("production_touched") is not False:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "violation sécurité COCKPIT_E2E : environnement de production touché",
+        }
+    if ephemeral.get("production_db_writes", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"violation sécurité COCKPIT_E2E : production_db_writes = {ephemeral.get('production_db_writes')}",
+        }
+    if ephemeral.get("current_switch", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"violation sécurité COCKPIT_E2E : current_switch = {ephemeral.get('current_switch')}",
+        }
+
+    # 6. Vérification des sécurités BFF (401, 403)
+    security = data.get("security_verifications", {})
+    if not security.get("unauthenticated_request_rejected"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "absence de preuve de refus 401 sur requête non authentifiée dans COCKPIT_E2E",
+        }
+    if not security.get("unauthorized_scope_collection_rejected"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "absence de preuve de refus 403 sur collection hors portée dans COCKPIT_E2E",
+        }
+
+    # 7. Vérification de la présence des citations
+    citations = data.get("citations_summary", {})
+    citations_count = citations.get("total_citations_verified", 0)
+    if citations_count <= 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "aucune citation vérifiée dans la réponse de retrieval de COCKPIT_E2E",
+        }
+    if not citations.get("citations_present_on_all_results"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "citations pédagogiques absentes ou incomplètes sur les résultats dans COCKPIT_E2E",
+        }
+
+    # 8. Vérification des verdicts
+    verdicts = data.get("verdicts", {})
+    if not verdicts.get("TEST_EXECUTION_PASSED"):
+        return {
+            "closed": False,
+            "proof": None,
+            "why": "échec de l'exécution du test COCKPIT_E2E (TEST_EXECUTION_PASSED=false)",
+        }
+
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                "cockpit interroge l API de retrieval de bout en bout validé sur le commit "
+                f"{main_sha_attendu} (démarrage Cockpit et RAG Engine, authentification exercée, "
+                "requêtes réelles /search/v2 via BFF, citations vérifiées, refus 401 et 403 vérifiés, "
+                "0 mock, 0 résidu Docker, aucune mutation production)"
+            ),
+            "executed_command": data.get("executed_command"),
+            "observed_at_main_sha": observed_main_sha,
+            "citations_count": citations_count,
+            "sha256_verified": True,
+            "verification": (
+                "Preuve d'exécution et de conformité cryptographique du Cockpit E2E retrieval : "
+                "banc réel validé avec succès, citations réelles reçues par le Cockpit, 0 conteneur résiduel."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+                "CONCURRENCE (Comportement sous concurrence)",
+                "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+                "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+                "PII_UNDECIDED (149 contenus PII undecided)",
+                "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+                "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+            ],
+        },
+        "why": None,
+    }
+
+
 #: Un blocage sans vérificateur reste ouvert. La condition est écrite pour que
 #: son propriétaire sache ce qu'il doit produire, et pour qu'on ne la
 #: redécouvre pas à chaque lot.
@@ -1165,7 +1357,7 @@ BLOCAGES = (
     ("C6", "Qualification CAS et couverture de magasin", "operateur",
      "la qualification CAS couvre le magasin réel", verifier_c6),
     ("COCKPIT_E2E", "Cockpit bout en bout contre l API de retrieval", "operateur",
-     "le cockpit interroge l API de retrieval de bout en bout", None),
+     "le cockpit interroge l API de retrieval de bout en bout", verifier_cockpit_e2e),
     ("STAGING_EXTERNE", "Staging externe ingere et qualifie", "operateur",
      "un staging externe est ingéré puis qualifié", None),
     ("CONCURRENCE", "Comportement sous concurrence", "operateur",

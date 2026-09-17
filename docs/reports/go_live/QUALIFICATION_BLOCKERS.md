@@ -1,7 +1,7 @@
 # Blocages de qualification du go-live
 
 - kind : `NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2`
-- ouverts : **6** / fermés : 7
+- ouverts : **5** / fermés : 8
 
 > État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.
 
@@ -13,7 +13,7 @@
 | `C4` | operateur | **oui** | le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues |
 | `C5` | operateur | **oui** | l autorité d accès refuse une portée non autorisée, prouvé par épreuve |
 | `C6` | operateur | **oui** | la qualification CAS couvre le magasin réel |
-| `COCKPIT_E2E` | operateur | **non** | le cockpit interroge l API de retrieval de bout en bout |
+| `COCKPIT_E2E` | operateur | **oui** | le cockpit interroge l API de retrieval de bout en bout |
 | `STAGING_EXTERNE` | operateur | **non** | un staging externe est ingéré puis qualifié |
 | `CONCURRENCE` | operateur | **non** | le comportement sous concurrence est mesuré et borné |
 | `SYNC_INCREMENTALE` | operateur | **non** | une synchronisation incrémentale est prouvée sans perte ni doublon |
@@ -89,6 +89,22 @@ Ce que cette fermeture ne ferme pas :
 - C2 (Ingestion multilevel réelle bout en bout)
 - C3 (Worker CLI multilevel bout en bout)
 - COCKPIT_E2E (Cockpit bout en bout contre l'API de retrieval)
+- STAGING_EXTERNE (Staging externe ingéré et qualifié)
+- CONCURRENCE (Comportement sous concurrence)
+- SYNC_INCREMENTALE (Synchronisation incrémentale)
+- MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)
+- PII_UNDECIDED (149 contenus PII undecided)
+- RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)
+- GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)
+
+### `COCKPIT_E2E`
+
+- condition : le cockpit interroge l API de retrieval de bout en bout
+- vérification : Preuve d'exécution et de conformité cryptographique du Cockpit E2E retrieval : banc réel validé avec succès, citations réelles reçues par le Cockpit, 0 conteneur résiduel.
+
+Ce que cette fermeture ne ferme pas :
+
+- C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
 - STAGING_EXTERNE (Staging externe ingéré et qualifié)
 - CONCURRENCE (Comportement sous concurrence)
 - SYNC_INCREMENTALE (Synchronisation incrémentale)

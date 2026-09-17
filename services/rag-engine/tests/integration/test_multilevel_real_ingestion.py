@@ -1033,7 +1033,7 @@ def _run_real_http_search_acceptance(product_pg: Mapping[str, str]) -> None:
             pytest.fail(f"uvicorn multilevel acceptance failed:\n{sanitized}")
 
 
-def test_multilevel_real_governed_batch_ingestion_and_idempotence(
+def run_multilevel_ingestion_and_publication(
     control_pg: dict[str, str],
     product_pg: dict[str, str],
     tmp_path: Path,
@@ -1371,4 +1371,16 @@ def test_multilevel_real_governed_batch_ingestion_and_idempotence(
             "GROUP BY chunk_id HAVING COUNT(*) > 1) duplicate"
         ).fetchone() == (0,)
 
+def test_multilevel_real_governed_batch_ingestion_and_idempotence(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    request: pytest.FixtureRequest,
+) -> None:
+    run_multilevel_ingestion_and_publication(
+        control_pg, product_pg, tmp_path, monkeypatch, capsys, request
+    )
     _run_real_http_search_acceptance(product_pg)
+
