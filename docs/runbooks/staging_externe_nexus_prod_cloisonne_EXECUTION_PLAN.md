@@ -1,4 +1,4 @@
-# Runbook — Staging cloisonné sur `nexus-prod` (mode A)
+# Plan d'exécution — Staging cloisonné sur `nexus-prod` (mode A)
 
 > **Aucune commande de ce document n'est exécutée sans l'autorisation explicite de l'opérateur :**
 > `SSH_STAGING_AUTHORIZED sur nexus-prod pour le commit <SHA>`.
@@ -64,6 +64,18 @@ ssh nexus-prod 'docker compose ls; docker ps --format "{{.Names}}\t{{.Ports}}\t{
 ssh nexus-prod 'docker network ls --format "{{.Name}}"; docker volume ls --format "{{.Name}}" | grep -i nexus-staging || true'
 ssh nexus-prod 'ss -ltn | grep -E ":(18001|15435|19191)\b" || echo PORTS_LIBRES'
 ```
+```bash
+install -d -m 0700 ~/nexus-staging-proof          # sur le poste de travail, hors dépôt
+# Photographie AVANT : servira de preuve « zéro production touchée » et « zéro current switch » en phase 7
+ssh nexus-prod 'docker ps --no-trunc --format "{{.ID}} {{.Names}} {{.Image}} {{.CreatedAt}}" | sort' > ~/nexus-staging-proof/prod_containers_before.txt
+ssh nexus-prod 'find /srv /opt -maxdepth 4 -type l -name "current*" -printf "%p -> %l\n" 2>/dev/null | sort' > ~/nexus-staging-proof/current_links_before.txt
+ssh nexus-prod 'sha256sum /etc/nginx/nginx.conf /etc/nginx/sites-enabled/* 2>/dev/null | sort' > ~/nexus-staging-proof/nginx_before.txt
+```
+**Sauvegarde préalable** : ce plan n'écrit rien en production, et ne lit aucune base de production (il n'en connaît pas
+les identifiants, et ne doit pas les connaître). La garantie préalable est donc double : la photographie ci-dessus, et
+votre confirmation qu'une sauvegarde de production récente existe selon `docs/runbooks/rollback.md`. **Sans cette
+confirmation, arrêt.**
+
 Aucun fichier d'environnement, aucun secret, aucune base n'est lu. **Arrêt** si : un port proposé est pris, un projet
 `nexus-staging` existe déjà, < 12 Gio de RAM libre, < 25 Gio de disque libre, ou charge élevée.
 
@@ -94,19 +106,48 @@ cet hôte, possiblement la base de production. `PGVECTOR_CONTAINER=nexus-staging
 commande n'est lancée qu'après que la ligne précédente a rendu ce nom exact. Sans cette variable : ne pas exécuter.
 Puis l'index selon le choix 2.1 (a) ou (b). Contrôle : `SELECT COUNT(*) FROM rag_chunks WHERE vector IS NOT NULL` > 0 sur la base de staging.
 
-### Phase 4 — API, image figée par digest
+### Phase 4 — Image `ingestor` figée par digest, puis API
+Le Compose **construit** `ingestor` (`build:`) : sans gel, deux `up` pourraient lancer deux images différentes.
 ```bash
-ssh nexus-prod "cd …/infra && $C build ingestor && docker inspect --format '{{.Id}}' nexus-staging-ingestor"   # digest consigné dans la preuve
-ssh nexus-prod "cd …/infra && $C up -d --wait ingestor && curl -fsS http://127.0.0.1:18001/health"
+ssh nexus-prod "cd …/infra && $C build ingestor"
+ssh nexus-prod "docker inspect --format '{{.Id}}' nexus-staging-ingestor" | tee ~/nexus-staging-proof/ingestor_image_id.txt   # sha256:… — LE digest du staging
+ssh nexus-prod "cd …/infra && $C up -d --wait --no-build ingestor"                     # --no-build : jamais de reconstruction implicite
+ssh nexus-prod "docker inspect --format '{{.Image}}' nexus-staging-ingestor-1"         # doit égaler le digest consigné
 ```
+Tout `up` ultérieur porte `--no-build`, et le digest du conteneur est recomparé après le rollback (phase 6). Un digest
+différent = **arrêt**. Ce même digest est celui que le manifeste de production devra citer.
 
-### Phase 5 — Recette depuis l'extérieur, par tunnel (aucune exposition)
+**Healthchecks**
+```bash
+ssh nexus-prod "cd …/infra && $C ps --format '{{.Service}} {{.Health}}'"               # pgvector healthy, ingestor healthy
+ssh nexus-prod 'curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:18001/health'   # 200
+```
+`/health` valide les autorités de runtime, les artefacts de modèles, la réconciliation de base et la dimension
+d'embedding ; il rend 503 sinon. Un 503 est un **arrêt**, pas un réessai.
+
+### Phase 5 — Smoke tests depuis l'extérieur, par tunnel (aucune exposition)
 ```bash
 ssh -N -L 18001:127.0.0.1:18001 nexus-prod &          # le poste de travail est hors de l'hôte et hors du conteneur
-RAG_API_URL=http://127.0.0.1:18001 … python scripts/staging_external_acceptance.py --scope <portée>
 ```
-Cockpit de staging : lancé **sur le poste de travail**, `RAG_ENGINE_INTERNAL_URL=http://127.0.0.1:18001`. Rien n'est
-déployé côté Cockpit sur `nexus-prod`. Attendus : résultats cités (source, URI, page), 401 sans session, 403 hors portée.
+**API** — sans justificatifs puis avec :
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:18001/search/v2 -d '{}'      # 401 attendu
+curl -fsS http://127.0.0.1:18001/health                                                          # 200
+```
+**Retrieval** — la recette de l'agent extérieur, une portée par exécution (jetons lus de l'environnement, jamais en argument) :
+```bash
+RAG_API_URL=http://127.0.0.1:18001 python scripts/staging_external_acceptance.py --scope <portée>
+# attendu : EXTERNAL_AGENT_E2E=PASS  RESULTS>0  CITATIONS=RESULTS (source, URI, page sur chaque résultat)
+```
+À jouer sur au moins trois portées (trois niveaux, trois matières), plus une requête **hors portée** → 403.
+
+**Cockpit** — lancé **sur le poste de travail**, jamais sur `nexus-prod` :
+```bash
+cd services/cockpit && RAG_ENGINE_INTERNAL_URL=http://127.0.0.1:18001 npm run start    # secrets de staging dans l'environnement
+```
+Attendus : `/api/health` ok ; `POST /api/search` sans session → 401 ; collection hors portée → 403 ; recherche
+authentifiée → résultats affichables avec citations (source, URI, page). Le banc `test_cockpit_e2e_retrieval.py` fixe déjà
+ces attendus.
 
 ### Phase 6 — Rollback éprouvé
 `staging_externe.md` § 8, sous `-p nexus-staging` : sauvegarde `pg_dump -Fc`, `down` (sans `-v`), `up -d --wait`,
@@ -117,14 +158,37 @@ déployé côté Cockpit sur `nexus-prod`. Attendus : résultats cités (source,
 ssh nexus-prod "cd …/infra && $C logs --no-color | grep -Eci 'password=|bearer [a-z0-9]|secret=' "     # attendu : 0
 ssh nexus-prod 'docker compose ls; docker ps --format "{{.Names}}\t{{.Status}}"'                        # à comparer à la phase 0
 ```
-La liste des conteneurs de production et leur durée de fonctionnement doivent être **inchangées** depuis la phase 0 (aucun redémarrage).
+```bash
+ssh nexus-prod 'docker ps --no-trunc --format "{{.ID}} {{.Names}} {{.Image}} {{.CreatedAt}}" | sort | grep -v nexus-staging' | diff - <(grep -v nexus-staging ~/nexus-staging-proof/prod_containers_before.txt)   # vide = zéro production touchée
+ssh nexus-prod 'find /srv /opt -maxdepth 4 -type l -name "current*" -printf "%p -> %l\n" 2>/dev/null | sort' | diff - ~/nexus-staging-proof/current_links_before.txt   # vide = zéro current switch
+ssh nexus-prod 'sha256sum /etc/nginx/nginx.conf /etc/nginx/sites-enabled/* 2>/dev/null | sort' | diff - ~/nexus-staging-proof/nginx_before.txt                        # vide = Nginx intact
+```
+Les trois `diff` doivent être **vides** : mêmes identifiants de conteneurs de production (donc aucun redémarrage ni
+recréation), mêmes liens `current`, même configuration Nginx. Ces trois sorties entrent dans la preuve.
 
 ### Phase 8 — État final, décidé par l'opérateur
 Soit staging laissé arrêté (`$C down`, volume conservé), soit démantelé (`$C down -v` — **seule** occurrence admise de
 `-v`, et uniquement sous `-p nexus-staging`), puis `rm -rf /srv/nexus-staging/secrets`. La preuve
 `external_staging_proof.json` est alors rescellée en mode `A` / `production_cloisonnee`, sans nom d'hôte sensible ni secret.
 
-## 4. Risques
+## 4. Conditions d'arrêt immédiat
+
+Je m'arrête, je ne corrige pas sur place, je rapporte — dès que l'un de ces faits survient :
+
+1. un port proposé est pris, ou un projet / volume `nexus-staging` préexiste ;
+2. ressources sous les seuils (RAM libre < 12 Gio, disque < 25 Gio) ou charge de la production élevée ;
+3. une empreinte d'artefact de modèle, de registre ou d'index diffère de l'attendu ;
+4. une commande exigerait un identifiant, un fichier ou une base de production ;
+5. `docker ps` ne rend pas exactement `nexus-staging-pgvector-1` avant la migration ;
+6. `/health` rend 503, ou le digest de l'image en service diffère du digest consigné ;
+7. un `diff` de la phase 7 n'est pas vide, à n'importe quel moment où je le rejoue ;
+8. un secret apparaît sur un terminal ou dans un journal ;
+9. la production montre une dégradation (latence, erreurs) pendant l'exercice ;
+10. toute situation que ce plan ne prévoit pas.
+
+Dans tous les cas l'arrêt de sécurité est le même : `$C down` (sans `-v`), qui ne touche que le projet `nexus-staging`.
+
+## 5. Risques
 
 | Risque | Gravité | Parade |
 |---|---|---|
@@ -137,7 +201,7 @@ Soit staging laissé arrêté (`$C down`, volume conservé), soit démantelé (`
 | « Distinct de la production » contestable, puisque même machine | moyenne | c'est une limite **déclarée** du mode A : la preuve dira `production_cloisonnee`. Si vous exigez une séparation physique, c'est le mode B |
 | Le test de charge (volet C) dégrade la production | élevée | voir le plan de mesure : séquentiel d'abord, charge complète seulement sur feu vert distinct |
 
-## 5. Ce que ce runbook ne fait pas
+## 6. Ce que ce plan ne fait pas
 
 Ni déploiement de production, ni current switch, ni écriture dans une base de production, ni modification de Nginx,
 de DNS ou de certificats, ni ingestion de production, ni révocation OAuth, ni reconfiguration rclone.

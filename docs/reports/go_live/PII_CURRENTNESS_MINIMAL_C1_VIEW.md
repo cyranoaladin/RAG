@@ -1,7 +1,8 @@
 # Chemin minimal pour débloquer C1 — vue de lecture
 
 Document dérivé (`scripts/go_live/build_pii_currentness_decision_packet.py`). Ne pas éditer à la main.
-Les décisions se saisissent dans `docs/reports/go_live/pii_currentness_c1_minimal_sheet.tsv`, jamais ici. **Aucune décision n'est pré-remplie.**
+Les décisions se saisissent dans `docs/reports/go_live/pii_currentness_minimal_c1_review.tsv`, jamais ici. **Aucune décision n'est pré-remplie.**
+Mode d'emploi : `docs/reports/go_live/PII_CURRENTNESS_REVIEWER_GUIDE.md`.
 
 - contenus d'actualité : **3**
 - contenus PII promus : **23**, findings : **49**

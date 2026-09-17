@@ -42,9 +42,18 @@ SORTIE_JSON = "docs/reports/evidence/pii_currentness_human_decision_packet.json"
 SORTIE_SHA = "docs/reports/evidence/pii_currentness_human_decision_packet.sha256"
 SORTIE_TSV = "docs/reports/go_live/pii_currentness_decision_sheet.tsv"
 #: Extrait STRICT de la feuille complète : les seules lignes qui débloquent C1.
-SORTIE_TSV_C1 = "docs/reports/go_live/pii_currentness_c1_minimal_sheet.tsv"
-SORTIE_MD_C1 = "docs/reports/go_live/PII_CURRENTNESS_C1_MINIMAL_SHEET.md"
+SORTIE_TSV_C1 = "docs/reports/go_live/pii_currentness_minimal_c1_review.tsv"
+SORTIE_MD_C1 = "docs/reports/go_live/PII_CURRENTNESS_MINIMAL_C1_VIEW.md"
 PRIORITE_C1 = "P1_PROMOTED_BLOCKS_RELEASE"
+#: Racine des paquets de revue hors dépôt : variable, jamais un chemin machine.
+RACINE_PAQUETS = "$NEXUS_PII_REVIEW_ROOT"
+#: Colonnes d'aide propres à l'extrait : où lire, et quoi remplir sur CETTE ligne.
+COLONNES_AIDE_C1 = ("review_order", "open_this_file", "WHAT_TO_FILL_ON_THIS_ROW")
+A_REMPLIR = {
+    "CURRENTNESS_CONTENT": "HUMAN_DECISION + REVIEWER_LOGIN (+ EVIDENCE_REFERENCE si KEEP_IF_STILL_CURRENT_WITH_EVIDENCE)",
+    "PII_CONTENT": "HUMAN_DECISION + JUSTIFICATION_CATEGORY + REVIEWER_LOGIN (après ses findings)",
+    "PII_FINDING": "FINDING_DISPOSITION",
+}
 
 OPTIONS_PII = (
     "PII_CLEARED", "PII_REDACTION_REQUIRED", "EXCLUDE_FROM_SERVABLE_SET", "HUMAN_REVIEW_REQUIRED",
@@ -282,12 +291,30 @@ def rendre_tsv(dossier: dict[str, Any]) -> str:
 
 
 def rendre_tsv_c1(dossier: dict[str, Any]) -> str:
-    """Les lignes de la feuille complète qui portent sur un contenu PROMU, à l'identique."""
-    lignes = rendre_tsv(dossier).splitlines()
-    colonne = COLONNES.index("priority")
-    return "\n".join(
-        [lignes[0], *(ligne for ligne in lignes[1:] if ligne.split("\t")[colonne] == PRIORITE_C1)]
-    ) + "\n"
+    """Les lignes de la feuille complète qui portent sur un contenu PROMU, à l'identique,
+    précédées de colonnes d'aide (ordre, fichier à ouvrir, cellules à remplir)."""
+    complet = list(csv.DictReader(io.StringIO(rendre_tsv(dossier)), delimiter="\t"))
+    tampon = io.StringIO()
+    ecrit = csv.DictWriter(
+        tampon, fieldnames=(*COLONNES_AIDE_C1, *COLONNES), delimiter="\t", lineterminator="\n"
+    )
+    ecrit.writeheader()
+    ordre = 0
+    for ligne in complet:
+        if ligne["priority"] != PRIORITE_C1:
+            continue
+        ordre += 1
+        paquet = f"{RACINE_PAQUETS}/{ligne['review_bundle_dir']}"
+        ouvrir = {
+            "CURRENTNESS_CONTENT": f"(source Drive) {ligne['source_path']}",
+            "PII_CONTENT": f"{paquet}/document.pdf",
+            "PII_FINDING": f"{paquet}/pages/page-{int(ligne['page'] or 0):04d}.txt",
+        }[ligne["row_kind"]]
+        ecrit.writerow({
+            **ligne, "review_order": ordre, "open_this_file": ouvrir,
+            "WHAT_TO_FILL_ON_THIS_ROW": A_REMPLIR[ligne["row_kind"]],
+        })
+    return tampon.getvalue()
 
 
 def rendre_markdown_c1(dossier: dict[str, Any]) -> str:
@@ -298,6 +325,7 @@ def rendre_markdown_c1(dossier: dict[str, Any]) -> str:
         "",
         "Document dérivé (`scripts/go_live/build_pii_currentness_decision_packet.py`). Ne pas éditer à la main.",
         f"Les décisions se saisissent dans `{SORTIE_TSV_C1}`, jamais ici. **Aucune décision n'est pré-remplie.**",
+        "Mode d'emploi : `docs/reports/go_live/PII_CURRENTNESS_REVIEWER_GUIDE.md`.",
         "",
         f"- contenus d'actualité : **{len(dossier['currentness_contents'])}**",
         f"- contenus PII promus : **{len(promus)}**, findings : **{sum(c['finding_count'] for c in promus)}**",
