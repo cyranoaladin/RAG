@@ -1012,3 +1012,210 @@ def test_verifier_c3_sur_depot_reel():
     assert res["proof"] is not None
     assert res["proof"]["sha256_verified"] is True
     assert res["proof"]["target_collections"] == 2
+
+
+def _poser_cockpit_e2e(
+    tmp_path: Path,
+    *,
+    status="VERIFIED",
+    main_sha="7769b72259d8e51749de07ab9a2dbc0a6e86ef28",
+    docker_residues=0,
+    prod_touched=False,
+    prod_db_writes=0,
+    current_switch=0,
+    tamper_sha=False,
+    mock_detected=False,
+    unauth_rejected=True,
+    cross_scope_rejected=True,
+    citations_count=8,
+    citations_complete=True,
+    bad_verdict=False,
+):
+    evidence_dir = tmp_path / "docs/reports/evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    json_file = evidence_dir / "cockpit_e2e_retrieval_proof.json"
+    sha_file = evidence_dir / "cockpit_e2e_retrieval_proof.sha256"
+
+    data = {
+        "kind": "NEXUS-COCKPIT-E2E-RETRIEVAL-PROOF-V1",
+        "observed_at_main_sha": main_sha,
+        "verification_status": status,
+        "executed_command": "pytest -q services/rag-engine/tests/integration/test_cockpit_e2e_retrieval.py",
+        "ephemeral_environment": {
+            "cockpit_port": 34567,
+            "engine_port": 34568,
+            "redis_port": 34569,
+            "docker_residues_after_test": docker_residues,
+            "production_touched": prod_touched,
+            "production_db_writes": prod_db_writes,
+            "production_deployments": 0,
+            "current_switch": current_switch,
+        },
+        "cockpit_configuration": {
+            "cockpit_api_url": "http://127.0.0.1:34567/api/search",
+            "engine_internal_url": "http://127.0.0.1:34568",
+            "auth_mode": "nextauth_session_with_nexus_identity",
+            "session_store": "redis_ephemeral_memory",
+            "mock_fallback_detected": mock_detected,
+        },
+        "tested_queries": [],
+        "security_verifications": {
+            "unauthenticated_request_rejected": unauth_rejected,
+            "unauthorized_scope_collection_rejected": cross_scope_rejected,
+            "invalid_payload_request_rejected": True,
+        },
+        "citations_summary": {
+            "total_citations_verified": citations_count,
+            "citations_present_on_all_results": citations_complete,
+            "pages_verified": True,
+            "source_uris_verified": True,
+        },
+        "verdicts": {
+            "COCKPIT_STARTED": True,
+            "ENGINE_STARTED": True,
+            "AUTHENTICATION_HONORED": True,
+            "CROSS_SCOPE_REJECTED": True,
+            "RETRIEVAL_REAL_AND_SOURCED": True,
+            "CITATIONS_PRESENT_AND_VALID": True,
+            "ZERO_MOCK_VERIFIED": True,
+            "TEST_EXECUTION_PASSED": not bad_verdict,
+        },
+    }
+
+    content = json.dumps(data, indent=2, sort_keys=True) + "\n"
+    json_file.write_text(content, encoding="utf-8")
+
+    if tamper_sha:
+        sha_file.write_text(
+            f"{'f' * 64}  docs/reports/evidence/cockpit_e2e_retrieval_proof.json\n",
+            encoding="utf-8",
+        )
+    else:
+        digest = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        sha_file.write_text(
+            f"{digest}  docs/reports/evidence/cockpit_e2e_retrieval_proof.json\n",
+            encoding="utf-8",
+        )
+
+
+def test_verifier_cockpit_e2e_nominal(tmp_path):
+    _poser_cockpit_e2e(tmp_path)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is True
+    assert res["proof"] is not None
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["citations_count"] == 8
+
+
+def test_verifier_cockpit_e2e_refuse_si_fichier_json_absent(tmp_path):
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "manquante" in res["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_sha_modifie(tmp_path):
+    _poser_cockpit_e2e(tmp_path, tamper_sha=True)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "altération" in res["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_status_non_verified(tmp_path):
+    _poser_cockpit_e2e(tmp_path, status="FAILED")
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "non VERIFIED" in res["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_main_sha_stale(tmp_path):
+    _poser_cockpit_e2e(tmp_path, main_sha="0" * 40)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "stale" in res["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_mock_detecte(tmp_path):
+    _poser_cockpit_e2e(tmp_path, mock_detected=True)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "mock ou fallback" in res["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_docker_residues(tmp_path):
+    _poser_cockpit_e2e(tmp_path, docker_residues=1)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "Docker résiduels" in res["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_production_touchee(tmp_path):
+    _poser_cockpit_e2e(tmp_path, prod_touched=True)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "environnement de production touché" in res["why"]
+
+    _poser_cockpit_e2e(tmp_path, prod_db_writes=1)
+    res2 = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res2["closed"] is False
+    assert res2["proof"] is None
+    assert "production_db_writes" in res2["why"]
+
+    _poser_cockpit_e2e(tmp_path, current_switch=1)
+    res3 = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res3["closed"] is False
+    assert res3["proof"] is None
+    assert "current_switch" in res3["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_securite_non_prouvee(tmp_path):
+    _poser_cockpit_e2e(tmp_path, unauth_rejected=False)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "refus 401" in res["why"]
+
+    _poser_cockpit_e2e(tmp_path, cross_scope_rejected=False)
+    res2 = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res2["closed"] is False
+    assert res2["proof"] is None
+    assert "refus 403" in res2["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_citations_absentes(tmp_path):
+    _poser_cockpit_e2e(tmp_path, citations_count=0)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "aucune citation" in res["why"]
+
+    _poser_cockpit_e2e(tmp_path, citations_complete=False)
+    res2 = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res2["closed"] is False
+    assert res2["proof"] is None
+    assert "citations pédagogiques absentes" in res2["why"]
+
+
+def test_verifier_cockpit_e2e_refuse_si_verdict_echec(tmp_path):
+    _poser_cockpit_e2e(tmp_path, bad_verdict=True)
+    res = blocages.verifier_cockpit_e2e(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert "TEST_EXECUTION_PASSED=false" in res["why"]
+
+
+def test_verifier_cockpit_e2e_sur_depot_reel():
+    racine = Path(__file__).resolve().parents[2]
+    res = blocages.verifier_cockpit_e2e(racine)
+    assert res["closed"] is True
+    assert res["proof"] is not None
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["citations_count"] > 0
+
+

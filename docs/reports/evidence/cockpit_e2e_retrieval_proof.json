@@ -1,0 +1,111 @@
+{
+  "citations_summary": {
+    "citations_present_on_all_results": true,
+    "pages_verified": true,
+    "source_uris_verified": true,
+    "total_citations_verified": 2
+  },
+  "cockpit_configuration": {
+    "auth_mode": "nextauth_session_with_nexus_identity",
+    "cockpit_api_url": "http://127.0.0.1:37903/api/search",
+    "engine_internal_url": "http://127.0.0.1:59759",
+    "mock_fallback_detected": false,
+    "session_store": "redis_ephemeral_memory"
+  },
+  "ephemeral_environment": {
+    "cockpit_port": 37903,
+    "current_switch": 0,
+    "docker_residues_after_test": 0,
+    "engine_port": 59759,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "production_touched": false,
+    "redis_port": 51619
+  },
+  "executed_command": "pytest -q services/rag-engine/tests/integration/test_cockpit_e2e_retrieval.py",
+  "kind": "NEXUS-COCKPIT-E2E-RETRIEVAL-PROOF-V1",
+  "observed_at_main_sha": "7769b72259d8e51749de07ab9a2dbc0a6e86ef28",
+  "security_verifications": {
+    "invalid_payload_request_rejected": true,
+    "unauthenticated_request_rejected": true,
+    "unauthorized_scope_collection_rejected": true
+  },
+  "tested_queries": [
+    {
+      "case_id": "unauthenticated_request",
+      "description": "Refus strict en l'absence de session / jeton d'authentification",
+      "error_code": "unauthorized",
+      "expected_status_code": 401,
+      "request_method": "POST",
+      "request_path": "/api/search",
+      "response_status_code": 401
+    },
+    {
+      "case_id": "cross_scope_collection_request",
+      "description": "Refus strict d'une collection hors de la port\u00e9e autoris\u00e9e",
+      "error_code": "forbidden_collection",
+      "expected_status_code": 403,
+      "request_method": "POST",
+      "request_path": "/api/search",
+      "response_status_code": 403
+    },
+    {
+      "case_id": "invalid_payload_request",
+      "description": "Refus d'une charge utile invalide (requ\u00eate vide)",
+      "error_code": "invalid_request",
+      "expected_status_code": 400,
+      "request_method": "POST",
+      "request_path": "/api/search",
+      "response_status_code": 400
+    },
+    {
+      "case_id": "real_search_terminale_maths_programme",
+      "citations_count": 1,
+      "description": "Recherche r\u00e9elle bout en bout avec citations p\u00e9dagogiques compl\u00e8tes",
+      "query": "Quel est le programme de sp\u00e9cialit\u00e9 math\u00e9matiques en terminale g\u00e9n\u00e9rale ?",
+      "request_method": "POST",
+      "request_path": "/api/search",
+      "response_status_code": 200,
+      "results_count": 1,
+      "sample_citation": {
+        "page": 1,
+        "rights": "officiel_public",
+        "source_label": "eduscol.education.gouv.fr",
+        "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/spe246annexe1158907pdf-84159.pdf"
+      },
+      "target_collection": "rag_nexus_maths_terminale_gen_specialite",
+      "top_chunk_id": "21391390ffa26babb6fb125751e1903bdba9d944452fa5f41ff4bba26bf87816",
+      "top_score": 0.768983390184463
+    },
+    {
+      "case_id": "real_search_terminale_maths_suites",
+      "citations_count": 1,
+      "description": "Seconde recherche r\u00e9elle confirmant la pr\u00e9sence des citations",
+      "query": "Comment \u00e9tudie-t-on les suites, les limites et la d\u00e9rivation en terminale ?",
+      "request_method": "POST",
+      "request_path": "/api/search",
+      "response_status_code": 200,
+      "results_count": 1,
+      "sample_citation": {
+        "page": 11,
+        "rights": "officiel_public",
+        "source_label": "eduscol.education.gouv.fr",
+        "source_uri": "https://eduscol.education.gouv.fr/sites/default/files/document/spe246annexe1158907pdf-84159.pdf"
+      },
+      "target_collection": "rag_nexus_maths_terminale_gen_specialite",
+      "top_chunk_id": "9c792b640fb1d6a4889ee7f56b6ba0b31e0d5e6c64149291521cd11313276e94",
+      "top_score": 0.7589025414978762
+    }
+  ],
+  "verdicts": {
+    "AUTHENTICATION_HONORED": true,
+    "CITATIONS_PRESENT_AND_VALID": true,
+    "COCKPIT_STARTED": true,
+    "CROSS_SCOPE_REJECTED": true,
+    "ENGINE_STARTED": true,
+    "RETRIEVAL_REAL_AND_SOURCED": true,
+    "TEST_EXECUTION_PASSED": true,
+    "ZERO_MOCK_VERIFIED": true
+  },
+  "verification_status": "VERIFIED"
+}

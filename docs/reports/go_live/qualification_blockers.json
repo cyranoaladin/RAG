@@ -135,13 +135,30 @@
       "why_still_open": null
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "le cockpit interroge l API de retrieval de bout en bout",
       "id": "COCKPIT_E2E",
       "owner": "operateur",
-      "proof": null,
+      "proof": {
+        "citations_count": 2,
+        "condition": "cockpit interroge l API de retrieval de bout en bout validé sur le commit 7769b72259d8e51749de07ab9a2dbc0a6e86ef28 (démarrage Cockpit et RAG Engine, authentification exercée, requêtes réelles /search/v2 via BFF, citations vérifiées, refus 401 et 403 vérifiés, 0 mock, 0 résidu Docker, aucune mutation production)",
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+          "CONCURRENCE (Comportement sous concurrence)",
+          "SYNC_INCREMENTALE (Synchronisation incrémentale)",
+          "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+          "PII_UNDECIDED (149 contenus PII undecided)",
+          "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+          "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)"
+        ],
+        "executed_command": "pytest -q services/rag-engine/tests/integration/test_cockpit_e2e_retrieval.py",
+        "observed_at_main_sha": "7769b72259d8e51749de07ab9a2dbc0a6e86ef28",
+        "sha256_verified": true,
+        "verification": "Preuve d'exécution et de conformité cryptographique du Cockpit E2E retrieval : banc réel validé avec succès, citations réelles reçues par le Cockpit, 0 conteneur résiduel."
+      },
       "titre": "Cockpit bout en bout contre l API de retrieval",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": false,
@@ -224,8 +241,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 7,
+  "closed_count": 8,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 6
+  "open_count": 5
 }
