@@ -2185,3 +2185,30 @@ def test_the_producer_submits_added_and_removed_authorities_to_the_guard(
     assert "supprimee_sha256" in str(leve.value), (
         f"la suppression n'est pas soumise au garde : {leve.value}"
     )
+
+
+def test_governed_exclusion_registry_validation_and_rehearsal_dry_run() -> None:
+    """Valide le registre gouverné d'exclusion et le rescellement de répétition V2 (ADR-0055)."""
+    builder = _module()
+    registry_path = ROOT / "docs/reports/evidence/release_currentness_exclusion_registry.json"
+    assert registry_path.is_file()
+
+    reg = builder.load_and_validate_exclusion_registry(registry_path)
+    assert reg is not None
+    assert len(reg.excluded_contents) == 4
+    assert reg.kind == "NEXUS-CURRENTNESS-EXCLUSION-REGISTRY-V1"
+    assert reg.governance_reference == "ADR-0055"
+
+    docs = builder.build_release(
+        release_mode="rehearsal",
+        source_release_root=RELEASE_ROOT,
+        release_id="production-profile-gate-2026-2027-v2",
+        exclusion_registry=reg,
+    )
+    manifest_bytes = docs[builder.RELEASE_ROOT / "production-profile-gate.release.json"]
+    aggregate = json.loads(manifest_bytes.decode("utf-8"))
+    assert aggregate["expected_counts"]["unique_artifacts"] == 315
+    assert aggregate["expected_counts"]["placements"] == 479
+    assert aggregate["expected_counts"]["unique_chunks"] == 8268
+    assert len(aggregate["subjects"]) == 11
+    assert "currentness_exclusion_registry_sha256" in aggregate["authorities"]
