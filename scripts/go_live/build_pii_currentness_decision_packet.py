@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
 """Prépare le dossier de décision humaine PII / actualité. Ne décide rien.
 
-Le dossier est DÉRIVÉ des autorités versionnées : matrice de servabilité, index
-de revue PII V2, impact de release, état de readiness. Il ne porte aucune
+Le dossier est DÉRIVÉ des autorités versionnées, qu'il CONSOMME sans les refaire :
+tableau de pilotage PII (ordre de revue, niveau de risque), index de revue PII V2
+(findings), impact de release (contenus promus refusés), état de readiness. Il ne
+lit pas la matrice de servabilité : elle est dérivée, et ses lecteurs sont épinglés.
+
+Ce qu'il ajoute à la feuille PII existante (`pii_review_decision_sheet.tsv`) : les
+lignes d'actualité, une ligne PAR FINDING — le contrat de décisions exige une
+disposition pour chacun —, et le rappel des décisions V1 non étendues. Il ne porte aucune
 matière brute — ni `match_text` ni `context` : empreintes, classes de motif,
 pages, comptes. Les extraits à lire sont dans les paquets de revue hors dépôt
 (`preparer_paquets_revue_pii.py --output-root`), que chaque ligne désigne.
@@ -26,7 +32,7 @@ from typing import Any
 
 KIND = "NEXUS-PII-CURRENTNESS-HUMAN-DECISION-PACKET-V1"
 
-MATRICE = "docs/reports/handoff/servability_matrix_v1.json"
+PILOTAGE = "docs/reports/go_live/pii_human_decision_dashboard.json"
 INDEX_PII = "docs/reports/evidence-index/pii_review_index_v2_20260907.json"
 IMPACT = "docs/reports/go_live/currentness_release_impact.json"
 READINESS = "docs/reports/go_live/go_live_readiness_state.json"
@@ -47,9 +53,6 @@ OPTIONS_ACTUALITE = (
 DISPOSITIONS_FINDING = (
     "FALSE_POSITIVE_TECHNICAL", "PUBLIC_INSTITUTIONAL_DATA", "SYNTHETIC_EXAMPLE", "PERSONAL_DATA_PRESENT",
 )
-#: Classes dont un vrai positif identifie directement une personne physique.
-CLASSES_SENSIBLES = frozenset({"french_ssn", "date_of_birth", "student_name_pattern"})
-
 COLONNES = (
     "row_kind", "priority", "content_sha256", "promoted_in_release", "title", "source_path",
     "risk_tier", "signal_classes", "finding_count", "pages",
@@ -73,53 +76,38 @@ def _charger(racine: Path, relatif: str) -> tuple[Any, str]:
     return json.loads(octets), hashlib.sha256(octets).hexdigest()
 
 
-def _risque(classes: list[str]) -> tuple[str, str]:
-    sensibles = sorted(set(classes) & CLASSES_SENSIBLES)
-    if sensibles:
-        return "HIGH", (
-            f"classe(s) {sensibles} : un vrai positif identifie une personne physique, "
-            "possiblement un élève mineur"
-        )
-    return "STANDARD", (
-        "coordonnées (courriel, téléphone, adresse) : souvent institutionnelles dans une "
-        "publication officielle, mais un contact privé reste possible"
-    )
-
-
 def construire(racine: Path) -> dict[str, Any]:
-    matrice, sha_matrice = _charger(racine, MATRICE)
+    pilotage, sha_pilotage = _charger(racine, PILOTAGE)
     index, sha_index = _charger(racine, INDEX_PII)
     impact, sha_impact = _charger(racine, IMPACT)
     readiness, sha_readiness = _charger(racine, READINESS)
     v1, sha_v1 = _charger(racine, DECISIONS_V1)
 
-    lignes = {r["content_sha256"]: r for r in matrice["rows"] if "content_sha256" in r}
-    indecis = sorted(s for s, r in lignes.items() if r.get("pii") == "PII_UNDECIDED")
+    pilotes = {p["content_sha256"]: p for p in pilotage["packets"]}
     paquets = {b["content_sha256"]: b for b in index["bundles"]}
     promus_refuses = set(readiness["release_promoted_refused_content_ids"])
     impact_par_sha = {r["content_sha256"]: r for r in impact["rows"]}
     v1_par_sha = {d["content_sha256"]: d for d in v1["decisions"]}
 
     # Les autorités doivent se recouper exactement, sinon le dossier mentirait.
-    if len(indecis) != readiness["pii_undecided"]:
-        raise EntreeIncoherente(f"matrice {len(indecis)} indécis != readiness {readiness['pii_undecided']}")
-    if set(indecis) != set(paquets):
-        raise EntreeIncoherente("l'ensemble PII_UNDECIDED n'est pas celui des paquets de revue V2")
+    if len(pilotes) != readiness["pii_undecided"]:
+        raise EntreeIncoherente(f"pilotage {len(pilotes)} paquets != readiness {readiness['pii_undecided']}")
+    if set(pilotes) != set(paquets):
+        raise EntreeIncoherente("le tableau de pilotage et l'index de revue V2 ne recensent pas le même ensemble")
     if len(promus_refuses) != readiness["release_promoted_refused_contents"] or promus_refuses != set(impact_par_sha):
         raise EntreeIncoherente("contenus promus refusés : readiness et impact de release divergent")
-    actualite = sorted(
-        s for s in promus_refuses if lignes[s]["verdict"] == "BLOCKED_NOT_CURRENT_BY_SOURCE"
-    )
-    pii_promus = sorted(s for s in promus_refuses if lignes[s]["verdict"] == "BLOCKED_PII_HUMAN_REVIEW")
-    if len(actualite) != readiness["release_promoted_refused_by_currentness"] or not set(pii_promus) <= set(indecis):
-        raise EntreeIncoherente("répartition PII / actualité des contenus promus incohérente")
+    actualite = sorted(s for s, r in impact_par_sha.items() if r["blocking_gate_now"] == "CURRENTNESS_GATE")
+    pii_promus = sorted(s for s, r in impact_par_sha.items() if r["blocking_gate_now"] == "PII_GATE")
+    if len(actualite) != readiness["release_promoted_refused_by_currentness"]:
+        raise EntreeIncoherente("contenus promus refusés pour actualité : readiness et impact divergent")
+    if set(pii_promus) != {s for s, p in pilotes.items() if p["promoted"]}:
+        raise EntreeIncoherente("contenus promus bloqués PII : pilotage et impact de release divergent")
     if len(actualite) + len(pii_promus) != len(promus_refuses):
         raise EntreeIncoherente("un contenu promu refusé n'est ni PII ni actualité")
 
     contenus_pii = []
-    for sha in sorted(indecis, key=lambda s: (s not in promus_refuses, s)):
+    for sha in sorted(pilotes, key=lambda s: (pilotes[s]["review_order"], s)):
         paquet = paquets[sha]
-        niveau, pourquoi = _risque(paquet["signal_classes"])
         ancien = v1_par_sha.get(sha)
         contenus_pii.append(
             {
@@ -132,9 +120,9 @@ def construire(racine: Path) -> dict[str, Any]:
                 "pages_with_findings": paquet["pages"],
                 "signal_classes": paquet["signal_classes"],
                 "finding_count": paquet["finding_count"],
-                "risk_tier": niveau,
-                "risk_rationale": pourquoi,
-                "currentness": lignes[sha]["currentness"],
+                "review_order": pilotes[sha]["review_order"],
+                "risk_tier": pilotes[sha]["risk_level"],
+                "currentness": impact_par_sha[sha]["currentness_before"] if sha in impact_par_sha else "",
                 "review_bundle": {
                     "bundle_id": paquet["bundle_id"],
                     "bundle_dir": paquet["bundle_dir"],
@@ -178,10 +166,10 @@ def construire(racine: Path) -> dict[str, Any]:
             "promoted_in_release": True,
             "priority": "P1_PROMOTED_BLOCKS_RELEASE",
             "drive_path": impact_par_sha[sha]["drive_path"],
-            "currentness_declared": lignes[sha]["currentness"],
-            "currentness_disposition": lignes[sha]["currentness_disposition"],
-            "pii_status": lignes[sha]["pii"],
-            "source_role": lignes[sha]["source_role"],
+            "currentness_declared": impact_par_sha[sha]["currentness_before"],
+            "currentness_disposition": impact_par_sha[sha]["currentness_disposition"],
+            "pii_status": impact_par_sha[sha]["pii_status"],
+            "source_role": impact_par_sha[sha]["source_role"],
             "risk_rationale": (
                 "la source déclare ce document archivé : le servir présente comme en vigueur un "
                 "texte que son éditeur a retiré"
@@ -203,7 +191,7 @@ def construire(racine: Path) -> dict[str, Any]:
         ),
         "raw_pii_in_packet": False,
         "inputs": {
-            MATRICE: sha_matrice, INDEX_PII: sha_index, IMPACT: sha_impact,
+            PILOTAGE: sha_pilotage, INDEX_PII: sha_index, IMPACT: sha_impact,
             READINESS: sha_readiness, DECISIONS_V1: sha_v1,
         },
         "review_campaign": {
@@ -215,9 +203,12 @@ def construire(racine: Path) -> dict[str, Any]:
             "decisions_dir": "governance/pii-review-decisions",
         },
         "counts": {
-            "pii_undecided": len(indecis),
+            "pii_undecided": len(pilotes),
             "pii_findings": sum(c["finding_count"] for c in contenus_pii),
-            "pii_high_risk_contents": sum(c["risk_tier"] == "HIGH" for c in contenus_pii),
+            "pii_by_risk_level": {
+                niveau: sum(c["risk_tier"] == niveau for c in contenus_pii)
+                for niveau in sorted({c["risk_tier"] for c in contenus_pii})
+            },
             "promoted_blocked_by_pii": len(pii_promus),
             "promoted_blocked_by_currentness": len(actualite),
             "release_promoted_refused_contents": len(promus_refuses),

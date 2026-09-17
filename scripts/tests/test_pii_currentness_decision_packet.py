@@ -51,9 +51,20 @@ def test_aucune_matiere_brute(construit) -> None:
         assert cle not in texte
 
 
-def test_promus_d_abord(construit) -> None:
-    priorites = [x["priority"] for x in construit["pii_contents"]]
-    assert priorites == sorted(priorites)
+def test_ordre_et_risque_viennent_du_pilotage_jamais_recalcules(construit) -> None:
+    pilotage = {
+        p["content_sha256"]: p
+        for p in json.loads((RACINE / dossier.PILOTAGE).read_text(encoding="utf-8"))["packets"]
+    }
+    ordres = [x["review_order"] for x in construit["pii_contents"]]
+    assert ordres == sorted(ordres)
+    assert [x["priority"] for x in construit["pii_contents"]] == sorted(x["priority"] for x in construit["pii_contents"])
+    for x in construit["pii_contents"]:
+        assert x["risk_tier"] == pilotage[x["content_sha256"]]["risk_level"]
+
+
+def test_ne_lit_pas_la_matrice_de_servabilite() -> None:
+    assert "servability_matrix" not in Path(dossier.__file__).read_text(encoding="utf-8")
 
 
 def test_tsv_colonnes_de_decision_vides(construit) -> None:
@@ -66,7 +77,7 @@ def test_tsv_colonnes_de_decision_vides(construit) -> None:
 
 
 def test_refuse_des_autorites_incoherentes(tmp_path) -> None:
-    for relatif in (dossier.MATRICE, dossier.INDEX_PII, dossier.IMPACT, dossier.READINESS, dossier.DECISIONS_V1):
+    for relatif in (dossier.PILOTAGE, dossier.INDEX_PII, dossier.IMPACT, dossier.READINESS, dossier.DECISIONS_V1):
         cible = tmp_path / relatif
         cible.parent.mkdir(parents=True, exist_ok=True)
         cible.write_bytes((RACINE / relatif).read_bytes())
