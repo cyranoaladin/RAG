@@ -97,3 +97,24 @@ def test_artefacts_versionnes_a_jour_et_scelles(construit) -> None:
     for d in (versionne, construit):
         d["inputs"].pop(dossier.READINESS)
     assert versionne == construit
+
+
+def test_extrait_c1_est_un_sous_ensemble_strict_sans_decision(construit) -> None:
+    complet = dossier.rendre_tsv(construit).splitlines()
+    extrait = dossier.rendre_tsv_c1(construit).splitlines()
+    assert extrait[0] == complet[0]
+    assert set(extrait[1:]) <= set(complet[1:])
+    lignes = list(csv.DictReader(extrait, delimiter="\t"))
+    promus = [x for x in construit["pii_contents"] if x["promoted_in_release"]]
+    assert len(lignes) == len(construit["currentness_contents"]) + len(promus) + sum(x["finding_count"] for x in promus)
+    assert {ligne["priority"] for ligne in lignes} == {dossier.PRIORITE_C1}
+    for ligne in lignes:
+        for colonne in ("HUMAN_DECISION", "FINDING_DISPOSITION", "JUSTIFICATION_CATEGORY", "REVIEWER_LOGIN"):
+            assert ligne[colonne] == ""
+
+
+def test_vue_de_lecture_c1_sans_colonne_de_decision_et_a_jour(construit) -> None:
+    rendu = dossier.rendre_markdown_c1(construit)
+    assert "HUMAN_DECISION" not in rendu and "PII_CLEARED" not in rendu
+    assert (RACINE / dossier.SORTIE_MD_C1).read_text(encoding="utf-8") == rendu
+    assert (RACINE / dossier.SORTIE_TSV_C1).read_text(encoding="utf-8") == dossier.rendre_tsv_c1(construit)

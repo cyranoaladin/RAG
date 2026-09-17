@@ -41,6 +41,10 @@ DECISIONS_V1 = "governance/pii-review-decisions/pii-review-2026-09-03-final.json
 SORTIE_JSON = "docs/reports/evidence/pii_currentness_human_decision_packet.json"
 SORTIE_SHA = "docs/reports/evidence/pii_currentness_human_decision_packet.sha256"
 SORTIE_TSV = "docs/reports/go_live/pii_currentness_decision_sheet.tsv"
+#: Extrait STRICT de la feuille complète : les seules lignes qui débloquent C1.
+SORTIE_TSV_C1 = "docs/reports/go_live/pii_currentness_c1_minimal_sheet.tsv"
+SORTIE_MD_C1 = "docs/reports/go_live/PII_CURRENTNESS_C1_MINIMAL_SHEET.md"
+PRIORITE_C1 = "P1_PROMOTED_BLOCKS_RELEASE"
 
 OPTIONS_PII = (
     "PII_CLEARED", "PII_REDACTION_REQUIRED", "EXCLUDE_FROM_SERVABLE_SET", "HUMAN_REVIEW_REQUIRED",
@@ -277,6 +281,54 @@ def rendre_tsv(dossier: dict[str, Any]) -> str:
     return tampon.getvalue()
 
 
+def rendre_tsv_c1(dossier: dict[str, Any]) -> str:
+    """Les lignes de la feuille complète qui portent sur un contenu PROMU, à l'identique."""
+    lignes = rendre_tsv(dossier).splitlines()
+    colonne = COLONNES.index("priority")
+    return "\n".join(
+        [lignes[0], *(ligne for ligne in lignes[1:] if ligne.split("\t")[colonne] == PRIORITE_C1)]
+    ) + "\n"
+
+
+def rendre_markdown_c1(dossier: dict[str, Any]) -> str:
+    """Vue de lecture. Aucune colonne de décision n'y figure : on décide dans le TSV."""
+    promus = [c for c in dossier["pii_contents"] if c["promoted_in_release"]]
+    sortie = [
+        "# Chemin minimal pour débloquer C1 — vue de lecture",
+        "",
+        "Document dérivé (`scripts/go_live/build_pii_currentness_decision_packet.py`). Ne pas éditer à la main.",
+        f"Les décisions se saisissent dans `{SORTIE_TSV_C1}`, jamais ici. **Aucune décision n'est pré-remplie.**",
+        "",
+        f"- contenus d'actualité : **{len(dossier['currentness_contents'])}**",
+        f"- contenus PII promus : **{len(promus)}**, findings : **{sum(c['finding_count'] for c in promus)}**",
+        "",
+        "## 1. Actualité — la source déclare ces documents archivés",
+        "",
+        "| # | Document | Déclaré | Empreinte |",
+        "|---|---|---|---|",
+    ]
+    for i, c in enumerate(dossier["currentness_contents"], 1):
+        sortie.append(
+            f"| A{i} | `{c['drive_path'].rsplit('/', 1)[-1]}` | {c['currentness_declared']} | `{c['content_sha256'][:12]}…` |"
+        )
+    sortie += [
+        "",
+        "## 2. PII — contenus promus, dans l'ordre de revue du tableau de pilotage",
+        "",
+        "| # | Risque | Document | Classes | Findings | Pages | Décision V1 (non étendue) | Paquet hors dépôt |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for i, c in enumerate(promus, 1):
+        ancien = c["prior_v1_decision_not_extended"]
+        sortie.append(
+            f"| P{i} | {c['risk_tier']} | `{c['title']}` | {', '.join(c['signal_classes'])} | {c['finding_count']} | "
+            f"{', '.join(map(str, c['pages_with_findings']))} | "
+            f"{ancien['decision'] + ' / ' + ancien['justification_category'] if ancien else '—'} | "
+            f"`{c['review_bundle']['bundle_dir'][:12]}…` |"
+        )
+    return "\n".join(sortie) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestration
     argparse.ArgumentParser(description=__doc__).parse_args(argv)
     racine = racine_depot()
@@ -291,6 +343,8 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
         f"{hashlib.sha256(octets).hexdigest()}  {SORTIE_JSON}\n", encoding="utf-8"
     )
     (racine / SORTIE_TSV).write_text(rendre_tsv(dossier), encoding="utf-8")
+    (racine / SORTIE_TSV_C1).write_text(rendre_tsv_c1(dossier), encoding="utf-8")
+    (racine / SORTIE_MD_C1).write_text(rendre_markdown_c1(dossier), encoding="utf-8")
     print(json.dumps(dossier["counts"], indent=2))
     return 0
 
