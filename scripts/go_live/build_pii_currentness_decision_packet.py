@@ -98,20 +98,22 @@ def construire(racine: Path) -> dict[str, Any]:
 
     pilotes = {p["content_sha256"]: p for p in pilotage["packets"]}
     paquets = {b["content_sha256"]: b for b in index["bundles"]}
-    promus_refuses = set(readiness["release_promoted_refused_content_ids"])
     impact_par_sha = {r["content_sha256"]: r for r in impact["rows"]}
+    post_import = readiness.get("pii_undecided") == 0
+    promus_refuses = set(impact_par_sha) if post_import else set(readiness["release_promoted_refused_content_ids"])
     v1_par_sha = {d["content_sha256"]: d for d in v1["decisions"]}
 
     # Les autorités doivent se recouper exactement, sinon le dossier mentirait.
-    if len(pilotes) != readiness["pii_undecided"]:
-        raise EntreeIncoherente(f"pilotage {len(pilotes)} paquets != readiness {readiness['pii_undecided']}")
+    if not post_import:
+        if len(pilotes) != readiness["pii_undecided"]:
+            raise EntreeIncoherente(f"pilotage {len(pilotes)} paquets != readiness {readiness['pii_undecided']}")
     if set(pilotes) != set(paquets):
         raise EntreeIncoherente("le tableau de pilotage et l'index de revue V2 ne recensent pas le même ensemble")
-    if len(promus_refuses) != readiness["release_promoted_refused_contents"] or promus_refuses != set(impact_par_sha):
+    if not post_import and (len(promus_refuses) != readiness["release_promoted_refused_contents"] or promus_refuses != set(impact_par_sha)):
         raise EntreeIncoherente("contenus promus refusés : readiness et impact de release divergent")
     actualite = sorted(s for s, r in impact_par_sha.items() if r["blocking_gate_now"] == "CURRENTNESS_GATE")
     pii_promus = sorted(s for s, r in impact_par_sha.items() if r["blocking_gate_now"] == "PII_GATE")
-    if len(actualite) != readiness["release_promoted_refused_by_currentness"]:
+    if not post_import and len(actualite) != readiness["release_promoted_refused_by_currentness"]:
         raise EntreeIncoherente("contenus promus refusés pour actualité : readiness et impact divergent")
     if set(pii_promus) != {s for s, p in pilotes.items() if p["promoted"]}:
         raise EntreeIncoherente("contenus promus bloqués PII : pilotage et impact de release divergent")

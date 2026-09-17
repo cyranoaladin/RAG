@@ -12,7 +12,7 @@
    "libelle": "contenu candidat a la servabilite",
    "measurable_from_repository": true,
    "mesure": "matrice de servabilite, applied=false",
-   "value": 2264
+   "value": 2286
   },
   {
    "id": "INGESTED",
@@ -39,29 +39,25 @@
    "why_not_measured": "exige une base ou un service identifies ; rendre zero serait une fausse assurance"
   }
  ],
- "evaluated_head": "7d93bff46757fc979d7645d3c4dd966b20d09739",
+ "evaluated_head": "c0ee319299c570d5b110c1543ddf1f1c7ca1c891",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-GO-LIVE-CLOSURE-PLAN-V1",
  "note": "Fichier DERIVE de l etat calcule et du ledger. Il ordonne ce qui reste ; il n autorise rien.",
  "phases": [
   {
-   "actionable_now": true,
+   "actionable_now": false,
    "blocked_by_phases": [],
    "blockers": [
     "PII_UNDECIDED",
     "CURRENTNESS_POLICY_APPLIED"
    ],
-   "closed": false,
+   "closed": true,
    "depends_on": [],
    "gate": "pre_release_blockers == 0",
    "id": "P1_PRE_RELEASE",
-   "open_blockers": [
-    "PII_UNDECIDED"
-   ],
-   "owners": [
-    "HUMAN_REVIEWER"
-   ],
+   "open_blockers": [],
+   "owners": [],
    "titre": "Fermer les bloqueurs de pre-release"
   },
   {
@@ -80,13 +76,11 @@
   },
   {
    "actionable_now": false,
-   "blocked_by_phases": [
-    "P1_PRE_RELEASE"
-   ],
+   "blocked_by_phases": [],
    "blockers": [
     "NON_PDF_SERVABLE_REACQUIRED"
    ],
-   "closed": false,
+   "closed": true,
    "depends_on": [
     "P1_PRE_RELEASE"
    ],
@@ -97,10 +91,8 @@
    "titre": "Disposer des octets des contenus servables"
   },
   {
-   "actionable_now": false,
-   "blocked_by_phases": [
-    "P1_PRE_RELEASE"
-   ],
+   "actionable_now": true,
+   "blocked_by_phases": [],
    "blockers": [
     "GO_LIVE_QUALIFICATION_BLOCKERS"
    ],
@@ -137,6 +129,6 @@
    "titre": "Deployer, apres et seulement apres"
   }
  ],
- "phases_closed": 1,
+ "phases_closed": 3,
  "phases_total": 5
 }

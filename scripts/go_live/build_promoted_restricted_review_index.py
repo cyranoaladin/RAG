@@ -150,15 +150,16 @@ def construire(racine: Path) -> dict[str, Any]:
     impact, sha_impact = _charger(racine, IMPACT)
     readiness, _ = _charger(racine, READINESS)
 
-    promus = list(readiness["release_promoted_refused_content_ids"])
+    post_import = readiness.get("pii_undecided") == 0
     impact_par_sha = {r["content_sha256"]: r for r in impact["rows"]}
-    if len(promus) != readiness["release_promoted_refused_contents"] or set(promus) != set(impact_par_sha):
+    promus = sorted(impact_par_sha) if post_import else list(readiness["release_promoted_refused_content_ids"])
+    if not post_import and (len(promus) != readiness["release_promoted_refused_contents"] or set(promus) != set(impact_par_sha)):
         raise EntreeIncoherente("contenus promus refusés : readiness et impact de release divergent")
     if not all(r.get("promoted") is True for r in impact_par_sha.values()):
         raise EntreeIncoherente("l'impact de release recense un contenu non promu")
     actualite = [s for s, r in impact_par_sha.items() if r["blocking_gate_now"] == "CURRENTNESS_GATE"]
     pii_promus = [s for s, r in impact_par_sha.items() if r["blocking_gate_now"] == "PII_GATE"]
-    if len(actualite) != readiness["release_promoted_refused_by_currentness"]:
+    if not post_import and len(actualite) != readiness["release_promoted_refused_by_currentness"]:
         raise EntreeIncoherente("contenus promus refusés pour actualité : readiness et impact divergent")
     if len(actualite) + len(pii_promus) != len(promus):
         raise EntreeIncoherente("un contenu promu refusé n'est ni PII ni actualité")

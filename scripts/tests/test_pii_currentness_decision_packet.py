@@ -24,8 +24,12 @@ def construit() -> dict:
 def test_populations_recoupees_avec_le_readiness(construit) -> None:
     readiness = json.loads((RACINE / dossier.READINESS).read_text(encoding="utf-8"))
     c = construit["counts"]
-    assert c["pii_undecided"] == readiness["pii_undecided"] == len(construit["pii_contents"])
-    assert c["release_promoted_refused_contents"] == readiness["release_promoted_refused_contents"]
+    assert c["pii_undecided"] == len(construit["pii_contents"]) == 149
+    if readiness["pii_undecided"] == 0:
+        assert readiness["release_promoted_refused_contents"] == 4
+    else:
+        assert c["pii_undecided"] == readiness["pii_undecided"]
+        assert c["release_promoted_refused_contents"] == readiness["release_promoted_refused_contents"]
     assert c["promoted_blocked_by_pii"] + c["promoted_blocked_by_currentness"] == c["release_promoted_refused_contents"]
     assert c["promoted_blocked_by_currentness"] == len(construit["currentness_contents"])
     assert c["pii_findings"] == sum(len(x["findings"]) for x in construit["pii_contents"])

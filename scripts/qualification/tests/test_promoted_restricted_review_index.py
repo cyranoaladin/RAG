@@ -46,12 +46,12 @@ def _refus(tmp_path, construit, muter=None, **kw) -> str:
 
 
 def test_populations_derivees_des_autorites(construit):
-    readiness = json.loads((RACINE / restreint.READINESS).read_text(encoding="utf-8"))
-    promus = set(readiness["release_promoted_refused_content_ids"])
+    impact = json.loads((RACINE / restreint.IMPACT).read_text(encoding="utf-8"))
+    promus = {r["content_sha256"] for r in impact["rows"]}
     pii = {b["content_sha256"] for b in construit["bundles"]}
     actualite = {c["content_sha256"] for c in construit["currentness_contents"]}
     assert pii | actualite == promus and not pii & actualite
-    assert len(actualite) == readiness["release_promoted_refused_by_currentness"]
+    assert len(actualite) == impact["counts"]["release_promoted_refused_by_currentness"]
     assert construit["counts"] == {"bundles": len(pii), "scanned": len(pii),
                                    "findings": sum(b["finding_count"] for b in construit["bundles"]),
                                    "currentness_contents": len(actualite)}

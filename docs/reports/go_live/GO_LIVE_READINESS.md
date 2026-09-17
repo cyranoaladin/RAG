@@ -8,16 +8,14 @@
 
 `GO_LIVE_READY=false`
 
-`main_head=7d93bff46757fc979d7645d3c4dd966b20d09739`
+`main_head=c0ee319299c570d5b110c1543ddf1f1c7ca1c891`
 
 ## Ce qui empeche le go-live
 
 | Raison | Valeur |
 | --- | ---: |
-| `pre_release_blockers` | 1 |
 | `go_live_qualification_blockers` | 4 |
-| `pii_undecided` | 149 |
-| `release_promoted_refused_contents` | 26 |
+| `release_promoted_refused_contents` | 4 |
 
 ## Etat calcule
 
@@ -27,21 +25,21 @@
 | `snapshot_contains_self_commit` | False |
 | `snapshot_is_operational_current` | False |
 | `snapshot_freshness_note` | Instantane derive. Genere AVANT le commit qui le contient, il ne peut donc jamais etre l etat operatoire de ce commit. Pour une decision de deploiement, relancer le script en direct. |
-| `main_head` | 7d93bff46757fc979d7645d3c4dd966b20d09739 |
-| `origin_main_at_generation` | 7d93bff46757fc979d7645d3c4dd966b20d09739 |
-| `evaluated_ref` | go-live/qualify-external-staging |
-| `evaluated_head` | 7d93bff46757fc979d7645d3c4dd966b20d09739 |
-| `input_digests` | {'docs/reports/handoff/servability_matrix_v1.json': '56a4bcb7ad3c49d18127f3201f209a521c824fad2c938e001205675a418e980a', 'docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json': 'c2fb30dd39a347a82c7e9bed96933610444ce784719ddd73b478694010896018', 'docs/reports/go_live/non_pdf_retention_policy.json': '1b400ecc48f72c9b2ec6d6b1f6ec68d82f22dbcbd726a5ef69c5379c3fe41017', 'services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml': '4226aba5cd13d60558d049df73d4df06554bc1a6d603111d02de166f1db17c29', 'docs/reports/go_live/open_pr_dispositions.json': '223f4824bf25dfea729e73fa22fce159119214528899b79ce94b53a20c3d84f5', 'docs/reports/go_live/qualification_blockers.json': 'e7bb2d8f50e08b3a9abfb894583493cf9bc3a584ad017e2c4557d875ba23f99b', 'docs/reports/go_live/rag_searchability_gap.json': 'f045f2e68ddd5430953da3f46ef9586b2fcbdf371cdd3e6ed49d3f65072d2264', 'docs/reports/go_live/expected_worktrees.json': '5f04ffa232cf84f4a0246c958ee984b7525b50bfc172e0a1ab6f898848662dcc'} |
+| `main_head` | c0ee319299c570d5b110c1543ddf1f1c7ca1c891 |
+| `origin_main_at_generation` | c0ee319299c570d5b110c1543ddf1f1c7ca1c891 |
+| `evaluated_ref` | go-live/import-approved-pii-currentness-decisions |
+| `evaluated_head` | c0ee319299c570d5b110c1543ddf1f1c7ca1c891 |
+| `input_digests` | {'docs/reports/handoff/servability_matrix_v1.json': '5dc4c8983ec8feb4f7ce1a76babba4b75ff2840af00b4de880d4120c19d14f9c', 'docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json': 'c2fb30dd39a347a82c7e9bed96933610444ce784719ddd73b478694010896018', 'docs/reports/go_live/non_pdf_retention_policy.json': '1b400ecc48f72c9b2ec6d6b1f6ec68d82f22dbcbd726a5ef69c5379c3fe41017', 'services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml': '4226aba5cd13d60558d049df73d4df06554bc1a6d603111d02de166f1db17c29', 'docs/reports/go_live/open_pr_dispositions.json': '223f4824bf25dfea729e73fa22fce159119214528899b79ce94b53a20c3d84f5', 'docs/reports/go_live/qualification_blockers.json': 'e7bb2d8f50e08b3a9abfb894583493cf9bc3a584ad017e2c4557d875ba23f99b', 'docs/reports/go_live/rag_searchability_gap.json': 'f045f2e68ddd5430953da3f46ef9586b2fcbdf371cdd3e6ed49d3f65072d2264', 'docs/reports/go_live/expected_worktrees.json': '5f04ffa232cf84f4a0246c958ee984b7525b50bfc172e0a1ab6f898848662dcc'} |
 | `open_prs_total` | 10 |
 | `open_prs_blocking` | 0 |
 | `open_prs_disposition_unknown` | 0 |
 | `worktrees_total` | 3 |
 | `obsolete_worktrees_remaining` | 0 |
 | `root_owned_worktree_residues` | 0 |
-| `pre_release_blockers` | 1 |
+| `pre_release_blockers` | 0 |
 | `go_live_qualification_blockers` | 4 |
-| `servable_candidate_count` | 2264 |
-| `pii_undecided` | 149 |
+| `servable_candidate_count` | 2286 |
+| `pii_undecided` | 0 |
 | `program_incompatible_in_servable_set` | 0 |
 | `program_incompatible_total` | 1 |
 | `program_incompatible_refused_by_matrix` | 1 |
@@ -51,9 +49,9 @@
 | `promoted_release_authority_mechanism` | REGISTRY_FILE |
 | `promoted_release_registry_source` | DEFAULT |
 | `currentness_policy_applied` | True |
-| `release_promoted_refused_contents` | 26 |
-| `release_promoted_refused_by_verdict` | {'BLOCKED_NOT_CURRENT_BY_SOURCE': 3, 'BLOCKED_PII_HUMAN_REVIEW': 23} |
-| `release_promoted_refused_by_currentness` | 3 |
+| `release_promoted_refused_contents` | 4 |
+| `release_promoted_refused_by_verdict` | {'BLOCKED_NOT_CURRENT_BY_SOURCE': 4} |
+| `release_promoted_refused_by_currentness` | 4 |
 | `release_reseal_required` | True |
 | `release_promoted_unmatched_in_matrix` | 0 |
 | `release_impact_measurable` | True |
@@ -69,8 +67,8 @@
 | `non_pdf_retention_policy_versioned` | True |
 | `non_pdf_retention_reason` | MEASURED |
 | `non_pdf_retention_store_named` | True |
-| `disk_free_bytes` | 182146887680 |
-| `disk_used_percent` | 76 |
+| `disk_free_bytes` | 163063017472 |
+| `disk_used_percent` | 78 |
 | `disk_policy_ok` | True |
 | `production_db_writes` | 0 |
 | `production_deployments` | 0 |
