@@ -45,6 +45,7 @@ def test_feuille_vierge_valide_et_tout_en_attente(tmp_path, vierge):
     assert bilan["errors"] == []
     assert bilan["counts"]["decided"] == 0
     assert bilan["counts"]["pending"] == 26
+    assert bilan["sealable"] is False, "une feuille avec des lignes en attente n'est pas scellable"
     assert bilan["imports_nothing"] is True
 
 
@@ -56,6 +57,7 @@ def test_decision_complete_et_coherente_acceptee(tmp_path, vierge):
     contenu.update(HUMAN_DECISION="PII_CLEARED", JUSTIFICATION_CATEGORY="TECHNICAL_FALSE_POSITIVE", REVIEWER_LOGIN="abenrhouma")
     bilan = validateur.valider(RACINE, _ecrire(tmp_path, lignes))
     assert bilan["errors"] == [] and bilan["counts"]["decided"] == 1
+    assert bilan["sealable"] is False, "25 contenus restent en attente"
 
 
 def test_cleared_refuse_si_un_finding_est_personnel(tmp_path, vierge):

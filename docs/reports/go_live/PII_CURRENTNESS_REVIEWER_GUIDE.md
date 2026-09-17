@@ -4,9 +4,19 @@
 23 contenus PII promus, leurs 49 findings. Vue de lecture : `PII_CURRENTNESS_MINIMAL_C1_VIEW.md`.
 Rien n'y est pré-rempli. Rien n'est importé sans votre ordre explicite (§ 8).
 
-Ces 75 lignes font passer `release_promoted_refused_contents` de 26 à 0 et ouvrent C1. Elles font passer
-`pii_undecided` de 149 à 126 seulement : les 126 contenus restants sont dans la feuille complète
-(`pii_currentness_decision_sheet.tsv`) et devront aussi être tranchés avant le go-live (`pii_undecided=0` est exigé).
+Ces 75 lignes sont les décisions **nécessaires** pour ramener `release_promoted_refused_contents` de 26 à 0 et ouvrir C1.
+Elles ne sont pas suffisantes à elles seules — deux faits vérifiés dans le code, à connaître avant de commencer :
+
+1. **Un jeu de décisions doit couvrir tout son index de revue.** L'outil gouverné de scellement
+   (`services/rag-pedago/scripts/sceller_decisions_pii.py`, ADR-0047) refuse un brouillon qui laisse un contenu de l'index
+   sans décision. L'index V2 recense 149 contenus : décider les 23 promus seuls n'est scellable que contre un **index de
+   revue restreint aux 23 promus** — ce que la campagne V1 avait fait (index borné au périmètre de production, 23 décisions).
+   Ce restreint est un lot technique que je prépare ; il ne demande aucune décision de votre part.
+2. **`pii_undecided` ne lit aucune décision aujourd'hui** : la matrice de servabilité déduit `PII_UNDECIDED` de la seule
+   présence dans l'index. La faire consommer les décisions scellées est un câblage gouverné (lot BW), revu par vous.
+
+`pii_undecided=0` étant exigé pour le go-live, les 126 autres contenus (feuille complète,
+`pii_currentness_decision_sheet.tsv`) devront être tranchés eux aussi. Commencer par les 23 promus reste le bon ordre.
 
 ## 1. Préparer le poste (une fois)
 
@@ -53,7 +63,7 @@ jamais à la publication. Attention particulière aux classes `french_ssn`, `dat
 | `PII_CLEARED` | **tous** les findings sont `FALSE_POSITIVE_TECHNICAL`, `PUBLIC_INSTITUTIONAL_DATA` ou `SYNTHETIC_EXAMPLE` | aucun finding `PERSONAL_DATA_PRESENT` ; catégorie ≠ `PERSONAL_DATA_PRESENT` |
 | `PII_REDACTION_REQUIRED` | le document a une valeur pédagogique réelle **et** la donnée personnelle est localisée et retirable | au moins un finding `PERSONAL_DATA_PRESENT` ; catégorie `PERSONAL_DATA_PRESENT` |
 | `EXCLUDE_FROM_SERVABLE_SET` | la donnée personnelle est diffuse, ou le document n'est pas indispensable, ou sa version caviardée n'aurait plus de sens | idem |
-| `HUMAN_REVIEW_REQUIRED` (ou vide) | vous ne pouvez pas trancher : avis juridique, source à vérifier, second regard | aucune ; le contenu **reste bloquant** |
+| `HUMAN_REVIEW_REQUIRED` (ou vide) | vous ne pouvez pas trancher : avis juridique, source à vérifier, second regard | aucune ; le contenu **reste bloquant**, et — le contrat ne connaissant que `APPROVED` / `REJECTED` — il empêche de **sceller** le jeu dont il fait partie tant qu'il n'est pas tranché |
 
 `JUSTIFICATION_CATEGORY` qualifie le constat dominant : `TECHNICAL_FALSE_POSITIVE`, `INSTITUTIONAL_CONTACT`,
 `PUBLIC_OFFICIAL_PUBLICATION`, `PEDAGOGICAL_EXAMPLE`, `FICTIONAL_IDENTITY`, ou `PERSONAL_DATA_PRESENT` (obligatoire
@@ -101,14 +111,17 @@ seule modifiée, ligne inconnue ou en double, décision posée sur une ligne de 
    chaque finding, puis la ligne de contenu.
 3. Validateur. 4. Remise.
 
-Vous pouvez remettre une feuille partielle : seules les décisions rendues seront importées, le reste continue de bloquer.
+Une feuille partielle est **contrôlable** (le validateur l'accepte et compte les lignes en attente) mais pas
+**scellable** : pour sceller les 23 promus, les 23 doivent être tranchés. Le validateur l'indique (`sealable`).
 
 ## 8. Donner l'ordre d'import
 
 ```
 PII_DECISIONS_VALIDATED fichier=docs/reports/go_live/pii_currentness_minimal_c1_review.tsv reviewer=<votre login> — IMPORT AUTORISÉ
 ```
-Sans cette phrase, rien n'est importé. À sa réception : validation, conversion en
-`governance/pii-review-decisions/<decision_set_id>.json` sous le contrat `NEXUS-PII-REVIEW-DECISIONS-V1`, PR avec revue
-humaine épinglée — vos décisions passent donc une seconde fois sous vos yeux avant de produire un effet.
-`pii_undecided` ne baissera que du nombre de décisions réellement rendues.
+Sans cette phrase, rien n'est importé. À sa réception : validation, conversion de la feuille en brouillon, scellement
+par l'outil gouverné existant (`sceller_decisions_pii.py`) en `governance/pii-review-decisions/<decision_set_id>.json`
+sous le contrat `NEXUS-PII-REVIEW-DECISIONS-V1`, PR avec revue humaine épinglée — vos décisions passent donc une seconde
+fois sous vos yeux avant de produire un effet. Les compteurs ne bougeront que par le câblage gouverné du lot BW, et du
+seul nombre de décisions réellement rendues. Les décisions d'actualité n'ont **aucun protocole existant** : leur forme
+scellée sera proposée par ADR dans ce même lot.

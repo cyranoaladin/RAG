@@ -111,6 +111,8 @@ def valider(racine: Path, feuille: Path) -> dict:
         "sheet": str(feuille),
         "rows": len(lignes),
         "counts": {"decided": decides, "pending": attente, "invalid": len(erreurs)},
+        # Le scelleur gouverné (ADR-0047) refuse un jeu qui laisse un contenu de son index sans décision.
+        "sealable": not erreurs and attente == 0 and decides > 0,
         "errors": erreurs,
         "imports_nothing": True,
         "note": "contrôle de forme et de cohérence ; l'import reste soumis à votre autorisation explicite",

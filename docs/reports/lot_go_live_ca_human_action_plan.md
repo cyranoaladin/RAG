@@ -31,9 +31,17 @@ L'extrait est dérivé : projeté sur les colonnes de la feuille complète, chac
 (épreuve) ; aucune cellule de décision n'est remplie (épreuve) ; aucun chemin absolu machine-local
 (`$NEXUS_PII_REVIEW_ROOT`). Feuille vierge au validateur : 0 décidé, 26 en attente, 0 invalide.
 
-À savoir : ces 75 lignes ramènent `release_promoted_refused_contents` à 0 et ouvrent C1, mais `pii_undecided` ne descend
-qu'à 126 ; les 126 contenus restants (feuille complète) sont aussi requis pour le go-live. Toute décision qui retire un
-contenu promu exige un ADR préalable : le constructeur de release ne sait pas exclure.
+**Correction apportée en cours de lot** (vérifiée dans le code, et contraire à ma première rédaction) : ces 75 lignes sont
+nécessaires mais pas suffisantes.
+
+1. `sceller_decisions_pii.py` (ADR-0047) refuse un jeu de décisions qui laisse un contenu de son index sans décision ;
+   l'index V2 en recense 149. Décider les 23 promus seuls exige un **index de revue restreint aux 23 promus**, comme la
+   campagne V1 l'avait fait. C'est un lot technique sans décision humaine : **je le prépare ensuite**.
+2. La matrice de servabilité déduit `PII_UNDECIDED` de la seule présence dans l'index : elle ne lit aucune décision.
+   Le câblage gouverné des décisions scellées vers la matrice fait partie du lot BW, sous votre revue.
+3. Les décisions d'actualité n'ont aucun protocole scellé existant : ADR à proposer dans BW.
+4. `pii_undecided=0` exige à terme les 149 contenus. Toute décision qui retire un contenu promu exige un ADR préalable :
+   le constructeur de release ne sait pas exclure.
 
 ## 2. Staging cloisonné sur `nexus-prod`
 
