@@ -1708,3 +1708,152 @@ def test_verifier_sync_sur_depot_reel():
     res = blocages.verifier_sync_incrementale(RACINE)
     assert res["closed"] is (preuve["verification_status"] == "VERIFIED"), res["why"]
     assert (res["proof"] is not None) is res["closed"]
+
+
+# --- STAGING_EXTERNE (lot BU) -----------------------------------------------
+
+
+def _preuve_staging(mode: str = "B") -> dict:
+    demarre = mode != "C"
+    return {
+        "kind": "NEXUS-EXTERNAL-STAGING-PROOF-V1",
+        "verification_status": "VERIFIED" if demarre else "RUNBOOK_ONLY_NOT_QUALIFIED",
+        "observed_at_main_sha": blocages.STAGING_MAIN_SHA_ATTENDU,
+        "mode": mode,
+        "host_kind": {"A": "production_cloisonnee", "B": "staging_separe", "C": "runbook_only"}[mode],
+        "environment_started": demarre,
+        "distinct_from_production": True,
+        "services": ["pgvector", "ingestor", "prometheus"],
+        "exposure": {"public_unauthenticated": False, "access_control": "allowlist" if demarre else None},
+        "rollback": {"documented": True, "exercised": demarre},
+        "healthchecks": {"pgvector": demarre, "api": demarre, "cockpit": demarre},
+        "ingestion": {"index_present": demarre, "vectors": 100 if demarre else None},
+        "retrieval_smoke": {"executed": demarre, "passed": demarre, "citations": 3 if demarre else None},
+        "cockpit_smoke": {"executed": demarre, "passed": demarre},
+        "logs_secret_scan": {"executed": demarre, "secrets_found": 0 if demarre else None},
+        "secret_exposed": False,
+        "production_db_writes": 0,
+        "production_deployments": 0,
+        "current_switch": 0,
+    }
+
+
+def _poser_staging(racine: Path, muter=None, *, mode="B", tamper_sha=False) -> None:
+    preuve = _preuve_staging(mode)
+    if muter:
+        muter(preuve)
+    dossier = racine / "docs/reports/evidence"
+    dossier.mkdir(parents=True, exist_ok=True)
+    octets = (json.dumps(preuve, indent=2, sort_keys=True) + "\n").encode()
+    (dossier / "external_staging_proof.json").write_bytes(octets)
+    digest = "f" * 64 if tamper_sha else hashlib.sha256(octets).hexdigest()
+    (dossier / "external_staging_proof.sha256").write_text(
+        f"{digest}  docs/reports/evidence/external_staging_proof.json\n", encoding="utf-8"
+    )
+
+
+def _refus_staging(tmp_path, muter=None, **kw) -> str:
+    _poser_staging(tmp_path, muter, **kw)
+    res = blocages.verifier_staging_externe(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    return res["why"]
+
+
+def test_verifier_staging_nominal_hote_separe(tmp_path):
+    _poser_staging(tmp_path)
+    res = blocages.verifier_staging_externe(tmp_path)
+    assert res["closed"] is True, res["why"]
+    assert res["proof"]["mode"] == "B"
+    assert any("CONCURRENCE" in x for x in res["proof"]["does_not_close"])
+
+
+def test_verifier_staging_refuse_runbook_only(tmp_path):
+    """Un runbook, même répété localement, n'est pas un staging externe qualifié."""
+    assert "runbook" in _refus_staging(tmp_path, mode="C")
+
+    def m(p):  # un runbook_only maquillé en VERIFIED ne passe pas davantage
+        p["verification_status"] = "VERIFIED"
+    assert "runbook" in _refus_staging(tmp_path, m, mode="C")
+
+
+def test_verifier_staging_refuse_absente_alteree_stale(tmp_path):
+    res = blocages.verifier_staging_externe(tmp_path)
+    assert res["closed"] is False and "manquante" in res["why"]
+    assert "altération" in _refus_staging(tmp_path, tamper_sha=True)
+
+    def m(p):
+        p["observed_at_main_sha"] = "0" * 40
+    assert "stale" in _refus_staging(tmp_path, m)
+
+
+def test_verifier_staging_refuse_sans_mode_explicite(tmp_path):
+    def m(p):
+        del p["mode"]
+    assert "mode" in _refus_staging(tmp_path, m)
+
+    def m2(p):
+        p["host_kind"] = "staging_separe"
+        p["mode"] = "A"
+    assert "mode" in _refus_staging(tmp_path, m2)
+
+
+def test_verifier_staging_refuse_environnement_non_demarre_ou_non_distinct(tmp_path):
+    def m(p):
+        p["environment_started"] = False
+    assert "démarré" in _refus_staging(tmp_path, m)
+
+    def m2(p):
+        p["distinct_from_production"] = False
+    assert "distinct" in _refus_staging(tmp_path, m2)
+
+
+def test_verifier_staging_refuse_sans_rollback(tmp_path):
+    def m(p):
+        p["rollback"]["exercised"] = False
+    assert "rollback" in _refus_staging(tmp_path, m)
+
+    def m2(p):
+        del p["rollback"]
+    assert "rollback" in _refus_staging(tmp_path, m2)
+
+
+def test_verifier_staging_refuse_recette_incomplete(tmp_path):
+    for cle, sous in (("healthchecks", "api"), ("retrieval_smoke", "passed"), ("cockpit_smoke", "passed"), ("ingestion", "index_present")):
+        def m(p, cle=cle, sous=sous):
+            p[cle][sous] = False
+        assert cle in _refus_staging(tmp_path, m)
+
+    def m2(p):
+        p["retrieval_smoke"]["citations"] = 0
+    assert "citation" in _refus_staging(tmp_path, m2)
+
+
+def test_verifier_staging_refuse_exposition_ou_secret(tmp_path):
+    def m(p):
+        p["exposure"]["public_unauthenticated"] = True
+    assert "exposition" in _refus_staging(tmp_path, m)
+
+    def m2(p):
+        p["secret_exposed"] = True
+    assert "secret" in _refus_staging(tmp_path, m2)
+
+    def m3(p):
+        p["logs_secret_scan"]["secrets_found"] = 1
+    assert "secret" in _refus_staging(tmp_path, m3)
+
+
+@pytest.mark.parametrize("cle", ["production_db_writes", "production_deployments", "current_switch"])
+def test_verifier_staging_refuse_production_touchee(tmp_path, cle):
+    def m(p):
+        p[cle] = 1
+    assert cle in _refus_staging(tmp_path, m)
+
+
+def test_verifier_staging_sur_depot_reel():
+    """État DÉRIVÉ : la preuve versionnée est runbook_only, elle ne ferme donc rien."""
+    preuve = json.loads((RACINE / blocages.STAGING_PREUVE).read_text(encoding="utf-8"))
+    res = blocages.verifier_staging_externe(RACINE)
+    attendu = preuve["verification_status"] == "VERIFIED" and preuve["host_kind"] != "runbook_only"
+    assert res["closed"] is attendu, res["why"]
+    assert (res["proof"] is not None) is res["closed"]

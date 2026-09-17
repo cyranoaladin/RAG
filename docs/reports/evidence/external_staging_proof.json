@@ -1,0 +1,177 @@
+{
+  "closes_blocker": false,
+  "cockpit_smoke": {
+    "executed": false,
+    "passed": null
+  },
+  "compose": {
+    "all_ports_bound_to_loopback": true,
+    "cpu_limits": {
+      "ingestor": 2,
+      "pgvector": 2,
+      "prometheus": 0.5
+    },
+    "images_pinned_by_digest": {
+      "pgvector": true,
+      "prometheus": true
+    },
+    "named_volumes": [
+      "rag_pgvector_data",
+      "rag_prometheus_data"
+    ],
+    "path": "services/rag-engine/infra/docker-compose.v2.yml",
+    "ports": {
+      "ingestor": [
+        "127.0.0.1:8001->8001"
+      ],
+      "pgvector": [
+        "127.0.0.1:5435->5432"
+      ],
+      "prometheus": [
+        "127.0.0.1:19091->9090"
+      ]
+    },
+    "resolves": true,
+    "services": [
+      "ingestor",
+      "pgvector",
+      "prometheus"
+    ],
+    "services_built_not_pinned": [
+      "ingestor"
+    ],
+    "sha256": "7d5a04d04061193475e62ddaba74a994c2b2b8bfcb00bb9dfd1eb57f7e8a6429"
+  },
+  "current_switch": 0,
+  "distinct_from_production": null,
+  "environment_started": false,
+  "executed_command": "python3 scripts/qualification/verify_external_staging.py --seal-runbook",
+  "exposure": {
+    "access_control": null,
+    "design": "conteneurs liés à 127.0.0.1 ; TLS et contrôle d'accès au reverse proxy",
+    "public_unauthenticated": null
+  },
+  "healthchecks": {
+    "api": null,
+    "cockpit": null,
+    "defined_in_compose": [
+      "pgvector: /docker-entrypoint-healthcheck.sh",
+      "ingestor: GET /health"
+    ],
+    "pgvector": null
+  },
+  "host_kind": "runbook_only",
+  "ingestion": {
+    "index_present": null,
+    "vectors": null
+  },
+  "kind": "NEXUS-EXTERNAL-STAGING-PROOF-V1",
+  "local_checks_really_done": {
+    "all_ports_bound_to_loopback": true,
+    "compose_resolves_with_placeholder_values": true,
+    "containers_started": 0
+  },
+  "logs_secret_scan": {
+    "executed": false,
+    "secrets_found": null
+  },
+  "mode": "C",
+  "observed_at_main_sha": "7d93bff46757fc979d7645d3c4dd966b20d09739",
+  "operator_must_provide": [
+    "hôte Ubuntu 22.04/24.04 avec Docker, distinct de la production effective",
+    "nom DNS de staging et certificat TLS ; reverse proxy devant 127.0.0.1:${INGESTOR_PORT}",
+    "Basic Auth ou allowlist IP sur le reverse proxy",
+    "image ingestor par digest (le Compose la construit : à figer avant staging)",
+    "répertoire de corpus servables et empreinte de son index",
+    "empreinte du registre de releases servi",
+    "artefacts de modèles vérifiés (E5, reranker) et leurs empreintes d'inventaire"
+  ],
+  "production_db_writes": 0,
+  "production_deployments": 0,
+  "retrieval_smoke": {
+    "citations": null,
+    "executed": false,
+    "passed": null,
+    "tool": "scripts/staging_external_acceptance.py"
+  },
+  "rollback": {
+    "documented": true,
+    "exercised": false,
+    "note": "le rollback de RELEASE est éprouvé par ailleurs (blocage ROLLBACK, rehearsal Docker V2)"
+  },
+  "runbook": {
+    "path": "docs/runbooks/staging_externe.md",
+    "sha256": "9b2527e3286cf31af702c698274d92897f8fe1a300a26cb693bfcb22a8bccdc0"
+  },
+  "sealed_at": "2026-09-17T16:26:33Z",
+  "secret_exposed": false,
+  "secret_values_in_proof": 0,
+  "secrets_material_producer": "services/rag-engine/scripts/prepare_staging_environment.py",
+  "services": [
+    "ingestor",
+    "pgvector",
+    "prometheus"
+  ],
+  "storage_expected": {
+    "database": "PostgreSQL + pgvector DISTINCT de la production, sur son propre volume",
+    "named_volumes": [
+      "rag_pgvector_data",
+      "rag_prometheus_data"
+    ],
+    "read_only_mounts": [
+      "configs",
+      "release registry",
+      "servable corpus",
+      "api-clients.json",
+      "models"
+    ]
+  },
+  "variables_required_names_only": [
+    "NEXUS_INTERNAL_TOKEN_AUDIENCE",
+    "NEXUS_INTERNAL_TOKEN_ISSUER",
+    "NEXUS_INTERNAL_TOKEN_SECRET",
+    "NEXUS_SSO_AUDIENCE",
+    "NEXUS_SSO_ISSUER",
+    "PGVECTOR_PASSWORD",
+    "PGVECTOR_PUBLISHER_PASSWORD",
+    "PGVECTOR_RETRIEVAL_PASSWORD",
+    "PGVECTOR_REVIEW_PASSWORD",
+    "PG_RAG_DSN",
+    "PG_REVIEW_DSN",
+    "RAG_ACCESS_LOG_HMAC_SECRET",
+    "RAG_API_CLIENTS_HOST_FILE",
+    "RAG_BFF_SERVICE_TOKEN",
+    "RAG_EMBEDDING_MODEL_ARTIFACT_HOST_DIR",
+    "RAG_EMBEDDING_MODEL_INVENTORY_SHA256",
+    "RAG_RELEASE_REGISTRY_SHA256",
+    "RAG_RERANKER_MODEL_ARTIFACT_HOST_DIR",
+    "RAG_RERANKER_MODEL_INVENTORY_SHA256",
+    "RAG_SERVABLE_CORPUS_HOST_DIR",
+    "RAG_SERVABLE_CORPUS_INDEX_SHA256"
+  ],
+  "variables_with_default_names_only": [
+    "INGESTOR_PORT",
+    "METRICS_ENABLED",
+    "PGVECTOR_DB",
+    "PGVECTOR_PORT",
+    "PGVECTOR_PUBLISHER_USER",
+    "PGVECTOR_RETRIEVAL_USER",
+    "PGVECTOR_REVIEW_USER",
+    "PGVECTOR_USER",
+    "PG_CONNECT_TIMEOUT_S",
+    "PG_DATABASE_BUDGET_MS",
+    "PG_LOCK_TIMEOUT_MS",
+    "PG_POOL_MAX_SIZE",
+    "PG_POOL_MIN_SIZE",
+    "PG_POOL_TIMEOUT_S",
+    "PG_STATEMENT_TIMEOUT_MS",
+    "PROMETHEUS_PORT",
+    "RAG_CONFIGS_HOST_DIR",
+    "RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS",
+    "RAG_RELEASE_REGISTRY_HOST_DIR",
+    "RERANK_CACHE_TTL",
+    "TZ"
+  ],
+  "verification_status": "RUNBOOK_ONLY_NOT_QUALIFIED",
+  "why_mode_c": "aucun hôte de staging séparé n'est désigné dans le dépôt, et l'accès SSH à nexus-prod n'est pas autorisé ; aucun corpus servable ni base vectorielle de staging n'existe sur le poste de travail : démarrer localement aurait exigé de fabriquer ces faits"
+}
