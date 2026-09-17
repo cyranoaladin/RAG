@@ -1,0 +1,86 @@
+{
+  "authorities": {
+    "candidate_inventory": {
+      "actual_sha256": "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300",
+      "expected_sha256": "86531933e0779a739f20c347d32dd02e54672f058024d16e1198809cef965300",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/candidate_inventory.json"
+    },
+    "currentness_evidence": {
+      "actual_sha256": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+      "expected_sha256": "2ad7209f28cd7cbf9f1ea91724b687983579c36c91619e8d107d28b72b849122",
+      "path": "services/rag-pedago/configs/prerentree_2026_2027/multilevel_currentness_evidence.yml"
+    },
+    "document_types_mapping": {
+      "actual_sha256": "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b",
+      "expected_sha256": "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b",
+      "path": "services/rag-engine/configs/mappings/eduscol_multilevel_document_types.yml"
+    },
+    "levels_mapping": {
+      "actual_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+      "expected_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+      "path": "services/rag-engine/configs/mappings/eduscol_multilevel_levels.yml"
+    },
+    "profile_manifest": {
+      "actual_sha256": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
+      "expected_sha256": "47c86091687fc7a4a7e6d76aa8ff65eb02f3ab861dd15c7600dc93e6eb98b753",
+      "path": "services/rag-engine/configs/ingestion_profiles/staging/multilevel_manifest.json"
+    },
+    "programme_registry": {
+      "actual_sha256": "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89aa58c",
+      "expected_sha256": "9822f795f7c293618305a7ed9ad9087f68a96267415472fc0c3e39d3c89aa58c",
+      "path": "services/rag-engine/configs/programme_indexes/multilevel_2026_2027.yml"
+    },
+    "release_manifest": {
+      "actual_sha256": "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26",
+      "expected_sha256": "6ec1a4f8e0d644540214660c3568b2c169770b7789cd850186b6c3f1d6bd1c26",
+      "path": "services/rag-pedago/data/releases/prerentree_2026_2027/multilevel/multilevel.release.json"
+    },
+    "rights_evidence": {
+      "actual_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "expected_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+      "path": "services/rag-pedago/configs/rights_evidence_registry.yml"
+    },
+    "subjects_mapping": {
+      "actual_sha256": "c3c2d20bd27243a77795b3a056441d256f0b0b9b73306b3a1e710eee61407ed6",
+      "expected_sha256": "c3c2d20bd27243a77795b3a056441d256f0b0b9b73306b3a1e710eee61407ed6",
+      "path": "services/rag-engine/configs/mappings/eduscol_multilevel_subjects.yml"
+    }
+  },
+  "cardinalities": {
+    "collections": [
+      "rag_nexus_maths_quatrieme_tc",
+      "rag_nexus_nsi_premiere_specialite"
+    ],
+    "proposals_generated": 2,
+    "publications_attested": 2,
+    "target_collections": 2,
+    "worker_a_executed": true,
+    "worker_b_executed": true
+  },
+  "ephemeral_environment": {
+    "current_switch": 0,
+    "database": "Deux instances PostgreSQL \u00e9ph\u00e9m\u00e8res (control_pg et product_pg, conteneurs jetables)",
+    "docker_residues_after_test": 0,
+    "production_db_writes": 0,
+    "production_touched": false,
+    "secrets_contained": 0
+  },
+  "executed_command": "pytest -v services/rag-engine/tests/integration/test_multilevel_worker_cli_e2e.py",
+  "kind": "NEXUS-C3-WORKER-CLI-E2E-PROOF-V1",
+  "observed_at_main_sha": "4e7c40b731823a517f1a29f3838c3794638bde68",
+  "timestamp": "2026-09-17T06:58:20.843438+00:00",
+  "verdicts": {
+    "ALL_AUTHORITY_DIGESTS_MATCH": true,
+    "MAIN_SHA_MATCHES": true,
+    "NO_CURRENT_SWITCH": true,
+    "NO_DOCKER_RESIDUES": true,
+    "NO_PRODUCTION_MUTATIONS": true,
+    "NO_SECRETS_EXPOSED": true,
+    "PROPOSALS_GENERATED": true,
+    "PUBLICATIONS_ATTESTED": true,
+    "TEST_EXECUTION_PASSED": true,
+    "WORKER_A_CLI_EXECUTED": true,
+    "WORKER_B_CLI_EXECUTED": true
+  },
+  "verification_status": "VERIFIED"
+}
