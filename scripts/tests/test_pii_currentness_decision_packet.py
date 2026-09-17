@@ -97,3 +97,27 @@ def test_artefacts_versionnes_a_jour_et_scelles(construit) -> None:
     for d in (versionne, construit):
         d["inputs"].pop(dossier.READINESS)
     assert versionne == construit
+
+
+def test_extrait_c1_est_un_sous_ensemble_strict_sans_decision(construit) -> None:
+    complet = list(csv.DictReader(dossier.rendre_tsv(construit).splitlines(), delimiter="\t"))
+    lignes = list(csv.DictReader(dossier.rendre_tsv_c1(construit).splitlines(), delimiter="\t"))
+    # Projetée sur les colonnes de la feuille complète, chaque ligne de l'extrait en est une, à l'identique.
+    projetees = [{c: ligne[c] for c in dossier.COLONNES} for ligne in lignes]
+    assert all(p in complet for p in projetees)
+    promus = [x for x in construit["pii_contents"] if x["promoted_in_release"]]
+    assert len(lignes) == len(construit["currentness_contents"]) + len(promus) + sum(x["finding_count"] for x in promus)
+    assert {ligne["priority"] for ligne in lignes} == {dossier.PRIORITE_C1}
+    assert [int(ligne["review_order"]) for ligne in lignes] == list(range(1, len(lignes) + 1))
+    for ligne in lignes:
+        assert ligne["WHAT_TO_FILL_ON_THIS_ROW"] == dossier.A_REMPLIR[ligne["row_kind"]]
+        assert not ligne["open_this_file"].startswith("/"), "aucun chemin absolu machine-local"
+        for colonne in ("HUMAN_DECISION", "FINDING_DISPOSITION", "JUSTIFICATION_CATEGORY", "REVIEWER_LOGIN"):
+            assert ligne[colonne] == ""
+
+
+def test_vue_de_lecture_c1_sans_colonne_de_decision_et_a_jour(construit) -> None:
+    rendu = dossier.rendre_markdown_c1(construit)
+    assert "HUMAN_DECISION" not in rendu and "PII_CLEARED" not in rendu
+    assert (RACINE / dossier.SORTIE_MD_C1).read_text(encoding="utf-8") == rendu
+    assert (RACINE / dossier.SORTIE_TSV_C1).read_text(encoding="utf-8") == dossier.rendre_tsv_c1(construit)
