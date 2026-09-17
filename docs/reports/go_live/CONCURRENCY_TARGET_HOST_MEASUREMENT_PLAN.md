@@ -1,7 +1,7 @@
 # CONCURRENCE — plan de mesure sur l'hôte cible
 
 Plan seulement : rien n'est mesuré ici, aucune connexion n'est ouverte. Exécution subordonnée à
-`SSH_STAGING_AUTHORIZED` (staging en place, cf. `docs/runbooks/staging_cloisonne_nexus_prod.md`), puis à un feu vert
+`SSH_STAGING_AUTHORIZED` (staging en place, cf. `docs/runbooks/staging_externe_nexus_prod_cloisonne_EXECUTION_PLAN.md`), puis à un feu vert
 distinct pour la charge complète.
 
 ## Ce qui ne bouge pas
