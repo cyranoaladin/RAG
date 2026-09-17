@@ -101,7 +101,7 @@
   "inputs": {
     "docs/reports/evidence-index/pii_review_index_v2_20260907.json": "30dee679baee95b2db39306515ecfaec1e566e6a055776d812df1960de687758",
     "docs/reports/go_live/currentness_release_impact.json": "26883f6e4bf86b5e4acaaa711300a1c9ec933baf2f7970c0f3c665d50d38a998",
-    "docs/reports/go_live/go_live_readiness_state.json": "b3c476017439cfa0fc112b92fc7715dfaa0e15c15fa979aa6bcfb7f8c42b55ef",
+    "docs/reports/go_live/go_live_readiness_state.json": "57aaa3ef2544abd7a33f5dbee9ef70bd84ceb758af32f861ef3424eacbedde3d",
     "docs/reports/go_live/pii_human_decision_dashboard.json": "c5f8db9d0cc33916005817b8cd0fbd1b6b0c93874ce5ea50185d01cc2b6819cd",
     "governance/pii-review-decisions/pii-review-2026-09-03-final.json": "2b1974259b1ac4a2a21766b71f3ed586df22722cb969f07bdb3fb0bdaafda469"
   },
