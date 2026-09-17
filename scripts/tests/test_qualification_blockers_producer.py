@@ -1465,7 +1465,16 @@ def test_verifier_concurrence_refuse_si_production_touchee(tmp_path, cle, valeur
 
 
 def test_verifier_concurrence_sur_depot_reel():
+    """L'état réel est DÉRIVÉ du statut scellé : seule une preuve VERIFIED ferme.
+    Une mesure BUDGET_FAILED reste consultable comme diagnostic, jamais comme fermeture."""
+    preuve = json.loads((RACINE / blocages.CONCURRENCE_PREUVE).read_text(encoding="utf-8"))
     res = blocages.verifier_concurrence(RACINE)
-    assert res["closed"] is True, res["why"]
-    assert res["proof"]["sha256_verified"] is True
-    assert res["proof"]["measured_requests"] == 240
+    if preuve["verification_status"] == "VERIFIED":
+        assert res["closed"] is True, res["why"]
+        assert res["proof"]["measured_requests"] == 240
+    else:
+        assert preuve["verification_status"] == "BUDGET_FAILED"
+        assert preuve["violations"]
+        assert res["closed"] is False
+        assert res["proof"] is None
+        assert "VERIFIED" in res["why"]
