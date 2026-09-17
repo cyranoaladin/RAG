@@ -25,6 +25,7 @@ DISPOSITIONS_NON_BLOQUANTES = frozenset(
         "MERGE_CANDIDATE",
         "REBASE_REQUIRED",
         "CLOSE_SUPERSEDED",
+        "CLOSE_REJECTED",
         "KEEP_OPEN_GOVERNANCE_ANCHOR",
         "KEEP_OPEN_GOVERNED_NO_MERGE",
         "KEEP_OPEN_EXTERNAL_REVIEW",
@@ -92,16 +93,15 @@ DISPOSITIONS_CATALOGUE: dict[str, dict[str, str]] = {
         ),
     },
     "138": {
-        "disposition": "HUMAN_DECISION_REQUIRED",
+        "disposition": "CLOSE_REJECTED",
         "reason": (
-            "Porte une sémantique de rescellement en place, interdite par ADR-0050 sur main, et 4 collisions "
-            "d'ADR (ADR-0048 à ADR-0051). En conflit git majeur avec main. Dossier d'arbitrage formel "
-            "préparé dans docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md avec recommandation de fermeture "
-            "sans merge."
+            "Fermée sans merge suite à arbitrage formel humain (dossier docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md) : "
+            "le rescellement de release proposé est caduc, en conflit majeur avec l'architecture ADR-0055/ADR-0057 et "
+            "violerait ADR-0050. PR fermée sur GitHub le 16/09/2026 (merged=false, state=closed)."
         ),
         "measured": (
-            "BASE_REF!=main ; ADR_NUMBER_COLLISIONS=4 ; VIOLATES_ADR_0050=true ; "
-            "ARBITRATION_DOSSIER_PREPARED=true ; RECOMMENDED_ACTION=CLOSE_WITHOUT_MERGE"
+            "ARBITRATED_CLOSED=true ; GITHUB_STATE=closed ; GITHUB_MERGED=false ; "
+            "VIOLATES_ADR_0050=true ; DOSSIER=HUMAN_DECISIONS_PR_138_140.md"
         ),
     },
     "139": {
@@ -114,16 +114,16 @@ DISPOSITIONS_CATALOGUE: dict[str, dict[str, str]] = {
         "measured": "ADR_0046_USED_TWICE=true ; GIT_CONFLICT=false ; MERGEABLE=clean",
     },
     "140": {
-        "disposition": "HUMAN_DECISION_REQUIRED",
+        "disposition": "CLOSE_SUPERSEDED",
         "reason": (
-            "Trunk d'intégration massif (lots 28-40) touchant 343 fichiers dont les composants ont été "
-            "intégrés unitairement dans les lots ultérieurs. Son merge réintroduirait des régressions "
-            "de contrat et d'autorité. Dossier d'arbitrage formel préparé dans "
-            "docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md avec recommandation de fermeture sans merge."
+            "Fermée sans merge suite à arbitrage formel humain (dossier docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md) : "
+            "trunk d'intégration obsolète de 343 fichiers dont les apports ont été intégrés unitairement lors des lots ultérieurs. "
+            "Son merge réintroduirait des régressions massives sur les contrats actuels. PR fermée sur GitHub le 16/09/2026 "
+            "(merged=false, state=closed)."
         ),
         "measured": (
-            "CHANGED_FILES=343 ; GIT_CONFLICT=true ; ADR_NUMBER_COLLISIONS=4 ; "
-            "ARBITRATION_DOSSIER_PREPARED=true ; RECOMMENDED_ACTION=CLOSE_WITHOUT_MERGE"
+            "ARBITRATED_CLOSED=true ; GITHUB_STATE=closed ; GITHUB_MERGED=false ; "
+            "CHANGED_FILES=343 ; DOSSIER=HUMAN_DECISIONS_PR_138_140.md"
         ),
     },
     "151": {
@@ -231,7 +231,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--main-sha",
-        default="c2732183b1660409500e2792d6442b44e9d99d54",
+        default="eb0fb6a64190a4b6d8de6dbee7e4a2d61450bfcb",
         help="SHA exact du commit main observé",
     )
     args = parser.parse_args(argv)

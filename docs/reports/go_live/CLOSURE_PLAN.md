@@ -5,7 +5,7 @@
 > il n autorise rien. Le seul garde est `--assert-ready`.
 
 `go_live_ready=false`
- — phases fermees : 0 sur 5
+ — phases fermees : 1 sur 5
 
 ## Cinq niveaux, souvent confondus
 
@@ -29,9 +29,9 @@ plutot que remplis.
 | Phase | Etat | Bloqueurs ouverts | Bloquee par | Qui agit |
 | --- | --- | --- | --- | --- |
 | `P1_PRE_RELEASE` Fermer les bloqueurs de pre-release | actionnable | PII_UNDECIDED | — | HUMAN_REVIEWER |
-| `P2_DEPOT` Vider le depot de ses PR bloquantes | actionnable | OPEN_PRS_BLOCKING | — | HUMAN_DECISION |
+| `P2_DEPOT` Vider le depot de ses PR bloquantes | fermee | — | — | — |
 | `P3_OCTETS` Disposer des octets des contenus servables | en attente | — | P1_PRE_RELEASE | — |
-| `P4_QUALIFICATION` Fermer les gates de qualification | en attente | GO_LIVE_QUALIFICATION_BLOCKERS | P1_PRE_RELEASE, P2_DEPOT | MIXED |
+| `P4_QUALIFICATION` Fermer les gates de qualification | en attente | GO_LIVE_QUALIFICATION_BLOCKERS | P1_PRE_RELEASE | MIXED |
 | `P5_DEPLOIEMENT` Deployer, apres et seulement apres | en attente | — | P4_QUALIFICATION | — |
 
 Une phase ne s ouvre pas tant que celles dont elle depend restent

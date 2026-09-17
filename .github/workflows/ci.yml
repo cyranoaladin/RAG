@@ -216,13 +216,14 @@ jobs:
           python-version: "3.11"
       - working-directory: services/rag-engine
         run: make install
-      - name: Prove the placement authority cannot be overridden
+      - name: Prove the placement authority cannot be overridden and scopes are verified
         working-directory: services/rag-engine
         env:
           NEXUS_C5_PG_DSN: "postgresql://postgres:c5-qualification-only@localhost:5432/postgres"
         run: |
           PYTHONPATH=src .venv/bin/pytest -q -rfE \
-            tests/integration/test_c5_placement_is_the_access_authority.py
+            tests/integration/test_c5_placement_is_the_access_authority.py \
+            tests/integration/test_verify_access_authority_scopes.py
 
   real-model-acceptance:
     name: "real-model acceptance (E5 + reranker + pgvector)"

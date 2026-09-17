@@ -422,6 +422,143 @@ def verifier_rollback(racine: Path) -> dict:
     }
 
 
+def verifier_c5(racine: Path) -> dict:
+    """Vérifie l'autorité d'accès et le refus systématique des portées non autorisées (C5)."""
+    preuve_json_path = racine / "docs/reports/evidence/access_authority_c5_refusal_proof.json"
+    preuve_sha_path = racine / "docs/reports/evidence/access_authority_c5_refusal_proof.sha256"
+
+    if not preuve_json_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"attestation de preuve C5 manquante : {preuve_json_path}",
+        }
+    if not preuve_sha_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'empreinte C5 manquant : {preuve_sha_path}",
+        }
+
+    # 1. Vérification cryptographique de l'empreinte SHA-256
+    try:
+        lignes = preuve_sha_path.read_text(encoding="utf-8").strip().splitlines()
+        sha_attendu = None
+        for ligne in lignes:
+            ligne = ligne.strip()
+            if not ligne or ligne.startswith("#"):
+                continue
+            parts = ligne.split(None, 1)
+            if len(parts) == 2:
+                sha_attendu = parts[0]
+                break
+        if not sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": "fichier SHA-256 C5 vide ou mal formé",
+            }
+
+        sha_reel = hashlib.sha256(preuve_json_path.read_bytes()).hexdigest()
+        if sha_reel != sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": (
+                    f"empreinte altérée pour la preuve C5 : attendu {sha_attendu[:16]}…, "
+                    f"obtenu {sha_reel[:16]}…"
+                ),
+            }
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"erreur lors de la vérification SHA-256 de la preuve C5 : {exc}",
+        }
+
+    # 2. Vérification des assertions du JSON d'attestation
+    try:
+        data = json.loads(preuve_json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'attestation JSON C5 illisible : {exc}",
+        }
+
+    if data.get("verification_status") != "VERIFIED":
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"statut de vérification C5 non VERIFIED : {data.get('verification_status')}",
+        }
+
+    verdicts = data.get("verdicts", {})
+    exigences_c5 = {
+        "UNKNOWN_SCOPE_ID_REFUSED": True,
+        "FORGED_SCOPE_ID_REFUSED": True,
+        "SCOPE_DIGEST_CORRUPTION_REFUSED": True,
+        "TARGET_LEVEL_DRIFT_REFUSED": True,
+        "CURRICULUM_LEVEL_DRIFT_REFUSED": True,
+        "CROSS_SUBJECT_DRIFT_REFUSED": True,
+        "OMITTED_CURRICULUM_SCOPE_REFUSED": True,
+        "AUTHORIZATION_MAPPING_INCOMPLETE_REFUSED": True,
+        "AUTHORIZATION_SET_V2_FALSIFIED_OR_DIVERGENT_REFUSED": True,
+        "CONTENT_OUTSIDE_AUTHORIZATION_REFUSED": True,
+        "OVERLAP_OR_DUPLICATION_REFUSED": True,
+        "DENORMALIZED_COLUMNS_CANNOT_WIDEN_AUTHORITY": True,
+        "INACTIVE_PLACEMENT_REFUSED": True,
+        "STALE_OR_UNREVIEWED_PLACEMENT_REFUSED": True,
+        "_EFFECTIVE_SCOPE_FILTER_SQL_ENFORCES_GOVERNED_PLACEMENT": True,
+    }
+
+    non_conformes = [
+        f"{k}={verdicts.get(k)!r} (attendu {attendu!r})"
+        for k, attendu in exigences_c5.items()
+        if verdicts.get(k) != attendu
+    ]
+    if non_conformes:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"verdicts C5 non conformes : {', '.join(non_conformes)}",
+        }
+
+    summary = data.get("summary", {})
+    if summary.get("failed_proofs", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"échecs dans la suite d'épreuves C5 : {summary.get('failed_proofs')}",
+        }
+
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                "l autorité d accès refuse une portée non autorisée, prouvé par "
+                "épreuve (suite de 15 épreuves adversariales couvrant registre "
+                "d'identité, endpoint retrieval, mapping d'autorisation et "
+                "prédicat SQL de placement)"
+            ),
+            "refusals_verified_count": summary.get("passed_proofs", len(exigences_c5)),
+            "sha256_verified": True,
+            "verification": (
+                "Preuve d'exécution et de conformité cryptographique du harnais de "
+                "qualification d'autorité d'accès C5 : 15 scénarios de refus "
+                "stricts sans mutation, isolation prouvée au niveau contrat, "
+                "registre d'identité, endpoint de retrieval et prédicat SQL, "
+                "aucune portée non autorisée ne peut être servie."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "MANIFESTE_PRODUCTION (Le manifeste de production n'est pas encore signé)",
+            ],
+        },
+        "why": None,
+    }
+
+
 #: Un blocage sans vérificateur reste ouvert. La condition est écrite pour que
 #: son propriétaire sache ce qu'il doit produire, et pour qu'on ne la
 #: redécouvre pas à chaque lot.
@@ -437,7 +574,7 @@ BLOCAGES = (
      "sur un index de staging : les huit conditions de l écart de recherche "
      "doivent être tenues", verifier_c4),
     ("C5", "Autorite d acces et portees", "operateur",
-     "l autorité d accès refuse une portée non autorisée, prouvé par épreuve", None),
+     "l autorité d accès refuse une portée non autorisée, prouvé par épreuve", verifier_c5),
     ("C6", "Qualification CAS et couverture de magasin", "operateur",
      "la qualification CAS couvre le magasin réel", None),
     ("COCKPIT_E2E", "Cockpit bout en bout contre l API de retrieval", "operateur",

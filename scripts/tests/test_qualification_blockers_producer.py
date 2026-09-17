@@ -441,3 +441,86 @@ def test_verifier_rollback_sur_depot_reel():
     assert res["closed"] is True
     assert res["proof"]["rollback_pass"] is True
     assert res["proof"]["containers_remaining"] == 0
+
+
+def _poser_c5(tmp_path: Path, *, status="VERIFIED", failed_proofs=0, bad_verdict=False, tamper_sha=False):
+    evidence_dir = tmp_path / "docs/reports/evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    json_file = evidence_dir / "access_authority_c5_refusal_proof.json"
+    sha_file = evidence_dir / "access_authority_c5_refusal_proof.sha256"
+
+    verdicts = {
+        "UNKNOWN_SCOPE_ID_REFUSED": True,
+        "FORGED_SCOPE_ID_REFUSED": True,
+        "SCOPE_DIGEST_CORRUPTION_REFUSED": True,
+        "TARGET_LEVEL_DRIFT_REFUSED": True,
+        "CURRICULUM_LEVEL_DRIFT_REFUSED": True,
+        "CROSS_SUBJECT_DRIFT_REFUSED": True,
+        "OMITTED_CURRICULUM_SCOPE_REFUSED": True,
+        "AUTHORIZATION_MAPPING_INCOMPLETE_REFUSED": True,
+        "AUTHORIZATION_SET_V2_FALSIFIED_OR_DIVERGENT_REFUSED": True,
+        "CONTENT_OUTSIDE_AUTHORIZATION_REFUSED": True,
+        "OVERLAP_OR_DUPLICATION_REFUSED": True,
+        "DENORMALIZED_COLUMNS_CANNOT_WIDEN_AUTHORITY": True,
+        "INACTIVE_PLACEMENT_REFUSED": True,
+        "STALE_OR_UNREVIEWED_PLACEMENT_REFUSED": True,
+        "_EFFECTIVE_SCOPE_FILTER_SQL_ENFORCES_GOVERNED_PLACEMENT": True,
+    }
+    if bad_verdict:
+        verdicts["UNKNOWN_SCOPE_ID_REFUSED"] = False
+
+    data = {
+        "kind": "NEXUS-C5-ACCESS-AUTHORITY-REFUSAL-PROOF-V1",
+        "verification_status": status,
+        "summary": {
+            "total_adversarial_proofs": 15,
+            "passed_proofs": 15 - failed_proofs,
+            "failed_proofs": failed_proofs,
+        },
+        "verdicts": verdicts,
+    }
+    octets = (json.dumps(data, indent=2) + "\n").encode("utf-8")
+    json_file.write_bytes(octets)
+
+    if tamper_sha:
+        sha_file.write_text(f"{'0' * 64}  docs/reports/evidence/access_authority_c5_refusal_proof.json\n", encoding="utf-8")
+    else:
+        sha_file.write_text(f"{hashlib.sha256(octets).hexdigest()}  docs/reports/evidence/access_authority_c5_refusal_proof.json\n", encoding="utf-8")
+
+
+def test_verifier_c5_nominal(tmp_path):
+    _poser_c5(tmp_path)
+    res = blocages.verifier_c5(tmp_path)
+    assert res["closed"] is True
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["refusals_verified_count"] == 15
+
+
+def test_verifier_c5_refuse_si_fichier_json_absent(tmp_path):
+    res = blocages.verifier_c5(tmp_path)
+    assert res["closed"] is False
+    assert "manquante" in res["why"]
+
+
+def test_verifier_c5_refuse_si_sha_modifie(tmp_path):
+    _poser_c5(tmp_path, tamper_sha=True)
+    res = blocages.verifier_c5(tmp_path)
+    assert res["closed"] is False
+    assert "altérée" in res["why"]
+
+
+def test_verifier_c5_refuse_si_verdict_false(tmp_path):
+    _poser_c5(tmp_path, bad_verdict=True)
+    res = blocages.verifier_c5(tmp_path)
+    assert res["closed"] is False
+    assert "UNKNOWN_SCOPE_ID_REFUSED=False" in res["why"]
+
+
+def test_verifier_c5_sur_depot_reel():
+    racine = Path(__file__).resolve().parents[2]
+    res = blocages.verifier_c5(racine)
+    assert res["closed"] is True
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["refusals_verified_count"] >= 15
+

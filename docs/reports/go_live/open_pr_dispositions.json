@@ -16,9 +16,9 @@
       "reason": "Rapport de baseline go-live du 25/08, supersédé par le rapport pilote courant et par l'état calculé actuel. Un seul fichier, aucune donnée unique encore requise."
     },
     "138": {
-      "disposition": "HUMAN_DECISION_REQUIRED",
-      "measured": "BASE_REF!=main ; ADR_NUMBER_COLLISIONS=4 ; VIOLATES_ADR_0050=true ; ARBITRATION_DOSSIER_PREPARED=true ; RECOMMENDED_ACTION=CLOSE_WITHOUT_MERGE",
-      "reason": "Porte une sémantique de rescellement en place, interdite par ADR-0050 sur main, et 4 collisions d'ADR (ADR-0048 à ADR-0051). En conflit git majeur avec main. Dossier d'arbitrage formel préparé dans docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md avec recommandation de fermeture sans merge."
+      "disposition": "CLOSE_REJECTED",
+      "measured": "ARBITRATED_CLOSED=true ; GITHUB_STATE=closed ; GITHUB_MERGED=false ; VIOLATES_ADR_0050=true ; DOSSIER=HUMAN_DECISIONS_PR_138_140.md",
+      "reason": "Fermée sans merge suite à arbitrage formel humain (dossier docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md) : le rescellement de release proposé est caduc, en conflit majeur avec l'architecture ADR-0055/ADR-0057 et violerait ADR-0050. PR fermée sur GitHub le 16/09/2026 (merged=false, state=closed)."
     },
     "139": {
       "disposition": "MERGE_CANDIDATE",
@@ -26,9 +26,9 @@
       "reason": "Porte le registre de réservation de numéros d'ADR et son contrôle CI, qui corrigent un défaut présent sur main : ADR-0046 y désigne deux décisions distinctes. Aucun conflit, mergeable sur main actuel."
     },
     "140": {
-      "disposition": "HUMAN_DECISION_REQUIRED",
-      "measured": "CHANGED_FILES=343 ; GIT_CONFLICT=true ; ADR_NUMBER_COLLISIONS=4 ; ARBITRATION_DOSSIER_PREPARED=true ; RECOMMENDED_ACTION=CLOSE_WITHOUT_MERGE",
-      "reason": "Trunk d'intégration massif (lots 28-40) touchant 343 fichiers dont les composants ont été intégrés unitairement dans les lots ultérieurs. Son merge réintroduirait des régressions de contrat et d'autorité. Dossier d'arbitrage formel préparé dans docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md avec recommandation de fermeture sans merge."
+      "disposition": "CLOSE_SUPERSEDED",
+      "measured": "ARBITRATED_CLOSED=true ; GITHUB_STATE=closed ; GITHUB_MERGED=false ; CHANGED_FILES=343 ; DOSSIER=HUMAN_DECISIONS_PR_138_140.md",
+      "reason": "Fermée sans merge suite à arbitrage formel humain (dossier docs/reports/go_live/HUMAN_DECISIONS_PR_138_140.md) : trunk d'intégration obsolète de 343 fichiers dont les apports ont été intégrés unitairement lors des lots ultérieurs. Son merge réintroduirait des régressions massives sur les contrats actuels. PR fermée sur GitHub le 16/09/2026 (merged=false, state=closed)."
     },
     "151": {
       "disposition": "CLOSE_SUPERSEDED",
@@ -53,13 +53,10 @@
   },
   "kind": "NEXUS-OPEN-PR-DISPOSITIONS-V1",
   "note": "Chaque disposition est justifiée par une mesure, jamais par une intuition. Une PR sans disposition est UNKNOWN et bloque le gate, par construction.",
-  "observed_at_main_sha": "c2732183b1660409500e2792d6442b44e9d99d54",
+  "observed_at_main_sha": "eb0fb6a64190a4b6d8de6dbee7e4a2d61450bfcb",
   "summary": {
-    "blocking_open_prs": 2,
-    "blocking_pr_numbers": [
-      "138",
-      "140"
-    ],
+    "blocking_open_prs": 0,
+    "blocking_pr_numbers": [],
     "total_open_prs": 10
   }
 }
