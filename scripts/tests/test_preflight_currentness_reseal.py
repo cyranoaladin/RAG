@@ -182,3 +182,57 @@ def test_le_preflight_ne_lit_aucun_verdict_qu_il_ne_compose():
     for interdit in ("NOT_INDEXABLE_BY_ROLE", "BLOCKED_NO_URL_PROVENANCE",
                      "REFUSED_PROGRAM_INCOMPATIBLE"):
         assert interdit not in source
+
+
+# --- Statut PII des exclus : liste POSITIVE, échec fermé sur l'inconnu -------
+
+
+def _preflight_avec_pii(tmp_path, statuts: list[str]) -> dict:
+    shas = [_sha(chr(ord("a") + i)) for i in range(len(statuts))]
+    racine = _poser(tmp_path, {sha: ARCHIVE for sha in shas}, shas)
+    matrice = json.loads((racine / pf.MATRICE).read_text())
+    par_sha = dict(zip(shas, statuts))
+    for ligne in matrice["rows"]:
+        ligne["pii"] = par_sha[ligne["content_sha256"]]
+    (racine / pf.MATRICE).write_text(json.dumps(matrice), encoding="utf-8")
+    return pf.preflight(racine, "identite-neuve")
+
+
+@pytest.mark.parametrize(
+    "statuts",
+    [
+        ["PII_CLEARED"],
+        ["PII_CLEARED_OR_NOT_SCANNED"],
+        ["PII_CLEARED", "PII_CLEARED_OR_NOT_SCANNED"],
+    ],
+)
+def test_les_statuts_pii_clairs_passent(autorite_libre, tmp_path, statuts):
+    etat = _preflight_avec_pii(tmp_path, statuts)
+    assert etat["contents_to_exclude"]["all_pii_cleared"] is True
+    assert etat["preflight_passed"] is True
+
+
+@pytest.mark.parametrize(
+    "statuts",
+    [
+        ["PII_UNDECIDED"],
+        ["REJECTED"],
+        ["UNKNOWN"],
+        ["PII_CLEARED_V2_FUTURE"],
+        ["PII_CLEARED", "REJECTED"],
+        ["PII_CLEARED", "STATUT_QUE_CE_CODE_NE_CONNAIT_PAS"],
+        [""],
+    ],
+)
+def test_tout_autre_statut_pii_echoue_ferme(autorite_libre, tmp_path, statuts):
+    etat = _preflight_avec_pii(tmp_path, statuts)
+    assert etat["contents_to_exclude"]["all_pii_cleared"] is False
+    assert etat["preflight_passed"] is False
+    assert "excluded_content_has_undecided_pii" in etat["blocking_findings"]
+
+
+def test_la_liste_positive_est_exactement_celle_decidee():
+    assert pf.PII_CLEAR_FOR_CURRENTNESS_RESEAL == {
+        "PII_CLEARED",
+        "PII_CLEARED_OR_NOT_SCANNED",
+    }

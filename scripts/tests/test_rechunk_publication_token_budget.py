@@ -146,10 +146,24 @@ def test_les_contenus_sans_texte_extractible_sont_nommes(rapport):
     )
 
 
+def _aligne_sur_l_ecart_ou_refus_declare(empreinte_du_rapport: str, ecart: dict) -> None:
+    """Un rapport d'exécution est un fait DATÉ : il nomme le périmètre qu'il a
+    traité. Quand la matrice admet de nouveaux contenus, ce périmètre cesse
+    d'être la cible — et c'est légitime, à une condition : que l'écart de
+    recherche le DISE et refuse. Un rapport désaligné sous un écart qui se
+    déclare interrogeable serait la preuve périmée que ce garde interdit."""
+    if empreinte_du_rapport == ecart["indexable_scope"]["indexable_digest"]:
+        return
+    assert ecart["target_scope_searchable"] is False
+    assert ecart["rag_searchability_blocker"] is True
+    assert ecart["freshness"]["stale_proof_detected"] is True
+
+
 def test_le_perimetre_est_celui_de_l_ecart(rapport):
-    ecart = json.loads(ECART.read_text(encoding="utf-8"))["indexable_scope"]
-    assert rapport["input_digest"] == ecart["indexable_digest"]
-    assert rapport["authorized_contents"] == ecart["count"]
+    ecart = json.loads(ECART.read_text(encoding="utf-8"))
+    _aligne_sur_l_ecart_ou_refus_declare(rapport["input_digest"], ecart)
+    if rapport["input_digest"] == ecart["indexable_scope"]["indexable_digest"]:
+        assert rapport["authorized_contents"] == ecart["indexable_scope"]["count"]
 
 
 def test_aucune_exclusion_n_est_violee(rapport):

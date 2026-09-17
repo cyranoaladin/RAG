@@ -24,13 +24,17 @@ import os
 import statistics
 import sys
 import time
+from datetime import UTC, datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from servable_target import empreinte_ensemble, perimetre_courant  # noqa: E402
 
 KIND = "NEXUS-RETRIEVAL-CONTRACT-VALIDATION-V1"
 
 SORTIE_JSON = "docs/reports/go_live/retrieval_contract_validation.json"
 SORTIE_MD = "docs/reports/go_live/RETRIEVAL_CONTRACT_VALIDATION.md"
-ECART = "docs/reports/go_live/rag_searchability_gap.json"
 BUDGET_LATENCE = "docs/reports/go_live/retrieval_latency_budget.json"
 
 VAR_DEDIEE = "DEDICATED_VECTOR_DB_URL"
@@ -454,10 +458,12 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
     try:
         import psycopg  # noqa: PLC0415
 
-        ecart = json.loads((racine / ECART).read_text(encoding="utf-8"))
-        perimetre = ecart["indexable_scope"]
-        autorises = set(perimetre["indexable"])
-        refuses = set(perimetre["never_indexable"])
+        # Le périmètre se lit à la MATRICE courante, pas dans un écart déjà
+        # écrit : une validation conduite contre l'ancien périmètre prouverait
+        # le contrat d'un ensemble qui n'est plus la cible.
+        cible = perimetre_courant(racine)
+        autorises = set(cible.contenus)
+        refuses = set(cible.refuses)
         dsn = _variable(VAR_DEDIEE)
 
         lignes_meta = 0
@@ -479,6 +485,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
                 f"SELECT count(DISTINCT content_sha256) FROM {SCHEMA}.{TABLE_VECTEURS}"
             )
             contenus = cur.fetchone()[0]
+            cur.execute(
+                f"SELECT DISTINCT content_sha256 FROM {SCHEMA}.{TABLE_VECTEURS}"
+            )
+            ensemble_vectorise = {ligne[0] for ligne in cur.fetchall()}
 
             resultats, latences = [], []
             for question, _ in REQUETES:
@@ -552,6 +562,13 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
                 "vector_rows": vecteurs,
                 "vectorized_contents": contenus,
             },
+            # Ce que cette validation a RÉELLEMENT couvert. C4 confronte ces
+            # empreintes au périmètre courant : une validation conduite sur un
+            # autre ensemble ne ferme rien, même à cardinal égal.
+            "target_scope": cible.en_dict(),
+            "vectorized_content_count": len(ensemble_vectorise),
+            "vectorized_content_set_sha256": empreinte_ensemble(ensemble_vectorise),
+            "observed_at": datetime.now(UTC).isoformat(),
             "top_k": arguments.top_k,
             "conditions": conditions,
             "measured": mesures,

@@ -19,11 +19,22 @@ observé serait aussi faux que de prononcer `true`.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from servable_target import (  # noqa: E402
+    MATRICE,  # noqa: F401 — réexporté : les épreuves et l'aval le lisent ici
+    VERDICT_CANDIDAT,  # noqa: F401
+    CLASSE_PREUVE_PERIMEE,
+    PRIORITE_PREUVE_PERIMEE,
+    MatriceInexploitable,
+    empreinte_ensemble,
+    perimetre_courant,
+)
 
 KIND = "NEXUS-RAG-SEARCHABILITY-GAP-V1"
 
@@ -38,11 +49,8 @@ MAGASIN_VECTEURS = "docs/reports/go_live/vector_store_audit.json"
 #: pas plus honnete qu un ecart qui en invente une.
 VALIDATION_RETRIEVAL = "docs/reports/go_live/retrieval_contract_validation.json"
 INVENTAIRE = "docs/reports/go_live/drive_corpus_inventory.json"
-MATRICE = "docs/reports/handoff/servability_matrix_v1.json"
-
-#: Le seul verdict qui autorise l'indexation. Tout autre verdict est un refus,
-#: et un contenu refusé ne doit jamais devenir atteignable par une requête.
-VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
+#: MATRICE et VERDICT_CANDIDAT viennent de `servable_target`, seule dérivation
+#: du périmètre : un contenu refusé ne doit jamais devenir atteignable.
 
 #: Les conditions de fermeture. Toutes doivent être vraies ; aucune ne suffit.
 #: Des vecteurs sans retrieval validé ne servent personne, et un retrieval
@@ -63,15 +71,57 @@ class EntreeManquante(RuntimeError):
     """Une entrée nécessaire au calcul est absente ou inexploitable."""
 
 
-def _empreinte(identifiants) -> str:
-    """Empreinte stable d'un ensemble d'identifiants.
+_empreinte = empreinte_ensemble
 
-    Triée, une ligne par identifiant, saut de ligne final : un aval peut la
-    recalculer sans connaître ce code, et constater qu'on lui a donné
-    exactement l'ensemble annoncé.
+
+def lier_au_perimetre(cible_count: int, cible_digest: str, magasin: dict, retrieval: dict) -> dict:
+    """Confronte chaque preuve à l'ENSEMBLE courant, pas à son cardinal.
+
+    Un magasin portant le bon nombre de mauvais contenus satisfaisait l'ancien
+    contrôle (`vectorisés >= cible`). Ici seule l'égalité d'empreintes ferme,
+    et une empreinte absente est un refus : une preuve qui ne dit pas ce
+    qu'elle a couvert n'a rien couvert de vérifiable.
     """
-    corps = "".join(f"{i}\n" for i in sorted(identifiants))
-    return hashlib.sha256(corps.encode("utf-8")).hexdigest()
+    dediee = magasin.get("dedicated", {})
+    perimetre_retrieval = retrieval.get("target_scope") or {}
+    liens = {
+        "allowlist_set_equals_target": (
+            dediee.get("actual_allowlist_content_set_sha256") == cible_digest
+            and dediee.get("actual_allowlist_content_count") == cible_count
+        ),
+        "vectorized_set_equals_target": (
+            dediee.get("actual_vectorized_content_set_sha256") == cible_digest
+            and dediee.get("actual_vectorized_content_count") == cible_count
+        ),
+        "retrieval_validated_on_target": (
+            perimetre_retrieval.get("content_set_sha256") == cible_digest
+            and retrieval.get("vectorized_content_set_sha256") == cible_digest
+        ),
+    }
+    perimees = sorted(nom for nom, tenu in liens.items() if not tenu)
+    return {
+        "target_count": cible_count,
+        "target_content_set_sha256": cible_digest,
+        "actual_allowlist_content_count": dediee.get("actual_allowlist_content_count"),
+        "actual_allowlist_content_set_sha256": dediee.get(
+            "actual_allowlist_content_set_sha256"
+        ),
+        "actual_vectorized_content_count": dediee.get(
+            "actual_vectorized_content_count"
+        ),
+        "actual_vectorized_content_set_sha256": dediee.get(
+            "actual_vectorized_content_set_sha256"
+        ),
+        "retrieval_target_content_set_sha256": perimetre_retrieval.get(
+            "content_set_sha256"
+        ),
+        "retrieval_observed_at": retrieval.get("observed_at"),
+        "bindings": liens,
+        "stale_proof_detected": bool(perimees),
+        "stale_bindings": perimees,
+        "classification": CLASSE_PREUVE_PERIMEE if perimees else None,
+        "priority": PRIORITE_PREUVE_PERIMEE if perimees else None,
+    }
 
 
 def racine_depot() -> Path:
@@ -97,7 +147,8 @@ def construire(racine: Path) -> dict:
     # Entree OBLIGATOIRE : sans elle on ne sait pas ou sont les vecteurs, et
     # retomber sur la base de revue serait exactement l erreur a corriger.
     magasin = _lire(racine, MAGASIN_VECTEURS)
-    retrieval = _lire(racine, VALIDATION_RETRIEVAL)["conditions"]
+    validation = _lire(racine, VALIDATION_RETRIEVAL)
+    retrieval = validation["conditions"]
 
     colonnes = 1 if magasin["staging_vectors_present"] else 0
     extension = bool(magasin["dedicated"]["vector_extension"])
@@ -108,18 +159,15 @@ def construire(racine: Path) -> dict:
     # exigerait d'indexer les contenus que le gate refuse — un index construit
     # sur eux deviendrait une porte dérobée autour du gate, et la condition
     # serait inatteignable sans violer la règle qui l'accompagne.
-    lignes = json.loads((racine / MATRICE).read_text(encoding="utf-8"))["rows"]
-    indexables = {
-        ligne["content_sha256"]
-        for ligne in lignes
-        if ligne["verdict"] == VERDICT_CANDIDAT
-    }
-    refuses = {
-        ligne["content_sha256"]
-        for ligne in lignes
-        if ligne["verdict"] != VERDICT_CANDIDAT
-    }
-    cible = len(indexables)
+    try:
+        perimetre = perimetre_courant(racine)
+    except MatriceInexploitable as erreur:
+        raise EntreeManquante(str(erreur)) from erreur
+    indexables = set(perimetre.contenus)
+    refuses = set(perimetre.refuses)
+    cible = perimetre.count
+    fraicheur = lier_au_perimetre(cible, perimetre.digest, magasin, validation)
+    liens = fraicheur["bindings"]
 
     # Mesure prise sur la base DEDIEE, la seule qui porte des vecteurs.
     vecteurs = magasin["staging_vectors_present"] if extension else 0
@@ -130,18 +178,31 @@ def construire(racine: Path) -> dict:
     conditions = {
         "staging_vectors_present": vecteurs > 0,
         "vector_dimensions_consistent": bool(magasin["vector_dimensions_consistent"]),
-        "retrieval_top_k_validated": bool(retrieval["retrieval_top_k_validated"]),
-        "citations_validated": bool(retrieval["citations_validated"]),
-        "scope_filters_validated": bool(retrieval["scope_filters_validated"]),
-        "latency_validated": bool(retrieval["latency_validated"]),
+        # Une propriété de retrieval mesurée sur un AUTRE ensemble n'est pas
+        # une propriété du périmètre courant : la validation doit nommer
+        # l'empreinte qu'elle a couverte, et ce doit être celle d'aujourd'hui.
+        **{
+            nom: bool(retrieval[nom]) and liens["retrieval_validated_on_target"]
+            for nom in (
+                "retrieval_top_k_validated",
+                "citations_validated",
+                "scope_filters_validated",
+                "latency_validated",
+            )
+        },
+        # Le retour arrière est éprouvé sur un conteneur jetable : il ne dépend
+        # pas du périmètre indexé.
         "rollback_validated": bool(retrieval["rollback_validated"]),
         # La cible se juge en CONTENUS couverts, pas en nombre de vecteurs :
         # 54 719 vecteurs sur 3 contenus ne rendraient pas le perimetre
         # interrogeable, et comparer un compte de vecteurs a un compte de
         # contenus etait une comparaison entre deux choses differentes.
-        "target_scope_searchable": (
+        # … et en ENSEMBLE, pas en cardinal : un magasin portant le bon
+        # nombre de mauvais contenus ne couvre pas le périmètre.
+        "target_scope_searchable": bool(
             cible > 0
-            and contenus_vectorises >= cible
+            and liens["allowlist_set_equals_target"]
+            and liens["vectorized_set_equals_target"]
             and magasin["vector_dimensions_consistent"]
         ),
     }
@@ -167,8 +228,10 @@ def construire(racine: Path) -> dict:
             # et elle doit venir d'ici — le seul endroit qui lit la matrice
             # pour définir ce périmètre.
             "indexable": sorted(indexables),
-            "indexable_digest": _empreinte(indexables),
+            "indexable_digest": perimetre.digest,
+            "matrix_sha256": perimetre.matrix_sha256,
         },
+        "freshness": fraicheur,
         "measured": {
             "canonical_text_in_staging": audit["ingested"]["avec_texte_canonique"],
             "ingested_contents": ingérés,

@@ -35,6 +35,18 @@ VERDICT_ARCHIVE = "BLOCKED_NOT_CURRENT_BY_SOURCE"
 VERDICT_PII = "BLOCKED_PII_HUMAN_REVIEW"
 VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
 
+#: Liste POSITIVE des statuts PII admis pour un contenu qu'on exclut au titre
+#: de l'actualité. L'égalité stricte à l'ancien statut unique refusait
+#: `PII_CLEARED`, que l'import des décisions humaines a rendu valide. La
+#: négation (`!= PII_UNDECIDED`) échouerait OUVERT sur REJECTED ou sur un
+#: statut futur inconnu. Ici, tout ce qui n'est pas nommé est un refus.
+PII_CLEAR_FOR_CURRENTNESS_RESEAL = frozenset(
+    {
+        "PII_CLEARED",
+        "PII_CLEARED_OR_NOT_SCANNED",
+    }
+)
+
 class EntreeManquante(RuntimeError):
     """Une entrée nécessaire au préflight est absente ou inexploitable."""
 
@@ -156,7 +168,7 @@ def preflight(racine: Path, identite_proposee: str) -> dict:
     )
 
     pii_des_exclus = {par_contenu[sha]["pii"] for sha in a_exclure}
-    tous_pii_clairs = pii_des_exclus == {"PII_CLEARED_OR_NOT_SCANNED"} if a_exclure else False
+    tous_pii_clairs = bool(a_exclure) and pii_des_exclus <= PII_CLEAR_FOR_CURRENTNESS_RESEAL
     aucun_pii_touche = not (set(a_exclure) & set(promus_pii))
 
     return {

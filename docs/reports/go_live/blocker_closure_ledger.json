@@ -2,11 +2,11 @@
  "blockers": [
   {
    "automation_possible": true,
-   "blocking": false,
+   "blocking": true,
    "blocking_when": "value is true",
    "category": "DATA",
    "close_condition": "toutes les conditions de fermeture de l ecart de recherche sont tenues, mesurees et non supposees",
-   "current_value": false,
+   "current_value": true,
    "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
    "evidence_source": "docs/reports/go_live/rag_searchability_gap.json (derive de l audit d ingestion sur une base nommee)",
    "human_decision_required": false,
@@ -111,7 +111,7 @@
    "blocking_when": "value > 0",
    "category": "QUALIFICATION",
    "close_condition": "Chaque entree du tableau porte closed=true et sa preuve.",
-   "current_value": 4,
+   "current_value": 6,
    "deployment_dependency": "BLOQUE_LE_DEPLOIEMENT",
    "evidence_source": "docs/reports/go_live/qualification_blockers.json",
    "human_decision_required": true,
@@ -167,9 +167,9 @@
    "required_action": "Rien directement. Ce compteur DERIVE de PII, programme et actualite. Le fermer par lui-meme reviendrait a maquiller les trois."
   }
  ],
- "blockers_open": 2,
+ "blockers_open": 3,
  "blockers_total": 9,
- "evaluated_head": "c0ee319299c570d5b110c1543ddf1f1c7ca1c891",
+ "evaluated_head": "a75550e411159cbbe2b8ad462f23d8e7d3270706",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_ready": false,
  "kind": "NEXUS-BLOCKER-CLOSURE-LEDGER-V1",
