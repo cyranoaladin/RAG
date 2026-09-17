@@ -179,13 +179,47 @@
       "why_still_open": "statut CONCURRENCE non VERIFIED : BUDGET_FAILED"
     },
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "une synchronisation incrémentale est prouvée sans perte ni doublon",
       "id": "SYNC_INCREMENTALE",
       "owner": "operateur",
-      "proof": null,
+      "proof": {
+        "cardinalities_final": {
+          "rag_artifact_placements": 11,
+          "rag_artifacts": 11,
+          "rag_chunks": 353
+        },
+        "cardinalities_initial": {
+          "rag_artifact_placements": 9,
+          "rag_artifacts": 9,
+          "rag_chunks": 279
+        },
+        "condition": "synchronisation incrémentale append-only prouvée sans perte ni doublon sur le commit 52f80f6c7a2171498b9fe713d6b7bf7ff0720098 : état initial de 9 artefacts, delta de 2 artefacts ingéré par resoumission de la liste complète, run répété idempotent, pipeline gouverné et embeddings réels",
+        "delta_published": 2,
+        "digest_existing_rows_after_sync": "c847ff6d6ba09b3562dc578b9c9b3f8c7ca29e4975cb6a5f011a4f85e112d706",
+        "digest_final": "c41ed5607571e7ee67b9cb185f0624a676a4f1da748ad87ca61f640281bb7729",
+        "digest_initial": "c847ff6d6ba09b3562dc578b9c9b3f8c7ca29e4975cb6a5f011a4f85e112d706",
+        "does_not_close": [
+          "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+          "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+          "CONCURRENCE (Comportement sous concurrence)",
+          "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+          "PII_UNDECIDED (149 contenus PII undecided)",
+          "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+          "le remplacement ou le retrait d un contenu servi : le modèle métier ne les prévoit pas",
+          "le saut gracieux d une source déjà synchronisée : une resoumission aveugle est rejetée par contrainte d unicité (job en retry), sans effet sur le magasin produit",
+          "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)"
+        ],
+        "executed_command": "python3 scripts/qualification/verify_incremental_sync.py --run",
+        "modification_semantics": "artifact_id = content_sha256 : un contenu modifié est un autre artefact, refusé tant qu aucune autorité scellée ne le nomme ; aucun remplacement ni supersession n existe",
+        "observed_at_main_sha": "52f80f6c7a2171498b9fe713d6b7bf7ff0720098",
+        "replays_without_embedding": 11,
+        "sha256_verified": true,
+        "verification": "Verdict RECALCULÉ depuis les observations brutes scellées : cardinalités et ensembles de chunk_id confrontés à la release, digest des lignes existantes inchangé, delta exact, aucun ré-embedding au rejeu, contenu modifié jamais publié, privilèges append-only constatés.",
+        "withdrawal_supported_by_business_model": false
+      },
       "titre": "Synchronisation incrementale",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": true,
@@ -241,8 +275,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 8,
+  "closed_count": 9,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 5
+  "open_count": 4
 }

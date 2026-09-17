@@ -1,7 +1,7 @@
 # Blocages de qualification du go-live
 
 - kind : `NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2`
-- ouverts : **5** / fermés : 8
+- ouverts : **4** / fermés : 9
 
 > État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.
 
@@ -16,7 +16,7 @@
 | `COCKPIT_E2E` | operateur | **oui** | le cockpit interroge l API de retrieval de bout en bout |
 | `STAGING_EXTERNE` | operateur | **non** | un staging externe est ingéré puis qualifié |
 | `CONCURRENCE` | operateur | **non** | le comportement sous concurrence est mesuré et borné |
-| `SYNC_INCREMENTALE` | operateur | **non** | une synchronisation incrémentale est prouvée sans perte ni doublon |
+| `SYNC_INCREMENTALE` | operateur | **oui** | une synchronisation incrémentale est prouvée sans perte ni doublon |
 | `ROLLBACK` | operateur | **oui** | le rollback de la RELEASE de production est éprouvé. Le rollback de la base vectorielle de staging, prouvé au lot BK, ne ferme pas celui-ci : ce ne sont pas les mêmes objets |
 | `MANIFESTE_PRODUCTION` | operateur | **non** | un manifeste de readiness de production est signé |
 | `NON_PDF_REACQUISITION` | operateur | **oui** | les 37 ressources servables sont présentes au store durable canonique, taille et SHA-256 conformes |
@@ -111,6 +111,23 @@ Ce que cette fermeture ne ferme pas :
 - MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)
 - PII_UNDECIDED (149 contenus PII undecided)
 - RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)
+- GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)
+
+### `SYNC_INCREMENTALE`
+
+- condition : une synchronisation incrémentale est prouvée sans perte ni doublon
+- vérification : Verdict RECALCULÉ depuis les observations brutes scellées : cardinalités et ensembles de chunk_id confrontés à la release, digest des lignes existantes inchangé, delta exact, aucun ré-embedding au rejeu, contenu modifié jamais publié, privilèges append-only constatés.
+
+Ce que cette fermeture ne ferme pas :
+
+- C1 (Autorité de release et couverture promue : 26 contenus refusés promus)
+- STAGING_EXTERNE (Staging externe ingéré et qualifié)
+- CONCURRENCE (Comportement sous concurrence)
+- MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)
+- PII_UNDECIDED (149 contenus PII undecided)
+- RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)
+- le remplacement ou le retrait d un contenu servi : le modèle métier ne les prévoit pas
+- le saut gracieux d une source déjà synchronisée : une resoumission aveugle est rejetée par contrainte d unicité (job en retry), sans effet sur le magasin produit
 - GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)
 
 ### `ROLLBACK`

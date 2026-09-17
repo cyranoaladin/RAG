@@ -15,7 +15,7 @@
 | `PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET` | 0 | non | HUMAN_DECISION | Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique. |
 | `CURRENTNESS_POLICY_APPLIED` | True | non | ENGINEERING | Un consommateur de production applique la politique et le gate le constate ; un registre seulement present ne suffit pas. |
 | `NON_PDF_SERVABLE_REACQUIRED` | 37/37 | non | OPERATOR | Octets disponibles pour chaque ressource servable, empreintes concordantes, ou exclusion gouvernee. |
-| `GO_LIVE_QUALIFICATION_BLOCKERS` | 5 | oui | MIXED | Chaque entree du tableau porte closed=true et sa preuve. |
+| `GO_LIVE_QUALIFICATION_BLOCKERS` | 4 | oui | MIXED | Chaque entree du tableau porte closed=true et sa preuve. |
 | `OPEN_PRS_BLOCKING` | 0 | non | HUMAN_DECISION | Aucune disposition BLOCKING ni UNKNOWN. |
 | `PRE_RELEASE_BLOCKERS` | 1 | oui | DERIVED | Se ferme seul quand ses trois sources se ferment. |
 
@@ -90,7 +90,7 @@
 ### GO_LIVE_QUALIFICATION_BLOCKERS
 
 - categorie : `QUALIFICATION`
-- valeur : `5`, bloque : `oui`
+- valeur : `4`, bloque : `oui`
 - source de preuve : `docs/reports/go_live/qualification_blockers.json`
 - action requise : Fermer chaque gate avec sa preuve. Fermer les bloqueurs metier ne suffit PAS a deployer : ces gates-la restent entiers.
 - decision humaine requise : `oui`

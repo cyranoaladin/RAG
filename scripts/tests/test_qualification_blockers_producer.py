@@ -1478,3 +1478,233 @@ def test_verifier_concurrence_sur_depot_reel():
         assert res["closed"] is False
         assert res["proof"] is None
         assert "VERIFIED" in res["why"]
+
+
+# --- SYNC_INCREMENTALE (lot BT) ---------------------------------------------
+
+
+def _produit(artefacts: int, chunks: int, empreinte: str) -> dict:
+    return {
+        "counts": {"rag_artifacts": artefacts, "rag_artifact_placements": artefacts, "rag_chunks": chunks},
+        "content_sha256": empreinte * 64,
+        "chunk_id_set_sha256": empreinte * 64,
+        "chunks_without_vector": 0,
+        "duplicates": {"rag_artifacts": 0, "rag_artifact_placements": 0, "rag_chunks": 0},
+    }
+
+
+def _observations_sync() -> dict:
+    controle = {"resources_by_state": {"RETRIEVAL_ELIGIBLE": 3}, "duplicate_resources": 0, "stored_artifacts": 3}
+    return {
+        "kind": "NEXUS-INCREMENTAL-SYNC-RAW-OBSERVATIONS-V1",
+        "real_engine": {"mock_detected": False},
+        "release_expected": {"artifacts": 3, "placements": 3, "chunks": 30},
+        "wave_one": {"content_sha256": ["1" * 64, "2" * 64]},
+        "wave_two": {"content_sha256": ["3" * 64]},
+        "empty_state": _produit(0, 0, "0"),
+        "initial_state": {
+            "publications": [{"content_sha256": "1" * 64, "embedded": True}, {"content_sha256": "2" * 64, "embedded": True}],
+            "product": _produit(2, 20, "a"),
+            "expected_chunk_id_set_sha256": "a" * 64,
+            "expected_chunks": 20,
+            "full_release_ready": False,
+            "control": controle,
+        },
+        "modification_attempt": {
+            "modified_content_sha256": "9" * 64,
+            "worker_outcomes": [{"worked": True, "status": "failed", "error": "content"}],
+            "modified_content_in_product": 0,
+            "publications_triggered": [],
+            "product_after": _produit(2, 20, "a"),
+        },
+        "incremental_run": {
+            "sources_submitted": 3,
+            "publications": [{"content_sha256": "3" * 64, "embedded": True}],
+            "product": _produit(3, 30, "b"),
+            "wave_one_rows_after": {**_produit(2, 20, "a")},
+            "expected_chunk_id_set_sha256": "b" * 64,
+            "full_release_ready": True,
+            "control": controle,
+        },
+        "repeated_run": {
+            "replayed_publications": 3,
+            "replays": [{"status": "succeeded", "embedded": False}] * 3,
+            "product": _produit(3, 30, "b"),
+            "control": controle,
+        },
+        "withdrawal": {
+            "supported_by_business_model": False,
+            "publisher_privileges": {t: ["INSERT", "SELECT"] for t in ("rag_artifacts", "rag_artifact_placements", "rag_chunks")},
+        },
+    }
+
+
+def _poser_sync(racine: Path, muter=None, *, tamper_sha=False) -> None:
+    preuve = {
+        "kind": "NEXUS-INCREMENTAL-SYNC-PROOF-V1",
+        "verification_status": "VERIFIED",
+        "observed_at_main_sha": blocages.SYNC_MAIN_SHA_ATTENDU,
+        "executed_command": "python3 scripts/qualification/verify_incremental_sync.py --run",
+        "observations": _observations_sync(),
+        "teardown": {
+            "docker_residues_after_test": 0,
+            "production_touched": False,
+            "production_db_writes": 0,
+            "production_deployments": 0,
+            "current_switch": 0,
+        },
+    }
+    if muter:
+        muter(preuve)
+    dossier = racine / "docs/reports/evidence"
+    dossier.mkdir(parents=True, exist_ok=True)
+    octets = (json.dumps(preuve, indent=2, sort_keys=True) + "\n").encode()
+    (dossier / "incremental_sync_proof.json").write_bytes(octets)
+    digest = "f" * 64 if tamper_sha else hashlib.sha256(octets).hexdigest()
+    (dossier / "incremental_sync_proof.sha256").write_text(
+        f"{digest}  docs/reports/evidence/incremental_sync_proof.json\n", encoding="utf-8"
+    )
+
+
+def _refus_sync(tmp_path, muter=None, **kw) -> str:
+    _poser_sync(tmp_path, muter, **kw)
+    res = blocages.verifier_sync_incrementale(tmp_path)
+    assert res["closed"] is False
+    assert res["proof"] is None
+    return res["why"]
+
+
+def test_verifier_sync_nominal(tmp_path):
+    _poser_sync(tmp_path)
+    res = blocages.verifier_sync_incrementale(tmp_path)
+    assert res["closed"] is True, res["why"]
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["withdrawal_supported_by_business_model"] is False
+    assert any("STAGING_EXTERNE" in x for x in res["proof"]["does_not_close"])
+
+
+def test_verifier_sync_refuse_preuve_absente(tmp_path):
+    res = blocages.verifier_sync_incrementale(tmp_path)
+    assert res["closed"] is False and res["proof"] is None and "manquante" in res["why"]
+
+
+def test_verifier_sync_refuse_preuve_alteree(tmp_path):
+    assert "altération" in _refus_sync(tmp_path, tamper_sha=True)
+
+
+def test_verifier_sync_refuse_statut_et_stale(tmp_path):
+    def m(p):
+        p["verification_status"] = "SYNC_FAILED"
+    assert "VERIFIED" in _refus_sync(tmp_path, m)
+
+    def m2(p):
+        p["observed_at_main_sha"] = "0" * 40
+    assert "stale" in _refus_sync(tmp_path, m2)
+
+
+def test_verifier_sync_refuse_mock(tmp_path):
+    def m(p):
+        p["observations"]["real_engine"]["mock_detected"] = True
+    assert "mock" in _refus_sync(tmp_path, m)
+
+
+def test_verifier_sync_refuse_environnement_non_vierge(tmp_path):
+    def m(p):
+        p["observations"]["empty_state"]["counts"]["rag_chunks"] = 4
+    assert "vierge" in _refus_sync(tmp_path, m)
+
+
+def test_verifier_sync_refuse_perte(tmp_path):
+    def m(p):
+        p["observations"]["incremental_run"]["product"]["counts"]["rag_chunks"] = 29
+    assert "perte" in _refus_sync(tmp_path, m)
+
+    def m2(p):
+        p["observations"]["incremental_run"]["full_release_ready"] = False
+    assert "perte" in _refus_sync(tmp_path, m2)
+
+    def m3(p):
+        p["observations"]["incremental_run"]["product"]["chunk_id_set_sha256"] = "c" * 64
+    assert "chunk" in _refus_sync(tmp_path, m3)
+
+
+def test_verifier_sync_refuse_detecteur_de_perte_vacant(tmp_path):
+    """Si l'état partiel est déclaré « prêt », le détecteur de perte ne détecte rien."""
+    def m(p):
+        p["observations"]["initial_state"]["full_release_ready"] = True
+    assert "détecteur" in _refus_sync(tmp_path, m)
+
+
+def test_verifier_sync_refuse_doublon(tmp_path):
+    def m(p):
+        p["observations"]["repeated_run"]["product"]["duplicates"]["rag_chunks"] = 1
+    assert "doublon" in _refus_sync(tmp_path, m)
+
+    def m2(p):
+        p["observations"]["incremental_run"]["control"]["duplicate_resources"] = 1
+    assert "doublon" in _refus_sync(tmp_path, m2)
+
+
+def test_verifier_sync_refuse_derive_de_l_existant(tmp_path):
+    def m(p):
+        p["observations"]["incremental_run"]["wave_one_rows_after"]["content_sha256"] = "d" * 64
+    assert "dérive" in _refus_sync(tmp_path, m)
+
+
+def test_verifier_sync_refuse_reingestion_inutile(tmp_path):
+    def m(p):
+        p["observations"]["incremental_run"]["publications"].append({"content_sha256": "1" * 64, "embedded": True})
+    assert "delta" in _refus_sync(tmp_path, m)
+
+    def m2(p):
+        p["observations"]["repeated_run"]["replays"][0]["embedded"] = True
+    assert "ré-embedd" in _refus_sync(tmp_path, m2)
+
+
+def test_verifier_sync_refuse_run_repete_non_idempotent(tmp_path):
+    def m(p):
+        p["observations"]["repeated_run"]["product"]["content_sha256"] = "e" * 64
+    assert "idempot" in _refus_sync(tmp_path, m)
+
+    def m2(p):
+        p["observations"]["repeated_run"]["replays"] = p["observations"]["repeated_run"]["replays"][:1]
+    assert "idempot" in _refus_sync(tmp_path, m2)
+
+
+def test_verifier_sync_refuse_modification_atteignant_le_produit(tmp_path):
+    def m(p):
+        p["observations"]["modification_attempt"]["modified_content_in_product"] = 1
+    assert "modifi" in _refus_sync(tmp_path, m)
+
+    def m2(p):
+        p["observations"]["modification_attempt"]["product_after"]["content_sha256"] = "e" * 64
+    assert "modifi" in _refus_sync(tmp_path, m2)
+
+    def m3(p):
+        p["observations"]["modification_attempt"]["worker_outcomes"] = []
+    assert "modifi" in _refus_sync(tmp_path, m3)
+
+
+def test_verifier_sync_refuse_append_only_non_demontre(tmp_path):
+    def m(p):
+        p["observations"]["withdrawal"]["publisher_privileges"]["rag_chunks"].append("DELETE")
+    assert "append-only" in _refus_sync(tmp_path, m)
+
+
+@pytest.mark.parametrize(
+    ("cle", "valeur"),
+    [("production_db_writes", 1), ("production_deployments", 1), ("current_switch", 1),
+     ("production_touched", True), ("docker_residues_after_test", 1)],
+)
+def test_verifier_sync_refuse_production_ou_residus(tmp_path, cle, valeur):
+    def m(p):
+        p["teardown"][cle] = valeur
+    assert cle in _refus_sync(tmp_path, m)
+
+
+def test_verifier_sync_sur_depot_reel():
+    """État DÉRIVÉ du statut scellé : seule une preuve VERIFIED ferme."""
+    preuve = json.loads((RACINE / blocages.SYNC_PREUVE).read_text(encoding="utf-8"))
+    res = blocages.verifier_sync_incrementale(RACINE)
+    assert res["closed"] is (preuve["verification_status"] == "VERIFIED"), res["why"]
+    assert (res["proof"] is not None) is res["closed"]
