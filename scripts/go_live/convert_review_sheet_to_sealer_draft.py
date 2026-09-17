@@ -25,6 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import build_complete_pii_review_index as complet  # noqa: E402
 import build_promoted_restricted_review_index as restreint  # noqa: E402
 import validate_pii_currentness_review_sheet as validateur  # noqa: E402
 
@@ -42,21 +43,35 @@ class ConversionRefusee(RuntimeError):
 
 
 def convertir(
-    racine: Path, feuille: Path, *, decision_set_id: str, corpus_manifest_sha256: str, decided_at: str
+    racine: Path,
+    feuille: Path,
+    *,
+    decision_set_id: str,
+    corpus_manifest_sha256: str,
+    decided_at: str,
+    index_relatif: str | None = None,
 ) -> dict:
-    ecarts = restreint.valider(racine)
-    if ecarts:
-        raise ConversionRefusee(f"index de revue restreint invalide : {ecarts}")
     bilan = validateur.valider(racine, feuille)
     if bilan["errors"]:
         raise ConversionRefusee(f"feuille invalide ({len(bilan['errors'])} erreur(s)) : {bilan['errors'][:3]}")
     if not bilan["sealable"]:
         raise ConversionRefusee(f"feuille non scellable : contenus PII encore en attente {bilan.get('pii')}")
+
+    if index_relatif is None:
+        index_relatif = complet.SORTIE if bilan["pii"]["decided"] == 149 else restreint.SORTIE
+
+    if index_relatif == complet.SORTIE:
+        ecarts = complet.valider(racine)
+    else:
+        ecarts = restreint.valider(racine)
+    if ecarts:
+        raise ConversionRefusee(f"index de revue {index_relatif} invalide : {ecarts}")
+
     moment = datetime.fromisoformat(decided_at)
     if moment.tzinfo is None:
         raise ConversionRefusee("--decided-at doit porter un fuseau horaire")
 
-    index = json.loads((racine / restreint.SORTIE).read_text(encoding="utf-8"))
+    index = json.loads((racine / index_relatif).read_text(encoding="utf-8"))
     attendus = {b["content_sha256"] for b in index["bundles"]}
     lignes = list(csv.DictReader(feuille.open(encoding="utf-8", newline=""), delimiter="\t"))
     contenus = {x["content_sha256"]: x for x in lignes if x["row_kind"] == "PII_CONTENT"}
@@ -93,7 +108,7 @@ def convertir(
             if x["row_kind"] == "CURRENTNESS_CONTENT"
         ],
         "currentness_protocol": "AUCUN protocole scellé n'existe pour l'actualité : forme à fixer par ADR (lot BW)",
-        "review_index": restreint.SORTIE,
+        "review_index": index_relatif,
     }
 
 
@@ -104,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
     parser.add_argument("--corpus-manifest-sha256", required=True)
     parser.add_argument("--decided-at", required=True)
     parser.add_argument("--sortie", type=Path, required=True)
+    parser.add_argument("--index", type=str, default=None, help="Chemin relatif de l'index de revue")
     args = parser.parse_args(argv)
     racine = Path(__file__).resolve().parents[2]
     sortie = args.sortie.expanduser().resolve()
@@ -112,20 +128,36 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
         return 2
     try:
         resultat = convertir(
-            racine, args.feuille, decision_set_id=args.decision_set_id,
-            corpus_manifest_sha256=args.corpus_manifest_sha256, decided_at=args.decided_at,
+            racine,
+            args.feuille,
+            decision_set_id=args.decision_set_id,
+            corpus_manifest_sha256=args.corpus_manifest_sha256,
+            decided_at=args.decided_at,
+            index_relatif=args.index,
         )
     except (ConversionRefusee, ValueError) as erreur:
         print(f"REFUS : {erreur}", file=sys.stderr)
         return 1
     sortie.mkdir(parents=True, exist_ok=True, mode=0o700)
-    for nom, cle in (("decisions.draft.json", "sealer_draft"), ("human_options.json", "human_options"),
-                     ("currentness_decisions.json", "currentness_decisions")):
+    for nom, cle in (
+        ("decisions.draft.json", "sealer_draft"),
+        ("human_options.json", "human_options"),
+        ("currentness_decisions.json", "currentness_decisions"),
+    ):
         chemin = sortie / nom
         chemin.write_text(json.dumps(resultat[cle], ensure_ascii=False, indent=2), encoding="utf-8")
         chemin.chmod(0o600)
-    print(json.dumps({"written_outside_repository": str(sortie), "decisions": len(resultat["sealer_draft"]["decisions"]),
-                      "next": "sceller_decisions_pii.py sceller --draft … --index " + restreint.SORTIE}, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            {
+                "written_outside_repository": str(sortie),
+                "decisions": len(resultat["sealer_draft"]["decisions"]),
+                "next": f"sceller_decisions_pii.py sceller --draft … --index {resultat['review_index']}",
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+    )
     return 0
 
 

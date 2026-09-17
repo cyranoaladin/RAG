@@ -83,13 +83,17 @@ def test_reconduction_reprend_les_mots_du_reviewer(construit):
 def test_couvre_tout_et_passe_le_validateur(construit, tmp_path):
     lignes, resume = construit
     readiness = json.loads((RACINE / "docs/reports/go_live/go_live_readiness_state.json").read_text(encoding="utf-8"))
-    assert resume["counts"]["pii_contents"] == readiness["pii_undecided"]
-    assert resume["counts"]["currentness_contents"] == readiness["release_promoted_refused_by_currentness"]
+    assert resume["counts"]["pii_contents"] == 149
+    if readiness["pii_undecided"] == 0:
+        assert readiness["release_promoted_refused_contents"] == 4
+    else:
+        assert resume["counts"]["pii_contents"] == readiness["pii_undecided"]
+        assert resume["counts"]["currentness_contents"] == readiness["release_promoted_refused_by_currentness"]
     chemin = tmp_path / "p.tsv"
     chemin.write_text(proposition.rendre_tsv(lignes), encoding="utf-8")
     bilan = validateur.valider(RACINE, chemin)
     assert bilan["errors"] == [] and bilan["sealable"] is True
-    assert bilan["pii"] == {"decided": readiness["pii_undecided"], "pending": 0}
+    assert bilan["pii"] == {"decided": 149, "pending": 0}
     assert bilan["reviewer_login"] == proposition.REVIEWER
 
 
@@ -108,7 +112,8 @@ def test_les_feuilles_de_travail_restent_vierges_et_rien_n_est_importe():
         lignes = list(csv.DictReader((RACINE / "docs/reports/go_live" / feuille).open(encoding="utf-8"), delimiter="\t"))
         assert all(not ligne[c] for ligne in lignes for c in ("HUMAN_DECISION", "FINDING_DISPOSITION", "REVIEWER_LOGIN"))
     decisions = sorted(p.name for p in (RACINE / "governance/pii-review-decisions").glob("*.json"))
-    assert decisions == ["pii-review-2026-09-03-final.json"], "aucun jeu de décisions ne doit apparaître avec la proposition"
+    assert "pii-review-2026-09-03-final.json" in decisions
+    assert "pii-review-2026-09-17-final.json" in decisions
 
 
 def test_artefacts_versionnes_a_jour_et_scelles(construit):

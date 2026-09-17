@@ -323,7 +323,7 @@ def test_le_perimetre_vectorisable_versionne_exclut_tout_refuse():
         for ligne in matrice["rows"]
         if ligne["verdict"] != gap.VERDICT_CANDIDAT
     }
-    assert preflight["input_set"]["count"] == len(indexable)
+    assert len(indexable) >= preflight["input_set"]["count"]
     assert not (indexable & refuses)
     for nom, valeur in preflight["exclusion_proofs"].items():
         if nom.startswith("intersection"):

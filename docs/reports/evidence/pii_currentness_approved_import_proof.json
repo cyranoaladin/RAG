@@ -1,0 +1,46 @@
+{
+  "kind": "NEXUS-PII-CURRENTNESS-APPROVED-IMPORT-PROOF-V1",
+  "lot": "LOT_GO_LIVE_FINAL_CE_IMPORT_APPROVED_PII_CURRENTNESS_DECISIONS",
+  "source_pr": 219,
+  "approved_at": "2026-09-17T19:30:48+00:00",
+  "reviewer_login": "abenrhouma",
+  "decision_set_path": "governance/pii-review-decisions/pii-review-2026-09-17-final.json",
+  "decision_set_sha256": "0805c9babfc16def873bbf0b3593ae6f7d0ce6fcb9002a68eb456d80b8906352",
+  "decision_set_id": "pii-review-2026-09-17-final",
+  "counts": {
+    "pii_decisions_imported": 149,
+    "pii_decisions_approved": 23,
+    "pii_decisions_rejected": 126,
+    "pii_undecided": 0,
+    "pre_release_blockers": 0,
+    "release_promoted_refused_contents_before": 26,
+    "release_promoted_refused_contents_after": 4,
+    "release_promoted_refused_contents_after_by_verdict": {
+      "BLOCKED_NOT_CURRENT_BY_SOURCE": 4
+    },
+    "go_live_qualification_blockers": 4
+  },
+  "blocked_archives_promoted": [
+    "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+    "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
+    "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
+    "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2"
+  ],
+  "case_157309db13b6_audit": {
+    "sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+    "title": "archive Eduscol 2024 / EAF",
+    "pii_human_decision": "APPROVED",
+    "pii_cleared": true,
+    "currentness_status": "ARCHIVE_DECLARED",
+    "currentness_disposition": "NOT_CURRENT_DECLARED_BY_SOURCE",
+    "final_matrix_verdict": "BLOCKED_NOT_CURRENT_BY_SOURCE",
+    "governance_policy": "ADR-0055 Option 1 strictly applied, no business exemption"
+  },
+  "security_and_production_invariants": {
+    "raw_pii_present": false,
+    "current_switch": 0,
+    "production_db_writes": 0,
+    "production_deployments": 0,
+    "go_live_ready": false
+  }
+}

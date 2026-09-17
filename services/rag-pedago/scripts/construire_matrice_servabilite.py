@@ -27,6 +27,8 @@ SERVICE_ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
 
+from nexus_contracts import parse_pii_review_decision_set  # noqa: E402
+
 from rag_pedago.governance.currentness_disposition import (  # noqa: E402
     NOT_CURRENT_DECLARED_BY_SOURCE,
     charger_politique,
@@ -62,6 +64,8 @@ RELATIONS = "docs/reports/handoff/url_provenance_reconciliation.json"
 PARTITION = "docs/reports/handoff/program_partition_v4.json"
 BINDINGS = "docs/reports/handoff/artifact_program_bindings.json"
 PII_INDEX = "docs/reports/evidence-index/pii_review_index_v2_20260907.json"
+PII_DECISIONS = "governance/pii-review-decisions/pii-review-2026-09-17-final.json"
+PII_DECISIONS_SOURCE_PR = 219
 NON_PDF = "docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json"
 OUTPUT = "docs/reports/handoff/servability_matrix_v1.json"
 
@@ -124,9 +128,23 @@ def _verdict(row: dict, politique: dict) -> str:
     """Delegue la composition au gate. La matrice ne compose plus elle-meme."""
     actualite = disposition_actualite(_cas_d_actualite(row), politique)
     row["currentness_disposition"] = actualite
+    pii_gate_val = (
+        "PII_UNDECIDED"
+        if row["pii"] == "PII_UNDECIDED"
+        else (
+            "REJECTED"
+            if row["pii"]
+            in (
+                "EXCLUDE_FROM_SERVABLE_SET",
+                "PII_REDACTION_REQUIRED",
+                "REJECTED",
+            )
+            else "PASS"
+        )
+    )
     verdict, autorite = composer(
         {
-            "pii_gate": "PII_UNDECIDED" if row["pii"] == "PII_UNDECIDED" else "PASS",
+            "pii_gate": pii_gate_val,
             "program": "INCOMPATIBLE" if row["program"] == "INCOMPATIBLE_PROVEN" else row["program"],
             "indexable": row["indexability"] != "NON_INDEXABLE",
             "url_provenance": row["provenance"] != "NO_URL_EVIDENCE",
@@ -154,6 +172,24 @@ def build() -> dict:
     pii_bundles = _load(PII_INDEX)["bundles"]
     non_pdf = _load(NON_PDF)
 
+    decisions: dict[str, str] = {}
+    pii_decision_info = None
+    pii_decision_path = REPO_ROOT / PII_DECISIONS
+    if pii_decision_path.is_file():
+        raw_decisions = pii_decision_path.read_bytes()
+        dec_set = parse_pii_review_decision_set(raw_decisions)
+        decisions = {d.content_sha256: d.decision for d in dec_set.decisions}
+        first_d = dec_set.decisions[0] if dec_set.decisions else None
+        pii_decision_info = {
+            "path": PII_DECISIONS,
+            "sha256": hashlib.sha256(raw_decisions).hexdigest(),
+            "decision_set_id": dec_set.decision_set_id,
+            "decisions_count": len(dec_set.decisions),
+            "reviewer_login": first_d.reviewer_login if first_d else None,
+            "decided_at": first_d.decided_at.isoformat() if first_d else None,
+            "source_pr": PII_DECISIONS_SOURCE_PR,
+        }
+
     compatibles = {
         b["content_sha256"]
         for b in bindings
@@ -165,12 +201,22 @@ def build() -> dict:
     rows = []
     for relation in relations:
         sha = relation["content_sha256"]
+        if sha in pii_detected:
+            if decisions.get(sha) == "APPROVED":
+                pii_status = "PII_CLEARED"
+            elif decisions.get(sha) == "REJECTED":
+                pii_status = "REJECTED"
+            else:
+                pii_status = "PII_UNDECIDED"
+        else:
+            pii_status = "PII_CLEARED_OR_NOT_SCANNED"
+
         row = {
             "content_sha256": sha,
             "provenance": relation["disposition"],
             "program": _programme(sha, relation, compatibles, incompatibles),
             "currentness": _actualite(relation),
-            "pii": "PII_UNDECIDED" if sha in pii_detected else "PII_CLEARED_OR_NOT_SCANNED",
+            "pii": pii_status,
             "indexability": relation["serving_relevance"],
             "source_role": relation["source_role"],
         }
@@ -218,6 +264,7 @@ def build() -> dict:
             "program": PARTITION,
             "program_bindings": BINDINGS,
             "pii": PII_INDEX,
+            "pii_decisions": pii_decision_info,
             "non_pdf": NON_PDF,
         },
         "PROGRAM_RECONCILIATION": reconciliation,
