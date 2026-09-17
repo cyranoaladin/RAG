@@ -155,3 +155,60 @@ fichier à chaque appel, sans cache — une clé retirée cesse d'ouvrir dès qu
 configuration change, sans redémarrage. Le secret d'empreinte du journal
 (`RAG_ACCESS_LOG_HMAC_SECRET`) se tourne indépendamment ; la corrélation
 historique est alors rompue, ce qui est le prix voulu d'une rotation.
+
+## 8. Rollback du staging
+
+Le staging se défait sans toucher à la production : tout vit sous un nom de
+projet Compose dédié (`-p nexus-staging`), jamais sous celui de la production.
+
+```bash
+cd services/rag-engine/infra
+# 1. photographier ce qui tourne, pour pouvoir y revenir
+docker compose -p nexus-staging -f docker-compose.v2.yml ps --format json > ~/nexus-staging-before.json
+docker inspect --format '{{.Image}}' "$(docker compose -p nexus-staging -f docker-compose.v2.yml ps -q ingestor)"
+
+# 2. sauvegarde de la base de staging (format custom, cf. docs/runbooks/rollback.md)
+docker compose -p nexus-staging -f docker-compose.v2.yml exec -T pgvector \
+  pg_dump -Fc -U "$PGVECTOR_USER" "$PGVECTOR_DB" > ~/nexus-staging-$(date -u +%Y%m%dT%H%M%SZ).dump
+
+# 3. retour arrière : arrêt SANS supprimer le volume, puis redémarrage sur l'image précédente (par digest)
+docker compose -p nexus-staging -f docker-compose.v2.yml --env-file ~/nexus-staging-secrets/staging.env down
+docker compose -p nexus-staging -f docker-compose.v2.yml --env-file ~/nexus-staging-secrets/staging.env up -d
+```
+
+Interdits pendant un rollback de staging : `down -v` (détruit la base),
+`--remove-orphans` (peut emporter des services étrangers), tout nom de projet
+partagé avec la production. Un rollback est **éprouvé** quand `/health` repasse
+à 200 et que la recette du § 6 repasse `EXTERNAL_AGENT_E2E=PASS` sur l'état
+restauré — pas quand les conteneurs sont seulement « up ».
+
+## 9. Cockpit du staging et contrôle d'accès
+
+Le Cockpit du staging pointe sur le **même** endpoint que l'agent extérieur,
+avec ses deux valeurs du § 4 (`RAG_ENGINE_INTERNAL_TOKEN`, `RAG_ENGINE_API_KEY`),
+`RAG_ENGINE_INTERNAL_URL` vers le moteur de staging, son propre
+`NEXTAUTH_SECRET` et son propre `NEXUS_SESSION_REDIS_URL`. Aucun secret de
+production n'y est réutilisé.
+
+Toute interface exposée passe par le reverse proxy, avec **Basic Auth ou
+allowlist IP** en plus de TLS. Les conteneurs n'écoutent que sur `127.0.0.1`.
+Pas de DNS public définitif : un nom de staging, révocable.
+
+Recette Cockpit : une recherche authentifiée rend des résultats cités
+(source, URI, page) ; sans session → 401 ; collection hors portée → 403.
+
+## 10. Preuve à rapporter, et état final
+
+La qualification se prouve, elle ne se déclare pas. À consigner dans
+`docs/reports/evidence/external_staging_proof.json` (mode `A` ou `B`), sans
+aucune valeur secrète :
+
+- hôte désigné par son rôle, jamais par une adresse sensible ; distinct de la production ;
+- `/health` pgvector, API et Cockpit ; nombre de vecteurs de l'index de staging ;
+- sortie de la recette du § 6 (résultats, citations) et recette Cockpit du § 9 ;
+- rollback du § 8 éprouvé ;
+- recherche de secrets dans les journaux (`docker compose logs`) : 0 ;
+- `production_db_writes=0`, `production_deployments=0`, `current_switch=0`.
+
+État final à documenter : staging laissé en service (et par qui il est
+surveillé), ou arrêté par `down` — volume conservé ou détruit, dit explicitement.

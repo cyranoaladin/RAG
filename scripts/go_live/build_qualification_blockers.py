@@ -1728,6 +1728,116 @@ def verifier_sync_incrementale(racine: Path) -> dict:
     }
 
 
+STAGING_MAIN_SHA_ATTENDU = "7d93bff46757fc979d7645d3c4dd966b20d09739"
+STAGING_PREUVE = "docs/reports/evidence/external_staging_proof.json"
+STAGING_PREUVE_SHA = "docs/reports/evidence/external_staging_proof.sha256"
+_STAGING_MODES = {"A": "production_cloisonnee", "B": "staging_separe", "C": "runbook_only"}
+
+
+def evaluer_staging_externe(data: dict) -> list[str]:
+    """Violations. Liste vide = staging externe réellement qualifié."""
+    v: list[str] = []
+    mode, hote = data.get("mode"), data.get("host_kind")
+    if mode not in _STAGING_MODES or _STAGING_MODES.get(mode) != hote:
+        return [f"mode explicite absent ou incohérent (mode={mode!r}, host_kind={hote!r})"]
+    if hote == "runbook_only":
+        return ["preuve runbook_only : la condition exige un vrai staging externe ingéré et qualifié"]
+    if data.get("environment_started") is not True:
+        v.append("environnement non démarré")
+    if data.get("distinct_from_production") is not True:
+        v.append("environnement non distinct de la production")
+    if (data.get("exposure") or {}).get("public_unauthenticated") is not False:
+        v.append("exposition publique non contrôlée, ou contrôle non attesté")
+    rollback = data.get("rollback") or {}
+    if rollback.get("documented") is not True or rollback.get("exercised") is not True:
+        v.append("rollback staging absent ou non éprouvé")
+    sante = data.get("healthchecks") or {}
+    for service in ("pgvector", "api", "cockpit"):
+        if sante.get(service) is not True:
+            v.append(f"healthchecks : {service} non vérifié")
+    ingestion = data.get("ingestion") or {}
+    if ingestion.get("index_present") is not True or not int(ingestion.get("vectors") or 0) > 0:
+        v.append("ingestion : index staging absent ou vide")
+    for cle in ("retrieval_smoke", "cockpit_smoke"):
+        essai = data.get(cle) or {}
+        if essai.get("executed") is not True or essai.get("passed") is not True:
+            v.append(f"{cle} non exécuté ou en échec")
+    if not int((data.get("retrieval_smoke") or {}).get("citations") or 0) > 0:
+        v.append("aucune citation dans la recette de retrieval")
+    scan = data.get("logs_secret_scan") or {}
+    if scan.get("executed") is not True or scan.get("secrets_found") != 0:
+        v.append("logs : recherche de secret non faite, ou secret trouvé")
+    if data.get("secret_exposed") is not False:
+        v.append("secret exposé, ou absence d'exposition non attestée")
+    for cle in ("production_db_writes", "production_deployments", "current_switch"):
+        if data.get(cle) != 0:
+            v.append(f"{cle} = {data.get(cle)}")
+    return v
+
+
+def verifier_staging_externe(racine: Path) -> dict:
+    """Vérifie le staging externe (STAGING_EXTERNE). Un runbook ne ferme rien."""
+
+    def refus(pourquoi: str) -> dict:
+        return {"closed": False, "proof": None, "why": pourquoi}
+
+    preuve_path, sha_path = racine / STAGING_PREUVE, racine / STAGING_PREUVE_SHA
+    for chemin, nom in ((preuve_path, "preuve"), (sha_path, "empreinte")):
+        if not chemin.is_file():
+            return refus(f"{nom} STAGING_EXTERNE manquante : {chemin}")
+    scelle = sha_path.read_text(encoding="utf-8").split()
+    sha_reel = hashlib.sha256(preuve_path.read_bytes()).hexdigest()
+    if not scelle or scelle[0] != sha_reel:
+        return refus(
+            f"altération détectée de la preuve STAGING_EXTERNE : sha calculé {sha_reel} "
+            f"!= sha scellé {scelle[0] if scelle else None}"
+        )
+    try:
+        data = json.loads(preuve_path.read_text(encoding="utf-8"))
+    except ValueError as exc:
+        return refus(f"preuve STAGING_EXTERNE illisible : {exc}")
+    if data.get("observed_at_main_sha") != STAGING_MAIN_SHA_ATTENDU:
+        return refus(
+            f"preuve STAGING_EXTERNE stale : observée à {data.get('observed_at_main_sha')}, "
+            f"attendue à {STAGING_MAIN_SHA_ATTENDU}"
+        )
+    # Le mode est jugé AVANT le statut : un runbook_only étiqueté VERIFIED reste un runbook.
+    violations = evaluer_staging_externe(data)
+    if violations:
+        return refus("STAGING_EXTERNE non qualifié : " + " ; ".join(violations))
+    if data.get("verification_status") != "VERIFIED":
+        return refus(f"statut STAGING_EXTERNE non VERIFIED : {data.get('verification_status')}")
+
+    return {
+        "closed": True,
+        "proof": {
+            "condition": (
+                f"staging externe ({data['host_kind']}) démarré, ingéré et qualifié sur le commit "
+                f"{STAGING_MAIN_SHA_ATTENDU} : healthchecks, retrieval cité, Cockpit, rollback éprouvé"
+            ),
+            "mode": data["mode"],
+            "host_kind": data["host_kind"],
+            "observed_at_main_sha": data["observed_at_main_sha"],
+            "vectors": data["ingestion"]["vectors"],
+            "citations": data["retrieval_smoke"]["citations"],
+            "sha256_verified": True,
+            "verification": (
+                "Preuve scellée d'un environnement réellement démarré, distinct de la production, "
+                "sans exposition non contrôlée ni secret dans les journaux ; aucune production touchée."
+            ),
+            "does_not_close": [
+                "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
+                "CONCURRENCE (Comportement sous concurrence)",
+                "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+                "PII_UNDECIDED (149 contenus PII undecided)",
+                "RELEASE_PROMOTED_REFUSED_CONTENTS (26 contenus refusés)",
+                "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+            ],
+        },
+        "why": None,
+    }
+
+
 #: Un blocage sans vérificateur reste ouvert. La condition est écrite pour que
 #: son propriétaire sache ce qu'il doit produire, et pour qu'on ne la
 #: redécouvre pas à chaque lot.
@@ -1749,7 +1859,7 @@ BLOCAGES = (
     ("COCKPIT_E2E", "Cockpit bout en bout contre l API de retrieval", "operateur",
      "le cockpit interroge l API de retrieval de bout en bout", verifier_cockpit_e2e),
     ("STAGING_EXTERNE", "Staging externe ingere et qualifie", "operateur",
-     "un staging externe est ingéré puis qualifié", None),
+     "un staging externe est ingéré puis qualifié", verifier_staging_externe),
     ("CONCURRENCE", "Comportement sous concurrence", "operateur",
      "le comportement sous concurrence est mesuré et borné", verifier_concurrence),
     ("SYNC_INCREMENTALE", "Synchronisation incrementale", "operateur",
