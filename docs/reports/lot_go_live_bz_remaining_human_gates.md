@@ -1,7 +1,7 @@
 # Go-Live — Verrous humains restants, et remédiation CONCURRENCE (BS2)
 
 - Lot : `LOT_GO_LIVE_FINAL_BZ_REMAINING_HUMAN_GATES_REPORT` (inclut l'analyse BS2)
-- Branche : `go-live/remaining-human-gates-report` — base `7d93bff46757fc979d7645d3c4dd966b20d09739`
+- Branche : `go-live/remaining-human-gates-report` — base `bb3c5f10ddd4d9c40994e8f6c176a1b1442fe38b`
 - Décision BS2 : **`GO_LIVE_CONCURRENCY_STILL_BLOCKED`**
 - Ce lot ne ferme rien, ne modifie aucun compteur, aucun budget, aucun code moteur.
 
@@ -12,7 +12,7 @@
 `release_promoted_refused_contents=26`, `current_switch=0`, `production_db_writes=0`, `production_deployments=0`.
 
 Acquis de la campagne : COCKPIT_E2E (#210), SYNC_INCREMENTALE (#212). Livrés sans fermeture : diagnostic CONCURRENCE
-(#211), dossier de décision PII/actualité (#213), runbook staging et vérificateur fail-closed (#214).
+(#211), dossier de décision PII/actualité (#213), runbook staging et vérificateur fail-closed (#214, mergée `bb3c5f10`).
 
 ## 2. Tout ce qui reste est une décision humaine
 
