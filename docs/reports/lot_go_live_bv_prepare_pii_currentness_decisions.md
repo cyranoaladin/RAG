@@ -1,9 +1,9 @@
 # Lot BV — Dossier de décision humaine PII et actualité
 
 - Lot : `LOT_GO_LIVE_FINAL_BV_PREPARE_HUMAN_PII_AND_CURRENTNESS_DECISIONS`
-- Branche : `go-live/prepare-pii-currentness-decisions`
+- Branche : `go-live/prepare-pii-currentness-decisions` — base `349d837388ea1f94824873fb507b8d15ac63f49b`
 - **Décision : `HUMAN_GATE_REQUIRED_PII_CURRENTNESS`**
-- Dossier scellé : `docs/reports/evidence/pii_currentness_human_decision_packet.json` (`a6a9196b5f9ee394d60786b15524bc16b7c271c00a8152a61cbd7441c768a505`)
+- Dossier scellé : `docs/reports/evidence/pii_currentness_human_decision_packet.json` (`fc43e8d682fc6ef60c7d9c93ecab5983e6fcaf41a865413eb69a11f4674d2bdb`)
 - Feuille à remplir : `docs/reports/go_live/pii_currentness_decision_sheet.tsv` (631 lignes)
 
 Ce lot **prépare**. Il ne choisit aucune option, ne caviarde rien, n'exclut rien, ne réduit pas `pii_undecided`,
