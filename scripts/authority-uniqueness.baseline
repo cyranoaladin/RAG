@@ -53,7 +53,16 @@ MATRIX_READER	scripts/go_live/preflight_currentness_reseal.py
 # est vide par construction, pas par oubli repare. Il ne nomme aucun verdict de
 # refus et n en produit aucun. Une epreuve le tient
 # (test_le_module_ne_rend_aucun_verdict_de_servabilite).
-MATRIX_READER	scripts/go_live/build_rag_searchability_gap.py
+#
+# Cette lecture a ete DEPLACEE, pas dupliquee : l ecart de recherche ne lit
+# plus la matrice lui-meme. `servable_target` est desormais la seule derivation
+# du SERVABLE_CANDIDATE_SET, et l ecart, l audit du magasin vectoriel, la
+# validation de retrieval, C4 et C6 la consomment tous. Avant, chaque
+# verificateur recopiait le cardinal du perimetre en litteral : une preuve
+# etablie sur l ancien perimetre restait "vraie" apres que la matrice eut
+# change. Le module ne rend aucun verdict : il filtre sur le seul verdict
+# candidat et hache l ensemble obtenu.
+MATRIX_READER	scripts/go_live/servable_target.py
 # Le constructeur du registre d exclusion lit la matrice pour SCELLER la liste
 # exacte des 4 archives declarees par la source sous ADR-0055 et verifier leur
 # statut servabilite BLOCKED_NOT_CURRENT_BY_SOURCE. Il ne produit aucun verdict

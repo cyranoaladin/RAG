@@ -11,7 +11,7 @@ l'audit d'ingestion, qui a interrogé une base nommée.
 - **vecteurs présents : 55251**
 - colonnes vectorielles : 1
 - extension vectorielle : True
-- périmètre cible : **2264**
+- périmètre cible : **2286**
 
 ## Ce qui n'est pas mesuré
 
@@ -27,7 +27,7 @@ spontanément comme « le RAG fonctionne ». Les deux sont séparés par une
 
 ## Le blocage qui porte ce refus
 
-`RAG_SEARCHABILITY` — `rag_searchability_blocker=false`.
+`RAG_SEARCHABILITY` — `rag_searchability_blocker=true`.
 
 Ce document ne se contente plus de constater : tant que les conditions
 ci-dessous ne sont pas toutes tenues, le readiness refuse le go-live et
@@ -39,12 +39,12 @@ nomme cette raison.
 | --- | :---: |
 | `staging_vectors_present` | oui |
 | `vector_dimensions_consistent` | oui |
-| `retrieval_top_k_validated` | oui |
-| `citations_validated` | oui |
-| `scope_filters_validated` | oui |
-| `latency_validated` | oui |
+| `retrieval_top_k_validated` | **non** |
+| `citations_validated` | **non** |
+| `scope_filters_validated` | **non** |
+| `latency_validated` | **non** |
 | `rollback_validated` | oui |
-| `target_scope_searchable` | oui |
+| `target_scope_searchable` | **non** |
 
 Aucune ne suffit seule. Des vecteurs sans retrieval validé ne servent
 personne ; un retrieval validé sur un échantillon ne dit rien du

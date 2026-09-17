@@ -23,6 +23,16 @@ import os
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from servable_target import (  # noqa: E402
+    CLASSE_PREUVE_PERIMEE,
+    PRIORITE_PREUVE_PERIMEE,
+    MatriceInexploitable,
+    empreinte_ensemble,
+    perimetre_courant,
+)
+
 KIND = "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2"
 
 SORTIE = "docs/reports/go_live/qualification_blockers.json"
@@ -189,21 +199,39 @@ def verifier_c4(racine: Path) -> dict:
     """Vérifie la condition C4 sur les preuves réelles de searchability.
 
     C4 exige que le contrat de retrieval soit validé sur le corpus SERVABLE,
-    c'est-à-dire le SERVABLE_CANDIDATE_SET (les 2 264 contenus candidats sans
-    dimension bloquante de la matrice de servabilité), et non sur un échantillon
-    ou un index staging ambigu. Les huit conditions de l'écart de recherche
-    doivent être tenues.
+    c'est-à-dire le SERVABLE_CANDIDATE_SET COURANT (les contenus candidats sans
+    dimension bloquante de la matrice de servabilité, relus à l'exécution), et
+    non sur un échantillon ou un index staging ambigu. Les huit conditions de
+    l'écart de recherche doivent être tenues.
+
+    La preuve est liée à la fraîcheur : quatre empreintes doivent coïncider —
+    matrice courante, écart de recherche, magasin vectoriel réel, validation
+    de retrieval. Aucun cardinal n'est écrit ici : une preuve établie sur un
+    ancien périmètre rouvre C4 dès que la matrice change.
     """
     ecart = _lire(racine, ECART_RECHERCHE)
     magasin = _lire(racine, MAGASIN_VECTEURS)
     retrieval = _lire(racine, VALIDATION_RETRIEVAL)
 
     if ecart.get("rag_searchability_blocker"):
-        return {
+        fraicheur = ecart.get("freshness") or {}
+        refus = {
             "closed": False,
             "proof": None,
             "why": "rag_searchability_blocker est vrai : l'écart de recherche bloque",
         }
+        if fraicheur.get("stale_proof_detected"):
+            # Ne pas laisser un refus générique masquer sa cause : les preuves
+            # existent, mais couvrent un périmètre qui n'est plus la cible.
+            refus["classification"] = fraicheur.get("classification")
+            refus["priority"] = fraicheur.get("priority")
+            refus["why"] += (
+                f" — preuves périmées {fraicheur.get('stale_bindings')} : cible "
+                f"courante {fraicheur.get('target_count')} contenus, "
+                f"{fraicheur.get('actual_vectorized_content_count')} prouvés "
+                "vectorisés en ensemble"
+            )
+        return refus
 
     conditions_non_met = ecart.get("conditions_not_met", [])
     if conditions_non_met:
@@ -238,14 +266,40 @@ def verifier_c4(racine: Path) -> dict:
             "why": f"périmètre indexable invalide ({len(candidats)} candidats pour cible={cible})",
         }
 
-    vectorises = magasin.get("dedicated", {}).get("vectorized_contents", 0)
-    if vectorises < cible:
+    try:
+        courant = perimetre_courant(racine)
+    except MatriceInexploitable as erreur:
+        return {"closed": False, "proof": None, "why": str(erreur)}
+
+    dediee = magasin.get("dedicated", {})
+    vectorises = dediee.get("actual_vectorized_content_count")
+    empreintes = {
+        "matrice_courante": courant.digest,
+        "ecart_de_recherche": indexable_scope.get("indexable_digest"),
+        "ecart_recalcule": empreinte_ensemble(candidats),
+        "liste_blanche_reelle": dediee.get("actual_allowlist_content_set_sha256"),
+        "contenus_vectorises_reels": dediee.get("actual_vectorized_content_set_sha256"),
+        "cible_de_la_validation_retrieval": (retrieval.get("target_scope") or {}).get(
+            "content_set_sha256"
+        ),
+        "index_interroge_par_la_validation": retrieval.get(
+            "vectorized_content_set_sha256"
+        ),
+    }
+    divergentes = sorted(
+        nom for nom, valeur in empreintes.items() if valeur != courant.digest
+    )
+    if divergentes or cible != courant.count or vectorises != courant.count:
         return {
             "closed": False,
             "proof": None,
+            "classification": CLASSE_PREUVE_PERIMEE,
+            "priority": PRIORITE_PREUVE_PERIMEE,
             "why": (
-                f"contenus vectorisés ({vectorises}) inférieurs aux candidats "
-                f"servables ({cible})"
+                "preuve périmée : le périmètre servable courant "
+                f"({courant.count} contenus, {courant.digest[:16]}…) n'est pas "
+                f"celui que ces preuves couvrent — divergent : {divergentes} ; "
+                f"écart={cible}, vectorisés={vectorises}"
             ),
         }
 
@@ -271,9 +325,17 @@ def verifier_c4(racine: Path) -> dict:
         "proof": {
             "condition": (
                 "le contrat de retrieval est validé sur le corpus SERVABLE "
-                "(SERVABLE_CANDIDATE_SET de 2 264 contenus), les huit conditions "
-                "de l'écart de recherche sont tenues"
+                "(SERVABLE_CANDIDATE_SET courant), les huit conditions de "
+                "l'écart de recherche sont tenues, et les empreintes de la "
+                "matrice, de l'écart, du magasin réel et de la validation de "
+                "retrieval coïncident"
             ),
+            "target_count": courant.count,
+            "target_digest": courant.digest,
+            "vectorized_count": vectorises,
+            "vectorized_digest": dediee.get("actual_vectorized_content_set_sha256"),
+            "retrieval_observed_at": retrieval.get("observed_at"),
+            "matrix_digest": courant.matrix_sha256,
             "servable_candidate_scope_size": len(candidats),
             "vectorized_contents_verified": vectorises,
             "staging_vectors_count": staging_vectors,
@@ -283,9 +345,10 @@ def verifier_c4(racine: Path) -> dict:
             ),
             "verification": (
                 "Validation stricte des 8 conditions de retrieval et searchability "
-                "sur l'intégralité du SERVABLE_CANDIDATE_SET (2 264 contenus sans "
-                "dimension bloquante de la matrice de servabilité, 55 251 vecteurs "
-                "en base dédiée, 0 PII OCR, latence conforme au budget)."
+                f"sur l'intégralité du SERVABLE_CANDIDATE_SET ({courant.count} "
+                "contenus sans dimension bloquante de la matrice de servabilité, "
+                f"{staging_vectors} vecteurs en base dédiée), à égalité exacte "
+                "d'ensembles avec le magasin réel."
             ),
             "does_not_close": [
                 "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
@@ -559,6 +622,9 @@ def verifier_c5(racine: Path) -> dict:
     }
 
 
+KIND_PREUVE_C6 = "NEXUS-C6-CORPUS-CAS-QUALIFICATION-PROOF-V2"
+
+
 def verifier_c6(racine: Path) -> dict:
     """Vérifie la qualification CAS et la couverture du magasin réel (C6)."""
     preuve_json_path = racine / "docs/reports/evidence/corpus_cas_c6_proof.json"
@@ -623,6 +689,18 @@ def verifier_c6(racine: Path) -> dict:
             "why": f"fichier d'attestation JSON C6 illisible : {exc}",
         }
 
+    # Une attestation V1 n'a jamais relu le magasin : elle posait
+    # ALL_OBJECTS_READ_FROM_DISK=True en littéral. Elle ne ferme rien.
+    if data.get("kind") != KIND_PREUVE_C6:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": (
+                f"attestation C6 de genre {data.get('kind')!r} : seule "
+                f"{KIND_PREUVE_C6} relit les octets du magasin réel"
+            ),
+        }
+
     if data.get("verification_status") != "VERIFIED":
         return {
             "closed": False,
@@ -679,21 +757,53 @@ def verifier_c6(racine: Path) -> dict:
             "proof": None,
             "why": f"périmètre cible non conforme : {target_scope.get('name')}",
         }
-    if target_scope.get("count") != 2264:
+    # La cible se lit à la matrice COURANTE, à l'exécution. Une attestation
+    # établie sur un ancien périmètre devient périmée d'elle-même, sans qu'un
+    # littéral soit à corriger ici.
+    try:
+        courant = perimetre_courant(racine)
+    except MatriceInexploitable as erreur:
+        return {"closed": False, "proof": None, "why": str(erreur)}
+    magasin_reel = data.get("actual_cas", {})
+    ecarts_de_cible = {
+        "target_scope.count": target_scope.get("count") == courant.count,
+        "target_scope.content_set_digest": (
+            target_scope.get("content_set_digest") == courant.digest
+        ),
+        "target_scope.matrix_sha256": (
+            target_scope.get("matrix_sha256") == courant.matrix_sha256
+        ),
+        "actual_cas.manifest_content_count": (
+            magasin_reel.get("manifest_content_count") == courant.count
+        ),
+        "actual_cas.manifest_content_set_digest": (
+            magasin_reel.get("manifest_content_set_digest") == courant.digest
+        ),
+        "actual_cas.objects_verified_on_bytes": (
+            magasin_reel.get("objects_verified_on_bytes") == courant.count
+        ),
+    }
+    perimes = sorted(nom for nom, tenu in ecarts_de_cible.items() if not tenu)
+    if perimes:
         return {
             "closed": False,
             "proof": None,
-            "why": f"nombre de contenus cible non conforme : {target_scope.get('count')} (attendu 2264)",
+            "classification": CLASSE_PREUVE_PERIMEE,
+            "priority": PRIORITE_PREUVE_PERIMEE,
+            "why": (
+                "attestation C6 périmée : elle ne couvre pas le périmètre servable "
+                f"courant ({courant.count} contenus, {courant.digest[:16]}…) — "
+                f"divergent : {perimes}"
+            ),
         }
-    if (
-        target_scope.get("content_set_digest")
-        != "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd"
-    ):
-        return {
-            "closed": False,
-            "proof": None,
-            "why": f"digest de l'ensemble cible non conforme : {target_scope.get('content_set_digest')}",
-        }
+    for compteur in ("expected_objects_missing", "extra_objects_count", "wrong_sha_count"):
+        if data.get("verifications", {}).get(compteur) != 0:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": f"magasin CAS non conforme : {compteur}="
+                f"{data.get('verifications', {}).get(compteur)!r}",
+            }
 
     # Réutilisation / contrôle du schéma canonique CAS (import lazy)
     try:
@@ -720,20 +830,24 @@ def verifier_c6(racine: Path) -> dict:
         "proof": {
             "condition": (
                 "la qualification CAS couvre le magasin réel sur le périmètre "
-                "SERVABLE_CANDIDATE_SET (2 264 contenus vérifiés, 0 manquant, "
-                "0 extra, 0 PII undecided promu, 0 contenu refusé réintroduit)"
+                f"SERVABLE_CANDIDATE_SET courant ({courant.count} contenus relus "
+                "sur octets, 0 manquant, 0 extra, 0 empreinte fausse, 0 PII "
+                "undecided promu, 0 contenu refusé réintroduit)"
             ),
             "cas_root": data.get("cas_root"),
             "manifest_schema": data.get("manifest_schema"),
-            "verified_objects_count": summary.get("verified_objects", 2264),
+            "verified_objects_count": magasin_reel.get("objects_verified_on_bytes"),
+            "target_count": courant.count,
+            "target_digest": courant.digest,
+            "matrix_digest": courant.matrix_sha256,
             "content_set_digest": target_scope.get("content_set_digest"),
             "sha256_verified": True,
             "verification": (
                 "Preuve d'exécution et de conformité cryptographique de la qualification "
                 "CAS (C6) : manifest conforme (NEXUS-CORPUS-CAS-MANIFEST-V1), objets relus "
                 "depuis le disque, empreintes et tailles recalculées, zéro objet manquant, "
-                "zéro fuite de portée, exclusion stricte des 266 contenus refusés par la matrice "
-                "dont les 149 PII undecided et l'actualité périmée."
+                "zéro fuite de portée, exclusion stricte de tous les contenus refusés par la "
+                "matrice courante."
             ),
             "does_not_close": [
                 "C1 (Autorité de release et couverture promue : 26 contenus refusés promus)",
@@ -1902,6 +2016,11 @@ def construire(racine: Path) -> dict:
                 "closed": etat["closed"],
                 "proof": etat.get("proof"),
                 "why_still_open": etat.get("why"),
+                **{
+                    cle: etat[cle]
+                    for cle in ("classification", "priority")
+                    if etat.get(cle)
+                },
             }
         )
     ouverts = [b for b in blocages if not b["closed"]]

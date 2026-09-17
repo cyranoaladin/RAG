@@ -210,14 +210,28 @@ def rapport() -> dict:
 def test_le_corpus_brut_n_est_pas_la_cible(rapport):
     """2529 est le corpus pédagogique : il contient les refusés du gate."""
     assert rapport["input_scope"] == "SERVABLE_CANDIDATE_SET"
-    assert rapport["input_count"] == 2264
-    assert rapport["input_count"] != 2529
+    assert 0 < rapport["input_count"] < 2529
+    assert rapport["input_count"] == rapport["allowlist_rows"]
+
+
+def _aligne_sur_l_ecart_ou_refus_declare(empreinte_du_rapport: str, ecart: dict) -> None:
+    """Un rapport d'exécution est un fait DATÉ : il nomme le périmètre qu'il a
+    traité. Quand la matrice admet de nouveaux contenus, ce périmètre cesse
+    d'être la cible — et c'est légitime, à une condition : que l'écart de
+    recherche le DISE et refuse. Un rapport désaligné sous un écart qui se
+    déclare interrogeable serait la preuve périmée que ce garde interdit."""
+    if empreinte_du_rapport == ecart["indexable_scope"]["indexable_digest"]:
+        return
+    assert ecart["target_scope_searchable"] is False
+    assert ecart["rag_searchability_blocker"] is True
+    assert ecart["freshness"]["stale_proof_detected"] is True
 
 
 def test_le_perimetre_versionne_est_reproductible(rapport):
-    ecart = json.loads(ECART.read_text(encoding="utf-8"))["indexable_scope"]
-    assert rapport["input_digest"] == ecart["indexable_digest"]
-    assert rapport["input_digest"] == _empreinte(ecart["indexable"])
+    ecart = json.loads(ECART.read_text(encoding="utf-8"))
+    perimetre = ecart["indexable_scope"]
+    assert perimetre["indexable_digest"] == _empreinte(perimetre["indexable"])
+    _aligne_sur_l_ecart_ou_refus_declare(rapport["input_digest"], ecart)
     assert rapport["allowlist_rows"] == rapport["input_count"]
 
 
@@ -280,6 +294,9 @@ def test_le_go_live_reste_refuse():
     """
     etat = json.loads(READINESS.read_text(encoding="utf-8"))
     assert etat["go_live_ready"] is False
-    assert etat["target_scope_searchable"] is True
-    assert etat["rag_searchability_blocker"] is False
+    # La recherche est ouverte ou fermée selon la MESURE courante ; ce que
+    # cette épreuve tient, c'est que les deux champs ne se contredisent jamais.
+    assert etat["rag_searchability_blocker"] is (not etat["rag_searchable"])
+    if not etat["target_scope_searchable"]:
+        assert etat["rag_searchability_blocker"] is True
 

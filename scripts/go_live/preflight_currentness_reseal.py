@@ -27,6 +27,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from servable_target import STATUTS_PII_CLAIRS  # noqa: E402
+
 KIND = "NEXUS-CURRENTNESS-RESEAL-PREFLIGHT-V1"
 
 MATRICE = "docs/reports/handoff/servability_matrix_v1.json"
@@ -35,6 +39,15 @@ CALCULATEUR_PROMU = "scripts/qualification/compute_promoted_content_set.py"
 VERDICT_ARCHIVE = "BLOCKED_NOT_CURRENT_BY_SOURCE"
 VERDICT_PII = "BLOCKED_PII_HUMAN_REVIEW"
 VERDICT_CANDIDAT = "CANDIDATE_NO_BLOCKING_DIMENSION"
+
+#: Liste POSITIVE des statuts PII admis pour un contenu qu'on exclut au titre
+#: de l'actualité. L'égalité stricte à l'ancien statut unique refusait
+#: `PII_CLEARED`, que l'import des décisions humaines a rendu valide. La
+#: négation (`!= PII_UNDECIDED`) échouerait OUVERT sur REJECTED ou sur un
+#: statut futur inconnu. Ici, tout ce qui n'est pas nommé est un refus.
+#: UNE seule autorité : la liste vit dans `servable_target`, et ce nom n'en est
+#: qu'une vue. Deux littéraux finiraient par ne plus dire la même chose.
+PII_CLEAR_FOR_CURRENTNESS_RESEAL = STATUTS_PII_CLAIRS
 
 class EntreeManquante(RuntimeError):
     """Une entrée nécessaire au préflight est absente ou inexploitable."""
@@ -164,8 +177,7 @@ def preflight(
     )
 
     pii_des_exclus = {par_contenu[sha]["pii"] for sha in a_exclure}
-    statuts_pii_sains = {"PII_CLEARED_OR_NOT_SCANNED", "PII_CLEARED"}
-    tous_pii_clairs = bool(a_exclure) and pii_des_exclus.issubset(statuts_pii_sains)
+    tous_pii_clairs = bool(a_exclure) and pii_des_exclus <= PII_CLEAR_FOR_CURRENTNESS_RESEAL
     aucun_pii_touche = not (set(a_exclure) & set(promus_pii))
 
     registry_concordance = True

@@ -29,6 +29,8 @@ def _poser(
     vectorized_contents: int | None = None,
     dimensions_consistent: bool | None = None,
     retrieval: dict | None = None,
+    store_contents=None,
+    retrieval_contents=None,
 ) -> Path:
     """Pose les entrées de l'écart.
 
@@ -78,8 +80,29 @@ def _poser(
         "rollback_validated": False,
     }
     conditions.update(retrieval or {})
+    validation = {"conditions": conditions}
+    if retrieval_contents is not None:
+        validation["target_scope"] = {
+            "content_set_sha256": gap.empreinte_ensemble(retrieval_contents)
+        }
+        validation["vectorized_content_set_sha256"] = gap.empreinte_ensemble(
+            retrieval_contents
+        )
+        validation["observed_at"] = "2026-09-17T00:00:00+00:00"
     (racine / gap.VALIDATION_RETRIEVAL).write_text(
-        json.dumps({"conditions": conditions}), encoding="utf-8"
+        json.dumps(validation), encoding="utf-8"
+    )
+    # Ce que le magasin porte RÉELLEMENT, en ensemble. Absent par défaut :
+    # c'est l'état d'un audit antérieur à la preuve par ensemble.
+    ensemble_reel = (
+        {}
+        if store_contents is None
+        else {
+            "actual_allowlist_content_count": len(set(store_contents)),
+            "actual_allowlist_content_set_sha256": gap.empreinte_ensemble(store_contents),
+            "actual_vectorized_content_count": len(set(store_contents)),
+            "actual_vectorized_content_set_sha256": gap.empreinte_ensemble(store_contents),
+        }
     )
     (racine / gap.MAGASIN_VECTEURS).write_text(
         json.dumps(
@@ -92,6 +115,7 @@ def _poser(
                     "source": {"host": "h", "port": 2, "dbname": "dediee"},
                     "vector_extension": vector_extension,
                     "vectorized_contents": couverts,
+                    **ensemble_reel,
                 },
             }
         ),
@@ -116,6 +140,10 @@ def _poser(
             encoding="utf-8",
         )
     return racine
+
+
+#: Les identifiants que `_poser` écrit dans sa matrice par défaut.
+_CIBLE_PAR_DEFAUT = [f"{index:064d}" for index in range(2529)]
 
 
 def test_sans_vecteur_le_corpus_n_est_pas_interrogeable(tmp_path: Path):
@@ -145,7 +173,8 @@ def test_des_vecteurs_ne_suffisent_pas_sans_retrieval_valide(tmp_path: Path):
     """Des vecteurs sans retrieval validé ne servent personne."""
     etat = gap.construire(
         _poser(
-            tmp_path, searchable_contents=2529, vector_columns=1, vector_extension=True
+            tmp_path, searchable_contents=2529, vector_columns=1, vector_extension=True,
+            store_contents=_CIBLE_PAR_DEFAUT,
         )
     )
     assert etat["closing_conditions"]["staging_vectors_present"] is True
@@ -266,7 +295,7 @@ def test_couvrir_le_perimetre_indexable_suffit_a_cette_condition(tmp_path: Path)
     }
     racine = _poser_avec_matrice(
         tmp_path, verdicts, searchable_contents=1, vector_columns=1,
-        vector_extension=True, target=99,
+        vector_extension=True, target=99, store_contents={"a" * 64},
     )
     etat = gap.construire(racine)
     assert etat["closing_conditions"]["target_scope_searchable"] is True
@@ -281,9 +310,12 @@ def test_le_module_ne_rend_aucun_verdict_de_servabilite():
     d'autorité : le seul verdict nommé est celui qui autorise l'indexation, et
     il sert à écarter tous les autres — pas à en prononcer un.
     """
-    source = (
-        RACINE / "scripts/go_live/build_rag_searchability_gap.py"
-    ).read_text(encoding="utf-8")
+    # Les DEUX modules : la lecture de la matrice vit désormais dans
+    # `servable_target`, et c'est lui que la baseline épingle.
+    source = "".join(
+        (RACINE / "scripts/go_live" / nom).read_text(encoding="utf-8")
+        for nom in ("build_rag_searchability_gap.py", "servable_target.py")
+    )
     for interdit in (
         "BLOCKED_PII_HUMAN_REVIEW",
         "BLOCKED_NOT_CURRENT_BY_SOURCE",
@@ -330,3 +362,89 @@ def test_le_perimetre_vectorisable_versionne_exclut_tout_refuse():
             assert valeur == 0, f"{nom} n'est pas vide"
     assert preflight["vectorization_executed"] is False
     assert preflight["target_database"]["must_not_target_review_base"] is True
+
+
+# --- La couverture se prouve en ENSEMBLE, jamais en cardinal ----------------
+
+_TOUT_VALIDE = {
+    "retrieval_top_k_validated": True,
+    "citations_validated": True,
+    "scope_filters_validated": True,
+    "latency_validated": True,
+    "rollback_validated": True,
+}
+_A, _B, _C, _ETRANGER = "a" * 64, "b" * 64, "c" * 64, "f" * 64
+
+
+def _ferme(tmp_path: Path, *, magasin, retrieval_sur, cible=(_A, _B, _C)) -> dict:
+    verdicts = {sha: gap.VERDICT_CANDIDAT for sha in cible}
+    verdicts["d" * 64] = "BLOCKED_PII_HUMAN_REVIEW"
+    racine = _poser_avec_matrice(
+        tmp_path, verdicts, searchable_contents=len(magasin or cible), vector_columns=1,
+        vector_extension=True, retrieval=_TOUT_VALIDE, store_contents=magasin,
+        retrieval_contents=retrieval_sur,
+    )
+    return gap.construire(racine)
+
+
+def test_l_egalite_exacte_d_ensembles_ferme(tmp_path: Path):
+    etat = _ferme(tmp_path, magasin={_A, _B, _C}, retrieval_sur={_A, _B, _C})
+    assert etat["target_scope_searchable"] is True
+    assert etat["rag_searchability_blocker"] is False
+    assert etat["freshness"]["stale_proof_detected"] is False
+
+
+def test_meme_cardinal_mais_un_contenu_etranger_ne_ferme_pas(tmp_path: Path):
+    """LA mutation : un SHA attendu remplacé par un SHA étranger, compte exact."""
+    etat = _ferme(tmp_path, magasin={_A, _B, _ETRANGER}, retrieval_sur={_A, _B, _C})
+    assert etat["measured"]["vectorized_contents"] == etat["measured"]["target_scope_contents"]
+    assert etat["target_scope_searchable"] is False
+    assert etat["rag_searchability_blocker"] is True
+    assert etat["freshness"]["stale_proof_detected"] is True
+
+
+def test_un_contenu_manquant_ne_ferme_pas(tmp_path: Path):
+    etat = _ferme(tmp_path, magasin={_A, _B}, retrieval_sur={_A, _B, _C})
+    assert etat["target_scope_searchable"] is False
+
+
+def test_un_contenu_en_trop_ne_ferme_pas(tmp_path: Path):
+    """`>=` laissait passer un magasin plus large que la cible."""
+    etat = _ferme(
+        tmp_path, magasin={_A, _B, _C, _ETRANGER}, retrieval_sur={_A, _B, _C}
+    )
+    assert etat["target_scope_searchable"] is False
+
+
+def test_un_audit_sans_empreinte_d_ensemble_ne_ferme_pas(tmp_path: Path):
+    """Un audit antérieur à la preuve par ensemble ne prouve que des compteurs."""
+    etat = _ferme(tmp_path, magasin=None, retrieval_sur={_A, _B, _C})
+    assert etat["target_scope_searchable"] is False
+    assert "allowlist_set_equals_target" in etat["freshness"]["stale_bindings"]
+
+
+def test_la_matrice_change_et_l_ancienne_preuve_devient_perimee(tmp_path: Path):
+    """Preuve établie sur {A,B} ; la matrice admet C ensuite : tout rouvre."""
+    etat = _ferme(tmp_path, magasin={_A, _B}, retrieval_sur={_A, _B})
+    assert etat["indexable_scope"]["count"] == 3
+    assert etat["target_scope_searchable"] is False
+    assert etat["closing_conditions"]["retrieval_top_k_validated"] is False
+    assert etat["freshness"]["classification"] == (
+        "STALE_PROOF_AFTER_SERVABILITY_SCOPE_CHANGE"
+    )
+    assert etat["freshness"]["priority"] == "P0_GO_LIVE_GATE_INTEGRITY"
+
+
+def test_un_retrieval_valide_sur_un_autre_ensemble_ne_vaut_pas(tmp_path: Path):
+    etat = _ferme(tmp_path, magasin={_A, _B, _C}, retrieval_sur={_A, _B, _ETRANGER})
+    assert etat["target_scope_searchable"] is True
+    assert etat["closing_conditions"]["citations_validated"] is False
+    assert etat["rag_searchability_blocker"] is True
+
+
+def test_l_empreinte_d_ensemble_est_celle_du_verificateur_cas():
+    """Un même ensemble n'a jamais deux empreintes selon qui le hache."""
+    sys.path.insert(0, str(RACINE / "scripts" / "qualification"))
+    from verify_corpus_cas import content_set_digest
+
+    assert gap.empreinte_ensemble({_A, _B}) == content_set_digest({_A, _B})

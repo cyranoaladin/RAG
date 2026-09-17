@@ -25,6 +25,10 @@ import sys
 from pathlib import Path
 from urllib.parse import urlparse
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from servable_target import empreinte_ensemble, perimetre_courant  # noqa: E402
+
 KIND = "NEXUS-VECTOR-STORE-AUDIT-V1"
 
 SORTIE_JSON = "docs/reports/go_live/vector_store_audit.json"
@@ -93,7 +97,15 @@ def mesurer_dediee(dsn: str) -> dict:  # pragma: no cover - dépend du serveur
             "WHERE a.content_sha256 = v.content_sha256)"
         )
         hors_liste = cur.fetchone()[0]
+        # Les ENSEMBLES, lus ligne à ligne. Un compteur ne distingue pas le bon
+        # contenu du mauvais ; seule la liste des identifiants le peut.
+        cur.execute(f"SELECT DISTINCT content_sha256 FROM {SCHEMA}.{TABLE_LISTE_BLANCHE}")
+        ensemble_liste_blanche = sorted(ligne[0] for ligne in cur.fetchall())
+        cur.execute(f"SELECT DISTINCT content_sha256 FROM {SCHEMA}.{TABLE_VECTEURS}")
+        ensemble_vectorise = sorted(ligne[0] for ligne in cur.fetchall())
     return {
+        "allowlist_contents": ensemble_liste_blanche,
+        "vectorized_content_ids": ensemble_vectorise,
         "source": _source(dsn),
         "vector_extension": extension,
         "vector_rows": vecteurs,
@@ -130,7 +142,46 @@ def mesurer_revue(dsn: str) -> dict:  # pragma: no cover - dépend du serveur
     }
 
 
-def construire(dediee: dict, revue: dict) -> dict:
+def confronter_a_la_cible(dediee: dict, cible_count: int, cible_digest: str, cible: set[str]) -> dict:
+    """Égalité EXACTE d'ensembles entre le magasin réel et la cible courante.
+
+    Pas `>=`, pas un cardinal : un magasin portant le bon nombre de mauvais
+    contenus ne couvre rien. Les écarts sont nommés, pour qu'un refus dise
+    quoi vectoriser et quoi retirer.
+    """
+    liste_blanche = set(dediee["allowlist_contents"])
+    vectorises = set(dediee["vectorized_content_ids"])
+    return {
+        "target_servable_content_count": cible_count,
+        "target_servable_content_set_sha256": cible_digest,
+        "allowlist_set_equals_target": liste_blanche == cible,
+        "vectorized_set_equals_target": vectorises == cible,
+        "allowlist_missing": sorted(cible - liste_blanche),
+        "allowlist_extra": sorted(liste_blanche - cible),
+        "vectorized_missing": sorted(cible - vectorises),
+        "vectorized_extra": sorted(vectorises - cible),
+    }
+
+
+def construire(dediee: dict, revue: dict, cible=None) -> dict:
+    dediee = dict(dediee)
+    dediee["actual_allowlist_content_count"] = len(set(dediee["allowlist_contents"]))
+    dediee["actual_allowlist_content_set_sha256"] = empreinte_ensemble(
+        dediee["allowlist_contents"]
+    )
+    dediee["actual_vectorized_content_count"] = len(
+        set(dediee["vectorized_content_ids"])
+    )
+    dediee["actual_vectorized_content_set_sha256"] = empreinte_ensemble(
+        dediee["vectorized_content_ids"]
+    )
+    confrontation = (
+        None
+        if cible is None
+        else confronter_a_la_cible(
+            dediee, cible.count, cible.digest, set(cible.contenus)
+        )
+    )
     coherent = (
         dediee["vector_rows"] > 0
         and dediee["dimension_mismatch"] == 0
@@ -145,6 +196,7 @@ def construire(dediee: dict, revue: dict) -> dict:
             "conclure qu'elle n'a rien produit"
         ),
         "dedicated": dediee,
+        "target_binding": confrontation,
         "review": revue,
         "staging_vectors_present": dediee["vector_rows"],
         "vector_dimensions_consistent": coherent,
@@ -215,6 +267,7 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
         etat = construire(
             mesurer_dediee(os.environ[VAR_DEDIEE]),
             mesurer_revue(os.environ[VAR_REVUE]),
+            cible=perimetre_courant(racine),
         )
     except EntreeManquante as erreur:
         print(f"REFUS : {erreur}", file=sys.stderr)

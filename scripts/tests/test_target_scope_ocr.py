@@ -122,19 +122,26 @@ def test_conservation_pagination_et_budget_tokens(execution_ocr):
     assert execution_ocr["chunking"]["unique_pages_covered"] > 0
 
 
-def test_target_scope_searchable_ferme_exactement_a_2264(ecart, magasin):
-    """target_scope_searchable n'est vrai que si les 2264 contenus candidats sont couverts."""
-    assert magasin["dedicated"]["vectorized_contents"] == 2264
-    assert magasin["dedicated"]["allowlist_rows"] == 2264
-    assert ecart["closing_conditions"]["target_scope_searchable"] is True
-    assert ecart["target_scope_searchable"] is True
+def test_target_scope_searchable_ne_ferme_qu_a_egalite_d_ensembles(ecart, magasin):
+    """target_scope_searchable n'est vrai que si le magasin réel porte EXACTEMENT
+    le périmètre courant — en ensemble, pas en cardinal, et sans littéral."""
+    cible = ecart["indexable_scope"]["indexable_digest"]
+    dediee = magasin["dedicated"]
+    couvert = (
+        dediee.get("actual_allowlist_content_set_sha256") == cible
+        and dediee.get("actual_vectorized_content_set_sha256") == cible
+    )
+    assert ecart["closing_conditions"]["target_scope_searchable"] is couvert
+    assert ecart["target_scope_searchable"] is couvert
+    assert ecart["freshness"]["stale_proof_detected"] is (
+        not all(ecart["freshness"]["bindings"].values())
+    )
 
 
 def test_rag_searchability_blocker_ferme_exactement_quand_conditions_vides(ecart):
     """rag_searchability_blocker n'est faux que si conditions_not_met est vide."""
-    assert ecart["conditions_not_met"] == []
-    assert ecart["rag_searchability_blocker"] is False
-    assert ecart["rag_searchable"] is True
+    assert ecart["rag_searchability_blocker"] is bool(ecart["conditions_not_met"])
+    assert ecart["rag_searchable"] is (not ecart["conditions_not_met"])
 
 
 def test_go_live_ready_reste_strictement_faux(readiness):

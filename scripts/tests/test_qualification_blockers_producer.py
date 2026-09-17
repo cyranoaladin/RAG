@@ -18,6 +18,7 @@ RACINE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RACINE / "scripts/go_live"))
 
 import build_qualification_blockers as blocages  # noqa: E402
+import servable_target  # noqa: E402
 
 RAPPORT = RACINE / "docs/reports/go_live/qualification_blockers.json"
 
@@ -255,23 +256,31 @@ def test_la_preuve_nomme_la_racine_et_le_nombre_de_tailles_comparees(rapport):
 # --- Épreuves C4 : Contrat de retrieval sur corpus servable ----------------
 
 
-def test_le_blocage_c4_est_ferme_par_mesure(rapport):
-    """C4 doit être fermé sur le SERVABLE_CANDIDATE_SET complet, avec preuve."""
+def test_le_blocage_c4_ne_ferme_que_sur_le_perimetre_courant(rapport):
+    """C4 n'est fermé que si sa preuve nomme l'empreinte de la matrice COURANTE.
+
+    Aucun cardinal ici : l'invariant tient avant comme après une
+    requalification, et c'est la matrice du dépôt qui dit la cible.
+    """
+    import servable_target
+
+    courant = servable_target.perimetre_courant(RACINE)
     bloc = next(b for b in rapport["blockers"] if b["id"] == "C4")
-    assert bloc["closed"] is True
-    assert bloc["proof"]["servable_candidate_scope_size"] == 2264
-    assert bloc["proof"]["vectorized_contents_verified"] >= 2264
-    assert bloc["proof"]["staging_vectors_count"] == 55251
-    assert bloc["proof"]["searchability_conditions_met"] == 8
-    assert bloc["proof"]["retrieval_latency_budget_respected"] is True
-    assert "SERVABLE_CANDIDATE_SET" in bloc["proof"]["verification"]
-    assert "does_not_close" in bloc["proof"]
-    assert any("C1" in d for d in bloc["proof"]["does_not_close"])
-    assert any("ROLLBACK" in d for d in bloc["proof"]["does_not_close"])
+    if bloc["closed"]:
+        assert bloc["proof"]["target_digest"] == courant.digest
+        assert bloc["proof"]["target_count"] == courant.count
+        assert bloc["proof"]["vectorized_digest"] == courant.digest
+        assert bloc["proof"]["matrix_digest"] == courant.matrix_sha256
+        assert bloc["proof"]["searchability_conditions_met"] == 8
+        assert any("C1" in d for d in bloc["proof"]["does_not_close"])
+    else:
+        assert bloc["proof"] is None
+        assert bloc["why_still_open"]
 
 
 def _poser_c4(tmp_path, *, blocker=False, conditions_not_met=None, target_searchable=True,
-              candidats=None, vectorises=2264, staging_vectors=55251):
+              candidats=None, vectorises=None, staging_vectors=7,
+              magasin_contenus=None, retrieval_contenus=None, matrice_contenus=None):
     (tmp_path / "docs/reports/go_live").mkdir(parents=True, exist_ok=True)
     (tmp_path / "docs/reports/handoff").mkdir(parents=True, exist_ok=True)
     if candidats is None:
@@ -287,19 +296,46 @@ def _poser_c4(tmp_path, *, blocker=False, conditions_not_met=None, target_search
         "indexable_scope": {
             "count": len(candidats),
             "indexable": sorted(candidats),
+            "indexable_digest": servable_target.empreinte_ensemble(candidats),
         },
     }
+    # Par défaut tout coïncide : la matrice, le magasin réel et la validation
+    # de retrieval portent EXACTEMENT les candidats. Chaque épreuve en mute un.
+    magasin_contenus = candidats if magasin_contenus is None else magasin_contenus
+    retrieval_contenus = candidats if retrieval_contenus is None else retrieval_contenus
+    matrice_contenus = candidats if matrice_contenus is None else matrice_contenus
+    (tmp_path / servable_target.MATRICE).write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {"content_sha256": sha, "verdict": servable_target.VERDICT_CANDIDAT,
+                     "pii": "PII_CLEARED"}
+                    for sha in sorted(matrice_contenus)
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
     magasin = {
         "staging_vectors_present": staging_vectors,
         "dedicated": {
-            "vectorized_contents": vectorises,
+            "vectorized_contents": len(magasin_contenus) if vectorises is None else vectorises,
+            "actual_allowlist_content_count": len(set(magasin_contenus)),
+            "actual_allowlist_content_set_sha256": servable_target.empreinte_ensemble(magasin_contenus),
+            "actual_vectorized_content_count": len(set(magasin_contenus)),
+            "actual_vectorized_content_set_sha256": servable_target.empreinte_ensemble(magasin_contenus),
         },
     }
     retrieval = {
         "conditions": {
             "latency_validated": True,
             "retrieval_top_k_validated": True,
-        }
+        },
+        "target_scope": {
+            "content_set_sha256": servable_target.empreinte_ensemble(retrieval_contenus)
+        },
+        "vectorized_content_set_sha256": servable_target.empreinte_ensemble(retrieval_contenus),
+        "observed_at": "2026-09-17T00:00:00+00:00",
     }
     (tmp_path / blocages.ECART_RECHERCHE).write_text(json.dumps(ecart), encoding="utf-8")
     (tmp_path / blocages.MAGASIN_VECTEURS).write_text(json.dumps(magasin), encoding="utf-8")
@@ -310,7 +346,59 @@ def test_verifier_c4_ferme_sur_preuve(tmp_path):
     _poser_c4(tmp_path)
     res = blocages.verifier_c4(tmp_path)
     assert res["closed"] is True
-    assert res["proof"] is not None
+    preuve = res["proof"]
+    for champ in ("target_count", "target_digest", "vectorized_count",
+                  "vectorized_digest", "retrieval_observed_at", "matrix_digest"):
+        assert preuve[champ], champ
+    assert preuve["target_digest"] == preuve["vectorized_digest"]
+
+
+_C4_CIBLE = ["sha_" + str(i).zfill(60) for i in range(10)]
+_C4_ETRANGER = "sha_" + "f" * 60
+
+
+def _c4_perime(res):
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert res["classification"] == "STALE_PROOF_AFTER_SERVABILITY_SCOPE_CHANGE"
+    assert res["priority"] == "P0_GO_LIVE_GATE_INTEGRITY"
+
+
+def test_verifier_c4_refuse_meme_cardinal_un_contenu_etranger(tmp_path):
+    """LA mutation : un SHA attendu remplacé par un étranger, compte exact."""
+    _poser_c4(tmp_path, magasin_contenus=_C4_CIBLE[:-1] + [_C4_ETRANGER])
+    _c4_perime(blocages.verifier_c4(tmp_path))
+
+
+def test_verifier_c4_refuse_un_magasin_plus_large_que_la_cible(tmp_path):
+    """`vectorisés >= cible` laissait passer un contenu en trop."""
+    _poser_c4(tmp_path, magasin_contenus=_C4_CIBLE + [_C4_ETRANGER])
+    _c4_perime(blocages.verifier_c4(tmp_path))
+
+
+def test_verifier_c4_refuse_un_contenu_manquant(tmp_path):
+    _poser_c4(tmp_path, magasin_contenus=_C4_CIBLE[:-1])
+    _c4_perime(blocages.verifier_c4(tmp_path))
+
+
+def test_verifier_c4_rouvre_quand_la_matrice_change(tmp_path):
+    """Toutes les preuves coïncident ENTRE ELLES, sur l'ancien périmètre."""
+    _poser_c4(tmp_path, matrice_contenus=_C4_CIBLE + [_C4_ETRANGER])
+    _c4_perime(blocages.verifier_c4(tmp_path))
+
+
+def test_verifier_c4_refuse_un_retrieval_valide_sur_un_autre_ensemble(tmp_path):
+    _poser_c4(tmp_path, retrieval_contenus=_C4_CIBLE[:-1] + [_C4_ETRANGER])
+    _c4_perime(blocages.verifier_c4(tmp_path))
+
+
+def test_verifier_c4_refuse_un_audit_sans_empreinte_d_ensemble(tmp_path):
+    """Un audit d'avant la preuve par ensemble ne porte que des compteurs."""
+    _poser_c4(tmp_path)
+    magasin = json.loads((tmp_path / blocages.MAGASIN_VECTEURS).read_text())
+    magasin["dedicated"] = {"vectorized_contents": 10}
+    (tmp_path / blocages.MAGASIN_VECTEURS).write_text(json.dumps(magasin))
+    _c4_perime(blocages.verifier_c4(tmp_path))
 
 
 def test_verifier_c4_refuse_si_rag_searchability_blocker(tmp_path):
@@ -525,6 +613,10 @@ def test_verifier_c5_sur_depot_reel():
     assert res["proof"]["refusals_verified_count"] >= 15
 
 
+_C6_CIBLE = [f"{i:064x}" for i in range(1, 8)]
+_C6_ETRANGER = "f" * 64
+
+
 def _poser_c6(
     tmp_path: Path,
     *,
@@ -536,9 +628,36 @@ def _poser_c6(
     bad_count=False,
     bad_digest=False,
     bad_schema=False,
+    kind="NEXUS-C6-CORPUS-CAS-QUALIFICATION-PROOF-V2",
+    cible=None,
+    matrice=None,
+    cas=None,
+    manquants=0,
+    extras=0,
+    mauvais_sha=0,
 ):
+    """`cible` : ce que l'attestation dit couvrir ; `matrice` : le périmètre
+    COURANT ; `cas` : ce que le magasin réel porte. Égaux par défaut."""
     evidence_dir = tmp_path / "docs/reports/evidence"
     evidence_dir.mkdir(parents=True, exist_ok=True)
+    cible = _C6_CIBLE if cible is None else cible
+    matrice = cible if matrice is None else matrice
+    cas = cible if cas is None else cas
+    (tmp_path / "docs/reports/handoff").mkdir(parents=True, exist_ok=True)
+    chemin_matrice = tmp_path / servable_target.MATRICE
+    chemin_matrice.write_text(
+        json.dumps(
+            {
+                "rows": [
+                    {"content_sha256": sha, "verdict": servable_target.VERDICT_CANDIDAT,
+                     "pii": "PII_CLEARED"}
+                    for sha in sorted(matrice)
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    matrice_sha = hashlib.sha256(chemin_matrice.read_bytes()).hexdigest()
 
     json_file = evidence_dir / "corpus_cas_c6_proof.json"
     sha_file = evidence_dir / "corpus_cas_c6_proof.sha256"
@@ -566,7 +685,7 @@ def _poser_c6(
         verdicts["NO_EXPECTED_OBJECTS_MISSING"] = False
 
     data = {
-        "kind": "NEXUS-C6-CORPUS-CAS-QUALIFICATION-PROOF-V1",
+        "kind": kind,
         "observed_at_main_sha": "84a235aeb2c7d188ccdf56226a0d0ab73fc8ee0a",
         "verification_status": status,
         "cas_root": "store/corpus_cas_governed",
@@ -574,19 +693,29 @@ def _poser_c6(
         "manifest_schema": "INVALID_SCHEMA" if bad_schema else "NEXUS-CORPUS-CAS-MANIFEST-V1",
         "target_scope": {
             "name": "OTHER_SCOPE" if bad_scope_name else "SERVABLE_CANDIDATE_SET",
-            "count": 100 if bad_count else 2264,
+            "count": 100 if bad_count else len(cible),
             "content_set_digest": (
-                "0" * 64
-                if bad_digest
-                else "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd"
+                "0" * 64 if bad_digest else servable_target.empreinte_ensemble(cible)
             ),
-            "authority_source": "docs/reports/go_live/rag_searchability_gap.json",
+            "matrix_sha256": matrice_sha,
+            "authority_source": servable_target.MATRICE,
+        },
+        "actual_cas": {
+            "present": True,
+            "manifest_content_count": len(set(cas)),
+            "manifest_content_set_digest": servable_target.empreinte_ensemble(cas),
+            "objects_verified_on_bytes": len(set(cas) & set(cible)),
+        },
+        "verifications": {
+            "expected_objects_missing": manquants,
+            "extra_objects_count": extras,
+            "wrong_sha_count": mauvais_sha,
         },
         "summary": {
             "total_checks": 17,
             "passed_checks": 17 - failed_items,
             "failed_items": failed_items,
-            "verified_objects": 2264,
+            "verified_objects": len(cible),
         },
         "verdicts": verdicts,
     }
@@ -610,7 +739,64 @@ def test_verifier_c6_nominal(tmp_path):
     res = blocages.verifier_c6(tmp_path)
     assert res["closed"] is True
     assert res["proof"]["sha256_verified"] is True
-    assert res["proof"]["verified_objects_count"] == 2264
+    assert res["proof"]["verified_objects_count"] == len(_C6_CIBLE)
+    assert res["proof"]["target_digest"] == servable_target.empreinte_ensemble(_C6_CIBLE)
+
+
+def _c6_perime(res):
+    assert res["closed"] is False
+    assert res["proof"] is None
+    assert res["classification"] == "STALE_PROOF_AFTER_SERVABILITY_SCOPE_CHANGE"
+    assert res["priority"] == "P0_GO_LIVE_GATE_INTEGRITY"
+
+
+def test_verifier_c6_refuse_meme_cardinal_mauvais_membre(tmp_path):
+    _poser_c6(tmp_path, cas=_C6_CIBLE[:-1] + [_C6_ETRANGER])
+    _c6_perime(blocages.verifier_c6(tmp_path))
+
+
+def test_verifier_c6_refuse_un_ancien_digest(tmp_path):
+    """L'attestation et le magasin coïncident — sur l'ANCIEN périmètre."""
+    _poser_c6(tmp_path, cible=_C6_CIBLE[:-1], matrice=_C6_CIBLE)
+    _c6_perime(blocages.verifier_c6(tmp_path))
+
+
+def test_verifier_c6_refuse_un_membre_manquant(tmp_path):
+    _poser_c6(tmp_path, cas=_C6_CIBLE[:-1])
+    _c6_perime(blocages.verifier_c6(tmp_path))
+
+
+def test_verifier_c6_refuse_un_membre_en_trop(tmp_path):
+    _poser_c6(tmp_path, cas=_C6_CIBLE + [_C6_ETRANGER])
+    _c6_perime(blocages.verifier_c6(tmp_path))
+
+
+def test_verifier_c6_rouvre_quand_la_matrice_admet_un_nouveau_contenu(tmp_path):
+    _poser_c6(tmp_path, matrice=_C6_CIBLE + [_C6_ETRANGER])
+    _c6_perime(blocages.verifier_c6(tmp_path))
+
+
+def test_verifier_c6_rouvre_quand_la_matrice_change_a_ensemble_egal(tmp_path):
+    """Même ensemble, autre matrice : l'attestation nomme l'état qu'elle a lu."""
+    _poser_c6(tmp_path)
+    chemin = tmp_path / servable_target.MATRICE
+    chemin.write_text(chemin.read_text() + "\n", encoding="utf-8")
+    _c6_perime(blocages.verifier_c6(tmp_path))
+
+
+@pytest.mark.parametrize("compteur", ["manquants", "extras", "mauvais_sha"])
+def test_verifier_c6_refuse_un_magasin_non_conforme(tmp_path, compteur):
+    _poser_c6(tmp_path, **{compteur: 1})
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "magasin CAS non conforme" in res["why"]
+
+
+def test_verifier_c6_refuse_une_attestation_v1_qui_n_a_jamais_lu_le_magasin(tmp_path):
+    _poser_c6(tmp_path, kind="NEXUS-C6-CORPUS-CAS-QUALIFICATION-PROOF-V1")
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "relit les octets" in res["why"]
 
 
 def test_verifier_c6_refuse_si_fichier_json_absent(tmp_path):
@@ -651,14 +837,14 @@ def test_verifier_c6_refuse_si_count_invalide(tmp_path):
     _poser_c6(tmp_path, bad_count=True)
     res = blocages.verifier_c6(tmp_path)
     assert res["closed"] is False
-    assert "nombre de contenus cible" in res["why"]
+    assert "target_scope.count" in res["why"]
 
 
 def test_verifier_c6_refuse_si_digest_invalide(tmp_path):
     _poser_c6(tmp_path, bad_digest=True)
     res = blocages.verifier_c6(tmp_path)
     assert res["closed"] is False
-    assert "digest de l'ensemble cible" in res["why"]
+    assert "target_scope.content_set_digest" in res["why"]
 
 
 def test_verifier_c6_refuse_si_schema_invalide(tmp_path):
@@ -669,11 +855,16 @@ def test_verifier_c6_refuse_si_schema_invalide(tmp_path):
 
 
 def test_verifier_c6_sur_depot_reel():
+    """Invariant de fraîcheur, sans cardinal : C6 ne ferme que sur la matrice
+    courante du dépôt, et une attestation périmée le rouvre d'elle-même."""
     racine = Path(__file__).resolve().parents[2]
     res = blocages.verifier_c6(racine)
-    assert res["closed"] is True
-    assert res["proof"]["sha256_verified"] is True
-    assert res["proof"]["verified_objects_count"] == 2264
+    courant = servable_target.perimetre_courant(racine)
+    if res["closed"]:
+        assert res["proof"]["target_digest"] == courant.digest
+        assert res["proof"]["verified_objects_count"] == courant.count
+    else:
+        assert res["proof"] is None and res["why"]
 
 
 def _poser_c2(

@@ -226,14 +226,20 @@ def test_l_ecart_lit_ces_conditions_au_lieu_de_les_supposer():
         "latency_validated",
         "rollback_validated",
     ):
-        assert ecart["closing_conditions"][nom] == rapport["conditions"][nom], nom
+        # Une condition mesurée ne vaut que sur le périmètre qu'elle a couvert.
+        sur_la_cible = (
+            nom == "rollback_validated"
+            or ecart["freshness"]["bindings"]["retrieval_validated_on_target"]
+        )
+        assert ecart["closing_conditions"][nom] == (
+            rapport["conditions"][nom] and sur_la_cible
+        ), nom
 
 
-def test_le_blocage_de_recherche_est_ferme():
+def test_le_blocage_de_recherche_ne_ferme_que_sur_preuves_fraiches():
     ecart = json.loads(ECART.read_text(encoding="utf-8"))
-    assert ecart["rag_searchability_blocker"] is False
-    assert ecart["conditions_not_met"] == []
-    assert ecart["closing_conditions"]["target_scope_searchable"] is True
-    assert ecart["target_scope_searchable"] is True
-    assert ecart["rag_searchable"] is True
+    assert ecart["rag_searchability_blocker"] is bool(ecart["conditions_not_met"])
+    if ecart["freshness"]["stale_proof_detected"]:
+        assert ecart["rag_searchability_blocker"] is True
+    assert ecart["rag_searchable"] is (not ecart["rag_searchability_blocker"])
 
