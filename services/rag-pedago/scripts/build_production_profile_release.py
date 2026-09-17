@@ -241,6 +241,83 @@ class ReleaseLineage:
     is_overridden: bool
 
 
+@dataclass(frozen=True)
+class GovernedExclusionRegistry:
+    """Registre gouverné scellé des contenus exclus pour cause d'actualité (ADR-0055)."""
+
+    path: Path
+    sha256: str
+    excluded_contents: frozenset[str]
+    kind: str
+    governance_reference: str
+
+
+def load_and_validate_exclusion_registry(
+    registry_path: Path | None,
+    expected_sha256: str | None = None,
+    *,
+    expected_count: int = 4,
+) -> GovernedExclusionRegistry | None:
+    """Charge et valide rigoureusement le registre d'exclusion d'actualité.
+
+    Refuse fail-closed si le fichier est absent, le hash non conforme,
+    les contenus non conformes ou ne correspondant pas aux 4 archives ADR-0055.
+    """
+    if registry_path is None:
+        return None
+    reg_path = Path(registry_path).resolve()
+    if not reg_path.is_file():
+        raise FileNotFoundError(f"exclusion registry absent: {reg_path}")
+    raw_bytes = reg_path.read_bytes()
+    actual_sha = hashlib.sha256(raw_bytes).hexdigest()
+
+    sha_file = reg_path.with_suffix(".sha256")
+    if expected_sha256:
+        if actual_sha.lower() != expected_sha256.lower():
+            raise ValueError(
+                f"exclusion registry sha256 mismatch: expected {expected_sha256}, got {actual_sha}"
+            )
+    elif sha_file.is_file():
+        expected = sha_file.read_text(encoding="utf-8").split()[0].lower()
+        if actual_sha.lower() != expected:
+            raise ValueError(
+                f"exclusion registry sealed sha256 mismatch: expected {expected}, got {actual_sha}"
+            )
+
+    try:
+        data = json.loads(raw_bytes.decode("utf-8"))
+    except ValueError as e:
+        raise ValueError(f"exclusion registry is not valid JSON: {e}") from e
+
+    if data.get("kind") != "NEXUS-CURRENTNESS-EXCLUSION-REGISTRY-V1":
+        raise ValueError(f"unexpected exclusion registry kind: {data.get('kind')}")
+    if data.get("governance_reference") != "ADR-0055":
+        raise ValueError(f"unexpected governance reference: {data.get('governance_reference')}")
+
+    entries = data.get("excluded_contents", [])
+    if len(entries) != expected_count:
+        raise ValueError(f"exclusion registry count mismatch: expected {expected_count}, got {len(entries)}")
+
+    excluded_shas = set()
+    for entry in entries:
+        sha = entry.get("content_sha256")
+        if not sha or not isinstance(sha, str) or len(sha) != 64 or not _HEX64.fullmatch(sha):
+            raise ValueError(f"invalid content_sha256 in exclusion registry: {sha}")
+        if entry.get("currentness_status") != "ARCHIVE_DECLARED":
+            raise ValueError(f"content {sha} must have currentness_status ARCHIVE_DECLARED")
+        if entry.get("servability_verdict") != "BLOCKED_NOT_CURRENT_BY_SOURCE":
+            raise ValueError(f"content {sha} must have servability_verdict BLOCKED_NOT_CURRENT_BY_SOURCE")
+        excluded_shas.add(sha)
+
+    return GovernedExclusionRegistry(
+        path=reg_path,
+        sha256=actual_sha,
+        excluded_contents=frozenset(excluded_shas),
+        kind=data["kind"],
+        governance_reference=data["governance_reference"],
+    )
+
+
 #: La lignée SERVIE, déclarée ici et nulle part ailleurs : la matrice de
 #: production du 31 août et les onze profils de la livraison 319. Une exécution
 #: par défaut, depuis le commit candidat, reproduit ce corpus sans qu'aucune
@@ -2902,6 +2979,7 @@ def _build_rehearsal_release(
     promotion_status: str,
     activation_status: str,
     review_status: str,
+    exclusion_registry: GovernedExclusionRegistry | None = None,
 ) -> dict[Path, bytes]:
     src_root = source_release_root.resolve()
     profile_root = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"
@@ -2911,8 +2989,6 @@ def _build_rehearsal_release(
     manifest = verify_profile_manifest(registry, profile_manifest_path)
     profiles = {p.scope.collection: p for p in registry.values()}
 
-
-
     subjects_dir = src_root / "subjects"
     preflight_by_sha: dict[str, dict[str, Any]] = {}
     placement_rows: list[dict[str, Any]] = []
@@ -2921,6 +2997,8 @@ def _build_rehearsal_release(
         col = subj["collection"]
         for art in subj["artifacts"]:
             sha = art["content_sha256"]
+            if exclusion_registry is not None and sha in exclusion_registry.excluded_contents:
+                continue
             if sha not in preflight_by_sha:
                 preflight_by_sha[sha] = {
                     "content_sha256": sha,
@@ -2974,6 +3052,15 @@ def _build_rehearsal_release(
         "authority_kind": "SEMANTIC_PROFILE_FINGERPRINT",
     }
 
+    if exclusion_registry is not None:
+        authorities["currentness_exclusion_registry_sha256"] = exclusion_registry.sha256
+        raw_bindings["currentness_exclusion_registry_sha256"] = {
+            "path": _repo_relative(exclusion_registry.path),
+            "file_sha256": exclusion_registry.sha256,
+            "authority_sha256": exclusion_registry.sha256,
+            "authority_kind": "FILE_SHA256",
+        }
+
     models = {
         "embedding": {
             "model_id": CANONICAL_EMBEDDING_MODEL,
@@ -3004,6 +3091,11 @@ def _build_rehearsal_release(
         activation_status=activation_status,
         review_status=review_status,
     )
+
+    if exclusion_registry is not None:
+        documents[RELEASE_ROOT / "release_currentness_exclusion_registry.json"] = (
+            exclusion_registry.path.read_bytes()
+        )
 
     for evidence_file in (
         "catalog_delta.json",
@@ -3051,6 +3143,7 @@ def build_release(
     release_id: str | None = None,
     source_release_root: Path | None = None,
     review_authority: ReviewAuthorityInputs | None = None,
+    exclusion_registry: GovernedExclusionRegistry | None = None,
 ) -> dict[Path, bytes]:
     if release_mode == "rehearsal":
         return _build_rehearsal_release(
@@ -3060,6 +3153,7 @@ def build_release(
             promotion_status=promotion_status or "NOT_PROMOTABLE",
             activation_status=activation_status or "NO_PRODUCTION_ACTIVATION",
             review_status=review_status or "PRE_REVIEW",
+            exclusion_registry=exclusion_registry,
         )
     if pdf_root is None or embedding_snapshot is None or reranker_snapshot is None:
         raise ValueError("pdf_root, embedding_snapshot, and reranker_snapshot are required in production mode")
@@ -3104,6 +3198,10 @@ def build_release(
     _verifier_preconditions(profiles, _load_yaml(COLLECTION_CONFIG_PATH))
 
     placement_rows = _source_records(matrix=matrix, profiles=profiles)
+    if exclusion_registry is not None:
+        placement_rows = [
+            r for r in placement_rows if r["content_sha256"] not in exclusion_registry.excluded_contents
+        ]
     final_set_raw, accepted_placements_raw, verified_profiles_raw = (
         _release_scope_inputs(
             matrix=matrix,
@@ -3181,6 +3279,11 @@ def build_release(
         RELEASE_ROOT / "models/embedding/SHA256SUMS": embedding_inventory,
         RELEASE_ROOT / "models/reranker/manifest.json": reranker_manifest,
         RELEASE_ROOT / "models/reranker/SHA256SUMS": reranker_inventory,
+        **(
+            {RELEASE_ROOT / "release_currentness_exclusion_registry.json": exclusion_registry.path.read_bytes()}
+            if exclusion_registry is not None
+            else {}
+        ),
     }
     authority_paths = {
         "corpus_manifest_sha256": RELEASE_ROOT / "corpus_manifest_authority.json",
@@ -3205,6 +3308,11 @@ def build_release(
                 "pii_review_index_sha256": review_authority.review_index_path,
             }
             if review_authority is not None and review_authority.declared
+            else {}
+        ),
+        **(
+            {"currentness_exclusion_registry_sha256": exclusion_registry.path}
+            if exclusion_registry is not None
             else {}
         ),
         "rights_registry_sha256": RIGHTS_REGISTRY_PATH,
@@ -3546,9 +3654,26 @@ def main(argv: list[str] | None = None) -> int:
         help="Motif écrit de tout écart d'empreinte d'autorité contre la "
              "référence. Exigé dès qu'un écart existe ; conservé dans la trace.")
     parser.add_argument(
-        "--output-dir", type=Path, required=True,
+        "--output-dir", type=Path, required=False, default=None,
         help="Répertoire de sortie. NEUF et vide — le producteur refuse "
-             "d'écrire dans un répertoire existant qui n'est pas le sien.")
+             "d'écrire dans un répertoire existant qui n'est pas le sien. "
+             "Facultatif en mode --dry-run.")
+    parser.add_argument(
+        "--exclusion-registry",
+        type=Path,
+        default=None,
+        help="Chemin vers le registre gouverné scellé des contenus exclus pour cause d'actualité (ADR-0055).",
+    )
+    parser.add_argument(
+        "--exclusion-registry-sha256",
+        default=None,
+        help="Empreinte SHA-256 attendue du registre d'exclusion pour vérification fail-closed.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Simule la génération en mémoire sans écrire aucun fichier sur disque.",
+    )
     parser.add_argument("--verify-official-downloads", action="store_true")
     # ── L'AUTORITÉ DE REVUE PII S'INJECTE ───────────────────────────────
     #
@@ -3576,6 +3701,14 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    if not args.dry_run and args.output_dir is None:
+        parser.error("--output-dir est requis lorsque --dry-run n'est pas activé")
+
+    exclusion_registry = load_and_validate_exclusion_registry(
+        args.exclusion_registry,
+        expected_sha256=args.exclusion_registry_sha256,
+    )
+
     review_authority = ReviewAuthorityInputs(
         decision_set_path=args.pii_decision_set,
         receipt_path=args.pii_review_receipt,
@@ -3603,7 +3736,29 @@ def main(argv: list[str] | None = None) -> int:
         release_id=args.release_id,
         source_release_root=args.source_release_root,
         review_authority=review_authority,
+        exclusion_registry=exclusion_registry,
     )
+
+    if args.dry_run:
+        manifest_bytes = documents.get(RELEASE_ROOT / "production-profile-gate.release.json")
+        if not manifest_bytes:
+            raise RuntimeError("dry-run: production-profile-gate.release.json non généré en mémoire")
+        aggregate = json.loads(manifest_bytes.decode("utf-8"))
+        counts = aggregate.get("expected_counts", {})
+        unique_artifacts = counts.get("unique_artifacts", 0)
+        placements = counts.get("placements", 0)
+        unique_chunks = counts.get("unique_chunks", 0)
+        collections_count = counts.get("subjects", len(aggregate.get("subjects", [])))
+        manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
+        print("DRY_RUN=true")
+        print(f"EXCLUDED_CONTENTS_COUNT={len(exclusion_registry.excluded_contents) if exclusion_registry else 0}")
+        print(f"PRODUCTION_PROFILE_RELEASE_UNIQUE_ARTIFACTS={unique_artifacts}")
+        print(f"PRODUCTION_PROFILE_RELEASE_PLACEMENTS={placements}")
+        print(f"PRODUCTION_PROFILE_RELEASE_COLLECTIONS={collections_count}")
+        print(f"PRODUCTION_PROFILE_RELEASE_CHUNKS={unique_chunks}")
+        print(f"PRODUCTION_PROFILE_RELEASE_SHA256={manifest_sha}")
+        return 0
+
     ecrit = _write_documents(
         documents,
         output_dir=args.output_dir,
