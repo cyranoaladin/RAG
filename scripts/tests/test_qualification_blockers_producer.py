@@ -524,3 +524,155 @@ def test_verifier_c5_sur_depot_reel():
     assert res["proof"]["sha256_verified"] is True
     assert res["proof"]["refusals_verified_count"] >= 15
 
+
+def _poser_c6(
+    tmp_path: Path,
+    *,
+    status="VERIFIED",
+    failed_items=0,
+    bad_verdict=False,
+    tamper_sha=False,
+    bad_scope_name=False,
+    bad_count=False,
+    bad_digest=False,
+    bad_schema=False,
+):
+    evidence_dir = tmp_path / "docs/reports/evidence"
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+
+    json_file = evidence_dir / "corpus_cas_c6_proof.json"
+    sha_file = evidence_dir / "corpus_cas_c6_proof.sha256"
+
+    verdicts = {
+        "CAS_ROOT_EXPLICITLY_NAMED": True,
+        "CAS_MANIFEST_EXISTS": True,
+        "CAS_MANIFEST_SCHEMA_CONFORMANT": True,
+        "ALL_OBJECTS_READ_FROM_DISK": True,
+        "SHA256_RECALCULATED_ON_BYTES": True,
+        "DECLARED_SIZES_VERIFIED": True,
+        "NO_EXPECTED_OBJECTS_MISSING": True,
+        "NO_EXTRA_OBJECTS_SILENTLY_ACCEPTED": True,
+        "NO_LOCATOR_ESCAPES_CAS_ROOT": True,
+        "NO_SYMLINK_TRAVERSAL": True,
+        "CONTENT_SET_DIGEST_MATCHES_EXPECTED_AUTHORITY": True,
+        "EXPECTED_COUNT_MATCHES_EXACTLY": True,
+        "COVERAGE_ON_GOVERNED_SCOPE": True,
+        "NO_MATRIX_REFUSED_CONTENT_ADMITTED": True,
+        "NO_PII_UNDECIDED_CONTENT_PROMOTED": True,
+        "NO_CURRENTNESS_REFUSED_CONTENT_REINTRODUCED": True,
+        "RESULT_SEALED_BY_SHA256": True,
+    }
+    if bad_verdict:
+        verdicts["NO_EXPECTED_OBJECTS_MISSING"] = False
+
+    data = {
+        "kind": "NEXUS-C6-CORPUS-CAS-QUALIFICATION-PROOF-V1",
+        "observed_at_main_sha": "84a235aeb2c7d188ccdf56226a0d0ab73fc8ee0a",
+        "verification_status": status,
+        "cas_root": "store/corpus_cas_governed",
+        "manifest_path": "store/corpus_cas_governed/manifest.json",
+        "manifest_schema": "INVALID_SCHEMA" if bad_schema else "NEXUS-CORPUS-CAS-MANIFEST-V1",
+        "target_scope": {
+            "name": "OTHER_SCOPE" if bad_scope_name else "SERVABLE_CANDIDATE_SET",
+            "count": 100 if bad_count else 2264,
+            "content_set_digest": (
+                "0" * 64
+                if bad_digest
+                else "227617d4c4364dda1267b15bb30005a26a329414bc151f3c3e5f4c5362a1fbdd"
+            ),
+            "authority_source": "docs/reports/go_live/rag_searchability_gap.json",
+        },
+        "summary": {
+            "total_checks": 17,
+            "passed_checks": 17 - failed_items,
+            "failed_items": failed_items,
+            "verified_objects": 2264,
+        },
+        "verdicts": verdicts,
+    }
+    octets = (json.dumps(data, indent=2) + "\n").encode("utf-8")
+    json_file.write_bytes(octets)
+
+    if tamper_sha:
+        sha_file.write_text(
+            f"{'0' * 64}  docs/reports/evidence/corpus_cas_c6_proof.json\n",
+            encoding="utf-8",
+        )
+    else:
+        sha_file.write_text(
+            f"{hashlib.sha256(octets).hexdigest()}  docs/reports/evidence/corpus_cas_c6_proof.json\n",
+            encoding="utf-8",
+        )
+
+
+def test_verifier_c6_nominal(tmp_path):
+    _poser_c6(tmp_path)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is True
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["verified_objects_count"] == 2264
+
+
+def test_verifier_c6_refuse_si_fichier_json_absent(tmp_path):
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "manquante" in res["why"]
+
+
+def test_verifier_c6_refuse_si_sha_modifie(tmp_path):
+    _poser_c6(tmp_path, tamper_sha=True)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "altérée" in res["why"]
+
+
+def test_verifier_c6_refuse_si_verdict_false(tmp_path):
+    _poser_c6(tmp_path, bad_verdict=True)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "NO_EXPECTED_OBJECTS_MISSING=False" in res["why"]
+
+
+def test_verifier_c6_refuse_si_failed_items(tmp_path):
+    _poser_c6(tmp_path, failed_items=1)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "échecs" in res["why"]
+
+
+def test_verifier_c6_refuse_si_perimetre_invalide(tmp_path):
+    _poser_c6(tmp_path, bad_scope_name=True)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "périmètre cible" in res["why"]
+
+
+def test_verifier_c6_refuse_si_count_invalide(tmp_path):
+    _poser_c6(tmp_path, bad_count=True)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "nombre de contenus cible" in res["why"]
+
+
+def test_verifier_c6_refuse_si_digest_invalide(tmp_path):
+    _poser_c6(tmp_path, bad_digest=True)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "digest de l'ensemble cible" in res["why"]
+
+
+def test_verifier_c6_refuse_si_schema_invalide(tmp_path):
+    _poser_c6(tmp_path, bad_schema=True)
+    res = blocages.verifier_c6(tmp_path)
+    assert res["closed"] is False
+    assert "schéma de manifeste" in res["why"]
+
+
+def test_verifier_c6_sur_depot_reel():
+    racine = Path(__file__).resolve().parents[2]
+    res = blocages.verifier_c6(racine)
+    assert res["closed"] is True
+    assert res["proof"]["sha256_verified"] is True
+    assert res["proof"]["verified_objects_count"] == 2264
+
+
