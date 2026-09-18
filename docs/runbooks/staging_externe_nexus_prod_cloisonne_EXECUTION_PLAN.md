@@ -28,7 +28,7 @@ Ports **proposés** (différents des défauts du Compose pour ne pas heurter la 
 
 | Service | Variable | Proposé | Défaut du Compose | Liaison |
 |---|---|---|---|---|
-| API de retrieval | `INGESTOR_PORT` | 18001 | 8001 | `127.0.0.1` |
+| API de retrieval | `INGESTOR_PORT` | 18003 | 8001 | `127.0.0.1` |
 | PostgreSQL/pgvector | `PGVECTOR_PORT` | 15435 | 5435 | `127.0.0.1` |
 | Prometheus | `PROMETHEUS_PORT` | 19191 | 19091 | `127.0.0.1` |
 
@@ -62,7 +62,7 @@ Chaque phase se termine par un **point d'arrêt** : je rapporte, l'opérateur di
 ssh nexus-prod 'hostname; nproc; free -g; df -h / /srv /var/lib/docker 2>/dev/null; uptime'
 ssh nexus-prod 'docker compose ls; docker ps --format "{{.Names}}\t{{.Ports}}\t{{.Status}}"'
 ssh nexus-prod 'docker network ls --format "{{.Name}}"; docker volume ls --format "{{.Name}}" | grep -i nexus-staging || true'
-ssh nexus-prod 'ss -ltn | grep -E ":(18001|15435|19191)\b" || echo PORTS_LIBRES'
+ssh nexus-prod 'ss -ltn | grep -E ":(18003|15435|19191)\b" || echo PORTS_LIBRES'
 ```
 ```bash
 install -d -m 0700 ~/nexus-staging-proof          # sur le poste de travail, hors dépôt
@@ -120,30 +120,30 @@ différent = **arrêt**. Ce même digest est celui que le manifeste de productio
 **Healthchecks**
 ```bash
 ssh nexus-prod "cd …/infra && $C ps --format '{{.Service}} {{.Health}}'"               # pgvector healthy, ingestor healthy
-ssh nexus-prod 'curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:18001/health'   # 200
+ssh nexus-prod 'curl -fsS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:18003/health'   # 200
 ```
 `/health` valide les autorités de runtime, les artefacts de modèles, la réconciliation de base et la dimension
 d'embedding ; il rend 503 sinon. Un 503 est un **arrêt**, pas un réessai.
 
 ### Phase 5 — Smoke tests depuis l'extérieur, par tunnel (aucune exposition)
 ```bash
-ssh -N -L 18001:127.0.0.1:18001 nexus-prod &          # le poste de travail est hors de l'hôte et hors du conteneur
+ssh -N -L 18003:127.0.0.1:18003 nexus-prod &          # le poste de travail est hors de l'hôte et hors du conteneur
 ```
 **API** — sans justificatifs puis avec :
 ```bash
-curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:18001/search/v2 -d '{}'      # 401 attendu
-curl -fsS http://127.0.0.1:18001/health                                                          # 200
+curl -s -o /dev/null -w "%{http_code}\n" -X POST http://127.0.0.1:18003/search/v2 -d '{}'      # 401 attendu
+curl -fsS http://127.0.0.1:18003/health                                                          # 200
 ```
 **Retrieval** — la recette de l'agent extérieur, une portée par exécution (jetons lus de l'environnement, jamais en argument) :
 ```bash
-RAG_API_URL=http://127.0.0.1:18001 python scripts/staging_external_acceptance.py --scope <portée>
+RAG_API_URL=http://127.0.0.1:18003 python scripts/staging_external_acceptance.py --scope <portée>
 # attendu : EXTERNAL_AGENT_E2E=PASS  RESULTS>0  CITATIONS=RESULTS (source, URI, page sur chaque résultat)
 ```
 À jouer sur au moins trois portées (trois niveaux, trois matières), plus une requête **hors portée** → 403.
 
 **Cockpit** — lancé **sur le poste de travail**, jamais sur `nexus-prod` :
 ```bash
-cd services/cockpit && RAG_ENGINE_INTERNAL_URL=http://127.0.0.1:18001 npm run start    # secrets de staging dans l'environnement
+cd services/cockpit && RAG_ENGINE_INTERNAL_URL=http://127.0.0.1:18003 npm run start    # secrets de staging dans l'environnement
 ```
 Attendus : `/api/health` ok ; `POST /api/search` sans session → 401 ; collection hors portée → 403 ; recherche
 authentifiée → résultats affichables avec citations (source, URI, page). Le banc `test_cockpit_e2e_retrieval.py` fixe déjà

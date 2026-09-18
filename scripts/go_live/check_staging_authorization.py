@@ -37,6 +37,11 @@ PERIMETRE_REQUIS = {
     "pgvector_container_required": "nexus-staging-pgvector-1",
     "ingestor_image": "pinned_by_digest_no_rebuild",
 }
+PORTS_LOOPBACK_REQUIS = {
+    "ingestor": 18003,
+    "pgvector": 15435,
+    "prometheus": 19191,
+}
 
 
 def _git(racine: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -57,6 +62,8 @@ def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
     ports = perimetre.get("loopback_ports") or {}
     if not ports or not all(isinstance(p, int) and 1024 < p < 65536 for p in ports.values()):
         ecarts.append("ports loopback absents ou invalides")
+    elif ports != PORTS_LOOPBACK_REQUIS:
+        ecarts.append(f"ports loopback non conformes : {ports}, attendu {PORTS_LOOPBACK_REQUIS}")
     manquants = sorted(INTERDITS_REQUIS - set(document.get("forbidden") or []))
     if manquants:
         ecarts.append(f"interdits manquants : {manquants}")

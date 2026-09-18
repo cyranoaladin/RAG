@@ -61,6 +61,28 @@ def test_refuse_autre_approbateur_usage_multiple_ou_sans_conditions_d_arret(docu
         assert autorisation.evaluer(copie, plan_sha256=_plan_sha(copie))
 
 
+def test_accepte_port_18003_et_refuse_ancien_port_18001(document):
+    assert document["scope"]["loopback_ports"]["ingestor"] == 18003
+    assert autorisation.evaluer(document, plan_sha256=_plan_sha(document)) == []
+
+    copie = copy.deepcopy(document)
+    copie["scope"]["loopback_ports"]["ingestor"] = 18001
+    ecarts = autorisation.evaluer(copie, plan_sha256=_plan_sha(copie))
+    assert any("18001" in e or "ports loopback non conformes" in e for e in ecarts)
+
+
+def test_refuse_port_non_loopback_ou_invalide(document):
+    for ports_invalides in (
+        {"ingestor": 80, "pgvector": 15435, "prometheus": 19191},
+        {"ingestor": 70000, "pgvector": 15435, "prometheus": 19191},
+        {"ingestor": 18003, "pgvector": 15435},
+    ):
+        copie = copy.deepcopy(document)
+        copie["scope"]["loopback_ports"] = ports_invalides
+        ecarts = autorisation.evaluer(copie, plan_sha256=_plan_sha(copie))
+        assert any("ports loopback" in e for e in ecarts)
+
+
 def test_sans_fichier_aucune_autorisation(tmp_path):
     assert any("aucune autorisation" in e for e in autorisation.verifier(tmp_path))
 
