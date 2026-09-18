@@ -26,12 +26,14 @@ from nexus_release_chain.release_readiness import (  # noqa: E402
 )
 
 from ingestor.r1_operator_flow import (  # noqa: E402
-    _RELEASE_REGISTRY_RELATIVE_PATH,
     EXPECTED_SEALED_RELEASE_REGISTRY_SHA256,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-REGISTRY_PATH = REPO_ROOT / _RELEASE_REGISTRY_RELATIVE_PATH
+REGISTRY_PATH = (
+    REPO_ROOT
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v1.json"
+)
 
 
 def _load():
@@ -87,7 +89,7 @@ def test_tampered_subject_chunk_byte_fails_the_real_release_load(tmp_path: Path)
     mutated_root = tmp_path / "release"
     shutil.copytree(release_root, mutated_root)
 
-    registry_payload = json.loads((mutated_root / "release-registry.json").read_text("utf-8"))
+    registry_payload = json.loads((mutated_root / REGISTRY_PATH.name).read_text("utf-8"))
     aggregate_relative = registry_payload["releases"][0]["manifest_path"]
     aggregate_payload = json.loads((mutated_root / aggregate_relative).read_text("utf-8"))
     subject_relative = aggregate_payload["subjects"][0]["path"]
@@ -101,5 +103,5 @@ def test_tampered_subject_chunk_byte_fails_the_real_release_load(tmp_path: Path)
 
     with pytest.raises(ReleaseReadinessError, match="digest mismatch"):
         load_release_registry_file(
-            mutated_root / "release-registry.json", EXPECTED_SEALED_RELEASE_REGISTRY_SHA256
+            mutated_root / REGISTRY_PATH.name, EXPECTED_SEALED_RELEASE_REGISTRY_SHA256
         )

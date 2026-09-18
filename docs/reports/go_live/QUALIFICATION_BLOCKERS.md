@@ -1,13 +1,13 @@
 # Blocages de qualification du go-live
 
 - kind : `NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2`
-- ouverts : **4** / fermés : 9
+- ouverts : **3** / fermés : 10
 
 > État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.
 
 | Blocage | Propriétaire | Fermé | Condition de fermeture |
 |---|---|---|---|
-| `C1` | operateur | **non** | une release gouvernée couvre l ensemble promu, sans contenu refusé |
+| `C1` | operateur | **oui** | une release gouvernée couvre l ensemble promu, sans contenu refusé |
 | `C2` | session H2-C externe | **oui** | une ingestion multilevel réelle aboutit et est rejouable |
 | `C3` | session H2-C externe | **oui** | le worker CLI traite un lot multilevel de bout en bout |
 | `C4` | operateur | **oui** | le contrat de retrieval est validé sur le corpus SERVABLE, pas seulement sur un index de staging : les huit conditions de l écart de recherche doivent être tenues |
@@ -22,6 +22,20 @@
 | `NON_PDF_REACQUISITION` | operateur | **oui** | les 37 ressources servables sont présentes au store durable canonique, taille et SHA-256 conformes |
 
 ## Preuves des blocages fermés
+
+### `C1`
+
+- condition : une release gouvernée couvre l ensemble promu, sans contenu refusé
+- vérification : Preuve d'exécution et de conformité cryptographique du rescellement de la release candidate V2 (production-profile-gate-2026-2027-v2) et de la fermeture de C1 : 315 artefacts promus couverts, exclusion stricte et exacte des 4 archives Eduscol ADR-0055 via le registre scellé d'exclusion, 0 contenu refusé promu (release_promoted_refused_contents=0), préservation stricte de la release V1 historique, mode 0444 vérifié, aucune mutation production ni current switch.
+
+Ce que cette fermeture ne ferme pas :
+
+- STAGING_EXTERNE (Staging externe ingéré et qualifié)
+- CONCURRENCE (Comportement sous concurrence : BUDGET_FAILED)
+- MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)
+- GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)
+- CURRENT_SWITCH (current_switch=0, aucune bascule opérée)
+- PRODUCTION_DEPLOYMENT (aucun déploiement production)
 
 ### `C2`
 

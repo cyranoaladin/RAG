@@ -27,7 +27,9 @@ _MANIFEST_PATH = _RAG_ENGINE / "configs" / "ingestion_profiles" / "ingestion_man
 _SUBJECTS_DIR = (
     _RAG_PEDAGO / "data" / "releases" / "prerentree_2026_2027" / "profile_gate" / "subjects"
 )
-_REGISTRY_PATH = _RAG_PEDAGO / "data" / "releases" / "prerentree_2026_2027" / "release-registry.json"
+_REGISTRY_PATH = (
+    _RAG_PEDAGO / "data" / "releases" / "prerentree_2026_2027" / "release-registry-v1.json"
+)
 
 RELEASE_ID = "production-profile-gate-2026-2027-v1"
 

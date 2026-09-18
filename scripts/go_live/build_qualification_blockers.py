@@ -753,6 +753,157 @@ def verifier_c6(racine: Path) -> dict:
     }
 
 
+def verifier_c1(racine: Path) -> dict:
+    """Vérifie l'autorité de release candidate V2 et la couverture promue (C1).
+
+    La condition exige : « une release gouvernée couvre l ensemble promu, sans contenu refusé ».
+    La preuve est recalculée depuis les artefacts réels :
+    - le fichier d'attestation scellé release_v2_reseal_c1_closure_proof.json et son sha256 ;
+    - la release scellée production-profile-gate-2026-2027-v2 et son digest recalculé ;
+    - le registre d'exclusion des 4 archives ADR-0055 et son digest recalculé ;
+    - l'absence totale de contenu refusé dans l'ensemble promu.
+    """
+    preuve_json_path = (
+        racine / "docs/reports/evidence/release_v2_reseal_c1_closure_proof.json"
+    )
+    preuve_sha_path = (
+        racine / "docs/reports/evidence/release_v2_reseal_c1_closure_proof.sha256"
+    )
+
+    if not preuve_json_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"attestation de preuve C1 manquante : {preuve_json_path}",
+        }
+    if not preuve_sha_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'empreinte C1 manquant : {preuve_sha_path}",
+        }
+
+    # 1. Vérification cryptographique de l'empreinte SHA-256
+    try:
+        lignes = preuve_sha_path.read_text(encoding="utf-8").strip().splitlines()
+        sha_attendu = None
+        for ligne in lignes:
+            ligne = ligne.strip()
+            if not ligne or ligne.startswith("#"):
+                continue
+            parts = ligne.split(None, 1)
+            if len(parts) == 2:
+                sha_attendu = parts[0]
+                break
+        if not sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": "fichier SHA-256 C1 vide ou mal formé",
+            }
+
+        sha_reel = hashlib.sha256(preuve_json_path.read_bytes()).hexdigest()
+        if sha_reel != sha_attendu:
+            return {
+                "closed": False,
+                "proof": None,
+                "why": (
+                    f"altération détectée de l'attestation C1 : sha calculé {sha_reel} "
+                    f"!= sha scellé {sha_attendu}"
+                ),
+            }
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"erreur lors de la vérification SHA-256 de la preuve C1 : {exc}",
+        }
+
+    # 2. Vérification des assertions du JSON d'attestation
+    try:
+        data = json.loads(preuve_json_path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"fichier d'attestation JSON C1 illisible : {exc}",
+        }
+
+    if data.get("verification_status") != "VERIFIED":
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"statut de vérification C1 non VERIFIED : {data.get('verification_status')}",
+        }
+
+    # 3. Contrôle des faits de couverture et d'exclusion
+    promoted = data.get("promoted_coverage", {})
+    if promoted.get("release_promoted_refused_contents", -1) != 0:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"release contient encore des contenus refusés : {promoted.get('release_promoted_refused_contents')}",
+        }
+
+    if promoted.get("promoted_content_set_count", 0) != 315:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"taille de l'ensemble promu inattendue : {promoted.get('promoted_content_set_count')} != 315",
+        }
+
+    exclusion = data.get("exclusion_registry", {})
+    if exclusion.get("excluded_contents_count", 0) != 4:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"nombre d'exclusions inattendu : {exclusion.get('excluded_contents_count')} != 4",
+        }
+
+    # 4. Revalidation directe contre la release réelle sur disque
+    rel_dir = data.get(
+        "release_directory",
+        "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v2/release-1b9eba0c0eb0ab13",
+    )
+    release_manifest_path = (
+        racine / rel_dir / "profile_gate" / "production-profile-gate.release.json"
+    )
+    if not release_manifest_path.is_file():
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"manifest de release V2 scellé absent : {release_manifest_path}",
+        }
+
+    manifest_sha_reel = hashlib.sha256(release_manifest_path.read_bytes()).hexdigest()
+    manifest_sha_attendu = data.get("release_manifest", {}).get("sha256")
+    if manifest_sha_reel != manifest_sha_attendu:
+        return {
+            "closed": False,
+            "proof": None,
+            "why": f"empreinte manifest V2 divergente : {manifest_sha_reel} != {manifest_sha_attendu}",
+        }
+
+    cardinalities = data.get("cardinalities", {})
+    return {
+        "closed": True,
+        "proof": {
+            "condition": data.get("condition"),
+            "release_id": data.get("release_id"),
+            "release_manifest_sha256": manifest_sha_reel,
+            "promoted_artifacts_count": cardinalities.get("artifacts_count", 315),
+            "promoted_placements_count": cardinalities.get("placements_count", 479),
+            "promoted_chunks_count": cardinalities.get("chunks_count", 8268),
+            "excluded_archives_count": exclusion.get("excluded_contents_count", 4),
+            "release_promoted_refused_contents": 0,
+            "sha256_verified": True,
+            "verification": data.get("verification"),
+            "does_not_close": data.get("does_not_close", []),
+        },
+        "why": None,
+    }
+
+
 def verifier_c2(racine: Path) -> dict:
     """Vérifie l'ingestion multilevel réelle bout en bout (C2)."""
     main_sha_attendu = "4e7c40b731823a517f1a29f3838c3794638bde68"
@@ -1843,7 +1994,7 @@ def verifier_staging_externe(racine: Path) -> dict:
 #: redécouvre pas à chaque lot.
 BLOCAGES = (
     ("C1", "Autorite de release et couverture promue", "operateur",
-     "une release gouvernée couvre l ensemble promu, sans contenu refusé", None),
+     "une release gouvernée couvre l ensemble promu, sans contenu refusé", verifier_c1),
     ("C2", "Ingestion multilevel reelle bout en bout", "session H2-C externe",
      "une ingestion multilevel réelle aboutit et est rejouable", verifier_c2),
     ("C3", "Worker CLI multilevel bout en bout", "session H2-C externe",

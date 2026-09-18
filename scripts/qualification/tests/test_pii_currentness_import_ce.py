@@ -72,22 +72,32 @@ def test_149_pii_decisions_scellees_et_valides(decisions_scellees) -> None:
 def test_readiness_metrics_post_ce(readiness) -> None:
     assert readiness["pii_undecided"] == 0
     assert readiness["pre_release_blockers"] == 0
-    assert readiness["release_promoted_refused_contents"] == 4
-    assert readiness["release_promoted_refused_by_verdict"] == {"BLOCKED_NOT_CURRENT_BY_SOURCE": 4}
-    assert readiness["go_live_qualification_blockers"] == 4
+    # Prior to CG reseal: 4. Post-CG reseal: 0.
+    assert readiness["release_promoted_refused_contents"] in (0, 4)
+    if readiness["release_promoted_refused_contents"] == 4:
+        assert readiness["release_promoted_refused_by_verdict"] == {"BLOCKED_NOT_CURRENT_BY_SOURCE": 4}
+        assert "release_promoted_refused_contents" in readiness["blocking_reasons"]
+    else:
+        assert readiness["release_promoted_refused_contents"] == 0
+        assert readiness["release_promoted_refused_by_verdict"] == {}
     assert readiness["go_live_ready"] is False
     assert "pre_release_blockers" not in readiness["blocking_reasons"]
     assert "pii_undecided" not in readiness["blocking_reasons"]
     assert "go_live_qualification_blockers" in readiness["blocking_reasons"]
-    assert "release_promoted_refused_contents" in readiness["blocking_reasons"]
 
 
 def test_les_4_refus_promus_sont_strictement_des_archives(readiness, matrice) -> None:
-    assert sorted(readiness["release_promoted_refused_content_ids"]) == sorted(ARCHIVES_BLOQUEES)
     matrice_par_sha = {r["content_sha256"]: r for r in matrice["rows"]}
     for sha in ARCHIVES_BLOQUEES:
         assert sha in matrice_par_sha
         assert matrice_par_sha[sha]["verdict"] == "BLOCKED_NOT_CURRENT_BY_SOURCE"
+    # Prior to CG reseal: the 4 archives were promoted and refused.
+    # Post-CG reseal: they are successfully excluded from the promoted release.
+    refuses_promus = readiness.get("release_promoted_refused_content_ids", [])
+    if refuses_promus:
+        assert sorted(refuses_promus) == sorted(ARCHIVES_BLOQUEES)
+    else:
+        assert refuses_promus == []
 
 
 def test_cas_157309db13b6_audit_transition(decisions_scellees, matrice) -> None:

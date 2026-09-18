@@ -1,0 +1,109 @@
+{
+  "activation_status": "NO_PRODUCTION_ACTIVATION",
+  "artifact_registry": {
+    "path": "artifacts.release.json",
+    "sha256": "42c71df3c3ddbab83f71ea20bc6624237608bb77f064db3018f9d15f63eabeb0"
+  },
+  "authorities": {
+    "candidate_inventory_sha256": "d906663b91b7bfac9dab0c05e4374cdb61b2eef8556ad2e86ceee3d529ab8123",
+    "catalog_delta_sha256": "08c5bef23f8fe6ebadc64ef211d7ffc0529ce91c4deae2c1803da5d05b08e845",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "8fc2208d08c1703bd8a04c7884ef587598ecc692d9e683262ed022219922df1e",
+    "currentness_exclusion_registry_sha256": "07a346b84ae4ebbf1ef7f14dd3f588c95acce36050e8c335f904c37cabe4c72c",
+    "document_type_mapping_sha256": "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b",
+    "effective_catalog_authority_sha256": "275551368eeaf3e46a1352ead1ad79c249f16bd988fa0d92c832b28e35ba166f",
+    "embedding_inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+    "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+    "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+    "pii_evidence_sha256": "ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "pii_scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+    "placement_catalog_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+    "preflight_evidence_sha256": "809c756ebb9aec74adee747b1ad48f5b94eb44896838e27f2e1886026e21b69d",
+    "profile_manifest_sha256": "c11b2b1f3253f4723ba2ecfdbaf2e70ee9fc9c10fcfd83fde4e1245702fcd39c",
+    "programme_registry_sha256": "67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97",
+    "reranker_inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "subject_mapping_sha256": "85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c"
+  },
+  "expected_counts": {
+    "placements": 479,
+    "subjects": 11,
+    "unique_artifacts": 315,
+    "unique_chunks": 8268
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "promotion_status": "NOT_PROMOTABLE",
+  "release_id": "production-profile-gate-2026-2027-v2",
+  "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+  "release_mode": "rehearsal",
+  "review_status": "PRE_REVIEW",
+  "school_year": "2026-2027",
+  "subjects": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "path": "subjects/rag_nexus_dgemc_terminale_option.release.json",
+      "sha256": "ef8aab049072f3da383c7be0a0494a9924f9c0c7fad802d0c070ea98fc56b4fb"
+    },
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "path": "subjects/rag_nexus_hggsp_premiere_specialite.release.json",
+      "sha256": "50cdead241b65fdc8a06a9ab5e4eb145246d1874058b0a6f8f3f6b1bbeab4220"
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "path": "subjects/rag_nexus_hggsp_terminale_specialite.release.json",
+      "sha256": "25515f0d2f968782707f24ac06dd34fd7f4eb3214b1080afe7ae22096edccf19"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "path": "subjects/rag_nexus_hlp_premiere_specialite.release.json",
+      "sha256": "7b19299a74a4a469ff6a0155cc5c9a7696b2edb0a4a24a884cd0d5df1e9bf0a7"
+    },
+    {
+      "collection": "rag_nexus_hlp_terminale_specialite",
+      "path": "subjects/rag_nexus_hlp_terminale_specialite.release.json",
+      "sha256": "a5fffddf0ff8e921700d178b3702f5847cdf9938ea8a945b41dfe124c67655c7"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "path": "subjects/rag_nexus_nsi_premiere_specialite.release.json",
+      "sha256": "8a6c90a764036c36887ae41029ccad1f66e64799a89f19b6335841c07dd56bc3"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "path": "subjects/rag_nexus_nsi_terminale_specialite.release.json",
+      "sha256": "bd7db6d37b7955443c6dd2e71f34d3495f4e07a0b08fc85da733d8d07c6bd9ca"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "path": "subjects/rag_nexus_ses_premiere_specialite.release.json",
+      "sha256": "9fdac1ae1bbf5aa5809d133fb1ef6499e29ffd8a141de1be2db8065c2bbd3e6f"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "path": "subjects/rag_nexus_ses_terminale_specialite.release.json",
+      "sha256": "33bbc1a69068ee5a4a15063942e0fb9576e99a0e11aed116be1380bebc4c86c0"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "path": "subjects/rag_nexus_svt_premiere_specialite.release.json",
+      "sha256": "d068099147f217195296b7d1f6bd49a8f00eb2b7853031004bc77c02e06d1256"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "path": "subjects/rag_nexus_svt_terminale_specialite.release.json",
+      "sha256": "536b72d6fea9c2a4c01409236bd4a1fbb3237611e22702ed76a88ba614a3c41c"
+    }
+  ]
+}
