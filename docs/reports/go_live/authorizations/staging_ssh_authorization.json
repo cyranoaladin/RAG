@@ -1,0 +1,59 @@
+{
+  "authorization": "SSH_STAGING_AUTHORIZED",
+  "consumed": false,
+  "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
+  "execution_plan": {
+    "path": "docs/runbooks/staging_externe_nexus_prod_cloisonne_EXECUTION_PLAN.md",
+    "sha256": "7f696940eb7c9d9725d7f5834352ed4140def510ddf1257a08150bb1be24ec79"
+  },
+  "expected_proof": [
+    "docs/reports/evidence/external_staging_proof.json en mode A / production_cloisonnee",
+    "trois diff vides : conteneurs de production, liens current, configuration Nginx",
+    "digest de l'image ingestor",
+    "recette retrieval citée, recette Cockpit, rollback éprouvé, recherche de secrets dans les journaux = 0"
+  ],
+  "expires_after_use": true,
+  "forbidden": [
+    "certificate_modification",
+    "current_switch",
+    "dns_modification",
+    "docker_prune",
+    "nginx_modification",
+    "oauth_revocation",
+    "production_db_read",
+    "production_db_write",
+    "production_ingestion",
+    "production_secret_read",
+    "production_service_restart",
+    "public_exposure",
+    "rclone_reconfiguration",
+    "remove_orphans",
+    "volume_removal_outside_project"
+  ],
+  "granted_by_pull_request_approval_of": "abenrhouma",
+  "kind": "NEXUS-STAGING-SSH-AUTHORIZATION-V1",
+  "purpose": "exécuter un staging cloisonné sur nexus-prod afin de qualifier STAGING_EXTERNE, puis la mesure séquentielle C0 de concurrence",
+  "scope": {
+    "access": "ssh_tunnel_only",
+    "bind_address": "127.0.0.1",
+    "cockpit": "lancé sur le poste de travail, par tunnel ; rien n'est déployé côté Cockpit sur l'hôte",
+    "compose_project": "nexus-staging",
+    "dedicated_volumes": [
+      "nexus-staging_rag_pgvector_data",
+      "nexus-staging_rag_prometheus_data"
+    ],
+    "host": "nexus-prod",
+    "ingestor_image": "pinned_by_digest_no_rebuild",
+    "load": "mesure séquentielle C0 seulement (30 requêtes, une à la fois) ; la charge complète C1 exige une autre PR",
+    "loopback_ports": {
+      "ingestor": 18001,
+      "pgvector": 15435,
+      "prometheus": 19191
+    },
+    "pgvector_container_required": "nexus-staging-pgvector-1",
+    "servable_corpus": "lot produit par l'outil gouverné servable_corpus_cli ; son empreinte d'index est mesurée, jamais fabriquée",
+    "staging_index_source": "ingestion gouvernée de la release multilevel scellée (11 PDF officiels, 353 chunks) contre la base de staging",
+    "working_directory": "/srv/nexus-staging"
+  },
+  "stop_conditions": "les 10 conditions d'arrêt immédiat du plan d'exécution (§ 4) ; arrêt de sécurité = docker compose -p nexus-staging down, sans -v"
+}
