@@ -92,6 +92,13 @@ _PII_REVIEW_AUTHORITY_FIELDS = frozenset(
         "pii_review_index_sha256",
     }
 )
+#: Autorité scellée du registre d'exclusion d'actualité (ADR-0055).
+#: Autorisée UNIQUEMENT sur les releases V2 (MULTILEVEL_AGGREGATE_RELEASE_V2).
+_CURRENTNESS_EXCLUSION_AUTHORITY_FIELDS = frozenset(
+    {
+        "currentness_exclusion_registry_sha256",
+    }
+)
 _MULTILEVEL_V2_ARTIFACT_FIELDS = frozenset(
     {
         "artifact_id",
@@ -445,16 +452,16 @@ def _require_authority_chain(
     """Vérifie une chaîne d'autorité, agrégat comme sujet.
 
     L'ensemble fermé peut s'étendre des quatre empreintes de la revue humaine
-    PII, et d'elles seules. Elles sont optionnelles — une release sans contenu
-    détecté n'a pas de décisions à joindre — mais indivisibles : la moitié
-    d'une chaîne d'autorité est une chaîne rompue.
+    PII, et de l'autorité d'exclusion d'actualité (ADR-0055), et d'elles seules.
+    Elles sont optionnelles — une release sans contenu détecté ou sans exclusions
+    n'a pas de décisions à joindre — mais indivisibles.
 
     **L'ouverture dépend du SCHÉMA, pas de la présence des champs.** Soustraire
-    ces quatre noms de toute chaîne déclarée les rendait acceptables partout, y
+    ces noms de toute chaîne déclarée les rendait acceptables partout, y
     compris dans les schémas Wave 0 et multi-niveaux V1 qui ne les définissent
     pas : un format ancien s'élargissait alors de lui-même, du seul fait qu'un
     manifeste les mentionne. `review_chain_allowed` est donc décidé par
-    l'appelant depuis le genre de release, jamais deviné du contenu.
+    l'appelant depuis le genre de release (V2 uniquement), jamais deviné du contenu.
 
     Écrit une fois, appelé aux trois endroits : les laisser diverger ferait
     accepter dans l'agrégat ce que le sujet refuse."""
@@ -462,7 +469,10 @@ def _require_authority_chain(
     review_declared = (
         declared & _PII_REVIEW_AUTHORITY_FIELDS if review_chain_allowed else set()
     )
-    if declared - review_declared != authority_fields:
+    exclusion_declared = (
+        declared & _CURRENTNESS_EXCLUSION_AUTHORITY_FIELDS if review_chain_allowed else set()
+    )
+    if declared - review_declared - exclusion_declared != authority_fields:
         raise ReleaseReadinessError(f"{field} fields mismatch")
     if review_declared and review_declared != _PII_REVIEW_AUTHORITY_FIELDS:
         missing = sorted(_PII_REVIEW_AUTHORITY_FIELDS - review_declared)
@@ -471,7 +481,7 @@ def _require_authority_chain(
             "decision set without its receipt, or a receipt without its anchor, "
             "proves nothing"
         )
-    for name in sorted(authority_fields | review_declared):
+    for name in sorted(authority_fields | review_declared | exclusion_declared):
         _require_sha256(authorities.get(name), f"{field}.{name}")
 
 

@@ -41,7 +41,7 @@ REAL_REGISTRY = (
     / "data"
     / "releases"
     / "prerentree_2026_2027"
-    / "release-registry.json"
+    / "release-registry-v1.json"
 )
 
 

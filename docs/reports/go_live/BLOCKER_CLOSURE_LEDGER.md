@@ -5,17 +5,17 @@
 > l etat calcule ; les editer a la main les rendrait faux sans les
 > rendre fermes.
 
-`blockers_open=2` sur 9
+`blockers_open=1` sur 9
 
 | Bloqueur | Valeur | Bloque | Qui agit | Condition de fermeture |
 | --- | ---: | :---: | --- | --- |
 | `RAG_SEARCHABILITY` | False | non | OPERATOR | toutes les conditions de fermeture de l ecart de recherche sont tenues, mesurees et non supposees |
-| `RELEASE_PROMOTED_REFUSED_CONTENTS` | 4 | oui | HUMAN_REVIEWER | aucun contenu de l ensemble promu ne porte un verdict de refus dans la matrice de servabilite |
+| `RELEASE_PROMOTED_REFUSED_CONTENTS` | 0 | non | HUMAN_REVIEWER | aucun contenu de l ensemble promu ne porte un verdict de refus dans la matrice de servabilite |
 | `PII_UNDECIDED` | 0 | non | HUMAN_REVIEWER | 0 PII indecise dans le perimetre servable, ou exclusion gouvernee et versionnee de ces contenus. |
 | `PROGRAM_INCOMPATIBLE_IN_SERVABLE_SET` | 0 | non | HUMAN_DECISION | Artefact exclu du perimetre servable ou reattribue, avec une epreuve discriminante ; il reste comptabilise dans les 2530 en GOVERNED_NOT_SERVABLE, jamais supprime de l historique. |
 | `CURRENTNESS_POLICY_APPLIED` | True | non | ENGINEERING | Un consommateur de production applique la politique et le gate le constate ; un registre seulement present ne suffit pas. |
 | `NON_PDF_SERVABLE_REACQUIRED` | 37/37 | non | OPERATOR | Octets disponibles pour chaque ressource servable, empreintes concordantes, ou exclusion gouvernee. |
-| `GO_LIVE_QUALIFICATION_BLOCKERS` | 4 | oui | MIXED | Chaque entree du tableau porte closed=true et sa preuve. |
+| `GO_LIVE_QUALIFICATION_BLOCKERS` | 3 | oui | MIXED | Chaque entree du tableau porte closed=true et sa preuve. |
 | `OPEN_PRS_BLOCKING` | 0 | non | HUMAN_DECISION | Aucune disposition BLOCKING ni UNKNOWN. |
 | `PRE_RELEASE_BLOCKERS` | 0 | non | DERIVED | Se ferme seul quand ses trois sources se ferment. |
 
@@ -35,7 +35,7 @@
 ### RELEASE_PROMOTED_REFUSED_CONTENTS
 
 - categorie : `BUSINESS`
-- valeur : `4`, bloque : `oui`
+- valeur : `0`, bloque : `non`
 - source de preuve : `docs/reports/handoff/servability_matrix_v1.json croisee avec l ensemble promu canonique : un contenu promu dont le gate de servabilite refuse le verdict`
 - action requise : Decider du sort de chaque contenu promu desormais refuse : le retirer et resceller la release sous une identite neuve, ou documenter une derogation gouvernee. Ni l un ni l autre ne peut etre fait par un script.
 - decision humaine requise : `oui`
@@ -90,7 +90,7 @@
 ### GO_LIVE_QUALIFICATION_BLOCKERS
 
 - categorie : `QUALIFICATION`
-- valeur : `4`, bloque : `oui`
+- valeur : `3`, bloque : `oui`
 - source de preuve : `docs/reports/go_live/qualification_blockers.json`
 - action requise : Fermer chaque gate avec sa preuve. Fermer les bloqueurs metier ne suffit PAS a deployer : ces gates-la restent entiers.
 - decision humaine requise : `oui`

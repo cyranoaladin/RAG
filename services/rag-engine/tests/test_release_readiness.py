@@ -2879,9 +2879,10 @@ def test_real_production_profile_gate_release_matches_canonical_volumetry() -> N
     """
     aggregate_path = PRODUCTION_PROFILE_RELEASE_ROOT / "production-profile-gate.release.json"
     registry = json.loads(RELEASE_REGISTRY.read_text(encoding="utf-8"))
+    all_releases = registry.get("releases", []) + registry.get("historical_releases", [])
     matches = [
         r
-        for r in registry["releases"]
+        for r in all_releases
         if r["release_id"] == "production-profile-gate-2026-2027-v1"
     ]
     assert len(matches) == 1, matches
@@ -2900,6 +2901,29 @@ def test_real_production_profile_gate_release_matches_canonical_volumetry() -> N
     ]
     assert len(nsi_terminale) == 47
     assert sum(len(a.chunks) for a in nsi_terminale) == 904
+
+
+def test_real_production_profile_gate_release_v2_matches_canonical_volumetry() -> None:
+    """Regression proof for the V2 release excluding the 4 ADR-0055 Eduscol archives:
+    production-profile-gate-2026-2027-v2 must load cleanly through the active pinned
+    registry entry with exactly 315 unique artifacts, 479 placements, and 8268 unique chunks.
+    """
+    registry = json.loads(RELEASE_REGISTRY.read_text(encoding="utf-8"))
+    matches = [
+        r
+        for r in registry["releases"]
+        if r["release_id"] == "production-profile-gate-2026-2027-v2"
+    ]
+    assert len(matches) == 1, matches
+    (entry,) = matches
+    digest = entry["expected_manifest_sha256"]
+    manifest_path = RELEASE_REGISTRY.parent / entry["manifest_path"]
+
+    expectation = load_release_expectation(manifest_path, digest)
+
+    assert len(expectation.placements) == 479
+    assert len({a.content_sha256 for a in expectation.artifacts}) == 315
+    assert sum(len(a.chunks) for a in expectation.artifacts) == 8268
 
 
 def test_release_registry_file_refuses_declared_collection_collision(

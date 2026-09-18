@@ -59,6 +59,12 @@ MATRIX_READER	scripts/go_live/build_rag_searchability_gap.py
 # statut servabilite BLOCKED_NOT_CURRENT_BY_SOURCE. Il ne produit aucun verdict
 # et n applique aucune decision en production.
 MATRIX_READER	scripts/go_live/build_release_currentness_exclusion_registry.py
+# Le registre d'exclusion des 4 archives ADR-0055 embarqué dans la release V2
+# cite l'empreinte de la matrice de servabilité à titre d'autorité d'origine
+# pour sceller la traçabilité de ses exclusions. Il ne lit pas la matrice en
+# production et ne produit aucun verdict dynamique.
+MATRIX_READER	services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v2/release-1b9eba0c0eb0ab13/profile_gate/release_currentness_exclusion_registry.json
+
 
 # --- R2 : la politique d actualite n a aucun lecteur de production -------
 # Elle est applied=false. Un lecteur de production l appliquerait de fait,

@@ -1,13 +1,32 @@
 {
   "blockers": [
     {
-      "closed": false,
+      "closed": true,
       "closing_condition": "une release gouvernée couvre l ensemble promu, sans contenu refusé",
       "id": "C1",
       "owner": "operateur",
-      "proof": null,
+      "proof": {
+        "condition": "une release gouvernée couvre l ensemble promu, sans contenu refusé",
+        "does_not_close": [
+          "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+          "CONCURRENCE (Comportement sous concurrence : BUDGET_FAILED)",
+          "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+          "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+          "CURRENT_SWITCH (current_switch=0, aucune bascule opérée)",
+          "PRODUCTION_DEPLOYMENT (aucun déploiement production)"
+        ],
+        "excluded_archives_count": 4,
+        "promoted_artifacts_count": 315,
+        "promoted_chunks_count": 8268,
+        "promoted_placements_count": 479,
+        "release_id": "production-profile-gate-2026-2027-v2",
+        "release_manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+        "release_promoted_refused_contents": 0,
+        "sha256_verified": true,
+        "verification": "Preuve d'exécution et de conformité cryptographique du rescellement de la release candidate V2 (production-profile-gate-2026-2027-v2) et de la fermeture de C1 : 315 artefacts promus couverts, exclusion stricte et exacte des 4 archives Eduscol ADR-0055 via le registre scellé d'exclusion, 0 contenu refusé promu (release_promoted_refused_contents=0), préservation stricte de la release V1 historique, mode 0444 vérifié, aucune mutation production ni current switch."
+      },
       "titre": "Autorite de release et couverture promue",
-      "why_still_open": "aucun vérificateur : ne pas savoir n est pas fermer"
+      "why_still_open": null
     },
     {
       "closed": true,
@@ -275,8 +294,8 @@
       "why_still_open": null
     }
   ],
-  "closed_count": 9,
+  "closed_count": 10,
   "kind": "NEXUS-GO-LIVE-QUALIFICATION-BLOCKERS-V2",
   "note": "État DÉRIVÉ, jamais tenu à la main. Un blocage sans vérificateur reste ouvert. `closed=true` avec `proof=null` est refusé à la construction.",
-  "open_count": 4
+  "open_count": 3
 }

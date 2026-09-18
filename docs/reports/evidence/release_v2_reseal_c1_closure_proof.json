@@ -1,0 +1,71 @@
+{
+  "cardinalities": {
+    "artifacts_count": 315,
+    "chunks_count": 8268,
+    "empty_subjects_count": 0,
+    "placements_count": 479,
+    "subjects_count": 11
+  },
+  "closed_blocker": "C1",
+  "condition": "une release gouvernée couvre l ensemble promu, sans contenu refusé",
+  "does_not_close": [
+    "STAGING_EXTERNE (Staging externe ingéré et qualifié)",
+    "CONCURRENCE (Comportement sous concurrence : BUDGET_FAILED)",
+    "MANIFESTE_PRODUCTION (Manifeste de readiness de production signé)",
+    "GO_LIVE_READY (Non autorisé tant que --assert-ready != 0)",
+    "CURRENT_SWITCH (current_switch=0, aucune bascule opérée)",
+    "PRODUCTION_DEPLOYMENT (aucun déploiement production)"
+  ],
+  "exclusion_registry": {
+    "exact_exclusion_observed": true,
+    "excluded_contents": [
+      "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
+      "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
+      "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2"
+    ],
+    "excluded_contents_count": 4,
+    "governance_reference": "ADR-0055",
+    "path": "docs/reports/evidence/release_currentness_exclusion_registry.json",
+    "sha256": "07a346b84ae4ebbf1ef7f14dd3f588c95acce36050e8c335f904c37cabe4c72c"
+  },
+  "generated_at": "2026-09-18T00:00:00Z",
+  "kind": "NEXUS-RELEASE-V2-RESEAL-C1-CLOSURE-PROOF-V1",
+  "observed_at_main_sha": "470c4b991a4234428d3f1960881d45e9bebf3dfa",
+  "operational_invariants": {
+    "assert_ready": 1,
+    "current_switch": 0,
+    "go_live_ready": false,
+    "production_db_writes": 0,
+    "production_deployments": 0
+  },
+  "promoted_coverage": {
+    "all_promoted_contents_in_release": true,
+    "pii_undecided": 0,
+    "pre_release_blockers": 0,
+    "promoted_content_set_count": 315,
+    "promoted_content_set_sha256": "04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12",
+    "release_promoted_refused_by_verdict": {},
+    "release_promoted_refused_contents": 0
+  },
+  "release_directory": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v2/release-1b9eba0c0eb0ab13",
+  "release_id": "production-profile-gate-2026-2027-v2",
+  "release_manifest": {
+    "bytes": 269728,
+    "permissions": "0o444",
+    "relpath": "profile_gate/production-profile-gate.release.json",
+    "sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864"
+  },
+  "release_registry": {
+    "active_release_id": "production-profile-gate-2026-2027-v2",
+    "active_release_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+    "historical_releases_count": 1,
+    "historical_v1_preserved": true,
+    "registry_path": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry.json",
+    "registry_sha256": "82051777ba0bea6a316fa65ea7aca468f0d6187891d0c8ccb69c0156801ea5db",
+    "v1_reference_copy": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v1.json",
+    "v1_reference_sha256": "c9a844d4d2cc15caf9694b24ac53e77d65d50608d8a0daaef4963183d7d374fa"
+  },
+  "verification": "Preuve d'exécution et de conformité cryptographique du rescellement de la release candidate V2 (production-profile-gate-2026-2027-v2) et de la fermeture de C1 : 315 artefacts promus couverts, exclusion stricte et exacte des 4 archives Eduscol ADR-0055 via le registre scellé d'exclusion, 0 contenu refusé promu (release_promoted_refused_contents=0), préservation stricte de la release V1 historique, mode 0444 vérifié, aucune mutation production ni current switch.",
+  "verification_status": "VERIFIED"
+}

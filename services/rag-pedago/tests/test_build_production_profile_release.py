@@ -191,15 +191,22 @@ def test_registered_release_is_the_only_active_release_and_exact() -> None:
     assert registry["school_year"] == "2026-2027"
     assert len(registry["releases"]) == 1
     entry = registry["releases"][0]
-    assert entry["release_id"] == "production-profile-gate-2026-2027-v1"
-    assert entry["release_kind"] == "MULTILEVEL_AGGREGATE_RELEASE_V1"
+    assert entry["release_id"] == "production-profile-gate-2026-2027-v2"
+    assert entry["release_kind"] == "MULTILEVEL_AGGREGATE_RELEASE_V2"
     assert entry["manifest_path"] == (
-        "profile_gate/production-profile-gate.release.json"
+        "profile_gate_v2/release-1b9eba0c0eb0ab13/profile_gate/production-profile-gate.release.json"
     )
     # Restaté le 2026-09-02 : onze collections servies, jamais dix-huit.
     assert entry["collections"] == _served_release_collections()
     assert len(entry["collections"]) == 11
-    assert entry["expected_manifest_sha256"] == _sha256(AGGREGATE)
+    assert entry["expected_manifest_sha256"] == (
+        "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864"
+    )
+
+    # Historical V1 release preserved
+    v1_registry = _load(REGISTRY.parent / "release-registry-v1.json")
+    v1_entry = v1_registry["releases"][0]
+    assert v1_entry["release_id"] == "production-profile-gate-2026-2027-v1"
 
 
 def test_sealed_aggregate_is_internally_exact_and_names_its_populations() -> None:

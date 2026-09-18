@@ -209,15 +209,20 @@ def test_governance_invariants_lot_cf() -> None:
         (RACINE / "docs/reports/go_live/go_live_readiness_state.json").read_text(encoding="utf-8")
     )
 
-    # In Lot CF, C1 is NOT closed yet, 4 archives remain refused in V1 active release
+    # In Lot CF, C1 was not closed yet (4 archives refused). Post-CG reseal: 0 refused and C1 closed (3 blockers)
     assert readiness["pii_undecided"] == 0
     assert readiness["pre_release_blockers"] == 0
-    assert readiness["release_promoted_refused_contents"] == 4
-    assert readiness["go_live_qualification_blockers"] == 4
+    assert readiness["release_promoted_refused_contents"] in (0, 4)
+    if readiness["release_promoted_refused_contents"] == 4:
+        assert readiness["go_live_qualification_blockers"] == 4
+        assert "C1" in readiness["go_live_qualification_blocker_ids"]
+        assert "release_promoted_refused_contents" in readiness["blocking_reasons"]
+    else:
+        assert readiness["release_promoted_refused_contents"] == 0
+        assert readiness["go_live_qualification_blockers"] == 3
+        assert "C1" not in readiness["go_live_qualification_blocker_ids"]
     assert readiness["go_live_ready"] is False
-    assert "C1" in readiness["go_live_qualification_blocker_ids"]
     assert "go_live_qualification_blockers" in readiness["blocking_reasons"]
-    assert "release_promoted_refused_contents" in readiness["blocking_reasons"]
 
     # Fail-closed assert-ready
     assert_res = subprocess.run(

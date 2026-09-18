@@ -574,7 +574,7 @@ def test_instantiated_collection_profile_match_is_accepted_by_current_release_re
             [
                 {
                     "content_sha256": content_sha256,
-                    "release_id": "production-profile-gate-2026-2027-v1",
+                    "release_id": "production-profile-gate-2026-2027-v2",
                     "collection": profile.scope.collection,
                     "profile_version": profile.profile_version,
                 }
@@ -669,7 +669,7 @@ def test_non_instantiated_collections_are_rejected_by_current_release_registry(
             [
                 {
                     "content_sha256": content_sha256,
-                    "release_id": "production-profile-gate-2026-2027-v1",
+                    "release_id": "production-profile-gate-2026-2027-v2",
                     "collection": profile.scope.collection,
                     "profile_version": profile.profile_version,
                 }

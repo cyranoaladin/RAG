@@ -1,36 +1,34 @@
 {
  "blocking_reasons": [
-  "go_live_qualification_blockers",
-  "release_promoted_refused_contents"
+  "go_live_qualification_blockers"
  ],
  "current_switch": 0,
  "currentness_policy_applied": true,
- "disk_free_bytes": 163063017472,
+ "disk_free_bytes": 156953985024,
  "disk_policy_ok": true,
- "disk_used_percent": 78,
- "evaluated_head": "c0ee319299c570d5b110c1543ddf1f1c7ca1c891",
- "evaluated_ref": "go-live/import-approved-pii-currentness-decisions",
+ "disk_used_percent": 79,
+ "evaluated_head": "470c4b991a4234428d3f1960881d45e9bebf3dfa",
+ "evaluated_ref": "go-live/reseal-and-c1-closure",
  "generated_by": "scripts/go_live/check_go_live_readiness.py",
  "go_live_qualification_blocker_ids": [
-  "C1",
   "STAGING_EXTERNE",
   "CONCURRENCE",
   "MANIFESTE_PRODUCTION"
  ],
- "go_live_qualification_blockers": 4,
+ "go_live_qualification_blockers": 3,
  "go_live_ready": false,
  "input_digests": {
   "docs/reports/evidence-index/non_pdf_disposition_consolidation_20260907.json": "c2fb30dd39a347a82c7e9bed96933610444ce784719ddd73b478694010896018",
   "docs/reports/go_live/expected_worktrees.json": "5f04ffa232cf84f4a0246c958ee984b7525b50bfc172e0a1ab6f898848662dcc",
   "docs/reports/go_live/non_pdf_retention_policy.json": "1b400ecc48f72c9b2ec6d6b1f6ec68d82f22dbcbd726a5ef69c5379c3fe41017",
   "docs/reports/go_live/open_pr_dispositions.json": "223f4824bf25dfea729e73fa22fce159119214528899b79ce94b53a20c3d84f5",
-  "docs/reports/go_live/qualification_blockers.json": "e7bb2d8f50e08b3a9abfb894583493cf9bc3a584ad017e2c4557d875ba23f99b",
+  "docs/reports/go_live/qualification_blockers.json": "4b8e5d6ba6117802b7b04bc5755018197869cd2ded284c02b01d3f1425a7b33c",
   "docs/reports/go_live/rag_searchability_gap.json": "f045f2e68ddd5430953da3f46ef9586b2fcbdf371cdd3e6ed49d3f65072d2264",
   "docs/reports/handoff/servability_matrix_v1.json": "5dc4c8983ec8feb4f7ce1a76babba4b75ff2840af00b4de880d4120c19d14f9c",
   "services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml": "4226aba5cd13d60558d049df73d4df06554bc1a6d603111d02de166f1db17c29"
  },
  "kind": "NEXUS-GO-LIVE-READINESS-STATE-V1",
- "main_head": "c0ee319299c570d5b110c1543ddf1f1c7ca1c891",
+ "main_head": "470c4b991a4234428d3f1960881d45e9bebf3dfa",
  "non_pdf_retention_policy_versioned": true,
  "non_pdf_retention_reason": "MEASURED",
  "non_pdf_retention_store_named": true,
@@ -43,7 +41,7 @@
  "open_prs_blocking_ids": [],
  "open_prs_disposition_unknown": 0,
  "open_prs_total": 10,
- "origin_main_at_generation": "c0ee319299c570d5b110c1543ddf1f1c7ca1c891",
+ "origin_main_at_generation": "470c4b991a4234428d3f1960881d45e9bebf3dfa",
  "pii_undecided": 0,
  "pre_release_blocker_ids": [],
  "pre_release_blockers": 0,
@@ -55,34 +53,22 @@
  "program_incompatible_in_servable_set_ids": [],
  "program_incompatible_refused_by_matrix": 1,
  "program_incompatible_total": 1,
- "promoted_content_set_sha256": "d06d6051e7037372acf4dca4675a1c999c198129433d68491221a9d03bb821cd",
- "promoted_content_set_size": 319,
+ "promoted_content_set_sha256": "04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12",
+ "promoted_content_set_size": 315,
  "promoted_content_set_source": "scripts/qualification/compute_promoted_content_set.py",
  "promoted_release_authority_mechanism": "REGISTRY_FILE",
  "promoted_release_registry_source": "DEFAULT",
  "rag_searchability_blocker": false,
  "rag_searchability_conditions_not_met": [],
  "rag_searchable": true,
- "release_currentness_impact": [
-  "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
-  "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
-  "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
-  "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2"
- ],
+ "release_currentness_impact": [],
  "release_impact_measurable": true,
- "release_promoted_refused_by_currentness": 4,
- "release_promoted_refused_by_verdict": {
-  "BLOCKED_NOT_CURRENT_BY_SOURCE": 4
- },
- "release_promoted_refused_content_ids": [
-  "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
-  "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
-  "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
-  "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2"
- ],
- "release_promoted_refused_contents": 4,
+ "release_promoted_refused_by_currentness": 0,
+ "release_promoted_refused_by_verdict": {},
+ "release_promoted_refused_content_ids": [],
+ "release_promoted_refused_contents": 0,
  "release_promoted_unmatched_in_matrix": 0,
- "release_reseal_required": true,
+ "release_reseal_required": false,
  "retrieval_contract_validated": true,
  "root_owned_worktree_residue_paths": [],
  "root_owned_worktree_residues": 0,
@@ -93,5 +79,5 @@
  "staging_vectors_present": 55251,
  "state_freshness_kind": "COMMITTED_SNAPSHOT",
  "target_scope_searchable": true,
- "worktrees_total": 3
+ "worktrees_total": 5
 }

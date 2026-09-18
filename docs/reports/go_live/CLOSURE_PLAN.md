@@ -13,7 +13,7 @@ Un contenu qui figure dans une matrice n est pas pour autant servi.
 
 | Niveau | Mesure | Valeur |
 | --- | --- | --- |
-| contenu promu | ensemble promu canonique | 319 |
+| contenu promu | ensemble promu canonique | 315 |
 | contenu candidat a la servabilite | matrice de servabilite, applied=false | 2286 |
 | contenu ingere | base pgvector d un environnement identifie | non mesurable depuis le depot |
 | contenu exploitable par recherche | contrat de retrieval sur un service identifie | non mesurable depuis le depot |
