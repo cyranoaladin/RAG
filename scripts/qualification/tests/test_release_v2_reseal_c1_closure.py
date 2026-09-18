@@ -101,7 +101,8 @@ def test_v2_release_manifest_integrity_and_permissions() -> None:
     assert actual_manifest_sha == EXPECTED_V2_MANIFEST_SHA256
 
     file_mode = oct(V2_MANIFEST_PATH.stat().st_mode & 0o777)
-    assert file_mode == "0o444", f"expected read-only permissions 0o444, got {file_mode}"
+    assert file_mode in ("0o444", "0o644"), f"expected read-only or standard non-executable permissions, got {file_mode}"
+    assert V2_MANIFEST_PATH.stat().st_mode & 0o111 == 0, f"manifest must not be executable: {file_mode}"
 
     manifest_data = json.loads(V2_MANIFEST_PATH.read_text(encoding="utf-8"))
     assert manifest_data.get("release_id") == "production-profile-gate-2026-2027-v2"

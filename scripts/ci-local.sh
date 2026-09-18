@@ -59,7 +59,7 @@ run_contracts() {
     local venv="/tmp/ci-local-contracts-venv"
     rm -rf "$venv"
     "$PYTHON_BIN" -m venv "$venv"
-    "$venv/bin/pip" install -q -e 'packages/contracts[dev]'
+    "$venv/bin/pip" install -q -e 'packages/contracts[dev]' -e packages/pdf-page-policy -e packages/release-chain
     "$venv/bin/python" -m pytest packages/contracts/tests -q
     "$venv/bin/python" packages/contracts/scripts/export_schemas.py \
         --output packages/contracts/schema --check
