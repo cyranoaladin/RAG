@@ -556,6 +556,46 @@ def _instanciated_v2_collections(
     )
 
 
+_ALLOWED_NEXUS_ENVIRONMENTS = frozenset({"production", "rehearsal"})
+
+
+def _resolve_nexus_environment() -> str:
+    """Resolve the governed execution runtime environment.
+
+    Default: 'production' (fail-closed).
+    Only 'production' and 'rehearsal' are authorized; any other value is rejected.
+    """
+    raw = os.environ.get("NEXUS_ENVIRONMENT")
+    if raw is None or not raw.strip():
+        return "production"
+    normalized = raw.strip().lower()
+    if normalized not in _ALLOWED_NEXUS_ENVIRONMENTS:
+        raise RuntimeError(
+            f"unsupported NEXUS_ENVIRONMENT: {raw!r} — expected one of "
+            f"{sorted(_ALLOWED_NEXUS_ENVIRONMENTS)}"
+        )
+    return normalized
+
+
+def _validate_unpromoted_release_guard(registry: ReleaseRegistryExpectation) -> None:
+    """Reject rehearsal or unpromoted releases when running in production."""
+    env = _resolve_nexus_environment()
+    if env == "production":
+        for manifest in registry.manifests:
+            exp = manifest.expectation
+            if (
+                getattr(exp, "promotion_status", None) == "NOT_PROMOTABLE"
+                or getattr(exp, "activation_status", None) == "NO_PRODUCTION_ACTIVATION"
+                or getattr(exp, "review_status", None) == "PRE_REVIEW"
+                or getattr(exp, "release_mode", None) == "rehearsal"
+            ):
+                raise RuntimeError(
+                    f"cannot activate rehearsal or unpromotable release in production runtime: "
+                    f"release_id={getattr(exp, 'release_id', None)}, promotion_status={getattr(exp, 'promotion_status', None)}, "
+                    f"activation_status={getattr(exp, 'activation_status', None)}, review_status={getattr(exp, 'review_status', None)}"
+                )
+
+
 def validate_release_startup_configuration(
     artifacts: Mapping[str, object],
     cfg: Mapping[str, Any],
@@ -570,19 +610,7 @@ def validate_release_startup_configuration(
             raise ReleaseReadinessError("release manifest unavailable")
     except ReleaseReadinessError as exc:
         raise RuntimeError("release manifest unavailable or invalid") from exc
-    for manifest in registry.manifests:
-        exp = manifest.expectation
-        if (
-            getattr(exp, "promotion_status", None) == "NOT_PROMOTABLE"
-            or getattr(exp, "activation_status", None) == "NO_PRODUCTION_ACTIVATION"
-            or getattr(exp, "review_status", None) == "PRE_REVIEW"
-            or getattr(exp, "release_mode", None) == "rehearsal"
-        ):
-            raise RuntimeError(
-                f"cannot activate rehearsal or unpromotable release in production runtime: "
-                f"release_id={getattr(exp, 'release_id', None)}, promotion_status={getattr(exp, 'promotion_status', None)}, "
-                f"activation_status={getattr(exp, 'activation_status', None)}, review_status={getattr(exp, 'review_status', None)}"
-            )
+    _validate_unpromoted_release_guard(registry)
 
     configured_collections = set(registry.collections)
 
@@ -625,19 +653,7 @@ def validate_configured_release_database() -> None:
     registry = _configured_release_registry()
     if registry is None:
         return
-    for manifest in registry.manifests:
-        exp = manifest.expectation
-        if (
-            getattr(exp, "promotion_status", None) == "NOT_PROMOTABLE"
-            or getattr(exp, "activation_status", None) == "NO_PRODUCTION_ACTIVATION"
-            or getattr(exp, "review_status", None) == "PRE_REVIEW"
-            or getattr(exp, "release_mode", None) == "rehearsal"
-        ):
-            raise RuntimeError(
-                f"cannot activate rehearsal or unpromotable release in production runtime: "
-                f"release_id={getattr(exp, 'release_id', None)}, promotion_status={getattr(exp, 'promotion_status', None)}, "
-                f"activation_status={getattr(exp, 'activation_status', None)}, review_status={getattr(exp, 'review_status', None)}"
-            )
+    _validate_unpromoted_release_guard(registry)
 
     settings = PoolSettings.from_env()
 
