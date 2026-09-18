@@ -4,7 +4,7 @@
   "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
   "execution_plan": {
     "path": "docs/runbooks/staging_externe_nexus_prod_cloisonne_EXECUTION_PLAN.md",
-    "sha256": "7f696940eb7c9d9725d7f5834352ed4140def510ddf1257a08150bb1be24ec79"
+    "sha256": "57bcad2b4e3691018a673e3345ae4e385a4229f6a9b1339a07a681e5089383df"
   },
   "expected_proof": [
     "docs/reports/evidence/external_staging_proof.json en mode A / production_cloisonnee",
@@ -46,7 +46,7 @@
     "ingestor_image": "pinned_by_digest_no_rebuild",
     "load": "mesure séquentielle C0 seulement (30 requêtes, une à la fois) ; la charge complète C1 exige une autre PR",
     "loopback_ports": {
-      "ingestor": 18001,
+      "ingestor": 18003,
       "pgvector": 15435,
       "prometheus": 19191
     },
