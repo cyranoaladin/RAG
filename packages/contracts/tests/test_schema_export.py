@@ -17,18 +17,19 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_17_0() -> None:
-    """0.17.0 ajoute le contrat typé de la vue taxonomie servable (ADR-0049).
+def test_package_version_is_0_18_0() -> None:
+    """0.18.0 empaquette les onze scopes de la release V2 (ADR-0052, ADR-0053).
 
-    Mineure et non majeure : `TaxonomyV2Response` est un ajout, aucun contrat
-    existant n'est modifié ni retiré. Elle succède à 0.16.0, qui a empaqueté
-    dix scopes de retrieval (ADR-0048) — évolution également ADDITIVE. Le
-    dépôt applique la MINEURE à ce cas depuis ADR-0042 (0.11→0.12), ADR-0044,
-    ADR-0045 et ARIA-B.
+    Mineure et non majeure : onze `RetrievalScopeArtifactV2` sont AJOUTÉS au
+    registre fermé, aucun scope existant n'est modifié ni retiré, et aucun
+    schéma ne change. Elle succède à 0.17.0 (vue taxonomie servable,
+    ADR-0049) et à 0.16.0 (dix scopes de retrieval, ADR-0048) — mêmes
+    évolutions additives. Le dépôt applique la MINEURE à ce cas depuis
+    ADR-0042 (0.11→0.12), ADR-0044, ADR-0045 et ARIA-B.
     """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.17.0"
+    assert pyproject["project"]["version"] == "0.18.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -77,7 +78,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first_lock = json.loads((first / "contracts.lock.json").read_text())
     second_lock = json.loads((second / "contracts.lock.json").read_text())
     assert first_lock == second_lock
-    assert first_lock["packageVersion"] == "0.17.0"
+    assert first_lock["packageVersion"] == "0.18.0"
     assert set(first_lock["schemas"]) == expected
     fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
     assert first_lock["fixtures"] == {

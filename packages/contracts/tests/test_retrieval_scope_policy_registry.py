@@ -40,8 +40,10 @@ HUMAN_DECISION_COLLECTIONS = frozenset(
 GOVERNED = "GOVERNED"
 BY_HUMAN_DECISION = "GOVERNED_BY_HUMAN_DECISION"
 
-#: Taille du registre fermé. Ce lot n'y ajoute aucun scope.
-PACKAGED_SCOPE_COUNT = 41
+#: Taille du registre fermé après l'émission des onze scopes de la release V2
+#: (41 avant le lot CN). Le compte est épinglé : une entrée ajoutée sans test
+#: fait échouer la suite.
+PACKAGED_SCOPE_COUNT = 52
 
 #: Vocabulaire canonique, dérivé du contrat et jamais réécrit ici.
 CANONICAL_AUDIENCES = frozenset(
@@ -85,21 +87,58 @@ def test_release_v2_manifest_digest_is_unchanged() -> None:
     assert _sha256(manifest) == registry["release_manifest_sha256"]
 
 
-# --- 9. aucun scope n'est généré -----------------------------------------
+# --- le registre fermé porte exactement ce qui a été décidé --------------
 
 
-def test_no_scope_is_emitted_by_this_lot() -> None:
+def test_packaged_registry_size_is_pinned() -> None:
     assert len(load_retrieval_scope_registry()) == PACKAGED_SCOPE_COUNT
 
 
-def test_human_decision_collections_still_have_no_packaged_scope() -> None:
-    """Décider une politique n'émet pas un scope : les deux restent disjoints."""
-    packaged = {
-        artifact.evidence_subject.collection
+def test_every_registry_collection_is_now_packaged_exactly_once() -> None:
+    """Chaque collection de la release V2 a UN scope liant SON subject.
+
+    C'est la question que `validate_release_startup_configuration` pose au
+    démarrage : zéro correspondance est un refus, plusieurs aussi.
+    """
+    packaged = [
+        artifact
         for artifact in load_retrieval_scope_registry().values()
         if isinstance(artifact, RetrievalScopeArtifactV2)
-    }
-    assert not (HUMAN_DECISION_COLLECTIONS & packaged)
+    ]
+    for collection, entry in sorted(_entries().items()):
+        matches = [
+            artifact
+            for artifact in packaged
+            if artifact.evidence_subject.collection == collection
+            and artifact.source_sha256 == entry["subject_manifest_sha256"]
+        ]
+        assert len(matches) == 1, (collection, len(matches))
+
+
+def test_packaged_scopes_carry_the_decided_policy() -> None:
+    """Le scope émis porte la politique du registre, à la lettre."""
+    packaged = [
+        artifact
+        for artifact in load_retrieval_scope_registry().values()
+        if isinstance(artifact, RetrievalScopeArtifactV2)
+    ]
+    for collection, entry in sorted(_entries().items()):
+        artifact = next(
+            a
+            for a in packaged
+            if a.evidence_subject.collection == collection
+            and a.source_sha256 == entry["subject_manifest_sha256"]
+        )
+        evidence = artifact.evidence_subject
+        assert list(evidence.audiences) == list(entry["audiences"]), collection
+        assert [r.value for r in evidence.rights] == list(entry["rights"]), collection
+        assert evidence.visibility == entry["policy_visibility"], collection
+        assert evidence.programme_version == entry["programme_version"], collection
+        target = artifact.target_identity
+        assert target.audience == entry["target_audience"], collection
+        assert [c.value for c in target.candidates] == list(
+            entry["target_candidates"]
+        ), collection
 
 
 # --- 1/2. les onze collections portent une politique non nulle ------------
@@ -307,10 +346,11 @@ def test_drive_provenance_directory_is_absent_from_the_repository() -> None:
     assert not (REPO_ROOT / "nexus_drive_provenance_8_authorities").exists()
 
 
-# --- ce lot ne touche ni runtime, ni readiness, ni release ---------------
+# --- invariants permanents du dépôt, mesurés sur le diff de la branche ---
 
 
-def _changed_files_against_main() -> list[str] | None:
+def _changed_against_main() -> list[tuple[str, str]] | None:
+    """(statut, chemin) pour chaque fichier que la branche change."""
     try:
         base = subprocess.run(
             ["git", "merge-base", "HEAD", "main"],
@@ -319,27 +359,41 @@ def _changed_files_against_main() -> list[str] | None:
         if base.returncode != 0:
             return None
         diff = subprocess.run(
-            ["git", "diff", "--name-only", base.stdout.strip(), "HEAD"],
+            ["git", "diff", "--name-status", base.stdout.strip(), "HEAD"],
             cwd=REPO_ROOT, capture_output=True, text=True, timeout=30, check=False,
         )
         if diff.returncode != 0:
             return None
     except (OSError, subprocess.SubprocessError):
         return None
-    return [line for line in diff.stdout.splitlines() if line]
+    changed: list[tuple[str, str]] = []
+    for line in diff.stdout.splitlines():
+        if not line:
+            continue
+        parts = line.split("\t")
+        changed.append((parts[0], parts[-1]))
+    return changed
 
 
-def test_lot_touches_only_governance_documents() -> None:
-    changed = _changed_files_against_main()
+def test_no_release_file_is_ever_modified() -> None:
+    """Une release scellée ne se retouche pas pour faire passer une émission."""
+    changed = _changed_against_main()
     if changed is None:
-        pytest.skip("dépôt git indisponible : invariant vérifié par ailleurs")
-    allowed_prefixes = (
-        "docs/adr/",
-        "docs/governance/",
-        "docs/reports/",
-        "packages/contracts/tests/",
-    )
-    for path in changed:
-        assert path.startswith(allowed_prefixes), path
-        assert not path.startswith("services/"), path
-        assert not path.startswith("packages/contracts/src/"), path
+        pytest.skip("dépôt git indisponible")
+    for status, path in changed:
+        assert not path.startswith(
+            "services/rag-pedago/data/releases/"
+        ), (status, path)
+
+
+def test_no_preexisting_scope_artifact_is_modified() -> None:
+    """ADR-0045 : un nouveau subject reçoit un NOUVEL artefact, jamais une
+    mutation silencieuse d'un artefact déjà adressable. Seuls les ajouts
+    (`A`) sont admis sous `artifacts/`."""
+    changed = _changed_against_main()
+    if changed is None:
+        pytest.skip("dépôt git indisponible")
+    artifacts = "packages/contracts/src/nexus_contracts/artifacts/"
+    for status, path in changed:
+        if path.startswith(artifacts):
+            assert status == "A", (status, path)

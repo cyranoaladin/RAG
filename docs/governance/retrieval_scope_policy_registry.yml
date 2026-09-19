@@ -79,6 +79,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé
@@ -120,6 +123,18 @@ collections:
       currentness: current
       subject_manifest_sha256: 50cdead241b65fdc8a06a9ab5e4eb145246d1874058b0a6f8f3f6b1bbeab4220
       subject_path: profile_gate/subjects/rag_nexus_hggsp_premiere_specialite.release.json
+    # Identité cible — EXTENSION de la décision CM. `candidates` et
+    # `audience` servent au contrôle d'accès dans `validate_envelope`
+    # (`profile.candidat not in candidates`, `profile.audience !=
+    # audience`) et ne figuraient pas au registre. Valeurs retenues :
+    # le grant le plus étroit compatible avec le `candidat` que la
+    # release déclare, jamais un élargissement.
+    target_audience: libre
+    target_candidates: [libre]
+    target_identity_decision: >-
+      Extension de la décision CM, approuvée au titre d'ADR-0053 :
+      ces deux valeurs sont des dimensions de contrôle d'accès que la
+      décision initiale ne couvrait pas. Décidées, non dérivées.
     human_decision_status: APPROVED_UNDER_ADR_0053
     decision_reviewer: abenrhouma
     decision_date: "2026-09-19"
@@ -176,6 +191,18 @@ collections:
       currentness: current
       subject_manifest_sha256: 25515f0d2f968782707f24ac06dd34fd7f4eb3214b1080afe7ae22096edccf19
       subject_path: profile_gate/subjects/rag_nexus_hggsp_terminale_specialite.release.json
+    # Identité cible — EXTENSION de la décision CM. `candidates` et
+    # `audience` servent au contrôle d'accès dans `validate_envelope`
+    # (`profile.candidat not in candidates`, `profile.audience !=
+    # audience`) et ne figuraient pas au registre. Valeurs retenues :
+    # le grant le plus étroit compatible avec le `candidat` que la
+    # release déclare, jamais un élargissement.
+    target_audience: libre
+    target_candidates: [libre]
+    target_identity_decision: >-
+      Extension de la décision CM, approuvée au titre d'ADR-0053 :
+      ces deux valeurs sont des dimensions de contrôle d'accès que la
+      décision initiale ne couvrait pas. Décidées, non dérivées.
     human_decision_status: APPROVED_UNDER_ADR_0053
     decision_reviewer: abenrhouma
     decision_date: "2026-09-19"
@@ -221,6 +248,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé
@@ -262,6 +292,18 @@ collections:
       currentness: current
       subject_manifest_sha256: a5fffddf0ff8e921700d178b3702f5847cdf9938ea8a945b41dfe124c67655c7
       subject_path: profile_gate/subjects/rag_nexus_hlp_terminale_specialite.release.json
+    # Identité cible — EXTENSION de la décision CM. `candidates` et
+    # `audience` servent au contrôle d'accès dans `validate_envelope`
+    # (`profile.candidat not in candidates`, `profile.audience !=
+    # audience`) et ne figuraient pas au registre. Valeurs retenues :
+    # le grant le plus étroit compatible avec le `candidat` que la
+    # release déclare, jamais un élargissement.
+    target_audience: libre
+    target_candidates: [libre]
+    target_identity_decision: >-
+      Extension de la décision CM, approuvée au titre d'ADR-0053 :
+      ces deux valeurs sont des dimensions de contrôle d'accès que la
+      décision initiale ne couvrait pas. Décidées, non dérivées.
     human_decision_status: APPROVED_UNDER_ADR_0053
     decision_reviewer: abenrhouma
     decision_date: "2026-09-19"
@@ -307,6 +349,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé
@@ -337,6 +382,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé
@@ -367,6 +415,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé
@@ -397,6 +448,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé
@@ -427,6 +481,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé
@@ -457,6 +514,9 @@ collections:
     policy_visibility: internal
     audiences: [libre, tous]
     rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
     human_decision_status: APPROVED_UNDER_ADR_0045
     justification: >-
       Politique reconduite à l'identique depuis le scope packagé

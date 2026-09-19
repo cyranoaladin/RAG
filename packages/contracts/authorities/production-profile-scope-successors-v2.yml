@@ -1,0 +1,44 @@
+# Autorité de NOMMAGE des scopes de retrieval de la release de profils
+# production V2.
+#
+# CE FICHIER NE CRÉE AUCUN DROIT.
+#
+# Il ne porte ni tenant, ni niveau, ni voie, ni matière, ni statut
+# d'enseignement, ni candidat, ni audiences, ni visibilité, ni droits, ni année
+# scolaire, ni version de programme. Toute la politique se lit dans
+# `docs/governance/retrieval_scope_policy_registry.yml`, gouverné sous ADR-0052
+# et ADR-0053 ; ce fichier se borne à NOMMER l'identifiant du scope à émettre
+# pour chaque collection de la release.
+#
+# Convention de version (ADR-0045) :
+#
+#   * une collection qui possède déjà un scope packagé reçoit son SUCCESSEUR,
+#     `_v<N+1>` — huit cas ;
+#   * une collection qui n'en possède aucun reçoit un PREMIER scope, `_v1`.
+#     Le nommer `_v2` laisserait croire à un prédécesseur qui n'existe pas —
+#     trois cas, ceux qu'ADR-0053 a fait décider.
+authority_id: PRODUCTION_PROFILE_SCOPE_SUCCESSORS_V1
+release_id: production-profile-gate-2026-2027-v2
+bindings:
+  - collection: rag_nexus_dgemc_terminale_option
+    scope_id: prod_dgemc_terminale_option_v2
+  - collection: rag_nexus_hggsp_premiere_specialite
+    scope_id: prod_hggsp_premiere_specialite_v1
+  - collection: rag_nexus_hggsp_terminale_specialite
+    scope_id: prod_hggsp_terminale_specialite_v1
+  - collection: rag_nexus_hlp_premiere_specialite
+    scope_id: prod_hlp_premiere_specialite_v2
+  - collection: rag_nexus_hlp_terminale_specialite
+    scope_id: prod_hlp_terminale_specialite_v1
+  - collection: rag_nexus_nsi_premiere_specialite
+    scope_id: prod_nsi_premiere_specialite_v2
+  - collection: rag_nexus_nsi_terminale_specialite
+    scope_id: prod_nsi_terminale_specialite_v2
+  - collection: rag_nexus_ses_premiere_specialite
+    scope_id: prod_ses_premiere_specialite_v2
+  - collection: rag_nexus_ses_terminale_specialite
+    scope_id: prod_ses_terminale_specialite_v2
+  - collection: rag_nexus_svt_premiere_specialite
+    scope_id: prod_svt_premiere_specialite_v2
+  - collection: rag_nexus_svt_terminale_specialite
+    scope_id: prod_svt_terminale_specialite_v2

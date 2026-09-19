@@ -550,6 +550,70 @@ _RETRIEVAL_SCOPE_RESOURCES: Mapping[str, tuple[str, str, Literal["1", "2"]]] = (
                 "22d01e1e0bbeb908eb806df1ab9da1d5343bedc527bd9a17a03a02a22651f018",
                 "2",
             ),
+            # ADR-0052 / ADR-0053 — les onze scopes de la release
+            # `production-profile-gate-2026-2027-v2`, émis par
+            # `scripts/build_retrieval_scope_artifacts.py` depuis le registre
+            # gouverné `docs/governance/retrieval_scope_policy_registry.yml`.
+            # Huit reconduisent la politique de leur `_v1`, qui reste packagé,
+            # adressable et inchangé (ADR-0045). Trois sont des PREMIERS scopes
+            # pour des collections qui n'en avaient aucun : leur politique est
+            # une décision humaine, prise sous ADR-0053 — d'où `_v1`, et non
+            # `_v2` qui laisserait croire à un prédécesseur.
+            "prod_dgemc_terminale_option_v2": (
+                "artifacts/retrieval-scope-prod-dgemc-terminale-option-v2.json",
+                "8ebb28a0b43611dafc1a26aa20eb03eba8062872274d3b2b33c6f9c6bd05e5ea",
+                "2",
+            ),
+            "prod_hggsp_premiere_specialite_v1": (
+                "artifacts/retrieval-scope-prod-hggsp-premiere-specialite-v1.json",
+                "31fef4423ed9643f58e81b5f9496b40d83798d96132854df4146b38b45f1c3f6",
+                "2",
+            ),
+            "prod_hggsp_terminale_specialite_v1": (
+                "artifacts/retrieval-scope-prod-hggsp-terminale-specialite-v1.json",
+                "ad254e0006b93239fdf2e431146a031ab015f6d1156d6f66e3b37104557a9777",
+                "2",
+            ),
+            "prod_hlp_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-hlp-premiere-specialite-v2.json",
+                "2c4f72b4477da683b2ff1887d634fc13a4fc321db42649fd94b20f57da38a111",
+                "2",
+            ),
+            "prod_hlp_terminale_specialite_v1": (
+                "artifacts/retrieval-scope-prod-hlp-terminale-specialite-v1.json",
+                "cf316aadfbd7342efe21c9760f868f1fc651f52cd0cb8ef2e3f8c10529775655",
+                "2",
+            ),
+            "prod_nsi_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-nsi-premiere-specialite-v2.json",
+                "41c2ef4c08c021b4d378b964cce7f33d37fdd47d8191a87383f384a0f366f17e",
+                "2",
+            ),
+            "prod_nsi_terminale_specialite_v2": (
+                "artifacts/retrieval-scope-prod-nsi-terminale-specialite-v2.json",
+                "798463fe2f41674b7ef9d7f53386702454cb7c58adf21eff143e07efc0a29b2f",
+                "2",
+            ),
+            "prod_ses_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-ses-premiere-specialite-v2.json",
+                "0d2e3cb1a14f48722891668b56a95e9bc87dd213e23f025a87e97a899f1483e1",
+                "2",
+            ),
+            "prod_ses_terminale_specialite_v2": (
+                "artifacts/retrieval-scope-prod-ses-terminale-specialite-v2.json",
+                "a6891b07725399038d82ba9f938b452e1358fa3a4935ba90ece2d873cb92bc91",
+                "2",
+            ),
+            "prod_svt_premiere_specialite_v2": (
+                "artifacts/retrieval-scope-prod-svt-premiere-specialite-v2.json",
+                "9ee2388dc8704f9bb390aca8cbba3d15d8d12f75140b05fb8ad24f84a90b13fd",
+                "2",
+            ),
+            "prod_svt_terminale_specialite_v2": (
+                "artifacts/retrieval-scope-prod-svt-terminale-specialite-v2.json",
+                "b3ae0086233b2b489bdc3be8cee1734e44ae6da3875f601a08bc11068b77e20a",
+                "2",
+            ),
         }
     )
 )

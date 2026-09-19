@@ -177,3 +177,108 @@ def test_safety_invariants() -> None:
     assert state.get("current_switch") == 0
     assert state.get("production_db_writes") == 0
     assert state.get("production_deployments") == 0
+
+
+def test_rehearsal_startup_is_accepted_now_that_the_eleven_scopes_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Le démarrage passe parce que le contrat est COMPLET, pas parce qu'une
+    garde a été réduite.
+
+    `validate_release_startup_configuration` sélectionne un scope par couple
+    exact `(collection, subject_sha256)` : zéro correspondance est un refus,
+    plusieurs aussi. Tant que les onze collections de
+    `production-profile-gate-2026-2027-v2` n'avaient pas de scope contractuel,
+    ce test ne pouvait pas passer — et il ne devait pas passer.
+    """
+    registry_sha = hashlib.sha256(RELEASE_REGISTRY_PATH.read_bytes()).hexdigest()
+
+    monkeypatch.setenv("NEXUS_ENVIRONMENT", "rehearsal")
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY_PATH))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha)
+
+    endpoint.validate_release_startup_configuration(
+        load_retrieval_scope_registry(),
+        load_collection_config(COLLECTION_CONFIG),
+    )
+
+
+def test_production_still_refuses_the_unpromoted_release_despite_the_scopes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Donner ses scopes à une release ne la rend pas promue.
+
+    C'est la contre-épreuve du test ci-dessus : le contrat de retrieval est
+    désormais complet, et la production refuse toujours — parce que le refus
+    tient à `promotion_status`, que ce lot n'a pas touché.
+    """
+    registry_sha = hashlib.sha256(RELEASE_REGISTRY_PATH.read_bytes()).hexdigest()
+
+    monkeypatch.setenv("NEXUS_ENVIRONMENT", "production")
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY_PATH))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha)
+
+    with pytest.raises(
+        RuntimeError,
+        match="cannot activate rehearsal or unpromotable release in production runtime",
+    ):
+        endpoint.validate_release_startup_configuration(
+            load_retrieval_scope_registry(),
+            load_collection_config(COLLECTION_CONFIG),
+        )
+
+
+#: Les onze scopes que le lot CN a installés pour la release V2.
+V2_SCOPE_IDS = frozenset(
+    {
+        "prod_dgemc_terminale_option_v2",
+        "prod_hggsp_premiere_specialite_v1",
+        "prod_hggsp_terminale_specialite_v1",
+        "prod_hlp_premiere_specialite_v2",
+        "prod_hlp_terminale_specialite_v1",
+        "prod_nsi_premiere_specialite_v2",
+        "prod_nsi_terminale_specialite_v2",
+        "prod_ses_premiere_specialite_v2",
+        "prod_ses_terminale_specialite_v2",
+        "prod_svt_premiere_specialite_v2",
+        "prod_svt_terminale_specialite_v2",
+    }
+)
+
+
+def test_removing_the_eleven_scopes_restores_the_original_refusal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Contre-épreuve : la garde n'a pas été réduite, elle a été satisfaite.
+
+    En retirant les onze scopes du registre — l'état exact d'avant ce lot —,
+    le démarrage rehearsal doit retrouver le refus d'origine,
+    `scope source SHA differs from subject release`. Un test qui passerait
+    dans les deux cas ne prouverait rien.
+    """
+    registry_sha = hashlib.sha256(RELEASE_REGISTRY_PATH.read_bytes()).hexdigest()
+
+    monkeypatch.setenv("NEXUS_ENVIRONMENT", "rehearsal")
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFEST_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", str(RELEASE_REGISTRY_PATH))
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", registry_sha)
+
+    full = dict(load_retrieval_scope_registry())
+    assert V2_SCOPE_IDS <= set(full)
+    without = {k: v for k, v in full.items() if k not in V2_SCOPE_IDS}
+
+    with pytest.raises(
+        RuntimeError, match="scope source SHA differs from subject release"
+    ):
+        endpoint.validate_release_startup_configuration(
+            without,
+            load_collection_config(COLLECTION_CONFIG),
+        )
