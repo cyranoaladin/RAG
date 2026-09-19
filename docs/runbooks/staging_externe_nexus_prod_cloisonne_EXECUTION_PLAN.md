@@ -47,9 +47,25 @@ Toutes sont écrites par le producteur de secrets dans `staging.env` ; aucune n'
 
 ## 2. Faits que seul l'opérateur peut établir avant le jour J
 
-1. **Source de l'index de staging** — à choisir, rien n'est inventé :
-   (a) ingestion gouvernée de la release multilevel scellée (11 PDF, 353 chunks) par les workers, contre la base de staging ; ou
-   (b) restauration d'un `pg_dump -Fc` de la base vectorielle de staging locale `nexus_vector_staging_a_…` (55 251 vecteurs), si elle est remise en service.
+1. **Source de l'index de staging** — ARRÊTÉE par l'amendement CH3, plus à choisir :
+   ingestion gouvernée de la release **`production-profile-gate-2026-2027-v2`**
+   scellée, par les workers, contre la base de staging `nexus-staging-pgvector-1`
+   et elle seule. Le périmètre est celui que la release DÉCLARE dans son
+   `expected_counts`, et qu'on ne réinvente donc pas :
+
+   | Grandeur | Valeur scellée |
+   |---|---|
+   | `subjects` (collections) | 11 |
+   | `unique_artifacts` | 315 |
+   | `placements` | 479 |
+   | `unique_chunks` | 8268 |
+
+   Les deux options antérieures sont **caduques** et ne valent plus preuve :
+   (a) la release multi-niveaux (11 PDF, 353 chunks) ne couvre pas les
+   collections que le runtime exige — `validate_configured_release_database`
+   réclame un rapport `ready` pour CHAQUE collection de la release configurée ;
+   (b) la restauration d'un `pg_dump` de la base locale décrirait un contenu
+   dont personne ne peut dire de quelle release il provient.
 2. Le **répertoire de corpus servables** et l'empreinte de son index ; l'empreinte du **registre de releases**.
 3. Le répertoire d'accueil (proposé : `/srv/nexus-staging`, propriétaire non-root) et la fenêtre horaire (hors heures d'usage : l'inférence E5 consomme 2 CPU et jusqu'à 8 Gio).
 

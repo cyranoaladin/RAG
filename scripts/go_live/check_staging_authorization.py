@@ -36,6 +36,31 @@ PERIMETRE_REQUIS = {
     "access": "ssh_tunnel_only",
     "pgvector_container_required": "nexus-staging-pgvector-1",
     "ingestor_image": "pinned_by_digest_no_rebuild",
+    #: Le digest exact construit au lot A et consigné sur l'hôte. Une image
+    #: différente en service est un refus : le digest n'est pas décoratif.
+    "ingestor_image_digest": (
+        "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1"
+    ),
+}
+#: CH3 — la source de l'index de staging cesse d'être une PHRASE pour devenir
+#: un périmètre CHIFFRÉ, vérifiable. L'ancienne rédaction libre
+#: (« 11 PDF officiels, 353 chunks ») ne décrivait plus le terrain : ni la base
+#: de staging, ni la release que le runtime exige. Une chaîne de texte n'est
+#: donc plus acceptée ici — seul un objet portant ces clés l'est.
+INDEX_SOURCE_REQUIS = {
+    "release_id": "production-profile-gate-2026-2027-v2",
+    "target_pgvector_container": "nexus-staging-pgvector-1",
+    "contracts_version": "0.18.0",
+    "contracts_scopes_available": 52,
+    "production_database": "forbidden",
+}
+#: Les quatre comptes que la release scellée DÉCLARE elle-même dans
+#: `expected_counts`. Ils ne sont pas estimés ici : ils y sont lus.
+INDEX_COUNTS_REQUIS = {
+    "subjects": 11,
+    "unique_artifacts": 315,
+    "placements": 479,
+    "unique_chunks": 8268,
 }
 PORTS_LOOPBACK_REQUIS = {
     "ingestor": 18003,
@@ -64,6 +89,24 @@ def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
         ecarts.append("ports loopback absents ou invalides")
     elif ports != PORTS_LOOPBACK_REQUIS:
         ecarts.append(f"ports loopback non conformes : {ports}, attendu {PORTS_LOOPBACK_REQUIS}")
+    source = perimetre.get("staging_index_source")
+    if not isinstance(source, dict):
+        # L'ancienne rédaction libre passait ici sans rien prouver.
+        ecarts.append(
+            "staging_index_source doit être un périmètre chiffré, pas une phrase"
+        )
+    else:
+        for cle, attendu in INDEX_SOURCE_REQUIS.items():
+            if source.get(cle) != attendu:
+                ecarts.append(
+                    f"source d'index : {cle} = {source.get(cle)!r}, attendu {attendu!r}"
+                )
+        comptes = source.get("expected_counts")
+        if comptes != INDEX_COUNTS_REQUIS:
+            ecarts.append(
+                f"source d'index : expected_counts = {comptes!r}, "
+                f"attendu {INDEX_COUNTS_REQUIS!r}"
+            )
     manquants = sorted(INTERDITS_REQUIS - set(document.get("forbidden") or []))
     if manquants:
         ecarts.append(f"interdits manquants : {manquants}")
