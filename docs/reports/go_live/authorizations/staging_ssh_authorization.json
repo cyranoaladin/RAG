@@ -1,10 +1,14 @@
 {
+  "amended_by": [
+    "CH2",
+    "CH3"
+  ],
   "authorization": "SSH_STAGING_AUTHORIZED",
   "consumed": false,
   "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
   "execution_plan": {
     "path": "docs/runbooks/staging_externe_nexus_prod_cloisonne_EXECUTION_PLAN.md",
-    "sha256": "57bcad2b4e3691018a673e3345ae4e385a4229f6a9b1339a07a681e5089383df"
+    "sha256": "a0a9a99a84ef2e4391264f9e965655dc7b7fbb453e2d463ebab1311bb228eba8"
   },
   "expected_proof": [
     "docs/reports/evidence/external_staging_proof.json en mode A / production_cloisonnee",
@@ -44,6 +48,7 @@
     ],
     "host": "nexus-prod",
     "ingestor_image": "pinned_by_digest_no_rebuild",
+    "ingestor_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
     "load": "mesure séquentielle C0 seulement (30 requêtes, une à la fois) ; la charge complète C1 exige une autre PR",
     "loopback_ports": {
       "ingestor": 18003,
@@ -52,7 +57,21 @@
     },
     "pgvector_container_required": "nexus-staging-pgvector-1",
     "servable_corpus": "lot produit par l'outil gouverné servable_corpus_cli ; son empreinte d'index est mesurée, jamais fabriquée",
-    "staging_index_source": "ingestion gouvernée de la release multilevel scellée (11 PDF officiels, 353 chunks) contre la base de staging",
+    "staging_index_source": {
+      "contracts_scopes_available": 52,
+      "contracts_version": "0.18.0",
+      "expected_counts": {
+        "placements": 479,
+        "subjects": 11,
+        "unique_artifacts": 315,
+        "unique_chunks": 8268
+      },
+      "production_database": "forbidden",
+      "release_id": "production-profile-gate-2026-2027-v2",
+      "release_manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+      "supersedes": "périmètre CH/CH2 « release multilevel scellée (11 PDF officiels, 353 chunks) » — caduc : il ne couvre pas les collections que validate_configured_release_database exige de la release configurée",
+      "target_pgvector_container": "nexus-staging-pgvector-1"
+    },
     "working_directory": "/srv/nexus-staging"
   },
   "stop_conditions": "les 10 conditions d'arrêt immédiat du plan d'exécution (§ 4) ; arrêt de sécurité = docker compose -p nexus-staging down, sans -v"
