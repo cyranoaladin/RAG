@@ -19,7 +19,7 @@
     "max_sequence_length": 512,
     "target_tokens": 384
   },
-  "contracts_version": "0.16.0",
+  "contracts_version": "0.18.0",
   "extractor_identity": {
     "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
     "pypdf_version": "6.14.2"
@@ -45,7 +45,7 @@
     "services/rag-pedago/scripts/build_multilevel_release.py": "f237bd8ade047f713d3389dd2aacce3e6574bb0fb53985ec283078ce284241ba"
   },
   "school_year": "2026-2027",
-  "scope_registry_sha256": "b5b2c5fa882dca83e313685bc42a1d2e44a871e42a85e8e1d9da85b86099f02b",
+  "scope_registry_sha256": "108d3f0cbccfeead9fd93521fb9fbffc11b99e66e09e9e9d618fed780f028ce4",
   "subject_count": 10,
   "subject_manifest_sha256_by_collection": {
     "rag_nexus_francais_premiere_tc": "00052b38aec55eb72ae3bf1a13f914c1f7e08fd24e5257f53564f54c20e3ae64",

@@ -173,7 +173,7 @@ def test_the_registry_holds_the_thirty_one_historical_scopes_and_the_ten_success
     assert set(HISTORICAL_SCOPE_DIGESTS) & set(MULTILEVEL_SUCCESSORS) == set()
     assert len(HISTORICAL_SCOPE_DIGESTS) == 31
     assert len(MULTILEVEL_SUCCESSORS) == 10
-    assert len(registry) == 41
+    assert len(registry) == 52
 
 
 @pytest.mark.parametrize(("scope_id", "digest"), HISTORICAL_SCOPE_DIGESTS.items())

@@ -277,7 +277,7 @@ def test_internal_cli_covers_every_backend_scope() -> None:
     backend_scopes = load_retrieval_scope_registry()
 
     assert set(client.available_scopes()) == set(backend_scopes)
-    assert len(client.available_scopes()) == len(backend_scopes) == 41
+    assert len(client.available_scopes()) == len(backend_scopes) == 52
 
 
 def test_internal_cli_can_issue_an_identity_for_every_v2_scope(
@@ -297,7 +297,7 @@ def test_internal_cli_can_issue_an_identity_for_every_v2_scope(
         for scope_id, artifact in load_retrieval_scope_registry().items()
         if isinstance(artifact, RetrievalScopeArtifactV2)
     }
-    assert len(v2_scopes) == 40
+    assert len(v2_scopes) == 51
 
     for scope_id in v2_scopes:
         token, artifact = client.issue_scope_identity(scope_id, config=config)
