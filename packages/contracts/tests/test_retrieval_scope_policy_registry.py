@@ -1,9 +1,10 @@
 """Preuves du registre gouverné de politique de scope (ADR-0052, ADR-0053).
 
 Ces tests ne génèrent aucun scope et n'émettent aucun artefact. Ils prouvent
-que `docs/governance/retrieval_scope_policy_registry.yml` **cite** une
-politique déjà gouvernée au lieu d'en écrire une, et que les collections sans
-source restent bloquantes.
+que chaque collection de la release V2 porte une politique dont l'autorité est
+NOMMÉE : soit reconduite d'un scope packagé et vérifiée contre son digest
+épinglé, soit assumée comme une décision humaine Nexus. Aucune valeur ne peut
+être recopiée silencieusement d'une collection voisine.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import subprocess
+import typing
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -18,6 +20,7 @@ import pytest
 import yaml
 
 from nexus_contracts import RetrievalScopeArtifactV2, load_retrieval_scope_registry
+from nexus_contracts.scope import RetrievalScopeEvidenceSubject, Rights
 from nexus_contracts.scope import _RETRIEVAL_SCOPE_RESOURCES as PINNED
 
 CONTRACTS_ROOT = Path(__file__).resolve().parents[1]
@@ -25,8 +28,8 @@ REPO_ROOT = CONTRACTS_ROOT.parents[1]
 
 REGISTRY_PATH = REPO_ROOT / "docs/governance/retrieval_scope_policy_registry.yml"
 
-#: Les trois collections qu'ADR-0053 déclare bloquantes, faute d'autorité.
-BLOCKED_COLLECTIONS = frozenset(
+#: Les trois collections dont la politique est une décision humaine (ADR-0053).
+HUMAN_DECISION_COLLECTIONS = frozenset(
     {
         "rag_nexus_hggsp_premiere_specialite",
         "rag_nexus_hggsp_terminale_specialite",
@@ -34,8 +37,22 @@ BLOCKED_COLLECTIONS = frozenset(
     }
 )
 
-#: Taille du registre fermé avant ce lot. Aucun scope n'est ajouté ici.
+GOVERNED = "GOVERNED"
+BY_HUMAN_DECISION = "GOVERNED_BY_HUMAN_DECISION"
+
+#: Taille du registre fermé. Ce lot n'y ajoute aucun scope.
 PACKAGED_SCOPE_COUNT = 41
+
+#: Vocabulaire canonique, dérivé du contrat et jamais réécrit ici.
+CANONICAL_AUDIENCES = frozenset(
+    typing.get_args(
+        typing.get_args(RetrievalScopeEvidenceSubject.model_fields["audiences"].annotation)[0]
+    )
+)
+CANONICAL_VISIBILITIES = frozenset(
+    typing.get_args(RetrievalScopeEvidenceSubject.model_fields["visibility"].annotation)
+)
+CANONICAL_RIGHTS = frozenset(right.value for right in Rights)
 
 
 def _load_registry() -> Mapping[str, Any]:
@@ -53,14 +70,13 @@ def _sha256(path: Path) -> str:
 
 
 def _release_subjects() -> dict[str, str]:
-    """Les collections de la release V2 et le digest de leur subject."""
     registry = _load_registry()
     manifest = REPO_ROOT / str(registry["release_manifest_path"])
     payload = json.loads(manifest.read_bytes())
     return {str(s["collection"]): str(s["sha256"]) for s in payload["subjects"]}
 
 
-# --- 4. la release V2 scellée n'est pas touchée ---------------------------
+# --- 8. aucune release n'est modifiée ------------------------------------
 
 
 def test_release_v2_manifest_digest_is_unchanged() -> None:
@@ -69,24 +85,24 @@ def test_release_v2_manifest_digest_is_unchanged() -> None:
     assert _sha256(manifest) == registry["release_manifest_sha256"]
 
 
-# --- 1. aucun scope n'est généré par ce lot -------------------------------
+# --- 9. aucun scope n'est généré -----------------------------------------
 
 
 def test_no_scope_is_emitted_by_this_lot() -> None:
     assert len(load_retrieval_scope_registry()) == PACKAGED_SCOPE_COUNT
 
 
-def test_blocked_collections_have_no_packaged_scope() -> None:
-    """Aucune politique ne doit exister pour une collection bloquante."""
+def test_human_decision_collections_still_have_no_packaged_scope() -> None:
+    """Décider une politique n'émet pas un scope : les deux restent disjoints."""
     packaged = {
         artifact.evidence_subject.collection
         for artifact in load_retrieval_scope_registry().values()
         if isinstance(artifact, RetrievalScopeArtifactV2)
     }
-    assert not (BLOCKED_COLLECTIONS & packaged)
+    assert not (HUMAN_DECISION_COLLECTIONS & packaged)
 
 
-# --- 5. les onze collections V2 sont listées ------------------------------
+# --- 1/2. les onze collections portent une politique non nulle ------------
 
 
 def test_registry_covers_every_v2_collection_exactly() -> None:
@@ -98,47 +114,58 @@ def test_registry_covers_every_v2_collection_exactly() -> None:
         assert entries[collection]["subject_manifest_sha256"] == sha256
 
 
-# --- 6. HGGSP/HLP : autorité explicite, ou bloquantes ---------------------
+def test_every_v2_collection_has_a_non_null_policy() -> None:
+    for collection, entry in sorted(_entries().items()):
+        for dimension in ("audiences", "rights", "policy_visibility"):
+            assert entry[dimension] is not None, (collection, dimension)
 
 
-def test_blocked_collections_declare_no_policy_at_all() -> None:
+def test_hggsp_and_hlp_decisions_are_no_longer_pending() -> None:
     entries = _entries()
-    for collection in sorted(BLOCKED_COLLECTIONS):
+    for collection in sorted(HUMAN_DECISION_COLLECTIONS):
         entry = entries[collection]
-        assert entry["decision_status"] == "BLOCKED_PENDING_HUMAN_DECISION"
-        assert entry["human_decision_status"] == "PENDING_HUMAN_DECISION"
-        # Aucune valeur d'accès, pas même une valeur restrictive par défaut.
-        for dimension in ("authority_source", "policy_source_scope_id",
-                          "policy_visibility", "audiences", "rights"):
-            assert entry[dimension] is None, (collection, dimension)
-        assert str(entry["justification"]).strip()
+        assert entry["decision_status"] == BY_HUMAN_DECISION
+        assert entry["human_decision_status"] == "APPROVED_UNDER_ADR_0053"
+        assert entry["decision_reviewer"] == "abenrhouma"
+        assert str(entry["decision_date"]).strip()
+        assert str(entry["decision_binding"]).strip()
 
 
-def test_every_collection_is_either_governed_or_blocked() -> None:
+def test_every_collection_is_governed_or_humanly_decided() -> None:
     statuses = {e["decision_status"] for e in _entries().values()}
-    assert statuses <= {"GOVERNED", "BLOCKED_PENDING_HUMAN_DECISION"}
+    assert statuses <= {GOVERNED, BY_HUMAN_DECISION}
 
 
-def test_governed_entries_are_exactly_the_non_blocked_ones() -> None:
+def test_status_partition_matches_the_declared_collections() -> None:
     entries = _entries()
-    governed = {c for c, e in entries.items() if e["decision_status"] == "GOVERNED"}
-    assert governed == set(entries) - BLOCKED_COLLECTIONS
-    assert len(governed) == 8
+    decided = {c for c, e in entries.items() if e["decision_status"] == BY_HUMAN_DECISION}
+    assert decided == HUMAN_DECISION_COLLECTIONS
+    assert len(entries) - len(decided) == 8
 
 
-# --- le registre cite sa source, il n'écrit aucune politique --------------
+# --- 3. aucune valeur n'est recopiée silencieusement ----------------------
+
+
+def test_human_decisions_never_claim_a_policy_source() -> None:
+    """Une décision humaine ne se déguise pas en reconduction."""
+    entries = _entries()
+    for collection in sorted(HUMAN_DECISION_COLLECTIONS):
+        entry = entries[collection]
+        assert entry["authority_source"] == "NEXUS_HUMAN_DECISION_ADR_0053"
+        # `null` ici est la preuve qu'aucun scope voisin n'est invoqué.
+        assert entry["policy_source_scope_id"] is None, collection
+        assert "policy_source_sha256" not in entry, collection
 
 
 def test_governed_policy_is_quoted_from_its_pinned_source() -> None:
-    """Toute divergence entre le registre et sa source est un échec."""
+    """Pour les 8 reconduites, toute divergence avec la source est un échec."""
     packaged = load_retrieval_scope_registry()
     for collection, entry in sorted(_entries().items()):
-        if entry["decision_status"] != "GOVERNED":
+        if entry["decision_status"] != GOVERNED:
             continue
         scope_id = str(entry["policy_source_scope_id"])
         assert entry["authority_source"] == "ADR-0045"
         assert scope_id in packaged, collection
-        # Le digest cité est celui qu'épingle le registre fermé.
         assert entry["policy_source_sha256"] == PINNED[scope_id][1]
         artifact = packaged[scope_id]
         assert isinstance(artifact, RetrievalScopeArtifactV2)
@@ -146,7 +173,6 @@ def test_governed_policy_is_quoted_from_its_pinned_source() -> None:
         assert entry["policy_visibility"] == evidence.visibility
         assert list(entry["audiences"]) == list(evidence.audiences)
         assert list(entry["rights"]) == [r.value for r in evidence.rights]
-        # Dimensions curriculaires : égalité stricte (ADR-0052 §1).
         for dimension in ("tenant", "matiere"):
             assert entry[dimension] == getattr(evidence, dimension), collection
         assert entry["niveau"] == evidence.niveau.value
@@ -155,28 +181,57 @@ def test_governed_policy_is_quoted_from_its_pinned_source() -> None:
         assert entry["candidat"] == evidence.candidat.value
 
 
-# --- 7. la règle visibility est formalisée et exécutable ------------------
+# --- 4. chaque décision porte une source d'autorité -----------------------
+
+
+def test_every_collection_declares_an_authority_source() -> None:
+    allowed = {"ADR-0045", "NEXUS_HUMAN_DECISION_ADR_0053"}
+    for collection, entry in sorted(_entries().items()):
+        assert entry["authority_source"] in allowed, collection
+        assert str(entry["justification"]).strip(), collection
+
+
+def test_human_decisions_carry_sourced_admissibility_evidence() -> None:
+    """L'admissibilité se prouve sur la release scellée, pas par affirmation."""
+    D = REPO_ROOT / (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_v2/release-1b9eba0c0eb0ab13/profile_gate"
+    )
+    entries = _entries()
+    for collection in sorted(HUMAN_DECISION_COLLECTIONS):
+        entry = entries[collection]
+        assert entry["admissibility_status"] == "ADMISSIBLE_ON_SEALED_RELEASE_EVIDENCE"
+        evidence = entry["admissibility_evidence"]
+        subject = json.loads((D / "subjects" / f"{collection}.release.json").read_bytes())
+        placements = subject["placements"]
+        # Chaque chiffre annoncé est recompté sur la release elle-même.
+        assert evidence["placements_total"] == len(placements)
+        assert evidence["subject_manifest_sha256"] == entry["subject_manifest_sha256"]
+        for field in ("review_status", "placement_status", "currentness"):
+            observed = {p[field] for p in placements}
+            assert observed == {evidence[field]}, (collection, field)
+
+
+# --- 5. policy_visibility n'élargit jamais evidence_visibility ------------
 
 
 def test_visibility_order_covers_every_contract_value() -> None:
     order = list(_load_registry()["visibility_restriction_order"])
     assert order == ["public", "internal", "restricted", "private"]
+    assert set(order) == CANONICAL_VISIBILITIES
 
 
 def test_policy_visibility_never_widens_evidence_visibility() -> None:
-    """ADR-0052 §3 : restreindre est permis, élargir est un refus."""
-    registry = _load_registry()
-    order = list(registry["visibility_restriction_order"])
+    """ADR-0052 §3 — sur les ONZE, décisions humaines comprises."""
+    order = list(_load_registry()["visibility_restriction_order"])
     for collection, entry in sorted(_entries().items()):
-        if entry["decision_status"] != "GOVERNED":
-            continue
         evidence = str(entry["evidence_visibility"])
         policy = str(entry["policy_visibility"])
         assert evidence in order and policy in order, collection
         assert order.index(policy) >= order.index(evidence), collection
 
 
-# --- 8. la règle programme_version est formalisée ------------------------
+# --- 6. programme_version est résolue via son autorité --------------------
 
 
 def test_programme_version_authority_is_declared_and_digested() -> None:
@@ -199,28 +254,50 @@ def test_programme_version_is_read_from_its_authority_not_from_placements() -> N
         programme_version, taxonomy_sha256 = declared[collection]
         assert entry["programme_version"] == programme_version
         assert entry["programme_taxonomy_sha256"] == taxonomy_sha256
-        # Le champ des placements est une provenance de corpus, pas une
-        # référence de programme : il ne doit jamais valoir l'un pour l'autre.
         assert entry["corpus_provenance_id"] != entry["programme_version"]
 
 
-# --- 9. l'émetteur futur dispose d'un contrat complet et testable ---------
+def test_human_decisions_name_the_programme_authority() -> None:
+    entries = _entries()
+    for collection in sorted(HUMAN_DECISION_COLLECTIONS):
+        assert entries[collection]["programme_authority"] == (
+            "NEXUS_PROGRAMME_INDEX_REGISTRY_V3"
+        ), collection
 
 
-def test_every_governed_entry_carries_all_emitter_inputs() -> None:
-    required = (
+# --- 7. rights et audiences restent dans le vocabulaire canonique ---------
+
+
+def test_rights_and_audiences_use_only_canonical_values() -> None:
+    for collection, entry in sorted(_entries().items()):
+        assert set(entry["audiences"]) <= CANONICAL_AUDIENCES, collection
+        assert set(entry["rights"]) <= CANONICAL_RIGHTS, collection
+        assert entry["policy_visibility"] in CANONICAL_VISIBILITIES, collection
+        assert entry["audiences"], collection
+        assert entry["rights"], collection
+
+
+# --- contrat complet pour l'émetteur futur --------------------------------
+
+
+def test_every_entry_carries_all_emitter_inputs() -> None:
+    common = (
         "collection", "subject_manifest_sha256", "tenant", "niveau", "voie",
         "matiere", "statut_enseignement", "candidat", "audiences", "rights",
         "policy_visibility", "evidence_visibility", "corpus_provenance_id",
         "programme_version", "programme_taxonomy_sha256", "authority_source",
-        "policy_source_scope_id", "policy_source_sha256",
         "human_decision_status", "justification",
     )
     for collection, entry in sorted(_entries().items()):
-        if entry["decision_status"] != "GOVERNED":
-            continue
-        for field in required:
+        for field in common:
             assert entry.get(field) is not None, (collection, field)
+        if entry["decision_status"] == GOVERNED:
+            for field in ("policy_source_scope_id", "policy_source_sha256"):
+                assert entry.get(field) is not None, (collection, field)
+        else:
+            for field in ("decision_reviewer", "decision_date",
+                          "admissibility_status", "admissibility_evidence"):
+                assert entry.get(field) is not None, (collection, field)
 
 
 # --- 10. le dossier de provenance Drive n'est pas committé ---------------
@@ -230,11 +307,10 @@ def test_drive_provenance_directory_is_absent_from_the_repository() -> None:
     assert not (REPO_ROOT / "nexus_drive_provenance_8_authorities").exists()
 
 
-# --- 2/3/4. ce lot ne touche ni runtime, ni readiness, ni release --------
+# --- ce lot ne touche ni runtime, ni readiness, ni release ---------------
 
 
 def _changed_files_against_main() -> list[str] | None:
-    """Fichiers changés par la branche, ou None si git ne peut pas répondre."""
     try:
         base = subprocess.run(
             ["git", "merge-base", "HEAD", "main"],
@@ -265,6 +341,5 @@ def test_lot_touches_only_governance_documents() -> None:
     )
     for path in changed:
         assert path.startswith(allowed_prefixes), path
-        # Aucun runtime, aucun scope packagé, aucune release.
         assert not path.startswith("services/"), path
         assert not path.startswith("packages/contracts/src/"), path
