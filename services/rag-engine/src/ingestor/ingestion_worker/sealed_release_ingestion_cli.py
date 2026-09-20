@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -22,8 +23,11 @@ from ingestor.ingestion_control.attestation import (
     attest_runtime_role,
 )
 from ingestor.ingestion_control.db import get_ingestion_control_dsn
-from ingestor.ingestion_profiles.readiness_gate import enforce_readiness_gate
 from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.ingestion_profiles.staging_readiness_gate import (
+    enforce_staging_readiness_gate,
+    require_control_dsn_differs_from_product,
+)
 
 from .runtime_authority import RuntimeAuthorityStartupError
 from .sealed_release_ingestion import (
@@ -35,6 +39,10 @@ from .sealed_release_ingestion import (
 #: Le seul environnement où ce point d'entrée s'exécute. La production est
 #: refusée **nommément** : ce lot ingère un corpus qui n'a pas encore reçu
 #: son attestation LOT42 batch, et rien de tel n'a sa place en production.
+#:
+#: Le refus lui-même est appliqué par ``enforce_staging_readiness_gate``, dont
+#: c'est la première garde. Cette constante reste ici parce qu'elle documente
+#: le périmètre de ce CLI, et parce qu'un test l'y lit.
 REQUIRED_ENVIRONMENT = "rehearsal"
 
 
@@ -115,16 +123,48 @@ def _scope_authorization_ids(
     return mapping
 
 
+def _require_readiness_covers_this_release(readiness: object, facts: object) -> None:
+    """L'autorisation de répétition nomme un corpus. Ce doit être celui-ci.
+
+    Sans cette liaison, un manifeste valide autoriserait l'ingestion de
+    n'importe quelle release — l'autorité porterait sur l'hôte, pas sur ce
+    qu'on y écrit."""
+    manifest = readiness.manifest  # type: ignore[attr-defined]
+    release_id = facts.release_id  # type: ignore[attr-defined]
+    digest = facts.release_manifest_sha256  # type: ignore[attr-defined]
+    if manifest.allowed_release_id != release_id:
+        raise SealedReleaseIngestionError(
+            f"staging readiness authorises release {manifest.allowed_release_id!r}, "
+            f"but this run ingests {release_id!r}"
+        )
+    if manifest.allowed_release_manifest_sha256 != digest:
+        raise SealedReleaseIngestionError(
+            "staging readiness authorises release manifest "
+            f"{manifest.allowed_release_manifest_sha256}, but this run loaded "
+            f"{digest}"
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
-        readiness = enforce_readiness_gate()
+        # La chaîne de répétition (ADR-0057), jamais celle de production :
+        # ``enforce_readiness_gate`` répond à « cet hôte exécute-t-il la
+        # release promue ? », qui n'est pas la question posée ici.
+        readiness = enforce_staging_readiness_gate()
         if readiness.environment != REQUIRED_ENVIRONMENT:
+            # Redondant : le gate refuse déjà tout autre environnement. La
+            # garde ne coûte rien, ne ment pas, et couvre le cas où un
+            # appelant fournirait lui-même un résultat de readiness.
             raise RuntimeAuthorityStartupError(
                 "sealed release ingestion runs only under "
                 f"{REQUIRED_ENVIRONMENT!r}; refusing to run under "
                 f"{readiness.environment!r}"
             )
+        require_control_dsn_differs_from_product(
+            control_dsn=get_ingestion_control_dsn(),
+            product_dsn=os.environ.get("PG_RAG_DSN"),
+        )
         profiles = load_profile_registry(args.profiles_dir)
         facts = load_sealed_release(
             args.release_dir,
@@ -135,6 +175,7 @@ def main(argv: list[str] | None = None) -> int:
             artifact_transfer_manifest_sha256=args.artifact_transfer_manifest_sha256,
         )
         authorizations = _scope_authorization_ids(args.scope_authorization)
+        _require_readiness_covers_this_release(readiness, facts)
     except Exception as exc:
         print(f"SEALED_RELEASE_INGESTION_STARTUP_FAILED: {exc}", file=sys.stderr)
         return 1
@@ -142,6 +183,9 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "SEALED_RELEASE_INGESTION_STARTUP "
         f"environment={readiness.environment} "
+        f"readiness_key_id={readiness.manifest.key_id} "
+        f"readiness_manifest_sha256={readiness.manifest_sha256} "
+        f"worker_image={readiness.manifest.worker_image} "
         f"release_id={facts.release_id} "
         f"release_manifest_sha256={facts.release_manifest_sha256} "
         f"subjects={len(facts.collections)} "
