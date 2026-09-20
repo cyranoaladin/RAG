@@ -442,52 +442,50 @@ def test_8quinquies_une_image_non_epinglee_ne_peut_pas_etre_declaree() -> None:
 # ==========================================================================
 
 
-def test_9_le_gate_de_production_nest_pas_modifie_par_ce_lot() -> None:
-    """Le fichier de la chaîne de production est identique à celui de main."""
-    import subprocess
+#: Les trois fichiers de la chaîne de PRODUCTION, épinglés par empreinte.
+#:
+#: Un ``git diff origin/main`` serait plus parlant, mais ne fonctionne que là
+#: où cette référence existe : la CI travaille sur un checkout détaché, sans
+#: branche de suivi, et le test échouait pour cette seule raison. Une
+#: empreinte ne dépend d'aucun état de dépôt, et dit la même chose en plus
+#: fort — un octet change, le test échoue.
+#:
+#: Ces valeurs sont celles de ``main`` au moment du lot CQ. Les modifier est
+#: un acte délibéré, visible dans une revue : c'est exactement l'intention.
+CHAINE_DE_PRODUCTION_INTACTE = {
+    "services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py":
+        "a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28",
+    "packages/contracts/src/nexus_contracts/production_readiness.py":
+        "2e3398903b9a46fca1cbc7dfd923bb67cdb25e44b249ed2915ec3635ad430245",
+    "governance/trust-anchors/production-readiness-v1.json":
+        "f123e9f35a9430d02092df675e5ed657fbccf8fb10af90fe03416335e7d1d238",
+}
 
+
+@pytest.mark.parametrize("chemin", sorted(CHAINE_DE_PRODUCTION_INTACTE))
+def test_9_la_chaine_de_production_est_intacte_a_l_octet_pres(chemin: str) -> None:
+    attendu = CHAINE_DE_PRODUCTION_INTACTE[chemin]
+    observe = hashlib.sha256((REPO_ROOT / chemin).read_bytes()).hexdigest()
+    assert observe == attendu, (
+        f"{chemin} a changé : la chaîne de production doit rester intacte. "
+        "Si le changement est voulu, il appartient à un autre lot, et cette "
+        "empreinte doit être mise à jour explicitement."
+    )
+
+
+def test_9bis_les_trois_fichiers_epingles_existent_bien() -> None:
+    """Une empreinte sur un fichier déplacé ne protégerait plus rien."""
+    for chemin in CHAINE_DE_PRODUCTION_INTACTE:
+        assert (REPO_ROOT / chemin).is_file(), chemin
+
+
+def test_9ter_l_empreinte_detecterait_une_modification(tmp_path: Path) -> None:
+    """La garde n'est pas décorative : on vérifie qu'elle mord."""
     chemin = "services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py"
-    resultat = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "diff", "origin/main", "--", chemin],
-        capture_output=True,
-        text=True,
-        check=False,
+    altere = (REPO_ROOT / chemin).read_bytes() + b"\n# modification\n"
+    assert (
+        hashlib.sha256(altere).hexdigest() != CHAINE_DE_PRODUCTION_INTACTE[chemin]
     )
-    assert resultat.returncode == 0, resultat.stderr
-    assert resultat.stdout == "", (
-        "readiness_gate.py a été modifié : la chaîne de production doit rester "
-        f"intacte\n{resultat.stdout}"
-    )
-
-
-def test_9bis_le_contrat_de_production_nest_pas_modifie_par_ce_lot() -> None:
-    import subprocess
-
-    chemin = "packages/contracts/src/nexus_contracts/production_readiness.py"
-    resultat = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "diff", "origin/main", "--", chemin],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert resultat.returncode == 0, resultat.stderr
-    assert resultat.stdout == ""
-
-
-def test_9ter_l_ancre_de_production_nest_pas_modifiee_par_ce_lot() -> None:
-    import subprocess
-
-    resultat = subprocess.run(
-        [
-            "git", "-C", str(REPO_ROOT), "diff", "origin/main", "--",
-            "governance/trust-anchors/production-readiness-v1.json",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert resultat.returncode == 0, resultat.stderr
-    assert resultat.stdout == ""
 
 
 def test_9quater_la_chaine_de_repetition_nappelle_jamais_celle_de_production() -> None:
