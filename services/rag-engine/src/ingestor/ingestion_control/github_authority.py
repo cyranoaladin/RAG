@@ -318,6 +318,95 @@ class ReviewVerification:
     challenge: str | None
 
 
+@dataclass(frozen=True)
+class SealingFacts:
+    """Les faits qu'ADR-0025 n'expose pas, et dont le scellement a besoin.
+
+    ``TrustedReviewDecision`` porte le verdict ; il ne porte ni l'auteur, ni
+    la ``base_ref``, ni le ``node_id`` de la revue, ni le statut du contexte
+    de protection de branche. Ces quatre faits sont lus ici, en lecture
+    seule, plutôt qu'en élargissant le contrat de décision d'ADR-0025 — une
+    autorité de revue ne s'étend pas pour la commodité d'un consommateur."""
+
+    pull_request_author: str
+    pull_request_base_ref: str
+    review_node_id: str
+    head_pinned_status: str
+    head_pinned_context: str
+
+
+#: Le contexte requis par la protection de branche. Le scellement refuse
+#: tout autre nom : un contexte homonyme ne serait pas celui-là.
+HEAD_PINNED_CONTEXT = "trusted-human-review/head-pinned"
+
+
+def fetch_sealing_facts(
+    *, repository: str, pull_request: int, head_sha: str, review_id: int
+) -> SealingFacts:
+    """Lit les quatre faits complémentaires, en lecture seule et bornée.
+
+    Refuse si le contexte de protection n'est pas au vert sur ce head exact :
+    sceller une revue dont la porte n'était pas passée scellerait un fait
+    qui n'a pas eu lieu."""
+    deadline = _Deadline.start(_float_env(_TOTAL_TIMEOUT_ENV, _DEFAULT_TOTAL_TIMEOUT_S))
+    request_timeout = _float_env(_REQUEST_TIMEOUT_ENV, _DEFAULT_REQUEST_TIMEOUT_S)
+
+    with _ReadOnlyGitHubClient(
+        token=_read_token(), api_base=_api_base(), request_timeout_s=request_timeout
+    ) as client:
+        pull_request_doc = client.get_json(
+            f"repos/{repository}/pulls/{pull_request}", deadline=deadline
+        )
+        review = client.get_json(
+            f"repos/{repository}/pulls/{pull_request}/reviews/{review_id}",
+            deadline=deadline,
+        )
+        status = client.get_json(
+            f"repos/{repository}/commits/{head_sha}/status", deadline=deadline
+        )
+
+    user = pull_request_doc.get("user") or {}
+    author = str(user.get("login") or "")
+    base_ref = str((pull_request_doc.get("base") or {}).get("ref") or "")
+    node_id = str(review.get("node_id") or "")
+    if not author or not base_ref or not node_id:
+        raise GitHubAuthorityError(
+            "GitHub did not return the author, base ref and review node id "
+            "required to seal this review"
+        )
+
+    etats = {
+        str(entry.get("context")): str(entry.get("state"))
+        for entry in (status.get("statuses") or [])
+    }
+    observe = etats.get(HEAD_PINNED_CONTEXT)
+    if observe != "success":
+        raise GitHubAuthorityError(
+            f"required context {HEAD_PINNED_CONTEXT!r} is {observe!r} on head "
+            f"{head_sha} — a review whose gate did not pass is never sealed"
+        )
+
+    return SealingFacts(
+        pull_request_author=author,
+        pull_request_base_ref=base_ref,
+        review_node_id=node_id,
+        head_pinned_status="success",
+        head_pinned_context=HEAD_PINNED_CONTEXT,
+    )
+
+
+def load_trusted_reviewers() -> tuple[str, ...]:
+    """L'allowlist gouvernée des relecteurs — **sans aucun accès réseau**.
+
+    ``verify_review`` lit la même configuration, mais pour une décision
+    live. Celle-ci sert à la vérification d'une preuve scellée (ADR-0058) :
+    la revue a déjà eu lieu, seule l'habilitation du signataire reste à
+    confronter à l'allowlist courante."""
+    trusted_review = _load_trusted_review_module()
+    config = trusted_review.load_config(_trusted_reviewers_config_path())
+    return tuple(config.reviewers)
+
+
 def verify_review(
     *, repository: str, pull_request: int, expected_head: str
 ) -> ReviewVerification:
@@ -577,5 +666,9 @@ __all__ = [
     "ReviewVerification",
     "fetch_blob_at_ref",
     "pull_request_actor_context",
+    "HEAD_PINNED_CONTEXT",
+    "SealingFacts",
+    "fetch_sealing_facts",
+    "load_trusted_reviewers",
     "verify_review",
 ]

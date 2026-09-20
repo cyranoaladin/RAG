@@ -95,6 +95,7 @@ test-governance-pg: install
 	    tests/integration/test_lot42_v2_migration_013.py \
 	    tests/integration/test_lot42_release_batch_migration_014.py \
 	    tests/integration/test_sealed_release_ingestion_pg.py \
+	    tests/integration/test_sealed_trusted_review_evidence_pg.py \
 	    tests/integration/test_h2f_artifact_attribution_pg.py \
 	    tests/integration/test_h2f_attribution_concurrency_pg.py \
 	    tests/integration/test_lot42_publication_attestation.py \

@@ -1,0 +1,103 @@
+{
+  "kind": "NEXUS-STAGING-READINESS-INSTALLATION-V2",
+  "generated_at_utc": "2026-09-20T21:10:00Z",
+  "outcome": "READINESS_AND_IMAGE_BINDING_OK_BUT_LOT41A_AUTHORITY_PR_IS_CLOSED",
+  "locks": {
+    "1_new_manifest_installed": {
+      "state": "DONE",
+      "path_on_host": "/srv/nexus-staging/readiness/staging-readiness-manifest-ch7b.json",
+      "permissions": "0600 root:root",
+      "manifest_sha256": "791ff7c589e6834bf2731847a3dd6ad716ad38402aa204ef471427802325b17e",
+      "digest_on_host_matches": true,
+      "offline_verification": "signature valide contre l'ancre gouvernee",
+      "declares": {
+        "merge_sha": "133159cb148bbcfcd43814d835409e6499f25be2",
+        "worker_image": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+        "allowed_release_id": "production-profile-gate-2026-2027-v2",
+        "expires_at": "2026-10-20T21:00:03.999489+00:00"
+      },
+      "previous_manifest": {
+        "sha256": "7bcf8129e3653d12dfce40985cfed9ae2ade4f1a559a2c925981f6f6a798b072",
+        "state": "laisse en place, non modifie, non reutilise, plus reference par aucune variable"
+      }
+    },
+    "2_variables_updated": {
+      "state": "DONE",
+      "env_file": "/srv/nexus-staging/secrets/readiness.env",
+      "permissions": "0600 root:root",
+      "manifest_sha256_updated": true,
+      "staging_repo_head": "133159cb148bbcfcd43814d835409e6499f25be2"
+    },
+    "3_image_inspected_on_host": {
+      "state": "DONE",
+      "method": "docker inspect --format '{{index .RepoDigests 0}}'",
+      "signed": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+      "observed": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+      "identical": true
+    },
+    "4_actual_worker_image_injected": {
+      "state": "DONE",
+      "variable": "NEXUS_ACTUAL_WORKER_IMAGE",
+      "injected_at_runtime_only": true,
+      "written_into_env_file": false
+    },
+    "5_readiness_verified": {
+      "state": "DONE",
+      "result": "READINESS_REHEARSAL_OK",
+      "environment": "rehearsal",
+      "key_id": "nexus-rehearsal-readiness-20260920-01",
+      "image_binding_guard_passed": true
+    },
+    "6_entrypoint_executed": {
+      "state": "NOT_ATTEMPTED",
+      "reason": "les onze autorisations LOT41A seraient refusees ; voir blocker"
+    }
+  },
+  "blocker": {
+    "id": "B4_LOT41A_AUTHORITY_PULL_REQUEST_IS_CLOSED",
+    "statement": "verify_scope_authorization revérifie EN DIRECT la revue humaine de la PR d'autorite a chaque usage, et cette revue est refusee des que la PR est fusionnee.",
+    "measured": {
+      "authority_pull_request": 233,
+      "authority_head_sha": "2f8757b3a6e84f5e3cf0200d72ae0c7266bf1d4e",
+      "authority_reviewer": "abenrhouma",
+      "pull_request_state": "closed",
+      "merged": true,
+      "merged_at": "2026-09-20T12:45:26Z",
+      "evaluate_trusted_review_decision": "REFUSE",
+      "reason": "pull_request_not_open",
+      "how_measured": "evaluate_trusted_review appelee sur les donnees GitHub live de la PR 233 — la MEME fonction pure a laquelle verify_review delegue sa decision, par sa propre docstring"
+    },
+    "structural_tension": "l'artefact d'autorisation doit etre sur main pour etre relu, donc la PR doit etre fusionnee ; la revue live exige que la PR soit ouverte. Les deux ne peuvent pas etre vraies au moment de l'usage.",
+    "scope": "ne concerne pas seulement ce point d'entree : runner.py (Worker A), attest_publication_cli et publication_attestation appellent tous verify_scope_authorization.",
+    "introduced_by_this_lot": false,
+    "not_attempted_on_host": "demontrer le refus dans le conteneur exigerait de placer un jeton GitHub sur nexus-prod ; le fait est deja etabli sans cela"
+  },
+  "staging_state_unchanged": {
+    "ingestion_runs": 0,
+    "resources": 0,
+    "resource_candidates": 0,
+    "artifacts": 0,
+    "workflow_events": 0,
+    "publication_attestations": 0,
+    "rag_artifacts": 26,
+    "rag_chunks": 730,
+    "scope_authorizations_active": 11
+  },
+  "not_performed": [
+    "aucune execution du point d'entree",
+    "aucun Worker A, aucun Worker B",
+    "aucune publication, aucune attestation",
+    "aucune ecriture ingestion_control",
+    "aucune DB production, aucun rag_pgvector",
+    "aucun current switch, aucune exposition publique",
+    "aucune modification de la release V2",
+    "aucun jeton GitHub depose sur nexus-prod",
+    "aucune graine ni cle privee demandee, affichee ou copiee",
+    "ancien manifeste ni modifie ni reutilise"
+  ],
+  "production_intact": {
+    "running_containers": 36,
+    "production_db_reads": 0,
+    "production_db_writes": 0
+  }
+}

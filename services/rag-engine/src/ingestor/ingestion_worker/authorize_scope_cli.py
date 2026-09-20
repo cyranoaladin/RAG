@@ -33,8 +33,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+from datetime import UTC, datetime
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 try:
     from ingestor.ingestion_control.db import get_authority_dsn
@@ -42,6 +44,7 @@ try:
         GitHubAuthorityError,
         ReviewVerification,
         fetch_blob_at_ref,
+        fetch_sealing_facts,
         verify_review,
     )
 except (ImportError, ValueError):
@@ -52,6 +55,7 @@ except (ImportError, ValueError):
         GitHubAuthorityError,
         ReviewVerification,
         fetch_blob_at_ref,
+        fetch_sealing_facts,
         verify_review,
     )
 
@@ -61,6 +65,17 @@ from nexus_contracts.authority_artifacts import (
     canonical_authorization_path,
     parse_scope_authorization_artifact,
 )
+from nexus_contracts.trusted_review_evidence import (
+    SEALED_TRUSTED_REVIEW_EVIDENCE_PROTOCOL,
+    TRUSTED_REVIEW_CHALLENGE_PROTOCOL,
+    SealedTrustedReviewEvidenceError,
+    SealedTrustedReviewEvidenceV1,
+    require_challenge_is_self_consistent,
+)
+
+#: Version de l'outil qui scelle. Figure dans la preuve : savoir QUI a
+#: scellé compte autant que savoir ce qui a été scellé.
+RECORDER_VERSION = "authorize_scope_cli/ADR-0058"
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -186,6 +201,56 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
     # accepté d'une source externe, jamais réutilisé d'un calcul antérieur.
     digest = artifact.digest()
 
+    # ADR-0058 : sceller la revue pendant qu'elle est vivante.
+    #
+    # Tout ce qui précède reste exigé en direct — PR ouverte, APPROVED, head
+    # exact, artefact relu octet à octet. Ce qui change, c'est qu'on en
+    # conserve désormais la preuve : l'usage ultérieur la vérifiera, au lieu
+    # de redemander à une PR fermée depuis longtemps si elle est ouverte.
+    try:
+        facts = fetch_sealing_facts(
+            repository=live.repository,
+            pull_request=live.pull_request,
+            head_sha=live.head_sha,
+            review_id=int(live.review_id or 0),
+        )
+    except GitHubAuthorityError as exc:
+        print(f"REVIEW_SEALING_FACTS_UNAVAILABLE: {exc}", file=sys.stderr)
+        return 1
+
+    try:
+        evidence = SealedTrustedReviewEvidenceV1(
+            protocol_version=SEALED_TRUSTED_REVIEW_EVIDENCE_PROTOCOL,
+            repository=live.repository,
+            pull_request=live.pull_request,
+            pull_request_base_ref=facts.pull_request_base_ref,
+            pull_request_base_sha=live.base_sha,
+            pull_request_head_sha=live.head_sha,
+            pull_request_author=facts.pull_request_author,
+            authorization_id=artifact.authorization_id,
+            artifact_path=artifact.canonical_path(),
+            artifact_sha256=digest,
+            artifact_blob_sha=blob_sha,
+            reviewer=str(live.reviewer),
+            review_id=int(live.review_id or 0),
+            review_node_id=facts.review_node_id,
+            review_submitted_at=datetime.fromisoformat(
+                str(live.submitted_at).replace("Z", "+00:00")
+            ),
+            challenge_protocol=TRUSTED_REVIEW_CHALLENGE_PROTOCOL,
+            challenge=str(live.challenge),
+            head_pinned_status=facts.head_pinned_status,
+            head_pinned_context=facts.head_pinned_context,
+            recorded_at=datetime.now(UTC),
+            recorder_version=RECORDER_VERSION,
+        )
+        # Le challenge scellé doit se redériver de ses propres dimensions :
+        # un scellement qui ne se vérifie pas lui-même n'est jamais écrit.
+        require_challenge_is_self_consistent(evidence)
+    except (ValueError, SealedTrustedReviewEvidenceError) as exc:
+        print(f"REVIEW_SEALING_REFUSED: {exc}", file=sys.stderr)
+        return 1
+
     with psycopg.connect(get_authority_dsn()) as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -202,7 +267,8 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
                     artifact_path, artifact_blob_sha, authorization_digest,
                     evidence_repository, evidence_pull_request, evidence_base_sha,
                     evidence_head_sha, evidence_review_id, evidence_reviewer,
-                    evidence_submitted_at, evidence_challenge
+                    evidence_submitted_at, evidence_challenge,
+                    review_evidence, review_evidence_digest
                 ) VALUES (
                     %(authorization_id)s, %(protocol_version)s, %(decision)s,
                     %(tenant)s, %(collection)s, %(niveau)s, %(voie)s, %(matiere)s, %(candidat)s,
@@ -215,7 +281,8 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
                     %(artifact_path)s, %(artifact_blob_sha)s, %(authorization_digest)s,
                     %(evidence_repository)s, %(evidence_pull_request)s, %(evidence_base_sha)s,
                     %(evidence_head_sha)s, %(evidence_review_id)s, %(evidence_reviewer)s,
-                    %(evidence_submitted_at)s, %(evidence_challenge)s
+                    %(evidence_submitted_at)s, %(evidence_challenge)s,
+                    %(review_evidence)s, %(review_evidence_digest)s
                 )
                 """,
                 {
@@ -259,6 +326,8 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
                     "evidence_reviewer": live.reviewer,
                     "evidence_submitted_at": live.submitted_at,
                     "evidence_challenge": live.challenge,
+                    "review_evidence": Jsonb(evidence.canonical_document()),
+                    "review_evidence_digest": evidence.digest(),
                 },
             )
         conn.commit()
