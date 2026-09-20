@@ -1,0 +1,119 @@
+{
+  "kind": "NEXUS-SEALED-RELEASE-ENTRYPOINT-STAGING-EXECUTION-V1",
+  "outcome": "BLOCKED_BEFORE_EXECUTION",
+  "generated_at_utc": "2026-09-20T17:20:00Z",
+  "main": {
+    "commit": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+    "pull_request": 236,
+    "merged_head": "f48de7a7ae0318c626cd598f68fb2a725b192488",
+    "approved_by": "abenrhouma",
+    "ci_contexts_total": 18,
+    "ci_failures": 0
+  },
+  "staging_repository": {
+    "host": "korrigo (88.99.254.59)",
+    "path": "/srv/nexus-staging/repo",
+    "before": "5355dd7f69a028dc80fac6a1a19874135669956a",
+    "after": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+    "method": "git merge --ff-only origin/main",
+    "working_tree_clean": true,
+    "mounted_paths_changed_by_the_merge": 0
+  },
+  "blockers": [
+    {
+      "id": "B1_NO_REHEARSAL_READINESS_CHAIN",
+      "statement": "enforce_readiness_gate() ne peut pas etre satisfait en rehearsal : aucun manifeste de readiness signe, aucune ancre de confiance rehearsal.",
+      "required_environment_variables": [
+        "NEXUS_EXPECTED_READINESS_PROTOCOL",
+        "NEXUS_READINESS_MANIFEST_PATH",
+        "NEXUS_RELEASE_SHA",
+        "NEXUS_READINESS_REHEARSAL_TRUST_ANCHOR"
+      ],
+      "observed_refusals": [
+        "WORKER_READINESS_GATE_FAILED: NEXUS_EXPECTED_READINESS_PROTOCOL must explicitly pin V1 or V2; got ''",
+        "WORKER_READINESS_GATE_FAILED: NEXUS_READINESS_MANIFEST_PATH is not configured - a worker never starts without naming the readiness manifest it runs under"
+      ],
+      "searched_and_absent": [
+        "governance/trust-anchors/ : production-readiness-v1.json uniquement, aucune ancre rehearsal",
+        "/srv/nexus-staging/secrets/*.env : aucune variable NEXUS_READINESS_*",
+        "/srv/nexus-staging/** : aucun manifeste de readiness rehearsal"
+      ],
+      "only_known_producer": "services/rag-engine/scripts/atomic_docker_v2_rehearsal_fixture.py - fabrique de fixture de TEST (PR 9001, reviewer 'nexus-fixture-reviewer', cles ephemeres)",
+      "applies_equally_to": "ingestor.ingestion_worker.multilevel_cli (Worker A) - meme appel, meme refus",
+      "introduced_by_this_lot": false
+    },
+    {
+      "id": "B2_NO_IMAGE_CAN_RUN_THE_WORKER",
+      "statement": "Aucune image presente sur l'hote ne peut executer le point d'entree avec les contrats courants.",
+      "pinned_image": {
+        "name": "nexus-staging-ingestor:latest",
+        "digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
+        "role": "API de retrieval (uvicorn api_v2)",
+        "missing": ["httpx", "ingestion_agents"],
+        "observed": "ModuleNotFoundError: No module named 'ingestion_agents'"
+      },
+      "other_images": [
+        {"name": "infra-ingestor:latest", "httpx": true, "nexus_contracts": "0.2.0"},
+        {"name": "nexus-rag-ingestor-security:da0a167", "httpx": true, "nexus_contracts": "0.2.0"},
+        {"name": "compose-ingestor:latest", "psycopg": false}
+      ],
+      "repository_declares_contracts": "0.19.0",
+      "rebuild_status": "interdit sans nouvelle autorisation (staging_ssh_authorization.scope.ingestor_image = pinned_by_digest_no_rebuild)",
+      "introduced_by_this_lot": false
+    }
+  ],
+  "staging_database_state": {
+    "container": "nexus-staging-pgvector-1",
+    "database": "ragdb",
+    "schema_head": 14,
+    "scope_authorizations_active": 11,
+    "before_and_after_identical": true,
+    "ingestion_runs": 0,
+    "resources": 0,
+    "resource_candidates": 0,
+    "artifacts": 0,
+    "workflow_events": 0,
+    "publication_attestations": 0,
+    "rag_artifacts": 26,
+    "rag_chunks": 730
+  },
+  "product_index_unchanged": {
+    "rag_artifacts": 26,
+    "rag_chunks": 730,
+    "publications": 0,
+    "attestations": 0,
+    "worker_b_executed": false
+  },
+  "production_intact": {
+    "running_containers": 36,
+    "production_db_reads": 0,
+    "production_db_writes": 0,
+    "rag_pgvector_touched": false,
+    "current_switch": false,
+    "current_links": [
+      "/opt/rag-v2/current -> /opt/rag-v2/releases/rag-v2-main-27a4558-lot27p3-20260715T133534Z",
+      "/opt/eaf/current -> /opt/eaf/releases/20260828_eaf-2027-copy-hotfix"
+    ],
+    "nginx_sites_enabled_mtime": "2026-09-05T23:22:48Z",
+    "nginx_modified": false,
+    "dns_modified": false,
+    "certificates_modified": false,
+    "public_exposure": false,
+    "docker_prune": false,
+    "remove_orphans": false,
+    "volume_removal": false
+  },
+  "actions_performed_on_host": [
+    "git fetch + git merge --ff-only dans /srv/nexus-staging/repo",
+    "trois docker run --rm --network none depuis des images existantes, montages en lecture seule, sans acces reseau",
+    "lectures psql sur nexus-staging-pgvector-1 uniquement"
+  ],
+  "not_performed": [
+    "aucune execution du point d'entree",
+    "aucune reconstruction d'image",
+    "aucun Worker A, aucun Worker B",
+    "aucune ecriture ingestion_control",
+    "aucune publication, aucune attestation",
+    "aucune fabrication de materiel de readiness"
+  ]
+}

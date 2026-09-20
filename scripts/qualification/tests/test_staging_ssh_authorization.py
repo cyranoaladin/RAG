@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -100,8 +101,23 @@ def test_une_autorisation_consommee_n_autorise_plus(tmp_path, document):
 
 def test_aucun_secret_ni_adresse_dans_l_autorisation(document):
     texte = json.dumps(document).lower()
-    for motif in ("password", "token=", "bearer ", "@", "ssh-rsa", "-----begin"):
+    for motif in ("password", "token=", "bearer ", "ssh-rsa", "-----begin"):
         assert motif not in texte
+    # Le « @ » traque une ADRESSE (courriel, user@hote). Depuis CH6,
+    # l'autorisation nomme aussi une image par digest, et « nom@sha256:... »
+    # n'est pas une adresse : c'est le contraire d'un secret, une empreinte
+    # publique. On retire donc cette seule forme, et le « @ » reste interdit
+    # partout ailleurs — un courriel ou un user@hote echoue toujours ici.
+    assert "@" not in re.sub(r"@sha256:[0-9a-f]{64}", "", texte)
+
+
+def test_la_tolerance_du_digest_ne_laisse_pas_passer_une_adresse(document):
+    """CH6 a retiré « @sha256:... » du filtre. Rien d'autre n'est passé."""
+    for adresse in ("operateur@example.org", "root@88.99.254.59", "a@b"):
+        copie = copy.deepcopy(document)
+        copie["scope"]["comment"] = adresse
+        texte = json.dumps(copie).lower()
+        assert "@" in re.sub(r"@sha256:[0-9a-f]{64}", "", texte)
 
 
 # --- CH3 — la source de l'index cesse d'être une phrase ------------------
