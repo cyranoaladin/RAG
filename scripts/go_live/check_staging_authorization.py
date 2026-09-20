@@ -62,6 +62,42 @@ INDEX_COUNTS_REQUIS = {
     "placements": 479,
     "unique_chunks": 8268,
 }
+#: CH6 — l'image epinglee du perimetre (``ingestor_image_digest``) est l'API
+#: de retrieval : elle ne porte ni ``httpx`` ni ``ingestion_agents``, et ne
+#: peut donc pas executer le point d'entree d'ingestion. CH6 autorise une
+#: SECONDE image, construite hors nexus-prod, epinglee par digest, et
+#: autorisee pour ce seul point d'entree. Elle ne remplace pas la premiere :
+#: les deux coexistent, chacune pour ce qu'elle sait faire, et chacune
+#: declare la version de contrats qui est reellement la sienne.
+IMAGE_WORKER_REQUISE = {
+    "pinning": "pinned_by_digest_no_rebuild",
+    "tag_alone_accepted": False,
+    "built_off_host": True,
+    "build_on_nexus_prod": "forbidden",
+    "build_workflow": ".github/workflows/production-image-provenance.yml",
+    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "image_digest": (
+        "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029"
+    ),
+    "source_commit_sha": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "contracts_version": "0.19.0",
+    "allowed_entrypoint_module": (
+        "ingestor.ingestion_worker.sealed_release_ingestion_cli"
+    ),
+    "durable_service": False,
+    "compose_file_on_host": "forbidden",
+    "network": "loopback_only",
+    "product_database_access": "forbidden",
+}
+#: Les deux workers restent hors de portee de cette autorisation. Worker B
+#: publierait ; Worker A creerait des jobs par URL, ce que la release scellee
+#: ne permet pas (ADR-0056). L'image sait les lancer : l'autorisation, non.
+MODULES_WORKER_INTERDITS = (
+    "ingestor.ingestion_worker.multilevel_cli",
+    "ingestor.ingestion_worker.multilevel_publication_resume_cli",
+)
+
 PORTS_LOOPBACK_REQUIS = {
     "ingestor": 18003,
     "pgvector": 15435,
@@ -71,6 +107,46 @@ PORTS_LOOPBACK_REQUIS = {
 
 def _git(racine: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=racine, capture_output=True, text=True, check=False)
+
+
+def _ecarts_image_worker(image: object) -> list[str]:
+    """Ecarts de l'image worker de staging (CH6). Absente, elle n'autorise rien.
+
+    Une image nommee par tag n'est jamais acceptee : un tag designe une cible
+    mouvante, et c'est precisement ce qu'un digest remplace."""
+    if image is None:
+        return ["image worker de staging absente : aucune image n'est autorisee"]
+    if not isinstance(image, dict):
+        return ["image worker de staging : objet attendu, pas une phrase"]
+
+    ecarts: list[str] = []
+    for cle, attendu in IMAGE_WORKER_REQUISE.items():
+        if image.get(cle) != attendu:
+            ecarts.append(
+                f"image worker : {cle} = {image.get(cle)!r}, attendu {attendu!r}"
+            )
+
+    reference = image.get("reference")
+    attendue = f"{IMAGE_WORKER_REQUISE['image_repository']}@{IMAGE_WORKER_REQUISE['image_digest']}"
+    if reference != attendue:
+        ecarts.append(
+            f"image worker : reference = {reference!r}, attendu {attendue!r}"
+        )
+    if isinstance(reference, str) and "@sha256:" not in reference:
+        ecarts.append(
+            "image worker : reference sans digest — un tag seul n'est jamais "
+            "une unite d'execution"
+        )
+
+    interdits = image.get("forbidden_entrypoint_modules") or []
+    manquants = sorted(set(MODULES_WORKER_INTERDITS) - set(interdits))
+    if manquants:
+        ecarts.append(f"image worker : modules interdits manquants : {manquants}")
+
+    preuve = image.get("evidence")
+    if not isinstance(preuve, dict) or not preuve.get("path") or not preuve.get("sha256"):
+        ecarts.append("image worker : preuve de provenance absente ou incomplete")
+    return ecarts
 
 
 def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
@@ -107,6 +183,7 @@ def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
                 f"source d'index : expected_counts = {comptes!r}, "
                 f"attendu {INDEX_COUNTS_REQUIS!r}"
             )
+    ecarts.extend(_ecarts_image_worker(perimetre.get("staging_worker_image")))
     manquants = sorted(INTERDITS_REQUIS - set(document.get("forbidden") or []))
     if manquants:
         ecarts.append(f"interdits manquants : {manquants}")

@@ -1,88 +1,120 @@
 {
-  "amended_by": [
-    "CH2",
-    "CH3",
-    "CH4"
-  ],
-  "authorization": "SSH_STAGING_AUTHORIZED",
-  "consumed": false,
-  "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
-  "execution_plan": {
-    "path": "docs/runbooks/staging_externe_nexus_prod_cloisonne_EXECUTION_PLAN.md",
-    "sha256": "52d43cb7d8535bebe2d5dc05c7fce3124f6eda9239ccafbead4879bcd9f7521d"
-  },
-  "expected_proof": [
-    "docs/reports/evidence/external_staging_proof.json en mode A / production_cloisonnee",
-    "trois diff vides : conteneurs de production, liens current, configuration Nginx",
-    "digest de l'image ingestor",
-    "recette retrieval citée, recette Cockpit, rollback éprouvé, recherche de secrets dans les journaux = 0"
-  ],
-  "expires_after_use": true,
-  "forbidden": [
-    "certificate_modification",
-    "current_switch",
-    "dns_modification",
-    "docker_prune",
-    "nginx_modification",
-    "oauth_revocation",
-    "production_db_read",
-    "production_db_write",
-    "production_ingestion",
-    "production_secret_read",
-    "production_service_restart",
-    "public_exposure",
-    "rclone_reconfiguration",
-    "remove_orphans",
-    "volume_removal_outside_project"
-  ],
-  "granted_by_pull_request_approval_of": "abenrhouma",
-  "kind": "NEXUS-STAGING-SSH-AUTHORIZATION-V1",
-  "purpose": "exécuter un staging cloisonné sur nexus-prod afin de qualifier STAGING_EXTERNE, puis la mesure séquentielle C0 de concurrence",
-  "scope": {
-    "access": "ssh_tunnel_only",
-    "bind_address": "127.0.0.1",
-    "cockpit": "lancé sur le poste de travail, par tunnel ; rien n'est déployé côté Cockpit sur l'hôte",
-    "compose_project": "nexus-staging",
-    "dedicated_volumes": [
-      "nexus-staging_rag_pgvector_data",
-      "nexus-staging_rag_prometheus_data"
+    "amended_by": [
+        "CH2",
+        "CH3",
+        "CH4",
+        "CH6"
     ],
-    "host": "nexus-prod",
-    "ingestion_control_database": {
-      "authorizations_dir": "governance/authorizations",
-      "compose_ingestion_stack_on_host": "forbidden",
-      "dsn_must_differ_from_product": true,
-      "location": "base logique séparée DANS nexus-staging-pgvector-1",
-      "new_container": false,
-      "new_volume": false,
-      "scope_authorization_protocol": "LOT41A"
+    "authorization": "SSH_STAGING_AUTHORIZED",
+    "consumed": false,
+    "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
+    "execution_plan": {
+        "path": "docs/runbooks/staging_externe_nexus_prod_cloisonne_EXECUTION_PLAN.md",
+        "sha256": "52d43cb7d8535bebe2d5dc05c7fce3124f6eda9239ccafbead4879bcd9f7521d"
     },
-    "ingestor_image": "pinned_by_digest_no_rebuild",
-    "ingestor_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
-    "load": "mesure séquentielle C0 seulement (30 requêtes, une à la fois) ; la charge complète C1 exige une autre PR",
-    "loopback_ports": {
-      "ingestor": 18003,
-      "pgvector": 15435,
-      "prometheus": 19191
+    "expected_proof": [
+        "docs/reports/evidence/external_staging_proof.json en mode A / production_cloisonnee",
+        "trois diff vides : conteneurs de production, liens current, configuration Nginx",
+        "digest de l'image ingestor",
+        "recette retrieval citée, recette Cockpit, rollback éprouvé, recherche de secrets dans les journaux = 0"
+    ],
+    "expires_after_use": true,
+    "forbidden": [
+        "certificate_modification",
+        "current_switch",
+        "dns_modification",
+        "docker_prune",
+        "nginx_modification",
+        "oauth_revocation",
+        "production_db_read",
+        "production_db_write",
+        "production_ingestion",
+        "production_secret_read",
+        "production_service_restart",
+        "public_exposure",
+        "rclone_reconfiguration",
+        "remove_orphans",
+        "volume_removal_outside_project"
+    ],
+    "granted_by_pull_request_approval_of": "abenrhouma",
+    "kind": "NEXUS-STAGING-SSH-AUTHORIZATION-V1",
+    "purpose": "exécuter un staging cloisonné sur nexus-prod afin de qualifier STAGING_EXTERNE, puis la mesure séquentielle C0 de concurrence",
+    "scope": {
+        "access": "ssh_tunnel_only",
+        "bind_address": "127.0.0.1",
+        "cockpit": "lancé sur le poste de travail, par tunnel ; rien n'est déployé côté Cockpit sur l'hôte",
+        "compose_project": "nexus-staging",
+        "dedicated_volumes": [
+            "nexus-staging_rag_pgvector_data",
+            "nexus-staging_rag_prometheus_data"
+        ],
+        "host": "nexus-prod",
+        "ingestion_control_database": {
+            "authorizations_dir": "governance/authorizations",
+            "compose_ingestion_stack_on_host": "forbidden",
+            "dsn_must_differ_from_product": true,
+            "location": "base logique séparée DANS nexus-staging-pgvector-1",
+            "new_container": false,
+            "new_volume": false,
+            "scope_authorization_protocol": "LOT41A"
+        },
+        "ingestor_image": "pinned_by_digest_no_rebuild",
+        "ingestor_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
+        "load": "mesure séquentielle C0 seulement (30 requêtes, une à la fois) ; la charge complète C1 exige une autre PR",
+        "loopback_ports": {
+            "ingestor": 18003,
+            "pgvector": 15435,
+            "prometheus": 19191
+        },
+        "pgvector_container_required": "nexus-staging-pgvector-1",
+        "servable_corpus": "lot produit par l'outil gouverné servable_corpus_cli ; son empreinte d'index est mesurée, jamais fabriquée",
+        "staging_index_source": {
+            "contracts_scopes_available": 52,
+            "contracts_version": "0.18.0",
+            "expected_counts": {
+                "placements": 479,
+                "subjects": 11,
+                "unique_artifacts": 315,
+                "unique_chunks": 8268
+            },
+            "production_database": "forbidden",
+            "release_id": "production-profile-gate-2026-2027-v2",
+            "release_manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+            "supersedes": "périmètre CH/CH2 « release multilevel scellée (11 PDF officiels, 353 chunks) » — caduc : il ne couvre pas les collections que validate_configured_release_database exige de la release configurée",
+            "target_pgvector_container": "nexus-staging-pgvector-1"
+        },
+        "staging_worker_image": {
+            "allowed_entrypoint_module": "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+            "build_on_nexus_prod": "forbidden",
+            "build_workflow": ".github/workflows/production-image-provenance.yml",
+            "build_workflow_run_attempt": 1,
+            "build_workflow_run_id": 35524322769,
+            "built_off_host": true,
+            "compose_file_on_host": "forbidden",
+            "contracts_version": "0.19.0",
+            "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+            "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+            "durable_service": false,
+            "evidence": {
+                "path": "docs/reports/evidence/staging_worker_image_provenance.json",
+                "sha256": "64b87cce78aba5ba11b3f02d78845af3cb6dfa0a7ef4fb345c601512fd4c3e09"
+            },
+            "forbidden_entrypoint_modules": [
+                "ingestor.ingestion_worker.multilevel_cli",
+                "ingestor.ingestion_worker.multilevel_publication_resume_cli"
+            ],
+            "image_digest": "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+            "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+            "network": "loopback_only",
+            "pinning": "pinned_by_digest_no_rebuild",
+            "product_database_access": "forbidden",
+            "purpose": "executer UNIQUEMENT le point d'entree d'ingestion de release scellee (ingestor.ingestion_worker.sealed_release_ingestion_cli) dans le perimetre staging",
+            "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+            "source_commit_sha": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+            "source_tree_sha": "503e07e5e7b6c4250f0c57ad9723d7390cd4f48a",
+            "tag_alone_accepted": false
+        },
+        "working_directory": "/srv/nexus-staging"
     },
-    "pgvector_container_required": "nexus-staging-pgvector-1",
-    "servable_corpus": "lot produit par l'outil gouverné servable_corpus_cli ; son empreinte d'index est mesurée, jamais fabriquée",
-    "staging_index_source": {
-      "contracts_scopes_available": 52,
-      "contracts_version": "0.18.0",
-      "expected_counts": {
-        "placements": 479,
-        "subjects": 11,
-        "unique_artifacts": 315,
-        "unique_chunks": 8268
-      },
-      "production_database": "forbidden",
-      "release_id": "production-profile-gate-2026-2027-v2",
-      "release_manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
-      "supersedes": "périmètre CH/CH2 « release multilevel scellée (11 PDF officiels, 353 chunks) » — caduc : il ne couvre pas les collections que validate_configured_release_database exige de la release configurée",
-      "target_pgvector_container": "nexus-staging-pgvector-1"
-    },
-    "working_directory": "/srv/nexus-staging"
-  },
-  "stop_conditions": "les 10 conditions d'arrêt immédiat du plan d'exécution (§ 4) ; arrêt de sécurité = docker compose -p nexus-staging down, sans -v"
+    "stop_conditions": "les 10 conditions d'arrêt immédiat du plan d'exécution (§ 4) ; arrêt de sécurité = docker compose -p nexus-staging down, sans -v"
 }

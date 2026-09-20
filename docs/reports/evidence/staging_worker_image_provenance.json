@@ -1,0 +1,92 @@
+{
+  "kind": "NEXUS-STAGING-WORKER-IMAGE-PROVENANCE-V1",
+  "generated_at_utc": "2026-09-20T18:05:00Z",
+  "lot": "LOT_GO_LIVE_FINAL_CH6_STAGING_WORKER_IMAGE_AUTHORIZATION",
+  "problem": {
+    "statement": "L'image epinglee du perimetre staging est l'API de retrieval, pas un worker.",
+    "pinned_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
+    "pinned_image_role": "uvicorn api_v2 (API de retrieval)",
+    "observed_refusal": "ModuleNotFoundError: No module named 'ingestion_agents'",
+    "missing_modules": ["httpx", "ingestion_agents"],
+    "other_local_images_rejected": [
+      {"name": "infra-ingestor:latest", "reason": "nexus-contracts 0.2.0"},
+      {"name": "nexus-rag-ingestor-security:da0a167", "reason": "nexus-contracts 0.2.0"},
+      {"name": "compose-ingestor:latest", "reason": "psycopg absent"}
+    ]
+  },
+  "worker_image": {
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "image_digest": "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+    "platform": "linux/amd64"
+  },
+  "built_off_host": {
+    "where": "GitHub Actions",
+    "workflow": ".github/workflows/production-image-provenance.yml",
+    "run_id": 35524322769,
+    "run_attempt": 1,
+    "workflow_ref": "refs/heads/main",
+    "built_at_utc": "2026-09-20T17:01:45.635300Z",
+    "source_commit_sha": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+    "source_tree_sha": "503e07e5e7b6c4250f0c57ad9723d7390cd4f48a",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+    "provenance_attestation": true,
+    "sbom": true,
+    "built_on_nexus_prod": false,
+    "inventory_protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1"
+  },
+  "verification": {
+    "performed_on": "poste de travail, hors nexus-prod",
+    "method": "docker pull par digest, puis execution --network none",
+    "pulled_digest_matches": true,
+    "nexus_contracts_version": "0.19.0",
+    "dependencies_present": {
+      "httpx": true,
+      "psycopg": true,
+      "pydantic": true,
+      "cryptography": true,
+      "yaml": true
+    },
+    "imports_ok": [
+      "ingestor.ingestion_agents.classifier",
+      "ingestor.ingestion_worker.sealed_release_ingestion",
+      "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+      "ingestor.ingestion_control.provisioning"
+    ],
+    "secrets_scan": {
+      "env_variables": [
+        "PATH", "LANG", "GPG_KEY", "PYTHON_VERSION", "PYTHON_SHA256",
+        "PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED",
+        "NEXUS_TRUSTED_REVIEW_MODULE", "NEXUS_TRUSTED_REVIEWERS_CONFIG",
+        "PYTHONPATH"
+      ],
+      "secret_bearing_variables": 0,
+      "secret_files_found": 0,
+      "note": "seuls le bundle CA du systeme et la cle GPG de l'image de base Python sont presents, tous deux attendus"
+    },
+    "default_cmd": "python -m ingestor.ingestion_worker.multilevel_cli",
+    "default_cmd_note": "CH6 n'autorise PAS cette commande par defaut : seul sealed_release_ingestion_cli est autorise, et la commande est surchargee a l'execution"
+  },
+  "scope_unchanged": {
+    "pinned_by_digest_no_rebuild": true,
+    "loopback_only": true,
+    "staging_only": true,
+    "production_db": "forbidden",
+    "current_switch": "forbidden",
+    "public_exposure": "forbidden",
+    "docker_prune": "forbidden",
+    "remove_orphans": "forbidden",
+    "volume_removal": "forbidden",
+    "worker_b": "forbidden",
+    "durable_service_created": false,
+    "compose_file_on_host": "forbidden"
+  },
+  "nexus_prod_untouched_by_this_lot": {
+    "image_built_on_host": false,
+    "image_pulled_on_host_yet": false,
+    "containers_started": 0,
+    "production_db_reads": 0,
+    "production_db_writes": 0
+  }
+}
