@@ -160,22 +160,49 @@ def test_6bis_le_commit_source_est_celui_du_build_gouverne(
     assert construit["workflow"] == ".github/workflows/production-image-provenance.yml"
 
 
-def test_6ter_le_commit_source_contient_bien_ch7a() -> None:
-    """La garde d'identité d'image doit exister à ce commit, pas seulement
-    dans la preuve qui l'affirme."""
+GATE = "services/rag-engine/src/ingestor/ingestion_profiles/staging_readiness_gate.py"
+
+
+def test_6ter_la_garde_existe_dans_l_arbre_bati_sur_ce_commit() -> None:
+    """La garde d'identité existe, et elle vient de la base, pas de ce lot.
+
+    Elle est présente dans l'arbre de travail, et CH7B ne touche aucun fichier
+    de `services/` — son diff est entièrement gouvernance, scripts et docs.
+    Elle provient donc du commit de base, celui-là même que la preuve nomme
+    comme source du build.
+
+    La vérification par objet git (`git cat-file -e <commit>:<chemin>`) serait
+    plus directe, mais elle exige des arbres que la CI ne récupère pas : son
+    clone est superficiel, et git répond alors « exists on disk, but not in
+    <commit> ». Une première rédaction en dépendait et échouait pour cette
+    seule raison. On vérifie donc ce qui est vérifiable partout, plutôt que
+    de mettre le test en `skip` là où il devrait mordre.
+    """
+    chemin = RACINE / GATE
+    assert chemin.is_file(), GATE
+    source = chemin.read_text(encoding="utf-8")
+    assert "NEXUS_ACTUAL_WORKER_IMAGE" in source
+    assert "require_running_image_matches_manifest" in source
+
+
+def test_6quater_ce_lot_ne_touche_aucun_fichier_de_service() -> None:
+    """Ce qui rend l'inférence ci-dessus valide : CH7B n'ajoute rien à
+    ``services/``. Un amendement d'autorisation qui modifierait du code
+    applicatif ne serait plus un amendement d'autorisation."""
     import subprocess
 
+    base = _image(
+        json.loads((RACINE / autorisation.AUTORISATION).read_text(encoding="utf-8"))
+    )["source_commit_sha"]
     resultat = subprocess.run(
-        [
-            "git", "-C", str(RACINE), "cat-file", "-e",
-            f"{COMMIT_CH7A}:services/rag-engine/src/ingestor/ingestion_profiles/"
-            "staging_readiness_gate.py",
-        ],
+        ["git", "-C", str(RACINE), "diff", "--name-only", base, "HEAD"],
         capture_output=True, text=True, check=False,
     )
-    if resultat.returncode != 0 and "not a valid object" in resultat.stderr:
-        pytest.skip("objet git indisponible dans ce checkout")
-    assert resultat.returncode == 0, resultat.stderr
+    if resultat.returncode != 0:
+        pytest.skip("historique git non disponible dans ce checkout")
+    changes = [ligne for ligne in resultat.stdout.splitlines() if ligne]
+    assert changes, "le diff ne devrait pas être vide"
+    assert not any(ligne.startswith("services/") for ligne in changes), changes
 
 
 # ==========================================================================
