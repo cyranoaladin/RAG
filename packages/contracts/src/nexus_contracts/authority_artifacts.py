@@ -44,12 +44,14 @@ import json
 import re
 from datetime import UTC, datetime
 from hashlib import sha256
-from typing import Any, Literal, TypeAlias
+from collections.abc import Iterable, Mapping
+from typing import Any, Literal, TypeAlias, cast
 
 from pydantic import (
     AwareDatetime,
     Field,
     StrictBool,
+    StrictInt,
     StrictStr,
     field_validator,
     model_validator,
@@ -632,6 +634,280 @@ class PublicationReviewArtifactV2(PublicationReviewArtifact):
 PublicationReviewArtifactAny: TypeAlias = (
     PublicationReviewArtifactV1 | PublicationReviewArtifactV2
 )
+
+
+class ReleaseBatchExpectedCounts(StrictBaseModel):
+    """Les quatre comptes que la release scellée DÉCLARE elle-même.
+
+    Ils ne sont pas estimés par cet artefact : ils y sont recopiés depuis
+    ``expected_counts`` de la release, et un validateur les recompare à la
+    source. Un artefact qui annoncerait d'autres comptes décrirait un autre
+    ensemble que celui qui a été relu.
+    """
+
+    subjects: StrictInt = Field(ge=1)
+    unique_artifacts: StrictInt = Field(ge=1)
+    placements: StrictInt = Field(ge=1)
+    unique_chunks: StrictInt = Field(ge=1)
+
+
+class ReleaseBatchPlacementEvidence(StrictBaseModel):
+    """L'état que TOUS les placements de la release doivent déclarer.
+
+    C'est ce qui rend une revue unique défendable : l'ensemble n'est pas
+    « un lot de documents », c'est un ensemble immuable dont chaque membre
+    porte déjà le même verdict de revue, d'activité et d'actualité.
+    """
+
+    review_status: Literal["reviewed"]
+    placement_status: Literal["active"]
+    currentness: Literal["current"]
+
+
+class ReleaseBatchPublicationReviewArtifact(StrictBaseModel):
+    """Décision de publication LOT42 portant sur une RELEASE SCELLÉE entière.
+
+    **Pourquoi un second protocole, et pas un assouplissement du premier.**
+    ``LOT42-V1`` lie une revue humaine à UNE ressource : un ``resource_id``,
+    un ``artifact_id``, un ``canonical_url`` obligatoire. C'est exact pour
+    le pipeline de découverte, où chaque ressource est trouvée à son URL et
+    relue pour elle-même. Appliqué à une release scellée de 315 artefacts
+    répartis derrière 19 pages, il exigerait 315 revues humaines et un
+    ``canonical_url`` documentaire par artefact — que la release ne porte
+    pas. Le fabriquer serait inventer la provenance ; en produire 315
+    reviendrait à faire relire à l'humain ce qu'il a déjà relu au
+    scellement.
+
+    ``LOT42-V1`` reste donc **inchangé et obligatoire** pour
+    ``resource_pipeline``. Ce protocole-ci ne le remplace pas et ne
+    l'élargit pas : il couvre le seul cas où une revue unique est
+    défendable — un ensemble **déterminé par une release immuable**, dont
+    chaque digest est vérifiable et dont chaque placement déclare déjà
+    ``reviewed`` / ``active`` / ``current``.
+
+    **Ce qu'il ne porte délibérément pas.** Aucun ``canonical_url``. La
+    release ne connaît qu'une ``source_url`` de provenance, partagée par
+    plusieurs artefacts ; la promouvoir en URL canonique par artefact
+    affirmerait une identité documentaire que personne n'a établie. Le
+    lien aux artefacts se fait par digests — ``content_sha256``,
+    ``artifact_id``, ``placement_id`` — jamais par URL.
+    """
+
+    protocol_version: Literal["LOT42-RELEASE-BATCH-V1"]
+    review_id: StrictStr = Field(min_length=1, max_length=128)
+    decision: Literal["AUTHORIZE_SEALED_RELEASE_PUBLICATION"]
+
+    #: L'ensemble couvert, nommé par ses digests et par eux seuls.
+    release_id: StrictStr = Field(min_length=1)
+    release_manifest_sha256: StrictStr = Field(pattern=_HEX64)
+    artifacts_release_sha256: StrictStr = Field(pattern=_HEX64)
+    candidate_inventory_sha256: StrictStr = Field(pattern=_HEX64)
+    #: Le corpus effectivement transféré et vérifié, digest par digest.
+    artifact_transfer_manifest_sha256: StrictStr = Field(pattern=_HEX64)
+
+    expected_counts: ReleaseBatchExpectedCounts
+    collections: tuple[StrictStr, ...] = Field(min_length=1)
+    placement_evidence: ReleaseBatchPlacementEvidence
+
+    #: Les autorisations LOT41A déjà enregistrées qui couvrent ces
+    #: collections. Une revue de publication ne remplace jamais une
+    #: autorisation de scope : elle s'y ajoute.
+    scope_authorization_ids: tuple[StrictStr, ...] = Field(min_length=1)
+
+    #: Provenance documentaire conservée telle quelle. Ce champ dit d'où
+    #: le corpus vient ; il ne désigne pas une ressource à récupérer.
+    provenance_source_url_count: StrictInt = Field(ge=1)
+    provenance_note: StrictStr = Field(min_length=1)
+
+    valid_from: AwareDatetime
+    valid_until: AwareDatetime
+
+    @field_validator("review_id")
+    @classmethod
+    def _identifier_is_canonical(cls, value: str) -> str:
+        if not _IDENTIFIER_PATTERN.fullmatch(value):
+            raise ValueError(
+                f"review_id {value!r} must match {_IDENTIFIER_PATTERN.pattern}"
+            )
+        return value
+
+    @field_validator("collections", "scope_authorization_ids")
+    @classmethod
+    def _sorted_and_unique(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        unique = sorted(set(values))
+        if len(unique) != len(values):
+            raise ValueError(f"duplicates are not allowed, got {list(values)!r}")
+        if list(values) != unique:
+            raise ValueError(
+                f"must be committed already sorted; expected {unique!r}, "
+                f"got {list(values)!r}"
+            )
+        return tuple(unique)
+
+    @model_validator(mode="after")
+    def _validity_window_is_ordered(self) -> "ReleaseBatchPublicationReviewArtifact":
+        if self.valid_until <= self.valid_from:
+            raise ValueError("valid_until must be strictly after valid_from")
+        return self
+
+    @model_validator(mode="after")
+    def _collections_match_the_declared_subject_count(
+        self,
+    ) -> "ReleaseBatchPublicationReviewArtifact":
+        """Le nombre de collections et le compte de subjects sont le MÊME fait.
+
+        Les laisser diverger permettrait d'annoncer onze subjects tout en
+        n'en couvrant que huit.
+        """
+        if len(self.collections) != self.expected_counts.subjects:
+            raise ValueError(
+                f"collections count {len(self.collections)} differs from "
+                f"expected_counts.subjects {self.expected_counts.subjects}"
+            )
+        return self
+
+    def canonical_document(self) -> dict[str, Any]:
+        return {
+            "artifact_transfer_manifest_sha256": self.artifact_transfer_manifest_sha256,
+            "artifacts_release_sha256": self.artifacts_release_sha256,
+            "candidate_inventory_sha256": self.candidate_inventory_sha256,
+            "collections": list(self.collections),
+            "decision": self.decision,
+            "expected_counts": {
+                "placements": self.expected_counts.placements,
+                "subjects": self.expected_counts.subjects,
+                "unique_artifacts": self.expected_counts.unique_artifacts,
+                "unique_chunks": self.expected_counts.unique_chunks,
+            },
+            "placement_evidence": {
+                "currentness": self.placement_evidence.currentness,
+                "placement_status": self.placement_evidence.placement_status,
+                "review_status": self.placement_evidence.review_status,
+            },
+            "protocol_version": self.protocol_version,
+            "provenance_note": self.provenance_note,
+            "provenance_source_url_count": self.provenance_source_url_count,
+            "release_id": self.release_id,
+            "release_manifest_sha256": self.release_manifest_sha256,
+            "review_id": self.review_id,
+            "scope_authorization_ids": list(self.scope_authorization_ids),
+            "valid_from": _canonical_datetime(self.valid_from),
+            "valid_until": _canonical_datetime(self.valid_until),
+        }
+
+    def canonical_bytes(self) -> bytes:
+        return _dump_canonical(self.canonical_document())
+
+    def digest(self) -> str:
+        return sha256(self.canonical_bytes()).hexdigest()
+
+
+def parse_release_batch_publication_review_artifact(
+    raw: bytes,
+) -> ReleaseBatchPublicationReviewArtifact:
+    """Parse strict + canonicité octet à octet, comme pour LOT42-V1."""
+    return cast(
+        ReleaseBatchPublicationReviewArtifact,
+        _parse_canonical(raw, ReleaseBatchPublicationReviewArtifact),
+    )
+
+
+class ReleaseBatchReviewMismatch(CanonicalArtifactError):
+    """Une revue batch qui ne décrit pas la release observée. Jamais tolérée."""
+
+
+def require_release_batch_review_matches_release(
+    artifact: ReleaseBatchPublicationReviewArtifact,
+    *,
+    observed_release_id: str,
+    observed_release_manifest_sha256: str,
+    observed_artifacts_release_sha256: str,
+    observed_candidate_inventory_sha256: str,
+    observed_transfer_manifest_sha256: str,
+    observed_collections: Iterable[str],
+    observed_counts: Mapping[str, int],
+    observed_placement_states: Mapping[str, Iterable[str]],
+    observed_source_url_count: int,
+) -> None:
+    """Refuser toute revue batch qui décrit autre chose que la release observée.
+
+    Fonction **pure** : elle ne lit aucun fichier. L'appelant observe la
+    release et lui passe ce qu'il a mesuré ; c'est ce qui permet de la
+    tester sans dépôt et d'éviter qu'elle « aille chercher » une release
+    plus complaisante que celle qu'on lui nomme.
+
+    Une revue humaine unique ne vaut pour un ensemble que si cet ensemble
+    est exactement celui qui a été relu. Chaque écart est donc un refus,
+    jamais un avertissement.
+    """
+    ecarts: list[str] = []
+
+    if artifact.release_id != observed_release_id:
+        ecarts.append(
+            f"release_id {artifact.release_id!r} ≠ {observed_release_id!r}"
+        )
+    for nom, declare, observe in (
+        ("release_manifest_sha256", artifact.release_manifest_sha256,
+         observed_release_manifest_sha256),
+        ("artifacts_release_sha256", artifact.artifacts_release_sha256,
+         observed_artifacts_release_sha256),
+        ("candidate_inventory_sha256", artifact.candidate_inventory_sha256,
+         observed_candidate_inventory_sha256),
+        ("artifact_transfer_manifest_sha256",
+         artifact.artifact_transfer_manifest_sha256,
+         observed_transfer_manifest_sha256),
+    ):
+        if declare != observe:
+            ecarts.append(f"{nom} déclaré {declare[:12]}… ≠ observé {observe[:12]}…")
+
+    declarees = set(artifact.collections)
+    observees = set(observed_collections)
+    manquantes = sorted(observees - declarees)
+    surplus = sorted(declarees - observees)
+    if manquantes:
+        ecarts.append(f"collections manquantes dans la revue : {manquantes}")
+    if surplus:
+        ecarts.append(f"collections en surplus dans la revue : {surplus}")
+
+    attendus = {
+        "subjects": artifact.expected_counts.subjects,
+        "unique_artifacts": artifact.expected_counts.unique_artifacts,
+        "placements": artifact.expected_counts.placements,
+        "unique_chunks": artifact.expected_counts.unique_chunks,
+    }
+    for cle, valeur in sorted(attendus.items()):
+        if observed_counts.get(cle) != valeur:
+            ecarts.append(
+                f"expected_counts.{cle} déclaré {valeur} ≠ observé "
+                f"{observed_counts.get(cle)!r}"
+            )
+
+    exige = {
+        "review_status": artifact.placement_evidence.review_status,
+        "placement_status": artifact.placement_evidence.placement_status,
+        "currentness": artifact.placement_evidence.currentness,
+    }
+    for champ, attendu in sorted(exige.items()):
+        observes = set(observed_placement_states.get(champ, ()))
+        if observes != {attendu}:
+            ecarts.append(
+                f"placement_evidence.{champ} : la release observe "
+                f"{sorted(observes)!r}, la revue exige {attendu!r} partout"
+            )
+
+    if artifact.provenance_source_url_count != observed_source_url_count:
+        ecarts.append(
+            f"provenance_source_url_count déclaré "
+            f"{artifact.provenance_source_url_count} ≠ observé "
+            f"{observed_source_url_count}"
+        )
+
+    if ecarts:
+        raise ReleaseBatchReviewMismatch(
+            "la revue batch ne décrit pas la release observée : "
+            + " ; ".join(ecarts)
+        )
+
 
 
 def canonical_authorization_path(authorization_id: str) -> str:
