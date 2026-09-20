@@ -255,26 +255,10 @@ def test_la_garde_de_separation_des_dsn_n_est_plus_reservee_a_la_production() ->
     assert "_require_distinct_control_and_product_dsn(product_dsn)" in avant_production
 
 
-def test_la_garde_refuse_effectivement_deux_dsn_identiques(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
-    RuntimeAuthorityStartupError = cli.RuntimeAuthorityStartupError
-
-    monkeypatch.setattr(
-        cli, "get_ingestion_control_dsn", lambda: "postgresql://x@127.0.0.1:5432/db"
-    )
-    with pytest.raises(RuntimeAuthorityStartupError, match="distinct"):
-        cli._require_distinct_control_and_product_dsn("postgresql://x@127.0.0.1:5432/db")
-
-
-def test_la_garde_accepte_deux_dsn_distincts(monkeypatch: pytest.MonkeyPatch) -> None:
-    from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
-
-    monkeypatch.setattr(
-        cli, "get_ingestion_control_dsn", lambda: "postgresql://x@127.0.0.1:5432/control"
-    )
-    cli._require_distinct_control_and_product_dsn("postgresql://x@127.0.0.1:5432/ragdb")
+#: La preuve COMPORTEMENTALE de cette garde vit dans la suite rag-engine
+#: (`services/rag-engine/tests/test_worker_b_dsn_separation.py`) : elle importe
+#: le CLI, donc `psycopg`, que ce job de qualification n'installe pas. Le test
+#: statique ci-dessus reste ici parce qu'il ne dépend d'aucun runtime.
 
 
 # --- 17 — cette PR ne touche ni release, ni scope packagé ---------------

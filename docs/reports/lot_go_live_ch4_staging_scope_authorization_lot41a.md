@@ -89,7 +89,11 @@ retiré, et la production conserve toutes ses exigences supplémentaires.
 ## 4. Épreuves
 
 `scripts/qualification/tests/test_staging_scope_authorizations_lot41a.py` —
-**25 épreuves**.
+**23 épreuves**, plus **3** dans `services/rag-engine/tests/test_worker_b_dsn_separation.py`.
+
+La preuve comportementale de la garde DSN vit côté `rag-engine` : elle importe
+le CLI, donc `psycopg`, que le job de qualification n'installe pas. Le test
+statique reste en qualification parce qu'il ne dépend d'aucun runtime.
 
 | # | Exigence | Épreuve |
 |---|---|---|
@@ -98,7 +102,7 @@ retiré, et la production conserve toutes ses exigences supplémentaires.
 | 5, 6, 7 | périmètre = release V2, ni manquante ni supplémentaire | `test_une_autorisation_par_collection_de_la_release`, `test_aucune_collection_hors_release` |
 | 8 | comptes de la release | `test_les_comptes_de_la_release_sont_ceux_attendus`, `test_le_digest_du_manifeste_de_release_est_celui_scelle` |
 | 9 | `profiles_dir` v2 | `test_les_empreintes_de_profil_sont_celles_du_manifeste`, `test_chaque_autorisation_cite_le_manifeste_de_profils_v2` |
-| 11 | DSN control ≠ produit, **dans tous les environnements** | `test_la_garde_de_separation_des_dsn_n_est_plus_reservee_a_la_production`, `test_la_garde_refuse_effectivement_deux_dsn_identiques` |
+| 11 | DSN control ≠ produit, **dans tous les environnements** | `test_la_garde_de_separation_des_dsn_n_est_plus_reservee_a_la_production` (statique) + `services/rag-engine/tests/test_worker_b_dsn_separation.py` (3 épreuves comportementales) |
 | 12, 13, 14 | jamais `rag_pgvector` ni ressource de production | `test_aucune_autorisation_ne_nomme_une_ressource_de_production` |
 | 15 | HGGSP ×2 et HLP terminale couvertes | `test_les_trois_collections_hggsp_hlp_sont_autorisees` |
 | 16 | manifeste de transfert cité et intact | `test_le_manifeste_de_transfert_du_corpus_est_present_et_intact` |
