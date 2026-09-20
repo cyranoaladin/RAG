@@ -679,3 +679,44 @@ def test_l_ancre_de_production_nest_pas_acceptee_comme_ancre_de_repetition() -> 
         verify_staging_readiness_manifest(
             b"{}", trust_anchor=production, now=datetime.now(UTC)
         )
+
+
+# ==========================================================================
+# L'ancre gouvernée de répétition n'autorise rien à elle seule
+# ==========================================================================
+
+
+ANCRE_REPETITION = REPO_ROOT / "governance/trust-anchors/rehearsal-readiness-v1.json"
+
+
+def test_l_ancre_gouvernee_de_repetition_se_charge() -> None:
+    ancre = parse_staging_readiness_trust_anchor(ANCRE_REPETITION.read_bytes())
+    cle = ancre.key("nexus-rehearsal-readiness-20260920-01")
+    assert cle.environment == "rehearsal"
+    assert cle.algorithm == "ed25519"
+
+
+def test_sans_manifeste_le_gate_refuse_malgre_l_ancre_gouvernee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Publier l'ancre ne débloque aucune exécution : il manque la signature.
+
+    C'est le fait qu'affirme la PR qui publie l'ancre ; il se prouve ici,
+    contre le vrai gate et le vrai fichier."""
+    monkeypatch.setenv("NEXUS_ENVIRONMENT", "rehearsal")
+    monkeypatch.setenv(gate.EXPECTED_PROTOCOL_ENV, STAGING_READINESS_PROTOCOL)
+    monkeypatch.setenv(gate.TRUST_ANCHOR_ENV, str(ANCRE_REPETITION))
+    monkeypatch.delenv(gate.MANIFEST_PATH_ENV, raising=False)
+    monkeypatch.delenv(gate.MANIFEST_SHA256_ENV, raising=False)
+    with pytest.raises(gate.StagingReadinessGateError, match="is not configured"):
+        gate.enforce_staging_readiness_gate()
+
+
+def test_l_ancre_gouvernee_ne_peut_pas_servir_a_la_production() -> None:
+    from nexus_contracts.production_readiness import (
+        ProductionReadinessError,
+        parse_production_readiness_trust_anchor,
+    )
+
+    with pytest.raises(ProductionReadinessError):
+        parse_production_readiness_trust_anchor(ANCRE_REPETITION.read_bytes())

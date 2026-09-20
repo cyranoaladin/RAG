@@ -79,9 +79,18 @@ STAGING_READINESS_GATE_FAILED: NEXUS_READINESS_MANIFEST_PATH is not configured
 
 Fusionner cette PR ne débloque donc aucune exécution.
 
+Cette preuve-là vit dans `services/rag-engine/tests/test_staging_readiness_gate.py`,
+pas dans les épreuves de qualification : elle importe le gate, donc `psycopg`,
+que le job `scripts/qualification` n'installe pas. Une première rédaction l'y
+avait placée et la CI l'a refusée — `ModuleNotFoundError: No module named
+'psycopg'`. La déplacer est la seule réponse juste ; la marquer `skip` l'aurait
+rendue muette sans rien prouver ailleurs.
+
 ```
-pytest scripts/qualification/tests/test_rehearsal_readiness_anchor.py -q   20 passed
-ruff check                                                                All checks passed!
+pytest scripts/qualification/tests -q          284 passed, 2 skipped
+  (rejoué dans un venv propre, sans psycopg, comme le job de CI)
+pytest tests/test_staging_readiness_gate.py    52 passed
+ruff check                                     All checks passed!
 ```
 
 ## Les cinq verrous avant toute exécution staging

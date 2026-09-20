@@ -204,22 +204,9 @@ def test_l_ancre_de_production_porte_toujours_sa_seule_cle_offline() -> None:
 # --------------------------------------------------------------------------
 # L'ancre seule n'autorise rien
 # --------------------------------------------------------------------------
-
-
-def test_sans_manifeste_le_gate_refuse_malgre_l_ancre(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Fusionner l'ancre ne débloque aucune exécution : il manque la signature."""
-    sys.path.insert(0, str(RACINE / "services/rag-engine/src"))
-    from ingestor.ingestion_profiles import staging_readiness_gate as gate
-
-    monkeypatch.setenv("NEXUS_ENVIRONMENT", "rehearsal")
-    monkeypatch.setenv(
-        gate.EXPECTED_PROTOCOL_ENV, "NEXUS-STAGING-READINESS-V1"
-    )
-    monkeypatch.setenv(gate.TRUST_ANCHOR_ENV, str(ANCRE_REPETITION))
-    monkeypatch.delenv(gate.MANIFEST_PATH_ENV, raising=False)
-    monkeypatch.delenv(gate.MANIFEST_SHA256_ENV, raising=False)
-
-    with pytest.raises(gate.StagingReadinessGateError, match="is not configured"):
-        gate.enforce_staging_readiness_gate()
+#
+# La preuve — donner cette ancre au gate SANS manifeste et constater son refus
+# — vit dans ``services/rag-engine/tests/test_staging_readiness_gate.py``,
+# pas ici : elle importe le gate, donc ``psycopg``, que ce job de
+# qualification n'installe pas. La deplacer est la seule reponse juste ; la
+# marquer ``skip`` ici l'aurait rendue muette sans rien prouver ailleurs.
