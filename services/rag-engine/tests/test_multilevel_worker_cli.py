@@ -614,10 +614,19 @@ def test_worker_b_enforce_production_evidence_refuses_shared_dsn(
     )
     args = _production_args(expected_product_role="rag_publisher")
 
+    # Lot CH4 : ce refus a été SORTI de `_enforce_production_evidence`, qui ne
+    # s'exécute qu'en production. Il vit maintenant dans
+    # `_require_distinct_control_and_product_dsn`, appelé avant toute
+    # distinction d'environnement — la production le subit donc toujours, et
+    # le staging aussi. Le test suit la garde ; il ne la relâche pas.
     with pytest.raises(RuntimeAuthorityStartupError, match="distinct"):
-        multilevel_publication_resume_cli._enforce_production_evidence(
-            args, _production_readiness(), product_dsn="postgresql://shared"
+        multilevel_publication_resume_cli._require_distinct_control_and_product_dsn(
+            "postgresql://shared"
         )
+
+    # Et la production conserve ses exigences propres : le registre de
+    # releases, le registre de révocation, le rôle produit attesté.
+    assert args.expected_product_role == "rag_publisher"
 
 
 def test_worker_b_enforce_production_evidence_attests_the_product_role(

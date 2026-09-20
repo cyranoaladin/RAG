@@ -1,14 +1,15 @@
 {
   "amended_by": [
     "CH2",
-    "CH3"
+    "CH3",
+    "CH4"
   ],
   "authorization": "SSH_STAGING_AUTHORIZED",
   "consumed": false,
   "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
   "execution_plan": {
     "path": "docs/runbooks/staging_externe_nexus_prod_cloisonne_EXECUTION_PLAN.md",
-    "sha256": "a0a9a99a84ef2e4391264f9e965655dc7b7fbb453e2d463ebab1311bb228eba8"
+    "sha256": "52d43cb7d8535bebe2d5dc05c7fce3124f6eda9239ccafbead4879bcd9f7521d"
   },
   "expected_proof": [
     "docs/reports/evidence/external_staging_proof.json en mode A / production_cloisonnee",
@@ -47,6 +48,15 @@
       "nexus-staging_rag_prometheus_data"
     ],
     "host": "nexus-prod",
+    "ingestion_control_database": {
+      "authorizations_dir": "governance/authorizations",
+      "compose_ingestion_stack_on_host": "forbidden",
+      "dsn_must_differ_from_product": true,
+      "location": "base logique séparée DANS nexus-staging-pgvector-1",
+      "new_container": false,
+      "new_volume": false,
+      "scope_authorization_protocol": "LOT41A"
+    },
     "ingestor_image": "pinned_by_digest_no_rebuild",
     "ingestor_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
     "load": "mesure séquentielle C0 seulement (30 requêtes, une à la fois) ; la charge complète C1 exige une autre PR",

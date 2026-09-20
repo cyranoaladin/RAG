@@ -1,0 +1,35 @@
+{
+  "allowed_domains": [
+    "eduscol.education.gouv.fr"
+  ],
+  "authorization_id": "lot41a-staging-v2-hggsp-premiere-specialite",
+  "decision": "AUTHORIZE_INGESTION_SCOPE",
+  "exclusions": [],
+  "manifest_digest": "d8b99a1d75e23baaba478a85b997a7022f52ddb9013dab176deb45b08ce4a7fc",
+  "pii_absence_attested": true,
+  "pii_absence_evidence": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v2/release-1b9eba0c0eb0ab13/profile_gate/pii_evidence.json@sha256:ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
+  "profile_fingerprint": "6fa91ccf4b435fb1417739890607a8c65bc30d10bebfd26fd08d8b81e560c12a",
+  "profile_id": "rag_nexus_hggsp_premiere_specialite",
+  "profile_version": "profile-gate-v2",
+  "protocol_version": "LOT41A-V1",
+  "rights_categories": [
+    "officiel_public"
+  ],
+  "scope": {
+    "audience": [
+      "aefe",
+      "libre"
+    ],
+    "candidat": "libre",
+    "collection": "rag_nexus_hggsp_premiere_specialite",
+    "matiere": "hggsp",
+    "niveau": "premiere",
+    "programme_version": "EDUSCOL_CORPUS_20260808",
+    "school_year": "2026-2027",
+    "tenant": "libre_premiere",
+    "visibility": "public",
+    "voie": "generale"
+  },
+  "valid_from": "2026-09-20T00:00:00.000000Z",
+  "valid_until": "2027-08-31T23:59:59.000000Z"
+}

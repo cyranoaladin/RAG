@@ -122,6 +122,26 @@ cet hôte, possiblement la base de production. `PGVECTOR_CONTAINER=nexus-staging
 commande n'est lancée qu'après que la ligne précédente a rendu ce nom exact. Sans cette variable : ne pas exécuter.
 Puis l'index selon le choix 2.1 (a) ou (b). Contrôle : `SELECT COUNT(*) FROM rag_chunks WHERE vector IS NOT NULL` > 0 sur la base de staging.
 
+### Phase 3 bis — Base logique `ingestion-control`, dans le conteneur existant (lot CH4)
+La chaîne d'ingestion canonique est en deux temps : **Worker A** écrit dans une base
+`ingestion-control` (rôle `ingestion_control_app`), **Worker B** lit celle-ci et publie dans
+`PG_RAG_DSN`. Le staging n'avait que la base produit ; l'ingestion V2 était donc impossible.
+
+Elle est créée comme **base logique séparée dans `nexus-staging-pgvector-1`** — et nulle part
+ailleurs :
+
+  * aucun nouveau conteneur, aucun nouveau volume, aucun service ajouté sur l'hôte ;
+  * `docker-compose.ingestion.yml` n'est **jamais** déployé sur `nexus-prod` : il porte cinq
+    services et construirait des images hors du digest épinglé ;
+  * le DSN `ingestion-control` doit différer du `PG_RAG_DSN` de staging. Ce refus ne valait
+    qu'en production ; CH4 l'étend à **tous** les environnements
+    (`_require_distinct_control_and_product_dsn`), car un DSN unique effondrerait la séparation
+    des rôles précisément là où on la qualifie.
+
+Aucun job ne peut être créé sans `--scope-authorization-id` : les onze autorisations LOT41A
+vivent dans `governance/authorizations/`, et l'outil ne lit la décision que dans le dépôt, au
+commit exact approuvé.
+
 ### Phase 4 — Image `ingestor` figée par digest, puis API
 Le Compose **construit** `ingestor` (`build:`) : sans gel, deux `up` pourraient lancer deux images différentes.
 ```bash

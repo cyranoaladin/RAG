@@ -124,6 +124,22 @@ def _extract_non_pdf_text(raw_bytes: bytes) -> str:
         return raw_bytes.decode("latin-1")
 
 
+def _require_distinct_control_and_product_dsn(product_dsn: str) -> None:
+    """La séparation des rôles vaut dans TOUS les environnements.
+
+    Ce refus vivait dans `_enforce_production_evidence`, donc en production
+    seulement : un staging pouvait publier avec un DSN unique, et la
+    séparation entre contrôle d'ingestion et base produit s'effondrait
+    silencieusement là où on la qualifie justement. Lot CH4 : la garde
+    s'applique aussi en rehearsal. Elle n'est retirée nulle part.
+    """
+    if product_dsn == get_ingestion_control_dsn():
+        raise RuntimeAuthorityStartupError(
+            "the product-publisher DSN and the ingestion-control DSN must be "
+            "distinct — a single shared DSN collapses the role separation"
+        )
+
+
 def _enforce_production_evidence(
     args: argparse.Namespace,
     readiness: ReadinessGateResult,
@@ -168,11 +184,6 @@ def _enforce_production_evidence(
         raise RuntimeAuthorityStartupError(
             "production requires --expected-product-role for the product-publisher DSN"
         )
-    if product_dsn == get_ingestion_control_dsn():
-        raise RuntimeAuthorityStartupError(
-            "production requires the product-publisher DSN and the ingestion-control "
-            "DSN to be distinct — a single shared DSN collapses the role separation"
-        )
     try:
         with psycopg.connect(product_dsn) as product_conn:
             attest_runtime_role(product_conn, expected_role=args.expected_product_role)
@@ -191,6 +202,7 @@ def main(argv: list[str] | None = None) -> int:
                 "multilevel worker requires rehearsal or production readiness"
             )
         product_dsn = _product_dsn()
+        _require_distinct_control_and_product_dsn(product_dsn)
         if readiness.environment == "production":
             _enforce_production_evidence(args, readiness, product_dsn=product_dsn)
         profiles = load_profile_registry(args.profiles_dir)
