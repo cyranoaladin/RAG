@@ -23,7 +23,11 @@ sys.path.insert(0, str(RACINE / "scripts/go_live"))
 
 import check_staging_authorization as autorisation  # noqa: E402
 
-PREUVE = "docs/reports/evidence/staging_worker_image_provenance.json"
+#: CH7B repointe la preuve vers celle de l'image courante. La preuve de CH6
+#: reste versionnee comme trace de ce qui a ete autorise a l'epoque ; ce
+#: fichier teste l'autorisation EN VIGUEUR, qui n'en a qu'une.
+PREUVE = "docs/reports/evidence/staging_worker_image_provenance_ch7b.json"
+PREUVE_CH6 = "docs/reports/evidence/staging_worker_image_provenance.json"
 
 
 @pytest.fixture()
@@ -281,6 +285,15 @@ def test_sans_image_worker_l_autorisation_n_autorise_aucune_image(
     assert any("aucune image n'est autorisee" in ecart for ecart in _ecarts(copie))
 
 
-def test_ch6_est_consigne_comme_amendement(document: dict) -> None:
-    assert document["amended_by"] == ["CH2", "CH3", "CH4", "CH6"]
+def test_les_amendements_sont_consignes_dans_l_ordre(document: dict) -> None:
+    assert document["amended_by"] == ["CH2", "CH3", "CH4", "CH6", "CH7B"]
     assert document["expires_after_use"] is True
+
+
+def test_la_preuve_de_ch6_reste_versionnee_comme_trace(document: dict) -> None:
+    """Remplacer un digest n'efface pas ce qui avait ete autorise avant."""
+    ancienne = json.loads((RACINE / PREUVE_CH6).read_text(encoding="utf-8"))
+    assert ancienne["worker_image"]["image_digest"].startswith("sha256:2ce7533d")
+    assert _image(document)["supersedes_image_digest"] == (
+        ancienne["worker_image"]["image_digest"]
+    )

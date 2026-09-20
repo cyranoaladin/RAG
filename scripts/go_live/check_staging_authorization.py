@@ -76,10 +76,14 @@ IMAGE_WORKER_REQUISE = {
     "build_on_nexus_prod": "forbidden",
     "build_workflow": ".github/workflows/production-image-provenance.yml",
     "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    #: CH7B — le digest autorise change, et c'est le seul champ de l'image
+    #: qui change. L'image de CH6 precedait les lots CQ, CR et CH7A : elle ne
+    #: porte ni la chaine de readiness de repetition, ni la garde d'identite
+    #: d'image, et son point d'entree exige la chaine de PRODUCTION.
     "image_digest": (
-        "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029"
+        "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb"
     ),
-    "source_commit_sha": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+    "source_commit_sha": "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
     "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
     "contracts_version": "0.19.0",
     "allowed_entrypoint_module": (
@@ -89,7 +93,18 @@ IMAGE_WORKER_REQUISE = {
     "compose_file_on_host": "forbidden",
     "network": "loopback_only",
     "product_database_access": "forbidden",
+    #: La garde ajoutee par CH7A : l'image REELLEMENT en cours doit etre
+    #: celle que le manifeste signe nomme. L'autorisation la declare pour
+    #: qu'un futur amendement ne puisse pas la faire disparaitre en silence.
+    "runtime_image_binding_guard": "NEXUS_ACTUAL_WORKER_IMAGE",
 }
+
+#: Le digest que CH7B remplace. Le nommer ici n'est pas decoratif : une
+#: autorisation qui redeviendrait celle de CH6 serait refusee par la garde
+#: ci-dessous, au lieu de passer inapercue.
+IMAGE_WORKER_REMPLACEE = (
+    "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029"
+)
 #: Les deux workers restent hors de portee de cette autorisation. Worker B
 #: publierait ; Worker A creerait des jobs par URL, ce que la release scellee
 #: ne permet pas (ADR-0056). L'image sait les lancer : l'autorisation, non.
@@ -136,6 +151,16 @@ def _ecarts_image_worker(image: object) -> list[str]:
         ecarts.append(
             "image worker : reference sans digest — un tag seul n'est jamais "
             "une unite d'execution"
+        )
+
+    if image.get("image_digest") == IMAGE_WORKER_REMPLACEE:
+        ecarts.append(
+            "image worker : le digest de CH6 a ete remis en place — il precede "
+            "la chaine de readiness de repetition et ne peut plus etre autorise"
+        )
+    if image.get("supersedes_image_digest") != IMAGE_WORKER_REMPLACEE:
+        ecarts.append(
+            "image worker : l'amendement doit nommer le digest qu'il remplace"
         )
 
     interdits = image.get("forbidden_entrypoint_modules") or []
@@ -192,6 +217,21 @@ def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
         ecarts.append("le plan d'exécution a changé depuis l'autorisation : elle ne le couvre plus")
     if not document.get("stop_conditions") or not document.get("expected_proof"):
         ecarts.append("conditions d'arrêt ou preuve attendue absentes")
+    declaration = document.get("authorization_statement") or ""
+    for exigence in (
+        "staging cloisonne uniquement",
+        "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
+        "ni build sur nexus-prod",
+        "ni tag non epingle",
+        "ni Worker B",
+        "ni ecriture DB production",
+        "ni current switch",
+        "ni exposition publique",
+    ):
+        if exigence not in declaration:
+            ecarts.append(
+                f"declaration d'autorisation : mention manquante {exigence!r}"
+            )
     if document.get("expires_after_use") is not True:
         ecarts.append("l'autorisation doit être à usage unique (expires_after_use)")
     return ecarts
