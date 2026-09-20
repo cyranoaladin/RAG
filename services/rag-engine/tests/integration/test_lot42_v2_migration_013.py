@@ -245,7 +245,7 @@ class TestMigration013Applies:
     def test_bootstrap_declares_013_as_head(self, pg_container: dict[str, str]) -> None:
         result = _run_bootstrap(pg_container)
         assert result.returncode == 0, result.stderr
-        assert "SCHEMA_HEAD=13" in result.stdout
+        assert "SCHEMA_HEAD=14" in result.stdout
 
     def test_the_protocol_constraints_enumerate_both_versions(
         self, pg_container: dict[str, str]
