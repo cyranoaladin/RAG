@@ -26,6 +26,7 @@ import yaml
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = ENGINE_ROOT.parents[1]
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from ingestor.ingestion_control import provisioning  # noqa: E402
 from ingestor.ingestion_profiles.registry import load_profile_registry  # noqa: E402
@@ -856,35 +857,46 @@ MODULE_SOURCES = (
 
 
 def _code_sans_prose(relative: str) -> str:
-    """Le code seul : commentaires et docstrings retirés.
+    """Le code seul — voir ``tests/_source_inspection`` pour le pourquoi."""
+    from _source_inspection import code_sans_prose
 
-    Ces modules PARLENT de ce qu'ils ne font pas — « ne connaît pas
-    ``PG_RAG_DSN`` ». Chercher la chaîne dans le fichier entier ferait
-    échouer le test sur sa propre documentation ; c'est le code
-    exécutable qu'on veut inspecter."""
-    import io
-    import tokenize
-
-    source = (ENGINE_ROOT / relative).read_text("utf-8")
-    morceaux: list[str] = []
-    for jeton in tokenize.generate_tokens(io.StringIO(source).readline):
-        if jeton.type == tokenize.COMMENT:
-            continue
-        nu = jeton.string.lstrip("rbfuRBFU")
-        if jeton.type == tokenize.STRING and (nu.startswith('"""') or nu.startswith("'''")):
-            continue
-        morceaux.append(jeton.string)
-    return " ".join(morceaux)
+    return code_sans_prose(ENGINE_ROOT / relative)
 
 
 def test_17_aucune_publication_nest_atteignable_depuis_ce_point_dentree() -> None:
     for relative in MODULE_SOURCES:
         code = _code_sans_prose(relative)
-        assert "PG_RAG_DSN" not in code
         assert "rag_chunks" not in code
         assert "rag_artifacts" not in code
         assert "publication_resume" not in code
         assert "PUBLISHED" not in code
+
+
+def test_17bis_pg_rag_dsn_nest_lu_que_pour_prouver_le_cloisonnement() -> None:
+    """Depuis le lot CQ, le CLI LIT ``PG_RAG_DSN`` — pour refuser, jamais
+    pour s'y connecter.
+
+    Le manifeste de readiness DÉCLARE que le plan de contrôle et le produit
+    sont deux connexions distinctes. Une déclaration qu'on ne peut pas
+    contredire ne prouve rien : le CLI la mesure. La seule connexion qu'il
+    ouvre reste celle du plan de contrôle."""
+    module = _code_sans_prose(
+        "src/ingestor/ingestion_worker/sealed_release_ingestion.py"
+    )
+    assert "PG_RAG_DSN" not in module
+
+    cli_code = _code_sans_prose(
+        "src/ingestor/ingestion_worker/sealed_release_ingestion_cli.py"
+    )
+    assert cli_code.count("PG_RAG_DSN") == 1
+    lecture = cli_code[
+        cli_code.index("require_control_dsn_differs_from_product") :
+        cli_code.index("PG_RAG_DSN") + 20
+    ]
+    assert "product_dsn = os . environ . get ( \"PG_RAG_DSN\" )" in lecture
+    # Une seule connexion est ouverte, et c'est celle du plan de controle.
+    assert cli_code.count("psycopg . connect") == 1
+    assert "psycopg . connect ( get_ingestion_control_dsn ( ) )" in cli_code
 
 
 def test_17bis_le_rapport_declare_zero_publication() -> None:
@@ -966,10 +978,16 @@ def test_22_la_production_est_impossible() -> None:
 def test_22bis_le_cli_refuse_de_demarrer_hors_rehearsal(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    """Depuis le lot CQ, le refus vient du gate de repetition lui-meme."""
+
     class _Production:
         environment = "production"
+        manifest = None
+        manifest_sha256 = "0" * 64
 
-    monkeypatch.setattr(cli, "enforce_readiness_gate", lambda: _Production())
+    monkeypatch.setattr(
+        cli, "enforce_staging_readiness_gate", lambda: _Production()
+    )
     code = cli.main(
         [
             "--release-dir", str(REAL_RELEASE_DIR),
