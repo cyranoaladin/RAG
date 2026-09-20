@@ -1,0 +1,12 @@
+{
+  "protocol_version": "NEXUS-STAGING-READINESS-V1",
+  "keys": [
+    {
+      "key_id": "nexus-rehearsal-readiness-20260920-01",
+      "algorithm": "ed25519",
+      "public_key": "075908951258f6a96f209dbae8f33161daebbdd33a1d5aefb9a8793ec77cd715",
+      "environment": "rehearsal",
+      "comment": "Cle de repetition (ADR-0057), generee hors depot et hors hote par le proprietaire du depot (Alaeddine Ben Rhouma) le 2026-09-20 ; cle privee conservee hors ligne, jamais dans ce depot ni sur nexus-prod. N'a aucune autorite en production : le protocole et le litteral environment l'interdisent."
+    }
+  ]
+}
