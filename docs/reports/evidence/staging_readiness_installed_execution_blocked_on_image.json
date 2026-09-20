@@ -1,0 +1,117 @@
+{
+  "kind": "NEXUS-STAGING-READINESS-INSTALLATION-V1",
+  "generated_at_utc": "2026-09-20T19:55:00Z",
+  "outcome": "READINESS_VALID_BUT_AUTHORISED_IMAGE_PREDATES_THE_CHAIN",
+  "locks": {
+    "1_anchor_merged": {
+      "state": "DONE",
+      "main": "3abcec6768241c61a9bdbd64b3cc3a57f50e7164",
+      "pull_request": 239,
+      "anchor_sha256": "3604f0526c78500ea69eab0cf770a94f46abfe6d357b6e8191e321f91fcb1cf7"
+    },
+    "2_manifest_signed": {
+      "state": "DONE",
+      "signed_by": "proprietaire, hors depot et hors hote",
+      "manifest_sha256": "7bcf8129e3653d12dfce40985cfed9ae2ade4f1a559a2c925981f6f6a798b072",
+      "key_id": "nexus-rehearsal-readiness-20260920-01",
+      "offline_verification": "signature valide contre l'ancre gouvernee",
+      "declared": {
+        "environment": "rehearsal",
+        "repository": "cyranoaladin/RAG",
+        "merge_sha": "3abcec6768241c61a9bdbd64b3cc3a57f50e7164",
+        "worker_image": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+        "allowed_release_id": "production-profile-gate-2026-2027-v2",
+        "allowed_release_manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+        "control_dsn_differs_from_product": true,
+        "expires_at": "2026-10-20T19:46:12.045020+00:00"
+      },
+      "secrets_scan_before_transport": {
+        "private_key_markers": 0,
+        "seed_markers": 0,
+        "fields": ["key_id", "manifest", "manifest_digest", "signature", "signature_algorithm"]
+      }
+    },
+    "3_variables_installed": {
+      "state": "DONE",
+      "scope": "staging uniquement",
+      "manifest_path_on_host": "/srv/nexus-staging/readiness/staging-readiness-manifest.json",
+      "manifest_permissions": "0600 root:root",
+      "directory_permissions": "0700 root:root",
+      "env_file": "/srv/nexus-staging/secrets/readiness.env",
+      "env_file_permissions": "0600 root:root",
+      "variables": [
+        "NEXUS_ENVIRONMENT",
+        "NEXUS_EXPECTED_READINESS_PROTOCOL",
+        "NEXUS_READINESS_MANIFEST_PATH",
+        "NEXUS_READINESS_MANIFEST_SHA256",
+        "NEXUS_STAGING_READINESS_TRUST_ANCHOR"
+      ],
+      "env_file_contains_secret": false,
+      "digest_on_host_matches": true
+    },
+    "4_worker_image_pulled": {
+      "state": "DONE_BUT_UNUSABLE",
+      "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+      "pulled_by_digest": true,
+      "registry_credentials_stored_on_host": false,
+      "built_from_commit": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+      "problem": "cette image precede le lot CQ (#238)"
+    },
+    "5_readiness_verified": {
+      "state": "BLOCKED",
+      "observed": "ModuleNotFoundError: No module named 'ingestor.ingestion_profiles.staging_readiness_gate'"
+    }
+  },
+  "blocker": {
+    "id": "B3_AUTHORISED_IMAGE_PREDATES_THE_REHEARSAL_CHAIN",
+    "statement": "L'image autorisee par CH6 a ete construite au commit 24b28d41, avant que la chaine de readiness de repetition existe.",
+    "measured_in_the_image": {
+      "ingestion_profiles_modules": [
+        "__init__.py", "events.py", "manifest.py", "readiness_gate.py",
+        "registry.py", "release_verification_v2.py", "startup_gate.py",
+        "validation.py"
+      ],
+      "staging_readiness_gate_present": false,
+      "cli_calls_enforce_readiness_gate": true,
+      "cli_calls_enforce_staging_readiness_gate": false
+    },
+    "consequence": "Le point d'entree de cette image exige la chaine de readiness de PRODUCTION, qui n'existe pas en staging — le blocage d'origine, inchange.",
+    "why_it_cannot_be_worked_around": [
+      "l'autorisation CH6 epingle ce digest et interdit le rebuild sur nexus-prod",
+      "le manifeste SIGNE nomme ce digest dans worker_image : changer d'image invalide la signature",
+      "monter du code recent dans une image epinglee contournerait l'epinglage"
+    ]
+  },
+  "gap_found": {
+    "id": "WORKER_IMAGE_DECLARED_BUT_NEVER_MEASURED",
+    "statement": "Le manifeste signe declare worker_image, mais aucune garde d'execution ne compare l'image reellement en cours a cette declaration.",
+    "impact": "une image autre que celle signee passerait le gate sans etre detectee",
+    "found_while": "verrou 5 ; ici c'est l'absence du module qui a arrete l'execution, pas une garde"
+  },
+  "staging_state_unchanged": {
+    "ingestion_runs": 0,
+    "resources": 0,
+    "resource_candidates": 0,
+    "artifacts": 0,
+    "workflow_events": 0,
+    "publication_attestations": 0,
+    "rag_artifacts": 26,
+    "rag_chunks": 730
+  },
+  "not_performed": [
+    "aucune execution du point d'entree",
+    "aucun Worker A, aucun Worker B",
+    "aucune publication, aucune attestation",
+    "aucune ecriture ingestion_control",
+    "aucune DB production, aucun rag_pgvector",
+    "aucun current switch, aucune exposition publique",
+    "aucune modification ni promotion de la release V2",
+    "aucune cle privee demandee, affichee ou copiee",
+    "aucun identifiant de registre depose sur nexus-prod"
+  ],
+  "production_intact": {
+    "running_containers": 36,
+    "production_db_reads": 0,
+    "production_db_writes": 0
+  }
+}

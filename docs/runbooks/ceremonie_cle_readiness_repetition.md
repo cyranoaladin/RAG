@@ -124,6 +124,52 @@ NEXUS_STAGING_READINESS_TRUST_ANCHOR=/srv/nexus-staging/repo/governance/trust-an
 Aucune de ces variables ne va en production : le protocole y est sans
 autorité, et le type l'interdit.
 
+## Étape 6 — prouver l'identité de l'image, sur l'hôte, avant d'exécuter
+
+Le manifeste **nomme** une image. Tant que rien ne vérifie laquelle tourne
+réellement, la signature couvre une intention, pas un fait : un conteneur
+lancé depuis une autre image passerait le gate sans être détecté.
+
+Un processus ne peut pas lire de façon fiable le digest de l'image dont il
+est issu — `/proc` ne le porte pas, et le lui demander reviendrait à
+demander au suspect de décliner son identité. L'inspection se fait donc
+**sur l'hôte**, et son résultat est injecté :
+
+```bash
+IMAGE_SIGNEE=$(python3 -c "
+import json,sys
+print(json.load(open('/srv/nexus-staging/readiness/staging-readiness-manifest.json'))['manifest']['worker_image'])
+")
+
+# L'identité REELLEMENT presente sur l'hote, telle que Docker la rapporte.
+IMAGE_REELLE=$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE_SIGNEE")
+
+echo "signee : $IMAGE_SIGNEE"
+echo "reelle : $IMAGE_REELLE"
+```
+
+Les deux doivent être identiques, caractère pour caractère. Si `docker
+inspect` échoue, l'image n'est pas présente : la tirer **par digest**, jamais
+par tag.
+
+Puis injecter l'identité constatée au lancement, et jamais une valeur écrite
+à la main :
+
+```bash
+docker run --rm \
+  --env-file /srv/nexus-staging/secrets/readiness.env \
+  -e NEXUS_ACTUAL_WORKER_IMAGE="$IMAGE_REELLE" \
+  …
+```
+
+Le point d'entrée refuse si la variable est absente, vide, sans digest, ou
+différente de `worker_image` — **avant** d'ouvrir la moindre connexion.
+
+`NEXUS_ACTUAL_WORKER_IMAGE` n'a pas sa place dans `readiness.env` : ce
+fichier porte des faits stables, celle-ci est une constatation faite juste
+avant l'exécution. L'écrire dans le fichier reviendrait à la figer, donc à
+la rendre fausse dès le prochain changement d'image.
+
 ## Renouvellement
 
 Le manifeste expire (`--valid-days`). À l'expiration, le gate refuse — c'est
