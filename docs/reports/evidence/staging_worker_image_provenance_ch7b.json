@@ -1,0 +1,124 @@
+{
+  "kind": "NEXUS-STAGING-WORKER-IMAGE-PROVENANCE-V1",
+  "generated_at_utc": "2026-09-20T20:35:00Z",
+  "lot": "LOT_GO_LIVE_FINAL_CH7B_STAGING_WORKER_IMAGE_DIGEST_AUTHORIZATION",
+  "supersedes": {
+    "lot": "CH6",
+    "worker_image_digest": "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+    "source_commit_sha": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
+    "reason": "construite avant les lots CQ, CR et CH7A : ni staging_readiness_gate.py, ni la garde d'identite d'image ; son point d'entree exige la chaine de readiness de PRODUCTION",
+    "observed_refusal": "ModuleNotFoundError: No module named 'ingestor.ingestion_profiles.staging_readiness_gate'"
+  },
+  "problem": {
+    "statement": "L'image API du perimetre staging n'est pas un worker et ne peut pas executer le point d'entree.",
+    "pinned_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
+    "pinned_image_role": "uvicorn api_v2 (API de retrieval)",
+    "observed_refusal": "ModuleNotFoundError: No module named 'ingestion_agents'",
+    "missing_modules": ["httpx", "ingestion_agents"],
+    "other_local_images_rejected": [
+      {"name": "infra-ingestor:latest", "reason": "nexus-contracts 0.2.0"},
+      {"name": "nexus-rag-ingestor-security:da0a167", "reason": "nexus-contracts 0.2.0"},
+      {"name": "compose-ingestor:latest", "reason": "psycopg absent"}
+    ]
+  },
+  "worker_image": {
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "image_digest": "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+    "platform": "linux/amd64",
+    "tags_published": ["sha-f66a04cb364191c53eb56c9a9e1208e9e386ae16"],
+    "latest_tag_published": false
+  },
+  "built_off_host": {
+    "where": "GitHub Actions",
+    "workflow": ".github/workflows/production-image-provenance.yml",
+    "run_id": 35535013039,
+    "run_attempt": 1,
+    "workflow_ref": "refs/heads/main",
+    "built_at_utc": "2026-09-20T20:21:00.669614Z",
+    "source_commit_sha": "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
+    "source_tree_sha": "b173a5a9e5f8465cf5dbaaada8d222d376f68990",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+    "provenance_attestation": true,
+    "sbom": true,
+    "built_on_nexus_prod": false,
+    "inventory_protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1"
+  },
+  "verification": {
+    "performed_on": "poste de travail, hors nexus-prod",
+    "method": "docker pull par digest, puis executions --network none",
+    "pulled_digest_matches": true,
+    "nexus_contracts_version": "0.19.0",
+    "dependencies_present": {
+      "httpx": true,
+      "psycopg": true,
+      "pydantic": true,
+      "cryptography": true,
+      "yaml": true
+    },
+    "staging_readiness_gate_present": true,
+    "entrypoint_calls_enforce_staging_readiness_gate": true,
+    "entrypoint_calls_enforce_readiness_gate": false,
+    "image_binding_guard_present": true,
+    "actual_worker_image_env_present_in_gate": true,
+    "imports_ok": [
+      "ingestor.ingestion_profiles.staging_readiness_gate",
+      "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+      "ingestor.ingestion_agents.classifier"
+    ],
+    "guard_behaviour_measured_inside_the_image": {
+      "missing_variable_refused": true,
+      "superseded_ch6_digest_refused": true,
+      "tag_only_refused": true,
+      "same_digest_other_repository_refused": true,
+      "exact_signed_image_accepted": true
+    },
+    "secrets_scan": {
+      "env_variables": [
+        "PATH", "LANG", "GPG_KEY", "PYTHON_VERSION", "PYTHON_SHA256",
+        "PYTHONDONTWRITEBYTECODE", "PYTHONUNBUFFERED",
+        "NEXUS_TRUSTED_REVIEW_MODULE", "NEXUS_TRUSTED_REVIEWERS_CONFIG",
+        "PYTHONPATH"
+      ],
+      "secret_bearing_variables": 0,
+      "secret_files_found": 0,
+      "private_key_files": 0,
+      "seed_files": 0,
+      "signed_manifest_embedded": false,
+      "trust_anchor_embedded": false,
+      "hex64_literals_in_application_code": 0,
+      "private_key_hex_occurrences": "1 — nom de parametre a un site d'appel (issue_review_binding_cli.py:372), aucune valeur"
+    },
+    "default_cmd": "python -m ingestor.ingestion_worker.multilevel_cli",
+    "default_cmd_note": "CH7B n'autorise PAS cette commande : seul sealed_release_ingestion_cli est autorise, et la commande est surchargee a l'execution"
+  },
+  "scope_unchanged": {
+    "pinned_by_digest_no_rebuild": true,
+    "tag_alone_accepted": false,
+    "loopback_only": true,
+    "ssh_tunnel_only": true,
+    "staging_only": true,
+    "api_image_untouched": true,
+    "api_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
+    "api_image_contracts_version": "0.18.0",
+    "production_db": "forbidden",
+    "current_switch": "forbidden",
+    "public_exposure": "forbidden",
+    "docker_prune": "forbidden",
+    "remove_orphans": "forbidden",
+    "volume_removal": "forbidden",
+    "worker_b": "forbidden",
+    "durable_service_created": false,
+    "compose_file_on_host": "forbidden",
+    "release_v2_modified": false,
+    "release_v2_promotable": false
+  },
+  "nexus_prod_untouched_by_this_lot": {
+    "image_built_on_host": false,
+    "containers_started": 0,
+    "entrypoint_executed": 0,
+    "production_db_reads": 0,
+    "production_db_writes": 0
+  }
+}

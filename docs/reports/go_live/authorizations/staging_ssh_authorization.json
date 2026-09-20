@@ -3,9 +3,11 @@
         "CH2",
         "CH3",
         "CH4",
-        "CH6"
+        "CH6",
+        "CH7B"
     ],
     "authorization": "SSH_STAGING_AUTHORIZED",
+    "authorization_statement": "L'approbation de cette PR par abenrhouma vaut autorisation d'utiliser, pour le staging cloisonne uniquement, l'image worker digest-pinned construite par le workflow gouverne production-image-provenance.yml depuis main f66a04cb364191c53eb56c9a9e1208e9e386ae16. Cette autorisation ne permet ni build sur nexus-prod, ni tag non epingle, ni Worker B, ni ecriture DB production, ni current switch, ni exposition publique.",
     "consumed": false,
     "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
     "execution_plan": {
@@ -88,7 +90,7 @@
             "build_on_nexus_prod": "forbidden",
             "build_workflow": ".github/workflows/production-image-provenance.yml",
             "build_workflow_run_attempt": 1,
-            "build_workflow_run_id": 35524322769,
+            "build_workflow_run_id": 35535013039,
             "built_off_host": true,
             "compose_file_on_host": "forbidden",
             "contracts_version": "0.19.0",
@@ -96,22 +98,24 @@
             "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
             "durable_service": false,
             "evidence": {
-                "path": "docs/reports/evidence/staging_worker_image_provenance.json",
-                "sha256": "64b87cce78aba5ba11b3f02d78845af3cb6dfa0a7ef4fb345c601512fd4c3e09"
+                "path": "docs/reports/evidence/staging_worker_image_provenance_ch7b.json",
+                "sha256": "f46d214d146cb24a0e329531134c01caad57fcf74a3296e35b6d1b99cff95f52"
             },
             "forbidden_entrypoint_modules": [
                 "ingestor.ingestion_worker.multilevel_cli",
                 "ingestor.ingestion_worker.multilevel_publication_resume_cli"
             ],
-            "image_digest": "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+            "image_digest": "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
             "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
             "network": "loopback_only",
             "pinning": "pinned_by_digest_no_rebuild",
             "product_database_access": "forbidden",
             "purpose": "executer UNIQUEMENT le point d'entree d'ingestion de release scellee (ingestor.ingestion_worker.sealed_release_ingestion_cli) dans le perimetre staging",
-            "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
-            "source_commit_sha": "24b28d417d1f99ebe8f37363d75b73a83ffe87ff",
-            "source_tree_sha": "503e07e5e7b6c4250f0c57ad9723d7390cd4f48a",
+            "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+            "runtime_image_binding_guard": "NEXUS_ACTUAL_WORKER_IMAGE",
+            "source_commit_sha": "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
+            "source_tree_sha": "b173a5a9e5f8465cf5dbaaada8d222d376f68990",
+            "supersedes_image_digest": "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
             "tag_alone_accepted": false
         },
         "working_directory": "/srv/nexus-staging"
