@@ -41,10 +41,36 @@ def test_la_migration_014_est_la_tete_declaree() -> None:
     assert ROLLBACK.is_file()
 
 
-def test_la_migration_est_transactionnelle() -> None:
-    """Une migration à moitié appliquée serait pire que pas de migration."""
-    assert CODE.strip().startswith("BEGIN;")
-    assert CODE.strip().endswith("COMMIT;")
+def test_la_migration_n_ouvre_pas_sa_propre_transaction() -> None:
+    """Le bootstrap applique déjà chaque migration en `--single-transaction`.
+
+    Y ajouter un `BEGIN;` produit `WARNING: there is already a transaction in
+    progress`, puis fait échouer la réapplication et les bootstraps
+    concurrents. Aucune migration ni rollback du dépôt n'en ouvre : cette
+    épreuve fixe la convention plutôt que de la laisser se redécouvrir.
+    """
+    for texte, etiquette in ((CODE, "migration"), (_sans_commentaires(DOWN), "rollback")):
+        assert not re.search(r"^\s*BEGIN;", texte, re.M), etiquette
+        assert not re.search(r"^\s*COMMIT;", texte, re.M), etiquette
+
+
+def test_la_migration_est_idempotente() -> None:
+    """Réappliquer la migration ne doit jamais échouer sur un objet existant.
+
+    Le bootstrap la rejoue — après un rollback, ou lors de deux invocations
+    concurrentes sérialisées derrière le verrou consultatif. Un
+    `ADD CONSTRAINT` sans `DROP CONSTRAINT IF EXISTS` homonyme lève alors
+    « constraint ... already exists » et fait échouer tout le bootstrap.
+    """
+    ajouts = re.findall(r"ADD CONSTRAINT (\w+)", CODE)
+    drops = set(re.findall(r"DROP CONSTRAINT IF EXISTS (\w+)", CODE))
+    assert ajouts, "la migration doit nommer les contraintes qu'elle pose"
+    assert [a for a in ajouts if a not in drops] == []
+
+
+def test_les_colonnes_sont_ajoutees_sans_echouer_si_elles_existent() -> None:
+    ajouts = re.findall(r"ADD COLUMN(?! IF NOT EXISTS)", CODE)
+    assert ajouts == [], "toute colonne ajoutée doit l'être en IF NOT EXISTS"
 
 
 # --- 1 / 2 / 3 — resource_pipeline et LOT42-V1 restent exigeants --------

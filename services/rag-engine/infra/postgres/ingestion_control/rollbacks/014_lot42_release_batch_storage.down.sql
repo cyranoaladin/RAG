@@ -20,7 +20,6 @@
 -- Sur une base sans donnée de release scellée, le rollback est intégral et
 -- sans perte : il restaure exactement les contraintes de 008 et de 013.
 
-BEGIN;
 
 LOCK TABLE ingestion_control.resource_candidates IN ACCESS EXCLUSIVE MODE;
 LOCK TABLE ingestion_control.resources IN ACCESS EXCLUSIVE MODE;
@@ -117,5 +116,3 @@ ALTER TABLE ingestion_control.resources
 
 ALTER TABLE ingestion_control.resources
     DROP COLUMN IF EXISTS pipeline_kind;
-
-COMMIT;

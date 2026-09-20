@@ -37,7 +37,6 @@
 -- cette migration ferme.
 -- ---------------------------------------------------------------------
 
-BEGIN;
 
 -- ---------------------------------------------------------------------
 -- 1. L'origine de la ressource devient une donnée déclarée, pas une
@@ -78,6 +77,9 @@ ALTER TABLE ingestion_control.resource_candidates
 
 ALTER TABLE ingestion_control.resource_candidates
     DROP CONSTRAINT IF EXISTS resource_candidates_canonical_url_not_blank;
+
+ALTER TABLE ingestion_control.resource_candidates
+    DROP CONSTRAINT IF EXISTS resource_candidates_canonical_url_by_pipeline;
 
 ALTER TABLE ingestion_control.resource_candidates
     ADD CONSTRAINT resource_candidates_canonical_url_by_pipeline
@@ -128,6 +130,9 @@ ALTER TABLE ingestion_control.publication_attestations
     DROP CONSTRAINT IF EXISTS publication_attestations_canonical_url_not_blank;
 
 ALTER TABLE ingestion_control.publication_attestations
+    DROP CONSTRAINT IF EXISTS publication_attestations_canonical_url_by_protocol;
+
+ALTER TABLE ingestion_control.publication_attestations
     ADD CONSTRAINT publication_attestations_canonical_url_by_protocol
     CHECK (
         (
@@ -154,5 +159,3 @@ ALTER TABLE ingestion_control.publication_commit_pins
         publication_protocol_version
             IN ('LOT42-V1', 'LOT42-V2', 'LOT42-RELEASE-BATCH-V1')
     );
-
-COMMIT;
