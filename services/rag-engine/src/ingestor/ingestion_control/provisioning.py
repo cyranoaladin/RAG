@@ -33,6 +33,18 @@ except ImportError:
     )
 
 
+#: Les deux origines déclarées par la migration 014. Une ressource vient
+#: soit de la découverte web, soit d'une release scellée — jamais des deux,
+#: et jamais d'une troisième origine qu'un appelant inventerait.
+RESOURCE_PIPELINE = "resource_pipeline"
+SEALED_RELEASE_PIPELINE = "sealed_release_pipeline"
+
+
+class SealedReleaseRowError(RuntimeError):
+    """Une ligne de release scellée a été lue par une primitive qui ne la
+    comprend pas — refus explicite plutôt qu'une reconstruction fausse."""
+
+
 def create_ingestion_run(
     conn: psycopg.Connection,
     *,
@@ -73,9 +85,14 @@ def create_resource(
     scope: ResourceScope,
     resource_id: UUID | None = None,
     resource_registry_issuance_required: bool = False,
+    pipeline_kind: str = RESOURCE_PIPELINE,
 ) -> UUID:
     """Insère une ligne ``resources`` à l'état initial ``DISCOVERED``
-    (défaut de la migration 001, jamais réécrit ici)."""
+    (défaut de la migration 001, jamais réécrit ici).
+
+    ``pipeline_kind`` (migration 014) déclare l'origine de la ressource. Le
+    défaut ``resource_pipeline`` est exactement le défaut de la colonne :
+    tout appelant existant écrit la même ligne qu'avant ce paramètre."""
     if resource_id is None:
         if resource_registry_issuance_required:
             raise ResourceIdentityFreezeError(RESOURCE_REGISTRY_ISSUANCE_REQUIRED)
@@ -85,14 +102,16 @@ def create_resource(
             """
             INSERT INTO ingestion_control.resources
                 (resource_id, run_id, dedup_key, tenant, collection, niveau, voie,
-                 matiere, candidat, audience, visibility, school_year, programme_version)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 matiere, candidat, audience, visibility, school_year,
+                 programme_version, pipeline_kind)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING resource_id
             """,
             (
                 resource_id, run_id, dedup_key, scope.tenant, scope.collection,
                 scope.niveau, scope.voie, scope.matiere, scope.candidat,
-                scope.audience, scope.visibility, scope.school_year, scope.programme_version,
+                scope.audience, scope.visibility, scope.school_year,
+                scope.programme_version, pipeline_kind,
             ),
         )
         row = cur.fetchone()
@@ -154,13 +173,22 @@ def find_resource_candidate(
     contrat)."""
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT payload FROM ingestion_control.resource_candidates "
+            "SELECT payload, pipeline_kind FROM ingestion_control.resource_candidates "
             "WHERE resource_id = %s AND run_id = %s",
             (resource_id, run_id),
         )
         row = cur.fetchone()
     if row is None:
         return None
+    # Une ligne de release scellée ne porte aucun ``canonical_url`` et ne
+    # validera jamais comme ``ResourceCandidate`` : le dire est la seule
+    # réponse juste — la reconstruire « au mieux » inventerait l'identité
+    # documentaire que la release n'a pas.
+    if row[1] == SEALED_RELEASE_PIPELINE:
+        raise SealedReleaseRowError(
+            f"candidate {resource_id}/{run_id} comes from {SEALED_RELEASE_PIPELINE} "
+            "and is not a ResourceCandidate — it carries no canonical_url"
+        )
     return ResourceCandidate.model_validate(row[0])
 
 
@@ -205,7 +233,97 @@ def find_latest_artifact(conn: psycopg.Connection, *, resource_id: UUID) -> Arti
     return ArtifactRecord.model_validate(row[0])
 
 
+def persist_sealed_release_candidate(
+    conn: psycopg.Connection,
+    *,
+    resource_id: UUID,
+    run_id: UUID,
+    dedup_key: str,
+    source_url: str,
+    domain: str,
+    proposed_type_doc: str,
+    payload: dict[str, object],
+    candidate_id: UUID | None = None,
+) -> UUID:
+    """Persiste un candidat issu d'une release scellée — sans URL canonique.
+
+    Aucun paramètre ``canonical_url`` n'existe ici, et l'INSERT écrit
+    ``NULL`` littéralement : un appelant ne peut donc pas en fournir une,
+    même par erreur. La contrainte
+    ``resource_candidates_canonical_url_by_pipeline`` (migration 014) fait
+    respecter la même règle côté base, dans l'autre sens — elle REFUSE une
+    URL canonique sur cette origine.
+
+    ``source_url`` reste ce qu'il a toujours été : la provenance observée,
+    jamais promue en identité du document.
+
+    ``payload`` porte les faits de la release (digests, placement,
+    autorisation) et se décrit lui-même par ``protocol_version`` — il n'est
+    jamais relu comme un ``ResourceCandidate`` (cf.
+    ``find_resource_candidate``, qui refuse explicitement ces lignes)."""
+    candidate = candidate_id or uuid4()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO ingestion_control.resource_candidates
+                (candidate_id, resource_id, run_id, dedup_key, source_url,
+                 canonical_url, domain, proposed_type_doc, pipeline_kind, payload)
+            VALUES (%s, %s, %s, %s, %s, NULL, %s, %s, %s, %s)
+            ON CONFLICT (resource_id, run_id) DO NOTHING
+            """,
+            (
+                candidate, resource_id, run_id, dedup_key, source_url,
+                domain, proposed_type_doc, SEALED_RELEASE_PIPELINE, Jsonb(payload),
+            ),
+        )
+    return candidate
+
+
+def persist_sealed_release_artifact(
+    conn: psycopg.Connection,
+    *,
+    resource_id: UUID,
+    run_id: UUID,
+    sha256: str,
+    size_bytes: int,
+    mime_declared: str,
+    mime_detected: str,
+    provenance_url: str,
+    payload: dict[str, object],
+    artifact_id: UUID | None = None,
+) -> UUID:
+    """Persiste l'artefact d'une release scellée, lu dans le store vérifié.
+
+    ``original_url`` et ``final_url`` reçoivent la MÊME valeur, et c'est un
+    fait, pas un remplissage : aucune requête n'a été émise ici, donc
+    aucune redirection n'a été suivie. Les octets ne viennent pas du
+    réseau mais du store transféré et vérifié par digest.
+
+    ``artifacts`` n'a pas de colonne ``pipeline_kind`` : l'origine se lit
+    sur la ressource et sur le candidat, qui la portent."""
+    artifact = artifact_id or uuid4()
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            INSERT INTO ingestion_control.artifacts
+                (artifact_id, resource_id, run_id, sha256, size_bytes,
+                 mime_declared, mime_detected, original_url, final_url, payload)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (resource_id, sha256) DO NOTHING
+            """,
+            (
+                artifact, resource_id, run_id, sha256, size_bytes,
+                mime_declared, mime_detected, provenance_url, provenance_url,
+                Jsonb(payload),
+            ),
+        )
+    return artifact
+
+
 __all__ = [
+    "RESOURCE_PIPELINE",
+    "SEALED_RELEASE_PIPELINE",
+    "SealedReleaseRowError",
     "create_ingestion_run",
     "create_resource",
     "find_latest_artifact",
@@ -213,4 +331,6 @@ __all__ = [
     "get_resource_state",
     "persist_artifact",
     "persist_resource_candidate",
+    "persist_sealed_release_artifact",
+    "persist_sealed_release_candidate",
 ]
