@@ -720,3 +720,247 @@ def test_l_ancre_gouvernee_ne_peut_pas_servir_a_la_production() -> None:
 
     with pytest.raises(ProductionReadinessError):
         parse_production_readiness_trust_anchor(ANCRE_REPETITION.read_bytes())
+
+
+# ==========================================================================
+# CH7A — l'image qui exécute doit être celle que la signature couvre
+# ==========================================================================
+#
+# Le manifeste NOMMAIT une image sans que rien ne vérifie laquelle tournait :
+# la signature couvrait une intention, pas un fait. Ces épreuves ferment
+# l'écart.
+
+#: Le digest autorisé par CH6, construit avant la chaîne de répétition. Il
+#: sert ici de contre-exemple réel, pas d'un « autre digest » inventé.
+DIGEST_CH6 = (
+    "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:"
+    "2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029"
+)
+
+
+def test_ch7a_1_sans_identite_d_image_l_execution_est_refusee(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv(gate.ACTUAL_WORKER_IMAGE_ENV, raising=False)
+    with pytest.raises(gate.StagingReadinessGateError, match="is not configured"):
+        gate.require_running_image_matches_manifest(_manifest())
+
+
+def test_ch7a_1bis_une_identite_vide_nest_pas_traitee_comme_absente(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(gate.ACTUAL_WORKER_IMAGE_ENV, "   ")
+    with pytest.raises(gate.StagingReadinessGateError, match="set but blank"):
+        gate.require_running_image_matches_manifest(_manifest())
+
+
+@pytest.mark.parametrize(
+    "reference",
+    [
+        "ghcr.io/cyranoaladin/rag-multilevel-worker-production:latest",
+        "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+        "ghcr.io/cyranoaladin/rag-multilevel-worker-production:sha-24b28d41",
+        "rag-multilevel-worker-production@sha256:tropcourt",
+    ],
+)
+def test_ch7a_2_une_reference_sans_digest_est_refusee(reference: str) -> None:
+    """Un tag désigne une cible mouvante : ce n'est jamais une identité."""
+    with pytest.raises(gate.StagingReadinessGateError, match="carries no digest"):
+        gate.require_running_image_matches_manifest(_manifest(), actual=reference)
+
+
+def test_ch7a_3_un_digest_different_est_refuse() -> None:
+    autre = (
+        "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "0" * 64
+    )
+    with pytest.raises(
+        gate.StagingReadinessGateError, match="the signature covers that image"
+    ):
+        gate.require_running_image_matches_manifest(_manifest(), actual=autre)
+
+
+def test_ch7a_3bis_un_meme_digest_sous_un_autre_depot_est_refuse() -> None:
+    """Le dépôt fait partie de l'identité, pas seulement les octets."""
+    ailleurs = WORKER_IMAGE.replace(
+        "ghcr.io/cyranoaladin", "docker.io/quelquun-dautre"
+    )
+    with pytest.raises(gate.StagingReadinessGateError, match="the running image is"):
+        gate.require_running_image_matches_manifest(_manifest(), actual=ailleurs)
+
+
+def test_ch7a_4_l_image_exactement_signee_est_acceptee() -> None:
+    rendu = gate.require_running_image_matches_manifest(
+        _manifest(), actual=WORKER_IMAGE
+    )
+    assert rendu == WORKER_IMAGE
+
+
+def test_ch7a_4bis_les_espaces_autour_ne_changent_pas_l_identite() -> None:
+    rendu = gate.require_running_image_matches_manifest(
+        _manifest(), actual=f"  {WORKER_IMAGE}\n"
+    )
+    assert rendu == WORKER_IMAGE
+
+
+def test_ch7a_4ter_la_variable_denvironnement_est_lue_quand_actual_est_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(gate.ACTUAL_WORKER_IMAGE_ENV, WORKER_IMAGE)
+    assert gate.require_running_image_matches_manifest(_manifest()) == WORKER_IMAGE
+
+
+def test_ch7a_5_l_ancien_digest_ch6_est_refuse_si_le_manifeste_en_nomme_un_autre() -> None:
+    """Le cas réel : l'image de CH6 précède la chaîne de répétition."""
+    nouveau = (
+        "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "a" * 64
+    )
+    manifeste = _manifest(worker_image=nouveau)
+    assert DIGEST_CH6 != nouveau
+    with pytest.raises(gate.StagingReadinessGateError, match="authorises"):
+        gate.require_running_image_matches_manifest(manifeste, actual=DIGEST_CH6)
+
+
+def test_ch7a_6_un_manifeste_sans_worker_image_est_refuse() -> None:
+    class _SansImage:
+        worker_image = None
+
+    with pytest.raises(gate.StagingReadinessGateError, match="names no worker_image"):
+        gate.require_running_image_matches_manifest(
+            _SansImage(),  # type: ignore[arg-type]
+            actual=WORKER_IMAGE,
+        )
+
+
+def test_ch7a_6bis_un_manifeste_dont_l_image_nest_pas_epinglee_est_refuse() -> None:
+    class _TagSeul:
+        worker_image = "ghcr.io/cyranoaladin/rag-multilevel-worker-production:latest"
+
+    with pytest.raises(gate.StagingReadinessGateError, match="not pinned"):
+        gate.require_running_image_matches_manifest(
+            _TagSeul(),  # type: ignore[arg-type]
+            actual=WORKER_IMAGE,
+        )
+
+
+def test_ch7a_6ter_le_contrat_interdit_deja_une_image_non_epinglee() -> None:
+    """La garde est une seconde barrière : le contrat refuse déjà à la source."""
+    with pytest.raises(ValueError, match="worker_image"):
+        _manifest(worker_image="ghcr.io/cyranoaladin/rag-worker:latest")
+
+
+def test_ch7a_7_la_garde_precede_toute_ecriture_ingestion_control(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Refus d'image : aucune connexion n'est même ouverte."""
+    import psycopg
+
+    from ingestor.ingestion_worker import sealed_release_ingestion_cli as cli
+
+    class _Readiness:
+        environment = "rehearsal"
+        manifest = _manifest()
+        manifest_sha256 = "0" * 64
+
+    connexions: list[str] = []
+
+    def _refuse_connexion(*args: object, **kwargs: object) -> None:
+        connexions.append("tentative")
+        raise AssertionError("aucune connexion ne doit être ouverte")
+
+    monkeypatch.setattr(cli, "enforce_staging_readiness_gate", lambda: _Readiness())
+    monkeypatch.setattr(psycopg, "connect", _refuse_connexion)
+    monkeypatch.setenv(
+        gate.ACTUAL_WORKER_IMAGE_ENV,
+        "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "b" * 64,
+    )
+    code = cli.main(
+        [
+            "--release-dir", str(REPO_ROOT),
+            "--release-manifest-sha256", "0" * 64,
+            "--artifacts-release-sha256", "0" * 64,
+            "--candidate-inventory-sha256", "0" * 64,
+            "--artifact-transfer-manifest-path", str(REPO_ROOT / "README.md"),
+            "--artifact-transfer-manifest-sha256", "0" * 64,
+            "--artifact-store-dir", str(REPO_ROOT),
+            "--profiles-dir", str(ENGINE_ROOT / "configs/ingestion_profiles"),
+            "--owner", "operateur",
+            "--expected-role", "ingestion_control_app",
+            "--scope-authorization", "rag_nexus_hlp_terminale_specialite=lot41a-x",
+        ]
+    )
+    assert code == 1
+    assert connexions == []
+    assert "the signature covers that image" in capsys.readouterr().err
+
+
+def test_ch7a_7bis_la_garde_est_appelee_avant_la_connexion_dans_la_source() -> None:
+    source = code_sans_prose(
+        ENGINE_ROOT / "src/ingestor/ingestion_worker/sealed_release_ingestion_cli.py"
+    )
+    assert source.index("require_running_image_matches_manifest") < source.index(
+        "psycopg . connect"
+    )
+
+
+def test_ch7a_9_le_gate_de_repetition_reste_obligatoire() -> None:
+    source = code_sans_prose(
+        ENGINE_ROOT / "src/ingestor/ingestion_worker/sealed_release_ingestion_cli.py"
+    )
+    assert "enforce_staging_readiness_gate" in source
+    assert "enforce_readiness_gate" not in source
+    # La garde d'image ne remplace pas la readiness : elle s'y ajoute, et
+    # elle en dépend — son argument est le manifeste vérifié.
+    assert source.index("enforce_staging_readiness_gate") < source.index(
+        "require_running_image_matches_manifest"
+    )
+
+
+MODULES_DU_LOT = (
+    "src/ingestor/ingestion_profiles/staging_readiness_gate.py",
+    "src/ingestor/ingestion_worker/sealed_release_ingestion_cli.py",
+)
+
+#: Chaque interdiction est vérifiée par le motif qui la caractérise vraiment.
+#: « current » seul ne convenait pas : il apparaît dans ``current_user``, le
+#: rôle PostgreSQL attesté au démarrage, qui n'a rien à voir avec un
+#: basculement de lien.
+MOTIFS_INTERDITS = {
+    "aucune execution staging": ("subprocess", "docker", '"ssh', "paramiko"),
+    "aucun basculement de lien current": ("os . symlink", '"ln"', "ln -s", "/current"),
+    "aucune base produit": ("rag_chunks", "rag_artifacts", "rag_pgvector"),
+    "aucun Worker B": (
+        "publication_resume",
+        "multilevel_publication",
+        "attest_publication",
+        "PUBLISHED",
+    ),
+}
+
+
+@pytest.mark.parametrize("interdiction", sorted(MOTIFS_INTERDITS))
+def test_ch7a_10_a_13_le_lot_ne_touche_ni_staging_ni_production(
+    interdiction: str,
+) -> None:
+    """Ce lot ajoute une garde ; il n'exécute rien et n'ouvre aucune porte."""
+    for relatif in MODULES_DU_LOT:
+        code = code_sans_prose(ENGINE_ROOT / relatif)
+        for motif in MOTIFS_INTERDITS[interdiction]:
+            assert motif not in code, (relatif, interdiction, motif)
+
+
+def test_ch7a_11_seule_la_connexion_du_plan_de_controle_est_ouverte() -> None:
+    """``PG_RAG_DSN`` n'est lu que pour refuser, jamais pour s'y connecter."""
+    code = code_sans_prose(
+        ENGINE_ROOT / "src/ingestor/ingestion_worker/sealed_release_ingestion_cli.py"
+    )
+    assert code.count("psycopg . connect") == 1
+    assert "psycopg . connect ( get_ingestion_control_dsn ( ) )" in code
+    assert code.count("PG_RAG_DSN") == 1
+    assert "require_control_dsn_differs_from_product" in code
+
+
+def test_ch7a_8_la_chaine_de_production_reste_intacte() -> None:
+    """Ajouter une garde d'image ne déplace rien de la chaîne de production."""
+    for chemin, attendu in CHAINE_DE_PRODUCTION_INTACTE.items():
+        observe = hashlib.sha256((REPO_ROOT / chemin).read_bytes()).hexdigest()
+        assert observe == attendu, chemin

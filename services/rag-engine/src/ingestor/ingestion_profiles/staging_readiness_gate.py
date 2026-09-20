@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,6 +51,24 @@ EXPECTED_PROTOCOL_ENV = "NEXUS_EXPECTED_READINESS_PROTOCOL"
 MANIFEST_PATH_ENV = "NEXUS_READINESS_MANIFEST_PATH"
 MANIFEST_SHA256_ENV = "NEXUS_READINESS_MANIFEST_SHA256"
 TRUST_ANCHOR_ENV = "NEXUS_STAGING_READINESS_TRUST_ANCHOR"
+
+#: Identité de l'image RÉELLEMENT en cours d'exécution.
+#:
+#: Le manifeste signé nomme une image ; rien, jusqu'ici, ne vérifiait que
+#: c'était celle qui tournait. Un conteneur lancé depuis une autre image
+#: passait donc le gate sans être détecté — la signature couvrait une
+#: intention, pas un fait.
+#:
+#: Un processus ne peut pas lire de façon fiable le digest de l'image dont il
+#: est issu : ``/proc`` ne le porte pas, et le lire depuis le conteneur
+#: reviendrait à demander au suspect de décliner son identité. L'inspection
+#: se fait donc sur l'HÔTE (``docker inspect --format '{{index .RepoDigests
+#: 0}}'``), et le résultat est injecté ici. Le runbook impose cet ordre :
+#: inspecter d'abord, injecter ensuite, jamais une valeur écrite à la main.
+ACTUAL_WORKER_IMAGE_ENV = "NEXUS_ACTUAL_WORKER_IMAGE"
+
+#: Une référence d'image n'est une identité que si elle porte un digest.
+_PINNED_IMAGE_REF = re.compile(r"^[a-z0-9][a-z0-9._/-]*@sha256:[0-9a-f]{64}$")
 
 _FAILURE_PREFIX = "STAGING_READINESS_GATE_FAILED"
 
@@ -184,6 +203,56 @@ def enforce_staging_readiness_gate(
     )
 
 
+def require_running_image_matches_manifest(
+    manifest: StagingReadinessManifestV1, *, actual: str | None = None
+) -> str:
+    """Exige que l'image en cours soit EXACTEMENT celle que le manifeste signe.
+
+    Aucun repli : la variable absente est un refus, pas une dispense. Une
+    référence sans digest est un refus : un tag désigne une cible mouvante,
+    et la signature porterait alors sur un nom, pas sur des octets.
+
+    ``actual`` n'existe que pour les tests ; un appelant réel laisse ce module
+    lire l'environnement que le runbook a rempli après inspection sur l'hôte.
+    """
+    declared = getattr(manifest, "worker_image", None)
+    if not isinstance(declared, str) or not declared.strip():
+        raise _fail(
+            "the signed staging readiness manifest names no worker_image — "
+            "there is nothing to bind the running image to"
+        )
+    declared = declared.strip()
+    if _PINNED_IMAGE_REF.fullmatch(declared) is None:
+        raise _fail(
+            f"the signed manifest declares worker_image {declared!r}, which is "
+            "not pinned as name@sha256:<64 hex>"
+        )
+
+    observed = actual if actual is not None else os.environ.get(ACTUAL_WORKER_IMAGE_ENV)
+    if observed is None:
+        raise _fail(
+            f"{ACTUAL_WORKER_IMAGE_ENV} is not configured — the running image "
+            "must be inspected on the host and injected; it is never assumed"
+        )
+    if not observed.strip():
+        raise _fail(
+            f"{ACTUAL_WORKER_IMAGE_ENV} is set but blank — a blank value names "
+            "no image and is never treated as absent-but-acceptable"
+        )
+    observed = observed.strip()
+    if _PINNED_IMAGE_REF.fullmatch(observed) is None:
+        raise _fail(
+            f"{ACTUAL_WORKER_IMAGE_ENV} is {observed!r}, which carries no digest "
+            "— a tag is a moving target, never an identity"
+        )
+    if observed != declared:
+        raise _fail(
+            f"the running image is {observed}, but the signed readiness manifest "
+            f"authorises {declared} — the signature covers that image and no other"
+        )
+    return observed
+
+
 def require_control_dsn_differs_from_product(
     *, control_dsn: str, product_dsn: str | None
 ) -> None:
@@ -204,6 +273,7 @@ def require_control_dsn_differs_from_product(
 
 
 __all__ = [
+    "ACTUAL_WORKER_IMAGE_ENV",
     "EXPECTED_PROTOCOL_ENV",
     "MANIFEST_PATH_ENV",
     "MANIFEST_SHA256_ENV",
@@ -212,4 +282,5 @@ __all__ = [
     "StagingReadinessGateResult",
     "enforce_staging_readiness_gate",
     "require_control_dsn_differs_from_product",
+    "require_running_image_matches_manifest",
 ]

@@ -27,6 +27,7 @@ from ingestor.ingestion_profiles.registry import load_profile_registry
 from ingestor.ingestion_profiles.staging_readiness_gate import (
     enforce_staging_readiness_gate,
     require_control_dsn_differs_from_product,
+    require_running_image_matches_manifest,
 )
 
 from .runtime_authority import RuntimeAuthorityStartupError
@@ -161,6 +162,11 @@ def main(argv: list[str] | None = None) -> int:
                 f"{REQUIRED_ENVIRONMENT!r}; refusing to run under "
                 f"{readiness.environment!r}"
             )
+        # Avant toute autre chose : l'image qui exécute ce code est-elle celle
+        # que la signature couvre ? Une réponse négative rend tout le reste
+        # sans objet, et cette garde précède donc l'ouverture de la moindre
+        # connexion comme la moindre écriture.
+        image = require_running_image_matches_manifest(readiness.manifest)
         require_control_dsn_differs_from_product(
             control_dsn=get_ingestion_control_dsn(),
             product_dsn=os.environ.get("PG_RAG_DSN"),
@@ -185,7 +191,7 @@ def main(argv: list[str] | None = None) -> int:
         f"environment={readiness.environment} "
         f"readiness_key_id={readiness.manifest.key_id} "
         f"readiness_manifest_sha256={readiness.manifest_sha256} "
-        f"worker_image={readiness.manifest.worker_image} "
+        f"worker_image={image} "
         f"release_id={facts.release_id} "
         f"release_manifest_sha256={facts.release_manifest_sha256} "
         f"subjects={len(facts.collections)} "
