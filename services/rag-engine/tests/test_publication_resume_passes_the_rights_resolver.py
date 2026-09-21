@@ -23,27 +23,36 @@ def _source_de(nom: str) -> str:
     return inspect.getsource(getattr(module, nom))
 
 
-def test_l_appel_au_lecteur_transmet_un_resolveur() -> None:
-    """Si ``rights_resolver=`` disparaît de l'appel, cette épreuve tombe."""
+def test_chaque_appel_au_lecteur_transmet_le_catalogue() -> None:
+    """Si ``sealed_catalog=`` disparaît d'un appel, cette épreuve tombe.
+
+    Protection structurelle : elle ne remplace pas l'essai d'intégration qui
+    entre par le CLI, elle empêche seulement qu'une transmission soit
+    supprimée sans qu'on s'en aperçoive.
+    """
     source = _source_de("resume_publication")
-    assert "find_latest_artifact(" in source
-    appel = source[source.index("find_latest_artifact("):]
-    appel = appel[: appel.index(")") + 1]
-    assert "rights_resolver" in appel, (
-        "resume_publication doit transmettre le résolveur au lecteur ; "
-        f"appel observé : {appel!r}"
+    appels = source.count("find_authorised_artifact(") + source.count(
+        "find_latest_artifact("
+    )
+    assert appels >= 1, "resume_publication doit lire l'artefact"
+    assert source.count("sealed_catalog=sealed_catalog") == appels, (
+        f"{appels} appel(s) au lecteur mais "
+        f"{source.count('sealed_catalog=sealed_catalog')} transmission(s) du "
+        "catalogue"
     )
 
 
 def test_le_resolveur_transmis_vient_du_registre_gouverne() -> None:
     """Pas d'autorité fabriquée localement : c'est le registre des deps."""
     source = _source_de("resume_publication")
-    assert "_SealedRightsResolverFromRegistry(" in source
-    assert "deps.rights_evidence_registry" in source
+    assert "deps.build_sealed_catalog()" in source
+    source_deps = inspect.getsource(module.PublicationResumeDeps.build_sealed_catalog)
+    assert "self.rights_evidence_registry" in source_deps
+    assert "_VerifiedSealedCatalog(" in source_deps
 
 
 def test_l_adaptateur_delegue_au_registre_et_ne_decide_rien() -> None:
-    source = inspect.getsource(module._SealedRightsResolverFromRegistry)
+    source = inspect.getsource(module._VerifiedSealedCatalog)
     assert "self.registry.resolve_rights(" in source
     # Il ne doit y avoir aucune valeur de droits écrite en dur.
     for invente in ("officiel_public", "CLEARED", "return (\"", "rights ="):
@@ -58,11 +67,11 @@ class _RegistreQuiRefuse:
 def test_un_contenu_hors_release_est_refuse_avant_toute_resolution() -> None:
     """Le registre n'est même pas interrogé : le contenu n'appartient pas à
     l'ensemble scellé, donc ses droits n'ont pas de sens ici."""
-    resolveur = module._SealedRightsResolverFromRegistry(
-        registry=_RegistreQuiRefuse(), sealed_artifacts={}
+    resolveur = module._VerifiedSealedCatalog(
+        registry=_RegistreQuiRefuse(), sealed_artifacts={}, media_type_invariant="application/pdf"
     )
     with pytest.raises(module.PublicationResumeError, match="not part of the sealed"):
-        resolveur.resolve(content_sha256="a" * 64)
+        resolveur.resolve_rights(content_sha256="a" * 64)
 
 
 class _RegistreQuiObserve:
@@ -85,11 +94,12 @@ def test_le_source_path_vient_de_l_ensemble_scelle() -> None:
     pas. Il doit venir de la release vérifiée, jamais d'une URL reconstruite."""
     registre = _RegistreQuiObserve()
     sha = "b" * 64
-    resolveur = module._SealedRightsResolverFromRegistry(
+    resolveur = module._VerifiedSealedCatalog(
         registry=registre,
         sealed_artifacts={sha: {"source_path": "01_EDUSCOL_OFFICIEL/doc.pdf"}},
+        media_type_invariant="application/pdf",
     )
-    droits, decision, empreinte = resolveur.resolve(content_sha256=sha)
+    droits, decision, empreinte = resolveur.resolve_rights(content_sha256=sha)
     assert registre.vu == {
         "content_sha256": sha,
         "source_path": "01_EDUSCOL_OFFICIEL/doc.pdf",
@@ -103,4 +113,5 @@ def test_les_deps_portent_l_ensemble_scelle() -> None:
     """Sans lui, l'adaptateur ne peut pas exister — et le lecteur refusera."""
     champs = module.PublicationResumeDeps.__dataclass_fields__
     assert "sealed_release_artifacts" in champs
+    assert "sealed_media_type_invariant" in champs
     assert "rights_evidence_registry" in champs

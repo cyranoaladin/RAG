@@ -14,6 +14,7 @@ en paramètre, n'invente rien, ne devine aucune valeur par défaut.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Protocol
 from uuid import UUID, uuid4
 
@@ -231,16 +232,33 @@ _SEALED_PAYLOAD_REQUIS = (
     "chunk_count",
 )
 
+#: Champs que le payload scellé PEUT porter et qui ont une contrepartie
+#: ailleurs. Chacun est confronté à sa source **avant** toute reconstruction :
+#: une valeur présente et contradictoire ne doit pas être effacée par
+#: l'assemblage, sans quoi une comparaison faite après ne démontrerait rien.
+_SEALED_PAYLOAD_CONFRONTE = ("content_sha256", "collection", "pipeline_kind")
 
-class SealedRightsResolver(Protocol):
-    """Ce que la branche batch exige pour pouvoir lire un artefact scellé.
 
-    Un lecteur de base de données n'a pas autorité pour dire quels droits
-    couvrent un contenu : la résolution appartient au registre gouverné. La
-    branche batch réclame donc son résolveur, et refuse sans lui."""
+class SealedReleaseCatalog(Protocol):
+    """Ce que la branche batch exige pour lire un artefact scellé.
 
-    def resolve(self, *, content_sha256: str) -> tuple[str, str, str]:
-        """Rend ``(rights, decision_id, registry_sha256)`` ou lève."""
+    Un lecteur de base de données ne fait autorité ni sur les droits, ni sur
+    la pagination, ni sur le format d'un contenu. Le catalogue est
+    l'ensemble scellé effectivement vérifié par digest ; il est fourni par
+    l'appelant, et la branche batch refuse sans lui.
+    """
+
+    def entry(self, *, content_sha256: str) -> Mapping[str, Any]:
+        """Entrée scellée de ce contenu, ou lève s'il n'appartient pas à la
+        release consommée."""
+
+    def resolve_rights(self, *, content_sha256: str) -> tuple[str, str, str]:
+        """``(rights, decision_id, registry_sha256)`` du registre gouverné."""
+
+    def media_type(self, *, content_sha256: str) -> str:
+        """Type de média **établi** pour ce contenu — déclaration scellée ou
+        invariant du format de release réellement vérifié, jamais une
+        constante posée par le lecteur."""
 
 
 def _read_sealed_release_artifact(
@@ -252,18 +270,19 @@ def _read_sealed_release_artifact(
     sha256: str,
     size_bytes: int,
     scope: ResourceScope,
-    rights_resolver: SealedRightsResolver | None,
+    catalog: SealedReleaseCatalog | None,
 ) -> SealedReleaseArtifactRecord:
-    """Compose le record batch depuis le payload scellé et les colonnes.
+    """Compose le record batch depuis le payload scellé, les colonnes et le
+    catalogue vérifié.
 
-    Ce qui manque n'est jamais complété : un payload qui ne porte pas ses
-    références de release est refusé, il ne devient pas un record partiel.
+    Rien n'est complété par une valeur de convenance : ce que ni le payload,
+    ni les colonnes, ni le catalogue n'établissent fait échouer la lecture.
     """
-    if rights_resolver is None:
+    if catalog is None:
         raise SealedReleaseRowError(
-            f"sealed artifact {artifact_id} cannot be read without a rights "
-            "resolver — rights are resolved by the governed registry, never "
-            "inferred from a payload, a domain or a PII status"
+            f"sealed artifact {artifact_id} cannot be read without the verified "
+            "release catalogue — rights, pagination and media type are resolved "
+            "by governed authorities, never inferred from a payload"
         )
     manquants = [cle for cle in _SEALED_PAYLOAD_REQUIS if not payload.get(cle)]
     if manquants:
@@ -272,6 +291,11 @@ def _read_sealed_release_artifact(
             "a sealed payload without its release references is refused, never "
             "completed with a convenience value"
         )
+
+    # ── Confrontation AVANT reconstruction ────────────────────────────────
+    # Les valeurs brutes du payload sont comparées à leurs sources pendant
+    # qu'elles existent encore. Après l'assemblage, le record porte les
+    # colonnes : une comparaison faite là serait tautologique.
     declare = payload.get("pipeline_kind")
     if declare is not None and declare != SEALED_RELEASE_PIPELINE:
         raise SealedReleaseRowError(
@@ -290,7 +314,33 @@ def _read_sealed_release_artifact(
             f"{payload['collection']!r} differs from the resource scope "
             f"{scope.collection!r}"
         )
-    rights, decision_id, registry_sha256 = rights_resolver.resolve(
+    # Le payload historique ne porte pas ces identités ; s'il venait à les
+    # porter, elles devraient concorder avec les colonnes.
+    for champ, en_base in (
+        ("artifact_id", artifact_id),
+        ("resource_id", resource_id),
+        ("run_id", run_id),
+    ):
+        if champ in payload and str(payload[champ]) != str(en_base):
+            raise SealedReleaseRowError(
+                f"sealed artifact {artifact_id}: payload {champ}="
+                f"{payload[champ]!r} differs from the typed column {en_base!r}"
+            )
+
+    # ── Autorités : chacune interrogée à sa source ────────────────────────
+    scelle = catalog.entry(content_sha256=sha256)
+    if scelle.get("content_sha256") != sha256:
+        raise SealedReleaseRowError(
+            f"sealed artifact {artifact_id}: the catalogue entry describes "
+            f"{scelle.get('content_sha256')!r}, not {sha256!r}"
+        )
+    pages = scelle.get("page_count")
+    if not isinstance(pages, int) or pages < 1:
+        raise SealedReleaseRowError(
+            f"sealed artifact {artifact_id}: the sealed catalogue establishes no "
+            f"page_count ({pages!r}) — the reader refuses rather than assuming one"
+        )
+    rights, decision_id, registry_sha256 = catalog.resolve_rights(
         content_sha256=sha256
     )
     return SealedReleaseArtifactRecord(
@@ -299,9 +349,11 @@ def _read_sealed_release_artifact(
         resource_id=resource_id,
         run_id=run_id,
         scope=scope,
+        # Valeurs PERSISTÉES, relues telles quelles. Ce ne sont pas des
+        # mesures de cette exécution : aucun fichier n'est ouvert ici.
         sha256=sha256,
         size_bytes=size_bytes,
-        mime_declared="application/pdf",
+        mime_declared=catalog.media_type(content_sha256=sha256),
         content_type_detected=None,
         release_id=str(payload["release_id"]),
         release_manifest_sha256=str(payload["release_manifest_sha256"]),
@@ -310,9 +362,9 @@ def _read_sealed_release_artifact(
         rights_status=rights,
         rights_decision_id=decision_id,
         rights_registry_sha256=registry_sha256,
-        pages_count=int(payload["page_count"]) if payload.get("page_count") else 1,
+        pages_count=pages,
         chunk_count=int(payload["chunk_count"]),
-        title=payload.get("title"),
+        title=scelle.get("title"),
         type_doc=payload.get("type_doc"),
     )
 
@@ -321,15 +373,18 @@ def find_latest_artifact(
     conn: psycopg.Connection,
     *,
     resource_id: UUID,
-    rights_resolver: SealedRightsResolver | None = None,
+    sealed_catalog: SealedReleaseCatalog | None = None,
 ) -> ArtifactRecord | SealedReleaseArtifactRecord | None:
     """Relit le dernier artefact persisté, dans la représentation de SON pipeline.
 
     Le modèle est choisi par le **discriminateur durable** — la colonne
     ``resources.pipeline_kind``, gouvernée et écrite à l'ingestion — jamais
-    en essayant plusieurs validations jusqu'à ce qu'une accepte. Un payload
-    de découverte incomplet échoue comme payload de découverte ; il n'est
-    pas requalifié en batch parce qu'il lui manque des champs.
+    en essayant plusieurs validations jusqu'à ce qu'une accepte.
+
+    ``latest`` n'est pas une règle d'autorité pour le batch : la sélection
+    par ``collected_at`` convient au pipeline de découverte, où une nouvelle
+    collecte remplace la précédente. Un job batch doit nommer l'artefact
+    qu'il publie ; voir ``find_authorised_artifact``.
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -346,16 +401,58 @@ def find_latest_artifact(
         row = cur.fetchone()
     if row is None:
         return None
+    return _build_from_row(row, resource_id=resource_id, catalog=sealed_catalog)
+
+
+def find_authorised_artifact(
+    conn: psycopg.Connection,
+    *,
+    resource_id: UUID,
+    artifact_id: UUID,
+    sealed_catalog: SealedReleaseCatalog | None = None,
+) -> ArtifactRecord | SealedReleaseArtifactRecord:
+    """Relit l'artefact que le job et l'attestation **nomment**.
+
+    Aucune substitution : si une version plus récente existe pour la même
+    ressource, elle n'est pas publiée à la place. Un identifiant qui ne
+    désigne rien, ou qui désigne l'artefact d'une autre ressource, est un
+    refus — jamais un repli sur le plus récent.
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT a.payload, a.artifact_id, a.run_id, a.sha256, a.size_bytes,"
+            "       r.pipeline_kind, r.tenant, r.collection, r.niveau, r.voie,"
+            "       r.matiere, r.candidat, r.audience, r.visibility,"
+            "       r.school_year, r.programme_version"
+            "  FROM ingestion_control.artifacts a"
+            "  JOIN ingestion_control.resources r USING (resource_id)"
+            " WHERE a.artifact_id = %s AND a.resource_id = %s",
+            (artifact_id, resource_id),
+        )
+        row = cur.fetchone()
+    if row is None:
+        raise SealedReleaseRowError(
+            f"artifact {artifact_id} does not belong to resource {resource_id} — "
+            "the publication names what it publishes; it never falls back to the "
+            "most recent artifact"
+        )
+    return _build_from_row(row, resource_id=resource_id, catalog=sealed_catalog)
+
+
+def _build_from_row(
+    row: tuple[Any, ...],
+    *,
+    resource_id: UUID,
+    catalog: SealedReleaseCatalog | None,
+) -> ArtifactRecord | SealedReleaseArtifactRecord:
     (payload, artifact_id, run_id, sha256, size_bytes, pipeline_kind,
      tenant, collection, niveau, voie, matiere, candidat, audience,
      visibility, school_year, programme_version) = row
 
     if pipeline_kind == RESOURCE_PIPELINE:
-        record: ArtifactRecord | SealedReleaseArtifactRecord = (
-            ArtifactRecord.model_validate(payload)
-        )
-    elif pipeline_kind == SEALED_RELEASE_PIPELINE:
-        record = _read_sealed_release_artifact(
+        return ArtifactRecord.model_validate(payload)
+    if pipeline_kind == SEALED_RELEASE_PIPELINE:
+        return _read_sealed_release_artifact(
             payload,
             resource_id=resource_id,
             artifact_id=artifact_id,
@@ -368,32 +465,13 @@ def find_latest_artifact(
                 visibility=visibility, school_year=school_year,
                 programme_version=programme_version,
             ),
-            rights_resolver=rights_resolver,
+            catalog=catalog,
         )
-    else:
-        raise SealedReleaseRowError(
-            f"resource {resource_id} carries the unknown pipeline_kind "
-            f"{pipeline_kind!r} — the reader refuses rather than guessing "
-            "which representation applies"
-        )
-
-    # Les colonnes typées font autorité sur le payload : elles sont
-    # contraintes par le schéma, lui ne l'est pas. Une contradiction est un
-    # refus, jamais le choix de la valeur qui permet de construire l'objet.
-    for champ, en_base in (
-        ("artifact_id", artifact_id),
-        ("resource_id", resource_id),
-        ("run_id", run_id),
-        ("sha256", sha256),
-    ):
-        porte = getattr(record, champ)
-        if str(porte) != str(en_base):
-            raise SealedReleaseRowError(
-                f"artifact {artifact_id}: the record declares {champ}={porte!r} "
-                f"while the typed column holds {en_base!r} — the reader refuses "
-                "a contradiction between its sources"
-            )
-    return record
+    raise SealedReleaseRowError(
+        f"resource {resource_id} carries the unknown pipeline_kind "
+        f"{pipeline_kind!r} — the reader refuses rather than guessing which "
+        "representation applies"
+    )
 
 
 def persist_sealed_release_candidate(
@@ -489,6 +567,8 @@ __all__ = [
     "SealedReleaseRowError",
     "create_ingestion_run",
     "create_resource",
+    "SealedReleaseCatalog",
+    "find_authorised_artifact",
     "find_latest_artifact",
     "find_resource_candidate",
     "get_resource_state",

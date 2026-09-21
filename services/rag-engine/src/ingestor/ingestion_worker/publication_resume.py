@@ -54,6 +54,7 @@ try:
         record_job_retry,
     )
     from ingestor.ingestion_control.provisioning import (
+        find_authorised_artifact,
         find_latest_artifact,
         get_resource_state,
     )
@@ -178,6 +179,9 @@ class PublicationResumeDeps:
     #: gouverné, seule désignation qu'un opérateur ne choisit pas, et sans
     #: lequel les droits d'un artefact scellé ne peuvent pas être résolus.
     sealed_release_artifacts: Mapping[str, Any] | None = None
+    #: Invariant de format établi au chargement du catalogue (jamais une
+    #: constante du lecteur). Vide tant qu'il n'a pas été vérifié.
+    sealed_media_type_invariant: str = ""
     authorization_mapping: AuthorizationMapping | None = None
     authorization_context: AuthorizationContext | None = None
 
@@ -193,6 +197,21 @@ class PublicationResumeDeps:
         except EmbeddingProviderError as exc:
             raise PublicationResumeError(str(exc)) from exc
 
+    def build_sealed_catalog(self) -> Any:
+        """Le catalogue scellé, ou ``None`` pour le pipeline de découverte.
+
+        Pour le batch, une dépendance manquante ici devient un refus au
+        moment de la lecture : le CLI ne doit pas construire un worker batch
+        apparemment opérationnel avec son catalogue à ``None``.
+        """
+        if not self.sealed_release_artifacts or self.rights_evidence_registry is None:
+            return None
+        return _VerifiedSealedCatalog(
+            registry=self.rights_evidence_registry,
+            sealed_artifacts=self.sealed_release_artifacts,
+            media_type_invariant=self.sealed_media_type_invariant,
+        )
+
     def require_sealed_evidence(self) -> tuple[Any, Any]:
         if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
             raise SealedEvidenceError(
@@ -204,25 +223,35 @@ class PublicationResumeDeps:
 
 
 @dataclass(frozen=True)
-class _SealedRightsResolverFromRegistry:
-    """Adapte le registre gouverné au protocole que le lecteur exige.
+class _VerifiedSealedCatalog:
+    """Le catalogue scellé que la branche batch exige, déjà vérifié.
 
-    Il ne reformule rien : la résolution appartient toujours à
-    ``VerifiedRightsEvidenceRegistry``. L'adaptateur fournit seulement le
-    ``source_path`` scellé que le registre réclame, lu dans l'ensemble déjà
-    vérifié par digest — jamais reconstruit depuis une URL ou un payload.
+    Il ne décide de rien : les droits viennent du registre gouverné, la
+    pagination et le titre de l'entrée scellée, le type de média d'un
+    invariant du format de release **vérifié au chargement** — jamais d'une
+    constante posée par le lecteur.
     """
 
     registry: Any
     sealed_artifacts: Mapping[str, Any]
+    #: Type de média établi pour cette release. Il n'est pas déclaré par
+    #: artefact ; il provient de l'invariant de format vérifié par
+    #: ``load_sealed_release_catalog`` (tous les objets transférés portent la
+    #: même extension). Un catalogue dont l'invariant n'a pas été établi
+    #: laisse ce champ vide, et la lecture échoue.
+    media_type_invariant: str
 
-    def resolve(self, *, content_sha256: str) -> tuple[str, str, str]:
+    def entry(self, *, content_sha256: str) -> Mapping[str, Any]:
         sealed = self.sealed_artifacts.get(content_sha256)
         if sealed is None:
             raise PublicationResumeError(
                 f"content {content_sha256} is not part of the sealed release — "
-                "its rights cannot be resolved, and it must not be published"
+                "it must not be published under this release's authority"
             )
+        return sealed
+
+    def resolve_rights(self, *, content_sha256: str) -> tuple[str, str, str]:
+        sealed = self.entry(content_sha256=content_sha256)
         clearance = self.registry.resolve_rights(
             content_sha256=content_sha256, source_path=sealed["source_path"]
         )
@@ -231,6 +260,16 @@ class _SealedRightsResolverFromRegistry:
             clearance.decision_id,
             clearance.registry_sha256,
         )
+
+    def media_type(self, *, content_sha256: str) -> str:
+        self.entry(content_sha256=content_sha256)
+        if not self.media_type_invariant:
+            raise PublicationResumeError(
+                f"no media type is established for {content_sha256} — the "
+                "release format invariant was not verified, and the reader "
+                "refuses to assume one"
+            )
+        return self.media_type_invariant
 
 
 def _require_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -411,15 +450,22 @@ def resume_publication(
     # Worker B fournit lui-même l'autorité de droits : le lecteur refuse la
     # branche scellée sans elle, et ce refus doit venir de l'appelant
     # opérationnel, pas d'un script de diagnostic.
-    rights_resolver = None
-    if deps.rights_evidence_registry is not None and deps.sealed_release_artifacts:
-        rights_resolver = _SealedRightsResolverFromRegistry(
-            registry=deps.rights_evidence_registry,
-            sealed_artifacts=deps.sealed_release_artifacts,
+    sealed_catalog = deps.build_sealed_catalog()
+    # Le job NOMME l'artefact qu'il publie : « le plus récent » n'est pas une
+    # règle d'autorité. Si une seconde version existe, elle n'est pas
+    # substituée à celle que la revue a couverte.
+    named_artifact_id = payload.get("artifact_id")
+    if named_artifact_id is not None:
+        artifact_record = find_authorised_artifact(
+            control_conn,
+            resource_id=resource_id,
+            artifact_id=UUID(str(named_artifact_id)),
+            sealed_catalog=sealed_catalog,
         )
-    artifact_record = find_latest_artifact(
-        control_conn, resource_id=resource_id, rights_resolver=rights_resolver
-    )
+    else:
+        artifact_record = find_latest_artifact(
+            control_conn, resource_id=resource_id, sealed_catalog=sealed_catalog
+        )
     if artifact_record is None:
         raise PublicationResumeError(f"resource {resource_id} has no stored artifact")
 
