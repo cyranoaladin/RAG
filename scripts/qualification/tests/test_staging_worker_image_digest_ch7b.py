@@ -335,10 +335,20 @@ def test_l_image_api_reste_inchangee(document: dict, preuve: dict) -> None:
     assert preuve["scope_unchanged"]["api_image_contracts_version"] == "0.18.0"
 
 
-def test_le_perimetre_reste_loopback_et_tunnel(document: dict) -> None:
+def test_le_perimetre_reste_sans_exposition_entrante_et_par_tunnel(
+    document: dict,
+) -> None:
+    """CT clarifie le vocabulaire sans elargir le perimetre.
+
+    « loopback_only » se lisait comme une interdiction de sortie ; il ne
+    decrivait que l'absence d'exposition entrante. Le nom dit maintenant ce
+    qu'il garde, et la sortie autorisee est enumeree separement.
+    """
     assert document["scope"]["access"] == "ssh_tunnel_only"
     assert document["scope"]["bind_address"] == "127.0.0.1"
-    assert _image(document)["network"] == "loopback_only"
+    assert _image(document)["network"] == "no_inbound_exposure"
+    assert _image(document)["egress"]["inbound_exposure_added"] is False
+    assert _image(document)["egress"]["allowed"] == ["https://api.github.com"]
     assert _image(document)["durable_service"] is False
     assert _image(document)["compose_file_on_host"] == "forbidden"
 

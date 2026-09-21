@@ -5,10 +5,11 @@
         "CH4",
         "CH6",
         "CH7B",
-        "CS"
+        "CS",
+        "CT"
     ],
     "authorization": "SSH_STAGING_AUTHORIZED",
-    "authorization_statement": "L'approbation de cette PR par abenrhouma vaut autorisation d'utiliser, pour le staging cloisonne uniquement, l'image worker digest-pinned construite par le workflow gouverne production-image-provenance.yml depuis main 39f1314ec3576eb72a5ad0650938eb64252be3a7. Cette autorisation ne permet ni build sur nexus-prod, ni tag non epingle, ni Worker B, ni ecriture DB production, ni current switch, ni exposition publique.",
+    "authorization_statement": "L'approbation de cette PR par abenrhouma vaut autorisation d'utiliser, pour le staging cloisonne uniquement, l'image worker digest-pinned construite par le workflow gouverne production-image-provenance.yml depuis main 39f1314ec3576eb72a5ad0650938eb64252be3a7. Cette autorisation ne permet ni build sur nexus-prod, ni tag non epingle, ni Worker B, ni ecriture DB production, ni current switch, ni exposition publique. L'amendement CT autorise en outre, pour cette seule ingestion et dans le staging cloisonne, le montage temporaire d'un jeton GitHub dedie en LECTURE SEULE (contents:read, metadata:read, depot cyranoaladin/RAG), injecte par fichier via NEXUS_GITHUB_TOKEN_FILE, avec retrait du montage et revocation en fin d'operation. Il n'autorise ni secret de production, ni Worker B, ni publication, ni modification de current, ni exposition publique, ni ecriture en production.",
     "consumed": false,
     "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
     "execution_plan": {
@@ -51,6 +52,51 @@
             "nexus-staging_rag_pgvector_data",
             "nexus-staging_rag_prometheus_data"
         ],
+        "ephemeral_github_read_token": {
+            "api_base_override_forbidden": true,
+            "cleanup_is_verified_not_assumed": "la suppression du fichier et la revocation de l'acces sont deux resultats distincts, constates separement ; une expiration future annoncee n'est pas une revocation effectuee",
+            "database": {
+                "authority_dsn_in_worker": false,
+                "plane": "staging control plane",
+                "role": "ingestion_control_app"
+            },
+            "distinct_from": "le jeton d'administration du depot et le jeton de revue d'abenrhouma : le worker n'herite jamais des privileges d'une revue",
+            "end_of_operation": [
+                "arret des processus concernes",
+                "retrait du montage",
+                "suppression de la copie temporaire",
+                "revocation du jeton dedie par son detenteur"
+            ],
+            "environment": "staging cloisonne uniquement",
+            "injection": {
+                "directory_mode": "0700",
+                "env_var": "NEXUS_GITHUB_TOKEN_FILE",
+                "file_mode": "0600",
+                "mechanism": "fichier monte en lecture seule",
+                "value_in_command_arguments": false,
+                "value_in_environment": false
+            },
+            "max_lifetime_days": 1,
+            "processes": [
+                "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+                "verifications de pre-vol et de post-execution de cette intervention"
+            ],
+            "purpose": "permettre au worker ponctuel de relire l'artefact d'autorisation au head approuve, pendant cette seule ingestion de release scellee",
+            "tls_verification_disabled_forbidden": true,
+            "token_kind": "fine_grained_personal_access_token",
+            "token_must_not_carry": [
+                "write sur contents, pull_requests, statuses, workflows, secrets",
+                "administration du depot ou de l'organisation",
+                "packages, gist, user, notifications"
+            ],
+            "token_permissions": {
+                "contents": "read",
+                "metadata": "read"
+            },
+            "token_repository_selection": [
+                "cyranoaladin/RAG"
+            ]
+        },
         "host": "nexus-prod",
         "ingestion_control_database": {
             "authorizations_dir": "governance/authorizations",
@@ -99,6 +145,14 @@
             "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
             "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
             "durable_service": false,
+            "egress": {
+                "allowed": [
+                    "https://api.github.com"
+                ],
+                "firewall_modified": false,
+                "inbound_exposure_added": false,
+                "purpose": "relecture de l'artefact d'autorisation au head approuve (_verify_reviewed_artifact) — c'est ce qui detecte qu'un artefact aurait ete modifie APRES l'approbation, ce que le sceau ne peut pas voir"
+            },
             "evidence": {
                 "path": "docs/reports/evidence/staging_worker_image_provenance_cs.json",
                 "sha256": "4a711019aeabe320333201405a7a75698ae1445634206da02a9d21e93247ed20"
@@ -109,7 +163,8 @@
             ],
             "image_digest": "sha256:431264a02e2e2a5484cef7d5ac620a3aa7fa16f66be1497fde886dfb7f83ccd8",
             "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
-            "network": "loopback_only",
+            "network": "no_inbound_exposure",
+            "network_clarification": "loopback_only decrivait l'EXPOSITION du service : aucun port publie, aucune ecoute au-dela de 127.0.0.1. Il n'a jamais decrit la SORTIE, et n'a jamais interdit un appel HTTPS sortant — le worker en emet deja vers l'API GitHub pour relire l'artefact approuve. La formulation est precisee ici parce qu'elle etait ambigue ; aucune permission n'est ajoutee, aucun pare-feu n'est modifie.",
             "pinning": "pinned_by_digest_no_rebuild",
             "product_database_access": "forbidden",
             "purpose": "executer UNIQUEMENT le point d'entree d'ingestion de release scellee (ingestor.ingestion_worker.sealed_release_ingestion_cli) dans le perimetre staging",
