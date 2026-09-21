@@ -14,10 +14,16 @@ en paramètre, n'invente rien, ne devine aucune valeur par défaut.
 """
 from __future__ import annotations
 
+from typing import Any, Protocol
 from uuid import UUID, uuid4
 
 import psycopg
-from nexus_contracts.ingestion import ArtifactRecord, ResourceCandidate, ResourceScope
+from nexus_contracts.ingestion import (
+    ArtifactRecord,
+    ResourceCandidate,
+    ResourceScope,
+    SealedReleaseArtifactRecord,
+)
 from nexus_contracts.resource_state import ResourceState
 from psycopg.types.json import Jsonb
 
@@ -217,20 +223,177 @@ def persist_artifact(conn: psycopg.Connection, *, artifact: ArtifactRecord) -> N
         )
 
 
-def find_latest_artifact(conn: psycopg.Connection, *, resource_id: UUID) -> ArtifactRecord | None:
-    """Relit le dernier ``ArtifactRecord`` persisté pour cette ressource
-    (``collected_at`` le plus récent) — reconstruction fidèle depuis
-    ``payload``. ``None`` si aucun artefact n'a encore été persisté."""
+_SEALED_PAYLOAD_REQUIS = (
+    "release_id",
+    "release_manifest_sha256",
+    "content_sha256",
+    "provenance_artifact_url",
+    "chunk_count",
+)
+
+
+class SealedRightsResolver(Protocol):
+    """Ce que la branche batch exige pour pouvoir lire un artefact scellé.
+
+    Un lecteur de base de données n'a pas autorité pour dire quels droits
+    couvrent un contenu : la résolution appartient au registre gouverné. La
+    branche batch réclame donc son résolveur, et refuse sans lui."""
+
+    def resolve(self, *, content_sha256: str) -> tuple[str, str, str]:
+        """Rend ``(rights, decision_id, registry_sha256)`` ou lève."""
+
+
+def _read_sealed_release_artifact(
+    payload: dict[str, Any],
+    *,
+    resource_id: UUID,
+    artifact_id: UUID,
+    run_id: UUID,
+    sha256: str,
+    size_bytes: int,
+    scope: ResourceScope,
+    rights_resolver: SealedRightsResolver | None,
+) -> SealedReleaseArtifactRecord:
+    """Compose le record batch depuis le payload scellé et les colonnes.
+
+    Ce qui manque n'est jamais complété : un payload qui ne porte pas ses
+    références de release est refusé, il ne devient pas un record partiel.
+    """
+    if rights_resolver is None:
+        raise SealedReleaseRowError(
+            f"sealed artifact {artifact_id} cannot be read without a rights "
+            "resolver — rights are resolved by the governed registry, never "
+            "inferred from a payload, a domain or a PII status"
+        )
+    manquants = [cle for cle in _SEALED_PAYLOAD_REQUIS if not payload.get(cle)]
+    if manquants:
+        raise SealedReleaseRowError(
+            f"sealed artifact {artifact_id} carries no {', '.join(manquants)} — "
+            "a sealed payload without its release references is refused, never "
+            "completed with a convenience value"
+        )
+    declare = payload.get("pipeline_kind")
+    if declare is not None and declare != SEALED_RELEASE_PIPELINE:
+        raise SealedReleaseRowError(
+            f"sealed artifact {artifact_id}: the payload declares pipeline_kind="
+            f"{declare!r} while the resource is {SEALED_RELEASE_PIPELINE!r}"
+        )
+    if payload["content_sha256"] != sha256:
+        raise SealedReleaseRowError(
+            f"sealed artifact {artifact_id}: payload content_sha256 "
+            f"{payload['content_sha256']!r} differs from the typed sha256 column "
+            f"{sha256!r} — the reader refuses a contradiction between its sources"
+        )
+    if payload.get("collection") and payload["collection"] != scope.collection:
+        raise SealedReleaseRowError(
+            f"sealed artifact {artifact_id}: payload collection "
+            f"{payload['collection']!r} differs from the resource scope "
+            f"{scope.collection!r}"
+        )
+    rights, decision_id, registry_sha256 = rights_resolver.resolve(
+        content_sha256=sha256
+    )
+    return SealedReleaseArtifactRecord(
+        pipeline_kind=SEALED_RELEASE_PIPELINE,
+        artifact_id=artifact_id,
+        resource_id=resource_id,
+        run_id=run_id,
+        scope=scope,
+        sha256=sha256,
+        size_bytes=size_bytes,
+        mime_declared="application/pdf",
+        content_type_detected=None,
+        release_id=str(payload["release_id"]),
+        release_manifest_sha256=str(payload["release_manifest_sha256"]),
+        content_sha256=sha256,
+        provenance_artifact_url=str(payload["provenance_artifact_url"]),
+        rights_status=rights,
+        rights_decision_id=decision_id,
+        rights_registry_sha256=registry_sha256,
+        pages_count=int(payload["page_count"]) if payload.get("page_count") else 1,
+        chunk_count=int(payload["chunk_count"]),
+        title=payload.get("title"),
+        type_doc=payload.get("type_doc"),
+    )
+
+
+def find_latest_artifact(
+    conn: psycopg.Connection,
+    *,
+    resource_id: UUID,
+    rights_resolver: SealedRightsResolver | None = None,
+) -> ArtifactRecord | SealedReleaseArtifactRecord | None:
+    """Relit le dernier artefact persisté, dans la représentation de SON pipeline.
+
+    Le modèle est choisi par le **discriminateur durable** — la colonne
+    ``resources.pipeline_kind``, gouvernée et écrite à l'ingestion — jamais
+    en essayant plusieurs validations jusqu'à ce qu'une accepte. Un payload
+    de découverte incomplet échoue comme payload de découverte ; il n'est
+    pas requalifié en batch parce qu'il lui manque des champs.
+    """
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT payload FROM ingestion_control.artifacts "
-            "WHERE resource_id = %s ORDER BY collected_at DESC LIMIT 1",
+            "SELECT a.payload, a.artifact_id, a.run_id, a.sha256, a.size_bytes,"
+            "       r.pipeline_kind, r.tenant, r.collection, r.niveau, r.voie,"
+            "       r.matiere, r.candidat, r.audience, r.visibility,"
+            "       r.school_year, r.programme_version"
+            "  FROM ingestion_control.artifacts a"
+            "  JOIN ingestion_control.resources r USING (resource_id)"
+            " WHERE a.resource_id = %s"
+            " ORDER BY a.collected_at DESC LIMIT 1",
             (resource_id,),
         )
         row = cur.fetchone()
     if row is None:
         return None
-    return ArtifactRecord.model_validate(row[0])
+    (payload, artifact_id, run_id, sha256, size_bytes, pipeline_kind,
+     tenant, collection, niveau, voie, matiere, candidat, audience,
+     visibility, school_year, programme_version) = row
+
+    if pipeline_kind == RESOURCE_PIPELINE:
+        record: ArtifactRecord | SealedReleaseArtifactRecord = (
+            ArtifactRecord.model_validate(payload)
+        )
+    elif pipeline_kind == SEALED_RELEASE_PIPELINE:
+        record = _read_sealed_release_artifact(
+            payload,
+            resource_id=resource_id,
+            artifact_id=artifact_id,
+            run_id=run_id,
+            sha256=sha256,
+            size_bytes=size_bytes,
+            scope=ResourceScope(
+                tenant=tenant, collection=collection, niveau=niveau, voie=voie,
+                matiere=matiere, candidat=candidat, audience=audience,
+                visibility=visibility, school_year=school_year,
+                programme_version=programme_version,
+            ),
+            rights_resolver=rights_resolver,
+        )
+    else:
+        raise SealedReleaseRowError(
+            f"resource {resource_id} carries the unknown pipeline_kind "
+            f"{pipeline_kind!r} — the reader refuses rather than guessing "
+            "which representation applies"
+        )
+
+    # Les colonnes typées font autorité sur le payload : elles sont
+    # contraintes par le schéma, lui ne l'est pas. Une contradiction est un
+    # refus, jamais le choix de la valeur qui permet de construire l'objet.
+    for champ, en_base in (
+        ("artifact_id", artifact_id),
+        ("resource_id", resource_id),
+        ("run_id", run_id),
+        ("sha256", sha256),
+    ):
+        porte = getattr(record, champ)
+        if str(porte) != str(en_base):
+            raise SealedReleaseRowError(
+                f"artifact {artifact_id}: the record declares {champ}={porte!r} "
+                f"while the typed column holds {en_base!r} — the reader refuses "
+                "a contradiction between its sources"
+            )
+    return record
 
 
 def persist_sealed_release_candidate(

@@ -173,6 +173,11 @@ class PublicationResumeDeps:
     rights_evidence_registry: Any = None
     manifest_digest: str = ""
     placement_resolver: Any = None
+    #: Ensemble scellé (``artifacts.release.json``) déjà vérifié par
+    #: digest, indexé par ``content_sha256``. Il porte le ``source_path``
+    #: gouverné, seule désignation qu'un opérateur ne choisit pas, et sans
+    #: lequel les droits d'un artefact scellé ne peuvent pas être résolus.
+    sealed_release_artifacts: Mapping[str, Any] | None = None
     authorization_mapping: AuthorizationMapping | None = None
     authorization_context: AuthorizationContext | None = None
 
@@ -196,6 +201,36 @@ class PublicationResumeDeps:
                 "time, and a worker that cannot re-check them must not publish"
             )
         return self.pii_evidence_registry, self.rights_evidence_registry
+
+
+@dataclass(frozen=True)
+class _SealedRightsResolverFromRegistry:
+    """Adapte le registre gouverné au protocole que le lecteur exige.
+
+    Il ne reformule rien : la résolution appartient toujours à
+    ``VerifiedRightsEvidenceRegistry``. L'adaptateur fournit seulement le
+    ``source_path`` scellé que le registre réclame, lu dans l'ensemble déjà
+    vérifié par digest — jamais reconstruit depuis une URL ou un payload.
+    """
+
+    registry: Any
+    sealed_artifacts: Mapping[str, Any]
+
+    def resolve(self, *, content_sha256: str) -> tuple[str, str, str]:
+        sealed = self.sealed_artifacts.get(content_sha256)
+        if sealed is None:
+            raise PublicationResumeError(
+                f"content {content_sha256} is not part of the sealed release — "
+                "its rights cannot be resolved, and it must not be published"
+            )
+        clearance = self.registry.resolve_rights(
+            content_sha256=content_sha256, source_path=sealed["source_path"]
+        )
+        return (
+            clearance.rights.value,
+            clearance.decision_id,
+            clearance.registry_sha256,
+        )
 
 
 def _require_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -373,7 +408,18 @@ def resume_publication(
             expected_attestation_id=expected_attestation_id,
         )
 
-    artifact_record = find_latest_artifact(control_conn, resource_id=resource_id)
+    # Worker B fournit lui-même l'autorité de droits : le lecteur refuse la
+    # branche scellée sans elle, et ce refus doit venir de l'appelant
+    # opérationnel, pas d'un script de diagnostic.
+    rights_resolver = None
+    if deps.rights_evidence_registry is not None and deps.sealed_release_artifacts:
+        rights_resolver = _SealedRightsResolverFromRegistry(
+            registry=deps.rights_evidence_registry,
+            sealed_artifacts=deps.sealed_release_artifacts,
+        )
+    artifact_record = find_latest_artifact(
+        control_conn, resource_id=resource_id, rights_resolver=rights_resolver
+    )
     if artifact_record is None:
         raise PublicationResumeError(f"resource {resource_id} has no stored artifact")
 
