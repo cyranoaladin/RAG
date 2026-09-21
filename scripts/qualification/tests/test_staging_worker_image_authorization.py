@@ -23,10 +23,20 @@ sys.path.insert(0, str(RACINE / "scripts/go_live"))
 
 import check_staging_authorization as autorisation  # noqa: E402
 
-#: CH7B repointe la preuve vers celle de l'image courante. La preuve de CH6
-#: reste versionnee comme trace de ce qui a ete autorise a l'epoque ; ce
-#: fichier teste l'autorisation EN VIGUEUR, qui n'en a qu'une.
-PREUVE = "docs/reports/evidence/staging_worker_image_provenance_ch7b.json"
+#: La preuve de l'image EN VIGUEUR est lue DANS l'autorisation, pas codee en
+#: dur. Chaque reconstruction en produit une nouvelle — la coder ici obligeait
+#: a repointer ce fichier a chaque lot, et c'est exactement ce couplage qui a
+#: fait echouer ces epreuves deux fois de suite.
+def _preuve_courante() -> str:
+    document = json.loads(
+        (RACINE / "docs/reports/go_live/authorizations/staging_ssh_authorization.json")
+        .read_text(encoding="utf-8")
+    )
+    return document["scope"]["staging_worker_image"]["evidence"]["path"]
+
+
+#: La preuve de CH6 reste versionnee comme trace de ce qui a ete autorise a
+#: l'epoque : remplacer un digest n'efface pas l'historique.
 PREUVE_CH6 = "docs/reports/evidence/staging_worker_image_provenance.json"
 
 
@@ -37,7 +47,7 @@ def document() -> dict:
 
 @pytest.fixture()
 def preuve() -> dict:
-    return json.loads((RACINE / PREUVE).read_text(encoding="utf-8"))
+    return json.loads((RACINE / _preuve_courante()).read_text(encoding="utf-8"))
 
 
 def _plan_sha(document: dict) -> str:
@@ -59,20 +69,21 @@ def _ecarts(document: dict) -> list[str]:
 # --------------------------------------------------------------------------
 
 
-def test_1_l_image_epinglee_du_perimetre_est_l_api_de_retrieval(preuve: dict) -> None:
-    probleme = preuve["problem"]
+def test_1_l_image_epinglee_du_perimetre_est_l_api_de_retrieval() -> None:
+    """Fait etabli par CH6 : il est lu dans SA preuve, pas recopie dans
+    chacune de celles qui suivent."""
+    probleme = json.loads((RACINE / PREUVE_CH6).read_text(encoding="utf-8"))["problem"]
     assert probleme["pinned_image_digest"].startswith("sha256:d0134f49")
     assert "retrieval" in probleme["pinned_image_role"]
     assert "ingestion_agents" in probleme["observed_refusal"]
     assert set(probleme["missing_modules"]) == {"httpx", "ingestion_agents"}
 
 
-def test_1bis_les_autres_images_locales_sont_ecartees_avec_leur_raison(
-    preuve: dict,
-) -> None:
+def test_1bis_les_autres_images_locales_sont_ecartees_avec_leur_raison() -> None:
+    ancienne = json.loads((RACINE / PREUVE_CH6).read_text(encoding="utf-8"))
     raisons = {
         entree["name"]: entree["reason"]
-        for entree in preuve["problem"]["other_local_images_rejected"]
+        for entree in ancienne["problem"]["other_local_images_rejected"]
     }
     assert raisons["infra-ingestor:latest"] == "nexus-contracts 0.2.0"
     assert raisons["nexus-rag-ingestor-security:da0a167"] == "nexus-contracts 0.2.0"
@@ -267,7 +278,7 @@ def test_9quinquies_un_service_durable_est_refuse(document: dict) -> None:
 def test_la_preuve_est_liee_par_digest_a_l_autorisation(document: dict) -> None:
     declare = _image(document)["evidence"]
     observe = hashlib.sha256((RACINE / declare["path"]).read_bytes()).hexdigest()
-    assert declare["path"] == PREUVE
+    assert declare["path"] == _preuve_courante()
     assert declare["sha256"] == observe
 
 
@@ -286,7 +297,12 @@ def test_sans_image_worker_l_autorisation_n_autorise_aucune_image(
 
 
 def test_les_amendements_sont_consignes_dans_l_ordre(document: dict) -> None:
-    assert document["amended_by"] == ["CH2", "CH3", "CH4", "CH6", "CH7B"]
+    """La liste s'allonge a chaque amendement ; ce qui doit rester vrai, c'est
+    que les premiers y figurent toujours, dans l'ordre, et qu'aucun ne
+    disparait."""
+    amendements = document["amended_by"]
+    assert amendements[:5] == ["CH2", "CH3", "CH4", "CH6", "CH7B"]
+    assert len(amendements) == len(set(amendements))
     assert document["expires_after_use"] is True
 
 
@@ -294,6 +310,13 @@ def test_la_preuve_de_ch6_reste_versionnee_comme_trace(document: dict) -> None:
     """Remplacer un digest n'efface pas ce qui avait ete autorise avant."""
     ancienne = json.loads((RACINE / PREUVE_CH6).read_text(encoding="utf-8"))
     assert ancienne["worker_image"]["image_digest"].startswith("sha256:2ce7533d")
-    assert _image(document)["supersedes_image_digest"] == (
+    # L'autorisation courante ne remplace plus CH6 directement — elle
+    # remplace celui qui l'avait remplace. La chaine se lit de proche en
+    # proche, et chaque maillon reste versionne.
+    assert _image(document)["supersedes_image_digest"] != (
+        ancienne["worker_image"]["image_digest"]
+    )
+    courante = json.loads((RACINE / _preuve_courante()).read_text(encoding="utf-8"))
+    assert courante["supersedes"]["worker_image_digest"] != (
         ancienne["worker_image"]["image_digest"]
     )

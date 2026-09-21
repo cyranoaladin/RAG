@@ -149,3 +149,66 @@ comportement voulu.
 
 Leur réenregistrement propre, dans une fenêtre de revue vivante et avec un
 payload métier identique, est l'objet du lot suivant.
+
+## Fusion, et une découverte GitGuardian non levée
+
+Fusionnée le 2026-09-21 à 09:32:12Z — `39f1314ec3576eb72a5ad0650938eb64252be3a7`,
+squash du head approuvé `a44277a2`. Les sept contextes requis étaient verts,
+l'approbation `abenrhouma` portait sur ce head exact.
+
+**Ce qui n'a pas été levé.** Le contexte `GitGuardian Security Checks` — non
+requis — a signalé « 1 secret uncovered » sans le nommer, et son tableau de
+bord n'était pas accessible depuis la session. La fusion a été décidée
+explicitement par le propriétaire du dépôt malgré cette découverte. C'est
+consigné ici plutôt que passé sous silence : une alerte non levée reste une
+alerte.
+
+Ce qui a pu être établi avant de fusionner :
+
+* `gitleaks` : aucune fuite sur ce commit ;
+* `trufflehog` : aucun résultat ;
+* `detect-secrets` : six « Hex High Entropy String », toutes tracées.
+
+| Empreinte | Nature |
+|---|---|
+| `133159cb…` | commit git — fusion de CH7B |
+| `f66a04cb…` | commit git — fusion de CH7A |
+| `44bf8360…` | commit git — head approuvé de #241 |
+| `2f8757b3…` | commit git — head de #233 |
+| `1fb70485…` | digest de l'image worker, publié sur GHCR |
+| `791ff7c5…`, `7bcf8129…` | sha256 de manifestes readiness signés |
+
+Aucune n'est un identifiant : ce sont des empreintes publiques, dont
+plusieurs figuraient déjà dans des fichiers fusionnés avant ce lot. Si la
+découverte visait l'une d'elles, elle se marque en faux positif avec cette
+provenance. Si elle visait autre chose, elle reste à traiter — et ce
+paragraphe est là pour qu'on s'en souvienne.
+
+## Quatre défauts corrigés avant fusion, tous trouvés par des tests existants
+
+1. **`fetch_sealing_facts` ajoutait un aller-retour GitHub insimulable.** Les
+   quatre faits sont repliés dans `verify_review`, qui avait déjà lu les
+   documents qui les portent.
+2. **Cette lecture était fatale.** Un 404 transformait un refus propre — PR
+   fermée, revue retirée — en erreur de transport, masquant la vraie raison.
+   Elle est désormais non fatale : c'est le scellement qui refuse, avec son
+   propre message.
+3. **Le stub `LocalGitHub` mentait sur l'API** en rendant 404 pour un commit
+   inconnu, là où GitHub rend 200 avec une liste de statuts vide.
+4. **`revoked_review_evidence` n'avait aucun droit.** Accordés en moindre
+   privilège : `SELECT` pour le worker — sans quoi une preuve révoquée
+   continuerait d'autoriser —, `SELECT, INSERT` append-only pour l'autorité,
+   `SELECT` pour l'attestation.
+
+La cascade de rembobinage part désormais de 015 — le même piège avait déjà
+été payé pour 013.
+
+```
+périmètre governance postgres    178 passés
+suite unitaire rag-engine       3888 passés
+```
+
+`test_lot40_hybrid_pgvector` a échoué une fois sur ce head : intermittence
+connue, hors périmètre — le banc hybride ne référence ni `ingestion_control`
+ni le script de rôles, et la seule intersection est un `import` de
+`VerifiedAuthorization`, dont la forme n'a pas changé. Relancé, vert.

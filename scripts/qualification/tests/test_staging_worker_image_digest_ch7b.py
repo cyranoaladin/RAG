@@ -67,21 +67,8 @@ def _ecarts_image(document: dict) -> list[str]:
 # ==========================================================================
 
 
-def test_1_l_ancien_digest_ch6_est_refuse(document: dict) -> None:
-    """Y revenir n'est pas un retour en arrière neutre : cette image précède
-    la chaîne de readiness de répétition et ne peut plus rien exécuter."""
-    copie = copy.deepcopy(document)
-    copie["scope"]["staging_worker_image"]["image_digest"] = DIGEST_CH6
-    copie["scope"]["staging_worker_image"]["reference"] = f"{DEPOT}@{DIGEST_CH6}"
-    ecarts = _ecarts_image(copie)
-    assert any("digest de CH6 a ete remis en place" in ecart for ecart in ecarts)
 
 
-def test_1bis_l_amendement_nomme_le_digest_qu_il_remplace(document: dict) -> None:
-    assert _image(document)["supersedes_image_digest"] == DIGEST_CH6
-    copie = copy.deepcopy(document)
-    del copie["scope"]["staging_worker_image"]["supersedes_image_digest"]
-    assert any("digest qu'il remplace" in ecart for ecart in _ecarts_image(copie))
 
 
 def test_1ter_la_preuve_dit_pourquoi_l_ancienne_image_ne_convient_plus(
@@ -93,12 +80,6 @@ def test_1ter_la_preuve_dit_pourquoi_l_ancienne_image_ne_convient_plus(
     assert "CQ" in remplace["reason"] and "CH7A" in remplace["reason"]
 
 
-def test_2_le_nouveau_digest_est_celui_autorise(document: dict, preuve: dict) -> None:
-    image = _image(document)
-    assert image["image_digest"] == DIGEST_CH7B
-    assert image["reference"] == f"{DEPOT}@{DIGEST_CH7B}"
-    assert preuve["worker_image"]["image_digest"] == DIGEST_CH7B
-    assert _ecarts_image(document) == []
 
 
 # ==========================================================================
@@ -141,23 +122,8 @@ def test_5_un_digest_divergent_est_refuse(document: dict) -> None:
 # ==========================================================================
 
 
-def test_6_un_commit_source_different_est_refuse(document: dict) -> None:
-    assert _image(document)["source_commit_sha"] == COMMIT_CH7A
-    copie = copy.deepcopy(document)
-    copie["scope"]["staging_worker_image"]["source_commit_sha"] = "0" * 40
-    assert any("source_commit_sha" in ecart for ecart in _ecarts_image(copie))
 
 
-def test_6bis_le_commit_source_est_celui_du_build_gouverne(
-    document: dict, preuve: dict
-) -> None:
-    image = _image(document)
-    construit = preuve["built_off_host"]
-    assert image["source_commit_sha"] == construit["source_commit_sha"]
-    assert image["source_tree_sha"] == construit["source_tree_sha"]
-    assert image["build_workflow_run_id"] == construit["run_id"]
-    assert construit["workflow_ref"] == "refs/heads/main"
-    assert construit["workflow"] == ".github/workflows/production-image-provenance.yml"
 
 
 GATE = "services/rag-engine/src/ingestor/ingestion_profiles/staging_readiness_gate.py"
@@ -185,23 +151,28 @@ def test_6ter_la_garde_existe_dans_l_arbre_bati_sur_ce_commit() -> None:
     assert "require_running_image_matches_manifest" in source
 
 
-def test_6quater_ce_lot_ne_touche_aucun_fichier_de_service() -> None:
-    """Ce qui rend l'inférence ci-dessus valide : CH7B n'ajoute rien à
+#: Le commit de fusion de CH7B. Nommer le commit plutôt que « la branche
+#: courante » est ce qui rend l'épreuve durable : elle énonce un fait
+#: historique, vrai pour toujours, au lieu d'une propriété de l'endroit d'où
+#: on la lance — qui casse au premier lot suivant.
+MERGE_CH7B = "133159cb148bbcfcd43814d835409e6499f25be2"
+
+
+def test_6quater_ch7b_na_touche_aucun_fichier_de_service() -> None:
+    """Ce qui rend l'inférence de 6ter valide : CH7B n'ajoute rien à
     ``services/``. Un amendement d'autorisation qui modifierait du code
     applicatif ne serait plus un amendement d'autorisation."""
     import subprocess
 
-    base = _image(
-        json.loads((RACINE / autorisation.AUTORISATION).read_text(encoding="utf-8"))
-    )["source_commit_sha"]
     resultat = subprocess.run(
-        ["git", "-C", str(RACINE), "diff", "--name-only", base, "HEAD"],
+        ["git", "-C", str(RACINE), "diff", "--name-only",
+         f"{MERGE_CH7B}^", MERGE_CH7B],
         capture_output=True, text=True, check=False,
     )
     if resultat.returncode != 0:
         pytest.skip("historique git non disponible dans ce checkout")
     changes = [ligne for ligne in resultat.stdout.splitlines() if ligne]
-    assert changes, "le diff ne devrait pas être vide"
+    assert changes, "le diff de CH7B ne devrait pas être vide"
     assert not any(ligne.startswith("services/") for ligne in changes), changes
 
 
@@ -382,53 +353,10 @@ def test_aucune_exposition_publique(document: dict, preuve: dict) -> None:
 # ==========================================================================
 
 
-def test_la_declaration_d_autorisation_est_presente_et_complete(
-    document: dict,
-) -> None:
-    declaration = document["authorization_statement"]
-    for mention in (
-        "abenrhouma",
-        "staging cloisonne uniquement",
-        COMMIT_CH7A,
-        "production-image-provenance.yml",
-        "ni build sur nexus-prod",
-        "ni tag non epingle",
-        "ni Worker B",
-        "ni ecriture DB production",
-        "ni current switch",
-        "ni exposition publique",
-    ):
-        assert mention in declaration, mention
 
 
-@pytest.mark.parametrize(
-    "mention",
-    [
-        "staging cloisonne uniquement",
-        COMMIT_CH7A,
-        "ni build sur nexus-prod",
-        "ni tag non epingle",
-        "ni Worker B",
-        "ni ecriture DB production",
-        "ni current switch",
-        "ni exposition publique",
-    ],
-)
-def test_retirer_une_mention_de_la_declaration_est_refuse(
-    document: dict, mention: str
-) -> None:
-    copie = copy.deepcopy(document)
-    copie["authorization_statement"] = copie["authorization_statement"].replace(
-        mention, ""
-    )
-    assert any("mention manquante" in ecart for ecart in _ecarts(copie))
 
 
-def test_la_preuve_est_liee_par_digest_a_l_autorisation(document: dict) -> None:
-    declare = _image(document)["evidence"]
-    observe = hashlib.sha256((RACINE / declare["path"]).read_bytes()).hexdigest()
-    assert declare["path"] == PREUVE
-    assert declare["sha256"] == observe
 
 
 def test_le_point_d_entree_na_pas_ete_execute(preuve: dict) -> None:
@@ -436,3 +364,51 @@ def test_le_point_d_entree_na_pas_ete_execute(preuve: dict) -> None:
     intact = preuve["nexus_prod_untouched_by_this_lot"]
     assert intact["entrypoint_executed"] == 0
     assert intact["containers_started"] == 0
+
+
+# ==========================================================================
+# Ce que CH7B a établi — faits historiques, vérifiés contre sa preuve
+# ==========================================================================
+#
+# Ces épreuves affirmaient autrefois que l'autorisation EN VIGUEUR nommait le
+# digest de CH7B. C'est devenu faux avec le lot CS, et ce le redeviendra à
+# chaque reconstruction : une image épinglée conserve son contenu, donc tout
+# code fusionné après elle impose un nouveau digest.
+#
+# Elles portent désormais sur la preuve versionnée de CH7B, qui ne bouge
+# plus. L'état courant de l'autorisation est vérifié par le fichier du lot
+# qui la détient — aujourd'hui `test_staging_worker_image_digest_cs.py`.
+
+
+def test_ch7b_a_bien_ete_construit_hors_hote_depuis_le_main_de_ch7a(
+    preuve: dict,
+) -> None:
+    construit = preuve["built_off_host"]
+    assert construit["source_commit_sha"] == COMMIT_CH7A
+    assert construit["workflow_ref"] == "refs/heads/main"
+    assert construit["workflow"] == ".github/workflows/production-image-provenance.yml"
+    assert construit["built_on_nexus_prod"] is False
+
+
+def test_ch7b_portait_deja_la_garde_d_identite_d_image(preuve: dict) -> None:
+    """Ce que CH7B a apporté, et que tout successeur doit conserver."""
+    verif = preuve["verification"]
+    assert verif["image_binding_guard_present"] is True
+    assert verif["actual_worker_image_env_present_in_gate"] is True
+
+
+def test_la_preuve_de_ch7b_reste_versionnee_et_liee_a_son_digest(
+    preuve: dict,
+) -> None:
+    """Remplacer un digest n'efface pas ce qui avait été autorisé avant."""
+    assert preuve["worker_image"]["image_digest"] == DIGEST_CH7B
+    assert preuve["supersedes"]["worker_image_digest"] == DIGEST_CH6
+
+
+def test_l_autorisation_en_vigueur_a_ecarte_le_digest_de_ch7b(
+    document: dict,
+) -> None:
+    """La suite de l'histoire, vue d'ici : CH7B est à son tour remplacé."""
+    image = _image(document)
+    assert image["image_digest"] != DIGEST_CH7B
+    assert image["supersedes_image_digest"] == DIGEST_CH7B

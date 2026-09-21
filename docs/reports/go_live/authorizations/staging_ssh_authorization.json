@@ -4,10 +4,11 @@
         "CH3",
         "CH4",
         "CH6",
-        "CH7B"
+        "CH7B",
+        "CS"
     ],
     "authorization": "SSH_STAGING_AUTHORIZED",
-    "authorization_statement": "L'approbation de cette PR par abenrhouma vaut autorisation d'utiliser, pour le staging cloisonne uniquement, l'image worker digest-pinned construite par le workflow gouverne production-image-provenance.yml depuis main f66a04cb364191c53eb56c9a9e1208e9e386ae16. Cette autorisation ne permet ni build sur nexus-prod, ni tag non epingle, ni Worker B, ni ecriture DB production, ni current switch, ni exposition publique.",
+    "authorization_statement": "L'approbation de cette PR par abenrhouma vaut autorisation d'utiliser, pour le staging cloisonne uniquement, l'image worker digest-pinned construite par le workflow gouverne production-image-provenance.yml depuis main 39f1314ec3576eb72a5ad0650938eb64252be3a7. Cette autorisation ne permet ni build sur nexus-prod, ni tag non epingle, ni Worker B, ni ecriture DB production, ni current switch, ni exposition publique.",
     "consumed": false,
     "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
     "execution_plan": {
@@ -90,32 +91,33 @@
             "build_on_nexus_prod": "forbidden",
             "build_workflow": ".github/workflows/production-image-provenance.yml",
             "build_workflow_run_attempt": 1,
-            "build_workflow_run_id": 35535013039,
+            "build_workflow_run_id": 35593843678,
             "built_off_host": true,
+            "carries_adr_0058": true,
             "compose_file_on_host": "forbidden",
             "contracts_version": "0.19.0",
             "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
             "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
             "durable_service": false,
             "evidence": {
-                "path": "docs/reports/evidence/staging_worker_image_provenance_ch7b.json",
-                "sha256": "f46d214d146cb24a0e329531134c01caad57fcf74a3296e35b6d1b99cff95f52"
+                "path": "docs/reports/evidence/staging_worker_image_provenance_cs.json",
+                "sha256": "4a711019aeabe320333201405a7a75698ae1445634206da02a9d21e93247ed20"
             },
             "forbidden_entrypoint_modules": [
                 "ingestor.ingestion_worker.multilevel_cli",
                 "ingestor.ingestion_worker.multilevel_publication_resume_cli"
             ],
-            "image_digest": "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+            "image_digest": "sha256:431264a02e2e2a5484cef7d5ac620a3aa7fa16f66be1497fde886dfb7f83ccd8",
             "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
             "network": "loopback_only",
             "pinning": "pinned_by_digest_no_rebuild",
             "product_database_access": "forbidden",
             "purpose": "executer UNIQUEMENT le point d'entree d'ingestion de release scellee (ingestor.ingestion_worker.sealed_release_ingestion_cli) dans le perimetre staging",
-            "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+            "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:431264a02e2e2a5484cef7d5ac620a3aa7fa16f66be1497fde886dfb7f83ccd8",
             "runtime_image_binding_guard": "NEXUS_ACTUAL_WORKER_IMAGE",
-            "source_commit_sha": "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
-            "source_tree_sha": "b173a5a9e5f8465cf5dbaaada8d222d376f68990",
-            "supersedes_image_digest": "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+            "source_commit_sha": "39f1314ec3576eb72a5ad0650938eb64252be3a7",
+            "source_tree_sha": "503e07e5e7b6c4250f0c57ad9723d7390cd4f48a",
+            "supersedes_image_digest": "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
             "tag_alone_accepted": false
         },
         "working_directory": "/srv/nexus-staging"

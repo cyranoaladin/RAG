@@ -1,0 +1,150 @@
+{
+  "kind": "NEXUS-STAGING-WORKER-IMAGE-PROVENANCE-V1",
+  "generated_at_utc": "2026-09-21T11:40:00Z",
+  "lot": "LOT_GO_LIVE_FINAL_CS_RENEW_RUNTIME_AND_LOT41A_AUTHORIZATIONS",
+  "supersedes": {
+    "lot": "CH7B",
+    "worker_image_digest": "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
+    "source_commit_sha": "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
+    "reason": "construite AVANT ADR-0058 (#242, fusionne en 39f1314e) : elle porte l'ancien modele de revue vivante et refuserait toute autorisation scellee",
+    "measured_in_the_superseded_image": {
+      "_verify_sealed_review_present": false,
+      "_verify_live_review_used_at_use_time": true,
+      "trusted_review_evidence_contract_installed": false
+    },
+    "why_a_rebuild_was_mandatory": "une image epinglee par digest conserve exactement son contenu : fusionner du code sur main ne la met pas a jour"
+  },
+  "worker_image": {
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:431264a02e2e2a5484cef7d5ac620a3aa7fa16f66be1497fde886dfb7f83ccd8",
+    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "image_digest": "sha256:431264a02e2e2a5484cef7d5ac620a3aa7fa16f66be1497fde886dfb7f83ccd8",
+    "platform": "linux/amd64",
+    "tags_published": [
+      "sha-39f1314ec3576eb72a5ad0650938eb64252be3a7"
+    ],
+    "latest_tag_published": false
+  },
+  "built_off_host": {
+    "where": "GitHub Actions",
+    "workflow": ".github/workflows/production-image-provenance.yml",
+    "run_id": 35593843678,
+    "run_attempt": 1,
+    "workflow_ref": "refs/heads/main",
+    "built_at_utc": "2026-09-21T11:27:50.805113Z",
+    "source_commit_sha": "39f1314ec3576eb72a5ad0650938eb64252be3a7",
+    "source_tree_sha": "503e07e5e7b6c4250f0c57ad9723d7390cd4f48a",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "provenance_attestation": true,
+    "sbom": true,
+    "built_on_nexus_prod": false,
+    "inventory_protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1"
+  },
+  "verification": {
+    "performed_on": "poste de travail, hors nexus-prod",
+    "method": "docker pull par digest, puis executions --network none",
+    "pulled_digest_matches": true,
+    "nexus_contracts_version": "0.19.0",
+    "dependencies_present": {
+      "httpx": true,
+      "psycopg": true,
+      "pydantic": true,
+      "cryptography": true,
+      "yaml": true
+    },
+    "adr_0058_in_the_image": {
+      "_verify_sealed_review_present": true,
+      "_verify_live_review_used_at_use_time": false,
+      "trusted_review_evidence_contract_installed": true
+    },
+    "entrypoint_and_guards": {
+      "sealed_release_ingestion_cli_present": true,
+      "staging_readiness_gate_present": true,
+      "calls_enforce_staging_readiness_gate": true,
+      "image_binding_guard_present": true
+    },
+    "imports_ok": [
+      "ingestor.ingestion_control.scope_authority",
+      "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+      "ingestor.ingestion_profiles.staging_readiness_gate",
+      "ingestor.ingestion_agents.classifier"
+    ],
+    "no_manual_container_modification": true,
+    "no_local_code_mounted": true,
+    "secrets_scan": {
+      "env_variables": [
+        "PATH",
+        "LANG",
+        "GPG_KEY",
+        "PYTHON_VERSION",
+        "PYTHON_SHA256",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONUNBUFFERED",
+        "NEXUS_TRUSTED_REVIEW_MODULE",
+        "NEXUS_TRUSTED_REVIEWERS_CONFIG",
+        "PYTHONPATH"
+      ],
+      "secret_bearing_variables": 0,
+      "secret_files_found": 0,
+      "private_key_files": 0,
+      "seed_files": 0,
+      "signed_manifest_embedded": false,
+      "trust_anchor_embedded": false,
+      "hex64_literals_in_application_code": 0,
+      "measured_on_this_image": true,
+      "note": "mesure sur les octets de CETTE image, jamais recopie de la preuve precedente"
+    }
+  },
+  "staging_schema": {
+    "applied_by": "infra/scripts/bootstrap_ingestion_control_schema.sh",
+    "migrations_applied": 1,
+    "schema_head_before": 14,
+    "schema_head_after": 15,
+    "schema_verification": "OK",
+    "columns_created": [
+      "review_evidence",
+      "review_evidence_digest"
+    ],
+    "constraints_created": [
+      "scope_authorizations_review_evidence_paired",
+      "scope_authorizations_review_evidence_protocol"
+    ],
+    "revocation_registry_created": "ingestion_control.revoked_review_evidence",
+    "rows_with_sealed_evidence_after_migration": 0,
+    "roles_provisioned_by": "infra/scripts/provision_ingestion_control_roles.sh",
+    "effective_privileges_on_revoked_review_evidence": {
+      "ingestion_control_app": [
+        "SELECT"
+      ],
+      "ingestion_control_attestor": [
+        "SELECT"
+      ],
+      "ingestion_control_authority": [
+        "SELECT",
+        "INSERT"
+      ]
+    },
+    "note": "la migration seule n'accorde aucun droit : sans le provisionnement, le worker echouait sur permission denied a l'usage"
+  },
+  "scope_unchanged": {
+    "pinned_by_digest_no_rebuild": true,
+    "tag_alone_accepted": false,
+    "build_on_nexus_prod": "forbidden",
+    "loopback_only": true,
+    "ssh_tunnel_only": true,
+    "api_image_untouched": true,
+    "api_image_digest": "sha256:d0134f494a2af2895ebdeb91e55b047cd4774ca607c55e33d4dba1d6c47af8d1",
+    "worker_b": "forbidden",
+    "production_db": "forbidden",
+    "current_switch": "forbidden",
+    "public_exposure": "forbidden",
+    "release_v2_modified": false,
+    "release_v2_promotable": false
+  },
+  "not_performed": [
+    "aucune execution du point d'entree",
+    "aucun Worker A, aucun Worker B",
+    "aucune publication, aucune attestation",
+    "aucune ecriture dans scope_authorizations",
+    "aucune DB production"
+  ]
+}

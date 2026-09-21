@@ -1,0 +1,137 @@
+{
+  "kind": "NEXUS-LOT41A-AUTHORIZATION-RENEWAL-MAP-V1",
+  "adr": "ADR-0058",
+  "generated_at_utc": "2026-09-21T11:25:03Z",
+  "why": "Les onze autorisations d'origine ont ete enregistrees sous le modele de revue VIVANTE : leur preuve n'existe pas et ne peut pas etre reconstituee apres coup (ADR-0058). Elles sont refusees a l'usage. Elles ne sont ni modifiees, ni supprimees : onze NOUVELLES autorisations sont enregistrees sous preuve scellee, et cette table dit laquelle remplace laquelle.",
+  "what_is_preserved": "Le contenu metier est identique champ pour champ — scope, collection, manifest_digest, profil, empreinte de profil, domaines autorises, categories de droits, exclusions, attestation PII et fenetre de validite. Seul authorization_id change, et avec lui le chemin canonique de l'artefact, que la base contraint a en deriver.",
+  "what_is_not_claimed": "Les enveloppes ne sont PAS identiques octet pour octet : authorization_id y figure, donc le sha256 de l'artefact differe. Pretendre l'inverse serait faux. L'invariance porte sur le metier, et elle est verifiee champ par champ par le test du lot.",
+  "not_a_renewal_of": [
+    "la fenetre de validite — valid_from et valid_until sont recopies tels quels",
+    "les droits, les exclusions et les audiences",
+    "la release V2, qui n'est pas touchee"
+  ],
+  "count": 11,
+  "mapping": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-dgemc-terminale-option",
+        "artifact_sha256": "029781d7c40d60d9c1c8addf8eaaccb950d0633cdf5fa14981eed4b6ca3ae8f5"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-dgemc-terminale-option-r2",
+        "artifact_sha256": "881deb51b2bb39b26f4bf4f902557a957e1b70afefe48f957e59a66a554cc205"
+      }
+    },
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-hggsp-premiere-specialite",
+        "artifact_sha256": "c0d644c862f05b7ef25ca6c7616695d33a552b527218f90837f7c6e31726f07d"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-hggsp-premiere-specialite-r2",
+        "artifact_sha256": "1b876fecfe3df14ffa018514bc14503ac4b6b9925bb828f9a1c6b4d22189ba7a"
+      }
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-hggsp-terminale-specialite",
+        "artifact_sha256": "abf716aef45d942f1cc4835adfff73a5fa6524a949e05162c075bc2e7f9cf8df"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-hggsp-terminale-specialite-r2",
+        "artifact_sha256": "1bfab6ba75d03fc2ff79b465dc2b87bd31f6b5241cc24e99cb8e4cf1a691c1bb"
+      }
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-hlp-premiere-specialite",
+        "artifact_sha256": "e718688f650942e181d8a4710e4b48e156aa441840de32c263e75b8f0b35a747"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-hlp-premiere-specialite-r2",
+        "artifact_sha256": "04a459599b99ebae183072b08c9eaf1e8383c95f55499cd5c0e8b537be264557"
+      }
+    },
+    {
+      "collection": "rag_nexus_hlp_terminale_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-hlp-terminale-specialite",
+        "artifact_sha256": "726cd12a6de75867af805e0ceb5b6e03c8705dec4496f6150803df771cfdab63"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-hlp-terminale-specialite-r2",
+        "artifact_sha256": "dbe2ee9092d39e3699a298efd9007327b1c07b8cea32894ec9dcfec6e57a8aab"
+      }
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-nsi-premiere-specialite",
+        "artifact_sha256": "54ca20630eb3f5a5a10a6697cd4e46ec36d7cc99d4ab8b733297e78a3719d8a9"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-nsi-premiere-specialite-r2",
+        "artifact_sha256": "5d3ca10c405a757123ce36dd3d82d56623ee8c6ce0acd1c4949c04cf0896e00b"
+      }
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-nsi-terminale-specialite",
+        "artifact_sha256": "2fd82b4122e09599a758ea853861a57764f85a70009fc889be212fa5120e7234"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-nsi-terminale-specialite-r2",
+        "artifact_sha256": "99e92b3799a1140708efffea389a02e634f8aa97c607bb4d75bb09e95fd3203d"
+      }
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-ses-premiere-specialite",
+        "artifact_sha256": "746fc9101fbf162c5e3a47e2f6418e0046cea76eb73cb3da1330dc94eeb3b4c7"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-ses-premiere-specialite-r2",
+        "artifact_sha256": "47e427264065b73df90f5567e0e68b6be6901e22023e3bb02bceb403deec8188"
+      }
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-ses-terminale-specialite",
+        "artifact_sha256": "52e41766a2913a8d7334e1d388f6ad36e05de4660da87ad9274fa6faecdc1307"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-ses-terminale-specialite-r2",
+        "artifact_sha256": "2bcbf459c8fbc98a284fd315534a7560f99315a040c7cd22ced2cdb7e0b38711"
+      }
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-svt-premiere-specialite",
+        "artifact_sha256": "47c9107710037aeaad5a096c2a227fa5203485b2aa7be7c2c8ba022469fcc442"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-svt-premiere-specialite-r2",
+        "artifact_sha256": "7f4036bded653f90b470833ea895dce7cd13debe2481f1b45d53151c1ee345e2"
+      }
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "ancien": {
+        "authorization_id": "lot41a-staging-v2-svt-terminale-specialite",
+        "artifact_sha256": "b8ef5a80a760908de99a26b6ec561cea86be2a35617d5f447eb3f0b6da9ab1a6"
+      },
+      "nouveau": {
+        "authorization_id": "lot41a-staging-v2-svt-terminale-specialite-r2",
+        "artifact_sha256": "e6918d1358a482797332470dc98400443ebf3a39c40fd0077bf836d3b2fecc39"
+      }
+    }
+  ]
+}

@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+
+from _lot41a_active_set import artefacts_actifs
 import yaml
 
 RACINE = Path(__file__).resolve().parents[3]
@@ -65,7 +67,7 @@ def _collections_de_la_release() -> set[str]:
 
 def _artefacts() -> dict[str, Any]:
     out = {}
-    for chemin in sorted(AUTORISATIONS.glob(f"{PREFIXE}*.json")):
+    for chemin in artefacts_actifs(PREFIXE):
         out[chemin.name] = parse_scope_authorization_artifact(chemin.read_bytes())
     return out
 
@@ -124,7 +126,7 @@ def test_un_identifiant_non_canonique_est_refuse() -> None:
 
 def test_les_octets_commits_sont_canoniques(tmp_path: Path) -> None:
     """Un seul octet modifié et la décision n'est plus celle qui a été relue."""
-    for chemin in sorted(AUTORISATIONS.glob(f"{PREFIXE}*.json")):
+    for chemin in artefacts_actifs(PREFIXE):
         brut = chemin.read_bytes()
         artefact = parse_scope_authorization_artifact(brut)
         assert artefact.canonical_bytes() == brut, chemin.name
@@ -139,7 +141,7 @@ def test_les_octets_commits_sont_canoniques(tmp_path: Path) -> None:
     ],
 )
 def test_toute_alteration_d_octet_casse_la_canonicite(alteration: Any) -> None:
-    chemin = sorted(AUTORISATIONS.glob(f"{PREFIXE}*.json"))[0]
+    chemin = artefacts_actifs(PREFIXE)[0]
     with pytest.raises(CanonicalArtifactError):
         parse_scope_authorization_artifact(alteration(chemin.read_bytes()))
 
@@ -153,7 +155,7 @@ def test_l_artefact_ne_porte_jamais_sa_propre_approbation() -> None:
     """
     interdits = {"evidence_reviewer", "evidence_head_sha", "evidence_challenge",
                  "evidence_review_id", "approved_by", "reviewer"}
-    for chemin in sorted(AUTORISATIONS.glob(f"{PREFIXE}*.json")):
+    for chemin in artefacts_actifs(PREFIXE):
         document = json.loads(chemin.read_text(encoding="utf-8"))
         assert interdits & set(document) == set(), chemin.name
 
@@ -221,7 +223,7 @@ def test_le_manifeste_de_transfert_du_corpus_est_present_et_intact() -> None:
 
 def test_aucune_autorisation_ne_nomme_une_ressource_de_production() -> None:
     interdits = ("rag_pgvector", "infra_rag_net", "PG_RAG_DSN_PROD", "nexus_prod_db")
-    for chemin in sorted(AUTORISATIONS.glob(f"{PREFIXE}*.json")):
+    for chemin in artefacts_actifs(PREFIXE):
         texte = chemin.read_text(encoding="utf-8")
         for mot in interdits:
             assert mot not in texte, (chemin.name, mot)
@@ -229,7 +231,7 @@ def test_aucune_autorisation_ne_nomme_une_ressource_de_production() -> None:
 
 def test_aucune_autorisation_ne_contient_de_secret() -> None:
     """Ni mot de passe, ni DSN complet : une décision n'est pas un identifiant."""
-    for chemin in sorted(AUTORISATIONS.glob(f"{PREFIXE}*.json")):
+    for chemin in artefacts_actifs(PREFIXE):
         texte = chemin.read_text(encoding="utf-8")
         assert "postgresql://" not in texte, chemin.name
         assert "password" not in texte.lower(), chemin.name
