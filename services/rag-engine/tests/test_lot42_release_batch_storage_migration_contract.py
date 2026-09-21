@@ -35,7 +35,7 @@ CODE = _sans_commentaires(SQL)
 
 def test_la_migration_014_est_la_tete_declaree() -> None:
     assert (MIGRATIONS / "HEAD").read_text(encoding="utf-8") == (
-        "014_lot42_release_batch_storage\n"
+        "015_sealed_trusted_review_evidence\n"
     )
     assert MIGRATION.is_file()
     assert ROLLBACK.is_file()

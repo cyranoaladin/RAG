@@ -49,12 +49,20 @@ from nexus_contracts.authority_artifacts import (
 )
 from nexus_contracts.document import Rights
 from nexus_contracts.ingestion import ResourceScope
+from nexus_contracts.trusted_review_evidence import (
+    SealedTrustedReviewEvidenceError,
+    parse_sealed_trusted_review_evidence,
+    require_challenge_is_self_consistent,
+    require_evidence_matches_authorization,
+    require_trusted_reviewer,
+)
 from psycopg.types.json import Jsonb
 
 from .github_authority import (
     GitHubAuthorityError,
     ReviewVerification,
     fetch_blob_at_ref,
+    load_trusted_reviewers,
     verify_review,
 )
 
@@ -79,6 +87,7 @@ _AUTHORIZATION_COLUMNS = """
     evidence_repository, evidence_pull_request, evidence_base_sha,
     evidence_head_sha, evidence_review_id, evidence_reviewer,
     evidence_submitted_at, evidence_challenge,
+    review_evidence, review_evidence_digest,
     revoked_at, revocation_reason
 """
 
@@ -168,6 +177,115 @@ def _require_equal(*, field: str, stored: Any, live: Any, authorization_id: str)
             f"not equal the live value {live!r} — the persisted decision and the "
             "GitHub review no longer describe the same event"
         )
+
+
+def _allowed_reviewers() -> tuple[str, ...]:
+    """L'allowlist gouvernée, relue hors ligne.
+
+    C'est la part de la vérification qui reste **vivante** : retirer une
+    identité de l'allowlist éteint toutes les autorisations qu'elle a
+    signées, sans avoir à les révoquer une par une."""
+    return load_trusted_reviewers()
+
+
+def _require_evidence_is_not_revoked(
+    conn: psycopg.Connection, *, digest: str, authorization_id: str
+) -> None:
+    """Une preuve scellée ne s'éteint pas d'elle-même : on interroge le
+    registre. Sans cette lecture, le scellement créerait des autorisations
+    éternelles."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT revoked_at, revoked_by, reason FROM "
+            "ingestion_control.revoked_review_evidence "
+            "WHERE review_evidence_digest = %s",
+            (digest,),
+        )
+        row = cur.fetchone()
+    if row is not None:
+        raise ScopeAuthorizationDeniedError(
+            f"authorization {authorization_id!r}: its sealed review evidence was "
+            f"revoked at {row[0]!r} by {row[1]!r} (reason={row[2]!r})"
+        )
+
+
+def _verify_sealed_review(
+    conn: psycopg.Connection, row: dict[str, Any]
+) -> ReviewVerification:
+    """Vérifie la preuve scellée — hors ligne, sauf le registre de révocation.
+
+    Huit contrôles, et chacun refuse :
+
+    1. la preuve existe — une ligne enregistrée sous l'ancien modèle n'en a
+       pas, et n'en aura jamais : elle est refusée, jamais tolérée ;
+    2. elle valide strictement contre son contrat ;
+    3. son digest est celui qui a été enregistré avec elle ;
+    4. son challenge se **redérive** de ses propres dimensions ;
+    5. son relecteur est encore dans l'allowlist gouvernée ;
+    6. le contexte de protection de branche y est scellé au vert ;
+    7. elle décrit la même revue que les colonnes typées de la ligne ;
+    8. elle n'a pas été révoquée.
+    """
+    authorization_id = row["authorization_id"]
+    raw = row.get("review_evidence")
+    digest_enregistre = row.get("review_evidence_digest")
+    if raw is None or digest_enregistre is None:
+        raise ScopeAuthorizationDeniedError(
+            f"authorization {authorization_id!r} carries no sealed trusted review "
+            "evidence — it was recorded under the previous model, where the "
+            "review was re-verified live at every use. Such a proof cannot be "
+            "reconstructed after the fact: re-register the authorization "
+            "against an open, approved pull request (ADR-0058)"
+        )
+
+    try:
+        evidence = parse_sealed_trusted_review_evidence(raw)
+        observe = evidence.digest()
+        if observe != digest_enregistre:
+            raise SealedTrustedReviewEvidenceError(
+                f"sealed evidence digest mismatch: recorded {digest_enregistre}, "
+                f"computed {observe}"
+            )
+        require_challenge_is_self_consistent(evidence)
+        require_trusted_reviewer(evidence, allowed_reviewers=_allowed_reviewers())
+        require_evidence_matches_authorization(
+            evidence,
+            authorization_id=authorization_id,
+            artifact_path=row["artifact_path"],
+            artifact_blob_sha=row["artifact_blob_sha"],
+            repository=row["evidence_repository"],
+            pull_request=row["evidence_pull_request"],
+            base_sha=row["evidence_base_sha"],
+            head_sha=row["evidence_head_sha"],
+            reviewer=row["evidence_reviewer"],
+            review_id=row["evidence_review_id"],
+            challenge=row["evidence_challenge"],
+        )
+    except SealedTrustedReviewEvidenceError as exc:
+        raise ScopeAuthorizationDeniedError(
+            f"authorization {authorization_id!r}: {exc}"
+        ) from exc
+
+    _require_evidence_is_not_revoked(
+        conn, digest=digest_enregistre, authorization_id=authorization_id
+    )
+
+    return ReviewVerification(
+        approved=True,
+        reason="sealed_trusted_review_evidence",
+        repository=evidence.repository,
+        pull_request=evidence.pull_request,
+        base_sha=evidence.pull_request_base_sha,
+        head_sha=evidence.pull_request_head_sha,
+        reviewer=evidence.reviewer,
+        review_id=evidence.review_id,
+        submitted_at=_canonical_submitted_at(evidence.review_submitted_at),
+        challenge=evidence.challenge,
+    )
+
+
+def _canonical_submitted_at(value: datetime) -> str:
+    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
 def _verify_live_review(row: dict[str, Any]) -> ReviewVerification:
@@ -397,7 +515,11 @@ def verify_scope_authorization(
             "does not name"
         )
 
-    live = _verify_live_review(row)
+    # ADR-0058 : la preuve SCELLÉE, pas l'état courant de la pull request.
+    # Ce qui était exigé en direct l'est toujours — mais au moment de
+    # l'enregistrement, quand la PR était encore ouverte. Ici, on vérifie
+    # ce qui a été scellé alors, et qu'il n'a pas été révoqué depuis.
+    live = _verify_sealed_review(conn, row)
     artifact = _verify_reviewed_artifact(row, live=live)
     _require_row_matches_artifact(row, artifact)
 

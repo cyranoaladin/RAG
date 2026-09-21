@@ -300,6 +300,11 @@ def _collect_reviews(
     return reviews, False
 
 
+#: Le contexte requis par la protection de branche. Le scellement refuse
+#: tout autre nom : un contexte homonyme ne serait pas celui-là.
+HEAD_PINNED_CONTEXT = "trusted-human-review/head-pinned"
+
+
 @dataclass(frozen=True)
 class ReviewVerification:
     """Résultat d'une vérification live. ``decision`` est le
@@ -316,6 +321,30 @@ class ReviewVerification:
     review_id: int | None
     submitted_at: str | None
     challenge: str | None
+    #: Faits complémentaires nécessaires au SCELLEMENT (ADR-0058).
+    #:
+    #: ``TrustedReviewDecision`` porte le verdict ; il ne porte ni l'auteur,
+    #: ni la ``base_ref``, ni le ``node_id`` de la revue, ni le statut du
+    #: contexte de protection. Ils sont dérivés ici, des documents que
+    #: ``verify_review`` a DÉJÀ lus — plutôt qu'en élargissant le contrat de
+    #: décision d'ADR-0025, ou en ajoutant un second aller-retour.
+    author: str | None = None
+    base_ref: str | None = None
+    review_node_id: str | None = None
+    head_pinned_status: str | None = None
+    head_pinned_context: str = HEAD_PINNED_CONTEXT
+
+
+def load_trusted_reviewers() -> tuple[str, ...]:
+    """L'allowlist gouvernée des relecteurs — **sans aucun accès réseau**.
+
+    ``verify_review`` lit la même configuration, mais pour une décision
+    live. Celle-ci sert à la vérification d'une preuve scellée (ADR-0058) :
+    la revue a déjà eu lieu, seule l'habilitation du signataire reste à
+    confronter à l'allowlist courante."""
+    trusted_review = _load_trusted_review_module()
+    config = trusted_review.load_config(_trusted_reviewers_config_path())
+    return tuple(config.reviewers)
 
 
 def verify_review(
@@ -367,6 +396,24 @@ def verify_review(
         final_doc = client.get_json(
             f"repos/{repository}/pulls/{pull_request}", deadline=deadline
         )
+        # Le contexte requis de la protection de branche, sur ce head exact.
+        # Sceller une revue dont la porte n'était pas passée scellerait un
+        # fait qui n'a pas eu lieu (ADR-0058).
+        #
+        # Cette lecture est délibérément NON FATALE. Elle a été ajoutée à une
+        # fonction dont tous les appelants existants attendent un verdict de
+        # revue : la faire échouer transformerait un refus propre — « PR
+        # fermée », « revue retirée » — en erreur de transport, et masquerait
+        # la vraie raison. Un statut indisponible laisse donc
+        # ``head_pinned_status`` à None, et c'est le SCELLEMENT qui refuse,
+        # avec son propre message.
+        try:
+            statut = client.get_json(
+                f"repos/{repository}/commits/{_revision(pull_request_doc)[0]}/status",
+                deadline=deadline,
+            )
+        except GitHubAuthorityError:
+            statut = {}
 
     if _revision(final_doc) != _revision(pull_request_doc):
         return ReviewVerification(
@@ -382,6 +429,21 @@ def verify_review(
             challenge=None,
         )
 
+    etats = {
+        str(entree.get("context")): str(entree.get("state"))
+        for entree in (statut.get("statuses") or [])
+    }
+    node_id = next(
+        (
+            str(review.get("node_id"))
+            for review in reviews
+            if decision.review_id is not None
+            and review.get("id") == decision.review_id
+            and review.get("node_id")
+        ),
+        None,
+    )
+
     verification = ReviewVerification(
         approved=bool(decision.approved),
         reason=str(decision.reason),
@@ -393,6 +455,10 @@ def verify_review(
         review_id=decision.review_id,
         submitted_at=decision.submitted_at,
         challenge=decision.challenge,
+        author=str((pull_request_doc.get("user") or {}).get("login") or "") or None,
+        base_ref=str((pull_request_doc.get("base") or {}).get("ref") or "") or None,
+        review_node_id=node_id,
+        head_pinned_status=etats.get(HEAD_PINNED_CONTEXT),
     )
 
     # Liaison au head attendu : la décision d'ADR-0025 porte déjà sur le
@@ -577,5 +643,7 @@ __all__ = [
     "ReviewVerification",
     "fetch_blob_at_ref",
     "pull_request_actor_context",
+    "HEAD_PINNED_CONTEXT",
+    "load_trusted_reviewers",
     "verify_review",
 ]

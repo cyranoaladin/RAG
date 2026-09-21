@@ -300,11 +300,14 @@ class TestScopeAuthorizationContentAllowlistRollback:
                 protocol_version="LOT41A-V1",
                 allowed_content_sha256=None,
             )
-            # Ordre inverse strict, désormais depuis 013 : rembobiner
-            # jusqu'à 009 sans défaire 013 laisserait sa version enregistrée
+            # Ordre inverse strict, désormais depuis 015 : rembobiner
+            # jusqu'à 009 sans défaire 015 laisserait sa version enregistrée
             # dans ``schema_migrations`` alors que ses contraintes ont
-            # disparu avec la colonne que 012 supprime — le re-bootstrap
-            # sauterait 013 et s'arrêterait à la tête 12.
+            # disparu avec les colonnes que le rembobinage supprime — le
+            # re-bootstrap sauterait la migration et s'arrêterait sous sa
+            # tête déclarée. Le même piège vaut pour 013, et a déjà été
+            # payé une fois.
+            _apply_rollback_file(conn, version=15)
             _apply_rollback_file(conn, version=14)
             _apply_rollback_file(conn, version=13)
             _apply_rollback_file(conn, version=12)
@@ -344,9 +347,9 @@ class TestScopeAuthorizationContentAllowlistRollback:
 
         reapply = _run_bootstrap(pg_container)
         assert reapply.returncode == 0, reapply.stderr
-        # 009 -> 014 : six migrations réappliquées depuis l'ajout de 014.
-        assert "MIGRATIONS_APPLIED=6" in reapply.stdout
-        assert "SCHEMA_HEAD=14" in reapply.stdout
+        # 009 -> 015 : sept migrations réappliquées depuis l'ajout de 015.
+        assert "MIGRATIONS_APPLIED=7" in reapply.stdout
+        assert "SCHEMA_HEAD=15" in reapply.stdout
 
         with psycopg.connect(_superuser_dsn(pg_container)) as conn, conn.cursor() as cur:
             cur.execute(

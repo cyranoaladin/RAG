@@ -81,6 +81,10 @@ def approved_review(
 ) -> dict[str, Any]:
     return {
         "id": review_id,
+        # GitHub rend un identifiant de noeud GraphQL en plus de l'id
+        # numerique. Le scellement (ADR-0058) le conserve : deux
+        # representations de la meme revue valent mieux qu'une.
+        "node_id": f"PRR_local_{review_id}",
         "state": "APPROVED",
         "body": challenge_for(pull_request, reviewer),
         "commit_id": pull_request["head"]["sha"],
@@ -104,6 +108,11 @@ class LocalGitHub:
         #: stocké séparément : un test ne peut pas mentir sur l'identité Git
         #: du contenu qu'il sert.
         self.blobs: dict[tuple[str, str], bytes] = {}
+        #: Statuts de commit servis par ``/commits/{sha}/status``. Par
+        #: defaut, le contexte de protection est au vert sur tout head
+        #: connu : c'est l'etat nominal d'une PR approuvee. Un test qui
+        #: veut le contraire le dit explicitement (``fail_head_pinned``).
+        self.head_pinned_state: str = "success"
         self.delay_s: float = 0.0
         self.force_status: int | None = None
         self.require_token: str | None = VALID_TOKEN
@@ -132,6 +141,10 @@ class LocalGitHub:
     def put_blob(self, *, path: str, ref: str, content: bytes) -> str:
         self.blobs[(path, ref)] = content
         return git_blob_sha(content)
+
+    def fail_head_pinned(self, state: str = "failure") -> None:
+        """Le contexte requis n'est plus au vert sur le head."""
+        self.head_pinned_state = state
 
     def dismiss_reviews(self, number: int) -> None:
         """Ajoute une DISMISSED strictement POSTÉRIEURE à la dernière review
@@ -224,6 +237,24 @@ def _make_handler(state: LocalGitHub) -> type[BaseHTTPRequestHandler]:
                 number = int(segments[4])
                 doc = state.pulls.get(number)
                 self._send(200 if doc else 404, doc or {"message": "Not Found"})
+                return
+
+            # /repos/{owner}/{repo}/commits/{sha}/status
+            if len(segments) == 6 and segments[3] == "commits" \
+                    and segments[5] == "status":
+                # GitHub rend 200 pour tout commit du depot, avec une liste
+                # de statuts eventuellement vide — pas 404. Le stub fait de
+                # meme : inventer un 404 ici ferait echouer des chemins qui,
+                # en vrai, refusent proprement pour une autre raison.
+                sha = segments[4]
+                self._send(200, {
+                    "sha": sha,
+                    "state": state.head_pinned_state,
+                    "statuses": [{
+                        "context": "trusted-human-review/head-pinned",
+                        "state": state.head_pinned_state,
+                    }],
+                })
                 return
 
             # /repos/{owner}/{repo}/collaborators/{login}/permission
