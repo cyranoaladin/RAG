@@ -222,3 +222,94 @@ def test_un_fichier_different_de_son_empreinte_est_refuse_avant_tout(
     with pytest.raises(SealedEvidenceError) as erreur:
         _charger(chemin, "f" * 64)
     assert "differing entries" not in str(erreur.value)
+
+
+# --- 6 — noms répétés dans un objet : refusés AVANT toute réconciliation ---
+#
+# `json.loads` conserve par défaut la DERNIÈRE valeur d'un nom répété. Sans
+# `object_pairs_hook`, l'entrée ci-dessous se lirait comme un simple CLEARED
+# et `_pii_entry_identity` comparerait une ambiguïté déjà effacée.
+
+
+def _fichier_brut(tmp_path: Path, texte: str) -> tuple[Path, str]:
+    brut = texte.encode("utf-8")
+    chemin = tmp_path / "pii_evidence.json"
+    chemin.write_bytes(brut)
+    return chemin, hashlib.sha256(brut).hexdigest()
+
+
+_ENVELOPPE = (
+    '{"evidence_kind":"REAL_CORPUS_PII_SCAN",'
+    f'"corpus_manifest_sha256":"{CORPUS}",'
+    '"policy_sha256":"dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",'
+    '"remote_access_mode":"READ_ONLY","remote_write_operations":0,'
+    '"raw_pii_in_output":false,"raw_pii_in_logs":false,'
+    '"results":[%s]}'
+)
+
+
+def test_un_nom_repete_a_la_racine_d_une_entree_est_refuse(tmp_path: Path) -> None:
+    entree = (
+        f'{{"content_sha256":"{SHA_A}",'
+        '"status":"DETECTED_RECORDED","status":"CLEARED","pii_detected":false}'
+    )
+    chemin, digest = _fichier_brut(tmp_path, _ENVELOPPE % entree)
+    with pytest.raises(SealedEvidenceError, match="repeated name 'status'"):
+        _charger(chemin, digest)
+
+
+def test_un_nom_repete_dans_un_objet_imbrique_est_refuse(tmp_path: Path) -> None:
+    """Le hook est appelé pour CHAQUE objet, imbriqués compris."""
+    entree = (
+        f'{{"content_sha256":"{SHA_A}","status":"CLEARED","pii_detected":false,'
+        '"scan":{"pages":7,"pages":9}}'
+    )
+    chemin, digest = _fichier_brut(tmp_path, _ENVELOPPE % entree)
+    with pytest.raises(SealedEvidenceError, match="repeated name 'pages'"):
+        _charger(chemin, digest)
+
+
+def test_un_nom_repete_dans_l_enveloppe_est_refuse(tmp_path: Path) -> None:
+    texte = (_ENVELOPPE % "").replace(
+        '"raw_pii_in_logs":false', '"raw_pii_in_logs":true,"raw_pii_in_logs":false'
+    )
+    chemin, digest = _fichier_brut(tmp_path, texte)
+    with pytest.raises(SealedEvidenceError, match="repeated name"):
+        _charger(chemin, digest)
+
+
+def test_le_diagnostic_des_noms_repetes_est_distinct(tmp_path: Path) -> None:
+    """Deux défauts, deux messages : on ne confond pas un objet ambigu avec
+    des occurrences divergentes."""
+    entree = (
+        f'{{"content_sha256":"{SHA_A}","status":"CLEARED","status":"CLEARED",'
+        '"pii_detected":false}'
+    )
+    chemin, digest = _fichier_brut(tmp_path, _ENVELOPPE % entree)
+    with pytest.raises(SealedEvidenceError) as erreur:
+        _charger(chemin, digest)
+    assert "differing entries" not in str(erreur.value)
+    assert "ambiguous" in str(erreur.value)
+
+
+@pytest.mark.parametrize("litteral", ["NaN", "Infinity", "-Infinity"])
+def test_un_nombre_non_conforme_est_refuse(tmp_path: Path, litteral: str) -> None:
+    """Python accepte ces littéraux par extension ; le JSON ne les définit
+    pas, et ``NaN != NaN`` rendrait l'équivalence indéfinie."""
+    entree = (
+        f'{{"content_sha256":"{SHA_A}","status":"CLEARED","pii_detected":false,'
+        f'"characters_scanned":{litteral}}}'
+    )
+    chemin, digest = _fichier_brut(tmp_path, _ENVELOPPE % entree)
+    with pytest.raises(SealedEvidenceError, match="non-conforming JSON number"):
+        _charger(chemin, digest)
+
+
+def test_les_octets_verifies_sont_ceux_qui_sont_analyses(tmp_path: Path) -> None:
+    """Une seule lecture : l'empreinte et l'analyse portent sur la même
+    matière. Un fichier substitué entre les deux ne peut pas passer."""
+    chemin, digest = _fichier(tmp_path, [_entree(), _entree()])
+    assert _charger(chemin, digest)._occurrences == {SHA_A: 2}
+    chemin.write_bytes(json.dumps({"evidence_kind": "AUTRE"}).encode("utf-8"))
+    with pytest.raises(SealedEvidenceError, match="hashes to"):
+        _charger(chemin, digest)

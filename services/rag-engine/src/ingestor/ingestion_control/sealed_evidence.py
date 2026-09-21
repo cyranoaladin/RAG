@@ -93,6 +93,23 @@ def _digest(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _require_digest_of_bytes(
+    raw: bytes, expected: str, *, label: str, name: str
+) -> str:
+    """Même contrôle que ``_require_digest``, sur des octets déjà en main."""
+    if not _SHA256.match(expected):
+        raise SealedEvidenceError(
+            f"expected {label} digest must be a lowercase 64-hex SHA-256"
+        )
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != expected:
+        raise SealedEvidenceError(
+            f"{label} at {name} hashes to {actual}, not the expected "
+            f"{expected} — the file on disk is not the evidence that was approved"
+        )
+    return actual
+
+
 def _require_digest(path: Path, expected: str, *, label: str) -> str:
     if not _SHA256.match(expected):
         raise SealedEvidenceError(
@@ -441,6 +458,58 @@ class ReviewAuthority:
         )
 
 
+def _refuse_duplicate_names(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """``object_pairs_hook`` : refuse un objet JSON aux noms répétés.
+
+    Sans ce contrôle, ``json.loads`` conserve la **dernière** valeur et
+    ``{"status":"DETECTED_RECORDED","status":"CLEARED"}`` se lirait comme un
+    simple ``CLEARED`` — l'ambiguïté disparaîtrait avant toute comparaison,
+    et l'équivalence structurelle ne prouverait plus rien.
+
+    La RFC 8259 signale ces objets comme non interopérables ; le dépôt les
+    refuse. La règle est distincte du regroupement des occurrences
+    équivalentes de ``results`` : elle porte sur les NOMS dans un objet, pas
+    sur la répétition d'éléments dans un tableau, et s'applique aussi aux
+    objets imbriqués puisque le hook est appelé pour chacun d'eux.
+    """
+    vus: set[str] = set()
+    for nom, _ in pairs:
+        if nom in vus:
+            raise SealedEvidenceError(
+                f"the evidence carries a JSON object with the repeated name "
+                f"{nom!r} — such an object is ambiguous and is refused before "
+                "any reconciliation"
+            )
+        vus.add(nom)
+    return dict(pairs)
+
+
+def _refuse_non_conforming_number(literal: str) -> float:
+    """``parse_constant`` : ``NaN``/``Infinity`` ne sont pas du JSON.
+
+    Python les accepte par extension. Une valeur non conforme ne doit pas
+    entrer dans une preuve, ni devenir une valeur dont la comparaison
+    d'équivalence serait indéfinie — ``NaN != NaN``.
+    """
+    raise SealedEvidenceError(
+        f"the evidence carries the non-conforming JSON number {literal!r}"
+    )
+
+
+def _load_strict_json(raw: bytes, *, label: str) -> Any:
+    """Décode **les octets déjà vérifiés**, jamais une relecture du disque."""
+    try:
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_refuse_duplicate_names,
+            parse_constant=_refuse_non_conforming_number,
+        )
+    except UnicodeDecodeError as exc:
+        raise SealedEvidenceError(f"{label} is not valid UTF-8: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SealedEvidenceError(f"{label} is not valid JSON: {exc}") from exc
+
+
 def _pii_entry_identity(entry: Any) -> str:
     """Identité logique d'une entrée de scan PII, pour la seule réconciliation
     des répétitions historiques.
@@ -510,10 +579,14 @@ class VerifiedPIIEvidenceRegistry:
         expected_repository: str = CANONICAL_REPOSITORY,
         now: datetime | None = None,
     ) -> VerifiedPIIEvidenceRegistry:
-        evidence_sha = _require_digest(
-            path, expected_evidence_sha256, label="PII evidence"
+        # Les octets sont lus UNE fois : l'empreinte vérifiée et le document
+        # analysé portent sur la même matière. Vérifier un fichier puis en
+        # relire un autre laisserait passer une substitution entre les deux.
+        raw = path.read_bytes()
+        evidence_sha = _require_digest_of_bytes(
+            raw, expected_evidence_sha256, label="PII evidence", name=path.name
         )
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = _load_strict_json(raw, label="PII evidence")
 
         if document.get("evidence_kind") != PII_EVIDENCE_KIND:
             raise SealedEvidenceError(
