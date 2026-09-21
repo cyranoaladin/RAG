@@ -76,14 +76,18 @@ IMAGE_WORKER_REQUISE = {
     "build_on_nexus_prod": "forbidden",
     "build_workflow": ".github/workflows/production-image-provenance.yml",
     "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
-    #: CH7B — le digest autorise change, et c'est le seul champ de l'image
-    #: qui change. L'image de CH6 precedait les lots CQ, CR et CH7A : elle ne
-    #: porte ni la chaine de readiness de repetition, ni la garde d'identite
-    #: d'image, et son point d'entree exige la chaine de PRODUCTION.
+    #: CS — le digest change une seconde fois, et pour la meme raison de
+    #: fond : une image epinglee conserve exactement son contenu, donc
+    #: fusionner du code sur main ne la met pas a jour. L'image de CH7B
+    #: precedait ADR-0058 ; elle porte l'ancien modele de revue vivante et
+    #: refuserait toute autorisation scellee.
     "image_digest": (
-        "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb"
+        "sha256:431264a02e2e2a5484cef7d5ac620a3aa7fa16f66be1497fde886dfb7f83ccd8"
     ),
-    "source_commit_sha": "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
+    "source_commit_sha": "39f1314ec3576eb72a5ad0650938eb64252be3a7",
+    #: L'image doit porter ADR-0058 : c'est ce qui la distingue de celle
+    #: qu'elle remplace, et c'est verifiable dans ses octets.
+    "carries_adr_0058": True,
     "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
     "contracts_version": "0.19.0",
     "allowed_entrypoint_module": (
@@ -103,7 +107,17 @@ IMAGE_WORKER_REQUISE = {
 #: autorisation qui redeviendrait celle de CH6 serait refusee par la garde
 #: ci-dessous, au lieu de passer inapercue.
 IMAGE_WORKER_REMPLACEE = (
-    "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029"
+    "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb"
+)
+
+#: Les digests definitivement ecartes. Y revenir n'est jamais un retour en
+#: arriere neutre : chacun precede une garde que le suivant apporte.
+DIGESTS_ECARTES = (
+    # CH6 : construite avant CQ/CR/CH7A — ni readiness de repetition, ni
+    # garde d'identite d'image.
+    "sha256:2ce7533d00e171f47d42a579ad6afe1d8b5d51e91c63f14cf6ae051592109029",
+    # CH7B : construite avant ADR-0058 — ancien modele de revue vivante.
+    "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
 )
 #: Les deux workers restent hors de portee de cette autorisation. Worker B
 #: publierait ; Worker A creerait des jobs par URL, ce que la release scellee
@@ -153,10 +167,11 @@ def _ecarts_image_worker(image: object) -> list[str]:
             "une unite d'execution"
         )
 
-    if image.get("image_digest") == IMAGE_WORKER_REMPLACEE:
+    if image.get("image_digest") in DIGESTS_ECARTES:
         ecarts.append(
-            "image worker : le digest de CH6 a ete remis en place — il precede "
-            "la chaine de readiness de repetition et ne peut plus etre autorise"
+            f"image worker : le digest {image.get('image_digest')} a ete ecarte "
+            "et ne peut plus etre autorise — chacun precede une garde que son "
+            "successeur apporte"
         )
     if image.get("supersedes_image_digest") != IMAGE_WORKER_REMPLACEE:
         ecarts.append(
@@ -220,7 +235,10 @@ def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
     declaration = document.get("authorization_statement") or ""
     for exigence in (
         "staging cloisonne uniquement",
-        "f66a04cb364191c53eb56c9a9e1208e9e386ae16",
+        # La declaration doit nommer le commit de BUILD de l'image autorisee,
+        # pas celui de l'amendement qui l'autorise : sans quoi chaque commit
+        # documentaire imposerait une reconstruction.
+        "39f1314ec3576eb72a5ad0650938eb64252be3a7",
         "ni build sur nexus-prod",
         "ni tag non epingle",
         "ni Worker B",

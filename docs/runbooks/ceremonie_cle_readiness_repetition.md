@@ -75,9 +75,21 @@ gouvernance.
 
 ## Étape 4 — signer le manifeste
 
+> **`--merge-sha` est le commit dont l'image a été CONSTRUITE**, pas celui de
+> l'amendement qui l'autorise. C'est ce que le contrat déclare — « le commit
+> de `main` dont l'image worker a été construite » — et c'est ce qui évite une
+> boucle : si le manifeste devait nommer le commit d'autorisation, chaque PR
+> documentaire autorisant une image imposerait de la reconstruire pour que le
+> manifeste redevienne vrai. Le digest de l'image et son commit de build sont
+> lus ensemble dans l'inventaire `NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1` du run
+> qui l'a produite.
+>
+> Une première signature a nommé le commit d'autorisation : le manifeste
+> désignait alors un code que l'image ne portait pas, et rien ne le vérifiait.
+
 ```bash
 python3 services/rag-engine/scripts/sign_staging_readiness_manifest_cli.py \
-  --merge-sha <commit de main portant le point d'entree> \
+  --merge-sha <source_commit_sha de l'inventaire de build de l'image> \
   --worker-image ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:<digest> \
   --allowed-release-id production-profile-gate-2026-2027-v2 \
   --release-manifest-file services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v2/release-1b9eba0c0eb0ab13/profile_gate/production-profile-gate.release.json \

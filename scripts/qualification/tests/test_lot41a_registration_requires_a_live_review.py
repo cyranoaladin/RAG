@@ -24,6 +24,8 @@ from typing import Any
 
 import pytest
 
+from _lot41a_active_set import artefacts_actifs
+
 RACINE = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(RACINE / "scripts/github"))
 
@@ -182,7 +184,7 @@ def test_un_relecteur_hors_allowlist_est_refuse() -> None:
 
 
 def _fichiers() -> list[Path]:
-    return sorted(AUTORISATIONS.glob(f"{PREFIXE}*.json"))
+    return artefacts_actifs(PREFIXE)
 
 
 def test_le_payload_metier_est_identique_a_celui_de_ch4() -> None:
