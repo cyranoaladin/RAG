@@ -44,7 +44,6 @@ try:
         GitHubAuthorityError,
         ReviewVerification,
         fetch_blob_at_ref,
-        fetch_sealing_facts,
         verify_review,
     )
 except (ImportError, ValueError):
@@ -55,7 +54,6 @@ except (ImportError, ValueError):
         GitHubAuthorityError,
         ReviewVerification,
         fetch_blob_at_ref,
-        fetch_sealing_facts,
         verify_review,
     )
 
@@ -207,15 +205,24 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
     # exact, artefact relu octet à octet. Ce qui change, c'est qu'on en
     # conserve désormais la preuve : l'usage ultérieur la vérifiera, au lieu
     # de redemander à une PR fermée depuis longtemps si elle est ouverte.
-    try:
-        facts = fetch_sealing_facts(
-            repository=live.repository,
-            pull_request=live.pull_request,
-            head_sha=live.head_sha,
-            review_id=int(live.review_id or 0),
+    #
+    # Les quatre faits complémentaires viennent de ``verify_review``, qui a
+    # déjà lu les documents qui les portent — pas d'un second aller-retour
+    # qui pourrait observer un autre état.
+    if live.head_pinned_status != "success":
+        print(
+            f"REVIEW_SEALING_REFUSED: required context {live.head_pinned_context} "
+            f"is {live.head_pinned_status!r} on head {live.head_sha} — a review "
+            "whose gate did not pass is never sealed",
+            file=sys.stderr,
         )
-    except GitHubAuthorityError as exc:
-        print(f"REVIEW_SEALING_FACTS_UNAVAILABLE: {exc}", file=sys.stderr)
+        return 1
+    if not live.author or not live.base_ref or not live.review_node_id:
+        print(
+            "REVIEW_SEALING_REFUSED: GitHub did not return the author, base ref "
+            "and review node id required to seal this review",
+            file=sys.stderr,
+        )
         return 1
 
     try:
@@ -223,24 +230,24 @@ def _cmd_record_authorization(args: argparse.Namespace) -> int:
             protocol_version=SEALED_TRUSTED_REVIEW_EVIDENCE_PROTOCOL,
             repository=live.repository,
             pull_request=live.pull_request,
-            pull_request_base_ref=facts.pull_request_base_ref,
+            pull_request_base_ref=live.base_ref,
             pull_request_base_sha=live.base_sha,
             pull_request_head_sha=live.head_sha,
-            pull_request_author=facts.pull_request_author,
+            pull_request_author=live.author,
             authorization_id=artifact.authorization_id,
             artifact_path=artifact.canonical_path(),
             artifact_sha256=digest,
             artifact_blob_sha=blob_sha,
             reviewer=str(live.reviewer),
             review_id=int(live.review_id or 0),
-            review_node_id=facts.review_node_id,
+            review_node_id=live.review_node_id,
             review_submitted_at=datetime.fromisoformat(
                 str(live.submitted_at).replace("Z", "+00:00")
             ),
             challenge_protocol=TRUSTED_REVIEW_CHALLENGE_PROTOCOL,
             challenge=str(live.challenge),
-            head_pinned_status=facts.head_pinned_status,
-            head_pinned_context=facts.head_pinned_context,
+            head_pinned_status=live.head_pinned_status,
+            head_pinned_context=live.head_pinned_context,
             recorded_at=datetime.now(UTC),
             recorder_version=RECORDER_VERSION,
         )

@@ -249,6 +249,15 @@ REVOKE UPDATE, DELETE, TRUNCATE ON ingestion_control.workflow_events FROM :"app_
 -- (rôles authority_role/attestor_role dédiés ci-dessus), en a le droit.
 GRANT SELECT ON ingestion_control.scope_authorizations TO :"app_role" ;
 GRANT SELECT ON ingestion_control.publication_attestations TO :"app_role" ;
+-- Migration 015 (ADR-0058) : depuis que la revue est SCELLÉE plutôt que
+-- revérifiée en direct, le registre de révocation est le seul moyen
+-- d'éteindre une preuve. Le worker doit donc pouvoir le LIRE à chaque
+-- usage — sans quoi une preuve révoquée continuerait d'autoriser. Il ne
+-- doit jamais pouvoir y écrire : révoquer est une décision humaine, prise
+-- sous le rôle d'autorité.
+GRANT SELECT ON ingestion_control.revoked_review_evidence TO :"app_role" ;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE
+    ON ingestion_control.revoked_review_evidence FROM :"app_role" ;
 -- Migration 011 : le runtime peut seulement ajouter/relever le pin exact
 -- produit par sa vérification GitHub live. La preuve est append-only :
 -- aucun rôle gouverné ne peut la corriger ou la supprimer après coup.
@@ -291,6 +300,13 @@ GRANT UPDATE (
     revocation_evidence_submitted_at, revocation_evidence_challenge
 ) ON ingestion_control.scope_authorizations TO :"authority_role" ;
 REVOKE DELETE, TRUNCATE ON ingestion_control.scope_authorizations FROM :"authority_role" ;
+-- Migration 015 : révoquer une preuve de revue relève de la même autorité
+-- que l'octroi, et de la même frontière GitHub — une PR de révocation
+-- dédiée. Append-only : une révocation écrite ne se corrige pas, elle se
+-- complète par une nouvelle décision.
+GRANT SELECT, INSERT ON ingestion_control.revoked_review_evidence TO :"authority_role" ;
+REVOKE UPDATE, DELETE, TRUNCATE
+    ON ingestion_control.revoked_review_evidence FROM :"authority_role" ;
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM :"authority_role" ;
 
 -- Rôle d'attestation de publication (LOT42) : écriture réservée à
@@ -313,6 +329,10 @@ GRANT UPDATE (invalidated_at, invalidated_reason)
     ON ingestion_control.publication_attestations TO :"attestor_role" ;
 REVOKE DELETE, TRUNCATE ON ingestion_control.publication_attestations FROM :"attestor_role" ;
 GRANT SELECT ON ingestion_control.scope_authorizations TO :"attestor_role" ;
+-- L'attestation revérifie le scope référencé : elle doit voir les mêmes
+-- révocations que le worker, sinon elle attesterait sous une autorisation
+-- que le worker refuse déjà.
+GRANT SELECT ON ingestion_control.revoked_review_evidence TO :"attestor_role" ;
 GRANT SELECT ON ingestion_control.resources TO :"attestor_role" ;
 GRANT SELECT ON ingestion_control.artifacts TO :"attestor_role" ;
 GRANT SELECT ON ingestion_control.resource_candidates TO :"attestor_role" ;

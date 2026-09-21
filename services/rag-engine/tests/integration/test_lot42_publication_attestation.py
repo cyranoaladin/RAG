@@ -55,6 +55,7 @@ from _authorization_stub import (  # noqa: E402
 )
 from _local_github import (  # noqa: E402
     REPOSITORY,
+    REVIEWER,
     VALID_TOKEN,
     LocalGitHub,
     local_github_server,
@@ -851,13 +852,96 @@ class TestVerificationRejectsEveryDrift:
         with pytest.raises(PublicationAttestationInvalidError, match="no longer approved"):
             verify(pg, attested)
 
-    def test_scope_authorization_revocation_is_denied(
+    def test_une_revue_dismissee_sur_github_ne_suffit_plus_a_invalider(
         self, pg: dict[str, str], attested: dict[str, Any], github: LocalGitHub
     ) -> None:
-        """La révocation du scope LOT41A invalide la publication — sans
-        aucune écriture sur la table d'attestation."""
+        """Le prix d'ADR-0058, mesuré plutôt que supposé.
+
+        L'ancien modèle revérifiait la revue en direct : une dismissal sur
+        GitHub était détectée au prochain usage — par accident, en
+        redemandant l'état d'une PR. Le modèle scellé ne la voit plus, et
+        l'ADR le dit explicitement.
+
+        Ce test existe pour que ce renoncement reste VISIBLE : le jour où
+        quelqu'un croira que la dismissal protège encore, il lira ceci. La
+        protection existe toujours, mais elle s'appelle désormais
+        révocation, et le test suivant la mesure."""
         github.dismiss_reviews(AUTH_PR)
-        with pytest.raises(PublicationAttestationInvalidError, match="no longer verifies live"):
+        verify(pg, attested)
+
+    def test_la_revocation_de_l_autorisation_invalide_la_publication(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        """La contrepartie : ce que la liveness détectait par accident, la
+        révocation le fait exprès — et elle, est toujours détectée."""
+        with psycopg.connect(authority_dsn(pg)) as conn:
+            with conn.cursor() as cur:
+                # `scope_authorizations_revocation_all_or_nothing` : une
+                # revocation partielle est refusee. Revoquer est une
+                # decision gouvernee, avec sa propre preuve de revue — on ne
+                # peut pas a-moitie eteindre une autorisation.
+                cur.execute(
+                    """
+                    UPDATE ingestion_control.scope_authorizations SET
+                        revoked_at = now(),
+                        revoked_by = %(qui)s,
+                        revocation_reason = %(raison)s,
+                        revocation_evidence_repository = %(repo)s,
+                        revocation_evidence_pull_request = %(pr)s,
+                        revocation_evidence_base_sha = %(base)s,
+                        revocation_evidence_head_sha = %(head)s,
+                        revocation_evidence_review_id = %(review)s,
+                        revocation_evidence_reviewer = %(qui)s,
+                        revocation_evidence_submitted_at = now(),
+                        revocation_evidence_challenge = %(challenge)s
+                    WHERE authorization_id = %(id)s
+                    """,
+                    {
+                        "qui": REVIEWER, "raison": "revue retiree hors modele",
+                        "repo": REPOSITORY, "pr": AUTH_PR + 1,
+                        "base": AUTH_BASE, "head": "d" * 40,
+                        "review": AUTH_REVIEW + 1,
+                        "challenge": "NEXUS-TRUSTED-REVIEW-V1:" + "0" * 64,
+                        "id": STUB_AUTHORIZATION_ID,
+                    },
+                )
+            conn.commit()
+        with pytest.raises(PublicationAttestationInvalidError, match="revoked"):
+            verify(pg, attested)
+
+    def test_la_revocation_de_la_preuve_scellee_invalide_aussi(
+        self, pg: dict[str, str], attested: dict[str, Any]
+    ) -> None:
+        """Révoquer la PREUVE éteint d'un coup toutes les autorisations qui
+        s'en réclament — là où révoquer l'autorisation n'en éteint qu'une."""
+        with psycopg.connect(authority_dsn(pg)) as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT review_evidence_digest FROM "
+                    "ingestion_control.scope_authorizations "
+                    "WHERE authorization_id = %s",
+                    (STUB_AUTHORIZATION_ID,),
+                )
+                ligne = cur.fetchone()
+                assert ligne is not None and ligne[0], (
+                    "l'autorisation doit porter une preuve scellee"
+                )
+                cur.execute(
+                    """
+                    INSERT INTO ingestion_control.revoked_review_evidence (
+                        review_evidence_digest, revoked_by, reason,
+                        evidence_repository, evidence_pull_request,
+                        evidence_head_sha, evidence_reviewer, evidence_challenge
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        ligne[0], "abenrhouma", "revue retiree hors modele",
+                        REPOSITORY, AUTH_PR, AUTH_HEAD, REVIEWER,
+                        "NEXUS-TRUSTED-REVIEW-V1:" + "0" * 64,
+                    ),
+                )
+            conn.commit()
+        with pytest.raises(PublicationAttestationInvalidError, match="revoked"):
             verify(pg, attested)
 
     def test_an_invalidated_attestation_stays_invalidated(

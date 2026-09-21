@@ -300,11 +300,14 @@ class TestScopeAuthorizationContentAllowlistRollback:
                 protocol_version="LOT41A-V1",
                 allowed_content_sha256=None,
             )
-            # Ordre inverse strict, désormais depuis 013 : rembobiner
-            # jusqu'à 009 sans défaire 013 laisserait sa version enregistrée
+            # Ordre inverse strict, désormais depuis 015 : rembobiner
+            # jusqu'à 009 sans défaire 015 laisserait sa version enregistrée
             # dans ``schema_migrations`` alors que ses contraintes ont
-            # disparu avec la colonne que 012 supprime — le re-bootstrap
-            # sauterait 013 et s'arrêterait à la tête 12.
+            # disparu avec les colonnes que le rembobinage supprime — le
+            # re-bootstrap sauterait la migration et s'arrêterait sous sa
+            # tête déclarée. Le même piège vaut pour 013, et a déjà été
+            # payé une fois.
+            _apply_rollback_file(conn, version=15)
             _apply_rollback_file(conn, version=14)
             _apply_rollback_file(conn, version=13)
             _apply_rollback_file(conn, version=12)

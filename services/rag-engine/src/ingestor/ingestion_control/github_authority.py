@@ -300,6 +300,11 @@ def _collect_reviews(
     return reviews, False
 
 
+#: Le contexte requis par la protection de branche. Le scellement refuse
+#: tout autre nom : un contexte homonyme ne serait pas celui-là.
+HEAD_PINNED_CONTEXT = "trusted-human-review/head-pinned"
+
+
 @dataclass(frozen=True)
 class ReviewVerification:
     """Résultat d'une vérification live. ``decision`` est le
@@ -316,83 +321,18 @@ class ReviewVerification:
     review_id: int | None
     submitted_at: str | None
     challenge: str | None
-
-
-@dataclass(frozen=True)
-class SealingFacts:
-    """Les faits qu'ADR-0025 n'expose pas, et dont le scellement a besoin.
-
-    ``TrustedReviewDecision`` porte le verdict ; il ne porte ni l'auteur, ni
-    la ``base_ref``, ni le ``node_id`` de la revue, ni le statut du contexte
-    de protection de branche. Ces quatre faits sont lus ici, en lecture
-    seule, plutôt qu'en élargissant le contrat de décision d'ADR-0025 — une
-    autorité de revue ne s'étend pas pour la commodité d'un consommateur."""
-
-    pull_request_author: str
-    pull_request_base_ref: str
-    review_node_id: str
-    head_pinned_status: str
-    head_pinned_context: str
-
-
-#: Le contexte requis par la protection de branche. Le scellement refuse
-#: tout autre nom : un contexte homonyme ne serait pas celui-là.
-HEAD_PINNED_CONTEXT = "trusted-human-review/head-pinned"
-
-
-def fetch_sealing_facts(
-    *, repository: str, pull_request: int, head_sha: str, review_id: int
-) -> SealingFacts:
-    """Lit les quatre faits complémentaires, en lecture seule et bornée.
-
-    Refuse si le contexte de protection n'est pas au vert sur ce head exact :
-    sceller une revue dont la porte n'était pas passée scellerait un fait
-    qui n'a pas eu lieu."""
-    deadline = _Deadline.start(_float_env(_TOTAL_TIMEOUT_ENV, _DEFAULT_TOTAL_TIMEOUT_S))
-    request_timeout = _float_env(_REQUEST_TIMEOUT_ENV, _DEFAULT_REQUEST_TIMEOUT_S)
-
-    with _ReadOnlyGitHubClient(
-        token=_read_token(), api_base=_api_base(), request_timeout_s=request_timeout
-    ) as client:
-        pull_request_doc = client.get_json(
-            f"repos/{repository}/pulls/{pull_request}", deadline=deadline
-        )
-        review = client.get_json(
-            f"repos/{repository}/pulls/{pull_request}/reviews/{review_id}",
-            deadline=deadline,
-        )
-        status = client.get_json(
-            f"repos/{repository}/commits/{head_sha}/status", deadline=deadline
-        )
-
-    user = pull_request_doc.get("user") or {}
-    author = str(user.get("login") or "")
-    base_ref = str((pull_request_doc.get("base") or {}).get("ref") or "")
-    node_id = str(review.get("node_id") or "")
-    if not author or not base_ref or not node_id:
-        raise GitHubAuthorityError(
-            "GitHub did not return the author, base ref and review node id "
-            "required to seal this review"
-        )
-
-    etats = {
-        str(entry.get("context")): str(entry.get("state"))
-        for entry in (status.get("statuses") or [])
-    }
-    observe = etats.get(HEAD_PINNED_CONTEXT)
-    if observe != "success":
-        raise GitHubAuthorityError(
-            f"required context {HEAD_PINNED_CONTEXT!r} is {observe!r} on head "
-            f"{head_sha} — a review whose gate did not pass is never sealed"
-        )
-
-    return SealingFacts(
-        pull_request_author=author,
-        pull_request_base_ref=base_ref,
-        review_node_id=node_id,
-        head_pinned_status="success",
-        head_pinned_context=HEAD_PINNED_CONTEXT,
-    )
+    #: Faits complémentaires nécessaires au SCELLEMENT (ADR-0058).
+    #:
+    #: ``TrustedReviewDecision`` porte le verdict ; il ne porte ni l'auteur,
+    #: ni la ``base_ref``, ni le ``node_id`` de la revue, ni le statut du
+    #: contexte de protection. Ils sont dérivés ici, des documents que
+    #: ``verify_review`` a DÉJÀ lus — plutôt qu'en élargissant le contrat de
+    #: décision d'ADR-0025, ou en ajoutant un second aller-retour.
+    author: str | None = None
+    base_ref: str | None = None
+    review_node_id: str | None = None
+    head_pinned_status: str | None = None
+    head_pinned_context: str = HEAD_PINNED_CONTEXT
 
 
 def load_trusted_reviewers() -> tuple[str, ...]:
@@ -456,6 +396,24 @@ def verify_review(
         final_doc = client.get_json(
             f"repos/{repository}/pulls/{pull_request}", deadline=deadline
         )
+        # Le contexte requis de la protection de branche, sur ce head exact.
+        # Sceller une revue dont la porte n'était pas passée scellerait un
+        # fait qui n'a pas eu lieu (ADR-0058).
+        #
+        # Cette lecture est délibérément NON FATALE. Elle a été ajoutée à une
+        # fonction dont tous les appelants existants attendent un verdict de
+        # revue : la faire échouer transformerait un refus propre — « PR
+        # fermée », « revue retirée » — en erreur de transport, et masquerait
+        # la vraie raison. Un statut indisponible laisse donc
+        # ``head_pinned_status`` à None, et c'est le SCELLEMENT qui refuse,
+        # avec son propre message.
+        try:
+            statut = client.get_json(
+                f"repos/{repository}/commits/{_revision(pull_request_doc)[0]}/status",
+                deadline=deadline,
+            )
+        except GitHubAuthorityError:
+            statut = {}
 
     if _revision(final_doc) != _revision(pull_request_doc):
         return ReviewVerification(
@@ -471,6 +429,21 @@ def verify_review(
             challenge=None,
         )
 
+    etats = {
+        str(entree.get("context")): str(entree.get("state"))
+        for entree in (statut.get("statuses") or [])
+    }
+    node_id = next(
+        (
+            str(review.get("node_id"))
+            for review in reviews
+            if decision.review_id is not None
+            and review.get("id") == decision.review_id
+            and review.get("node_id")
+        ),
+        None,
+    )
+
     verification = ReviewVerification(
         approved=bool(decision.approved),
         reason=str(decision.reason),
@@ -482,6 +455,10 @@ def verify_review(
         review_id=decision.review_id,
         submitted_at=decision.submitted_at,
         challenge=decision.challenge,
+        author=str((pull_request_doc.get("user") or {}).get("login") or "") or None,
+        base_ref=str((pull_request_doc.get("base") or {}).get("ref") or "") or None,
+        review_node_id=node_id,
+        head_pinned_status=etats.get(HEAD_PINNED_CONTEXT),
     )
 
     # Liaison au head attendu : la décision d'ADR-0025 porte déjà sur le
@@ -667,8 +644,6 @@ __all__ = [
     "fetch_blob_at_ref",
     "pull_request_actor_context",
     "HEAD_PINNED_CONTEXT",
-    "SealingFacts",
-    "fetch_sealing_facts",
     "load_trusted_reviewers",
     "verify_review",
 ]
