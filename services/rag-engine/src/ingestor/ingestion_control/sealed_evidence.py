@@ -27,7 +27,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -441,6 +441,35 @@ class ReviewAuthority:
         )
 
 
+def _pii_entry_identity(entry: Any) -> str:
+    """Identité logique d'une entrée de scan PII, pour la seule réconciliation
+    des répétitions historiques.
+
+    **Équivalence structurelle, pas identité des octets.** Deux entrées
+    peuvent différer dans le fichier source (espaces, ordre des clés) et
+    porter la même identité ici. L'empreinte du fichier brut, vérifiée en
+    amont par ``_require_digest``, est une preuve distincte et reste exigée ;
+    celle-ci ne la remplace pas.
+
+    La comparaison porte sur l'entrée **entière** — ``sort_keys`` sérialise
+    toutes les clés présentes, y compris celles qu'aucune version du code ne
+    connaît. Un champ inconnu ne disparaît donc pas avant la comparaison, et
+    une entrée enrichie n'est jamais confondue avec une entrée plus pauvre.
+
+    La convention est celle du dépôt (``canonical_json``) : UTF-8,
+    ``sort_keys``, séparateurs compacts. Les types sont préservés — ``1`` et
+    ``"1"``, ``1`` et ``1.0``, ``null`` et une clé absente se sérialisent
+    différemment et restent donc distincts.
+
+    ``json.loads`` conserve la **dernière** valeur d'une clé répétée dans un
+    même objet ; la répétition d'entrées dans un tableau, elle, reste visible
+    et c'est bien le cas traité ici.
+    """
+    return json.dumps(
+        entry, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+
 @dataclass(frozen=True)
 class VerifiedPIIEvidenceRegistry:
     """Résultats de scan PII, indexés par SHA de contenu.
@@ -452,6 +481,9 @@ class VerifiedPIIEvidenceRegistry:
     corpus_manifest_sha256: str
     policy_sha256: str
     _by_content: dict[str, dict[str, Any]]
+    #: Nombre d'occurrences brutes par contenu dans le fichier chargé. Vaut
+    #: 1 pour un fichier canonique ; > 1 trace une répétition réconciliée.
+    _occurrences: dict[str, int] = field(default_factory=dict)
     review_authority: ReviewAuthority | None = None
 
     @classmethod
@@ -551,17 +583,35 @@ class VerifiedPIIEvidenceRegistry:
                     )
 
         by_content: dict[str, dict[str, Any]] = {}
+        # Multiplicité observée par contenu, conservée dans la trace : une
+        # répétition réconciliée ne doit pas disparaître du rapport.
+        occurrences: dict[str, int] = {}
         for entry in results:
             sha = entry.get("content_sha256")
             if not isinstance(sha, str) or not _SHA256.match(sha):
                 raise SealedEvidenceError("a PII result carries no valid content SHA")
+            occurrences[sha] = occurrences.get(sha, 0) + 1
             if sha in by_content:
-                raise SealedEvidenceError(
-                    f"content {sha} appears twice in the PII scan — which of the "
-                    "two verdicts applies cannot be decided"
-                )
+                # Compatibilité historique nommée, jamais une tolérance
+                # générale : la seule répétition admise est celle dont TOUTES
+                # les entrées sont équivalentes au sens de
+                # ``_pii_entry_identity`` — l'entrée entière, aucun champ
+                # écarté, aucun champ inconnu perdu avant la comparaison.
+                #
+                # Ce que le refus garde est une CONTRADICTION de verdicts.
+                # Quand il n'y en a pas, il n'y a rien d'indécidable ; quand
+                # le moindre champ diffère, le refus reste entier.
+                if _pii_entry_identity(entry) != _pii_entry_identity(by_content[sha]):
+                    raise SealedEvidenceError(
+                        f"content {sha} appears more than once in the PII scan with "
+                        "differing entries — which verdict applies cannot be decided"
+                    )
+                continue
             if entry.get("status") == PII_DETECTED_REVIEWED_ACCEPTED:
                 _require_admission_is_founded(sha, entry, authority)
+            # Le représentant logique subit les contrôles habituels : deux
+            # entrées identiques mais invalides ne deviennent pas valides
+            # parce qu'elles sont identiques.
             by_content[sha] = entry
 
         return cls(
@@ -569,6 +619,7 @@ class VerifiedPIIEvidenceRegistry:
             corpus_manifest_sha256=str(manifest),
             policy_sha256=str(document.get("policy_sha256", "")),
             _by_content=by_content,
+            _occurrences=dict(sorted(occurrences.items())),
             review_authority=authority,
         )
 

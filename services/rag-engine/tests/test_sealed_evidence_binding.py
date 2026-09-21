@@ -148,6 +148,13 @@ class TestPIIIsProvenNotAssumed:
             registry.verify_content_clearance(SHA_A)
 
     def test_a_duplicated_verdict_is_refused(self, tmp_path: Path) -> None:
+        """Deux verdicts CONTRADICTOIRES pour un même contenu : refus.
+
+        Le lot CU a restreint ce refus aux occurrences qui DIFFÈRENT — une
+        répétition équivalente du scan historique est réconciliée et tracée
+        (cf. ``test_pii_historical_duplicate_reconciliation``). L'intention
+        de cette épreuve est inchangée : seul le message a évolué.
+        """
         path, digest = write_pii(
             tmp_path,
             results=[
@@ -156,7 +163,7 @@ class TestPIIIsProvenNotAssumed:
                  "pii_detected": True},
             ],
         )
-        with pytest.raises(SealedEvidenceError, match="twice"):
+        with pytest.raises(SealedEvidenceError, match="differing entries"):
             VerifiedPIIEvidenceRegistry.load(
                 path,
                 expected_evidence_sha256=digest,
