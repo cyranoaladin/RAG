@@ -227,4 +227,8 @@ def test_la_preuve_est_liee_par_digest_a_l_autorisation(document: dict) -> None:
 
 
 def test_cs_est_consigne_comme_amendement(document: dict) -> None:
-    assert document["amended_by"] == ["CH2", "CH3", "CH4", "CH6", "CH7B", "CS"]
+    """CS reste a sa place, quels que soient les amendements ulterieurs.
+
+    Un amendement ajoute une ligne ; il n'en reecrit aucune.
+    """
+    assert document["amended_by"][:6] == ["CH2", "CH3", "CH4", "CH6", "CH7B", "CS"]

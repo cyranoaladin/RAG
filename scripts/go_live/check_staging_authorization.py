@@ -95,7 +95,13 @@ IMAGE_WORKER_REQUISE = {
     ),
     "durable_service": False,
     "compose_file_on_host": "forbidden",
-    "network": "loopback_only",
+    #: CT — clarification, pas elargissement. « loopback_only » decrivait
+    #: l'EXPOSITION (aucun port publie, aucune ecoute au-dela de 127.0.0.1)
+    #: et n'a jamais decrit la SORTIE. Le worker emet deja un HTTPS sortant
+    #: vers l'API GitHub pour relire l'artefact approuve ; l'ancienne
+    #: formulation laissait croire le contraire, et l'ambiguite d'une garde
+    #: est un defaut.
+    "network": "no_inbound_exposure",
     "product_database_access": "forbidden",
     #: La garde ajoutee par CH7A : l'image REELLEMENT en cours doit etre
     #: celle que le manifeste signe nomme. L'autorisation la declare pour
@@ -119,6 +125,39 @@ DIGESTS_ECARTES = (
     # CH7B : construite avant ADR-0058 — ancien modele de revue vivante.
     "sha256:1fb70485f94a539c83142a372b24fa657daea398524173c5cdb5a3d2a9c38efb",
 )
+#: CT — le jeton GitHub ephemere. Chaque cle est exigee a l'identique :
+#: une permission en plus, une duree en plus, ou une valeur passee par
+#: l'environnement plutot que par un fichier, et l'autorisation est refusee.
+JETON_EPHEMERE_REQUIS = {
+    "environment": "staging cloisonne uniquement",
+    "token_kind": "fine_grained_personal_access_token",
+    "token_permissions": {"contents": "read", "metadata": "read"},
+    "token_repository_selection": ["cyranoaladin/RAG"],
+    "max_lifetime_days": 1,
+    "api_base_override_forbidden": True,
+    "tls_verification_disabled_forbidden": True,
+}
+
+#: L'injection : par fichier, jamais par l'environnement ni par un argument.
+INJECTION_REQUISE = {
+    "mechanism": "fichier monte en lecture seule",
+    "env_var": "NEXUS_GITHUB_TOKEN_FILE",
+    "value_in_environment": False,
+    "value_in_command_arguments": False,
+    "file_mode": "0600",
+    "directory_mode": "0700",
+}
+
+#: Les quatre gestes de fin d'operation. En omettre un laisserait un acces
+#: ouvert apres la fin de ce qui le justifiait.
+FIN_OPERATION_REQUISE = (
+    "arret des processus concernes",
+    "retrait du montage",
+    "suppression de la copie temporaire",
+    "revocation du jeton dedie par son detenteur",
+)
+
+
 #: Les deux workers restent hors de portee de cette autorisation. Worker B
 #: publierait ; Worker A creerait des jobs par URL, ce que la release scellee
 #: ne permet pas (ADR-0056). L'image sait les lancer : l'autorisation, non.
@@ -136,6 +175,59 @@ PORTS_LOOPBACK_REQUIS = {
 
 def _git(racine: Path, *args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(["git", *args], cwd=racine, capture_output=True, text=True, check=False)
+
+
+def _ecarts_jeton_ephemere(jeton: object) -> list[str]:
+    """Ecarts du jeton GitHub ephemere (CT). Absent, il n'autorise rien.
+
+    Un jeton de lecture dont une seule dimension deborde — une permission de
+    plus, un depot de plus, une duree plus longue, une valeur passee par
+    l'environnement — n'est plus le jeton qui a ete autorise."""
+    if jeton is None:
+        return []  # l'amendement CT n'est pas en vigueur : rien a verifier
+    if not isinstance(jeton, dict):
+        return ["jeton ephemere : objet attendu, pas une phrase"]
+
+    ecarts: list[str] = []
+    for cle, attendu in JETON_EPHEMERE_REQUIS.items():
+        if jeton.get(cle) != attendu:
+            ecarts.append(
+                f"jeton ephemere : {cle} = {jeton.get(cle)!r}, attendu {attendu!r}"
+            )
+
+    injection = jeton.get("injection")
+    if not isinstance(injection, dict):
+        ecarts.append("jeton ephemere : injection absente")
+    else:
+        for cle, attendu in INJECTION_REQUISE.items():
+            if injection.get(cle) != attendu:
+                ecarts.append(
+                    f"jeton ephemere : injection.{cle} = {injection.get(cle)!r}, "
+                    f"attendu {attendu!r}"
+                )
+
+    base = jeton.get("database")
+    if not isinstance(base, dict) or base.get("role") != "ingestion_control_app":
+        ecarts.append(
+            "jeton ephemere : le worker doit tourner sous ingestion_control_app"
+        )
+    elif base.get("authority_dsn_in_worker") is not False:
+        ecarts.append(
+            "jeton ephemere : le DSN d'autorite n'a rien a faire dans le worker"
+        )
+
+    fin = jeton.get("end_of_operation") or []
+    manquants = sorted(set(FIN_OPERATION_REQUISE) - set(fin))
+    if manquants:
+        ecarts.append(f"jeton ephemere : fin d'operation incomplete : {manquants}")
+
+    interdits = jeton.get("token_must_not_carry") or []
+    if not interdits:
+        ecarts.append(
+            "jeton ephemere : l'autorisation doit nommer ce que le jeton ne "
+            "porte pas — un perimetre qui ne dit que ce qu'il permet se lit mal"
+        )
+    return ecarts
 
 
 def _ecarts_image_worker(image: object) -> list[str]:
@@ -224,6 +316,7 @@ def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
                 f"attendu {INDEX_COUNTS_REQUIS!r}"
             )
     ecarts.extend(_ecarts_image_worker(perimetre.get("staging_worker_image")))
+    ecarts.extend(_ecarts_jeton_ephemere(perimetre.get("ephemeral_github_read_token")))
     manquants = sorted(INTERDITS_REQUIS - set(document.get("forbidden") or []))
     if manquants:
         ecarts.append(f"interdits manquants : {manquants}")

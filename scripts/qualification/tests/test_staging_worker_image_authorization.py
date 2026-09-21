@@ -228,7 +228,13 @@ def test_9_l_image_n_est_utilisable_que_dans_le_perimetre_staging(
     document: dict,
 ) -> None:
     image = _image(document)
-    assert image["network"] == "loopback_only"
+    # CT a renomme cette valeur : « loopback_only » decrivait l'EXPOSITION,
+    # jamais la SORTIE. L'invariant teste ici est inchange, et desormais
+    # explicite sur les deux axes.
+    assert image["network"] == "no_inbound_exposure"
+    assert image["egress"]["inbound_exposure_added"] is False
+    assert image["egress"]["firewall_modified"] is False
+    assert image["egress"]["allowed"] == ["https://api.github.com"]
     assert image["durable_service"] is False
     assert image["compose_file_on_host"] == "forbidden"
     assert document["scope"]["access"] == "ssh_tunnel_only"
