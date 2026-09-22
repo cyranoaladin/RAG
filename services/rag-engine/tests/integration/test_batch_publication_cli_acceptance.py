@@ -187,14 +187,22 @@ def test_le_schema_porte_l_identite_de_release_pour_une_attestation_batch(
 
 
 #: Autorites de TEST du banc. Elles ne valent jamais autorisation reelle.
-RELEASE_DE_TEST = "acceptance-batch-release-v1"
-REVUE_DE_TEST = "revue-batch-acceptance"
-AUTORISATION_DE_TEST = "acceptance-batch-scope"
+#: Identites du BANC, distinctes a chaque execution du module : la base est
+#: partagee, et des identites fixes rendraient les tests dependants de leur
+#: ordre. Elles ne valent jamais autorisation reelle.
+_EMPREINTE_DU_BANC = uuid.uuid4().hex[:12]
+RELEASE_DE_TEST = f"acceptance-batch-release-{_EMPREINTE_DU_BANC}"
+REVUE_DE_TEST = f"revue-batch-acceptance-{_EMPREINTE_DU_BANC}"
+def _autorisation_de(release_id: str) -> str:
+    """Une autorisation par release : partagee, elle serait semee par le
+    premier test et relue par les suivants avec un autre artefact servi."""
+    return f"acceptance-scope-{release_id.rsplit(chr(45), 1)[-1]}"
 
 
 def _semer_etat_historique(
     pg: dict[str, str], tmp_path: Path, *, digests: dict[str, str],
-    github: object | None = None, combien: int = 2,
+    contenus: list[tuple[str, bytes]],
+    github: object | None = None,
 ) -> dict[str, object]:
     """Ecrit des lignes au FORMAT HISTORIQUE — celui qu'ecrit l'ingestion de
     release scellee : ``canonical_url`` nulle, payload de release, aucun fait
@@ -221,7 +229,6 @@ def _semer_etat_historique(
         "rag_nexus_nsi_premiere_specialite",
         "rag_nexus_nsi_terminale_specialite",
     )
-    contenus = _contenus_de_test(magasin, combien)
 
     scopes = {
         collection: ResourceScope(
@@ -235,7 +242,11 @@ def _semer_etat_historique(
     }
 
     with psycopg.connect(superuser_dsn(pg)) as conn:
-        _semer_autorisation(conn, scopes[collections[0]], github=github)
+        autorisation_id = _autorisation_de(digests["release_id"])
+        _semer_autorisation(
+            conn, scopes[collections[0]], github=github,
+            autorisation_id=autorisation_id,
+        )
         for collection in collections:
             run_id = create_ingestion_run(
                 conn, scope=scopes[collection], profile_version="acceptance-v1",
@@ -243,7 +254,7 @@ def _semer_etat_historique(
             )
             for sha, octets in contenus:
                 payload = {
-                    "release_id": RELEASE_DE_TEST,
+                    "release_id": digests["release_id"],
                     # Les digests REELS de la release ecrite : la garde du
                     # catalogue refuse toute valeur qui ne serait pas la sienne.
                     "release_manifest_sha256": digests["manifest"],
@@ -253,7 +264,7 @@ def _semer_etat_historique(
                     "content_sha256": sha,
                     "collection": collection,
                     "chunk_count": 3,
-                    "scope_authorization_id": AUTORISATION_DE_TEST,
+                    "scope_authorization_id": autorisation_id,
                     "scope_authorization_digest": "c" * 64,
                     "provenance_artifact_url": (
                         "https://eduscol.education.gouv.fr/acceptance/doc.pdf"
@@ -326,7 +337,8 @@ def _semer_transitions(
 
 
 def _semer_autorisation(
-    conn: psycopg.Connection, scope: object, *, github: object | None = None
+    conn: psycopg.Connection, scope: object, *, github: object | None = None,
+    autorisation_id: str = "",
 ) -> None:
     """Autorisation de scope du BANC — donnee de test, jamais une autorite."""
     from datetime import UTC, datetime, timedelta
@@ -364,14 +376,14 @@ def _semer_autorisation(
         else:
             ligne[nom] = f"test-{nom}"
     ligne.update({
-        "authorization_id": AUTORISATION_DE_TEST,
+        "authorization_id": autorisation_id,
         "protocol_version": "LOT41A-V1",
         "decision": "AUTHORIZE_INGESTION_SCOPE",
         "allowed_content_sha256": None,
         "allowed_domains": ["eduscol.education.gouv.fr"],
         "rights_categories": ["officiel_public"],
         "pii_absence_attested": True,
-        "artifact_path": f"governance/authorizations/{AUTORISATION_DE_TEST}.json",
+        "artifact_path": f"governance/authorizations/{autorisation_id}.json",
         "tenant": scope.tenant, "collection": scope.collection,
         "niveau": scope.niveau, "voie": scope.voie, "matiere": scope.matiere,
         "candidat": scope.candidat, "visibility": scope.visibility,
@@ -397,7 +409,7 @@ def _semer_autorisation(
 
     artefact_modele = ScopeAuthorizationArtifact.model_validate({
         "protocol_version": "LOT41A-V1",
-        "authorization_id": AUTORISATION_DE_TEST,
+        "authorization_id": autorisation_id,
         "decision": "AUTHORIZE_INGESTION_SCOPE",
         "scope": {
             "tenant": scope.tenant, "collection": scope.collection,
@@ -422,7 +434,7 @@ def _semer_autorisation(
     artefact = artefact_modele.canonical_bytes()
     blob_sha = (
         github.put_blob(  # type: ignore[union-attr]
-            path=f"governance/authorizations/{AUTORISATION_DE_TEST}.json",
+            path=f"governance/authorizations/{autorisation_id}.json",
             ref=tete, content=artefact,
         )
         if github is not None
@@ -500,6 +512,13 @@ def _preuve_scellee_de_test(ligne: dict[str, object]) -> tuple[dict, str]:
     return preuve.model_dump(mode="json"), preuve.digest()
 
 
+def _identite_de_release(racine: Path) -> str:
+    """Une release par test : la base du banc est partagee, et deux releases
+    homonymes portant des digests differents seraient — a raison — refusees
+    par la garde du catalogue."""
+    return f"acceptance-batch-release-{hashlib.sha256(str(racine).encode()).hexdigest()[:12]}"
+
+
 def _ecrire_release_de_test(
     racine: Path, *, contenus: list[tuple[str, bytes]], placements: int
 ) -> dict[str, str]:
@@ -511,6 +530,7 @@ def _ecrire_release_de_test(
     import hashlib as _h
 
     racine.mkdir(parents=True, exist_ok=True)
+    release_id = _identite_de_release(racine)
 
     artefacts = []
     chunks_par_contenu = {}
@@ -544,7 +564,7 @@ def _ecrire_release_de_test(
         return _h.sha256(brut).hexdigest()
 
     registre_sha = _ecrire("artifacts.release.json", {
-        "release_id": RELEASE_DE_TEST, "artifacts": artefacts,
+        "release_id": release_id, "artifacts": artefacts,
         "expected_counts": {
             "unique_artifacts": len(artefacts),
             "unique_chunks": sum(len(c) for c in chunks_par_contenu.values()),
@@ -616,7 +636,7 @@ def _ecrire_release_de_test(
     droits_sha = _h.sha256((racine / "rights.yml").read_bytes()).hexdigest()
 
     _ecrire("production-profile-gate.release.json", {
-        "release_id": RELEASE_DE_TEST,
+        "release_id": release_id,
         "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
         "artifact_registry": {"path": "artifacts.release.json",
                               "sha256": registre_sha},
@@ -638,16 +658,22 @@ def _ecrire_release_de_test(
     return {
         "manifest": manifeste_sha, "registry": registre_sha,
         "inventory": corpus_sha, "transfer": transfert_sha,
-        "rights": droits_sha,
+        "rights": droits_sha, "release_id": release_id,
     }
 
 
 def _contenus_de_test(magasin: Path, combien: int = 2) -> list[tuple[str, bytes]]:
-    """Les octets de test du banc, ecrits dans le magasin d'artefacts."""
+    """Les octets de test du banc, ecrits dans le magasin d'artefacts.
+
+    Chaque appel produit des contenus DISTINCTS : la base du banc est
+    partagee par les tests du module, et des identites reutilisees les
+    feraient dependre de leur ordre d'execution.
+    """
     magasin.mkdir(parents=True, exist_ok=True)
+    empreinte = uuid.uuid4().hex
     contenus = []
     for index in range(combien):
-        octets = f"%PDF-1.7 acceptance-{index}".encode()
+        octets = f"%PDF-1.7 acceptance-{empreinte}-{index}".encode()
         sha = hashlib.sha256(octets).hexdigest()
         (magasin / f"{sha}.pdf").write_bytes(octets)
         contenus.append((sha, octets))
@@ -671,13 +697,15 @@ def test_la_projection_et_la_proposition_de_revue_batch(
     digests = _ecrire_release_de_test(
         releases, contenus=contenus, placements=len(contenus) * 2
     )
-    etat = _semer_etat_historique(control_pg, tmp_path, digests=digests)
+    etat = _semer_etat_historique(
+        control_pg, tmp_path, digests=digests, contenus=contenus
+    )
 
     propose = _run(
         "ingestor.ingestion_worker.attest_publication_cli",
         [
             "propose-release-batch-review",
-            "--release-id", RELEASE_DE_TEST,
+            "--release-id", digests["release_id"],
             "--release-dir", str(releases),
             "--release-manifest-sha256", digests["manifest"],
             "--transfer-manifest-path", str(releases / "transfer.json"),
@@ -697,7 +725,7 @@ def test_la_projection_et_la_proposition_de_revue_batch(
         projetees = conn.execute(
             "SELECT count(*), count(*) FILTER (WHERE gate_passed) "
             "  FROM ingestion_control.sealed_release_projections "
-            " WHERE release_id = %s", (RELEASE_DE_TEST,)
+            " WHERE release_id = %s", (digests["release_id"],)
         ).fetchone()
         conn.rollback()
     assert projetees == (len(etat["artefacts"]), len(etat["artefacts"])), projetees
@@ -724,7 +752,9 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
     github.add_approved_pr(
         number=7001, head_sha=head, base_sha="9" * 40, review_id=7011
     )
-    _semer_etat_historique(control_pg, tmp_path, digests=digests, github=github)
+    _semer_etat_historique(
+        control_pg, tmp_path, digests=digests, contenus=contenus, github=github
+    )
 
     with local_github_server(github) as github_url:
         env = {
@@ -736,7 +766,7 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
             "ingestor.ingestion_worker.attest_publication_cli",
             [
                 "propose-release-batch-review",
-                "--release-id", RELEASE_DE_TEST,
+                "--release-id", digests["release_id"],
                 "--release-dir", str(releases),
                 "--release-manifest-sha256", digests["manifest"],
                 "--transfer-manifest-path", str(releases / "transfer.json"),
@@ -755,7 +785,7 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
             "ingestor.ingestion_worker.attest_publication_cli",
             [
                 "record-release-batch-attestation",
-                "--release-id", RELEASE_DE_TEST,
+                "--release-id", digests["release_id"],
                 "--review-id", REVUE_DE_TEST,
                 "--repository", REPOSITORY,
                 "--pull-request", "7001",
@@ -775,7 +805,7 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
             "       count(*) FILTER (WHERE attributed_facts_digest IS NOT NULL)"
             "  FROM ingestion_control.publication_attestations"
             " WHERE protocol_version = 'LOT42-RELEASE-BATCH-V1'"
-            "   AND release_id = %s", (RELEASE_DE_TEST,)
+            "   AND release_id = %s", (digests["release_id"],)
         ).fetchone()
         conn.rollback()
     # Quatre placements, UNE seule revue, aucune URL canonique, aucun digest
@@ -889,7 +919,7 @@ def _preparer_attestation(
         number=7001, head_sha=head, base_sha="9" * 40, review_id=7011
     )
     etat = _semer_etat_historique(
-        control_pg, tmp_path, digests=digests, github=github
+        control_pg, tmp_path, digests=digests, contenus=contenus, github=github
     )
     with local_github_server(github) as github_url:
         env = {
@@ -901,7 +931,7 @@ def _preparer_attestation(
             "ingestor.ingestion_worker.attest_publication_cli",
             [
                 "propose-release-batch-review",
-                "--release-id", RELEASE_DE_TEST,
+                "--release-id", digests["release_id"],
                 "--release-dir", str(releases),
                 "--release-manifest-sha256", digests["manifest"],
                 "--transfer-manifest-path", str(releases / "transfer.json"),
@@ -919,7 +949,7 @@ def _preparer_attestation(
             "ingestor.ingestion_worker.attest_publication_cli",
             [
                 "record-release-batch-attestation",
-                "--release-id", RELEASE_DE_TEST,
+                "--release-id", digests["release_id"],
                 "--review-id", REVUE_DE_TEST,
                 "--repository", REPOSITORY,
                 "--pull-request", "7001",
@@ -1051,7 +1081,7 @@ def test_les_jobs_batch_nomment_leur_artefact(
             "  JOIN ingestion_control.resources r USING (resource_id)"
             " WHERE a.protocol_version = 'LOT42-RELEASE-BATCH-V1'"
             "   AND a.release_id = %s AND a.invalidated_at IS NULL"
-            " ORDER BY a.resource_id", (RELEASE_DE_TEST,)
+            " ORDER BY a.resource_id", (contexte["digests"]["release_id"],)
         ).fetchall()
         assert len(attestations) == 4, attestations
         jobs = []
@@ -1084,13 +1114,26 @@ def test_les_jobs_batch_nomment_leur_artefact(
 
 
 def test_le_parcours_batch_atteint_l_index_produit() -> None:
-    """Maillon final — le job batch traverse la chaîne et publie.
+    """Maillon final — la publication dans l'index produit et le retrieval.
 
-    Cette épreuve reste rouge tant que les maillons ci-dessus manquent.
-    Elle n'est pas neutralisée : son échec EST le résultat de départ.
+    Les maillons precedents sont verts : projection, proposition,
+    approbation de test, enregistrement, verification a l'usage, creation
+    des jobs nommant leur artefact.
+
+    Ce qui manque pour executer le CLI de Worker B de bout en bout est son
+    JEU D'AUTORITES complet : inventaire candidat, actualite V2, trois
+    tables de correspondance, registre de programmes, manifeste de profils,
+    configuration de collections, jeu de decisions PII avec son recu, son
+    ancre et son index, modele E5 et base produit — une trentaine
+    d'arguments obligatoires.
+
+    Cette epreuve reste ROUGE tant que ce parcours n'est pas execute. Elle
+    n'est ni ignoree, ni marquee en echec attendu : son echec EST l'etat du
+    travail.
     """
     pytest.fail(
-        "parcours batch non exécutable : les maillons 2 (producteur "
-        "d'attestation batch) et 4 (identité de release en base) manquent. "
-        "Cette épreuve sera complétée dès qu'ils existeront."
+        "parcours jusqu'a l'index non execute : le CLI de Worker B exige son "
+        "jeu d'autorites complet (inventaire, actualite, correspondances, "
+        "registres, PII, modele E5, base produit). Les maillons 1 a 8 sont "
+        "verts ; celui-ci attend la construction de ce jeu."
     )
