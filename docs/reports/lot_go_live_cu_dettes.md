@@ -263,6 +263,21 @@ irrésoluble — c'est le défaut « monolithe `make install` » déjà mesuré
 ailleurs (`pip check` échoue), simplement resté invisible tant que le job
 mourait avant `make test`.
 
+**Le second test le dit de lui-même**, et c'est ce pour quoi il a été
+écrit :
+
+```
+AssertionError: le runtime produit de nouveau un `enum` redondant à côté
+d'un `const` ($.components.schemas.RetrievalScopeArtifactV3.properties…)
+```
+
+C'est exactement l'écart de génération que la session précédente avait
+identifié entre pydantic 2.9.2 et 2.13.4, et contre lequel elle avait posé
+cette sentinelle : « sa réapparition signalerait un environnement de
+génération différent ». Elle signale. Ces deux rouges ne sont donc pas des
+épreuves cassées : ce sont **deux épreuves qui font leur travail** et qui
+nomment la contradiction de dépendances.
+
 **Ce que ce lot n'a pas fait.** Ni régénérer le document OpenAPI sous 2.9.2
 — ce serait aligner un contrat publié sur un environnement que le paquet de
 contrats interdit —, ni assouplir les deux épreuves. Accorder

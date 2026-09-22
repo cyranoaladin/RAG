@@ -572,7 +572,7 @@ Ce qui reste rouge, et pourquoi :
 |---|---|
 | `trusted-human-review/head-pinned` et `Evaluate trusted human review` | **par construction** : aucune approbation humaine n'est épinglée au head exact. C'est le gate qui doit rester rouge jusqu'à la revue |
 | `governance postgres` | les dettes 2 et 4 du registre. La dette 2 est close et la 4 l'est aux deux tiers ; la dernière épreuve touche des migrations **empreintées** et demande une migration de rattrapage |
-| `services/rag-engine` | `make typecheck` **passe désormais** et `make test` s'exécute pour la première fois : il y révèle la dette 5 — la CI installe pydantic 2.9.2 quand le paquet de contrats exige 2.13.4 |
+| `services/rag-engine` | `make typecheck` **passe désormais** et `make test` s'exécute pour la première fois : il y révèle la dette 5 — la CI installe pydantic 2.9.2 quand le paquet de contrats exige 2.13.4. La sentinelle posée par la session précédente fait exactement ce pour quoi elle a été écrite : elle signale un environnement de génération différent |
 
 Aucun de ces rouges n'est introduit par ce lot : l'antériorité est prouvée
 par égalité d'ensembles pour l'intégration, et par la même liste de 13
