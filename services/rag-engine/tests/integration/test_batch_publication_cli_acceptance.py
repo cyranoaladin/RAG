@@ -25,6 +25,7 @@ from pathlib import Path
 
 import psycopg
 import pytest
+from psycopg.types.json import Jsonb
 
 ENGINE_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = ENGINE_ROOT.parents[1]
@@ -193,7 +194,7 @@ AUTORISATION_DE_TEST = "acceptance-batch-scope"
 
 def _semer_etat_historique(
     pg: dict[str, str], tmp_path: Path, *, digests: dict[str, str],
-    combien: int = 2,
+    github: object | None = None, combien: int = 2,
 ) -> dict[str, object]:
     """Ecrit des lignes au FORMAT HISTORIQUE — celui qu'ecrit l'ingestion de
     release scellee : ``canonical_url`` nulle, payload de release, aucun fait
@@ -234,7 +235,7 @@ def _semer_etat_historique(
     }
 
     with psycopg.connect(superuser_dsn(pg)) as conn:
-        _semer_autorisation(conn, scopes[collections[0]])
+        _semer_autorisation(conn, scopes[collections[0]], github=github)
         for collection in collections:
             run_id = create_ingestion_run(
                 conn, scope=scopes[collection], profile_version="acceptance-v1",
@@ -324,7 +325,9 @@ def _semer_transitions(
     )
 
 
-def _semer_autorisation(conn: psycopg.Connection, scope: object) -> None:
+def _semer_autorisation(
+    conn: psycopg.Connection, scope: object, *, github: object | None = None
+) -> None:
     """Autorisation de scope du BANC — donnee de test, jamais une autorite."""
     from datetime import UTC, datetime, timedelta
 
@@ -354,6 +357,8 @@ def _semer_autorisation(conn: psycopg.Connection, scope: object) -> None:
             ligne[nom] = "b" * 40
         elif nom.endswith("_challenge"):
             ligne[nom] = "NEXUS-TRUSTED-REVIEW-V1:" + "a" * 64
+        elif nom == "evidence_reviewer":
+            ligne[nom] = "abenrhouma"
         elif nom.endswith(("_sha256", "_digest", "_fingerprint")):
             ligne[nom] = "a" * 64
         else:
@@ -380,6 +385,73 @@ def _semer_autorisation(conn: psycopg.Connection, scope: object) -> None:
         ligne["valid_from"] = datetime.now(UTC) - timedelta(days=1)
     if "valid_until" in ligne:
         ligne["valid_until"] = datetime.now(UTC) + timedelta(days=30)
+    # ADR-0058 : une autorisation sans preuve de revue SCELLEE n'est plus
+    # utilisable. Le banc en produit une STRUCTURELLEMENT VALIDE, dont le
+    # challenge se derive de ses propres dimensions — la verification n'est
+    # pas contournee, elle est satisfaite.
+    # L'artefact d'autorisation est SERVI par le banc : le verificateur le
+    # relit a chaque usage (c'est ce que le lot CT a etabli), et un artefact
+    # absent est un refus — a raison.
+    tete = "d" * 40
+    from nexus_contracts.authority_artifacts import ScopeAuthorizationArtifact
+
+    artefact_modele = ScopeAuthorizationArtifact.model_validate({
+        "protocol_version": "LOT41A-V1",
+        "authorization_id": AUTORISATION_DE_TEST,
+        "decision": "AUTHORIZE_INGESTION_SCOPE",
+        "scope": {
+            "tenant": scope.tenant, "collection": scope.collection,
+            "niveau": scope.niveau, "voie": scope.voie,
+            "matiere": scope.matiere, "candidat": scope.candidat,
+            "audience": list(scope.audience), "visibility": scope.visibility,
+            "school_year": scope.school_year,
+            "programme_version": scope.programme_version,
+        },
+        "manifest_digest": str(ligne["manifest_digest"]),
+        "profile_id": str(ligne["profile_id"]),
+        "profile_version": str(ligne["profile_version"]),
+        "profile_fingerprint": str(ligne["profile_fingerprint"]),
+        "allowed_domains": ["eduscol.education.gouv.fr"],
+        "rights_categories": ["officiel_public"],
+        "exclusions": [],
+        "pii_absence_attested": True,
+        "pii_absence_evidence": "acceptance bench: CLEARED",
+        "valid_from": "2026-09-01T00:00:00Z",
+        "valid_until": "2027-09-01T00:00:00Z",
+    })
+    artefact = artefact_modele.canonical_bytes()
+    blob_sha = (
+        github.put_blob(  # type: ignore[union-attr]
+            path=f"governance/authorizations/{AUTORISATION_DE_TEST}.json",
+            ref=tete, content=artefact,
+        )
+        if github is not None
+        else "b" * 40
+    )
+    ligne.update({
+        "evidence_head_sha": tete,
+        "artifact_blob_sha": blob_sha,
+        # Le digest PERSISTE doit etre celui de l'artefact reellement servi.
+        "authorization_digest": artefact_modele.digest(),
+        # Toute colonne persistee doit etre DERIVABLE de l'artefact servi :
+        # c'est ce que le verificateur exige, et c'est ce qui empeche qu'un
+        # UPDATE direct en base survive a la relecture.
+        "pii_absence_evidence": artefact_modele.pii_absence_evidence,
+        "profile_id": artefact_modele.profile_id,
+        "profile_version": artefact_modele.profile_version,
+        "profile_fingerprint": artefact_modele.profile_fingerprint,
+        "manifest_digest": artefact_modele.manifest_digest,
+        "valid_from": artefact_modele.valid_from,
+        "valid_until": artefact_modele.valid_until,
+        "evidence_repository": REPOSITORY,
+        "evidence_pull_request": 6001,
+        "evidence_base_sha": "9" * 40,
+        "evidence_reviewer": "abenrhouma",
+    })
+    preuve, digest = _preuve_scellee_de_test(ligne)
+    ligne["review_evidence"] = Jsonb(preuve)
+    ligne["review_evidence_digest"] = digest
+
     noms = ", ".join(ligne)
     valeurs = ", ".join(f"%({nom})s" for nom in ligne)
     conn.execute(
@@ -387,6 +459,45 @@ def _semer_autorisation(conn: psycopg.Connection, scope: object) -> None:
         f"VALUES ({valeurs}) ON CONFLICT DO NOTHING",
         ligne,
     )
+
+
+def _preuve_scellee_de_test(ligne: dict[str, object]) -> tuple[dict, str]:
+    """Preuve de revue scellee du BANC, conforme a ADR-0058."""
+    from datetime import UTC, datetime
+
+    from nexus_contracts.trusted_review_evidence import (
+        SealedTrustedReviewEvidenceV1,
+    )
+
+    preuve = SealedTrustedReviewEvidenceV1(
+        protocol_version="NEXUS-SEALED-TRUSTED-REVIEW-EVIDENCE-V1",
+        repository=REPOSITORY,
+        pull_request=6001,
+        pull_request_base_ref="main",
+        pull_request_base_sha="9" * 40,
+        pull_request_head_sha=str(ligne["evidence_head_sha"]),
+        pull_request_author="cyranoaladin",
+        authorization_id=str(ligne["authorization_id"]),
+        artifact_path=str(ligne["artifact_path"]),
+        artifact_blob_sha=str(ligne["artifact_blob_sha"]),
+        artifact_sha256=str(ligne["authorization_digest"]),
+        reviewer=str(ligne["evidence_reviewer"]),
+        review_id=int(ligne["evidence_review_id"]),
+        review_node_id="PRR_acceptance_bench",
+        review_submitted_at=datetime.now(UTC),
+        challenge_protocol="NEXUS-TRUSTED-REVIEW-V1",
+        challenge=str(ligne["evidence_challenge"]),
+        head_pinned_status="success",
+        head_pinned_context="trusted-human-review/head-pinned",
+        recorded_at=datetime.now(UTC),
+        recorder_version="acceptance-bench",
+    )
+    # Le challenge doit se DERIVER des dimensions scellees : on le recalcule
+    # et on le repose, sinon la verification refuserait — a raison.
+    attendu = preuve.expected_challenge()
+    preuve = preuve.model_copy(update={"challenge": attendu})
+    ligne["evidence_challenge"] = attendu
+    return preuve.model_dump(mode="json"), preuve.digest()
 
 
 def _ecrire_release_de_test(
@@ -606,8 +717,6 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
     digests = _ecrire_release_de_test(
         releases, contenus=contenus, placements=len(contenus) * 2
     )
-    _semer_etat_historique(control_pg, tmp_path, digests=digests)
-
     github = LocalGitHub()
     jeton = tmp_path / "github-token"
     jeton.write_text(VALID_TOKEN, encoding="utf-8")
@@ -615,6 +724,7 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
     github.add_approved_pr(
         number=7001, head_sha=head, base_sha="9" * 40, review_id=7011
     )
+    _semer_etat_historique(control_pg, tmp_path, digests=digests, github=github)
 
     with local_github_server(github) as github_url:
         env = {
@@ -681,6 +791,149 @@ def _artefact_propose(sortie: str) -> tuple[str, bytes]:
             chemin = ligne.split(" ", 1)[1].strip()
     marqueur = sortie.index("{")
     return chemin, sortie[marqueur:].encode("utf-8")
+
+
+def test_l_attestation_batch_se_verifie_a_l_usage(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Maillon 7 — le consommateur canonique accepte l'attestation batch.
+
+    C'est la contradiction que l'audit initial avait localisee :
+    ``verify_publication_attestation`` exigeait inconditionnellement un
+    digest d'attribution unitaire, que le schema INTERDIT au batch. Une
+    attestation conforme au schema etait donc inverifiable.
+    """
+    from ingestor.ingestion_control.publication_attestation import (
+        PublicationAttestationInvalidError,
+        verify_publication_attestation,
+    )
+
+    contexte = _preparer_attestation(control_pg, tmp_path)
+    github, jeton, head = contexte["github"], contexte["jeton"], contexte["head"]
+
+    with local_github_server(github) as github_url:
+        env = {
+            "NEXUS_GITHUB_API_BASE": github_url,
+            "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
+        }
+        anciens = {cle: os.environ.get(cle) for cle in env}
+        os.environ.update(env)
+        try:
+            with psycopg.connect(app_dsn(control_pg)) as conn:
+                verifiees = []
+                for entree in contexte["artefacts"]:
+                    verifiee = verify_publication_attestation(
+                        conn,
+                        resource_id=entree["resource_id"],
+                        current_content_sha256=entree["content_sha256"],
+                        current_profile_fingerprint=contexte["digests"]["registry"],
+                        current_manifest_digest=contexte["digests"]["manifest"],
+                    )
+                    verifiees.append(verifiee)
+                conn.rollback()
+            assert len(verifiees) == 4
+            assert {v.protocol_version for v in verifiees} == {
+                "LOT42-RELEASE-BATCH-V1"
+            }
+            # Le digest d'attribution UNITAIRE reste absent, et son absence
+            # est dite — jamais confondue avec « non verifie ».
+            assert {v.attributed_facts_digest for v in verifiees} == {""}
+            assert len({v.attestation_digest for v in verifiees}) == 1
+
+            # CONTRE-EPREUVE : une ressource hors du perimetre approuve.
+            with psycopg.connect(app_dsn(control_pg)) as conn:
+                etrangere = uuid.uuid4()
+                with pytest.raises(PublicationAttestationInvalidError):
+                    verify_publication_attestation(
+                        conn, resource_id=etrangere,
+                        current_content_sha256="0" * 64,
+                        current_profile_fingerprint=contexte["digests"]["registry"],
+                        current_manifest_digest=contexte["digests"]["manifest"],
+                    )
+                conn.rollback()
+
+            # CONTRE-EPREUVE : un contenu observe different de l'atteste.
+            with psycopg.connect(app_dsn(control_pg)) as conn:
+                with pytest.raises(PublicationAttestationInvalidError):
+                    verify_publication_attestation(
+                        conn,
+                        resource_id=contexte["artefacts"][0]["resource_id"],
+                        current_content_sha256="0" * 64,
+                        current_profile_fingerprint=contexte["digests"]["registry"],
+                        current_manifest_digest=contexte["digests"]["manifest"],
+                    )
+                conn.rollback()
+        finally:
+            for cle, valeur in anciens.items():
+                if valeur is None:
+                    os.environ.pop(cle, None)
+                else:
+                    os.environ[cle] = valeur
+
+
+def _preparer_attestation(
+    control_pg: dict[str, str], tmp_path: Path
+) -> dict[str, object]:
+    """Amene le banc jusqu'a des attestations batch enregistrees."""
+    magasin = tmp_path / "store"
+    contenus = _contenus_de_test(magasin)
+    releases = tmp_path / "release"
+    digests = _ecrire_release_de_test(
+        releases, contenus=contenus, placements=len(contenus) * 2
+    )
+    github = LocalGitHub()
+    jeton = tmp_path / "github-token"
+    jeton.write_text(VALID_TOKEN, encoding="utf-8")
+    head = hashlib.sha1(b"acceptance-batch-head").hexdigest()
+    github.add_approved_pr(
+        number=7001, head_sha=head, base_sha="9" * 40, review_id=7011
+    )
+    etat = _semer_etat_historique(
+        control_pg, tmp_path, digests=digests, github=github
+    )
+    with local_github_server(github) as github_url:
+        env = {
+            "PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg),
+            "NEXUS_GITHUB_API_BASE": github_url,
+            "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
+        }
+        propose = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            [
+                "propose-release-batch-review",
+                "--release-id", RELEASE_DE_TEST,
+                "--release-dir", str(releases),
+                "--release-manifest-sha256", digests["manifest"],
+                "--transfer-manifest-path", str(releases / "transfer.json"),
+                "--transfer-manifest-sha256", digests["transfer"],
+                "--rights-registry-path", str(releases / "rights.yml"),
+                "--review-id", REVUE_DE_TEST,
+                "--evaluator", "acceptance-bench",
+            ],
+            env,
+        )
+        assert propose.returncode == 0, propose.stderr
+        chemin, octets = _artefact_propose(propose.stdout)
+        github.put_blob(path=chemin, ref=head, content=octets)
+        enregistre = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            [
+                "record-release-batch-attestation",
+                "--release-id", RELEASE_DE_TEST,
+                "--review-id", REVUE_DE_TEST,
+                "--repository", REPOSITORY,
+                "--pull-request", "7001",
+                "--expected-head", head,
+                "--review-artifact-path", chemin,
+            ],
+            env,
+        )
+        assert enregistre.returncode == 0, enregistre.stderr
+    return {
+        "github": github, "jeton": jeton, "head": head, "digests": digests,
+        "releases": releases, "magasin": magasin,
+        "artefacts": etat["artefacts"],
+    }
 
 
 def test_le_parcours_batch_atteint_l_index_produit() -> None:

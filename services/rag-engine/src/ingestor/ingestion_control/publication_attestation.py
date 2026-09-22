@@ -42,6 +42,7 @@ from uuid import UUID
 
 import psycopg
 from nexus_contracts.authority_artifacts import (
+    LOT42_RELEASE_BATCH_PROTOCOL_VERSION,
     CanonicalArtifactError,
     PublicationReviewArtifactV2,
     canonical_publication_review_path,
@@ -94,7 +95,10 @@ _ATTESTATION_COLUMNS = """
     human_review_repository, human_review_pull_request, human_review_base_sha,
     human_review_head_sha, human_review_review_id, human_review_reviewer,
     human_review_submitted_at, human_review_challenge,
-    protocol_version, attributed_facts_digest
+    protocol_version, attributed_facts_digest,
+    release_id, release_manifest_sha256, artifacts_release_sha256,
+    candidate_inventory_sha256, artifact_transfer_manifest_sha256,
+    release_batch_review_digest
 """
 
 
@@ -375,6 +379,216 @@ def _require_facts_still_hold(
     )
 
 
+def _verify_release_batch_attestation(
+    conn: psycopg.Connection,
+    *,
+    row: dict[str, Any],
+    invalidator: _Invalidator,
+    resource_id: UUID,
+    current_content_sha256: str,
+) -> VerifiedAttestation:
+    """Revérifie une attestation ``LOT42-RELEASE-BATCH-V1``.
+
+    Les liens vérifiés sont ceux de CE protocole :
+
+    1. le contenu observé est bien celui que l'attestation nomme ;
+    2. la revue humaine tient toujours au head exact ;
+    3. l'artefact approuvé se relit, est canonique et porte le digest stocké ;
+    4. les cinq références d'identité de release de la LIGNE sont celles de
+       l'ARTEFACT — une ligne modifiée en base ne survit pas à la relecture ;
+    5. la ressource appartient au périmètre que la revue couvre — un index
+       SQL permet de retrouver une ligne, il n'empêche pas qu'elle soit
+       étrangère à l'ensemble approuvé ;
+    6. la projection applicable autorise, c'est-à-dire qu'aucune condition
+       n'est inconnue ni négative ;
+    7. l'autorisation de scope vérifie toujours et couvre les droits.
+    """
+    from nexus_contracts.authority_artifacts import (
+        parse_release_batch_publication_review_artifact,
+    )
+
+    from ingestor.ingestion_control.sealed_release_projection import (
+        SealedReleaseProjectionError,
+        load_applicable_projection,
+        require_projection_authorises,
+    )
+
+    invalidator.require_equal(
+        "content_sha256", row["content_sha256"], current_content_sha256
+    )
+
+    live = _verify_human_review(row, invalidator)
+    # L'artefact est relu au head que la VERIFICATION rend, pas a celui que
+    # la ligne declare : une ligne modifiee en base ne choisit pas son head.
+    invalidator.require_equal(
+        "human_review_head_sha", row["human_review_head_sha"], live.head_sha
+    )
+
+    try:
+        blob = fetch_blob_at_ref(
+            repository=row["human_review_repository"],
+            path=row["review_artifact_path"],
+            ref=live.head_sha,
+        )
+    except GitHubAuthorityError as exc:
+        raise invalidator.fail(
+            f"reviewed batch artifact unreadable at {row['review_artifact_path']}"
+            f"@{row['human_review_head_sha']}: {exc}"
+        ) from exc
+
+    invalidator.require_equal(
+        "review_artifact_blob_sha", row["review_artifact_blob_sha"], blob.blob_sha
+    )
+    try:
+        artifact = parse_release_batch_publication_review_artifact(blob.content)
+    except CanonicalArtifactError as exc:
+        raise invalidator.fail(
+            f"reviewed batch artifact is not canonical: {exc}"
+        ) from exc
+
+    invalidator.require_equal(
+        "attestation_digest", row["attestation_digest"], artifact.digest()
+    )
+    invalidator.require_equal(
+        "release_batch_review_digest",
+        row["release_batch_review_digest"],
+        artifact.digest(),
+    )
+
+    # (4) L'identité de release de la LIGNE vient de l'ARTEFACT, jamais
+    # l'inverse. Un digest bien formé mais étranger à la release approuvée
+    # est refusé ici.
+    for colonne, attendu in (
+        ("release_id", artifact.release_id),
+        ("release_manifest_sha256", artifact.release_manifest_sha256),
+        ("artifacts_release_sha256", artifact.artifacts_release_sha256),
+        ("candidate_inventory_sha256", artifact.candidate_inventory_sha256),
+        ("artifact_transfer_manifest_sha256",
+         artifact.artifact_transfer_manifest_sha256),
+        ("review_id", artifact.review_id),
+    ):
+        invalidator.require_equal(colonne, row[colonne], attendu)
+
+    # (5) L'appartenance, sur les dimensions que la revue nomme.
+    if row["collection"] not in artifact.collections:
+        raise invalidator.fail(
+            f"resource {resource_id} belongs to collection "
+            f"{row['collection']!r}, which the approved review does not cover "
+            f"({list(artifact.collections)!r})"
+        )
+    if row["scope_authorization_id"] not in artifact.scope_authorization_ids:
+        raise invalidator.fail(
+            f"resource {resource_id} names authorization "
+            f"{row['scope_authorization_id']!r}, which the approved review "
+            f"does not cover ({list(artifact.scope_authorization_ids)!r})"
+        )
+
+    # (6) La projection APPLICABLE — nommée par la release et la ressource,
+    # jamais « la plus récente ».
+    try:
+        projection = load_applicable_projection(
+            conn,
+            release_id=artifact.release_id,
+            resource_id=resource_id,
+            artifact_id=row["artifact_id"],
+        )
+        require_projection_authorises(projection, resource_id=resource_id)
+    except SealedReleaseProjectionError as exc:
+        raise invalidator.fail(str(exc)) from exc
+    invalidator.require_equal(
+        "content_sha256 vs projection", row["content_sha256"],
+        projection["content_sha256"],
+    )
+
+    # (7) L'autorisation de scope, revérifiée en direct.
+    try:
+        authorization = verify_scope_authorization(
+            conn, authorization_id=row["scope_authorization_id"]
+        )
+    except ScopeAuthorizationDeniedError as exc:
+        raise invalidator.fail(
+            f"referenced scope_authorization_id={row['scope_authorization_id']!r} "
+            f"no longer verifies live: {exc}"
+        ) from exc
+    if not authorization_allows_rights(authorization, row["rights_status"]):
+        raise invalidator.fail(
+            f"rights category {row['rights_status']!r} is not among the "
+            f"categories authorized by {authorization.authorization_id!r} "
+            f"({list(authorization.rights_categories)!r})"
+        )
+
+    # Les faits du batch viennent de la PROJECTION vérifiée, pas des
+    # événements unitaires que l'ingestion scellée n'écrit pas. Chaque champ
+    # est repris de ce qui a été projeté et confronté, jamais inventé.
+    evenements = _evenements_de_ressource(conn, resource_id)
+    facts = PublicationFacts(
+        resource_id=resource_id,
+        artifact_id=row["artifact_id"],
+        collection=row["collection"],
+        # Une release scellée n'a PAS d'URL canonique. La chaîne vide dit
+        # « ce protocole n'en porte pas » — elle n'est jamais promue en
+        # identité documentaire ni comparée à une provenance.
+        canonical_url="",
+        content_sha256=row["content_sha256"],
+        content_event_id=evenements[0],
+        content_scope_authorization_id=row["scope_authorization_id"],
+        content_scope_authorization_digest=authorization.authorization_digest,
+        content_scope_authorization_protocol_version=(
+            authorization.protocol_version
+        ),
+        rights_status=Rights(projection["rights_status"]),
+        rights_assessed_at=projection["gate_evaluated_at"],
+        rights_event_id=evenements[0],
+        quality_passed=projection["quality_passed"],
+        quality_report_digest=projection["quality_report_digest"],
+        quality_assessed_at=projection["gate_evaluated_at"],
+        quality_event_id=evenements[0],
+        gate_passed=projection["gate_passed"],
+        gate_name=projection["gate_name"],
+        gate_evaluated_at=projection["gate_evaluated_at"],
+        gate_event_id=evenements[-1],
+        source_label=row["collection"],
+        official=True,
+        source_kind="sealed_release",
+        type_doc=row["profile_id"],
+    )
+
+    return VerifiedAttestation(
+        attestation_id=row["attestation_id"],
+        resource_id=resource_id,
+        artifact_id=row["artifact_id"],
+        content_sha256=row["content_sha256"],
+        scope_authorization_id=row["scope_authorization_id"],
+        profile_fingerprint=row["profile_fingerprint"],
+        manifest_digest=row["manifest_digest"],
+        review_id=row["review_id"],
+        attestation_digest=row["attestation_digest"],
+        protocol_version=row["protocol_version"],
+        # Reserve a V2 : le batch n'en porte PAS, et le schema l'interdit.
+        # La chaine vide dit « absent », jamais « non verifie ».
+        attributed_facts_digest="",
+        authorization=authorization,
+        facts=facts,
+    )
+
+
+def _evenements_de_ressource(
+    conn: psycopg.Connection, resource_id: UUID
+) -> list[UUID]:
+    """Les evenements HISTORIQUES, references tels quels — jamais reecrits."""
+    lignes = conn.execute(
+        "SELECT event_id FROM ingestion_control.workflow_events "
+        " WHERE resource_id = %s ORDER BY occurred_at, event_id",
+        (resource_id,),
+    ).fetchall()
+    if not lignes:
+        raise PublicationAttestationInvalidError(
+            f"resource {resource_id} carries no workflow event — its history "
+            "cannot be referenced"
+        )
+    return [ligne[0] for ligne in lignes]
+
+
 def verify_publication_attestation(
     conn: psycopg.Connection,
     *,
@@ -405,6 +619,25 @@ def verify_publication_attestation(
             f"{resource_id}, but the active attestation is {row['attestation_id']}"
         )
     invalidator = _Invalidator(conn, row["attestation_id"])
+
+    # DISPATCH PAR PROTOCOLE. Chaque protocole vérifie SES preuves : les
+    # preuves unitaires au chemin unitaire, les preuves de release et
+    # l'appartenance au chemin batch.
+    #
+    # Ce n'est pas un assouplissement. Le chemin batch n'a pas d'URL
+    # canonique ni de digest d'attribution — le schéma le lui INTERDIT
+    # (migration 014) — et exiger fictivement ces preuves rendait toute
+    # attestation batch invérifiable. Sauter le contrôle parce qu'un champ
+    # est absent serait la faute symétrique : la branche batch vérifie ses
+    # propres liens d'intégrité, un par un.
+    if row["protocol_version"] == LOT42_RELEASE_BATCH_PROTOCOL_VERSION:
+        return _verify_release_batch_attestation(
+            conn,
+            row=row,
+            invalidator=invalidator,
+            resource_id=resource_id,
+            current_content_sha256=current_content_sha256,
+        )
 
     invalidator.require_equal("content_sha256", row["content_sha256"], current_content_sha256)
     invalidator.require_equal(
