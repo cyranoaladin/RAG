@@ -508,7 +508,18 @@ def test_governed_sql_matches_one_placement_without_duplicating_chunks() -> None
         assert "ORDER BY placement.placement_id ASC LIMIT 1" in normalized
         assert "matched_placement.placement_id IS NOT NULL" in normalized
         assert "placement.placement_status = 'active'" in normalized
-        assert "placement.currentness = 'current'" in normalized
+        # ADR-0059 : le retrieval sert l'identité d'octets prouvée et
+        # l'instantané officiel, et rien d'autre.
+        # Chaque prédicat de placement (jointure et filtre effectif) porte
+        # exactement ce domaine servi.
+        served = normalized.count(
+            "placement.currentness IN ('current', 'official_snapshot')"
+        )
+        assert served >= 1
+        assert served == normalized.count("placement.placement_status = 'active'")
+        assert "placement.currentness = 'current'" not in normalized
+        assert "archive" not in normalized
+        assert "review_required" not in normalized
         assert "placement.review_status = 'reviewed'" in normalized
         assert "chunk.artifact_id IS NULL" in normalized
         assert "chunk.artifact_id IS NOT NULL" in normalized

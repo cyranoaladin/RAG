@@ -199,6 +199,7 @@ PRODUCT_MIGRATIONS = (
     "002_hybrid_retrieval.sql",
     "003_profile_filtering.sql",
     "004_artifact_placements.sql",
+    "005_official_snapshot_currentness.sql",
 )
 
 CONFORMING = ConformityResult(

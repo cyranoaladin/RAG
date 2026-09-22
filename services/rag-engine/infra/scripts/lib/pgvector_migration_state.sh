@@ -908,6 +908,89 @@ $nexus$;
 SQL
 }
 
+# Migration 005 (ADR-0059) ne redéfinit que deux objets du modèle 004 : le
+# domaine de `currentness` et le prédicat de l'index des placements servis.
+# validate_004_sql n'en vérifie que la présence ; ces deux validateurs en
+# figent la définition exacte, de part et d'autre de 005. Ils supposent le
+# modèle 004 présent.
+validate_005_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_005
+DO $nexus$
+DECLARE
+    invalid_count integer;
+BEGIN
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint constraint_definition
+    WHERE constraint_definition.conrelid =
+          'public.rag_artifact_placements'::regclass
+      AND constraint_definition.conname =
+          'rag_artifact_placements_currentness_check'
+      AND constraint_definition.contype = 'c'
+      AND constraint_definition.convalidated
+      AND pg_get_constraintdef(constraint_definition.oid, true) =
+          $definition$CHECK (currentness = ANY (ARRAY['current'::text, 'official_snapshot'::text, 'archive'::text, 'review_required'::text]))$definition$;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: currentness domain';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_index index_definition
+    JOIN pg_class index_class ON index_class.oid = index_definition.indexrelid
+    WHERE index_definition.indrelid = 'public.rag_artifact_placements'::regclass
+      AND index_class.relname = 'idx_rag_artifact_placements_scope_active'
+      AND index_definition.indisvalid
+      AND index_definition.indisready
+      AND NOT index_definition.indisunique
+      AND pg_get_expr(index_definition.indpred, index_definition.indrelid, true) =
+          $definition$placement_status = 'active'::text AND (currentness = ANY (ARRAY['current'::text, 'official_snapshot'::text])) AND review_status = 'reviewed'::text$definition$;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: served placement index';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
+validate_005_absent_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_005_ABSENT
+DO $nexus$
+DECLARE
+    invalid_count integer;
+BEGIN
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint constraint_definition
+    WHERE constraint_definition.conrelid =
+          'public.rag_artifact_placements'::regclass
+      AND constraint_definition.conname =
+          'rag_artifact_placements_currentness_check'
+      AND constraint_definition.contype = 'c'
+      AND constraint_definition.convalidated
+      AND pg_get_constraintdef(constraint_definition.oid, true) =
+          $definition$CHECK (currentness = ANY (ARRAY['current'::text, 'archive'::text, 'review_required'::text]))$definition$;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: currentness domain';
+    END IF;
+
+    SELECT count(*) INTO invalid_count
+    FROM pg_index index_definition
+    JOIN pg_class index_class ON index_class.oid = index_definition.indexrelid
+    WHERE index_definition.indrelid = 'public.rag_artifact_placements'::regclass
+      AND index_class.relname = 'idx_rag_artifact_placements_scope_active'
+      AND index_definition.indisvalid
+      AND index_definition.indisready
+      AND NOT index_definition.indisunique
+      AND pg_get_expr(index_definition.indpred, index_definition.indrelid, true) =
+          $definition$placement_status = 'active'::text AND currentness = 'current'::text AND review_status = 'reviewed'::text$definition$;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: served placement index';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
 validate_registry_sql() {
     local expected_head="$1"
     local expected_json="["

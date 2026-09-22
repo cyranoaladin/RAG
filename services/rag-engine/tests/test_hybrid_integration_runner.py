@@ -797,19 +797,41 @@ def test_runner_exercises_canonical_cycle_and_both_atomic_rollbacks() -> None:
     assert "BOOTSTRAP_002_UNREGISTERED=PASS" in content
     assert "ATOMIC_ADOPTION_002_ROLLBACK=PASS" in content
     assert "BOOTSTRAP_ADOPTION_002=PASS" in content
-    assert "expect_failure FRESH_HEAD_004_NEGATIVE" in content
+    assert "expect_failure FRESH_HEAD_005_NEGATIVE" in content
     assert "apply_pgvector_migrations.sh" in content
     assert "rollback_pgvector_migration.sh" in content
     assert "rollback_pgvector_profile_filtering.sh" in content
-    assert "MIGRATION_CYCLE_001_002_003_004_003_002_001_004=PASS" in content
+    assert "rollback_pgvector_artifact_placements.sh" in content
+    assert "rollback_pgvector_official_snapshot_currentness.sh" in content
+    assert (
+        "MIGRATION_CYCLE_001_002_003_004_005_004_003_002_001_005=PASS" in content
+    )
     assert content.count("SELECT 1 / 0;") == 3
     assert "ATOMIC_UP_ROLLBACK=PASS" in content
     assert "ATOMIC_DOWN_ROLLBACK=PASS" in content
     assert "ROLLBACK_003_DATA_GUARD=PASS" in content
     assert "ROLLBACK_004_DATA_GUARD=PASS" in content
-    assert "MIGRATION_FINAL_HEAD_004=PASS" in content
+    assert "MIGRATION_FINAL_HEAD_005=PASS" in content
     assert "HEAD_003_RUNTIME_ROLES_PROVISIONED=PASS" in content
     assert "UPGRADE_004_RUNTIME_GRANTS=PASS" in content
+
+
+def test_runner_exercises_migration_005_upgrade_noop_and_guarded_rollback() -> None:
+    content = RUNNER.read_text(encoding="utf-8")
+    for marker in (
+        "UPGRADE_005_PRESERVES_CURRENT_ROWS=PASS",
+        "APPLY_AT_HEAD_005_NOOP=PASS",
+        "expect_failure ROLLBACK_005_OFFICIAL_SNAPSHOT_REFUSED",
+        "ROLLBACK_005_OFFICIAL_SNAPSHOT_GUARD=PASS",
+        "ROLLBACK_005_RESTORES_004_DEFINITIONS=PASS",
+    ):
+        assert marker in content
+    assert "grep -qx 'MIGRATIONS_APPLIED=0'" in content
+    assert "ROLLBACK_005_OFFICIAL_SNAPSHOT_PRESENT" in content
+    # Chaque retour au head 004 est prouvé contre les définitions 004
+    # relevées sur la base elle-même avant la première montée en 005.
+    assert "capture_definitions_004" in content
+    assert "assert_definitions_004" in content
 
 
 def test_runner_invokes_lot40_and_only_opts_into_the_real_h2c_rehearsal() -> None:

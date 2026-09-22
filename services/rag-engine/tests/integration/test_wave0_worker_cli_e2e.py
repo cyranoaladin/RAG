@@ -205,6 +205,7 @@ def product_pg() -> Iterator[dict[str, str]]:
             "002_hybrid_retrieval.sql",
             "003_profile_filtering.sql",
             "004_artifact_placements.sql",
+            "005_official_snapshot_currentness.sql",
         )
         for name in migration_names:
             result = subprocess.run(

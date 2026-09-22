@@ -441,11 +441,20 @@ run_down_004() {
         bash "$1/scripts/rollback_pgvector_artifact_placements.sh" 004_artifact_placements
 }
 
-assert_fresh_head_004() {
+run_down_005() {
+    PGVECTOR_CONTAINER="$PGVECTOR_CONTAINER_ID" \
+    PGVECTOR_DB="$PGVECTOR_DB" \
+    PGVECTOR_USER="$PGVECTOR_USER" \
+    BACKUP_ROOT="$BACKUP_ROOT" \
+        bash "$1/scripts/rollback_pgvector_official_snapshot_currentness.sh" \
+        005_official_snapshot_currentness
+}
+
+assert_fresh_head_005() {
     container_psql <<'SQL'
 SELECT version
 FROM rag_schema_migrations
-WHERE version = 4 AND file_name = '004_artifact_placements.sql';
+WHERE version = 5 AND file_name = '005_official_snapshot_currentness.sql';
 SQL
 }
 
@@ -472,6 +481,7 @@ sha_001="$(sha256sum "$INFRA_DIR/postgres/migrations/001_rag_chunks_v2_schema.sq
 sha_002="$(sha256sum "$INFRA_DIR/postgres/migrations/002_hybrid_retrieval.sql" | awk '{print $1}')"
 sha_003="$(sha256sum "$INFRA_DIR/postgres/migrations/003_profile_filtering.sql" | awk '{print $1}')"
 sha_004="$(sha256sum "$INFRA_DIR/postgres/migrations/004_artifact_placements.sql" | awk '{print $1}')"
+sha_005="$(sha256sum "$INFRA_DIR/postgres/migrations/005_official_snapshot_currentness.sql" | awk '{print $1}')"
 
 assert_state_001() {
     container_psql <<SQL
@@ -626,6 +636,148 @@ END
 SQL
 }
 
+assert_state_005() {
+    container_psql <<SQL
+DO \$\$
+BEGIN
+    IF (SELECT count(*) FROM rag_schema_migrations) <> 5
+       OR NOT EXISTS (
+           SELECT 1 FROM rag_schema_migrations
+           WHERE version = 4
+             AND file_name = '004_artifact_placements.sql'
+             AND sha256 = '$sha_004'
+       )
+       OR NOT EXISTS (
+           SELECT 1 FROM rag_schema_migrations
+           WHERE version = 5
+             AND file_name = '005_official_snapshot_currentness.sql'
+             AND sha256 = '$sha_005'
+       )
+       OR (SELECT max(version) FROM rag_schema_migrations) <> 5
+       OR NOT EXISTS (
+           SELECT 1 FROM pg_constraint
+           WHERE conrelid = 'public.rag_artifact_placements'::regclass
+             AND conname = 'rag_artifact_placements_currentness_check'
+             AND convalidated
+             AND pg_get_constraintdef(oid, true) = \$definition\$CHECK (currentness = ANY (ARRAY['current'::text, 'official_snapshot'::text, 'archive'::text, 'review_required'::text]))\$definition\$
+       )
+       OR NOT EXISTS (
+           SELECT 1 FROM pg_index
+           WHERE indexrelid = 'public.idx_rag_artifact_placements_scope_active'::regclass
+             AND indisvalid AND indisready
+             AND pg_get_expr(indpred, indrelid, true) = \$definition\$placement_status = 'active'::text AND (currentness = ANY (ARRAY['current'::text, 'official_snapshot'::text])) AND review_status = 'reviewed'::text\$definition\$
+       ) THEN
+        RAISE EXCEPTION 'ADR0059_EXPECTED_HEAD_005';
+    END IF;
+END
+\$\$;
+SQL
+}
+
+# Définitions 004 relevées sur la base elle-même, montée à 004 par le
+# manifeste 004 livré (et non par le rollback 005) : c'est contre elles que
+# chaque retour à 004 est prouvé à l'identique.
+read_definitions_004() {
+    container_psql -A -t <<'SQL'
+SELECT (
+    SELECT pg_get_constraintdef(oid, true)
+    FROM pg_constraint
+    WHERE conrelid = 'public.rag_artifact_placements'::regclass
+      AND conname = 'rag_artifact_placements_currentness_check'
+) || ' | ' || pg_get_indexdef('public.idx_rag_artifact_placements_scope_active'::regclass);
+SQL
+}
+
+capture_definitions_004() {
+    definitions_004="$(read_definitions_004)"
+    if [[ "$definitions_004" != *"ARRAY['current'::text, 'archive'::text, 'review_required'::text]"* \
+       || "$definitions_004" != *"(currentness = 'current'::text)"* \
+       || "$definitions_004" == *official_snapshot* ]]; then
+        echo "ADR0059_DEFINITIONS_004_UNEXPECTED" >&2
+        return 1
+    fi
+}
+
+assert_definitions_004() {
+    if [[ -z "${definitions_004:-}" \
+       || "$(read_definitions_004)" != "$definitions_004" ]]; then
+        echo "ADR0059_DEFINITIONS_004_NOT_RESTORED" >&2
+        return 1
+    fi
+}
+
+# Empreinte exacte des lignes gouvernées : une migration ou un rollback de
+# schéma ne doit en réécrire aucune.
+governed_rows_fingerprint() {
+    container_psql -A -t <<'SQL'
+SELECT md5(
+    COALESCE((SELECT string_agg(a::text, '|' ORDER BY a.artifact_id)
+              FROM rag_artifacts a), '')
+    || '#' ||
+    COALESCE((SELECT string_agg(p::text, '|' ORDER BY p.placement_id)
+              FROM rag_artifact_placements p), '')
+);
+SQL
+}
+
+seed_head_004_governed_rows() {
+    container_psql <<'SQL'
+INSERT INTO rag_artifacts (
+    artifact_id, content_sha256, source_label, source_uri, rights,
+    source_kind, type_doc, ingestion_artifact_id
+) VALUES (
+    repeat('c', 64), repeat('c', 64), 'ADR-0059 upgrade witness',
+    'urn:nexus:adr0059:upgrade', 'usage_interne', 'test', 'cours',
+    '00000000-0000-0000-0000-000000000005'
+);
+INSERT INTO rag_artifact_placements (
+    placement_id, artifact_id, collection, tenant, niveau, voie, audience,
+    matiere, statut_enseignement, candidat, visibility, school_year,
+    programme_version, currentness, placement_status, review_status,
+    source_scope, source_placement_id, source_path, source_uri,
+    authorization_id, publication_attestation_id
+) VALUES
+    (repeat('d', 64), repeat('c', 64), 'adr0059_current', 'libre_terminale',
+     'terminale', 'generale', ARRAY['tous'], 'nsi', 'specialite', 'libre',
+     'internal', '2026-2027', 'BOEN-ADR0059', 'current', 'active', 'reviewed',
+     'adr0059/scope', 'adr0059:current', 'adr0059/current.pdf',
+     'urn:nexus:adr0059:upgrade', 'AUTH-ADR0059',
+     '00000000-0000-0000-0000-000000000051'),
+    (repeat('f', 64), repeat('c', 64), 'adr0059_archive', 'libre_terminale',
+     'terminale', 'generale', ARRAY['tous'], 'nsi', 'specialite', 'libre',
+     'internal', '2026-2027', 'BOEN-ADR0059', 'archive', 'active', 'reviewed',
+     'adr0059/scope', 'adr0059:archive', 'adr0059/archive.pdf',
+     'urn:nexus:adr0059:upgrade', 'AUTH-ADR0059',
+     '00000000-0000-0000-0000-000000000052');
+SQL
+}
+
+insert_official_snapshot_placement() {
+    container_psql <<'SQL'
+INSERT INTO rag_artifact_placements (
+    placement_id, artifact_id, collection, tenant, niveau, voie, audience,
+    matiere, statut_enseignement, candidat, visibility, school_year,
+    programme_version, currentness, placement_status, review_status,
+    source_scope, source_placement_id, source_path, source_uri,
+    authorization_id, publication_attestation_id
+) VALUES (
+    repeat('e', 64), repeat('c', 64), 'adr0059_snapshot', 'libre_terminale',
+    'terminale', 'generale', ARRAY['tous'], 'nsi', 'specialite', 'libre',
+    'internal', '2026-2027', 'BOEN-ADR0059', 'official_snapshot', 'active',
+    'reviewed', 'adr0059/scope', 'adr0059:snapshot', 'adr0059/snapshot.pdf',
+    'urn:nexus:adr0059:upgrade', 'AUTH-ADR0059',
+    '00000000-0000-0000-0000-000000000053'
+);
+SQL
+}
+
+assert_official_snapshot_placements() {
+    local expected="$1"
+    test "$(container_psql -A -t -c \
+        "SELECT count(*) FROM rag_artifact_placements WHERE currentness = 'official_snapshot'")" \
+        = "$expected"
+}
+
 provision_app_role() {
     docker exec -i \
         -e "PGVECTOR_RETRIEVAL_USER=$PGVECTOR_APP_USER" \
@@ -703,21 +855,75 @@ expect_failure ATOMIC_ADOPTION_002_EXPECTED_FAILURE \
 assert_unregistered_bootstrap_002
 echo "ATOMIC_ADOPTION_002_ROLLBACK=PASS"
 
-bootstrap_adoption_output="$(run_apply "$INFRA_DIR")"
+# Le dépôt tel qu'il était déployé avant ADR-0059 : même infra, manifeste
+# arrêté au head 004. C'est l'état réel des bases à mettre à niveau.
+head_004_root="$RUN_ROOT/head-004"
+mkdir -p "$head_004_root"
+cp -a -- "$INFRA_DIR" "$head_004_root/infra"
+rm -f -- "$head_004_root/infra/postgres/migrations/005_official_snapshot_currentness.sql"
+printf '%s\n' '004_artifact_placements' \
+    > "$head_004_root/infra/postgres/migrations/HEAD"
+
+bootstrap_adoption_output="$(run_apply "$head_004_root/infra")"
 printf '%s\n' "$bootstrap_adoption_output"
 grep -qx 'MIGRATIONS_ADOPTED=2' <<< "$bootstrap_adoption_output"
 grep -qx 'MIGRATIONS_APPLIED=2' <<< "$bootstrap_adoption_output"
 assert_state_004
+capture_definitions_004
 echo "BOOTSTRAP_ADOPTION_002=PASS"
+
+seed_head_004_governed_rows
+rows_at_head_004="$(governed_rows_fingerprint)"
+upgrade_005_output="$(run_apply "$INFRA_DIR")"
+printf '%s\n' "$upgrade_005_output"
+grep -qx 'MIGRATIONS_ADOPTED=0' <<< "$upgrade_005_output"
+grep -qx 'MIGRATIONS_APPLIED=1' <<< "$upgrade_005_output"
+assert_state_005
+test "$(governed_rows_fingerprint)" = "$rows_at_head_004"
+echo "UPGRADE_005_PRESERVES_CURRENT_ROWS=PASS"
+
+noop_005_output="$(run_apply "$INFRA_DIR")"
+printf '%s\n' "$noop_005_output"
+grep -qx 'MIGRATIONS_APPLIED=0' <<< "$noop_005_output"
+grep -qx 'MIGRATIONS_ADOPTED=0' <<< "$noop_005_output"
+assert_state_005
+test "$(governed_rows_fingerprint)" = "$rows_at_head_004"
+echo "APPLY_AT_HEAD_005_NOOP=PASS"
+
+insert_official_snapshot_placement
+rows_with_snapshot="$(governed_rows_fingerprint)"
+expect_failure ROLLBACK_005_OFFICIAL_SNAPSHOT_REFUSED run_down_005 "$INFRA_DIR"
+grep -q 'ROLLBACK_005_OFFICIAL_SNAPSHOT_PRESENT' \
+    "$RUN_ROOT/ROLLBACK_005_OFFICIAL_SNAPSHOT_REFUSED.out"
+assert_state_005
+assert_official_snapshot_placements 1
+test "$(governed_rows_fingerprint)" = "$rows_with_snapshot"
+container_psql <<'SQL'
+DELETE FROM rag_artifact_placements WHERE placement_id = repeat('e', 64);
+SQL
+echo "ROLLBACK_005_OFFICIAL_SNAPSHOT_GUARD=PASS"
+
+run_down_005 "$INFRA_DIR"
+assert_state_004
+assert_definitions_004
+test "$(governed_rows_fingerprint)" = "$rows_at_head_004"
+echo "ROLLBACK_005_RESTORES_004_DEFINITIONS=PASS"
+container_psql <<'SQL'
+DELETE FROM rag_artifact_placements WHERE artifact_id = repeat('c', 64);
+DELETE FROM rag_artifacts WHERE artifact_id = repeat('c', 64);
+SQL
 
 run_down_004 "$INFRA_DIR"
 assert_state_003
 provision_head_003_runtime_roles
 echo "HEAD_003_RUNTIME_ROLES_PROVISIONED=PASS"
 run_apply_upgrade_roles "$INFRA_DIR"
-assert_state_004
+assert_state_005
 assert_upgrade_004_runtime_grants
 echo "UPGRADE_004_RUNTIME_GRANTS=PASS"
+run_down_005 "$INFRA_DIR"
+assert_state_004
+assert_definitions_004
 run_down_004 "$INFRA_DIR"
 assert_state_003
 run_down_003 "$INFRA_DIR"
@@ -725,17 +931,20 @@ assert_state_002
 run_down_002 "$INFRA_DIR"
 assert_state_001
 run_apply "$INFRA_DIR"
-assert_state_004
-echo "BOOTSTRAP_CYCLE_004_003_002_001_004=PASS"
+assert_state_005
+echo "BOOTSTRAP_CYCLE_005_004_003_002_001_005=PASS"
 
 docker exec "$PGVECTOR_CONTAINER_ID" \
     createdb -U "$PGVECTOR_USER" -T template0 "$PGVECTOR_FRESH_DB"
 PGVECTOR_DB="$PGVECTOR_FRESH_DB"
 
-expect_failure FRESH_HEAD_004_NEGATIVE assert_fresh_head_004
+expect_failure FRESH_HEAD_005_NEGATIVE assert_fresh_head_005
 
 run_apply "$INFRA_DIR"
+assert_state_005
+run_down_005 "$INFRA_DIR"
 assert_state_004
+assert_definitions_004
 run_down_004 "$INFRA_DIR"
 assert_state_003
 run_down_003 "$INFRA_DIR"
@@ -743,9 +952,11 @@ assert_state_002
 run_down_002 "$INFRA_DIR"
 assert_state_001
 run_apply "$INFRA_DIR"
-assert_state_004
-echo "MIGRATION_CYCLE_001_002_003_004_003_002_001_004=PASS"
+assert_state_005
+echo "MIGRATION_CYCLE_001_002_003_004_005_004_003_002_001_005=PASS"
 
+run_down_005 "$INFRA_DIR"
+assert_state_004
 run_down_004 "$INFRA_DIR"
 assert_state_003
 atomic_up_root="$RUN_ROOT/atomic-up"
@@ -758,6 +969,8 @@ assert_state_003
 echo "ATOMIC_UP_ROLLBACK=PASS"
 
 run_apply "$INFRA_DIR"
+assert_state_005
+run_down_005 "$INFRA_DIR"
 assert_state_004
 atomic_down_root="$RUN_ROOT/atomic-down"
 mkdir -p "$atomic_down_root"
@@ -805,8 +1018,8 @@ DELETE FROM rag_chunks WHERE chunk_id = 'lot41-rollback-guard';
 SQL
 echo "ROLLBACK_003_DATA_GUARD=PASS"
 run_apply "$INFRA_DIR"
-assert_state_004
-echo "MIGRATION_FINAL_HEAD_004=PASS"
+assert_state_005
+echo "MIGRATION_FINAL_HEAD_005=PASS"
 
 PGVECTOR_DB="$PGVECTOR_BOOTSTRAP_DB"
 provision_app_role
@@ -840,7 +1053,7 @@ LOT42_PG_PUBLISHER_DSN="$LOT42_PG_PUBLISHER_DSN" \
 DRIVE_SYNC_DB_PATH="$RUN_ROOT/drive_sync_state.db" \
 PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "${integration_tests[@]}" -q -s
 
-assert_state_004
+assert_state_005
 if (( lot40_integration_executed == 1 )); then
     echo "LOT40_HYBRID_INTEGRATION=PASS"
 else

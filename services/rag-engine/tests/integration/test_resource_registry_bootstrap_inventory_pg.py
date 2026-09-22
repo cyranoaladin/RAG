@@ -38,6 +38,7 @@ PRODUCT_MIGRATIONS = (
     "002_hybrid_retrieval.sql",
     "003_profile_filtering.sql",
     "004_artifact_placements.sql",
+    "005_official_snapshot_currentness.sql",
 )
 RESOURCE_ID = UUID("11111111-1111-4111-8111-111111111111")
 VERSION_ID = UUID("22222222-2222-4222-8222-222222222222")

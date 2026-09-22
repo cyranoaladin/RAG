@@ -42,6 +42,7 @@ from ingestor.pg_pool import PoolSettings, close_pool, pool_connection
 from ingestor.readiness_db import postgres_database_authorities_share_instance
 from ingestor.retrieval_hybrid_v2 import (
     EMBED_DIMENSION,
+    RetrievalCandidate,
     RetrievalPipelineError,
     retrieve_hybrid,
 )
@@ -56,7 +57,7 @@ from ingestor.retrieval_pg_v2 import (
 from ingestor.retrieval_readiness_v2 import retrieval_database_ready
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from ingestor.review_readiness_v2 import review_database_ready
-from ingestor.schema_readiness_v2 import schema_head_004_ready
+from ingestor.schema_readiness_v2 import schema_head_005_ready
 
 pytestmark = pytest.mark.integration
 
@@ -104,6 +105,13 @@ ROLLBACK_004 = (
     / "postgres"
     / "rollbacks"
     / "004_artifact_placements.down.sql"
+)
+ROLLBACK_005 = (
+    SERVICE_ROOT
+    / "infra"
+    / "postgres"
+    / "rollbacks"
+    / "005_official_snapshot_currentness.down.sql"
 )
 MIGRATIONS = SERVICE_ROOT / "infra" / "postgres" / "migrations"
 
@@ -432,6 +440,154 @@ def test_rollback_004_rechecks_after_a_concurrent_writer_commits() -> None:
                 ("a" * 64,),
             )
         print("ROLLBACK_004_CONCURRENT_WRITER_REFUSED=PASS")
+    finally:
+        if writer is not None:
+            writer.close()
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
+            admin.execute(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = %s AND pid <> pg_backend_pid()",
+                (database,),
+            )
+            admin.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database)))
+
+
+_ADR0059_PLACEMENT_INSERT = """
+    INSERT INTO public.rag_artifact_placements (
+        placement_id, artifact_id, collection, tenant, niveau, voie, audience,
+        matiere, statut_enseignement, candidat, visibility, school_year,
+        programme_version, currentness, placement_status, review_status,
+        source_scope, source_placement_id, source_path, source_uri,
+        authorization_id, publication_attestation_id
+    ) VALUES (
+        %s, %s, %s, %s, 'terminale', 'generale', ARRAY['tous'], 'nsi',
+        %s, %s, %s, %s, %s, %s, 'active', 'reviewed', 'adr0059/scope',
+        %s, 'adr0059/source.pdf', 'urn:nexus:adr0059', 'AUTH-ADR0059', %s
+    )
+"""
+
+
+def _adr0059_placement_values(
+    *, artifact_id: str, collection: str, currentness: str
+) -> tuple[object, ...]:
+    return (
+        hashlib.sha256(f"{artifact_id}:{collection}".encode()).hexdigest(),
+        artifact_id,
+        collection,
+        TENANT,
+        STATUT_ENSEIGNEMENT,
+        CANDIDAT,
+        VISIBILITY,
+        SCHOOL_YEAR,
+        PROGRAMME_VERSION,
+        currentness,
+        f"adr0059:{collection}",
+        uuid4(),
+    )
+
+
+def test_rollback_005_rechecks_after_a_concurrent_snapshot_writer_commits() -> None:
+    """La garde 005 doit observer un instantané committé pendant le rollback.
+
+    Même preuve que pour 004 : le writer garde un RowExclusive non committé
+    sur les placements ; le rollback doit demander ACCESS EXCLUSIVE *avant*
+    sa garde, attendre, puis refuser après le commit du writer. Sans ce
+    verrou initial, la garde passerait sur un snapshot sans instantané et la
+    contrainte 004 serait restaurée par-dessus une ligne qu'elle interdit.
+    """
+    database = f"adr0059_rollback_{uuid4().hex}"
+    database_dsn = make_conninfo(ADMIN_DSN, dbname=database)
+    rollback_sql = ROLLBACK_005.read_text(encoding="utf-8")
+    artifact_id = "b" * 64
+    writer: psycopg.Connection[Any] | None = None
+    try:
+        with psycopg.connect(ADMIN_DSN, autocommit=True) as admin:
+            admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
+        with psycopg.connect(database_dsn, autocommit=True) as setup:
+            for version in range(1, 6):
+                migration = next(MIGRATIONS.glob(f"{version:03d}_*.sql"))
+                setup.execute(migration.read_text(encoding="utf-8"))  # type: ignore[arg-type]
+            setup.execute(
+                """
+                INSERT INTO public.rag_artifacts (
+                    artifact_id, content_sha256, source_label, source_uri,
+                    rights, official, source_kind, type_doc, ingestion_artifact_id
+                ) VALUES (%s, %s, 'rollback 005 concurrency', 'urn:adr0059:rollback',
+                          'internal', true, 'test', 'test', %s)
+                """,
+                (artifact_id, artifact_id, uuid4()),
+            )
+
+        writer = psycopg.connect(database_dsn)
+        writer.execute(
+            _ADR0059_PLACEMENT_INSERT,  # type: ignore[arg-type]
+            _adr0059_placement_values(
+                artifact_id=artifact_id,
+                collection="adr0059_concurrent_snapshot",
+                currentness="official_snapshot",
+            ),
+        )
+
+        outcome: dict[str, object] = {}
+        rollback_started = threading.Event()
+
+        def execute_rollback() -> None:
+            with psycopg.connect(database_dsn) as connection:
+                try:
+                    rollback_started.set()
+                    connection.execute(rollback_sql)  # type: ignore[arg-type]
+                    outcome["completed"] = True
+                except BaseException as error:  # résultat inspecté par le thread principal
+                    outcome["error"] = error
+                finally:
+                    connection.rollback()
+
+        rollback_thread = threading.Thread(target=execute_rollback, daemon=True)
+        rollback_thread.start()
+        assert rollback_started.wait(timeout=5)
+
+        queued = False
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            with psycopg.connect(database_dsn, autocommit=True) as observer:
+                row = observer.execute(
+                    """
+                    SELECT EXISTS (
+                        SELECT 1
+                        FROM pg_locks
+                        WHERE relation = 'public.rag_artifact_placements'::regclass
+                          AND mode = 'AccessExclusiveLock'
+                          AND NOT granted
+                    )
+                    """
+                ).fetchone()
+            if row == (True,):
+                queued = True
+                break
+            time.sleep(0.05)
+        assert queued, "rollback never queued ACCESS EXCLUSIVE on placements"
+
+        writer.commit()
+        rollback_thread.join(timeout=10)
+        assert not rollback_thread.is_alive()
+        error = outcome.get("error")
+        assert isinstance(error, psycopg.errors.RaiseException)
+        assert "ROLLBACK_005_OFFICIAL_SNAPSHOT_PRESENT" in str(error)
+        assert "completed" not in outcome
+
+        with psycopg.connect(database_dsn, autocommit=True) as observer:
+            assert observer.execute(
+                "SELECT currentness FROM public.rag_artifact_placements "
+                "WHERE artifact_id = %s",
+                (artifact_id,),
+            ).fetchall() == [("official_snapshot",)]
+            definition = observer.execute(
+                "SELECT pg_get_constraintdef(oid, true) FROM pg_constraint "
+                "WHERE conname = 'rag_artifact_placements_currentness_check'"
+            ).fetchone()
+            assert definition is not None
+            assert "official_snapshot" in str(definition[0])
+        print("ROLLBACK_005_CONCURRENT_SNAPSHOT_REFUSED=PASS")
     finally:
         if writer is not None:
             writer.close()
@@ -1188,6 +1344,41 @@ def test_publisher_role_is_insert_only_on_product_relations() -> None:
     print("PUBLISHER_ROLE_INSERT_ONLY_PRODUCT_RELATIONS=PASS")
 
 
+class _VerifiedControlConnection:
+    """Plan de contrôle dont les vérifications sont déjà établies par le test."""
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        yield
+
+
+def _install_verified_control_plane(
+    monkeypatch: pytest.MonkeyPatch,
+    bindings: dict[UUID, tuple[publisher.GovernedArtifact, publisher.EligiblePlacement]],
+    verified_attestation: Callable[..., VerifiedAttestation],
+) -> _VerifiedControlConnection:
+    """Remplacer le seul plan de contrôle : le produit reste la vraie base."""
+    monkeypatch.setattr(publisher, "verify_publication_attestation", verified_attestation)
+    monkeypatch.setattr(
+        publisher,
+        "_resource_is_retrieval_eligible",
+        lambda _connection, *, resource_id: resource_id in bindings,
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_lock_governance_commit_fence",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        publisher,
+        "_persist_external_authority_pins",
+        lambda _connection, verified: tuple(
+            sorted(item.attestation.attestation_digest for item in verified)
+        ),
+    )
+    return _VerifiedControlConnection()
+
+
 def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1298,31 +1489,9 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
             bound_artifact.type_doc,
         ), f"attested attribution diverges from the published artifact for {resource_id}"
 
-    monkeypatch.setattr(publisher, "verify_publication_attestation", verified_attestation)
-    monkeypatch.setattr(
-        publisher,
-        "_resource_is_retrieval_eligible",
-        lambda _connection, *, resource_id: resource_id in bindings,
+    control_connection = _install_verified_control_plane(
+        monkeypatch, bindings, verified_attestation
     )
-    monkeypatch.setattr(
-        publisher,
-        "_lock_governance_commit_fence",
-        lambda *_args, **_kwargs: None,
-    )
-    monkeypatch.setattr(
-        publisher,
-        "_persist_external_authority_pins",
-        lambda _connection, verified: tuple(
-            sorted(item.attestation.attestation_digest for item in verified)
-        ),
-    )
-
-    class VerifiedControlConnection:
-        @contextmanager
-        def transaction(self) -> Iterator[None]:
-            yield
-
-    control_connection = VerifiedControlConnection()
 
     calls = {"extract": 0, "embed": 0}
 
@@ -1477,6 +1646,112 @@ def test_governed_publisher_is_atomic_idempotent_and_multi_placement(
     assert wrong_scope == []
     print("GOVERNED_PUBLISHER_ATOMIC_IDEMPOTENT=PASS")
     print("MULTI_PLACEMENT_RETRIEVAL_NO_DUPLICATE_CHUNKS=PASS")
+
+
+def test_official_snapshot_is_published_and_served_but_unserved_currentness_is_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ADR-0059 § 2, sur la vraie base au head 005 et sous les vrais rôles.
+
+    Le publisher enregistre l'instantané officiel comme tel (la contrainte
+    005 l'admet), et le retrieval le sert, dans ses deux canaux. Un
+    placement `archive` ou `review_required` du même artefact n'est jamais
+    servi, même actif et revu.
+    """
+    content = (
+        b"Titre: Instantane officiel ADR-0059\n\n"
+        b"Cet algorithme de graphe est enseigne en terminale ; la ressource "
+        b"officielle est un instantane dont l'actualite reseau est inconnue."
+    )
+    artifact = publisher.GovernedArtifact(
+        content=content,
+        content_sha256=hashlib.sha256(content).hexdigest(),
+        source_label="Instantane officiel ADR-0059",
+        source_uri="https://eduscol.education.fr/adr0059-snapshot.pdf",
+        rights=Rights.usage_interne.value,
+        official=True,
+        source_kind="eduscol",
+        type_doc="ressource_officielle",
+    )
+    snapshot = replace(
+        _governed_placement(collection="adr0059_snapshot", source_suffix="adr0059"),
+        currentness="official_snapshot",
+    )
+    bindings = {snapshot.resource_id: (artifact, snapshot)}
+    attestation = _verified_publication(artifact, snapshot)
+
+    def verified_attestation(
+        _connection: psycopg.Connection[Any],
+        *,
+        resource_id: UUID,
+        current_content_sha256: str,
+        current_profile_fingerprint: str,
+        current_manifest_digest: str,
+        require_content_bound_authority: bool = False,
+    ) -> VerifiedAttestation:
+        assert require_content_bound_authority is True
+        assert resource_id == snapshot.resource_id
+        assert current_content_sha256 == artifact.content_sha256
+        return attestation
+
+    control_connection = _install_verified_control_plane(
+        monkeypatch, bindings, verified_attestation
+    )
+    with psycopg.connect(PUBLISHER_DSN) as product_connection:
+        published = publisher.publish_governed_artifact(
+            control_connection,
+            product_connection,
+            artifact,
+            (snapshot,),
+            lambda value: value.decode("utf-8"),
+            lambda passages: [QUERY_VECTOR for _ in passages],
+        )
+    assert published.placement_rows == 1
+    assert published.chunk_rows > 0
+
+    unserved = ("archive", "review_required")
+    with psycopg.connect(ADMIN_DSN) as admin_connection:
+        for currentness in unserved:
+            admin_connection.execute(
+                _ADR0059_PLACEMENT_INSERT,  # type: ignore[arg-type]
+                _adr0059_placement_values(
+                    artifact_id=artifact.artifact_id,
+                    collection=f"adr0059_{currentness}",
+                    currentness=currentness,
+                ),
+            )
+        recorded = admin_connection.execute(
+            "SELECT collection, currentness FROM rag_artifact_placements "
+            "WHERE artifact_id = %s ORDER BY collection",
+            (artifact.artifact_id,),
+        ).fetchall()
+    assert recorded == [
+        ("adr0059_archive", "archive"),
+        ("adr0059_review_required", "review_required"),
+        ("adr0059_snapshot", "official_snapshot"),
+    ]
+
+    def served(collection: str) -> tuple[list[RetrievalCandidate], list[RetrievalCandidate]]:
+        store = PgCandidateStore(_app_store_connection, _scope(collection))
+        return (
+            list(
+                store.dense(
+                    query_vector=QUERY_VECTOR, collection=collection, limit=10
+                )
+            ),
+            list(store.lexical(raw_query=QUERY, collection=collection, limit=10)),
+        )
+
+    dense, lexical = served("adr0059_snapshot")
+    expected_placement = publisher.canonical_placement_id(artifact.artifact_id, snapshot)
+    for channel in (dense, lexical):
+        assert len(channel) == published.chunk_rows
+        assert all(candidate.artifact_id == artifact.artifact_id for candidate in channel)
+        assert all(candidate.placement_id == expected_placement for candidate in channel)
+    for currentness in unserved:
+        assert served(f"adr0059_{currentness}") == ([], [])
+    print("ADR0059_OFFICIAL_SNAPSHOT_SERVED=PASS")
+    print("ADR0059_UNSERVED_CURRENTNESS_REFUSED=PASS")
 
 
 def test_retrieval_role_is_exactly_read_only() -> None:
@@ -1897,12 +2172,21 @@ def test_schema_registry_fingerprints_and_real_migration_objects_are_exact() -> 
                 .read_bytes()
             ).hexdigest(),
         ),
+        5: (
+            "005_official_snapshot_currentness.sql",
+            hashlib.sha256(
+                (
+                    SERVICE_ROOT
+                    / "infra/postgres/migrations/005_official_snapshot_currentness.sql"
+                ).read_bytes()
+            ).hexdigest(),
+        ),
     }
     with psycopg.connect(ADMIN_DSN) as connection:
         rows = connection.execute(
             "SELECT version, file_name, sha256 FROM rag_schema_migrations ORDER BY version"
         ).fetchall()
-        assert rows == [(version, *expected[version]) for version in (1, 2, 3, 4)]
+        assert rows == [(version, *expected[version]) for version in (1, 2, 3, 4, 5)]
         objects = connection.execute(
             """
             SELECT
@@ -1920,7 +2204,7 @@ def test_schema_registry_fingerprints_and_real_migration_objects_are_exact() -> 
             "idx_rag_chunks_profile_reviewed",
             "ALWAYS",
         )
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_FINGERPRINTS_REAL_DB=PASS")
 
 
@@ -1928,14 +2212,14 @@ def test_schema_readiness_rejects_missing_lexical_index() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute("DROP INDEX idx_rag_chunks_text_tsv")
     try:
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
                 "CREATE INDEX idx_rag_chunks_text_tsv "
                 "ON rag_chunks USING gin (text_tsv)"
             )
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_BASE_INDEX_DRIFT_REJECTED=PASS")
 
 
@@ -1945,24 +2229,24 @@ def test_schema_readiness_rejects_default_and_extra_index_drift() -> None:
             "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'drifted'"
         )
     try:
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
                 "ALTER TABLE rag_chunks ALTER COLUMN voie SET DEFAULT 'generale'"
             )
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
 
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute(
             "CREATE INDEX idx_rag_chunks_unexpected ON rag_chunks (doc_id)"
         )
     try:
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("DROP INDEX idx_rag_chunks_unexpected")
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_DEFAULT_AND_EXTRA_INDEX_DRIFT_REJECTED=PASS")
 
 
@@ -1976,11 +2260,11 @@ def test_schema_readiness_rejects_an_invalid_extra_index() -> None:
             "WHERE indexrelid = 'idx_rag_chunks_invalid_extra'::regclass"
         )
     try:
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("DROP INDEX idx_rag_chunks_invalid_extra")
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_INVALID_EXTRA_INDEX_DRIFT_REJECTED=PASS")
 
 
@@ -1988,11 +2272,11 @@ def test_schema_readiness_rejects_row_security_drift() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute("ALTER TABLE rag_chunks ENABLE ROW LEVEL SECURITY")
     try:
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("ALTER TABLE rag_chunks DISABLE ROW LEVEL SECURITY")
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_ROW_SECURITY_DRIFT_REJECTED=PASS")
 
 
@@ -2000,11 +2284,11 @@ def test_schema_readiness_rejects_unlogged_rag_chunks() -> None:
     with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
         connection.execute("ALTER TABLE rag_chunks SET UNLOGGED")
     try:
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("ALTER TABLE rag_chunks SET LOGGED")
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_PERMANENT_STORAGE_DRIFT_REJECTED=PASS")
 
 
@@ -2037,7 +2321,7 @@ def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
                 EXECUTE FUNCTION lot41u_unexpected_trigger()
                 """
             )
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
@@ -2046,7 +2330,7 @@ def test_schema_readiness_rejects_non_internal_trigger_drift() -> None:
             connection.execute(
                 "DROP FUNCTION IF EXISTS lot41u_unexpected_trigger()"
             )
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_TRIGGER_DRIFT_REJECTED=PASS")
 
 
@@ -2158,7 +2442,7 @@ def test_runtime_blocks_review_update_while_trigger_drift_is_detected(
     assert response.status_code == 503
     assert response.json() == {"detail": "service unavailable"}
     assert observed_status == "needs_review"
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("RUNTIME_REVIEW_TRIGGER_DRIFT_BLOCKED=PASS")
 
 
@@ -2172,13 +2456,13 @@ def test_schema_readiness_rejects_rewrite_rule_drift() -> None:
                 "CREATE RULE lot41u_unexpected_rule AS "
                 "ON UPDATE TO rag_chunks DO INSTEAD NOTHING"
             )
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
                 "DROP RULE IF EXISTS lot41u_unexpected_rule ON rag_chunks"
             )
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_REWRITE_RULE_DRIFT_REJECTED=PASS")
 
 
@@ -2189,11 +2473,11 @@ def test_schema_readiness_rejects_inheritance_hierarchy_drift() -> None:
             connection.execute(
                 "CREATE TABLE lot41u_rag_chunks_child () INHERITS (rag_chunks)"
             )
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute("DROP TABLE IF EXISTS lot41u_rag_chunks_child")
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_INHERITANCE_HIERARCHY_DRIFT_REJECTED=PASS")
 
 
@@ -2214,7 +2498,7 @@ def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:
                 "FOREIGN KEY (source_label) "
                 "REFERENCES lot41u_fk_target(source_label) NOT VALID"
             )
-        assert schema_head_004_ready(APP_DSN) is False
+        assert schema_head_005_ready(APP_DSN) is False
     finally:
         with psycopg.connect(ADMIN_DSN, autocommit=True) as connection:
             connection.execute(
@@ -2222,7 +2506,7 @@ def test_schema_readiness_rejects_unexpected_foreign_key_constraint() -> None:
                 "DROP CONSTRAINT IF EXISTS lot41u_unexpected_fk"
             )
             connection.execute("DROP TABLE IF EXISTS lot41u_fk_target")
-    assert schema_head_004_ready(APP_DSN) is True
+    assert schema_head_005_ready(APP_DSN) is True
     print("SCHEMA_ALL_CONSTRAINT_TYPES_DRIFT_REJECTED=PASS")
 
 
