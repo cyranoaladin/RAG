@@ -182,3 +182,46 @@ reg = json.loads(Path("../rag-pedago/data/releases/prerentree_2026_2027"
 print("registre d'URL :", reg["compteurs"])
 PY
 ```
+
+## Les quatre contenus exclus ne sont pas un cas particulier
+
+Le mandat demandait de résoudre la contradiction entre « l'actualité
+positive de quatre contenus » et le registre qui les exclut comme
+archives. Mesuré :
+
+| Contenu (abrégé) | Registre d'exclusion | Actualité livrée |
+|---|---|---|
+| `157309db13b6` | `ARCHIVE_DECLARED` — `BLOCKED_NOT_CURRENT_BY_SOURCE` | `CURRENT` |
+| `174f273ff258` | `ARCHIVE_DECLARED` — `BLOCKED_NOT_CURRENT_BY_SOURCE` | `CURRENT` |
+| `ccffe628bbd6` | `ARCHIVE_DECLARED` — `BLOCKED_NOT_CURRENT_BY_SOURCE` | `CURRENT` |
+| `dc58fcc42ef9` | `ARCHIVE_DECLARED` — `BLOCKED_NOT_CURRENT_BY_SOURCE` | `CURRENT` |
+
+La contradiction se dissout d'elle-même : l'actualité déclare `CURRENT`
+**ses 486 lignes**, sans distinction. Ces quatre contenus ne sont donc pas
+quatre exceptions à expliquer, mais **quatre instances de plus du même
+défaut**. Le registre, lui, nomme une raison — l'archive déclarée par la
+source, sous ADR-0055 — et c'est la seule des deux autorités qui ait
+réellement regardé.
+
+Leur exclusion est donc conservée, conformément au mandat : aucun ancien
+fichier déclarant `CURRENT` ne la remplace.
+
+## Le registre d'exclusion s'adosse à un jeu de décisions non signé
+
+`release_currentness_exclusion_registry.json` déclare ses autorités, dont :
+
+```
+authorities.pii_decisions.path  = governance/pii-review-decisions/pii-review-2026-09-17-final.json
+authorities.pii_decisions.sha256 = 0805c9babfc16def…   (conforme au fichier)
+```
+
+L'empreinte est exacte. Mais `governance/pii-review-bindings/` ne contient
+qu'un seul reçu, et c'est celui du **2026-09-03**. Le jeu du 17/09, qui
+porte 149 décisions et que le registre nomme comme autorité, **n'a pas de
+reçu ADR-0035** : rien n'atteste hors ligne qu'un relecteur habilité l'ait
+approuvé.
+
+Ce n'est pas un blocage pour la reconduction PII, qui s'appuie sur le jeu
+du 03/09 — signé, non révoqué, et couvrant les 22 contenus signalés. Mais
+c'est une autorité déclarée sans preuve dans un artefact de release, et
+elle doit être soit signée, soit remplacée par celle qui l'est.
