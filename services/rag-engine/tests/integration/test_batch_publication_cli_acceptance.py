@@ -39,6 +39,7 @@ from _local_github import (  # noqa: E402
     LocalGitHub,
     local_github_server,
 )
+from _pdf_lisible import pdf_lisible  # noqa: E402
 from _pg_authority import (  # noqa: E402
     app_dsn,
     attestor_dsn,
@@ -542,7 +543,7 @@ def _ecrire_release_de_test(
                 "chunk_index": n, "page_start": n + 1, "page_end": n + 1,
                 "character_count": 800, "token_count": 200,
             }
-            for n in range(3)
+            for n in range(PAGES_PAR_DOCUMENT)
         ]
         chunks_par_contenu[sha] = chunks
         artefacts.append({
@@ -551,7 +552,7 @@ def _ecrire_release_de_test(
             "source_url": "https://eduscol.education.gouv.fr/acceptance/doc.pdf",
             "title": f"Document d'acceptation {index}",
             "type_doc": "ressource_officielle",
-            "page_count": 3, "ignored_empty_pages": [],
+            "page_count": PAGES_PAR_DOCUMENT, "ignored_empty_pages": [],
             "chunks": chunks,
             "chunk_id_set_digest": "0" * 64,
             "chunk_sha256_set_digest": "0" * 64,
@@ -662,18 +663,27 @@ def _ecrire_release_de_test(
     }
 
 
+#: Le nombre de pages de chaque document du banc. Il doit concorder avec ce
+#: que le pre-vol declare, sinon la condition de pagination echoue — a raison.
+PAGES_PAR_DOCUMENT = 3
+
+
 def _contenus_de_test(magasin: Path, combien: int = 2) -> list[tuple[str, bytes]]:
-    """Les octets de test du banc, ecrits dans le magasin d'artefacts.
+    """De VRAIS PDF, lisibles par pypdf, ecrits dans le magasin d'artefacts.
 
     Chaque appel produit des contenus DISTINCTS : la base du banc est
     partagee par les tests du module, et des identites reutilisees les
     feraient dependre de leur ordre d'execution.
     """
     magasin.mkdir(parents=True, exist_ok=True)
-    empreinte = uuid.uuid4().hex
+    empreinte = uuid.uuid4().hex[:8]
     contenus = []
     for index in range(combien):
-        octets = f"%PDF-1.7 acceptance-{empreinte}-{index}".encode()
+        octets = pdf_lisible([
+            f"Document {index} du banc {empreinte}, page {page + 1}. "
+            "Contenu pedagogique de test, reellement extractible."
+            for page in range(PAGES_PAR_DOCUMENT)
+        ])
         sha = hashlib.sha256(octets).hexdigest()
         (magasin / f"{sha}.pdf").write_bytes(octets)
         contenus.append((sha, octets))
