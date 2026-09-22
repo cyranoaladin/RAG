@@ -761,3 +761,104 @@ Aucune écriture sur staging ou production n'a eu lieu dans cette session.
 Les 479 placements acquis de V2, leurs identifiants, leurs runs et leurs
 événements historiques sont intacts : rien n'a été ingéré, réécrit ni
 supprimé hors des bases jetables du banc.
+
+---
+
+# Reprise du 2026-09-22 (seconde session) — dettes closes, PII tranché, actualité bornée
+
+## Les cinq dettes sont closes
+
+Le mandat de reprise a levé la réserve « appartient à un lot clos ». Le
+détail, dette par dette, avec contre-preuve, est dans
+`lot_go_live_cu_dettes.md`. En résumé :
+
+| Dette | Commit |
+|---|---|
+| Pile pydantic incohérente entre le verrou et le contrat | `0b7af079` |
+| `BEGIN`/`COMMIT` internes défaisant `--single-transaction` | `2df549be` |
+| Treize attentes périmées de `test_lot41a_scope_authority.py` | `cc9ddbce` |
+| Deux épreuves du gate de readiness | `cc9ddbce` |
+| Montage manquant du fragment SQL partagé (régression de ce lot) | `17ce9194` |
+
+Aucun `xfail`, aucun `skip` ajouté. Aucun message de production réaligné
+sur une attente de test. Aucune empreinte de migration modifiée en base.
+
+## La régression que ce lot s'est infligée, et ce qu'elle a appris
+
+La correction des transactions a ajouté un `source` au bootstrap. Les
+scripts du migrateur étant montés **un par un** dans
+`docker-compose.ingestion.yml`, le fragment n'arrivait jamais dans le
+conteneur : le migrateur sortait en 1. Deux épreuves d'intégration l'ont
+vu, en le nommant « le migrateur devait réussir » — vrai, et muet sur la
+cause.
+
+Le fragment est monté, et un test statique sans Docker
+(`tests/test_ingestion_compose_script_closure.py`) nomme désormais la
+cause et **donne la ligne de remédiation**. Contre-preuve faite : la ligne
+de montage retirée, le test échoue sur le fragment exact.
+
+## PII — la revue existait, signée, et couvre les 22
+
+Le dossier de la première session demandait à l'humain de qualifier 22
+contenus depuis zéro, sur des hypothèses que j'avais formulées. C'était une
+erreur de ma part : **la revue existait déjà**.
+
+Les 22 contenus que le scanner canonique signale ont tous été examinés et
+décidés `APPROVED` par le relecteur le 2026-09-03, sur 22 paquets de revue
+distincts. Les neuf conditions de reconduction ont été vérifiées contenu
+par contenu contre la mesure du jour — scanner, politique, foyer de pages,
+pages, classes, compte de signaux, admissibilité des dispositions, absence
+de citation brute : **22/22, aucune en défaut**. Le reçu ADR-0035 de cet
+ensemble se vérifie hors ligne contre l'ancre de production, n'est pas
+révoqué, et ses octets correspondent au fichier sur disque.
+
+Ce que j'avais pris pour un « changement de scanner » n'en était pas un :
+`pii_scanner.py` est inchangé depuis la PR #142, et le manifeste du
+candidat comme les décisions humaines le nomment. **Seule l'attestation
+scellée du candidat nomme un autre artefact** (`production-profile-gate-v1`),
+et c'est elle qui sous-déclare : 486/486 `CLEARED`, `pii_detected: false`
+pour tous, y compris les 22.
+
+Le statut fondé pour ces 22 n'est donc pas `CLEARED` mais
+`DETECTED_REVIEWED_ACCEPTED`, adossé au `decision_set_id` et au
+`review_bundle_sha256` — la voie qu'ADR-0047 prévoit exactement pour ce
+cas. Une admission n'efface jamais la détection.
+
+Dossier : `pii_reconduction_dossier_profile_gate_v2_20260922.md`.
+
+**Une seule échéance en découle** : le reçu expire le **2026-10-03**. Une
+publication postérieure exige une nouvelle signature — pas une nouvelle
+revue, les décisions ne portant pas d'échéance.
+
+## Actualité — le blocage est de gouvernance, pas d'implémentation
+
+La régénération gouvernée a été préparée et testée. **L'inventaire se
+régénère** et le chargeur canonique l'accepte : 479 placements, 315
+contenus, 164 multi-placements. **L'actualité ne peut pas suivre.**
+
+Le contrat exige, pour toute décision `CURRENT`, une URL officielle de
+téléchargement et de listing ; le résolveur refuse tout contenu non
+`CURRENT`. Or le registre d'URL du dépôt enregistre **12 URL directes
+résolues sur 123**, **110 en HTTP 403** classées irrécupérables, et son
+autorité-source précise « aucune URL de document direct ». Sur les 315
+contenus du candidat, **5** disposent d'une URL directe résolue sur hôte
+autorisé.
+
+Une actualité honnête classerait donc ~310 des 315 en `REVIEW_REQUIRED`, et
+la release publiable tomberait à une poignée de contenus. Fabriquer les URL
+manquantes ou assouplir le chargeur sont exclus — le mandat les interdit,
+et il a raison.
+
+Mesures et reproduction : `lot_go_live_cu_actualite_non_fondee.md`.
+
+## Ce que le banc prouve, et ce qu'il ne prouve pas
+
+Le banc d'acceptation construit **sa propre release**. Il prouve la chaîne
+de bout en bout — autorités, publication gouvernée, index produit,
+retrieval. Vérifié cette session : **aucun test, nulle part, ne charge les
+autorités du candidat réel** par `load_multilevel_runtime_authorities`. Ce
+qui en est lu, c'est son manifeste et son registre de programmes.
+
+« 315 contenus / 479 placements » sont donc des valeurs **déclarées** par
+la release, jamais des valeurs qu'une publication réelle aurait traversées.
+Le rapport ne les présentera plus autrement.

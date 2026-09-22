@@ -54,7 +54,7 @@ consommaient.
 files*. Suite unitaire 3 955 verte, acceptation batch 15/15 et ingestion
 scellée 13/13 rejouées après la modification.
 
-## 1. Treize épreuves de `test_lot41a_scope_authority.py` attendent un ancien message
+## 1. Treize épreuves de `test_lot41a_scope_authority.py` attendent un ancien message (CLOS par ce lot — `cc9ddbce`)
 
 **Épreuves concernées** : `TestLiveGitHubProofIsFieldByField` (11) et
 `TestDatabaseTamperingNeverSurvives` (2).
@@ -144,7 +144,7 @@ les trois littéraux étaient les exceptions.
 **Résultat mesuré** : 25 épreuves repassent au vert (13 + 12), et les douze
 erreurs de la suite d'intégration disparaissent.
 
-## 3. Deux épreuves de `test_startup_gate_requires_readiness_manifest.py`
+## 3. Deux épreuves de `test_startup_gate_requires_readiness_manifest.py` (CLOS par ce lot — `cc9ddbce`)
 
 **Épreuves concernées** :
 `test_the_worker_refuses_to_start_without_a_readiness_manifest` et
@@ -167,7 +167,7 @@ s'applique quand il manque.
 
 **Antériorité prouvée.** Les deux échouent à l'identique au commit parent.
 
-## 4. Le script de rollback place un `LOCK TABLE` hors transaction
+## 4. Le script de rollback place un `LOCK TABLE` hors transaction (CLOS par ce lot — `2df549be`)
 
 **Épreuves concernées** :
 `test_lot44f_rollback_runner.py::TestRollbackRunnerRange` (2) et
@@ -214,17 +214,48 @@ appliquées** — staging comprise. Corriger cette asymétrie est une opération
 gouvernée : elle demande une migration de rattrapage, pas une réécriture
 d'un fichier déjà appliqué.
 
-## Ce que ce lot n'a pas fait, et pourquoi
+## Ce que ce lot a finalement fait, et pourquoi
 
-- **Aucune de ces épreuves n'a été corrigée.** Elles portent sur des lots
-  clos (LOT41A, LOT42 migration 013, gate de readiness) et les toucher
-  serait rouvrir leur périmètre sans mandat. Chacune est une correction
-  d'une ligne ou deux, mais la décision appartient au lot concerné.
-- **Aucune n'a été marquée `xfail` ni ignorée.** Un rouge tracé dit l'état
-  du dépôt ; un `xfail` le dissimulerait derrière un vert.
+La première rédaction de cette section disait que rien ne serait corrigé,
+parce que chaque dette appartenait à un lot clos. Le mandat de reprise a
+levé cette réserve explicitement : appartenir à un lot clos ne suffit plus
+à laisser une dette ouverte. Les cinq dettes sont closes, par des
+corrections minimales, chacune avec sa contre-preuve.
+
+| Dette | État | Commit |
+|---|---|---|
+| 0. `make typecheck` rouge | close | *(lot précédent)* |
+| 1. Treize attentes périmées dans `test_lot41a_scope_authority.py` | close | `cc9ddbce` |
+| 2. Tête de schéma périmée | close | *(lot précédent)* |
+| 3. Deux épreuves du gate de readiness | close | `cc9ddbce` |
+| 4. `LOCK TABLE` hors transaction au rollback | close | `2df549be` |
+| 5. Pile pydantic incohérente entre le verrou et le contrat | close | `0b7af079` |
+
+Ce qui n'a pas changé, en revanche :
+
+- **Aucune épreuve n'a été marquée `xfail` ni ignorée** pour obtenir un
+  tableau vert. Les attentes périmées ont été réécrites contre le contrat
+  en vigueur, en conservant les deux moitiés de chaque propriété : le refus
+  précoce ET le contrôle que l'épreuve prétendait exercer.
 - **Aucun message de production n'a été réaligné sur une attente de test.**
-  Le message actuel est plus précis que l'ancien ; c'est l'attente qui doit
-  suivre, pas l'inverse.
+- **Aucune empreinte enregistrée en base n'a été modifiée**, et les octets
+  des migrations dont l'intégrité doit être préservée sont intacts : c'est
+  le flux exécuté par le runner qui a été corrigé, jamais les fichiers.
+- **Le contrat et le document OpenAPI n'ont pas été rétrogradés** pour
+  s'accorder à une installation incohérente : c'est le verrou qui a été
+  résolu, ensemble, vers la version que le contrat déclare.
+
+## 6. Une régression introduite par ce lot, vue et fermée dans le lot
+
+La neutralisation du contrôle de transaction (dette 4) a ajouté un `source`
+au bootstrap. Or `docker-compose.ingestion.yml` monte les scripts du
+migrateur **un par un** : le fragment n'arrivait pas dans le conteneur et
+le migrateur sortait en 1. Deux épreuves d'intégration l'ont vu, mais en le
+nommant « le migrateur devait réussir ».
+
+Fermée par `17ce9194` : le fragment est monté, et un test statique sans
+Docker nomme désormais la cause et donne la ligne de remédiation. Les deux
+épreuves d'intégration repassent au vert.
 
 ## Périmètre du lot CU
 
@@ -241,7 +272,7 @@ Les suites que ce lot fait vivre sont **vertes** :
 | `nexus-contracts` | 925, 0 échec |
 
 
-## 5. `make test` s'exécute en CI sous une pile que le dépôt déclare invalide
+## 5. `make test` s'exécute en CI sous une pile que le dépôt déclare invalide (CLOS par ce lot — `0b7af079`)
 
 **Ce qui est apparu.** La dette 0 close, le job CI `services/rag-engine`
 atteint `make test` pour la première fois. Deux épreuves y échouent —
