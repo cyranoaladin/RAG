@@ -135,6 +135,17 @@ publication réelle aurait traversées.
 
 ## Décision attendue, qui n'est pas la mienne
 
+> **Rectification (2026-09-22, lot CV).** Les trois voies ci-dessous
+> omettaient la seule qui soit déjà fondée. ADR-0055 a adopté la
+> disposition `OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE` pour exactement ce
+> cas — canal Eduscol en 403, provenance institutionnelle prouvée par
+> empreinte, aucune preuve d'obsolescence —, et la matrice de servabilité
+> l'attribue aux 315 contenus publiés. Le candidat ne manque pas d'un
+> fondement : son actualité le **contrefait** en `CURRENT`, et le runtime
+> ne sait pas exprimer l'instantané. ADR-0059 (lot CV) instruit ce manque
+> sans fabriquer d'URL ni assouplir le contrat. La voie 3 (« 5 contenus
+> sur 315 ») n'est pas nécessaire.
+
 Le fondement de l'actualité pour un corpus acquis par Drive est une
 question de gouvernance, pas d'implémentation. Trois voies, à trancher :
 

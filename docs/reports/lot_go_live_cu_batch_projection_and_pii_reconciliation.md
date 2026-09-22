@@ -812,12 +812,28 @@ de citation brute : **22/22, aucune en défaut**. Le reçu ADR-0035 de cet
 ensemble se vérifie hors ligne contre l'ancre de production, n'est pas
 révoqué, et ses octets correspondent au fichier sur disque.
 
-Ce que j'avais pris pour un « changement de scanner » n'en était pas un :
-`pii_scanner.py` est inchangé depuis la PR #142, et le manifeste du
-candidat comme les décisions humaines le nomment. **Seule l'attestation
-scellée du candidat nomme un autre artefact** (`production-profile-gate-v1`),
-et c'est elle qui sous-déclare : 486/486 `CLEARED`, `pii_detected: false`
-pour tous, y compris les 22.
+> **Rectification (2026-09-22, lot CV).** Une version antérieure de ce
+> paragraphe affirmait que le scanner n'avait pas changé et que
+> `8ec8af55…` désignait « un autre artefact ». C'est faux, et la section
+> *Ce que la mesure révèle en plus* avait raison. Mesuré par
+> `git show <commit>:services/rag-pedago/rag_pedago/imports/pii_scanner.py | sha256sum` :
+>
+> | Version du fichier `pii_scanner.py` | sha256 |
+> |---|---|
+> | PR #133 (2026-08-25) | `8ec8af55…` — celle que la preuve scellée déclare |
+> | PR #142 (2026-09-03) | `388e3ed4…` — celle du fichier courant, du manifeste et des décisions humaines |
+>
+> `8ec8af55…` est donc le **même fichier dans une version antérieure**. La
+> preuve PII scellée a été produite par le scanner de #133 ; le manifeste
+> déclare celui de #142 ; rien au runtime ne confronte les deux. Le
+> successeur préparé par le lot CV régénère la preuve sous `388e3ed4…` et
+> ajoute au producteur un refus explicite de cette divergence.
+
+Le scanner courant (`388e3ed4…`, PR #142) est celui que le manifeste du
+candidat et les décisions humaines du 03/09 nomment. **La preuve PII
+scellée du candidat a été produite par sa version antérieure** (`8ec8af55…`,
+PR #133), et c'est elle qui sous-déclare : 486/486 `CLEARED`,
+`pii_detected: false` pour tous, y compris les 22.
 
 Le statut fondé pour ces 22 n'est donc pas `CLEARED` mais
 `DETECTED_REVIEWED_ACCEPTED`, adossé au `decision_set_id` et au
@@ -831,6 +847,17 @@ publication postérieure exige une nouvelle signature — pas une nouvelle
 revue, les décisions ne portant pas d'échéance.
 
 ## Actualité — le blocage est de gouvernance, pas d'implémentation
+
+> **Rectification (2026-09-22, lot CV).** La conclusion ci-dessous —
+> « trois voies, dont un nouveau fondement d'actualité par ADR » — ignorait
+> un fondement **déjà adopté** : ADR-0055 et sa politique
+> `NEXUS-RAG-CURRENTNESS-POLICY-V1` définissent la disposition
+> `OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE`, et la matrice de servabilité
+> l'attribue aux **315** contenus publiés (aucun `VERIFIED_CURRENT`).
+> Le manque n'est pas de gouvernance : c'est le runtime qui ne sait pas
+> exprimer cette disposition sans la contrefaire en `CURRENT`. Il est
+> instruit par ADR-0059 (lot CV). Les mesures de cette section restent
+> exactes ; seule leur conclusion est corrigée.
 
 La régénération gouvernée a été préparée et testée. **L'inventaire se
 régénère** et le chargeur canonique l'accepte : 479 placements, 315
