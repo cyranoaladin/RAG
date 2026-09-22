@@ -125,11 +125,16 @@ code.
 
 ## Conditions non établies
 
-| Condition | État |
-|---|---|
-| Identités des pages scannées (PII) | compteurs seuls ; `pages_scanned == page_count` pour 315/315, mais une égalité de cardinalités ne prouve pas l'égalité des ensembles |
-| Erreurs d'extraction (PII) | aucun champ ne les porte chez ce producteur — ni constatées, ni infirmées |
-| Actualité | résumé contredisant sa liste |
+> **Mise à jour du 2026-09-22** : les deux premières lignes sont **levées** par
+> la mesure datée décrite plus bas (« Qualification PII bornée »). La
+> troisième est confirmée et précisée (« Qualification des autorités V2
+> réelles »). L'état initial est conservé ici tel qu'il avait été constaté.
+
+| Condition | État initial | Aujourd'hui |
+|---|---|---|
+| Identités des pages scannées (PII) | compteurs seuls ; `pages_scanned == page_count` pour 315/315, mais une égalité de cardinalités ne prouve pas l'égalité des ensembles | **établies** : 0 page sans texte sur les 315 contenus, l'égalité est adossée à un fait par page |
+| Erreurs d'extraction (PII) | aucun champ ne les porte chez ce producteur — ni constatées, ni infirmées | **établies** : 0 erreur d'extraction sur 315 |
+| Actualité | résumé contredisant sa liste | **confirmé et précisé** : `counts` déclare 26 pour 486 entrées, granularité par placement, 469 entrées `CURRENT` sans URL de téléchargement |
 
 ## Dette de qualité logicielle
 
