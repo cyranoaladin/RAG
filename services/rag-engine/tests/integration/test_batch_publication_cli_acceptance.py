@@ -32,6 +32,12 @@ sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(ENGINE_ROOT / "tests"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _local_github import (  # noqa: E402
+    REPOSITORY,
+    VALID_TOKEN,
+    LocalGitHub,
+    local_github_server,
+)
 from _pg_authority import (  # noqa: E402
     app_dsn,
     attestor_dsn,
@@ -278,12 +284,44 @@ def _semer_etat_historique(
                     provenance_url=payload["provenance_artifact_url"],
                     payload=payload,
                 )
+                # Les dix transitions HISTORIQUES, comme l'ingestion de
+                # release scellee les ecrit. Elles sont referencees par
+                # l'attestation, jamais reecrites.
+                _semer_transitions(conn, resource_id=resource_id, run_id=run_id)
                 artefacts.append({
                     "resource_id": resource_id, "artifact_id": artifact_id,
                     "content_sha256": sha, "collection": collection,
                 })
         conn.commit()
     return {"magasin": magasin, "artefacts": artefacts, "contenus": contenus}
+
+
+_SEQUENCE_HISTORIQUE = (
+    ("DISCOVERED", "CANDIDATE"), ("CANDIDATE", "FETCHED"),
+    ("FETCHED", "STORED"), ("STORED", "EXTRACTED"),
+    ("EXTRACTED", "CLASSIFIED"), ("CLASSIFIED", "RIGHTS_CHECKED"),
+    ("RIGHTS_CHECKED", "QUALITY_CHECKED"), ("QUALITY_CHECKED", "ROUTED"),
+    ("ROUTED", "STAGED"), ("STAGED", "NEEDS_REVIEW"),
+)
+
+
+def _semer_transitions(
+    conn: psycopg.Connection, *, resource_id: object, run_id: object
+) -> None:
+    """Les dix transitions du chemin scelle, au format historique."""
+    for depuis, vers in _SEQUENCE_HISTORIQUE:
+        conn.execute(
+            "INSERT INTO ingestion_control.workflow_events "
+            "  (event_id, run_id, resource_id, event_type, from_state,"
+            "   to_state, actor) "
+            "VALUES (%s, %s, %s, 'transition', %s, %s, 'acceptance-bench')",
+            (uuid.uuid4(), run_id, resource_id, depuis, vers),
+        )
+    conn.execute(
+        "UPDATE ingestion_control.resources "
+        "   SET resource_state = 'NEEDS_REVIEW', state_version = 10 "
+        " WHERE resource_id = %s", (resource_id,)
+    )
 
 
 def _semer_autorisation(conn: psycopg.Connection, scope: object) -> None:
@@ -552,6 +590,97 @@ def test_la_projection_et_la_proposition_de_revue_batch(
         ).fetchone()
         conn.rollback()
     assert projetees == (len(etat["artefacts"]), len(etat["artefacts"])), projetees
+
+
+def test_l_attestation_batch_est_enregistree_apres_approbation(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Maillon 6 — l'enregistrement apres une revue de TEST approuvee.
+
+    La revue est simulee par ``LocalGitHub`` : c'est une autorite de banc,
+    nommee comme telle, qui ne sort jamais de cet environnement isole.
+    """
+    magasin = tmp_path / "store"
+    contenus = _contenus_de_test(magasin)
+    releases = tmp_path / "release"
+    digests = _ecrire_release_de_test(
+        releases, contenus=contenus, placements=len(contenus) * 2
+    )
+    _semer_etat_historique(control_pg, tmp_path, digests=digests)
+
+    github = LocalGitHub()
+    jeton = tmp_path / "github-token"
+    jeton.write_text(VALID_TOKEN, encoding="utf-8")
+    head = hashlib.sha1(b"acceptance-batch-head").hexdigest()
+    github.add_approved_pr(
+        number=7001, head_sha=head, base_sha="9" * 40, review_id=7011
+    )
+
+    with local_github_server(github) as github_url:
+        env = {
+            "PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg),
+            "NEXUS_GITHUB_API_BASE": github_url,
+            "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
+        }
+        propose = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            [
+                "propose-release-batch-review",
+                "--release-id", RELEASE_DE_TEST,
+                "--release-dir", str(releases),
+                "--release-manifest-sha256", digests["manifest"],
+                "--transfer-manifest-path", str(releases / "transfer.json"),
+                "--transfer-manifest-sha256", digests["transfer"],
+                "--rights-registry-path", str(releases / "rights.yml"),
+                "--review-id", REVUE_DE_TEST,
+                "--evaluator", "acceptance-bench",
+            ],
+            env,
+        )
+        assert propose.returncode == 0, propose.stderr
+        chemin, octets = _artefact_propose(propose.stdout)
+        github.put_blob(path=chemin, ref=head, content=octets)
+
+        enregistre = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            [
+                "record-release-batch-attestation",
+                "--release-id", RELEASE_DE_TEST,
+                "--review-id", REVUE_DE_TEST,
+                "--repository", REPOSITORY,
+                "--pull-request", "7001",
+                "--expected-head", head,
+                "--review-artifact-path", chemin,
+            ],
+            env,
+        )
+    assert enregistre.returncode == 0, enregistre.stderr
+    assert "RELEASE_BATCH_ATTESTATIONS_RECORDED" in enregistre.stdout
+
+    # Lecture INDEPENDANTE du plan de controle.
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        lignes = conn.execute(
+            "SELECT count(*), count(DISTINCT release_batch_review_digest),"
+            "       count(*) FILTER (WHERE canonical_url IS NOT NULL),"
+            "       count(*) FILTER (WHERE attributed_facts_digest IS NOT NULL)"
+            "  FROM ingestion_control.publication_attestations"
+            " WHERE protocol_version = 'LOT42-RELEASE-BATCH-V1'"
+            "   AND release_id = %s", (RELEASE_DE_TEST,)
+        ).fetchone()
+        conn.rollback()
+    # Quatre placements, UNE seule revue, aucune URL canonique, aucun digest
+    # d'attribution unitaire.
+    assert lignes == (4, 1, 0, 0), lignes
+
+
+def _artefact_propose(sortie: str) -> tuple[str, bytes]:
+    """Extrait le chemin et les octets canoniques produits par la proposition."""
+    chemin = ""
+    for ligne in sortie.splitlines():
+        if ligne.startswith("REVIEW_ARTIFACT_PATH "):
+            chemin = ligne.split(" ", 1)[1].strip()
+    marqueur = sortie.index("{")
+    return chemin, sortie[marqueur:].encode("utf-8")
 
 
 def test_le_parcours_batch_atteint_l_index_produit() -> None:
