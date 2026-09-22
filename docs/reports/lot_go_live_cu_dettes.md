@@ -1,13 +1,27 @@
 # LOT CU — dettes constatées, avec antériorité prouvée
 
 La suite d'intégration `services/rag-engine/tests/integration/` porte des
-échecs **antérieurs à ce lot**. Chacun est reproduit à l'identique sur le
-commit parent `b0c87971d52cc5637ed30f20c498c204dd8b251b`, dans un worktree
-détaché, avec le même interpréteur et la même machine.
+échecs **antérieurs à ce lot**. L'antériorité n'est pas argumentée, elle est
+**mesurée** : la suite entière a été exécutée deux fois, seule, l'une après
+l'autre — au commit parent `b0c87971d52cc5637ed30f20c498c204dd8b251b` dans
+un worktree détaché, puis sur ce lot. **19 échecs et 12 erreurs des deux
+côtés, et l'ensemble des noms rouges est identique** (`diff` vide). Aucun
+rouge n'apparaît, aucun ne disparaît.
 
-Aucun n'a été neutralisé, assoupli ni ignoré. Chacun est diagnostiqué
-ci-dessous : dans les trois cas, **la garantie tient** — c'est l'attente de
-l'épreuve qui a vieilli.
+Aucun n'a été neutralisé, assoupli ni marqué `xfail`. Chacun est
+diagnostiqué ci-dessous, et il faut les distinguer :
+
+| # | Dette | Nature | État |
+|---|---|---|---|
+| 0 | `make typecheck` rouge, donc `make test` jamais exécuté | garde-fou inerte | **clos par ce lot** |
+| 1 | 13 épreuves d'autorisation attendent un ancien motif de refus | l'attente a vieilli, **la garantie tient** | signalée |
+| 2 | Tête de schéma épinglée à 15 pour une tête à 17 | l'attente a vieilli | **clos par ce lot** |
+| 3 | 2 épreuves du gate de readiness sans `--repository-root` | l'attente a vieilli | signalée |
+| 4 | `LOCK TABLE` hors transaction dans le script de rollback | **défaut réel d'outillage** | signalée |
+
+Les deux dettes closes le sont parce qu'elles rendaient inexécutable ce que
+ce lot doit démontrer. Les trois autres appartiennent à des lots clos et
+sont signalées sans être rouvertes.
 
 ## 0. `make typecheck` était rouge — donc `make test` ne tournait pas (CLOS par ce lot)
 
