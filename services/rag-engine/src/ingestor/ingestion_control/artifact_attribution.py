@@ -52,7 +52,10 @@ implémentations fait échouer l'écriture plutôt que de passer inaperçue.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 import psycopg
@@ -189,6 +192,75 @@ def derive_artifact_attribution(
         official=profile.source_authority == "official",
         source_kind=candidate.domain.strip(),
         type_doc=proposed,
+    )
+
+
+#: Origine d'un artefact qui n'a JAMAIS été découvert sur le réseau : il
+#: vient d'une release scellée, transférée et vérifiée par empreinte. Le
+#: chemin unitaire y place le domaine de découverte ; une release scellée
+#: n'en a pas, et prétendre le contraire serait fabriquer un fait.
+SEALED_RELEASE_SOURCE_KIND = "sealed_release"
+
+
+def derive_sealed_release_artifact_attribution(
+    *,
+    ingestion_artifact_id: UUID,
+    catalog_entry: Mapping[str, Any],
+    profile: CollectionProfile,
+) -> ArtifactAttribution:
+    """Dérive les quatre faits d'un artefact de release SCELLÉE.
+
+    Aucun agent ne propose rien ici. ``type_doc`` et la provenance viennent
+    du **catalogue d'artefacts de la release** — le fichier que le manifeste
+    nomme, dont il déclare l'empreinte, et dont cette empreinte
+    (``artifacts_release_sha256``) est elle-même portée par l'artefact de
+    revue approuvé. La chaîne remonte donc jusqu'à une revue humaine, comme
+    pour le chemin unitaire.
+
+    ``type_doc`` reste confronté au périmètre du profil, exactement comme un
+    type proposé : un type que personne n'a autorisé ne devient jamais une
+    attribution durable. Sans cette confrontation, le batch aurait publié le
+    nom de sa collection en guise de type documentaire — ce que faisait
+    l'ancienne dérivation depuis ``profile_id``.
+    """
+    declare = str(catalog_entry.get("type_doc") or "").strip()
+    if not declare:
+        raise ArtifactAttributionError(
+            f"the sealed catalogue establishes no type_doc for artifact "
+            f"{ingestion_artifact_id} — the attribution is refused rather than "
+            "completed with a convenience value"
+        )
+    attendus = tuple(
+        str(getattr(value, "value", value)) for value in profile.expected_resource_types
+    )
+    if declare not in attendus:
+        raise ArtifactAttributionError(
+            f"sealed type_doc {declare!r} is not among the resource types "
+            f"expected by profile {profile.scope.collection}/"
+            f"{profile.profile_version} ({list(attendus)!r}) — a type nobody "
+            "authorized never becomes a durable attribution"
+        )
+
+    source_url = str(catalog_entry.get("source_url") or "").strip()
+    domaine = urlparse(source_url).hostname or ""
+    if not domaine:
+        raise ArtifactAttributionError(
+            f"the sealed catalogue establishes no provenance host for artifact "
+            f"{ingestion_artifact_id} ({source_url!r})"
+        )
+    if domaine not in set(profile.allowed_domains):
+        raise ArtifactAttributionError(
+            f"sealed provenance host {domaine!r} is not among the domains "
+            f"allowed by profile {profile.scope.collection}/"
+            f"{profile.profile_version} ({sorted(profile.allowed_domains)!r})"
+        )
+
+    return ArtifactAttribution(
+        ingestion_artifact_id=ingestion_artifact_id,
+        source_label=domaine,
+        official=profile.source_authority == "official",
+        source_kind=SEALED_RELEASE_SOURCE_KIND,
+        type_doc=declare,
     )
 
 
@@ -405,7 +477,9 @@ __all__ = [
     "ArtifactAttributionError",
     "attribution_digest",
     "lock_artifact_attribution",
+    "SEALED_RELEASE_SOURCE_KIND",
     "derive_artifact_attribution",
+    "derive_sealed_release_artifact_attribution",
     "load_artifact_attribution",
     "persist_artifact_attribution",
 ]

@@ -50,9 +50,13 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import psycopg
-from nexus_contracts.ingestion import ResourceScope
+from nexus_contracts.ingestion import CollectionProfile, ResourceScope
 from nexus_contracts.resource_state import ResourceState
 
+from ingestor.ingestion_control.artifact_attribution import (
+    derive_sealed_release_artifact_attribution,
+    persist_artifact_attribution,
+)
 from ingestor.ingestion_control.provisioning import (
     SEALED_RELEASE_PIPELINE,
     create_ingestion_run,
@@ -733,6 +737,9 @@ def ingest_sealed_release(
                 placement=placement,
                 run_id=run_id,
                 scope=scope,
+                profile=profile_registry[
+                    (collection, facts.profile_versions[collection])
+                ],
                 authorization=authorization,
                 path=paths[placement.artifact_id],
                 facts=facts,
@@ -749,6 +756,7 @@ def _ingest_placement(
     placement: SealedReleasePlacement,
     run_id: UUID,
     scope: ResourceScope,
+    profile: CollectionProfile,
     authorization: VerifiedAuthorization,
     path: Path,
     facts: SealedReleaseFacts,
@@ -801,7 +809,7 @@ def _ingest_placement(
         proposed_type_doc=placement.type_doc,
         payload=dict(evidence),
     )
-    persist_sealed_release_artifact(
+    artifact_id = persist_sealed_release_artifact(
         conn,
         resource_id=resource_id,
         run_id=run_id,
@@ -811,6 +819,25 @@ def _ingest_placement(
         mime_detected=PDF_MIME,
         provenance_url=placement.provenance_url,
         payload=dict(evidence),
+    )
+    # Les QUATRE faits d'attribution ont un foyer durable unique
+    # (migration 012), et une release scellee n'y echappe pas : sans eux,
+    # l'attestation batch n'aurait rien de gouverne a sceller, et la
+    # publication ecrirait une attribution que personne n'a etablie. Ils
+    # sont derives des autorites de la release elle-meme, confrontees au
+    # perimetre du profil approuve.
+    persist_artifact_attribution(
+        conn,
+        attribution=derive_sealed_release_artifact_attribution(
+            ingestion_artifact_id=artifact_id,
+            catalog_entry={
+                "type_doc": placement.type_doc,
+                "source_url": placement.provenance_url,
+            },
+            profile=profile,
+        ),
+        run_id=run_id,
+        actor=owner,
     )
     report.resources += 1
     report.resource_candidates += 1

@@ -52,6 +52,10 @@ from nexus_contracts.authority_artifacts import (
 from nexus_contracts.document import Rights
 from nexus_contracts.resource_state import ResourceState
 
+from .artifact_attribution import (
+    ArtifactAttributionError,
+    load_artifact_attribution,
+)
 from .github_authority import (
     GitHubAuthorityError,
     ReviewVerification,
@@ -521,6 +525,22 @@ def _verify_release_batch_attestation(
     # événements unitaires que l'ingestion scellée n'écrit pas. Chaque champ
     # est repris de ce qui a été projeté et confronté, jamais inventé.
     evenements = _evenements_de_ressource(conn, resource_id)
+    # Les QUATRE faits d'attribution ont un seul foyer durable
+    # (migration 012), et le batch n'y échappe pas. Les dériver ici de
+    # `collection` et de `profile_id` publiait le NOM DE LA COLLECTION en
+    # guise de type documentaire — une valeur que personne n'avait établie,
+    # écrite jusque dans `rag_chunks.type_doc` et lue par le retrieval.
+    # L'absence d'attribution est un refus nommé, jamais une valeur de
+    # convenance.
+    try:
+        attribution, _digest_attribution = load_artifact_attribution(
+            conn, ingestion_artifact_id=row["artifact_id"]
+        )
+    except ArtifactAttributionError as exc:
+        raise invalidator.fail(
+            f"sealed artifact {row['artifact_id']} has no durable attribution: "
+            f"{exc}"
+        ) from exc
     facts = PublicationFacts(
         resource_id=resource_id,
         artifact_id=row["artifact_id"],
@@ -547,10 +567,10 @@ def _verify_release_batch_attestation(
         gate_name=projection["gate_name"],
         gate_evaluated_at=projection["gate_evaluated_at"],
         gate_event_id=evenements[-1],
-        source_label=row["collection"],
-        official=True,
-        source_kind="sealed_release",
-        type_doc=row["profile_id"],
+        source_label=attribution.source_label,
+        official=attribution.official,
+        source_kind=attribution.source_kind,
+        type_doc=attribution.type_doc,
     )
 
     return VerifiedAttestation(
