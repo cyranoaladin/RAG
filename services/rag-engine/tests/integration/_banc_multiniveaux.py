@@ -296,6 +296,11 @@ def environnement_de_readiness(
 
     graine = secrets.token_hex(32)
     key_id = f"banc-multiniveaux-{uuid.uuid4().hex}"
+    # Un répertoire par appel : le manifeste signé est posé en lecture
+    # seule, et un second démarrage de worker dans le même test ne doit pas
+    # avoir à réécrire par-dessus.
+    tmp_path = tmp_path / f"readiness-{uuid.uuid4().hex[:8]}"
+    tmp_path.mkdir(parents=True, exist_ok=True)
     merge_sha = "c" * 40
     manifeste = ProductionReadinessManifestV1(
         protocol_version=PRODUCTION_READINESS_PROTOCOL_VERSION,

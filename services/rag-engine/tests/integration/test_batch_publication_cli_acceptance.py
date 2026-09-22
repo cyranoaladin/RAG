@@ -22,6 +22,7 @@ import sys
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
+from typing import Any
 
 import psycopg
 import pytest
@@ -1012,6 +1013,68 @@ def _arguments_de_worker_b(contexte: ContexteDuBanc, *, iterations: int) -> list
     ]
 
 
+def _lancer_worker_b(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    *,
+    banc: ContexteDuBanc,
+    github: LocalGitHub,
+    jeton: Path,
+    tmp_path: Path,
+    iterations: int = 4,
+    autorites: ContexteDuBanc | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Lance le VRAI CLI de Worker B, forge locale ouverte.
+
+    ``autorites`` permet de le lancer avec le jeu d'autorites d'une AUTRE
+    release que celle dont les jobs sont en file — c'est ce que la
+    contre-epreuve de mauvaise release exige.
+    """
+    with local_github_server(github) as github_url:
+        return _run(
+            "ingestor.ingestion_worker.multilevel_publication_resume_cli",
+            _arguments_de_worker_b(autorites or banc, iterations=iterations),
+            _environnement_de_worker(
+                control_pg, product_pg, contexte=banc,
+                github_url=github_url, jeton=jeton, tmp_path=tmp_path,
+            ),
+            timeout=2400,
+        )
+
+
+def _publier_le_banc(
+    control_pg: dict[str, str], product_pg: dict[str, str], tmp_path: Path
+) -> tuple[dict[str, object], ContexteDuBanc, list[uuid.UUID], subprocess.CompletedProcess[str]]:
+    """Le parcours complet jusqu'a la publication produit, une seule fois."""
+    prepare = _preparer_attestation(control_pg, tmp_path)
+    banc: ContexteDuBanc = prepare["contexte"]
+    jobs = _jobs_depuis_les_attestations(control_pg, banc)
+    worker = _lancer_worker_b(
+        control_pg, product_pg, banc=banc,
+        github=prepare["github"], jeton=prepare["jeton"], tmp_path=tmp_path,
+    )
+    return prepare, banc, jobs, worker
+
+
+def _compter_dans_le_produit(
+    product_pg: dict[str, str], contenus: list[str]
+) -> tuple[int, int, int]:
+    """Artefacts, placements et chunks publies pour ces contenus."""
+    with psycopg.connect(product_pg["admin_dsn"]) as conn:
+        comptes = conn.execute(
+            "SELECT (SELECT count(*) FROM public.rag_artifacts"
+            "          WHERE artifact_id = ANY(%s)),"
+            "       (SELECT count(*) FROM public.rag_artifact_placements"
+            "          WHERE artifact_id = ANY(%s)),"
+            "       (SELECT count(*) FROM public.rag_chunks"
+            "          WHERE artifact_id = ANY(%s))",
+            (contenus, contenus, contenus),
+        ).fetchone()
+        conn.rollback()
+    assert comptes is not None
+    return comptes
+
+
 def test_le_parcours_batch_atteint_l_index_produit(
     control_pg: dict[str, str],
     product_pg: dict[str, str],
@@ -1025,22 +1088,8 @@ def test_le_parcours_batch_atteint_l_index_produit(
     prepare, et un code de sortie nul ne suffit pas : ce qui suit est relu
     independamment, dans les deux bases.
     """
-    prepare = _preparer_attestation(control_pg, tmp_path)
-    banc: ContexteDuBanc = prepare["contexte"]
-    github, jeton = prepare["github"], prepare["jeton"]
-    jobs = _jobs_depuis_les_attestations(control_pg, banc)
+    prepare, banc, jobs, worker = _publier_le_banc(control_pg, product_pg, tmp_path)
     assert len(jobs) == 4
-
-    with local_github_server(github) as github_url:
-        worker = _run(
-            "ingestor.ingestion_worker.multilevel_publication_resume_cli",
-            _arguments_de_worker_b(banc, iterations=4),
-            _environnement_de_worker(
-                control_pg, product_pg, contexte=banc,
-                github_url=github_url, jeton=jeton, tmp_path=tmp_path,
-            ),
-            timeout=2400,
-        )
     assert worker.returncode == 0, worker.stderr
     assert worker.stdout.count("status=succeeded") == 4, (
         worker.stdout + "\n" + worker.stderr
@@ -1117,13 +1166,23 @@ def test_le_parcours_batch_atteint_l_index_produit(
     assert trouves, "aucun chunk publie n'a ete retrouve par le chemin de retrieval"
     # L'identite rendue est celle d'un artefact du banc, et le TEXTE rendu
     # est celui qui a ete reellement extrait des octets publies.
-    assert {identite for identite, _ in trouves} <= set(contenus), trouves
-    assert any("algorithmique" in texte for _, texte in trouves), trouves
+    assert {candidat.artifact_id for candidat in trouves} <= set(contenus), trouves
+    assert any("algorithmique" in candidat.text for candidat in trouves), trouves
+    # L'ATTRIBUTION documentaire est conservee jusqu'au resultat expose :
+    # ce que le retrieval rend porte les faits que l'attestation a scelles,
+    # pas une valeur recomposee a l'affichage.
+    assert {candidat.type_doc for candidat in trouves} == {banc.type_doc}, trouves
+    assert {candidat.rights for candidat in trouves} == {"officiel_public"}, trouves
+    assert {candidat.source_label for candidat in trouves} == {
+        "eduscol.education.gouv.fr"
+    }, trouves
+    assert {candidat.source_uri for candidat in trouves} <= urls, trouves
+    assert {candidat.placement_source_path for candidat in trouves} <= chemins, trouves
 
 
 def _recuperer_par_le_retrieval(
     product_pg: dict[str, str], contexte: ContexteDuBanc
-) -> list[tuple[str, str]]:
+) -> list[Any]:
     """Interroge la base produit par le CHEMIN DE RETRIEVAL reel.
 
     Identite interne signee, scope serveur derive du catalogue gouverne,
@@ -1218,13 +1277,121 @@ def _recuperer_par_le_retrieval(
             collection=collection,
             limit=10,
         )
-        return [
-            (candidat.artifact_id or candidat.doc_id, candidat.text)
-            for candidat in candidats
-        ]
+        return list(candidats)
     finally:
         for cle, valeur in anciens.items():
             if valeur is None:
                 os.environ.pop(cle, None)
             else:
                 os.environ[cle] = valeur
+
+
+def test_une_reprise_apres_ecriture_produit_ne_duplique_rien(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    """Interruption APRES l'ecriture produit, AVANT l'acquittement du job.
+
+    C'est le cas qui distingue une reprise correcte d'une republication :
+    la base produit porte deja tout, la ressource est deja
+    ``RETRIEVAL_ELIGIBLE``, et le job — toujours en file, car son bail est
+    tombe — doit etre repris SANS rien dupliquer ni rien reecrire.
+
+    Le job rejoue est le MEME : c'est ce que fait un bail expire apres un
+    arret brutal. Un job neuf n'aurait pas les evenements de promotion qui
+    le nomment, et serait refuse — a raison.
+    """
+    prepare, banc, jobs, worker = _publier_le_banc(control_pg, product_pg, tmp_path)
+    assert worker.stdout.count("status=succeeded") == 4, worker.stdout + worker.stderr
+    contenus = sorted(contenu.content_sha256 for contenu in banc.contenus)
+    avant = _compter_dans_le_produit(product_pg, contenus)
+    assert avant[0] == 2 and avant[1] == 4 and avant[2] > 0, avant
+
+    # L'interruption : le worker s'arrete entre l'ecriture produit et
+    # l'acquittement. Le bail tombe, le job redevient reclamable.
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        remis = conn.execute(
+            "UPDATE ingestion_control.jobs"
+            "   SET status = 'queued', lease_token = NULL,"
+            "       lease_expires_at = NULL, claimed_by = NULL"
+            " WHERE job_id = ANY(%s) RETURNING job_id", (jobs,)
+        ).fetchall()
+        conn.commit()
+    assert len(remis) == 4, remis
+
+    repris = _lancer_worker_b(
+        control_pg, product_pg, banc=banc,
+        github=prepare["github"], jeton=prepare["jeton"], tmp_path=tmp_path,
+    )
+    assert repris.returncode == 0, repris.stderr
+    assert repris.stdout.count("status=succeeded") == 4, (
+        repris.stdout + "\n" + repris.stderr
+    )
+
+    # RIEN n'a ete duplique : ni artefact, ni placement, ni chunk.
+    apres = _compter_dans_le_produit(product_pg, contenus)
+    assert apres == avant, (avant, apres)
+
+    # Et les jobs sont acquittes, une seule fois chacun.
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        etats = conn.execute(
+            "SELECT status, count(*) FROM ingestion_control.jobs"
+            " WHERE job_id = ANY(%s) GROUP BY status", (jobs,)
+        ).fetchall()
+        conn.rollback()
+    assert etats == [("succeeded", 4)], etats
+
+
+def test_un_worker_porteur_d_une_autre_release_ne_publie_rien(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    """Mauvaise release : aucune publication, et le refus est nomme.
+
+    Les jobs sont ceux d'une release reellement attestee. Le worker, lui,
+    porte le jeu d'autorites d'une AUTRE release — coherent avec lui-meme,
+    mais etranger a ces contenus. Publier « parce que tout le reste va
+    bien » serait exactement la faute que la liaison de release ferme.
+    """
+    prepare = _preparer_attestation(control_pg, tmp_path)
+    banc: ContexteDuBanc = prepare["contexte"]
+    jobs = _jobs_depuis_les_attestations(control_pg, banc)
+    assert len(jobs) == 4
+
+    # Une SECONDE release de banc, coherente et complete, mais qui ne
+    # contient pas les contenus de la premiere.
+    etrangere = _contexte_du_banc(tmp_path / "autre")
+    assert etrangere.release_id != banc.release_id
+    contenus = sorted(contenu.content_sha256 for contenu in banc.contenus)
+    assert not set(contenus) & {
+        contenu.content_sha256 for contenu in etrangere.contenus
+    }
+
+    worker = _lancer_worker_b(
+        control_pg, product_pg, banc=banc, autorites=etrangere,
+        github=prepare["github"], jeton=prepare["jeton"], tmp_path=tmp_path,
+    )
+    assert worker.returncode == 0, worker.stderr
+    assert "status=succeeded" not in worker.stdout, worker.stdout
+    assert "is not part of the sealed release" in worker.stderr, worker.stderr
+
+    # Rien n'a ete ecrit dans le produit, et aucune ressource n'a bouge.
+    assert _compter_dans_le_produit(product_pg, contenus) == (0, 0, 0)
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        etats = conn.execute(
+            "SELECT DISTINCT r.resource_state"
+            "  FROM ingestion_control.resources r"
+            "  JOIN ingestion_control.publication_attestations a USING (resource_id)"
+            " WHERE a.release_id = %s", (banc.release_id,)
+        ).fetchall()
+        conn.rollback()
+    assert etats == [("NEEDS_REVIEW",)], etats
+
+    # La file est rendue propre : ces jobs ont prouve leur refus.
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        conn.execute(
+            "DELETE FROM ingestion_control.jobs WHERE job_id = ANY(%s)", (jobs,)
+        )
+        conn.commit()
