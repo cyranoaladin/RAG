@@ -193,3 +193,71 @@ intégrateurs observent.
 Le test n'est ni supprimé ni neutralisé ; il est complété par une épreuve qui
 refuse un `enum` redondant dans le document runtime — sa réapparition
 signalerait un environnement de génération différent.
+
+## Point de reprise — session du 2026-09-22
+
+| Élément | Valeur |
+|---|---|
+| Branche | `go-live/cu-batch-projection-and-pii-reconciliation` |
+| SHA | `dcb19d636f443e2d0ba29d23c03a089d09dd1e18` |
+| Modifications locales | aucune |
+| Dernier maillon atteint | création des jobs nommant leur artefact |
+| Maillon suivant | assemblage du contexte d'autorités de Worker B |
+
+### Commandes des derniers essais
+
+```bash
+# Acceptation batch — 11 collectés, 10 verts, 1 rouge, 0 ignoré
+cd services/rag-engine && NEXUS_BATCH_CLI_ACCEPTANCE=1 \
+PYTHONPATH=src:../../packages/contracts/src \
+.venv/bin/python -m pytest tests/integration/test_batch_publication_cli_acceptance.py \
+  -p no:warnings -q --junit-xml=<chemin>/acceptance_final.xml
+
+# Suite unitaire complète — pytest code 0 (3 949 tests)
+cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src \
+.venv/bin/python -m pytest tests/ -p no:warnings -q --ignore=tests/integration \
+  --junit-xml=<chemin>/suite.xml
+```
+
+### Diagnostic du prochain échec
+
+L'unique épreuve rouge est `test_le_parcours_batch_atteint_l_index_produit`, qui
+appelle `pytest.fail` avec sa cause nommée. Ce n'est **pas** un contrôle qui
+échoue après une publication presque terminée : l'exécution du CLI de Worker B
+reste à construire.
+
+`load_multilevel_runtime_authorities`
+(`multilevel_runtime_authority.py:180-280`) exige une **chaîne cohérente**, et
+chaque maillon porte ses propres contrôles internes :
+
+```
+collection_config (digest)
+  → profile_manifest (digest, et manifest_sha256 auto-déclaré)
+  → candidate_inventory  (counts confrontés à ses propres listes)
+  → currentness          (lié à l'inventaire, counts confrontés)
+  → mapping (niveaux, matières, types de document)
+  → programme_registry
+  → resolver             (place les artefacts)
+  → PII                  (evidence_sha256 et policy_sha256 == ceux du resolver)
+  → rights               (registry_sha256 == celui du resolver)
+```
+
+Plus, côté CLI : le modèle E5 (`RAG_EMBEDDING_MODEL_CACHE_DIR`), une base
+produit pgvector, et l'environnement de readiness signé.
+
+### Première action de la session suivante
+
+Écrire un constructeur de contexte réutilisable — une fixture qui produit
+**ensemble** les chemins, empreintes et identités de cette chaîne pour la
+release de banc, plutôt qu'une trentaine de valeurs indépendantes. Les
+tables de correspondance, le registre de programmes, la configuration de
+collections et le manifeste de profils du dépôt peuvent être réutilisés tels
+quels (`test_multilevel_worker_cli_e2e.py` les emploie déjà) ; seuls
+l'inventaire, l'actualité, la PII, les droits et le catalogue doivent être
+produits pour le banc, avec leurs digests croisés.
+
+### Environnement
+
+Aucun conteneur ni processus à conserver : les bases du banc sont créées et
+détruites par les fixtures. Aucun montage de secret n'est actif. Le tunnel
+SSH ouvert lors des sessions précédentes a été fermé.
