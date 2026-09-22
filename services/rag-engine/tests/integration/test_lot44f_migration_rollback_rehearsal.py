@@ -71,6 +71,11 @@ _MIGRATION_VERSIONS = sorted(
     for p in MIGRATIONS_DIR.glob("[0-9][0-9][0-9]_*.sql")
 )
 
+#: La migration dont ce scénario éprouve le rembobinage : 009 introduit
+#: l'allowlist de contenus des autorisations de scope. Rembobiner jusqu'à
+#: elle impose de défaire d'abord tout ce qui lui est postérieur.
+_ROLLBACK_FLOOR = 9
+
 
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -132,6 +137,15 @@ def _run_bootstrap(pg_container: dict[str, str]) -> subprocess.CompletedProcess[
         [str(BOOTSTRAP_SCRIPT)], cwd=ENGINE_ROOT, env=_bootstrap_env(pg_container),
         capture_output=True, text=True, check=False,
     )
+
+
+def _versions_enregistrees(conn: psycopg.Connection) -> list[int]:
+    """Les versions que le registre porte, dans l'ordre."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT version FROM ingestion_control.schema_migrations ORDER BY version"
+        )
+        return [ligne[0] for ligne in cur.fetchall()]
 
 
 def _superuser_dsn(pg_container: dict[str, str]) -> str:
@@ -254,6 +268,73 @@ class TestFullRollbackRehearsal:
         assert applied_after == _MIGRATION_VERSIONS
 
 
+class TestPartialRollbackIsRefused:
+    """Le registre décrit une SUITE : un trou est refusé, une reprise non."""
+
+    def test_trou_refuse_puis_reprise_puis_tete_atteinte(
+        self, pg_container: dict[str, str]
+    ) -> None:
+        """Les quatre états que le chemin de démarrage doit distinguer.
+
+        Le piège que ce module décrit en commentaire depuis 013 : défaire
+        une migration sans défaire celles qui lui sont postérieures laisse
+        leurs versions enregistrées alors que leurs objets ont disparu. Le
+        bootstrap calculait sa tête comme un NOMBRE de lignes et ses
+        empreintes par POSITION : sur un registre troué il réappliquait la
+        mauvaise plage, n'atteignait jamais les versions manquantes, et ne
+        refusait qu'à la fin, sur un écart de tête qui ne nommait pas la
+        cause.
+
+        La séquence ci-dessous éprouve, sur la même base jetable :
+        installation neuve, registre troué (refus), reprise depuis un
+        préfixe cohérent, puis base déjà à la tête.
+        """
+        tete = _MIGRATION_VERSIONS[-1]
+        avant_derniere = _MIGRATION_VERSIONS[-2]
+
+        # 1) Installation neuve.
+        neuve = _run_bootstrap(pg_container)
+        assert neuve.returncode == 0, neuve.stderr
+        assert f"SCHEMA_HEAD={tete}" in neuve.stdout
+
+        # 2) Rembobinage PARTIEL : l'avant-dernière est défaite, la dernière
+        #    reste enregistrée. Le registre est troué.
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn:
+            _apply_rollback_file(conn, version=avant_derniere)
+            troue = _versions_enregistrees(conn)
+        assert avant_derniere not in troue
+        assert tete in troue, "le scenario doit laisser une version POSTERIEURE"
+
+        refus = _run_bootstrap(pg_container)
+        assert refus.returncode != 0, refus.stdout
+        assert "MIGRATION_REGISTRY_NOT_CONTIGUOUS" in refus.stderr, refus.stderr
+        assert str(avant_derniere) in refus.stderr, refus.stderr
+        # Le refus précède toute écriture.
+        assert "MIGRATIONS_APPLIED" not in refus.stdout, refus.stdout
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn:
+            assert _versions_enregistrees(conn) == troue
+
+        # 3) Reprise : le préfixe redevient cohérent, et le bootstrap
+        #    applique exactement ce qui manque.
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn:
+            _apply_rollback_file(conn, version=tete)
+            prefixe = _versions_enregistrees(conn)
+        assert prefixe == _MIGRATION_VERSIONS[:-2]
+
+        reprise = _run_bootstrap(pg_container)
+        assert reprise.returncode == 0, reprise.stderr
+        assert "MIGRATIONS_APPLIED=2" in reprise.stdout, reprise.stdout
+        assert f"SCHEMA_HEAD={tete}" in reprise.stdout
+
+        # 4) Base déjà à la tête : rien n'est réappliqué.
+        rejeu = _run_bootstrap(pg_container)
+        assert rejeu.returncode == 0, rejeu.stderr
+        assert "MIGRATIONS_APPLIED=0" in rejeu.stdout, rejeu.stdout
+        assert f"SCHEMA_HEAD={tete}" in rejeu.stdout
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn:
+            assert _versions_enregistrees(conn) == _MIGRATION_VERSIONS
+
+
 class TestScopeAuthorizationContentAllowlistRollback:
     def test_rollback_009_refuses_v2_rows_and_leaves_boundary_intact(
         self, pg_container: dict[str, str]
@@ -300,20 +381,19 @@ class TestScopeAuthorizationContentAllowlistRollback:
                 protocol_version="LOT41A-V1",
                 allowed_content_sha256=None,
             )
-            # Ordre inverse strict, désormais depuis 015 : rembobiner
-            # jusqu'à 009 sans défaire 015 laisserait sa version enregistrée
-            # dans ``schema_migrations`` alors que ses contraintes ont
-            # disparu avec les colonnes que le rembobinage supprime — le
-            # re-bootstrap sauterait la migration et s'arrêterait sous sa
-            # tête déclarée. Le même piège vaut pour 013, et a déjà été
-            # payé une fois.
-            _apply_rollback_file(conn, version=15)
-            _apply_rollback_file(conn, version=14)
-            _apply_rollback_file(conn, version=13)
-            _apply_rollback_file(conn, version=12)
-            _apply_rollback_file(conn, version=11)
-            _apply_rollback_file(conn, version=10)
-            _apply_rollback_file(conn, version=9)
+            # Ordre inverse strict, depuis la tête RÉELLEMENT livrée :
+            # rembobiner jusqu'à 009 sans défaire les migrations plus
+            # récentes laisserait leurs versions enregistrées dans
+            # ``schema_migrations`` alors que leurs objets ont disparu avec
+            # les colonnes que le rembobinage supprime — le registre serait
+            # troué, et le bootstrap le refuse désormais en le nommant.
+            #
+            # La liste était écrite en dur à partir de 015 ; deux migrations
+            # ont été livrées depuis sans qu'elle suive. Elle est donc
+            # dérivée du dépôt, comme celle du rembobinage complet : le
+            # piège que ce commentaire décrit ne peut plus se repayer.
+            for version in reversed(range(_ROLLBACK_FLOOR, _MIGRATION_VERSIONS[-1] + 1)):
+                _apply_rollback_file(conn, version=version)
 
             with conn.cursor() as cur:
                 cur.execute(
@@ -347,8 +427,11 @@ class TestScopeAuthorizationContentAllowlistRollback:
 
         reapply = _run_bootstrap(pg_container)
         assert reapply.returncode == 0, reapply.stderr
-        # 009 -> 015 : sept migrations réappliquées depuis l'ajout de 015.
-        assert "MIGRATIONS_APPLIED=7" in reapply.stdout
+        # Toutes celles qui ont été défaites, et elles seules.
+        assert (
+            f"MIGRATIONS_APPLIED={_MIGRATION_VERSIONS[-1] - _ROLLBACK_FLOOR + 1}"
+            in reapply.stdout
+        )
         assert f"SCHEMA_HEAD={_pg_authority.declared_schema_head()}" in reapply.stdout
 
         with psycopg.connect(_superuser_dsn(pg_container)) as conn, conn.cursor() as cur:
