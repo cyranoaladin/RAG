@@ -551,6 +551,7 @@ def persist_sealed_release_artifact(
                  mime_declared, mime_detected, original_url, final_url, payload)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (resource_id, sha256) DO NOTHING
+            RETURNING artifact_id
             """,
             (
                 artifact, resource_id, run_id, sha256, size_bytes,
@@ -558,7 +559,50 @@ def persist_sealed_release_artifact(
                 Jsonb(payload),
             ),
         )
-    return artifact
+        insere = cur.fetchone()
+        if insere is not None:
+            return insere[0]
+
+        # `DO NOTHING` n'insère rien ET ne rend rien : sans cette lecture,
+        # l'appelant recevrait l'identité qu'il avait préparée pour une ligne
+        # qui n'existe pas. Une identité qui ne désigne rien est pire qu'une
+        # erreur : elle se propage silencieusement.
+        cur.execute(
+            "SELECT artifact_id, size_bytes, mime_declared, mime_detected,"
+            "       original_url, final_url, payload"
+            "  FROM ingestion_control.artifacts"
+            " WHERE resource_id = %s AND sha256 = %s",
+            (resource_id, sha256),
+        )
+        existante = cur.fetchone()
+    if existante is None:  # pragma: no cover - la contrainte garantit l'un ou l'autre
+        raise SealedReleaseRowError(
+            f"artifact for resource {resource_id} and sha256 {sha256[:12]}… was "
+            "neither inserted nor found — refusing to return an identity that "
+            "designates nothing"
+        )
+
+    # Un conflit n'est un REJEU que si tout concorde. Le même contenu avec une
+    # taille, un type ou une preuve différents est une contradiction, jamais
+    # un succès silencieux.
+    ecarts = [
+        f"{champ}: existing={ancien!r} new={nouveau!r}"
+        for champ, ancien, nouveau in (
+            ("size_bytes", existante[1], size_bytes),
+            ("mime_declared", existante[2], mime_declared),
+            ("mime_detected", existante[3], mime_detected),
+            ("original_url", existante[4], provenance_url),
+            ("final_url", existante[5], provenance_url),
+            ("payload", existante[6], payload),
+        )
+        if ancien != nouveau
+    ]
+    if ecarts:
+        raise SealedReleaseRowError(
+            f"artifact for resource {resource_id} and sha256 {sha256[:12]}… "
+            "already exists with different facts: " + "; ".join(ecarts)
+        )
+    return existante[0]
 
 
 __all__ = [

@@ -987,34 +987,57 @@ def test_un_job_batch_sans_artefact_nomme_est_refuse(
     resource_id = premier["resource_id"]
     autorise = premier["artifact_id"]
 
-    # B : plus recent, et JAMAIS couvert par la revue.
+    # B : des octets DIFFERENTS, donc un SHA different — sinon la contrainte
+    # (resource_id, sha256) empecherait la seconde ligne d'exister, et le
+    # test porterait sur deux versions dont une seule est reelle.
+    octets_b = b"%PDF-1.7\n% version B, non couverte par la revue\n"
+    sha_b = hashlib.sha256(octets_b).hexdigest()
     with psycopg.connect(superuser_dsn(control_pg)) as conn:
         run_id = conn.execute(
             "SELECT run_id FROM ingestion_control.resources WHERE resource_id = %s",
             (resource_id,),
         ).fetchone()[0]
-        payload = conn.execute(
+        payload = dict(conn.execute(
             "SELECT payload FROM ingestion_control.artifacts "
             " WHERE artifact_id = %s", (autorise,)
-        ).fetchone()[0]
+        ).fetchone()[0])
+        payload["content_sha256"] = sha_b
         plus_recent = persist_sealed_release_artifact(
             conn, resource_id=resource_id, run_id=run_id,
-            sha256=premier["content_sha256"], size_bytes=999,
+            sha256=sha_b, size_bytes=len(octets_b),
             mime_declared="application/pdf", mime_detected="application/pdf",
             provenance_url=payload["provenance_artifact_url"], payload=payload,
+        )
+        # Une date de collecte explicitement POSTERIEURE : « plus recent »
+        # doit etre un fait, pas une supposition sur l'ordre d'insertion.
+        conn.execute(
+            "UPDATE ingestion_control.artifacts "
+            "   SET collected_at = now() + interval '1 hour' "
+            " WHERE artifact_id = %s", (plus_recent,)
         )
         conn.commit()
     assert plus_recent != autorise
 
+    # Les DEUX lignes existent reellement pour cette ressource.
     with psycopg.connect(app_dsn(control_pg)) as conn:
-        # « le plus recent » rend l'un des deux, selon un ordre que rien ne
-        # garantit — les deux lignes peuvent porter le meme collected_at.
-        # C'est precisement pourquoi ce n'est pas une regle d'autorite.
+        presentes = conn.execute(
+            "SELECT artifact_id FROM ingestion_control.artifacts "
+            " WHERE resource_id = %s ORDER BY collected_at", (resource_id,)
+        ).fetchall()
+        conn.rollback()
+    assert {ligne[0] for ligne in presentes} == {autorise, plus_recent}, presentes
+
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        # « le plus recent » rend bien B — et B n'est PAS ce que la revue a
+        # couvert. C'est exactement le piege que la selection par identite
+        # ferme.
         dernier = find_latest_artifact(
             conn, resource_id=resource_id, sealed_catalog=_CatalogueMuet()
         )
         assert dernier is not None
-        assert dernier.artifact_id in {autorise, plus_recent}
+        assert dernier.artifact_id == plus_recent, (
+            "la version la plus recente doit bien etre B"
+        )
 
         # La selection par IDENTITE rend A, celui que la revue a couvert —
         # de maniere DETERMINISTE, quelle que soit l'autre version.
