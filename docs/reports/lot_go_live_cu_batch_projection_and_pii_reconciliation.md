@@ -444,6 +444,106 @@ distincts** — même granularité par placement que l'actualité — et son
 `summary` compte 486/486, c'est-à-dire la longueur de sa liste et non ses
 contenus.
 
+## Dossier d'exécution staging
+
+L'ordre ci-dessous est celui des **dépendances**, pas celui du confort : chaque
+étape refuse tant que la précédente n'a pas eu lieu. Rien n'y est exécuté par
+ce lot — aucune écriture sur staging n'a été faite.
+
+### 0. Préconditions
+
+| Élément | Exigence |
+|---|---|
+| Environnement | `NEXUS_ENVIRONMENT=rehearsal` (ou `production`) avec manifeste de readiness signé et ancre de confiance |
+| Rôles PostgreSQL | contrôle d'ingestion (`app`, `authority`, `attestor`) et base produit (`publisher`) **distincts** ; le worker refuse un DSN unique |
+| Modèle | artefact E5 monté, `--embedding-inventory-sha256` égal à celui que la release déclare |
+| Magasin | `<store>/<content_sha256>.pdf` pour chaque artefact ; les octets sont re-mesurés à la lecture |
+| Forge | la revue approuvée doit rester lisible au head exact : elle est **relue à chaque publication**, pas une fois pour toutes |
+
+### 1. Régénérer les deux autorités V2 incohérentes
+
+`candidate_inventory.json` et `currentness_evidence.json` sont antérieurs à
+la correction de leurs producteurs. Tant qu'ils ne sont pas régénérés,
+`load_multilevel_candidate_inventory` refuse sur la **première** autorité et
+Worker B ne démarre pas. La régénération change leurs empreintes, donc le
+manifeste, donc les payloads scellés et les attestations qui les nomment :
+c'est une **re-release gouvernée**, à instruire comme telle.
+
+### 2. Établir l'attribution des artefacts déjà ingérés
+
+```bash
+python -m ingestor.ingestion_worker.sealed_release_ingestion_cli \
+  --only-attributions \
+  --release-dir <release> \
+  --release-manifest-sha256 <…> --artifacts-release-sha256 <…> \
+  --candidate-inventory-sha256 <…> \
+  --artifact-transfer-manifest-path <…> --artifact-transfer-manifest-sha256 <…> \
+  --artifact-store-dir <store> --profiles-dir <profils> \
+  --owner <opérateur> --expected-role ingestion_control_app \
+  --report-path <rapport>.json
+```
+
+N'ingère rien. Écrit les attributions manquantes, dérivées du catalogue de
+la release. Idempotent ; une attribution divergente est un refus.
+Attendu pour V2 : `examined=479`, `written=479`, `missing_rows=0`.
+
+### 3. Décider du cas PII des 22 contenus signalés
+
+Sous le scanner courant, 22 des 315 contenus publiés portent un signal que
+la preuve scellée déclare `CLEARED`. Deux voies, et deux seulement :
+
+- publier **sous le scanner qui a produit la preuve** (`8ec8af55…`), en le
+  déclarant comme tel — la release doit alors nommer ce scanner, ce que son
+  manifeste ne fait pas aujourd'hui ;
+- ou instruire la **revue humaine ADR-0047** (jeu de décisions signé, reçu,
+  ancre, index, allowlist) pour ces 22 contenus, et publier sous le scanner
+  courant.
+
+Aucune troisième voie : reporter l'ancien verdict sous un scanner différent
+serait inventer une admission.
+
+### 4. Proposer, faire approuver, enregistrer l'attestation batch
+
+```bash
+python -m ingestor.ingestion_worker.attest_publication_cli \
+  propose-release-batch-review --release-id <…> --release-dir <…> …
+# → l'artefact canonique est publié sur la PR de revue, approuvé par un humain
+python -m ingestor.ingestion_worker.attest_publication_cli \
+  record-release-batch-attestation --release-id <…> --review-id <…> \
+  --repository <…> --pull-request <n> --expected-head <sha> \
+  --review-artifact-path <chemin canonique>
+```
+
+Une projection portant une condition inconnue **ou négative** refuse ici.
+Une attestation déjà présente et divergente refuse aussi : pas d'écrasement.
+
+### 5. Créer les jobs, puis lancer Worker B
+
+Chaque job **nomme son artefact** (`artifact_id`), dérivé de l'attestation
+enregistrée. Un job batch sans cette identité est refusé sans repli.
+
+```bash
+PG_RAG_DSN=<produit> python -m ingestor.ingestion_worker.multilevel_publication_resume_cli \
+  --profiles-dir <profils> --artifact-store-dir <store> \
+  --owner <worker> --expected-role ingestion_control_app \
+  --embedding-artifact-root <E5> --embedding-inventory-sha256 <…> \
+  --max-iterations <n> \
+  --artifact-transfer-manifest-path <…> --artifact-transfer-manifest-sha256 <…> \
+  <les autorités multi-niveaux>
+```
+
+### 6. Vérifier indépendamment
+
+Un code de sortie nul ne suffit pas. Relire, dans les deux bases : l'état
+`RETRIEVAL_ELIGIBLE` des ressources, le statut des jobs, l'artefact exact,
+ses droits, son type documentaire, sa provenance, les placements par
+collection et les chunks (modèle et dimension), puis **récupérer le contenu
+par le chemin de retrieval** sous le rôle prévu.
+
+Une interruption entre l'écriture produit et l'acquittement d'un job n'exige
+rien de particulier : le bail tombe, le job est repris, et la reprise ne
+duplique rien.
+
 ## Point de reprise — fin de session du 2026-09-22
 
 | Élément | Valeur |
