@@ -279,6 +279,7 @@ laisse `authorize_scope_cli` relire, vérifier et écrire — au protocole
 | Identité d'artefact exigée | un job batch sans `artifact_id` est refusé sans repli vers « le plus récent » ; A autorisé est utilisé même lorsque B est plus récent |
 | Attribution conservée | ce que le retrieval rend porte les faits que l'attestation a scellés, pas des valeurs recomposées à l'affichage |
 | Octets du magasin | un fichier portant le bon nom mais d'autres octets est refusé à la lecture, pas plus loin |
+| Conflit sans écrasement | une **seconde** revue, approuvée elle aussi, n'écrase pas l'attestation déjà enregistrée : `ATTESTATION_CONFLICT`, et la première reste intacte — même nombre, même digest, même revue |
 
 ## Qualification des autorités V2 réelles — mesure
 
@@ -339,12 +340,12 @@ banc n'en dépend pas : il utilise des autorités de test nommées comme telles.
 ## Suites exécutées
 
 ```bash
-# Acceptation batch — 13 collectés, 13 verts, 0 ignoré (112,9 s)
+# Acceptation batch — 15 collectés, 15 verts, 0 ignoré (132,7 s)
 cd services/rag-engine && NEXUS_BATCH_CLI_ACCEPTANCE=1 \
 RAG_EMBEDDING_MODEL_CACHE_DIR=<artefact E5 58ad18db…> \
 PYTHONPATH=src:../../packages/contracts/src \
 .venv/bin/python -m pytest tests/integration/test_batch_publication_cli_acceptance.py \
-  -p no:warnings -q --junit-xml=<chemin>/acceptation_13.xml
+  -p no:warnings -q --junit-xml=<chemin>/acceptation_15.xml
 
 # Suite unitaire rag-engine — 3 949 tests, 0 échec, 1 ignoré (108,5 s)
 cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src \

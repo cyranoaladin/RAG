@@ -681,7 +681,9 @@ def _environnement_d_autorite(
     }
 
 
-def _arguments_de_proposition(contexte: ContexteDuBanc) -> list[str]:
+def _arguments_de_proposition(
+    contexte: ContexteDuBanc, *, revue: str = ""
+) -> list[str]:
     """La proposition de revue batch, adressee aux autorites du banc."""
     return [
         "propose-release-batch-review",
@@ -692,21 +694,26 @@ def _arguments_de_proposition(contexte: ContexteDuBanc) -> list[str]:
         "--transfer-manifest-sha256",
         contexte.digests["artifact_transfer_manifest_sha256"],
         "--rights-registry-path", str(contexte.registre_de_droits),
-        "--review-id", REVUE_DE_TEST,
+        "--review-id", revue or REVUE_DE_TEST,
         "--evaluator", "acceptance-bench",
     ]
 
 
 def _arguments_d_enregistrement(
-    contexte: ContexteDuBanc, *, chemin: str, head: str
+    contexte: ContexteDuBanc,
+    *,
+    chemin: str,
+    head: str,
+    revue: str = "",
+    pull_request: int = 7001,
 ) -> list[str]:
     """L'enregistrement apres approbation, au head exact de la revue."""
     return [
         "record-release-batch-attestation",
         "--release-id", contexte.release_id,
-        "--review-id", REVUE_DE_TEST,
+        "--review-id", revue or REVUE_DE_TEST,
         "--repository", REPOSITORY,
-        "--pull-request", "7001",
+        "--pull-request", str(pull_request),
         "--expected-head", head,
         "--review-artifact-path", chemin,
     ]
@@ -1564,3 +1571,70 @@ def test_une_attribution_absente_refuse_puis_le_rattrapage_l_etablit(
     assert {v.facts.source_label for v in verifiees} == {
         "eduscol.education.gouv.fr"
     }, verifiees
+
+
+def test_un_conflit_d_attestation_ne_reecrit_rien(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Une SECONDE revue, approuvee elle aussi, n'ecrase pas la premiere.
+
+    Deux revues distinctes couvrent le meme perimetre ; toutes deux sont
+    approuvees sur la forge du banc. L'attestation deja enregistree n'est
+    pas remplacee par la plus recente : le conflit est nomme et refuse.
+    Sans cela, une revue posterieure deciderait silencieusement de ce qui
+    se publie.
+    """
+    prepare = _preparer_attestation(control_pg, tmp_path)
+    banc: ContexteDuBanc = prepare["contexte"]
+    github = prepare["github"]
+
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        avant = conn.execute(
+            "SELECT count(*), count(DISTINCT attestation_digest), min(review_id)"
+            "  FROM ingestion_control.publication_attestations"
+            " WHERE release_id = %s AND invalidated_at IS NULL",
+            (banc.release_id,),
+        ).fetchone()
+        conn.rollback()
+    assert avant is not None and avant[0] == 4 and avant[1] == 1, avant
+    premiere_revue, premier_digest = avant[2], avant[1]
+
+    seconde_revue = f"{REVUE_DE_TEST}-seconde"
+    tete = hashlib.sha1(b"acceptance-batch-head-seconde").hexdigest()
+    github.add_approved_pr(
+        number=7002, head_sha=tete, base_sha="9" * 40, review_id=7012
+    )
+    with local_github_server(github) as github_url:
+        env = _environnement_d_autorite(
+            control_pg, github_url=github_url, jeton=prepare["jeton"]
+        )
+        propose = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_de_proposition(banc, revue=seconde_revue),
+            env,
+        )
+        assert propose.returncode == 0, propose.stderr
+        chemin, octets = _artefact_propose(propose.stdout)
+        github.put_blob(path=chemin, ref=tete, content=octets)
+        enregistre = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_d_enregistrement(
+                banc, chemin=chemin, head=tete,
+                revue=seconde_revue, pull_request=7002,
+            ),
+            env,
+        )
+    assert enregistre.returncode == 1, enregistre.stdout
+    assert "ATTESTATION_CONFLICT" in enregistre.stderr, enregistre.stderr
+    assert "no silent overwrite" in enregistre.stderr, enregistre.stderr
+
+    # La premiere attestation est intacte : meme nombre, meme digest, meme revue.
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        apres = conn.execute(
+            "SELECT count(*), count(DISTINCT attestation_digest), min(review_id)"
+            "  FROM ingestion_control.publication_attestations"
+            " WHERE release_id = %s AND invalidated_at IS NULL",
+            (banc.release_id,),
+        ).fetchone()
+        conn.rollback()
+    assert apres == (4, premier_digest, premiere_revue), (avant, apres)
