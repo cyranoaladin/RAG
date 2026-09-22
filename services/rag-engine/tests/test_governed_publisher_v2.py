@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import inspect
 from contextlib import nullcontext
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
@@ -61,6 +62,38 @@ def _placement(*, collection: str, matiere: str) -> EligiblePlacement:
         current_profile_fingerprint="1" * 64,
         current_manifest_digest="2" * 64,
     )
+
+
+def test_placement_defaults_to_proven_current() -> None:
+    assert _placement(collection="nsi_terminale", matiere="nsi").currentness == (
+        "current"
+    )
+
+
+def test_placement_accepts_an_official_snapshot() -> None:
+    # ADR-0059 § 2 : l'instantané officiel est publié comme tel, jamais
+    # déguisé en `current`.
+    placement = replace(
+        _placement(collection="nsi_terminale", matiere="nsi"),
+        currentness="official_snapshot",
+    )
+    assert placement.currentness == "official_snapshot"
+
+
+@pytest.mark.parametrize(
+    "currentness", ["archive", "review_required", "transition", "", "CURRENT"]
+)
+def test_placement_refuses_every_unserved_currentness(currentness: str) -> None:
+    with pytest.raises(ValueError, match="publishable"):
+        replace(
+            _placement(collection="nsi_terminale", matiere="nsi"),
+            currentness=currentness,  # type: ignore[arg-type]
+        )
+
+
+def test_persisted_placement_carries_its_currentness_verbatim() -> None:
+    source = inspect.getsource(publisher_module._insert_placement)
+    assert "placement.currentness," in source
 
 
 def test_artifact_identity_is_exactly_the_content_sha() -> None:

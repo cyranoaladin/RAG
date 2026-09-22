@@ -26,6 +26,10 @@ from nexus_contracts.document import StrictBaseModel
 from psycopg.rows import dict_row
 from pydantic import Field, ValidationError
 
+#: ADR-0059 : ce que le retrieval sert, donc ce que le registre exporte —
+#: l'identité d'octets prouvée et l'instantané officiel ADR-0055.
+SERVED_CURRENTNESS: frozenset[str] = frozenset({"current", "official_snapshot"})
+
 
 class BootstrapInventoryError(RuntimeError):
     """The governed source cannot be represented without guessing."""
@@ -44,7 +48,7 @@ class _PlacementRow(StrictBaseModel):
     visibility: str = Field(min_length=1)
     school_year: str = Field(min_length=1)
     programme_version: str = Field(min_length=1)
-    currentness: Literal["current", "archive", "review_required"]
+    currentness: Literal["current", "official_snapshot", "archive", "review_required"]
     placement_status: Literal["active", "disabled"]
     review_status: Literal["needs_review", "reviewed"]
     source_uri: str = Field(min_length=1)
@@ -198,7 +202,7 @@ JOIN LATERAL (
     ) AS items
     FROM public.rag_artifact_placements AS p
     WHERE p.artifact_id = ra.artifact_id
-      AND p.currentness = 'current'
+      AND p.currentness IN ('current', 'official_snapshot')
       AND p.placement_status = 'active'
       AND p.review_status = 'reviewed'
 ) AS placements ON TRUE
@@ -404,7 +408,7 @@ def _validate_placements(row: _BootstrapSourceRow) -> None:
             )
         seen_placement_ids.add(placement.placement_id)
         if (
-            placement.currentness != "current"
+            placement.currentness not in SERVED_CURRENTNESS
             or placement.placement_status != "active"
             or placement.review_status != "reviewed"
             or placement.source_uri != row.rag_source_uri

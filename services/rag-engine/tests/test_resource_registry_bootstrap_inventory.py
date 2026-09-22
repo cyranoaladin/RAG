@@ -256,6 +256,37 @@ def test_export_query_uses_one_snapshot_and_separate_aggregations() -> None:
     assert "ra.content_sha256 = ANY(%(release_artifact_sha256s)s)" in EXPORT_SQL
 
 
+def test_export_query_exports_exactly_the_served_currentness() -> None:
+    # ADR-0059 : le registre exporte ce que le retrieval sert — l'identité
+    # d'octets prouvée et l'instantané officiel — et rien d'autre.
+    normalized = " ".join(EXPORT_SQL.split())
+    assert "p.currentness IN ('current', 'official_snapshot')" in normalized
+    assert "p.currentness = 'current'" not in normalized
+
+
+def test_inventory_accepts_an_official_snapshot_placement() -> None:
+    row = _row()
+    row["placements"] = [
+        {**row["placements"][0], "currentness": "official_snapshot"}  # type: ignore[index]
+    ]
+    inventory = _build([row])
+    proven = _build([_row()])
+    # La ressource exportée est la même ; l'empreinte de la source, elle,
+    # enregistre que ce placement est un instantané et non un `current`.
+    assert inventory.resources == proven.resources
+    assert inventory.source_snapshot_sha256 != proven.source_snapshot_sha256
+
+
+@pytest.mark.parametrize("currentness", ["archive", "review_required", "transition"])
+def test_inventory_refuses_every_unserved_currentness(currentness: str) -> None:
+    row = _row()
+    row["placements"] = [
+        {**row["placements"][0], "currentness": currentness}  # type: ignore[index]
+    ]
+    with pytest.raises(BootstrapInventoryError, match="placement"):
+        _build([row])
+
+
 # --- Multi-placement: one physical artifact shared across NSI Première and ---
 # --- NSI Terminale, ingested under Première, chunks tagged Première.       ---
 
