@@ -239,6 +239,25 @@ def main(argv: list[str] | None = None) -> int:
                     profile_registry=profiles,
                     owner=args.owner,
                 )
+                # Un placement prescrit sans ligne acquise n'est pas un
+                # rattrapage fait : c'est un rattrapage IMPOSSIBLE. Le taire
+                # derrière un code 0 laissait croire la release attribuée
+                # alors qu'aucune ligne — ou pas toutes — n'avait été vue
+                # (par exemple en nommant une release successeur, dont les
+                # lignes sont adoptées et non acquises). Rien n'est validé.
+                if rattrapage.missing_rows:
+                    conn.rollback()
+                    print(
+                        "SEALED_RELEASE_ATTRIBUTION_BACKFILL_REFUSED "
+                        f"release_id={rattrapage.release_id} "
+                        f"examined={rattrapage.examined} "
+                        f"missing_rows={len(rattrapage.missing_rows)} — "
+                        f"{len(rattrapage.missing_rows)} prescribed placement(s) "
+                        "have no acquired row under this release "
+                        f"(first: {rattrapage.missing_rows[0]})",
+                        file=sys.stderr,
+                    )
+                    return 1
                 conn.commit()
                 payload = rattrapage.as_dict()
                 if args.report_path is not None:

@@ -411,6 +411,9 @@ def _verify_release_batch_attestation(
         parse_release_batch_publication_review_artifact,
     )
 
+    from ingestor.ingestion_control.sealed_release_adoption import (
+        artifact_belongs_to_release,
+    )
     from ingestor.ingestion_control.sealed_release_projection import (
         SealedReleaseProjectionError,
         load_applicable_projection,
@@ -474,6 +477,18 @@ def _verify_release_batch_attestation(
         invalidator.require_equal(colonne, row[colonne], attendu)
 
     # (5) L'appartenance, sur les dimensions que la revue nomme.
+    #
+    # D'abord l'artefact lui-même : il doit avoir été acquis sous la release
+    # approuvée, ou adopté par elle (ADR-0059 § 5). Sans ce contrôle, une
+    # attestation d'une release couvrait n'importe quel artefact de même
+    # ressource, quelle que soit la release dont il provient.
+    if not artifact_belongs_to_release(
+        conn, artifact_id=row["artifact_id"], release_id=artifact.release_id
+    ):
+        raise invalidator.fail(
+            f"artifact {row['artifact_id']} of resource {resource_id} was neither "
+            f"acquired under nor adopted by release {artifact.release_id!r}"
+        )
     if row["collection"] not in artifact.collections:
         raise invalidator.fail(
             f"resource {resource_id} belongs to collection "

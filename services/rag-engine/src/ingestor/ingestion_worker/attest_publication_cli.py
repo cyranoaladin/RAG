@@ -257,6 +257,30 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Racine du depot, ou le foyer resout l'allowlist des reviewers.",
     )
 
+    adopt = subparsers.add_parser(
+        "adopt-predecessor-release",
+        help=(
+            "Fait couvrir par une release successeur les placements acquis sous "
+            "son predecesseur, sans les reecrire ni les reingerer (ADR-0059 § 5). "
+            "N'approuve rien, ne publie rien."
+        ),
+    )
+    adopt.add_argument("--release-id", required=True, type=_non_blank)
+    adopt.add_argument("--release-dir", required=True, type=Path)
+    adopt.add_argument("--release-manifest-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--artifacts-release-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--candidate-inventory-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--transfer-manifest-path", required=True, type=Path)
+    adopt.add_argument("--transfer-manifest-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--predecessor-release-id", required=True, type=_non_blank)
+    adopt.add_argument(
+        "--predecessor-release-manifest-sha256", required=True, type=_non_blank
+    )
+    adopt.add_argument(
+        "--adopted-by", required=True, type=_non_blank,
+        help="Identite reelle de l'operateur qui adopte.",
+    )
+
     record_batch = subparsers.add_parser(
         "record-release-batch-attestation",
         help=(
@@ -852,6 +876,101 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
+    """Adopte, pour un successeur, les placements acquis sous son prédécesseur.
+
+    Tout ce qui fonde l'adoption est vérifié AVANT d'ouvrir la base : la
+    release successeur par ses digests, son actualité par le chargeur
+    canonique, et l'accord entre l'actualité que son catalogue prescrit à
+    chaque placement et celle que sa preuve établit.
+    """
+    from ingestor.ingestion_control.sealed_release_adoption import (
+        SealedReleaseAdoptionError,
+        SuccessorIdentity,
+        load_acquired_rows,
+        persist_adoption,
+        plan_adoption,
+    )
+    from ingestor.ingestion_worker.sealed_release_ingestion import (
+        load_sealed_release,
+        sealed_placement_evidence,
+    )
+
+    try:
+        facts = load_sealed_release(
+            args.release_dir,
+            release_manifest_sha256=args.release_manifest_sha256,
+            artifacts_release_sha256=args.artifacts_release_sha256,
+            candidate_inventory_sha256=args.candidate_inventory_sha256,
+            artifact_transfer_manifest_path=args.transfer_manifest_path,
+            artifact_transfer_manifest_sha256=args.transfer_manifest_sha256,
+        )
+        if facts.release_id != args.release_id:
+            raise SealedReleaseAdoptionError(
+                f"the release directory describes {facts.release_id!r}, not "
+                f"{args.release_id!r}"
+            )
+        autorites = json.loads(
+            (args.release_dir / "production-profile-gate.release.json").read_bytes()
+        )["authorities"]
+        inventaire = load_multilevel_candidate_inventory(
+            args.release_dir / "candidate_inventory.json",
+            expected_sha256=autorites["candidate_inventory_sha256"],
+        )
+        actualite = load_multilevel_currentness(
+            args.release_dir / "currentness_evidence.json",
+            expected_sha256=autorites["currentness_evidence_sha256"],
+            candidate_inventory=inventaire,
+        )
+        prescrits = []
+        for placement in facts.placements:
+            etablie = actualite.for_content(placement.artifact_id).product_currentness
+            if etablie is None or etablie != placement.currentness:
+                raise SealedReleaseAdoptionError(
+                    f"placement {placement.placement_id} is catalogued "
+                    f"{placement.currentness!r} while its currentness evidence "
+                    f"establishes {etablie!r} — the catalogue and its evidence disagree"
+                )
+            prescrits.append(sealed_placement_evidence(placement, facts))
+        successeur = SuccessorIdentity(
+            release_id=facts.release_id,
+            release_manifest_sha256=facts.release_manifest_sha256,
+            artifacts_release_sha256=facts.artifacts_release_sha256,
+            candidate_inventory_sha256=facts.candidate_inventory_sha256,
+            artifact_transfer_manifest_sha256=facts.artifact_transfer_manifest_sha256,
+            currentness_evidence_sha256=actualite.sha256,
+            pii_evidence_sha256=str(autorites["pii_evidence_sha256"]),
+        )
+    except Exception as exc:  # noqa: BLE001 - frontiere CLI fail-closed
+        print(f"SUCCESSOR_RELEASE_UNUSABLE: {exc}", file=sys.stderr)
+        return 1
+
+    with psycopg.connect(get_attestor_dsn()) as conn:
+        try:
+            lignes = plan_adoption(
+                acquired=load_acquired_rows(conn, release_id=args.predecessor_release_id),
+                successor_placements=prescrits,
+                successor=successeur,
+                predecessor_release_id=args.predecessor_release_id,
+                predecessor_release_manifest_sha256=args.predecessor_release_manifest_sha256,
+            )
+            ecrites, deja = persist_adoption(conn, lignes=lignes, adopted_by=args.adopted_by)
+        except SealedReleaseAdoptionError as exc:
+            conn.rollback()
+            print(f"ADOPTION_REFUSED: {exc}", file=sys.stderr)
+            return 1
+        conn.commit()
+    actualites = sorted({ligne.currentness for ligne in lignes})
+    print(
+        f"ADOPTION_RECORDED release_id={successeur.release_id} "
+        f"predecessor={args.predecessor_release_id} placements={len(lignes)} "
+        f"written={ecrites} already_present={deja} currentness={','.join(actualites)} "
+        f"currentness_evidence={successeur.currentness_evidence_sha256} "
+        f"pii_evidence={successeur.pii_evidence_sha256}"
+    )
+    return 0
+
+
 def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
     """Enregistre N attestations batch apres approbation humaine.
 
@@ -1045,6 +1164,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_propose_release_batch_review(args)
     if args.command == "record-release-batch-attestation":
         return _cmd_record_release_batch_attestation(args)
+    if args.command == "adopt-predecessor-release":
+        return _cmd_adopt_predecessor_release(args)
     raise AssertionError(f"unreachable: unknown command {args.command!r}")  # pragma: no cover
 
 
