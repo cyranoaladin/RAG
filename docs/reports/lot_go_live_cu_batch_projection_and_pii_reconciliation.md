@@ -579,24 +579,27 @@ cela se décide hors de l'attribution.
 
 ## État de la CI GitHub (PR #246)
 
-GitHub Actions est disponible et s'exécute sur cette branche. Treize
-contrôles passent, dont `real-model acceptance (E5 + reranker + pgvector)`,
+GitHub Actions est disponible et s'exécute sur cette branche. **Quatorze
+contrôles passent**, dont `real-model acceptance (E5 + reranker + pgvector)`,
 `worker image integration (docker)`, `access authority (C5)`, `governance
-locks guard`, `services/cockpit`, `services/rag-pedago` et les trois
+locks guard`, `repository controls`, `services/cockpit`,
+`services/rag-pedago`, `scripts/tests`, `scripts/qualification` et les trois
 paquets.
 
-Ce qui reste rouge, et pourquoi :
+Trois restent rouges, et chacun pour une raison nommée :
 
-| Contrôle | Cause |
-|---|---|
-| `trusted-human-review/head-pinned` et `Evaluate trusted human review` | **par construction** : aucune approbation humaine n'est épinglée au head exact. C'est le gate qui doit rester rouge jusqu'à la revue |
-| `governance postgres` | les dettes 2 et 4 du registre. La dette 2 est close et la 4 l'est aux deux tiers ; la dernière épreuve touche des migrations **empreintées** et demande une migration de rattrapage |
-| `services/rag-engine` | `make typecheck` **passe désormais** et `make test` s'exécute pour la première fois : il y révèle la dette 5 — la CI installe pydantic 2.9.2 quand le paquet de contrats exige 2.13.4. La sentinelle posée par la session précédente fait exactement ce pour quoi elle a été écrite : elle signale un environnement de génération différent |
+| Contrôle | Cause | Ce que ce lot y a changé |
+|---|---|---|
+| `trusted-human-review/head-pinned` et `Evaluate trusted human review` | **par construction** : aucune approbation humaine n'est épinglée au head exact. Ce gate doit rester rouge jusqu'à la revue | rien, et rien ne doit y être fait |
+| `governance postgres` | dettes 2 et 4 du registre | **de 4 échecs + 12 erreurs à 1 seul échec**. Ce qui reste est la troisième épreuve de rollback, qui touche des migrations **empreintées** : la corriger demande une migration de rattrapage, pas la réécriture d'un fichier déjà appliqué |
+| `services/rag-engine` | dette 5 | `make typecheck` **passe désormais** (147 fichiers, aucun constat) et `make test` s'exécute **pour la première fois**. Il y échoue sur exactement deux épreuves, toutes deux de dérive OpenAPI : la CI installe pydantic **2.9.2** quand `packages/contracts` exige **2.13.4** |
 
-Aucun de ces rouges n'est introduit par ce lot : l'antériorité est prouvée
-par égalité d'ensembles pour l'intégration, et par la même liste de 13
-constats `mypy` au commit parent pour le typage. Les deux derniers sont
-**apparus** parce que ce lot a rouvert le chemin qui y mène.
+Sur ces deux dernières lignes, la mesure est nette : aucun rouge n'est
+introduit par ce lot — l'antériorité de l'intégration est prouvée par
+égalité d'ensembles, et les 13 constats `mypy` sont identiques au commit
+parent. Les deux épreuves de dérive OpenAPI ne sont **pas cassées** : elles
+signalent, exactement comme la sentinelle écrite pour cela le prévoyait, que
+l'environnement de génération de la CI n'est pas celui que le dépôt épingle.
 
 ## Dossier d'exécution staging
 
