@@ -6,7 +6,13 @@
 -- sinon — un rollback qui laisse des lignes sans leur autorité n'est pas un
 -- retour en arrière, c'est une perte.
 
-BEGIN;
+-- Le contrôle de transaction appartient à l'APPELANT
+-- (`rollback_ingestion_control_schema.sh`, qui exécute en
+-- `--single-transaction`), comme pour les rollbacks 001 à 015. Ouvrir ici
+-- une transaction propre émettait un avertissement, et la refermer
+-- COMMITTAIT le script composé en son milieu : le `LOCK TABLE` du rollback
+-- suivant s'exécutait alors hors transaction, et une reprise interrompue
+-- laissait un schéma à moitié défait.
 
 -- Le contrôle de vacuité et la destruction doivent être INSÉPARABLES. Sans
 -- verrou pris AVANT le contrôle, une attestation batch peut s'enregistrer
@@ -50,4 +56,3 @@ ALTER TABLE ingestion_control.publication_attestations
     DROP COLUMN IF EXISTS release_manifest_sha256,
     DROP COLUMN IF EXISTS release_id;
 
-COMMIT;

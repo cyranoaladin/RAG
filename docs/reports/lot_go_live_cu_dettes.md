@@ -17,7 +17,8 @@ diagnostiqué ci-dessous, et il faut les distinguer :
 | 1 | 13 épreuves d'autorisation attendent un ancien motif de refus | l'attente a vieilli, **la garantie tient** | signalée |
 | 2 | Tête de schéma épinglée à 15 pour une tête à 17 | l'attente a vieilli | **clos par ce lot** |
 | 3 | 2 épreuves du gate de readiness sans `--repository-root` | l'attente a vieilli | signalée |
-| 4 | `LOCK TABLE` hors transaction dans le script de rollback | **défaut réel d'outillage** | signalée |
+| 4 | `LOCK TABLE` hors transaction dans le script de rollback | **défaut réel d'outillage** | **partiellement clos** — 2 épreuves sur 3 ; la 3e touche des migrations empreintées |
+| 5 | `make test` s'exécute sous pydantic 2.9.2 quand le contrat exige 2.13.4 | **contradiction de dépendances**, rendue visible par la clôture de la dette 0 | signalée |
 
 Les deux dettes closes le sont parce qu'elles rendaient inexécutable ce que
 ce lot doit démontrer. Les trois autres appartiennent à des lots clos et
@@ -188,9 +189,30 @@ SQL dont l'ouverture de transaction et le `LOCK TABLE` ne s'accordent pas.
 C'est donc un défaut d'outillage, pas un vieillissement de test — et il
 concerne la procédure de retour arrière du schéma de contrôle.
 
-**Ce que ce lot n'y touche pas.** La procédure de rollback appartient au
-LOT44F ; la corriger depuis ici serait modifier une procédure de reprise
-sans mandat, ce que ce lot refuse. Elle est signalée telle quelle.
+**Cause mesurée.** Les migrations `016` et `017` — et leurs rollbacks —
+portent leur **propre** `BEGIN;`/`COMMIT;`, ce que les quinze fichiers
+précédents ne font pas : le contrôle de transaction appartient aux scripts
+qui les composent, et tous deux s'exécutent en `--single-transaction`. Dans
+le script de rollback composé, le `BEGIN;` de `016` émet l'avertissement de
+la ligne 9, puis son `COMMIT;` **valide le script en son milieu** ; le
+`LOCK TABLE` de `017` s'exécute alors hors transaction — l'erreur de la
+ligne 100. Au-delà du test, cela signifie qu'une reprise interrompue
+laissait un schéma **à moitié défait**.
+
+**Ce que ce lot corrige, et où il s'arrête.** Les deux fichiers de rollback
+sont alignés sur les quinze autres : le contrôle de transaction revient à
+l'appelant. Deux des trois épreuves repassent au vert, et l'atomicité de la
+procédure de reprise est rétablie.
+
+La troisième échoue désormais **ailleurs**, dans le chemin *avant* : le
+bootstrap réapplique et s'arrête à la tête 15 pour la même raison de
+symétrie. Ce lot n'y touche pas, et ce n'est pas par prudence de principe :
+les fichiers de migration **sont empreintés** (`verify_no_checksum_drift`
+compare l'empreinte déclarée à celle enregistrée). En modifier les octets
+rendrait `FATAL` le prochain bootstrap de **toute base les ayant déjà
+appliquées** — staging comprise. Corriger cette asymétrie est une opération
+gouvernée : elle demande une migration de rattrapage, pas une réécriture
+d'un fichier déjà appliqué.
 
 ## Ce que ce lot n'a pas fait, et pourquoi
 
@@ -217,3 +239,33 @@ Les suites que ce lot fait vivre sont **vertes** :
 | `tests/integration/test_sealed_trusted_review_evidence_pg.py` | 12 / 12 (débloqué) |
 | Suite unitaire `rag-engine` | 3 955, 0 échec |
 | `nexus-contracts` | 925, 0 échec |
+
+
+## 5. `make test` s'exécute en CI sous une pile que le dépôt déclare invalide
+
+**Ce qui est apparu.** La dette 0 close, le job CI `services/rag-engine`
+atteint `make test` pour la première fois. Deux épreuves y échouent —
+`test_openapi_schema_drift::test_le_schema_publie_est_celui_du_runtime` et
+`::test_la_derive_de_generation_ne_peut_pas_reapparaitre_silencieusement` —
+alors qu'elles **passent localement**.
+
+**Cause mesurée.** La différence n'est pas le code, c'est la pile :
+
+| | Version de pydantic |
+|---|---|
+| `services/rag-engine/requirements.lock` (ce que `make install` installe en CI, vérifié dans le journal : `pydantic-2.9.2`) | **2.9.2** |
+| `packages/contracts/pyproject.toml` (installé ensuite `--no-deps`, donc sans sa propre épingle) | **2.13.4** |
+| Environnement local de ce lot | **2.13.4** |
+
+Le document OpenAPI publié n'est identique à celui du runtime que sous une
+pile cohérente. La CI en exécute une que le dépôt lui-même déclare
+irrésoluble — c'est le défaut « monolithe `make install` » déjà mesuré
+ailleurs (`pip check` échoue), simplement resté invisible tant que le job
+mourait avant `make test`.
+
+**Ce que ce lot n'a pas fait.** Ni régénérer le document OpenAPI sous 2.9.2
+— ce serait aligner un contrat publié sur un environnement que le paquet de
+contrats interdit —, ni assouplir les deux épreuves. Accorder
+`requirements.lock` à l'épingle du contrat est un lot de dépendances : il
+touche `pydantic`, `pydantic-core`, `pydantic-settings` et tout ce qui en
+dépend.
