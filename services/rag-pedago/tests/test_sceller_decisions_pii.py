@@ -270,3 +270,48 @@ def test_a_finding_of_the_index_left_undecided_is_refused(tmp_path: Path) -> Non
     draft.write_text(json.dumps(document), encoding="utf-8")
     with pytest.raises(ValueError, match="undecided"):
         sceller.sceller(draft=draft, index_path=_index(tmp_path), sortie=tmp_path / "out.json")
+
+
+# --- ADR-0059 §6 : un index CANONIQUE nomme la page `page_number` ----------
+
+
+def _canonical_index(tmp_path: Path) -> Path:
+    """L'index canonique (`preparer_depuis_entree_canonique`) nomme `page_number`
+    ce que l'index historique nomme `page`. Le scelleur doit lire l'un ou l'autre,
+    sans qu'aucune dérivation d'index ne s'interpose entre la revue et le scellé."""
+    path = _index(tmp_path)
+    index = json.loads(path.read_text(encoding="utf-8"))
+    for bundle in index["bundles"]:
+        for finding in bundle["findings"]:
+            finding["page_number"] = finding.pop("page")
+    path.write_text(json.dumps(index, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def test_a_canonical_index_is_drafted_and_sealed_directly(tmp_path: Path) -> None:
+    sceller = _module()
+    index = _canonical_index(tmp_path)
+    brouillon = tmp_path / "vide.draft.json"
+    sceller.brouillon(
+        index_path=index, sortie=brouillon, decision_set_id="pii-review-test",
+        corpus_manifest_sha256="7" * 64, reviewer_login="abenrhouma",
+    )
+    vide = json.loads(brouillon.read_text(encoding="utf-8"))
+    assert vide["decisions"][SHA_A]["findings"][F_A1]["_page"] == 3
+
+    sortie = tmp_path / "sealed.json"
+    sceller.sceller(draft=_draft(tmp_path), index_path=index, sortie=sortie)
+    decision_set = parse_pii_review_decision_set(sortie.read_bytes())
+    assert decision_set.review_index_sha256 == _sha(index)
+    a = decision_set.decision_for(SHA_A)
+    assert a is not None and sorted(f.page for f in a.findings) == [3, 7]
+
+
+def test_a_finding_whose_page_and_page_number_disagree_is_refused(tmp_path: Path) -> None:
+    sceller = _module()
+    index = _index(tmp_path)
+    document = json.loads(index.read_text(encoding="utf-8"))
+    document["bundles"][0]["findings"][0]["page_number"] = 99
+    index.write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ValueError, match="page"):
+        sceller.sceller(draft=_draft(tmp_path), index_path=index, sortie=tmp_path / "x.json")
