@@ -368,12 +368,28 @@ exécution : la dette de qualité logicielle correspondante est close.
 ### Dettes d'intégration, antérieures à ce lot
 
 La suite d'intégration complète porte des rouges **qui ne viennent pas de ce
-lot** : tous sont reproduits à l'identique sur le commit parent
-`b0c87971`, dans un worktree détaché. Ils sont diagnostiqués un par un dans
-`docs/reports/lot_go_live_cu_dettes.md` — trois attentes de test qui ont
+lot**. L'antériorité n'est pas argumentée : elle est **mesurée par égalité
+d'ensembles**. La suite entière a été exécutée deux fois, seule, l'une après
+l'autre — au commit parent `b0c87971` dans un worktree détaché, puis sur ce
+lot :
+
+| | Parent `b0c87971` | Ce lot |
+|---|---|---|
+| Tests collectés | 518 | 532 (les 14 de ce lot) |
+| Échecs | 19 | 19 |
+| Erreurs | 12 | 12 |
+| Ensemble des noms rouges | **identique des deux côtés** — `diff` vide | idem |
+
+Aucun rouge n'apparaît, aucun ne disparaît. Ils sont diagnostiqués un par un
+dans `docs/reports/lot_go_live_cu_dettes.md` — trois attentes de test qui ont
 vieilli (un message de refus devenu plus précis, une tête de schéma passée
 de 15 à 17, un argument devenu obligatoire) et un défaut d'outillage réel
 (le script de rollback place un `LOCK TABLE` hors transaction).
+
+Une cinquième dette a été **close** par ce lot : `make typecheck` était rouge
+au parent comme ici (13 constats, 6 fichiers), ce qui empêchait `make test`
+de s'exécuter dans le job CI du service. Elle est levée sans toucher à
+aucune logique ; `mypy src` ne rend plus aucun constat sur 147 fichiers.
 
 Les suites que ce lot fait vivre sont vertes, y compris celles qu'il touche
 sans les avoir écrites : `test_sealed_release_ingestion_pg.py` 13/13 et
@@ -395,10 +411,9 @@ l'environnement qui porte les preuves de ce lot sans rien établir de neuf.
 Ses cibles vérifiables ont donc été lancées directement : contrats, suite
 unitaire, lint, typecheck, verrous de gouvernance et tests de scripts.
 
-Qualité : `ruff` vert sur `src/` et `tests/`. `mypy` sur les sources
-touchées ne rend que des constats **préexistants** (lignes non modifiées) ;
-les deux constats introduits ont été corrigés, et les deux modules
-nouveaux sont propres.
+Qualité : `ruff` vert sur `src/` et `tests/`. `mypy src` — la cible réelle
+de `make typecheck` — **ne rend plus aucun constat** sur 147 fichiers, alors
+qu'il en rendait 13 au commit parent.
 
 ## Qualification PII bornée — mesure datée du 2026-09-22
 
