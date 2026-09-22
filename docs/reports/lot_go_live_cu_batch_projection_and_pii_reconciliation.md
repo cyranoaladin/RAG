@@ -138,3 +138,44 @@ Reproduit à l'identique sur `main` en worktree propre — **un échec égalemen
 reproduit sur la base ; aucune régression supplémentaire observée dans la suite
 unitaire exécutée. Intégration et CI non encore qualifiées.** Sa cause n'est pas
 encore identifiée et doit l'être avant le verdict final.
+
+## Worker B ne peut pas démarrer sur la release V2 réelle
+
+Mesuré en exécutant le chargeur canonique sur les **fichiers exacts** de V2 :
+
+```
+load_multilevel_candidate_inventory(candidate_inventory.json)
+  -> REFUS : inventory unique_artifacts count differs
+```
+
+Le refus survient sur la **première** autorité, avant même l'actualité.
+
+| Grandeur | `candidate_inventory.json` déclare | Réalité mesurée |
+|---|---|---|
+| `unique_artifacts` | **486** | 315 (release scellée *et* base staging) |
+| `placements` | **486** | 479 |
+| `multi_placement_artifacts` | **0** | présent — des documents sont placés dans plusieurs collections |
+
+C'est la **même famille de défaut** que le `counts` de `currentness_evidence.json` : un résumé qui ne décrit pas son propre ensemble. Deux fichiers d'autorité de la release V2 portent des compteurs incohérents avec ce qu'ils recensent.
+
+**Conséquence opérationnelle** : la publication réelle de V2 par Worker B est bloquée tant que ces deux autorités ne sont pas réconciliées. Ce n'est pas une réserve de rédaction — c'est un refus au démarrage, mesuré.
+
+Le parcours batch sur données de banc n'est pas affecté : il utilise des autorités de test cohérentes, explicitement nommées comme telles.
+
+## Dérive OpenAPI — cause et traitement
+
+Le schéma publié avait été généré par une version de Pydantic antérieure à
+l'épingle courante (`pydantic==2.13.4`). Les 62 lignes d'écart se
+répartissaient en deux catégories, et deux seulement :
+
+- `additionalProperties: true` ajouté sur 6 champs libres — défaut de JSON
+  Schema, sans effet observable ;
+- `enum: [x]` retiré à côté de `const: x` sur 6 champs — même contrainte.
+
+**Mesure décisive** : après normalisation de ces deux écarts, les deux
+documents sont identiques. La régénération ne change donc rien de ce que les
+intégrateurs observent.
+
+Le test n'est ni supprimé ni neutralisé ; il est complété par une épreuve qui
+refuse un `enum` redondant dans le document runtime — sa réapparition
+signalerait un environnement de génération différent.
