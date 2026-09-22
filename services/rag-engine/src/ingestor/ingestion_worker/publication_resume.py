@@ -457,30 +457,11 @@ def resume_publication(
     # règle d'autorité. Si une seconde version existe, elle n'est pas
     # substituée à celle que la revue a couverte.
     # L'exigence depend du DISCRIMINATEUR DURABLE de la ressource, pas de ce
-    # que le job declare : un job batch qui omettrait `artifact_id` ne doit
-    # pas pouvoir se faire passer pour un job de decouverte.
-    pipeline_kind = control_conn.execute(
-        "SELECT pipeline_kind FROM ingestion_control.resources "
-        " WHERE resource_id = %s", (resource_id,)
-    ).fetchone()
-    if pipeline_kind is None:
-        raise PublicationResumeError(f"resource {resource_id} does not exist")
+    # que le job declare. Ce discriminateur, c'est la REPRESENTATION que le
+    # lecteur rend : elle decoule de `resources.pipeline_kind`, jamais d'une
+    # declaration libre du payload.
     named_artifact_id = payload.get("artifact_id")
-    if pipeline_kind[0] == SEALED_RELEASE_PIPELINE:
-        if named_artifact_id is None:
-            raise PublicationResumeError(
-                f"resource {resource_id} belongs to {SEALED_RELEASE_PIPELINE!r}: "
-                "a batch publication job MUST name the artifact it publishes. "
-                "There is no fallback to the most recent one — a newer version "
-                "is not what the review covered."
-            )
-        artifact_record = find_authorised_artifact(
-            control_conn,
-            resource_id=resource_id,
-            artifact_id=UUID(str(named_artifact_id)),
-            sealed_catalog=sealed_catalog,
-        )
-    elif named_artifact_id is not None:
+    if named_artifact_id is not None:
         artifact_record = find_authorised_artifact(
             control_conn,
             resource_id=resource_id,
@@ -491,6 +472,16 @@ def resume_publication(
         artifact_record = find_latest_artifact(
             control_conn, resource_id=resource_id, sealed_catalog=sealed_catalog
         )
+        if isinstance(artifact_record, SealedReleaseArtifactRecord):
+            # Le job aurait du NOMMER son artefact. « Le plus recent » n'est
+            # pas une regle d'autorite pour une release scellee : une version
+            # plus recente n'est pas ce que la revue a couvert. Le refus
+            # survient ici, avant toute publication.
+            raise PublicationResumeError(
+                f"resource {resource_id} belongs to {SEALED_RELEASE_PIPELINE!r}: "
+                "a batch publication job MUST name the artifact it publishes. "
+                "There is no fallback to the most recent one."
+            )
     if artifact_record is None:
         raise PublicationResumeError(f"resource {resource_id} has no stored artifact")
 
