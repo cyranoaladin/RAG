@@ -558,6 +558,27 @@ n'attendent qu'un seul type documentaire quand la release approuvée en porte
 cinq. Que ce soit le profil qui soit trop étroit ou la release qui déborde,
 cela se décide hors de l'attribution.
 
+## État de la CI GitHub (PR #246)
+
+GitHub Actions est disponible et s'exécute sur cette branche. Treize
+contrôles passent, dont `real-model acceptance (E5 + reranker + pgvector)`,
+`worker image integration (docker)`, `access authority (C5)`, `governance
+locks guard`, `services/cockpit`, `services/rag-pedago` et les trois
+paquets.
+
+Ce qui reste rouge, et pourquoi :
+
+| Contrôle | Cause |
+|---|---|
+| `trusted-human-review/head-pinned` et `Evaluate trusted human review` | **par construction** : aucune approbation humaine n'est épinglée au head exact. C'est le gate qui doit rester rouge jusqu'à la revue |
+| `governance postgres` | les dettes 2 et 4 du registre. La dette 2 est close et la 4 l'est aux deux tiers ; la dernière épreuve touche des migrations **empreintées** et demande une migration de rattrapage |
+| `services/rag-engine` | `make typecheck` **passe désormais** et `make test` s'exécute pour la première fois : il y révèle la dette 5 — la CI installe pydantic 2.9.2 quand le paquet de contrats exige 2.13.4 |
+
+Aucun de ces rouges n'est introduit par ce lot : l'antériorité est prouvée
+par égalité d'ensembles pour l'intégration, et par la même liste de 13
+constats `mypy` au commit parent pour le typage. Les deux derniers sont
+**apparus** parce que ce lot a rouvert le chemin qui y mène.
+
 ## Dossier d'exécution staging
 
 L'ordre ci-dessous est celui des **dépendances**, pas celui du confort : chaque
