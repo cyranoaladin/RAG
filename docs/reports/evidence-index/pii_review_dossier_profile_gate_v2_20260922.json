@@ -1,0 +1,596 @@
+{
+  "contents": [
+    {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "exclu_de_la_release": false,
+      "page_count": 17,
+      "pages_scanned": 17,
+      "signal_count": 6,
+      "signaux": [
+        {
+          "hypothese_de_qualification": null,
+          "pages": [
+            4
+          ],
+          "question_qui_tranche": "GRAVITÉ MAXIMALE — aucune hypothèse par défaut. Le motif capture-t-il un numéro de sécurité sociale réel, ou une suite de chiffres du document (identifiant, code, exemple) ? Cette page doit être ouverte avant toute décision.",
+          "signal_class": "french_ssn"
+        },
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            4
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/04_EVALUATIONS_EXAMENS/2021/le-paradigme-fonctionnel-pdf-404-66-ko--703cbd7598.pdf",
+      "title": "Le paradigme fonctionnel PDF - 404.66 Ko",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "exclu_de_la_release": false,
+      "page_count": 8,
+      "pages_scanned": 8,
+      "signal_count": 5,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            4,
+            5,
+            6
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        },
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            2
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/representation-des-entiers-naturels-pdf-167-2-ko--e20b73d10c.pdf",
+      "title": "Représentation des entiers naturels PDF - 167.2 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "exclu_de_la_release": false,
+      "page_count": 8,
+      "pages_scanned": 8,
+      "signal_count": 4,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            5
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/07_DIAPORAMAS_SUPPORTS/2019/modele-d-architecture-de-von-neumann-pdf-243-56-ko--28c92cd742.pdf",
+      "title": "Modèle d'architecture de von Neumann PDF - 243.56 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "collections": [
+        "rag_nexus_svt_premiere_specialite"
+      ],
+      "content_sha256": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "exclu_de_la_release": false,
+      "page_count": 9,
+      "pages_scanned": 9,
+      "signal_count": 3,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "SYNTHETIC_EXAMPLE",
+          "pages": [
+            7,
+            8,
+            9
+          ],
+          "question_qui_tranche": "Les noms sont-ils ceux d'élèves fictifs d'un scénario pédagogique, ou ceux d'élèves réels apparaissant dans une copie ou une liste ?",
+          "signal_class": "student_name_pattern"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2021/mutations-de-l-adn-et-variabilite-genetique-alterations-du-genome-et-cancerisation-presentation-orale-d-une-strategie-de-resolutio--39c50431bf.pdf",
+      "title": "Mutations de l’ADN et variabilité génétique - altérations du génome et cancérisation : présentation orale d’une stratégie de résolution de problème (sans support écrit, individuelle) PDF - 164.19 Ko",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "exclu_de_la_release": false,
+      "page_count": 5,
+      "pages_scanned": 5,
+      "signal_count": 3,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            1
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-pdf-144-44-ko--461e89b1b1.pdf",
+      "title": "Manipulation de tables PDF - 144.44 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "collections": [
+        "rag_nexus_svt_premiere_specialite",
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "content_sha256": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "exclu_de_la_release": false,
+      "page_count": 17,
+      "pages_scanned": 17,
+      "signal_count": 3,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            17
+          ],
+          "question_qui_tranche": "L'adresse est-elle un contact institutionnel publié (rédaction, service, académie), ou l'adresse d'une personne identifiable ?",
+          "signal_class": "email_address"
+        },
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            17
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2014/dossier-de-presse-eutrophisation-pdf-1-54-mo--5a8d69d488.pdf",
+      "title": "dossier de presse « eutrophisation » PDF - 1.54 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "exclu_de_la_release": false,
+      "page_count": 12,
+      "pages_scanned": 12,
+      "signal_count": 3,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            7
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/securisation-des-communications-pdf-874-59-ko--d05da0bb13.pdf",
+      "title": "Sécurisation des communications PDF - 874.59 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite",
+        "rag_nexus_hlp_terminale_specialite"
+      ],
+      "content_sha256": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "exclu_de_la_release": false,
+      "page_count": 5,
+      "pages_scanned": 5,
+      "signal_count": 2,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            5
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2023/des-ressources-numeriques-pour-accompagner-l-etude-des-uvres-au-programme-le-roman-et-le-recit-du-moyen-age-au-xxie-siecle-pdf-177--2d0745ca84.pdf",
+      "title": "Des ressources numériques pour accompagner l’étude des œuvres au programme, Le roman et le récit du Moyen Age au XXIe siècle PDF - 177.98 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "collections": [
+        "rag_nexus_svt_premiere_specialite"
+      ],
+      "content_sha256": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "exclu_de_la_release": false,
+      "page_count": 13,
+      "pages_scanned": 13,
+      "signal_count": 2,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            8,
+            9
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2020/variation-genetique-et-sante-risque-de-transmission-de-la-mucoviscidose-chez-un-couple-dont-l-homme-est-heterozygote-composite-pdf--3f1ab328a0.pdf",
+      "title": "Variation génétique et santé - Risque de transmission de la mucoviscidose chez un couple dont l'homme est hétérozygote composite PDF - 2.13 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "exclu_de_la_release": false,
+      "page_count": 39,
+      "pages_scanned": 39,
+      "signal_count": 2,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            14
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        },
+        {
+          "hypothese_de_qualification": "SYNTHETIC_EXAMPLE",
+          "pages": [
+            12
+          ],
+          "question_qui_tranche": "Les noms sont-ils ceux d'élèves fictifs d'un scénario pédagogique, ou ceux d'élèves réels apparaissant dans une copie ou une liste ?",
+          "signal_class": "student_name_pattern"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/09_AUTRES/2021/les-circuits-pdf-4-51-mo--936c1e54b1.pdf",
+      "title": "Les circuits PDF - 4.51 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "collections": [
+        "rag_nexus_dgemc_terminale_option"
+      ],
+      "content_sha256": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "exclu_de_la_release": false,
+      "page_count": 4,
+      "pages_scanned": 4,
+      "signal_count": 2,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            3
+          ],
+          "question_qui_tranche": "L'adresse est-elle un contact institutionnel publié (rédaction, service, académie), ou l'adresse d'une personne identifiable ?",
+          "signal_class": "email_address"
+        },
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            1
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/20_TRANSITION_OU_ACTUEL/DGEMC/09_AUTRES/2026/reglement-2026-2027-pdf-202-78-ko--ebe2d96d24.pdf",
+      "title": "Règlement 2026-2027 PDF - 202.78 Ko",
+      "type_doc": "autre"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "exclu_de_la_release": false,
+      "page_count": 5,
+      "pages_scanned": 5,
+      "signal_count": 2,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            3
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-avec-la-bibliotheque-pandas-pdf-146-17-ko--f21c80ab3a.pdf",
+      "title": "Manipulation de tables avec la bibliothèque Pandas PDF - 146.17 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "exclu_de_la_release": false,
+      "page_count": 7,
+      "pages_scanned": 7,
+      "signal_count": 2,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            7
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2020/calculabilite-et-decidabilite-pdf-433-14-ko--f636ef6038.pdf",
+      "title": "Calculabilité et décidabilité PDF - 433.14 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "content_sha256": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "exclu_de_la_release": false,
+      "page_count": 9,
+      "pages_scanned": 9,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            9
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2021/la-conservation-des-genomes-stabilite-genetique-et-evolution-clonale-remobiliser-des-prerequis-et-presentation-orale-pdf-1-19-mo--04bf557a57.pdf",
+      "title": "La conservation des génomes - stabilité génétique et évolution clonale – remobiliser des prérequis et présentation orale PDF - 1.19 Mo",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "content_sha256": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "exclu_de_la_release": false,
+      "page_count": 43,
+      "pages_scanned": 43,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            4
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2020/former-les-eleves-a-des-techniques-de-biologie-moleculaire-et-de-bioinformatique-et-apprehender-le-concept-d-holobionte-pdf-5-31-m--0dda163a79.pdf",
+      "title": "Former les élèves à des techniques de biologie moléculaire et de bioinformatique et appréhender le concept d'holobionte PDF - 5.31 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "exclu_de_la_release": false,
+      "page_count": 25,
+      "pages_scanned": 25,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            7
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/ecriture-de-tests-pdf-543-48-ko--28f92cfe1c.pdf",
+      "title": "Écriture de tests PDF - 543.48 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "exclu_de_la_release": false,
+      "page_count": 9,
+      "pages_scanned": 9,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            3
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/types-construits-en-python-pdf-159-07-ko--447bdee89a.pdf",
+      "title": "Types construits en Python PDF - 159.07 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "collections": [
+        "rag_nexus_ses_premiere_specialite"
+      ],
+      "content_sha256": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "exclu_de_la_release": false,
+      "page_count": 8,
+      "pages_scanned": 8,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            8
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/SES/03_RESSOURCES_ACCOMPAGNEMENT/2019/qu-est-ce-que-la-monnaie-et-comment-est-elle-creee-pdf-531-52-ko--62d9ac2834.pdf",
+      "title": "Qu'est-ce que la monnaie et comment est-elle créée ? PDF - 531.52 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite"
+      ],
+      "content_sha256": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "exclu_de_la_release": false,
+      "page_count": 4,
+      "pages_scanned": 4,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            3
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2022/la-question-de-grammaire-de-l-epreuve-anticipee-orale-de-francais-precisions-sur-sa-definition--6a7942128b.pdf",
+      "title": "La question de grammaire de l’épreuve anticipée orale de français : précisions sur sa définition",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "content_sha256": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "exclu_de_la_release": false,
+      "page_count": 9,
+      "pages_scanned": 9,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "PUBLIC_INSTITUTIONAL_DATA",
+          "pages": [
+            5
+          ],
+          "question_qui_tranche": "L'adresse est-elle celle d'une institution (ministère, académie, éditeur) figurant en couverture ou en pied de page, et non celle d'une personne ?",
+          "signal_class": "postal_address"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/07_DIAPORAMAS_SUPPORTS/2019/diversite-et-unite-des-langages-de-programmation-pdf-161-08-ko--93b7e44627.pdf",
+      "title": "Diversité et unité des langages de programmation PDF - 161.08 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "content_sha256": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "exclu_de_la_release": false,
+      "page_count": 13,
+      "pages_scanned": 13,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "SYNTHETIC_EXAMPLE",
+          "pages": [
+            10
+          ],
+          "question_qui_tranche": "Les noms sont-ils ceux d'élèves fictifs d'un scénario pédagogique, ou ceux d'élèves réels apparaissant dans une copie ou une liste ?",
+          "signal_class": "student_name_pattern"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2020/placer-les-eleves-en-demarche-de-projet-pour-comprendre-et-evaluer-une-action-climatique-pdf-333-91-ko--96e887c34c.pdf",
+      "title": "Placer les élèves en démarche de projet pour comprendre et évaluer une action climatique PDF - 333.91 Ko",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "content_sha256": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "exclu_de_la_release": false,
+      "page_count": 17,
+      "pages_scanned": 17,
+      "signal_count": 1,
+      "signaux": [
+        {
+          "hypothese_de_qualification": "FALSE_POSITIVE_TECHNICAL",
+          "pages": [
+            9
+          ],
+          "question_qui_tranche": "La suite de chiffres est-elle un numéro de téléphone, ou une valeur technique du document (exemple binaire ou décimal, référence, numéro de version) que le motif capture par ressemblance ?",
+          "signal_class": "phone_french"
+        }
+      ],
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2020/trajectoires-et-strategies-d-attenuation-pdf-1-43-mo--e1309f6255.pdf",
+      "title": "Trajectoires et stratégies d’atténuation PDF - 1.43 Mo",
+      "type_doc": "modalite_examen"
+    }
+  ],
+  "mesure": {
+    "artefact": "docs/reports/evidence-index/pii_rescan_profile_gate_v2_315_20260922.json",
+    "content_set_sha256": "04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12",
+    "counts": {
+      "clear": 293,
+      "detected": 22,
+      "extraction_failed": 0,
+      "scanned": 315
+    },
+    "measured_at": "2026-09-22T08:17:53.024623+00:00",
+    "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+    "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+    "policy_path": "services/rag-pedago/configs/pii_gate_policy.yml",
+    "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "runtime": {
+      "pypdf": "6.14.2",
+      "python": "3.12.3"
+    },
+    "scanner_path": "services/rag-pedago/rag_pedago/imports/pii_scanner.py",
+    "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+    "sha256": "f449a2b8b1eba58e4083b0224ed2a557823e64e54cf48f334535310371d32030"
+  },
+  "protocol_version": "NEXUS-PII-REVIEW-DOSSIER-V1",
+  "raw_pii_in_output": false,
+  "release": {
+    "artifacts_release_sha256": "42c71df3c3ddbab83f71ea20bc6624237608bb77f064db3018f9d15f63eabeb0",
+    "pii_evidence_sha256_scelle": "ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
+    "pii_scanner_sha256_declare_par_la_preuve": "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3",
+    "pii_scanner_sha256_declare_par_le_manifeste": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+    "pii_scanner_version_declaree_par_la_preuve": "production-profile-gate-v1",
+    "release_id": "production-profile-gate-2026-2027-v2"
+  }
+}
