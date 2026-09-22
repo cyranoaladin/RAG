@@ -88,6 +88,12 @@ services:
     volumes:
       - ./postgres/ingestion_control/migrations:/infra/postgres/ingestion_control/migrations:ro
       - ./scripts/bootstrap_ingestion_control_schema.sh:/infra/scripts/bootstrap_ingestion_control_schema.sh:ro
+      # Le bootstrap et le rollback sourcent ce fragment partagé pour
+      # neutraliser le contrôle de transaction interne aux migrations.
+      # Les scripts sont montés un par un, donc une dépendance `source`
+      # n'arrive ici QUE si elle est montée : sans cette ligne, le
+      # migrateur meurt au démarrage.
+      - ./scripts/lib/sql_transaction_control.sh:/infra/scripts/lib/sql_transaction_control.sh:ro
       - ./scripts/provision_ingestion_control_roles.sh:/infra/scripts/provision_ingestion_control_roles.sh:ro
       - ./scripts/provision_and_bootstrap_ingestion_control.sh:/infra/scripts/provision_and_bootstrap_ingestion_control.sh:ro
     entrypoint: ["/infra/scripts/provision_and_bootstrap_ingestion_control.sh"]
