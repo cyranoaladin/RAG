@@ -126,6 +126,30 @@ Les lignes acquises ne sont ni modifiées ni supprimées. Les faits de
 l'attestation batch d'un successeur se lisent dans ses adoptions ; ceux d'un
 prédécesseur, inchangés, dans les payloads.
 
+### 6. La revue PII couvre la release — amendement d'ADR-0047
+
+Mesuré : deux implémentations d'ADR-0047 ne mesurent pas la même
+population. L'index d'une campagne **canonique** (le seul chemin ouvert aux
+nouvelles campagnes) porte `content_set_sha256` sur les contenus
+**détectés**, et la population revue dans `review_input_content_set_sha256`.
+Le producteur de release exigeait `content_set_sha256` égal à l'ensemble
+**produit** — valeur que seul le chemin d'extraction retiré calcule. Aucune
+campagne nouvelle ne pouvait donc fonder une release.
+
+Décision, choisie par le propriétaire du corpus le 2026-09-22 : le
+producteur exige, pour un index canonique,
+
+1. `review_input_content_set_sha256` **égal** à l'ensemble produit — la
+   revue a porté sur exactement les contenus que la release livre ;
+2. l'ensemble des paquets revus **inclus** dans l'ensemble produit ;
+3. une décision humaine pour **chaque** contenu produit que le scan
+   détecte, et aucune pour un contenu que la release ne livre pas.
+
+Le chemin historique garde sa règle (`content_set_sha256` égal à
+l'ensemble produit). Aucune décision existante n'est reconduite par cette
+règle : le jeu du 03/09 porte sur 320 contenus et reste refusé pour le
+successeur ; une campagne neuve, sur les 315, est instruite.
+
 ## Ce que cette ADR ne fait pas
 
 - Elle ne transforme **aucun** `REVIEW_REQUIRED` en instantané : la
