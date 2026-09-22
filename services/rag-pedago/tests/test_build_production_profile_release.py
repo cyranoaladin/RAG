@@ -1584,6 +1584,7 @@ def test_v2_currentness_evidence_groups_placement_facts_under_one_artifact(
     listing = "https://eduscol.education.gouv.fr/commun"
     for row in rows:
         row["source_url"] = listing
+        row["current_download_url"] = None
     inventory = builder._candidate_inventory(
         rows, delta={"catalog_delta_payload_sha256": "4" * 64}, effective={
             "authority_sha256": "5" * 64

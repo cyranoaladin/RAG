@@ -339,7 +339,9 @@ def test_snapshot_evidence_has_the_exact_v3_shape_and_no_verification_fact(
         assert entry[fact] is None, fact
     assert entry["fallback_conditions"] == {name: True for name in FALLBACK_CONDITIONS}
     assert entry["source_status"] == "NEEDS_SECONDARY_EVIDENCE"
-    assert entry["provenance_url"] == LISTING_URL
+    # La provenance est l'URL que le catalogue cite pour ces octets : le
+    # fichier officiel quand il est connu (règle historique inchangée).
+    assert entry["provenance_url"] == DOWNLOAD_URL
     assert entry["current_for_school_year"] == "2026-2027"
     assert entry["drive_modified_time"] == "2026-08-04T00:00:00Z"
 
@@ -463,19 +465,33 @@ def test_an_excluded_content_cannot_reach_the_evidence(tmp_path: Path) -> None:
 
 
 def test_divergent_provenance_urls_for_one_content_are_refused(tmp_path: Path) -> None:
-    def diverge(inventory: dict[str, Any]) -> None:
-        inventory["collections"][1]["candidates"][0]["placements"][0]["source_url"] = (
-            "https://eduscol.education.gouv.fr/9999/autre"
-        )
+    rows = _rows()
+    rows[1]["current_download_url"] = (
+        "https://eduscol.education.gouv.fr/sites/default/files/document/autre.pdf"
+    )
 
-    with pytest.raises(ValueError, match="provenance"):
-        _evidence(tmp_path, inventory_mutation=diverge)
+    with pytest.raises(ValueError, match="source_url|current_download_url"):
+        _evidence(tmp_path, rows=rows)
+
+
+def test_a_snapshot_provenance_is_the_catalogue_url_even_without_a_file_url(
+    tmp_path: Path,
+) -> None:
+    rows = _rows()
+    for row in rows:
+        row["current_download_url"] = None
+
+    entry = _evidence(tmp_path, rows=rows)["artifacts"][0]
+
+    assert entry["provenance_url"] == LISTING_URL
+    assert entry["current_download_url"] is None
 
 
 def test_a_snapshot_outside_the_official_hosts_is_refused(tmp_path: Path) -> None:
     rows = _rows()
     for row in rows:
         row["source_url"] = "https://example.org/copie"
+        row["current_download_url"] = "http://eduscol.education.gouv.fr/copie.pdf"
 
     with pytest.raises(ValueError, match="provenance"):
         _evidence(tmp_path, rows=rows)
@@ -548,7 +564,7 @@ def test_served_currentness_is_derived_from_the_v3_disposition(tmp_path: Path) -
     verified = _evidence(tmp_path, audit=_verified_audit(builder, _rows()))
 
     assert builder.served_currentness_from_evidence(snapshot) == {
-        SHA_A: builder.ServedCurrentness("official_snapshot", LISTING_URL)
+        SHA_A: builder.ServedCurrentness("official_snapshot", DOWNLOAD_URL)
     }
     assert builder.served_currentness_from_evidence(verified) == {
         SHA_A: builder.ServedCurrentness("current", DOWNLOAD_URL)
@@ -665,7 +681,8 @@ def test_the_catalogue_carries_the_snapshot_and_cites_its_provenance(
         served_currentness=served,
     )
     registry = json.loads(documents[release_root / "artifacts.release.json"])
-    assert registry["artifacts"][0]["source_url"] == LISTING_URL
+    # Inchangé depuis V2 : fichier officiel s'il est connu, sinon listing.
+    assert registry["artifacts"][0]["source_url"] == DOWNLOAD_URL
     subjects = [
         json.loads(raw) for path, raw in documents.items() if path.parent.name == "subjects"
     ]

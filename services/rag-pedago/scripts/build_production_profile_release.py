@@ -1672,7 +1672,6 @@ def _require_v3_entry_admissible(entry: Mapping[str, Any], *, audit_unverified: 
             or entry["current_download_sha256"] != sha
             or _host(entry["current_source_listing_url"]) not in VERIFIED_LISTING_HOSTS
             or _host(entry["current_download_url"]) not in VERIFIED_DOWNLOAD_HOSTS
-            or entry["current_source_listing_url"] != entry["provenance_url"]
         ):
             raise ValueError(f"{sha}: VERIFIED_CURRENT byte identity is not exact")
         if entry["fallback_conditions"] is not None:
@@ -1690,7 +1689,12 @@ def _require_v3_entry_admissible(entry: Mapping[str, Any], *, audit_unverified: 
             raise ValueError(f"{sha}: snapshot fallback conditions are not all true")
         if not isinstance(status, str) or not status or STATUT_ARCHIVE in status:
             raise ValueError(f"{sha}: an archived source status is never a snapshot")
-        if _host(entry["provenance_url"]) not in SNAPSHOT_PROVENANCE_HOSTS:
+        url = entry["provenance_url"]
+        if (
+            not isinstance(url, str)
+            or not url.startswith("https://")
+            or _host(url) not in SNAPSHOT_PROVENANCE_HOSTS
+        ):
             raise ValueError(
                 f"{sha}: snapshot provenance URL is not institutional: "
                 f"{entry['provenance_url']!r}"
@@ -1700,6 +1704,13 @@ def _require_v3_entry_admissible(entry: Mapping[str, Any], *, audit_unverified: 
         raise ValueError(f"{sha}: {disposition} carries fallback conditions")
     if disposition == NOT_CURRENT_DECLARED_BY_SOURCE and STATUT_ARCHIVE not in str(status):
         raise ValueError(f"{sha}: NOT_CURRENT_DECLARED_BY_SOURCE without an archive status")
+
+
+def _artifact_source_url(row: Mapping[str, Any]) -> str:
+    """L'URL que le catalogue scellé cite pour un contenu : le fichier officiel
+    s'il est connu, sinon la page de listing. Règle historique inchangée ; elle
+    est nommée pour que la preuve V3 et le catalogue citent la MÊME URL."""
+    return str(row["current_download_url"] or row["source_url"])
 
 
 def _inventory_content_facts(inventory: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
@@ -1807,12 +1818,11 @@ def _currentness_documents(
                 f"{matrix_row.get('currentness_disposition')!r} disagrees with the "
                 f"applied policy on the matrix's own facts ({recomputed!r})"
             )
-        if len(facts["source_urls"]) != 1:
-            raise ValueError(
-                f"{sha}: placements carry divergent provenance URLs "
-                f"{sorted(facts['source_urls'])}"
-            )
-        (provenance_url,) = facts["source_urls"]
+        # La provenance d'un contenu est l'URL que le catalogue scellé cite pour
+        # ses octets — le fichier officiel quand il est connu, sinon la page de
+        # listing — exactement celle d'`artifacts.release.json`. Unique par
+        # contenu : `_group_artifact_rows` refuse deux valeurs pour un contenu.
+        provenance_url = _artifact_source_url(row)
 
         network = by_sha_network.get(sha)
         if network is not None:
@@ -1865,6 +1875,8 @@ def _currentness_documents(
             # `drive_file_id` reste hors de la preuve (poignée d'écriture Drive).
             "drive_modified_time": row["drive_modified_time"],
         }
+        if verified and facts["source_urls"] != {entry["current_source_listing_url"]}:
+            raise ValueError(f"{sha}: VERIFIED_CURRENT listing URL differs from inventory")
         _require_v3_entry_admissible(entry, audit_unverified=audit_unverified)
         artifacts.append(entry)
         partition[disposition].append(sha)
@@ -1925,9 +1937,10 @@ def served_currentness_from_evidence(
 ) -> dict[str, ServedCurrentness]:
     """Dérive, par contenu, l'actualité produit et l'URL citée.
 
-    On cite le téléchargement pour une identité d'octets prouvée, la
-    provenance pour un instantané : on ne cite pas un téléchargement qui n'a
-    pas eu lieu."""
+    L'URL citée est celle du catalogue historique (`_artifact_source_url`) :
+    pour un instantané, c'est sa `provenance_url` ; pour une identité d'octets
+    prouvée, le téléchargement vérifié. Elle est un fait de provenance des
+    octets, invariant d'une release à sa successeure."""
     if evidence.get("evidence_kind") != CURRENTNESS_EVIDENCE_KIND_V3:
         raise ValueError(
             "served currentness derives only from MULTILEVEL_ARTIFACT_CURRENTNESS_V3"
