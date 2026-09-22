@@ -359,9 +359,89 @@ cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src \
 signalé rouge dans les sessions précédentes, **passe** dans cette
 exécution : la dette de qualité logicielle correspondante est close.
 
-Qualité : `ruff` vert sur `src/` et `tests/`. `mypy` sur les sept sources
+Garde-fous de gouvernance, exécutés séparément :
+
+```bash
+bash scripts/check-governance-locks.sh   # 18 verrous confrontés au baseline, aucun écart
+.venv/bin/python -m pytest -q scripts/tests/   # 538 passés, 7 ignorés
+```
+
+`scripts/ci-local.sh` **n'a pas été exécuté** : sa première action sur
+`rag-engine` est `make install`, qui réinstalle `requirements.lock`
+(pydantic 2.9.2) par-dessus le venv du banc (2.13.4). Ce monolithe est un
+défaut **déjà mesuré et antérieur** — la commande aboutit, le graphe est
+`ResolutionImpossible`, `pip check` échoue — et l'exécuter aurait détruit
+l'environnement qui porte les preuves de ce lot sans rien établir de neuf.
+Ses cibles vérifiables ont donc été lancées directement : contrats, suite
+unitaire, lint, typecheck, verrous de gouvernance et tests de scripts.
+
+Qualité : `ruff` vert sur `src/` et `tests/`. `mypy` sur les sources
 touchées ne rend que des constats **préexistants** (lignes non modifiées) ;
-les deux constats introduits ont été corrigés.
+les deux constats introduits ont été corrigés, et les deux modules
+nouveaux sont propres.
+
+## Qualification PII bornée — mesure datée du 2026-09-22
+
+Les deux conditions que les preuves historiques n'établissaient pas —
+**identités des pages scannées** et **erreurs d'extraction** — sont
+désormais établies pour les **315 contenus publiés** de `profile_gate_v2`.
+
+La mesure a été produite par l'outil gouverné prévu pour cela
+(`services/rag-pedago/scripts/rescan_pii_corpus.py`), hors ligne, sur le
+miroir local adressé par contenu. Chaque fichier est **rehaché** avant
+d'être mesuré : une mesure sur d'autres octets ne dirait rien de ce
+contenu. Aucune correspondance brute n'est transportée
+(`raw_pii_in_output: false`).
+
+Artefact : `docs/reports/evidence-index/pii_rescan_profile_gate_v2_315_20260922.json`
+(`f449a2b8…`), ensemble mesuré `04b731e2…`.
+
+| Ce qui est établi | Résultat |
+|---|---|
+| Périmètre | 315 mesurés = 315 publiés, aucun écart dans les deux sens |
+| Identité des pages | `pages_scanned` mesuré == `page_count` du catalogue == déclaration historique, **315/315** |
+| Pages sans texte | **0** sur l'ensemble des 315 documents — l'égalité des cardinalités est donc adossée à un fait par page, et non plus supposée |
+| Erreurs d'extraction | **0** — dimension qu'aucun champ de la preuve historique ne portait |
+| Texte réellement lu | `characters_scanned` **identique à l'historique pour 315/315** : l'ancienne mesure avait bien lu le même texte |
+
+### Ce que la mesure révèle en plus
+
+**22 des 315 contenus portent un signal** sous le scanner courant, là où la
+preuve scellée les déclare tous `CLEARED` :
+
+| Classe de signal | Contenus |
+|---|---|
+| `postal_address` | 12 |
+| `phone_french` | 9 |
+| `student_name_pattern` | 3 |
+| `email_address` | 2 |
+| `french_ssn` | 1 |
+
+Ce n'est **ni une réfutation, ni une correction rétroactive** : la politique
+est identique (`d09cbfd2…`, inchangée depuis le 13/08/2026) et le texte lu
+est identique, mais **le scanner a changé**. La preuve scellée déclare
+l'avoir été produite par `8ec8af55…` (`production-profile-gate-v1`) ; le
+fichier courant hache `388e3ed4…`, modifié le 03/09/2026. Un verdict
+différent rendu par un scanner différent est une **nouvelle mesure datée**,
+et c'est exactement ce que cet artefact est.
+
+**Une incohérence d'autorité s'y ajoute** : le manifeste de la release
+déclare `authorities.pii_scanner_sha256 = 388e3ed4…` — le scanner
+**courant** — alors que la preuve PII qu'il scelle a été produite par
+`8ec8af55…`. Rien au runtime ne confronte ces deux valeurs : le worker ne
+vérifie que `pii_evidence_sha256` et `pii_policy_sha256`. C'est la même
+famille de défaut que les `counts` : une déclaration que rien ne confronte
+à ce qu'elle décrit.
+
+**Conséquence** : publier ces 22 contenus **sous le scanner courant**
+exigerait la voie de revue humaine PII (ADR-0047) — jeu de décisions signé,
+reçu, ancre et index — et non un simple report de l'ancien verdict. Aucune
+admission n'est inventée ici : la mesure dit ce qu'elle a vu, à sa date.
+
+Enfin, `pii_evidence.json` liste **486 résultats pour 319 contenus
+distincts** — même granularité par placement que l'actualité — et son
+`summary` compte 486/486, c'est-à-dire la longueur de sa liste et non ses
+contenus.
 
 ## Point de reprise — fin de session du 2026-09-22
 
@@ -393,9 +473,10 @@ contrôle d'ingestion et produit).
    actualité), avec la liaison d'autorité applicable : leurs listes sont
    déjà cohérentes, leurs résumés et la granularité de l'actualité ne le
    sont pas.
-3. **Qualification PII bornée** : les preuves historiques établissent les
-   compteurs, pas les identités de pages scannées ni les erreurs
-   d'extraction. Une mesure actuelle portera sa date réelle.
+3. **Revue humaine PII (ADR-0047)** pour les 22 contenus que le scanner
+   courant signale, si la publication doit avoir lieu sous ce scanner. La
+   qualification bornée elle-même est **faite** (mesure du 2026-09-22) ;
+   ce qui reste est une décision humaine, qui ne s'invente pas.
 4. **Complétude globale** rapprochée de l'inventaire approuvé.
 
 Aucune écriture sur staging ou production n'a eu lieu dans cette session.
