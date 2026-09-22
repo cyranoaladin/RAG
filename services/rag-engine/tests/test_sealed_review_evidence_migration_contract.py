@@ -41,7 +41,7 @@ def _extrait(sql: str, contrainte: str) -> str:
 
 def test_la_migration_015_est_la_tete_declaree() -> None:
     assert (MIGRATIONS / "HEAD").read_text(encoding="utf-8") == (
-        "017_sealed_release_projection\n"
+        "018_sealed_release_adoption\n"
     )
     assert MIGRATION.is_file()
     assert ROLLBACK.is_file()

@@ -750,20 +750,16 @@ def ingest_sealed_release(
     return report
 
 
-def _ingest_placement(
-    conn: psycopg.Connection,
-    *,
-    placement: SealedReleasePlacement,
-    run_id: UUID,
-    scope: ResourceScope,
-    profile: CollectionProfile,
-    authorization: VerifiedAuthorization,
-    path: Path,
-    facts: SealedReleaseFacts,
-    owner: str,
-    report: IngestionReport,
-) -> None:
-    evidence = {
+def sealed_placement_evidence(
+    placement: SealedReleasePlacement, facts: SealedReleaseFacts
+) -> dict[str, Any]:
+    """Ce que la release scellée déclare d'un placement — hors autorisation.
+
+    C'est la matière que Worker A écrit dans chaque payload acquis. Elle est
+    exposée pour qu'une adoption par un successeur (ADR-0059 § 5) compare
+    EXACTEMENT ce que Worker A aurait écrit, et non une reconstruction.
+    """
+    return {
         "protocol_version": PROTOCOL_VERSION,
         "pipeline_kind": SEALED_RELEASE_PIPELINE,
         "release_id": facts.release_id,
@@ -785,6 +781,24 @@ def _ingest_placement(
         "review_status": placement.review_status,
         "placement_status": placement.placement_status,
         "currentness": placement.currentness,
+    }
+
+
+def _ingest_placement(
+    conn: psycopg.Connection,
+    *,
+    placement: SealedReleasePlacement,
+    run_id: UUID,
+    scope: ResourceScope,
+    profile: CollectionProfile,
+    authorization: VerifiedAuthorization,
+    path: Path,
+    facts: SealedReleaseFacts,
+    owner: str,
+    report: IngestionReport,
+) -> None:
+    evidence = {
+        **sealed_placement_evidence(placement, facts),
         "scope_authorization_id": authorization.authorization_id,
         "scope_authorization_digest": authorization.authorization_digest,
     }
@@ -912,4 +926,5 @@ __all__ = [
     "require_expected_counts",
     "require_scope_authorizations",
     "resolve_scopes",
+    "sealed_placement_evidence",
 ]

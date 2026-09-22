@@ -264,6 +264,12 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE
 GRANT SELECT ON ingestion_control.sealed_release_projections TO :"app_role" ;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE
     ON ingestion_control.sealed_release_projections FROM :"app_role" ;
+-- Migration 018 : le worker LIT l'adoption pour savoir qu'un artefact acquis
+-- sous un prédécesseur est couvert par le successeur attesté. Il ne l'écrit
+-- jamais : adopter est une opération d'attestation.
+GRANT SELECT ON ingestion_control.sealed_release_adoptions TO :"app_role" ;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE
+    ON ingestion_control.sealed_release_adoptions FROM :"app_role" ;
 -- Migration 011 : le runtime peut seulement ajouter/relever le pin exact
 -- produit par sa vérification GitHub live. La preuve est append-only :
 -- aucun rôle gouverné ne peut la corriger ou la supprimer après coup.
@@ -333,6 +339,11 @@ GRANT SELECT, INSERT ON ingestion_control.publication_attestations TO :"attestor
 GRANT SELECT, INSERT ON ingestion_control.sealed_release_projections TO :"attestor_role" ;
 REVOKE UPDATE, DELETE, TRUNCATE
     ON ingestion_control.sealed_release_projections FROM :"attestor_role" ;
+-- Migration 018 : l'attestor ÉCRIT l'adoption puis la relit ; append-only
+-- par déclencheur, et le REVOKE le redit au niveau des droits.
+GRANT SELECT, INSERT ON ingestion_control.sealed_release_adoptions TO :"attestor_role" ;
+REVOKE UPDATE, DELETE, TRUNCATE
+    ON ingestion_control.sealed_release_adoptions FROM :"attestor_role" ;
 -- Seules invalidated_at/invalidated_reason sont modifiables après
 -- écriture (audit d'une invalidation détectée en direct, ADR-0033 § 4) —
 -- toute autre colonne d'une attestation déjà écrite reste immuable, y
