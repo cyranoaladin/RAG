@@ -55,7 +55,7 @@ Nouveau type `MULTILEVEL_ARTIFACT_CURRENTNESS_V3`. Chaque contenu y porte une
 | Disposition | Publiable | Faits exigés, et seuls admis |
 |---|---|---|
 | `VERIFIED_CURRENT` | oui | URL de téléchargement officielle, `current_download_sha256 == content_sha256`, `byte_identity: true`, et un audit réseau frère qui **ne se déclare pas** `UNVERIFIED` |
-| `OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE` | oui | URL de provenance officielle égale à celle de l'inventaire, statut de source non archivé, les quatre conditions de repli de la politique **toutes** vraies ; `byte_identity`, URL et empreinte de téléchargement **absents** |
+| `OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE` | oui | URL de provenance officielle de l'artefact (celle du catalogue scellé), statut de source non archivé, les quatre conditions de repli de la politique **toutes** vraies ; `byte_identity`, URL et empreinte de téléchargement **absents** |
 | `NOT_CURRENT_DECLARED_BY_SOURCE` | non | aucun fait positif |
 | `UNKNOWN` | non | aucun fait positif |
 
@@ -193,7 +193,7 @@ Règles du chargeur, par disposition :
 | Disposition | Exige | Refuse |
 |---|---|---|
 | `VERIFIED_CURRENT` | règles V2 de `CURRENT` ; `effective_currentness = "actuel"` | un audit frère `currentness_status = CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE` |
-| `OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE` | `provenance_url` sur `eduscol.education.gouv.fr` ou `www.education.gouv.fr`, égale au `source_url` de **chaque** placement de l'inventaire ; les quatre conditions présentes et `true` ; `source_status` non vide | tout fait de vérification non null ; un `source_status` contenant `ARCHIVE` |
+| `OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE` | `provenance_url` en `https` sur `eduscol.education.gouv.fr` ou `www.education.gouv.fr` — la provenance de l'artefact, page de listing ou URL de fichier officielle, celle que le catalogue scellé enregistre ; les quatre conditions présentes et `true` ; `source_status` non vide | tout fait de vérification non null ; un `source_status` contenant `ARCHIVE` |
 | `NOT_CURRENT_DECLARED_BY_SOURCE` | `source_status` contenant `ARCHIVE` | tout fait de vérification ; toute condition de repli |
 | `UNKNOWN` | — | tout fait de vérification ; toute condition de repli |
 

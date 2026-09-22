@@ -675,13 +675,13 @@ def _v3_disposition(
             raise MultilevelEvidenceError(
                 "an official snapshot fallback condition does not hold"
             )
+        # La provenance de l'artefact : la page de listing, ou l'URL de fichier
+        # officielle quand le catalogue la connaît. C'est d'où viennent les
+        # octets, jamais une vérification — et c'est elle que le catalogue
+        # scellé enregistre et que la publication recontrôle.
         provenance_url = _require_official_url(
             provenance, hosts=_OFFICIAL_DOWNLOAD_HOSTS, label="snapshot provenance URL"
         )
-        if any(placement.source_url != provenance_url for placement in inventory_placements):
-            raise MultilevelEvidenceError(
-                "snapshot provenance URL differs from candidate inventory"
-            )
         return OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE, provenance_url
     _require_no_verification_fact(
         raw_artifact,

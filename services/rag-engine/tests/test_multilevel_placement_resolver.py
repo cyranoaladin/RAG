@@ -1475,10 +1475,11 @@ def test_v3_refuses_a_snapshot_with_a_false_or_missing_fallback_condition(
     [
         "https://example.org/programmes",
         "http://eduscol.education.gouv.fr/programmes",
-        "https://eduscol.education.gouv.fr/autre-page",
+        "https://eduscol.education.gouv.fr.example.org/programmes",
+        None,
     ],
 )
-def test_v3_refuses_a_snapshot_provenance_that_is_not_the_inventory_one(
+def test_v3_refuses_a_snapshot_provenance_that_is_not_official(
     tmp_path: Path, url: str
 ) -> None:
     def mutate(document: dict[str, object]) -> None:
@@ -1486,6 +1487,23 @@ def test_v3_refuses_a_snapshot_provenance_that_is_not_the_inventory_one(
 
     with pytest.raises(MultilevelEvidenceError, match="provenance"):
         _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+def test_v3_snapshot_may_cite_the_official_file_url_of_its_artifact(
+    tmp_path: Path,
+) -> None:
+    """La provenance d'un artefact peut être son URL de fichier officielle,
+    distincte de la page de listing : c'est d'où viennent les octets. La citer
+    n'affirme aucun téléchargement vérifié."""
+    fichier = "https://eduscol.education.gouv.fr/sites/default/files/document/doc.pdf"
+
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _SNAPSHOT_SHA)["provenance_url"] = fichier
+
+    evidence = cast(Any, _load_v3(_write_v3_evidence(tmp_path, mutate=mutate)))
+    snapshot = evidence.for_content(_SNAPSHOT_SHA)
+    assert snapshot.provenance_url == fichier
+    assert snapshot.current_download_url is None
 
 
 def test_v3_refuses_positive_facts_on_an_unknown_content(tmp_path: Path) -> None:
