@@ -85,13 +85,19 @@ def test_artefact_versionne_a_jour_scelle_et_valide(construit):
     assert restreint.valider(RACINE) == []
 
 
-def test_le_scelleur_gouverne_accepte_l_index_restreint_et_refusait_le_v2(tmp_path):
-    """La raison d'être du lot : `sceller_decisions_pii.py` plante sur l'index V2 (`page_number`)."""
+def test_le_scelleur_gouverne_accepte_l_index_restreint_et_desormais_le_v2(tmp_path):
+    """La raison d'être du lot CB : `sceller_decisions_pii.py` plantait sur l'index V2
+    (`page_number`). Le lot CV l'a corrigé (ADR-0059 §6) : la page se lit sous l'une
+    ou l'autre clé, et une divergence entre les deux est refusée. L'index V2 donne
+    donc un gabarit complet, sans aucune décision prise."""
     import sceller_decisions_pii as scelleur
 
     arguments = {"decision_set_id": "pii-review-epreuve-cb", "corpus_manifest_sha256": "a" * 64, "reviewer_login": "reviewer"}
-    with pytest.raises(KeyError):
-        scelleur.brouillon(index_path=RACINE / restreint.INDEX_V2, sortie=tmp_path / "v2.json", **arguments)
+    scelleur.brouillon(index_path=RACINE / restreint.INDEX_V2, sortie=tmp_path / "v2.json", **arguments)
+    v2 = json.loads((RACINE / restreint.INDEX_V2).read_text(encoding="utf-8"))
+    gabarit_v2 = json.loads((tmp_path / "v2.json").read_text(encoding="utf-8"))
+    assert set(gabarit_v2["decisions"]) == {b["content_sha256"] for b in v2["bundles"]}
+    assert {d["decision"] for d in gabarit_v2["decisions"].values()} == {scelleur.PLACEHOLDER}
     scelleur.brouillon(index_path=RACINE / restreint.SORTIE, sortie=tmp_path / "restreint.json", **arguments)
     brouillon = json.loads((tmp_path / "restreint.json").read_text(encoding="utf-8"))
     assert len(brouillon["decisions"]) == 23

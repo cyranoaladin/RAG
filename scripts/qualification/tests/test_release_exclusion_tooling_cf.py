@@ -26,6 +26,7 @@ from pathlib import Path
 import pytest
 
 RACINE = Path(__file__).resolve().parents[3]
+SERVABILITY_MATRIX = RACINE / "docs/reports/handoff/servability_matrix_v1.json"
 REGISTRY_PATH = RACINE / "docs/reports/evidence/release_currentness_exclusion_registry.json"
 REGISTRY_SHA_PATH = RACINE / "docs/reports/evidence/release_currentness_exclusion_registry.sha256"
 PREFLIGHT_PROOF_PATH = RACINE / "docs/reports/evidence/release_exclusion_tooling_preflight_proof.json"
@@ -158,6 +159,10 @@ def test_build_production_profile_release_dry_run_cli() -> None:
             "production-profile-gate-2026-2027-v2",
             "--exclusion-registry",
             str(REGISTRY_PATH),
+            "--servability-matrix",
+            str(SERVABILITY_MATRIX),
+            "--servability-matrix-sha256",
+            hashlib.sha256(SERVABILITY_MATRIX.read_bytes()).hexdigest(),
             "--dry-run",
         ],
         capture_output=True,
@@ -165,16 +170,15 @@ def test_build_production_profile_release_dry_run_cli() -> None:
         check=False,
         cwd=str(RACINE),
     )
-    assert res.returncode == 0, f"dry-run failed:\nstdout: {res.stdout}\nstderr: {res.stderr}"
-    out = res.stdout
-
-    assert "DRY_RUN=true" in out
-    assert "EXCLUDED_CONTENTS_COUNT=4" in out
-    assert "PRODUCTION_PROFILE_RELEASE_UNIQUE_ARTIFACTS=315" in out
-    assert "PRODUCTION_PROFILE_RELEASE_PLACEMENTS=479" in out
-    assert "PRODUCTION_PROFILE_RELEASE_COLLECTIONS=11" in out
-    assert "PRODUCTION_PROFILE_RELEASE_CHUNKS=8268" in out
-    assert "PRODUCTION_PROFILE_RELEASE_SHA256=" in out
+    # ADR-0059 : sans miroir PDF, la répétition recopierait la preuve PII de V2,
+    # produite par le scanner de la PR #133 alors que le manifeste déclare celui
+    # de la PR #142. C'est le défaut de V2 ; le producteur le refuse désormais,
+    # même en simulation. Les comptes 315/479 du successeur sont éprouvés sur les
+    # données réelles par `services/rag-pedago/tests/test_currentness_v3_producer.py`.
+    assert res.returncode != 0, res.stdout
+    assert "PII evidence scanner differs from the manifest's pii_scanner_sha256" in res.stderr
+    assert "8ec8af5510a734c6" in res.stderr and "388e3ed475625bc4" in res.stderr
+    assert "DRY_RUN=true" not in res.stdout
 
 
 def test_v1_historical_release_immutability() -> None:
