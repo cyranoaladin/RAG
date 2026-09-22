@@ -655,8 +655,17 @@ class VerifiedPdf(NamedTuple):
 
 
 def validate_pdf_mirror(
-    *, pdf_root: Path, content_sha256: list[str]
+    *,
+    pdf_root: Path,
+    content_sha256: list[str],
+    physical_paths: Mapping[str, str] | None = None,
 ) -> dict[str, VerifiedPdf]:
+    """Lit chaque contenu du miroir UNE fois et le re-hache.
+
+    Deux organisations sont admises : adressée par contenu (`<sha>.pdf`) ou
+    par chemin (`physical_paths[sha]`, le chemin canonique du Drive). Dans les
+    deux cas, les octets lus doivent porter l'empreinte demandée ; un chemin qui
+    sortirait de la racine est refusé comme absent."""
     # Un contenu correspond à UN fichier du miroir : le miroir est 1:1 par
     # nature. Un même document demandé plusieurs fois est la conséquence normale
     # du multi-placement — il est placé dans plusieurs collections — et non une
@@ -667,6 +676,8 @@ def validate_pdf_mirror(
     root = pdf_root.resolve()
     for content_sha in demandes:
         path = (root / f"{content_sha}.pdf").resolve()
+        if not path.is_file() and physical_paths and content_sha in physical_paths:
+            path = (root / physical_paths[content_sha]).resolve()
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError(f"PDF mirror is missing content {content_sha}")
         content = path.read_bytes()
@@ -2534,6 +2545,91 @@ def _preflight(
     }
 
 
+def _review_chain_authority_paths(
+    review_authority: ReviewAuthorityInputs | None,
+) -> dict[str, Path]:
+    """ADR-0047 §7 : les quatre fichiers de la décision humaine rejoignent la
+    chaîne d'autorité du candidat qui la projette — ensemble ou pas du tout."""
+    if review_authority is None or not review_authority.declared:
+        return {}
+    paths = {
+        "pii_decision_set_sha256": review_authority.decision_set_path,
+        "pii_review_receipt_sha256": review_authority.receipt_path,
+        "pii_review_trust_anchor_sha256": review_authority.trust_anchor_path,
+        "pii_review_index_sha256": review_authority.review_index_path,
+    }
+    return {name: path for name, path in paths.items() if path is not None}
+
+
+def _rehearsal_pii_evidence(
+    placement_rows: list[dict[str, Any]],
+    *,
+    pdf_root: Path,
+    inventory_sha256: str,
+    review_authority: ReviewAuthorityInputs,
+    preflight_by_sha: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Réémet la preuve PII d'une répétition avec la fonction de production.
+
+    Le scan porte sur la population CONSERVÉE, un contenu une fois, avec le
+    scanner courant et l'autorité de revue injectée. Les chunks, eux, ne sont
+    pas recalculés : la découpe de la release source est conservée, et la seule
+    dépendance de la découpe envers la PII — les pages vides écartées — est
+    confrontée ici, contenu par contenu. Une divergence refuse plutôt que de
+    choisir laquelle des deux mesures croire."""
+    grouped = _group_artifact_rows(placement_rows)
+    pdfs = validate_pdf_mirror(
+        pdf_root=pdf_root,
+        content_sha256=sorted(grouped),
+        physical_paths={
+            sha: str(group["artifact_row"]["physical_path"])
+            for sha, group in grouped.items()
+        },
+    )
+    evidence = _pii_evidence(
+        placement_rows,
+        pdfs=pdfs,
+        inventory_sha256=inventory_sha256,
+        review_authority=review_authority,
+    )
+    for row in evidence["results"]:
+        sha = row["content_sha256"]
+        preflight = preflight_by_sha.get(sha)
+        if preflight is None:
+            raise ValueError(f"source preflight is absent for {sha}")
+        if list(preflight.get("ignored_empty_pages") or []) != list(
+            row["ignored_empty_pages"]
+        ):
+            raise ValueError(
+                f"source chunks ignored_empty_pages differ from the current PII "
+                f"extraction for {sha} — the kept chunking no longer describes "
+                "these bytes"
+            )
+    return evidence
+
+
+def require_pii_evidence_names_the_declared_scanner(
+    pii_evidence: Mapping[str, Any] | None,
+    aggregate: Mapping[str, Any],
+) -> None:
+    """Refuse une release dont la preuve PII nomme un autre scanner que son
+    manifeste.
+
+    Le candidat `profile_gate_v2` déclarait `pii_scanner_sha256 = 388e3ed4…`
+    (le scanner courant) et embarquait une preuve produite par `8ec8af55…`.
+    Les deux valeurs étaient scellées, chacune dans son fichier, et rien ne les
+    confrontait : la preuve attestait 486 × CLEARED avec un instrument que la
+    release ne déclarait pas."""
+    declared = (aggregate.get("authorities") or {}).get("pii_scanner_sha256")
+    measured = pii_evidence.get("scanner_sha256") if pii_evidence else None
+    if not declared or not measured or declared != measured:
+        raise ValueError(
+            "PII evidence scanner differs from the manifest's pii_scanner_sha256 "
+            f"(evidence {str(measured)[:16]}…, manifest {str(declared)[:16]}…) — "
+            "the attestation was not produced by the instrument the release declares"
+        )
+
+
 def _programme_registry(profiles: Mapping[str, Any]) -> dict[str, Any]:
     collection_config = load_collection_config(COLLECTION_CONFIG_PATH)["collections"]
     indexes = [
@@ -3397,6 +3493,8 @@ def _verifier_preconditions(
 def _build_rehearsal_release(
     *,
     currentness_authority: GovernedCurrentnessAuthority,
+    pdf_root: Path | None = None,
+    review_authority: ReviewAuthorityInputs = NO_REVIEW_AUTHORITY,
     source_release_root: Path,
     release_id: str,
     release_mode: str,
@@ -3545,10 +3643,40 @@ def _build_rehearsal_release(
         "currentness_network_audit.json": canonical_json_bytes(network_audit),
         "currentness_evidence.json": canonical_json_bytes(currentness),
     }
-    for name, file_name in (
+    # ── LA PREUVE PII, RÉÉMISE QUAND LE MIROIR EST FOURNI ──────────────
+    #
+    # Sans miroir, la preuve source est recopiée — et la garde d'écriture la
+    # refuse si elle nomme un autre scanner que le manifeste, ce qui était le
+    # cas du candidat V2. Avec le miroir, elle est reproduite par la fonction
+    # de production, pour la population conservée seulement.
+    renamed_bindings = [
         ("candidate_inventory_sha256", "candidate_inventory.json"),
         ("currentness_evidence_sha256", "currentness_evidence.json"),
-    ):
+    ]
+    if pdf_root is not None:
+        reemitted["pii_evidence.json"] = canonical_json_bytes(
+            _rehearsal_pii_evidence(
+                placement_rows,
+                pdf_root=pdf_root,
+                inventory_sha256=_sha256_bytes(inventory_raw),
+                review_authority=review_authority,
+                preflight_by_sha=preflight_by_sha,
+            )
+        )
+        renamed_bindings.append(("pii_evidence_sha256", "pii_evidence.json"))
+        for name, path in {
+            "pii_policy_sha256": PII_POLICY_PATH,
+            **_review_chain_authority_paths(review_authority),
+        }.items():
+            digest = _file_sha256(path)
+            authorities[name] = digest
+            raw_bindings[name] = {
+                "path": _repo_relative(path),
+                "file_sha256": digest,
+                "authority_sha256": digest,
+                "authority_kind": "FILE_SHA256",
+            }
+    for name, file_name in renamed_bindings:
         digest = _sha256_bytes(reemitted[file_name])
         authorities[name] = digest
         raw_bindings[name] = {
@@ -3601,7 +3729,7 @@ def _build_rehearsal_release(
         "catalog_delta.json",
         "effective_catalog_authority.json",
         "corpus_manifest_authority.json",
-        "pii_evidence.json",
+        *(() if "pii_evidence.json" in reemitted else ("pii_evidence.json",)),
         "preflight_evidence.json",
         "programme_registry.json",
         "models/embedding/manifest.json",
@@ -3654,6 +3782,8 @@ def build_release(
     if release_mode == "rehearsal":
         return _build_rehearsal_release(
             currentness_authority=currentness_authority,
+            pdf_root=pdf_root,
+            review_authority=review_authority or NO_REVIEW_AUTHORITY,
             source_release_root=source_release_root or RELEASE_ROOT,
             release_id=release_id or "production-profile-gate-2026-2027-v2-rehearsal",
             release_mode=release_mode,
@@ -3810,16 +3940,7 @@ def build_release(
         # ADR-0047 §7 : la décision humaine et son reçu appartiennent à la
         # chaîne d'autorité de CE candidat. On ne réécrit jamais les liens
         # d'une release historique pour les y faire entrer après coup.
-        **(
-            {
-                "pii_decision_set_sha256": review_authority.decision_set_path,
-                "pii_review_receipt_sha256": review_authority.receipt_path,
-                "pii_review_trust_anchor_sha256": review_authority.trust_anchor_path,
-                "pii_review_index_sha256": review_authority.review_index_path,
-            }
-            if review_authority is not None and review_authority.declared
-            else {}
-        ),
+        **_review_chain_authority_paths(review_authority),
         **(
             {"currentness_exclusion_registry_sha256": exclusion_registry.path}
             if exclusion_registry is not None
@@ -4045,6 +4166,13 @@ def _write_documents(
         # susceptible de transformer une release déjà publiée en échec.
         bindings_path = racine_ecrite / "authority_bindings.json"
         if aggregate_manifest.exists() and bindings_path.exists():
+            # Une release complète : sa preuve PII doit nommer le scanner que
+            # son manifeste déclare. Le défaut du candidat V2, fermé ici.
+            pii_path = racine_ecrite / "pii_evidence.json"
+            require_pii_evidence_names_the_declared_scanner(
+                _load_json(pii_path) if pii_path.is_file() else None,
+                _load_json(aggregate_manifest),
+            )
             validate_authority_bindings(
                 repository_root=REPOSITORY_ROOT,
                 bindings=_load_json(bindings_path),
@@ -4291,6 +4419,10 @@ def main(argv: list[str] | None = None) -> int:
         if not manifest_bytes:
             raise RuntimeError("dry-run: production-profile-gate.release.json non généré en mémoire")
         aggregate = json.loads(manifest_bytes.decode("utf-8"))
+        pii_bytes = documents.get(RELEASE_ROOT / "pii_evidence.json")
+        require_pii_evidence_names_the_declared_scanner(
+            json.loads(pii_bytes) if pii_bytes else None, aggregate
+        )
         counts = aggregate.get("expected_counts", {})
         unique_artifacts = counts.get("unique_artifacts", 0)
         placements = counts.get("placements", 0)
