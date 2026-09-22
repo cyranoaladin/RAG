@@ -853,6 +853,16 @@ def _v2_models(builder: Any) -> dict[str, Any]:
     }
 
 
+def _v2_served(builder: Any) -> dict[str, Any]:
+    """Actualité servie d'une identité d'octets prouvée : `current`, et l'URL de
+    téléchargement — ce que le catalogue écrivait avant ADR-0059."""
+    return {
+        V2_ARTIFACT_SHA: builder.ServedCurrentness(
+            "current", _v2_placement_rows()[0]["current_download_url"]
+        )
+    }
+
+
 def _v2_topology_documents(
     builder: Any,
     release_root: Path,
@@ -877,6 +887,7 @@ def _v2_topology_documents(
         release_root=release_root,
         release_id="lot-1-2-option-a",
         school_year="2026-2027",
+        served_currentness=_v2_served(builder),
     )
 
 
@@ -1437,6 +1448,7 @@ def test_v2_placement_id_keeps_the_historical_algorithm(
         status="specialite",
         preflight=_v2_preflight_artifact(),
         type_doc_mapping={"ressource": "ressource_officielle"},
+        currentness="current",
     )["placements"][0]["placement_id"]
     release_root = tmp_path / "profile_gate"
     documents = _v2_topology_documents(builder, release_root, monkeypatch)
@@ -1554,7 +1566,13 @@ def test_v2_currentness_network_population_is_unique_per_content(
     assert [row["content_sha256"] for row in expected] == [V2_ARTIFACT_SHA]
 
 
-def test_v2_currentness_evidence_groups_placement_facts_under_one_artifact() -> None:
+def test_v2_currentness_evidence_groups_placement_facts_under_one_artifact(
+    tmp_path: Path,
+) -> None:
+    """Sous un audit non vérifié, la preuve n'est plus V2 `REVIEW_REQUIRED` —
+    qui rendait impubliable ce que la gouvernance déclare servable — mais V3
+    (ADR-0059) : la disposition de la matrice gouvernée, une entrée par contenu,
+    aucun fait de vérification."""
     builder = cast(Any, _module())
     network_audit = {
         "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
@@ -1562,40 +1580,62 @@ def test_v2_currentness_evidence_groups_placement_facts_under_one_artifact() -> 
         "currentness_status": "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE",
         "artifacts": [],
     }
-    inventory = {
-        "corpus_manifest_sha256": "1" * 64,
-        "sealed_catalog_sha256": "2" * 64,
-        "placement_catalog_sha256": "3" * 64,
-        "catalog_delta_sha256": "4" * 64,
-        "effective_catalog_authority_sha256": "5" * 64,
-    }
+    rows = _v2_population_rows()
+    listing = "https://eduscol.education.gouv.fr/commun"
+    for row in rows:
+        row["source_url"] = listing
+    inventory = builder._candidate_inventory(
+        rows, delta={"catalog_delta_payload_sha256": "4" * 64}, effective={
+            "authority_sha256": "5" * 64
+        }
+    )
+    matrix = tmp_path / "matrix.json"
+    matrix.write_text(
+        json.dumps(
+            {
+                "kind": "NEXUS-SERVABILITY-MATRIX-V1",
+                "rows": [
+                    {
+                        "content_sha256": V2_ARTIFACT_SHA,
+                        "provenance": "URL_EVIDENCE_FOUND",
+                        "currentness": "CURRENT_DECLARED",
+                        "currentness_disposition": "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE",
+                        "verdict": "CANDIDATE_NO_BLOCKING_DIMENSION",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    authority = builder.load_governed_currentness_authority(matrix, _sha256(matrix))
 
     returned_audit, evidence = builder._currentness_documents(
-        _v2_population_rows(),
+        rows,
         inventory=inventory,
         inventory_sha256="6" * 64,
         network_audit=network_audit,
+        authority=authority,
     )
 
     assert returned_audit == network_audit
-    assert evidence["evidence_kind"] == "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
+    assert evidence["evidence_kind"] == "MULTILEVEL_ARTIFACT_CURRENTNESS_V3"
     assert evidence["counts"] == {
         "unique_artifacts": 1,
         "evaluated": 1,
-        "current": 0,
-        "review_required": 1,
-        "unevaluated": 0,
+        "VERIFIED_CURRENT": 0,
+        "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 1,
+        "NOT_CURRENT_DECLARED_BY_SOURCE": 0,
+        "UNKNOWN": 0,
     }
-    assert evidence["partition"] == {
-        "current": [],
-        "review_required": [V2_ARTIFACT_SHA],
-        "unevaluated": [],
-    }
+    assert evidence["partition"]["OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"] == [
+        V2_ARTIFACT_SHA
+    ]
     assert len(evidence["artifacts"]) == 1
     artifact = evidence["artifacts"][0]
     assert artifact["content_sha256"] == V2_ARTIFACT_SHA
     assert artifact["collections"] == sorted(V2_COLLECTIONS)
-    assert artifact["decision"] == "REVIEW_REQUIRED"
+    assert "decision" not in artifact
+    assert artifact["currentness_disposition"] == "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"
     assert artifact["effective_currentness"] is None
     assert artifact["current_download_sha256"] is None
     assert artifact["byte_identity"] is None
@@ -1667,6 +1707,7 @@ def test_v2_producer_refuses_a_declared_profile_without_placement(
             release_root=tmp_path / "profile_gate",
             release_id="lot-1-2-option-a",
             school_year="2026-2027",
+            served_currentness=_v2_served(builder),
         )
 
 
@@ -1714,6 +1755,7 @@ def test_v2_producer_refuses_preflight_population_or_identity_drift(
             release_root=tmp_path / "profile_gate",
             release_id="lot-1-2-option-a",
             school_year="2026-2027",
+            served_currentness=_v2_served(builder),
         )
 
 
@@ -1777,6 +1819,7 @@ def test_v2_placement_id_matches_independent_historical_golden() -> None:
         profile=profile,
         status="specialite",
         include_artifact_id=True,
+        currentness="current",
     )
 
     assert placement["placement_id"] == (
@@ -2206,11 +2249,16 @@ def test_governed_exclusion_registry_validation_and_rehearsal_dry_run() -> None:
     assert reg.kind == "NEXUS-CURRENTNESS-EXCLUSION-REGISTRY-V1"
     assert reg.governance_reference == "ADR-0055"
 
+    matrix = ROOT / "docs/reports/handoff/servability_matrix_v1.json"
     docs = builder.build_release(
         release_mode="rehearsal",
         source_release_root=RELEASE_ROOT,
         release_id="production-profile-gate-2026-2027-v2",
         exclusion_registry=reg,
+        # ADR-0059 : la répétition réémet l'actualité depuis la matrice gouvernée.
+        currentness_authority=builder.load_governed_currentness_authority(
+            matrix, _sha256(matrix)
+        ),
     )
     manifest_bytes = docs[builder.RELEASE_ROOT / "production-profile-gate.release.json"]
     aggregate = json.loads(manifest_bytes.decode("utf-8"))
