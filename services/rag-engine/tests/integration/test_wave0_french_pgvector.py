@@ -248,6 +248,7 @@ def product_pg() -> Iterator[dict[str, str]]:
             "002_hybrid_retrieval.sql",
             "003_profile_filtering.sql",
             "004_artifact_placements.sql",
+            "005_official_snapshot_currentness.sql",
         ):
             result = subprocess.run(
                 ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", str(migrations / name)],
@@ -275,6 +276,7 @@ def product_pg() -> Iterator[dict[str, str]]:
                     "002_hybrid_retrieval.sql",
                     "003_profile_filtering.sql",
                     "004_artifact_placements.sql",
+                    "005_official_snapshot_currentness.sql",
                 ),
                 start=1,
             ):
@@ -1747,7 +1749,7 @@ def test_wave0_real_http_search_is_authenticated_isolated_and_semantic(
                 if time.monotonic() >= deadline:
                     pytest.fail("uvicorn did not become ready within the bounded deadline")
                 time.sleep(0.25)
-            assert health.json()["schema_head"] == "004_artifact_placements"
+            assert health.json()["schema_head"] == "005_official_snapshot_currentness"
 
             maths_token = _signed_identity_token(
                 "entree_seconde_maths_v1",

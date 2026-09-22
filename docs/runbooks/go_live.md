@@ -116,17 +116,22 @@ dans `SHA256SUMS` doit être régénéré avec
 ### Volume neuf
 
 Au premier démarrage uniquement, PostgreSQL applique dans l'ordre
-`00_init.sql`, `01_003_profile_filtering.sql`, puis
-`02_004_artifact_placements.sql`. Il enregistre ensuite les migrations avec
-`03_register_bootstrap_migrations.sh` et crée les rôles minimaux avec
-`04_provision_runtime_roles.sh`. Son healthcheck échoue tant que le head
-`004_artifact_placements`, les SHA-256 canoniques, les 32 colonnes de
+`00_init.sql`, `01_003_profile_filtering.sql`,
+`02_004_artifact_placements.sql`, puis
+`03_005_official_snapshot_currentness.sql`. Il enregistre ensuite les
+migrations avec `04_register_bootstrap_migrations.sh` et crée les rôles
+minimaux avec `05_provision_runtime_roles.sh`. Son healthcheck échoue tant que
+le head `005_official_snapshot_currentness`, les SHA-256 canoniques, les 32
+colonnes de
 `rag_chunks`, les tables `rag_artifacts` et `rag_artifact_placements`, et leurs
 inventaires exacts de contraintes et d'index ne sont pas présents. Les colonnes
 incluent leurs valeurs par défaut et leurs typmods exacts (`vector(1024)`), et
 tout index supplémentaire, activation RLS ou policy RLS rend également la base
-non prête. Le script de registre calcule les SHA-256 des quatre migrations
-canoniques et enregistre atomiquement `001`, `002`, `003` et `004` dans
+non prête. Le head 005 exige aussi le domaine exact de
+`rag_artifact_placements.currentness`, qui admet `official_snapshot`
+(ADR-0059), et le prédicat exact de l'index des placements servis. Le script
+de registre calcule les SHA-256 des cinq migrations canoniques et enregistre
+atomiquement `001`, `002`, `003`, `004` et `005` dans
 `rag_schema_migrations`. Le runner transactionnel doit ensuite reconnaître ce
 volume avec `MIGRATIONS_APPLIED=0` et `MIGRATIONS_ADOPTED=0`.
 
@@ -141,7 +146,8 @@ migration à valider est :
 1. prendre un backup frais de la base avant la première mutation ;
 2. laisser le runner valider puis adopter le head structurel non enregistré
    `001` ;
-3. appliquer `002`, `003`, puis `004` dans cet ordre ;
+3. appliquer `002`, `003`, `004`, puis `005` dans cet ordre (une base dont
+   le registre s'arrête à `004_artifact_placements` ne reçoit que `005`) ;
 4. appliquer ensuite les migrations `ingestion_control` de `001` à `013` et
    provisionner leurs rôles dédiés selon `ingestion_control_go_live.md` ;
 5. valider les deux registres, le schéma exact, les rôles et l'absence de lock
@@ -160,7 +166,7 @@ cd services/rag-engine/infra
 BACKUP_ROOT=/backup/rag ./scripts/apply_pgvector_migrations.sh
 ```
 
-Le runner doit terminer au head `004_artifact_placements`. En cas d'échec ou de
+Le runner doit terminer au head `005_official_snapshot_currentness`. En cas d'échec ou de
 données incompatibles, arrêter la procédure et restaurer selon le runbook de
 rollback ; ne jamais forcer le démarrage de l'API.
 
@@ -216,7 +222,7 @@ Contrôles locaux :
 
 ```bash
 curl -fsS http://127.0.0.1:8001/health | jq -e \
-  '.status == "healthy" and .schema_head == "004_artifact_placements" and .pgvector_dim == 1024'
+  '.status == "healthy" and .schema_head == "005_official_snapshot_currentness" and .pgvector_dim == 1024'
 
 test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8001/ingest)" = 404
 test "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1/admin)" = 404

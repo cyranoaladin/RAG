@@ -161,7 +161,7 @@ test "$("${restore_compose[@]}" config --services | sort)" = \
 
 # `--no-privileges` est volontaire : réimposer ensuite les rôles et ACL runtime
 # depuis leur source canonique. Cette étape reste obligatoire même si le registre
-# restauré est déjà au head 004, cas où le runner de migrations n'a rien à jouer.
+# restauré est déjà au head 005, cas où le runner de migrations n'a rien à jouer.
 "${restore_compose[@]}" run --rm --no-deps \
   --volume "$RUNTIME_ROLE_PROVISIONING:/opt/nexus/provision_runtime_roles.sh:ro" \
   --entrypoint bash restore-migrator \

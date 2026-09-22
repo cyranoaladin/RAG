@@ -3,7 +3,8 @@
 ## Statut runtime v2 LOT41U
 
 Le runtime v2 canonique est un service **lecture/revue** lancé par
-`api_v2:app`, adossé à PostgreSQL/pgvector au head `004_artifact_placements`.
+`api_v2:app`, adossé à PostgreSQL/pgvector au head
+`005_official_snapshot_currentness`.
 L'image ne contient aucun writer ni route d'ingestion. Les appels métier passent
 uniquement par le **Cockpit BFF**, son credential machine et une identité interne
 signée.

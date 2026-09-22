@@ -154,6 +154,11 @@ run_readonly_preflight_validation() {
             else
                 validate_004_absent_sql
             fi
+            if (( EFFECTIVE_HEAD >= 5 )); then
+                validate_005_sql
+            elif (( EFFECTIVE_HEAD == 4 )); then
+                validate_005_absent_sql
+            fi
             validate_registry_sql "$EFFECTIVE_HEAD"
         } | docker exec -i "$PGVECTOR_CONTAINER" \
             psql -X -q -v ON_ERROR_STOP=1 \
@@ -313,6 +318,11 @@ SQL
             validate_004_sql
         else
             validate_004_absent_sql
+        fi
+        if (( version >= 5 )); then
+            validate_005_sql
+        elif (( version == 4 )); then
+            validate_005_absent_sql
         fi
         validate_registry_sql "$version"
     } | docker exec -i "${docker_environment[@]}" "$PGVECTOR_CONTAINER" \

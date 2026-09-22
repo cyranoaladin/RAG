@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# Roll back exactly migration 004 while preserving head 003 and a backup.
-# Usage: BACKUP_ROOT=... ./rollback_pgvector_artifact_placements.sh 004_artifact_placements
+# Roll back exactly migration 005 while preserving head 004 and a backup.
+# Usage: BACKUP_ROOT=... ./rollback_pgvector_official_snapshot_currentness.sh 005_official_snapshot_currentness
+#
+# Fails closed: the rollback SQL refuses while any placement is recorded as
+# official_snapshot (ADR-0059). It never deletes or requalifies a row.
 set -euo pipefail
 
-if [[ "${1:-}" != "004_artifact_placements" || "$#" -ne 1 ]]; then
-    echo "ROLLBACK_ARGUMENT_INVALID: expected 004_artifact_placements" >&2
+if [[ "${1:-}" != "005_official_snapshot_currentness" || "$#" -ne 1 ]]; then
+    echo "ROLLBACK_ARGUMENT_INVALID: expected 005_official_snapshot_currentness" >&2
     exit 2
 fi
 
@@ -12,7 +15,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MIGRATIONS_DIR="$INFRA_DIR/postgres/migrations"
 MIGRATION_HEAD_FILE="$MIGRATIONS_DIR/HEAD"
-ROLLBACK_FILE="$INFRA_DIR/postgres/rollbacks/004_artifact_placements.down.sql"
+ROLLBACK_FILE="$INFRA_DIR/postgres/rollbacks/005_official_snapshot_currentness.down.sql"
 
 if [[ -f "$INFRA_DIR/.env" ]]; then
     set -a
@@ -30,11 +33,9 @@ PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 
-# Le manifeste peut déclarer un head postérieur (005) : seule la base doit
-# être effectivement redescendue à 004, ce que la garde EFFECTIVE_HEAD exige.
-if [[ ${#MIGRATION_VERSIONS[@]} -lt 4 \
-   || "${MIGRATION_NAMES[3]}" != "004_artifact_placements.sql" ]]; then
-    echo "ROLLBACK_HEAD_INVALID: migration 004_artifact_placements is unavailable" >&2
+if [[ ${#MIGRATION_VERSIONS[@]} -lt 5 \
+   || "${MIGRATION_NAMES[4]}" != "005_official_snapshot_currentness.sql" ]]; then
+    echo "ROLLBACK_HEAD_INVALID: migration 005_official_snapshot_currentness is unavailable" >&2
     exit 1
 fi
 if [[ ! -f "$ROLLBACK_FILE" || -L "$ROLLBACK_FILE" ]]; then
@@ -104,7 +105,7 @@ backup_database() {
 
     stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
     backup_dir="$BACKUP_ROOT/pgvector-rollback-$stamp"
-    backup_file="$backup_dir/ragdb-before-rollback-004.dump"
+    backup_file="$backup_dir/ragdb-before-rollback-005.dump"
     remote_dump="/tmp/nexus-rag-schema-rollback-$stamp.dump"
     umask 077
     mkdir -p "$backup_dir"
@@ -126,8 +127,8 @@ backup_database() {
 
 read_database_state
 if [[ "$REGISTRY_PRESENT" != "1" || "$RAG_CHUNKS_PRESENT" != "1" \
-   || "$EFFECTIVE_HEAD" -ne 4 ]]; then
-    echo "ROLLBACK_HEAD_INVALID: effective head must be 004_artifact_placements" >&2
+   || "$EFFECTIVE_HEAD" -ne 5 ]]; then
+    echo "ROLLBACK_HEAD_INVALID: effective head must be 005_official_snapshot_currentness" >&2
     exit 1
 fi
 
@@ -136,8 +137,8 @@ fi
     validate_002_sql
     validate_003_sql
     validate_004_sql
-    validate_005_absent_sql
-    validate_registry_sql 4
+    validate_005_sql
+    validate_registry_sql 5
 } | docker exec -i "$PGVECTOR_CONTAINER" \
     psql -X -q -v ON_ERROR_STOP=1 \
     -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
@@ -150,17 +151,18 @@ backup_database
     printf '\n'
     cat <<'SQL'
 DELETE FROM rag_schema_migrations
-WHERE version = 4;
+WHERE version = 5;
 SQL
     validate_001_sql
     validate_002_sql
     validate_003_sql
-    validate_004_absent_sql
-    validate_registry_sql 3
+    validate_004_sql
+    validate_005_absent_sql
+    validate_registry_sql 4
 } | docker exec -i "$PGVECTOR_CONTAINER" \
     psql -X -q --single-transaction -v ON_ERROR_STOP=1 \
     -U "$PGVECTOR_USER" -d "$PGVECTOR_DB" >/dev/null
 
-echo "ROLLBACK_COMPLETE=004_artifact_placements"
+echo "ROLLBACK_COMPLETE=005_official_snapshot_currentness"
 echo "SCHEMA_VERIFICATION=OK"
 
