@@ -94,6 +94,7 @@ def lignes_acquises(pg: dict[str, str]) -> Iterator[list[str]]:
     """Deux placements réellement acquis sous le prédécesseur, via le chemin
     de provisionnement canonique."""
     from nexus_contracts.ingestion import ResourceScope
+    from test_migration_016_release_identity import _valeur_de_test
 
     from ingestor.ingestion_control.provisioning import (
         SEALED_RELEASE_PIPELINE,
@@ -101,7 +102,6 @@ def lignes_acquises(pg: dict[str, str]) -> Iterator[list[str]]:
         create_resource,
         persist_sealed_release_artifact,
     )
-    from test_migration_016_release_identity import _valeur_de_test
 
     scope = ResourceScope(
         tenant="libre_terminale", collection=COLLECTION, niveau="terminale",
