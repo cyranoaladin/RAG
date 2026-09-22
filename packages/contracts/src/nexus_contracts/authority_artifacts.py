@@ -657,7 +657,11 @@ class ReleaseBatchPlacementEvidence(StrictBaseModel):
 
     review_status: Literal["reviewed"]
     placement_status: Literal["active"]
-    currentness: Literal["current"]
+    #: ADR-0059 : ``official_snapshot`` est l'instantané officiel dont
+    #: l'actualité réseau n'a pas pu être établie (ADR-0055). Il n'est jamais
+    #: ``current``, qui reste réservé à l'identité d'octets prouvée : la revue
+    #: approuve la disposition réelle de ses placements, pas une autre.
+    currentness: Literal["current", "official_snapshot"]
 
 
 class ReleaseBatchPublicationReviewArtifact(StrictBaseModel):

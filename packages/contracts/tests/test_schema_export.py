@@ -17,8 +17,15 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_19_0() -> None:
-    """0.19.0 ajoute le protocole LOT42-RELEASE-BATCH-V1 (ADR-0056).
+def test_package_version_is_0_20_0() -> None:
+    """0.20.0 admet ``official_snapshot`` comme actualité revisable d'une
+    release batch (ADR-0059).
+
+    Mineure et non majeure : une valeur est AJOUTÉE à un littéral fermé ;
+    ``current`` garde son sens exact et aucun artefact existant ne change de
+    validité.
+
+    0.19.0 ajoutait le protocole LOT42-RELEASE-BATCH-V1 (ADR-0056).
 
     Mineure et non majeure : le modèle est un AJOUT. `LOT42-V1` n'est ni
     modifié, ni retiré, ni élargi — il reste obligatoire pour
@@ -36,7 +43,7 @@ def test_package_version_is_0_19_0() -> None:
     """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.19.0"
+    assert pyproject["project"]["version"] == "0.20.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -85,7 +92,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first_lock = json.loads((first / "contracts.lock.json").read_text())
     second_lock = json.loads((second / "contracts.lock.json").read_text())
     assert first_lock == second_lock
-    assert first_lock["packageVersion"] == "0.19.0"
+    assert first_lock["packageVersion"] == "0.20.0"
     assert set(first_lock["schemas"]) == expected
     fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
     assert first_lock["fixtures"] == {
