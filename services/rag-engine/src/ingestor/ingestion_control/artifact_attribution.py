@@ -217,11 +217,24 @@ def derive_sealed_release_artifact_attribution(
     revue approuvé. La chaîne remonte donc jusqu'à une revue humaine, comme
     pour le chemin unitaire.
 
-    ``type_doc`` reste confronté au périmètre du profil, exactement comme un
-    type proposé : un type que personne n'a autorisé ne devient jamais une
-    attribution durable. Sans cette confrontation, le batch aurait publié le
-    nom de sa collection en guise de type documentaire — ce que faisait
-    l'ancienne dérivation depuis ``profile_id``.
+    **Où ``type_doc`` est confronté, et où il ne l'est pas.** Le chemin
+    unitaire confronte ``candidate.proposed_type_doc`` — une *proposition*
+    de Scout — au périmètre de découverte du profil
+    (``expected_resource_types``) : c'est cette confrontation qui transforme
+    une proposition en fait. Un type scellé n'est pas une proposition : il
+    est produit par la correspondance gouvernée depuis le vocabulaire
+    externe, et le **résolveur de placement le redérive indépendamment** au
+    moment de publier, puis refuse toute divergence
+    (``claimed_type_doc``). C'est là sa confrontation, par l'autorité qui
+    l'a produit.
+
+    Lui appliquer en plus le périmètre de découverte du profil serait
+    appliquer un critère que personne n'a appliqué à la release approuvée :
+    mesuré sur V2, les onze profils n'attendent qu'un seul type quand la
+    release en porte cinq, et **224 des 479 placements** tomberaient. Reste
+    ici ce qui est bien une autorisation : le type doit être une valeur
+    canonique de ``TypeDoc`` (vérifié par ``ArtifactAttribution``), et
+    l'hôte de provenance doit être un domaine que le profil autorise.
     """
     declare = str(catalog_entry.get("type_doc") or "").strip()
     if not declare:
@@ -229,16 +242,6 @@ def derive_sealed_release_artifact_attribution(
             f"the sealed catalogue establishes no type_doc for artifact "
             f"{ingestion_artifact_id} — the attribution is refused rather than "
             "completed with a convenience value"
-        )
-    attendus = tuple(
-        str(getattr(value, "value", value)) for value in profile.expected_resource_types
-    )
-    if declare not in attendus:
-        raise ArtifactAttributionError(
-            f"sealed type_doc {declare!r} is not among the resource types "
-            f"expected by profile {profile.scope.collection}/"
-            f"{profile.profile_version} ({list(attendus)!r}) — a type nobody "
-            "authorized never becomes a durable attribution"
         )
 
     source_url = str(catalog_entry.get("source_url") or "").strip()

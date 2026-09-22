@@ -234,7 +234,7 @@ Aucun n'était visible avant de lancer le CLI : la branche scellée de
 | # | Défaut | Traitement |
 |---|---|---|
 | 1 | `_charger_catalogue_scelle` devinait un manifeste de transfert voisin et lisait son empreinte attendue dans `authorities.artifact_transfer_manifest_sha256` — champ que la chaîne d'autorités, **fermée**, ne comporte pas. L'invariant de format restait donc toujours vide, et **toute lecture scellée refusait** | le manifeste est transporté comme les autres autorités, par un couple chemin/empreinte (`--artifact-transfer-manifest-path/-sha256`). Une moitié de couple est refusée |
-| 2 | `_verify_release_batch_attestation` dérivait les quatre faits d'attribution de `collection` et de `profile_id` : le batch publiait **le nom de sa collection en guise de type documentaire**, jusque dans `rag_chunks.type_doc`, que le retrieval lit | les faits sont lus dans leur foyer durable (migration 012). L'ingestion scellée les dérive du catalogue d'artefacts de la release — dont l'empreinte est portée par l'artefact de revue approuvé — et les confronte au périmètre du profil |
+| 2 | `_verify_release_batch_attestation` dérivait les quatre faits d'attribution de `collection` et de `profile_id` : le batch publiait **le nom de sa collection en guise de type documentaire**, jusque dans `rag_chunks.type_doc`, que le retrieval lit | les faits sont lus dans leur foyer durable (migration 012). L'ingestion scellée les dérive du catalogue d'artefacts de la release — dont l'empreinte est portée par l'artefact de revue approuvé. Le type doit être une valeur canonique de `TypeDoc`, ce qui refuse précisément un nom de collection, et l'hôte de provenance un domaine que le profil autorise ; le type lui-même est confronté par le résolveur de placement au moment de publier (voir « une confrontation mal placée ») |
 | 3 | La branche scellée lisait `artifact_record.extracted_text_ref` et `.mime_detected`, **absents** de `SealedReleaseArtifactRecord` : une release scellée n'a jamais été téléchargée et ne porte aucune référence de fichier | l'artefact est relu **par son empreinte**, sous la même protection que le chemin unitaire, et son digest est **re-mesuré** sur les octets lus. Le format vient de l'invariant établi par le catalogue |
 | 4 | Le batch revendiquait l'URL canonique vide que son schéma lui interdit : le resolver refusait, à raison | le batch ne revendique aucune URL canonique ; sa provenance reste confrontée au catalogue scellé |
 
@@ -443,6 +443,38 @@ Enfin, `pii_evidence.json` liste **486 résultats pour 319 contenus
 distincts** — même granularité par placement que l'actualité — et son
 `summary` compte 486/486, c'est-à-dire la longueur de sa liste et non ses
 contenus.
+
+## Une confrontation mal placée, corrigée par la mesure
+
+La dérivation d'attribution scellée confrontait d'abord `type_doc` au
+**périmètre de découverte** du profil (`expected_resource_types`), par
+analogie avec le chemin unitaire. La suite d'intégration de l'ingestion
+scellée l'a refusée aussitôt, et la mesure sur la release réelle a donné la
+raison :
+
+| Mesure sur `profile_gate_v2` | Résultat |
+|---|---|
+| Placements | 479 |
+| Placements dont le `type_doc` sort du périmètre de leur profil | **224** (47 %) |
+| Types concernés | `autre` 66, `programme_officiel` 57, `diaporama` 52, `modalite_examen` 45, `annale` 4 |
+| Périmètre déclaré par chacun des **onze** profils `v2_livraison_319` | `['ressource_officielle']` — un seul type |
+
+Un type scellé **n'est pas une proposition de Scout**. Il est produit par la
+correspondance gouvernée depuis le vocabulaire externe, et le résolveur de
+placement le **redérive indépendamment** au moment de publier avant de
+refuser toute divergence. Lui appliquer en plus le périmètre de découverte,
+c'était appliquer à une release approuvée un critère que personne ne lui a
+appliqué — et bloquer près de la moitié de ses placements.
+
+La confrontation a donc été retirée de la dérivation, et ce qui reste y est
+bien une autorisation : le type doit être une valeur canonique de `TypeDoc`
+— ce qui refuse précisément le nom de collection que le batch publiait — et
+l'hôte de provenance doit être un domaine que le profil autorise.
+
+Reste une question de gouvernance, posée et non tranchée ici : onze profils
+n'attendent qu'un seul type documentaire quand la release approuvée en porte
+cinq. Que ce soit le profil qui soit trop étroit ou la release qui déborde,
+cela se décide hors de l'attribution.
 
 ## Dossier d'exécution staging
 

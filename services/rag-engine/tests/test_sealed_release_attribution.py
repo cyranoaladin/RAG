@@ -60,30 +60,44 @@ def test_les_quatre_faits_viennent_du_catalogue_et_du_profil(profil: object) -> 
     assert attribution.official is True
 
 
-def test_un_type_hors_du_perimetre_du_profil_est_refuse(profil: object) -> None:
-    """La confrontation au profil est ce qui distingue un type d'une déclaration.
-
-    Sans elle, le batch publiait n'importe quelle valeur — y compris le nom
-    de sa propre collection.
-    """
-    with pytest.raises(ArtifactAttributionError, match="not among the resource types"):
-        derive_sealed_release_artifact_attribution(
-            ingestion_artifact_id=uuid4(),
-            catalog_entry=_entree(type_doc="annale"),
-            profile=profil,
-        )
-
-
 def test_le_nom_d_une_collection_n_est_pas_un_type_documentaire(
     profil: object,
 ) -> None:
-    """La contre-épreuve exacte du défaut corrigé."""
-    with pytest.raises(ArtifactAttributionError):
+    """La contre-épreuve exacte du défaut corrigé.
+
+    Le batch dérivait ``type_doc`` de ``profile_id``, donc du nom de la
+    collection. Ce n'est pas une valeur canonique de ``TypeDoc``, et
+    l'attribution le refuse.
+    """
+    with pytest.raises(ArtifactAttributionError, match="canonical TypeDoc"):
         derive_sealed_release_artifact_attribution(
             ingestion_artifact_id=uuid4(),
             catalog_entry=_entree(type_doc=COLLECTION),
             profile=profil,
         )
+
+
+def test_un_type_canonique_hors_du_perimetre_de_decouverte_est_ACCEPTE(
+    profil: object,
+) -> None:
+    """Le périmètre de découverte du profil n'est pas l'autorité du scellé.
+
+    Un type scellé n'est pas une proposition de Scout : il vient de la
+    correspondance gouvernée, et le résolveur de placement le redérive puis
+    refuse toute divergence au moment de publier. Lui appliquer ici le
+    périmètre de découverte bloquerait une release approuvée sur un critère
+    que personne ne lui a appliqué — 224 des 479 placements de V2.
+    """
+    attendus = {
+        str(getattr(v, "value", v)) for v in profil.expected_resource_types
+    }
+    assert "annale" not in attendus, attendus
+    attribution = derive_sealed_release_artifact_attribution(
+        ingestion_artifact_id=uuid4(),
+        catalog_entry=_entree(type_doc="annale"),
+        profile=profil,
+    )
+    assert attribution.type_doc == "annale"
 
 
 def test_un_catalogue_sans_type_est_refuse_et_non_complete(profil: object) -> None:
