@@ -269,6 +269,20 @@ def main(argv: list[str] | None = None) -> int:
         placement_resolver=resolver,
         authorization_mapping=getattr(readiness, "authorization_mapping", None),
         authorization_context=getattr(readiness, "authorization_context", None),
+        # Le catalogue SCELLE, charge au demarrage par le chemin canonique.
+        # Il n'est pas construit ici : le CLI le transporte, il ne l'invente
+        # pas. Absent, la branche scellee refusera de lire — ce qui est le
+        # comportement voulu pour une release qui n'en porte pas.
+        sealed_release_artifacts=(
+            authorities.sealed_release_catalog.artifacts
+            if authorities.sealed_release_catalog is not None
+            else None
+        ),
+        sealed_media_type_invariant=(
+            authorities.sealed_release_catalog.media_type_invariant
+            if authorities.sealed_release_catalog is not None
+            else ""
+        ),
     )
     max_iterations = 1 if args.once else args.max_iterations
     iterations = 0

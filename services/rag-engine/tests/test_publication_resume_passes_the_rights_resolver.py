@@ -121,3 +121,51 @@ def test_les_deps_portent_l_ensemble_scelle() -> None:
     assert "sealed_release_artifacts" in champs
     assert "sealed_media_type_invariant" in champs
     assert "rights_evidence_registry" in champs
+
+
+# --- Le CLI de Worker B transporte le catalogue, il ne l'invente pas ------
+
+
+def test_le_cli_de_worker_b_transmet_le_catalogue_scelle() -> None:
+    """Sans cette transmission, ``build_sealed_catalog`` rend ``None`` et la
+    branche scellée refuse — correctement, mais la chaîne s'arrête."""
+    from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
+
+    source = inspect.getsource(cli)
+    assert "sealed_release_artifacts=" in source
+    assert "sealed_media_type_invariant=" in source
+    assert "authorities.sealed_release_catalog" in source
+
+
+def test_le_cli_ne_construit_pas_son_propre_catalogue() -> None:
+    """Le chargement appartient au démarrage des autorités. Un second
+    chargeur local pourrait porter d'autres références sans qu'on le voie."""
+    from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
+
+    source = inspect.getsource(cli)
+    assert "load_sealed_release_catalog" not in source
+    assert "VerifiedSealedReleaseCatalog(" not in source
+
+
+def test_les_autorites_portent_le_catalogue_optionnel() -> None:
+    """Une release multi-niveaux classique n'en porte pas : ``None`` est un
+    état légitime, et c'est la LECTURE d'un artefact scellé qui refusera."""
+    from ingestor.ingestion_worker.runtime_authority import (
+        GovernedRuntimeAuthorities,
+    )
+
+    champs = GovernedRuntimeAuthorities.__dataclass_fields__
+    assert "sealed_release_catalog" in champs
+    assert champs["sealed_release_catalog"].default is None
+
+
+def test_le_chargeur_refuse_un_catalogue_nomme_mais_incoherent() -> None:
+    """Un manifeste qui ne nomme aucun catalogue rend ``None``. Un manifeste
+    qui en nomme un dont le contenu ne correspond pas est une ERREUR — la
+    distinction est ce qui empêche un silence."""
+    from ingestor.ingestion_worker import multilevel_runtime_authority as mod
+
+    source = inspect.getsource(mod._charger_catalogue_scelle)
+    assert "return None" in source
+    assert "RuntimeAuthorityStartupError" in source
+    assert "cannot be " in source and "established" in source

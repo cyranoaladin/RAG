@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -285,12 +286,70 @@ def load_multilevel_runtime_authorities(
         )
     except ValueError as exc:
         raise RuntimeAuthorityStartupError(str(exc)) from exc
+    # Le catalogue de la release SCELLEE, quand elle en porte un. Il est
+    # charge par le chemin canonique — le fichier que le manifeste NOMME et
+    # dont il DECLARE l'empreinte — jamais reconstruit ici.
+    #
+    # Une release multi-niveaux classique n'en a pas : l'absence n'est donc
+    # pas une erreur de chargement. Elle devient un refus au moment de LIRE
+    # un artefact scelle, ou le catalogue est indispensable.
+    sealed_catalog = _charger_catalogue_scelle(inputs)
+
     return GovernedRuntimeAuthorities(
         placement_resolver=resolver,
         pii_evidence_registry=pii,
         rights_evidence_registry=rights,
         collection_config_sha256=collection_config_sha,
+        sealed_release_catalog=sealed_catalog,
     )
+
+
+def _charger_catalogue_scelle(
+    inputs: MultilevelRuntimeAuthorityInputs,
+) -> object | None:
+    """Charge le catalogue scelle depuis le manifeste deja verifie.
+
+    Aucune option de localisation supplementaire : le manifeste est celui que
+    ``--release-manifest-path`` designe, son empreinte celle que
+    ``--release-manifest-sha256`` attend, et la reference du catalogue vient
+    du manifeste lui-meme.
+
+    Un manifeste qui ne nomme aucun catalogue d'artefacts n'est pas une
+    release scellee : ``None``, et la branche scellee refusera plus tard.
+    Un manifeste qui en nomme un mais dont le contenu ne correspond pas est
+    en revanche une ERREUR — jamais un silence.
+    """
+    from ingestor.ingestion_control.sealed_release_catalog import (
+        SealedReleaseCatalogError,
+        load_sealed_release_catalog,
+    )
+
+    repertoire = inputs.release_manifest_path.parent
+    if inputs.release_manifest_path.name != "production-profile-gate.release.json":
+        return None
+    transfert = repertoire / "external_staging_v2_artifact_transfer_manifest.json"
+    try:
+        manifeste = json.loads(inputs.release_manifest_path.read_bytes())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(manifeste.get("artifact_registry"), dict):
+        return None
+    autorites = manifeste.get("authorities") or {}
+    attendu_transfert = autorites.get("artifact_transfer_manifest_sha256")
+    try:
+        return load_sealed_release_catalog(
+            repertoire,
+            expected_release_manifest_sha256=inputs.release_manifest_sha256,
+            transfer_manifest_path=transfert if transfert.is_file() else None,
+            expected_transfer_manifest_sha256=(
+                attendu_transfert if transfert.is_file() else None
+            ),
+        )
+    except SealedReleaseCatalogError as exc:
+        raise RuntimeAuthorityStartupError(
+            f"the release names an artifact catalogue that cannot be "
+            f"established: {exc}"
+        ) from exc
 
 
 __all__ = [

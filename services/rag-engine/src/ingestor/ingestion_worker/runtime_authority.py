@@ -101,6 +101,11 @@ class GovernedRuntimeAuthorities:
     pii_evidence_registry: VerifiedPIIEvidenceRegistry
     rights_evidence_registry: VerifiedRightsEvidenceRegistry
     collection_config_sha256: str
+    #: Catalogue de la release SCELLEE, charge par le chemin canonique quand
+    #: le manifeste en nomme un. ``None`` pour une release multi-niveaux
+    #: classique, qui n'en porte pas — et la branche scellee refusera alors
+    #: de lire, plutot que de supposer.
+    sealed_release_catalog: object | None = None
 
 
 _RUNTIME_FILE_ARGUMENTS = (
