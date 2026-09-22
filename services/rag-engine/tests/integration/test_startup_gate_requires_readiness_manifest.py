@@ -111,8 +111,18 @@ def _install_governed_anchor(
 
 def _worker_argv(tmp_path: Path) -> list[str]:
     """Jeu d'arguments complet : argparse s'exécute avant le gate, ce qui
-    est sans effet de bord, mais impose de fournir le tout."""
+    est sans effet de bord, mais impose de fournir le tout.
+
+    « Complet » se périme : ``--repository-root`` est devenu obligatoire
+    après l'écriture de ce jeu, et argparse refusait alors AVANT le gate de
+    readiness — ces épreuves ne mesuraient plus le point d'application
+    qu'elles nomment. Le refus précoce est une propriété réelle, et il a
+    désormais son épreuve à lui
+    (``test_une_autorite_obligatoire_manquante_est_refusee_avant_le_gate``)
+    au lieu d'être subi ici.
+    """
     return [
+        "--repository-root", str(tmp_path / "repo"),
         "--profiles-dir", str(tmp_path / "profiles"),
         "--manifest-path", str(tmp_path / "manifest.yml"),
         "--artifact-store-dir", str(tmp_path / "artifacts"),
@@ -209,6 +219,34 @@ class TestWorkerStartupApplicationPoint:
 
         assert worker_cli.main(_worker_argv(tmp_path)) == 1
         assert "but the release being deployed" in capsys.readouterr().err
+
+
+class TestArgumentsAreRequiredBeforeAnything:
+    """Le refus précoce est une propriété, pas un accident."""
+
+    def test_une_autorite_obligatoire_manquante_est_refusee_avant_le_gate(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Sans ``--repository-root``, rien ne démarre — et rien n'est lu.
+
+        Le gate de readiness ne doit même pas être atteint : une autorité
+        obligatoire absente est un refus d'argument, et il précède toute
+        lecture de manifeste comme toute connexion.
+        """
+        def jamais(*_args: object, **_kwargs: object) -> object:
+            pytest.fail(
+                "le gate de readiness a été atteint malgré une autorité "
+                "obligatoire manquante — le refus d'argument ne le précède plus"
+            )
+
+        monkeypatch.setattr(worker_cli, "enforce_readiness_gate", jamais)
+        argv = [a for a in _worker_argv(tmp_path)]
+        index = argv.index("--repository-root")
+        del argv[index : index + 2]
+
+        with pytest.raises(SystemExit) as refus:
+            worker_cli.main(argv)
+        assert refus.value.code == 2
 
 
 class TestJobCreationApplicationPoint:
