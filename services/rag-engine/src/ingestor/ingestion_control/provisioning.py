@@ -561,7 +561,8 @@ def persist_sealed_release_artifact(
         )
         insere = cur.fetchone()
         if insere is not None:
-            return insere[0]
+            identite: UUID = insere[0]
+            return identite
 
         # `DO NOTHING` n'insère rien ET ne rend rien : sans cette lecture,
         # l'appelant recevrait l'identité qu'il avait préparée pour une ligne
@@ -602,7 +603,8 @@ def persist_sealed_release_artifact(
             f"artifact for resource {resource_id} and sha256 {sha256[:12]}… "
             "already exists with different facts: " + "; ".join(ecarts)
         )
-    return existante[0]
+    identite_existante: UUID = existante[0]
+    return identite_existante
 
 
 __all__ = [

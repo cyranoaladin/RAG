@@ -6,6 +6,12 @@ import argparse
 import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # le type seul : le chargement reste paresseux
+    from ingestor.ingestion_control.sealed_release_catalog import (
+        VerifiedSealedReleaseCatalog,
+    )
 
 from ingestor.collection_config import load_collection_config
 from ingestor.ingestion_control.sealed_evidence import (
@@ -360,7 +366,7 @@ def load_multilevel_runtime_authorities(
 
 def _charger_catalogue_scelle(
     inputs: MultilevelRuntimeAuthorityInputs,
-) -> object | None:
+) -> VerifiedSealedReleaseCatalog | None:
     """Charge le catalogue scelle depuis le manifeste deja verifie.
 
     Le manifeste est celui que ``--release-manifest-path`` designe, son

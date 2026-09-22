@@ -365,6 +365,20 @@ cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src \
 signalé rouge dans les sessions précédentes, **passe** dans cette
 exécution : la dette de qualité logicielle correspondante est close.
 
+### Dettes d'intégration, antérieures à ce lot
+
+La suite d'intégration complète porte des rouges **qui ne viennent pas de ce
+lot** : tous sont reproduits à l'identique sur le commit parent
+`b0c87971`, dans un worktree détaché. Ils sont diagnostiqués un par un dans
+`docs/reports/lot_go_live_cu_dettes.md` — trois attentes de test qui ont
+vieilli (un message de refus devenu plus précis, une tête de schéma passée
+de 15 à 17, un argument devenu obligatoire) et un défaut d'outillage réel
+(le script de rollback place un `LOCK TABLE` hors transaction).
+
+Les suites que ce lot fait vivre sont vertes, y compris celles qu'il touche
+sans les avoir écrites : `test_sealed_release_ingestion_pg.py` 13/13 et
+`test_h2f_artifact_attribution_pg.py` 40/40.
+
 Garde-fous de gouvernance, exécutés séparément :
 
 ```bash

@@ -267,11 +267,13 @@ def canonical_bytes(
     En réimplémenter une seconde ici produirait des octets voisins mais
     différents, et la revue humaine ne serait plus liée au contenu relu.
     """
-    return artifact.canonical_bytes()
+    octets: bytes = artifact.canonical_bytes()
+    return octets
 
 
 def artifact_digest(artifact: ReleaseBatchPublicationReviewArtifact) -> str:
-    return artifact.digest()
+    digest: str = artifact.digest()
+    return digest
 
 
 def require_artifact_matches_facts(

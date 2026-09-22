@@ -5,6 +5,12 @@ import argparse
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # le type seul, jamais un import au runtime
+    from ingestor.ingestion_control.sealed_release_catalog import (
+        VerifiedSealedReleaseCatalog,
+    )
 
 from nexus_pdf_page_policy import CanonicalRuntimeError, require_canonical_pypdf
 
@@ -105,7 +111,7 @@ class GovernedRuntimeAuthorities:
     #: le manifeste en nomme un. ``None`` pour une release multi-niveaux
     #: classique, qui n'en porte pas — et la branche scellee refusera alors
     #: de lire, plutot que de supposer.
-    sealed_release_catalog: object | None = None
+    sealed_release_catalog: VerifiedSealedReleaseCatalog | None = None
 
 
 _RUNTIME_FILE_ARGUMENTS = (

@@ -36,10 +36,20 @@ import argparse
 import hashlib
 import json
 import sys
+from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from uuid import UUID
 
 import psycopg
+
+from ingestor.ingestion_control.sealed_evidence import (
+    VerifiedRightsEvidenceRegistry,
+)
+from ingestor.ingestion_control.sealed_release_catalog import (
+    VerifiedSealedReleaseCatalog,
+)
 
 try:
     from ingestor.ingestion_control.artifact_attribution import (
@@ -567,7 +577,24 @@ def _cmd_record_attestation(args: argparse.Namespace) -> int:
     return 0
 
 
-def _charger_sources_scellees(args: argparse.Namespace) -> dict[str, object]:
+@dataclass(frozen=True)
+class _SourcesScellees:
+    """Les autorites scellees d'une release, chacune verifiee par son empreinte.
+
+    Un dictionnaire de `object` les transportait toutes ensemble : le
+    lecteur ne pouvait plus dire ce qu'il tenait, et rien ne verifiait qu'il
+    appelait la bonne chose sur la bonne autorite.
+    """
+
+    catalogue: VerifiedSealedReleaseCatalog
+    preflight: Mapping[str, Mapping[str, Any]]
+    currentness: Mapping[str, Mapping[str, Any]]
+    pii: Mapping[str, Mapping[str, Any]]
+    pii_digest: str
+    droits: VerifiedRightsEvidenceRegistry
+
+
+def _charger_sources_scellees(args: argparse.Namespace) -> _SourcesScellees:
     """Charge les autorites scellees, chacune verifiee par son empreinte."""
     from ingestor.ingestion_control.sealed_release_catalog import (
         load_sealed_release_catalog,
@@ -600,28 +627,22 @@ def _charger_sources_scellees(args: argparse.Namespace) -> dict[str, object]:
     )
     pii, pii_digest = _lire("pii_evidence.json", autorites["pii_evidence_sha256"])
 
-    from ingestor.ingestion_control.sealed_evidence import (
-        VerifiedRightsEvidenceRegistry,
-    )
-
     droits = VerifiedRightsEvidenceRegistry.load(
         args.rights_registry_path,
         expected_registry_sha256=autorites["rights_registry_sha256"],
         expected_corpus_manifest_sha256=autorites["corpus_manifest_sha256"],
     )
-    par_pii: dict[str, dict] = {}
+    par_pii: dict[str, Mapping[str, Any]] = {}
     for entree in pii["results"]:
         par_pii.setdefault(entree["content_sha256"], entree)
-    return {
-        "catalogue": catalogue,
-        "preflight": {a["content_sha256"]: a for a in preflight["artifacts"]},
-        "currentness": {
-            a.get("content_sha256"): a for a in currentness["artifacts"]
-        },
-        "pii": par_pii,
-        "pii_digest": pii_digest,
-        "droits": droits,
-    }
+    return _SourcesScellees(
+        catalogue=catalogue,
+        preflight={a["content_sha256"]: a for a in preflight["artifacts"]},
+        currentness={a.get("content_sha256"): a for a in currentness["artifacts"]},
+        pii=par_pii,
+        pii_digest=pii_digest,
+        droits=droits,
+    )
 
 
 def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
@@ -655,7 +676,7 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
     with psycopg.connect(get_attestor_dsn()) as conn:
         try:
             facts = measure_release_batch_facts(conn, release_id=args.release_id)
-            require_facts_match_catalog(facts, sources["catalogue"])
+            require_facts_match_catalog(facts, sources.catalogue)
         except ReleaseBatchAttestationError as exc:
             print(f"RELEASE_BATCH_FACTS_REFUSED: {exc}", file=sys.stderr)
             return 1
@@ -664,8 +685,8 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
         for resource_id, (artifact_id, sha, collection, autorisation) in (
             facts.par_ressource.items()
         ):
-            scelle = dict(sources["catalogue"].artifacts[sha])
-            entree_qualite = dict(sources["preflight"].get(sha, {}))
+            scelle = dict(sources.catalogue.artifacts[sha])
+            entree_qualite = dict(sources.preflight.get(sha, {}))
             entree_qualite.setdefault("content_sha256", sha)
             entree_qualite.setdefault(
                 "chunk_id_set_digest", scelle.get("chunk_id_set_digest")
@@ -677,7 +698,7 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
                 "ignored_empty_pages", scelle.get("ignored_empty_pages") or []
             )
             try:
-                clearance = sources["droits"].resolve_rights(
+                clearance = sources.droits.resolve_rights(
                     content_sha256=sha, source_path=scelle["source_path"]
                 )
             except Exception as exc:  # noqa: BLE001
@@ -697,10 +718,10 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
                         digest=clearance.registry_sha256,
                     ),
                     qualite=derive_quality(entree_qualite),
-                    actualite=derive_currentness(sources["currentness"].get(sha)),
+                    actualite=derive_currentness(sources.currentness.get(sha)),
                     pii=derive_pii(
-                        sources["pii"].get(sha),
-                        evidence_sha256=str(sources["pii_digest"]),
+                        sources.pii.get(sha),
+                        evidence_sha256=sources.pii_digest,
                     ),
                     gate_evaluator=args.evaluator,
                     gate_evaluated_at=evalue_a,

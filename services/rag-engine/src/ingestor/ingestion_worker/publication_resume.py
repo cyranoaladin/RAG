@@ -267,7 +267,8 @@ class _VerifiedSealedCatalog:
                 f"content {content_sha256} is not part of the sealed release — "
                 "it must not be published under this release's authority"
             )
-        return sealed
+        entree: Mapping[str, Any] = sealed
+        return entree
 
     def resolve_rights(self, *, content_sha256: str) -> tuple[str, str, str]:
         sealed = self.entry(content_sha256=content_sha256)
