@@ -347,7 +347,7 @@ PYTHONPATH=src:../../packages/contracts/src \
 .venv/bin/python -m pytest tests/integration/test_batch_publication_cli_acceptance.py \
   -p no:warnings -q --junit-xml=<chemin>/acceptation_15.xml
 
-# Suite unitaire rag-engine — 3 949 tests, 0 échec, 1 ignoré (108,5 s)
+# Suite unitaire rag-engine — 3 955 tests, 0 échec, 1 ignoré
 cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src \
 .venv/bin/python -m pytest tests/ -p no:warnings -q --ignore=tests/integration \
   --junit-xml=<chemin>/suite_unitaire.xml
