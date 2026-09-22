@@ -1,0 +1,1301 @@
+{
+  "attestation_du_candidat": {
+    "defaut": "sous-declare la mesure : CLEARED / pii_detected=false pour les 22 contenus que le scanner canonique signale",
+    "path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v2/release-1b9eba0c0eb0ab13/profile_gate/pii_evidence.json",
+    "resultats": 486,
+    "scanner_sha256": "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3",
+    "scanner_version": "production-profile-gate-v1",
+    "statuts": {
+      "CLEARED": 486
+    }
+  },
+  "contents": [
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "703cbd759841b016d5acac15df02a3c17ef273430e28f46fd5d9498b0606d3f5",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.037255Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 4,
+            "pattern_id": "french_ssn"
+          },
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 4,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Adresses mémoire internes Python générées par la fonction id() dans un cours didactique.",
+        "review_bundle_sha256": "f07fae2c022e82c6babfceac5beac77ac0f95ae85e0edc969701e209ff7a74fe",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 17,
+      "pages_signalees": [
+        4
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "french_ssn",
+        "phone_french"
+      ],
+      "signal_count": 6,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/04_EVALUATIONS_EXAMENS/2021/le-paradigme-fonctionnel-pdf-404-66-ko--703cbd7598.pdf",
+      "title": "Le paradigme fonctionnel PDF - 404.66 Ko",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.041015Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 4,
+            "pattern_id": "phone_french"
+          },
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 5,
+            "pattern_id": "phone_french"
+          },
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 6,
+            "pattern_id": "phone_french"
+          },
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 2,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Suite de chiffres décimaux et conversions en base octale dans un algorithme.",
+        "review_bundle_sha256": "730e55cfcf0cc4a0e4f1dac1ec2e53a6da02d964b70525a3583c42c7b3a449cc",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 8,
+      "pages_signalees": [
+        2,
+        4,
+        5,
+        6
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "phone_french",
+        "postal_address"
+      ],
+      "signal_count": 5,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/representation-des-entiers-naturels-pdf-167-2-ko--e20b73d10c.pdf",
+      "title": "Représentation des entiers naturels PDF - 167.2 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.032072Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 5,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Représentation binaire d’instructions dans l’architecture de Von Neumann.",
+        "review_bundle_sha256": "335c057c87ef6ab837ed802208b536269b353b1a18f47bb7b120ec30a0f285f4",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 8,
+      "pages_signalees": [
+        5
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 4,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/07_DIAPORAMAS_SUPPORTS/2019/modele-d-architecture-de-von-neumann-pdf-243-56-ko--28c92cd742.pdf",
+      "title": "Modèle d'architecture de von Neumann PDF - 243.56 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_svt_premiere_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "39c50431bf6b80c403d253eaf48e95b3644b2c80e0e8decb928a53c6117141a1",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.033363Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "SYNTHETIC_EXAMPLE"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "SYNTHETIC_EXAMPLE",
+            "page": 7,
+            "pattern_id": "student_name_pattern"
+          },
+          {
+            "disposition": "SYNTHETIC_EXAMPLE",
+            "page": 8,
+            "pattern_id": "student_name_pattern"
+          },
+          {
+            "disposition": "SYNTHETIC_EXAMPLE",
+            "page": 9,
+            "pattern_id": "student_name_pattern"
+          }
+        ],
+        "justification_category": "PEDAGOGICAL_EXAMPLE",
+        "justification_statement": "En-têtes de grille pédagogique d’évaluation didactique sans identité réelle.",
+        "review_bundle_sha256": "166d1afe6ad92ba0eb190cd14d26a37530c4334a4c5dab0f24d28fee9e8c717c",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 9,
+      "pages_signalees": [
+        7,
+        8,
+        9
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2021/mutations-de-l-adn-et-variabilite-genetique-alterations-du-genome-et-cancerisation-presentation-orale-d-une-strategie-de-resolutio--39c50431bf.pdf",
+      "title": "Mutations de l’ADN et variabilité génétique - altérations du génome et cancérisation : présentation orale d’une stratégie de résolution de problème (sans support écrit, individuelle) PDF - 164.19 Ko",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.034839Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "SYNTHETIC_EXAMPLE"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "SYNTHETIC_EXAMPLE",
+            "page": 1,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "PEDAGOGICAL_EXAMPLE",
+        "justification_statement": "Données tabulaires CSV didactiques de populations d’exemple international.",
+        "review_bundle_sha256": "3e3c5d7d9679a68a11f8776b19493f5a3fc9a096e3e0776d8e351b73178ec2d2",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 5,
+      "pages_signalees": [
+        1
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-pdf-144-44-ko--461e89b1b1.pdf",
+      "title": "Manipulation de tables PDF - 144.44 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_svt_premiere_specialite",
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.035446Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "PUBLIC_INSTITUTIONAL_DATA"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+            "page": 17,
+            "pattern_id": "email_address"
+          },
+          {
+            "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+            "page": 17,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "INSTITUTIONAL_CONTACT",
+        "justification_statement": "Contacts presse officiels de l’Agence de l’eau Seine-Normandie dans un dossier de presse.",
+        "review_bundle_sha256": "f4723015f6364a74432cf0361fad531054c7129d701fe2a216482d7aab75c5ab",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 17,
+      "pages_signalees": [
+        17
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "email_address",
+        "phone_french"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2014/dossier-de-presse-eutrophisation-pdf-1-54-mo--5a8d69d488.pdf",
+      "title": "dossier de presse « eutrophisation » PDF - 1.54 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "d05da0bb13bdad4745e0310f24bdab1bcd7df5bfa0a99fbc7ae4238898e220b2",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.039578Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 7,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Opérations binaires logiques de chiffrement avec l’opérateur booléen XOR.",
+        "review_bundle_sha256": "c17aa1a59c3107f8097cad4e1190b977a6f96c677c567854bee877b2a3799c94",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 12,
+      "pages_signalees": [
+        7
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 3,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/securisation-des-communications-pdf-874-59-ko--d05da0bb13.pdf",
+      "title": "Sécurisation des communications PDF - 874.59 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite",
+        "rag_nexus_hlp_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "2d0745ca845f8e30192d5c59aacb9fd6f60bcdb27007b00155107aa65c25e120",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.032887Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 5,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Identifiants et dates de textes réglementaires publiés au Journal Officiel.",
+        "review_bundle_sha256": "28c74f2a455497efbf208e6926b0570b54a9d1e1eee3699d39ff72299c3e6d81",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 5,
+      "pages_signalees": [
+        5
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/01_PROGRAMMES_OFFICIELS/2023/des-ressources-numeriques-pour-accompagner-l-etude-des-uvres-au-programme-le-roman-et-le-recit-du-moyen-age-au-xxie-siecle-pdf-177--2d0745ca84.pdf",
+      "title": "Des ressources numériques pour accompagner l’étude des œuvres au programme, Le roman et le récit du Moyen Age au XXIe siècle PDF - 177.98 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_svt_premiere_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.033811Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "PUBLIC_INSTITUTIONAL_DATA",
+          "SYNTHETIC_EXAMPLE"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+            "page": 8,
+            "pattern_id": "postal_address"
+          },
+          {
+            "disposition": "SYNTHETIC_EXAMPLE",
+            "page": 9,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "PUBLIC_OFFICIAL_PUBLICATION",
+        "justification_statement": "Adresse publique institutionnelle du rectorat de Créteil et exemple didactique.",
+        "review_bundle_sha256": "a34996923f487d8f1f849dd048ead7af2e987ea3120204080782eee190f3e9ed",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 13,
+      "pages_signalees": [
+        8,
+        9
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2020/variation-genetique-et-sante-risque-de-transmission-de-la-mucoviscidose-chez-un-couple-dont-l-homme-est-heterozygote-composite-pdf--3f1ab328a0.pdf",
+      "title": "Variation génétique et santé - Risque de transmission de la mucoviscidose chez un couple dont l'homme est hétérozygote composite PDF - 2.13 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "936c1e54b1099bfb06a30ed68c743c9e3d1b51db4158ef7e5a4ae786caad080a",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.037829Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 14,
+            "pattern_id": "postal_address"
+          },
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 12,
+            "pattern_id": "student_name_pattern"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "En-tête de tableau descriptif de microprocesseurs et référence bibliographique.",
+        "review_bundle_sha256": "9880e8355dc85664f96f5deb00a806cd174a0dd7feeba27a0cebcf26d3147a6c",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 39,
+      "pages_signalees": [
+        12,
+        14
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address",
+        "student_name_pattern"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/09_AUTRES/2021/les-circuits-pdf-4-51-mo--936c1e54b1.pdf",
+      "title": "Les circuits PDF - 4.51 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_dgemc_terminale_option"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.041723Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "PUBLIC_INSTITUTIONAL_DATA"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+            "page": 3,
+            "pattern_id": "email_address"
+          },
+          {
+            "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+            "page": 1,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "INSTITUTIONAL_CONTACT",
+        "justification_statement": "Coordonnées publiques de l’Ordre des Avocats de Paris figurant au règlement officiel.",
+        "review_bundle_sha256": "d195310a5cb08428e5ef6310c71212bb696c0aa42da99990eddccc8fab6cf82f",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 4,
+      "pages_signalees": [
+        1,
+        3
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "email_address",
+        "postal_address"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/20_TRANSITION_OU_ACTUEL/DGEMC/09_AUTRES/2026/reglement-2026-2027-pdf-202-78-ko--ebe2d96d24.pdf",
+      "title": "Règlement 2026-2027 PDF - 202.78 Ko",
+      "type_doc": "autre"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.042385Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "SYNTHETIC_EXAMPLE"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "SYNTHETIC_EXAMPLE",
+            "page": 3,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "PEDAGOGICAL_EXAMPLE",
+        "justification_statement": "Données démographiques didactiques d’exercice d’analyse tabulaire avec Pandas.",
+        "review_bundle_sha256": "7f23560ce1202a29a3c0e9c006a57dadb653d1e553442c0ef5d651bc8cb92c65",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 5,
+      "pages_signalees": [
+        3
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/manipulation-de-tables-avec-la-bibliotheque-pandas-pdf-146-17-ko--f21c80ab3a.pdf",
+      "title": "Manipulation de tables avec la bibliothèque Pandas PDF - 146.17 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.043060Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 7,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Constantes numériques intervenant dans des équations de calculabilité et décidabilité.",
+        "review_bundle_sha256": "d1978234a97afdde25c71a93056e07064b58a6fba66b6216320a50eef380f380",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 7,
+      "pages_signalees": [
+        7
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 2,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2020/calculabilite-et-decidabilite-pdf-433-14-ko--f636ef6038.pdf",
+      "title": "Calculabilité et décidabilité PDF - 433.14 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.030821Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 9,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Identifiant technique de ressource vidéo extrait d’une URL didactique.",
+        "review_bundle_sha256": "45a43f576513c4aeba240ad1c0d7f43e04a96f41a63c3dcf9fe9fa98994e38f0",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 9,
+      "pages_signalees": [
+        9
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2021/la-conservation-des-genomes-stabilite-genetique-et-evolution-clonale-remobiliser-des-prerequis-et-presentation-orale-pdf-1-19-mo--04bf557a57.pdf",
+      "title": "La conservation des génomes - stabilité génétique et évolution clonale – remobiliser des prérequis et présentation orale PDF - 1.19 Mo",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.031175Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 4,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Format de date d’un texte réglementaire officiel sans caractère téléphonique.",
+        "review_bundle_sha256": "c4a49fa0b9580b34cb009191e424cf448242eb54f518959cf4431b0378ad82de",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 43,
+      "pages_signalees": [
+        4
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/09_AUTRES/2020/former-les-eleves-a-des-techniques-de-biologie-moleculaire-et-de-bioinformatique-et-apprehender-le-concept-d-holobionte-pdf-5-31-m--0dda163a79.pdf",
+      "title": "Former les élèves à des techniques de biologie moléculaire et de bioinformatique et appréhender le concept d'holobionte PDF - 5.31 Mo",
+      "type_doc": "autre"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "28f92cfe1c81f2a4bab17aa2a9bff9a05f43a265ecad03214fe452a4ac53202d",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.032471Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 7,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Constante numérique issue d’un code source de test unitaire Python.",
+        "review_bundle_sha256": "00111e8de5eb6d52d46bd91e094c54d8ee9eeb71d0f8f6becd136a5ef3c4a189",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 25,
+      "pages_signalees": [
+        7
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/NSI/03_RESSOURCES_ACCOMPAGNEMENT/2021/ecriture-de-tests-pdf-543-48-ko--28f92cfe1c.pdf",
+      "title": "Écriture de tests PDF - 543.48 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.034291Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 3,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Coordonnées numériques d’exemple dans un script de calcul géométrique.",
+        "review_bundle_sha256": "0d43c4edc7a59f9fd2bc2135841624739da9d71c20f82ec9d046d6e3cb8d7d59",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 9,
+      "pages_signalees": [
+        3
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/NSI/07_DIAPORAMAS_SUPPORTS/2019/types-construits-en-python-pdf-159-07-ko--447bdee89a.pdf",
+      "title": "Types construits en Python PDF - 159.07 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_ses_premiere_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "62d9ac2834082bce93300fd19cc042595fcd506e94c9cabc80bb942c2d798380",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.035959Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "PUBLIC_INSTITUTIONAL_DATA"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+            "page": 8,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "INSTITUTIONAL_CONTACT",
+        "justification_statement": "Adresse postale publique de la Cité de l’économie Banque de France.",
+        "review_bundle_sha256": "9b4aa1a1da57b2fe88edf56c38f41488388fbf175d8c65566b898ba29303b2aa",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 8,
+      "pages_signalees": [
+        8
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/SES/03_RESSOURCES_ACCOMPAGNEMENT/2019/qu-est-ce-que-la-monnaie-et-comment-est-elle-creee-pdf-531-52-ko--62d9ac2834.pdf",
+      "title": "Qu'est-ce que la monnaie et comment est-elle créée ? PDF - 531.52 Ko",
+      "type_doc": "ressource_officielle"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_hlp_premiere_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "6a7942128b8404ac0b98e819c0f1482a6bac353bd2ea5a6269f7081676a65150",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.036474Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 3,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Numéro de référence didactique dans un exemple de question de grammaire.",
+        "review_bundle_sha256": "b957f39fa3029dcb32b29d75f7c8b9419e0bdebfd3e1a9e11bb50e905f049bc3",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 4,
+      "pages_signalees": [
+        3
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/FRANCAIS/01_PROGRAMMES_OFFICIELS/2022/la-question-de-grammaire-de-l-epreuve-anticipee-orale-de-francais-precisions-sur-sa-definition--6a7942128b.pdf",
+      "title": "La question de grammaire de l’épreuve anticipée orale de français : précisions sur sa définition",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.038368Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "FALSE_POSITIVE_TECHNICAL"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "FALSE_POSITIVE_TECHNICAL",
+            "page": 5,
+            "pattern_id": "postal_address"
+          }
+        ],
+        "justification_category": "TECHNICAL_FALSE_POSITIVE",
+        "justification_statement": "Déclaration de constante et longueur de tableau dans un programme Cobol d’exemple.",
+        "review_bundle_sha256": "5b3ebeb109d1f922b6279f0d783503eba337591af248c9fdbbdcfbd24d8338f0",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 9,
+      "pages_signalees": [
+        5
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "postal_address"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/NSI/07_DIAPORAMAS_SUPPORTS/2019/diversite-et-unite-des-langages-de-programmation-pdf-161-08-ko--93b7e44627.pdf",
+      "title": "Diversité et unité des langages de programmation PDF - 161.08 Ko",
+      "type_doc": "diaporama"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.038917Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "SYNTHETIC_EXAMPLE"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "SYNTHETIC_EXAMPLE",
+            "page": 10,
+            "pattern_id": "student_name_pattern"
+          }
+        ],
+        "justification_category": "PEDAGOGICAL_EXAMPLE",
+        "justification_statement": "Désignation didactique générique des rôles pédagogiques élève et enseignant.",
+        "review_bundle_sha256": "5abcb75f70d1f822e52dc3d949be61cbe092356e009263208e43412ea3cf49c0",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 13,
+      "pages_signalees": [
+        10
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2020/placer-les-eleves-en-demarche-de-projet-pour-comprendre-et-evaluer-une-action-climatique-pdf-333-91-ko--96e887c34c.pdf",
+      "title": "Placer les élèves en démarche de projet pour comprendre et évaluer une action climatique PDF - 333.91 Ko",
+      "type_doc": "modalite_examen"
+    },
+    {
+      "attestation_du_candidat": {
+        "pii_detected": false,
+        "status": "CLEARED",
+        "statut_attendu": "DETECTED_REVIEWED_ACCEPTED"
+      },
+      "collections": [
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "conditions_de_reconduction": {
+        "aucune_citation_brute": true,
+        "decidee_approuvee": true,
+        "dispositions_admissibles": true,
+        "meme_compte_de_signaux": true,
+        "meme_foyer_de_pages": true,
+        "meme_politique": true,
+        "meme_scanner": true,
+        "memes_classes": true,
+        "memes_pages": true
+      },
+      "content_sha256": "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+      "decision_anterieure": {
+        "decided_at": "2026-09-03T22:00:19.040217Z",
+        "decision": "APPROVED",
+        "decision_set_id": "pii-review-2026-09-03-final",
+        "dispositions": [
+          "PUBLIC_INSTITUTIONAL_DATA"
+        ],
+        "dispositions_par_signal": [
+          {
+            "disposition": "PUBLIC_INSTITUTIONAL_DATA",
+            "page": 9,
+            "pattern_id": "phone_french"
+          }
+        ],
+        "justification_category": "INSTITUTIONAL_CONTACT",
+        "justification_statement": "Numéro vert institutionnel gratuit d’information et d’orientation publique.",
+        "review_bundle_sha256": "89af2cfd443ce48cdbaff0e1b394d2348178a385ce867ded7ef646175b0db335",
+        "reviewer_login": "abenrhouma"
+      },
+      "page_count": 17,
+      "pages_signalees": [
+        9
+      ],
+      "reconductible": true,
+      "signal_classes": [
+        "phone_french"
+      ],
+      "signal_count": 1,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/SVT/04_EVALUATIONS_EXAMENS/2020/trajectoires-et-strategies-d-attenuation-pdf-1-43-mo--e1309f6255.pdf",
+      "title": "Trajectoires et stratégies d’atténuation PDF - 1.43 Mo",
+      "type_doc": "modalite_examen"
+    }
+  ],
+  "etabli_le": "2026-09-22T12:29:14.611744+00:00",
+  "mesure": {
+    "artefact": "docs/reports/evidence-index/pii_rescan_profile_gate_v2_315_20260922.json",
+    "content_set_sha256": "04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12",
+    "counts": {
+      "clear": 293,
+      "detected": 22,
+      "extraction_failed": 0,
+      "scanned": 315
+    },
+    "measured_at": "2026-09-22T08:17:53.024623+00:00",
+    "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+    "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+    "policy_path": "services/rag-pedago/configs/pii_gate_policy.yml",
+    "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "runtime": {
+      "pypdf": "6.14.2",
+      "python": "3.12.3"
+    },
+    "scanner_path": "services/rag-pedago/rag_pedago/imports/pii_scanner.py",
+    "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+    "sha256": "f449a2b8b1eba58e4083b0224ed2a557823e64e54cf48f334535310371d32030"
+  },
+  "protocol_version": "NEXUS-PII-RECONDUCTION-DOSSIER-V1",
+  "raw_pii_in_output": false,
+  "release": {
+    "artifacts_release_sha256": "42c71df3c3ddbab83f71ea20bc6624237608bb77f064db3018f9d15f63eabeb0",
+    "pii_evidence_sha256_scelle": "ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
+    "pii_scanner_sha256_declare_par_la_preuve": "8ec8af5510a734c6bed4a07f00de6d188c5b37831f0adbe8f9a88cdd38e531d3",
+    "pii_scanner_sha256_declare_par_le_manifeste": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+    "pii_scanner_version_declaree_par_la_preuve": "production-profile-gate-v1",
+    "release_id": "production-profile-gate-2026-2027-v2"
+  },
+  "revue_anterieure": {
+    "couvre_les_signales": true,
+    "decision_set_id": "pii-review-2026-09-03-final",
+    "decision_set_path": "governance/pii-review-decisions/pii-review-2026-09-03-final.json",
+    "decision_set_sha256": "2b1974259b1ac4a2a21766b71f3ed586df22722cb969f07bdb3fb0bdaafda469",
+    "decisions": 23,
+    "recu_ancre": "review-binding-v1-2026-08-25",
+    "recu_expires_at": "2026-10-03T22:02:48.263884+00:00",
+    "recu_head_sha": "957e2c6d57756a4c9d481704513f95998324340e",
+    "recu_path": "governance/pii-review-bindings/pii-review-2026-09-03-final.json",
+    "recu_pull_request": 143,
+    "recu_reviewer_login": "abenrhouma",
+    "recu_revoque": false,
+    "recu_verifie_hors_ligne": true
+  }
+}
