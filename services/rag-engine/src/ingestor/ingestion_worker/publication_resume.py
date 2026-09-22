@@ -55,6 +55,7 @@ try:
         record_job_retry,
     )
     from ingestor.ingestion_control.provisioning import (
+        SEALED_RELEASE_PIPELINE,
         find_authorised_artifact,
         find_latest_artifact,
         get_resource_state,
@@ -455,8 +456,31 @@ def resume_publication(
     # Le job NOMME l'artefact qu'il publie : « le plus récent » n'est pas une
     # règle d'autorité. Si une seconde version existe, elle n'est pas
     # substituée à celle que la revue a couverte.
+    # L'exigence depend du DISCRIMINATEUR DURABLE de la ressource, pas de ce
+    # que le job declare : un job batch qui omettrait `artifact_id` ne doit
+    # pas pouvoir se faire passer pour un job de decouverte.
+    pipeline_kind = control_conn.execute(
+        "SELECT pipeline_kind FROM ingestion_control.resources "
+        " WHERE resource_id = %s", (resource_id,)
+    ).fetchone()
+    if pipeline_kind is None:
+        raise PublicationResumeError(f"resource {resource_id} does not exist")
     named_artifact_id = payload.get("artifact_id")
-    if named_artifact_id is not None:
+    if pipeline_kind[0] == SEALED_RELEASE_PIPELINE:
+        if named_artifact_id is None:
+            raise PublicationResumeError(
+                f"resource {resource_id} belongs to {SEALED_RELEASE_PIPELINE!r}: "
+                "a batch publication job MUST name the artifact it publishes. "
+                "There is no fallback to the most recent one — a newer version "
+                "is not what the review covered."
+            )
+        artifact_record = find_authorised_artifact(
+            control_conn,
+            resource_id=resource_id,
+            artifact_id=UUID(str(named_artifact_id)),
+            sealed_catalog=sealed_catalog,
+        )
+    elif named_artifact_id is not None:
         artifact_record = find_authorised_artifact(
             control_conn,
             resource_id=resource_id,
