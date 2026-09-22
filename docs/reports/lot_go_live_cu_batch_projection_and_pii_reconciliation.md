@@ -478,6 +478,54 @@ distincts** — même granularité par placement que l'actualité — et son
 `summary` compte 486/486, c'est-à-dire la longueur de sa liste et non ses
 contenus.
 
+## Complétude : 319 = 315 publiés + 4 exclus nommés
+
+L'écart relevé plus haut — quatre contenus de l'inventaire candidat que la
+release ne publie pas — se referme entièrement : la release **les nomme
+elle-même**, dans `release_currentness_exclusion_registry.json`
+(`NEXUS-CURRENTNESS-EXCLUSION-REGISTRY-V1`, ADR-0055, généré le
+2026-09-17), avec pour chacun une raison :
+
+| Contenu | Raison déclarée | Verdict |
+|---|---|---|
+| `157309db13b6` — Archive Éduscol 2024 / EAF | `ARCHIVE_DECLARED_BY_SOURCE_ADR_0055` | `BLOCKED_NOT_CURRENT_BY_SOURCE` |
+| `174f273ff258` — Archive Éduscol DGEMC | idem | idem |
+| `ccffe628bbd6` — Archive Éduscol SVT voie technologique | idem | idem |
+| `dc58fcc42ef9` — Archive Éduscol SVT voie générale | idem | idem |
+
+La complétude globale est donc **rapprochée et close** : 319 contenus
+inventoriés = 315 publiés + 4 exclus, chacun avec sa raison. Aucun contenu
+n'est perdu sans explication.
+
+### Deux autorités de la même release se contredisent sur ces quatre-là
+
+`currentness_evidence.json` déclare ces quatre contenus `decision: CURRENT`,
+`effective_currentness: actuel`. Le registre d'exclusions, **postérieur**,
+les déclare `ARCHIVE_DECLARED` et bloqués comme **non actuels à la source**.
+
+Dans les faits la release a tranché — elle ne les publie pas — et le runtime
+est protégé pour une raison indirecte : ce n'est pas l'actualité qui décide
+de ce qui se publie, c'est l'**allowlist** de la release, où ces quatre ne
+figurent pas. Mais **rien ne confronte les deux autorités** : un worker qui
+suivrait l'actualité seule les tiendrait pour actuels. Même famille que les
+`counts` — une déclaration que personne ne compare à ce qu'elle décrit.
+
+### Leur statut PII indécis est levé
+
+Trois des quatre portaient `PII_CLEARED_OR_NOT_SCANNED` — une disjonction
+qui n'établit rien. Mesure du 2026-09-22, même outil gouverné, artefact
+`docs/reports/evidence-index/pii_rescan_profile_gate_v2_exclus_4_20260922.json`
+(ensemble `7679ee81…`) :
+
+| Contenu | Déclaré | Mesuré |
+|---|---|---|
+| `174f273ff258`, `ccffe628bbd6`, `dc58fcc42ef9` | `PII_CLEARED_OR_NOT_SCANNED` | **aucun signal, aucune erreur d'extraction** — la disjonction est levée du bon côté |
+| `157309db13b6` | `PII_CLEARED` | **un signal** `student_name_pattern` |
+
+Le dernier cas est le même phénomène que les 22 contenus publiés : scanner
+différent, verdict différent. Aucune conséquence de publication ici — ces
+quatre sont exclus — mais la mesure dit ce qu'elle a vu, à sa date.
+
 ## Une confrontation mal placée, corrigée par la mesure
 
 La dérivation d'attribution scellée confrontait d'abord `type_doc` au

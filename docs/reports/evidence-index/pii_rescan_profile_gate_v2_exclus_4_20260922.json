@@ -1,0 +1,74 @@
+{
+  "content_set_sha256": "7679ee819a9948e98068884ce5474f76b3c07cf2285d773bd2d1ed313d1b35e5",
+  "counts": {
+    "clear": 3,
+    "detected": 1,
+    "extraction_failed": 0,
+    "scanned": 4
+  },
+  "measured_at": "2026-09-22T09:11:13.967512+00:00",
+  "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+  "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+  "policy_path": "services/rag-pedago/configs/pii_gate_policy.yml",
+  "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+  "protocol_version": "NEXUS-PII-RESCAN-V1",
+  "raw_pii_in_output": false,
+  "results": [
+    {
+      "characters_scanned": 16431,
+      "content_sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "extraction_error_code": null,
+      "ignored_empty_pages": [],
+      "pages_per_class": {
+        "student_name_pattern": [
+          8
+        ]
+      },
+      "pages_scanned": 8,
+      "pii_detected": true,
+      "signal_classes": [
+        "student_name_pattern"
+      ],
+      "signal_count": 1
+    },
+    {
+      "characters_scanned": 34155,
+      "content_sha256": "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
+      "extraction_error_code": null,
+      "ignored_empty_pages": [],
+      "pages_per_class": {},
+      "pages_scanned": 7,
+      "pii_detected": false,
+      "signal_classes": [],
+      "signal_count": 0
+    },
+    {
+      "characters_scanned": 11252,
+      "content_sha256": "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
+      "extraction_error_code": null,
+      "ignored_empty_pages": [],
+      "pages_per_class": {},
+      "pages_scanned": 5,
+      "pii_detected": false,
+      "signal_classes": [],
+      "signal_count": 0
+    },
+    {
+      "characters_scanned": 11119,
+      "content_sha256": "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2",
+      "extraction_error_code": null,
+      "ignored_empty_pages": [],
+      "pages_per_class": {},
+      "pages_scanned": 5,
+      "pii_detected": false,
+      "signal_classes": [],
+      "signal_count": 0
+    }
+  ],
+  "runtime": {
+    "pypdf": "6.14.2",
+    "python": "3.12.3"
+  },
+  "scanner_path": "services/rag-pedago/rag_pedago/imports/pii_scanner.py",
+  "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94"
+}
