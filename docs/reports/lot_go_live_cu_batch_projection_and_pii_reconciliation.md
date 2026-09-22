@@ -517,7 +517,15 @@ python -m ingestor.ingestion_worker.sealed_release_ingestion_cli \
 
 N'ingère rien. Écrit les attributions manquantes, dérivées du catalogue de
 la release. Idempotent ; une attribution divergente est un refus.
-Attendu pour V2 : `examined=479`, `written=479`, `missing_rows=0`.
+
+**Ses préconditions sont vérifiées sur les données de V2 elles-mêmes**
+(lecture seule) : sur les 479 placements, **0** provenance hors des domaines
+que son profil autorise, **0** type documentaire non canonique, et les onze
+profils portent `source_authority: official`. Les 479 paires
+(collection, artefact) sont distinctes : aucune ambiguïté d'attribution.
+Attendu, donc : `examined=479`, `written=479`, `missing_rows=0` — la seule
+inconnue restante étant que les 479 lignes de contrôle existent bien dans la
+base visée.
 
 ### 3. Décider du cas PII des 22 contenus signalés
 
