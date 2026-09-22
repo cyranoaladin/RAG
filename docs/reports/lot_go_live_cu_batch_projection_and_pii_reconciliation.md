@@ -676,6 +676,17 @@ duplique rien.
 | Modifications locales | aucune |
 | Environnement | aucun conteneur ni processus à conserver ; les bases du banc sont créées et détruites par les fixtures ; aucun secret monté |
 
+Un point d'environnement à connaître : le worktree détaché qui a servi à
+prouver l'antériorité des dettes (sous le répertoire de travail temporaire
+de la session) **reste enregistré**. Il ne peut pas être supprimé sans
+privilège : une fixture Docker y a créé
+`services/rag-engine/infra/configs` appartenant à `root`. Aucun privilège
+n'a été escaladé pour le retirer. `git worktree prune` nettoiera
+l'enregistrement dès que le répertoire temporaire disparaîtra ; supprimer le
+répertoire lui-même demande `root`. Le même répertoire appartient aussi à
+`root` dans le dépôt principal, depuis le 7 août — antérieur à cette
+session.
+
 ### Prérequis d'exécution du banc
 
 ```bash
