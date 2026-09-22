@@ -267,3 +267,92 @@ def test_la_matiere_brute_du_paquet_est_en_0600(atelier) -> None:
     for nom in ("document.pdf", "manifest.json", "pages/page-0002.txt"):
         mode = os.stat(args["output_root"] / sha / nom).st_mode & 0o777
         assert mode == 0o600, nom
+
+
+# --- ADR-0059 §6 : la population revue est celle de la release --------
+
+
+PAGES_PROPRES = ["Une page sans rien.", "Une autre page, toujours rien."]
+
+
+def _ajouter_contenu_propre(args: dict[str, object], pdf: bytes) -> str:
+    """Ajoute à l'entrée canonique un contenu SANS détection, absent du
+    registre du run : la population revue est la release, pas les détections."""
+    racine = args["canonical_input_root"]
+    assert isinstance(racine, Path)
+    sha = _sha(pdf)
+    dossier = racine / sha
+    fichiers: dict[str, str] = {}
+    for numero, texte in enumerate(PAGES_PROPRES, start=1):
+        nom = f"pages/page-{numero:04d}.txt"
+        (dossier / "pages").mkdir(parents=True, exist_ok=True)
+        (dossier / nom).write_bytes(texte.encode("utf-8"))
+        fichiers[nom] = _sha(texte)
+    canonique = "\n".join(PAGES_PROPRES)
+    provenance = [
+        {
+            "page_number": numero,
+            "extraction_path": "NATIVE_TEXT",
+            "native_text_sha256": _sha(texte),
+            "page_policy_verdict": None,
+            "canonical_page_text_sha256": _sha(texte),
+            "ocr_runtime_identity_sha256": None,
+        }
+        for numero, texte in enumerate(PAGES_PROPRES, start=1)
+    ]
+    document = {
+        "schema": SCHEMA,
+        "content_sha256": sha,
+        "source_pdf_sha256": sha,
+        "canonical_text_sha256": _sha(canonique),
+        "page_count": len(PAGES_PROPRES),
+        "page_provenance_digest": _sha(_canonique(provenance)),
+        "page_provenance": provenance,
+        "extraction_policy_id": "NEXUS-DRIVE-PDF-EXTRACTION-V2",
+        "extraction_identity_sha256": "b" * 64,
+        "files": dict(sorted(fichiers.items())),
+    }
+    (dossier / "document.json").write_bytes(_canonique(document))
+    manifeste = json.loads((racine / "manifest.json").read_bytes())
+    manifeste["entries"].append({"content_sha256": sha, "canonical_text_sha256": _sha(canonique)})
+    manifeste["entries"].sort(key=lambda e: e["content_sha256"])
+    shas = sorted(e["content_sha256"] for e in manifeste["entries"])
+    manifeste["content_count"] = len(shas)
+    manifeste["content_set_sha256"] = _sha("\n".join(shas) + "\n")
+    (racine / "manifest.json").write_bytes(_canonique(manifeste))
+    return sha
+
+
+def test_un_contenu_propre_de_la_population_est_scanne_sans_paquet(atelier) -> None:
+    """La population revue (`review_input_content_set_sha256`) est celle de
+    l'entrée canonique ; seuls les contenus détectés reçoivent un paquet."""
+    preparer, args, sha = atelier
+    propre = _ajouter_contenu_propre(args, b"%PDF-1.4 un contenu propre")
+
+    index = preparer.preparer_depuis_entree_canonique(**args)
+
+    assert [b["content_sha256"] for b in index["bundles"]] == [sha]
+    assert not (args["output_root"] / propre).exists()
+    assert index["counts"] == {"scanned": 2, "bundles": 1, "findings": 1}
+    assert index["review_input_content_set_sha256"] == _sha(
+        "\n".join(sorted([sha, propre])) + "\n"
+    )
+    assert index["content_set_sha256"] == _sha(sha + "\n")
+
+
+def test_un_contenu_hors_registre_qui_porte_une_detection_reste_refuse(atelier) -> None:
+    """Un contenu que le run n'a pas détecté mais dont le texte canonique porte
+    un signal : le registre et le texte divergent, refus."""
+    preparer, args, sha = atelier
+    propre = _ajouter_contenu_propre(args, b"%PDF-1.4 un contenu propre")
+    page = args["canonical_input_root"] / propre / "pages/page-0001.txt"
+    page.write_bytes(b"contact: a.b@exemple-prive.org")
+    document = json.loads((args["canonical_input_root"] / propre / "document.json").read_bytes())
+    document["files"]["pages/page-0001.txt"] = _sha("contact: a.b@exemple-prive.org")
+    document["canonical_text_sha256"] = _sha(
+        "\n".join(["contact: a.b@exemple-prive.org", PAGES_PROPRES[1]])
+    )
+    (args["canonical_input_root"] / propre / "document.json").write_bytes(_canonique(document))
+
+    with pytest.raises(ValueError, match="absent du registre PII du run"):
+        preparer.preparer_depuis_entree_canonique(**args)

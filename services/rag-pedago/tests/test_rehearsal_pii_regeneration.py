@@ -253,3 +253,93 @@ def test_a_rehearsal_that_copies_the_old_pii_evidence_is_never_written(
     with pytest.raises(ValueError, match="scanner"):
         builder._write_documents(documents, output_dir=out)
     assert not any(out.glob("release-*"))
+
+
+# --- ADR-0059 §6 : la garde de couverture pour un index canonique ---------
+
+
+def _digest(shas: set[str]) -> str:
+    return hashlib.sha256(("\n".join(sorted(shas)) + "\n").encode()).hexdigest()
+
+
+PRODUCED = {"1" * 64, "2" * 64, "3" * 64}
+
+
+def _scope(builder: Any, **overrides: Any) -> Any:
+    values = {
+        "reviewed_bundle_contents": frozenset({"1" * 64}),
+        "produced_contents": frozenset(PRODUCED),
+        "detected_contents": frozenset({"1" * 64}),
+        "decided_contents": frozenset({"1" * 64}),
+    }
+    values.update({k: frozenset(v) for k, v in overrides.items()})
+    return builder.CanonicalReviewScope(**values)
+
+
+def test_a_canonical_review_covering_the_release_passes() -> None:
+    builder = _builder()
+    builder.require_review_covers_produced_content_set(
+        reviewed_content_set_sha256=_digest(PRODUCED),
+        produced_content_set_sha256=_digest(PRODUCED),
+        canonical_scope=_scope(builder),
+    )
+
+
+@pytest.mark.parametrize(
+    ("reviewed", "overrides", "motif"),
+    [
+        # 1. la population revue n'est pas la release
+        (PRODUCED - {"3" * 64}, {}, "covered content set"),
+        # 2. un paquet revu hors release
+        (PRODUCED, {"reviewed_bundle_contents": {"1" * 64, "9" * 64}}, "bundle"),
+        # 3a. une détection produite sans décision
+        (PRODUCED, {"detected_contents": {"1" * 64, "2" * 64}}, "no human decision"),
+        # 3b. une décision hors release
+        (PRODUCED, {"decided_contents": {"1" * 64, "9" * 64}}, "outside the release"),
+    ],
+    ids=("population", "paquet-hors-release", "detection-non-decidee", "decision-hors-release"),
+)
+def test_each_clause_of_the_canonical_rule_refuses(
+    reviewed: set[str], overrides: dict[str, Any], motif: str
+) -> None:
+    builder = _builder()
+    with pytest.raises(ValueError, match=motif):
+        builder.require_review_covers_produced_content_set(
+            reviewed_content_set_sha256=_digest(reviewed),
+            produced_content_set_sha256=_digest(PRODUCED),
+            canonical_scope=_scope(builder, **overrides),
+        )
+
+
+def test_the_historical_rule_is_unchanged() -> None:
+    builder = _builder()
+    builder.require_review_covers_produced_content_set(
+        reviewed_content_set_sha256=_digest(PRODUCED),
+        produced_content_set_sha256=_digest(PRODUCED),
+    )
+    with pytest.raises(ValueError, match="covered content set"):
+        builder.require_review_covers_produced_content_set(
+            reviewed_content_set_sha256=_digest(PRODUCED | {"9" * 64}),
+            produced_content_set_sha256=_digest(PRODUCED),
+        )
+
+
+def test_a_canonical_index_is_bound_by_its_review_input_population(tmp_path: Path) -> None:
+    """Pour un index canonique, la population revue est
+    `review_input_content_set_sha256` ; `content_set_sha256` n'est que
+    l'ensemble des paquets et doit leur correspondre."""
+    builder = _builder()
+    bundles = [{"content_sha256": "1" * 64, "bundle_sha256": "f" * 64}]
+    canonical = {
+        "review_input_schema": "NEXUS-CANONICAL-REVIEW-INPUT-V1",
+        "review_input_content_set_sha256": _digest(PRODUCED),
+        "content_set_sha256": _digest({"1" * 64}),
+        "bundles": bundles,
+    }
+    assert builder._reviewed_population(canonical) == (True, _digest(PRODUCED))
+    historical = {"content_set_sha256": _digest(PRODUCED), "bundles": bundles}
+    assert builder._reviewed_population(historical) == (False, _digest(PRODUCED))
+    with pytest.raises(ValueError, match="bundle set"):
+        builder._reviewed_population({**canonical, "content_set_sha256": _digest(PRODUCED)})
+    with pytest.raises(ValueError, match="review_input_content_set_sha256"):
+        builder._reviewed_population({**canonical, "review_input_content_set_sha256": None})

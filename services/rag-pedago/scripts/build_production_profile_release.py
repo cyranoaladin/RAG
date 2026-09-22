@@ -2114,12 +2114,7 @@ def _load_review_authority(
     # champ de toute la chaîne qui désigne la matière revue plutôt qu'un
     # document ; sans lui, on prouve que les autorités sont intactes sans
     # jamais prouver qu'elles parlent de la candidate.
-    reviewed_content_set = index.get("content_set_sha256")
-    if not isinstance(reviewed_content_set, str) or not _HEX64.match(reviewed_content_set):
-        raise ValueError(
-            "the review index declares no usable content_set_sha256 — the review "
-            "cannot be bound to any corpus"
-        )
+    _canonical, reviewed_content_set = _reviewed_population(index)
 
     digests = {
         "pii_decision_set_sha256": _sha256_bytes(raw_decision_set),
@@ -2201,10 +2196,62 @@ def resolve_release_lifecycle_statuses(
     }
 
 
+CANONICAL_REVIEW_INPUT_SCHEMA = "NEXUS-CANONICAL-REVIEW-INPUT-V1"
+
+
+def _review_set_digest(values: Sequence[str]) -> str:
+    return _sha256_bytes(("\n".join(sorted(set(values))) + "\n").encode("utf-8"))
+
+
+def _reviewed_population(index: Mapping[str, Any]) -> tuple[bool, str]:
+    """Rend (index canonique ?, empreinte de la population REVUE).
+
+    ADR-0059 §6. Deux chemins d'ADR-0047 ne mesurent pas la même chose :
+    l'index historique (extraction retirée) porte dans `content_set_sha256`
+    la population scannée ; l'index canonique y porte les seuls contenus
+    DÉTECTÉS — ses paquets — et la population revue dans
+    `review_input_content_set_sha256`. Lire le mauvais champ rendait toute
+    campagne canonique incapable de fonder une release."""
+    canonical = index.get("review_input_schema") == CANONICAL_REVIEW_INPUT_SCHEMA
+    if canonical:
+        reviewed = index.get("review_input_content_set_sha256")
+        if not isinstance(reviewed, str) or not _HEX64.match(reviewed):
+            raise ValueError(
+                "the canonical review index declares no usable "
+                "review_input_content_set_sha256 — the reviewed population is unknown"
+            )
+        bundled = _review_set_digest(
+            [str(entry["content_sha256"]) for entry in index.get("bundles", [])]
+        )
+        if index.get("content_set_sha256") != bundled:
+            raise ValueError(
+                "the canonical review index content_set_sha256 is not the digest of "
+                "its bundle set — the index does not describe its own bundles"
+            )
+        return True, reviewed
+    reviewed = index.get("content_set_sha256")
+    if not isinstance(reviewed, str) or not _HEX64.match(reviewed):
+        raise ValueError(
+            "the review index declares no usable content_set_sha256 — the review "
+            "cannot be bound to any corpus"
+        )
+    return False, reviewed
+
+
+class CanonicalReviewScope(NamedTuple):
+    """Ce qu'une campagne canonique a revu, confronté à ce que la release livre."""
+
+    reviewed_bundle_contents: frozenset[str]
+    produced_contents: frozenset[str]
+    detected_contents: frozenset[str]
+    decided_contents: frozenset[str]
+
+
 def require_review_covers_produced_content_set(
     *,
     reviewed_content_set_sha256: str | None,
     produced_content_set_sha256: str,
+    canonical_scope: CanonicalReviewScope | None = None,
 ) -> None:
     """Le pont entre la revue humaine et la candidate.
 
@@ -2233,6 +2280,34 @@ def require_review_covers_produced_content_set(
             f"{reviewed_content_set_sha256[:16]}… while this candidate ships "
             f"{produced_content_set_sha256[:16]}… — the review does not bind the "
             "corpus this release would publish"
+        )
+    if canonical_scope is None:
+        # Chemin historique : sa règle reste l'égalité, et elle seule.
+        return
+    # ADR-0059 §6, clauses 2 et 3, pour un index canonique. Le projecteur PII
+    # refuse déjà une décision hors corpus et une détection sans décision ;
+    # elles sont reprises ici parce qu'une garde qui repose entièrement sur une
+    # autre ne protège de rien si celle-ci bouge.
+    scope = canonical_scope
+    outside_bundles = sorted(scope.reviewed_bundle_contents - scope.produced_contents)
+    if outside_bundles:
+        raise ValueError(
+            f"reviewed bundle {outside_bundles[0][:12]}… is not a content of this "
+            "release — the bundles must be included in the produced set"
+        )
+    undecided = sorted(
+        (scope.detected_contents & scope.produced_contents) - scope.decided_contents
+    )
+    if undecided:
+        raise ValueError(
+            f"produced content {undecided[0][:12]}… is detected and has no human "
+            "decision"
+        )
+    outside_decisions = sorted(scope.decided_contents - scope.produced_contents)
+    if outside_decisions:
+        raise ValueError(
+            f"decision about {outside_decisions[0][:12]}…, outside the release — "
+            "a review of this release decides nothing else"
         )
 
 
@@ -2365,9 +2440,25 @@ def _pii_evidence(
     # contenus, la candidate en émet 320. Prouver que ce fichier est intact ne
     # prouve donc RIEN de la candidate. C'est cette confrontation-ci qui le
     # fait, et elle porte sur la matière, pas sur un document.
+    canonical_scope = None
+    if review_authority.declared and review_authority.review_index_path is not None:
+        canonical, _reviewed = _reviewed_population(
+            json.loads(review_authority.review_index_path.read_text(encoding="utf-8"))
+        )
+        if canonical:
+            canonical_scope = CanonicalReviewScope(
+                reviewed_bundle_contents=frozenset(review_bundles),
+                produced_contents=frozenset(grouped),
+                detected_contents=frozenset(projection.detected),
+                decided_contents=frozenset(
+                    str(decision["content_sha256"])
+                    for decision in (decision_document or {}).get("decisions", [])
+                ),
+            )
     require_review_covers_produced_content_set(
         reviewed_content_set_sha256=authority_digests.get("reviewed_content_set_sha256"),
         produced_content_set_sha256=_final_set_digest(sorted(grouped)),
+        canonical_scope=canonical_scope,
     )
 
     source_by_sha = {
