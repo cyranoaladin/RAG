@@ -9,6 +9,7 @@ ni un fingerprint de production — un simple adaptateur de fichiers.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 from uuid import UUID
@@ -23,6 +24,16 @@ class ArtifactPathEscapeError(ValueError):
     symlink pointant hors de ``base_dir``), aucune vérification n'empêchait
     auparavant la lecture d'un fichier arbitraire du système de fichiers du
     worker."""
+
+
+class SealedArtifactDigestError(ValueError):
+    """Les octets lus sous le nom d'un artefact scellé ne sont pas les siens.
+
+    Le magasin transféré nomme chaque objet par son empreinte. Cette
+    convention n'est une preuve que si elle est RE-MESURÉE : sinon un
+    fichier remplacé sous le bon nom traverserait toute la chaîne, et
+    l'attestation qui nomme ce digest couvrirait d'autres octets qu'elle.
+    """
 
 
 def make_filesystem_artifact_store(base_dir: Path):
@@ -139,8 +150,45 @@ def make_filesystem_artifact_reader(base_dir: Path):
     return read_artifact
 
 
+def make_sealed_release_artifact_reader(base_dir: Path):
+    """Relit un artefact de release SCELLÉE par son empreinte.
+
+    Une release scellée ne porte aucune référence de fichier : elle n'a
+    jamais été téléchargée, et ``SealedReleaseArtifactRecord`` n'a donc ni
+    ``extracted_text_ref`` ni ``mime_detected``. Le magasin transféré nomme
+    chaque objet par son digest (``<sha256>.pdf``) — c'est ce que
+    l'ingestion scellée exige déjà à l'entrée, et c'est la seule référence
+    qui existe.
+
+    Les octets sont relus sous la même protection que le chemin unitaire
+    (ouverture composant par composant, ``O_NOFOLLOW``, confinement sous
+    ``base_dir``), puis leur empreinte est RE-MESURÉE et confrontée. La
+    publication ne lit donc jamais des octets dont elle n'a pas vérifié
+    qu'ils sont ceux que l'attestation nomme.
+    """
+    resolved_base_dir = base_dir.resolve()
+    read_artifact = make_filesystem_artifact_reader(base_dir)
+
+    def read_sealed_artifact(*, content_sha256: str) -> bytes:
+        content: bytes = read_artifact(
+            extracted_text_ref=str(resolved_base_dir / f"{content_sha256}.pdf")
+        )
+        measured = hashlib.sha256(content).hexdigest()
+        if measured != content_sha256:
+            raise SealedArtifactDigestError(
+                f"the artifact store holds bytes hashing to {measured} under the "
+                f"name {content_sha256}.pdf — refusing to publish content the "
+                "attestation does not name"
+            )
+        return content
+
+    return read_sealed_artifact
+
+
 __all__ = [
     "ArtifactPathEscapeError",
+    "SealedArtifactDigestError",
     "make_filesystem_artifact_reader",
+    "make_sealed_release_artifact_reader",
     "make_filesystem_artifact_store",
 ]

@@ -184,6 +184,12 @@ class PublicationResumeDeps:
     #: Invariant de format établi au chargement du catalogue (jamais une
     #: constante du lecteur). Vide tant qu'il n'a pas été vérifié.
     sealed_media_type_invariant: str = ""
+    #: Lecteur d'un artefact SCELLÉ, par empreinte. Une release scellée n'a
+    #: jamais été téléchargée : son record ne porte aucune référence de
+    #: fichier, et ``artifact_reader`` — qui lit par référence — ne peut
+    #: donc rien lire pour elle. Absent, la branche scellée refuse ; elle ne
+    #: devine pas un nom de fichier.
+    sealed_artifact_reader: Any = None
     authorization_mapping: AuthorizationMapping | None = None
     authorization_context: AuthorizationContext | None = None
 
@@ -213,6 +219,17 @@ class PublicationResumeDeps:
             sealed_artifacts=self.sealed_release_artifacts,
             media_type_invariant=self.sealed_media_type_invariant,
         )
+
+    def read_sealed_artifact(self, *, content_sha256: str) -> bytes:
+        """Les octets d'un artefact scellé, relus par leur empreinte."""
+        if self.sealed_artifact_reader is None:
+            raise PublicationResumeError(
+                f"publication worker {self.owner!r} has no sealed artifact "
+                "reader; a sealed release carries no file reference, and this "
+                "worker never guesses one"
+            )
+        octets: bytes = self.sealed_artifact_reader(content_sha256=content_sha256)
+        return octets
 
     def require_sealed_evidence(self) -> tuple[Any, Any]:
         if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
@@ -544,7 +561,15 @@ def resume_publication(
             "collection": collection,
             "profile_version": profile_version,
             "school_year": school_year,
-            "claimed_source_url": durable_facts.canonical_url,
+            # Une release scellée n'a PAS d'URL canonique — le schéma la lui
+            # interdit, et `PublicationFacts` porte la chaîne vide pour dire
+            # « absente ». La revendiquer ferait refuser toute publication
+            # batch contre une URL que personne n'a déclarée ; la provenance
+            # scellée est confrontée plus bas, au catalogue vérifié.
+            "claimed_source_url": None if est_scelle else durable_facts.canonical_url,
+            # Le type documentaire, lui, est bien un fait durable : il vient
+            # de l'attribution persistée, et il est ici confronté à la
+            # correspondance gouvernée.
             "claimed_type_doc": durable_facts.type_doc,
         }
         if payload.get("source_path") is not None:
@@ -626,9 +651,19 @@ def resume_publication(
         control_conn, ingestion_artifact_id=artifact_record.artifact_id
     )
 
-    raw_bytes = deps.artifact_reader(
-        extracted_text_ref=artifact_record.extracted_text_ref
-    )
+    if est_scelle:
+        # Aucune référence de fichier n'existe pour une release scellée :
+        # l'objet est nommé par son empreinte dans le magasin transféré, et
+        # cette empreinte est re-mesurée à la lecture. Le format vient du
+        # catalogue vérifié (`mime_declared` EST l'invariant établi), jamais
+        # d'une détection improvisée ici.
+        raw_bytes = deps.read_sealed_artifact(content_sha256=artifact_record.sha256)
+        mime_detected = artifact_record.mime_declared
+    else:
+        raw_bytes = deps.artifact_reader(
+            extracted_text_ref=artifact_record.extracted_text_ref
+        )
+        mime_detected = artifact_record.mime_detected
 
     governed = GovernedArtifact(
         content=raw_bytes,
@@ -639,7 +674,7 @@ def resume_publication(
         official=attribution.official,
         source_kind=attribution.source_kind,
         type_doc=attribution.type_doc,
-        mime_detected=artifact_record.mime_detected,
+        mime_detected=mime_detected,
     )
 
     # Les lectures de préflight ci-dessus ouvrent une transaction psycopg.

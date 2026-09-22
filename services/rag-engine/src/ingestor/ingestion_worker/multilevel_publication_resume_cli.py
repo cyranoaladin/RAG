@@ -36,7 +36,10 @@ from .multilevel_runtime_authority import (
 )
 from .publication_resume import PublicationResumeDeps, run_publication_resume_iteration
 from .runtime_authority import RuntimeAuthorityStartupError
-from .storage import make_filesystem_artifact_reader
+from .storage import (
+    make_filesystem_artifact_reader,
+    make_sealed_release_artifact_reader,
+)
 
 DEFAULT_POLL_INTERVAL_S = 5.0
 
@@ -261,6 +264,12 @@ def main(argv: list[str] | None = None) -> int:
         owner=args.owner,
         product_dsn=product_dsn,
         artifact_reader=make_filesystem_artifact_reader(args.artifact_store_dir),
+        # Le magasin transporte aussi les objets SCELLES, nommes par
+        # leur empreinte. Le lecteur les relit sous la meme protection
+        # et re-mesure leur digest avant toute publication.
+        sealed_artifact_reader=make_sealed_release_artifact_reader(
+            args.artifact_store_dir
+        ),
         extract_text=_extract_non_pdf_text,
         embedding_provider=provider,
         pii_evidence_registry=authorities.pii_evidence_registry,

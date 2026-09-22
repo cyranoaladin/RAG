@@ -10,6 +10,7 @@ mesurent donc les vrais GRANT, pas une approximation.
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import secrets
 import shutil
@@ -172,6 +173,94 @@ def start_rag_retrieval_postgres(label: str) -> Iterator[dict[str, str]]:
             for migration in _rag_migration_files():
                 connection.execute(migration.read_text(encoding="utf-8"))  # type: ignore[arg-type]
         yield {"host": "127.0.0.1", "port": str(port), "dbname": PG_DB, "dsn": dsn}
+    finally:
+        subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, check=False)
+
+
+def start_rag_product_postgres(label: str) -> Iterator[dict[str, str]]:
+    """Démarre une base PRODUIT jetable, avec ses rôles opérationnels.
+
+    Même image épinglée, mêmes migrations que la base servie, et les rôles
+    runtime provisionnés par le script réel (`provision_runtime_roles.sh`).
+    Le superutilisateur ne sert qu'à préparer cette base jetable et à la
+    relire : publier sous lui prouverait seulement qu'un superutilisateur
+    peut tout faire, ce que personne ne conteste. Le worker publie sous le
+    rôle `publisher`, et le retrieval lit sous le rôle `retrieval`.
+    """
+    import psycopg
+
+    container_name = f"nexus-{label}-{uuid.uuid4().hex[:10]}"
+    port = free_port()
+    subprocess.run(
+        [
+            "docker", "run", "-d", "--rm",
+            "--name", container_name,
+            "-e", f"POSTGRES_USER={PG_SUPERUSER}",
+            "-e", f"POSTGRES_PASSWORD={PG_SUPERUSER_PASSWORD}",
+            "-e", f"POSTGRES_DB={PG_DB}",
+            "-p", f"{port}:5432",
+            PG_IMAGE,
+        ],
+        check=True, capture_output=True,
+    )
+    try:
+        _wait_pg_isready(port)
+        admin_dsn = (
+            f"host=127.0.0.1 port={port} dbname={PG_DB} "
+            f"user={PG_SUPERUSER} password={PG_SUPERUSER_PASSWORD}"
+        )
+        migrations = _rag_migration_files()
+        with psycopg.connect(admin_dsn, autocommit=True) as connection:
+            for migration in migrations:
+                connection.execute(migration.read_text(encoding="utf-8"))  # type: ignore[arg-type]
+            connection.execute(
+                "CREATE TABLE IF NOT EXISTS public.rag_schema_migrations ("
+                "version integer PRIMARY KEY CHECK (version > 0), "
+                "file_name text NOT NULL UNIQUE, sha256 text NOT NULL, "
+                "applied_at timestamptz NOT NULL DEFAULT now())"
+            )
+            for version, migration in enumerate(migrations, start=1):
+                connection.execute(
+                    "INSERT INTO rag_schema_migrations (version, file_name, sha256) "
+                    "VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                    (
+                        version,
+                        migration.name,
+                        hashlib.sha256(migration.read_bytes()).hexdigest(),
+                    ),
+                )
+        publisher_password = secrets.token_urlsafe(32)
+        retrieval_password = secrets.token_urlsafe(32)
+        provision = subprocess.run(
+            [str(INFRA_ROOT / "postgres" / "provision_runtime_roles.sh")],
+            env={
+                "PATH": os.environ["PATH"],
+                "PGHOST": "127.0.0.1", "PGPORT": str(port),
+                "PGUSER": PG_SUPERUSER, "PGPASSWORD": PG_SUPERUSER_PASSWORD,
+                "PGDATABASE": PG_DB,
+                "POSTGRES_USER": PG_SUPERUSER, "POSTGRES_DB": PG_DB,
+                "PGVECTOR_RETRIEVAL_USER": "banc_retrieval",
+                "PGVECTOR_RETRIEVAL_PASSWORD": retrieval_password,
+                "PGVECTOR_REVIEW_USER": "banc_review",
+                "PGVECTOR_REVIEW_PASSWORD": secrets.token_urlsafe(32),
+                "PGVECTOR_PUBLISHER_USER": "banc_publisher",
+                "PGVECTOR_PUBLISHER_PASSWORD": publisher_password,
+            },
+            capture_output=True, text=True, check=False,
+        )
+        assert provision.returncode == 0, provision.stderr
+        yield {
+            "host": "127.0.0.1", "port": str(port), "dbname": PG_DB,
+            "admin_dsn": admin_dsn,
+            "publisher_dsn": (
+                f"host=127.0.0.1 port={port} dbname={PG_DB} "
+                f"user=banc_publisher password={publisher_password}"
+            ),
+            "retrieval_dsn": (
+                f"host=127.0.0.1 port={port} dbname={PG_DB} "
+                f"user=banc_retrieval password={retrieval_password}"
+            ),
+        }
     finally:
         subprocess.run(["docker", "rm", "-f", container_name], capture_output=True, check=False)
 

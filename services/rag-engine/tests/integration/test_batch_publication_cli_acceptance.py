@@ -25,7 +25,6 @@ from pathlib import Path
 
 import psycopg
 import pytest
-from psycopg.types.json import Jsonb
 
 ENGINE_ROOT = Path(__file__).resolve().parents[2]
 REPOSITORY_ROOT = ENGINE_ROOT.parents[1]
@@ -33,18 +32,26 @@ sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(ENGINE_ROOT / "tests"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from _banc_multiniveaux import (  # noqa: E402
+    PROFILS_DIR,
+    VERSION_DE_PROFIL,
+    ContexteDuBanc,
+    construire_contexte_du_banc,
+    contenus_du_banc,
+    environnement_de_readiness,
+)
 from _local_github import (  # noqa: E402
     REPOSITORY,
     VALID_TOKEN,
     LocalGitHub,
     local_github_server,
 )
-from _pdf_lisible import pdf_lisible  # noqa: E402
 from _pg_authority import (  # noqa: E402
     app_dsn,
     attestor_dsn,
     requires_docker,
     start_ingestion_control_postgres,
+    start_rag_product_postgres,
     superuser_dsn,
 )
 
@@ -75,6 +82,12 @@ def _sha(path: Path) -> str:
 @pytest.fixture(scope="module")
 def control_pg() -> Iterator[dict[str, str]]:
     yield from start_ingestion_control_postgres("batch-cli-acceptance")
+
+
+@pytest.fixture(scope="module")
+def product_pg() -> Iterator[dict[str, str]]:
+    """La base PRODUIT du banc — celle que Worker B remplit reellement."""
+    yield from start_rag_product_postgres("batch-cli-product")
 
 
 def _run(
@@ -192,28 +205,55 @@ def test_le_schema_porte_l_identite_de_release_pour_une_attestation_batch(
 #: partagee, et des identites fixes rendraient les tests dependants de leur
 #: ordre. Elles ne valent jamais autorisation reelle.
 _EMPREINTE_DU_BANC = uuid.uuid4().hex[:12]
-RELEASE_DE_TEST = f"acceptance-batch-release-{_EMPREINTE_DU_BANC}"
 REVUE_DE_TEST = f"revue-batch-acceptance-{_EMPREINTE_DU_BANC}"
-def _autorisation_de(release_id: str) -> str:
-    """Une autorisation par release : partagee, elle serait semee par le
-    premier test et relue par les suivants avec un autre artefact servi."""
-    return f"acceptance-scope-{release_id.rsplit(chr(45), 1)[-1]}"
+
+
+def _autorisation_de(release_id: str, collection: str) -> str:
+    """UNE autorisation par (release, collection).
+
+    Le publisher confronte le scope de l'AUTORISATION a celui du
+    placement : une autorisation unique couvrant deux collections
+    publierait la seconde sous le perimetre de la premiere.
+    """
+    suffixe = release_id.rsplit("-", 1)[-1]
+    return f"acceptance-scope-{suffixe}-{collection}"
+
+
+def _contexte_du_banc(tmp_path: Path) -> ContexteDuBanc:
+    """La chaine d'autorites du banc, produite ENSEMBLE.
+
+    Chemins, empreintes et identites viennent d'un seul assemblage : c'est
+    ce que Worker B exige, et c'est ce qu'une trentaine de valeurs
+    independantes ne peut pas garantir.
+    """
+    contenus = contenus_du_banc(tmp_path / "store", empreinte=uuid.uuid4().hex[:8])
+    return construire_contexte_du_banc(
+        tmp_path / "release", tmp_path / "store", contenus=contenus
+    )
 
 
 def _semer_etat_historique(
-    pg: dict[str, str], tmp_path: Path, *, digests: dict[str, str],
-    contenus: list[tuple[str, bytes]],
-    github: object | None = None,
-) -> dict[str, object]:
+    pg: dict[str, str],
+    *,
+    contexte: ContexteDuBanc,
+    github: LocalGitHub,
+    env: Mapping[str, str],
+) -> list[dict[str, object]]:
     """Ecrit des lignes au FORMAT HISTORIQUE — celui qu'ecrit l'ingestion de
     release scellee : ``canonical_url`` nulle, payload de release, aucun fait
     unitaire.
 
     C'est une preparation d'etat initial, pas un contournement : les
-    controles que le parcours doit exercer restent tous en place.
+    controles que le parcours doit exercer restent tous en place. Les scopes
+    ne sont pas ecrits a la main : ils viennent des PROFILS gouvernes, ceux
+    que le worker chargera.
     """
-    from nexus_contracts.ingestion import ResourceScope
+    from _banc_multiniveaux import LISTING_OFFICIEL, PROFILS_DIR
 
+    from ingestor.ingestion_control.artifact_attribution import (
+        derive_sealed_release_artifact_attribution,
+        persist_artifact_attribution,
+    )
     from ingestor.ingestion_control.provisioning import (
         SEALED_RELEASE_PIPELINE,
         create_ingestion_run,
@@ -221,81 +261,96 @@ def _semer_etat_historique(
         persist_sealed_release_artifact,
         persist_sealed_release_candidate,
     )
+    from ingestor.ingestion_profiles.registry import load_profile_registry
 
-    magasin = tmp_path / "store"
+    profils = load_profile_registry(PROFILS_DIR)
     artefacts: list[dict[str, object]] = []
-    # Un document MULTICOLLECTION : le meme contenu place dans deux
-    # collections. Ses identites et ses droits ne doivent pas fusionner.
-    collections = (
-        "rag_nexus_nsi_premiere_specialite",
-        "rag_nexus_nsi_terminale_specialite",
-    )
-
-    scopes = {
-        collection: ResourceScope(
-            tenant="libre_terminale", collection=collection,
-            niveau="terminale" if "terminale" in collection else "premiere",
-            voie="generale", matiere="nsi", candidat="libre",
-            audience=["aefe", "libre"], visibility="public",
-            school_year="2026-2027", programme_version="EDUSCOL_CORPUS_20260808",
+    # Les autorisations D'ABORD, par le vrai CLI d'autorite : une ressource
+    # ne peut pas referencer une autorisation qui n'existe pas encore.
+    for index, collection in enumerate(contexte.collections, start=1):
+        _enregistrer_autorisation(
+            github=github,
+            profil=profils[(collection, VERSION_DE_PROFIL)],
+            autorisation_id=_autorisation_de(contexte.release_id, collection),
+            contexte=contexte,
+            numero=7100 + index,
+            env=env,
         )
-        for collection in collections
-    }
-
     with psycopg.connect(superuser_dsn(pg)) as conn:
-        autorisation_id = _autorisation_de(digests["release_id"])
-        _semer_autorisation(
-            conn, scopes[collections[0]], github=github,
-            autorisation_id=autorisation_id,
-        )
-        for collection in collections:
+        for collection in contexte.collections:
+            profil = profils[(collection, VERSION_DE_PROFIL)]
+            autorisation_id = _autorisation_de(contexte.release_id, collection)
             run_id = create_ingestion_run(
-                conn, scope=scopes[collection], profile_version="acceptance-v1",
+                conn,
+                scope=profil.scope,
+                profile_version=VERSION_DE_PROFIL,
                 trigger="manual",
             )
-            for sha, octets in contenus:
+            for contenu in contexte.contenus:
                 payload = {
-                    "release_id": digests["release_id"],
+                    "release_id": contexte.release_id,
                     # Les digests REELS de la release ecrite : la garde du
                     # catalogue refuse toute valeur qui ne serait pas la sienne.
-                    "release_manifest_sha256": digests["manifest"],
-                    "artifacts_release_sha256": digests["registry"],
-                    "candidate_inventory_sha256": digests["inventory"],
-                    "artifact_transfer_manifest_sha256": digests["transfer"],
-                    "content_sha256": sha,
+                    "release_manifest_sha256": contexte.digests[
+                        "release_manifest_sha256"
+                    ],
+                    "artifacts_release_sha256": contexte.digests[
+                        "artifacts_release_sha256"
+                    ],
+                    "candidate_inventory_sha256": contexte.digests[
+                        "candidate_inventory_sha256"
+                    ],
+                    "artifact_transfer_manifest_sha256": contexte.digests[
+                        "artifact_transfer_manifest_sha256"
+                    ],
+                    "content_sha256": contenu.content_sha256,
                     "collection": collection,
-                    "chunk_count": 3,
+                    "chunk_count": contenu.pages,
                     "scope_authorization_id": autorisation_id,
-                    "scope_authorization_digest": "c" * 64,
-                    "provenance_artifact_url": (
-                        "https://eduscol.education.gouv.fr/acceptance/doc.pdf"
-                    ),
-                    "provenance_discovery_url": (
-                        "https://eduscol.education.gouv.fr/acceptance"
-                    ),
+                    "provenance_artifact_url": contenu.url_telechargement,
+                    "provenance_discovery_url": LISTING_OFFICIEL,
                     "review_status": "reviewed",
                     "placement_status": "active",
                     "currentness": "current",
-                    "type_doc": "ressource_officielle",
+                    "type_doc": contexte.type_doc,
                     "pipeline_kind": SEALED_RELEASE_PIPELINE,
                     "protocol_version": "LOT42-RELEASE-BATCH-V1",
                 }
                 resource_id = create_resource(
-                    conn, run_id=run_id, scope=scopes[collection],
-                    dedup_key=sha, pipeline_kind=SEALED_RELEASE_PIPELINE,
+                    conn, run_id=run_id, scope=profil.scope,
+                    dedup_key=contenu.content_sha256,
+                    pipeline_kind=SEALED_RELEASE_PIPELINE,
                 )
                 persist_sealed_release_candidate(
-                    conn, resource_id=resource_id, run_id=run_id, dedup_key=sha,
-                    source_url=payload["provenance_artifact_url"],
+                    conn, resource_id=resource_id, run_id=run_id,
+                    dedup_key=contenu.content_sha256,
+                    source_url=LISTING_OFFICIEL,
                     domain="eduscol.education.gouv.fr",
-                    proposed_type_doc="ressource_officielle", payload=payload,
+                    proposed_type_doc=contexte.type_doc, payload=payload,
                 )
                 artifact_id = persist_sealed_release_artifact(
-                    conn, resource_id=resource_id, run_id=run_id, sha256=sha,
-                    size_bytes=len(octets), mime_declared="application/pdf",
+                    conn, resource_id=resource_id, run_id=run_id,
+                    sha256=contenu.content_sha256, size_bytes=len(contenu.octets),
+                    mime_declared="application/pdf",
                     mime_detected="application/pdf",
-                    provenance_url=payload["provenance_artifact_url"],
+                    provenance_url=contenu.url_telechargement,
                     payload=payload,
+                )
+                # Les quatre faits d'attribution, derives des autorites de la
+                # release elle-meme : c'est ce que l'ingestion scellee ecrit
+                # desormais, et ce que l'attestation batch relit.
+                persist_artifact_attribution(
+                    conn,
+                    attribution=derive_sealed_release_artifact_attribution(
+                        ingestion_artifact_id=artifact_id,
+                        catalog_entry={
+                            "type_doc": contexte.type_doc,
+                            "source_url": contenu.url_telechargement,
+                        },
+                        profile=profil,
+                    ),
+                    run_id=run_id,
+                    actor="acceptance-bench",
                 )
                 # Les dix transitions HISTORIQUES, comme l'ingestion de
                 # release scellee les ecrit. Elles sont referencees par
@@ -303,10 +358,11 @@ def _semer_etat_historique(
                 _semer_transitions(conn, resource_id=resource_id, run_id=run_id)
                 artefacts.append({
                     "resource_id": resource_id, "artifact_id": artifact_id,
-                    "content_sha256": sha, "collection": collection,
+                    "content_sha256": contenu.content_sha256,
+                    "collection": collection,
                 })
         conn.commit()
-    return {"magasin": magasin, "artefacts": artefacts, "contenus": contenus}
+    return artefacts
 
 
 _SEQUENCE_HISTORIQUE = (
@@ -337,357 +393,89 @@ def _semer_transitions(
     )
 
 
-def _semer_autorisation(
-    conn: psycopg.Connection, scope: object, *, github: object | None = None,
-    autorisation_id: str = "",
-) -> None:
-    """Autorisation de scope du BANC — donnee de test, jamais une autorite."""
-    from datetime import UTC, datetime, timedelta
+def _autorisation_v2(
+    profil: object, *, autorisation_id: str, contexte: ContexteDuBanc
+) -> object:
+    """L'artefact d'autorisation de scope du BANC, au protocole LOT41A-V2.
 
-    obligatoires = [
-        (nom, type_sql)
-        for nom, type_sql in conn.execute(
-            "SELECT column_name, data_type FROM information_schema.columns "
-            " WHERE table_schema='ingestion_control' "
-            "   AND table_name='scope_authorizations' "
-            "   AND is_nullable='NO' AND column_default IS NULL "
-            " ORDER BY ordinal_position"
-        ).fetchall()
-    ]
-    ligne: dict[str, object] = {}
-    for nom, type_sql in obligatoires:
-        if type_sql == "uuid":
-            ligne[nom] = uuid.uuid4()
-        elif type_sql.startswith("timestamp"):
-            ligne[nom] = datetime.now(UTC)
-        elif type_sql == "boolean":
-            ligne[nom] = True
-        elif type_sql == "ARRAY":
-            ligne[nom] = []
-        elif type_sql in ("integer", "bigint", "smallint"):
-            ligne[nom] = 1
-        elif nom.endswith(("_base_sha", "_head_sha", "_blob_sha")):
-            ligne[nom] = "b" * 40
-        elif nom.endswith("_challenge"):
-            ligne[nom] = "NEXUS-TRUSTED-REVIEW-V1:" + "a" * 64
-        elif nom == "evidence_reviewer":
-            ligne[nom] = "abenrhouma"
-        elif nom.endswith(("_sha256", "_digest", "_fingerprint")):
-            ligne[nom] = "a" * 64
-        else:
-            ligne[nom] = f"test-{nom}"
-    ligne.update({
-        "authorization_id": autorisation_id,
-        "protocol_version": "LOT41A-V1",
-        "decision": "AUTHORIZE_INGESTION_SCOPE",
-        "allowed_content_sha256": None,
-        "allowed_domains": ["eduscol.education.gouv.fr"],
-        "rights_categories": ["officiel_public"],
-        "pii_absence_attested": True,
-        "artifact_path": f"governance/authorizations/{autorisation_id}.json",
-        "tenant": scope.tenant, "collection": scope.collection,
-        "niveau": scope.niveau, "voie": scope.voie, "matiere": scope.matiere,
-        "candidat": scope.candidat, "visibility": scope.visibility,
-        "school_year": scope.school_year,
-        "programme_version": scope.programme_version,
-        "profile_version": "1.0",
-    })
-    if "audience" in ligne:
-        ligne["audience"] = list(scope.audience)
-    if "valid_from" in ligne:
-        ligne["valid_from"] = datetime.now(UTC) - timedelta(days=1)
-    if "valid_until" in ligne:
-        ligne["valid_until"] = datetime.now(UTC) + timedelta(days=30)
-    # ADR-0058 : une autorisation sans preuve de revue SCELLEE n'est plus
-    # utilisable. Le banc en produit une STRUCTURELLEMENT VALIDE, dont le
-    # challenge se derive de ses propres dimensions — la verification n'est
-    # pas contournee, elle est satisfaite.
-    # L'artefact d'autorisation est SERVI par le banc : le verificateur le
-    # relit a chaque usage (c'est ce que le lot CT a etabli), et un artefact
-    # absent est un refus — a raison.
-    tete = "d" * 40
-    from nexus_contracts.authority_artifacts import ScopeAuthorizationArtifact
+    C'est le protocole que le publisher exige : une autorisation V1 est
+    refusee a l'ecriture produit, et le banc ne doit pas prouver le parcours
+    avec une autorite d'un autre regime que celui qui publie. L'artefact est
+    SERVI, relu en direct a chaque usage, et lie aux contenus exacts.
+    """
+    from nexus_contracts.authority_artifacts import ScopeAuthorizationArtifactV2
+    from nexus_contracts.document import Rights
 
-    artefact_modele = ScopeAuthorizationArtifact.model_validate({
-        "protocol_version": "LOT41A-V1",
+    from ingestor.ingestion_profiles.registry import profile_fingerprint
+
+    return ScopeAuthorizationArtifactV2.model_validate({
+        "protocol_version": "LOT41A-V2",
         "authorization_id": autorisation_id,
         "decision": "AUTHORIZE_INGESTION_SCOPE",
-        "scope": {
-            "tenant": scope.tenant, "collection": scope.collection,
-            "niveau": scope.niveau, "voie": scope.voie,
-            "matiere": scope.matiere, "candidat": scope.candidat,
-            "audience": list(scope.audience), "visibility": scope.visibility,
-            "school_year": scope.school_year,
-            "programme_version": scope.programme_version,
-        },
-        "manifest_digest": str(ligne["manifest_digest"]),
-        "profile_id": str(ligne["profile_id"]),
-        "profile_version": str(ligne["profile_version"]),
-        "profile_fingerprint": str(ligne["profile_fingerprint"]),
-        "allowed_domains": ["eduscol.education.gouv.fr"],
-        "rights_categories": ["officiel_public"],
+        "scope": profil.scope.model_dump(mode="json"),
+        "manifest_digest": contexte.digests["profile_manifest_sha256"],
+        "profile_id": profil.scope.collection,
+        "profile_version": profil.profile_version,
+        "profile_fingerprint": profile_fingerprint(profil),
+        "allowed_domains": sorted(profil.allowed_domains),
+        "rights_categories": [Rights.officiel_public.value],
         "exclusions": [],
+        # Liaison au CONTENU : l'autorisation ne couvre que les octets de
+        # cette release de banc, nommes un par un.
+        "allowed_content_sha256": sorted(
+            contenu.content_sha256 for contenu in contexte.contenus
+        ),
         "pii_absence_attested": True,
-        "pii_absence_evidence": "acceptance bench: CLEARED",
+        "pii_absence_evidence": (
+            f"acceptance bench PII sha256={contexte.digests['pii_evidence_sha256']}; "
+            "CLEARED"
+        ),
         "valid_from": "2026-09-01T00:00:00Z",
         "valid_until": "2027-09-01T00:00:00Z",
     })
-    artefact = artefact_modele.canonical_bytes()
-    blob_sha = (
-        github.put_blob(  # type: ignore[union-attr]
-            path=f"governance/authorizations/{autorisation_id}.json",
-            ref=tete, content=artefact,
-        )
-        if github is not None
-        else "b" * 40
-    )
-    ligne.update({
-        "evidence_head_sha": tete,
-        "artifact_blob_sha": blob_sha,
-        # Le digest PERSISTE doit etre celui de l'artefact reellement servi.
-        "authorization_digest": artefact_modele.digest(),
-        # Toute colonne persistee doit etre DERIVABLE de l'artefact servi :
-        # c'est ce que le verificateur exige, et c'est ce qui empeche qu'un
-        # UPDATE direct en base survive a la relecture.
-        "pii_absence_evidence": artefact_modele.pii_absence_evidence,
-        "profile_id": artefact_modele.profile_id,
-        "profile_version": artefact_modele.profile_version,
-        "profile_fingerprint": artefact_modele.profile_fingerprint,
-        "manifest_digest": artefact_modele.manifest_digest,
-        "valid_from": artefact_modele.valid_from,
-        "valid_until": artefact_modele.valid_until,
-        "evidence_repository": REPOSITORY,
-        "evidence_pull_request": 6001,
-        "evidence_base_sha": "9" * 40,
-        "evidence_reviewer": "abenrhouma",
-    })
-    preuve, digest = _preuve_scellee_de_test(ligne)
-    ligne["review_evidence"] = Jsonb(preuve)
-    ligne["review_evidence_digest"] = digest
-
-    noms = ", ".join(ligne)
-    valeurs = ", ".join(f"%({nom})s" for nom in ligne)
-    conn.execute(
-        f"INSERT INTO ingestion_control.scope_authorizations ({noms}) "
-        f"VALUES ({valeurs}) ON CONFLICT DO NOTHING",
-        ligne,
-    )
 
 
-def _preuve_scellee_de_test(ligne: dict[str, object]) -> tuple[dict, str]:
-    """Preuve de revue scellee du BANC, conforme a ADR-0058."""
-    from datetime import UTC, datetime
+def _enregistrer_autorisation(
+    *,
+    github: LocalGitHub,
+    profil: object,
+    autorisation_id: str,
+    contexte: ContexteDuBanc,
+    numero: int,
+    env: Mapping[str, str],
+) -> None:
+    """Fait enregistrer l'autorisation par le VRAI CLI d'autorite.
 
-    from nexus_contracts.trusted_review_evidence import (
-        SealedTrustedReviewEvidenceV1,
-    )
-
-    preuve = SealedTrustedReviewEvidenceV1(
-        protocol_version="NEXUS-SEALED-TRUSTED-REVIEW-EVIDENCE-V1",
-        repository=REPOSITORY,
-        pull_request=6001,
-        pull_request_base_ref="main",
-        pull_request_base_sha="9" * 40,
-        pull_request_head_sha=str(ligne["evidence_head_sha"]),
-        pull_request_author="cyranoaladin",
-        authorization_id=str(ligne["authorization_id"]),
-        artifact_path=str(ligne["artifact_path"]),
-        artifact_blob_sha=str(ligne["artifact_blob_sha"]),
-        artifact_sha256=str(ligne["authorization_digest"]),
-        reviewer=str(ligne["evidence_reviewer"]),
-        review_id=int(ligne["evidence_review_id"]),
-        review_node_id="PRR_acceptance_bench",
-        review_submitted_at=datetime.now(UTC),
-        challenge_protocol="NEXUS-TRUSTED-REVIEW-V1",
-        challenge=str(ligne["evidence_challenge"]),
-        head_pinned_status="success",
-        head_pinned_context="trusted-human-review/head-pinned",
-        recorded_at=datetime.now(UTC),
-        recorder_version="acceptance-bench",
-    )
-    # Le challenge doit se DERIVER des dimensions scellees : on le recalcule
-    # et on le repose, sinon la verification refuserait — a raison.
-    attendu = preuve.expected_challenge()
-    preuve = preuve.model_copy(update={"challenge": attendu})
-    ligne["evidence_challenge"] = attendu
-    return preuve.model_dump(mode="json"), preuve.digest()
-
-
-def _identite_de_release(racine: Path) -> str:
-    """Une release par test : la base du banc est partagee, et deux releases
-    homonymes portant des digests differents seraient — a raison — refusees
-    par la garde du catalogue."""
-    return f"acceptance-batch-release-{hashlib.sha256(str(racine).encode()).hexdigest()[:12]}"
-
-
-def _ecrire_release_de_test(
-    racine: Path, *, contenus: list[tuple[str, bytes]], placements: int
-) -> dict[str, str]:
-    """Ecrit une release de TEST coherente : manifeste, catalogue, evidences.
-
-    Ces autorites sont celles du banc. Elles portent leur nature dans leur
-    identifiant et ne sortent jamais de cette base jetable.
+    Le banc ne pose pas la ligne en base a la main : il sert l'artefact sur
+    sa forge locale, fait approuver la PR de test, et laisse
+    ``authorize_scope_cli`` relire, verifier et ecrire. Ce qui est atteste
+    est donc ce qui a ete relu, pas ce que le test voulait ecrire.
     """
-    import hashlib as _h
+    from nexus_contracts.authority_artifacts import canonical_authorization_path
 
-    racine.mkdir(parents=True, exist_ok=True)
-    release_id = _identite_de_release(racine)
-
-    artefacts = []
-    chunks_par_contenu = {}
-    for index, (sha, _) in enumerate(contenus):
-        chunks = [
-            {
-                "chunk_id": _h.sha256(f"{sha}:{n}".encode()).hexdigest(),
-                "chunk_sha256": _h.sha256(f"texte:{sha}:{n}".encode()).hexdigest(),
-                "chunk_index": n, "page_start": n + 1, "page_end": n + 1,
-                "character_count": 800, "token_count": 200,
-            }
-            for n in range(PAGES_PAR_DOCUMENT)
-        ]
-        chunks_par_contenu[sha] = chunks
-        artefacts.append({
-            "artifact_id": sha, "content_sha256": sha,
-            "source_path": f"01_EDUSCOL_OFFICIEL/acceptance/doc-{index}.pdf",
-            "source_url": "https://eduscol.education.gouv.fr/acceptance/doc.pdf",
-            "title": f"Document d'acceptation {index}",
-            "type_doc": "ressource_officielle",
-            "page_count": PAGES_PAR_DOCUMENT, "ignored_empty_pages": [],
-            "chunks": chunks,
-            "chunk_id_set_digest": "0" * 64,
-            "chunk_sha256_set_digest": "0" * 64,
-            "page_coverage_digest": "0" * 64,
-        })
-
-    def _ecrire(nom: str, document: dict) -> str:
-        brut = json.dumps(document, ensure_ascii=False).encode("utf-8")
-        (racine / nom).write_bytes(brut)
-        return _h.sha256(brut).hexdigest()
-
-    registre_sha = _ecrire("artifacts.release.json", {
-        "release_id": release_id, "artifacts": artefacts,
-        "expected_counts": {
-            "unique_artifacts": len(artefacts),
-            "unique_chunks": sum(len(c) for c in chunks_par_contenu.values()),
-        },
-    })
-    preflight_sha = _ecrire("preflight_evidence.json", {
-        "evidence_kind": "PRODUCTION_PROFILE_GATE_PREFLIGHT_V1",
-        "target_tokens": 384, "model_id": "intfloat/multilingual-e5-large",
-        "artifacts": [
-            {"content_sha256": a["content_sha256"], "page_count": a["page_count"],
-             "source_path": a["source_path"], "chunks": a["chunks"]}
-            for a in artefacts
-        ],
-    })
-    currentness_sha = _ecrire("currentness_evidence.json", {
-        "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V1",
-        "artifacts": [
-            {"content_sha256": a["content_sha256"], "decision": "CURRENT",
-             "byte_identity": True, "current_for_school_year": "2026-2027"}
-            for a in artefacts
-        ],
-        "counts": {"artifacts": len(artefacts), "current": len(artefacts),
-                   "evaluated": len(artefacts), "review_required": 0,
-                   "unevaluated": 0},
-    })
-    corpus_sha = "d" * 64
-    pii_sha = _ecrire("pii_evidence.json", {
-        "evidence_kind": "REAL_CORPUS_PII_SCAN",
-        "corpus_manifest_sha256": corpus_sha,
-        "policy_sha256": "9" * 64, "scanner_sha256": "8" * 64,
-        "remote_access_mode": "READ_ONLY", "remote_write_operations": 0,
-        "raw_pii_in_output": False, "raw_pii_in_logs": False,
-        "results": [
-            {"content_sha256": a["content_sha256"], "status": "CLEARED",
-             "pii_detected": False, "pages_scanned": a["page_count"],
-             "characters_scanned": 2400,
-             "source_path": a["source_path"], "evidence_sha256": "7" * 64}
-            for a in artefacts
-        ],
-    })
-    transfert_sha = _ecrire("transfer.json", {
-        "files": [
-            {"file": f"{a['content_sha256']}.pdf",
-             "sha256_expected": a["content_sha256"],
-             "sha256_observed": a["content_sha256"]}
-            for a in artefacts
-        ],
-    })
-    registre_droits = (
-        "registry_id: acceptance_rights_registry\n"
-        "human_rights_decisions:\n"
-        "  acceptance_approval:\n"
-        "    decision_type: HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL\n"
-        "    decision_maker: banc d'acceptation\n"
-        f"    scope_manifest_sha256: {corpus_sha}\n"
-        "    scope_zone: \"01_EDUSCOL_OFFICIEL/\"\n"
-        "    rights_category: officiel_public\n"
-        "    approved_for_internal_rag: true\n"
-        "    approved_for_production_rag: true\n"
-        "    generic_rights_blocker: false\n"
-        "source_evidence:\n"
-        "  acceptance_source:\n"
-        "    zone: \"01_EDUSCOL_OFFICIEL/\"\n"
-        "    domain: eduscol.education.gouv.fr\n"
-        "    provenance_status: VERIFIED\n"
-        "    recommended_rights_category: officiel_public\n"
+    tete = hashlib.sha1(f"auth:{autorisation_id}".encode()).hexdigest()
+    github.add_approved_pr(
+        number=numero, head_sha=tete, base_sha="9" * 40, review_id=numero + 10
     )
-    (racine / "rights.yml").write_text(registre_droits, encoding="utf-8")
-    droits_sha = _h.sha256((racine / "rights.yml").read_bytes()).hexdigest()
-
-    _ecrire("production-profile-gate.release.json", {
-        "release_id": release_id,
-        "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
-        "artifact_registry": {"path": "artifacts.release.json",
-                              "sha256": registre_sha},
-        "expected_counts": {
-            "subjects": 2, "unique_artifacts": len(artefacts),
-            "placements": placements,
-            "unique_chunks": sum(len(c) for c in chunks_par_contenu.values()),
-        },
-        "authorities": {
-            "preflight_evidence_sha256": preflight_sha,
-            "currentness_evidence_sha256": currentness_sha,
-            "pii_evidence_sha256": pii_sha,
-            "artifact_transfer_manifest_sha256": transfert_sha,
-            "rights_registry_sha256": droits_sha,
-            "corpus_manifest_sha256": corpus_sha,
-        },
-    })
-    manifeste_sha = _sha(racine / "production-profile-gate.release.json")
-    return {
-        "manifest": manifeste_sha, "registry": registre_sha,
-        "inventory": corpus_sha, "transfer": transfert_sha,
-        "rights": droits_sha, "release_id": release_id,
-    }
-
-
-#: Le nombre de pages de chaque document du banc. Il doit concorder avec ce
-#: que le pre-vol declare, sinon la condition de pagination echoue — a raison.
-PAGES_PAR_DOCUMENT = 3
-
-
-def _contenus_de_test(magasin: Path, combien: int = 2) -> list[tuple[str, bytes]]:
-    """De VRAIS PDF, lisibles par pypdf, ecrits dans le magasin d'artefacts.
-
-    Chaque appel produit des contenus DISTINCTS : la base du banc est
-    partagee par les tests du module, et des identites reutilisees les
-    feraient dependre de leur ordre d'execution.
-    """
-    magasin.mkdir(parents=True, exist_ok=True)
-    empreinte = uuid.uuid4().hex[:8]
-    contenus = []
-    for index in range(combien):
-        octets = pdf_lisible([
-            f"Document {index} du banc {empreinte}, page {page + 1}. "
-            "Contenu pedagogique de test, reellement extractible."
-            for page in range(PAGES_PAR_DOCUMENT)
-        ])
-        sha = hashlib.sha256(octets).hexdigest()
-        (magasin / f"{sha}.pdf").write_bytes(octets)
-        contenus.append((sha, octets))
-    return contenus
+    github.put_blob(
+        path=canonical_authorization_path(autorisation_id),
+        ref=tete,
+        content=_autorisation_v2(
+            profil, autorisation_id=autorisation_id, contexte=contexte
+        ).canonical_bytes(),
+    )
+    enregistre = _run(
+        "ingestor.ingestion_worker.authorize_scope_cli",
+        [
+            "record-authorization",
+            "--authorization-id", autorisation_id,
+            "--repository", REPOSITORY,
+            "--pull-request", str(numero),
+            "--expected-head", tete,
+        ],
+        env,
+    )
+    assert enregistre.returncode == 0, enregistre.stderr
 
 
 def test_la_projection_et_la_proposition_de_revue_batch(
@@ -698,34 +486,22 @@ def test_la_projection_et_la_proposition_de_revue_batch(
     Le programme fait le travail : le test ne construit ni la projection ni
     l'artefact a sa place.
     """
-    magasin = tmp_path / "store"
-    contenus = _contenus_de_test(magasin)
-    releases = tmp_path / "release"
     # La release est ecrite D'ABORD : ses digests sont ensuite ceux que les
     # lignes scellees declarent. L'inverse ferait refuser le catalogue, et
     # c'est bien ce que la garde doit faire.
-    digests = _ecrire_release_de_test(
-        releases, contenus=contenus, placements=len(contenus) * 2
-    )
-    etat = _semer_etat_historique(
-        control_pg, tmp_path, digests=digests, contenus=contenus
-    )
-
-    propose = _run(
-        "ingestor.ingestion_worker.attest_publication_cli",
-        [
-            "propose-release-batch-review",
-            "--release-id", digests["release_id"],
-            "--release-dir", str(releases),
-            "--release-manifest-sha256", digests["manifest"],
-            "--transfer-manifest-path", str(releases / "transfer.json"),
-            "--transfer-manifest-sha256", digests["transfer"],
-            "--rights-registry-path", str(releases / "rights.yml"),
-            "--review-id", REVUE_DE_TEST,
-            "--evaluator", "acceptance-bench",
-        ],
-        {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg)},
-    )
+    contexte = _contexte_du_banc(tmp_path)
+    github, jeton = LocalGitHub(), tmp_path / "github-token"
+    jeton.write_text(VALID_TOKEN, encoding="utf-8")
+    with local_github_server(github) as github_url:
+        env = _environnement_d_autorite(control_pg, github_url=github_url, jeton=jeton)
+        artefacts = _semer_etat_historique(
+            control_pg, contexte=contexte, github=github, env=env
+        )
+        propose = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_de_proposition(contexte),
+            env,
+        )
     assert propose.returncode == 0, propose.stderr
     assert "PROJECTION_PERSISTED" in propose.stdout, propose.stdout
     assert "REVIEW_ARTIFACT_DIGEST" in propose.stdout, propose.stdout
@@ -735,10 +511,10 @@ def test_la_projection_et_la_proposition_de_revue_batch(
         projetees = conn.execute(
             "SELECT count(*), count(*) FILTER (WHERE gate_passed) "
             "  FROM ingestion_control.sealed_release_projections "
-            " WHERE release_id = %s", (digests["release_id"],)
+            " WHERE release_id = %s", (contexte.release_id,)
         ).fetchone()
         conn.rollback()
-    assert projetees == (len(etat["artefacts"]), len(etat["artefacts"])), projetees
+    assert projetees == (len(artefacts), len(artefacts)), projetees
 
 
 def test_l_attestation_batch_est_enregistree_apres_approbation(
@@ -749,12 +525,7 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
     La revue est simulee par ``LocalGitHub`` : c'est une autorite de banc,
     nommee comme telle, qui ne sort jamais de cet environnement isole.
     """
-    magasin = tmp_path / "store"
-    contenus = _contenus_de_test(magasin)
-    releases = tmp_path / "release"
-    digests = _ecrire_release_de_test(
-        releases, contenus=contenus, placements=len(contenus) * 2
-    )
+    contexte = _contexte_du_banc(tmp_path)
     github = LocalGitHub()
     jeton = tmp_path / "github-token"
     jeton.write_text(VALID_TOKEN, encoding="utf-8")
@@ -762,29 +533,15 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
     github.add_approved_pr(
         number=7001, head_sha=head, base_sha="9" * 40, review_id=7011
     )
-    _semer_etat_historique(
-        control_pg, tmp_path, digests=digests, contenus=contenus, github=github
-    )
 
     with local_github_server(github) as github_url:
-        env = {
-            "PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg),
-            "NEXUS_GITHUB_API_BASE": github_url,
-            "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
-        }
+        env = _environnement_d_autorite(control_pg, github_url=github_url, jeton=jeton)
+        _semer_etat_historique(
+            control_pg, contexte=contexte, github=github, env=env
+        )
         propose = _run(
             "ingestor.ingestion_worker.attest_publication_cli",
-            [
-                "propose-release-batch-review",
-                "--release-id", digests["release_id"],
-                "--release-dir", str(releases),
-                "--release-manifest-sha256", digests["manifest"],
-                "--transfer-manifest-path", str(releases / "transfer.json"),
-                "--transfer-manifest-sha256", digests["transfer"],
-                "--rights-registry-path", str(releases / "rights.yml"),
-                "--review-id", REVUE_DE_TEST,
-                "--evaluator", "acceptance-bench",
-            ],
+            _arguments_de_proposition(contexte),
             env,
         )
         assert propose.returncode == 0, propose.stderr
@@ -793,15 +550,7 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
 
         enregistre = _run(
             "ingestor.ingestion_worker.attest_publication_cli",
-            [
-                "record-release-batch-attestation",
-                "--release-id", digests["release_id"],
-                "--review-id", REVUE_DE_TEST,
-                "--repository", REPOSITORY,
-                "--pull-request", "7001",
-                "--expected-head", head,
-                "--review-artifact-path", chemin,
-            ],
+            _arguments_d_enregistrement(contexte, chemin=chemin, head=head),
             env,
         )
     assert enregistre.returncode == 0, enregistre.stderr
@@ -815,7 +564,7 @@ def test_l_attestation_batch_est_enregistree_apres_approbation(
             "       count(*) FILTER (WHERE attributed_facts_digest IS NOT NULL)"
             "  FROM ingestion_control.publication_attestations"
             " WHERE protocol_version = 'LOT42-RELEASE-BATCH-V1'"
-            "   AND release_id = %s", (digests["release_id"],)
+            "   AND release_id = %s", (contexte.release_id,)
         ).fetchone()
         conn.rollback()
     # Quatre placements, UNE seule revue, aucune URL canonique, aucun digest
@@ -848,8 +597,9 @@ def test_l_attestation_batch_se_verifie_a_l_usage(
         verify_publication_attestation,
     )
 
-    contexte = _preparer_attestation(control_pg, tmp_path)
-    github, jeton, head = contexte["github"], contexte["jeton"], contexte["head"]
+    prepare = _preparer_attestation(control_pg, tmp_path)
+    github, jeton = prepare["github"], prepare["jeton"]
+    banc: ContexteDuBanc = prepare["contexte"]
 
     with local_github_server(github) as github_url:
         env = {
@@ -861,13 +611,13 @@ def test_l_attestation_batch_se_verifie_a_l_usage(
         try:
             with psycopg.connect(app_dsn(control_pg)) as conn:
                 verifiees = []
-                for entree in contexte["artefacts"]:
+                for entree in prepare["artefacts"]:
                     verifiee = verify_publication_attestation(
                         conn,
                         resource_id=entree["resource_id"],
                         current_content_sha256=entree["content_sha256"],
-                        current_profile_fingerprint=contexte["digests"]["registry"],
-                        current_manifest_digest=contexte["digests"]["manifest"],
+                        current_profile_fingerprint=banc.digests["artifacts_release_sha256"],
+                        current_manifest_digest=banc.digests["release_manifest_sha256"],
                     )
                     verifiees.append(verifiee)
                 conn.rollback()
@@ -887,8 +637,8 @@ def test_l_attestation_batch_se_verifie_a_l_usage(
                     verify_publication_attestation(
                         conn, resource_id=etrangere,
                         current_content_sha256="0" * 64,
-                        current_profile_fingerprint=contexte["digests"]["registry"],
-                        current_manifest_digest=contexte["digests"]["manifest"],
+                        current_profile_fingerprint=banc.digests["artifacts_release_sha256"],
+                        current_manifest_digest=banc.digests["release_manifest_sha256"],
                     )
                 conn.rollback()
 
@@ -897,10 +647,10 @@ def test_l_attestation_batch_se_verifie_a_l_usage(
                 with pytest.raises(PublicationAttestationInvalidError):
                     verify_publication_attestation(
                         conn,
-                        resource_id=contexte["artefacts"][0]["resource_id"],
+                        resource_id=prepare["artefacts"][0]["resource_id"],
                         current_content_sha256="0" * 64,
-                        current_profile_fingerprint=contexte["digests"]["registry"],
-                        current_manifest_digest=contexte["digests"]["manifest"],
+                        current_profile_fingerprint=banc.digests["artifacts_release_sha256"],
+                        current_manifest_digest=banc.digests["release_manifest_sha256"],
                     )
                 conn.rollback()
         finally:
@@ -911,16 +661,61 @@ def test_l_attestation_batch_se_verifie_a_l_usage(
                     os.environ[cle] = valeur
 
 
+def _environnement_d_autorite(
+    control_pg: dict[str, str], *, github_url: str, jeton: Path
+) -> dict[str, str]:
+    """Les DSN d'autorite et d'attestation, et la forge locale du banc.
+
+    Chaque outil recoit le role prevu pour lui : l'autorite enregistre les
+    autorisations, l'attestor projette et atteste. Aucun des deux n'est le
+    superutilisateur.
+    """
+    from _pg_authority import authority_dsn
+
+    return {
+        "PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg),
+        "PG_INGESTION_CONTROL_AUTHORITY_DSN": authority_dsn(control_pg),
+        "NEXUS_GITHUB_API_BASE": github_url,
+        "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
+    }
+
+
+def _arguments_de_proposition(contexte: ContexteDuBanc) -> list[str]:
+    """La proposition de revue batch, adressee aux autorites du banc."""
+    return [
+        "propose-release-batch-review",
+        "--release-id", contexte.release_id,
+        "--release-dir", str(contexte.racine),
+        "--release-manifest-sha256", contexte.digests["release_manifest_sha256"],
+        "--transfer-manifest-path", str(contexte.manifeste_de_transfert),
+        "--transfer-manifest-sha256",
+        contexte.digests["artifact_transfer_manifest_sha256"],
+        "--rights-registry-path", str(contexte.registre_de_droits),
+        "--review-id", REVUE_DE_TEST,
+        "--evaluator", "acceptance-bench",
+    ]
+
+
+def _arguments_d_enregistrement(
+    contexte: ContexteDuBanc, *, chemin: str, head: str
+) -> list[str]:
+    """L'enregistrement apres approbation, au head exact de la revue."""
+    return [
+        "record-release-batch-attestation",
+        "--release-id", contexte.release_id,
+        "--review-id", REVUE_DE_TEST,
+        "--repository", REPOSITORY,
+        "--pull-request", "7001",
+        "--expected-head", head,
+        "--review-artifact-path", chemin,
+    ]
+
+
 def _preparer_attestation(
     control_pg: dict[str, str], tmp_path: Path
 ) -> dict[str, object]:
     """Amene le banc jusqu'a des attestations batch enregistrees."""
-    magasin = tmp_path / "store"
-    contenus = _contenus_de_test(magasin)
-    releases = tmp_path / "release"
-    digests = _ecrire_release_de_test(
-        releases, contenus=contenus, placements=len(contenus) * 2
-    )
+    contexte = _contexte_du_banc(tmp_path)
     github = LocalGitHub()
     jeton = tmp_path / "github-token"
     jeton.write_text(VALID_TOKEN, encoding="utf-8")
@@ -928,28 +723,14 @@ def _preparer_attestation(
     github.add_approved_pr(
         number=7001, head_sha=head, base_sha="9" * 40, review_id=7011
     )
-    etat = _semer_etat_historique(
-        control_pg, tmp_path, digests=digests, contenus=contenus, github=github
-    )
     with local_github_server(github) as github_url:
-        env = {
-            "PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg),
-            "NEXUS_GITHUB_API_BASE": github_url,
-            "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
-        }
+        env = _environnement_d_autorite(control_pg, github_url=github_url, jeton=jeton)
+        artefacts = _semer_etat_historique(
+            control_pg, contexte=contexte, github=github, env=env
+        )
         propose = _run(
             "ingestor.ingestion_worker.attest_publication_cli",
-            [
-                "propose-release-batch-review",
-                "--release-id", digests["release_id"],
-                "--release-dir", str(releases),
-                "--release-manifest-sha256", digests["manifest"],
-                "--transfer-manifest-path", str(releases / "transfer.json"),
-                "--transfer-manifest-sha256", digests["transfer"],
-                "--rights-registry-path", str(releases / "rights.yml"),
-                "--review-id", REVUE_DE_TEST,
-                "--evaluator", "acceptance-bench",
-            ],
+            _arguments_de_proposition(contexte),
             env,
         )
         assert propose.returncode == 0, propose.stderr
@@ -957,22 +738,13 @@ def _preparer_attestation(
         github.put_blob(path=chemin, ref=head, content=octets)
         enregistre = _run(
             "ingestor.ingestion_worker.attest_publication_cli",
-            [
-                "record-release-batch-attestation",
-                "--release-id", digests["release_id"],
-                "--review-id", REVUE_DE_TEST,
-                "--repository", REPOSITORY,
-                "--pull-request", "7001",
-                "--expected-head", head,
-                "--review-artifact-path", chemin,
-            ],
+            _arguments_d_enregistrement(contexte, chemin=chemin, head=head),
             env,
         )
         assert enregistre.returncode == 0, enregistre.stderr
     return {
-        "github": github, "jeton": jeton, "head": head, "digests": digests,
-        "releases": releases, "magasin": magasin,
-        "artefacts": etat["artefacts"],
+        "github": github, "jeton": jeton, "head": head,
+        "contexte": contexte, "artefacts": artefacts,
     }
 
 
@@ -1114,7 +886,7 @@ def test_les_jobs_batch_nomment_leur_artefact(
             "  JOIN ingestion_control.resources r USING (resource_id)"
             " WHERE a.protocol_version = 'LOT42-RELEASE-BATCH-V1'"
             "   AND a.release_id = %s AND a.invalidated_at IS NULL"
-            " ORDER BY a.resource_id", (contexte["digests"]["release_id"],)
+            " ORDER BY a.resource_id", (contexte["contexte"].release_id,)
         ).fetchall()
         assert len(attestations) == 4, attestations
         jobs = []
@@ -1140,33 +912,319 @@ def test_les_jobs_batch_nomment_leur_artefact(
         nommes = conn.execute(
             "SELECT count(*), count(*) FILTER (WHERE payload ? 'artifact_id')"
             "  FROM ingestion_control.jobs"
-            " WHERE job_type = 'publication_resume' AND status = 'queued'"
+            " WHERE job_id = ANY(%s) AND status = 'queued'", (jobs,)
         ).fetchone()
         conn.rollback()
     assert nommes == (4, 4), nommes
 
+    # Ces jobs ont prouve ce qu'ils devaient prouver — que le PRODUCTEUR
+    # nomme l'artefact. Les laisser en file ferait reclamer a un worker
+    # d'un autre test des jobs d'une AUTRE release : il les refuserait, a
+    # raison, et le refus masquerait ce que ce module veut montrer. La file
+    # du banc est partagee ; elle est donc rendue propre ici.
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        conn.execute(
+            "DELETE FROM ingestion_control.jobs WHERE job_id = ANY(%s)", (jobs,)
+        )
+        conn.commit()
 
-def test_le_parcours_batch_atteint_l_index_produit() -> None:
-    """Maillon final — la publication dans l'index produit et le retrieval.
 
-    Les maillons precedents sont verts : projection, proposition,
-    approbation de test, enregistrement, verification a l'usage, creation
-    des jobs nommant leur artefact.
+def _jobs_depuis_les_attestations(
+    control_pg: dict[str, str], contexte: ContexteDuBanc
+) -> list[uuid.UUID]:
+    """Les jobs batch, derives des attestations REELLEMENT ecrites.
 
-    Ce qui manque pour executer le CLI de Worker B de bout en bout est son
-    JEU D'AUTORITES complet : inventaire candidat, actualite V2, trois
-    tables de correspondance, registre de programmes, manifeste de profils,
-    configuration de collections, jeu de decisions PII avec son recu, son
-    ancre et son index, modele E5 et base produit — une trentaine
-    d'arguments obligatoires.
-
-    Cette epreuve reste ROUGE tant que ce parcours n'est pas execute. Elle
-    n'est ni ignoree, ni marquee en echec attendu : son echec EST l'etat du
-    travail.
+    L'identite de l'artefact n'est pas choisie : elle est relue sur
+    l'attestation qui le couvre.
     """
-    pytest.fail(
-        "parcours jusqu'a l'index non execute : le CLI de Worker B exige son "
-        "jeu d'autorites complet (inventaire, actualite, correspondances, "
-        "registres, PII, modele E5, base produit). Les maillons 1 a 8 sont "
-        "verts ; celui-ci attend la construction de ce jeu."
+    from ingestor.ingestion_control.jobs import create_job
+
+    jobs: list[uuid.UUID] = []
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        attestations = conn.execute(
+            "SELECT a.resource_id, a.artifact_id, a.attestation_id, r.run_id,"
+            "       r.state_version"
+            "  FROM ingestion_control.publication_attestations a"
+            "  JOIN ingestion_control.resources r USING (resource_id)"
+            " WHERE a.protocol_version = 'LOT42-RELEASE-BATCH-V1'"
+            "   AND a.release_id = %s AND a.invalidated_at IS NULL"
+            " ORDER BY a.resource_id",
+            (contexte.release_id,),
+        ).fetchall()
+        assert len(attestations) == 4, attestations
+        for resource_id, artifact_id, attestation_id, run_id, version in attestations:
+            jobs.append(create_job(
+                conn, run_id=run_id, resource_id=resource_id,
+                job_type="publication_resume",
+                payload={
+                    "resource_id": str(resource_id),
+                    "run_id": str(run_id),
+                    "expected_state_version": version,
+                    "publication_attestation_id": str(attestation_id),
+                    "artifact_id": str(artifact_id),
+                },
+            ))
+        conn.commit()
+    return jobs
+
+
+def _environnement_de_worker(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    *,
+    contexte: ContexteDuBanc,
+    github_url: str,
+    jeton: Path,
+    tmp_path: Path,
+) -> dict[str, str]:
+    """L'environnement REEL de Worker B : readiness signee, DSN separes."""
+    from _pg_authority import authority_dsn
+
+    return {
+        **environnement_de_readiness(
+            tmp_path, corpus_manifest_sha256=contexte.digests["corpus_manifest_sha256"]
+        ),
+        "NEXUS_GITHUB_API_BASE": github_url,
+        "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
+        # Les ROLES OPERATIONNELS : le superutilisateur ne sert qu'a preparer
+        # et a relire la base jetable, jamais a demontrer un privilege.
+        "PG_INGESTION_CONTROL_DSN": app_dsn(control_pg),
+        "PG_INGESTION_CONTROL_AUTHORITY_DSN": authority_dsn(control_pg),
+        "PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg),
+        "PG_RAG_DSN": product_pg["publisher_dsn"],
+        "HF_HUB_OFFLINE": "1",
+        "TRANSFORMERS_OFFLINE": "1",
+        "CUDA_VISIBLE_DEVICES": "",
+    }
+
+
+def _arguments_de_worker_b(contexte: ContexteDuBanc, *, iterations: int) -> list[str]:
+    """Les arguments du VRAI CLI de Worker B, autorites comprises."""
+    return [
+        "--profiles-dir", str(PROFILS_DIR),
+        "--artifact-store-dir", str(contexte.magasin),
+        "--owner", "banc-worker-b",
+        "--expected-role", "ingestion_control_app",
+        "--embedding-artifact-root", str(contexte.modele_e5),
+        "--embedding-inventory-sha256", contexte.e5_inventaire_sha256,
+        "--max-iterations", str(iterations),
+        *contexte.arguments_d_autorites(),
+    ]
+
+
+def test_le_parcours_batch_atteint_l_index_produit(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    """Maillon final — la publication dans l'index produit, puis le retrieval.
+
+    Le CLI de Worker B est lance REELLEMENT : il charge ses autorites,
+    construit ses dependances, lit les octets scelles, embarque et publie.
+    Aucun lecteur, verificateur ou publisher n'est remplace par un resultat
+    prepare, et un code de sortie nul ne suffit pas : ce qui suit est relu
+    independamment, dans les deux bases.
+    """
+    prepare = _preparer_attestation(control_pg, tmp_path)
+    banc: ContexteDuBanc = prepare["contexte"]
+    github, jeton = prepare["github"], prepare["jeton"]
+    jobs = _jobs_depuis_les_attestations(control_pg, banc)
+    assert len(jobs) == 4
+
+    with local_github_server(github) as github_url:
+        worker = _run(
+            "ingestor.ingestion_worker.multilevel_publication_resume_cli",
+            _arguments_de_worker_b(banc, iterations=4),
+            _environnement_de_worker(
+                control_pg, product_pg, contexte=banc,
+                github_url=github_url, jeton=jeton, tmp_path=tmp_path,
+            ),
+            timeout=2400,
+        )
+    assert worker.returncode == 0, worker.stderr
+    assert worker.stdout.count("status=succeeded") == 4, (
+        worker.stdout + "\n" + worker.stderr
     )
+    # La sortie du worker est la trace de ce qui s'est reellement passe :
+    # elle est conservee telle quelle, visible avec `pytest -s`.
+    print(worker.stdout)
+
+    # ── Lecture INDEPENDANTE du plan de controle ──────────────────────────
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        etats = conn.execute(
+            "SELECT count(*) FROM ingestion_control.resources r"
+            "  JOIN ingestion_control.publication_attestations a USING (resource_id)"
+            " WHERE a.release_id = %s AND r.resource_state = 'RETRIEVAL_ELIGIBLE'",
+            (banc.release_id,),
+        ).fetchone()
+        traites = conn.execute(
+            "SELECT count(*) FROM ingestion_control.jobs"
+            " WHERE job_id = ANY(%s) AND status = 'succeeded'", (jobs,)
+        ).fetchone()
+        conn.rollback()
+    assert etats == (4,), etats
+    assert traites == (4,), traites
+
+    # ── Lecture INDEPENDANTE de la base PRODUIT ───────────────────────────
+    contenus = sorted(contenu.content_sha256 for contenu in banc.contenus)
+    with psycopg.connect(product_pg["admin_dsn"]) as conn:
+        artefacts = conn.execute(
+            "SELECT artifact_id, rights, type_doc, official, source_kind, source_uri"
+            "  FROM public.rag_artifacts WHERE artifact_id = ANY(%s)"
+            " ORDER BY artifact_id", (contenus,)
+        ).fetchall()
+        placements = conn.execute(
+            "SELECT collection, artifact_id, placement_status, currentness,"
+            "       review_status, source_path, source_uri"
+            "  FROM public.rag_artifact_placements WHERE artifact_id = ANY(%s)"
+            " ORDER BY collection, artifact_id", (contenus,)
+        ).fetchall()
+        chunks = conn.execute(
+            "SELECT count(*), count(DISTINCT artifact_id),"
+            "       count(*) FILTER (WHERE vector IS NULL"
+            "                          OR vector_dims(vector) <> 1024"
+            "                          OR model <> %s OR btrim(text) = '')"
+            "  FROM public.rag_chunks WHERE artifact_id = ANY(%s)",
+            ("intfloat/multilingual-e5-large", contenus),
+        ).fetchone()
+        conn.rollback()
+
+    # L'artefact EXACT, ses droits, son type documentaire et sa provenance.
+    assert [ligne[0] for ligne in artefacts] == contenus, artefacts
+    assert {ligne[1] for ligne in artefacts} == {"officiel_public"}, artefacts
+    assert {ligne[2] for ligne in artefacts} == {banc.type_doc}, artefacts
+    assert {ligne[3] for ligne in artefacts} == {True}, artefacts
+    assert {ligne[4] for ligne in artefacts} == {"sealed_release"}, artefacts
+    urls = {contenu.url_telechargement for contenu in banc.contenus}
+    assert {ligne[5] for ligne in artefacts} == urls, artefacts
+
+    # QUATRE placements : deux contenus, chacun dans DEUX collections.
+    assert len(placements) == 4, placements
+    assert {ligne[0] for ligne in placements} == set(banc.collections), placements
+    assert {(ligne[2], ligne[3], ligne[4]) for ligne in placements} == {
+        ("active", "current", "reviewed")
+    }, placements
+    chemins = {contenu.chemin_physique for contenu in banc.contenus}
+    assert {ligne[5] for ligne in placements} == chemins, placements
+
+    # Les chunks : embarques par le VRAI modele, en dimension canonique.
+    assert chunks[0] > 0, chunks
+    assert chunks[1] == len(contenus), chunks
+    assert chunks[2] == 0, chunks
+
+    # ── Le contenu est effectivement RECUPERE par le retrieval ────────────
+    trouves = _recuperer_par_le_retrieval(product_pg, banc)
+    assert trouves, "aucun chunk publie n'a ete retrouve par le chemin de retrieval"
+    # L'identite rendue est celle d'un artefact du banc, et le TEXTE rendu
+    # est celui qui a ete reellement extrait des octets publies.
+    assert {identite for identite, _ in trouves} <= set(contenus), trouves
+    assert any("algorithmique" in texte for _, texte in trouves), trouves
+
+
+def _recuperer_par_le_retrieval(
+    product_pg: dict[str, str], contexte: ContexteDuBanc
+) -> list[tuple[str, str]]:
+    """Interroge la base produit par le CHEMIN DE RETRIEVAL reel.
+
+    Identite interne signee, scope serveur derive du catalogue gouverne,
+    puis le store pgvector : ce sont les predicats d'acces reels — autorite
+    de placement, droits, lisibilite — qui decident, pas une requete ecrite
+    pour ce test.
+    """
+    import base64
+    import hmac
+    import time
+
+    from _banc_multiniveaux import CONFIG_COLLECTIONS
+
+    from ingestor.collection_config import load_collection_config
+    from ingestor.identity_v2 import (
+        load_identity_verifier_config,
+        verify_identity_token,
+    )
+    from ingestor.retrieval_pg_v2 import PgCandidateStore
+    from ingestor.retrieval_scope_v2 import build_server_retrieval_scope
+
+    collection = "rag_nexus_nsi_terminale_specialite"
+    secret = "banc-multiniveaux-internal-secret-32-bytes"
+    variables = {
+        "NEXUS_INTERNAL_TOKEN_SECRET": secret,
+        "NEXUS_INTERNAL_TOKEN_ISSUER": "banc-cockpit",
+        "NEXUS_INTERNAL_TOKEN_AUDIENCE": "banc-engine",
+        "NEXUS_SSO_ISSUER": "banc-sso",
+        "NEXUS_SSO_AUDIENCE": "banc-cockpit-audience",
+    }
+    anciens = {cle: os.environ.get(cle) for cle in variables}
+    os.environ.update(variables)
+    try:
+        config = load_identity_verifier_config()
+        artefact = config.artifact
+        maintenant = int(time.time())
+        identite = {
+            "aud": variables["NEXUS_SSO_AUDIENCE"],
+            "exp": maintenant + 600,
+            "iss": variables["NEXUS_SSO_ISSUER"],
+            "jti": "banc-multiniveaux-jti",
+            "tenant": "libre_terminale",
+            "niveau": "terminale",
+            "role": "admin",
+            "school_year": "2026-2027",
+            "sub": "psn_bancmultiniveaux0001",
+            "pedagogical_profile": {
+                "voie": "generale",
+                "matieres": ["nsi"],
+                "statut_enseignement": "specialite",
+                "candidat": "libre",
+                "audience": "libre",
+            },
+        }
+        charge = {
+            "protocol_version": "1",
+            "iss": variables["NEXUS_INTERNAL_TOKEN_ISSUER"],
+            "aud": variables["NEXUS_INTERNAL_TOKEN_AUDIENCE"],
+            "sub": identite["sub"],
+            "jti": identite["jti"],
+            "iat": maintenant,
+            "exp": maintenant + 300,
+            "identity": identite,
+            "scope_id": artefact.scope_id,
+            "scope_digest": artefact.sha256_digest(),
+            "allowed_collections": [
+                sujet.collection for sujet in artefact.subjects
+            ],
+        }
+
+        def _b64(valeur: bytes) -> str:
+            return base64.urlsafe_b64encode(valeur).rstrip(b"=").decode("ascii")
+
+        entete = _b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+        corps = _b64(json.dumps(charge).encode())
+        signature = hmac.new(
+            secret.encode(), f"{entete}.{corps}".encode("ascii"), hashlib.sha256
+        ).digest()
+        jeton = f"{entete}.{corps}.{_b64(signature)}"
+
+        verifiee = verify_identity_token(jeton, config=config)
+        scope = build_server_retrieval_scope(
+            verifiee,
+            collection=collection,
+            collection_config=load_collection_config(CONFIG_COLLECTIONS),
+        )
+        store = PgCandidateStore(
+            lambda: psycopg.connect(product_pg["retrieval_dsn"]), scope
+        )
+        candidats = store.lexical(
+            raw_query="programme officiel NSI algorithmique",
+            collection=collection,
+            limit=10,
+        )
+        return [
+            (candidat.artifact_id or candidat.doc_id, candidat.text)
+            for candidat in candidats
+        ]
+    finally:
+        for cle, valeur in anciens.items():
+            if valeur is None:
+                os.environ.pop(cle, None)
+            else:
+                os.environ[cle] = valeur
