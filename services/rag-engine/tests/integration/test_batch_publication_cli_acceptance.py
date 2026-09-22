@@ -1030,6 +1030,59 @@ class _CatalogueMuet:
         return "application/pdf"
 
 
+def test_les_jobs_batch_nomment_leur_artefact(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Maillon 8 — les jobs sont crees depuis les attestations ENREGISTREES.
+
+    Chaque job batch nomme l'artefact qu'il publie. Le producteur derive
+    cette identite des attestations reellement ecrites, jamais d'un choix
+    libre.
+    """
+    from ingestor.ingestion_control.jobs import create_job
+
+    contexte = _preparer_attestation(control_pg, tmp_path)
+
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        attestations = conn.execute(
+            "SELECT a.resource_id, a.artifact_id, a.attestation_id, r.run_id,"
+            "       r.state_version"
+            "  FROM ingestion_control.publication_attestations a"
+            "  JOIN ingestion_control.resources r USING (resource_id)"
+            " WHERE a.protocol_version = 'LOT42-RELEASE-BATCH-V1'"
+            "   AND a.release_id = %s AND a.invalidated_at IS NULL"
+            " ORDER BY a.resource_id", (RELEASE_DE_TEST,)
+        ).fetchall()
+        assert len(attestations) == 4, attestations
+        jobs = []
+        for resource_id, artifact_id, attestation_id, run_id, version in attestations:
+            jobs.append(create_job(
+                conn, run_id=run_id, resource_id=resource_id,
+                job_type="publication_resume",
+                payload={
+                    "resource_id": str(resource_id),
+                    "run_id": str(run_id),
+                    "expected_state_version": version,
+                    "publication_attestation_id": str(attestation_id),
+                    # L'identite EXACTE : le batch l'exige, et le
+                    # discriminateur durable fait appliquer cette exigence.
+                    "artifact_id": str(artifact_id),
+                },
+            ))
+        conn.commit()
+    assert len(jobs) == 4
+
+    # Lecture INDEPENDANTE : chaque job nomme bien son artefact.
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        nommes = conn.execute(
+            "SELECT count(*), count(*) FILTER (WHERE payload ? 'artifact_id')"
+            "  FROM ingestion_control.jobs"
+            " WHERE job_type = 'publication_resume' AND status = 'queued'"
+        ).fetchone()
+        conn.rollback()
+    assert nommes == (4, 4), nommes
+
+
 def test_le_parcours_batch_atteint_l_index_produit() -> None:
     """Maillon final — le job batch traverse la chaîne et publie.
 
