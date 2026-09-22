@@ -29,6 +29,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 import psycopg
+from nexus_contracts.ingestion import SealedReleaseArtifactRecord
 
 try:
     from ingestor.embedding_provider import (
@@ -469,11 +470,28 @@ def resume_publication(
     if artifact_record is None:
         raise PublicationResumeError(f"resource {resource_id} has no stored artifact")
 
-    durable_facts = collect_publication_facts(
-        control_conn,
-        resource_id=resource_id,
-        artifact_id=artifact_record.artifact_id,
-    )
+    # Le pipeline est determine par la REPRESENTATION que le lecteur a
+    # choisie, elle-meme issue du discriminateur durable — jamais d'une
+    # declaration libre du job.
+    est_scelle = isinstance(artifact_record, SealedReleaseArtifactRecord)
+    if est_scelle:
+        # L'ingestion scellee n'ecrit aucun fait unitaire : les exiger ici
+        # rendrait toute publication batch impossible. Les faits viennent de
+        # l'attestation verifiee, qui les tient de la projection confrontee.
+        durable_facts = verify_publication_attestation(
+            control_conn,
+            resource_id=resource_id,
+            current_content_sha256=artifact_record.sha256,
+            current_profile_fingerprint=artifact_record.release_manifest_sha256,
+            current_manifest_digest=artifact_record.release_manifest_sha256,
+            expected_attestation_id=expected_attestation_id,
+        ).facts
+    else:
+        durable_facts = collect_publication_facts(
+            control_conn,
+            resource_id=resource_id,
+            artifact_id=artifact_record.artifact_id,
+        )
     current_mapping = deps.authorization_mapping
     if deps.authorization_context is not None:
         try:
@@ -551,7 +569,18 @@ def resume_publication(
         )
     governed_source_uri = next(iter(governed_source_uris))
 
-    if governed_source_uri != durable_facts.canonical_url:
+    if est_scelle:
+        # Le batch n'a pas d'URL canonique. Sa provenance PUBLIEE est
+        # comparee a la provenance SCELLEE du bon artefact, lue dans le
+        # catalogue verifie — jamais a un champ copie du payload courant.
+        scelle = sealed_catalog.entry(content_sha256=artifact_record.sha256)
+        if governed_source_uri != scelle.get("source_url"):
+            raise PublicationResumeError(
+                f"resource {resource_id}: the governed placement publishes "
+                f"{governed_source_uri!r}, the sealed catalogue records "
+                f"{scelle.get('source_url')!r} for this artifact"
+            )
+    elif governed_source_uri != durable_facts.canonical_url:
         raise PublicationResumeError(
             "the governed placement source URI disagrees with the durable canonical URL"
         )

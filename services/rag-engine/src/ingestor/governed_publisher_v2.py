@@ -20,7 +20,10 @@ from typing import Any, Literal
 from uuid import UUID
 
 import psycopg
-from nexus_contracts.authority_artifacts import LOT42_V2_PROTOCOL_VERSION
+from nexus_contracts.authority_artifacts import (
+    LOT42_RELEASE_BATCH_PROTOCOL_VERSION,
+    LOT42_V2_PROTOCOL_VERSION,
+)
 from nexus_contracts.embedding_utils import format_passage
 from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.resource_state import ResourceState
@@ -67,6 +70,12 @@ except (ImportError, ValueError):
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 ExtractText = Callable[[bytes], str]
+
+
+#: Les protocoles autorises a publier. LOT42-V1 en est exclu (ADR-0035).
+_PROTOCOLES_PUBLIABLES = frozenset(
+    {LOT42_V2_PROTOCOL_VERSION, LOT42_RELEASE_BATCH_PROTOCOL_VERSION}
+)
 
 
 class GovernedPublicationError(RuntimeError):
@@ -254,14 +263,24 @@ def _verify_placements(
         # refuse déjà les artefacts V1, mais une publication ne doit pas
         # dépendre d'une garantie qu'elle n'énonce pas elle-même : une
         # attestation V1 historique ne publie rien sous ce runtime.
-        if attestation.protocol_version != LOT42_V2_PROTOCOL_VERSION:
+        # Deux protocoles publient, et LOT42-V1 n'en fait toujours pas
+        # partie : il n'a jamais lie les faits d'attribution a une revue
+        # humaine (ADR-0035). Le refus est nomme, pas herite.
+        if attestation.protocol_version not in _PROTOCOLES_PUBLIABLES:
             raise GovernedPublicationError(
                 f"attestation protocol {attestation.protocol_version} is not "
-                f"{LOT42_V2_PROTOCOL_VERSION} — a LOT42-V1 attestation never bound "
-                "the published attribution facts to a human review and can never "
-                "authorize a publication"
+                f"among {sorted(_PROTOCOLES_PUBLIABLES)} — a LOT42-V1 attestation "
+                "never bound the published attribution facts to a human review "
+                "and can never authorize a publication"
             )
-        if not attestation.attributed_facts_digest:
+        # Le digest d'attribution est une preuve UNITAIRE. L'exiger du batch
+        # serait exiger fictivement une preuve que le schema lui interdit ;
+        # ne rien exiger du tout serait la faute symetrique. Chaque protocole
+        # porte donc sa propre exigence.
+        est_batch = (
+            attestation.protocol_version == LOT42_RELEASE_BATCH_PROTOCOL_VERSION
+        )
+        if not est_batch and not attestation.attributed_facts_digest:
             raise GovernedPublicationError(
                 "attestation carries no attributed_facts_digest — never publishable"
             )
@@ -271,7 +290,12 @@ def _verify_placements(
             or attestation.content_sha256 != artifact.content_sha256
             or facts.content_sha256 != artifact.content_sha256
             or facts.collection != str(placement.scope.collection)
-            or facts.canonical_url != placement.source_uri
+            # La comparaison stricte de provenance reste ENTIERE pour le
+            # pipeline de decouverte : c'est elle qui empeche de publier sous
+            # une URL que l'attestation n'a pas scellee. Le batch n'a pas
+            # d'URL canonique — le schema la lui interdit — et sa provenance
+            # est verifiee ailleurs, contre l'ensemble scelle.
+            or (not est_batch and facts.canonical_url != placement.source_uri)
             or facts.rights_status.value != artifact.rights
             or scope_key(attestation.authorization.scope) != scope_key(placement.scope)
             # H2-F (défaut 6) : l'attribution écrite dans le produit est
