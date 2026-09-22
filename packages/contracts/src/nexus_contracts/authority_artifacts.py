@@ -81,6 +81,7 @@ LOT42_PROTOCOL_VERSION = "LOT42-V1"
 #: Seule cette version peut encore être proposée à la revue, produire une
 #: attestation et autoriser une publication (ADR-0035 § 6).
 LOT42_V2_PROTOCOL_VERSION = "LOT42-V2"
+LOT42_RELEASE_BATCH_PROTOCOL_VERSION = "LOT42-RELEASE-BATCH-V1"
 
 #: Seule valeur de décision acceptée — jamais un texte libre (ADR-0032 § 2).
 AUTHORIZE_INGESTION_SCOPE_DECISION = "AUTHORIZE_INGESTION_SCOPE"
@@ -631,11 +632,6 @@ class PublicationReviewArtifactV2(PublicationReviewArtifact):
         return document
 
 
-PublicationReviewArtifactAny: TypeAlias = (
-    PublicationReviewArtifactV1 | PublicationReviewArtifactV2
-)
-
-
 class ReleaseBatchExpectedCounts(StrictBaseModel):
     """Les quatre comptes que la release scellée DÉCLARE elle-même.
 
@@ -987,6 +983,16 @@ def parse_scope_authorization_artifact(raw: bytes) -> ScopeAuthorizationArtifact
     return artifact
 
 
+#: Les trois protocoles de revue de publication. Ils ne sont jamais
+#: interchangeables : chacun porte ses propres exigences, et un artefact
+#: d'un protocole ne doit pas etre lu comme un artefact d'un autre.
+PublicationReviewArtifactAny: TypeAlias = (
+    PublicationReviewArtifactV1
+    | PublicationReviewArtifactV2
+    | ReleaseBatchPublicationReviewArtifact
+)
+
+
 def parse_publication_review_artifact(raw: bytes) -> PublicationReviewArtifactAny:
     """Même discipline canonique que ``parse_scope_authorization_artifact``,
     appliquée à la décision de publication LOT42 (item E).
@@ -1010,6 +1016,10 @@ def parse_publication_review_artifact(raw: bytes) -> PublicationReviewArtifactAn
         model = PublicationReviewArtifactV1
     elif protocol_version == LOT42_V2_PROTOCOL_VERSION:
         model = PublicationReviewArtifactV2
+    elif protocol_version == LOT42_RELEASE_BATCH_PROTOCOL_VERSION:
+        # Le batch a son propre modele : ses champs ne sont pas ceux de V1/V2
+        # et ne doivent jamais etre interpretes les uns pour les autres.
+        model = ReleaseBatchPublicationReviewArtifact
     else:
         raise CanonicalArtifactError(
             f"unsupported publication review protocol_version {protocol_version!r}"
