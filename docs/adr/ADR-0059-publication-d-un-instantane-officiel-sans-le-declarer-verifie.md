@@ -101,6 +101,31 @@ du chargeur de preuve existant ; la projection ne la duplique pas. Une
 admission n'efface jamais la détection : la valeur projetée reste
 `DETECTED_REVIEWED_ACCEPTED`.
 
+### 5. Un successeur adopte les artefacts acquis, sans les réécrire
+
+Mesuré : les 479 placements de V2 déjà acquis en staging sont liés à V2 par
+le `release_id` de leur payload, et **toute** la chaîne — rattrapage
+d'attribution, faits de l'attestation batch, projection, Worker B — les
+sélectionne par ce `release_id`. Aucun mécanisme ne permet à une release
+successeur de les couvrir. Il reste deux gestes, tous deux refusés : réécrire
+les payloads acquis (une réécriture silencieuse de faits historiques), ou
+réingérer les mêmes octets sous la nouvelle identité (une réingestion de
+convenance, bloquée d'ailleurs par l'unicité `(collection, dedup_key)`).
+
+Décision : une table d'**adoption**, en ajout seul (migration de contrôle
+`018`). Une ligne y dit qu'un placement acquis sous le prédécesseur est
+couvert par le successeur, et nomme les preuves du successeur qui le fondent
+— manifeste, inventaire, actualité, PII — ainsi que l'actualité du
+placement dans le vocabulaire du produit. L'adoption exige l'égalité exacte,
+placement par placement, de tout ce qui n'est pas une autorité corrigée :
+collection, contenu, identifiants de placement, type documentaire,
+provenance, nombre de chunks, autorisation de scope. Un écart est un refus,
+jamais une adoption partielle.
+
+Les lignes acquises ne sont ni modifiées ni supprimées. Les faits de
+l'attestation batch d'un successeur se lisent dans ses adoptions ; ceux d'un
+prédécesseur, inchangés, dans les payloads.
+
 ## Ce que cette ADR ne fait pas
 
 - Elle ne transforme **aucun** `REVIEW_REQUIRED` en instantané : la

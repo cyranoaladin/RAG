@@ -17,7 +17,52 @@ import yaml
 INVENTORY_KIND = "MULTILEVEL_CANDIDATE_INVENTORY_V1"
 CURRENTNESS_KIND = "MULTILEVEL_ARTIFACT_CURRENTNESS_V1"
 CURRENTNESS_KIND_V2 = "MULTILEVEL_ARTIFACT_CURRENTNESS_V2"
-CURRENTNESS_KINDS = frozenset({CURRENTNESS_KIND, CURRENTNESS_KIND_V2})
+#: ADR-0059 : la preuve parle le vocabulaire de la politique d'actualité
+#: (ADR-0055). Un instantané officiel s'y distingue d'une identité d'octets
+#: prouvée, et ne peut pas s'en réclamer.
+CURRENTNESS_KIND_V3 = "MULTILEVEL_ARTIFACT_CURRENTNESS_V3"
+CURRENTNESS_KINDS = frozenset({CURRENTNESS_KIND, CURRENTNESS_KIND_V2, CURRENTNESS_KIND_V3})
+
+VERIFIED_CURRENT = "VERIFIED_CURRENT"
+OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE = "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"
+NOT_CURRENT_DECLARED_BY_SOURCE = "NOT_CURRENT_DECLARED_BY_SOURCE"
+UNKNOWN_CURRENTNESS = "UNKNOWN"
+#: Les quatre dispositions de la politique, et aucune autre.
+CURRENTNESS_DISPOSITIONS = (
+    VERIFIED_CURRENT,
+    OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE,
+    NOT_CURRENT_DECLARED_BY_SOURCE,
+    UNKNOWN_CURRENTNESS,
+)
+#: Ce que le produit enregistre de chaque disposition publiable. `current`
+#: reste réservé à l'identité d'octets prouvée ; les deux autres dispositions
+#: ne sont jamais publiées.
+PRODUCT_CURRENTNESS_BY_DISPOSITION = {
+    VERIFIED_CURRENT: "current",
+    OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE: "official_snapshot",
+}
+CURRENTNESS_POLICY_ID = "NEXUS-RAG-CURRENTNESS-POLICY-V1"
+#: Les quatre conditions de la règle de repli de la politique : toutes
+#: doivent être vraies pour qu'un contenu soit un instantané officiel.
+SNAPSHOT_FALLBACK_CONDITIONS = frozenset(
+    {
+        "OFFICIAL_INSTITUTIONAL_PROVENANCE",
+        "CONTENT_SHA_PROVENANCE_MATCH",
+        "SOURCE_STATUS_NOT_EXPLICIT_ARCHIVE",
+        "NO_KNOWN_SUPERSEDING_CONFLICT",
+    }
+)
+#: Ce que l'audit réseau déclare quand il n'a rien pu vérifier.
+_UNVERIFIED_AUDIT_STATUS = "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE"
+_OFFICIAL_LISTING_HOSTS = frozenset({"eduscol.education.gouv.fr"})
+_OFFICIAL_DOWNLOAD_HOSTS = frozenset({"eduscol.education.gouv.fr", "www.education.gouv.fr"})
+_VERIFICATION_FACTS = (
+    "effective_currentness",
+    "current_source_listing_url",
+    "current_download_url",
+    "current_download_sha256",
+    "byte_identity",
+)
 _SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
 _SCHOOL_YEAR = re.compile(r"\A[0-9]{4}-[0-9]{4}\Z")
 _OFFICIAL_PREFIX = "01_EDUSCOL_OFFICIEL/"
@@ -71,11 +116,22 @@ class MultilevelCurrentnessArtifact:
     content_sha256: str
     exact_path: str
     collections: frozenset[str]
+    #: La valeur déclarée, telle quelle : `CURRENT`/`REVIEW_REQUIRED` en V1 et
+    #: V2, la disposition elle-même en V3. Elle sert à nommer un refus.
     decision: str
     effective_currentness: str | None
     current_for_school_year: str
     current_source_listing_url: str | None
     current_download_url: str | None
+    #: La disposition de la politique (ADR-0055) : `CURRENT` de V1/V2 vaut
+    #: `VERIFIED_CURRENT`, `REVIEW_REQUIRED` vaut `UNKNOWN`.
+    disposition: str = UNKNOWN_CURRENTNESS
+    provenance_url: str | None = None
+
+    @property
+    def product_currentness(self) -> str | None:
+        """La valeur que le produit enregistre, ou `None` si non publiable."""
+        return PRODUCT_CURRENTNESS_BY_DISPOSITION.get(self.disposition)
 
 
 @dataclass(frozen=True)
@@ -87,7 +143,9 @@ class MultilevelCurrentnessEvidence:
     @property
     def current_content_sha256(self) -> frozenset[str]:
         return frozenset(
-            sha for sha, artifact in self.artifacts.items() if artifact.decision == "CURRENT"
+            sha
+            for sha, artifact in self.artifacts.items()
+            if artifact.disposition == VERIFIED_CURRENT
         )
 
     def for_content(self, content_sha256: str) -> MultilevelCurrentnessArtifact:
@@ -420,7 +478,7 @@ def _bind_currentness_network_audit(
     *,
     evidence_kind: str,
     candidate_inventory: MultilevelCandidateInventory,
-) -> str:
+) -> tuple[str, Mapping[str, object] | None]:
     """Rend `currentness_audit_sha256` opposable, ou refuse.
 
     - la valeur doit avoir la forme d'un SHA-256 (jamais `NOT-A-SHA`) ;
@@ -435,13 +493,14 @@ def _bind_currentness_network_audit(
     """
     digest = _require_sha256(declared_digest, label="currentness audit digest")
     audit_path = evidence_path.parent / CURRENTNESS_NETWORK_AUDIT_FILENAME
+    bound_to_corpus = evidence_kind in {CURRENTNESS_KIND_V2, CURRENTNESS_KIND_V3}
     if not audit_path.is_file():
-        if evidence_kind == CURRENTNESS_KIND_V2:
+        if bound_to_corpus:
             raise MultilevelEvidenceError(
                 "currentness network audit is missing next to the V2 evidence — "
                 "the declared digest names nothing that can be re-hashed"
             )
-        return digest
+        return digest, None
     raw = audit_path.read_bytes()
     observed = hashlib.sha256(raw).hexdigest()
     if observed != digest:
@@ -449,8 +508,8 @@ def _bind_currentness_network_audit(
             "currentness network audit digest differs from the audit file delivered "
             "with the evidence"
         )
-    if evidence_kind != CURRENTNESS_KIND_V2:
-        return digest
+    if not bound_to_corpus:
+        return digest, None
     try:
         audit = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -470,7 +529,173 @@ def _bind_currentness_network_audit(
             "currentness network audit names another content set than the candidate "
             "inventory — its denominator is not this release"
         )
-    return digest
+    return digest, audit
+
+
+_CURRENTNESS_DOCUMENT_KEYS = frozenset(
+    {
+        "evidence_kind",
+        "school_year",
+        "candidate_inventory_sha256",
+        "corpus_manifest_sha256",
+        "sealed_catalog_sha256",
+        "placement_catalog_sha256",
+        "catalog_delta_sha256",
+        "effective_catalog_authority_sha256",
+        "currentness_audit_sha256",
+        "decision_basis",
+        "counts",
+        "partition",
+        "artifacts",
+    }
+)
+_CURRENTNESS_V3_BINDING_KEYS = frozenset(
+    {"currentness_policy_id", "currentness_policy_sha256", "servability_matrix_sha256"}
+)
+_CURRENTNESS_V3_ARTIFACT_KEYS = frozenset(
+    {
+        "content_sha256",
+        "exact_path",
+        "collections",
+        "placement_facts",
+        "current_for_school_year",
+        "currentness_disposition",
+        "source_status",
+        "provenance_url",
+        "fallback_conditions",
+        "reason_codes",
+        *_VERIFICATION_FACTS,
+    }
+)
+#: Une date n'est pas une poignée d'accès : le producteur peut la garder.
+_CURRENTNESS_V3_OPTIONAL_ARTIFACT_KEYS = frozenset({"drive_modified_time"})
+
+
+def _require_official_url(value: object, *, hosts: frozenset[str], label: str) -> str:
+    if not isinstance(value, str):
+        raise MultilevelEvidenceError(f"{label} is invalid")
+    parsed = urlparse(value)
+    if parsed.scheme != "https" or parsed.hostname not in hosts:
+        raise MultilevelEvidenceError(f"{label} is invalid")
+    return value
+
+
+def _require_verified_byte_identity(
+    raw_artifact: Mapping[str, object],
+    *,
+    sha: str,
+    inventory_placements: list[MultilevelCandidatePlacement],
+    label: str,
+) -> None:
+    """Les faits d'une identité d'octets prouvée — les règles de `CURRENT`."""
+    if (
+        raw_artifact.get("effective_currentness") != "actuel"
+        or raw_artifact.get("byte_identity") is not True
+        or raw_artifact.get("current_download_sha256") != sha
+    ):
+        raise MultilevelEvidenceError(f"{label} byte identity is not exact")
+    for field, hosts in (
+        ("current_source_listing_url", _OFFICIAL_LISTING_HOSTS),
+        ("current_download_url", _OFFICIAL_DOWNLOAD_HOSTS),
+    ):
+        url = raw_artifact.get(field)
+        if not isinstance(url, str) or urlparse(url).hostname not in hosts:
+            raise MultilevelEvidenceError(f"{label} official URL is invalid")
+    listing_url = raw_artifact.get("current_source_listing_url")
+    if any(placement.source_url != listing_url for placement in inventory_placements):
+        raise MultilevelEvidenceError(f"{label} listing URL differs from candidate inventory")
+
+
+def _require_no_verification_fact(
+    raw_artifact: Mapping[str, object], *, message: str
+) -> None:
+    if any(raw_artifact.get(field) is not None for field in _VERIFICATION_FACTS):
+        raise MultilevelEvidenceError(message)
+
+
+def _v3_disposition(
+    raw_artifact: Mapping[str, object],
+    *,
+    sha: str,
+    inventory_placements: list[MultilevelCandidatePlacement],
+    audit: Mapping[str, object] | None,
+) -> tuple[str, str | None]:
+    """Vérifie les faits qu'une disposition V3 exige, et seulement ceux-là.
+
+    Rend la disposition et l'URL de provenance retenue.
+    """
+    disposition = raw_artifact.get("currentness_disposition")
+    if disposition not in CURRENTNESS_DISPOSITIONS:
+        raise MultilevelEvidenceError("currentness disposition is invalid")
+    source_status = raw_artifact.get("source_status")
+    if not isinstance(source_status, str) or not source_status.strip():
+        raise MultilevelEvidenceError(f"{disposition} source status is absent")
+    archived = "ARCHIVE" in source_status.upper()
+    fallback = raw_artifact.get("fallback_conditions")
+    provenance = raw_artifact.get("provenance_url")
+    if disposition == VERIFIED_CURRENT:
+        if audit is not None and audit.get("currentness_status") == _UNVERIFIED_AUDIT_STATUS:
+            raise MultilevelEvidenceError(
+                "VERIFIED_CURRENT is declared next to a network audit that verified "
+                "nothing — byte identity cannot be claimed without a verification"
+            )
+        if archived:
+            raise MultilevelEvidenceError(
+                "VERIFIED_CURRENT source status declares an archive"
+            )
+        if fallback is not None:
+            raise MultilevelEvidenceError(
+                "VERIFIED_CURRENT does not rest on the snapshot fallback"
+            )
+        _require_verified_byte_identity(
+            raw_artifact,
+            sha=sha,
+            inventory_placements=inventory_placements,
+            label="VERIFIED_CURRENT",
+        )
+        return VERIFIED_CURRENT, (provenance if isinstance(provenance, str) else None)
+    if disposition == OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE:
+        _require_no_verification_fact(
+            raw_artifact,
+            message=(
+                "an official snapshot carries a network verification fact — a "
+                "snapshot is never VERIFIED_CURRENT (ADR-0055)"
+            ),
+        )
+        if archived:
+            raise MultilevelEvidenceError(
+                "an official snapshot source status declares an archive — the "
+                "fallback never resurrects an archive (ADR-0055)"
+            )
+        if not isinstance(fallback, Mapping) or set(fallback) != SNAPSHOT_FALLBACK_CONDITIONS:
+            raise MultilevelEvidenceError(
+                "an official snapshot does not carry exactly the four fallback conditions"
+            )
+        if any(value is not True for value in fallback.values()):
+            raise MultilevelEvidenceError(
+                "an official snapshot fallback condition does not hold"
+            )
+        provenance_url = _require_official_url(
+            provenance, hosts=_OFFICIAL_DOWNLOAD_HOSTS, label="snapshot provenance URL"
+        )
+        if any(placement.source_url != provenance_url for placement in inventory_placements):
+            raise MultilevelEvidenceError(
+                "snapshot provenance URL differs from candidate inventory"
+            )
+        return OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE, provenance_url
+    _require_no_verification_fact(
+        raw_artifact,
+        message=f"{disposition} cannot contain positive currentness facts",
+    )
+    if fallback is not None:
+        raise MultilevelEvidenceError(
+            f"{disposition} cannot carry snapshot fallback conditions"
+        )
+    if disposition == NOT_CURRENT_DECLARED_BY_SOURCE and not archived:
+        raise MultilevelEvidenceError(
+            "NOT_CURRENT_DECLARED_BY_SOURCE source status does not declare an archive"
+        )
+    return str(disposition), (provenance if isinstance(provenance, str) else None)
 
 
 def load_multilevel_currentness(
@@ -485,29 +710,25 @@ def load_multilevel_currentness(
         json_only=False,
         label="multilevel currentness evidence",
     )
-    _require_exact_keys(
-        document,
-        {
-            "evidence_kind",
-            "school_year",
-            "candidate_inventory_sha256",
-            "corpus_manifest_sha256",
-            "sealed_catalog_sha256",
-            "placement_catalog_sha256",
-            "catalog_delta_sha256",
-            "effective_catalog_authority_sha256",
-            "currentness_audit_sha256",
-            "decision_basis",
-            "counts",
-            "partition",
-            "artifacts",
-        },
-        label="multilevel currentness evidence",
-    )
     evidence_kind = document.get("evidence_kind")
     if evidence_kind not in CURRENTNESS_KINDS:
         raise MultilevelEvidenceError("multilevel currentness evidence kind is invalid")
-    _bind_currentness_network_audit(
+    is_v3 = evidence_kind == CURRENTNESS_KIND_V3
+    _require_exact_keys(
+        document,
+        set(_CURRENTNESS_DOCUMENT_KEYS | (_CURRENTNESS_V3_BINDING_KEYS if is_v3 else set())),
+        label="multilevel currentness evidence",
+    )
+    if is_v3:
+        if document.get("currentness_policy_id") != CURRENTNESS_POLICY_ID:
+            raise MultilevelEvidenceError("currentness policy is not the adopted policy")
+        _require_sha256(
+            document.get("currentness_policy_sha256"), label="currentness policy digest"
+        )
+        _require_sha256(
+            document.get("servability_matrix_sha256"), label="servability matrix digest"
+        )
+    _, audit = _bind_currentness_network_audit(
         path,
         document.get("currentness_audit_sha256"),
         evidence_kind=str(evidence_kind),
@@ -537,6 +758,14 @@ def load_multilevel_currentness(
     for raw_artifact in raw_artifacts:
         if not isinstance(raw_artifact, Mapping):
             raise MultilevelEvidenceError("currentness artifact is malformed")
+        if is_v3:
+            keys = set(raw_artifact)
+            if not (
+                _CURRENTNESS_V3_ARTIFACT_KEYS
+                <= keys
+                <= _CURRENTNESS_V3_ARTIFACT_KEYS | _CURRENTNESS_V3_OPTIONAL_ARTIFACT_KEYS
+            ):
+                raise MultilevelEvidenceError("currentness V3 artifact fields are not exact")
         sha = _require_sha256(
             raw_artifact.get("content_sha256"), label="currentness content SHA"
         )
@@ -589,75 +818,102 @@ def load_multilevel_currentness(
             raise MultilevelEvidenceError("currentness placement facts differ from inventory")
         if raw_artifact.get("current_for_school_year") != candidate_inventory.school_year:
             raise MultilevelEvidenceError("currentness artifact school year differs")
-        decision = raw_artifact.get("decision")
-        if decision not in {"CURRENT", "REVIEW_REQUIRED"}:
-            raise MultilevelEvidenceError("currentness decision is invalid")
-        effective = raw_artifact.get("effective_currentness")
-        if decision == "CURRENT":
-            if (
-                effective != "actuel"
-                or raw_artifact.get("byte_identity") is not True
-                or raw_artifact.get("current_download_sha256") != sha
-            ):
-                raise MultilevelEvidenceError("CURRENT byte identity is not exact")
-            allowed_hosts = {
-                "current_source_listing_url": {"eduscol.education.gouv.fr"},
-                "current_download_url": {
-                    "eduscol.education.gouv.fr",
-                    "www.education.gouv.fr",
-                },
-            }
-            for field, hosts in allowed_hosts.items():
-                url = raw_artifact.get(field)
-                if (
-                    not isinstance(url, str)
-                    or urlparse(url).hostname not in hosts
-                ):
-                    raise MultilevelEvidenceError("CURRENT official URL is invalid")
-            listing_url = raw_artifact.get("current_source_listing_url")
-            if any(
-                placement.source_url != listing_url
-                for placement in inventory_placements
-            ):
-                raise MultilevelEvidenceError(
-                    "CURRENT listing URL differs from candidate inventory"
+        provenance_url: str | None = None
+        if is_v3:
+            disposition, provenance_url = _v3_disposition(
+                raw_artifact,
+                sha=sha,
+                inventory_placements=inventory_placements,
+                audit=audit,
+            )
+            decision = disposition
+        else:
+            decision = str(raw_artifact.get("decision"))
+            if decision not in {"CURRENT", "REVIEW_REQUIRED"}:
+                raise MultilevelEvidenceError("currentness decision is invalid")
+            if decision == "CURRENT":
+                _require_verified_byte_identity(
+                    raw_artifact,
+                    sha=sha,
+                    inventory_placements=inventory_placements,
+                    label="CURRENT",
                 )
-        elif any(
-            raw_artifact.get(field) is not None
-            for field in (
-                "effective_currentness",
-                "current_source_listing_url",
-                "current_download_url",
-                "current_download_sha256",
-                "byte_identity",
-            )
-        ):
-            raise MultilevelEvidenceError(
-                "REVIEW_REQUIRED cannot contain positive currentness facts"
-            )
+                disposition = VERIFIED_CURRENT
+            else:
+                _require_no_verification_fact(
+                    raw_artifact,
+                    message="REVIEW_REQUIRED cannot contain positive currentness facts",
+                )
+                disposition = UNKNOWN_CURRENTNESS
+        effective = raw_artifact.get("effective_currentness")
+        listing = raw_artifact.get("current_source_listing_url")
+        download = raw_artifact.get("current_download_url")
         artifacts[sha] = MultilevelCurrentnessArtifact(
             content_sha256=sha,
             exact_path=exact_path,
             collections=frozenset(collections),
-            decision=str(decision),
+            decision=decision,
             effective_currentness=effective if isinstance(effective, str) else None,
             current_for_school_year=candidate_inventory.school_year,
-            current_source_listing_url=(
-                raw_artifact.get("current_source_listing_url")
-                if isinstance(raw_artifact.get("current_source_listing_url"), str)
-                else None
-            ),
-            current_download_url=(
-                raw_artifact.get("current_download_url")
-                if isinstance(raw_artifact.get("current_download_url"), str)
-                else None
-            ),
+            current_source_listing_url=listing if isinstance(listing, str) else None,
+            current_download_url=download if isinstance(download, str) else None,
+            disposition=disposition,
+            provenance_url=provenance_url,
         )
     if set(artifacts) != candidate_inventory.unique_content_sha256:
         raise MultilevelEvidenceError("currentness artifact set differs from inventory")
     partition = document.get("partition")
     if not isinstance(partition, Mapping):
         raise MultilevelEvidenceError("currentness partition is absent")
+    counts = document.get("counts")
+    if not isinstance(counts, Mapping):
+        raise MultilevelEvidenceError("currentness counts are absent")
+    if is_v3:
+        _require_v3_partition_and_counts(partition, counts, artifacts)
+    else:
+        _require_legacy_partition_and_counts(
+            partition, counts, artifacts, evidence_kind=str(evidence_kind)
+        )
+    return MultilevelCurrentnessEvidence(
+        sha256=evidence_sha,
+        school_year=candidate_inventory.school_year,
+        artifacts=artifacts,
+    )
+
+
+def _require_v3_partition_and_counts(
+    partition: Mapping[str, object],
+    counts: Mapping[str, object],
+    artifacts: Mapping[str, MultilevelCurrentnessArtifact],
+) -> None:
+    if set(partition) != set(CURRENTNESS_DISPOSITIONS):
+        raise MultilevelEvidenceError("currentness partition is invalid")
+    for disposition in CURRENTNESS_DISPOSITIONS:
+        members = partition.get(disposition)
+        if (
+            not isinstance(members, list)
+            or len(members) != len(set(members))
+            or set(members)
+            != {sha for sha, item in artifacts.items() if item.disposition == disposition}
+        ):
+            raise MultilevelEvidenceError("currentness partition differs from dispositions")
+    if set(counts) != {"unique_artifacts", "evaluated", *CURRENTNESS_DISPOSITIONS}:
+        raise MultilevelEvidenceError("currentness V3 counts are not canonical")
+    _require_count(counts, "unique_artifacts", len(artifacts), label="currentness")
+    _require_count(counts, "evaluated", len(artifacts), label="currentness")
+    for disposition in CURRENTNESS_DISPOSITIONS:
+        members = partition[disposition]
+        assert isinstance(members, list)
+        _require_count(counts, disposition, len(members), label="currentness")
+
+
+def _require_legacy_partition_and_counts(
+    partition: Mapping[str, object],
+    counts: Mapping[str, object],
+    artifacts: Mapping[str, MultilevelCurrentnessArtifact],
+    *,
+    evidence_kind: str,
+) -> None:
     current = partition.get("current")
     review = partition.get("review_required")
     unevaluated = partition.get("unevaluated")
@@ -676,9 +932,6 @@ def load_multilevel_currentness(
         or len(review) != len(set(review))
     ):
         raise MultilevelEvidenceError("currentness partition differs from decisions")
-    counts = document.get("counts")
-    if not isinstance(counts, Mapping):
-        raise MultilevelEvidenceError("currentness counts are absent")
     if evidence_kind == CURRENTNESS_KIND_V2:
         expected_count_keys = {
             "unique_artifacts",
@@ -698,22 +951,23 @@ def load_multilevel_currentness(
     _require_count(counts, "current", len(current), label="currentness")
     _require_count(counts, "review_required", len(review), label="currentness")
     _require_count(counts, "unevaluated", 0, label="currentness")
-    return MultilevelCurrentnessEvidence(
-        sha256=evidence_sha,
-        school_year=candidate_inventory.school_year,
-        artifacts=artifacts,
-    )
-
 
 __all__ = [
     "CURRENTNESS_KIND",
+    "CURRENTNESS_DISPOSITIONS",
     "CURRENTNESS_KIND_V2",
+    "CURRENTNESS_KIND_V3",
     "INVENTORY_KIND",
+    "NOT_CURRENT_DECLARED_BY_SOURCE",
+    "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE",
+    "PRODUCT_CURRENTNESS_BY_DISPOSITION",
     "MultilevelCandidateInventory",
     "MultilevelCandidatePlacement",
     "MultilevelCurrentnessArtifact",
     "MultilevelCurrentnessEvidence",
     "MultilevelEvidenceError",
+    "UNKNOWN_CURRENTNESS",
+    "VERIFIED_CURRENT",
     "content_set_sha256",
     "load_multilevel_candidate_inventory",
     "load_multilevel_currentness",
