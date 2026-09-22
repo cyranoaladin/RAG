@@ -163,3 +163,45 @@ def test_le_schema_derive_du_contrat_partage(runtime_document: dict) -> None:
 
     # Le filtre pédagogique désormais servi doit être visible du contrat.
     assert "notions" in schemas["RetrievalNeed"]["properties"]
+
+
+def test_la_derive_de_generation_ne_peut_pas_reapparaitre_silencieusement(
+    runtime_document: dict,
+) -> None:
+    """La cause de la dérive du lot CU, fixée pour qu'elle se rediagnostique.
+
+    Le schéma publié avait été généré par une version de Pydantic antérieure
+    à l'épingle courante (``pydantic==2.13.4``). Les 62 lignes d'écart ne
+    décrivaient **aucun changement du contrat exposé** :
+
+    * ``additionalProperties: true`` ajouté sur les champs libres — c'est le
+      défaut de JSON Schema, donc sans effet ;
+    * ``enum: [x]`` retiré à côté de ``const: x`` — les deux expriment la
+      même contrainte.
+
+    Normalisés, les deux documents étaient identiques. C'est ce qui a rendu
+    la régénération légitime : elle n'a rien changé de ce que les
+    intégrateurs peuvent observer.
+
+    Cette épreuve fixe la forme attendue. Un futur ``enum`` redondant ou un
+    ``additionalProperties`` manquant signalerait de nouveau un
+    environnement de génération différent — et non un changement de contrat.
+    """
+    redondances: list[str] = []
+
+    def parcourir(noeud: object, chemin: str) -> None:
+        if isinstance(noeud, dict):
+            if "const" in noeud and noeud.get("enum") == [noeud["const"]]:
+                redondances.append(chemin)
+            for cle, valeur in noeud.items():
+                parcourir(valeur, f"{chemin}.{cle}")
+        elif isinstance(noeud, list):
+            for index, valeur in enumerate(noeud):
+                parcourir(valeur, f"{chemin}[{index}]")
+
+    parcourir(runtime_document, "$")
+    assert not redondances, (
+        "le runtime produit de nouveau un `enum` redondant à côté d'un "
+        f"`const` ({redondances[:3]}) — la version de Pydantic qui génère ce "
+        "schéma a changé ; vérifier l'épingle avant de régénérer"
+    )
