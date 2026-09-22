@@ -581,8 +581,9 @@ duplique rien.
 | Élément | Valeur |
 |---|---|
 | Branche | `go-live/cu-batch-projection-and-pii-reconciliation` |
+| Pull request | **#246** — `go-live (lot CU) : le parcours batch atteint l'index produit, et le contenu est récupéré` |
 | Dernier maillon atteint | **publication produit et retrieval** — le parcours batch est complet sur le banc |
-| Modifications locales | aucune hors ce rapport |
+| Modifications locales | aucune |
 | Environnement | aucun conteneur ni processus à conserver ; les bases du banc sont créées et détruites par les fixtures ; aucun secret monté |
 
 ### Prérequis d'exécution du banc
