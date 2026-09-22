@@ -936,6 +936,100 @@ def _preparer_attestation(
     }
 
 
+def test_un_job_batch_sans_artefact_nomme_est_refuse(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Contre-epreuve A/B — aucune substitution vers « le plus recent ».
+
+    Une SECONDE version d'artefact existe pour la ressource. Le traitement
+    doit utiliser celle que le job nomme, ou refuser ; jamais retenir la
+    plus recente parce qu'elle arrive en tete d'une requete ordonnee.
+    """
+    from ingestor.ingestion_control.provisioning import (
+        SEALED_RELEASE_PIPELINE,
+        find_authorised_artifact,
+        find_latest_artifact,
+        persist_sealed_release_artifact,
+    )
+
+    contexte = _preparer_attestation(control_pg, tmp_path)
+    premier = contexte["artefacts"][0]
+    resource_id = premier["resource_id"]
+    autorise = premier["artifact_id"]
+
+    # B : plus recent, et JAMAIS couvert par la revue.
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        run_id = conn.execute(
+            "SELECT run_id FROM ingestion_control.resources WHERE resource_id = %s",
+            (resource_id,),
+        ).fetchone()[0]
+        payload = conn.execute(
+            "SELECT payload FROM ingestion_control.artifacts "
+            " WHERE artifact_id = %s", (autorise,)
+        ).fetchone()[0]
+        plus_recent = persist_sealed_release_artifact(
+            conn, resource_id=resource_id, run_id=run_id,
+            sha256=premier["content_sha256"], size_bytes=999,
+            mime_declared="application/pdf", mime_detected="application/pdf",
+            provenance_url=payload["provenance_artifact_url"], payload=payload,
+        )
+        conn.commit()
+    assert plus_recent != autorise
+
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        # « le plus recent » rend l'un des deux, selon un ordre que rien ne
+        # garantit — les deux lignes peuvent porter le meme collected_at.
+        # C'est precisement pourquoi ce n'est pas une regle d'autorite.
+        dernier = find_latest_artifact(
+            conn, resource_id=resource_id, sealed_catalog=_CatalogueMuet()
+        )
+        assert dernier is not None
+        assert dernier.artifact_id in {autorise, plus_recent}
+
+        # La selection par IDENTITE rend A, celui que la revue a couvert —
+        # de maniere DETERMINISTE, quelle que soit l'autre version.
+        choisi = find_authorised_artifact(
+            conn, resource_id=resource_id, artifact_id=autorise,
+            sealed_catalog=_CatalogueMuet(),
+        )
+        assert choisi.artifact_id == autorise
+
+        # Un identifiant d'une AUTRE ressource est un refus.
+        from ingestor.ingestion_control.provisioning import SealedReleaseRowError
+
+        autre = contexte["artefacts"][2]["resource_id"]
+        with pytest.raises(SealedReleaseRowError, match="does not belong"):
+            find_authorised_artifact(
+                conn, resource_id=autre, artifact_id=autorise,
+                sealed_catalog=_CatalogueMuet(),
+            )
+        conn.rollback()
+
+    # Et le discriminateur durable exige bien l'identite pour ce pipeline.
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        kind = conn.execute(
+            "SELECT pipeline_kind FROM ingestion_control.resources "
+            " WHERE resource_id = %s", (resource_id,)
+        ).fetchone()
+        conn.rollback()
+    assert kind == (SEALED_RELEASE_PIPELINE,)
+
+
+class _CatalogueMuet:
+    """Catalogue minimal du banc : il ne decide rien, il rend ce qu'on lui a
+    donne. Les refus testes ici portent sur la SELECTION, pas sur lui."""
+
+    def entry(self, *, content_sha256: str) -> dict[str, object]:
+        return {"content_sha256": content_sha256, "page_count": 3,
+                "title": None, "source_url": None}
+
+    def resolve_rights(self, *, content_sha256: str) -> tuple[str, str, str]:
+        return ("officiel_public", "acceptance_approval", "a" * 64)
+
+    def media_type(self, *, content_sha256: str) -> str:
+        return "application/pdf"
+
+
 def test_le_parcours_batch_atteint_l_index_produit() -> None:
     """Maillon final — le job batch traverse la chaîne et publie.
 

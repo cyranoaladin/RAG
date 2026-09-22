@@ -31,14 +31,17 @@ def test_chaque_appel_au_lecteur_transmet_le_catalogue() -> None:
     supprimée sans qu'on s'en aperçoive.
     """
     source = _source_de("resume_publication")
-    appels = source.count("find_authorised_artifact(") + source.count(
-        "find_latest_artifact("
-    )
-    assert appels >= 1, "resume_publication doit lire l'artefact"
-    assert source.count("sealed_catalog=sealed_catalog") == appels, (
-        f"{appels} appel(s) au lecteur mais "
-        f"{source.count('sealed_catalog=sealed_catalog')} transmission(s) du "
-        "catalogue"
+    # Les appels au lecteur, hors mention dans un commentaire ou un message.
+    appels = [
+        ligne for ligne in source.splitlines()
+        if ("find_authorised_artifact(" in ligne or "find_latest_artifact(" in ligne)
+        and not ligne.strip().startswith("#")
+    ]
+    assert appels, "resume_publication doit lire l'artefact"
+    transmissions = source.count("sealed_catalog=sealed_catalog")
+    assert transmissions == len(appels), (
+        f"{len(appels)} appel(s) au lecteur mais {transmissions} transmission(s) "
+        f"du catalogue — appels observes : {appels!r}"
     )
 
 
@@ -49,6 +52,9 @@ def test_le_resolveur_transmis_vient_du_registre_gouverne() -> None:
     source_deps = inspect.getsource(module.PublicationResumeDeps.build_sealed_catalog)
     assert "self.rights_evidence_registry" in source_deps
     assert "_VerifiedSealedCatalog(" in source_deps
+    # Le catalogue n'est construit qu'a UN endroit : une seconde fabrique
+    # locale pourrait porter d'autres autorites sans qu'on s'en apercoive.
+    assert source.count("build_sealed_catalog()") == 1
 
 
 def test_l_adaptateur_delegue_au_registre_et_ne_decide_rien() -> None:
