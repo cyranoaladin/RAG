@@ -349,7 +349,7 @@ class TestScopeAuthorizationContentAllowlistRollback:
         assert reapply.returncode == 0, reapply.stderr
         # 009 -> 015 : sept migrations réappliquées depuis l'ajout de 015.
         assert "MIGRATIONS_APPLIED=7" in reapply.stdout
-        assert "SCHEMA_HEAD=15" in reapply.stdout
+        assert f"SCHEMA_HEAD={_pg_authority.declared_schema_head()}" in reapply.stdout
 
         with psycopg.connect(_superuser_dsn(pg_container)) as conn, conn.cursor() as cur:
             cur.execute(

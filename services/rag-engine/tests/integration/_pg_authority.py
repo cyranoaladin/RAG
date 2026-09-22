@@ -139,6 +139,30 @@ def _rag_migration_files() -> tuple[Path, ...]:
     return files
 
 
+INGESTION_CONTROL_MIGRATIONS_DIR = (
+    INFRA_ROOT / "postgres" / "ingestion_control" / "migrations"
+)
+
+
+def declared_schema_head() -> int:
+    """La tête de schéma que le dépôt LIVRE, comptée sur ses fichiers.
+
+    Le bootstrap déclare ``SCHEMA_HEAD`` comme le NOMBRE de migrations
+    présentes (et refuse déjà que le fichier ``HEAD`` diverge de la
+    dernière). Épingler ce nombre en dur dans les tests créait une seconde
+    source de vérité qui pourrit à chaque migration ajoutée : c'est ce qui
+    est arrivé — trois épreuves attendaient encore 15 pour une tête à 17,
+    dont une fixture de module qui emportait douze épreuves avec elle.
+    """
+    fichiers = sorted(INGESTION_CONTROL_MIGRATIONS_DIR.glob("[0-9][0-9][0-9]_*.sql"))
+    if not fichiers:
+        raise RuntimeError(
+            f"no ingestion-control migration found in "
+            f"{INGESTION_CONTROL_MIGRATIONS_DIR}"
+        )
+    return len(fichiers)
+
+
 def start_rag_retrieval_postgres(label: str) -> Iterator[dict[str, str]]:
     """Démarre une instance jetable portant le VRAI schéma de retrieval.
 

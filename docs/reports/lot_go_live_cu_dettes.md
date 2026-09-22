@@ -82,7 +82,7 @@ bien un refus explicite. Seul le motif attendu est périmé.
 
 **Antériorité prouvée.** Les treize échouent à l'identique au commit parent.
 
-## 2. Une tête de schéma périmée — un échec et douze erreurs
+## 2. Une tête de schéma périmée — un échec et douze erreurs (CLOS par ce lot)
 
 **Symptôme, mesuré :**
 
@@ -110,6 +110,24 @@ ce n'est pas un défaut de la preuve de revue scellée : c'est son banc qui ne
 démarre pas.
 
 **Antériorité prouvée.** Échoue à l'identique au commit parent.
+
+**Pourquoi ce lot le clôt.** Parmi les douze épreuves que la fixture
+emportait se trouve
+`test_11_une_preuve_scellee_reste_valide_apres_fusion_de_la_pr` — la seule
+qui établisse qu'une preuve de revue **tient après la fusion de sa PR**.
+C'est une des propriétés que ce lot doit démontrer ; la laisser inexécutable
+aurait été s'en remettre à un test qui ne tourne pas.
+
+**Ce qui a été fait.** Le littéral n'a pas été réécrit de 15 à 17 — il
+aurait pourri de nouveau à la migration suivante. Les trois attentes
+dérivent désormais le nombre de migrations **livrées par le dépôt**
+(`declared_schema_head()`), ce que le bootstrap déclare précisément, et dont
+il refuse déjà qu'il diverge du fichier `HEAD`. C'est d'ailleurs la forme
+qu'emploient déjà les modules voisins (`_MIGRATION_VERSIONS[-1]`, `_HEAD`) :
+les trois littéraux étaient les exceptions.
+
+**Résultat mesuré** : 25 épreuves repassent au vert (13 + 12), et les douze
+erreurs de la suite d'intégration disparaissent.
 
 ## 3. Deux épreuves de `test_startup_gate_requires_readiness_manifest.py`
 
@@ -181,5 +199,7 @@ Les suites que ce lot fait vivre sont **vertes** :
 | `tests/integration/test_batch_publication_cli_acceptance.py` | 15 / 15 |
 | `tests/integration/test_sealed_release_ingestion_pg.py` | 13 / 13 |
 | `tests/integration/test_h2f_artifact_attribution_pg.py` | 40 / 40 |
+| `tests/integration/test_lot42_v2_migration_013.py` | 13 / 13 (débloqué) |
+| `tests/integration/test_sealed_trusted_review_evidence_pg.py` | 12 / 12 (débloqué) |
 | Suite unitaire `rag-engine` | 3 955, 0 échec |
 | `nexus-contracts` | 925, 0 échec |
