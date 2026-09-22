@@ -15,6 +15,7 @@ nommées comme telles. Elles n'autorisent aucune publication réelle.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import subprocess
 import sys
@@ -33,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from _pg_authority import (  # noqa: E402
     app_dsn,
+    attestor_dsn,
     requires_docker,
     start_ingestion_control_postgres,
     superuser_dsn,
@@ -175,6 +177,381 @@ def test_le_schema_porte_l_identite_de_release_pour_une_attestation_batch(
         "attestation batch ne pourrait pas nommer la release qu'elle atteste.\n"
         f"colonnes présentes : {sorted(colonnes)}"
     )
+
+
+#: Autorites de TEST du banc. Elles ne valent jamais autorisation reelle.
+RELEASE_DE_TEST = "acceptance-batch-release-v1"
+REVUE_DE_TEST = "revue-batch-acceptance"
+AUTORISATION_DE_TEST = "acceptance-batch-scope"
+
+
+def _semer_etat_historique(
+    pg: dict[str, str], tmp_path: Path, *, digests: dict[str, str],
+    combien: int = 2,
+) -> dict[str, object]:
+    """Ecrit des lignes au FORMAT HISTORIQUE — celui qu'ecrit l'ingestion de
+    release scellee : ``canonical_url`` nulle, payload de release, aucun fait
+    unitaire.
+
+    C'est une preparation d'etat initial, pas un contournement : les
+    controles que le parcours doit exercer restent tous en place.
+    """
+    from nexus_contracts.ingestion import ResourceScope
+
+    from ingestor.ingestion_control.provisioning import (
+        SEALED_RELEASE_PIPELINE,
+        create_ingestion_run,
+        create_resource,
+        persist_sealed_release_artifact,
+        persist_sealed_release_candidate,
+    )
+
+    magasin = tmp_path / "store"
+    artefacts: list[dict[str, object]] = []
+    # Un document MULTICOLLECTION : le meme contenu place dans deux
+    # collections. Ses identites et ses droits ne doivent pas fusionner.
+    collections = (
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite",
+    )
+    contenus = _contenus_de_test(magasin, combien)
+
+    scopes = {
+        collection: ResourceScope(
+            tenant="libre_terminale", collection=collection,
+            niveau="terminale" if "terminale" in collection else "premiere",
+            voie="generale", matiere="nsi", candidat="libre",
+            audience=["aefe", "libre"], visibility="public",
+            school_year="2026-2027", programme_version="EDUSCOL_CORPUS_20260808",
+        )
+        for collection in collections
+    }
+
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        _semer_autorisation(conn, scopes[collections[0]])
+        for collection in collections:
+            run_id = create_ingestion_run(
+                conn, scope=scopes[collection], profile_version="acceptance-v1",
+                trigger="manual",
+            )
+            for sha, octets in contenus:
+                payload = {
+                    "release_id": RELEASE_DE_TEST,
+                    # Les digests REELS de la release ecrite : la garde du
+                    # catalogue refuse toute valeur qui ne serait pas la sienne.
+                    "release_manifest_sha256": digests["manifest"],
+                    "artifacts_release_sha256": digests["registry"],
+                    "candidate_inventory_sha256": digests["inventory"],
+                    "artifact_transfer_manifest_sha256": digests["transfer"],
+                    "content_sha256": sha,
+                    "collection": collection,
+                    "chunk_count": 3,
+                    "scope_authorization_id": AUTORISATION_DE_TEST,
+                    "scope_authorization_digest": "c" * 64,
+                    "provenance_artifact_url": (
+                        "https://eduscol.education.gouv.fr/acceptance/doc.pdf"
+                    ),
+                    "provenance_discovery_url": (
+                        "https://eduscol.education.gouv.fr/acceptance"
+                    ),
+                    "review_status": "reviewed",
+                    "placement_status": "active",
+                    "currentness": "current",
+                    "type_doc": "ressource_officielle",
+                    "pipeline_kind": SEALED_RELEASE_PIPELINE,
+                    "protocol_version": "LOT42-RELEASE-BATCH-V1",
+                }
+                resource_id = create_resource(
+                    conn, run_id=run_id, scope=scopes[collection],
+                    dedup_key=sha, pipeline_kind=SEALED_RELEASE_PIPELINE,
+                )
+                persist_sealed_release_candidate(
+                    conn, resource_id=resource_id, run_id=run_id, dedup_key=sha,
+                    source_url=payload["provenance_artifact_url"],
+                    domain="eduscol.education.gouv.fr",
+                    proposed_type_doc="ressource_officielle", payload=payload,
+                )
+                artifact_id = persist_sealed_release_artifact(
+                    conn, resource_id=resource_id, run_id=run_id, sha256=sha,
+                    size_bytes=len(octets), mime_declared="application/pdf",
+                    mime_detected="application/pdf",
+                    provenance_url=payload["provenance_artifact_url"],
+                    payload=payload,
+                )
+                artefacts.append({
+                    "resource_id": resource_id, "artifact_id": artifact_id,
+                    "content_sha256": sha, "collection": collection,
+                })
+        conn.commit()
+    return {"magasin": magasin, "artefacts": artefacts, "contenus": contenus}
+
+
+def _semer_autorisation(conn: psycopg.Connection, scope: object) -> None:
+    """Autorisation de scope du BANC — donnee de test, jamais une autorite."""
+    from datetime import UTC, datetime, timedelta
+
+    obligatoires = [
+        (nom, type_sql)
+        for nom, type_sql in conn.execute(
+            "SELECT column_name, data_type FROM information_schema.columns "
+            " WHERE table_schema='ingestion_control' "
+            "   AND table_name='scope_authorizations' "
+            "   AND is_nullable='NO' AND column_default IS NULL "
+            " ORDER BY ordinal_position"
+        ).fetchall()
+    ]
+    ligne: dict[str, object] = {}
+    for nom, type_sql in obligatoires:
+        if type_sql == "uuid":
+            ligne[nom] = uuid.uuid4()
+        elif type_sql.startswith("timestamp"):
+            ligne[nom] = datetime.now(UTC)
+        elif type_sql == "boolean":
+            ligne[nom] = True
+        elif type_sql == "ARRAY":
+            ligne[nom] = []
+        elif type_sql in ("integer", "bigint", "smallint"):
+            ligne[nom] = 1
+        elif nom.endswith(("_base_sha", "_head_sha", "_blob_sha")):
+            ligne[nom] = "b" * 40
+        elif nom.endswith("_challenge"):
+            ligne[nom] = "NEXUS-TRUSTED-REVIEW-V1:" + "a" * 64
+        elif nom.endswith(("_sha256", "_digest", "_fingerprint")):
+            ligne[nom] = "a" * 64
+        else:
+            ligne[nom] = f"test-{nom}"
+    ligne.update({
+        "authorization_id": AUTORISATION_DE_TEST,
+        "protocol_version": "LOT41A-V1",
+        "decision": "AUTHORIZE_INGESTION_SCOPE",
+        "allowed_content_sha256": None,
+        "allowed_domains": ["eduscol.education.gouv.fr"],
+        "rights_categories": ["officiel_public"],
+        "pii_absence_attested": True,
+        "artifact_path": f"governance/authorizations/{AUTORISATION_DE_TEST}.json",
+        "tenant": scope.tenant, "collection": scope.collection,
+        "niveau": scope.niveau, "voie": scope.voie, "matiere": scope.matiere,
+        "candidat": scope.candidat, "visibility": scope.visibility,
+        "school_year": scope.school_year,
+        "programme_version": scope.programme_version,
+        "profile_version": "1.0",
+    })
+    if "audience" in ligne:
+        ligne["audience"] = list(scope.audience)
+    if "valid_from" in ligne:
+        ligne["valid_from"] = datetime.now(UTC) - timedelta(days=1)
+    if "valid_until" in ligne:
+        ligne["valid_until"] = datetime.now(UTC) + timedelta(days=30)
+    noms = ", ".join(ligne)
+    valeurs = ", ".join(f"%({nom})s" for nom in ligne)
+    conn.execute(
+        f"INSERT INTO ingestion_control.scope_authorizations ({noms}) "
+        f"VALUES ({valeurs}) ON CONFLICT DO NOTHING",
+        ligne,
+    )
+
+
+def _ecrire_release_de_test(
+    racine: Path, *, contenus: list[tuple[str, bytes]], placements: int
+) -> dict[str, str]:
+    """Ecrit une release de TEST coherente : manifeste, catalogue, evidences.
+
+    Ces autorites sont celles du banc. Elles portent leur nature dans leur
+    identifiant et ne sortent jamais de cette base jetable.
+    """
+    import hashlib as _h
+
+    racine.mkdir(parents=True, exist_ok=True)
+
+    artefacts = []
+    chunks_par_contenu = {}
+    for index, (sha, _) in enumerate(contenus):
+        chunks = [
+            {
+                "chunk_id": _h.sha256(f"{sha}:{n}".encode()).hexdigest(),
+                "chunk_sha256": _h.sha256(f"texte:{sha}:{n}".encode()).hexdigest(),
+                "chunk_index": n, "page_start": n + 1, "page_end": n + 1,
+                "character_count": 800, "token_count": 200,
+            }
+            for n in range(3)
+        ]
+        chunks_par_contenu[sha] = chunks
+        artefacts.append({
+            "artifact_id": sha, "content_sha256": sha,
+            "source_path": f"01_EDUSCOL_OFFICIEL/acceptance/doc-{index}.pdf",
+            "source_url": "https://eduscol.education.gouv.fr/acceptance/doc.pdf",
+            "title": f"Document d'acceptation {index}",
+            "type_doc": "ressource_officielle",
+            "page_count": 3, "ignored_empty_pages": [],
+            "chunks": chunks,
+            "chunk_id_set_digest": "0" * 64,
+            "chunk_sha256_set_digest": "0" * 64,
+            "page_coverage_digest": "0" * 64,
+        })
+
+    def _ecrire(nom: str, document: dict) -> str:
+        brut = json.dumps(document, ensure_ascii=False).encode("utf-8")
+        (racine / nom).write_bytes(brut)
+        return _h.sha256(brut).hexdigest()
+
+    registre_sha = _ecrire("artifacts.release.json", {
+        "release_id": RELEASE_DE_TEST, "artifacts": artefacts,
+        "expected_counts": {
+            "unique_artifacts": len(artefacts),
+            "unique_chunks": sum(len(c) for c in chunks_par_contenu.values()),
+        },
+    })
+    preflight_sha = _ecrire("preflight_evidence.json", {
+        "evidence_kind": "PRODUCTION_PROFILE_GATE_PREFLIGHT_V1",
+        "target_tokens": 384, "model_id": "intfloat/multilingual-e5-large",
+        "artifacts": [
+            {"content_sha256": a["content_sha256"], "page_count": a["page_count"],
+             "source_path": a["source_path"], "chunks": a["chunks"]}
+            for a in artefacts
+        ],
+    })
+    currentness_sha = _ecrire("currentness_evidence.json", {
+        "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V1",
+        "artifacts": [
+            {"content_sha256": a["content_sha256"], "decision": "CURRENT",
+             "byte_identity": True, "current_for_school_year": "2026-2027"}
+            for a in artefacts
+        ],
+        "counts": {"artifacts": len(artefacts), "current": len(artefacts),
+                   "evaluated": len(artefacts), "review_required": 0,
+                   "unevaluated": 0},
+    })
+    corpus_sha = "d" * 64
+    pii_sha = _ecrire("pii_evidence.json", {
+        "evidence_kind": "REAL_CORPUS_PII_SCAN",
+        "corpus_manifest_sha256": corpus_sha,
+        "policy_sha256": "9" * 64, "scanner_sha256": "8" * 64,
+        "remote_access_mode": "READ_ONLY", "remote_write_operations": 0,
+        "raw_pii_in_output": False, "raw_pii_in_logs": False,
+        "results": [
+            {"content_sha256": a["content_sha256"], "status": "CLEARED",
+             "pii_detected": False, "pages_scanned": a["page_count"],
+             "characters_scanned": 2400,
+             "source_path": a["source_path"], "evidence_sha256": "7" * 64}
+            for a in artefacts
+        ],
+    })
+    transfert_sha = _ecrire("transfer.json", {
+        "files": [
+            {"file": f"{a['content_sha256']}.pdf",
+             "sha256_expected": a["content_sha256"],
+             "sha256_observed": a["content_sha256"]}
+            for a in artefacts
+        ],
+    })
+    registre_droits = (
+        "registry_id: acceptance_rights_registry\n"
+        "human_rights_decisions:\n"
+        "  acceptance_approval:\n"
+        "    decision_type: HUMAN_ORGANIZATIONAL_RIGHTS_APPROVAL\n"
+        "    decision_maker: banc d'acceptation\n"
+        f"    scope_manifest_sha256: {corpus_sha}\n"
+        "    scope_zone: \"01_EDUSCOL_OFFICIEL/\"\n"
+        "    rights_category: officiel_public\n"
+        "    approved_for_internal_rag: true\n"
+        "    approved_for_production_rag: true\n"
+        "    generic_rights_blocker: false\n"
+        "source_evidence:\n"
+        "  acceptance_source:\n"
+        "    zone: \"01_EDUSCOL_OFFICIEL/\"\n"
+        "    domain: eduscol.education.gouv.fr\n"
+        "    provenance_status: VERIFIED\n"
+        "    recommended_rights_category: officiel_public\n"
+    )
+    (racine / "rights.yml").write_text(registre_droits, encoding="utf-8")
+    droits_sha = _h.sha256((racine / "rights.yml").read_bytes()).hexdigest()
+
+    _ecrire("production-profile-gate.release.json", {
+        "release_id": RELEASE_DE_TEST,
+        "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+        "artifact_registry": {"path": "artifacts.release.json",
+                              "sha256": registre_sha},
+        "expected_counts": {
+            "subjects": 2, "unique_artifacts": len(artefacts),
+            "placements": placements,
+            "unique_chunks": sum(len(c) for c in chunks_par_contenu.values()),
+        },
+        "authorities": {
+            "preflight_evidence_sha256": preflight_sha,
+            "currentness_evidence_sha256": currentness_sha,
+            "pii_evidence_sha256": pii_sha,
+            "artifact_transfer_manifest_sha256": transfert_sha,
+            "rights_registry_sha256": droits_sha,
+            "corpus_manifest_sha256": corpus_sha,
+        },
+    })
+    manifeste_sha = _sha(racine / "production-profile-gate.release.json")
+    return {
+        "manifest": manifeste_sha, "registry": registre_sha,
+        "inventory": corpus_sha, "transfer": transfert_sha,
+        "rights": droits_sha,
+    }
+
+
+def _contenus_de_test(magasin: Path, combien: int = 2) -> list[tuple[str, bytes]]:
+    """Les octets de test du banc, ecrits dans le magasin d'artefacts."""
+    magasin.mkdir(parents=True, exist_ok=True)
+    contenus = []
+    for index in range(combien):
+        octets = f"%PDF-1.7 acceptance-{index}".encode()
+        sha = hashlib.sha256(octets).hexdigest()
+        (magasin / f"{sha}.pdf").write_bytes(octets)
+        contenus.append((sha, octets))
+    return contenus
+
+
+def test_la_projection_et_la_proposition_de_revue_batch(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Maillon 5 — la projection est persistee et l'artefact est produit.
+
+    Le programme fait le travail : le test ne construit ni la projection ni
+    l'artefact a sa place.
+    """
+    magasin = tmp_path / "store"
+    contenus = _contenus_de_test(magasin)
+    releases = tmp_path / "release"
+    # La release est ecrite D'ABORD : ses digests sont ensuite ceux que les
+    # lignes scellees declarent. L'inverse ferait refuser le catalogue, et
+    # c'est bien ce que la garde doit faire.
+    digests = _ecrire_release_de_test(
+        releases, contenus=contenus, placements=len(contenus) * 2
+    )
+    etat = _semer_etat_historique(control_pg, tmp_path, digests=digests)
+
+    propose = _run(
+        "ingestor.ingestion_worker.attest_publication_cli",
+        [
+            "propose-release-batch-review",
+            "--release-id", RELEASE_DE_TEST,
+            "--release-dir", str(releases),
+            "--release-manifest-sha256", digests["manifest"],
+            "--transfer-manifest-path", str(releases / "transfer.json"),
+            "--transfer-manifest-sha256", digests["transfer"],
+            "--rights-registry-path", str(releases / "rights.yml"),
+            "--review-id", REVUE_DE_TEST,
+            "--evaluator", "acceptance-bench",
+        ],
+        {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg)},
+    )
+    assert propose.returncode == 0, propose.stderr
+    assert "PROJECTION_PERSISTED" in propose.stdout, propose.stdout
+    assert "REVIEW_ARTIFACT_DIGEST" in propose.stdout, propose.stdout
+
+    # Lecture INDEPENDANTE : la projection existe bien en base.
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        projetees = conn.execute(
+            "SELECT count(*), count(*) FILTER (WHERE gate_passed) "
+            "  FROM ingestion_control.sealed_release_projections "
+            " WHERE release_id = %s", (RELEASE_DE_TEST,)
+        ).fetchone()
+        conn.rollback()
+    assert projetees == (len(etat["artefacts"]), len(etat["artefacts"])), projetees
 
 
 def test_le_parcours_batch_atteint_l_index_produit() -> None:

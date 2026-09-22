@@ -744,7 +744,10 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
         print(f"REVIEW_ARTIFACT_INVALID: {exc}", file=sys.stderr)
         return 1
 
-    print(f"REVIEW_ARTIFACT_PATH {artifact.canonical_path()}")
+    chemin = canonical_publication_review_path(
+        review_id=artifact.review_id, digest=artifact.digest()
+    )
+    print(f"REVIEW_ARTIFACT_PATH {chemin}")
     print(f"REVIEW_ARTIFACT_DIGEST {artifact.digest()}")
     sys.stdout.write(artifact.canonical_bytes().decode("utf-8"))
     return 0
@@ -806,10 +809,13 @@ def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
             print(f"REVIEWED_ARTIFACT_INVALID: {exc}", file=sys.stderr)
             return 1
 
-        if artifact.canonical_path() != path:
+        attendu = canonical_publication_review_path(
+            review_id=artifact.review_id, digest=artifact.digest()
+        )
+        if attendu != path:
             print(
                 f"REVIEWED_ARTIFACT_PATH_MISMATCH: the artifact read at {path} "
-                f"derives the canonical path {artifact.canonical_path()} — its "
+                f"derives the canonical path {attendu} — its "
                 "content does not match the location it was approved at",
                 file=sys.stderr,
             )
