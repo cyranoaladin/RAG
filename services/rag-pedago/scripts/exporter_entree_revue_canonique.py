@@ -64,6 +64,47 @@ def _ecrire_prive(chemin: Path, octets: bytes) -> str:
     return _sha(octets)
 
 
+def choisir_population(
+    *,
+    detectes: list[str],
+    content_set: Path | None,
+    content_set_sha256: str | None,
+) -> list[str]:
+    """La population exportée : la release déclarée, ou les détections du run.
+
+    ADR-0059 §6 : la revue d'une release porte sur EXACTEMENT les contenus
+    qu'elle livre. Sans population déclarée, le comportement historique reste
+    (toutes les détections du run). Avec, le fichier (une empreinte par
+    ligne) doit hacher, comme ensemble trié, vers l'empreinte attendue — un
+    fichier qu'on ne peut pas épingler ne décrit aucune release."""
+    if content_set is None:
+        return sorted(set(detectes))
+    if not content_set_sha256:
+        raise CanonicalReviewInputError(
+            "une population déclarée exige son empreinte attendue "
+            "(--content-set-sha256)"
+        )
+    lignes = [
+        ligne.strip()
+        for ligne in content_set.read_text(encoding="utf-8").splitlines()
+        if ligne.strip()
+    ]
+    for ligne in lignes:
+        if len(ligne) != 64 or any(c not in "0123456789abcdef" for c in ligne):
+            raise CanonicalReviewInputError(
+                f"ligne de population qui n'est pas une empreinte : {ligne[:16]!r}"
+            )
+    if len(lignes) != len(set(lignes)):
+        raise CanonicalReviewInputError("population déclarée : contenu dupliqué")
+    observee = _sha("\n".join(sorted(lignes)) + "\n")
+    if observee != content_set_sha256:
+        raise CanonicalReviewInputError(
+            f"la population déclarée hache vers {observee[:16]}…, elle diffère de "
+            f"l'empreinte attendue {content_set_sha256[:16]}…"
+        )
+    return sorted(lignes)
+
+
 def charger_provenance_de_page(connection: object) -> dict[str, dict[int, dict[str, object]]]:
     """Ce que le run a ÉCRIT, page par page — l'autorité de comparaison."""
     lignes = connection.execute(  # type: ignore[attr-defined]
@@ -230,6 +271,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run-report", required=True, type=Path)
     parser.add_argument("--run-identity", required=True, type=Path)
     parser.add_argument("--output-root", required=True, type=Path)
+    parser.add_argument(
+        "--content-set",
+        type=Path,
+        default=None,
+        help="population exacte de la release (une empreinte par ligne), ADR-0059 §6",
+    )
+    parser.add_argument(
+        "--content-set-sha256",
+        default=None,
+        help="empreinte attendue de l'ensemble trié (même canonicalisation que l'index)",
+    )
     args = parser.parse_args(argv)
 
     import psycopg
@@ -261,10 +313,21 @@ def main(argv: list[str] | None = None) -> int:
             connection=connection,
             corpus_root=args.corpus_root,
             chemins_par_contenu=chemins,
-            contenus=detectes,
+            contenus=choisir_population(
+                detectes=detectes,
+                content_set=args.content_set,
+                content_set_sha256=args.content_set_sha256,
+            ),
             sortie=args.output_root,
             identite_du_run=identite,
             ocr_runtime=runtime,
+        )
+    if (
+        args.content_set is not None
+        and manifeste["content_set_sha256"] != args.content_set_sha256
+    ):
+        raise CanonicalReviewInputError(
+            "l'entrée exportée ne porte pas la population déclarée"
         )
     print(f"CANONICAL_REVIEW_INPUT_SCHEMA={manifeste['schema']}")
     print(f"CANONICAL_REVIEW_INPUT_CONTENTS={manifeste['content_count']}")
