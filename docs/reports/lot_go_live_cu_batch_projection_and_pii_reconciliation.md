@@ -150,13 +150,27 @@ load_multilevel_candidate_inventory(candidate_inventory.json)
 
 Le refus survient sur la **première** autorité, avant même l'actualité.
 
-| Grandeur | `candidate_inventory.json` déclare | Réalité mesurée |
-|---|---|---|
-| `unique_artifacts` | **486** | 315 (release scellée *et* base staging) |
-| `placements` | **486** | 479 |
-| `multi_placement_artifacts` | **0** | présent — des documents sont placés dans plusieurs collections |
+Mesuré **sur les listes du fichier lui-même**, pas sur une autre source :
 
-C'est la **même famille de défaut** que le `counts` de `currentness_evidence.json` : un résumé qui ne décrit pas son propre ensemble. Deux fichiers d'autorité de la release V2 portent des compteurs incohérents avec ce qu'ils recensent.
+| Grandeur | Déclarée dans `counts` | Portée par les listes du même fichier |
+|---|---|---|
+| `unique_artifacts` | **486** | **319** `content_sha256` distincts |
+| `placements` | **486** | 486 candidats listés |
+| `physical_objects` | **486** | — |
+| `multi_placement_artifacts` | **0** | ≥ 1 : 486 candidats pour 319 contenus |
+
+Le fichier décrit donc **486 candidats sur 319 contenus** — un ensemble
+légitime, et **différent** de l'ensemble publié (315 artefacts, 479
+placements). Ce n'est pas l'écart candidat/publié qui fait échouer le
+chargeur : c'est que `counts.unique_artifacts` déclare **486** là où les
+listes du même fichier en portent **319**.
+
+C'est la **même famille de défaut** que le `counts` de
+`currentness_evidence.json` : un résumé qui ne décrit pas son propre
+ensemble. Deux fichiers d'autorité de la release V2 sont concernés — et le
+**319** est exactement le nombre de contenus distincts que porte aussi
+`pii_evidence.json`, ce qui rattache les trois fichiers au même périmètre
+d'origine.
 
 **Conséquence opérationnelle** : la publication réelle de V2 par Worker B est bloquée tant que ces deux autorités ne sont pas réconciliées. Ce n'est pas une réserve de rédaction — c'est un refus au démarrage, mesuré.
 
