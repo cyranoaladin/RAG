@@ -712,8 +712,28 @@ def _arguments_d_enregistrement(
     ]
 
 
+def _retirer_les_attributions(
+    control_pg: dict[str, str], artefacts: list[dict[str, object]]
+) -> None:
+    """Remet les lignes dans l'etat d'une release ingeree AVANT ce lot.
+
+    Les 479 placements acquis ont ete ecrits par un point d'entree qui
+    n'etablissait pas encore les quatre faits d'attribution. Le banc
+    reproduit cet etat pour mesurer ce qu'il produit — un refus nomme — et
+    ce qui le leve.
+    """
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        retirees = conn.execute(
+            "DELETE FROM ingestion_control.artifact_attributions"
+            " WHERE ingestion_artifact_id = ANY(%s) RETURNING ingestion_artifact_id",
+            ([entree["artifact_id"] for entree in artefacts],),
+        ).fetchall()
+        conn.commit()
+    assert len(retirees) == len(artefacts), retirees
+
+
 def _preparer_attestation(
-    control_pg: dict[str, str], tmp_path: Path
+    control_pg: dict[str, str], tmp_path: Path, *, sans_attribution: bool = False
 ) -> dict[str, object]:
     """Amene le banc jusqu'a des attestations batch enregistrees."""
     contexte = _contexte_du_banc(tmp_path)
@@ -729,6 +749,11 @@ def _preparer_attestation(
         artefacts = _semer_etat_historique(
             control_pg, contexte=contexte, github=github, env=env
         )
+        if sans_attribution:
+            # AVANT l'attestation : le trigger de la migration 012 refuse —
+            # a raison — toute suppression une fois qu'une attestation
+            # active nomme l'artefact.
+            _retirer_les_attributions(control_pg, artefacts)
         propose = _run(
             "ingestor.ingestion_worker.attest_publication_cli",
             _arguments_de_proposition(contexte),
@@ -1395,3 +1420,147 @@ def test_un_worker_porteur_d_une_autre_release_ne_publie_rien(
             "DELETE FROM ingestion_control.jobs WHERE job_id = ANY(%s)", (jobs,)
         )
         conn.commit()
+
+
+def _rattraper_les_attributions(
+    control_pg: dict[str, str], contexte: ContexteDuBanc
+) -> object:
+    """Execute le rattrapage sur la release du banc, sans rien reingerer."""
+    from ingestor.ingestion_profiles.registry import load_profile_registry
+    from ingestor.ingestion_worker.sealed_release_attribution_backfill import (
+        backfill_sealed_release_attributions,
+    )
+    from ingestor.ingestion_worker.sealed_release_ingestion import load_sealed_release
+
+    facts = load_sealed_release(
+        contexte.racine,
+        release_manifest_sha256=contexte.digests["release_manifest_sha256"],
+        artifacts_release_sha256=contexte.digests["artifacts_release_sha256"],
+        candidate_inventory_sha256=contexte.digests["candidate_inventory_sha256"],
+        artifact_transfer_manifest_path=contexte.manifeste_de_transfert,
+        artifact_transfer_manifest_sha256=contexte.digests[
+            "artifact_transfer_manifest_sha256"
+        ],
+    )
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        rapport = backfill_sealed_release_attributions(
+            conn,
+            facts=facts,
+            profile_registry=load_profile_registry(PROFILS_DIR),
+            owner="acceptance-bench",
+        )
+        conn.commit()
+    return rapport
+
+
+def test_une_attribution_absente_refuse_puis_le_rattrapage_l_etablit(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Le verrou operationnel d'une release deja ingeree, et sa levee.
+
+    Une release scellee ingeree avant que son point d'entree n'ecrive les
+    quatre faits d'attribution n'en porte aucun. La publication refuse
+    alors — et ce refus est utile : sans ces faits, personne n'a etabli
+    quel type documentaire serait publie. Le rattrapage les etablit depuis
+    le catalogue de la release elle-meme, SANS reingestion.
+    """
+    from ingestor.ingestion_control.publication_attestation import (
+        PublicationAttestationInvalidError,
+        verify_publication_attestation,
+    )
+
+    # ── Sans attribution : refus nomme, et l'attestation est invalidee ────
+    prive = _preparer_attestation(
+        control_pg, tmp_path / "prive", sans_attribution=True
+    )
+    entree = prive["artefacts"][0]
+    with local_github_server(prive["github"]) as github_url:
+        env = {
+            "NEXUS_GITHUB_API_BASE": github_url,
+            "NEXUS_GITHUB_TOKEN_FILE": str(prive["jeton"]),
+        }
+        anciens = {cle: os.environ.get(cle) for cle in env}
+        os.environ.update(env)
+        try:
+            # Sous le role ATTESTOR : le refus est le meme pour tous les
+            # roles, mais seul celui-ci a le droit d'ecrire le cache
+            # d'audit qui le consigne.
+            with psycopg.connect(attestor_dsn(control_pg)) as conn:
+                with pytest.raises(
+                    PublicationAttestationInvalidError, match="durable attribution"
+                ):
+                    verify_publication_attestation(
+                        conn,
+                        resource_id=entree["resource_id"],
+                        current_content_sha256=entree["content_sha256"],
+                        current_profile_fingerprint="0" * 64,
+                        current_manifest_digest="0" * 64,
+                    )
+                # Le refus INVALIDE la ligne dans la transaction de
+                # l'appelant : c'est l'appelant qui rend cette invalidation
+                # durable, et le banc se comporte comme lui.
+                conn.commit()
+        finally:
+            for cle, valeur in anciens.items():
+                if valeur is None:
+                    os.environ.pop(cle, None)
+                else:
+                    os.environ[cle] = valeur
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        invalidee = conn.execute(
+            "SELECT count(*) FROM ingestion_control.publication_attestations"
+            " WHERE resource_id = %s AND invalidated_at IS NOT NULL",
+            (entree["resource_id"],),
+        ).fetchone()
+        conn.rollback()
+    assert invalidee == (1,), invalidee
+
+    # ── Rattrapage, puis la meme verification passe ───────────────────────
+    rattrapee = _preparer_attestation(
+        control_pg, tmp_path / "rattrapee", sans_attribution=True
+    )
+    banc: ContexteDuBanc = rattrapee["contexte"]
+    rapport = _rattraper_les_attributions(control_pg, banc)
+    assert rapport.examined == 4, rapport.as_dict()
+    assert rapport.written == 4, rapport.as_dict()
+    assert rapport.already_present == 0, rapport.as_dict()
+    assert rapport.missing_rows == [], rapport.as_dict()
+
+    # Rejouer le rattrapage ne reecrit rien : il est idempotent.
+    second = _rattraper_les_attributions(control_pg, banc)
+    assert second.written == 0 and second.already_present == 4, second.as_dict()
+
+    with local_github_server(rattrapee["github"]) as github_url:
+        env = {
+            "NEXUS_GITHUB_API_BASE": github_url,
+            "NEXUS_GITHUB_TOKEN_FILE": str(rattrapee["jeton"]),
+        }
+        anciens = {cle: os.environ.get(cle) for cle in env}
+        os.environ.update(env)
+        try:
+            with psycopg.connect(app_dsn(control_pg)) as conn:
+                verifiees = [
+                    verify_publication_attestation(
+                        conn,
+                        resource_id=artefact["resource_id"],
+                        current_content_sha256=artefact["content_sha256"],
+                        current_profile_fingerprint="0" * 64,
+                        current_manifest_digest="0" * 64,
+                    )
+                    for artefact in rattrapee["artefacts"]
+                ]
+                conn.rollback()
+        finally:
+            for cle, valeur in anciens.items():
+                if valeur is None:
+                    os.environ.pop(cle, None)
+                else:
+                    os.environ[cle] = valeur
+    assert len(verifiees) == 4
+    # Le type documentaire publie est celui de la release, pas le nom de la
+    # collection : c'est exactement ce que le rattrapage etablit.
+    assert {v.facts.type_doc for v in verifiees} == {banc.type_doc}, verifiees
+    assert {v.facts.source_kind for v in verifiees} == {"sealed_release"}, verifiees
+    assert {v.facts.source_label for v in verifiees} == {
+        "eduscol.education.gouv.fr"
+    }, verifiees

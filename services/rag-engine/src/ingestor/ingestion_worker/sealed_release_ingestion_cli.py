@@ -31,6 +31,10 @@ from ingestor.ingestion_profiles.staging_readiness_gate import (
 )
 
 from .runtime_authority import RuntimeAuthorityStartupError
+from .sealed_release_attribution_backfill import (
+    AttributionBackfillError,
+    backfill_sealed_release_attributions,
+)
 from .sealed_release_ingestion import (
     SealedReleaseIngestionError,
     ingest_sealed_release,
@@ -103,6 +107,18 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help=(
             "Collection attendue. Quand l'option est fournie, une collection "
             "manquante ET une collection en surplus sont toutes deux refusées."
+        ),
+    )
+    parser.add_argument(
+        "--only-attributions",
+        action="store_true",
+        help=(
+            "N'ingère RIEN : établit seulement les quatre faits d'attribution "
+            "manquants des artefacts déjà ingérés de cette release, dérivés de "
+            "son propre catalogue. Une release ingérée avant que ce point "
+            "d'entrée ne les écrive n'en porte aucun, et la publication refuse "
+            "— à raison. Réingérer ferait perdre les ressources, runs et "
+            "événements que la revue a couverts."
         ),
     )
     parser.add_argument("--report-path", type=Path, default=None)
@@ -216,6 +232,32 @@ def main(argv: list[str] | None = None) -> int:
                 "SEALED_RELEASE_INGESTION_ATTESTATION_OK "
                 f"current_user={attestation.current_user}"
             )
+            if args.only_attributions:
+                rattrapage = backfill_sealed_release_attributions(
+                    conn,
+                    facts=facts,
+                    profile_registry=profiles,
+                    owner=args.owner,
+                )
+                conn.commit()
+                payload = rattrapage.as_dict()
+                if args.report_path is not None:
+                    args.report_path.write_text(
+                        json.dumps(
+                            payload, ensure_ascii=False, indent=2, sort_keys=True
+                        )
+                        + "\n",
+                        encoding="utf-8",
+                    )
+                print(
+                    "SEALED_RELEASE_ATTRIBUTION_BACKFILL_DONE "
+                    f"release_id={rattrapage.release_id} "
+                    f"examined={rattrapage.examined} "
+                    f"written={rattrapage.written} "
+                    f"already_present={rattrapage.already_present} "
+                    f"missing_rows={len(rattrapage.missing_rows)}"
+                )
+                return 0
             report = ingest_sealed_release(
                 conn,
                 facts=facts,
@@ -226,6 +268,9 @@ def main(argv: list[str] | None = None) -> int:
                 expected_collections=args.expected_collection,
             )
             conn.commit()
+    except AttributionBackfillError as exc:
+        print(f"SEALED_RELEASE_ATTRIBUTION_BACKFILL_REFUSED: {exc}", file=sys.stderr)
+        return 1
     except SealedReleaseIngestionError as exc:
         print(f"SEALED_RELEASE_INGESTION_REFUSED: {exc}", file=sys.stderr)
         return 1

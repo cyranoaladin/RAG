@@ -654,6 +654,12 @@ def construire_contexte_du_banc(
         {
             "manifest_kind": "ACCEPTANCE_BENCH_ARTIFACT_TRANSFER_V1",
             "release_id": release_id,
+            # Le transfert du banc est une COPIE locale verifiee : chaque
+            # objet est ecrit puis rehache. Ces deux compteurs sont donc des
+            # mesures, pas des declarations de confort.
+            "file_count": len(contenus),
+            "digest_missing": 0,
+            "digest_mismatches": 0,
             "files": [
                 {
                     "file": f"{contenu.content_sha256}.pdf",
