@@ -31,6 +31,7 @@ from nexus_contracts import parse_pii_review_decision_set  # noqa: E402
 
 from rag_pedago.governance.currentness_disposition import (  # noqa: E402
     NOT_CURRENT_DECLARED_BY_SOURCE,
+    cas_depuis_ligne_de_matrice,
     charger_politique,
     disposition_actualite,
 )
@@ -108,25 +109,9 @@ def _actualite(relation: dict) -> str:
     return "MIXED:" + "|".join(sorted(statuses))
 
 
-def _cas_d_actualite(row: dict) -> dict:
-    """Traduit une ligne en cas d actualite, sans rien inventer.
-
-    `content_identity_match` reste absent : seule une identite d octets
-    prouverait l actualite, et le catalogue ne la porte pas. Le supposer
-    fabriquerait un VERIFIED_CURRENT que rien n etablit.
-    """
-    provenance_officielle = row["provenance"] == "URL_EVIDENCE_FOUND"
-    return {
-        "source_status": "ARCHIVE" if row["currentness"] == "ARCHIVE_DECLARED" else row["currentness"],
-        "official_provenance": provenance_officielle,
-        "sha_provenance_match": provenance_officielle,
-        "superseding_conflict": False,
-    }
-
-
 def _verdict(row: dict, politique: dict) -> str:
     """Delegue la composition au gate. La matrice ne compose plus elle-meme."""
-    actualite = disposition_actualite(_cas_d_actualite(row), politique)
+    actualite = disposition_actualite(cas_depuis_ligne_de_matrice(row), politique)
     row["currentness_disposition"] = actualite
     pii_gate_val = (
         "PII_UNDECIDED"

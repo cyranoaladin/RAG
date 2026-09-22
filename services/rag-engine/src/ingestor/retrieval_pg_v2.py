@@ -76,7 +76,7 @@ _PLACEMENT_SCOPE_PREDICATE_SQL = """
           AND placement.school_year = %s
           AND placement.programme_version = %s
           AND placement.placement_status = 'active'
-          AND placement.currentness = 'current'
+          AND placement.currentness IN ('current', 'official_snapshot')
           AND placement.review_status = 'reviewed'
 """
 

@@ -5,9 +5,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections.abc import Callable
 from pathlib import Path
 from types import SimpleNamespace
-from typing import cast
+from typing import Any, cast
 
 import pytest
 from nexus_contracts.document import Niveau, TypeDoc, Voie
@@ -802,9 +803,10 @@ def _resolver(
     release_profile_version: str = "multilevel-v1",
     release_profile_fingerprint: str | None = None,
     release_programme_version: str | None = None,
+    evidence_writer: Callable[[Path], tuple[Path, str, Path, str]] | None = None,
 ) -> MultilevelVerifiedPedagogicalPlacementResolver:
     inventory_path, inventory_sha, currentness_path, currentness_sha = (
-        _write_evidence(tmp_path)
+        (evidence_writer or _write_evidence)(tmp_path)
     )
     inventory = load_multilevel_candidate_inventory(
         inventory_path, expected_sha256=inventory_sha
@@ -1251,3 +1253,434 @@ def test_currentness_population_must_equal_the_inventory_set_not_only_its_count(
             expected_sha256=currentness_sha,
             candidate_inventory=inventory,
         )
+
+
+# --- ADR-0059 — MULTILEVEL_ARTIFACT_CURRENTNESS_V3 -------------------------
+#
+# Le fixture de base porte deux contenus « CURRENT » et un « REVIEW_REQUIRED ».
+# En V3 : le premier devient un instantané officiel (ADR-0055), le deuxième
+# reste une identité d'octets prouvée, le troisième est UNKNOWN.
+
+_SNAPSHOT_SHA = "1" * 64
+_VERIFIED_SHA = "2" * 64
+_UNKNOWN_SHA = "3" * 64
+_PROVENANCE_URL = "https://eduscol.education.gouv.fr/programmes"
+_FALLBACK_TRUE = {
+    "OFFICIAL_INSTITUTIONAL_PROVENANCE": True,
+    "CONTENT_SHA_PROVENANCE_MATCH": True,
+    "SOURCE_STATUS_NOT_EXPLICIT_ARCHIVE": True,
+    "NO_KNOWN_SUPERSEDING_CONFLICT": True,
+}
+_VERIFICATION_FACTS = (
+    "effective_currentness",
+    "current_source_listing_url",
+    "current_download_url",
+    "current_download_sha256",
+    "byte_identity",
+)
+
+
+def _as_v3_currentness(
+    currentness_document: dict[str, object],
+    *,
+    verified_sha: str | None = _VERIFIED_SHA,
+) -> None:
+    """Convertit le fixture V1 en V3, sans toucher aux liaisons d'inventaire."""
+    currentness_document["evidence_kind"] = "MULTILEVEL_ARTIFACT_CURRENTNESS_V3"
+    currentness_document["currentness_policy_id"] = "NEXUS-RAG-CURRENTNESS-POLICY-V1"
+    currentness_document["currentness_policy_sha256"] = "5" * 64
+    currentness_document["servability_matrix_sha256"] = "6" * 64
+    partition: dict[str, list[str]] = {
+        "VERIFIED_CURRENT": [],
+        "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": [],
+        "NOT_CURRENT_DECLARED_BY_SOURCE": [],
+        "UNKNOWN": [],
+    }
+    for row in cast(list[dict[str, object]], currentness_document["artifacts"]):
+        sha = str(row["content_sha256"])
+        row.pop("decision")
+        row["provenance_url"] = _PROVENANCE_URL
+        if sha == verified_sha:
+            disposition = "VERIFIED_CURRENT"
+            row["source_status"] = "CURRENT_DECLARED"
+            row["fallback_conditions"] = None
+        elif sha == _UNKNOWN_SHA:
+            disposition = "UNKNOWN"
+            row["source_status"] = "NEEDS_SECONDARY_EVIDENCE"
+            row["fallback_conditions"] = None
+        else:
+            disposition = "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"
+            row["source_status"] = "NEEDS_SECONDARY_EVIDENCE"
+            row["fallback_conditions"] = dict(_FALLBACK_TRUE)
+            row["reason_codes"] = ["ADR_0055_OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"]
+            for field in _VERIFICATION_FACTS:
+                row[field] = None
+        row["currentness_disposition"] = disposition
+        partition[disposition].append(sha)
+    currentness_document["partition"] = partition
+    currentness_document["counts"] = {
+        "unique_artifacts": 3,
+        "evaluated": 3,
+        **{key: len(values) for key, values in partition.items()},
+    }
+
+
+def _write_v3_evidence(
+    tmp_path: Path,
+    *,
+    mutate: Callable[[dict[str, object]], None] | None = None,
+    audit_document: dict[str, object] | None = None,
+    verified_sha: str | None = _VERIFIED_SHA,
+) -> tuple[Path, str, Path, str]:
+    inventory_document, currentness_document = _evidence_documents()
+    _as_v3_currentness(currentness_document, verified_sha=verified_sha)
+    if mutate is not None:
+        mutate(currentness_document)
+    inventory_path = tmp_path / "inventory.json"
+    inventory_sha = _write_json(inventory_path, inventory_document)
+    currentness_document["candidate_inventory_sha256"] = inventory_sha
+    if audit_document is None:
+        audit_document = _network_audit_document(inventory_document)
+    _write_network_audit(tmp_path, currentness_document, audit_document=audit_document)
+    currentness_path = tmp_path / "currentness.json"
+    currentness_sha = _write_json(currentness_path, currentness_document)
+    return inventory_path, inventory_sha, currentness_path, currentness_sha
+
+
+def _load_v3(paths: tuple[Path, str, Path, str]) -> object:
+    inventory_path, inventory_sha, currentness_path, currentness_sha = paths
+    inventory = load_multilevel_candidate_inventory(
+        inventory_path, expected_sha256=inventory_sha
+    )
+    return load_multilevel_currentness(
+        currentness_path, expected_sha256=currentness_sha, candidate_inventory=inventory
+    )
+
+
+def _row(document: dict[str, object], sha: str) -> dict[str, object]:
+    return next(
+        row
+        for row in cast(list[dict[str, object]], document["artifacts"])
+        if row["content_sha256"] == sha
+    )
+
+
+def _unverified_audit(tmp_path: Path) -> dict[str, object]:
+    inventory_document, _ = _evidence_documents()
+    audit = _network_audit_document(inventory_document)
+    audit["currentness_status"] = "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE"
+    audit["counts"] = {"verified": 0, "digest_mismatch": 0, "unverified_source_unreachable": 3}
+    return audit
+
+
+def test_v3_carries_each_disposition_and_its_product_currentness(tmp_path: Path) -> None:
+    evidence = cast(Any, _load_v3(_write_v3_evidence(tmp_path)))
+
+    snapshot = evidence.for_content(_SNAPSHOT_SHA)
+    verified = evidence.for_content(_VERIFIED_SHA)
+    unknown = evidence.for_content(_UNKNOWN_SHA)
+    assert snapshot.disposition == "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"
+    assert snapshot.product_currentness == "official_snapshot"
+    assert snapshot.provenance_url == _PROVENANCE_URL
+    assert snapshot.effective_currentness is None
+    assert snapshot.current_download_url is None
+    assert verified.disposition == "VERIFIED_CURRENT"
+    assert verified.product_currentness == "current"
+    assert unknown.disposition == "UNKNOWN"
+    assert unknown.product_currentness is None
+
+
+def test_v3_snapshots_are_accepted_under_an_audit_that_verified_nothing(
+    tmp_path: Path,
+) -> None:
+    """Le cas réel : l'audit dit n'avoir rien vérifié, et l'actualité le dit aussi."""
+    evidence = cast(
+        Any,
+        _load_v3(
+            _write_v3_evidence(
+                tmp_path, audit_document=_unverified_audit(tmp_path), verified_sha=None
+            )
+        ),
+    )
+    assert evidence.for_content(_VERIFIED_SHA).product_currentness == "official_snapshot"
+
+
+def test_v3_refuses_a_verified_current_under_an_audit_that_verified_nothing(
+    tmp_path: Path,
+) -> None:
+    """Exactement le défaut de V2 : affirmer l'identité d'octets à côté d'un
+    audit qui déclare n'avoir rien vérifié."""
+    paths = _write_v3_evidence(tmp_path, audit_document=_unverified_audit(tmp_path))
+    with pytest.raises(MultilevelEvidenceError, match="VERIFIED_CURRENT"):
+        _load_v3(paths)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("byte_identity", True),
+        ("current_download_url", "https://eduscol.education.gouv.fr/document.pdf"),
+        ("current_download_sha256", _SNAPSHOT_SHA),
+        ("current_source_listing_url", _PROVENANCE_URL),
+        ("effective_currentness", "actuel"),
+    ],
+)
+def test_v3_refuses_a_snapshot_that_claims_a_verification(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    """Un instantané qui porte un fait de vérification est la contrefaçon que
+    l'ADR-0055 interdit, sous une autre forme."""
+
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _SNAPSHOT_SHA)[field] = value
+
+    with pytest.raises(MultilevelEvidenceError, match="snapshot"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+@pytest.mark.parametrize("status", ["ARCHIVE_DECLARED", "MIXED:archive|actuel", ""])
+def test_v3_refuses_a_snapshot_whose_source_status_is_archive_or_absent(
+    tmp_path: Path, status: str
+) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _SNAPSHOT_SHA)["source_status"] = status
+
+    with pytest.raises(MultilevelEvidenceError, match="source status"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+@pytest.mark.parametrize("condition", sorted(_FALLBACK_TRUE))
+def test_v3_refuses_a_snapshot_with_a_false_or_missing_fallback_condition(
+    tmp_path: Path, condition: str
+) -> None:
+    def falsify(document: dict[str, object]) -> None:
+        cast(dict[str, object], _row(document, _SNAPSHOT_SHA)["fallback_conditions"])[
+            condition
+        ] = False
+
+    def remove(document: dict[str, object]) -> None:
+        cast(dict[str, object], _row(document, _SNAPSHOT_SHA)["fallback_conditions"]).pop(
+            condition
+        )
+
+    for mutate, directory in ((falsify, "false"), (remove, "missing")):
+        target = tmp_path / directory
+        target.mkdir()
+        with pytest.raises(MultilevelEvidenceError, match="fallback"):
+            _load_v3(_write_v3_evidence(target, mutate=mutate))
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.org/programmes",
+        "http://eduscol.education.gouv.fr/programmes",
+        "https://eduscol.education.gouv.fr.example.org/programmes",
+        None,
+    ],
+)
+def test_v3_refuses_a_snapshot_provenance_that_is_not_official(
+    tmp_path: Path, url: str
+) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _SNAPSHOT_SHA)["provenance_url"] = url
+
+    with pytest.raises(MultilevelEvidenceError, match="provenance"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+def test_v3_snapshot_may_cite_the_official_file_url_of_its_artifact(
+    tmp_path: Path,
+) -> None:
+    """La provenance d'un artefact peut être son URL de fichier officielle,
+    distincte de la page de listing : c'est d'où viennent les octets. La citer
+    n'affirme aucun téléchargement vérifié."""
+    fichier = "https://eduscol.education.gouv.fr/sites/default/files/document/doc.pdf"
+
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _SNAPSHOT_SHA)["provenance_url"] = fichier
+
+    evidence = cast(Any, _load_v3(_write_v3_evidence(tmp_path, mutate=mutate)))
+    snapshot = evidence.for_content(_SNAPSHOT_SHA)
+    assert snapshot.provenance_url == fichier
+    assert snapshot.current_download_url is None
+
+
+def test_v3_refuses_positive_facts_on_an_unknown_content(tmp_path: Path) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _UNKNOWN_SHA)["fallback_conditions"] = dict(_FALLBACK_TRUE)
+
+    with pytest.raises(MultilevelEvidenceError, match="UNKNOWN"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+def test_v3_refuses_a_declared_archive_without_an_archive_source_status(
+    tmp_path: Path,
+) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _UNKNOWN_SHA)["currentness_disposition"] = (
+            "NOT_CURRENT_DECLARED_BY_SOURCE"
+        )
+        partition = cast(dict[str, list[str]], document["partition"])
+        partition["UNKNOWN"].remove(_UNKNOWN_SHA)
+        partition["NOT_CURRENT_DECLARED_BY_SOURCE"].append(_UNKNOWN_SHA)
+        counts = cast(dict[str, int], document["counts"])
+        counts["UNKNOWN"] -= 1
+        counts["NOT_CURRENT_DECLARED_BY_SOURCE"] += 1
+
+    with pytest.raises(MultilevelEvidenceError, match="source status"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+@pytest.mark.parametrize(
+    "disposition", ["CURRENT", "REVIEW_REQUIRED", "current", "OFFICIAL_SNAPSHOT"]
+)
+def test_v3_admits_only_the_four_policy_dispositions(
+    tmp_path: Path, disposition: str
+) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _UNKNOWN_SHA)["currentness_disposition"] = disposition
+
+    with pytest.raises(MultilevelEvidenceError, match="disposition"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("currentness_policy_sha256", "NOT-A-SHA"),
+        ("servability_matrix_sha256", None),
+        ("currentness_policy_id", "ANOTHER-POLICY"),
+    ],
+)
+def test_v3_must_name_the_policy_and_the_matrix_it_derives_from(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        document[field] = value
+
+    with pytest.raises(MultilevelEvidenceError):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+def test_v3_refuses_a_partition_that_differs_from_the_dispositions(
+    tmp_path: Path,
+) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        partition = cast(dict[str, list[str]], document["partition"])
+        partition["OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"].remove(_SNAPSHOT_SHA)
+        partition["VERIFIED_CURRENT"].append(_SNAPSHOT_SHA)
+
+    with pytest.raises(MultilevelEvidenceError, match="partition"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+def test_v3_refuses_counts_that_differ_from_the_partition(tmp_path: Path) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        cast(dict[str, int], document["counts"])["VERIFIED_CURRENT"] = 3
+
+    with pytest.raises(MultilevelEvidenceError, match="count"):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+def test_v3_refuses_a_v2_key_set(tmp_path: Path) -> None:
+    def mutate(document: dict[str, object]) -> None:
+        _row(document, _UNKNOWN_SHA)["decision"] = "REVIEW_REQUIRED"
+
+    with pytest.raises(MultilevelEvidenceError):
+        _load_v3(_write_v3_evidence(tmp_path, mutate=mutate))
+
+
+def test_v1_and_v2_keep_their_meaning_under_the_disposition_vocabulary(
+    tmp_path: Path,
+) -> None:
+    inventory_path, inventory_sha, currentness_path, currentness_sha = (
+        _write_v2_evidence(tmp_path)
+    )
+    evidence = cast(
+        Any,
+        _load_v3((inventory_path, inventory_sha, currentness_path, currentness_sha)),
+    )
+    assert evidence.for_content(_SNAPSHOT_SHA).disposition == "VERIFIED_CURRENT"
+    assert evidence.for_content(_SNAPSHOT_SHA).product_currentness == "current"
+    assert evidence.for_content(_UNKNOWN_SHA).disposition == "UNKNOWN"
+    assert evidence.for_content(_UNKNOWN_SHA).product_currentness is None
+
+
+def test_resolver_publishes_a_snapshot_as_official_snapshot_under_its_provenance(
+    tmp_path: Path,
+) -> None:
+    resolver = _resolver(tmp_path, evidence_writer=_write_v3_evidence)
+
+    placement = resolver.resolve(
+        content_sha256=_SNAPSHOT_SHA,
+        collection="rag_nexus_maths_quatrieme_tc",
+        profile_version="multilevel-v1",
+        school_year="2026-2027",
+        source_placement_id="par-scope/college/cycle-4/mathematiques/4e/fourth.pdf",
+        claimed_type_doc=TypeDoc.ressource_officielle.value,
+    )
+
+    assert placement.product_currentness == "official_snapshot"
+    assert placement.effective_currentness == "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"
+    # On ne cite pas un téléchargement qui n'a pas eu lieu.
+    assert placement.source_url == _PROVENANCE_URL
+    assert placement.programme_conformity is True
+
+
+def test_resolver_publishes_a_verified_content_as_current(tmp_path: Path) -> None:
+    resolver = _resolver(tmp_path, evidence_writer=_write_v3_evidence)
+
+    placement = resolver.resolve(
+        content_sha256=_VERIFIED_SHA,
+        collection="rag_nexus_maths_seconde_tc",
+        profile_version="multilevel-v1",
+        school_year="2026-2027",
+        source_placement_id="par-scope/lycee/commun/mathematiques/seconde/seconde.pdf",
+        claimed_source_url="https://eduscol.education.gouv.fr/document.pdf",
+    )
+
+    assert placement.product_currentness == "current"
+    assert placement.effective_currentness == "actuel"
+    assert placement.source_url == "https://eduscol.education.gouv.fr/document.pdf"
+
+
+def test_resolver_refuses_a_download_claim_for_a_snapshot(tmp_path: Path) -> None:
+    resolver = _resolver(tmp_path, evidence_writer=_write_v3_evidence)
+
+    with pytest.raises(MultilevelPlacementResolutionError, match="source URL"):
+        resolver.resolve(
+            content_sha256=_SNAPSHOT_SHA,
+            collection="rag_nexus_maths_quatrieme_tc",
+            profile_version="multilevel-v1",
+            school_year="2026-2027",
+            source_placement_id="par-scope/college/cycle-4/mathematiques/4e/fourth.pdf",
+            claimed_source_url="https://eduscol.education.gouv.fr/document.pdf",
+        )
+
+
+def test_resolver_refuses_an_unknown_currentness_under_v3(tmp_path: Path) -> None:
+    resolver = _resolver(tmp_path, evidence_writer=_write_v3_evidence)
+
+    with pytest.raises(MultilevelPlacementResolutionError, match="UNKNOWN"):
+        resolver.resolve(
+            content_sha256=_UNKNOWN_SHA,
+            collection="rag_nexus_maths_seconde_tc",
+            profile_version="multilevel-v1",
+            school_year="2026-2027",
+            source_placement_id="par-scope/lycee/commun/mathematiques/seconde/review.pdf",
+        )
+
+
+def test_resolver_keeps_v1_contents_as_current(tmp_path: Path) -> None:
+    resolver = _resolver(tmp_path)
+
+    placement = resolver.resolve(
+        content_sha256=_SNAPSHOT_SHA,
+        collection="rag_nexus_maths_quatrieme_tc",
+        profile_version="multilevel-v1",
+        school_year="2026-2027",
+        source_placement_id="par-scope/college/cycle-4/mathematiques/4e/fourth.pdf",
+    )
+
+    assert placement.product_currentness == "current"

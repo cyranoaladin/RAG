@@ -135,7 +135,11 @@ class EligiblePlacement:
     source_uri: str
     current_profile_fingerprint: str
     current_manifest_digest: str
-    currentness: Literal["current"] = "current"
+    #: ADR-0059 : ``current`` reste réservé à l'identité d'octets prouvée ;
+    #: ``official_snapshot`` est l'instantané officiel ADR-0055 dont
+    #: l'actualité réseau n'a pas pu être établie. Les deux sont servis ;
+    #: ``archive`` et ``review_required`` ne sont jamais publiables.
+    currentness: Literal["current", "official_snapshot"] = "current"
 
     def __post_init__(self) -> None:
         if not isinstance(self.resource_id, UUID):
@@ -154,8 +158,10 @@ class EligiblePlacement:
         for field in ("current_profile_fingerprint", "current_manifest_digest"):
             if _SHA256.fullmatch(getattr(self, field)) is None:
                 raise ValueError(f"{field} must be SHA-256")
-        if self.currentness != "current":
-            raise ValueError("only current placements are publishable")
+        if self.currentness not in ("current", "official_snapshot"):
+            raise ValueError(
+                "only current or official_snapshot placements are publishable"
+            )
 
 
 @dataclass(frozen=True)

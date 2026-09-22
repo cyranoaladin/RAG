@@ -42,6 +42,9 @@ MANIFESTE_DE_PROFILS = (
     ENGINE_ROOT / "configs/ingestion_profiles/staging/multilevel_manifest.json"
 )
 CONFIG_COLLECTIONS = ENGINE_ROOT / "configs/rag_collections.yml"
+POLITIQUE_D_ACTUALITE = (
+    REPOSITORY_ROOT / "services/rag-pedago/configs/proposals/nexus_rag_currentness_policy_v1.yml"
+)
 CORRESPONDANCE_NIVEAUX = ENGINE_ROOT / "configs/mappings/eduscol_multilevel_levels.yml"
 CORRESPONDANCE_MATIERES = ENGINE_ROOT / "configs/mappings/eduscol_multilevel_subjects.yml"
 CORRESPONDANCE_TYPES = (
@@ -385,12 +388,23 @@ def construire_contexte_du_banc(
     *,
     contenus: tuple[ContenuDuBanc, ...],
     collections: tuple[str, ...] = COLLECTIONS_DU_BANC,
+    release_id: str | None = None,
+    lignee: str | None = None,
+    actualite: str = "verifiee",
 ) -> ContexteDuBanc:
     """Écrit la release du banc et rend sa chaîne d'autorités cohérente.
 
     L'ordre d'écriture est imposé par les liaisons : chaque fichier ne peut
     être haché qu'une fois ceux qu'il nomme écrits.
+
+    Un SUCCESSEUR (ADR-0059 § 5) se construit en nommant la ``lignee`` de son
+    prédécesseur : mêmes contenus, mêmes identités de placement, même
+    périmètre de corpus — seule son identité et les autorités corrigées
+    changent. ``actualite="instantane"`` produit une preuve V3 d'instantanés
+    officiels (ADR-0055) à côté d'un audit qui n'a rien vérifié.
     """
+    if actualite not in {"verifiee", "instantane"}:
+        raise BancIncoherent(f"actualite inconnue du banc : {actualite!r}")
     from ingestor.collection_config import load_collection_config  # noqa: PLC0415
     from ingestor.ingestion_profiles.registry import (  # noqa: PLC0415
         load_profile_registry,
@@ -398,7 +412,13 @@ def construire_contexte_du_banc(
     )
 
     racine.mkdir(parents=True, exist_ok=True)
-    release_id = f"acceptance-batch-release-{hashlib.sha256(str(racine).encode()).hexdigest()[:12]}"
+    release_id = release_id or (
+        f"acceptance-batch-release-{hashlib.sha256(str(racine).encode()).hexdigest()[:12]}"
+    )
+    # Ce qui fait l'identité du CORPUS et de ses placements : partagé par une
+    # release et son successeur.
+    lignee = lignee or release_id
+    instantane = actualite == "instantane"
 
     profils = load_profile_registry(PROFILS_DIR)
     config = load_collection_config(CONFIG_COLLECTIONS)
@@ -428,7 +448,7 @@ def construire_contexte_du_banc(
                     # Une identité de placement par (contenu, collection) :
                     # la résolution refuse l'ambiguïté, à raison.
                     source_placement_id=hashlib.sha256(
-                        f"{release_id}:{collection}:{contenu.content_sha256}".encode()
+                        f"{lignee}:{collection}:{contenu.content_sha256}".encode()
                     ).hexdigest(),
                     niveau_externe=niveau_externe,
                     matiere_externe=matiere_externe,
@@ -441,7 +461,7 @@ def construire_contexte_du_banc(
         racine / "corpus_manifest_authority.json",
         {
             "authority_kind": "ACCEPTANCE_BENCH_CORPUS_MANIFEST",
-            "release_id": release_id,
+            "release_id": lignee,
             "zone": ZONE_DE_DROITS,
             "contents": sorted(contenu.content_sha256 for contenu in contenus),
         },
@@ -450,7 +470,7 @@ def construire_contexte_du_banc(
         racine / "pii_policy.json",
         {
             "policy_kind": "ACCEPTANCE_BENCH_PII_POLICY",
-            "release_id": release_id,
+            "release_id": lignee,
             "statement": (
                 "Documents fabriques par le banc : aucune donnee personnelle "
                 "n'y est introduite. Cette politique ne vaut que pour ce banc."
@@ -461,7 +481,7 @@ def construire_contexte_du_banc(
         racine / "pii_scanner.json",
         {
             "scanner_kind": "ACCEPTANCE_BENCH_PII_SCANNER",
-            "release_id": release_id,
+            "release_id": lignee,
             "statement": "Scan du banc : lecture integrale des pages produites.",
         },
     )
@@ -469,7 +489,7 @@ def construire_contexte_du_banc(
         racine / "parent_sealed_catalog.json",
         {
             "catalog_kind": "ACCEPTANCE_BENCH_PARENT_CATALOG",
-            "release_id": release_id,
+            "release_id": lignee,
             "statement": "Le banc n'herite d'aucun catalogue scelle anterieur.",
         },
     )
@@ -477,7 +497,7 @@ def construire_contexte_du_banc(
         racine / "placement_catalog.json",
         {
             "catalog_kind": "ACCEPTANCE_BENCH_PLACEMENT_CATALOG",
-            "release_id": release_id,
+            "release_id": lignee,
             "placements": [
                 {
                     "collection": placement.collection,
@@ -492,7 +512,7 @@ def construire_contexte_du_banc(
         racine / "catalog_delta.json",
         {
             "delta_kind": "ACCEPTANCE_BENCH_CATALOG_DELTA",
-            "release_id": release_id,
+            "release_id": lignee,
             "added": sorted(contenu.content_sha256 for contenu in contenus),
             "removed": [],
         },
@@ -501,7 +521,7 @@ def construire_contexte_du_banc(
         racine / "effective_catalog_authority.json",
         {
             "authority_kind": "ACCEPTANCE_BENCH_EFFECTIVE_CATALOG_AUTHORITY",
-            "release_id": release_id,
+            "release_id": lignee,
             "parent_sealed_catalog_sha256": catalogue_parent_sha,
             "catalog_delta_sha256": delta_sha,
         },
@@ -533,6 +553,11 @@ def construire_contexte_du_banc(
                 "Banc hors ligne : l'identite d'octets est celle des fichiers "
                 "produits par le banc lui-meme, jamais un telechargement."
             ),
+            **(
+                {"currentness_status": "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE"}
+                if instantane
+                else {}
+            ),
         },
     )
     actualite_sha = _ecrire_json(
@@ -547,6 +572,7 @@ def construire_contexte_du_banc(
             delta_sha=delta_sha,
             autorite_effective_sha=autorite_effective_sha,
             audit_sha=audit_sha,
+            instantane=instantane,
         ),
     )
 
@@ -752,7 +778,7 @@ def construire_contexte_du_banc(
                         "visibility": scope.visibility,
                         "school_year": SCHOOL_YEAR,
                         "programme_version": scope.programme_version,
-                        "currentness": "current",
+                        "currentness": "official_snapshot" if instantane else "current",
                         "placement_status": "active",
                         "review_status": "reviewed",
                     }
@@ -1001,8 +1027,13 @@ def _actualite(
     delta_sha: str,
     autorite_effective_sha: str,
     audit_sha: str,
+    instantane: bool = False,
 ) -> dict[str, Any]:
-    """L'actualité : un fait par placement d'inventaire, aucun de plus."""
+    """L'actualité : un fait par placement d'inventaire, aucun de plus.
+
+    En instantané (ADR-0059), la preuve V3 dit ce que le banc sait vraiment :
+    une provenance officielle, aucun téléchargement vérifié.
+    """
     artefacts = []
     for contenu in contenus:
         siens = [p for p in placements if p.content_sha256 == contenu.content_sha256]
@@ -1031,6 +1062,20 @@ def _actualite(
                 "byte_identity": True,
             }
         )
+    if instantane:
+        return _actualite_v3_instantane(
+            artefacts,
+            contenus=contenus,
+            liaisons={
+                "candidate_inventory_sha256": inventaire_sha,
+                "corpus_manifest_sha256": corpus_sha,
+                "sealed_catalog_sha256": catalogue_scelle_sha,
+                "placement_catalog_sha256": catalogue_de_placements_sha,
+                "catalog_delta_sha256": delta_sha,
+                "effective_catalog_authority_sha256": autorite_effective_sha,
+                "currentness_audit_sha256": audit_sha,
+            },
+        )
     return {
         "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V2",
         "school_year": SCHOOL_YEAR,
@@ -1055,6 +1100,74 @@ def _actualite(
             "unevaluated": [],
         },
         "artifacts": artefacts,
+    }
+
+
+def _actualite_v3_instantane(
+    artefacts: list[dict[str, Any]],
+    *,
+    contenus: tuple[ContenuDuBanc, ...],
+    liaisons: dict[str, str],
+) -> dict[str, Any]:
+    """Les mêmes contenus, déclarés instantanés officiels : aucun fait de
+    vérification, la provenance de l'artefact, et les quatre conditions de
+    repli de la politique."""
+    par_contenu = {contenu.content_sha256: contenu for contenu in contenus}
+    entrees = []
+    for artefact in artefacts:
+        entree = {
+            key: artefact[key]
+            for key in (
+                "content_sha256", "exact_path", "collections", "placement_facts",
+                "current_for_school_year",
+            )
+        }
+        entree.update(
+            {
+                "currentness_disposition": "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE",
+                "source_status": "NEEDS_SECONDARY_EVIDENCE",
+                "provenance_url": par_contenu[artefact["content_sha256"]].url_telechargement,
+                "fallback_conditions": {
+                    "OFFICIAL_INSTITUTIONAL_PROVENANCE": True,
+                    "CONTENT_SHA_PROVENANCE_MATCH": True,
+                    "SOURCE_STATUS_NOT_EXPLICIT_ARCHIVE": True,
+                    "NO_KNOWN_SUPERSEDING_CONFLICT": True,
+                },
+                "reason_codes": ["ADR_0055_OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"],
+                "effective_currentness": None,
+                "current_source_listing_url": None,
+                "current_download_url": None,
+                "current_download_sha256": None,
+                "byte_identity": None,
+            }
+        )
+        entrees.append(entree)
+    tous = sorted(contenu.content_sha256 for contenu in contenus)
+    return {
+        "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V3",
+        "school_year": SCHOOL_YEAR,
+        **liaisons,
+        "decision_basis": "ACCEPTANCE_BENCH_OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE",
+        "currentness_policy_id": "NEXUS-RAG-CURRENTNESS-POLICY-V1",
+        "currentness_policy_sha256": _sha(POLITIQUE_D_ACTUALITE),
+        "servability_matrix_sha256": hashlib.sha256(
+            ("banc:" + ",".join(tous)).encode()
+        ).hexdigest(),
+        "counts": {
+            "unique_artifacts": len(entrees),
+            "evaluated": len(entrees),
+            "VERIFIED_CURRENT": 0,
+            "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": len(entrees),
+            "NOT_CURRENT_DECLARED_BY_SOURCE": 0,
+            "UNKNOWN": 0,
+        },
+        "partition": {
+            "VERIFIED_CURRENT": [],
+            "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": tous,
+            "NOT_CURRENT_DECLARED_BY_SOURCE": [],
+            "UNKNOWN": [],
+        },
+        "artifacts": entrees,
     }
 
 

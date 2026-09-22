@@ -26,6 +26,7 @@ from .ingestion_profiles.registry import (
     select_profile,
 )
 from .multilevel_evidence import (
+    VERIFIED_CURRENT,
     MultilevelCandidateInventory,
     MultilevelCandidatePlacement,
     MultilevelCurrentnessEvidence,
@@ -534,12 +535,15 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             currentness = self._currentness.for_content(sha)
         except MultilevelEvidenceError as exc:
             raise MultilevelPlacementResolutionError(str(exc)) from exc
-        if currentness.decision != "CURRENT":
+        product_currentness = currentness.product_currentness
+        if product_currentness is None:
             raise MultilevelPlacementResolutionError(
-                f"content currentness is {currentness.decision}, not CURRENT"
+                f"content currentness is {currentness.decision}, not publishable"
             )
+        verified = currentness.disposition == VERIFIED_CURRENT
         if (
-            currentness.effective_currentness != "actuel"
+            (verified and currentness.effective_currentness != "actuel")
+            or (not verified and currentness.effective_currentness is not None)
             or currentness.exact_path != candidate.physical_path
             or collection not in currentness.collections
         ):
@@ -550,12 +554,17 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             raise MultilevelPlacementResolutionError(
                 "claimed source path differs from candidate inventory"
             )
+        # On ne cite pas un téléchargement qui n'a pas eu lieu : un instantané
+        # est cité par sa provenance institutionnelle (ADR-0059).
         source_url = _require_nonempty(
-            currentness.current_download_url, label="current download URL"
+            currentness.current_download_url if verified else currentness.provenance_url,
+            label="current download URL" if verified else "snapshot provenance URL",
         )
         if claimed_source_url is not None and claimed_source_url != source_url:
             raise MultilevelPlacementResolutionError(
                 "claimed source URL differs from current byte-identity authority"
+                if verified
+                else "claimed source URL differs from the snapshot provenance"
             )
         try:
             mapped = self._mapping.resolve(
@@ -641,8 +650,7 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             and collection_entry.get("matiere") == mapped.matiere
         )
         programme_conformity = (
-            currentness.decision == "CURRENT"
-            and currentness.effective_currentness == "actuel"
+            product_currentness is not None
             and currentness.current_for_school_year == school_year
             and profile.scope.school_year == school_year
             and profile_programme == canonical_programme
@@ -668,7 +676,7 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             external_subject=candidate.external_subject,
             external_scope=candidate.external_scope,
             external_document_type=candidate.external_document_type,
-            effective_currentness="actuel",
+            effective_currentness="actuel" if verified else currentness.disposition,
             nexus_collection=collection,
             nexus_niveau=mapped.niveau,
             nexus_voie=governed_voie,
@@ -689,6 +697,7 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             voie_conformity=voie_conformity,
             matiere_conformity=matiere_conformity,
             programme_conformity=programme_conformity,
+            product_currentness=product_currentness,
         )
 
 

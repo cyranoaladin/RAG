@@ -1,7 +1,8 @@
-"""Sonde read-only du head PostgreSQL produit H2-C 004."""
+"""Sonde read-only du head PostgreSQL produit 005 (H2-C 004 + ADR-0059)."""
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -93,11 +94,11 @@ def _patched_connection(
     }
 
 
-def test_schema_head_004_accepts_only_the_exact_contract(
+def test_schema_head_005_accepts_only_the_exact_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     with _patched_connection(monkeypatch, _valid_row()) as cursor:
-        assert readiness.schema_head_004_ready("postgresql://reader") is True
+        assert readiness.schema_head_005_ready("postgresql://reader") is True
 
     normalized = cursor.sql.upper()
     assert normalized.lstrip().startswith("WITH TARGET_TABLES")
@@ -148,7 +149,7 @@ def test_schema_head_004_accepts_only_the_exact_contract(
 
 
 def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
-    contract = ENGINE_ROOT / "infra" / "postgres" / "schema_head_004_columns.tsv"
+    contract = ENGINE_ROOT / "infra" / "postgres" / "schema_head_005_columns.tsv"
 
     assert readiness.load_product_column_definitions(contract) == (
         readiness.REQUIRED_PRODUCT_COLUMN_DEFINITIONS
@@ -176,17 +177,17 @@ def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
         "inheritance-hierarchy",
     ),
 )
-def test_schema_head_004_rejects_every_drifted_contract_component(
+def test_schema_head_005_rejects_every_drifted_contract_component(
     monkeypatch: pytest.MonkeyPatch,
     position: int,
 ) -> None:
     row = list(_valid_row())
     row[position] = {} if position < 3 else "drifted"
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_004_ready("postgresql://reader") is False
+        assert readiness.schema_head_005_ready("postgresql://reader") is False
 
 
-def test_schema_head_004_rejects_registry_hash_drift(
+def test_schema_head_005_rejects_registry_hash_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     row = list(_valid_row())
@@ -194,10 +195,10 @@ def test_schema_head_004_rejects_registry_hash_drift(
     migrations[2][2] = "0" * 64
     row[5] = migrations
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_004_ready("postgresql://reader") is False
+        assert readiness.schema_head_005_ready("postgresql://reader") is False
 
 
-def test_schema_head_004_rejects_unexpected_ready_index(
+def test_schema_head_005_rejects_unexpected_ready_index(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     row = list(_valid_row())
@@ -209,10 +210,10 @@ def test_schema_head_004_rejects_unexpected_ready_index(
         },
     }
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_004_ready("postgresql://reader") is False
+        assert readiness.schema_head_005_ready("postgresql://reader") is False
 
 
-def test_schema_head_004_rejects_an_unexpected_foreign_key(
+def test_schema_head_005_rejects_an_unexpected_foreign_key(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     row = list(_valid_row())
@@ -224,7 +225,7 @@ def test_schema_head_004_rejects_an_unexpected_foreign_key(
         },
     }
     with _patched_connection(monkeypatch, tuple(row)):
-        assert readiness.schema_head_004_ready("postgresql://reader") is False
+        assert readiness.schema_head_005_ready("postgresql://reader") is False
 
 
 def test_expected_migration_records_hash_the_canonical_files() -> None:
@@ -249,10 +250,52 @@ def test_expected_migration_records_hash_the_canonical_files() -> None:
             "004_artifact_placements.sql",
             "fe32b14e6c9cdce8eb9f76e67285967ed8fd4e7f875ca2aaf3436a2e34f37489",
         ),
+        (
+            5,
+            "005_official_snapshot_currentness.sql",
+            "1422e78c62ec71495bfb966a00bfec09dbac0401d7dd0fd79efd376cb2d3061b",
+        ),
     )
 
 
-def test_schema_head_004_does_not_hide_database_errors(
+def test_previous_head_names_are_aliases_that_verify_head_005(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _patched_connection(monkeypatch, _valid_row()):
+        assert readiness.schema_head_004_ready("postgresql://reader") is True
+        assert readiness.schema_head_003_ready("postgresql://reader") is True
+    row = list(_valid_row())
+    row[5] = [list(item) for item in row[5]][:4]
+    with _patched_connection(monkeypatch, tuple(row)):
+        # Une base restée au head 004 n'est pas prête : le registre doit
+        # porter la migration 005.
+        assert readiness.schema_head_004_ready("postgresql://reader") is False
+        assert readiness.schema_head_005_ready("postgresql://reader") is False
+
+
+def test_head_005_pins_the_widened_currentness_objects() -> None:
+    placements = readiness.REQUIRED_PRODUCT_CONSTRAINT_DEFINITIONS[
+        "rag_artifact_placements"
+    ]
+    assert placements["rag_artifact_placements_currentness_check"] == [
+        "c",
+        True,
+        hashlib.md5(
+            b"CHECK (currentness = ANY (ARRAY['current'::text, "
+            b"'official_snapshot'::text, 'archive'::text, "
+            b"'review_required'::text]))"
+        ).hexdigest(),
+    ]
+    assert readiness.REQUIRED_PRODUCT_INDEX_PREDICATES[
+        "rag_artifact_placements.idx_rag_artifact_placements_scope_active"
+    ] == hashlib.md5(
+        b"placement_status = 'active'::text AND (currentness = ANY "
+        b"(ARRAY['current'::text, 'official_snapshot'::text])) AND "
+        b"review_status = 'reviewed'::text"
+    ).hexdigest()
+
+
+def test_schema_head_005_does_not_hide_database_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail(_dsn: str, **_kwargs: object) -> None:
@@ -261,4 +304,4 @@ def test_schema_head_004_does_not_hide_database_errors(
     monkeypatch.setattr(readiness.psycopg, "connect", fail)
 
     with pytest.raises(readiness.psycopg.OperationalError):
-        readiness.schema_head_004_ready("postgresql://reader")
+        readiness.schema_head_005_ready("postgresql://reader")

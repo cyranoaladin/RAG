@@ -30,9 +30,11 @@ PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
 source "$SCRIPT_DIR/lib/pgvector_migration_state.sh"
 discover_manifest "$MIGRATIONS_DIR" "$MIGRATION_HEAD_FILE"
 
-if [[ "$MIGRATION_DECLARED_HEAD" != "004_artifact_placements" \
-   || ${#MIGRATION_VERSIONS[@]} -ne 4 ]]; then
-    echo "ROLLBACK_HEAD_INVALID: declared head is not 004_artifact_placements" >&2
+# Le manifeste peut déclarer un head postérieur (005) : seule la base doit
+# être effectivement redescendue à 004, ce que la garde EFFECTIVE_HEAD exige.
+if [[ ${#MIGRATION_VERSIONS[@]} -lt 4 \
+   || "${MIGRATION_NAMES[3]}" != "004_artifact_placements.sql" ]]; then
+    echo "ROLLBACK_HEAD_INVALID: migration 004_artifact_placements is unavailable" >&2
     exit 1
 fi
 if [[ ! -f "$ROLLBACK_FILE" || -L "$ROLLBACK_FILE" ]]; then
@@ -134,6 +136,7 @@ fi
     validate_002_sql
     validate_003_sql
     validate_004_sql
+    validate_005_absent_sql
     validate_registry_sql 4
 } | docker exec -i "$PGVECTOR_CONTAINER" \
     psql -X -q -v ON_ERROR_STOP=1 \

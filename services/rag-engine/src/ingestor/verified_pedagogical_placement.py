@@ -13,6 +13,7 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any, cast
 from urllib.parse import urlparse
 from uuid import UUID
 
@@ -108,6 +109,9 @@ class VerifiedPedagogicalPlacement:
     voie_conformity: bool
     matiere_conformity: bool
     programme_conformity: bool
+    #: Ce que le produit enregistre (ADR-0059) : `current` pour une identité
+    #: d'octets prouvée, `official_snapshot` pour un instantané officiel.
+    product_currentness: str = "current"
 
 
 def _file_sha256(path: Path) -> str:
@@ -713,7 +717,7 @@ def to_eligible_placement(
         source_uri=placement.source_url,
         current_profile_fingerprint=placement.profile_fingerprint,
         current_manifest_digest=current_profile_manifest_digest,
-        currentness="current",
+        currentness=cast(Any, placement.product_currentness),
     )
 
 

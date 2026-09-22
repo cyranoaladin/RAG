@@ -1,6 +1,7 @@
-"""Vérification read-only du contrat PostgreSQL produit au head H2-C 004.
+"""Vérification read-only du contrat PostgreSQL produit au head 005.
 
-La sonde compare les trois relations produit, leurs colonnes, contraintes,
+Le head 005 est le modèle H2-C 004 dont `rag_artifact_placements.currentness`
+admet `official_snapshot` (ADR-0059 § 2). La sonde compare les trois relations produit, leurs colonnes, contraintes,
 index, prédicats partiels, états de table et le registre de migrations. Une
 relation ou un objet supplémentaire est une dérive : le résultat est faux.
 """
@@ -38,6 +39,7 @@ REQUIRED_MIGRATIONS: Final = (
     (2, "002_hybrid_retrieval.sql"),
     (3, "003_profile_filtering.sql"),
     (4, "004_artifact_placements.sql"),
+    (5, "005_official_snapshot_currentness.sql"),
 )
 REQUIRED_PRODUCT_TABLES: Final = (
     "rag_artifact_placements",
@@ -62,14 +64,14 @@ def _default_column_contract_path() -> Path:
     configured = os.environ.get("RAG_SCHEMA_HEAD_COLUMNS", "").strip()
     if configured:
         return Path(configured)
-    packaged = Path(__file__).resolve().with_name("schema_head_004_columns.tsv")
+    packaged = Path(__file__).resolve().with_name("schema_head_005_columns.tsv")
     if packaged.is_file():
         return packaged
     return (
         Path(__file__).resolve().parents[2]
         / "infra"
         / "postgres"
-        / "schema_head_004_columns.tsv"
+        / "schema_head_005_columns.tsv"
     )
 
 
@@ -86,18 +88,18 @@ def load_product_column_definitions(
         ) as stream:
             reader = csv.DictReader(stream, delimiter="\t")
             if tuple(reader.fieldnames or ()) != _COLUMN_CONTRACT_FIELDS:
-                raise RuntimeError("SCHEMA_HEAD_004_COLUMNS_INVALID")
+                raise RuntimeError("SCHEMA_HEAD_005_COLUMNS_INVALID")
             for row in reader:
                 if None in row or any(value is None for value in row.values()):
-                    raise RuntimeError("SCHEMA_HEAD_004_COLUMNS_INVALID")
+                    raise RuntimeError("SCHEMA_HEAD_005_COLUMNS_INVALID")
                 table = row["table_name"]
                 name = row["column_name"]
                 if table not in definitions or not name or name in definitions[table]:
-                    raise RuntimeError("SCHEMA_HEAD_004_COLUMNS_INVALID")
+                    raise RuntimeError("SCHEMA_HEAD_005_COLUMNS_INVALID")
                 try:
                     atttypmod = int(row["atttypmod"])
                 except ValueError as exc:
-                    raise RuntimeError("SCHEMA_HEAD_004_COLUMNS_INVALID") from exc
+                    raise RuntimeError("SCHEMA_HEAD_005_COLUMNS_INVALID") from exc
                 column_default = row["column_default"]
                 definitions[table][name] = [
                     row["data_type"],
@@ -109,14 +111,14 @@ def load_product_column_definitions(
                     atttypmod,
                 ]
     except OSError as exc:
-        raise RuntimeError("SCHEMA_HEAD_004_COLUMNS_UNAVAILABLE") from exc
+        raise RuntimeError("SCHEMA_HEAD_005_COLUMNS_UNAVAILABLE") from exc
     expected_counts = {
         "rag_artifact_placements": 23,
         "rag_artifacts": 10,
         "rag_chunks": 32,
     }
     if {table: len(columns) for table, columns in definitions.items()} != expected_counts:
-        raise RuntimeError("SCHEMA_HEAD_004_COLUMNS_INVALID")
+        raise RuntimeError("SCHEMA_HEAD_005_COLUMNS_INVALID")
     return definitions
 
 
@@ -297,18 +299,18 @@ def _default_fingerprint_path() -> Path:
     configured = os.environ.get("RAG_SCHEMA_HEAD_FINGERPRINTS", "").strip()
     if configured:
         return Path(configured)
-    packaged = Path(__file__).resolve().with_name("schema_head_004_fingerprints.env")
+    packaged = Path(__file__).resolve().with_name("schema_head_005_fingerprints.env")
     if packaged.is_file():
         return packaged
     return (
         Path(__file__).resolve().parents[2]
         / "infra"
         / "postgres"
-        / "schema_head_004_fingerprints.env"
+        / "schema_head_005_fingerprints.env"
     )
 
 
-def load_schema_head_004_fingerprints(path: Path | None = None) -> dict[str, str]:
+def load_schema_head_005_fingerprints(path: Path | None = None) -> dict[str, str]:
     values: dict[str, str] = {}
     try:
         for line in (path or _default_fingerprint_path()).read_text(
@@ -316,10 +318,10 @@ def load_schema_head_004_fingerprints(path: Path | None = None) -> dict[str, str
         ).splitlines():
             key, separator, value = line.partition("=")
             if not separator or key in values or _MD5.fullmatch(value) is None:
-                raise RuntimeError("SCHEMA_HEAD_004_FINGERPRINTS_INVALID")
+                raise RuntimeError("SCHEMA_HEAD_005_FINGERPRINTS_INVALID")
             values[key] = value
     except OSError as exc:
-        raise RuntimeError("SCHEMA_HEAD_004_FINGERPRINTS_UNAVAILABLE") from exc
+        raise RuntimeError("SCHEMA_HEAD_005_FINGERPRINTS_UNAVAILABLE") from exc
     expected_keys = {
         *_CONSTRAINT_FINGERPRINT_KEYS,
         *_INDEX_FINGERPRINT_KEYS,
@@ -327,16 +329,21 @@ def load_schema_head_004_fingerprints(path: Path | None = None) -> dict[str, str
         _TEXT_TSV_EXPRESSION_KEY,
     }
     if set(values) != expected_keys:
-        raise RuntimeError("SCHEMA_HEAD_004_FINGERPRINTS_INVALID")
+        raise RuntimeError("SCHEMA_HEAD_005_FINGERPRINTS_INVALID")
     return values
 
 
+def load_schema_head_004_fingerprints(path: Path | None = None) -> dict[str, str]:
+    """Alias de compatibilité ; la sémantique vérifiée est désormais 005."""
+    return load_schema_head_005_fingerprints(path)
+
+
 def load_schema_head_003_fingerprints(path: Path | None = None) -> dict[str, str]:
-    """Alias de compatibilité ; la sémantique vérifiée est désormais 004."""
-    return load_schema_head_004_fingerprints(path)
+    """Alias de compatibilité ; la sémantique vérifiée est désormais 005."""
+    return load_schema_head_005_fingerprints(path)
 
 
-_FINGERPRINTS = load_schema_head_004_fingerprints()
+_FINGERPRINTS = load_schema_head_005_fingerprints()
 REQUIRED_PRODUCT_CONSTRAINT_DEFINITIONS: Final[
     dict[str, dict[str, list[object]]]
 ] = {
@@ -397,7 +404,7 @@ REQUIRED_RAG_CHUNKS_TRIGGER_DEFINITIONS: Final[dict[str, list[str]]] = {}
 REQUIRED_RAG_CHUNKS_RULE_DEFINITIONS: Final[dict[str, list[object]]] = {}
 REQUIRED_RAG_CHUNKS_INHERITANCE_DEFINITIONS: Final[list[object]] = []
 
-_SCHEMA_HEAD_004_SQL = """
+_SCHEMA_HEAD_005_SQL = """
 WITH target_tables(table_name) AS (
     VALUES ('rag_artifact_placements'), ('rag_artifacts'), ('rag_chunks')
 )
@@ -549,8 +556,8 @@ def expected_migration_records(
     )
 
 
-def schema_head_004_ready(dsn: str) -> bool:
-    """Prouver en lecture seule le registre et la forme exacte du head 004."""
+def schema_head_005_ready(dsn: str) -> bool:
+    """Prouver en lecture seule le registre et la forme exacte du head 005."""
     with psycopg.connect(
         dsn,
         connect_timeout=readiness_connect_timeout_s(),
@@ -558,7 +565,7 @@ def schema_head_004_ready(dsn: str) -> bool:
     ) as connection:
         with connection.cursor() as cursor:
             apply_readiness_statement_budget(cursor)
-            cursor.execute(_SCHEMA_HEAD_004_SQL)
+            cursor.execute(_SCHEMA_HEAD_005_SQL)
             row = cursor.fetchone()
 
     if row is None or len(row) != 10:
@@ -589,9 +596,14 @@ def schema_head_004_ready(dsn: str) -> bool:
     )
 
 
+def schema_head_004_ready(dsn: str) -> bool:
+    """Alias pour les appelants H2-C ; vérifie réellement le head 005."""
+    return schema_head_005_ready(dsn)
+
+
 def schema_head_003_ready(dsn: str) -> bool:
-    """Alias temporaire pour les appelants LOT40 ; vérifie réellement 004."""
-    return schema_head_004_ready(dsn)
+    """Alias temporaire pour les appelants LOT40 ; vérifie réellement 005."""
+    return schema_head_005_ready(dsn)
 
 
 __all__ = [
@@ -621,6 +633,8 @@ __all__ = [
     "load_rag_chunks_column_definitions",
     "load_schema_head_003_fingerprints",
     "load_schema_head_004_fingerprints",
+    "load_schema_head_005_fingerprints",
     "schema_head_003_ready",
     "schema_head_004_ready",
+    "schema_head_005_ready",
 ]

@@ -257,16 +257,17 @@ def test_les_trois_collections_decidees_sont_couvertes() -> None:
 # --- 13 / 14 — CH5 ne crée aucun job et ne déclenche aucune ingestion ----
 
 
+#: Le commit du lot CH5 sur `main` (PR #233). L'épreuve juge CE lot : la
+#: comparer à `merge-base(HEAD, main)` jugeait n'importe quelle branche
+#: ultérieure contre le périmètre de CH5 — et, en CI (clone superficiel), ne
+#: jugeait rien du tout, `merge-base` échouant.
+CH5_COMMIT = "d21610c9"
+
+
 def _changements() -> list[tuple[str, str]] | None:
     try:
-        base = subprocess.run(
-            ["git", "merge-base", "HEAD", "main"],
-            cwd=RACINE, capture_output=True, text=True, timeout=30, check=False,
-        )
-        if base.returncode != 0:
-            return None
         diff = subprocess.run(
-            ["git", "diff", "--name-status", base.stdout.strip(), "HEAD"],
+            ["git", "diff", "--name-status", f"{CH5_COMMIT}^", CH5_COMMIT],
             cwd=RACINE, capture_output=True, text=True, timeout=30, check=False,
         )
         if diff.returncode != 0:

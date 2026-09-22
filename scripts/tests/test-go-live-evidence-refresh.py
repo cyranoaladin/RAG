@@ -428,7 +428,7 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, report)
 
-    def test_operator_docs_require_head_004_and_exact_migration_sequence(self) -> None:
+    def test_operator_docs_require_head_005_and_exact_migration_sequence(self) -> None:
         runbook = RUNBOOK.read_text(encoding="utf-8")
         readme = README_PROD.read_text(encoding="utf-8")
         normalized_runbook = " ".join(runbook.split())
@@ -437,13 +437,18 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertNotIn('"003_profile_filtering"', runbook)
         self.assertNotIn("head `003_profile_filtering`", readme)
         self.assertNotIn("les 31 colonnes", readme)
+        self.assertNotIn("head `004_artifact_placements`", runbook)
+        self.assertNotIn('"004_artifact_placements"', runbook)
+        self.assertNotIn("head `004_artifact_placements`", readme)
+        self.assertIn("`005_official_snapshot_currentness`", readme)
         self.assertIn("les 32 colonnes de `rag_chunks`", readme)
         self.assertIn("`rag_artifacts`", readme)
         self.assertIn("`rag_artifact_placements`", readme)
         for expected in (
             "004_artifact_placements",
+            "005_official_snapshot_currentness",
             "adopter le head structurel non enregistré `001`",
-            "appliquer `002`, `003`, puis `004`",
+            "appliquer `002`, `003`, `004`, puis `005`",
             "backup frais",
             "`001` à `013`",
             "rollback",

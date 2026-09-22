@@ -64,6 +64,9 @@ CONDITIONS_CONNUES = frozenset(
     }
 )
 
+#: Identité de la politique appliquée par ADR-0055, que toute preuve nomme.
+POLICY_ID = "NEXUS-RAG-CURRENTNESS-POLICY-V1"
+
 CHEMIN_POLITIQUE = (
     Path(__file__).resolve().parents[2]
     / "configs/proposals/nexus_rag_currentness_policy_v1.yml"
@@ -140,13 +143,48 @@ def disposition_actualite(
         return VERIFIED_CURRENT
 
     repli = politique["fallback_rule"]
-    satisfaites = {
+    satisfaites = conditions_de_repli(cas)
+    exigees = repli["conditions_all_required"]
+    if all(satisfaites[nom] for nom in exigees):
+        return repli["disposition"]
+    return UNKNOWN
+
+
+def conditions_de_repli(cas: Mapping[str, Any]) -> dict[str, bool]:
+    """Les quatre conditions de repli, telles que la politique les ÉVALUE.
+
+    Exposées pour qu'une preuve puisse dire lesquelles tenaient, sans les
+    réévaluer ailleurs : une seconde évaluation finirait par diverger de celle
+    qui a décidé.
+    """
+    return {
         "OFFICIAL_INSTITUTIONAL_PROVENANCE": cas.get("official_provenance") is True,
         "CONTENT_SHA_PROVENANCE_MATCH": cas.get("sha_provenance_match") is True,
         "SOURCE_STATUS_NOT_EXPLICIT_ARCHIVE": cas.get("source_status") != STATUT_ARCHIVE,
         "NO_KNOWN_SUPERSEDING_CONFLICT": not cas.get("superseding_conflict", False),
     }
-    exigees = repli["conditions_all_required"]
-    if all(satisfaites[nom] for nom in exigees):
-        return repli["disposition"]
-    return UNKNOWN
+
+
+def cas_depuis_ligne_de_matrice(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Traduit une ligne de la matrice de servabilité en cas d'actualité.
+
+    Une seule traduction, partagée par la matrice qui produit la disposition
+    et par le producteur de release qui la recalcule pour la vérifier. Deux
+    traductions, même identiques au jour de leur écriture, finiraient par
+    diverger — et le contrôle croisé ne prouverait plus rien.
+
+    `content_identity_match` reste absent : seule une identité d'octets
+    prouverait l'actualité, et la matrice ne la porte pas. Le supposer
+    fabriquerait un VERIFIED_CURRENT que rien n'établit.
+    """
+    provenance_officielle = row["provenance"] == "URL_EVIDENCE_FOUND"
+    return {
+        "source_status": (
+            STATUT_ARCHIVE
+            if row["currentness"] == "ARCHIVE_DECLARED"
+            else row["currentness"]
+        ),
+        "official_provenance": provenance_officielle,
+        "sha_provenance_match": provenance_officielle,
+        "superseding_conflict": False,
+    }

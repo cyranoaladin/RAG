@@ -7,12 +7,14 @@ migration_001_file=001_rag_chunks_v2_schema.sql
 migration_002_file=002_hybrid_retrieval.sql
 migration_003_file=003_profile_filtering.sql
 migration_004_file=004_artifact_placements.sql
+migration_005_file=005_official_snapshot_currentness.sql
 
 for migration_file in \
     "$migration_001_file" \
     "$migration_002_file" \
     "$migration_003_file" \
-    "$migration_004_file"; do
+    "$migration_004_file" \
+    "$migration_005_file"; do
     test -f "$migration_root/$migration_file"
 done
 
@@ -20,6 +22,7 @@ migration_001_sha="$(sha256sum "$migration_root/$migration_001_file" | cut -d' '
 migration_002_sha="$(sha256sum "$migration_root/$migration_002_file" | cut -d' ' -f1)"
 migration_003_sha="$(sha256sum "$migration_root/$migration_003_file" | cut -d' ' -f1)"
 migration_004_sha="$(sha256sum "$migration_root/$migration_004_file" | cut -d' ' -f1)"
+migration_005_sha="$(sha256sum "$migration_root/$migration_005_file" | cut -d' ' -f1)"
 
 psql \
     --username "$POSTGRES_USER" \
@@ -32,7 +35,9 @@ psql \
     --set "migration_003_file=$migration_003_file" \
     --set "migration_003_sha=$migration_003_sha" \
     --set "migration_004_file=$migration_004_file" \
-    --set "migration_004_sha=$migration_004_sha" <<'SQL'
+    --set "migration_004_sha=$migration_004_sha" \
+    --set "migration_005_file=$migration_005_file" \
+    --set "migration_005_sha=$migration_005_sha" <<'SQL'
 BEGIN;
 
 CREATE TABLE rag_schema_migrations (
@@ -47,7 +52,8 @@ VALUES
     (1, :'migration_001_file', :'migration_001_sha'),
     (2, :'migration_002_file', :'migration_002_sha'),
     (3, :'migration_003_file', :'migration_003_sha'),
-    (4, :'migration_004_file', :'migration_004_sha');
+    (4, :'migration_004_file', :'migration_004_sha'),
+    (5, :'migration_005_file', :'migration_005_sha');
 
 COMMIT;
 SQL

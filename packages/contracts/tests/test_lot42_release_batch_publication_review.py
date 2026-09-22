@@ -287,6 +287,56 @@ def test_le_modele_n_accepte_que_reviewed_active_current(valeur: str) -> None:
                                       "currentness": "current"})
 
 
+# --- ADR-0059 — un instantané officiel se déclare comme tel --------------
+
+
+def test_une_release_d_instantanes_officiels_est_approuvable_comme_telle() -> None:
+    """ADR-0059 : une release dont tous les placements sont des instantanés
+    officiels (ADR-0055) se revoit sous ce nom, et la vérification passe."""
+    etats = {k: v for k, v in ETATS.items()}
+    etats["currentness"] = ("official_snapshot",)
+    artefact = _artefact(placement_evidence={"review_status": "reviewed",
+                                             "placement_status": "active",
+                                             "currentness": "official_snapshot"})
+    _verifie(artefact, observed_placement_states=etats)
+
+
+def test_une_approbation_sur_current_ne_vaut_pas_pour_des_instantanes() -> None:
+    """La revue approuve ce qu'elle voit : une revue donnée sur « current »
+    ne couvre pas une release dont les placements sont des instantanés."""
+    etats = {k: v for k, v in ETATS.items()}
+    etats["currentness"] = ("official_snapshot",)
+    with pytest.raises(ReleaseBatchReviewMismatch, match="currentness"):
+        _verifie(_artefact(), observed_placement_states=etats)
+
+
+def test_une_approbation_sur_des_instantanes_ne_vaut_pas_pour_current() -> None:
+    artefact = _artefact(placement_evidence={"review_status": "reviewed",
+                                             "placement_status": "active",
+                                             "currentness": "official_snapshot"})
+    with pytest.raises(ReleaseBatchReviewMismatch, match="currentness"):
+        _verifie(artefact, observed_placement_states=ETATS)
+
+
+def test_une_release_melant_current_et_instantanes_est_refusee() -> None:
+    """L'ensemble revu doit rester uniforme : un mélange n'est pas un état."""
+    etats = {k: v for k, v in ETATS.items()}
+    etats["currentness"] = ("current", "official_snapshot")
+    with pytest.raises(ReleaseBatchReviewMismatch, match="currentness"):
+        _verifie(_artefact(), observed_placement_states=etats)
+
+
+@pytest.mark.parametrize("valeur", ["snapshot", "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE",
+                                    "verified_current", "archive", "review_required"])
+def test_seuls_current_et_official_snapshot_sont_des_actualites_revisables(
+    valeur: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        _artefact(placement_evidence={"review_status": "reviewed",
+                                      "placement_status": "active",
+                                      "currentness": valeur})
+
+
 # --- 15 — la provenance doit être présente -------------------------------
 
 

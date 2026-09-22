@@ -45,10 +45,22 @@ from uuid import UUID
 import psycopg
 
 from ingestor.ingestion_control.sealed_evidence import (
+    PIIClearance,
+    SealedEvidenceError,
+    VerifiedPIIEvidenceRegistry,
     VerifiedRightsEvidenceRegistry,
 )
 from ingestor.ingestion_control.sealed_release_catalog import (
     VerifiedSealedReleaseCatalog,
+)
+from ingestor.ingestion_worker.runtime_authority import (
+    require_runtime_review_chain_matches_release,
+)
+from ingestor.multilevel_evidence import (
+    MultilevelCurrentnessArtifact,
+    MultilevelCurrentnessEvidence,
+    load_multilevel_candidate_inventory,
+    load_multilevel_currentness,
 )
 
 try:
@@ -225,6 +237,48 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     propose_batch.add_argument(
         "--evaluator", required=True, type=_non_blank,
         help="Identite de l'evaluateur de la porte de publication — datee et reelle.",
+    )
+    # La chaîne de revue PII (ADR-0047) : les CHEMINS seulement. Les
+    # empreintes attendues sont celles que le manifeste de la release déclare,
+    # jamais celles qu'un appelant annoncerait.
+    for option, description in (
+        ("pii-decision-set-path", "ensemble scelle des decisions humaines de revue PII"),
+        ("pii-review-receipt-path", "recu ADR-0035 scellant cet ensemble"),
+        ("review-trust-anchor-path", "ancre de confiance verifiant le recu"),
+        ("pii-review-index-path", "index des paquets de revue"),
+    ):
+        propose_batch.add_argument(f"--{option}", type=Path, default=None, help=description)
+    propose_batch.add_argument(
+        "--pii-review-reviewers-sha256", default=None,
+        help="Empreinte attendue de l'allowlist des reviewers PII.",
+    )
+    propose_batch.add_argument(
+        "--repository-root", type=Path, default=None,
+        help="Racine du depot, ou le foyer resout l'allowlist des reviewers.",
+    )
+
+    adopt = subparsers.add_parser(
+        "adopt-predecessor-release",
+        help=(
+            "Fait couvrir par une release successeur les placements acquis sous "
+            "son predecesseur, sans les reecrire ni les reingerer (ADR-0059 § 5). "
+            "N'approuve rien, ne publie rien."
+        ),
+    )
+    adopt.add_argument("--release-id", required=True, type=_non_blank)
+    adopt.add_argument("--release-dir", required=True, type=Path)
+    adopt.add_argument("--release-manifest-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--artifacts-release-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--candidate-inventory-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--transfer-manifest-path", required=True, type=Path)
+    adopt.add_argument("--transfer-manifest-sha256", required=True, type=_non_blank)
+    adopt.add_argument("--predecessor-release-id", required=True, type=_non_blank)
+    adopt.add_argument(
+        "--predecessor-release-manifest-sha256", required=True, type=_non_blank
+    )
+    adopt.add_argument(
+        "--adopted-by", required=True, type=_non_blank,
+        help="Identite reelle de l'operateur qui adopte.",
     )
 
     record_batch = subparsers.add_parser(
@@ -588,10 +642,20 @@ class _SourcesScellees:
 
     catalogue: VerifiedSealedReleaseCatalog
     preflight: Mapping[str, Mapping[str, Any]]
-    currentness: Mapping[str, Mapping[str, Any]]
-    pii: Mapping[str, Mapping[str, Any]]
-    pii_digest: str
+    #: L'actualité CHARGÉE par le chemin canonique (ADR-0059), jamais lue brute.
+    currentness: MultilevelCurrentnessEvidence
+    #: La PII vérifiée : ensemble de décisions, reçu et ancre compris.
+    pii: VerifiedPIIEvidenceRegistry
     droits: VerifiedRightsEvidenceRegistry
+
+    def clairance_pii(self, sha: str) -> PIIClearance | SealedEvidenceError:
+        try:
+            return self.pii.verify_content_clearance(sha)
+        except SealedEvidenceError as exc:
+            return exc
+
+    def actualite(self, sha: str) -> MultilevelCurrentnessArtifact | None:
+        return self.currentness.artifacts.get(sha)
 
 
 def _charger_sources_scellees(args: argparse.Namespace) -> _SourcesScellees:
@@ -622,25 +686,60 @@ def _charger_sources_scellees(args: argparse.Namespace) -> _SourcesScellees:
         return json.loads(brut.decode("utf-8")), digest
 
     preflight, _ = _lire("preflight_evidence.json", autorites["preflight_evidence_sha256"])
-    currentness, _ = _lire(
-        "currentness_evidence.json", autorites["currentness_evidence_sha256"]
+
+    # L'actualité passe par son chargeur canonique, lié à l'inventaire que le
+    # manifeste nomme : une ligne « CURRENT » qui ne tiendrait pas devant lui
+    # ne peut pas ouvrir la porte (ADR-0059).
+    inventaire = load_multilevel_candidate_inventory(
+        args.release_dir / "candidate_inventory.json",
+        expected_sha256=autorites["candidate_inventory_sha256"],
     )
-    pii, pii_digest = _lire("pii_evidence.json", autorites["pii_evidence_sha256"])
+    currentness = load_multilevel_currentness(
+        args.release_dir / "currentness_evidence.json",
+        expected_sha256=autorites["currentness_evidence_sha256"],
+        candidate_inventory=inventaire,
+    )
+
+    chaine_declaree = {
+        champ: autorites.get(champ)
+        for champ in (
+            "pii_decision_set_sha256",
+            "pii_review_receipt_sha256",
+            "pii_review_trust_anchor_sha256",
+            "pii_review_index_sha256",
+        )
+    }
+    pii = VerifiedPIIEvidenceRegistry.load(
+        args.release_dir / "pii_evidence.json",
+        expected_evidence_sha256=autorites["pii_evidence_sha256"],
+        expected_corpus_manifest_sha256=autorites["corpus_manifest_sha256"],
+        decision_set_path=args.pii_decision_set_path,
+        expected_decision_set_sha256=chaine_declaree["pii_decision_set_sha256"],
+        receipt_path=args.pii_review_receipt_path,
+        expected_receipt_sha256=chaine_declaree["pii_review_receipt_sha256"],
+        trust_anchor_path=args.review_trust_anchor_path,
+        expected_trust_anchor_sha256=chaine_declaree["pii_review_trust_anchor_sha256"],
+        review_index_path=args.pii_review_index_path,
+        expected_review_index_sha256=chaine_declaree["pii_review_index_sha256"],
+        repository_root=args.repository_root,
+        expected_reviewers_sha256=args.pii_review_reviewers_sha256,
+    )
+    # La release annonce une chaîne ; celle qui a été vérifiée doit être la
+    # même, champ par champ. Une chaîne déclarée mais non fournie refuse ici.
+    require_runtime_review_chain_matches_release(
+        declared=chaine_declaree, runtime=pii.verified_review_chain()
+    )
 
     droits = VerifiedRightsEvidenceRegistry.load(
         args.rights_registry_path,
         expected_registry_sha256=autorites["rights_registry_sha256"],
         expected_corpus_manifest_sha256=autorites["corpus_manifest_sha256"],
     )
-    par_pii: dict[str, Mapping[str, Any]] = {}
-    for entree in pii["results"]:
-        par_pii.setdefault(entree["content_sha256"], entree)
     return _SourcesScellees(
         catalogue=catalogue,
         preflight={a["content_sha256"]: a for a in preflight["artifacts"]},
-        currentness={a.get("content_sha256"): a for a in currentness["artifacts"]},
-        pii=par_pii,
-        pii_digest=pii_digest,
+        currentness=currentness,
+        pii=pii,
         droits=droits,
     )
 
@@ -718,10 +817,13 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
                         digest=clearance.registry_sha256,
                     ),
                     qualite=derive_quality(entree_qualite),
-                    actualite=derive_currentness(sources.currentness.get(sha)),
+                    actualite=derive_currentness(
+                        sources.actualite(sha),
+                        evidence_sha256=sources.currentness.sha256,
+                    ),
                     pii=derive_pii(
-                        sources.pii.get(sha),
-                        evidence_sha256=sources.pii_digest,
+                        sources.clairance_pii(sha),
+                        evidence_sha256=sources.pii.evidence_sha256,
                     ),
                     gate_evaluator=args.evaluator,
                     gate_evaluated_at=evalue_a,
@@ -771,6 +873,101 @@ def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
     print(f"REVIEW_ARTIFACT_PATH {chemin}")
     print(f"REVIEW_ARTIFACT_DIGEST {artifact.digest()}")
     sys.stdout.write(artifact.canonical_bytes().decode("utf-8"))
+    return 0
+
+
+def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
+    """Adopte, pour un successeur, les placements acquis sous son prédécesseur.
+
+    Tout ce qui fonde l'adoption est vérifié AVANT d'ouvrir la base : la
+    release successeur par ses digests, son actualité par le chargeur
+    canonique, et l'accord entre l'actualité que son catalogue prescrit à
+    chaque placement et celle que sa preuve établit.
+    """
+    from ingestor.ingestion_control.sealed_release_adoption import (
+        SealedReleaseAdoptionError,
+        SuccessorIdentity,
+        load_acquired_rows,
+        persist_adoption,
+        plan_adoption,
+    )
+    from ingestor.ingestion_worker.sealed_release_ingestion import (
+        load_sealed_release,
+        sealed_placement_evidence,
+    )
+
+    try:
+        facts = load_sealed_release(
+            args.release_dir,
+            release_manifest_sha256=args.release_manifest_sha256,
+            artifacts_release_sha256=args.artifacts_release_sha256,
+            candidate_inventory_sha256=args.candidate_inventory_sha256,
+            artifact_transfer_manifest_path=args.transfer_manifest_path,
+            artifact_transfer_manifest_sha256=args.transfer_manifest_sha256,
+        )
+        if facts.release_id != args.release_id:
+            raise SealedReleaseAdoptionError(
+                f"the release directory describes {facts.release_id!r}, not "
+                f"{args.release_id!r}"
+            )
+        autorites = json.loads(
+            (args.release_dir / "production-profile-gate.release.json").read_bytes()
+        )["authorities"]
+        inventaire = load_multilevel_candidate_inventory(
+            args.release_dir / "candidate_inventory.json",
+            expected_sha256=autorites["candidate_inventory_sha256"],
+        )
+        actualite = load_multilevel_currentness(
+            args.release_dir / "currentness_evidence.json",
+            expected_sha256=autorites["currentness_evidence_sha256"],
+            candidate_inventory=inventaire,
+        )
+        prescrits = []
+        for placement in facts.placements:
+            etablie = actualite.for_content(placement.artifact_id).product_currentness
+            if etablie is None or etablie != placement.currentness:
+                raise SealedReleaseAdoptionError(
+                    f"placement {placement.placement_id} is catalogued "
+                    f"{placement.currentness!r} while its currentness evidence "
+                    f"establishes {etablie!r} — the catalogue and its evidence disagree"
+                )
+            prescrits.append(sealed_placement_evidence(placement, facts))
+        successeur = SuccessorIdentity(
+            release_id=facts.release_id,
+            release_manifest_sha256=facts.release_manifest_sha256,
+            artifacts_release_sha256=facts.artifacts_release_sha256,
+            candidate_inventory_sha256=facts.candidate_inventory_sha256,
+            artifact_transfer_manifest_sha256=facts.artifact_transfer_manifest_sha256,
+            currentness_evidence_sha256=actualite.sha256,
+            pii_evidence_sha256=str(autorites["pii_evidence_sha256"]),
+        )
+    except Exception as exc:  # noqa: BLE001 - frontiere CLI fail-closed
+        print(f"SUCCESSOR_RELEASE_UNUSABLE: {exc}", file=sys.stderr)
+        return 1
+
+    with psycopg.connect(get_attestor_dsn()) as conn:
+        try:
+            lignes = plan_adoption(
+                acquired=load_acquired_rows(conn, release_id=args.predecessor_release_id),
+                successor_placements=prescrits,
+                successor=successeur,
+                predecessor_release_id=args.predecessor_release_id,
+                predecessor_release_manifest_sha256=args.predecessor_release_manifest_sha256,
+            )
+            ecrites, deja = persist_adoption(conn, lignes=lignes, adopted_by=args.adopted_by)
+        except SealedReleaseAdoptionError as exc:
+            conn.rollback()
+            print(f"ADOPTION_REFUSED: {exc}", file=sys.stderr)
+            return 1
+        conn.commit()
+    actualites = sorted({ligne.currentness for ligne in lignes})
+    print(
+        f"ADOPTION_RECORDED release_id={successeur.release_id} "
+        f"predecessor={args.predecessor_release_id} placements={len(lignes)} "
+        f"written={ecrites} already_present={deja} currentness={','.join(actualites)} "
+        f"currentness_evidence={successeur.currentness_evidence_sha256} "
+        f"pii_evidence={successeur.pii_evidence_sha256}"
+    )
     return 0
 
 
@@ -967,6 +1164,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_propose_release_batch_review(args)
     if args.command == "record-release-batch-attestation":
         return _cmd_record_release_batch_attestation(args)
+    if args.command == "adopt-predecessor-release":
+        return _cmd_adopt_predecessor_release(args)
     raise AssertionError(f"unreachable: unknown command {args.command!r}")  # pragma: no cover
 
 

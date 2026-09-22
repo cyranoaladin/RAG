@@ -145,6 +145,20 @@ class ReleaseReadinessError(ValueError):
     """Le manifest release ne peut pas constituer une autorité exacte."""
 
 
+#: Les actualités qu'une release peut prescrire à un placement publié
+#: (ADR-0059) : l'identité d'octets prouvée, et l'instantané officiel dont
+#: l'actualité réseau n'a pas pu être établie. Aucune autre n'est publiée.
+PUBLISHABLE_CURRENTNESS = frozenset({"current", "official_snapshot"})
+
+
+def _require_publishable_currentness(placement: Mapping[str, Any], field: str) -> None:
+    if placement.get("currentness") not in PUBLISHABLE_CURRENTNESS:
+        raise ReleaseReadinessError(
+            f"{field} placement currentness {placement.get('currentness')!r} is "
+            "never published"
+        )
+
+
 @dataclass(frozen=True)
 class ExpectedArtifact:
     content_sha256: str
@@ -647,6 +661,7 @@ def _parse_subject_v1(
                 raise ReleaseReadinessError(f"{artifact_field} placement school year mismatch")
             if placement.get("programme_version") != programme_version:
                 raise ReleaseReadinessError(f"{artifact_field} programme version mismatch")
+            _require_publishable_currentness(placement, artifact_field)
             expected_placements.append(
                 ExpectedPlacement(
                     artifact_id=sha,
@@ -951,6 +966,7 @@ def _parse_subject_v2(
             raise ReleaseReadinessError(f"{placement_field} school year mismatch")
         if placement.get("programme_version") != programme_version:
             raise ReleaseReadinessError(f"{placement_field} programme version mismatch")
+        _require_publishable_currentness(placement, placement_field)
         placements.append(
             ExpectedPlacement(
                 artifact_id=artifact_id,
@@ -1488,7 +1504,10 @@ def evaluate_release_snapshot(
             wrong_placement_metadata += 1
         if actual.get("review_status") != "reviewed":
             wrong_review_status += 1
-        if actual.get("currentness") != "current":
+        # Le produit doit porter EXACTEMENT l'actualité que la release
+        # prescrit : servir un instantané comme `current` le déclarerait
+        # vérifié, et l'inverse effacerait une vérification (ADR-0059).
+        if actual.get("currentness") != exp_placement.get("currentness"):
             wrong_currentness += 1
 
     wrong_chunk_metadata = 0

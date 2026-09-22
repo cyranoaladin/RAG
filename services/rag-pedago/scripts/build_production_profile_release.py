@@ -38,6 +38,21 @@ from nexus_release_chain.release_readiness import (
     load_release_registry_file,
 )
 
+from rag_pedago.governance.currentness_disposition import (
+    CHEMIN_POLITIQUE as CURRENTNESS_POLICY_PATH,
+)
+from rag_pedago.governance.currentness_disposition import (
+    DISPOSITIONS,
+    NOT_CURRENT_DECLARED_BY_SOURCE,
+    OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE,
+    POLICY_ID,
+    STATUT_ARCHIVE,
+    VERIFIED_CURRENT,
+    cas_depuis_ligne_de_matrice,
+    charger_politique,
+    conditions_de_repli,
+    disposition_actualite,
+)
 from rag_pedago.imports.pii_review_projection import (
     PiiProjectionError,
     ScannedContent,
@@ -318,6 +333,82 @@ def load_and_validate_exclusion_registry(
     )
 
 
+@dataclass(frozen=True)
+class GovernedCurrentnessAuthority:
+    """La matrice de servabilité gouvernée et la politique appliquée (ADR-0055).
+
+    Toutes deux sont INJECTÉES : le producteur ne décide aucune disposition
+    d'actualité, il cite celle de la matrice et la vérifie contre la politique.
+    La preuve V3 nomme l'empreinte des octets de l'une et de l'autre."""
+
+    matrix_path: Path
+    matrix_sha256: str
+    rows_by_sha: Mapping[str, Mapping[str, Any]]
+    policy: Mapping[str, Any]
+    policy_path: Path
+    policy_sha256: str
+    policy_id: str
+
+
+def load_governed_currentness_authority(
+    matrix_path: Path | None,
+    expected_matrix_sha256: str | None,
+    *,
+    policy_path: Path | None = None,
+) -> GovernedCurrentnessAuthority:
+    """Charge la matrice de servabilité et la politique, fail-closed.
+
+    Refuse : matrice ou empreinte absente, empreinte différente des octets,
+    matrice d'un autre type ou portant deux lignes pour un contenu, politique
+    non appliquée (`charger_politique`) ou d'une autre identité."""
+    if matrix_path is None:
+        raise ValueError(
+            "the governed servability matrix is required: currentness "
+            "dispositions derive from it, never from the producer"
+        )
+    if not expected_matrix_sha256:
+        raise ValueError("the expected sha256 of the servability matrix is required")
+    path = Path(matrix_path).resolve()
+    if not path.is_file():
+        raise ValueError(f"servability matrix absent: {path}")
+    raw = path.read_bytes()
+    actual = _sha256_bytes(raw)
+    if actual != expected_matrix_sha256.lower():
+        raise ValueError(
+            f"servability matrix sha256 mismatch: expected {expected_matrix_sha256}, "
+            f"got {actual}"
+        )
+    document = json.loads(raw.decode("utf-8"))
+    if not isinstance(document, dict) or document.get("kind") != "NEXUS-SERVABILITY-MATRIX-V1":
+        raise ValueError("servability matrix kind is not NEXUS-SERVABILITY-MATRIX-V1")
+    rows_by_sha: dict[str, Mapping[str, Any]] = {}
+    for row in document.get("rows") or []:
+        sha = row.get("content_sha256")
+        if not isinstance(sha, str) or not _HEX64.fullmatch(sha):
+            raise ValueError(f"servability matrix row has no content identity: {sha!r}")
+        if sha in rows_by_sha:
+            raise ValueError(f"servability matrix row is duplicated for {sha}")
+        rows_by_sha[sha] = row
+    if not rows_by_sha:
+        raise ValueError("servability matrix has no row")
+
+    resolved_policy_path = Path(policy_path or CURRENTNESS_POLICY_PATH).resolve()
+    policy = charger_politique(resolved_policy_path)
+    if policy.get("policy_id") != POLICY_ID:
+        raise ValueError(
+            f"currentness policy {policy.get('policy_id')!r} is not {POLICY_ID}"
+        )
+    return GovernedCurrentnessAuthority(
+        matrix_path=path,
+        matrix_sha256=actual,
+        rows_by_sha=rows_by_sha,
+        policy=policy,
+        policy_path=resolved_policy_path,
+        policy_sha256=_sha256_bytes(resolved_policy_path.read_bytes()),
+        policy_id=POLICY_ID,
+    )
+
+
 #: La lignée SERVIE, déclarée ici et nulle part ailleurs : la matrice de
 #: production du 31 août et les onze profils de la livraison 319. Une exécution
 #: par défaut, depuis le commit candidat, reproduit ce corpus sans qu'aucune
@@ -564,8 +655,17 @@ class VerifiedPdf(NamedTuple):
 
 
 def validate_pdf_mirror(
-    *, pdf_root: Path, content_sha256: list[str]
+    *,
+    pdf_root: Path,
+    content_sha256: list[str],
+    physical_paths: Mapping[str, str] | None = None,
 ) -> dict[str, VerifiedPdf]:
+    """Lit chaque contenu du miroir UNE fois et le re-hache.
+
+    Deux organisations sont admises : adressée par contenu (`<sha>.pdf`) ou
+    par chemin (`physical_paths[sha]`, le chemin canonique du Drive). Dans les
+    deux cas, les octets lus doivent porter l'empreinte demandée ; un chemin qui
+    sortirait de la racine est refusé comme absent."""
     # Un contenu correspond à UN fichier du miroir : le miroir est 1:1 par
     # nature. Un même document demandé plusieurs fois est la conséquence normale
     # du multi-placement — il est placé dans plusieurs collections — et non une
@@ -576,6 +676,8 @@ def validate_pdf_mirror(
     root = pdf_root.resolve()
     for content_sha in demandes:
         path = (root / f"{content_sha}.pdf").resolve()
+        if not path.is_file() and physical_paths and content_sha in physical_paths:
+            path = (root / physical_paths[content_sha]).resolve()
         if not path.is_relative_to(root) or not path.is_file():
             raise ValueError(f"PDF mirror is missing content {content_sha}")
         content = path.read_bytes()
@@ -1023,7 +1125,10 @@ def _candidate_inventory(
                 "external_level": first["external_level"],
                 "external_subject": first["external_subject"],
                 "external_scope": first["external_scope"],
-                "counts": {"unique_artifacts": len(rows), "placements": len(rows)},
+                "counts": {
+                    "unique_artifacts": len({row["content_sha256"] for row in rows}),
+                    "placements": len(rows),
+                },
                 "observed_values": {
                     "document_types": sorted(
                         {row["external_document_type"] for row in rows}
@@ -1047,29 +1152,10 @@ def _candidate_inventory(
         "catalog_delta_sha256": _sha256_bytes(canonical_json_bytes(delta)),
         "catalog_delta_payload_sha256": delta["catalog_delta_payload_sha256"],
         "effective_catalog_authority_sha256": effective["authority_sha256"],
-        "counts": {
-            "target_collections": len(collections),
-            "unique_artifacts": len(unique_shas),
-            "placements": len(placement_rows),
-            # `physical_objects` compte les FICHIERS SOURCE ; `unique_artifacts`
-            # compte les CONTENUS distincts. Ils coïncident tant qu'aucun document
-            # n'a été téléchargé deux fois, et l'invariant qui suit le dit :
-            # physical_objects >= unique_artifacts, l'égalité signifiant « aucun
-            # doublon de fichier ». Deux champs qui doivent s'accorder valent mieux
-            # qu'un seul — À CONDITION que quelque chose vérifie l'accord. Rien ne
-            # le vérifiait : ils étaient faux ENSEMBLE.
-            "physical_objects": len({row["source_path"] for row in placement_rows})
-            if all("source_path" in row for row in placement_rows)
-            else len(unique_shas),
-            # Littéral `0` jusqu'au 30/08/2026 — le champ qui aurait révélé les
-            # deux précédents affirmait que leur erreur était impossible. Quatre
-            # producteurs frères le CALCULENT déjà (`build_multilevel_release`,
-            # `build_wave0_release`, `wave0_release`, `artifact_placement_model`) ;
-            # celui-ci était le seul à l'écrire en dur.
-            "multi_placement_artifacts": sum(
-                1 for count in Counter(placement_shas).values() if count > 1
-            ),
-        },
+        # D-44 : les comptes sont RECOMPTÉS depuis la structure émise, avec la
+        # sémantique exacte du chargeur (`_inventory_counts`), jamais tirés de
+        # variables qui pourraient désigner autre chose.
+        "counts": _inventory_counts(collections),
         "collection_partition": {
             "production_profile_exact": sorted(grouped),
             "review_required": [],
@@ -1083,6 +1169,109 @@ def _candidate_inventory(
             "exact_grade_gate_pending": unique_shas,
             "named_noneligible": [],
             "unevaluated": [],
+        },
+        "collections": collections,
+    }
+
+
+def _inventory_counts(collections: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    """Comptes d'inventaire, avec la sémantique que le chargeur recompte.
+
+    - `unique_artifacts` : contenus distincts ;
+    - `placements` : un par placement de candidat ;
+    - `physical_objects` : objets physiques distincts, UN par contenu — le
+      chargeur les indexe par empreinte et refuse deux chemins pour un même
+      contenu ; il vaut donc `unique_artifacts`, et le refus ci-dessous le
+      garantit plutôt que de le supposer ;
+    - `multi_placement_artifacts` : contenus portés par plus d'un placement.
+
+    Le 486 pour 319 de la release historique venait de comptes écrits à
+    côté de la structure qu'ils décrivaient. Ici, ils en sont dérivés."""
+    physical_by_sha: dict[str, str] = {}
+    multiplicity: Counter[str] = Counter()
+    for collection in collections:
+        for candidate in collection["candidates"]:
+            sha = candidate["content_sha256"]
+            if physical_by_sha.setdefault(sha, candidate["physical_path"]) != candidate[
+                "physical_path"
+            ]:
+                raise ValueError(f"inventory content {sha} has conflicting physical paths")
+            multiplicity[sha] += len(candidate["placements"])
+    return {
+        "target_collections": len(collections),
+        "unique_artifacts": len(physical_by_sha),
+        "placements": sum(multiplicity.values()),
+        "physical_objects": len(physical_by_sha),
+        "multi_placement_artifacts": sum(1 for n in multiplicity.values() if n > 1),
+    }
+
+
+def _dedupe(values: Sequence[str], *, excluded: frozenset[str]) -> list[str]:
+    return sorted({value for value in values if value not in excluded})
+
+
+def _recount_candidate_inventory(
+    source: Mapping[str, Any], *, excluded: frozenset[str]
+) -> dict[str, Any]:
+    """Reprend l'inventaire d'une release source, sans ses exclus, recompté.
+
+    La voie de répétition RECOPIAIT l'inventaire source octet pour octet :
+    les contenus exclus (ADR-0055) y restaient, et ses comptes — 486
+    `unique_artifacts` pour 319 contenus, `multi_placement_artifacts: 0` —
+    étaient refusés par le chargeur. Les autorités qu'il cite (catalogue,
+    delta, autorité effective) sont conservées telles quelles : seule la
+    population et ses comptes changent."""
+    collections = []
+    for collection in source["collections"]:
+        candidates = [
+            candidate
+            for candidate in collection["candidates"]
+            if candidate["content_sha256"] not in excluded
+        ]
+        if not candidates:
+            continue
+        shas = {candidate["content_sha256"] for candidate in candidates}
+        partition = dict(collection.get("candidate_partition") or {})
+        collections.append(
+            {
+                **collection,
+                "counts": {
+                    "unique_artifacts": len(shas),
+                    "placements": sum(len(c["placements"]) for c in candidates),
+                },
+                "candidate_partition": {
+                    key: _dedupe(values, excluded=excluded)
+                    for key, values in partition.items()
+                },
+                "candidates": candidates,
+            }
+        )
+    kept = {collection["collection"] for collection in collections}
+    unique_shas = {
+        candidate["content_sha256"]
+        for collection in collections
+        for candidate in collection["candidates"]
+    }
+    source_partition = source["candidate_partition"]
+    named = _dedupe(source_partition.get("named_noneligible", []), excluded=excluded)
+    unevaluated = _dedupe(source_partition.get("unevaluated", []), excluded=excluded)
+    pending = sorted(unique_shas - set(named) - set(unevaluated))
+    if set(pending) | set(named) | set(unevaluated) != unique_shas or set(named) & set(
+        unevaluated
+    ):
+        raise ValueError("source inventory partition does not cover its artifact set")
+    return {
+        **source,
+        "counts": _inventory_counts(collections),
+        "collection_partition": {
+            key: [name for name in values if name in kept]
+            for key, values in source["collection_partition"].items()
+        },
+        "candidate_partition": {
+            **source_partition,
+            "exact_grade_gate_pending": pending,
+            "named_noneligible": named,
+            "unevaluated": unevaluated,
         },
         "collections": collections,
     }
@@ -1330,8 +1519,13 @@ def resolve_currentness_network_audit(
     verify_official_downloads: bool,
     audit_path: Path = CURRENTNESS_NETWORK_AUDIT_PATH,
     release_id: str | None = None,
+    source_unreachable: bool | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Separate optional live acquisition from deterministic offline replay."""
+    """Separate optional live acquisition from deterministic offline replay.
+
+    ``source_unreachable`` déclare explicitement la lacune nommée ; à défaut,
+    elle se lit dans ``NEXUS_CURRENTNESS_UNVERIFIED``. La répétition la déduit
+    de l'audit de sa release source, sans variable d'environnement."""
     if verify_official_downloads:
         network_rows = _verify_official_downloads(placement_rows)
         return (
@@ -1360,7 +1554,11 @@ def resolve_currentness_network_audit(
     # La déclaration prime sur la lecture : l'audit scellé du dépôt couvre un
     # AUTRE périmètre — les 26 documents de la release historique. Le confronter
     # à une émission de 2 389 documents ne mesurerait rien.
-    if os.environ.get("NEXUS_CURRENTNESS_UNVERIFIED") == "SOURCE_UNREACHABLE":
+    if source_unreachable is None:
+        source_unreachable = (
+            os.environ.get("NEXUS_CURRENTNESS_UNVERIFIED") == "SOURCE_UNREACHABLE"
+        )
+    if source_unreachable:
         return {
             "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
             **_corpus_binding(placement_rows),
@@ -1430,96 +1628,268 @@ def resolve_currentness_network_audit(
     return network_audit, expected_rows
 
 
+CURRENTNESS_EVIDENCE_KIND_V3 = "MULTILEVEL_ARTIFACT_CURRENTNESS_V3"
+UNVERIFIED_CURRENTNESS_STATUS = "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE"
+#: Verdict de la matrice qui, seul, admet un contenu dans une release.
+SERVABLE_MATRIX_VERDICT = "CANDIDATE_NO_BLOCKING_DIMENSION"
+#: Hôtes institutionnels admis pour une URL de provenance d'instantané
+#: (annexe ADR-0059) et pour les URL d'une vérification (règles V2).
+SNAPSHOT_PROVENANCE_HOSTS = frozenset({"eduscol.education.gouv.fr", "www.education.gouv.fr"})
+VERIFIED_LISTING_HOSTS = frozenset({"eduscol.education.gouv.fr"})
+VERIFIED_DOWNLOAD_HOSTS = SNAPSHOT_PROVENANCE_HOSTS
+_VERIFICATION_FACTS = (
+    "effective_currentness",
+    "current_source_listing_url",
+    "current_download_url",
+    "current_download_sha256",
+    "byte_identity",
+)
+
+
+def _host(url: object) -> str | None:
+    from urllib.parse import urlparse
+
+    return urlparse(url).hostname if isinstance(url, str) else None
+
+
+def _require_v3_entry_admissible(entry: Mapping[str, Any], *, audit_unverified: bool) -> None:
+    """Applique à l'entrée émise les règles du chargeur V3 (annexe ADR-0059).
+
+    Le producteur refuse ce que le chargeur refuserait : une release qui ne se
+    charge pas n'est découverte qu'au moment de la servir."""
+    sha = entry["content_sha256"]
+    disposition = entry["currentness_disposition"]
+    status = entry["source_status"]
+    facts = [entry[name] for name in _VERIFICATION_FACTS]
+    if disposition == VERIFIED_CURRENT:
+        if audit_unverified:
+            raise ValueError(
+                f"{sha}: VERIFIED_CURRENT under an unverified currentness audit"
+            )
+        if (
+            entry["effective_currentness"] != "actuel"
+            or entry["byte_identity"] is not True
+            or entry["current_download_sha256"] != sha
+            or _host(entry["current_source_listing_url"]) not in VERIFIED_LISTING_HOSTS
+            or _host(entry["current_download_url"]) not in VERIFIED_DOWNLOAD_HOSTS
+        ):
+            raise ValueError(f"{sha}: VERIFIED_CURRENT byte identity is not exact")
+        if entry["fallback_conditions"] is not None:
+            raise ValueError(f"{sha}: VERIFIED_CURRENT carries fallback conditions")
+        return
+    if any(fact is not None for fact in facts):
+        raise ValueError(f"{sha}: {disposition} carries a network verification fact")
+    if disposition == OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE:
+        conditions = entry["fallback_conditions"]
+        if (
+            not isinstance(conditions, Mapping)
+            or set(conditions) != set(conditions_de_repli({}))
+            or any(value is not True for value in conditions.values())
+        ):
+            raise ValueError(f"{sha}: snapshot fallback conditions are not all true")
+        if not isinstance(status, str) or not status or STATUT_ARCHIVE in status:
+            raise ValueError(f"{sha}: an archived source status is never a snapshot")
+        url = entry["provenance_url"]
+        if (
+            not isinstance(url, str)
+            or not url.startswith("https://")
+            or _host(url) not in SNAPSHOT_PROVENANCE_HOSTS
+        ):
+            raise ValueError(
+                f"{sha}: snapshot provenance URL is not institutional: "
+                f"{entry['provenance_url']!r}"
+            )
+        return
+    if entry["fallback_conditions"] is not None:
+        raise ValueError(f"{sha}: {disposition} carries fallback conditions")
+    if disposition == NOT_CURRENT_DECLARED_BY_SOURCE and STATUT_ARCHIVE not in str(status):
+        raise ValueError(f"{sha}: NOT_CURRENT_DECLARED_BY_SOURCE without an archive status")
+
+
+def _artifact_source_url(row: Mapping[str, Any]) -> str:
+    """L'URL que le catalogue scellé cite pour un contenu : le fichier officiel
+    s'il est connu, sinon la page de listing. Règle historique inchangée ; elle
+    est nommée pour que la preuve V3 et le catalogue citent la MÊME URL."""
+    return str(row["current_download_url"] or row["source_url"])
+
+
+def _inventory_content_facts(inventory: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Regroupe les placements de l'inventaire PAR CONTENU.
+
+    L'inventaire est la vérité que le chargeur confronte à la preuve : chemin,
+    collections, faits de placement et URL de provenance en sont tirés, jamais
+    d'une autre source qui pourrait diverger."""
+    by_sha: dict[str, dict[str, Any]] = {}
+    for collection in inventory["collections"]:
+        for candidate in collection["candidates"]:
+            sha = candidate["content_sha256"]
+            facts = by_sha.setdefault(
+                sha,
+                {
+                    "exact_path": candidate["physical_path"],
+                    "collections": set(),
+                    "placement_facts": [],
+                    "source_urls": set(),
+                },
+            )
+            if facts["exact_path"] != candidate["physical_path"]:
+                raise ValueError(f"inventory physical path differs for {sha}")
+            for placement in candidate["placements"]:
+                facts["collections"].add(collection["collection"])
+                facts["source_urls"].add(placement["source_url"])
+                facts["placement_facts"].append(
+                    {
+                        "collection": collection["collection"],
+                        "source_placement_id": placement["source_placement_id"],
+                        "external_level": placement["external_level"],
+                        "external_subject": placement["external_subject"],
+                        "external_scope": placement["external_scope"],
+                        "external_document_type": placement["external_document_type"],
+                    }
+                )
+    return by_sha
+
+
 def _currentness_documents(
     placement_rows: list[dict[str, Any]],
     *,
     inventory: Mapping[str, Any],
     inventory_sha256: str,
     network_audit: dict[str, Any],
+    authority: GovernedCurrentnessAuthority,
+    exclusion_registry: Any = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Émet MULTILEVEL_ARTIFACT_CURRENTNESS_V3 (ADR-0059), une entrée par contenu.
+
+    La disposition n'est PAS décidée ici. Elle vient de la matrice de
+    servabilité gouvernée ; le producteur la recalcule depuis les faits que la
+    matrice a utilisés (`cas_depuis_ligne_de_matrice`, la même dérivation) et
+    refuse tout désaccord. Le seul fait qu'il ajoute est celui de l'audit
+    réseau scellé : une identité d'octets, que la politique elle-même convertit
+    en VERIFIED_CURRENT. Un audit qui se déclare non vérifié n'en fournit
+    aucune — et s'il en porte, il se contredit : refus.
+    """
     network_rows = network_audit["artifacts"]
     audit_sha = _sha256_bytes(canonical_json_bytes(network_audit))
-    by_sha = {row["content_sha256"]: row for row in network_rows}
-    #: Quand la fraîcheur n'a pas pu être vérifiée, chaque document porte la
-    #: LACUNE NOMMÉE plutôt qu'une ligne réseau absente. On ne fabrique pas une
-    #: vérification qui n'a pas eu lieu : on inscrit qu'elle n'a pas eu lieu, et
-    #: pourquoi. `byte_identity` reste `None` — ni vrai, ni faux : inconnu.
-    non_verifie = network_audit.get(
-        "currentness_status") == "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE"
-    grouped = _group_artifact_rows(placement_rows)
-    artifacts = []
-    for group in grouped.values():
-        row = group["artifact_row"]
-        placement_facts = [
-            {
-                "collection": placement["collection"],
-                "source_placement_id": placement["source_placement_id"],
-                "external_level": placement["external_level"],
-                "external_subject": placement["external_subject"],
-                "external_scope": placement["external_scope"],
-                "external_document_type": placement["external_document_type"],
-            }
-            for placement in group["placement_rows"]
-        ]
-        if non_verifie:
-            network = {
-                "content_sha256": row["content_sha256"],
-                "byte_identity": None,
-                "current_download_url": row.get("current_download_url"),
-                "current_source_listing_url": row.get("source_url"),
-                "currentness_status": "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE",
-                "http_status": None,
-                "verified_at": None,
-            }
-        else:
-            network = by_sha[row["content_sha256"]]
-        decision = "REVIEW_REQUIRED" if non_verifie else "CURRENT"
-        effective_currentness = None if non_verifie else "actuel"
-        current_source_listing_url = None if non_verifie else row["source_url"]
-        current_download_url = None if non_verifie else network["current_download_url"]
-        current_download_sha256 = None if non_verifie else row["content_sha256"]
-        byte_identity = None if non_verifie else True
-        artifacts.append(
-            {
-                "content_sha256": row["content_sha256"],
-                "exact_path": row["physical_path"],
-                "collections": sorted(
-                    placement["collection"]
-                    for placement in group["placement_rows"]
-                ),
-                "placement_facts": placement_facts,
-                "decision": decision,
-                "reason_codes": [
-                    "CURRENT_SOURCE_UNREACHABLE_NOT_AUDITED"
-                    if non_verifie
-                    else "OFFICIAL_CURRENT_BYTE_IDENTITY_EXACT"
-                ],
-                "effective_currentness": effective_currentness,
-                "current_for_school_year": SCHOOL_YEAR,
-                "current_source_listing_url": current_source_listing_url,
-                "current_download_url": current_download_url,
-                "current_download_sha256": current_download_sha256,
-                "byte_identity": byte_identity,
-                # `drive_file_id` NE FIGURE PLUS ICI, délibérément.
-                #
-                # Le dossier Drive du corpus est en {"role":"writer","type":"anyone"} :
-                # un identifiant de fichier y est un CHEMIN D'ACCÈS EN ÉCRITURE, pas
-                # une référence documentaire. Publier 389 identifiants sur un dépôt
-                # public, c'était publier 389 poignées permettant d'altérer les
-                # documents sources — et une altération non détectée serait servie
-                # à des élèves avec l'apparence de l'officiel.
-                #
-                # La preuve n'y perd rien : `byte_identity` est établie par
-                # `current_download_sha256 == content_sha256`, et c'est elle qui
-                # atteste la fraîcheur. L'identifiant n'ajoutait que
-                # l'ATTEIGNABILITÉ, qui est précisément ce qui ne doit pas être
-                # publié. `drive_modified_time` reste : c'est une date, pas une
-                # poignée.
-                "drive_modified_time": row["drive_modified_time"],
-            }
+    audit_unverified = (
+        network_audit.get("currentness_status") == UNVERIFIED_CURRENTNESS_STATUS
+    )
+    if audit_unverified and network_rows:
+        raise ValueError(
+            "an unverified currentness audit carries verification rows — it "
+            "contradicts itself, and no content can be declared verified from it"
         )
+    by_sha_network = {row["content_sha256"]: row for row in network_rows}
+    grouped = _group_artifact_rows(placement_rows)
+    inventory_facts = _inventory_content_facts(inventory)
+    if set(inventory_facts) != set(grouped):
+        raise ValueError("currentness population differs from the candidate inventory")
+    excluded = (
+        frozenset(exclusion_registry.excluded_contents)
+        if exclusion_registry is not None
+        else frozenset()
+    )
+
+    artifacts = []
+    partition: dict[str, list[str]] = {name: [] for name in sorted(DISPOSITIONS)}
+    for sha in sorted(grouped):
+        if sha in excluded:
+            raise ValueError(
+                f"{sha} is listed in the ADR-0055 exclusion registry and must not "
+                "be in the release at all"
+            )
+        row = grouped[sha]["artifact_row"]
+        facts = inventory_facts[sha]
+        matrix_row = authority.rows_by_sha.get(sha)
+        if matrix_row is None:
+            raise ValueError(f"{sha} is absent from the servability matrix")
+        if matrix_row.get("verdict") != SERVABLE_MATRIX_VERDICT:
+            raise ValueError(
+                f"{sha} is not servable per the servability matrix "
+                f"(verdict {matrix_row.get('verdict')!r}); a content the governed "
+                "matrix blocks enters a release only by being excluded from it "
+                "(ADR-0055 exclusion registry)"
+            )
+        cas = cas_depuis_ligne_de_matrice(matrix_row)
+        recomputed = disposition_actualite(cas, authority.policy)
+        if recomputed != matrix_row.get("currentness_disposition"):
+            raise ValueError(
+                f"{sha}: the servability matrix disposition "
+                f"{matrix_row.get('currentness_disposition')!r} disagrees with the "
+                f"applied policy on the matrix's own facts ({recomputed!r})"
+            )
+        # La provenance d'un contenu est l'URL que le catalogue scellé cite pour
+        # ses octets — le fichier officiel quand il est connu, sinon la page de
+        # listing — exactement celle d'`artifacts.release.json`. Unique par
+        # contenu : `_group_artifact_rows` refuse deux valeurs pour un contenu.
+        provenance_url = _artifact_source_url(row)
+
+        network = by_sha_network.get(sha)
+        if network is not None:
+            if network.get("byte_identity") is not True or network.get(
+                "downloaded_sha256"
+            ) != sha:
+                raise ValueError(f"{sha}: sealed audit row does not prove byte identity")
+            cas = {**cas, "content_identity_match": True}
+        disposition = disposition_actualite(cas, authority.policy)
+
+        verified = disposition == VERIFIED_CURRENT
+        snapshot = disposition == OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE
+        if verified:
+            assert network is not None
+            reason_codes = ["OFFICIAL_CURRENT_BYTE_IDENTITY_EXACT"]
+        elif snapshot:
+            reason_codes = ["OFFICIAL_SNAPSHOT_FALLBACK_CONDITIONS_MET"]
+            if audit_unverified:
+                reason_codes.insert(0, "CURRENT_SOURCE_UNREACHABLE_NOT_AUDITED")
+        else:
+            reason_codes = [f"{disposition}_BY_POLICY"]
+        entry = {
+            "content_sha256": sha,
+            "exact_path": facts["exact_path"],
+            "collections": sorted(facts["collections"]),
+            "placement_facts": sorted(
+                facts["placement_facts"],
+                key=lambda fact: (fact["collection"], fact["source_placement_id"]),
+            ),
+            "current_for_school_year": SCHOOL_YEAR,
+            "currentness_disposition": disposition,
+            # Verbatim : la matrice est l'autorité de ce statut, la preuve le cite.
+            "source_status": matrix_row["currentness"],
+            "provenance_url": provenance_url,
+            "fallback_conditions": conditions_de_repli(cas) if snapshot else None,
+            # Faits de vérification réseau : exigés pour VERIFIED_CURRENT, null
+            # pour toute autre disposition. Un instantané n'a été téléchargé par
+            # personne ; lui prêter une URL de téléchargement serait le
+            # contrefaire.
+            "effective_currentness": "actuel" if verified else None,
+            "current_source_listing_url": (
+                network["current_source_listing_url"] if verified and network else None
+            ),
+            "current_download_url": (
+                network["current_download_url"] if verified and network else None
+            ),
+            "current_download_sha256": sha if verified else None,
+            "byte_identity": True if verified else None,
+            "reason_codes": reason_codes,
+            # `drive_file_id` reste hors de la preuve (poignée d'écriture Drive).
+            "drive_modified_time": row["drive_modified_time"],
+        }
+        if verified and facts["source_urls"] != {entry["current_source_listing_url"]}:
+            raise ValueError(f"{sha}: VERIFIED_CURRENT listing URL differs from inventory")
+        _require_v3_entry_admissible(entry, audit_unverified=audit_unverified)
+        artifacts.append(entry)
+        partition[disposition].append(sha)
+
+    decision_basis = (
+        "Official source unreachable; no network currentness fact measured. "
+        f"Dispositions derived from the governed servability matrix under {POLICY_ID}"
+        if audit_unverified
+        else "Byte identity from the sealed read-only audit where proven; other "
+        f"dispositions derived from the governed servability matrix under {POLICY_ID}"
+    )
     evidence = {
-        "evidence_kind": "MULTILEVEL_ARTIFACT_CURRENTNESS_V2",
+        "evidence_kind": CURRENTNESS_EVIDENCE_KIND_V3,
         "school_year": SCHOOL_YEAR,
         "candidate_inventory_sha256": inventory_sha256,
         "corpus_manifest_sha256": inventory["corpus_manifest_sha256"],
@@ -1530,26 +1900,67 @@ def _currentness_documents(
             "effective_catalog_authority_sha256"
         ],
         "currentness_audit_sha256": audit_sha,
-        "decision_basis": (
-            "Official source unreachable; no currentness fact measured"
-            if non_verifie
-            else "Official Eduscol URL downloaded read-only and byte-matched"
-        ),
+        "decision_basis": decision_basis,
+        "currentness_policy_id": authority.policy_id,
+        "currentness_policy_sha256": authority.policy_sha256,
+        "servability_matrix_sha256": authority.matrix_sha256,
         "counts": {
-            "unique_artifacts": len(grouped),
-            "evaluated": len(grouped),
-            "current": 0 if non_verifie else len(grouped),
-            "review_required": len(grouped) if non_verifie else 0,
-            "unevaluated": 0,
+            "unique_artifacts": len(artifacts),
+            "evaluated": len(artifacts),
+            **{name: len(partition[name]) for name in sorted(DISPOSITIONS)},
         },
-        "partition": {
-            "current": [] if non_verifie else sorted(grouped),
-            "review_required": sorted(grouped) if non_verifie else [],
-            "unevaluated": [],
-        },
+        "partition": partition,
         "artifacts": artifacts,
     }
     return network_audit, evidence
+
+
+class ServedCurrentness(NamedTuple):
+    """Ce que le catalogue scellé dit d'un contenu : sa valeur produit, et
+    l'URL qu'il cite. Dérivé de la preuve V3, jamais écrit en dur."""
+
+    currentness: str
+    source_url: str
+
+
+#: ADR-0059 §2 : correspondance disposition → valeur produit. Les deux autres
+#: dispositions ne sont jamais publiées.
+PRODUCT_CURRENTNESS_BY_DISPOSITION = {
+    VERIFIED_CURRENT: "current",
+    OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE: "official_snapshot",
+}
+PRODUCT_CURRENTNESS_VALUES = frozenset(PRODUCT_CURRENTNESS_BY_DISPOSITION.values())
+
+
+def served_currentness_from_evidence(
+    evidence: Mapping[str, Any],
+) -> dict[str, ServedCurrentness]:
+    """Dérive, par contenu, l'actualité produit et l'URL citée.
+
+    L'URL citée est celle du catalogue historique (`_artifact_source_url`) :
+    pour un instantané, c'est sa `provenance_url` ; pour une identité d'octets
+    prouvée, le téléchargement vérifié. Elle est un fait de provenance des
+    octets, invariant d'une release à sa successeure."""
+    if evidence.get("evidence_kind") != CURRENTNESS_EVIDENCE_KIND_V3:
+        raise ValueError(
+            "served currentness derives only from MULTILEVEL_ARTIFACT_CURRENTNESS_V3"
+        )
+    served: dict[str, ServedCurrentness] = {}
+    for entry in evidence["artifacts"]:
+        sha = entry["content_sha256"]
+        disposition = entry["currentness_disposition"]
+        product = PRODUCT_CURRENTNESS_BY_DISPOSITION.get(disposition)
+        if product is None:
+            raise ValueError(
+                f"{sha}: disposition {disposition!r} never reaches the catalogue"
+            )
+        url = (
+            entry["current_download_url"]
+            if disposition == VERIFIED_CURRENT
+            else entry["provenance_url"]
+        )
+        served[sha] = ServedCurrentness(product, url)
+    return served
 
 
 _INTRINSIC_ARTIFACT_ROW_FIELDS = (
@@ -1703,12 +2114,7 @@ def _load_review_authority(
     # champ de toute la chaîne qui désigne la matière revue plutôt qu'un
     # document ; sans lui, on prouve que les autorités sont intactes sans
     # jamais prouver qu'elles parlent de la candidate.
-    reviewed_content_set = index.get("content_set_sha256")
-    if not isinstance(reviewed_content_set, str) or not _HEX64.match(reviewed_content_set):
-        raise ValueError(
-            "the review index declares no usable content_set_sha256 — the review "
-            "cannot be bound to any corpus"
-        )
+    _canonical, reviewed_content_set = _reviewed_population(index)
 
     digests = {
         "pii_decision_set_sha256": _sha256_bytes(raw_decision_set),
@@ -1790,10 +2196,62 @@ def resolve_release_lifecycle_statuses(
     }
 
 
+CANONICAL_REVIEW_INPUT_SCHEMA = "NEXUS-CANONICAL-REVIEW-INPUT-V1"
+
+
+def _review_set_digest(values: Sequence[str]) -> str:
+    return _sha256_bytes(("\n".join(sorted(set(values))) + "\n").encode("utf-8"))
+
+
+def _reviewed_population(index: Mapping[str, Any]) -> tuple[bool, str]:
+    """Rend (index canonique ?, empreinte de la population REVUE).
+
+    ADR-0059 §6. Deux chemins d'ADR-0047 ne mesurent pas la même chose :
+    l'index historique (extraction retirée) porte dans `content_set_sha256`
+    la population scannée ; l'index canonique y porte les seuls contenus
+    DÉTECTÉS — ses paquets — et la population revue dans
+    `review_input_content_set_sha256`. Lire le mauvais champ rendait toute
+    campagne canonique incapable de fonder une release."""
+    canonical = index.get("review_input_schema") == CANONICAL_REVIEW_INPUT_SCHEMA
+    if canonical:
+        reviewed = index.get("review_input_content_set_sha256")
+        if not isinstance(reviewed, str) or not _HEX64.match(reviewed):
+            raise ValueError(
+                "the canonical review index declares no usable "
+                "review_input_content_set_sha256 — the reviewed population is unknown"
+            )
+        bundled = _review_set_digest(
+            [str(entry["content_sha256"]) for entry in index.get("bundles", [])]
+        )
+        if index.get("content_set_sha256") != bundled:
+            raise ValueError(
+                "the canonical review index content_set_sha256 is not the digest of "
+                "its bundle set — the index does not describe its own bundles"
+            )
+        return True, reviewed
+    reviewed = index.get("content_set_sha256")
+    if not isinstance(reviewed, str) or not _HEX64.match(reviewed):
+        raise ValueError(
+            "the review index declares no usable content_set_sha256 — the review "
+            "cannot be bound to any corpus"
+        )
+    return False, reviewed
+
+
+class CanonicalReviewScope(NamedTuple):
+    """Ce qu'une campagne canonique a revu, confronté à ce que la release livre."""
+
+    reviewed_bundle_contents: frozenset[str]
+    produced_contents: frozenset[str]
+    detected_contents: frozenset[str]
+    decided_contents: frozenset[str]
+
+
 def require_review_covers_produced_content_set(
     *,
     reviewed_content_set_sha256: str | None,
     produced_content_set_sha256: str,
+    canonical_scope: CanonicalReviewScope | None = None,
 ) -> None:
     """Le pont entre la revue humaine et la candidate.
 
@@ -1822,6 +2280,34 @@ def require_review_covers_produced_content_set(
             f"{reviewed_content_set_sha256[:16]}… while this candidate ships "
             f"{produced_content_set_sha256[:16]}… — the review does not bind the "
             "corpus this release would publish"
+        )
+    if canonical_scope is None:
+        # Chemin historique : sa règle reste l'égalité, et elle seule.
+        return
+    # ADR-0059 §6, clauses 2 et 3, pour un index canonique. Le projecteur PII
+    # refuse déjà une décision hors corpus et une détection sans décision ;
+    # elles sont reprises ici parce qu'une garde qui repose entièrement sur une
+    # autre ne protège de rien si celle-ci bouge.
+    scope = canonical_scope
+    outside_bundles = sorted(scope.reviewed_bundle_contents - scope.produced_contents)
+    if outside_bundles:
+        raise ValueError(
+            f"reviewed bundle {outside_bundles[0][:12]}… is not a content of this "
+            "release — the bundles must be included in the produced set"
+        )
+    undecided = sorted(
+        (scope.detected_contents & scope.produced_contents) - scope.decided_contents
+    )
+    if undecided:
+        raise ValueError(
+            f"produced content {undecided[0][:12]}… is detected and has no human "
+            "decision"
+        )
+    outside_decisions = sorted(scope.decided_contents - scope.produced_contents)
+    if outside_decisions:
+        raise ValueError(
+            f"decision about {outside_decisions[0][:12]}…, outside the release — "
+            "a review of this release decides nothing else"
         )
 
 
@@ -1954,9 +2440,25 @@ def _pii_evidence(
     # contenus, la candidate en émet 320. Prouver que ce fichier est intact ne
     # prouve donc RIEN de la candidate. C'est cette confrontation-ci qui le
     # fait, et elle porte sur la matière, pas sur un document.
+    canonical_scope = None
+    if review_authority.declared and review_authority.review_index_path is not None:
+        canonical, _reviewed = _reviewed_population(
+            json.loads(review_authority.review_index_path.read_text(encoding="utf-8"))
+        )
+        if canonical:
+            canonical_scope = CanonicalReviewScope(
+                reviewed_bundle_contents=frozenset(review_bundles),
+                produced_contents=frozenset(grouped),
+                detected_contents=frozenset(projection.detected),
+                decided_contents=frozenset(
+                    str(decision["content_sha256"])
+                    for decision in (decision_document or {}).get("decisions", [])
+                ),
+            )
     require_review_covers_produced_content_set(
         reviewed_content_set_sha256=authority_digests.get("reviewed_content_set_sha256"),
         produced_content_set_sha256=_final_set_digest(sorted(grouped)),
+        canonical_scope=canonical_scope,
     )
 
     source_by_sha = {
@@ -2147,6 +2649,91 @@ def _preflight(
     }
 
 
+def _review_chain_authority_paths(
+    review_authority: ReviewAuthorityInputs | None,
+) -> dict[str, Path]:
+    """ADR-0047 §7 : les quatre fichiers de la décision humaine rejoignent la
+    chaîne d'autorité du candidat qui la projette — ensemble ou pas du tout."""
+    if review_authority is None or not review_authority.declared:
+        return {}
+    paths = {
+        "pii_decision_set_sha256": review_authority.decision_set_path,
+        "pii_review_receipt_sha256": review_authority.receipt_path,
+        "pii_review_trust_anchor_sha256": review_authority.trust_anchor_path,
+        "pii_review_index_sha256": review_authority.review_index_path,
+    }
+    return {name: path for name, path in paths.items() if path is not None}
+
+
+def _rehearsal_pii_evidence(
+    placement_rows: list[dict[str, Any]],
+    *,
+    pdf_root: Path,
+    inventory_sha256: str,
+    review_authority: ReviewAuthorityInputs,
+    preflight_by_sha: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Réémet la preuve PII d'une répétition avec la fonction de production.
+
+    Le scan porte sur la population CONSERVÉE, un contenu une fois, avec le
+    scanner courant et l'autorité de revue injectée. Les chunks, eux, ne sont
+    pas recalculés : la découpe de la release source est conservée, et la seule
+    dépendance de la découpe envers la PII — les pages vides écartées — est
+    confrontée ici, contenu par contenu. Une divergence refuse plutôt que de
+    choisir laquelle des deux mesures croire."""
+    grouped = _group_artifact_rows(placement_rows)
+    pdfs = validate_pdf_mirror(
+        pdf_root=pdf_root,
+        content_sha256=sorted(grouped),
+        physical_paths={
+            sha: str(group["artifact_row"]["physical_path"])
+            for sha, group in grouped.items()
+        },
+    )
+    evidence = _pii_evidence(
+        placement_rows,
+        pdfs=pdfs,
+        inventory_sha256=inventory_sha256,
+        review_authority=review_authority,
+    )
+    for row in evidence["results"]:
+        sha = row["content_sha256"]
+        preflight = preflight_by_sha.get(sha)
+        if preflight is None:
+            raise ValueError(f"source preflight is absent for {sha}")
+        if list(preflight.get("ignored_empty_pages") or []) != list(
+            row["ignored_empty_pages"]
+        ):
+            raise ValueError(
+                f"source chunks ignored_empty_pages differ from the current PII "
+                f"extraction for {sha} — the kept chunking no longer describes "
+                "these bytes"
+            )
+    return evidence
+
+
+def require_pii_evidence_names_the_declared_scanner(
+    pii_evidence: Mapping[str, Any] | None,
+    aggregate: Mapping[str, Any],
+) -> None:
+    """Refuse une release dont la preuve PII nomme un autre scanner que son
+    manifeste.
+
+    Le candidat `profile_gate_v2` déclarait `pii_scanner_sha256 = 388e3ed4…`
+    (le scanner courant) et embarquait une preuve produite par `8ec8af55…`.
+    Les deux valeurs étaient scellées, chacune dans son fichier, et rien ne les
+    confrontait : la preuve attestait 486 × CLEARED avec un instrument que la
+    release ne déclarait pas."""
+    declared = (aggregate.get("authorities") or {}).get("pii_scanner_sha256")
+    measured = pii_evidence.get("scanner_sha256") if pii_evidence else None
+    if not declared or not measured or declared != measured:
+        raise ValueError(
+            "PII evidence scanner differs from the manifest's pii_scanner_sha256 "
+            f"(evidence {str(measured)[:16]}…, manifest {str(declared)[:16]}…) — "
+            "the attestation was not produced by the instrument the release declares"
+        )
+
+
 def _programme_registry(profiles: Mapping[str, Any]) -> dict[str, Any]:
     collection_config = load_collection_config(COLLECTION_CONFIG_PATH)["collections"]
     indexes = [
@@ -2186,8 +2773,17 @@ def _placement(
     profile: Any,
     status: str,
     include_artifact_id: bool,
+    currentness: str,
 ) -> dict[str, Any]:
     sha = row["content_sha256"]
+    # ADR-0059 §2 : la valeur produit est DÉRIVÉE de la disposition V3 du
+    # contenu (`served_currentness_from_evidence`). `current` n'est plus écrit
+    # en dur : il affirmait une identité d'octets pour des instantanés.
+    if currentness not in PRODUCT_CURRENTNESS_VALUES:
+        raise ValueError(
+            f"placement currentness {currentness!r} is not a product value "
+            f"({sorted(PRODUCT_CURRENTNESS_VALUES)})"
+        )
     placement_document = {
         "artifact_id": sha,
         "audience": sorted(value.value for value in profile.scope.audience),
@@ -2217,7 +2813,7 @@ def _placement(
         "visibility": str(profile.scope.visibility),
         "school_year": str(profile.scope.school_year),
         "programme_version": str(profile.scope.programme_version),
-        "currentness": "current",
+        "currentness": currentness,
         "placement_status": "active",
         "review_status": "reviewed",
     }
@@ -2233,6 +2829,7 @@ def _artifact(
     status: str,
     preflight: Mapping[str, Any],
     type_doc_mapping: Mapping[str, str],
+    currentness: str,
 ) -> dict[str, Any]:
     sha = row["content_sha256"]
     placement = _placement(
@@ -2240,6 +2837,7 @@ def _artifact(
         profile=profile,
         status=status,
         include_artifact_id=False,
+        currentness=currentness,
     )
     placement_id = placement["placement_id"]
     chunks = [
@@ -2286,6 +2884,7 @@ def _global_artifact(
     *,
     preflight: Mapping[str, Any],
     type_doc_mapping: Mapping[str, str],
+    source_url: str,
 ) -> dict[str, Any]:
     sha = str(row["content_sha256"])
     chunks = [
@@ -2312,7 +2911,9 @@ def _global_artifact(
         "artifact_id": sha,
         "content_sha256": sha,
         "source_path": row["physical_path"],
-        "source_url": row["current_download_url"] or row["source_url"],
+        # ADR-0059 : téléchargement pour VERIFIED_CURRENT, provenance pour un
+        # instantané — dérivé de la preuve, jamais `download or listing`.
+        "source_url": source_url,
         "title": row["title"],
         "type_doc": type_doc_mapping[row["external_document_type"]],
         "page_count": preflight["page_count"],
@@ -2341,6 +2942,7 @@ def _release_topology_documents(
     release_root: Path,
     release_id: str,
     school_year: str,
+    served_currentness: Mapping[str, ServedCurrentness],
     release_mode: str = "production",
     promotion_status: str | None = None,
     activation_status: str | None = None,
@@ -2349,6 +2951,12 @@ def _release_topology_documents(
 
     grouped_artifacts = _group_artifact_rows(placement_rows)
     artifact_shas = set(grouped_artifacts)
+    if set(served_currentness) != artifact_shas:
+        raise ValueError(
+            "served currentness population differs from artifacts: "
+            f"missing={sorted(artifact_shas - set(served_currentness))}, "
+            f"extra={sorted(set(served_currentness) - artifact_shas)}"
+        )
     preflight_shas = set(preflight_by_sha)
     if preflight_shas != artifact_shas:
         missing = sorted(artifact_shas - preflight_shas)
@@ -2395,6 +3003,7 @@ def _release_topology_documents(
             group["artifact_row"],
             preflight=preflight_by_sha[sha],
             type_doc_mapping=type_doc_mapping,
+            source_url=served_currentness[sha].source_url,
         )
         for sha, group in grouped_artifacts.items()
     ]
@@ -2422,6 +3031,7 @@ def _release_topology_documents(
                 profile=profiles[collection],
                 status=collection_config[collection]["statut"],
                 include_artifact_id=True,
+                currentness=served_currentness[sha].currentness,
             )
             if placement["artifact_id"] != sha:
                 raise ValueError("placement artifact identity differs from its group")
@@ -2986,6 +3596,9 @@ def _verifier_preconditions(
 
 def _build_rehearsal_release(
     *,
+    currentness_authority: GovernedCurrentnessAuthority,
+    pdf_root: Path | None = None,
+    review_authority: ReviewAuthorityInputs = NO_REVIEW_AUTHORITY,
     source_release_root: Path,
     release_id: str,
     release_mode: str,
@@ -3003,6 +3616,7 @@ def _build_rehearsal_release(
     profiles = {p.scope.collection: p for p in registry.values()}
 
     subjects_dir = src_root / "subjects"
+    drive = {row["content_sha256"]: row for row in _load_json(DRIVE_MAPPING_PATH)}
     preflight_by_sha: dict[str, dict[str, Any]] = {}
     placement_rows: list[dict[str, Any]] = []
     for subj_file in sorted(subjects_dir.glob("*.release.json")):
@@ -3020,10 +3634,13 @@ def _build_rehearsal_release(
                     "ignored_empty_pages": art.get("ignored_empty_pages", []),
                     "chunks": art["chunks"],
                 }
+            if sha not in drive:
+                raise ValueError(f"Drive snapshot fact is absent for {sha}")
             for pl in art["placements"]:
                 placement_rows.append({
                     "content_sha256": sha,
                     "physical_path": art["source_path"],
+                    "drive_modified_time": drive[sha]["modified_time"],
                     "source_url": art.get("source_url", ""),
                     "current_download_url": art.get("current_download_url", ""),
                     "title": art["title"],
@@ -3074,6 +3691,105 @@ def _build_rehearsal_release(
             "authority_kind": "FILE_SHA256",
         }
 
+    # ── L'ACTUALITÉ ET L'INVENTAIRE SONT RÉÉMIS, PAS RECOPIÉS ──────────
+    #
+    # Cette voie recopiait `candidate_inventory.json`, `currentness_evidence.json`
+    # et `currentness_network_audit.json` de la release source. Le candidat
+    # `profile_gate_v2` en a hérité une preuve V1 déclarant 486 × CURRENT par
+    # identité d'octets à côté d'un audit disant 0 vérifié, un inventaire à 486
+    # contenus pour 319 et les quatre exclus ADR-0055. Les trois sont désormais
+    # recalculés pour la population de CETTE release ; les autorités qu'ils
+    # citent (catalogue, delta, autorité effective) restent celles de la source.
+    excluded = (
+        exclusion_registry.excluded_contents if exclusion_registry is not None else frozenset()
+    )
+    inventory = _recount_candidate_inventory(
+        _load_json(src_root / "candidate_inventory.json"), excluded=frozenset(excluded)
+    )
+    inventory_keys = {
+        (collection["collection"], candidate["content_sha256"], placement["source_placement_id"])
+        for collection in inventory["collections"]
+        for candidate in collection["candidates"]
+        for placement in candidate["placements"]
+    }
+    release_keys = {
+        (row["collection"], row["content_sha256"], row["source_placement_id"])
+        for row in placement_rows
+    }
+    if inventory_keys != release_keys or len(release_keys) != len(placement_rows):
+        raise ValueError(
+            "source candidate inventory placements differ from the release placements: "
+            f"{len(inventory_keys - release_keys)} absent from the release, "
+            f"{len(release_keys - inventory_keys)} absent from the inventory"
+        )
+    inventory_raw = canonical_json_bytes(inventory)
+    source_audit_path = src_root / "currentness_network_audit.json"
+    source_audit = _load_json(source_audit_path) if source_audit_path.is_file() else {}
+    network_audit, _network_rows = resolve_currentness_network_audit(
+        placement_rows,
+        verify_official_downloads=False,
+        audit_path=source_audit_path,
+        release_id=release_id,
+        source_unreachable=(
+            source_audit.get("currentness_status") == UNVERIFIED_CURRENTNESS_STATUS
+        ),
+    )
+    network_audit, currentness = _currentness_documents(
+        placement_rows,
+        inventory=inventory,
+        inventory_sha256=_sha256_bytes(inventory_raw),
+        network_audit=network_audit,
+        authority=currentness_authority,
+        exclusion_registry=exclusion_registry,
+    )
+    reemitted = {
+        "candidate_inventory.json": inventory_raw,
+        "currentness_network_audit.json": canonical_json_bytes(network_audit),
+        "currentness_evidence.json": canonical_json_bytes(currentness),
+    }
+    # ── LA PREUVE PII, RÉÉMISE QUAND LE MIROIR EST FOURNI ──────────────
+    #
+    # Sans miroir, la preuve source est recopiée — et la garde d'écriture la
+    # refuse si elle nomme un autre scanner que le manifeste, ce qui était le
+    # cas du candidat V2. Avec le miroir, elle est reproduite par la fonction
+    # de production, pour la population conservée seulement.
+    renamed_bindings = [
+        ("candidate_inventory_sha256", "candidate_inventory.json"),
+        ("currentness_evidence_sha256", "currentness_evidence.json"),
+    ]
+    if pdf_root is not None:
+        reemitted["pii_evidence.json"] = canonical_json_bytes(
+            _rehearsal_pii_evidence(
+                placement_rows,
+                pdf_root=pdf_root,
+                inventory_sha256=_sha256_bytes(inventory_raw),
+                review_authority=review_authority,
+                preflight_by_sha=preflight_by_sha,
+            )
+        )
+        renamed_bindings.append(("pii_evidence_sha256", "pii_evidence.json"))
+        for name, path in {
+            "pii_policy_sha256": PII_POLICY_PATH,
+            **_review_chain_authority_paths(review_authority),
+        }.items():
+            digest = _file_sha256(path)
+            authorities[name] = digest
+            raw_bindings[name] = {
+                "path": _repo_relative(path),
+                "file_sha256": digest,
+                "authority_sha256": digest,
+                "authority_kind": "FILE_SHA256",
+            }
+    for name, file_name in renamed_bindings:
+        digest = _sha256_bytes(reemitted[file_name])
+        authorities[name] = digest
+        raw_bindings[name] = {
+            "path": _repo_relative(RELEASE_ROOT / file_name),
+            "file_sha256": digest,
+            "authority_sha256": digest,
+            "authority_kind": "FILE_SHA256",
+        }
+
     models = {
         "embedding": {
             "model_id": CANONICAL_EMBEDDING_MODEL,
@@ -3099,6 +3815,7 @@ def _build_rehearsal_release(
         release_root=RELEASE_ROOT,
         release_id=release_id,
         school_year=SCHOOL_YEAR,
+        served_currentness=served_currentness_from_evidence(currentness),
         release_mode=release_mode,
         promotion_status=promotion_status,
         activation_status=activation_status,
@@ -3110,14 +3827,13 @@ def _build_rehearsal_release(
             exclusion_registry.path.read_bytes()
         )
 
+    for file_name, raw in reemitted.items():
+        documents[RELEASE_ROOT / file_name] = raw
     for evidence_file in (
         "catalog_delta.json",
         "effective_catalog_authority.json",
-        "candidate_inventory.json",
         "corpus_manifest_authority.json",
-        "currentness_network_audit.json",
-        "currentness_evidence.json",
-        "pii_evidence.json",
+        *(() if "pii_evidence.json" in reemitted else ("pii_evidence.json",)),
         "preflight_evidence.json",
         "programme_registry.json",
         "models/embedding/manifest.json",
@@ -3157,9 +3873,21 @@ def build_release(
     source_release_root: Path | None = None,
     review_authority: ReviewAuthorityInputs | None = None,
     exclusion_registry: GovernedExclusionRegistry | None = None,
+    currentness_authority: GovernedCurrentnessAuthority | None = None,
 ) -> dict[Path, bytes]:
+    # ADR-0059 : l'actualité d'une release dérive de la matrice de servabilité
+    # gouvernée. Sans elle, aucune disposition ne peut être écrite — ni par la
+    # production, ni par la répétition qui recopiait une preuve V1 fausse.
+    if currentness_authority is None:
+        raise ValueError(
+            "the governed servability matrix is required to build a release "
+            "(--servability-matrix / --servability-matrix-sha256)"
+        )
     if release_mode == "rehearsal":
         return _build_rehearsal_release(
+            currentness_authority=currentness_authority,
+            pdf_root=pdf_root,
+            review_authority=review_authority or NO_REVIEW_AUTHORITY,
             source_release_root=source_release_root or RELEASE_ROOT,
             release_id=release_id or "production-profile-gate-2026-2027-v2-rehearsal",
             release_mode=release_mode,
@@ -3260,7 +3988,10 @@ def build_release(
         inventory=inventory,
         inventory_sha256=inventory_sha,
         network_audit=network_audit,
+        authority=currentness_authority,
+        exclusion_registry=exclusion_registry,
     )
+    served_currentness = served_currentness_from_evidence(currentness)
     pii = _pii_evidence(
         placement_rows,
         pdfs=pdfs,
@@ -3313,16 +4044,7 @@ def build_release(
         # ADR-0047 §7 : la décision humaine et son reçu appartiennent à la
         # chaîne d'autorité de CE candidat. On ne réécrit jamais les liens
         # d'une release historique pour les y faire entrer après coup.
-        **(
-            {
-                "pii_decision_set_sha256": review_authority.decision_set_path,
-                "pii_review_receipt_sha256": review_authority.receipt_path,
-                "pii_review_trust_anchor_sha256": review_authority.trust_anchor_path,
-                "pii_review_index_sha256": review_authority.review_index_path,
-            }
-            if review_authority is not None and review_authority.declared
-            else {}
-        ),
+        **_review_chain_authority_paths(review_authority),
         **(
             {"currentness_exclusion_registry_sha256": exclusion_registry.path}
             if exclusion_registry is not None
@@ -3393,6 +4115,7 @@ def build_release(
             authorities=authorities,
             models=models,
             release_root=RELEASE_ROOT,
+            served_currentness=served_currentness,
             # §8 : une candidate porte SA propre identité. Réemployer
             # l'identifiant historique ferait passer une nouvelle release pour
             # celle dont la sémantique a déjà dérivé — et rendrait indécidable
@@ -3547,6 +4270,13 @@ def _write_documents(
         # susceptible de transformer une release déjà publiée en échec.
         bindings_path = racine_ecrite / "authority_bindings.json"
         if aggregate_manifest.exists() and bindings_path.exists():
+            # Une release complète : sa preuve PII doit nommer le scanner que
+            # son manifeste déclare. Le défaut du candidat V2, fermé ici.
+            pii_path = racine_ecrite / "pii_evidence.json"
+            require_pii_evidence_names_the_declared_scanner(
+                _load_json(pii_path) if pii_path.is_file() else None,
+                _load_json(aggregate_manifest),
+            )
             validate_authority_bindings(
                 repository_root=REPOSITORY_ROOT,
                 bindings=_load_json(bindings_path),
@@ -3682,6 +4412,30 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Empreinte SHA-256 attendue du registre d'exclusion pour vérification fail-closed.",
     )
+    # ── L'ACTUALITÉ S'INJECTE, ELLE NE SE DÉCIDE PAS ICI (ADR-0059) ─────
+    #
+    # La disposition d'actualité de chaque contenu vient de la matrice de
+    # servabilité gouvernée, produite sous la politique appliquée (ADR-0055).
+    # Matrice et empreinte sont exigées ensemble ; l'une sans l'autre, ou une
+    # empreinte qui ne correspond pas aux octets, refuse la construction.
+    parser.add_argument(
+        "--servability-matrix",
+        type=Path,
+        default=None,
+        help="Matrice de servabilité gouvernée (NEXUS-SERVABILITY-MATRIX-V1). Exigée.",
+    )
+    parser.add_argument(
+        "--servability-matrix-sha256",
+        default=None,
+        help="Empreinte SHA-256 attendue des octets de la matrice. Exigée.",
+    )
+    parser.add_argument(
+        "--currentness-policy",
+        type=Path,
+        default=None,
+        help="Politique d'actualité appliquée. Défaut : la politique gouvernée "
+             "du dépôt ; refusée si elle ne se déclare pas appliquée.",
+    )
     parser.add_argument(
         "--dry-run",
         action="store_true",
@@ -3717,9 +4471,20 @@ def main(argv: list[str] | None = None) -> int:
     if not args.dry_run and args.output_dir is None:
         parser.error("--output-dir est requis lorsque --dry-run n'est pas activé")
 
+    if args.servability_matrix is None or not args.servability_matrix_sha256:
+        parser.error(
+            "--servability-matrix et --servability-matrix-sha256 sont requis : "
+            "l'actualité d'une release dérive de la matrice gouvernée (ADR-0059)"
+        )
+
     exclusion_registry = load_and_validate_exclusion_registry(
         args.exclusion_registry,
         expected_sha256=args.exclusion_registry_sha256,
+    )
+    currentness_authority = load_governed_currentness_authority(
+        args.servability_matrix,
+        args.servability_matrix_sha256,
+        policy_path=args.currentness_policy,
     )
 
     review_authority = ReviewAuthorityInputs(
@@ -3750,6 +4515,7 @@ def main(argv: list[str] | None = None) -> int:
         source_release_root=args.source_release_root,
         review_authority=review_authority,
         exclusion_registry=exclusion_registry,
+        currentness_authority=currentness_authority,
     )
 
     if args.dry_run:
@@ -3757,6 +4523,10 @@ def main(argv: list[str] | None = None) -> int:
         if not manifest_bytes:
             raise RuntimeError("dry-run: production-profile-gate.release.json non généré en mémoire")
         aggregate = json.loads(manifest_bytes.decode("utf-8"))
+        pii_bytes = documents.get(RELEASE_ROOT / "pii_evidence.json")
+        require_pii_evidence_names_the_declared_scanner(
+            json.loads(pii_bytes) if pii_bytes else None, aggregate
+        )
         counts = aggregate.get("expected_counts", {})
         unique_artifacts = counts.get("unique_artifacts", 0)
         placements = counts.get("placements", 0)

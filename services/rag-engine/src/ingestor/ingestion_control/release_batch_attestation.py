@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 import psycopg
@@ -24,7 +24,11 @@ from nexus_contracts.authority_artifacts import (
     ReleaseBatchPublicationReviewArtifact,
 )
 
+from ingestor.ingestion_control.sealed_release_adoption import load_adopted_rows
+
 BATCH_PROTOCOL = "LOT42-RELEASE-BATCH-V1"
+#: Les actualités qu'une revue batch peut couvrir (ADR-0059).
+ACTUALITES_REVISABLES = frozenset({"current", "official_snapshot"})
 BATCH_DECISION = "AUTHORIZE_SEALED_RELEASE_PUBLICATION"
 SEALED_RELEASE_PIPELINE = "sealed_release_pipeline"
 
@@ -52,6 +56,12 @@ class MeasuredReleaseBatchFacts:
     resource_ids: tuple[UUID, ...]
     #: ``resource_id -> (artifact_id, content_sha256, collection, authorization)``
     par_ressource: Mapping[UUID, tuple[UUID, str, str, str]]
+    #: L'actualité, homogène, que TOUS les placements déclarent — mesurée,
+    #: jamais supposée `current` (ADR-0059).
+    currentness: str = "current"
+    #: Vrai quand les lignes sont couvertes par ADOPTION (ADR-0059 § 5) et non
+    #: acquises sous cette release.
+    adopted: bool = False
 
 
 def _une_valeur(valeurs: set[str], *, champ: str) -> str:
@@ -83,6 +93,19 @@ def measure_release_batch_facts(
         " ORDER BY r.resource_id",
         (SEALED_RELEASE_PIPELINE, release_id),
     ).fetchall()
+    # Un successeur ne possède aucune ligne acquise : il couvre celles de son
+    # prédécesseur par adoption. Les deux à la fois ne décrivent pas une
+    # release, mais deux.
+    adoptees = load_adopted_rows(conn, release_id=release_id)
+    if lignes and adoptees:
+        raise ReleaseBatchAttestationError(
+            f"release {release_id!r} both owns acquired rows and adopts others — "
+            "a release is attested either from its own acquisition or from an "
+            "adoption, never from a mixture"
+        )
+    adopted = bool(adoptees)
+    if adopted:
+        lignes = adoptees
     if not lignes:
         raise ReleaseBatchAttestationError(
             f"no sealed row belongs to release {release_id!r} — there is "
@@ -99,6 +122,7 @@ def measure_release_batch_facts(
     provenances: set[str] = set()
     chunks_par_contenu: dict[str, int] = {}
     par_ressource: dict[UUID, tuple[UUID, str, str, str]] = {}
+    actualites: set[str] = set()
 
     for resource_id, artifact_id, sha256, collection, payload in lignes:
         manquants = [
@@ -127,7 +151,6 @@ def measure_release_batch_facts(
         for champ, attendu in (
             ("review_status", "reviewed"),
             ("placement_status", "active"),
-            ("currentness", "current"),
         ):
             if payload[champ] != attendu:
                 raise ReleaseBatchAttestationError(
@@ -135,6 +158,12 @@ def measure_release_batch_facts(
                     f"{payload[champ]!r}, expected {attendu!r} — the batch is "
                     "not homogeneous and cannot be covered by one review"
                 )
+        if payload["currentness"] not in ACTUALITES_REVISABLES:
+            raise ReleaseBatchAttestationError(
+                f"sealed row {resource_id} declares currentness="
+                f"{payload['currentness']!r}, which is never published"
+            )
+        actualites.add(str(payload["currentness"]))
         collections.add(collection)
         autorisations.add(str(payload["scope_authorization_id"]))
         manifestes.add(str(payload["release_manifest_sha256"]))
@@ -172,6 +201,10 @@ def measure_release_batch_facts(
         provenance_source_url_count=len(provenances),
         resource_ids=tuple(par_ressource),
         par_ressource=par_ressource,
+        # Une seule actualité pour tout le lot : un mélange n'est pas un état
+        # qu'une revue unique puisse couvrir.
+        currentness=_une_valeur(actualites, champ="currentness"),
+        adopted=adopted,
     )
 
 
@@ -243,7 +276,7 @@ def build_release_batch_review_artifact(
         placement_evidence=ReleaseBatchPlacementEvidence(
             review_status="reviewed",
             placement_status="active",
-            currentness="current",
+            currentness=cast(Any, facts.currentness),
         ),
         scope_authorization_ids=facts.scope_authorization_ids,
         provenance_source_url_count=facts.provenance_source_url_count,
@@ -308,6 +341,9 @@ def require_artifact_matches_facts(
          artifact.scope_authorization_ids),
         ("provenance_source_url_count", facts.provenance_source_url_count,
          artifact.provenance_source_url_count),
+        # L'actualité approuvée doit être celle des placements persistés : une
+        # revue donnée sur « current » ne couvre pas des instantanés (ADR-0059).
+        ("currentness", facts.currentness, artifact.placement_evidence.currentness),
     ):
         if attendu != observe:
             ecarts.append(f"{champ}: reviewed={observe!r} persisted={attendu!r}")

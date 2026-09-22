@@ -86,6 +86,7 @@ def _release_files(
     chunk_id: str = CHUNK_ID,
     chunk_sha: str = CHUNK_SHA,
     embedding_inventory_sha256: str = "1" * 64,
+    currentness: str = "current",
 ) -> tuple[Path, str]:
     tmp_path.mkdir(parents=True, exist_ok=True)
     subject = {
@@ -154,7 +155,7 @@ def _release_files(
                         "visibility": "internal",
                         "school_year": "2026-2027",
                         "programme_version": "BOEN_special_11_2018-07-26_aj_2020",
-                        "currentness": "current",
+                        "currentness": currentness,
                         "placement_status": "active",
                         "review_status": "reviewed",
                     }
@@ -3493,3 +3494,59 @@ class TestV1StaysClosedToV2ReviewAuthorities:
             authorities, _MULTILEVEL_AUTHORITY_FIELDS, "authorities",
             review_chain_allowed=False,
         )
+
+
+# --- ADR-0059 — le produit porte l'actualité que la release prescrit -------
+
+
+def _snapshot_with_currentness(currentness: str) -> ReleaseDatabaseSnapshot:
+    original = _snapshot()
+    placements = [dict(row) for row in original.placements]
+    for row in placements:
+        row["currentness"] = currentness
+    return ReleaseDatabaseSnapshot(
+        artifacts=original.artifacts,
+        placements=tuple(placements),
+        chunks=original.chunks,
+    )
+
+
+def test_a_release_of_official_snapshots_is_ready_when_served_as_such(
+    tmp_path: Path,
+) -> None:
+    manifest, digest = _release_files(tmp_path, currentness="official_snapshot")
+    expectation = load_release_expectation(manifest, digest)
+
+    report = evaluate_release_snapshot(
+        expectation, _snapshot_with_currentness("official_snapshot")
+    )
+
+    assert report.wrong_currentness == 0
+    assert report.ready is True
+
+
+@pytest.mark.parametrize(
+    ("prescribed", "served"),
+    [("official_snapshot", "current"), ("current", "official_snapshot")],
+)
+def test_a_placement_served_under_another_currentness_than_prescribed_fails_closed(
+    tmp_path: Path, prescribed: str, served: str
+) -> None:
+    """Servir un instantané comme `current` le déclarerait vérifié ; l'inverse
+    effacerait une vérification. Les deux sont des dérives."""
+    manifest, digest = _release_files(tmp_path, currentness=prescribed)
+    expectation = load_release_expectation(manifest, digest)
+
+    report = evaluate_release_snapshot(expectation, _snapshot_with_currentness(served))
+
+    assert report.wrong_currentness == 1
+    assert report.ready is False
+
+
+@pytest.mark.parametrize("prescribed", ["archive", "review_required", "actuel"])
+def test_a_release_prescribing_an_unpublishable_currentness_is_refused(
+    tmp_path: Path, prescribed: str
+) -> None:
+    manifest, digest = _release_files(tmp_path, currentness=prescribed)
+    with pytest.raises(ReleaseReadinessError, match="currentness"):
+        load_release_expectation(manifest, digest)

@@ -113,7 +113,7 @@ def revoir(
         for numero, finding in enumerate(sorted(entry["findings"], key=lambda f: f["finding_id"]), start=1):
             signal = signals[finding["finding_id"]]
             out("")
-            out(f"  [{numero}] {finding['pattern_id']}  page {finding['page']}"
+            out(f"  [{numero}] {finding['pattern_id']}  page {finding.get('page', finding.get('page_number'))}"
                 + (f"  clé NIR valide : {finding['checksum_valid']}" if "checksum_valid" in finding else ""))
             out(f"      correspondance : {signal['match_text']}")
             out(f"      contexte       : …{signal['context']}…")

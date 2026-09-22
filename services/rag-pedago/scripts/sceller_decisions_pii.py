@@ -58,6 +58,22 @@ PLACEHOLDER = "__A_DECIDER__"
 _DRAFT_FIELDS = {"decision", "decided_at", "justification", "findings"}
 
 
+def _page(finding: dict) -> int:
+    """La page d'un finding, sous l'un ou l'autre nom du protocole d'index.
+
+    L'index historique la nomme `page`, l'index canonique (ADR-0059 §6, seul
+    chemin des nouvelles campagnes) `page_number`. Lire les deux évite qu'un
+    index dérivé s'interpose entre ce que le reviewer a vu et ce qui est
+    scellé ; deux valeurs divergentes sont un refus."""
+    values = {finding[key] for key in ("page", "page_number") if key in finding}
+    if len(values) != 1:
+        raise ValueError(
+            f"finding {finding.get('finding_id')} has no page or two different pages"
+        )
+    (value,) = values
+    return value
+
+
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -82,7 +98,7 @@ def brouillon(
             "findings": {
                 finding["finding_id"]: {
                     "_pattern_id": finding["pattern_id"],
-                    "_page": finding["page"],
+                    "_page": _page(finding),
                     **({"_checksum_valid": finding["checksum_valid"]} if "checksum_valid" in finding else {}),
                     "disposition": PLACEHOLDER,
                 }
@@ -159,7 +175,7 @@ def sceller(*, draft: Path, index_path: Path, sortie: Path) -> str:
             {
                 "finding_id": finding_id,
                 "pattern_id": indexed[finding_id]["pattern_id"],
-                "page": indexed[finding_id]["page"],
+                "page": _page(indexed[finding_id]),
                 "match_sha256": indexed[finding_id]["match_sha256"],
                 "context_sha256": indexed[finding_id]["context_sha256"],
                 "disposition": (drafted_findings[finding_id] or {}).get("disposition")

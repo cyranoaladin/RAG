@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Readiness PostgreSQL du head canonique 004, sans mutation.
+# Readiness PostgreSQL du head canonique 005, sans mutation.
 set -euo pipefail
 
 migration_root=/docker-entrypoint-migrations
-fingerprints_file=/schema-head-004-fingerprints.env
-columns_file=/schema-head-004-columns.tsv
+fingerprints_file=/schema-head-005-fingerprints.env
+columns_file=/schema-head-005-columns.tsv
 validator_library=/pgvector-migration-state.sh
 postgres_user="${POSTGRES_USER:-postgres}"
 postgres_db="${POSTGRES_DB:-$postgres_user}"
@@ -15,7 +15,7 @@ for required_file in \
     "$validator_library" \
     "$migration_root/HEAD"; do
     if [[ ! -r "$required_file" ]]; then
-        printf '%s\n' "ERROR: contrat du schema head 004 absent." >&2
+        printf '%s\n' "ERROR: contrat du schema head 005 absent." >&2
         exit 1
     fi
 done
@@ -28,7 +28,7 @@ source "$fingerprints_file"
 # shellcheck disable=SC1091
 source "$validator_library"
 discover_manifest "$migration_root" "$migration_root/HEAD"
-if [[ "$MIGRATION_DECLARED_HEAD" != "004_artifact_placements" ]]; then
+if [[ "$MIGRATION_DECLARED_HEAD" != "005_official_snapshot_currentness" ]]; then
     printf '%s\n' "ERROR: HEAD PostgreSQL inattendu." >&2
     exit 1
 fi
@@ -43,7 +43,8 @@ pg_isready \
     validate_002_sql
     validate_003_sql
     validate_004_sql
-    validate_registry_sql 4
+    validate_005_sql
+    validate_registry_sql 5
     cat <<'SQL'
 BEGIN;
 CREATE TEMP TABLE expected_product_columns (
@@ -58,7 +59,7 @@ CREATE TEMP TABLE expected_product_columns (
     atttypmod integer,
     PRIMARY KEY (table_name, column_name)
 ) ON COMMIT DROP;
-\copy expected_product_columns FROM '/schema-head-004-columns.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '\N', HEADER true)
+\copy expected_product_columns FROM '/schema-head-005-columns.tsv' WITH (FORMAT csv, DELIMITER E'\t', NULL '\N', HEADER true)
 
 DO $nexus$
 DECLARE
@@ -71,7 +72,7 @@ BEGIN
           'rag_chunks', 'rag_artifacts', 'rag_artifact_placements'
       );
     IF invalid_count <> (SELECT count(*) FROM expected_product_columns) THEN
-        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: exact column count';
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: exact column count';
     END IF;
 
     SELECT count(*) INTO invalid_count
@@ -95,7 +96,7 @@ BEGIN
             IS DISTINCT FROM expected.formatted_type
        OR attribute.atttypmod IS DISTINCT FROM expected.atttypmod;
     IF invalid_count <> 0 THEN
-        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: exact column matrix';
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: exact column matrix';
     END IF;
 
     SELECT count(*) INTO invalid_count
@@ -109,7 +110,7 @@ BEGIN
       AND NOT table_definition.relrowsecurity
       AND NOT table_definition.relforcerowsecurity;
     IF invalid_count <> 3 THEN
-        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: table state';
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: table state';
     END IF;
 
     SELECT count(*) INTO invalid_count
@@ -120,7 +121,7 @@ BEGIN
         'public.rag_artifact_placements'::regclass
     );
     IF invalid_count <> 0 THEN
-        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: unexpected policy';
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: unexpected policy';
     END IF;
 
     SELECT count(*) INTO invalid_count
@@ -131,7 +132,7 @@ BEGIN
         'public.rag_artifact_placements'::regclass
     ) AND NOT tgisinternal;
     IF invalid_count <> 0 THEN
-        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: unexpected trigger';
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: unexpected trigger';
     END IF;
 
     SELECT count(*) INTO invalid_count
@@ -146,7 +147,7 @@ BEGIN
         'public.rag_artifact_placements'::regclass
     );
     IF invalid_count <> 0 THEN
-        RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: unexpected inheritance';
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: unexpected inheritance';
     END IF;
 END
 $nexus$;

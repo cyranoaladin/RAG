@@ -484,10 +484,20 @@ def preparer_depuis_entree_canonique(
             )
         registre = run_pii_ledger.get(sha)
         if registre is None:
-            raise ValueError(
-                f"{sha[:16]}… : absent du registre PII du run — un paquet sans "
-                "détection du run n'a rien à faire revoir"
-            )
+            # ADR-0059 §6 : la population revue est celle de la release ; un
+            # contenu que le run n'a pas détecté y figure, SANS paquet — à
+            # condition que son texte canonique ne porte réellement aucun
+            # signal. S'il en porte, le registre du run et le texte divergent.
+            if _signaux_depuis_texte_canonique(
+                sha=sha, pages_text=pages_text, patterns=patterns
+            ):
+                raise ValueError(
+                    f"{sha[:16]}… : absent du registre PII du run alors que son "
+                    "texte canonique porte un signal — un paquet sans détection du "
+                    "run n'a rien à faire revoir, et une détection hors registre "
+                    "contredit le run"
+                )
+            continue
         if registre["canonical_text_sha256"] != empreinte_texte:
             raise ValueError(
                 f"{sha[:16]}… : le texte de revue n'est pas celui que le run a scanné"
@@ -672,7 +682,7 @@ def preparer_depuis_entree_canonique(
         # qui renommerait ses clés serait un protocole neuf, et le
         # vérificateur comme la projection de release cesseraient de le lire.
         "counts": {
-            "scanned": len(entries),
+            "scanned": len(manifeste["entries"]),
             "bundles": len(entries),
             "findings": sum(int(e["finding_count"]) for e in entries),  # type: ignore[arg-type]
         },

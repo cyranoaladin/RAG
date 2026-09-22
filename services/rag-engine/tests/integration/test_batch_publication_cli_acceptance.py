@@ -263,9 +263,30 @@ def _semer_etat_historique(
         persist_sealed_release_candidate,
     )
     from ingestor.ingestion_profiles.registry import load_profile_registry
+    from ingestor.ingestion_worker.sealed_release_ingestion import (
+        load_sealed_release,
+        sealed_placement_evidence,
+    )
 
     profils = load_profile_registry(PROFILS_DIR)
     artefacts: list[dict[str, object]] = []
+    # Ce que Worker A écrit, et rien d'autre : la preuve de chaque placement
+    # vient de la release scellée elle-même, relue par son chargeur. Une
+    # adoption par un successeur (ADR-0059 § 5) compare exactement ces faits.
+    faits = load_sealed_release(
+        contexte.racine,
+        release_manifest_sha256=contexte.digests["release_manifest_sha256"],
+        artifacts_release_sha256=contexte.digests["artifacts_release_sha256"],
+        candidate_inventory_sha256=contexte.digests["candidate_inventory_sha256"],
+        artifact_transfer_manifest_path=contexte.manifeste_de_transfert,
+        artifact_transfer_manifest_sha256=contexte.digests[
+            "artifact_transfer_manifest_sha256"
+        ],
+    )
+    placements_scelles = {
+        (placement.collection, placement.artifact_id): placement
+        for placement in faits.placements
+    }
     # Les autorisations D'ABORD, par le vrai CLI d'autorite : une ressource
     # ne peut pas referencer une autorisation qui n'existe pas encore.
     for index, collection in enumerate(contexte.collections, start=1):
@@ -289,33 +310,10 @@ def _semer_etat_historique(
             )
             for contenu in contexte.contenus:
                 payload = {
-                    "release_id": contexte.release_id,
-                    # Les digests REELS de la release ecrite : la garde du
-                    # catalogue refuse toute valeur qui ne serait pas la sienne.
-                    "release_manifest_sha256": contexte.digests[
-                        "release_manifest_sha256"
-                    ],
-                    "artifacts_release_sha256": contexte.digests[
-                        "artifacts_release_sha256"
-                    ],
-                    "candidate_inventory_sha256": contexte.digests[
-                        "candidate_inventory_sha256"
-                    ],
-                    "artifact_transfer_manifest_sha256": contexte.digests[
-                        "artifact_transfer_manifest_sha256"
-                    ],
-                    "content_sha256": contenu.content_sha256,
-                    "collection": collection,
-                    "chunk_count": contenu.pages,
+                    **sealed_placement_evidence(
+                        placements_scelles[(collection, contenu.content_sha256)], faits
+                    ),
                     "scope_authorization_id": autorisation_id,
-                    "provenance_artifact_url": contenu.url_telechargement,
-                    "provenance_discovery_url": LISTING_OFFICIEL,
-                    "review_status": "reviewed",
-                    "placement_status": "active",
-                    "currentness": "current",
-                    "type_doc": contexte.type_doc,
-                    "pipeline_kind": SEALED_RELEASE_PIPELINE,
-                    "protocol_version": "LOT42-RELEASE-BATCH-V1",
                 }
                 resource_id = create_resource(
                     conn, run_id=run_id, scope=profil.scope,
@@ -1638,3 +1636,204 @@ def test_un_conflit_d_attestation_ne_reecrit_rien(
         ).fetchone()
         conn.rollback()
     assert apres == (4, premier_digest, premiere_revue), (avant, apres)
+
+
+# --- ADR-0059 — un successeur d'instantanés adopte, puis publie -------------
+
+
+def _arguments_d_adoption(
+    successeur: ContexteDuBanc, predecesseur: ContexteDuBanc
+) -> list[str]:
+    return [
+        "adopt-predecessor-release",
+        "--release-id", successeur.release_id,
+        "--release-dir", str(successeur.racine),
+        "--release-manifest-sha256", successeur.digests["release_manifest_sha256"],
+        "--artifacts-release-sha256", successeur.digests["artifacts_release_sha256"],
+        "--candidate-inventory-sha256",
+        successeur.digests["candidate_inventory_sha256"],
+        "--transfer-manifest-path", str(successeur.manifeste_de_transfert),
+        "--transfer-manifest-sha256",
+        successeur.digests["artifact_transfer_manifest_sha256"],
+        "--predecessor-release-id", predecesseur.release_id,
+        "--predecessor-release-manifest-sha256",
+        predecesseur.digests["release_manifest_sha256"],
+        "--adopted-by", "acceptance-bench",
+    ]
+
+
+def _payloads_acquis(
+    control_pg: dict[str, str], contenus: list[str]
+) -> list[tuple[object, object]]:
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        lignes = conn.execute(
+            "SELECT artifact_id, payload FROM ingestion_control.artifacts"
+            " WHERE sha256 = ANY(%s) ORDER BY artifact_id", (contenus,)
+        ).fetchall()
+        conn.rollback()
+    return lignes
+
+
+def test_un_successeur_d_instantanes_adopte_l_acquis_puis_publie_sans_reingestion(
+    control_pg: dict[str, str],
+    product_pg: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    """Le parcours ADR-0059 de bout en bout, sur le vrai Worker B.
+
+    Une release V2 est acquise (lignes au format de Worker A). Son successeur
+    porte les MÊMES octets et les mêmes placements, mais une actualité
+    honnête : des instantanés officiels, à côté d'un audit qui n'a rien
+    vérifié. Il adopte l'acquis — sans le réécrire ni le réingérer —, est
+    revu sous « official_snapshot », puis publié. Le produit dit
+    « official_snapshot », jamais « current », et le contenu est récupéré.
+    """
+    magasin = tmp_path / "store"
+    contenus = contenus_du_banc(magasin, empreinte=uuid.uuid4().hex[:8])
+    lignee = f"acceptance-lignee-{uuid.uuid4().hex[:12]}"
+    predecesseur = construire_contexte_du_banc(
+        tmp_path / "v2", magasin, contenus=contenus,
+        release_id=f"acceptance-pred-{uuid.uuid4().hex[:12]}", lignee=lignee,
+    )
+    successeur = construire_contexte_du_banc(
+        tmp_path / "v3", magasin, contenus=contenus,
+        release_id=f"acceptance-succ-{uuid.uuid4().hex[:12]}", lignee=lignee,
+        actualite="instantane",
+    )
+    shas = sorted(contenu.content_sha256 for contenu in contenus)
+
+    github = LocalGitHub()
+    jeton = tmp_path / "github-token"
+    jeton.write_text(VALID_TOKEN, encoding="utf-8")
+    head = hashlib.sha1(b"acceptance-successor-head").hexdigest()
+    github.add_approved_pr(number=7301, head_sha=head, base_sha="9" * 40, review_id=7311)
+    with local_github_server(github) as github_url:
+        env = _environnement_d_autorite(control_pg, github_url=github_url, jeton=jeton)
+        _semer_etat_historique(control_pg, contexte=predecesseur, github=github, env=env)
+        acquis_avant = _payloads_acquis(control_pg, shas)
+        assert {p["release_id"] for _, p in acquis_avant} == {predecesseur.release_id}
+        assert {p["currentness"] for _, p in acquis_avant} == {"current"}
+
+        # Le successeur ne possède aucune ligne : la revue refuse d'abord.
+        refus = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_de_proposition(successeur, revue="lot42-release-batch-successeur"),
+            env,
+        )
+        assert refus.returncode == 1
+        assert "nothing to attest" in refus.stderr, refus.stderr
+
+        adopte = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_d_adoption(successeur, predecesseur),
+            env,
+        )
+        assert adopte.returncode == 0, adopte.stderr
+        assert "placements=4 written=4" in adopte.stdout, adopte.stdout
+        assert "currentness=official_snapshot" in adopte.stdout, adopte.stdout
+        # Rejouer l'adoption ne réécrit rien.
+        rejoue = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_d_adoption(successeur, predecesseur),
+            env,
+        )
+        assert rejoue.returncode == 0, rejoue.stderr
+        assert "written=0 already_present=4" in rejoue.stdout, rejoue.stdout
+
+        propose = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_de_proposition(successeur, revue="lot42-release-batch-successeur"),
+            env,
+        )
+        assert propose.returncode == 0, propose.stderr
+        chemin, octets = _artefact_propose(propose.stdout)
+        revue = json.loads(octets)
+        assert revue["release_id"] == successeur.release_id
+        assert revue["placement_evidence"]["currentness"] == "official_snapshot"
+        github.put_blob(path=chemin, ref=head, content=octets)
+        enregistre = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_d_enregistrement(
+                successeur, chemin=chemin, head=head,
+                revue="lot42-release-batch-successeur", pull_request=7301,
+            ),
+            env,
+        )
+        assert enregistre.returncode == 0, enregistre.stderr
+
+    # Les lignes ACQUISES sont intactes, octet pour octet.
+    assert _payloads_acquis(control_pg, shas) == acquis_avant
+
+    jobs = _jobs_depuis_les_attestations(control_pg, successeur)
+    worker = _lancer_worker_b(
+        control_pg, product_pg, banc=successeur,
+        github=github, jeton=jeton, tmp_path=tmp_path,
+    )
+    assert worker.returncode == 0, worker.stderr
+    assert worker.stdout.count("status=succeeded") == len(jobs) == 4, (
+        worker.stdout + "\n" + worker.stderr
+    )
+
+    with psycopg.connect(product_pg["admin_dsn"]) as conn:
+        placements = conn.execute(
+            "SELECT currentness, placement_status, review_status, source_uri"
+            "  FROM public.rag_artifact_placements WHERE artifact_id = ANY(%s)",
+            (shas,),
+        ).fetchall()
+        conn.rollback()
+    assert len(placements) == 4, placements
+    # Le produit dit ce qui a été prouvé, pas davantage.
+    assert {ligne[0] for ligne in placements} == {"official_snapshot"}, placements
+    assert {(ligne[1], ligne[2]) for ligne in placements} == {("active", "reviewed")}
+    urls = {contenu.url_telechargement for contenu in contenus}
+    assert {ligne[3] for ligne in placements} == urls, placements
+
+    # La base produit est partagée par le module : d'autres scénarios y ont
+    # publié leurs propres documents. On exige que CEUX du successeur soient
+    # récupérés, et qu'ils le soient sous leur provenance.
+    trouves = [
+        candidat
+        for candidat in _recuperer_par_le_retrieval(product_pg, successeur)
+        if candidat.artifact_id in shas
+    ]
+    assert trouves, "un instantané officiel publié doit être récupéré"
+    assert {candidat.source_uri for candidat in trouves} <= urls, trouves
+
+
+def test_un_successeur_qui_modifie_un_placement_n_adopte_rien(
+    control_pg: dict[str, str], tmp_path: Path
+) -> None:
+    """Une autre lignée = d'autres identités de placement : ce n'est pas un
+    successeur, c'est une autre release. Aucune adoption partielle."""
+    magasin = tmp_path / "store"
+    contenus = contenus_du_banc(magasin, empreinte=uuid.uuid4().hex[:8])
+    lignee = f"acceptance-lignee-{uuid.uuid4().hex[:12]}"
+    predecesseur = construire_contexte_du_banc(
+        tmp_path / "v2", magasin, contenus=contenus,
+        release_id=f"acceptance-pred-{uuid.uuid4().hex[:12]}", lignee=lignee,
+    )
+    etranger = construire_contexte_du_banc(
+        tmp_path / "v3", magasin, contenus=contenus,
+        release_id=f"acceptance-succ-{uuid.uuid4().hex[:12]}",
+        lignee=f"{lignee}-autre", actualite="instantane",
+    )
+    github = LocalGitHub()
+    jeton = tmp_path / "github-token"
+    jeton.write_text(VALID_TOKEN, encoding="utf-8")
+    with local_github_server(github) as github_url:
+        env = _environnement_d_autorite(control_pg, github_url=github_url, jeton=jeton)
+        _semer_etat_historique(control_pg, contexte=predecesseur, github=github, env=env)
+        refus = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_d_adoption(etranger, predecesseur),
+            env,
+        )
+    assert refus.returncode == 1
+    assert "ADOPTION_REFUSED" in refus.stderr, refus.stderr
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        adoptions = conn.execute(
+            "SELECT count(*) FROM ingestion_control.sealed_release_adoptions"
+            " WHERE release_id = %s", (etranger.release_id,)
+        ).fetchone()
+        conn.rollback()
+    assert adoptions == (0,)

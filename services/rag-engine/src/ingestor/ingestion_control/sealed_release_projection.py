@@ -18,6 +18,17 @@ from uuid import UUID, uuid4
 
 import psycopg
 
+from ingestor.ingestion_control.sealed_evidence import (
+    PII_CLEARED,
+    PII_DETECTED_REVIEWED_ACCEPTED,
+    PIIClearance,
+    SealedEvidenceError,
+)
+from ingestor.multilevel_evidence import (
+    PRODUCT_CURRENTNESS_BY_DISPOSITION,
+    MultilevelCurrentnessArtifact,
+)
+
 PROJECTION_VERSION = "SEALED-RELEASE-PROJECTION-V1"
 QUALITY_PREDICATE_VERSION = "BATCH-TECHNICAL-QUALITY-V1"
 GATE_NAME = "sealed_release_publication_gate"
@@ -26,6 +37,12 @@ FAIT_HISTORIQUE = "FAIT_HISTORIQUE"
 DERIVATION = "DERIVATION"
 EVALUATION = "EVALUATION"
 NON_ETABLI = "NON_ETABLI"
+
+#: Ce que la porte admet, et rien d'autre (ADR-0059). Un instantané officiel
+#: est publiable sans jamais devenir `current` ; une détection PII admise
+#: après revue humaine reste une détection.
+ACTUALITES_PUBLIABLES = frozenset(PRODUCT_CURRENTNESS_BY_DISPOSITION.values())
+PII_PUBLIABLES = frozenset({PII_CLEARED, PII_DETECTED_REVIEWED_ACCEPTED})
 
 
 class SealedReleaseProjectionError(RuntimeError):
@@ -73,8 +90,10 @@ class ProjectionRow:
         return (
             self.droits.valeur not in (None, "", "unknown")
             and self.qualite.valeur is True
-            and self.actualite.valeur == "current"
-            and self.pii.valeur == "CLEARED"
+            and self.actualite.origine == DERIVATION
+            and self.actualite.valeur in ACTUALITES_PUBLIABLES
+            and self.pii.origine == DERIVATION
+            and self.pii.valeur in PII_PUBLIABLES
         )
 
 
@@ -372,43 +391,73 @@ def derive_quality(entree: Mapping[str, Any]) -> DimensionProjetee:
     )
 
 
-def derive_currentness(entree: Mapping[str, Any] | None) -> DimensionProjetee:
-    """L'actualité vient de sa propre autorité, jamais du succès d'une autre."""
-    if entree is None:
+def derive_currentness(
+    actualite: MultilevelCurrentnessArtifact | None, *, evidence_sha256: str
+) -> DimensionProjetee:
+    """L'actualité vient de sa propre autorité, jamais du succès d'une autre.
+
+    Elle reçoit la disposition que le chargeur canonique a VÉRIFIÉE
+    (``load_multilevel_currentness``), jamais une déclaration brute : une
+    ligne qui se dirait « CURRENT » sans passer ce chargeur ne dirait rien.
+    Un instantané officiel se projette ``official_snapshot`` et jamais
+    ``current`` (ADR-0059).
+    """
+    if actualite is None:
         return DimensionProjetee(
             valeur="unknown", origine=NON_ETABLI,
             source="currentness_evidence: aucune entree pour ce contenu",
+            digest=evidence_sha256,
         )
-    if entree.get("decision") == "CURRENT" and entree.get("byte_identity") is True:
+    produit = actualite.product_currentness
+    if produit is not None:
         return DimensionProjetee(
-            valeur="current", origine=DERIVATION,
-            source="currentness_evidence/MULTILEVEL_ARTIFACT_CURRENTNESS_V1",
+            valeur=produit, origine=DERIVATION,
+            source=f"currentness_evidence:{actualite.disposition}",
+            digest=evidence_sha256,
         )
     return DimensionProjetee(
-        valeur=str(entree.get("decision", "unknown")), origine=EVALUATION,
-        source=f"currentness_evidence: decision={entree.get('decision')!r}",
+        valeur=actualite.decision, origine=EVALUATION,
+        source=f"currentness_evidence:{actualite.disposition}",
+        digest=evidence_sha256,
     )
 
 
-def derive_pii(entree: Mapping[str, Any] | None, *, evidence_sha256: str) -> DimensionProjetee:
+def derive_pii(
+    clairance: PIIClearance | SealedEvidenceError | None, *, evidence_sha256: str
+) -> DimensionProjetee:
     """La PII est une dimension distincte des droits.
 
-    ``pii_evidence`` alimente celle-ci, et elle seule : elle ne produit
-    jamais un ``rights_status``.
+    Elle reçoit la clairance que ``VerifiedPIIEvidenceRegistry`` a rendue —
+    ensemble de décisions, reçu et ancre vérifiés — ou le refus qu'il a
+    opposé. Une admission après revue reste ``DETECTED_REVIEWED_ACCEPTED`` :
+    elle n'efface jamais la détection (ADR-0047). Elle ne produit jamais un
+    ``rights_status``.
     """
-    if entree is None:
+    if clairance is None:
         return DimensionProjetee(
             valeur="unknown", origine=NON_ETABLI,
             source="pii_evidence: aucune entree pour ce contenu",
             digest=evidence_sha256,
         )
-    if entree.get("status") == "CLEARED" and entree.get("pii_detected") is False:
+    if isinstance(clairance, SealedEvidenceError):
         return DimensionProjetee(
-            valeur="CLEARED", origine=DERIVATION,
+            valeur="REFUSED", origine=EVALUATION,
+            source=f"pii_evidence: {clairance}"[:500],
+            digest=evidence_sha256,
+        )
+    if clairance.status == PII_CLEARED:
+        return DimensionProjetee(
+            valeur=PII_CLEARED, origine=DERIVATION,
             source="pii_evidence/REAL_CORPUS_PII_SCAN", digest=evidence_sha256,
         )
+    if clairance.is_reviewed_accepted and clairance.decision_set_id:
+        return DimensionProjetee(
+            valeur=PII_DETECTED_REVIEWED_ACCEPTED, origine=DERIVATION,
+            source=f"pii_review_decisions/{clairance.decision_set_id}",
+            digest=evidence_sha256,
+        )
     return DimensionProjetee(
-        valeur=str(entree.get("status", "unknown")), origine=EVALUATION,
-        source=f"pii_evidence: status={entree.get('status')!r}",
+        valeur=clairance.status, origine=EVALUATION,
+        source=f"pii_evidence: status={clairance.status!r}",
         digest=evidence_sha256,
     )

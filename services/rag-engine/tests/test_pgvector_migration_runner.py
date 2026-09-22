@@ -25,6 +25,9 @@ PROFILE_DOWN_RUNNER = (
     INFRA_ROOT / "scripts" / "rollback_pgvector_profile_filtering.sh"
 )
 MIGRATIONS = INFRA_ROOT / "postgres" / "migrations"
+# Le head déclaré est compté sur le manifeste livré, jamais épinglé : une
+# migration ajoutée ne doit pas rendre faux le nombre de transitions jouées.
+DECLARED_HEAD = len(tuple(MIGRATIONS.glob("[0-9][0-9][0-9]_*.sql")))
 
 
 def _digest(name: str) -> str:
@@ -331,7 +334,7 @@ def test_up_recognizes_existing_001_only_after_exhaustive_validation(
     assert "CREATE EXTENSION" not in recognition
     assert "ADD COLUMN" not in recognition
     assert "MIGRATIONS_ADOPTED=1" in result.stdout
-    assert "MIGRATIONS_APPLIED=3" in result.stdout
+    assert f"MIGRATIONS_APPLIED={DECLARED_HEAD - 1}" in result.stdout
 
 
 def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
@@ -369,7 +372,7 @@ def test_up_adopts_exact_existing_002_atomically_without_reapplying_ddl(
         assert any(str(row["file_name"]) in arg for arg in adoption["args"])
         assert any(str(row["sha256"]) in arg for arg in adoption["args"])
     assert "MIGRATIONS_ADOPTED=2" in result.stdout
-    assert "MIGRATIONS_APPLIED=2" in result.stdout
+    assert f"MIGRATIONS_APPLIED={DECLARED_HEAD - 2}" in result.stdout
 
 
 def test_up_adoption_002_failure_stops_without_followup_transition(

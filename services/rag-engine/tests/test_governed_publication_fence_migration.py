@@ -11,7 +11,7 @@ ROLLBACK = ROLLBACKS / "010_governed_publication_commit_fence.down.sql"
 
 def test_migration_010_remains_the_declared_commit_fence_step() -> None:
     assert (MIGRATIONS / "HEAD").read_text(encoding="utf-8") == (
-        "017_sealed_release_projection\n"
+        "018_sealed_release_adoption\n"
     )
     assert MIGRATION.is_file()
     assert ROLLBACK.is_file()
