@@ -138,6 +138,12 @@ code.
 
 ## Dette de qualité logicielle
 
+> **Mise à jour du 2026-09-22** : cette dette n'est pas close. Le test passe
+> sous une pile cohérente (pydantic 2.13.4) et échoue sous celle que la CI
+> installe (2.9.2). Sa cause réelle est une contradiction de dépendances,
+> pas une dérive du schéma — voir la dette 5 de
+> `docs/reports/lot_go_live_cu_dettes.md`.
+
 `test_openapi_schema_drift::test_le_schema_publie_est_celui_du_runtime` échoue.
 Reproduit à l'identique sur `main` en worktree propre — **un échec également
 reproduit sur la base ; aucune régression supplémentaire observée dans la suite
@@ -234,7 +240,10 @@ sert qu'à préparer et à relire les bases jetables.
 ## Quatre défauts réels, révélés par ce parcours
 
 Aucun n'était visible avant de lancer le CLI : la branche scellée de
-`publication_resume` n'avait jamais été exécutée.
+`publication_resume` n'avait jamais été exécutée. Un **cinquième** s'y
+ajoute, d'une autre nature — il est venu d'une correction de ce lot que la
+mesure a désavouée, et il a sa propre section plus bas (« une confrontation
+mal placée »).
 
 | # | Défaut | Traitement |
 |---|---|---|
@@ -363,7 +372,17 @@ cd services/rag-engine && PYTHONPATH=src:../../packages/contracts/src \
 
 `test_openapi_schema_drift::test_le_schema_publie_est_celui_du_runtime`,
 signalé rouge dans les sessions précédentes, **passe** dans cette
-exécution : la dette de qualité logicielle correspondante est close.
+exécution — mais la formulation « la dette est close » serait fausse, et la
+CI l'a montrée telle : sous **pydantic 2.9.2**, la pile que `make install`
+installe en CI, ce test **et** sa sentinelle échouent, alors qu'ils passent
+sous la pile cohérente en 2.13.4.
+
+Ce n'est donc pas une dette de qualité logicielle close : c'est une
+**contradiction de dépendances** que les deux épreuves signalent
+correctement. La sentinelle rend d'ailleurs exactement le message pour
+lequel la session précédente l'avait écrite — « le runtime produit de
+nouveau un `enum` redondant à côté d'un `const` ». Voir la dette 5 du
+registre.
 
 ### Dettes d'intégration, antérieures à ce lot
 
