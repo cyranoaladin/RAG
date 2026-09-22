@@ -29,6 +29,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 import psycopg
+from nexus_contracts.ingestion import SealedReleaseArtifactRecord
 
 try:
     from ingestor.embedding_provider import (
@@ -54,6 +55,8 @@ try:
         record_job_retry,
     )
     from ingestor.ingestion_control.provisioning import (
+        SEALED_RELEASE_PIPELINE,
+        find_authorised_artifact,
         find_latest_artifact,
         get_resource_state,
     )
@@ -173,6 +176,20 @@ class PublicationResumeDeps:
     rights_evidence_registry: Any = None
     manifest_digest: str = ""
     placement_resolver: Any = None
+    #: Ensemble scellé (``artifacts.release.json``) déjà vérifié par
+    #: digest, indexé par ``content_sha256``. Il porte le ``source_path``
+    #: gouverné, seule désignation qu'un opérateur ne choisit pas, et sans
+    #: lequel les droits d'un artefact scellé ne peuvent pas être résolus.
+    sealed_release_artifacts: Mapping[str, Any] | None = None
+    #: Invariant de format établi au chargement du catalogue (jamais une
+    #: constante du lecteur). Vide tant qu'il n'a pas été vérifié.
+    sealed_media_type_invariant: str = ""
+    #: Lecteur d'un artefact SCELLÉ, par empreinte. Une release scellée n'a
+    #: jamais été téléchargée : son record ne porte aucune référence de
+    #: fichier, et ``artifact_reader`` — qui lit par référence — ne peut
+    #: donc rien lire pour elle. Absent, la branche scellée refuse ; elle ne
+    #: devine pas un nom de fichier.
+    sealed_artifact_reader: Any = None
     authorization_mapping: AuthorizationMapping | None = None
     authorization_context: AuthorizationContext | None = None
 
@@ -188,6 +205,32 @@ class PublicationResumeDeps:
         except EmbeddingProviderError as exc:
             raise PublicationResumeError(str(exc)) from exc
 
+    def build_sealed_catalog(self) -> Any:
+        """Le catalogue scellé, ou ``None`` pour le pipeline de découverte.
+
+        Pour le batch, une dépendance manquante ici devient un refus au
+        moment de la lecture : le CLI ne doit pas construire un worker batch
+        apparemment opérationnel avec son catalogue à ``None``.
+        """
+        if not self.sealed_release_artifacts or self.rights_evidence_registry is None:
+            return None
+        return _VerifiedSealedCatalog(
+            registry=self.rights_evidence_registry,
+            sealed_artifacts=self.sealed_release_artifacts,
+            media_type_invariant=self.sealed_media_type_invariant,
+        )
+
+    def read_sealed_artifact(self, *, content_sha256: str) -> bytes:
+        """Les octets d'un artefact scellé, relus par leur empreinte."""
+        if self.sealed_artifact_reader is None:
+            raise PublicationResumeError(
+                f"publication worker {self.owner!r} has no sealed artifact "
+                "reader; a sealed release carries no file reference, and this "
+                "worker never guesses one"
+            )
+        octets: bytes = self.sealed_artifact_reader(content_sha256=content_sha256)
+        return octets
+
     def require_sealed_evidence(self) -> tuple[Any, Any]:
         if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
             raise SealedEvidenceError(
@@ -196,6 +239,57 @@ class PublicationResumeDeps:
                 "time, and a worker that cannot re-check them must not publish"
             )
         return self.pii_evidence_registry, self.rights_evidence_registry
+
+
+@dataclass(frozen=True)
+class _VerifiedSealedCatalog:
+    """Le catalogue scellé que la branche batch exige, déjà vérifié.
+
+    Il ne décide de rien : les droits viennent du registre gouverné, la
+    pagination et le titre de l'entrée scellée, le type de média d'un
+    invariant du format de release **vérifié au chargement** — jamais d'une
+    constante posée par le lecteur.
+    """
+
+    registry: Any
+    sealed_artifacts: Mapping[str, Any]
+    #: Type de média établi pour cette release. Il n'est pas déclaré par
+    #: artefact ; il provient de l'invariant de format vérifié par
+    #: ``load_sealed_release_catalog`` (tous les objets transférés portent la
+    #: même extension). Un catalogue dont l'invariant n'a pas été établi
+    #: laisse ce champ vide, et la lecture échoue.
+    media_type_invariant: str
+
+    def entry(self, *, content_sha256: str) -> Mapping[str, Any]:
+        sealed = self.sealed_artifacts.get(content_sha256)
+        if sealed is None:
+            raise PublicationResumeError(
+                f"content {content_sha256} is not part of the sealed release — "
+                "it must not be published under this release's authority"
+            )
+        entree: Mapping[str, Any] = sealed
+        return entree
+
+    def resolve_rights(self, *, content_sha256: str) -> tuple[str, str, str]:
+        sealed = self.entry(content_sha256=content_sha256)
+        clearance = self.registry.resolve_rights(
+            content_sha256=content_sha256, source_path=sealed["source_path"]
+        )
+        return (
+            clearance.rights.value,
+            clearance.decision_id,
+            clearance.registry_sha256,
+        )
+
+    def media_type(self, *, content_sha256: str) -> str:
+        self.entry(content_sha256=content_sha256)
+        if not self.media_type_invariant:
+            raise PublicationResumeError(
+                f"no media type is established for {content_sha256} — the "
+                "release format invariant was not verified, and the reader "
+                "refuses to assume one"
+            )
+        return self.media_type_invariant
 
 
 def _require_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -373,15 +467,64 @@ def resume_publication(
             expected_attestation_id=expected_attestation_id,
         )
 
-    artifact_record = find_latest_artifact(control_conn, resource_id=resource_id)
+    # Worker B fournit lui-même l'autorité de droits : le lecteur refuse la
+    # branche scellée sans elle, et ce refus doit venir de l'appelant
+    # opérationnel, pas d'un script de diagnostic.
+    sealed_catalog = deps.build_sealed_catalog()
+    # Le job NOMME l'artefact qu'il publie : « le plus récent » n'est pas une
+    # règle d'autorité. Si une seconde version existe, elle n'est pas
+    # substituée à celle que la revue a couverte.
+    # L'exigence depend du DISCRIMINATEUR DURABLE de la ressource, pas de ce
+    # que le job declare. Ce discriminateur, c'est la REPRESENTATION que le
+    # lecteur rend : elle decoule de `resources.pipeline_kind`, jamais d'une
+    # declaration libre du payload.
+    named_artifact_id = payload.get("artifact_id")
+    if named_artifact_id is not None:
+        artifact_record = find_authorised_artifact(
+            control_conn,
+            resource_id=resource_id,
+            artifact_id=UUID(str(named_artifact_id)),
+            sealed_catalog=sealed_catalog,
+        )
+    else:
+        artifact_record = find_latest_artifact(
+            control_conn, resource_id=resource_id, sealed_catalog=sealed_catalog
+        )
+        if isinstance(artifact_record, SealedReleaseArtifactRecord):
+            # Le job aurait du NOMMER son artefact. « Le plus recent » n'est
+            # pas une regle d'autorite pour une release scellee : une version
+            # plus recente n'est pas ce que la revue a couvert. Le refus
+            # survient ici, avant toute publication.
+            raise PublicationResumeError(
+                f"resource {resource_id} belongs to {SEALED_RELEASE_PIPELINE!r}: "
+                "a batch publication job MUST name the artifact it publishes. "
+                "There is no fallback to the most recent one."
+            )
     if artifact_record is None:
         raise PublicationResumeError(f"resource {resource_id} has no stored artifact")
 
-    durable_facts = collect_publication_facts(
-        control_conn,
-        resource_id=resource_id,
-        artifact_id=artifact_record.artifact_id,
-    )
+    # Le pipeline est determine par la REPRESENTATION que le lecteur a
+    # choisie, elle-meme issue du discriminateur durable — jamais d'une
+    # declaration libre du job.
+    est_scelle = isinstance(artifact_record, SealedReleaseArtifactRecord)
+    if est_scelle:
+        # L'ingestion scellee n'ecrit aucun fait unitaire : les exiger ici
+        # rendrait toute publication batch impossible. Les faits viennent de
+        # l'attestation verifiee, qui les tient de la projection confrontee.
+        durable_facts = verify_publication_attestation(
+            control_conn,
+            resource_id=resource_id,
+            current_content_sha256=artifact_record.sha256,
+            current_profile_fingerprint=artifact_record.release_manifest_sha256,
+            current_manifest_digest=artifact_record.release_manifest_sha256,
+            expected_attestation_id=expected_attestation_id,
+        ).facts
+    else:
+        durable_facts = collect_publication_facts(
+            control_conn,
+            resource_id=resource_id,
+            artifact_id=artifact_record.artifact_id,
+        )
     current_mapping = deps.authorization_mapping
     if deps.authorization_context is not None:
         try:
@@ -419,7 +562,15 @@ def resume_publication(
             "collection": collection,
             "profile_version": profile_version,
             "school_year": school_year,
-            "claimed_source_url": durable_facts.canonical_url,
+            # Une release scellée n'a PAS d'URL canonique — le schéma la lui
+            # interdit, et `PublicationFacts` porte la chaîne vide pour dire
+            # « absente ». La revendiquer ferait refuser toute publication
+            # batch contre une URL que personne n'a déclarée ; la provenance
+            # scellée est confrontée plus bas, au catalogue vérifié.
+            "claimed_source_url": None if est_scelle else durable_facts.canonical_url,
+            # Le type documentaire, lui, est bien un fait durable : il vient
+            # de l'attribution persistée, et il est ici confronté à la
+            # correspondance gouvernée.
             "claimed_type_doc": durable_facts.type_doc,
         }
         if payload.get("source_path") is not None:
@@ -459,7 +610,18 @@ def resume_publication(
         )
     governed_source_uri = next(iter(governed_source_uris))
 
-    if governed_source_uri != durable_facts.canonical_url:
+    if est_scelle:
+        # Le batch n'a pas d'URL canonique. Sa provenance PUBLIEE est
+        # comparee a la provenance SCELLEE du bon artefact, lue dans le
+        # catalogue verifie — jamais a un champ copie du payload courant.
+        scelle = sealed_catalog.entry(content_sha256=artifact_record.sha256)
+        if governed_source_uri != scelle.get("source_url"):
+            raise PublicationResumeError(
+                f"resource {resource_id}: the governed placement publishes "
+                f"{governed_source_uri!r}, the sealed catalogue records "
+                f"{scelle.get('source_url')!r} for this artifact"
+            )
+    elif governed_source_uri != durable_facts.canonical_url:
         raise PublicationResumeError(
             "the governed placement source URI disagrees with the durable canonical URL"
         )
@@ -490,9 +652,19 @@ def resume_publication(
         control_conn, ingestion_artifact_id=artifact_record.artifact_id
     )
 
-    raw_bytes = deps.artifact_reader(
-        extracted_text_ref=artifact_record.extracted_text_ref
-    )
+    if est_scelle:
+        # Aucune référence de fichier n'existe pour une release scellée :
+        # l'objet est nommé par son empreinte dans le magasin transféré, et
+        # cette empreinte est re-mesurée à la lecture. Le format vient du
+        # catalogue vérifié (`mime_declared` EST l'invariant établi), jamais
+        # d'une détection improvisée ici.
+        raw_bytes = deps.read_sealed_artifact(content_sha256=artifact_record.sha256)
+        mime_detected = artifact_record.mime_declared
+    else:
+        raw_bytes = deps.artifact_reader(
+            extracted_text_ref=artifact_record.extracted_text_ref
+        )
+        mime_detected = artifact_record.mime_detected
 
     governed = GovernedArtifact(
         content=raw_bytes,
@@ -503,7 +675,7 @@ def resume_publication(
         official=attribution.official,
         source_kind=attribution.source_kind,
         type_doc=attribution.type_doc,
-        mime_detected=artifact_record.mime_detected,
+        mime_detected=mime_detected,
     )
 
     # Les lectures de préflight ci-dessus ouvrent une transaction psycopg.

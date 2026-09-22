@@ -52,7 +52,10 @@ implémentations fait échouer l'écriture plutôt que de passer inaperçue.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 import psycopg
@@ -189,6 +192,78 @@ def derive_artifact_attribution(
         official=profile.source_authority == "official",
         source_kind=candidate.domain.strip(),
         type_doc=proposed,
+    )
+
+
+#: Origine d'un artefact qui n'a JAMAIS été découvert sur le réseau : il
+#: vient d'une release scellée, transférée et vérifiée par empreinte. Le
+#: chemin unitaire y place le domaine de découverte ; une release scellée
+#: n'en a pas, et prétendre le contraire serait fabriquer un fait.
+SEALED_RELEASE_SOURCE_KIND = "sealed_release"
+
+
+def derive_sealed_release_artifact_attribution(
+    *,
+    ingestion_artifact_id: UUID,
+    catalog_entry: Mapping[str, Any],
+    profile: CollectionProfile,
+) -> ArtifactAttribution:
+    """Dérive les quatre faits d'un artefact de release SCELLÉE.
+
+    Aucun agent ne propose rien ici. ``type_doc`` et la provenance viennent
+    du **catalogue d'artefacts de la release** — le fichier que le manifeste
+    nomme, dont il déclare l'empreinte, et dont cette empreinte
+    (``artifacts_release_sha256``) est elle-même portée par l'artefact de
+    revue approuvé. La chaîne remonte donc jusqu'à une revue humaine, comme
+    pour le chemin unitaire.
+
+    **Où ``type_doc`` est confronté, et où il ne l'est pas.** Le chemin
+    unitaire confronte ``candidate.proposed_type_doc`` — une *proposition*
+    de Scout — au périmètre de découverte du profil
+    (``expected_resource_types``) : c'est cette confrontation qui transforme
+    une proposition en fait. Un type scellé n'est pas une proposition : il
+    est produit par la correspondance gouvernée depuis le vocabulaire
+    externe, et le **résolveur de placement le redérive indépendamment** au
+    moment de publier, puis refuse toute divergence
+    (``claimed_type_doc``). C'est là sa confrontation, par l'autorité qui
+    l'a produit.
+
+    Lui appliquer en plus le périmètre de découverte du profil serait
+    appliquer un critère que personne n'a appliqué à la release approuvée :
+    mesuré sur V2, les onze profils n'attendent qu'un seul type quand la
+    release en porte cinq, et **224 des 479 placements** tomberaient. Reste
+    ici ce qui est bien une autorisation : le type doit être une valeur
+    canonique de ``TypeDoc`` (vérifié par ``ArtifactAttribution``), et
+    l'hôte de provenance doit être un domaine que le profil autorise.
+    """
+    declare = str(catalog_entry.get("type_doc") or "").strip()
+    if not declare:
+        raise ArtifactAttributionError(
+            f"the sealed catalogue establishes no type_doc for artifact "
+            f"{ingestion_artifact_id} — the attribution is refused rather than "
+            "completed with a convenience value"
+        )
+
+    source_url = str(catalog_entry.get("source_url") or "").strip()
+    domaine = urlparse(source_url).hostname or ""
+    if not domaine:
+        raise ArtifactAttributionError(
+            f"the sealed catalogue establishes no provenance host for artifact "
+            f"{ingestion_artifact_id} ({source_url!r})"
+        )
+    if domaine not in set(profile.allowed_domains):
+        raise ArtifactAttributionError(
+            f"sealed provenance host {domaine!r} is not among the domains "
+            f"allowed by profile {profile.scope.collection}/"
+            f"{profile.profile_version} ({sorted(profile.allowed_domains)!r})"
+        )
+
+    return ArtifactAttribution(
+        ingestion_artifact_id=ingestion_artifact_id,
+        source_label=domaine,
+        official=profile.source_authority == "official",
+        source_kind=SEALED_RELEASE_SOURCE_KIND,
+        type_doc=declare,
     )
 
 
@@ -405,7 +480,9 @@ __all__ = [
     "ArtifactAttributionError",
     "attribution_digest",
     "lock_artifact_attribution",
+    "SEALED_RELEASE_SOURCE_KIND",
     "derive_artifact_attribution",
+    "derive_sealed_release_artifact_attribution",
     "load_artifact_attribution",
     "persist_artifact_attribution",
 ]

@@ -258,6 +258,12 @@ GRANT SELECT ON ingestion_control.publication_attestations TO :"app_role" ;
 GRANT SELECT ON ingestion_control.revoked_review_evidence TO :"app_role" ;
 REVOKE INSERT, UPDATE, DELETE, TRUNCATE
     ON ingestion_control.revoked_review_evidence FROM :"app_role" ;
+-- Migration 017 : le worker LIT la projection pour savoir ce qui est établi
+-- et ce qui ne l'est pas. Il ne la produit jamais : projeter des faits est
+-- une opération d'attestation, pas de publication.
+GRANT SELECT ON ingestion_control.sealed_release_projections TO :"app_role" ;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE
+    ON ingestion_control.sealed_release_projections FROM :"app_role" ;
 -- Migration 011 : le runtime peut seulement ajouter/relever le pin exact
 -- produit par sa vérification GitHub live. La preuve est append-only :
 -- aucun rôle gouverné ne peut la corriger ou la supprimer après coup.
@@ -321,6 +327,12 @@ SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), :'attest
 
 GRANT USAGE ON SCHEMA ingestion_control TO :"attestor_role" ;
 GRANT SELECT, INSERT ON ingestion_control.publication_attestations TO :"attestor_role" ;
+-- Migration 017 : l'attestor PRODUIT la projection puis la relit. Elle est
+-- append-only par déclencheur ; le REVOKE le redit au niveau des droits,
+-- pour qu'aucune correction ne puisse être tentée par ce chemin.
+GRANT SELECT, INSERT ON ingestion_control.sealed_release_projections TO :"attestor_role" ;
+REVOKE UPDATE, DELETE, TRUNCATE
+    ON ingestion_control.sealed_release_projections FROM :"attestor_role" ;
 -- Seules invalidated_at/invalidated_reason sont modifiables après
 -- écriture (audit d'une invalidation détectée en direct, ADR-0033 § 4) —
 -- toute autre colonne d'une attestation déjà écrite reste immuable, y

@@ -22,6 +22,13 @@
 #         ./scripts/bootstrap_ingestion_control_schema.sh
 set -euo pipefail
 
+# Le contrôle de transaction appartient à CE script, jamais aux fragments
+# qu'il compose (cf. la bibliothèque pour la mesure et ses conséquences).
+SQL_TX_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/sql_transaction_control.sh"
+# shellcheck source=lib/sql_transaction_control.sh
+. "$SQL_TX_LIB"
+
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 MIGRATIONS_DIR="$INFRA_DIR/postgres/ingestion_control/migrations"
@@ -135,6 +142,28 @@ read_registry_state() {
     done <<< "$output"
 }
 
+# Le registre décrit une SUITE, pas un sac de versions. `current_head` est
+# calculé comme le NOMBRE de lignes appliquées, et `verify_no_checksum_drift`
+# compare les empreintes par POSITION : les deux ne sont justes que si les
+# versions enregistrées forment exactement 1..N sans trou.
+#
+# Un rembobinage partiel — défaire 015..009 en laissant 016 et 017
+# enregistrées — produit un registre troué. Le script calculait alors une
+# tête de 10 pour des versions {1..8, 16, 17}, réappliquait 011..017, et
+# n'atteignait jamais 009 ni 010 : leurs objets restaient absents pendant
+# que la tête finale était refusée pour une raison qui ne nommait pas la
+# cause. Le trou est désormais refusé AVANT toute écriture, et nommé.
+verify_registry_is_contiguous() {
+    local expected=1
+    for version in "${APPLIED_VERSIONS[@]}"; do
+        if [[ "$version" != "$expected" ]]; then
+            echo "FATAL: MIGRATION_REGISTRY_NOT_CONTIGUOUS expected=$expected found=$version applied=[${APPLIED_VERSIONS[*]}] — a partial rollback left a hole; roll back from the declared head, in strict reverse order, before bootstrapping again" >&2
+            exit 1
+        fi
+        expected=$((expected + 1))
+    done
+}
+
 verify_no_checksum_drift() {
     local index=0
     for version in "${APPLIED_VERSIONS[@]}"; do
@@ -158,7 +187,7 @@ apply_migration() {
     {
         advisory_lock_sql
         registry_schema_sql
-        cat "$file"
+        strip_inner_transaction_control < "$file"
         printf '\n'
         # Remédiation revue PR#90 (Cubic P2, revue incrémentale) : deux
         # instances de ce script démarrées en concurrence calculent chacune
@@ -225,6 +254,7 @@ discover_manifest
     registry_schema_sql
 } | psql -X -q --single-transaction -v ON_ERROR_STOP=1 >/dev/null
 read_registry_state
+verify_registry_is_contiguous
 verify_no_checksum_drift
 
 declared_head="${#MIGRATION_VERSIONS[@]}"
@@ -238,6 +268,7 @@ done
 
 # Revalidation : ne jamais faire confiance à sa propre comptabilité.
 read_registry_state
+verify_registry_is_contiguous
 verify_no_checksum_drift
 if (( ${#APPLIED_VERSIONS[@]} != declared_head )); then
     echo "FATAL: schema head after bootstrap (${#APPLIED_VERSIONS[@]}) does not match declared head ($declared_head)" >&2

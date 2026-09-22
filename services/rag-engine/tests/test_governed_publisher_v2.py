@@ -337,7 +337,11 @@ def test_publisher_refuses_a_lot42_v1_attestation_before_any_product_write(
         lambda *_args, **_kwargs: None,
     )
 
-    with pytest.raises(GovernedPublicationError, match=r"is not LOT42-V2"):
+    # Le message enumere desormais les protocoles publiables ; l'INTENTION
+    # est inchangee : LOT42-V1 ne publie rien (ADR-0035).
+    with pytest.raises(
+        GovernedPublicationError, match=r"is not among \['LOT42-RELEASE-BATCH-V1"
+    ):
         publish_governed_artifact(
             ControlConnection(),
             NoProductWrites(),

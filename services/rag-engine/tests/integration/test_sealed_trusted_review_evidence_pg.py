@@ -36,6 +36,7 @@ import trusted_human_review as adr0025  # noqa: E402
 from _pg_authority import (  # noqa: E402
     PG_SUPERUSER,
     PG_SUPERUSER_PASSWORD,
+    declared_schema_head,
     requires_docker,
     start_ingestion_control_postgres,
     superuser_dsn,
@@ -81,7 +82,7 @@ def migrated(pg_container: dict[str, str]) -> dict[str, str]:
         capture_output=True, text=True, check=False,
     )
     assert resultat.returncode == 0, resultat.stderr
-    assert "SCHEMA_HEAD=15" in resultat.stdout
+    assert f"SCHEMA_HEAD={declared_schema_head()}" in resultat.stdout
     return pg_container
 
 

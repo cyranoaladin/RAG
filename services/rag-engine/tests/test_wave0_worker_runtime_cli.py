@@ -173,6 +173,12 @@ def test_multilevel_runtime_authority_has_every_digest_bound_input() -> None:
         "document_types_mapping_sha256",
         "release_manifest_path",
         "release_manifest_sha256",
+        # Le manifeste de transfert d'une release SCELLÉE. La chaîne
+        # d'autorités d'une release multi-niveaux est fermée et ne peut pas
+        # le déclarer ; il est donc injecté comme les autres, par un couple
+        # chemin + empreinte, au lieu d'être deviné comme fichier voisin.
+        "artifact_transfer_manifest_path",
+        "artifact_transfer_manifest_sha256",
         "programme_registry_path",
         "programme_registry_sha256",
         "profile_manifest_path",

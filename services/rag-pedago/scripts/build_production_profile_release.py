@@ -2561,17 +2561,30 @@ def validate_authority_bindings(
         relative = Path(binding["path"])
         # Si release_root est fourni et que le fichier existe dans release_root (relatif à RELEASE_ROOT.parent)
         if rel_root is not None:
-            # relative est du type 'services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate/...'
-            # rel_root est '<output_dir>/release-xxx/profile_gate'
-            # rel_root.parent est '<output_dir>/release-xxx'
-            # Les chemins dans authority_bindings sont relatifs au REPOSITORY_ROOT
-            # Les fichiers sous services/rag-pedago/data/releases/prerentree_2026_2027/ sont dans rel_root.parent
+            # Les chemins des liaisons sont relatifs au dépôt. Les fichiers
+            # que CETTE release produit n'y existent pas encore — ils sont
+            # dans le répertoire de préparation — d'où la réécriture vers
+            # `rel_root.parent`.
+            #
+            # Mais toutes les liaisons sous le répertoire des releases
+            # n'appartiennent pas à la release produite : le registre
+            # d'exclusions (ADR-0055) désigne le fichier scellé d'une
+            # release ANTÉRIEURE. Le réécrire vers la sortie faisait
+            # chercher un fichier qui n'y sera jamais, et `--output-dir`
+            # devenait inutilisable dès qu'un registre d'exclusions était
+            # fourni — c'est-à-dire pour toute régénération gouvernée.
+            #
+            # La réécriture n'est donc appliquée que si elle DÉSIGNE
+            # quelque chose ; sinon le chemin du dépôt vaut, et s'il
+            # n'existe pas davantage le refus vient de la lecture, nommé.
             racine_rel = RELEASE_ROOT.parent.relative_to(REPOSITORY_ROOT)
             try:
                 sous_rel = relative.relative_to(racine_rel)
-                path = (rel_root.parent / sous_rel).resolve()
             except ValueError:
                 path = (root / relative).resolve()
+            else:
+                candidate = (rel_root.parent / sous_rel).resolve()
+                path = candidate if candidate.exists() else (root / relative).resolve()
         else:
             path = (root / relative).resolve()
         if relative.is_absolute() or path in seen_paths:

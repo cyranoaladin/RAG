@@ -358,7 +358,64 @@ class CoverageSnapshot(StrictBaseModel):
         return self
 
 
+class SealedReleaseArtifactRecord(StrictBaseModel):
+    """Artefact d'une release scellée — jamais téléchargé par le worker.
+
+    ``ArtifactRecord`` décrit un artefact **acquis par découverte réseau** :
+    ``original_url``, ``final_url``, ``domain`` et ``collected_at`` y sont
+    obligatoires parce qu'un téléchargement les produit toujours. Une release
+    scellée n'en produit aucun — elle est constituée de fichiers vérifiés par
+    empreinte, pas d'une collecte. Les remplir serait fabriquer des faits.
+
+    Ce modèle n'est donc pas un ``ArtifactRecord`` allégé : c'est la
+    description d'une autre origine. Le lecteur dispatche sur
+    ``pipeline_kind`` et applique les exigences correspondantes — aucun champ
+    du chemin unitaire ne devient optionnel pour autant.
+
+    ``provenance_artifact_url`` n'est **ni** une URL de téléchargement, **ni**
+    une URL finale, **ni** une URL canonique : c'est la provenance
+    documentaire scellée, et elle n'est comparée qu'à celle que
+    ``artifacts.release.json`` porte pour le même artefact.
+    """
+
+    pipeline_kind: Literal["sealed_release_pipeline"]
+
+    artifact_id: UUID
+    resource_id: UUID
+    run_id: UUID
+    scope: ResourceScope
+
+    #: Mesuré sur le fichier du magasin, jamais recopié d'une déclaration.
+    sha256: Sha256Digest
+    size_bytes: int = Field(ge=0)
+
+    #: Type **déclaré** par la release. Le nom dit qu'aucune détection n'a eu
+    #: lieu ; ``content_type_detected`` porte une mesure quand elle existe.
+    mime_declared: str = Field(min_length=1)
+    content_type_detected: str | None = None
+
+    #: Identité de l'ensemble scellé dont cet artefact fait partie.
+    release_id: str = Field(min_length=1)
+    release_manifest_sha256: Sha256Digest
+    content_sha256: Sha256Digest
+
+    #: Provenance documentaire scellée — voir la docstring.
+    provenance_artifact_url: str = Field(min_length=1)
+
+    #: Résolus par ``VerifiedRightsEvidenceRegistry``, jamais déduits d'un
+    #: domaine, d'une URL accessible ou d'un statut PII.
+    rights_status: Rights
+    rights_decision_id: str = Field(min_length=1)
+    rights_registry_sha256: Sha256Digest
+
+    pages_count: int = Field(ge=1)
+    chunk_count: int = Field(ge=0)
+    title: str | None = None
+    type_doc: str | None = None
+
+
 __all__ = [
+    "SealedReleaseArtifactRecord",
     "ArtifactRecord",
     "CollectionProfile",
     "CoverageSnapshot",

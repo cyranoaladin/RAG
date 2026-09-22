@@ -27,7 +27,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -91,6 +91,23 @@ def _digest(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _require_digest_of_bytes(
+    raw: bytes, expected: str, *, label: str, name: str
+) -> str:
+    """Même contrôle que ``_require_digest``, sur des octets déjà en main."""
+    if not _SHA256.match(expected):
+        raise SealedEvidenceError(
+            f"expected {label} digest must be a lowercase 64-hex SHA-256"
+        )
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != expected:
+        raise SealedEvidenceError(
+            f"{label} at {name} hashes to {actual}, not the expected "
+            f"{expected} — the file on disk is not the evidence that was approved"
+        )
+    return actual
 
 
 def _require_digest(path: Path, expected: str, *, label: str) -> str:
@@ -441,6 +458,87 @@ class ReviewAuthority:
         )
 
 
+def _refuse_duplicate_names(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """``object_pairs_hook`` : refuse un objet JSON aux noms répétés.
+
+    Sans ce contrôle, ``json.loads`` conserve la **dernière** valeur et
+    ``{"status":"DETECTED_RECORDED","status":"CLEARED"}`` se lirait comme un
+    simple ``CLEARED`` — l'ambiguïté disparaîtrait avant toute comparaison,
+    et l'équivalence structurelle ne prouverait plus rien.
+
+    La RFC 8259 signale ces objets comme non interopérables ; le dépôt les
+    refuse. La règle est distincte du regroupement des occurrences
+    équivalentes de ``results`` : elle porte sur les NOMS dans un objet, pas
+    sur la répétition d'éléments dans un tableau, et s'applique aussi aux
+    objets imbriqués puisque le hook est appelé pour chacun d'eux.
+    """
+    vus: set[str] = set()
+    for nom, _ in pairs:
+        if nom in vus:
+            raise SealedEvidenceError(
+                f"the evidence carries a JSON object with the repeated name "
+                f"{nom!r} — such an object is ambiguous and is refused before "
+                "any reconciliation"
+            )
+        vus.add(nom)
+    return dict(pairs)
+
+
+def _refuse_non_conforming_number(literal: str) -> float:
+    """``parse_constant`` : ``NaN``/``Infinity`` ne sont pas du JSON.
+
+    Python les accepte par extension. Une valeur non conforme ne doit pas
+    entrer dans une preuve, ni devenir une valeur dont la comparaison
+    d'équivalence serait indéfinie — ``NaN != NaN``.
+    """
+    raise SealedEvidenceError(
+        f"the evidence carries the non-conforming JSON number {literal!r}"
+    )
+
+
+def _load_strict_json(raw: bytes, *, label: str) -> Any:
+    """Décode **les octets déjà vérifiés**, jamais une relecture du disque."""
+    try:
+        return json.loads(
+            raw.decode("utf-8"),
+            object_pairs_hook=_refuse_duplicate_names,
+            parse_constant=_refuse_non_conforming_number,
+        )
+    except UnicodeDecodeError as exc:
+        raise SealedEvidenceError(f"{label} is not valid UTF-8: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise SealedEvidenceError(f"{label} is not valid JSON: {exc}") from exc
+
+
+def _pii_entry_identity(entry: Any) -> str:
+    """Identité logique d'une entrée de scan PII, pour la seule réconciliation
+    des répétitions historiques.
+
+    **Équivalence structurelle, pas identité des octets.** Deux entrées
+    peuvent différer dans le fichier source (espaces, ordre des clés) et
+    porter la même identité ici. L'empreinte du fichier brut, vérifiée en
+    amont par ``_require_digest``, est une preuve distincte et reste exigée ;
+    celle-ci ne la remplace pas.
+
+    La comparaison porte sur l'entrée **entière** — ``sort_keys`` sérialise
+    toutes les clés présentes, y compris celles qu'aucune version du code ne
+    connaît. Un champ inconnu ne disparaît donc pas avant la comparaison, et
+    une entrée enrichie n'est jamais confondue avec une entrée plus pauvre.
+
+    La convention est celle du dépôt (``canonical_json``) : UTF-8,
+    ``sort_keys``, séparateurs compacts. Les types sont préservés — ``1`` et
+    ``"1"``, ``1`` et ``1.0``, ``null`` et une clé absente se sérialisent
+    différemment et restent donc distincts.
+
+    ``json.loads`` conserve la **dernière** valeur d'une clé répétée dans un
+    même objet ; la répétition d'entrées dans un tableau, elle, reste visible
+    et c'est bien le cas traité ici.
+    """
+    return json.dumps(
+        entry, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    )
+
+
 @dataclass(frozen=True)
 class VerifiedPIIEvidenceRegistry:
     """Résultats de scan PII, indexés par SHA de contenu.
@@ -452,6 +550,9 @@ class VerifiedPIIEvidenceRegistry:
     corpus_manifest_sha256: str
     policy_sha256: str
     _by_content: dict[str, dict[str, Any]]
+    #: Nombre d'occurrences brutes par contenu dans le fichier chargé. Vaut
+    #: 1 pour un fichier canonique ; > 1 trace une répétition réconciliée.
+    _occurrences: dict[str, int] = field(default_factory=dict)
     review_authority: ReviewAuthority | None = None
 
     @classmethod
@@ -478,10 +579,14 @@ class VerifiedPIIEvidenceRegistry:
         expected_repository: str = CANONICAL_REPOSITORY,
         now: datetime | None = None,
     ) -> VerifiedPIIEvidenceRegistry:
-        evidence_sha = _require_digest(
-            path, expected_evidence_sha256, label="PII evidence"
+        # Les octets sont lus UNE fois : l'empreinte vérifiée et le document
+        # analysé portent sur la même matière. Vérifier un fichier puis en
+        # relire un autre laisserait passer une substitution entre les deux.
+        raw = path.read_bytes()
+        evidence_sha = _require_digest_of_bytes(
+            raw, expected_evidence_sha256, label="PII evidence", name=path.name
         )
-        document = json.loads(path.read_text(encoding="utf-8"))
+        document = _load_strict_json(raw, label="PII evidence")
 
         if document.get("evidence_kind") != PII_EVIDENCE_KIND:
             raise SealedEvidenceError(
@@ -551,17 +656,35 @@ class VerifiedPIIEvidenceRegistry:
                     )
 
         by_content: dict[str, dict[str, Any]] = {}
+        # Multiplicité observée par contenu, conservée dans la trace : une
+        # répétition réconciliée ne doit pas disparaître du rapport.
+        occurrences: dict[str, int] = {}
         for entry in results:
             sha = entry.get("content_sha256")
             if not isinstance(sha, str) or not _SHA256.match(sha):
                 raise SealedEvidenceError("a PII result carries no valid content SHA")
+            occurrences[sha] = occurrences.get(sha, 0) + 1
             if sha in by_content:
-                raise SealedEvidenceError(
-                    f"content {sha} appears twice in the PII scan — which of the "
-                    "two verdicts applies cannot be decided"
-                )
+                # Compatibilité historique nommée, jamais une tolérance
+                # générale : la seule répétition admise est celle dont TOUTES
+                # les entrées sont équivalentes au sens de
+                # ``_pii_entry_identity`` — l'entrée entière, aucun champ
+                # écarté, aucun champ inconnu perdu avant la comparaison.
+                #
+                # Ce que le refus garde est une CONTRADICTION de verdicts.
+                # Quand il n'y en a pas, il n'y a rien d'indécidable ; quand
+                # le moindre champ diffère, le refus reste entier.
+                if _pii_entry_identity(entry) != _pii_entry_identity(by_content[sha]):
+                    raise SealedEvidenceError(
+                        f"content {sha} appears more than once in the PII scan with "
+                        "differing entries — which verdict applies cannot be decided"
+                    )
+                continue
             if entry.get("status") == PII_DETECTED_REVIEWED_ACCEPTED:
                 _require_admission_is_founded(sha, entry, authority)
+            # Le représentant logique subit les contrôles habituels : deux
+            # entrées identiques mais invalides ne deviennent pas valides
+            # parce qu'elles sont identiques.
             by_content[sha] = entry
 
         return cls(
@@ -569,6 +692,7 @@ class VerifiedPIIEvidenceRegistry:
             corpus_manifest_sha256=str(manifest),
             policy_sha256=str(document.get("policy_sha256", "")),
             _by_content=by_content,
+            _occurrences=dict(sorted(occurrences.items())),
             review_authority=authority,
         )
 

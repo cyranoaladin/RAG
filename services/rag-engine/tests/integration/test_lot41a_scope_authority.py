@@ -26,6 +26,7 @@ from typing import Any, cast
 
 import psycopg
 import pytest
+from psycopg.types.json import Jsonb
 
 ENGINE_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
@@ -259,6 +260,81 @@ def verify(pg: dict[str, str], *, authorization_id: str = AUTHORIZATION_ID,
             authorization_id=authorization_id,
             scope=ResourceScope.model_validate(scope) if scope else None,
         )
+
+
+def _revoke_sealed_evidence(pg: dict[str, str], *, reason: str) -> None:
+    """Éteint la preuve par le MÉCANISME GOUVERNÉ : le registre de révocation.
+
+    C'est la contrepartie d'ADR-0058 : une preuve scellée ne s'éteint pas
+    d'elle-même, et ce registre est ce qui l'éteint — jamais l'état courant
+    d'une pull request.
+    """
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT review_evidence_digest FROM "
+                "ingestion_control.scope_authorizations WHERE authorization_id = %s",
+                (AUTHORIZATION_ID,),
+            )
+            ligne = cur.fetchone()
+            assert ligne is not None and ligne[0], "la ligne doit porter une preuve"
+            # La révocation porte SA PROPRE preuve de revue : le registre
+            # l'exige, comme l'autorisation qu'elle éteint.
+            cur.execute(
+                "INSERT INTO ingestion_control.revoked_review_evidence "
+                "(review_evidence_digest, revoked_by, reason, evidence_repository,"
+                " evidence_pull_request, evidence_head_sha, evidence_reviewer,"
+                " evidence_challenge) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                (
+                    ligne[0], "abenrhouma", reason, REPOSITORY, PR_NUMBER + 1,
+                    "f" * 40, "abenrhouma",
+                    "NEXUS-TRUSTED-REVIEW-V1:" + "f" * 64,
+                ),
+            )
+        conn.commit()
+
+
+def reseal_evidence(pg: dict[str, str], **updates: str) -> None:
+    """Resynchronise la preuve SCELLÉE, digest compris — l'attaquant y va aussi.
+
+    Depuis ADR-0058, la ligne porte sa propre preuve, et toute colonne
+    falsifiée la contredit : c'est le premier barreau de l'échelle. Un
+    attaquant disposant d'un accès SQL privilégié franchira ce barreau en
+    resynchronisant la preuve **et** son digest. Ces épreuves le font donc
+    explicitement, pour mesurer ce qui l'arrête ENSUITE — jamais pour
+    supposer que le premier barreau suffit.
+
+    Le challenge n'est pas touché : il se dérive du dépôt, de la PR, des
+    deux SHA, de l'auteur et du relecteur — jamais de l'empreinte de
+    l'artefact. Une resynchronisation d'artefact le laisse donc cohérent,
+    ce qui est précisément ce qui rend cette escalade réaliste.
+    """
+    from nexus_contracts.trusted_review_evidence import (
+        parse_sealed_trusted_review_evidence,
+    )
+
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT review_evidence FROM ingestion_control.scope_authorizations "
+                "WHERE authorization_id = %s", (AUTHORIZATION_ID,),
+            )
+            ligne = cur.fetchone()
+            assert ligne is not None and ligne[0] is not None
+            brut = ligne[0] if isinstance(ligne[0], dict) else json.loads(ligne[0])
+            preuve = parse_sealed_trusted_review_evidence(brut)
+            resceller = preuve.model_copy(update=dict(updates))
+            cur.execute(
+                "UPDATE ingestion_control.scope_authorizations "
+                "SET review_evidence = %s, review_evidence_digest = %s "
+                "WHERE authorization_id = %s",
+                (
+                    Jsonb(resceller.model_dump(mode="json")),
+                    resceller.digest(),
+                    AUTHORIZATION_ID,
+                ),
+            )
+        conn.commit()
 
 
 def tamper(pg: dict[str, str], *, column: str, value: Any) -> None:
@@ -646,6 +722,8 @@ class TestDatabaseTamperingNeverSurvives:
             allowed_content_sha256=["1" * 64, "3" * 64],
         )
         tamper(pg, column="artifact_blob_sha", value=git_blob_sha(raw))
+        # L'attaquant franchit aussi le barreau de la preuve scellée.
+        reseal_evidence(pg, artifact_blob_sha=git_blob_sha(raw))
         with pytest.raises(ScopeAuthorizationDeniedError, match="authorization_digest"):
             verify(pg)
 
@@ -663,6 +741,13 @@ class TestDatabaseTamperingNeverSurvives:
         )
         tamper(pg, column="artifact_blob_sha", value=git_blob_sha(raw))
         tamper(pg, column="authorization_digest", value=sha256(raw).hexdigest())
+        # Deux barreaux plus haut : la preuve scellée est resynchronisée sur
+        # les deux empreintes qu'elle lie.
+        reseal_evidence(
+            pg,
+            artifact_blob_sha=git_blob_sha(raw),
+            artifact_sha256=sha256(raw).hexdigest(),
+        )
         with pytest.raises(
             ScopeAuthorizationDeniedError,
             match="stored allowed_content_sha256",
@@ -695,35 +780,91 @@ class TestDatabaseTamperingNeverSurvives:
 
 
 class TestLiveGitHubProofIsFieldByField:
+    """Aucune divergence isolée ne passe — et c'est la preuve SCELLÉE qui le dit.
+
+    La propriété n'a pas changé : chaque dimension de la revue est
+    confrontée séparément, et une seule divergence refuse. Ce qui a changé,
+    c'est **où** la confrontation a lieu. Sous ADR-0058, la preuve est
+    scellée à l'enregistrement, puis revérifiée hors ligne à chaque usage :
+    une colonne falsifiée contredit désormais la preuve que la ligne porte
+    elle-même, et le refus nomme la dimension — `review_id`, `reviewer`,
+    `base_sha`, `challenge` — plutôt que le nom de sa colonne.
+
+    Les attentes ci-dessous nomment donc la DIMENSION. Elles restent
+    spécifiques : jamais un refus générique, jamais « une exception
+    quelconque ».
+    """
+
     @pytest.mark.parametrize(
-        ("column", "value"),
+        ("column", "value", "dimension"),
         [
-            ("evidence_review_id", 999_999),
-            ("evidence_reviewer", "someone-else"),
-            ("evidence_base_sha", "9" * 40),
-            ("evidence_challenge", "NEXUS-TRUSTED-REVIEW-V1:" + "9" * 64),
+            ("evidence_review_id", 999_999, "review_id"),
+            ("evidence_reviewer", "someone-else", "reviewer"),
+            ("evidence_base_sha", "9" * 40, "base_sha"),
+            (
+                "evidence_challenge",
+                "NEXUS-TRUSTED-REVIEW-V1:" + "9" * 64,
+                "challenge",
+            ),
         ],
     )
     def test_a_single_diverging_evidence_field_is_denied(
-        self, pg: dict[str, str], recorded: dict[str, Any], column: str, value: Any
+        self,
+        pg: dict[str, str],
+        recorded: dict[str, Any],
+        column: str,
+        value: Any,
+        dimension: str,
     ) -> None:
         """Chaque champ d'évidence est vérifié séparément. L'ancienne forme
         (« le challenge stocké appartient-il aux challenges live ? »)
         acceptait un reviewer ou une review différents ; ici, aucune
         divergence isolée ne passe."""
         tamper(pg, column=column, value=value)
-        with pytest.raises(ScopeAuthorizationDeniedError, match=column):
+        with pytest.raises(ScopeAuthorizationDeniedError, match=dimension):
             verify(pg)
 
-    def test_a_diverging_submitted_at_is_denied(
+    def test_the_submitted_at_that_counts_is_the_sealed_one(
         self, pg: dict[str, str], recorded: dict[str, Any]
     ) -> None:
+        """La colonne n'est qu'une copie : elle n'entre dans aucune décision.
+
+        Cette épreuve exigeait qu'une divergence de `evidence_submitted_at`
+        refuse. Sous ADR-0058, l'horodatage qui fait foi est celui que la
+        preuve SCELLE, protégé par son digest ; la colonne typée en est une
+        copie dénormalisée que la vérification ne lit pas. Exiger un refus
+        sur elle mesurerait un chemin qui n'existe plus.
+
+        Ce qui est vrai, et qui est mesuré ici : falsifier la copie ne
+        change RIEN — ni le verdict, ni la valeur scellée.
+        """
+        import json as _json
+
+        with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT review_evidence FROM ingestion_control.scope_authorizations "
+                "WHERE authorization_id = %s", (AUTHORIZATION_ID,),
+            )
+            ligne = cur.fetchone()
+        assert ligne is not None
+        preuve = ligne[0] if isinstance(ligne[0], dict) else _json.loads(ligne[0])
+        scelle = preuve["review_submitted_at"]
+
         tamper(
             pg, column="evidence_submitted_at",
             value=datetime(2020, 1, 1, tzinfo=UTC),
         )
-        with pytest.raises(ScopeAuthorizationDeniedError, match="evidence_submitted_at"):
-            verify(pg)
+        assert verify(pg).authorization_id == AUTHORIZATION_ID
+
+        with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
+            cur.execute(
+                "SELECT review_evidence FROM ingestion_control.scope_authorizations "
+                "WHERE authorization_id = %s", (AUTHORIZATION_ID,),
+            )
+            apres = cur.fetchone()
+        assert apres is not None
+        preuve_apres = apres[0] if isinstance(apres[0], dict) else _json.loads(apres[0])
+        assert preuve_apres["review_submitted_at"] == scelle
 
     def test_a_challenge_belonging_to_another_pr_is_denied(
         self, pg: dict[str, str], github: LocalGitHub, recorded: dict[str, Any]
@@ -738,26 +879,50 @@ class TestLiveGitHubProofIsFieldByField:
             number=5555, head_sha="d" * 40, base_sha=BASE_SHA, review_id=555,
         )
         tamper(pg, column="evidence_challenge", value=challenge_for(other))
-        with pytest.raises(ScopeAuthorizationDeniedError, match="evidence_challenge"):
+        with pytest.raises(ScopeAuthorizationDeniedError, match="challenge"):
             verify(pg)
 
-    def test_pull_request_closure_is_denied(
+    def test_pull_request_closure_does_not_extinguish_a_sealed_proof(
         self, pg: dict[str, str], github: LocalGitHub, recorded: dict[str, Any]
     ) -> None:
+        """Fermer la PR n'éteint rien — et c'est le point d'ADR-0058.
+
+        Cette épreuve exigeait l'inverse : la revue était revérifiée en
+        direct à chaque usage, donc une PR fermée — donc toute PR FUSIONNÉE —
+        éteignait l'autorisation. C'était intenable : une autorisation
+        cessait de valoir au moment même où son changement était intégré.
+
+        Ce qui était exigé en direct l'est toujours, mais **à
+        l'enregistrement**, quand la PR était ouverte et approuvée. Ensuite,
+        c'est la preuve scellée qui fait foi. La contre-épreuve de l'autre
+        moitié — ce qui éteint réellement une preuve — est dans la même
+        épreuve, juste en dessous.
+        """
         github.close_pr(PR_NUMBER)
-        with pytest.raises(ScopeAuthorizationDeniedError, match="no longer approved"):
+        # La preuve scellée tient : aucune exception.
+        assert verify(pg).authorization_id == AUTHORIZATION_ID
+
+        # Et le mécanisme gouverné, lui, l'éteint bien.
+        _revoke_sealed_evidence(pg, reason="closure-counterproof")
+        with pytest.raises(
+            ScopeAuthorizationDeniedError, match="sealed review evidence was"
+        ):
             verify(pg)
 
-    def test_review_dismissal_is_denied(
+    def test_review_dismissal_does_not_extinguish_a_sealed_proof(
         self, pg: dict[str, str], github: LocalGitHub, recorded: dict[str, Any]
     ) -> None:
-        """La révocation est RÉELLE sans aucune écriture PostgreSQL : la
-        ligne reste non-révoquée et non-expirée, et pourtant la
-        vérification échoue."""
-        github.dismiss_reviews(PR_NUMBER)
-        with pytest.raises(ScopeAuthorizationDeniedError, match="no longer approved"):
-            verify(pg)
+        """Rejeter la revue après coup ne réécrit pas ce qui a été scellé.
 
+        Même raison qu'au-dessus : la preuve dit ce qui a été approuvé, au
+        moment où ça l'a été. Ce qui l'éteint est le REGISTRE DE
+        RÉVOCATION — une écriture gouvernée, tracée, et confrontée à chaque
+        usage — pas l'état courant d'une interface.
+        """
+        github.dismiss_reviews(PR_NUMBER)
+        assert verify(pg).authorization_id == AUTHORIZATION_ID
+
+        # La ligne n'a pas été révoquée : ce n'est pas elle qui décide.
         with psycopg.connect(superuser_dsn(pg)) as conn, conn.cursor() as cur:
             cur.execute(
                 "SELECT revoked_at FROM ingestion_control.scope_authorizations "
@@ -766,26 +931,76 @@ class TestLiveGitHubProofIsFieldByField:
             )
             assert cur.fetchone() == (None,)
 
-    def test_a_new_head_is_denied(
-        self, pg: dict[str, str], github: LocalGitHub, recorded: dict[str, Any]
-    ) -> None:
-        github.move_head(PR_NUMBER, "e" * 40)
-        with pytest.raises(ScopeAuthorizationDeniedError, match="no longer approved"):
+        _revoke_sealed_evidence(pg, reason="dismissal-counterproof")
+        with pytest.raises(
+            ScopeAuthorizationDeniedError, match="sealed review evidence was"
+        ):
             verify(pg)
 
-    def test_losing_reviewer_write_permission_is_denied(
+    def test_the_head_that_counts_is_the_sealed_one_and_its_artifact_is_reread(
         self, pg: dict[str, str], github: LocalGitHub, recorded: dict[str, Any]
     ) -> None:
+        """Déplacer la tête de la PR n'éteint rien ; altérer l'artefact, si.
+
+        Sous ADR-0058, la tête qui fait foi est celle que la preuve SCELLE :
+        la PR peut avancer, fusionner, être fermée, cela ne change pas ce
+        qui a été approuvé. Ce qui reste vivant, et qui est mesuré ici :
+        l'artefact est **relu à chaque usage** à cette tête scellée, et il
+        doit être exactement celui qui a été approuvé.
+        """
+        github.move_head(PR_NUMBER, "e" * 40)
+        assert verify(pg).authorization_id == AUTHORIZATION_ID
+
+        # Le même chemin, à la même tête scellée, mais d'autres octets.
+        github.put_blob(
+            path=recorded["path"], ref=HEAD_SHA, content=b"{\"decision\": \"autre\"}"
+        )
+        with pytest.raises(ScopeAuthorizationDeniedError) as refus:
+            verify(pg)
+        assert "artifact" in str(refus.value).lower(), refus.value
+
+    def test_the_reviewer_habilitation_is_the_allowlist_not_the_forge(
+        self, pg: dict[str, str], github: LocalGitHub, recorded: dict[str, Any],
+        tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """L'habilitation du signataire reste vivante — mais c'est l'allowlist
+        VERSIONNÉE qui la porte, plus la permission courante sur la forge.
+
+        Ce déplacement est une garantie plus forte, pas plus faible : retirer
+        une identité de l'allowlist éteint **toutes** les autorisations
+        qu'elle a signées, d'un seul geste tracé dans le dépôt, sans
+        dépendre de ce qu'une interface répond au moment de la lecture.
+        """
         github.permissions[REVIEWER] = {"permission": "read", "role_name": "read"}
-        with pytest.raises(ScopeAuthorizationDeniedError, match="no longer approved"):
+        assert verify(pg).authorization_id == AUTHORIZATION_ID
+
+        # Retirée de l'allowlist gouvernée, la même preuve ne vaut plus.
+        allowlist = tmp_path / "trusted-reviewers.json"
+        allowlist.write_text(
+            json.dumps(
+                {
+                    "protocol": "NEXUS-TRUSTED-REVIEW-V1",
+                    "repository": REPOSITORY,
+                    "base_ref": "main",
+                    "reviewers": ["quelqun-dautre"],
+                }
+            ),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("NEXUS_TRUSTED_REVIEWERS_CONFIG", str(allowlist))
+        with pytest.raises(ScopeAuthorizationDeniedError, match="reviewer"):
             verify(pg)
 
     def test_github_outage_is_denied_not_assumed_valid(
         self, pg: dict[str, str], github: LocalGitHub, recorded: dict[str, Any]
     ) -> None:
         github.force_status = 503
-        with pytest.raises(ScopeAuthorizationDeniedError, match="live GitHub verification failed"):
+        with pytest.raises(
+            ScopeAuthorizationDeniedError, match="failing closed"
+        ) as refus:
             verify(pg)
+        # La panne est NOMMÉE dans la cause, jamais absorbée en un refus muet.
+        assert "503" in str(refus.value), refus.value
 
     def test_missing_credential_is_denied(
         self, pg: dict[str, str], recorded: dict[str, Any], monkeypatch: pytest.MonkeyPatch

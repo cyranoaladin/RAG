@@ -54,6 +54,13 @@
 #         ./scripts/rollback_ingestion_control_schema.sh
 set -euo pipefail
 
+# Le contrôle de transaction appartient à CE script, jamais aux fragments
+# qu'il compose (cf. la bibliothèque pour la mesure et ses conséquences).
+SQL_TX_LIB="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/sql_transaction_control.sh"
+# shellcheck source=lib/sql_transaction_control.sh
+. "$SQL_TX_LIB"
+
+
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 INFRA_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 ROLLBACKS_DIR="$INFRA_DIR/postgres/ingestion_control/rollbacks"
@@ -117,7 +124,7 @@ trap 'rm -f "$sql_script"' EXIT
             echo "FATAL: expected exactly one rollback file for version $v, found ${#matches[@]}: ${matches[*]}" >&2
             exit 1
         fi
-        cat "${matches[0]}"
+        strip_inner_transaction_control < "${matches[0]}"
         printf '\n'
     done
     printf 'DELETE FROM ingestion_control.schema_migrations WHERE version > %d;\n' "$TARGET_VERSION"

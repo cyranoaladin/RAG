@@ -3,8 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import json
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # le type seul : le chargement reste paresseux
+    from ingestor.ingestion_control.sealed_release_catalog import (
+        VerifiedSealedReleaseCatalog,
+    )
 
 from ingestor.collection_config import load_collection_config
 from ingestor.ingestion_control.sealed_evidence import (
@@ -63,6 +70,14 @@ class MultilevelRuntimeAuthorityInputs:
     rights_evidence_sha256: str
     corpus_manifest_sha256: str
     repository_root: Path
+    #: Manifeste de transfert de la release SCELLÉE. Il établit l'invariant
+    #: de format du catalogue, et il est transporté comme toute autre
+    #: autorité : un chemin et l'empreinte attendue de ses octets. La chaîne
+    #: d'autorités d'une release multi-niveaux est fermée et ne peut pas le
+    #: déclarer ; l'inventer en devinant un fichier voisin laissait
+    #: l'invariant NON ÉTABLI, donc toute lecture scellée refusée.
+    artifact_transfer_manifest_path: Path | None = None
+    artifact_transfer_manifest_sha256: str | None = None
     pii_decision_set_path: Path | None = None
     pii_decision_set_sha256: str | None = None
     pii_review_receipt_path: Path | None = None
@@ -109,6 +124,21 @@ def add_multilevel_runtime_authority_arguments(
         )
     parser.add_argument("--corpus-manifest-sha256", required=True)
     parser.add_argument("--repository-root", required=True, type=Path)
+    # Optionnel : une release multi-niveaux classique n'est pas scellée et
+    # n'a pas de manifeste de transfert. Une release scellée en a un, et
+    # sans lui son invariant de format reste non établi — ce qui vaut refus
+    # à la lecture, jamais publication d'un format supposé.
+    parser.add_argument(
+        "--artifact-transfer-manifest-path",
+        type=Path,
+        default=None,
+        help="sealed release artifact transfer manifest",
+    )
+    parser.add_argument(
+        "--artifact-transfer-manifest-sha256",
+        default=None,
+        help="expected SHA-256: sealed release artifact transfer manifest",
+    )
     add_review_authority_arguments(parser)
 
 
@@ -141,8 +171,39 @@ def multilevel_runtime_authority_inputs_from_args(
         rights_evidence_sha256=args.rights_evidence_sha256,
         corpus_manifest_sha256=args.corpus_manifest_sha256,
         repository_root=args.repository_root,
+        **_transfer_manifest_arguments_from_args(args),  # type: ignore[arg-type]
         **review_authority_arguments_from_args(args),  # type: ignore[arg-type]
     )
+
+
+def _transfer_manifest_arguments_from_args(
+    args: argparse.Namespace,
+) -> dict[str, object]:
+    """Le couple chemin/empreinte du manifeste de transfert, ou aucun.
+
+    Une moitié de couple n'est pas une demi-garantie : un chemin sans son
+    empreinte n'est pas épinglé, et une empreinte sans chemin n'épingle
+    rien. Même règle que pour l'autorité de revue.
+    """
+    path = getattr(args, "artifact_transfer_manifest_path", None)
+    digest = getattr(args, "artifact_transfer_manifest_sha256", None)
+    if path is not None and not digest:
+        raise RuntimeAuthorityStartupError(
+            "--artifact-transfer-manifest-path was supplied without "
+            "--artifact-transfer-manifest-sha256: an authority path without "
+            "its expected digest is not pinned, and an unpinned authority is "
+            "no authority"
+        )
+    if digest and path is None:
+        raise RuntimeAuthorityStartupError(
+            "--artifact-transfer-manifest-sha256 was supplied without "
+            "--artifact-transfer-manifest-path: there is nothing for that "
+            "digest to pin"
+        )
+    return {
+        "artifact_transfer_manifest_path": path,
+        "artifact_transfer_manifest_sha256": digest,
+    }
 
 
 def review_verification_environment(environment: str) -> str:
@@ -285,12 +346,72 @@ def load_multilevel_runtime_authorities(
         )
     except ValueError as exc:
         raise RuntimeAuthorityStartupError(str(exc)) from exc
+    # Le catalogue de la release SCELLEE, quand elle en porte un. Il est
+    # charge par le chemin canonique — le fichier que le manifeste NOMME et
+    # dont il DECLARE l'empreinte — jamais reconstruit ici.
+    #
+    # Une release multi-niveaux classique n'en a pas : l'absence n'est donc
+    # pas une erreur de chargement. Elle devient un refus au moment de LIRE
+    # un artefact scelle, ou le catalogue est indispensable.
+    sealed_catalog = _charger_catalogue_scelle(inputs)
+
     return GovernedRuntimeAuthorities(
         placement_resolver=resolver,
         pii_evidence_registry=pii,
         rights_evidence_registry=rights,
         collection_config_sha256=collection_config_sha,
+        sealed_release_catalog=sealed_catalog,
     )
+
+
+def _charger_catalogue_scelle(
+    inputs: MultilevelRuntimeAuthorityInputs,
+) -> VerifiedSealedReleaseCatalog | None:
+    """Charge le catalogue scelle depuis le manifeste deja verifie.
+
+    Le manifeste est celui que ``--release-manifest-path`` designe, son
+    empreinte celle que ``--release-manifest-sha256`` attend, et la
+    reference du catalogue vient du manifeste lui-meme.
+
+    Le manifeste de TRANSFERT, lui, ne peut pas venir de la : la chaine
+    d'autorites d'une release multi-niveaux est FERMEE et ne comporte aucun
+    champ pour lui. Le deviner comme fichier voisin et lire son empreinte
+    attendue dans un champ que le contrat interdit ne pouvait donc jamais
+    reussir : l'invariant de format restait vide, et toute lecture scellee
+    refusait. Il est desormais transporte comme les autres autorites, par
+    son couple chemin/empreinte.
+
+    Un manifeste qui ne nomme aucun catalogue d'artefacts n'est pas une
+    release scellee : ``None``, et la branche scellee refusera plus tard.
+    Un manifeste qui en nomme un mais dont le contenu ne correspond pas est
+    en revanche une ERREUR — jamais un silence.
+    """
+    from ingestor.ingestion_control.sealed_release_catalog import (
+        SealedReleaseCatalogError,
+        load_sealed_release_catalog,
+    )
+
+    repertoire = inputs.release_manifest_path.parent
+    if inputs.release_manifest_path.name != "production-profile-gate.release.json":
+        return None
+    try:
+        manifeste = json.loads(inputs.release_manifest_path.read_bytes())
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(manifeste.get("artifact_registry"), dict):
+        return None
+    try:
+        return load_sealed_release_catalog(
+            repertoire,
+            expected_release_manifest_sha256=inputs.release_manifest_sha256,
+            transfer_manifest_path=inputs.artifact_transfer_manifest_path,
+            expected_transfer_manifest_sha256=inputs.artifact_transfer_manifest_sha256,
+        )
+    except SealedReleaseCatalogError as exc:
+        raise RuntimeAuthorityStartupError(
+            f"the release names an artifact catalogue that cannot be "
+            f"established: {exc}"
+        ) from exc
 
 
 __all__ = [

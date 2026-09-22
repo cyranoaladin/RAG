@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _pg_authority import (  # noqa: E402
     PG_SUPERUSER,
     PG_SUPERUSER_PASSWORD,
+    declared_schema_head,
     requires_docker,
     start_ingestion_control_postgres,
     superuser_dsn,
@@ -245,7 +246,7 @@ class TestMigration013Applies:
     def test_bootstrap_declares_013_as_head(self, pg_container: dict[str, str]) -> None:
         result = _run_bootstrap(pg_container)
         assert result.returncode == 0, result.stderr
-        assert "SCHEMA_HEAD=15" in result.stdout
+        assert f"SCHEMA_HEAD={declared_schema_head()}" in result.stdout
 
     def test_the_protocol_constraints_enumerate_both_versions(
         self, pg_container: dict[str, str]
