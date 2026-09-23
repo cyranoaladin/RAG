@@ -13,7 +13,8 @@ refusé au scellement.
         --index ../../docs/reports/evidence-index/pii_review_index_20260902.json \\
         --bundles ~/nexus-pii-review-20260902 \\
         --draft ~/nexus-pii-review-20260902/decisions.draft.json \\
-        --reviewer-login abenrhouma [--only <content_sha256>] [--reponses fichier.json]
+        --reviewer-login abenrhouma --corpus-manifest-sha256 <empreinte des octets> \\
+        [--only <content_sha256>] [--reponses fichier.json]
 
 Reprise : un brouillon existant est rechargé et seules les entrées non
 décidées sont proposées (`--only` force un document).
@@ -22,7 +23,9 @@ décidées sont proposées (`--only` force un document).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import re
 import sys
 from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
@@ -44,6 +47,14 @@ CATEGORIES = (
 )
 PLACEHOLDER = "__A_DECIDER__"
 
+#: Le fichier d'autorité que le producteur lie à la revue
+#: (`build_production_profile_release.corpus_manifest_authority_file_sha256`).
+DEFAULT_CORPUS_MANIFEST_AUTHORITY = (
+    Path(__file__).resolve().parents[1]
+    / "data/releases/prerentree_2026_2027/profile_gate/corpus_manifest_authority.json"
+)
+_HEX64 = re.compile(r"\A[0-9a-f]{64}\Z")
+
 Ask = Callable[[str], str]
 
 
@@ -59,6 +70,46 @@ def _charger_brouillon(draft: Path, index: dict, reviewer_login: str) -> dict:
         "reviewer_login": reviewer_login,
         "decisions": {},
     }
+
+
+def _manifeste_du_corpus(
+    brouillon: dict, demande: str | None, autorite: Path | None
+) -> str:
+    """L'empreinte du corpus revu : explicite, vérifiée, jamais écrasée.
+
+    Le brouillon enregistre l'empreinte des OCTETS du fichier d'autorité, pas
+    la valeur que ce fichier déclare. Un brouillon qui en porte déjà une la
+    garde : un argument différent est refusé au lieu de la remplacer."""
+    existant = brouillon.get("corpus_manifest_sha256")
+    if existant and demande and existant != demande:
+        raise ValueError(
+            f"le brouillon porte corpus_manifest_sha256 {existant[:16]}… ; "
+            f"{demande[:16]}… ne le remplace pas silencieusement"
+        )
+    valeur = existant or demande
+    if not isinstance(valeur, str) or not _HEX64.match(valeur):
+        raise ValueError("corpus_manifest_sha256 explicite (64 hex) requis pour un nouveau brouillon")
+    if autorite is not None:
+        octets = autorite.read_bytes()
+        attendu = hashlib.sha256(octets).hexdigest()
+        # Vérifiée AVANT l'empreinte : un fichier qui ne déclare aucune autorité
+        # n'en est pas une, et le producteur le refuserait après scellement.
+        try:
+            declaree = json.loads(octets.decode("utf-8")).get("authority_sha256")
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            declaree = None
+        if not isinstance(declaree, str) or not _HEX64.match(declaree):
+            raise ValueError(
+                f"corpus manifest authority {autorite.name} ne déclare aucune "
+                "authority_sha256 valide"
+            )
+        if valeur != attendu:
+            motif = " (c'est la valeur qu'il DÉCLARE, pas son empreinte)" if valeur == declaree else ""
+            raise ValueError(
+                f"corpus_manifest_sha256 {valeur[:16]}… n'est pas l'empreinte du "
+                f"corpus manifest authority {autorite.name} ({attendu[:16]}…){motif}"
+            )
+    return valeur
 
 
 def _choisir(ask: Ask, invite: str, choix: Sequence[str], out: Callable[[str], None]) -> str:
@@ -79,14 +130,17 @@ def revoir(
     bundles_root: Path,
     draft: Path,
     reviewer_login: str,
-    corpus_manifest_sha256: str,
+    corpus_manifest_sha256: str | None,
     ask: Ask,
     out: Callable[[str], None] = print,
     only: str | None = None,
+    corpus_manifest_authority: Path | None = None,
 ) -> dict:
     index = json.loads(index_path.read_text(encoding="utf-8"))
     brouillon = _charger_brouillon(draft, index, reviewer_login)
-    brouillon["corpus_manifest_sha256"] = corpus_manifest_sha256
+    brouillon["corpus_manifest_sha256"] = _manifeste_du_corpus(
+        brouillon, corpus_manifest_sha256, corpus_manifest_authority
+    )
     entries = sorted(index["bundles"], key=lambda e: e["content_sha256"])
     total = len(entries)
     for position, entry in enumerate(entries, start=1):
@@ -150,7 +204,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--reviewer-login", required=True)
     parser.add_argument(
         "--corpus-manifest-sha256",
-        default="d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+        help="empreinte des octets du fichier d'autorité ; requise pour un nouveau brouillon",
+    )
+    parser.add_argument(
+        "--corpus-manifest-authority", type=Path, default=DEFAULT_CORPUS_MANIFEST_AUTHORITY,
+        help="fichier d'autorité contre lequel l'empreinte est vérifiée",
     )
     parser.add_argument("--only")
     parser.add_argument("--reponses", type=Path, help="réponses scriptées (liste JSON), pour rejouer")
@@ -164,7 +222,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         brouillon = revoir(
             index_path=args.index, bundles_root=args.bundles, draft=args.draft,
             reviewer_login=args.reviewer_login, corpus_manifest_sha256=args.corpus_manifest_sha256,
-            ask=ask, only=args.only,
+            ask=ask, only=args.only, corpus_manifest_authority=args.corpus_manifest_authority,
         )
     except (ValueError, StopIteration, FileNotFoundError) as exc:
         print(f"REFUS: {exc}", file=sys.stderr)
