@@ -104,4 +104,4 @@ empruntés avec `PYTHONPATH` sur ce worktree) :
 | hygiène du dépôt (+ tests), taxonomie, preuves de sources | vert |
 | scripts/tests | 540 réussis ; 4 échecs `disk_policy_ok`, préexistants (`lot_go_live_cw_dettes.md`) |
 | rag-pedago | 3 558 réussis ; 1 échec `test_cleanup_dry_run` provoqué par la poussée de la branche pendant le run (ligne de suivi git), vert au rejeu et sur GitHub |
-| rag-engine | ruff, mypy verts ; échecs locaux dus au venv emprunté (`nexus_release_chain` d'un autre checkout, empreinte d'environnement) ; verts au rejeu avec les paquets du worktree, et sur GitHub |
+| rag-engine | ruff, mypy verts ; 6 échecs locaux dus au venv emprunté : les 5 de `test_release_readiness.py` (`nexus_release_chain` importé d'un autre checkout) sont verts au rejeu avec les paquets du worktree ; `test_runtime_attestation_reflects_this_repositorys_own_real_environment` compare par construction le venv au dépôt et reste rouge avec un venv emprunté. Tous verts sur GitHub (environnement propre) |
