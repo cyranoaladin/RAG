@@ -53,4 +53,8 @@ l'autorité déclarée.
 
 ## CI
 
-À compléter par le run consigné sur le head de ce lot.
+CI de référence : les checks GitHub Actions requis sur le head de la PR #248
+(environnement propre ; `services/rag-pedago` y rejoue lint, mypy et la suite
+complète). Premier head `b6307830` : tous verts. La CI locale complète a été
+exécutée sur le lot jumeau #249 ; ses deux rouges (seuil disque) sont
+environnementaux et tracés dans `docs/reports/lot_go_live_cw_dettes.md`.
