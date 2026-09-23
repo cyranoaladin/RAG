@@ -257,6 +257,33 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Racine du depot, ou le foyer resout l'allowlist des reviewers.",
     )
 
+    verify = subparsers.add_parser(
+        "verify-release-sources",
+        help=(
+            "Rejoue les chargeurs canoniques sur les octets d'une release scellee "
+            "(catalogue, inventaire, actualite, PII et sa chaine de revue, droits) "
+            "et resume leur verdict. Lecture seule : aucune base, aucune ecriture."
+        ),
+    )
+    verify.add_argument("--release-dir", required=True, type=Path)
+    verify.add_argument("--release-manifest-sha256", required=True, type=_non_blank)
+    verify.add_argument("--transfer-manifest-path", required=True, type=Path)
+    verify.add_argument("--transfer-manifest-sha256", required=True, type=_non_blank)
+    verify.add_argument("--rights-registry-path", required=True, type=Path)
+    for option, description in (
+        ("pii-decision-set-path", "ensemble scelle des decisions humaines de revue PII"),
+        ("pii-review-receipt-path", "recu ADR-0035 scellant cet ensemble"),
+        ("review-trust-anchor-path", "ancre de confiance verifiant le recu"),
+        ("pii-review-index-path", "index des paquets de revue"),
+    ):
+        verify.add_argument(f"--{option}", type=Path, default=None, help=description)
+    verify.add_argument("--pii-review-reviewers-sha256", default=None)
+    verify.add_argument("--repository-root", type=Path, default=None)
+    verify.add_argument(
+        "--output", type=Path, default=None,
+        help="Ecrit aussi le resume en JSON canonique a ce chemin.",
+    )
+
     adopt = subparsers.add_parser(
         "adopt-predecessor-release",
         help=(
@@ -744,6 +771,51 @@ def _charger_sources_scellees(args: argparse.Namespace) -> _SourcesScellees:
     )
 
 
+def _cmd_verify_release_sources(args: argparse.Namespace) -> int:
+    """Le verdict des chargeurs canoniques sur une release, sans rien ecrire.
+
+    Aucun chargeur n'est reimplemente ici : ce sont ceux que la proposition de
+    revue batch et Worker B appellent. Un refus est rendu avec son motif."""
+    try:
+        sources = _charger_sources_scellees(args)
+    except SystemExit as exc:
+        print(f"SEALED_SOURCES_REFUSED: {exc}", file=sys.stderr)
+        return 1
+    except Exception as exc:  # noqa: BLE001 - frontiere CLI : le motif est rendu tel quel
+        print(f"SEALED_SOURCES_REFUSED: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+    contenus = sorted(sources.catalogue.artifacts)
+    clairances: dict[str, int] = {}
+    refus: dict[str, str] = {}
+    dispositions: dict[str, int] = {}
+    for sha in contenus:
+        clairance = sources.clairance_pii(sha)
+        statut = "REFUSED" if isinstance(clairance, SealedEvidenceError) else clairance.status
+        if isinstance(clairance, SealedEvidenceError):
+            refus[sha] = str(clairance)
+        clairances[statut] = clairances.get(statut, 0) + 1
+        actualite = sources.actualite(sha)
+        disposition = "ABSENT" if actualite is None else str(actualite.disposition)
+        dispositions[disposition] = dispositions.get(disposition, 0) + 1
+
+    resume = {
+        "release_id": sources.catalogue.release_id,
+        "catalog_artifacts": len(contenus),
+        "preflight_artifacts": len(sources.preflight),
+        "pii_clearance": dict(sorted(clairances.items())),
+        "pii_refused": refus,
+        "currentness_dispositions": dict(sorted(dispositions.items())),
+        "verified_review_chain": sources.pii.verified_review_chain(),
+    }
+    rendu = json.dumps(resume, sort_keys=True, ensure_ascii=False, indent=2) + "\n"
+    if args.output is not None:
+        args.output.write_text(rendu, encoding="utf-8")
+    print(rendu, end="")
+    print(f"SEALED_SOURCES_VERIFIED={sources.catalogue.release_id}")
+    return 0
+
+
 def _cmd_propose_release_batch_review(args: argparse.Namespace) -> int:
     from datetime import timedelta
 
@@ -1166,6 +1238,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_record_release_batch_attestation(args)
     if args.command == "adopt-predecessor-release":
         return _cmd_adopt_predecessor_release(args)
+    if args.command == "verify-release-sources":
+        return _cmd_verify_release_sources(args)
     raise AssertionError(f"unreachable: unknown command {args.command!r}")  # pragma: no cover
 
 
