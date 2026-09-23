@@ -97,3 +97,42 @@ def test_a_verified_release_is_summarised_from_the_loaded_sources(
         "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 2, "ABSENT": 1
     }
     assert summary["verified_review_chain"] == {"pii_decision_set_sha256": "d" * 64}
+
+
+V3 = REPOSITORY_ROOT / (
+    "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v3/"
+    "release-f8fb983d04f4b7c1/profile_gate"
+)
+
+
+def test_the_v3_candidate_passes_every_canonical_loader(tmp_path: Path) -> None:
+    """Le successeur V3 sur ses propres octets, chaîne de revue PII comprise."""
+    report = tmp_path / "v3.json"
+    code = cli.main([
+        "verify-release-sources",
+        "--release-dir", str(V3),
+        "--release-manifest-sha256", _sha(V3 / "production-profile-gate.release.json"),
+        "--transfer-manifest-path", str(TRANSFER),
+        "--transfer-manifest-sha256", _sha(TRANSFER),
+        "--rights-registry-path", str(RIGHTS),
+        "--pii-decision-set-path",
+        str(REPOSITORY_ROOT / "governance/pii-review-decisions/pii-review-2026-09-22-profile-gate-v3.json"),
+        "--pii-review-receipt-path",
+        str(REPOSITORY_ROOT / "governance/pii-review-bindings/pii-review-2026-09-22-profile-gate-v3.json"),
+        "--review-trust-anchor-path", str(REPOSITORY_ROOT / "governance/trust-anchors/review-binding-v1.json"),
+        "--pii-review-index-path",
+        str(REPOSITORY_ROOT / "docs/reports/evidence-index/pii_review_index_20260922_profile_gate_v3.json"),
+        "--pii-review-reviewers-sha256", _sha(REPOSITORY_ROOT / "scripts/github/trusted-reviewers.json"),
+        "--repository-root", str(REPOSITORY_ROOT),
+        "--output", str(report),
+    ])
+    assert code == 0
+    summary = json.loads(report.read_text(encoding="utf-8"))
+    assert summary["release_id"] == "production-profile-gate-2026-2027-v3"
+    assert summary["catalog_artifacts"] == 315
+    assert summary["pii_clearance"] == {"CLEARED": 293, "DETECTED_REVIEWED_ACCEPTED": 22}
+    assert summary["pii_refused"] == {}
+    assert summary["currentness_dispositions"] == {"OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 315}
+    assert summary["verified_review_chain"]["pii_review_receipt_sha256"] == (
+        "22361dd17df811425d87f14ff33649efca320a8ee63292023ff5187d977bd55d"
+    )
