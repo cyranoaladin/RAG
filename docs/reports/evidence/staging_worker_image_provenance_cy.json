@@ -1,0 +1,66 @@
+{
+  "build": {
+    "build_on_nexus_prod": false,
+    "built_at": "2026-09-23T21:00:20.483666Z",
+    "built_off_host": true,
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+    "inventory_artifact": "nexus-deployment-image-inventory",
+    "inventory_sha256": "c0a3869138172d9a60e1eaa254f50d9879df7e0321958cc7a3aedb812d0cd727",
+    "platform": "linux/amd64",
+    "source_commit_sha": "7c65ec4b9eeeb2db62905e0e258ba3d5ea3e90f4",
+    "source_tree_sha": "488818ae3d5ea39f796c667973ab411d50e45706",
+    "worker_a_and_b_share_digest": true,
+    "workflow_path": ".github/workflows/production-image-provenance.yml",
+    "workflow_ref": "refs/heads/main",
+    "workflow_run_attempt": 1,
+    "workflow_run_id": 35919194803
+  },
+  "generated_at_utc": "2026-09-24T00:00:00Z",
+  "image_digest": "sha256:f931f59cb75aecacfb88959aa7b0d85302fd7b40e60851bdb8b1c6860dd35002",
+  "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+  "ingestor_image": {
+    "digest": "sha256:360eb30a00fe495d021a78ecd8c7844e000c8716baef73924bd67edcf3cfaa2b",
+    "repository": "ghcr.io/cyranoaladin/rag-ingestor"
+  },
+  "kind": "NEXUS-STAGING-WORKER-IMAGE-PROVENANCE",
+  "lot": "CY",
+  "not_done_by_this_evidence": [
+    "aucune exécution sur l'hôte",
+    "aucun déploiement",
+    "aucune écriture de base"
+  ],
+  "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:f931f59cb75aecacfb88959aa7b0d85302fd7b40e60851bdb8b1c6860dd35002",
+  "supersedes_image_digest": "sha256:431264a02e2e2a5484cef7d5ac620a3aa7fa16f66be1497fde886dfb7f83ccd8",
+  "verification": {
+    "attest_publication_cli_subcommands": [
+      "adopt-predecessor-release",
+      "propose-release-batch-review",
+      "propose-review",
+      "record-attestation",
+      "record-release-batch-attestation",
+      "verify-release-sources"
+    ],
+    "default_cmd": [
+      "python",
+      "-m",
+      "ingestor.ingestion_worker.multilevel_cli"
+    ],
+    "image_size_bytes": 1469592494,
+    "importable_entrypoints": [
+      "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+      "ingestor.ingestion_worker.attest_publication_cli",
+      "ingestor.ingestion_worker.multilevel_publication_resume_cli",
+      "ingestor.ingestion_profiles.staging_readiness_gate",
+      "ingestor.ingestion_control.sealed_release_adoption",
+      "ingestor.ingestion_worker.issue_review_binding_cli"
+    ],
+    "method": "docker pull par digest sur le poste de travail, puis exécution hors réseau (--network none)",
+    "nexus_contracts_version": "0.20.0",
+    "nexus_pdf_page_policy_version": "1.0.0",
+    "nexus_release_chain_version": "0.1.0",
+    "python": "3.11.15",
+    "repo_digest_observed": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:f931f59cb75aecacfb88959aa7b0d85302fd7b40e60851bdb8b1c6860dd35002",
+    "secret_like_environment_variables": []
+  }
+}

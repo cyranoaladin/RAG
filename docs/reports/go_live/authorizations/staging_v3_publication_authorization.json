@@ -1,0 +1,126 @@
+{
+    "amends": "CY",
+    "authorization_statement": "L'approbation de cette PR par abenrhouma vaut autorisation, pour le staging cloisonne uniquement, de publier production-profile-gate-2026-2027-v3 selon les operations nommees et sur leurs cibles exactes : Worker B uniquement dans le staging cloisonne, ecritures limitees a la base ragdb du conteneur nexus-staging-pgvector-1. Elle n'autorise ni publication de V2, ni build sur nexus-prod, ni tag non epingle, ni ecriture DB production, ni current switch, ni exposition publique.",
+    "consumed": false,
+    "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
+    "execution_plan": {
+        "path": "docs/runbooks/staging_v3_publication_EXECUTION_PLAN.md",
+        "sha256": "2009df2524b10f4900d5e848e9f306fbfa15e4988ba07189475cf29299a177c0"
+    },
+    "expected_proof": [
+        "têtes de migration avant et après, mesurées",
+        "rapport d'attribution et d'adoption (ou d'ingestion scellée), rejeu idempotent",
+        "attestation batch enregistrée au head exact de la revue approuvée",
+        "comptes et identités servis : 11 collections, 315 artefacts, 479 placements, 8268 chunks",
+        "retrieval exercé ; actualité servie official_snapshot"
+    ],
+    "expires_after_use": true,
+    "extends": {
+        "path": "docs/reports/go_live/authorizations/staging_ssh_authorization.json",
+        "sha256": "86c06350b61f51331566e534938432561dc568d80f0b6d5a63d9eed8213d07a0"
+    },
+    "forbidden": [
+        "certificate_modification",
+        "current_switch",
+        "dns_modification",
+        "docker_prune",
+        "nginx_modification",
+        "oauth_revocation",
+        "production_db_read",
+        "production_db_write",
+        "production_image_rebuild_on_host",
+        "production_ingestion",
+        "production_secret_read",
+        "production_service_restart",
+        "public_exposure",
+        "rclone_reconfiguration",
+        "remove_orphans",
+        "v2_publication",
+        "volume_removal_outside_project"
+    ],
+    "granted_by_pull_request_approval_of": "abenrhouma",
+    "kind": "NEXUS-STAGING-V3-PUBLICATION-AUTHORIZATION-V1",
+    "operations": [
+        "preflight_measurement",
+        "backup_before_migration",
+        "product_migrations",
+        "control_migrations",
+        "model_artifact_install",
+        "readiness_manifest_install",
+        "transfer_manifest_v3",
+        "sealed_ingestion_v3",
+        "attribution_backfill_v2",
+        "adoption_v3",
+        "batch_review_proposal",
+        "batch_review_record",
+        "worker_b_publication",
+        "independent_verification"
+    ],
+    "predecessor": {
+        "publication": "forbidden",
+        "release_id": "production-profile-gate-2026-2027-v2",
+        "release_manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+        "use": "attribution_backfill_and_adoption_only"
+    },
+    "release": {
+        "expected_counts": {
+            "placements": 479,
+            "subjects": 11,
+            "unique_artifacts": 315,
+            "unique_chunks": 8268
+        },
+        "release_dir": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v3/release-f8fb983d04f4b7c1/profile_gate",
+        "release_id": "production-profile-gate-2026-2027-v3",
+        "release_manifest_sha256": "c0f5897bf0a2d2f388ba0534de2cc4bb3198ab5d68173f4d28713572ce222e16",
+        "served_currentness": "official_snapshot"
+    },
+    "rollback": {
+        "database": "restauration de la sauvegarde pg_dump préalable, sur décision humaine",
+        "governance_evidence": "jamais supprimée : les preuves et attestations restent",
+        "service": "arrêt des processus lancés par ce plan ; aucune suppression de volume"
+    },
+    "runtime_image": {
+        "build_on_nexus_prod": "forbidden",
+        "build_workflow": ".github/workflows/production-image-provenance.yml",
+        "build_workflow_run_attempt": 1,
+        "build_workflow_run_id": 35919194803,
+        "built_off_host": true,
+        "contracts_version": "0.20.0",
+        "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+        "durable_service": false,
+        "evidence": {
+            "path": "docs/reports/evidence/staging_worker_image_provenance_cy.json",
+            "sha256": "ea5a1f16241064db12e564d9813f4bef97dc43823533f40482d9dd718d6f73f2"
+        },
+        "image_digest": "sha256:f931f59cb75aecacfb88959aa7b0d85302fd7b40e60851bdb8b1c6860dd35002",
+        "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+        "network": "no_inbound_exposure",
+        "pinning": "pinned_by_digest_no_rebuild",
+        "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:f931f59cb75aecacfb88959aa7b0d85302fd7b40e60851bdb8b1c6860dd35002",
+        "runtime_image_binding_guard": "NEXUS_ACTUAL_WORKER_IMAGE",
+        "source_commit_sha": "7c65ec4b9eeeb2db62905e0e258ba3d5ea3e90f4",
+        "source_tree_sha": "488818ae3d5ea39f796c667973ab411d50e45706",
+        "tag_alone_accepted": false
+    },
+    "stop_conditions": "toute precondition non satisfaite, tout ecart mesure, toute signature ou approbation manquante ; arret de securite sans suppression de volume ni de preuve",
+    "targets": {
+        "compose_project": "nexus-staging",
+        "container": "nexus-staging-pgvector-1",
+        "control_schema": "ingestion_control",
+        "database": "ragdb",
+        "host": "nexus-prod",
+        "product_schema": "public",
+        "roles": {
+            "attestor": "ingestion_control_attestor",
+            "migrator": "superutilisateur du conteneur staging, via les seuls runners canoniques",
+            "product_reader": "rag_reader",
+            "product_writer": "rag_publisher",
+            "worker": "ingestion_control_app"
+        },
+        "worker_never_receives": [
+            "identifiants du migrateur",
+            "DSN ingestion_control_authority",
+            "DSN ingestion_control_attestor"
+        ]
+    }
+}
