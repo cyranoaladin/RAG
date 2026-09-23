@@ -89,4 +89,19 @@ index `abdd1525…`). Pour comparaison, V2 est refusée par son propre inventair
 
 ## CI
 
-À compléter par les contrôles du head de ce lot.
+Référence : les checks GitHub Actions du head `94d28160` — tous verts
+(contrats, pdf-page-policy, release-chain, rag-pedago, rag-engine, cockpit,
+verrous de gouvernance, contrôles du dépôt, scripts/tests, qualification,
+acceptation modèle réel, image worker, governance postgres, GitGuardian).
+
+Localement (disque à ~8 Go, aucun venv neuf installable ; venvs de `main`
+empruntés avec `PYTHONPATH` sur ce worktree) :
+
+| Cible | Résultat |
+|---|---|
+| verrous de gouvernance | 18/18 inchangés |
+| unicité des autorités (+ garde) | vert |
+| hygiène du dépôt (+ tests), taxonomie, preuves de sources | vert |
+| scripts/tests | 540 réussis ; 4 échecs `disk_policy_ok`, préexistants (`lot_go_live_cw_dettes.md`) |
+| rag-pedago | 3 558 réussis ; 1 échec `test_cleanup_dry_run` provoqué par la poussée de la branche pendant le run (ligne de suivi git), vert au rejeu et sur GitHub |
+| rag-engine | ruff, mypy verts ; échecs locaux dus au venv emprunté (`nexus_release_chain` d'un autre checkout, empreinte d'environnement) ; verts au rejeu avec les paquets du worktree, et sur GitHub |
