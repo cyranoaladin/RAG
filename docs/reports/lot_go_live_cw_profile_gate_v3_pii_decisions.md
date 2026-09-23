@@ -119,4 +119,35 @@ V3, ni publication, ni activation staging, ni déploiement de production.
 
 ## CI
 
-À compléter par le run consigné sur le head de ce lot.
+Exécutée sur `62a91d5716edb1349b2ad689eaa1bb006e4650ac` (le commit de
+l'artefact ; ce rapport seul change ensuite), cible par cible, avec les mêmes
+commandes que `scripts/ci-local.sh`. Le script n'a pas été lancé d'un bloc : il
+détruit et réinstalle les venvs (~12 Go) alors que le disque n'avait que
+2,6 Go libres, au risque de saturer le volume du conteneur
+`nexus-drive-staging-restored-20260917`. Espace libéré dans le seul périmètre du
+dépôt (retrait du worktree fusionné `lot-cv-snapshot`), puis rag-engine
+réinstallé depuis zéro. rag-pedago a été testé dans son venv existant, installé
+en éditable depuis ce worktree (`pip check` propre).
+
+| Cible | Résultat |
+|---|---|
+| packages/contracts | 934 réussis |
+| packages/pdf-page-policy | 23 réussis |
+| packages/release-chain | import OK |
+| services/rag-pedago | lint, mypy, 3552 réussis, 4 ignorés |
+| services/rag-engine | install neuve, lint, mypy, tests, `LOT40_HYBRID_INTEGRATION=PASS` |
+| services/cockpit | npm ci, lint, tests, build, audits, cohérence, build propre |
+| governance-locks | 18/18 verrous inchangés |
+| authority-uniqueness (+ garde) | vert |
+| repository-hygiene (+ tests), ci-topology, main-protection, evidence-refresh | vert |
+| trusted-human-review core / github / workflow | vert |
+| taxonomy-validation, source-evidence-check | vert |
+| qualification-c1 | 404 réussis, 3 ignorés |
+| governance-guard-tests, ci-failsafe-tests | vert |
+| go-live-readiness-gate | **rouge** : 4 échecs, 94 réussis |
+| script-tests | **rouge** : les mêmes 4 échecs, 534 réussis, 7 ignorés |
+
+Les 4 échecs (`test_go_live_readiness.py`) ont une cause unique :
+`disk_policy_ok` (seuil de 40 Go libres ; 19 à 28 Go pendant le run). Rejoués
+sur le parent `d7611667` : mêmes 4 échecs, même cause. Préexistants et
+environnementaux, tracés dans `docs/reports/lot_go_live_cw_dettes.md`.
