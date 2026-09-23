@@ -114,8 +114,29 @@ reviewer de confiance sur son HEAD exact avec le challenge
 ne pourra être émis qu'après cette approbation, avec la clé privée injectée par
 son détenteur ; aucune clé n'est stockée ou affichée par ce lot.
 
-Jusqu'à ce reçu valide, ce jeu ne doit autoriser ni construction gouvernée de
-V3, ni publication, ni activation staging, ni déploiement de production.
+## Reçu ADR-0035 (2026-09-23)
+
+- Revue de confiance : review `5295099308` de `abenrhouma`, `APPROVED` sur le
+  head `02a82c0bb90e79f146f4437c18af195ac942e1f7`, challenge
+  `NEXUS-TRUSTED-REVIEW-V1:b841d582c64092038a90981ffb7c51edc2b059c71efa4fa1b46534f668a139cb`
+  (une approbation antérieure portait le challenge d'une autre PR ; le
+  vérificateur l'ignore).
+- Reçu émis par le détenteur de la clé, versionné octet pour octet :
+  `governance/pii-review-bindings/pii-review-2026-09-22-profile-gate-v3.json`,
+  SHA-256 `22361dd17df811425d87f14ff33649efca320a8ee63292023ff5187d977bd55d`,
+  clé `review-binding-v1-2026-08-25` (ed25519), expiration
+  `2026-10-23T19:04:55Z`.
+- Vérification hors ligne `sceller_decisions_pii.py verifier-recu` : valide ;
+  22 contenus `APPROVED`, 0 `REJECTED`, jeu `1b70d91b…`, PR 249, head `02a82c0b`.
+- Chaîne exacte du producteur (`_load_review_authority` →
+  `verify_pii_review_decision_authority`) : acceptée ; 22 paquets liés,
+  population revue `04b731e2…` (les 315), ancre `a7835fc6…`, index `abdd1525…`.
+- Le jeu de décisions n'a pas changé d'un octet depuis le head revu.
+
+Protocole (précédent #143) : le reçu atteste la revue du head `02a82c0b` ; son
+ajout crée un nouveau head que l'approbation finale de la PR couvre. Le reçu
+n'est pas réémis pour ce nouveau head. Aucune construction, publication,
+activation staging ni déploiement n'est autorisé par ce seul lot.
 
 ## CI
 
