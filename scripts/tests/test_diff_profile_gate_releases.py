@@ -124,3 +124,14 @@ def test_the_cli_writes_canonical_json_and_refuses_a_non_release(tmp_path: Path)
     ).hexdigest()
     with pytest.raises(SystemExit):
         module.main(["--base", str(tmp_path), "--head", str(head), "--output", str(out)])
+
+
+def test_the_v3_currentness_disposition_is_read_where_v2_had_a_decision(tmp_path: Path) -> None:
+    """La preuve d'actualité V3 (ADR-0059) nomme la disposition, pas une décision."""
+    head = copy.deepcopy(_base())
+    head["currentness"] = [
+        {"content_sha256": A, "currentness_disposition": "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"},
+        {"content_sha256": B, "currentness_disposition": "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE"},
+    ]
+    diff = _load().diff_releases(_write(tmp_path / "v2", _base()), _write(tmp_path / "v3", head))
+    assert diff["currentness"]["transitions"] == {"CURRENT->OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 2}

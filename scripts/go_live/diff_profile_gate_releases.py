@@ -77,8 +77,9 @@ def _describe(root: Path) -> dict[str, Any]:
         "artifacts": _by_content(_json(root / "artifacts.release.json")["artifacts"]),
         "placements": _placements(root),
         "pii": {k: str(v["status"]) for k, v in _by_content(_json(root / "pii_evidence.json")["results"]).items()},
+        # V1/V2 déclarent `decision` ; V3 (ADR-0059) la disposition elle-même.
         "currentness": {
-            k: str(v["decision"])
+            k: str(v["currentness_disposition"] if "currentness_disposition" in v else v["decision"])
             for k, v in _by_content(_json(root / "currentness_evidence.json")["artifacts"]).items()
         },
     }
