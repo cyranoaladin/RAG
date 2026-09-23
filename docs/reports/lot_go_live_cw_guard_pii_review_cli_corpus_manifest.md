@@ -27,7 +27,10 @@ producteur (« the decisions describe another corpus »).
 - la valeur est vérifiée contre l'empreinte des octets de
   `--corpus-manifest-authority` (par défaut, le fichier que le producteur lie :
   `data/releases/prerentree_2026_2027/profile_gate/corpus_manifest_authority.json`) ;
-  la confusion déclarée/empreinte est nommée dans le refus.
+  la confusion déclarée/empreinte est nommée dans le refus ;
+- le fichier d'autorité doit déclarer une `authority_sha256` valide, vérifiée
+  avant l'empreinte (constat Codex P2 sur #248) : un fichier quelconque dont on
+  fournit l'empreinte n'est pas accepté comme autorité.
 
 Aucun autre contrat nommé `corpus_manifest_sha256` n'est modifié :
 `CORPUS_MANIFEST_AUTHORITY = d7e5…` reste correcte là où la release embarque
@@ -35,13 +38,18 @@ l'autorité déclarée.
 
 ## Preuves
 
-- TDD : 6 tests ajoutés à `tests/test_revue_pii_cli.py`, rouges avant la
-  correction, verts après ; `test_revue_pii_cli.py` + `test_sceller_decisions_pii.py` : 19 réussis ;
+- TDD : 7 tests ajoutés à `tests/test_revue_pii_cli.py`, rouges avant la
+  correction, verts après ; `test_revue_pii_cli.py` + `test_sceller_decisions_pii.py` : 20 réussis ;
 - `ruff` et `mypy` propres sur le script ;
 - sur les brouillons réels (hors dépôt, lecture seule) : le brouillon corrigé
   est accepté (`5ce13fac…`) ; le brouillon avant correction est refusé
   (« c'est la valeur qu'il DÉCLARE, pas son empreinte ») ; un réimport avec
   `d7e5…` sur le brouillon corrigé est refusé sans écriture.
+
+## Rapport de service
+
+`services/rag-pedago/data/reports/codex_lot_cw_guard_pii_review_cli_corpus_manifest.md`
+(exigé par `services/rag-pedago/AGENTS.md`, constat Codex P1 sur #248).
 
 ## CI
 

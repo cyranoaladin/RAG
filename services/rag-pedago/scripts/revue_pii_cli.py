@@ -92,8 +92,18 @@ def _manifeste_du_corpus(
     if autorite is not None:
         octets = autorite.read_bytes()
         attendu = hashlib.sha256(octets).hexdigest()
-        if valeur != attendu:
+        # Vérifiée AVANT l'empreinte : un fichier qui ne déclare aucune autorité
+        # n'en est pas une, et le producteur le refuserait après scellement.
+        try:
             declaree = json.loads(octets.decode("utf-8")).get("authority_sha256")
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError):
+            declaree = None
+        if not isinstance(declaree, str) or not _HEX64.match(declaree):
+            raise ValueError(
+                f"corpus manifest authority {autorite.name} ne déclare aucune "
+                "authority_sha256 valide"
+            )
+        if valeur != attendu:
             motif = " (c'est la valeur qu'il DÉCLARE, pas son empreinte)" if valeur == declaree else ""
             raise ValueError(
                 f"corpus_manifest_sha256 {valeur[:16]}… n'est pas l'empreinte du "

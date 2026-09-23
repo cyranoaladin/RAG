@@ -184,3 +184,27 @@ def test_the_cli_defaults_the_check_to_the_producer_authority_file(tmp_path: Pat
         "--corpus-manifest-sha256", declaree,
     ])
     assert code == 1
+
+
+def test_an_authority_file_without_a_valid_declaration_is_refused_even_by_digest(
+    tmp_path: Path,
+) -> None:
+    """L'empreinte d'un fichier quelconque ne fait pas de lui une autorité.
+
+    Le producteur exige aussi que le fichier DÉCLARE une autorité ; un fichier
+    illisible ou sans déclaration accepté ici donnerait un jeu scellé que le
+    producteur refuserait ensuite."""
+    import pytest
+
+    revue = _load("revue_pii_cli")
+    for nom, contenu in (
+        ("pas-json.json", b"\x00 pas du json"),
+        ("sans-declaration.json", json.dumps({"autre": 1}).encode()),
+        ("declaration-invalide.json", json.dumps({"authority_sha256": "xyz"}).encode()),
+    ):
+        autorite = tmp_path / nom
+        autorite.write_bytes(contenu)
+        empreinte = hashlib.sha256(contenu).hexdigest()
+        with pytest.raises(ValueError, match="corpus manifest authority"):
+            _revoir(revue, tmp_path, tmp_path / f"{nom}.draft", empreinte,
+                    corpus_manifest_authority=autorite)
