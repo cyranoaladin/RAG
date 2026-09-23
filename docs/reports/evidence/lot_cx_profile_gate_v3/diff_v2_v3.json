@@ -1,0 +1,119 @@
+{
+  "artifacts": {
+    "added": [],
+    "base_chunk_count": 8268,
+    "base_count": 315,
+    "changed_fields": {},
+    "chunk_identity_changed": [],
+    "head_chunk_count": 8268,
+    "head_count": 315,
+    "removed": []
+  },
+  "authorities": {
+    "added": {
+      "pii_decision_set_sha256": "1b70d91b52d207d301d87076573593cb0899ed2b52d6e2963fbcf8fcd3472a66",
+      "pii_review_index_sha256": "abdd15256eba9ed5717529327131b0afe6f5de17189180bd082fd2a9bfeadb55",
+      "pii_review_receipt_sha256": "22361dd17df811425d87f14ff33649efca320a8ee63292023ff5187d977bd55d",
+      "pii_review_trust_anchor_sha256": "a7835fc6217fe426d9d5c7c28bb0949f05577e6258a620b2bf6a4029db0487ec"
+    },
+    "changed": {
+      "candidate_inventory_sha256": {
+        "base": "d906663b91b7bfac9dab0c05e4374cdb61b2eef8556ad2e86ceee3d529ab8123",
+        "head": "1aeda3d22e0e9bd20ecf0d47b8516ae02ac39a646282841be62283a59a5d0d3f"
+      },
+      "currentness_evidence_sha256": {
+        "base": "8fc2208d08c1703bd8a04c7884ef587598ecc692d9e683262ed022219922df1e",
+        "head": "f16871ff8f333440ee2e5d538824d4918f957a18df39b083264491c9c442ef34"
+      },
+      "pii_evidence_sha256": {
+        "base": "ffb136d332f8a33bd46a8bd3bcad31711f39b7d6a3f22fc50eb57e5d9e0478e4",
+        "head": "33e3fbfb943ffded360d2db254061edebe8ccff9e08b7509ebcdf4cd305ca700"
+      }
+    },
+    "removed": {}
+  },
+  "base": {
+    "manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+    "release_id": "production-profile-gate-2026-2027-v2"
+  },
+  "currentness": {
+    "added": {},
+    "base_counts": {
+      "CURRENT": 319
+    },
+    "head_counts": {
+      "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 315
+    },
+    "removed": {
+      "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f": "CURRENT",
+      "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b": "CURRENT",
+      "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2": "CURRENT",
+      "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2": "CURRENT"
+    },
+    "transitions": {
+      "CURRENT->OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 315
+    }
+  },
+  "files": {
+    "added": [],
+    "changed": [
+      "artifacts.release.json",
+      "authority_bindings.json",
+      "candidate_inventory.json",
+      "currentness_evidence.json",
+      "currentness_network_audit.json",
+      "pii_evidence.json",
+      "production-profile-gate.release.json",
+      "subjects/rag_nexus_dgemc_terminale_option.release.json",
+      "subjects/rag_nexus_hggsp_premiere_specialite.release.json",
+      "subjects/rag_nexus_hggsp_terminale_specialite.release.json",
+      "subjects/rag_nexus_hlp_premiere_specialite.release.json",
+      "subjects/rag_nexus_hlp_terminale_specialite.release.json",
+      "subjects/rag_nexus_nsi_premiere_specialite.release.json",
+      "subjects/rag_nexus_nsi_terminale_specialite.release.json",
+      "subjects/rag_nexus_ses_premiere_specialite.release.json",
+      "subjects/rag_nexus_ses_terminale_specialite.release.json",
+      "subjects/rag_nexus_svt_premiere_specialite.release.json",
+      "subjects/rag_nexus_svt_terminale_specialite.release.json"
+    ],
+    "removed": [],
+    "unchanged_count": 10
+  },
+  "head": {
+    "manifest_sha256": "c0f5897bf0a2d2f388ba0534de2cc4bb3198ab5d68173f4d28713572ce222e16",
+    "release_id": "production-profile-gate-2026-2027-v3"
+  },
+  "kind": "NEXUS-PROFILE-GATE-RELEASE-DIFF-V1",
+  "manifest_fields": {
+    "release_id": {
+      "base": "production-profile-gate-2026-2027-v2",
+      "head": "production-profile-gate-2026-2027-v3"
+    }
+  },
+  "pii": {
+    "added": {},
+    "base_counts": {
+      "CLEARED": 319
+    },
+    "head_counts": {
+      "CLEARED": 293,
+      "DETECTED_REVIEWED_ACCEPTED": 22
+    },
+    "removed": {
+      "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f": "CLEARED",
+      "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b": "CLEARED",
+      "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2": "CLEARED",
+      "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2": "CLEARED"
+    },
+    "transitions": {
+      "CLEARED->CLEARED": 293,
+      "CLEARED->DETECTED_REVIEWED_ACCEPTED": 22
+    }
+  },
+  "placements": {
+    "added": [],
+    "base_count": 479,
+    "head_count": 479,
+    "removed": []
+  }
+}

@@ -1,0 +1,1 @@
+Autorités de revue PII du successeur V3 (ADR-0047, ADR-0059 §6) : jeu de décisions b2ffbc7a5ecb776ac1be6863635fc0bb17f592ad, reçu ADR-0035 b2ffbc7a5ecb776ac1be6863635fc0bb17f592ad, index de revue d7611667daef6af45c62e67afcd1db0fd5b3dc5d, ancre de confiance ca0a21f59bd25c7e472cf2d6accc5b8e79ed74bd.
