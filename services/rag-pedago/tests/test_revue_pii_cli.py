@@ -82,3 +82,129 @@ def test_a_personal_finding_forbids_approval_in_the_guided_review(tmp_path: Path
         ask=lambda _p: next(reponses), out=lambda _l: None,
     )
     assert brouillon["decisions"][sha]["decision"] == "REJECTED"
+
+
+# ── Le manifeste de corpus : explicite, vérifié, jamais écrasé ─────────────
+#
+# Mesuré sur la campagne profile-gate V3 : le brouillon créé par
+# `sceller_decisions_pii.py brouillon` portait l'empreinte du FICHIER d'autorité
+# (`5ce13fac…`) ; l'import par ce CLI l'a réécrite avec sa valeur par défaut,
+# l'autorité que ce fichier DÉCLARE (`d7e5…`). Le jeu scellé décrivait alors
+# « un autre corpus » pour le producteur.
+
+
+def _index_vide(tmp_path: Path) -> Path:
+    index = tmp_path / "index.json"
+    index.write_text(json.dumps({"campaign_id": "pii-review-test", "bundles": []}), encoding="utf-8")
+    return index
+
+
+def _brouillon_existant(tmp_path: Path, manifeste: str) -> Path:
+    draft = tmp_path / "decisions.draft.json"
+    draft.write_text(
+        json.dumps({
+            "decision_set_id": "pii-review-test", "corpus_manifest_sha256": manifeste,
+            "reviewer_login": "abenrhouma", "decisions": {},
+        }),
+        encoding="utf-8",
+    )
+    return draft
+
+
+def _revoir(revue, tmp_path: Path, draft: Path, manifeste, **kwargs):
+    return revue.revoir(
+        index_path=_index_vide(tmp_path), bundles_root=tmp_path, draft=draft,
+        reviewer_login="abenrhouma", corpus_manifest_sha256=manifeste,
+        ask=lambda _p: "", out=lambda _l: None, **kwargs,
+    )
+
+
+def test_the_draft_corpus_manifest_is_never_silently_overwritten(tmp_path: Path) -> None:
+    import pytest
+
+    revue = _load("revue_pii_cli")
+    draft = _brouillon_existant(tmp_path, "5" * 64)
+    avant = draft.read_bytes()
+    with pytest.raises(ValueError, match="corpus_manifest_sha256"):
+        _revoir(revue, tmp_path, draft, "d" * 64)
+    assert draft.read_bytes() == avant
+
+
+def test_the_draft_corpus_manifest_is_kept_when_none_is_given(tmp_path: Path) -> None:
+    revue = _load("revue_pii_cli")
+    draft = _brouillon_existant(tmp_path, "5" * 64)
+    assert _revoir(revue, tmp_path, draft, None)["corpus_manifest_sha256"] == "5" * 64
+    assert _revoir(revue, tmp_path, draft, "5" * 64)["corpus_manifest_sha256"] == "5" * 64
+
+
+def test_a_new_draft_requires_an_explicit_corpus_manifest(tmp_path: Path) -> None:
+    import pytest
+
+    revue = _load("revue_pii_cli")
+    with pytest.raises(ValueError, match="corpus_manifest_sha256"):
+        _revoir(revue, tmp_path, tmp_path / "neuf.json", None)
+
+
+def test_the_cli_has_no_default_corpus_manifest(tmp_path: Path) -> None:
+    revue = _load("revue_pii_cli")
+    code = revue.main([
+        "--index", str(_index_vide(tmp_path)), "--bundles", str(tmp_path),
+        "--draft", str(tmp_path / "neuf.json"), "--reviewer-login", "abenrhouma",
+    ])
+    assert code == 1
+    assert not (tmp_path / "neuf.json").exists()
+
+
+def test_the_declared_authority_is_refused_in_place_of_the_file_digest(tmp_path: Path) -> None:
+    """La confusion exacte : la valeur DÉCLARÉE par le fichier au lieu de son empreinte."""
+    import pytest
+
+    revue = _load("revue_pii_cli")
+    autorite = tmp_path / "corpus_manifest_authority.json"
+    autorite.write_text(json.dumps({"authority_sha256": "d" * 64}), encoding="utf-8")
+    empreinte = hashlib.sha256(autorite.read_bytes()).hexdigest()
+
+    with pytest.raises(ValueError, match="corpus manifest authority"):
+        _revoir(revue, tmp_path, tmp_path / "a.json", "d" * 64, corpus_manifest_authority=autorite)
+    brouillon = _revoir(
+        revue, tmp_path, tmp_path / "b.json", empreinte, corpus_manifest_authority=autorite
+    )
+    assert brouillon["corpus_manifest_sha256"] == empreinte
+
+
+def test_the_cli_defaults_the_check_to_the_producer_authority_file(tmp_path: Path) -> None:
+    """Sans argument, le CLI vérifie contre le fichier que le producteur lie."""
+    revue = _load("revue_pii_cli")
+    autorite = SCRIPT_DIR.parent / "data/releases/prerentree_2026_2027/profile_gate/corpus_manifest_authority.json"
+    assert revue.DEFAULT_CORPUS_MANIFEST_AUTHORITY == autorite
+    declaree = json.loads(autorite.read_text(encoding="utf-8"))["authority_sha256"]
+    code = revue.main([
+        "--index", str(_index_vide(tmp_path)), "--bundles", str(tmp_path),
+        "--draft", str(tmp_path / "neuf.json"), "--reviewer-login", "abenrhouma",
+        "--corpus-manifest-sha256", declaree,
+    ])
+    assert code == 1
+
+
+def test_an_authority_file_without_a_valid_declaration_is_refused_even_by_digest(
+    tmp_path: Path,
+) -> None:
+    """L'empreinte d'un fichier quelconque ne fait pas de lui une autorité.
+
+    Le producteur exige aussi que le fichier DÉCLARE une autorité ; un fichier
+    illisible ou sans déclaration accepté ici donnerait un jeu scellé que le
+    producteur refuserait ensuite."""
+    import pytest
+
+    revue = _load("revue_pii_cli")
+    for nom, contenu in (
+        ("pas-json.json", b"\x00 pas du json"),
+        ("sans-declaration.json", json.dumps({"autre": 1}).encode()),
+        ("declaration-invalide.json", json.dumps({"authority_sha256": "xyz"}).encode()),
+    ):
+        autorite = tmp_path / nom
+        autorite.write_bytes(contenu)
+        empreinte = hashlib.sha256(contenu).hexdigest()
+        with pytest.raises(ValueError, match="corpus manifest authority"):
+            _revoir(revue, tmp_path, tmp_path / f"{nom}.draft", empreinte,
+                    corpus_manifest_authority=autorite)
