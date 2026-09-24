@@ -64,6 +64,10 @@ MATRIX_READER	scripts/go_live/build_release_currentness_exclusion_registry.py
 # Il ne lit aucun verdict et n en produit aucun. Une epreuve le tient
 # (test_l_orchestrateur_ne_lit_aucun_verdict_de_la_matrice).
 MATRIX_READER	scripts/go_live/build_profile_gate_v3.sh
+# Son généralisé (lot CZ), même rôle : il nomme la matrice pour la passer,
+# empreinte épinglée, au producteur. Une épreuve le tient
+# (test_l_orchestrateur_de_successeur_ne_lit_aucun_verdict_de_la_matrice).
+MATRIX_READER	scripts/go_live/build_profile_gate_successor.sh
 # Le registre d'exclusion des 4 archives ADR-0055 embarqué dans la release V2
 # cite l'empreinte de la matrice de servabilité à titre d'autorité d'origine
 # pour sceller la traçabilité de ses exclusions. Il ne lit pas la matrice en
