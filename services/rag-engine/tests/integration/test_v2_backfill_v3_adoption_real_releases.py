@@ -1,48 +1,51 @@
-"""Rattrapage d'attribution de V2 puis adoption par V3, sur les VRAIES releases.
+"""La chaîne staging complète de V3, sur les VRAIES releases (lots CY, CZ).
 
-La séquence staging prévue — ``--only-attributions`` sur V2, puis
-``adopt-predecessor-release`` pour V3 — n'avait été exercée que sur des
-releases de banc. Ce module la rejoue sur les octets réels :
+Ce module rejoue, par les vrais CLI et sur les octets réels, ce que le
+staging exécutera pour qualifier V3 (ADR-0059, ADR-0060) :
 
-- V2 : ``profile_gate_v2/release-1b9eba0c0eb0ab13`` (manifeste ``e9506f5a…``) ;
-- V3 : ``profile_gate_v3/release-f8fb983d04f4b7c1`` (manifeste ``c0f5897b…``) ;
-- les 315 PDF réels, relus depuis les miroirs locaux et rehachés ;
-- les profils gouvernés ``v2_livraison_319``.
+1. état historique : les 479 placements de V2 écrits par le vrai Worker A
+   sous les autorisations RÉELLES ``lot41a-staging-v2-*-r2`` (LOT41A-V1),
+   puis privés de leurs attributions, comme sur le staging ;
+2. ``--only-attributions`` sur V2, sous une readiness de staging nommant V2 ;
+3. ``adopt-predecessor-release`` pour V3 (manifeste de transfert au nom de V3) ;
+4. enregistrement des onze r3 (``build_lot41a_r3_authorizations.construire``),
+   puis ``bind-publication-authorities`` ;
+5. ``propose-release-batch-review`` (chaîne PII réelle), approbation sur la
+   forge du banc, ``record-release-batch-attestation`` ;
+6. Worker B sous une readiness de STAGING nommant V3, avec les arguments de
+   ``scripts/go_live/staging_v3_arguments.worker_b`` ; publication d'un
+   sous-ensemble borné, relecture indépendante des deux bases, retrieval.
 
-L'état initial est celui de staging : les 479 placements de V2 écrits par le
-VRAI point d'entrée de Worker A (CLI, jusqu'à ``NEEDS_REVIEW``), puis privés
-de leurs attributions, comme l'étaient les lignes écrites avant que ce point
-d'entrée ne les établisse.
+Chaque contre-épreuve demandée est un test : readiness d'une autre release,
+manifeste de profils altéré ou autre, chaîne PII non autorisée, autorité V1
+sans liaison, r3 étrangère ou incomplète, readiness de staging sous
+production, reprise après écriture produit.
 
-Les autorités de ce module sont des **données de test** : autorisations de
-scope servies par une forge locale, manifeste de readiness signé par une clé
-de banc. Elles ne sortent jamais des bases jetables et n'autorisent rien.
-
-La suite de la chaîne V3 est ensuite rejouée : proposition de revue batch
-(chaîne PII réelle, SANS accès GitHub), approbation sur la forge du banc,
-enregistrement des attestations, puis démarrage de Worker B en répétition
-avec les arguments de ``scripts/go_live/staging_v3_arguments.worker_b``.
-Worker B refuse V3 au démarrage : ce refus est l'assertion.
+Les autorités fabriquées ici sont des **données de test** : forge locale,
+clé de readiness de banc, manifeste de transfert V3 dérivé. Les r2, les r3,
+la chaîne PII et son ancre sont les documents réels (ou leur dérivation
+canonique). Rien ne sort des bases jetables.
 
 Prérequis (sinon le module est ignoré, ou échoue nommément) :
-
-- ``RAG_EMBEDDING_MODEL_CACHE_DIR`` : l'artefact E5 réel (inventaire 58ad18db…) ;
 
 - ``NEXUS_REAL_RELEASE_ADOPTION=1`` ;
 - ``NEXUS_REAL_RELEASE_ARTIFACT_MIRRORS`` : racines de corpus séparées par
   ``:`` où se trouvent les ``source_path`` du catalogue V2 ;
-- Docker (une base de contrôle jetable, supprimée à la sortie).
+- ``RAG_EMBEDDING_MODEL_CACHE_DIR`` : l'artefact E5 réel (inventaire 58ad18db…) ;
+- Docker (bases jetables, supprimées à la sortie).
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 import secrets
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from collections.abc import Iterator, Mapping, Sequence
 from datetime import UTC, datetime, timedelta
@@ -93,23 +96,42 @@ TRANSFER_V2 = REPOSITORY_ROOT / (
     "docs/reports/evidence/external_staging_v2_artifact_transfer_manifest.json"
 )
 PROFILES_DIR = ENGINE_ROOT / "configs/ingestion_profiles/v2_livraison_319"
+PROFILE_MANIFEST = ENGINE_ROOT / "configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
+AUTORISATIONS_R2 = REPOSITORY_ROOT / "governance/authorizations"
+GENERATEUR_R3 = REPOSITORY_ROOT / "scripts/go_live/build_lot41a_r3_authorizations.py"
 MIRRORS_ENV = "NEXUS_REAL_RELEASE_ARTIFACT_MIRRORS"
+MODELE_E5_ENV = "RAG_EMBEDDING_MODEL_CACHE_DIR"
 
-#: L'image que le manifeste de readiness du banc nomme, et que le banc
-#: déclare en cours d'exécution. Identité de TEST, jamais une image réelle.
+#: La chaîne de revue PII RÉELLE de V3 (ADR-0047) et son ancre réelle.
+CHAINE_PII_V3 = {
+    "--pii-decision-set-path": "governance/pii-review-decisions/pii-review-2026-09-22-profile-gate-v3.json",
+    "--pii-review-receipt-path": "governance/pii-review-bindings/pii-review-2026-09-22-profile-gate-v3.json",
+    "--review-trust-anchor-path": "governance/trust-anchors/review-binding-v1.json",
+    "--pii-review-index-path": "docs/reports/evidence-index/pii_review_index_20260922_profile_gate_v3.json",
+}
+RELEVEURS = REPOSITORY_ROOT / "scripts/github/trusted-reviewers.json"
+REGISTRE_DE_DROITS = REPOSITORY_ROOT / "services/rag-pedago/configs/rights_evidence_registry.yml"
+
+#: L'image que la readiness du banc nomme et que le banc déclare en cours
+#: d'exécution. Identité de TEST, jamais une image réelle.
 WORKER_IMAGE = "ghcr.io/nexus/ingestion-worker-bench@sha256:" + "a" * 64
 
-_RUN_ID = uuid.uuid4().hex[:10]
-
-#: Le ``manifest_digest`` que portent les autorisations RÉELLES de staging
-#: (``lot41a-staging-v2-*-r2``) : l'empreinte des OCTETS du manifeste de
-#: profils (``authority_bindings.profile_manifest_file_sha256``).
-MANIFEST_DIGEST_DES_AUTORISATIONS = (
-    "d8b99a1d75e23baaba478a85b997a7022f52ddb9013dab176deb45b08ce4a7fc"
+#: Le sous-ensemble publié : quatre placements, quatre collections, dont un
+#: contenu DETECTED_REVIEWED_ACCEPTED (ebe2d96d…) et un contenu placé dans
+#: deux collections (8eb23c91…).
+PLACEMENTS_PUBLIES = (
+    ("rag_nexus_dgemc_terminale_option", "ebe2d96d2460"),
+    ("rag_nexus_svt_premiere_specialite", "8eb23c91b035"),
+    ("rag_nexus_svt_terminale_specialite", "8eb23c91b035"),
+    ("rag_nexus_hlp_premiere_specialite", "8d8d833b4051"),
 )
-#: La collection dont l'autorisation reproduit le PROTOCOLE des autorisations
-#: réelles de staging (LOT41A-V1). Les autres sont en LOT41A-V2.
-COLLECTION_V1_COMME_STAGING = "rag_nexus_ses_premiere_specialite"
+CONTENU_DRA = "ebe2d96d2460"
+
+_RUN_ID = uuid.uuid4().hex[:10]
+REVUE_V3 = f"lot42-release-batch-v3-reelle-{_RUN_ID}"
+
+
+# --- Outils -----------------------------------------------------------------
 
 
 def _sha(path: Path) -> str:
@@ -129,8 +151,8 @@ def _run(
 ) -> subprocess.CompletedProcess[str]:
     """Le vrai CLI, dans un processus à part, sous l'environnement donné SEUL.
 
-    Aucune variable de readiness ou de DSN n'est héritée de l'appelant : ce
-    que le CLI exige se lit donc dans ``env``, et nulle part ailleurs.
+    Aucune variable de readiness, de DSN ni d'accès GitHub n'est héritée de
+    l'appelant : ce que le CLI exige se lit dans ``env``, et nulle part ailleurs.
     """
     pythonpath = ":".join(
         str(p)
@@ -158,17 +180,21 @@ def _run(
     )
 
 
-@pytest.fixture(scope="module")
-def control_pg() -> Iterator[dict[str, str]]:
-    yield from start_ingestion_control_postgres("v2-v3-real-adoption")
+def _champs(sortie: str, marqueur: str) -> dict[str, str]:
+    ligne = next(ligne for ligne in sortie.splitlines() if ligne.startswith(marqueur))
+    return dict(morceau.split("=", 1) for morceau in ligne.split()[1:] if "=" in morceau)
+
+
+def _empreinte(valeur: Any) -> str:
+    return hashlib.sha256(json.dumps(valeur, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+def _acces_github(github_url: str, jeton: Path) -> dict[str, str]:
+    return {"NEXUS_GITHUB_API_BASE": github_url, "NEXUS_GITHUB_TOKEN_FILE": str(jeton)}
 
 
 def _magasin_reel(tmp_path: Path) -> Path:
-    """Le magasin d'artefacts de V2, reconstruit depuis les miroirs et rehaché.
-
-    Chaque PDF est copié sous ``<sha256>.pdf`` — la convention du magasin de
-    staging — seulement si ses octets ont exactement l'empreinte du catalogue.
-    """
+    """Le magasin d'artefacts, reconstruit depuis les miroirs et rehaché."""
     brut = os.environ.get(MIRRORS_ENV, "").strip()
     if not brut:
         pytest.fail(f"{MIRRORS_ENV} is required: the 315 real PDFs are never assumed")
@@ -190,12 +216,11 @@ def _magasin_reel(tmp_path: Path) -> Path:
     return magasin
 
 
-def _readiness(tmp_path: Path, *, release_id: str, manifest_sha256: str) -> dict[str, str]:
-    """Un manifeste de readiness de RÉPÉTITION signé par une clé de banc.
-
-    Il nomme UNE release : c'est ce que le CLI d'ingestion confronte.
-    """
-    from _local_github import REPOSITORY as DEPOT  # noqa: PLC0415
+def _readiness(
+    tmp_path: Path, *, release_id: str, manifest_sha256: str
+) -> dict[str, str]:
+    """Une readiness de STAGING (NEXUS-STAGING-READINESS-V1) signée par une clé
+    de banc, nommant UNE release et l'image du banc."""
     from nexus_contracts.staging_readiness import (  # noqa: PLC0415
         STAGING_READINESS_PROTOCOL,
         StagingReadinessManifestV1,
@@ -211,7 +236,7 @@ def _readiness(tmp_path: Path, *, release_id: str, manifest_sha256: str) -> dict
     manifeste = StagingReadinessManifestV1(
         protocol_version=STAGING_READINESS_PROTOCOL,
         environment="rehearsal",
-        repository=DEPOT,
+        repository=REPOSITORY,
         merge_sha="c" * 40,
         worker_image=WORKER_IMAGE,
         allowed_release_id=release_id,
@@ -223,9 +248,7 @@ def _readiness(tmp_path: Path, *, release_id: str, manifest_sha256: str) -> dict
     )
     chemin = repertoire / "staging-readiness.json"
     chemin.write_bytes(
-        sign_staging_readiness_manifest(
-            manifeste, private_key_hex=graine, key_id=key_id
-        ).canonical_bytes()
+        sign_staging_readiness_manifest(manifeste, private_key_hex=graine, key_id=key_id).canonical_bytes()
     )
     ancre = repertoire / "staging-readiness-anchor.json"
     ancre.write_text(
@@ -244,6 +267,10 @@ def _readiness(tmp_path: Path, *, release_id: str, manifest_sha256: str) -> dict
         ),
         encoding="utf-8",
     )
+    # En lecture seule, comme sur l'hôte : un refus doit venir du protocole
+    # ou de l'identité, jamais d'une permission de fichier.
+    chemin.chmod(0o444)
+    ancre.chmod(0o444)
     return {
         "NEXUS_ENVIRONMENT": "rehearsal",
         "NEXUS_EXPECTED_READINESS_PROTOCOL": STAGING_READINESS_PROTOCOL,
@@ -254,89 +281,62 @@ def _readiness(tmp_path: Path, *, release_id: str, manifest_sha256: str) -> dict
     }
 
 
-def _autorisation_id(collection: str) -> str:
-    return f"real-release-adoption-{_RUN_ID}-{collection}"
+# --- Autorités ----------------------------------------------------------------
 
 
-def _enregistrer_les_autorisations(
-    *, facts: Any, github: LocalGitHub, env: Mapping[str, str]
-) -> dict[str, str]:
-    """Une autorisation LOT41A-V2 par collection, par le VRAI CLI d'autorité.
+def _r2_reelles() -> dict[str, tuple[str, bytes]]:
+    """Les onze r2 RÉELLES du dépôt : collection → (identifiant, octets)."""
+    r2: dict[str, tuple[str, bytes]] = {}
+    for fichier in sorted(AUTORISATIONS_R2.glob("lot41a-staging-v2-*-r2.json")):
+        document = json.loads(fichier.read_bytes())
+        r2[document["scope"]["collection"]] = (document["authorization_id"], fichier.read_bytes())
+    assert len(r2) == 11, sorted(r2)
+    return r2
 
-    Chaque artefact est lié aux contenus exacts de sa collection dans V2.
-    """
-    from nexus_contracts.authority_artifacts import (  # noqa: PLC0415
-        ScopeAuthorizationArtifact,
-        ScopeAuthorizationArtifactV2,
-        canonical_authorization_path,
-    )
-    from nexus_contracts.document import Rights  # noqa: PLC0415
 
-    from ingestor.ingestion_profiles.registry import (  # noqa: PLC0415
-        load_profile_registry,
-        profile_fingerprint,
-    )
+def _r3_derivees() -> dict[str, tuple[str, bytes]]:
+    """Les onze r3, par le générateur du lot CZ : collection → (id, octets)."""
+    from nexus_contracts.authority_artifacts import ScopeAuthorizationArtifactV2  # noqa: PLC0415
 
-    profils = load_profile_registry(PROFILES_DIR)
-    ids: dict[str, str] = {}
-    for index, collection in enumerate(facts.collections, start=1):
-        profil = profils[(collection, facts.profile_versions[collection])]
-        autorisation_id = _autorisation_id(collection)
-        document: dict[str, Any] = {
-            "protocol_version": "LOT41A-V2",
-            "authorization_id": autorisation_id,
-            "decision": "AUTHORIZE_INGESTION_SCOPE",
-            "scope": profil.scope.model_dump(mode="json"),
-            "manifest_digest": MANIFEST_DIGEST_DES_AUTORISATIONS,
-            "profile_id": profil.scope.collection,
-            "profile_version": profil.profile_version,
-            "profile_fingerprint": profile_fingerprint(profil),
-            "allowed_domains": sorted(profil.allowed_domains),
-            "rights_categories": [Rights.officiel_public.value],
-            "exclusions": [],
-            "allowed_content_sha256": sorted(
-                {p.artifact_id for p in facts.placements if p.collection == collection}
-            ),
-            "pii_absence_attested": True,
-            "pii_absence_evidence": "real-release adoption bench; test authority only",
-            "valid_from": "2026-09-01T00:00:00Z",
-            "valid_until": "2027-09-01T00:00:00Z",
-        }
-        artefact: Any
-        if collection == COLLECTION_V1_COMME_STAGING:
-            # Réplique du FORMAT des autorisations réelles de staging
-            # (``lot41a-staging-v2-*-r2``) : protocole V1, sans liste de
-            # contenus. Worker B doit dire s'il l'accepte.
-            del document["allowed_content_sha256"]
-            artefact = ScopeAuthorizationArtifact.model_validate(
-                {**document, "protocol_version": "LOT41A-V1"}
-            )
-        else:
-            artefact = ScopeAuthorizationArtifactV2.model_validate(document)
-        numero = 8100 + index
-        tete = hashlib.sha1(f"auth:{autorisation_id}".encode()).hexdigest()
-        github.add_approved_pr(
-            number=numero, head_sha=tete, base_sha="9" * 40, review_id=numero + 10
-        )
-        github.put_blob(
-            path=canonical_authorization_path(autorisation_id),
-            ref=tete,
-            content=artefact.canonical_bytes(),
-        )
+    spec = importlib.util.spec_from_file_location("build_lot41a_r3", GENERATEUR_R3)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    r3: dict[str, tuple[str, bytes]] = {}
+    for identifiant, document in module.construire(REPOSITORY_ROOT).items():
+        artefact = ScopeAuthorizationArtifactV2.model_validate(document)
+        r3[artefact.scope.collection] = (identifiant, artefact.canonical_bytes())
+    assert len(r3) == 11, sorted(r3)
+    return r3
+
+
+def _enregistrer(
+    *, github: LocalGitHub, env: Mapping[str, str], documents: Sequence[tuple[str, bytes]], numero: int
+) -> None:
+    """Sert chaque artefact sur la forge du banc et le fait enregistrer par le
+    VRAI ``authorize_scope_cli`` (rôle authority)."""
+    from nexus_contracts.authority_artifacts import canonical_authorization_path  # noqa: PLC0415
+
+    for decalage, (identifiant, octets) in enumerate(documents):
+        pr = numero + decalage
+        tete = hashlib.sha1(f"auth:{identifiant}:{_RUN_ID}".encode()).hexdigest()
+        github.add_approved_pr(number=pr, head_sha=tete, base_sha="9" * 40, review_id=pr + 5000)
+        github.put_blob(path=canonical_authorization_path(identifiant), ref=tete, content=octets)
         enregistre = _run(
             "ingestor.ingestion_worker.authorize_scope_cli",
             [
                 "record-authorization",
-                "--authorization-id", autorisation_id,
+                "--authorization-id", identifiant,
                 "--repository", REPOSITORY,
-                "--pull-request", str(numero),
+                "--pull-request", str(pr),
                 "--expected-head", tete,
             ],
             env,
         )
-        assert enregistre.returncode == 0, enregistre.stderr
-        ids[collection] = autorisation_id
-    return ids
+        assert enregistre.returncode == 0, (identifiant, enregistre.stderr)
+
+
+# --- Arguments des CLI ------------------------------------------------------
 
 
 def _arguments_worker_a(
@@ -377,327 +377,14 @@ def _arguments_d_adoption(transfert: Path) -> list[str]:
     ]
 
 
-def _empreinte(valeur: Any) -> str:
-    return hashlib.sha256(
-        json.dumps(valeur, sort_keys=True, default=str).encode("utf-8")
-    ).hexdigest()
+def _arguments_de_liaison(par_collection: Mapping[str, str]) -> list[str]:
+    args = ["bind-publication-authorities", "--release-id", V3_ID, "--bound-by", "real-release-bench"]
+    for collection, identifiant in sorted(par_collection.items()):
+        args += ["--scope-authorization", f"{collection}={identifiant}"]
+    return args
 
 
-def _etat_historique(pg: dict[str, str]) -> dict[str, Any]:
-    """Les identités acquises de V2 — ce que ni le rattrapage ni l'adoption
-    n'ont le droit de modifier."""
-    with psycopg.connect(superuser_dsn(pg)) as conn:
-        ressources = conn.execute(
-            "SELECT resource_id, collection, dedup_key, resource_state, state_version,"
-            "       pipeline_kind, run_id"
-            "  FROM ingestion_control.resources ORDER BY resource_id"
-        ).fetchall()
-        artefacts = conn.execute(
-            "SELECT artifact_id, resource_id, sha256, run_id, payload"
-            "  FROM ingestion_control.artifacts ORDER BY artifact_id"
-        ).fetchall()
-        candidats = conn.execute(
-            "SELECT * FROM ingestion_control.resource_candidates ORDER BY 1"
-        ).fetchall()
-        evenements = conn.execute(
-            "SELECT event_id, resource_id, from_state, to_state, payload"
-            "  FROM ingestion_control.workflow_events"
-            " WHERE event_type = 'transition' ORDER BY event_id"
-        ).fetchall()
-        conn.rollback()
-    return {
-        "resources": _empreinte(ressources),
-        "artifacts": _empreinte(artefacts),
-        "resource_candidates": _empreinte(candidats),
-        "transitions": _empreinte(evenements),
-        "counts": (len(ressources), len(artefacts), len(candidats), len(evenements)),
-        "payload_digests": sorted(_empreinte(ligne[4]) for ligne in artefacts),
-        "release_ids": sorted({ligne[4]["release_id"] for ligne in artefacts}),
-    }
-
-
-def _compte_par_table(pg: dict[str, str]) -> dict[str, int]:
-    """Le nombre de lignes de CHAQUE table du plan de contrôle."""
-    with psycopg.connect(superuser_dsn(pg)) as conn:
-        tables = [
-            ligne[0]
-            for ligne in conn.execute(
-                "SELECT table_name FROM information_schema.tables"
-                " WHERE table_schema = 'ingestion_control' AND table_type = 'BASE TABLE'"
-                " ORDER BY table_name"
-            ).fetchall()
-        ]
-        comptes = {}
-        for table in tables:
-            ligne = conn.execute(
-                f'SELECT count(*) FROM ingestion_control."{table}"'  # noqa: S608
-            ).fetchone()
-            comptes[table] = int(ligne[0]) if ligne else 0
-        conn.rollback()
-    return comptes
-
-
-def _champs(sortie: str, marqueur: str) -> dict[str, str]:
-    ligne = next(ligne for ligne in sortie.splitlines() if ligne.startswith(marqueur))
-    return dict(
-        morceau.split("=", 1) for morceau in ligne.split()[1:] if "=" in morceau
-    )
-
-
-def test_les_releases_reelles_sont_celles_attendues() -> None:
-    """Un skip n'est pas une exécution : les octets réels sont vérifiés ici."""
-    assert _sha(V2_DIR / "production-profile-gate.release.json") == V2_MANIFEST_SHA256
-    assert _sha(V3_DIR / "production-profile-gate.release.json") == V3_MANIFEST_SHA256
-    assert TRANSFER_V2.is_file()
-    assert len(list(PROFILES_DIR.glob("*.yml"))) == 11
-
-
-@pytest.fixture(scope="module")
-def adopte(
-    control_pg: dict[str, str], tmp_path_factory: pytest.TempPathFactory
-) -> dict[str, Any]:
-    """Rattrapage V2 puis adoption V3 — l'état dont part la suite de la chaîne.
-
-    Chaque étape est ASSERTÉE ici : un échec arrête le module à l'étape
-    qui a réellement échoué.
-    """
-    tmp_path = tmp_path_factory.mktemp("adoption")
-    from ingestor.ingestion_worker.sealed_release_ingestion import (  # noqa: PLC0415
-        load_sealed_release,
-    )
-
-    d2 = _digests(V2_DIR)
-    facts = load_sealed_release(
-        V2_DIR,
-        release_manifest_sha256=d2["release_manifest_sha256"],
-        artifacts_release_sha256=d2["artifacts_release_sha256"],
-        candidate_inventory_sha256=d2["candidate_inventory_sha256"],
-        artifact_transfer_manifest_path=TRANSFER_V2,
-        artifact_transfer_manifest_sha256=_sha(TRANSFER_V2),
-    )
-    assert (len(facts.collections), len(facts.artifact_ids), len(facts.placements)) == (
-        11, 315, 479,
-    )
-    magasin = _magasin_reel(tmp_path)
-
-    github = LocalGitHub()
-    jeton = tmp_path / "github-token"
-    jeton.write_text(VALID_TOKEN, encoding="utf-8")
-    base = {
-        "PG_INGESTION_CONTROL_DSN": app_dsn(control_pg),
-    }
-    readiness_v2 = _readiness(tmp_path, release_id=V2_ID, manifest_sha256=V2_MANIFEST_SHA256)
-    readiness_v3 = _readiness(tmp_path, release_id=V3_ID, manifest_sha256=V3_MANIFEST_SHA256)
-
-    with local_github_server(github) as github_url:
-        autorite = {
-            "PG_INGESTION_CONTROL_AUTHORITY_DSN": authority_dsn(control_pg),
-            "NEXUS_GITHUB_API_BASE": github_url,
-            "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
-        }
-        autorisations = _enregistrer_les_autorisations(
-            facts=facts, github=github, env=autorite
-        )
-
-        # ── État initial : le VRAI Worker A écrit les 479 placements de V2 ──
-        # Il relit chaque autorisation sur la forge : lui seul reçoit l'accès.
-        ingere = _run(
-            "ingestor.ingestion_worker.sealed_release_ingestion_cli",
-            _arguments_worker_a(magasin=magasin, autorisations=autorisations),
-            {
-                **base,
-                **readiness_v2,
-                "NEXUS_GITHUB_API_BASE": github_url,
-                "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
-            },
-        )
-    assert ingere.returncode == 0, ingere.stderr
-    fin = _champs(ingere.stdout, "SEALED_RELEASE_INGESTION_DONE")
-    assert (fin["resources"], fin["artifacts"], fin["terminal_state"]) == (
-        "479", "479", "NEEDS_REVIEW",
-    ), ingere.stdout
-
-    # Les lignes de staging ont été écrites AVANT que ce point d'entrée
-    # n'établisse les attributions : on reproduit cet état.
-    with psycopg.connect(superuser_dsn(control_pg)) as conn:
-        retirees = conn.execute(
-            "DELETE FROM ingestion_control.artifact_attributions RETURNING 1"
-        ).fetchall()
-        conn.commit()
-    assert len(retirees) == 479
-
-    historique = _etat_historique(control_pg)
-    assert historique["counts"] == (479, 479, 479, 4790), historique["counts"]
-    assert historique["release_ids"] == [V2_ID]
-    comptes_initiaux = _compte_par_table(control_pg)
-    print("REAL_RELEASE_INITIAL_TABLE_COUNTS", json.dumps(comptes_initiaux, sort_keys=True))
-
-    # ── (1) Rattrapage : une readiness nommant V3 est refusée sur V2 ──────
-    mauvaise = _run(
-        "ingestor.ingestion_worker.sealed_release_ingestion_cli",
-        _arguments_worker_a(
-            magasin=magasin, autorisations=autorisations, extra=["--only-attributions"]
-        ),
-        {**base, **readiness_v3},
-    )
-    assert mauvaise.returncode == 1
-    assert "staging readiness authorises release" in mauvaise.stderr, mauvaise.stderr
-    assert _compte_par_table(control_pg) == comptes_initiaux
-
-    # ── (1) Rattrapage sous une readiness nommant V2 ──────────────────────
-    rattrape = _run(
-        "ingestor.ingestion_worker.sealed_release_ingestion_cli",
-        _arguments_worker_a(
-            magasin=magasin, autorisations=autorisations, extra=["--only-attributions"]
-        ),
-        {**base, **readiness_v2},
-    )
-    print("REAL_RELEASE_BACKFILL_STDOUT", rattrape.stdout)
-    assert rattrape.returncode == 0, rattrape.stderr
-    bilan = _champs(rattrape.stdout, "SEALED_RELEASE_ATTRIBUTION_BACKFILL_DONE")
-    assert bilan == {
-        "release_id": V2_ID,
-        "examined": "479",
-        "written": "479",
-        "already_present": "0",
-        "missing_rows": "0",
-    }, rattrape.stdout
-    assert _etat_historique(control_pg) == historique
-    apres_rattrapage = _compte_par_table(control_pg)
-    ecarts = {
-        t: (comptes_initiaux[t], apres_rattrapage[t])
-        for t in apres_rattrapage
-        if apres_rattrapage[t] != comptes_initiaux.get(t)
-    }
-    assert ecarts == {"artifact_attributions": (0, 479)}, ecarts
-
-    rejoue = _run(
-        "ingestor.ingestion_worker.sealed_release_ingestion_cli",
-        _arguments_worker_a(
-            magasin=magasin, autorisations=autorisations, extra=["--only-attributions"]
-        ),
-        {**base, **readiness_v2},
-    )
-    assert rejoue.returncode == 0, rejoue.stderr
-    second = _champs(rejoue.stdout, "SEALED_RELEASE_ATTRIBUTION_BACKFILL_DONE")
-    assert (second["written"], second["already_present"]) == ("0", "479"), rejoue.stdout
-
-    # ── (2) Adoption : AUCUNE readiness ni DSN applicatif dans l'environnement
-    adoption_env = {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg)}
-
-    # Avec le manifeste de transfert réel (celui de V2), V3 est refusée par
-    # son propre chargeur : le transfert nomme une autre release.
-    refus = _run(
-        "ingestor.ingestion_worker.attest_publication_cli",
-        _arguments_d_adoption(TRANSFER_V2),
-        adoption_env,
-    )
-    print("REAL_RELEASE_ADOPTION_WITH_V2_TRANSFER_STDERR", refus.stderr)
-    assert refus.returncode == 1
-    assert "SUCCESSOR_RELEASE_UNUSABLE" in refus.stderr, refus.stderr
-    assert (
-        f"release_id {V2_ID!r} ≠ {V3_ID!r}" in refus.stderr
-    ), refus.stderr
-    assert _compte_par_table(control_pg) == apres_rattrapage
-
-    # Un manifeste de transfert au nom de V3 — ICI un document de TEST, dérivé
-    # de celui de V2 (mêmes 315 objets), en attendant celui que staging doit
-    # établir en rehachant son magasin sous l'identité V3.
-    transfert_v2 = json.loads(TRANSFER_V2.read_bytes())
-    transfert_v3 = tmp_path / "bench_v3_artifact_transfer_manifest.json"
-    transfert_v3.write_text(
-        json.dumps(
-            {
-                **transfert_v2,
-                "release_id": V3_ID,
-                "manifest_kind": "REAL_RELEASE_ADOPTION_BENCH_TRANSFER_V1",
-                "bench_note": "test document derived from the V2 transfer; not evidence",
-            },
-            ensure_ascii=False,
-            indent=2,
-        ),
-        encoding="utf-8",
-    )
-    adopte = _run(
-        "ingestor.ingestion_worker.attest_publication_cli",
-        _arguments_d_adoption(transfert_v3),
-        adoption_env,
-    )
-    print("REAL_RELEASE_ADOPTION_STDOUT", adopte.stdout)
-    assert adopte.returncode == 0, adopte.stderr
-    adoption = _champs(adopte.stdout, "ADOPTION_RECORDED")
-    assert (
-        adoption["release_id"], adoption["predecessor"], adoption["placements"],
-        adoption["written"], adoption["already_present"], adoption["currentness"],
-    ) == (V3_ID, V2_ID, "479", "479", "0", "official_snapshot"), adopte.stdout
-
-    # Aucun fait historique réécrit, aucune ressource ni ligne nouvelle hors
-    # des adoptions elles-mêmes.
-    assert _etat_historique(control_pg) == historique
-    apres_adoption = _compte_par_table(control_pg)
-    ecarts = {
-        t: (apres_rattrapage[t], apres_adoption[t])
-        for t in apres_adoption
-        if apres_adoption[t] != apres_rattrapage.get(t)
-    }
-    assert ecarts == {"sealed_release_adoptions": (0, 479)}, ecarts
-
-    # Bijection : chaque placement acquis de V2 est adopté exactement une fois.
-    with psycopg.connect(superuser_dsn(control_pg)) as conn:
-        paires = conn.execute(
-            "SELECT count(*), count(DISTINCT ad.resource_id),"
-            "       count(DISTINCT (ad.collection, ad.content_sha256, ad.placement_id)),"
-            "       count(*) FILTER (WHERE a.payload->>'release_id' = %s),"
-            "       count(*) FILTER (WHERE a.payload->>'placement_id' = ad.placement_id)"
-            "  FROM ingestion_control.sealed_release_adoptions ad"
-            "  JOIN ingestion_control.artifacts a ON a.artifact_id = ad.artifact_id"
-            " WHERE ad.release_id = %s",
-            (V2_ID, V3_ID),
-        ).fetchone()
-        conn.rollback()
-    assert paires == (479, 479, 479, 479, 479), paires
-
-    rejoue_adoption = _run(
-        "ingestor.ingestion_worker.attest_publication_cli",
-        _arguments_d_adoption(transfert_v3),
-        adoption_env,
-    )
-    assert rejoue_adoption.returncode == 0, rejoue_adoption.stderr
-    assert "written=0 already_present=479" in rejoue_adoption.stdout
-    assert _compte_par_table(control_pg) == apres_adoption
-    return {
-        "github": github,
-        "jeton": jeton,
-        "magasin": magasin,
-        "transfert_v3": transfert_v3,
-        "historique": historique,
-        "adoption": adoption,
-        "tmp_path": tmp_path,
-    }
-
-
-def test_rattrapage_v2_puis_adoption_v3_sur_les_releases_reelles(
-    adopte: dict[str, Any],
-) -> None:
-    """Les deux étapes sont prouvées par la fixture ; on en relit le verdict."""
-    assert adopte["adoption"]["written"] == "479"
-
-
-# --- Suite de la chaîne V3 : revue batch, attestation, Worker B, retrieval ---
-
-#: La chaîne de revue PII RÉELLE de V3 (ADR-0047), relue par ses chargeurs.
-CHAINE_PII_V3 = {
-    "--pii-decision-set-path": "governance/pii-review-decisions/pii-review-2026-09-22-profile-gate-v3.json",
-    "--pii-review-receipt-path": "governance/pii-review-bindings/pii-review-2026-09-22-profile-gate-v3.json",
-    "--review-trust-anchor-path": "governance/trust-anchors/review-binding-v1.json",
-    "--pii-review-index-path": "docs/reports/evidence-index/pii_review_index_20260922_profile_gate_v3.json",
-}
-RELEVEURS = REPOSITORY_ROOT / "scripts/github/trusted-reviewers.json"
-REGISTRE_DE_DROITS = REPOSITORY_ROOT / "services/rag-pedago/configs/rights_evidence_registry.yml"
-REVUE_V3 = f"lot42-release-batch-v3-reelle-{_RUN_ID}"
-MODELE_E5_ENV = "RAG_EMBEDDING_MODEL_CACHE_DIR"
-
-def _arguments_de_proposition_v3(transfert: Path) -> list[str]:
+def _arguments_de_proposition_v3(transfert: Path, *, revue: str) -> list[str]:
     args = [
         "propose-release-batch-review",
         "--release-id", V3_ID,
@@ -706,7 +393,7 @@ def _arguments_de_proposition_v3(transfert: Path) -> list[str]:
         "--transfer-manifest-path", str(transfert),
         "--transfer-manifest-sha256", _sha(transfert),
         "--rights-registry-path", str(REGISTRE_DE_DROITS),
-        "--review-id", REVUE_V3,
+        "--review-id", revue,
         "--evaluator", "real-release-adoption-bench",
         "--pii-review-reviewers-sha256", _sha(RELEVEURS),
         "--repository-root", str(REPOSITORY_ROOT),
@@ -717,24 +404,19 @@ def _arguments_de_proposition_v3(transfert: Path) -> list[str]:
 
 
 def _arguments_worker_b(*, magasin: Path, transfert: Path, modele: Path) -> list[str]:
-    """La sémantique EXACTE de ``scripts/go_live/staging_v3_arguments.worker_b``
-    (lot CY), chemins du conteneur remplacés par ceux du dépôt."""
+    """La sémantique EXACTE de ``scripts/go_live/staging_v3_arguments.worker_b``,
+    chemins du conteneur remplacés par ceux du dépôt."""
     manifeste = json.loads((V3_DIR / "production-profile-gate.release.json").read_bytes())
     autorites = manifeste["authorities"]
     liaisons = json.loads((V3_DIR / "authority_bindings.json").read_bytes())
-    profile_manifest = (
-        ENGINE_ROOT / "configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"
-    )
     assert liaisons["profile_manifest_fingerprint"] == autorites["profile_manifest_sha256"]
-    assert _sha(profile_manifest) == liaisons["profile_manifest_file_sha256"]
+    assert _sha(PROFILE_MANIFEST) == liaisons["profile_manifest_file_sha256"]
     config = ENGINE_ROOT / "configs/rag_collections.yml"
     args = [
         "--profiles-dir", str(PROFILES_DIR),
         "--artifact-store-dir", str(magasin),
         "--owner", "real-release-adoption-worker-b",
         "--expected-role", "ingestion_control_app",
-        # Le rôle produit de STAGING : le banc publie sous un autre nom de
-        # rôle, ce qui mesure si cette option est contrôlée en répétition.
         "--expected-product-role", "rag_publisher",
         "--release-manifest-path", str(V3_DIR / "production-profile-gate.release.json"),
         "--release-manifest-sha256", V3_MANIFEST_SHA256,
@@ -747,8 +429,8 @@ def _arguments_worker_b(*, magasin: Path, transfert: Path, modele: Path) -> list
         "--artifact-transfer-manifest-sha256", _sha(transfert),
         "--embedding-artifact-root", str(modele),
         "--embedding-inventory-sha256", manifeste["models"]["embedding"]["inventory_sha256"],
-        "--profile-manifest-path", str(profile_manifest),
-        "--profile-manifest-sha256", _sha(profile_manifest),
+        "--profile-manifest-path", str(PROFILE_MANIFEST),
+        "--profile-manifest-sha256", _sha(PROFILE_MANIFEST),
     ]
     for option, cle, chemin_depot, nom_release in (
         ("--candidate-inventory", "candidate_inventory_sha256", None, "candidate_inventory.json"),
@@ -771,51 +453,276 @@ def _arguments_worker_b(*, magasin: Path, transfert: Path, modele: Path) -> list
     return args
 
 
+def _remplacer(arguments: Sequence[str], option: str, valeur: str) -> list[str]:
+    copie = list(arguments)
+    copie[copie.index(option) + 1] = valeur
+    return copie
+
+
+# --- Relectures -------------------------------------------------------------
+
+
+def _etat_historique(pg: dict[str, str]) -> dict[str, Any]:
+    """Les identités acquises de V2 — ce qu'aucune étape n'a le droit de modifier."""
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        ressources = conn.execute(
+            "SELECT resource_id, collection, dedup_key, pipeline_kind, run_id"
+            "  FROM ingestion_control.resources ORDER BY resource_id"
+        ).fetchall()
+        artefacts = conn.execute(
+            "SELECT artifact_id, resource_id, sha256, run_id, payload"
+            "  FROM ingestion_control.artifacts ORDER BY artifact_id"
+        ).fetchall()
+        candidats = conn.execute("SELECT * FROM ingestion_control.resource_candidates ORDER BY 1").fetchall()
+        conn.rollback()
+    return {
+        "resources": _empreinte(ressources),
+        "artifacts": _empreinte(artefacts),
+        "resource_candidates": _empreinte(candidats),
+        "counts": (len(ressources), len(artefacts), len(candidats)),
+        "release_ids": sorted({ligne[4]["release_id"] for ligne in artefacts}),
+        "acquisition_authorities": sorted({ligne[4]["scope_authorization_id"] for ligne in artefacts}),
+    }
+
+
+def _compte_par_table(pg: dict[str, str]) -> dict[str, int]:
+    """Le nombre de lignes de CHAQUE table du plan de contrôle."""
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        tables = [
+            ligne[0]
+            for ligne in conn.execute(
+                "SELECT table_name FROM information_schema.tables"
+                " WHERE table_schema = 'ingestion_control' AND table_type = 'BASE TABLE'"
+                " ORDER BY table_name"
+            ).fetchall()
+        ]
+        comptes = {}
+        for table in tables:
+            ligne = conn.execute(f'SELECT count(*) FROM ingestion_control."{table}"').fetchone()  # noqa: S608
+            comptes[table] = int(ligne[0]) if ligne else 0
+        conn.rollback()
+    return comptes
+
+
+def _ecarts(avant: Mapping[str, int], apres: Mapping[str, int]) -> dict[str, tuple[int, int]]:
+    return {t: (avant.get(t, 0), apres[t]) for t in apres if apres[t] != avant.get(t, 0)}
+
+
+def _produit(produit_pg: dict[str, str]) -> dict[str, Any]:
+    with psycopg.connect(produit_pg["admin_dsn"]) as conn:
+        placements = conn.execute(
+            "SELECT placement_id, artifact_id, collection, currentness, placement_status,"
+            "       review_status, authorization_id, publication_attestation_id"
+            "  FROM public.rag_artifact_placements ORDER BY placement_id"
+        ).fetchall()
+        chunks = conn.execute(
+            "SELECT artifact_id, collection, count(*), min(vector_dims(vector)),"
+            "       max(vector_dims(vector)), count(*) FILTER (WHERE vector IS NULL)"
+            "  FROM public.rag_chunks GROUP BY artifact_id, collection ORDER BY 1, 2"
+        ).fetchall()
+        artefacts = conn.execute("SELECT count(*) FROM public.rag_artifacts").fetchone()
+        conn.rollback()
+    return {"placements": placements, "chunks": chunks, "artifacts": artefacts[0] if artefacts else 0}
+
+
+# --- Fixtures -----------------------------------------------------------------
+
+
+@pytest.fixture(scope="module")
+def control_pg() -> Iterator[dict[str, str]]:
+    yield from start_ingestion_control_postgres("v3-real-chain")
+
+
 @pytest.fixture(scope="module")
 def produit_pg() -> Iterator[dict[str, str]]:
     yield from start_rag_product_postgres("v3-real-product")
 
 
-def test_la_chaine_v3_revue_attestation_worker_b_retrieval(
-    adopte: dict[str, Any], control_pg: dict[str, str], produit_pg: dict[str, str]
-) -> None:
-
-    from _banc_multiniveaux import environnement_de_readiness  # noqa: PLC0415
-
-    modele_brut = os.environ.get(MODELE_E5_ENV, "").strip()
-    if not modele_brut:
+@pytest.fixture(scope="module")
+def banc(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
+    """Le matériel partagé : magasin réel, manifeste de transfert V3 (TEST),
+    readiness de staging, modèle E5."""
+    tmp_path = tmp_path_factory.mktemp("banc")
+    modele = os.environ.get(MODELE_E5_ENV, "").strip()
+    if not modele:
         pytest.fail(f"{MODELE_E5_ENV} is required: Worker B really embeds")
-    modele = Path(modele_brut)
-    tmp_path: Path = adopte["tmp_path"]
-    github: LocalGitHub = adopte["github"]
-    jeton: Path = adopte["jeton"]
-    transfert_v3: Path = adopte["transfert_v3"]
-    attestor = {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg)}
+    transfert_v3 = tmp_path / "bench_v3_artifact_transfer_manifest.json"
+    transfert_v3.write_text(
+        json.dumps(
+            {
+                **json.loads(TRANSFER_V2.read_bytes()),
+                "release_id": V3_ID,
+                "manifest_kind": "REAL_RELEASE_ADOPTION_BENCH_TRANSFER_V1",
+                "bench_note": "test document derived from the V2 transfer; not evidence",
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    jeton = tmp_path / "github-token"
+    jeton.write_text(VALID_TOKEN, encoding="utf-8")
+    return {
+        "tmp_path": tmp_path,
+        "magasin": _magasin_reel(tmp_path),
+        "transfert_v3": transfert_v3,
+        "jeton": jeton,
+        "modele": Path(modele),
+        "readiness_v2": _readiness(tmp_path, release_id=V2_ID, manifest_sha256=V2_MANIFEST_SHA256),
+        "readiness_v3": _readiness(tmp_path, release_id=V3_ID, manifest_sha256=V3_MANIFEST_SHA256),
+    }
 
-    # ── (1) La chaîne PII est-elle vérifiée HORS LIGNE ? La proposition est
-    # lancée SANS aucun accès GitHub : ni forge, ni jeton.
+
+def _jusqu_a_l_adoption(
+    pg: dict[str, str], banc: Mapping[str, Any], github: LocalGitHub
+) -> dict[str, Any]:
+    """État historique (r2 réelles, V1) → rattrapage V2 → adoption V3.
+
+    Chaque étape est ASSERTÉE : un échec arrête à l'étape qui a échoué."""
+    r2 = _r2_reelles()
+    base = {"PG_INGESTION_CONTROL_DSN": app_dsn(pg)}
+    with local_github_server(github) as github_url:
+        acces = _acces_github(github_url, banc["jeton"])
+        _enregistrer(
+            github=github,
+            env={"PG_INGESTION_CONTROL_AUTHORITY_DSN": authority_dsn(pg), **acces},
+            documents=[r2[c] for c in sorted(r2)],
+            numero=8100,
+        )
+        autorisations_r2 = {collection: identifiant for collection, (identifiant, _o) in r2.items()}
+        ingere = _run(
+            "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+            _arguments_worker_a(magasin=banc["magasin"], autorisations=autorisations_r2),
+            {**base, **banc["readiness_v2"], **acces},
+        )
+    assert ingere.returncode == 0, ingere.stderr
+    fin = _champs(ingere.stdout, "SEALED_RELEASE_INGESTION_DONE")
+    assert (fin["resources"], fin["artifacts"], fin["terminal_state"]) == ("479", "479", "NEEDS_REVIEW")
+
+    # L'état de staging : lignes écrites avant que Worker A n'établisse les
+    # attributions.
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        retirees = conn.execute("DELETE FROM ingestion_control.artifact_attributions RETURNING 1").fetchall()
+        conn.commit()
+    assert len(retirees) == 479
+    historique = _etat_historique(pg)
+    assert historique["counts"] == (479, 479, 479)
+    assert historique["acquisition_authorities"] == sorted(autorisations_r2.values())
+
+    rattrape = _run(
+        "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+        _arguments_worker_a(
+            magasin=banc["magasin"], autorisations=autorisations_r2, extra=["--only-attributions"]
+        ),
+        {**base, **banc["readiness_v2"]},
+    )
+    assert rattrape.returncode == 0, rattrape.stderr
+    bilan = _champs(rattrape.stdout, "SEALED_RELEASE_ATTRIBUTION_BACKFILL_DONE")
+    assert (bilan["examined"], bilan["written"], bilan["missing_rows"]) == ("479", "479", "0")
+
+    adopte = _run(
+        "ingestor.ingestion_worker.attest_publication_cli",
+        _arguments_d_adoption(banc["transfert_v3"]),
+        {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(pg)},
+    )
+    assert adopte.returncode == 0, adopte.stderr
+    adoption = _champs(adopte.stdout, "ADOPTION_RECORDED")
+    assert (adoption["placements"], adoption["written"], adoption["currentness"]) == (
+        "479", "479", "official_snapshot",
+    )
+    assert _etat_historique(pg) == historique
+    return {
+        "historique": historique,
+        "r2": autorisations_r2,
+        "rattrapage": rattrape.stdout.strip().splitlines()[-1],
+        "adoption": adopte.stdout.strip(),
+    }
+
+
+@pytest.fixture(scope="module")
+def github() -> LocalGitHub:
+    return LocalGitHub()
+
+
+@pytest.fixture(scope="module")
+def adopte(control_pg: dict[str, str], banc: dict[str, Any], github: LocalGitHub) -> dict[str, Any]:
+    etat = _jusqu_a_l_adoption(control_pg, banc, github)
+    print("REAL_CHAIN_BACKFILL", etat["rattrapage"])
+    print("REAL_CHAIN_ADOPTION", etat["adoption"])
+    return etat
+
+
+@pytest.fixture(scope="module")
+def r3_enregistrees(
+    adopte: dict[str, Any], control_pg: dict[str, str], banc: dict[str, Any], github: LocalGitHub
+) -> dict[str, str]:
+    """Les onze r3, enregistrées par le vrai CLI d'autorité — pas encore liées."""
+    r3 = _r3_derivees()
+    with local_github_server(github) as github_url:
+        _enregistrer(
+            github=github,
+            env={
+                "PG_INGESTION_CONTROL_AUTHORITY_DSN": authority_dsn(control_pg),
+                **_acces_github(github_url, banc["jeton"]),
+            },
+            documents=[r3[c] for c in sorted(r3)],
+            numero=8200,
+        )
+    return {collection: identifiant for collection, (identifiant, _o) in r3.items()}
+
+
+@pytest.fixture(scope="module")
+def lie(
+    r3_enregistrees: dict[str, str],
+    control_pg: dict[str, str],
+    banc: dict[str, Any],
+    github: LocalGitHub,
+) -> dict[str, Any]:
+    """Les onze r3 liées aux 479 placements adoptés."""
+    par_collection = r3_enregistrees
+    with local_github_server(github) as github_url:
+        acces = _acces_github(github_url, banc["jeton"])
+        avant = _compte_par_table(control_pg)
+        lier = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_de_liaison(par_collection),
+            {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg), **acces},
+        )
+        print("REAL_CHAIN_BIND", lier.stdout.strip(), lier.stderr.strip())
+        assert lier.returncode == 0, lier.stderr
+        rejoue = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_de_liaison(par_collection),
+            {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg), **acces},
+        )
+    assert rejoue.returncode == 0, rejoue.stderr
+    return {
+        "r3": par_collection,
+        "sortie": lier.stdout.strip(),
+        "rejeu": rejoue.stdout.strip(),
+        "ecarts": _ecarts(avant, _compte_par_table(control_pg)),
+    }
+
+
+@pytest.fixture(scope="module")
+def atteste(
+    lie: dict[str, Any], control_pg: dict[str, str], banc: dict[str, Any], github: LocalGitHub
+) -> dict[str, Any]:
+    """Proposition (sans GitHub), approbation sur la forge du banc, enregistrement."""
+    attestor = {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg)}
     propose = _run(
         "ingestor.ingestion_worker.attest_publication_cli",
-        _arguments_de_proposition_v3(transfert_v3),
+        _arguments_de_proposition_v3(banc["transfert_v3"], revue=REVUE_V3),
         attestor,
     )
-    print("REAL_V3_PROPOSE_RC", propose.returncode)
-    print("REAL_V3_PROPOSE_STDOUT_HEAD", "\n".join(propose.stdout.splitlines()[:3]))
-    print("REAL_V3_PROPOSE_STDERR", propose.stderr[-2000:])
+    print("REAL_CHAIN_PROPOSE", propose.stdout.splitlines()[:3], propose.stderr[-1500:])
     assert propose.returncode == 0, propose.stderr
-    persistee = _champs(propose.stdout, "PROJECTION_PERSISTED")
-    assert (persistee["written"], persistee["blocked"]) == ("479", "0"), propose.stdout
     chemin = next(
         ligne.split(" ", 1)[1].strip()
         for ligne in propose.stdout.splitlines()
         if ligne.startswith("REVIEW_ARTIFACT_PATH ")
     )
     octets = propose.stdout[propose.stdout.index("{") :].encode("utf-8")
-    revue = json.loads(octets)
-    assert revue["release_id"] == V3_ID
-    assert revue["placement_evidence"]["currentness"] == "official_snapshot"
-
-    # ── (2) Approbation sur la forge du banc, puis enregistrement ─────────
     tete = hashlib.sha1(f"revue-v3:{_RUN_ID}".encode()).hexdigest()
     github.add_approved_pr(number=8401, head_sha=tete, base_sha="9" * 40, review_id=8411)
     github.put_blob(path=chemin, ref=tete, content=octets)
@@ -831,187 +738,601 @@ def test_la_chaine_v3_revue_attestation_worker_b_retrieval(
                 "--expected-head", tete,
                 "--review-artifact-path", chemin,
             ],
-            {
-                **attestor,
-                "NEXUS_GITHUB_API_BASE": github_url,
-                "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
-            },
+            {**attestor, **_acces_github(github_url, banc["jeton"])},
         )
-    print("REAL_V3_RECORD_STDOUT", enregistre.stdout[-1500:])
+    print("REAL_CHAIN_RECORD", enregistre.stdout.strip()[-600:], enregistre.stderr[-1500:])
     assert enregistre.returncode == 0, enregistre.stderr
-    with psycopg.connect(superuser_dsn(control_pg)) as conn:
-        attestees = conn.execute(
-            "SELECT count(*), count(DISTINCT attestation_digest)"
-            "  FROM ingestion_control.publication_attestations"
-            " WHERE release_id = %s AND invalidated_at IS NULL",
-            (V3_ID,),
-        ).fetchone()
-        conn.rollback()
-    print("REAL_V3_ATTESTATIONS", attestees)
-    assert attestees is not None and attestees[0] == 479, attestees
+    return {
+        "propose": propose.stdout.splitlines()[0],
+        "revue": json.loads(octets),
+        "record": enregistre.stdout.strip().splitlines()[-1],
+    }
 
-    # ── (3) Worker B, sous readiness de répétition, base produit jetable ──
-    # Les arguments sont ceux de ``staging_v3_arguments.worker_b`` (lot CY).
-    manifeste = json.loads((V3_DIR / "production-profile-gate.release.json").read_bytes())
-    environnement = {
-        **environnement_de_readiness(
-            tmp_path,
-            corpus_manifest_sha256=manifeste["authorities"]["corpus_manifest_sha256"],
-        ),
+
+def _creer_les_jobs(pg: dict[str, str], cibles: Sequence[tuple[str, str]]) -> dict[str, dict[str, Any]]:
+    """Un job de publication par placement, nommant l'attestation V3 qui le couvre."""
+    from ingestor.ingestion_control.jobs import create_job  # noqa: PLC0415
+
+    jobs: dict[str, dict[str, Any]] = {}
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        for collection, prefixe in cibles:
+            lignes = conn.execute(
+                "SELECT r.resource_id, a.artifact_id, a.sha256, r.run_id, r.state_version,"
+                "       pa.attestation_id"
+                "  FROM ingestion_control.resources r"
+                "  JOIN ingestion_control.artifacts a USING (resource_id)"
+                "  JOIN ingestion_control.publication_attestations pa"
+                "    ON pa.resource_id = r.resource_id AND pa.release_id = %s"
+                "   AND pa.invalidated_at IS NULL"
+                " WHERE r.collection = %s AND a.sha256 LIKE %s",
+                (V3_ID, collection, f"{prefixe}%"),
+            ).fetchall()
+            assert len(lignes) == 1, (collection, prefixe, lignes)
+            resource_id, artifact_id, sha, run_id, version, attestation_id = lignes[0]
+            job_id = create_job(
+                conn, run_id=run_id, resource_id=resource_id, job_type="publication_resume",
+                payload={
+                    "resource_id": str(resource_id),
+                    "run_id": str(run_id),
+                    "expected_state_version": version,
+                    "publication_attestation_id": str(attestation_id),
+                    "artifact_id": str(artifact_id),
+                },
+            )
+            jobs[str(job_id)] = {
+                "collection": collection, "sha": sha, "resource_id": resource_id,
+                "attestation_id": str(attestation_id),
+            }
+        conn.commit()
+    return jobs
+
+
+def _environnement_worker_b(
+    control_pg: dict[str, str], produit_pg: dict[str, str], readiness: Mapping[str, str]
+) -> dict[str, str]:
+    return {
+        **readiness,
         "PG_INGESTION_CONTROL_DSN": app_dsn(control_pg),
         "PG_RAG_DSN": produit_pg["publisher_dsn"],
         "HF_HUB_OFFLINE": "1",
         "TRANSFORMERS_OFFLINE": "1",
         "CUDA_VISIBLE_DEVICES": "",
     }
-    arguments = _arguments_worker_b(
-        magasin=adopte["magasin"], transfert=transfert_v3, modele=modele
-    )
-    with local_github_server(github) as github_url:
-        acces = {
-            **environnement,
-            "NEXUS_GITHUB_API_BASE": github_url,
-            "NEXUS_GITHUB_TOKEN_FILE": str(jeton),
-        }
-        worker = _run(
-            "ingestor.ingestion_worker.multilevel_publication_resume_cli",
-            [*arguments, "--once"],
-            acces,
-        )
-        print("REAL_V3_WORKER_B_YAML_STDERR", worker.stderr.strip())
-        # En répétition, Worker B n'accepte qu'un manifeste de profils de
-        # STAGING (JSON ``NEXUS_STAGING_PROFILE_MANIFEST_V1``) : le manifeste
-        # YAML que V3 lie est refusé avant toute connexion.
-        assert worker.returncode == 1
-        assert "staging profile manifest cannot be read" in worker.stderr
 
-        # Le même registre, décrit par un manifeste de staging bien formé
-        # (document de TEST) : lisible, mais ses octets ne sont pas ceux que
-        # V3 déclare (``profile_manifest_sha256``). La release le refuse.
-        staging = _manifeste_de_profils_de_staging(tmp_path)
-        remplace = list(arguments)
-        indice = remplace.index("--profile-manifest-path")
-        remplace[indice + 1] = str(staging)
-        remplace[indice + 3] = _sha(staging)
-        worker = _run(
+
+def _lancer_worker_b(
+    control_pg: dict[str, str],
+    produit_pg: dict[str, str],
+    banc: Mapping[str, Any],
+    github: LocalGitHub,
+    *,
+    arguments: Sequence[str],
+    readiness: Mapping[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    with local_github_server(github) as github_url:
+        return _run(
             "ingestor.ingestion_worker.multilevel_publication_resume_cli",
-            [*remplace, "--once"],
-            acces,
+            arguments,
+            {
+                **_environnement_worker_b(control_pg, produit_pg, readiness or banc["readiness_v3"]),
+                **_acces_github(github_url, banc["jeton"]),
+            },
+            timeout=3600,
         )
-        print("REAL_V3_WORKER_B_STAGING_JSON_STDERR", worker.stderr.strip())
-        assert worker.returncode == 1
-        assert "release allowlist authority digest differs" in worker.stderr
-    assert manifeste["authorities"]["profile_manifest_sha256"] not in {
-        _sha(staging),
-        _sha(ENGINE_ROOT / "configs/ingestion_profiles/ingestion_manifest_v2_livraison_319.yml"),
+
+
+def _arguments_b(banc: Mapping[str, Any]) -> list[str]:
+    return _arguments_worker_b(
+        magasin=banc["magasin"], transfert=banc["transfert_v3"], modele=banc["modele"]
+    )
+
+
+@pytest.fixture(scope="module")
+def publie(
+    atteste: dict[str, Any],
+    control_pg: dict[str, str],
+    produit_pg: dict[str, str],
+    banc: dict[str, Any],
+    github: LocalGitHub,
+) -> dict[str, Any]:
+    """Worker B, readiness de staging nommant V3, sur le sous-ensemble borné."""
+    jobs = _creer_les_jobs(control_pg, PLACEMENTS_PUBLIES)
+    debut = time.monotonic()
+    worker = _lancer_worker_b(
+        control_pg, produit_pg, banc, github,
+        arguments=[*_arguments_b(banc), "--poll-interval-s", "1", "--max-iterations", str(len(jobs))],
+    )
+    duree = time.monotonic() - debut
+    print("REAL_CHAIN_WORKER_B_SECONDS", round(duree, 1))
+    print("REAL_CHAIN_WORKER_B_STDOUT", worker.stdout[-4000:])
+    print("REAL_CHAIN_WORKER_B_STDERR", worker.stderr[-4000:])
+    assert worker.returncode == 0, worker.stderr
+    return {
+        "jobs": jobs,
+        "sortie": worker.stdout,
+        "erreurs": [
+            ligne for ligne in worker.stderr.splitlines()
+            if ligne.startswith("MULTILEVEL_PUBLICATION_WORKER_ITERATION_ERROR")
+        ],
+        "succes": worker.stdout.count("status=succeeded") == len(jobs),
+        "secondes": duree,
+        "produit": _produit(produit_pg),
     }
 
-    # Rien n'a été publié ni transité : la base produit est vide.
-    with psycopg.connect(produit_pg["admin_dsn"]) as conn:
-        totaux = conn.execute(
-            "SELECT (SELECT count(*) FROM public.rag_artifacts),"
-            "       (SELECT count(*) FROM public.rag_chunks)"
+
+def _refus_au_demarrage(sortie: subprocess.CompletedProcess[str]) -> str:
+    assert sortie.returncode == 1, (sortie.stdout, sortie.stderr)
+    assert "MULTILEVEL_PUBLICATION_WORKER_STARTUP_FAILED" in sortie.stderr, sortie.stderr
+    assert "ITERATION" not in sortie.stdout, sortie.stdout
+    return sortie.stderr.strip()
+
+
+# --- La chaîne ----------------------------------------------------------------
+
+
+def test_les_releases_reelles_sont_celles_attendues() -> None:
+    """Un skip n'est pas une exécution : les octets réels sont vérifiés ici."""
+    assert _sha(V2_DIR / "production-profile-gate.release.json") == V2_MANIFEST_SHA256
+    assert _sha(V3_DIR / "production-profile-gate.release.json") == V3_MANIFEST_SHA256
+    assert TRANSFER_V2.is_file()
+    assert len(list(PROFILES_DIR.glob("*.yml"))) == 11
+    pii = json.loads((V3_DIR / "pii_evidence.json").read_bytes())
+    statuts = {r["content_sha256"][:12]: r["status"] for r in pii["results"]}
+    assert statuts[CONTENU_DRA] == "DETECTED_REVIEWED_ACCEPTED"
+
+
+def test_1_rattrapage_v2_puis_adoption_v3_sous_autorites_r2_reelles(adopte: dict[str, Any]) -> None:
+    assert "examined=479 written=479" in adopte["rattrapage"]
+    assert "placements=479 written=479" in adopte["adoption"]
+
+
+def test_e_une_r3_etrangere_ou_incomplete_n_est_pas_liee(
+    r3_enregistrees: dict[str, str],
+    control_pg: dict[str, str],
+    banc: dict[str, Any],
+    github: LocalGitHub,
+) -> None:
+    """AVANT toute liaison : une r3 d'une autre collection, ou une r3 qui ne
+    nomme pas un contenu, ne lie rien — pas même les placements qu'elle couvre."""
+    from nexus_contracts.authority_artifacts import ScopeAuthorizationArtifactV2  # noqa: PLC0415
+
+    r3 = _r3_derivees()
+    document = json.loads(r3["rag_nexus_dgemc_terminale_option"][1])
+    retire = document["allowed_content_sha256"][0]
+    document["authorization_id"] = f"lot41a-bench-dgemc-partielle-{_RUN_ID}"
+    document["allowed_content_sha256"] = document["allowed_content_sha256"][1:]
+    partielle = ScopeAuthorizationArtifactV2.model_validate(document)
+    # Une autorité qui nomme TOUS les contenus de SVT terminale, mais dont le
+    # scope est SVT première : seule la collection la disqualifie.
+    document = json.loads(r3["rag_nexus_svt_premiere_specialite"][1])
+    document["authorization_id"] = f"lot41a-bench-svt-autre-collection-{_RUN_ID}"
+    document["allowed_content_sha256"] = json.loads(r3["rag_nexus_svt_terminale_specialite"][1])[
+        "allowed_content_sha256"
+    ]
+    autre_collection = ScopeAuthorizationArtifactV2.model_validate(document)
+    with local_github_server(github) as github_url:
+        acces = _acces_github(github_url, banc["jeton"])
+        _enregistrer(
+            github=github,
+            env={"PG_INGESTION_CONTROL_AUTHORITY_DSN": authority_dsn(control_pg), **acces},
+            documents=[
+                (partielle.authorization_id, partielle.canonical_bytes()),
+                (autre_collection.authorization_id, autre_collection.canonical_bytes()),
+            ],
+            numero=8300,
+        )
+        avant = _compte_par_table(control_pg)
+        assert avant["sealed_release_publication_authorizations"] == 0
+        attestor = {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(control_pg), **acces}
+        etrangere = dict(r3_enregistrees)
+        etrangere["rag_nexus_svt_terminale_specialite"] = r3_enregistrees["rag_nexus_svt_premiere_specialite"]
+        incomplete = dict(r3_enregistrees)
+        incomplete["rag_nexus_dgemc_terminale_option"] = partielle.authorization_id
+        mauvaise_collection = dict(r3_enregistrees)
+        mauvaise_collection["rag_nexus_svt_terminale_specialite"] = autre_collection.authorization_id
+        for nom, mapping, motif in (
+            ("r3 d'une autre collection", etrangere, "does not name content"),
+            ("contenus complets, autre collection", mauvaise_collection, "covers collection"),
+            ("r3 incomplète", incomplete, f"does not name content {retire}"),
+        ):
+            refus = _run(
+                "ingestor.ingestion_worker.attest_publication_cli", _arguments_de_liaison(mapping), attestor
+            )
+            print("REAL_CHAIN_E", nom, refus.stderr.strip())
+            assert refus.returncode == 1 and "BINDING_REFUSED" in refus.stderr, refus.stderr
+            assert motif in refus.stderr, refus.stderr
+    assert _compte_par_table(control_pg) == avant
+
+
+def test_2_les_r3_sont_liees_sans_reecrire_l_acquis(
+    lie: dict[str, Any], adopte: dict[str, Any], control_pg: dict[str, str]
+) -> None:
+    assert "collections=11 written=479 already_present=0" in lie["sortie"], lie["sortie"]
+    assert "written=0 already_present=479" in lie["rejeu"], lie["rejeu"]
+    assert lie["ecarts"] == {"sealed_release_publication_authorizations": (0, 479)}, lie["ecarts"]
+    # L'autorité d'ACQUISITION reste celle des r2 : rien n'est réécrit.
+    assert _etat_historique(control_pg) == adopte["historique"]
+
+
+def test_3_la_revue_batch_nomme_les_r3_et_l_attestation_est_enregistree(
+    atteste: dict[str, Any], lie: dict[str, Any], adopte: dict[str, Any]
+) -> None:
+    assert "written=479" in atteste["propose"] and "blocked=0" in atteste["propose"], atteste
+    assert "written=479" in atteste["record"], atteste["record"]
+    texte = json.dumps(atteste["revue"])
+    assert all(identifiant in texte for identifiant in lie["r3"].values())
+    assert not any(identifiant in texte for identifiant in adopte["r2"].values())
+    assert atteste["revue"]["placement_evidence"]["currentness"] == "official_snapshot"
+
+
+def test_4a_worker_b_demarre_qualifie_et_l_attestation_liee_aux_r3_tient(
+    publie: dict[str, Any], control_pg: dict[str, str]
+) -> None:
+    """Démarrage sous qualification, puis vérification vivante de l'attestation
+    batch (LOT41A-V2, contenu nommé, même collection) : aucune n'est invalidée,
+    et aucun refus ne porte sur l'autorité."""
+    sortie = publie["sortie"]
+    assert "authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION" in sortie, sortie
+    assert f"release_id={V3_ID}" in sortie
+    print("REAL_CHAIN_WORKER_B_ERRORS", publie["erreurs"])
+    for erreur in publie["erreurs"]:
+        assert "authorization" not in erreur and "LOT41A" not in erreur, erreur
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        invalidees = conn.execute(
+            "SELECT count(*) FROM ingestion_control.publication_attestations"
+            " WHERE release_id = %s AND invalidated_at IS NOT NULL",
+            (V3_ID,),
         ).fetchone()
         conn.rollback()
-    assert totaux == (0, 0), totaux
+    assert invalidees == (0,), invalidees
 
 
-def _manifeste_de_profils_de_staging(tmp_path: Path) -> Path:
-    """Un manifeste de profils de STAGING décrivant exactement le registre."""
+def test_4_worker_b_publie_le_sous_ensemble_sous_qualification(
+    publie: dict[str, Any],
+    lie: dict[str, Any],
+    control_pg: dict[str, str],
+    produit_pg: dict[str, str],
+) -> None:
+    assert publie["succes"], publie["erreurs"]
+
+    # Plan de contrôle, relu indépendamment.
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        etats = conn.execute(
+            "SELECT resource_state, count(*) FROM ingestion_control.resources"
+            " WHERE resource_id = ANY(%s) GROUP BY 1",
+            ([job["resource_id"] for job in publie["jobs"].values()],),
+        ).fetchall()
+        conn.rollback()
+    assert etats == [("RETRIEVAL_ELIGIBLE", 4)], etats
+
+    # Base produit, relue indépendamment.
+    produit = publie["produit"]
+    placements = produit["placements"]
+    print("REAL_CHAIN_PRODUCT_PLACEMENTS", placements)
+    print("REAL_CHAIN_PRODUCT_CHUNKS", produit["chunks"], "ARTIFACTS", produit["artifacts"])
+    assert {(p[2], p[1][:12]) for p in placements} == set(PLACEMENTS_PUBLIES)
+    assert {p[3] for p in placements} == {"official_snapshot"}
+    assert {(p[4], p[5]) for p in placements} == {("active", "reviewed")}
+    assert {(p[2], p[6]) for p in placements} == {(c, lie["r3"][c]) for c, _s in PLACEMENTS_PUBLIES}
+    assert {p[7] for p in placements} == {j["attestation_id"] for j in publie["jobs"].values()}
+    assert produit["artifacts"] == 3
+    catalogue = {
+        a["content_sha256"]: len(a["chunks"])
+        for a in json.loads((V3_DIR / "artifacts.release.json").read_bytes())["artifacts"]
+    }
+    for artifact_id, _collection, nombre, dim_min, dim_max, nuls in produit["chunks"]:
+        assert (dim_min, dim_max, nuls) == (1024, 1024, 0)
+        assert nombre == catalogue[artifact_id], (artifact_id, nombre, catalogue[artifact_id])
+
+    # Retrieval réel, sous une identité SVT terminale.
+    with psycopg.connect(produit_pg["admin_dsn"]) as conn:
+        texte = conn.execute(
+            "SELECT text FROM public.rag_chunks WHERE artifact_id LIKE %s ORDER BY chunk_index LIMIT 1",
+            ("8eb23c91b035%",),
+        ).fetchone()
+        conn.rollback()
+    assert texte is not None and texte[0]
+    requete = " ".join([m for m in str(texte[0]).split() if len(m) > 6][:4])
+    trouves = _recuperer(produit_pg, "rag_nexus_svt_terminale_specialite", requete)
+    print("REAL_CHAIN_RETRIEVAL", requete, [(c.artifact_id[:12], c.source_uri) for c in trouves])
+    assert any(c.artifact_id.startswith("8eb23c91b035") for c in trouves), trouves
+    assert all(c.artifact_id.startswith("8eb23c91b035") for c in trouves), "une autre collection a fui"
+
+
+# --- Contre-épreuves ----------------------------------------------------------
+
+
+def test_a_une_readiness_d_une_autre_release_est_refusee(
+    publie: dict[str, Any], control_pg: dict[str, str], produit_pg: dict[str, str],
+    banc: dict[str, Any], github: LocalGitHub,
+) -> None:
+    refus = _lancer_worker_b(
+        control_pg, produit_pg, banc, github,
+        arguments=[*_arguments_b(banc), "--once"], readiness=banc["readiness_v2"],
+    )
+    print("REAL_CHAIN_A", _refus_au_demarrage(refus))
+    assert "staging readiness authorises release manifest" in refus.stderr
+    assert _produit(produit_pg) == publie["produit"]
+
+
+def test_b_un_manifeste_de_profils_altere_ou_de_staging_est_refuse(
+    publie: dict[str, Any], control_pg: dict[str, str], produit_pg: dict[str, str],
+    banc: dict[str, Any], github: LocalGitHub,
+) -> None:
     from ingestor.ingestion_profiles.registry import (  # noqa: PLC0415
         load_profile_registry,
         profile_fingerprint,
     )
 
+    tmp_path: Path = banc["tmp_path"]
+    brut = PROFILE_MANIFEST.read_text(encoding="utf-8")
+    empreinte = brut.split("fingerprint: ", 1)[1].split("\n", 1)[0].strip()
+    altere = tmp_path / "altered_profile_manifest.yml"
+    altere.write_text(brut.replace(empreinte, "0" * 64, 1), encoding="utf-8")
+    staging = tmp_path / "bench_staging_profile_manifest.json"
     registre = load_profile_registry(PROFILES_DIR)
-    chemin = tmp_path / "bench_staging_profile_manifest.json"
-    chemin.write_text(
-        json.dumps(
-            {
-                "manifest_kind": "NEXUS_STAGING_PROFILE_MANIFEST_V1",
-                "provenance": "real-release adoption bench; test document",
-                "generated_at": "2026-09-24T00:00:00Z",
-                "authority_mode": "STAGING_LOCAL_GITHUB_ONLY",
-                "production_approval": False,
-                "profiles": [
-                    {
-                        "collection": collection,
-                        "profile_version": version,
-                        "fingerprint": profile_fingerprint(profil),
-                    }
-                    for (collection, version), profil in sorted(registre.items())
-                ],
-            },
-            indent=2,
-        ),
+    staging.write_text(
+        json.dumps({
+            "manifest_kind": "NEXUS_STAGING_PROFILE_MANIFEST_V1",
+            "provenance": "real-release bench; test document",
+            "generated_at": "2026-09-24T00:00:00Z",
+            "authority_mode": "STAGING_LOCAL_GITHUB_ONLY",
+            "production_approval": False,
+            "profiles": [
+                {"collection": c, "profile_version": v, "fingerprint": profile_fingerprint(p)}
+                for (c, v), p in sorted(registre.items())
+            ],
+        }),
         encoding="utf-8",
     )
-    return chemin
-
-
-def test_debit_d_embedding_e5_sur_cpu(produit_pg: dict[str, str]) -> None:
-    """Le coût d'embedding par chunk, mesuré sur le vrai modèle E5, sur CPU.
-
-    Worker B n'ayant pas pu démarrer sur V3, le débit est mesuré directement
-    sur le fournisseur qu'il utilise, avec du texte réel extrait d'un PDF V3.
-    """
-    import time  # noqa: PLC0415
-
-    from pypdf import PdfReader  # noqa: PLC0415
-
-    from ingestor.embedding_provider import VerifiedE5EmbeddingProvider  # noqa: PLC0415
-
-    modele_brut = os.environ.get(MODELE_E5_ENV, "").strip()
-    if not modele_brut:
-        pytest.fail(f"{MODELE_E5_ENV} is required: the embedding is measured, not assumed")
-    manifeste = json.loads((V3_DIR / "production-profile-gate.release.json").read_bytes())
-    anciens = {cle: os.environ.get(cle) for cle in ("CUDA_VISIBLE_DEVICES", "HF_HUB_OFFLINE")}
-    os.environ.update({"CUDA_VISIBLE_DEVICES": "", "HF_HUB_OFFLINE": "1"})
-    try:
-        fournisseur = VerifiedE5EmbeddingProvider.from_artifact(
-            artifact_root=Path(modele_brut),
-            inventory_sha256=manifeste["models"]["embedding"]["inventory_sha256"],
-            pg_dsn=produit_pg["admin_dsn"],
+    for fichier in (altere, staging):
+        arguments = _remplacer(_arguments_b(banc), "--profile-manifest-path", str(fichier))
+        arguments = _remplacer(arguments, "--profile-manifest-sha256", _sha(fichier))
+        refus = _lancer_worker_b(
+            control_pg, produit_pg, banc, github, arguments=[*arguments, "--once"]
         )
-        catalogue = json.loads((V2_DIR / "artifacts.release.json").read_bytes())["artifacts"]
-        racines = [
-            Path(r) for r in os.environ.get(MIRRORS_ENV, "").split(":") if r.strip()
-        ]
-        mots: list[str] = []
-        for entree in catalogue:
-            for racine in racines:
-                source = racine / entree["source_path"]
-                if source.is_file():
-                    for page in PdfReader(str(source)).pages:
-                        mots += (page.extract_text() or "").split()
-                    break
-            if len(mots) > 20000:
-                break
-        # Des passages de 180 mots, taille de l'ordre d'un chunk de release.
-        passages = [" ".join(mots[i : i + 180]) for i in range(0, 180 * 32, 180)]
-        passages = [
-            p for p in passages if fournisseur.passage_token_count(p) <= fournisseur.max_sequence_length
-        ]
-        fournisseur.encode(passages[:2])  # chauffe
-        debut = time.monotonic()
-        vecteurs = fournisseur.encode(passages)
-        duree = time.monotonic() - debut
+        print("REAL_CHAIN_B", fichier.name, _refus_au_demarrage(refus))
+    assert _produit(produit_pg) == publie["produit"]
+
+
+def test_c_une_chaine_pii_d_une_autre_ancre_est_refusee(
+    publie: dict[str, Any], control_pg: dict[str, str], produit_pg: dict[str, str],
+    banc: dict[str, Any], github: LocalGitHub,
+) -> None:
+    """Une ancre de revue qui n'est pas l'ancre réelle : clé de TEST déclarée
+    ``test``, puis clé étrangère déclarée ``production``. Le reçu réel ne se
+    vérifie sous aucune des deux."""
+    from nexus_contracts.review_binding import public_key_hex  # noqa: PLC0415
+
+    reelle = json.loads((REPOSITORY_ROOT / CHAINE_PII_V3["--review-trust-anchor-path"]).read_bytes())
+    for environnement in ("test", "production"):
+        ancre = banc["tmp_path"] / f"bench_review_binding_anchor_{environnement}.json"
+        ancre.write_text(
+            json.dumps({
+                "protocol_version": reelle["protocol_version"],
+                "keys": [{
+                    **reelle["keys"][0],
+                    "public_key": public_key_hex(secrets.token_hex(32)),
+                    "environment": environnement,
+                    "comment": "bench key — never an authority",
+                }],
+            }),
+            encoding="utf-8",
+        )
+        arguments = _remplacer(_arguments_b(banc), "--review-trust-anchor-path", str(ancre))
+        arguments = _remplacer(arguments, "--review-trust-anchor-sha256", _sha(ancre))
+        refus = _lancer_worker_b(control_pg, produit_pg, banc, github, arguments=[*arguments, "--once"])
+        print("REAL_CHAIN_C", environnement, _refus_au_demarrage(refus))
+    assert _produit(produit_pg) == publie["produit"]
+
+
+def test_f_une_readiness_de_staging_sous_production_est_refusee(
+    publie: dict[str, Any], control_pg: dict[str, str], produit_pg: dict[str, str],
+    banc: dict[str, Any], github: LocalGitHub,
+) -> None:
+    sous_production = {**banc["readiness_v3"], "NEXUS_ENVIRONMENT": "production"}
+    protocole_de_production = {
+        **banc["readiness_v3"],
+        "NEXUS_EXPECTED_READINESS_PROTOCOL": "NEXUS-PRODUCTION-READINESS-V1",
+        "NEXUS_READINESS_REHEARSAL_TRUST_ANCHOR": banc["readiness_v3"]["NEXUS_STAGING_READINESS_TRUST_ANCHOR"],
+        "NEXUS_RELEASE_SHA": "c" * 40,
+    }
+    for nom, readiness in (("environment=production", sous_production), ("production protocol", protocole_de_production)):
+        refus = _lancer_worker_b(
+            control_pg, produit_pg, banc, github,
+            arguments=[*_arguments_b(banc), "--once"], readiness=readiness,
+        )
+        print("REAL_CHAIN_F", nom, _refus_au_demarrage(refus))
+    assert _produit(produit_pg) == publie["produit"]
+
+
+def test_g_une_reprise_apres_ecriture_produit_ne_duplique_ni_ne_change_l_autorite(
+    publie: dict[str, Any], control_pg: dict[str, str], produit_pg: dict[str, str],
+    banc: dict[str, Any], github: LocalGitHub,
+) -> None:
+    """Interruption APRÈS l'écriture produit, AVANT l'acquittement : le bail
+    tombe, les MÊMES jobs redeviennent réclamables et sont repris."""
+    # Une reprise suppose une première écriture produit : sans elle, ce test
+    # ne prouverait rien, et il le dit au lieu de passer.
+    assert publie["succes"], f"no first publication to resume: {publie['erreurs']}"
+    jobs = list(publie["jobs"])
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        remis = conn.execute(
+            "UPDATE ingestion_control.jobs SET status = 'queued', lease_token = NULL,"
+            "       lease_expires_at = NULL, claimed_by = NULL"
+            " WHERE job_id = ANY(%s) RETURNING job_id",
+            (jobs,),
+        ).fetchall()
+        conn.commit()
+    assert len(remis) == 4
+    repris = _lancer_worker_b(
+        control_pg, produit_pg, banc, github,
+        arguments=[*_arguments_b(banc), "--poll-interval-s", "1", "--max-iterations", "4"],
+    )
+    print("REAL_CHAIN_G", repris.stdout[-1500:], repris.stderr[-1500:])
+    assert repris.returncode == 0, repris.stderr
+    assert repris.stdout.count("status=succeeded") == 4, repris.stdout + repris.stderr
+    assert _produit(produit_pg) == publie["produit"]
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        etats = conn.execute(
+            "SELECT status, count(*) FROM ingestion_control.jobs WHERE job_id = ANY(%s) GROUP BY 1",
+            (jobs,),
+        ).fetchall()
+        conn.rollback()
+    assert etats == [("succeeded", 4)], etats
+
+
+# --- (d) sur une seconde base : l'autorité r2 (V1), sans liaison ---------------
+
+
+@pytest.fixture(scope="module")
+def control_pg_sans_liaison() -> Iterator[dict[str, str]]:
+    yield from start_ingestion_control_postgres("v3-real-unbound")
+
+
+def test_d_une_autorite_r2_sans_liaison_ne_publie_rien(
+    control_pg_sans_liaison: dict[str, str],
+    produit_pg: dict[str, str],
+    banc: dict[str, Any],
+) -> None:
+    """Sans ``bind-publication-authorities``, les faits batch portent l'autorité
+    d'ACQUISITION (r2, LOT41A-V1). Elle ne fonde aucune publication."""
+    pg = control_pg_sans_liaison
+    github = LocalGitHub()
+    etat = _jusqu_a_l_adoption(pg, banc, github)
+    attestor = {"PG_INGESTION_CONTROL_ATTESTOR_DSN": attestor_dsn(pg)}
+    # La liaison des r2 elles-mêmes est refusée : V1 ne borne aucun contenu.
+    with local_github_server(github) as github_url:
+        lier_r2 = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            _arguments_de_liaison(etat["r2"]),
+            {**attestor, **_acces_github(github_url, banc["jeton"])},
+        )
+    print("REAL_CHAIN_D_BIND_R2", lier_r2.stderr.strip())
+    assert lier_r2.returncode == 1 and "LOT41A-V2" in lier_r2.stderr, lier_r2.stderr
+
+    revue = f"{REVUE_V3}-sans-liaison"
+    propose = _run(
+        "ingestor.ingestion_worker.attest_publication_cli",
+        _arguments_de_proposition_v3(banc["transfert_v3"], revue=revue),
+        attestor,
+    )
+    print("REAL_CHAIN_D_PROPOSE", propose.returncode, propose.stdout.splitlines()[:1], propose.stderr[-800:])
+    produit_avant = _produit(produit_pg)
+    if propose.returncode != 0:
+        return
+    chemin = next(
+        ligne.split(" ", 1)[1].strip()
+        for ligne in propose.stdout.splitlines()
+        if ligne.startswith("REVIEW_ARTIFACT_PATH ")
+    )
+    octets = propose.stdout[propose.stdout.index("{") :].encode("utf-8")
+    assert all(identifiant in octets.decode() for identifiant in etat["r2"].values())
+    tete = hashlib.sha1(f"revue-v3-sans-liaison:{_RUN_ID}".encode()).hexdigest()
+    github.add_approved_pr(number=8501, head_sha=tete, base_sha="9" * 40, review_id=8511)
+    github.put_blob(path=chemin, ref=tete, content=octets)
+    with local_github_server(github) as github_url:
+        enregistre = _run(
+            "ingestor.ingestion_worker.attest_publication_cli",
+            [
+                "record-release-batch-attestation",
+                "--release-id", V3_ID, "--review-id", revue, "--repository", REPOSITORY,
+                "--pull-request", "8501", "--expected-head", tete, "--review-artifact-path", chemin,
+            ],
+            {**attestor, **_acces_github(github_url, banc["jeton"])},
+        )
+    print("REAL_CHAIN_D_RECORD", enregistre.returncode, enregistre.stdout[-400:], enregistre.stderr[-800:])
+    if enregistre.returncode != 0:
+        return
+    jobs = _creer_les_jobs(pg, [("rag_nexus_svt_terminale_specialite", "8eb23c91b035")])
+    worker = _lancer_worker_b(
+        pg, produit_pg, banc, github,
+        arguments=[*_arguments_b(banc), "--poll-interval-s", "1", "--max-iterations", "1"],
+    )
+    print("REAL_CHAIN_D_WORKER_B", worker.stdout[-1200:], worker.stderr[-1500:])
+    assert "status=succeeded" not in worker.stdout, worker.stdout
+    assert "LOT41A-V2" in worker.stderr or "does not bind content" in worker.stderr, worker.stderr
+    assert _produit(produit_pg) == produit_avant
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        etat_ressource = conn.execute(
+            "SELECT resource_state FROM ingestion_control.resources WHERE resource_id = %s",
+            (next(iter(jobs.values()))["resource_id"],),
+        ).fetchone()
+        conn.rollback()
+    assert etat_ressource == ("NEEDS_REVIEW",), etat_ressource
+
+
+# --- Retrieval ----------------------------------------------------------------
+
+
+def _recuperer(produit: dict[str, str], collection: str, requete: str) -> list[Any]:
+    """Le chemin de retrieval réel : identité signée, scope serveur, pgvector.
+
+    Repris du test d'acceptation batch, pour une collection SVT terminale."""
+    import base64  # noqa: PLC0415
+    import hmac  # noqa: PLC0415
+
+    from ingestor.collection_config import load_collection_config  # noqa: PLC0415
+    from ingestor.identity_v2 import (  # noqa: PLC0415
+        load_identity_verifier_config,
+        verify_identity_token,
+    )
+    from ingestor.retrieval_pg_v2 import PgCandidateStore  # noqa: PLC0415
+    from ingestor.retrieval_scope_v2 import build_server_retrieval_scope  # noqa: PLC0415
+
+    secret = "banc-reel-v3-internal-secret-32-bytes-min"
+    variables = {
+        "NEXUS_INTERNAL_TOKEN_SECRET": secret,
+        "NEXUS_INTERNAL_TOKEN_ISSUER": "banc-cockpit",
+        "NEXUS_INTERNAL_TOKEN_AUDIENCE": "banc-engine",
+        "NEXUS_SSO_ISSUER": "banc-sso",
+        "NEXUS_SSO_AUDIENCE": "banc-cockpit-audience",
+    }
+    anciens = {cle: os.environ.get(cle) for cle in variables}
+    os.environ.update(variables)
+    try:
+        config = load_identity_verifier_config()
+        artefact = config.artifact
+        maintenant = int(time.time())
+        identite = {
+            "aud": variables["NEXUS_SSO_AUDIENCE"], "exp": maintenant + 600,
+            "iss": variables["NEXUS_SSO_ISSUER"], "jti": "banc-reel-v3-jti",
+            "tenant": "libre_terminale", "niveau": "terminale", "role": "admin",
+            "school_year": "2026-2027", "sub": "psn_bancreelv30000001",
+            "pedagogical_profile": {
+                "voie": "generale", "matieres": ["svt"], "statut_enseignement": "specialite",
+                "candidat": "libre", "audience": "libre",
+            },
+        }
+        charge = {
+            "protocol_version": "1",
+            "iss": variables["NEXUS_INTERNAL_TOKEN_ISSUER"],
+            "aud": variables["NEXUS_INTERNAL_TOKEN_AUDIENCE"],
+            "sub": identite["sub"], "jti": identite["jti"],
+            "iat": maintenant, "exp": maintenant + 300,
+            "identity": identite,
+            "scope_id": artefact.scope_id,
+            "scope_digest": artefact.sha256_digest(),
+            "allowed_collections": [sujet.collection for sujet in artefact.subjects],
+        }
+
+        def _b64(valeur: bytes) -> str:
+            return base64.urlsafe_b64encode(valeur).rstrip(b"=").decode("ascii")
+
+        entete = _b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+        corps = _b64(json.dumps(charge).encode())
+        signature = hmac.new(secret.encode(), f"{entete}.{corps}".encode("ascii"), hashlib.sha256).digest()
+        verifiee = verify_identity_token(f"{entete}.{corps}.{_b64(signature)}", config=config)
+        scope = build_server_retrieval_scope(
+            verifiee,
+            collection=collection,
+            collection_config=load_collection_config(ENGINE_ROOT / "configs/rag_collections.yml"),
+        )
+        store = PgCandidateStore(lambda: psycopg.connect(produit["retrieval_dsn"]), scope)
+        return list(store.lexical(raw_query=requete, collection=collection, limit=10))
     finally:
         for cle, valeur in anciens.items():
             if valeur is None:
                 os.environ.pop(cle, None)
             else:
                 os.environ[cle] = valeur
-    chunks = sum(
-        len(a["chunks"])
-        for a in json.loads((V3_DIR / "artifacts.release.json").read_bytes())["artifacts"]
-    )
-    par_chunk = duree / len(passages)
-    print(
-        "REAL_V3_E5_CPU passages=", len(passages), "seconds=", round(duree, 2),
-        "s_per_chunk=", round(par_chunk, 3),
-        "avg_chunks_per_artifact=", round(chunks / 315, 1),
-        "s_per_artifact_est=", round(par_chunk * chunks / 315, 1),
-        "s_all_8268_est=", round(par_chunk * chunks),
-    )
-    assert len(vecteurs) == len(passages) and all(len(v) == 1024 for v in vecteurs)
