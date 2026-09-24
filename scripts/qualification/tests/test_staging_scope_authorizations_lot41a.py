@@ -290,15 +290,20 @@ def test_aucune_release_n_est_modifiee_par_ce_lot() -> None:
     changes = _fichiers_changes()
     if changes is None:
         pytest.skip("dépôt git indisponible")
+    # Ajouter une release neuve (statut A) n'est pas modifier une release scellée.
     for statut, chemin in changes:
-        assert not chemin.startswith("services/rag-pedago/data/releases/"), (statut, chemin)
+        assert statut == "A" or not chemin.startswith(
+            "services/rag-pedago/data/releases/"
+        ), (statut, chemin)
 
 
 def test_aucun_scope_de_retrieval_n_est_modifie_par_ce_lot() -> None:
     changes = _fichiers_changes()
     if changes is None:
         pytest.skip("dépôt git indisponible")
+    # ADR-0045 : un nouveau subject reçoit un NOUVEL artefact (statut A) ;
+    # retoucher un scope existant reste interdit.
     for statut, chemin in changes:
-        assert not chemin.startswith(
+        assert statut == "A" or not chemin.startswith(
             "packages/contracts/src/nexus_contracts/artifacts/"
         ), (statut, chemin)

@@ -380,8 +380,10 @@ def test_no_release_file_is_ever_modified() -> None:
     changed = _changed_against_main()
     if changed is None:
         pytest.skip("dépôt git indisponible")
+    # Une release NOUVELLE s'ajoute (statut A) ; ce qui est interdit, c'est de
+    # retoucher, renommer ou supprimer une release déjà scellée.
     for status, path in changed:
-        assert not path.startswith(
+        assert status == "A" or not path.startswith(
             "services/rag-pedago/data/releases/"
         ), (status, path)
 
