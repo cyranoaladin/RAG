@@ -146,6 +146,7 @@ principal, sources du worktree en `PYTHONPATH`) :
 | `ruff check` (fichiers du lot) | vert ; `mypy` : aucune erreur nouvelle (les erreurs restantes datent d'avant la base) |
 | verrous de gouvernance | 18 clés conformes à la base |
 | unicité des autorités | PASS |
+| `make test-governance-pg` (13 modules d'intégration PostgreSQL) | 179 réussis. La CI de la PR a d'abord échoué ici : la répétition de registre troué défaisait 018 sous 019, que PostgreSQL refuse puisque 019 référence les adoptions de 018. Le test constate désormais ce refus, puis troue le registre sur 017 sous 018 |
 | banc réel V4 (§ 7) | `test_v4_staging_direct_real_chain.py` : 10 réussis sur 10 (20 min) |
 
 La CI GitHub de la PR fait foi pour la reproduction hermétique.
