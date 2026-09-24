@@ -22,3 +22,17 @@ def test_l_orchestrateur_ne_lit_aucun_verdict_de_la_matrice() -> None:
     )
     assert usages and all(u in permis for u in usages), usages
     assert re.search(r'MATRIX_SHA="[0-9a-f]{64}"', SCRIPT.read_text(encoding="utf-8"))
+
+
+def test_l_orchestrateur_de_successeur_ne_lit_aucun_verdict_de_la_matrice() -> None:
+    """Même règle pour l'orchestrateur généralisé (lot CZ)."""
+    script = SCRIPT.parent / "build_profile_gate_successor.sh"
+    texte = script.read_text(encoding="utf-8")
+    usages = [ligne.strip() for ligne in texte.splitlines() if re.search(r"\$MATRIX\b|\bMATRIX=", ligne)]
+    permis = (
+        'MATRIX="docs/reports/handoff/servability_matrix_v1.json"',
+        'for required in "$DECISION_SET" "$RECEIPT" "$ANCHOR" "$INDEX" "$EXCLUSION" "$MATRIX" \\',
+        '--servability-matrix "$MATRIX" --servability-matrix-sha256 "$MATRIX_SHA"',
+    )
+    assert usages and all(u in permis for u in usages), usages
+    assert re.search(r'MATRIX_SHA="[0-9a-f]{64}"', texte)

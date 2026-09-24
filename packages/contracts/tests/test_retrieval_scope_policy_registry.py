@@ -40,10 +40,10 @@ HUMAN_DECISION_COLLECTIONS = frozenset(
 GOVERNED = "GOVERNED"
 BY_HUMAN_DECISION = "GOVERNED_BY_HUMAN_DECISION"
 
-#: Taille du registre fermé après l'émission des onze scopes de la release V2
-#: (41 avant le lot CN). Le compte est épinglé : une entrée ajoutée sans test
-#: fait échouer la suite.
-PACKAGED_SCOPE_COUNT = 52
+#: Taille du registre fermé : 41 avant le lot CN, 52 après les onze scopes de
+#: la release V2, 63 après les onze de la release V4 (lot CZ). Le compte est
+#: épinglé : une entrée ajoutée sans test fait échouer la suite.
+PACKAGED_SCOPE_COUNT = 63
 
 #: Vocabulaire canonique, dérivé du contrat et jamais réécrit ici.
 CANONICAL_AUDIENCES = frozenset(
@@ -380,8 +380,10 @@ def test_no_release_file_is_ever_modified() -> None:
     changed = _changed_against_main()
     if changed is None:
         pytest.skip("dépôt git indisponible")
+    # Une release NOUVELLE s'ajoute (statut A) ; ce qui est interdit, c'est de
+    # retoucher, renommer ou supprimer une release déjà scellée.
     for status, path in changed:
-        assert not path.startswith(
+        assert status == "A" or not path.startswith(
             "services/rag-pedago/data/releases/"
         ), (status, path)
 

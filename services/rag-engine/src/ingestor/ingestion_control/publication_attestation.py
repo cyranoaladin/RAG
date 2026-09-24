@@ -535,6 +535,23 @@ def _verify_release_batch_attestation(
             f"categories authorized by {authorization.authorization_id!r} "
             f"({list(authorization.rights_categories)!r})"
         )
+    # (7 bis, ADR-0060) Une publication batch est liée au CONTENU : l'autorité
+    # est LOT41A-V2 et nomme ce contenu, dans cette collection. Le chemin
+    # unitaire l'exigeait déjà ; le batch ne le vérifiait pas.
+    try:
+        require_h2_content_bound_authority(authorization)
+        enforce_content_sha256(authorization, content_sha256=row["content_sha256"])
+    except ScopeEnforcementViolation as exc:
+        raise invalidator.fail(
+            f"authorization {authorization.authorization_id!r} does not bind "
+            f"content {row['content_sha256']}: {exc}"
+        ) from exc
+    if getattr(authorization.scope, "collection", None) != row["collection"]:
+        raise invalidator.fail(
+            f"authorization {authorization.authorization_id!r} covers collection "
+            f"{getattr(authorization.scope, 'collection', None)!r}, not "
+            f"{row['collection']!r}"
+        )
 
     # Les faits du batch viennent de la PROJECTION vérifiée, pas des
     # événements unitaires que l'ingestion scellée n'écrit pas. Chaque champ

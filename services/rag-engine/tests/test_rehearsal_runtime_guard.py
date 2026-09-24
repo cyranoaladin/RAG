@@ -282,3 +282,88 @@ def test_removing_the_eleven_scopes_restores_the_original_refusal(
             without,
             load_collection_config(COLLECTION_CONFIG),
         )
+
+
+# --- Lot CZ — la release V4 a désormais ses onze scopes -------------------
+
+V4_MANIFEST_PATH = (
+    REPO_ROOT
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/production-profile-gate.release.json"
+)
+EXPECTED_V4_MANIFEST_SHA256 = (
+    "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be"
+)
+
+#: Les onze scopes que le lot CZ a émis pour la release V4.
+V4_SCOPE_IDS = frozenset(
+    {
+        "prod_dgemc_terminale_option_v3",
+        "prod_hggsp_premiere_specialite_v2",
+        "prod_hggsp_terminale_specialite_v2",
+        "prod_hlp_premiere_specialite_v3",
+        "prod_hlp_terminale_specialite_v2",
+        "prod_nsi_premiere_specialite_v3",
+        "prod_nsi_terminale_specialite_v3",
+        "prod_ses_premiere_specialite_v3",
+        "prod_ses_terminale_specialite_v3",
+        "prod_svt_premiere_specialite_v3",
+        "prod_svt_terminale_specialite_v3",
+    }
+)
+
+
+def _bind_v4_manifest(monkeypatch: pytest.MonkeyPatch, environment: str) -> None:
+    """Désigner la release V4 par son manifeste exact, et par lui seul."""
+    assert (
+        hashlib.sha256(V4_MANIFEST_PATH.read_bytes()).hexdigest()
+        == EXPECTED_V4_MANIFEST_SHA256
+    )
+    monkeypatch.setenv("NEXUS_ENVIRONMENT", environment)
+    monkeypatch.delenv("RAG_RELEASE_REGISTRY_PATH", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_REGISTRY_SHA256", raising=False)
+    monkeypatch.delenv("RAG_RELEASE_MANIFESTS_JSON", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", str(V4_MANIFEST_PATH))
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_SHA256", EXPECTED_V4_MANIFEST_SHA256)
+
+
+def test_rehearsal_startup_on_v4_is_accepted_now_that_its_scopes_exist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Sélection exacte `(collection, subject_sha256)` : un scope par subject V4."""
+    _bind_v4_manifest(monkeypatch, "rehearsal")
+    endpoint.validate_release_startup_configuration(
+        load_retrieval_scope_registry(),
+        load_collection_config(COLLECTION_CONFIG),
+    )
+
+
+def test_removing_the_v4_scopes_restores_the_refusal_on_v4(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Contre-épreuve : sans les onze scopes V4, le démarrage V4 est refusé."""
+    _bind_v4_manifest(monkeypatch, "rehearsal")
+    full = dict(load_retrieval_scope_registry())
+    assert V4_SCOPE_IDS <= set(full)
+    without = {k: v for k, v in full.items() if k not in V4_SCOPE_IDS}
+    with pytest.raises(
+        RuntimeError, match="scope source SHA differs from subject release"
+    ):
+        endpoint.validate_release_startup_configuration(
+            without,
+            load_collection_config(COLLECTION_CONFIG),
+        )
+
+
+def test_production_still_refuses_the_unpromoted_v4_release(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Des scopes ne promeuvent pas une release : V4 reste NOT_PROMOTABLE."""
+    _bind_v4_manifest(monkeypatch, "production")
+    with pytest.raises(
+        RuntimeError,
+        match="cannot activate rehearsal or unpromotable release in production runtime",
+    ):
+        endpoint.validate_release_startup_configuration(
+            load_retrieval_scope_registry(),
+            load_collection_config(COLLECTION_CONFIG),
+        )

@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import pathlib
+import re
 from pathlib import Path
 
 import pytest
@@ -369,7 +370,13 @@ class TestRehearsalVerifiesTheSameChainAsProduction:
         ).read_text(encoding="utf-8")
         loader = source[source.index("pii = VerifiedPIIEvidenceRegistry.load(") :]
         loader = loader[: loader.index("\n        )")]
-        assert "review_verification_environment(environment)" in loader
+        # ADR-0060 : l'appel porte aussi la qualification ; il reste DÉRIVÉ,
+        # jamais une valeur écrite en dur.
+        assert re.search(
+            r"environment=review_verification_environment\(\s*environment\b", loader
+        )
+        assert 'environment="production"' not in loader
+        assert "environment='production'" not in loader
 
 
 class TestTheWaveZeroSchemaCannotDeclareAReviewChain:

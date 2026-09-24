@@ -99,6 +99,10 @@ class GovernedArtifact:
     source_kind: str
     type_doc: str
     mime_detected: str = "text/plain"
+    #: ADR-0060 : empreintes ORDONNÉES des chunks qu'une release scellée
+    #: déclare pour ce contenu. Présentes, elles remplacent le filtre du chemin
+    #: unitaire : le jeu publié doit être exactement le jeu scellé.
+    sealed_chunk_sha256: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.content, bytes) or not self.content:
@@ -564,6 +568,41 @@ def _chunk_text(extracted_text: str) -> tuple[str, ...]:
     return chunks
 
 
+def select_publication_chunks(
+    chunks: Sequence[PublicationChunk],
+    *,
+    sealed_chunk_sha256: Sequence[str] | None,
+) -> tuple[PublicationChunk, ...]:
+    """Les chunks à publier, et seulement eux.
+
+    Chemin unitaire : les fragments non textuels sont écartés. Chemin scellé
+    (ADR-0060) : aucun filtre ni renumérotation — le jeu publié est celui de
+    la release, vérifié empreinte par empreinte et dans l'ordre ; un écart
+    est un refus, jamais un jeu différent publié en silence."""
+    nettoyes = tuple(
+        PublicationChunk(
+            text=chunk.text.replace("\x00", "").strip(),
+            page_start=chunk.page_start,
+            page_end=chunk.page_end,
+        )
+        for chunk in chunks
+        if sealed_chunk_sha256 is not None
+        or not _is_artifact(chunk.text.replace("\x00", ""))
+    )
+    if sealed_chunk_sha256 is not None:
+        publies = tuple(
+            hashlib.sha256(chunk.text.encode("utf-8")).hexdigest() for chunk in nettoyes
+        )
+        if not sealed_chunk_sha256 or publies != tuple(sealed_chunk_sha256):
+            raise GovernedPublicationError(
+                f"published chunks differ from the sealed release: {len(publies)} "
+                f"produced, {len(sealed_chunk_sha256)} sealed"
+            )
+    if not nettoyes or any(not chunk.text for chunk in nettoyes):
+        raise GovernedPublicationError("chunking produced no substantive text")
+    return nettoyes
+
+
 def _vectors(
     chunks: Sequence[PublicationChunk],
     embedding_provider: EmbeddingProvider,
@@ -826,24 +865,15 @@ def _publish_under_governance_fence(
 
             if artifact_created:
                 extracted = _extracted_text_for_chunking(artifact, extract_text)
-                chunks = tuple(
-                    PublicationChunk(
-                        text=chunk.text.replace("\x00", "").strip(),
-                        page_start=chunk.page_start,
-                        page_end=chunk.page_end,
-                    )
-                    for chunk in chunk_publication(
+                chunks = select_publication_chunks(
+                    chunk_publication(
                         content=artifact.content,
                         mime_detected=artifact.mime_detected,
                         extracted_text=extracted,
                         token_counter=embedding_provider,
-                    )
-                    if not _is_artifact(chunk.text.replace("\x00", ""))
+                    ),
+                    sealed_chunk_sha256=artifact.sealed_chunk_sha256,
                 )
-                if not chunks:
-                    raise GovernedPublicationError(
-                        "chunking produced no substantive text"
-                    )
                 vectors = _vectors(chunks, embedding_provider)
                 _insert_chunks(
                     cursor,

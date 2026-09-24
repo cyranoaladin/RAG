@@ -2734,6 +2734,31 @@ def require_pii_evidence_names_the_declared_scanner(
         )
 
 
+def require_profile_programmes_match_registry(
+    profiles: Mapping[str, Any], programme_registry: Mapping[str, Any]
+) -> None:
+    """Un seul sens pour `programme_version` (ADR-0061).
+
+    Pour chaque collection, le programme porté par le profil doit être la
+    référence officielle que le registre de programme déclare — celle que le
+    scope de retrieval sert. Un identifiant de corpus de provenance à cette
+    place ferait publier un contenu qu'aucun scope ne peut retrouver."""
+    officiels = {
+        str(entry["collection"]): str(entry["programme_version"])
+        for entry in programme_registry.get("taxonomies", [])
+    }
+    ecarts = sorted(
+        f"{collection}: {profile.scope.programme_version} ≠ {officiels.get(collection)}"
+        for collection, profile in profiles.items()
+        if str(profile.scope.programme_version) != officiels.get(collection)
+    )
+    if ecarts:
+        raise ValueError(
+            "profile programme_version is not the official programme the release "
+            f"registry declares: {ecarts}"
+        )
+
+
 def _programme_registry(profiles: Mapping[str, Any]) -> dict[str, Any]:
     collection_config = load_collection_config(COLLECTION_CONFIG_PATH)["collections"]
     indexes = [
@@ -3608,12 +3633,22 @@ def _build_rehearsal_release(
     exclusion_registry: GovernedExclusionRegistry | None = None,
 ) -> dict[Path, bytes]:
     src_root = source_release_root.resolve()
-    profile_root = REPOSITORY_ROOT / "services/rag-engine/configs/ingestion_profiles"
-    profile_dir = profile_root / "v2_livraison_319"
-    profile_manifest_path = profile_root / "ingestion_manifest_v2_livraison_319.yml"
+    # La lignée de profils est celle que `resolve_release_lineage` résout —
+    # par défaut les onze profils historiques, sinon une lignée déclarée
+    # (NEXUS_PROFILE_ROOT / NEXUS_PROFILE_MANIFEST, ensemble épinglé).
+    lineage = resolve_release_lineage()
+    profile_dir = lineage.profile_root
+    profile_manifest_path = lineage.profile_manifest_path
     registry = load_profile_registry(profile_dir)
     manifest = verify_profile_manifest(registry, profile_manifest_path)
     profiles = {p.scope.collection: p for p in registry.values()}
+    # ADR-0061 : hors de la lignée historique (V2/V3, reproductibles telles
+    # qu'elles ont été scellées), le programme d'un profil EST la référence
+    # officielle que le registre de programme de la release déclare.
+    if profile_dir.resolve() != CANONICAL_LINEAGE.profile_root.resolve():
+        require_profile_programmes_match_registry(
+            profiles, _load_json(src_root / "programme_registry.json")
+        )
 
     subjects_dir = src_root / "subjects"
     drive = {row["content_sha256"]: row for row in _load_json(DRIVE_MAPPING_PATH)}

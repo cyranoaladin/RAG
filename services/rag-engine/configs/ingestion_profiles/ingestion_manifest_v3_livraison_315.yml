@@ -1,0 +1,73 @@
+manifest_version: '1'
+provenance: Livraison V4 — les onze collections de la livraison 315 (V2/V3), issues du corpus
+  de provenance EDUSCOL_CORPUS_20260808. programme_version porte désormais la référence officielle
+  de chaque collection (registre de programme de la release) ; la provenance du corpus est
+  nommée ici. ADR-0061.
+generated_at: '2026-09-24T00:00:00+00:00'
+profiles:
+- collection: rag_nexus_dgemc_terminale_option
+  profile_version: profile-gate-v3
+  fingerprint: faad547f1aa105b7035f79447edbdfaf5f67c0918774c1751c531426638645de
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_hggsp_premiere_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 344dbda80d00f24fba7ecdf03e45b852f39bed5a961cefdc9bf7ce5f2d9278e1
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_hggsp_terminale_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 30f8be0d8d3948e498c35dc9c27623f4397f676e615bd5eeb2dacf55dabb5f5a
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_hlp_premiere_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 38304fb9c8909001303a25c1faed1ea967dadbf4632fe70937e9e4aaec375f6c
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_hlp_terminale_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 67075024f05613de92835bcec423346b15b55215741253c546d555c217ad48cd
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_nsi_premiere_specialite
+  profile_version: profile-gate-v3
+  fingerprint: b473bfb2441904ecb61e99f7ee773669f20658fd75e5397257804430b00a47be
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_nsi_terminale_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 7893b391f1e11027a888a852b42e75e64a3a27a05f22957f6f6cb7f82fc56dfa
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_ses_premiere_specialite
+  profile_version: profile-gate-v3
+  fingerprint: bb08285f141068b27ad6af08508ca590ca2ff6b9a4ab250027b5b121de184b68
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_ses_terminale_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 1856f339d4a703fe022e96952a9610b21f52a070c7d0c7c57549c9b231e9c6a2
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_svt_premiere_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 535e67e9384c26536befd605307f05efee2b4334618ea3fa72884e331d5be9b5
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'
+- collection: rag_nexus_svt_terminale_specialite
+  profile_version: profile-gate-v3
+  fingerprint: 31929926de2f0823a78f2d8b5413cf38178d9592977f94a0ad848c8b3e706e9f
+  approved_by: abenrhouma — décision voie S du 2026-09-24 (ADR-0061), confirmée par la revue
+    humaine de la PR qui verse ces profils
+  approved_at: '2026-09-24T00:00:00+00:00'

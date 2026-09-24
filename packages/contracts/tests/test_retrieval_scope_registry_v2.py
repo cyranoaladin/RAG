@@ -68,7 +68,7 @@ def test_registry_preserves_the_legacy_wave0_and_multilevel_scopes() -> None:
     francais = registry["entree_seconde_francais_v1"]
 
     assert EXPECTED <= set(registry)
-    assert len(registry) == 52
+    assert len(registry) == 63
     assert isinstance(maths, RetrievalScopeArtifactV2)
     assert isinstance(francais, RetrievalScopeArtifactV2)
     assert maths.evidence_subject.collection == (

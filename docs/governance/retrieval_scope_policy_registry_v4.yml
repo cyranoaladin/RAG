@@ -1,0 +1,534 @@
+# Registre gouverné des politiques de scope de retrieval — profils production,
+# release V4 (`production-profile-gate-2026-2027-v4`).
+#
+# CE FICHIER NE CRÉE AUCUN DROIT, ET NE PREND AUCUNE DÉCISION NOUVELLE.
+#
+# Il est le successeur, pour la release V4, de
+# `docs/governance/retrieval_scope_policy_registry.yml` (release V2), qui reste
+# inchangé et historique. Toute valeur de POLITIQUE portée ici — tenant,
+# niveau, voie, matière, statut d'enseignement, candidat, audiences, droits,
+# `policy_visibility`, `programme_version`, identité cible, statut et source
+# d'autorité — est IDENTIQUE à celle du registre V2, collection par
+# collection. Un test
+# (`packages/contracts/tests/test_retrieval_scope_policy_registry_v4.py`)
+# refuse toute divergence : ce fichier ne peut que RELIER les décisions déjà
+# prises (ADR-0045, ADR-0052, ADR-0053) aux subjects de la release V4.
+#
+# Ce qui change, et seulement cela :
+#
+#   * la release liée (identifiant, manifeste, digest) et l'autorité de
+#     programme qu'elle embarque ;
+#   * `subject_manifest_sha256` de chaque collection, lu dans le manifeste V4 ;
+#   * `evidence_visibility`, qui est un FAIT de la release et non une
+#     politique : les placements V4 déclarent `internal` (ADR-0061). La règle
+#     d'ADR-0052 §3 s'applique toujours — `policy_visibility=internal` n'élargit
+#     pas `evidence_visibility=internal` ;
+#   * pour les trois décisions humaines, l'évidence d'admissibilité recomptée
+#     sur la release V4 (`currentness=official_snapshot`, ADR-0059).
+#
+# `corpus_provenance_id` reste l'identifiant de corpus d'origine ; il n'est
+# jamais une référence de programme.
+
+registry_kind: NEXUS_RETRIEVAL_SCOPE_POLICY_REGISTRY_V1
+registry_version: "1"
+school_year: "2026-2027"
+
+# Registre dont ce fichier reprend les décisions, sans en prendre aucune.
+predecessor_registry_path: docs/governance/retrieval_scope_policy_registry.yml
+
+# Release dont ce registre couvre les collections. Le registre ne la modifie
+# pas et n'en dérive aucune dimension d'autorisation.
+release_id: production-profile-gate-2026-2027-v4
+release_manifest_path: services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/production-profile-gate.release.json
+release_manifest_sha256: bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be
+
+# ADR-0052 §2 — autorité du `programme_version` de politique : le registre de
+# programme EMBARQUÉ par la release V4.
+programme_version_authority:
+  authority_kind: NEXUS_PROGRAMME_INDEX_REGISTRY_V3
+  path: services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/programme_registry.json
+  sha256: 67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97
+
+# ADR-0052 §3 — ordre de restriction de la visibilité. Un indice supérieur
+# restreint DAVANTAGE. Une politique peut restreindre par rapport à l'évidence ;
+# elle ne peut jamais élargir sans ADR explicite.
+visibility_restriction_order:
+  - public
+  - internal
+  - restricted
+  - private
+
+collections:
+  - collection: rag_nexus_dgemc_terminale_option
+    decision_status: GOVERNED
+    subject_manifest_sha256: 8765839885e74fdeb0cf976d91c90c54aca8d82cd4aac2217b28112cf2e7312c
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: dgemc
+    statut_enseignement: option
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A
+    programme_taxonomy_path: services/rag-pedago/taxonomy/dgemc/terminale_option.yml
+    programme_taxonomy_sha256: d838b271d0ae181aa2363b6ae57fdd8ad74e6b3a8ec4423b4ec6faf7cbc4a36f
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_dgemc_terminale_option_v1
+    policy_source_sha256: 6d35cb6f39a22011fe7d07b1d573100c3123f4fcc149888161ba193c59ce4bfb
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_dgemc_terminale_option_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.
+
+  - collection: rag_nexus_hggsp_premiere_specialite
+    decision_status: GOVERNED_BY_HUMAN_DECISION
+    subject_manifest_sha256: 4ebfc7c5e117c7f02c09dbe4506255f5b17aa394f163fc4c3cd1679179a611e3
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: hggsp
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_1_2019-01-22
+    programme_taxonomy_path: services/rag-pedago/taxonomy/hggsp/premiere_specialite.yml
+    programme_taxonomy_sha256: 04a51747e5408f235107ab0c05050507a3ef5b9f6f1725af75ea883fd7d31147
+    # Politique d'accès — DÉCISION HUMAINE NEXUS (ADR-0053 §3).
+    # Ce n'est PAS une reconduction : aucun scope gouverné ne la porte, et
+    # aucune source documentaire externe ne la fonde. `policy_source_scope_id`
+    # reste donc `null` — la valeur n'est recopiée d'aucune autre matière.
+    authority_source: NEXUS_HUMAN_DECISION_ADR_0053
+    policy_source_scope_id: null
+    programme_authority: NEXUS_PROGRAMME_INDEX_REGISTRY_V3
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    admissibility_status: ADMISSIBLE_ON_SEALED_RELEASE_EVIDENCE
+    admissibility_evidence:
+      placements_total: 39
+      review_status: reviewed
+      placement_status: active
+      currentness: official_snapshot
+      subject_manifest_sha256: 4ebfc7c5e117c7f02c09dbe4506255f5b17aa394f163fc4c3cd1679179a611e3
+      subject_path: profile_gate/subjects/rag_nexus_hggsp_premiere_specialite.release.json
+    # Identité cible — EXTENSION de la décision CM. `candidates` et
+    # `audience` servent au contrôle d'accès dans `validate_envelope`
+    # (`profile.candidat not in candidates`, `profile.audience !=
+    # audience`) et ne figuraient pas au registre. Valeurs retenues :
+    # le grant le plus étroit compatible avec le `candidat` que la
+    # release déclare, jamais un élargissement.
+    target_audience: libre
+    target_candidates: [libre]
+    target_identity_decision: >-
+      Extension de la décision CM, approuvée au titre d'ADR-0053 :
+      ces deux valeurs sont des dimensions de contrôle d'accès que la
+      décision initiale ne couvrait pas. Décidées, non dérivées.
+    human_decision_status: APPROVED_UNDER_ADR_0053
+    decision_reviewer: abenrhouma
+    decision_date: "2026-09-19"
+    decision_binding: >-
+      Décision prise au lot CM (ADR-0053) et approuvée par abenrhouma, lue
+      dans le registre V2 et REPRISE À L'IDENTIQUE pour V4. Ce registre ne
+      prend aucune décision nouvelle : une valeur divergente du registre V2
+      fait échouer sa suite de tests.
+    justification: >-
+      HGGSP première spécialité : la release V4 scellée déclare ses 39 placements
+      `review_status=reviewed`, `placement_status=active` et
+      `currentness=official_snapshot`, sous le digest de subject cité ci-dessus. Le
+      matériau est donc admissible au service. En revanche, aucune autorité
+      ne porte sa politique d'ACCÈS : la collection est absente des profils
+      production vérifiés du 2026-08-25
+      (docs/reports/verified_production_profiles_20260825.json) et d'ADR-0045.
+      `audiences`, `rights` et `policy_visibility` sont par conséquent une
+      décision humaine Nexus assumée comme telle, prise dans le vocabulaire
+      canonique du contrat, et non une dérivation d'Eduscol, du BOEN ou d'une
+      collection voisine. `policy_visibility=internal` ÉGALE
+      `evidence_visibility=internal`, que les placements V4 déclarent :
+      l'accès n'est pas élargi (ADR-0052 §3).
+
+  - collection: rag_nexus_hggsp_terminale_specialite
+    decision_status: GOVERNED_BY_HUMAN_DECISION
+    subject_manifest_sha256: 8850821784688b29c6f262ace1a8fc19c30005da741240012ab441766b73e776
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: hggsp
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_8_2019-07-25
+    programme_taxonomy_path: services/rag-pedago/taxonomy/hggsp/terminale_specialite.yml
+    programme_taxonomy_sha256: 522e6be806f56255afceefa156fa04e0e71953baa91f227c5998112b1b05746d
+    # Politique d'accès — DÉCISION HUMAINE NEXUS (ADR-0053 §3).
+    # Ce n'est PAS une reconduction : aucun scope gouverné ne la porte, et
+    # aucune source documentaire externe ne la fonde. `policy_source_scope_id`
+    # reste donc `null` — la valeur n'est recopiée d'aucune autre matière.
+    authority_source: NEXUS_HUMAN_DECISION_ADR_0053
+    policy_source_scope_id: null
+    programme_authority: NEXUS_PROGRAMME_INDEX_REGISTRY_V3
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    admissibility_status: ADMISSIBLE_ON_SEALED_RELEASE_EVIDENCE
+    admissibility_evidence:
+      placements_total: 35
+      review_status: reviewed
+      placement_status: active
+      currentness: official_snapshot
+      subject_manifest_sha256: 8850821784688b29c6f262ace1a8fc19c30005da741240012ab441766b73e776
+      subject_path: profile_gate/subjects/rag_nexus_hggsp_terminale_specialite.release.json
+    # Identité cible — EXTENSION de la décision CM. `candidates` et
+    # `audience` servent au contrôle d'accès dans `validate_envelope`
+    # (`profile.candidat not in candidates`, `profile.audience !=
+    # audience`) et ne figuraient pas au registre. Valeurs retenues :
+    # le grant le plus étroit compatible avec le `candidat` que la
+    # release déclare, jamais un élargissement.
+    target_audience: libre
+    target_candidates: [libre]
+    target_identity_decision: >-
+      Extension de la décision CM, approuvée au titre d'ADR-0053 :
+      ces deux valeurs sont des dimensions de contrôle d'accès que la
+      décision initiale ne couvrait pas. Décidées, non dérivées.
+    human_decision_status: APPROVED_UNDER_ADR_0053
+    decision_reviewer: abenrhouma
+    decision_date: "2026-09-19"
+    decision_binding: >-
+      Décision prise au lot CM (ADR-0053) et approuvée par abenrhouma, lue
+      dans le registre V2 et REPRISE À L'IDENTIQUE pour V4. Ce registre ne
+      prend aucune décision nouvelle : une valeur divergente du registre V2
+      fait échouer sa suite de tests.
+    justification: >-
+      HGGSP terminale spécialité : la release V4 scellée déclare ses 35 placements
+      `review_status=reviewed`, `placement_status=active` et
+      `currentness=official_snapshot`, sous le digest de subject cité ci-dessus. Le
+      matériau est donc admissible au service. En revanche, aucune autorité
+      ne porte sa politique d'ACCÈS : la collection est absente des profils
+      production vérifiés du 2026-08-25
+      (docs/reports/verified_production_profiles_20260825.json) et d'ADR-0045.
+      `audiences`, `rights` et `policy_visibility` sont par conséquent une
+      décision humaine Nexus assumée comme telle, prise dans le vocabulaire
+      canonique du contrat, et non une dérivation d'Eduscol, du BOEN ou d'une
+      collection voisine. `policy_visibility=internal` ÉGALE
+      `evidence_visibility=internal`, que les placements V4 déclarent :
+      l'accès n'est pas élargi (ADR-0052 §3).
+
+  - collection: rag_nexus_hlp_premiere_specialite
+    decision_status: GOVERNED
+    subject_manifest_sha256: eaf7d3985a6899f9d62e3611f66d40df3810ceb842c8fa0784d7880eb37c9801
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: hlp
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_1_2019-01-22
+    programme_taxonomy_path: services/rag-pedago/taxonomy/hlp/premiere_specialite.yml
+    programme_taxonomy_sha256: f2581f126f800d548ec0ba5e67e0c14748963951baeb104e19ba7bf8a2c02318
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_hlp_premiere_specialite_v1
+    policy_source_sha256: d27033c3c33b42f409444ffead785f5789b0e0668b7c4682c3124e956ec36e37
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_hlp_premiere_specialite_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.
+
+  - collection: rag_nexus_hlp_terminale_specialite
+    decision_status: GOVERNED_BY_HUMAN_DECISION
+    subject_manifest_sha256: 62677a1a64551252fddc7a7c4974da6ad9616b82d47b12f0b5ee55b4d69cc50d
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: hlp
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_8_2019-07-25
+    programme_taxonomy_path: services/rag-pedago/taxonomy/hlp/terminale_specialite.yml
+    programme_taxonomy_sha256: b2d72e8c328d4866d8fa9b6890b2619f8486541ea767e0961734b01b7dd66a8f
+    # Politique d'accès — DÉCISION HUMAINE NEXUS (ADR-0053 §3).
+    # Ce n'est PAS une reconduction : aucun scope gouverné ne la porte, et
+    # aucune source documentaire externe ne la fonde. `policy_source_scope_id`
+    # reste donc `null` — la valeur n'est recopiée d'aucune autre matière.
+    authority_source: NEXUS_HUMAN_DECISION_ADR_0053
+    policy_source_scope_id: null
+    programme_authority: NEXUS_PROGRAMME_INDEX_REGISTRY_V3
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    admissibility_status: ADMISSIBLE_ON_SEALED_RELEASE_EVIDENCE
+    admissibility_evidence:
+      placements_total: 89
+      review_status: reviewed
+      placement_status: active
+      currentness: official_snapshot
+      subject_manifest_sha256: 62677a1a64551252fddc7a7c4974da6ad9616b82d47b12f0b5ee55b4d69cc50d
+      subject_path: profile_gate/subjects/rag_nexus_hlp_terminale_specialite.release.json
+    # Identité cible — EXTENSION de la décision CM. `candidates` et
+    # `audience` servent au contrôle d'accès dans `validate_envelope`
+    # (`profile.candidat not in candidates`, `profile.audience !=
+    # audience`) et ne figuraient pas au registre. Valeurs retenues :
+    # le grant le plus étroit compatible avec le `candidat` que la
+    # release déclare, jamais un élargissement.
+    target_audience: libre
+    target_candidates: [libre]
+    target_identity_decision: >-
+      Extension de la décision CM, approuvée au titre d'ADR-0053 :
+      ces deux valeurs sont des dimensions de contrôle d'accès que la
+      décision initiale ne couvrait pas. Décidées, non dérivées.
+    human_decision_status: APPROVED_UNDER_ADR_0053
+    decision_reviewer: abenrhouma
+    decision_date: "2026-09-19"
+    decision_binding: >-
+      Décision prise au lot CM (ADR-0053) et approuvée par abenrhouma, lue
+      dans le registre V2 et REPRISE À L'IDENTIQUE pour V4. Ce registre ne
+      prend aucune décision nouvelle : une valeur divergente du registre V2
+      fait échouer sa suite de tests.
+    justification: >-
+      HLP terminale spécialité : la release V4 scellée déclare ses 89 placements
+      `review_status=reviewed`, `placement_status=active` et
+      `currentness=official_snapshot`, sous le digest de subject cité ci-dessus. Le
+      matériau est donc admissible au service. En revanche, aucune autorité
+      ne porte sa politique d'ACCÈS : la collection est absente des profils
+      production vérifiés du 2026-08-25
+      (docs/reports/verified_production_profiles_20260825.json) et d'ADR-0045.
+      `audiences`, `rights` et `policy_visibility` sont par conséquent une
+      décision humaine Nexus assumée comme telle, prise dans le vocabulaire
+      canonique du contrat, et non une dérivation d'Eduscol, du BOEN ou d'une
+      collection voisine. `policy_visibility=internal` ÉGALE
+      `evidence_visibility=internal`, que les placements V4 déclarent :
+      l'accès n'est pas élargi (ADR-0052 §3).
+
+  - collection: rag_nexus_nsi_premiere_specialite
+    decision_status: GOVERNED
+    subject_manifest_sha256: 8834521a9e05ad98477f7e5724959389502412140aba1802b275eb0cbbab6f59
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: nsi
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_1_2019-01-22
+    programme_taxonomy_path: services/rag-pedago/taxonomy/nsi/premiere_specialite.yml
+    programme_taxonomy_sha256: 8f623fef1f79d15a8a2f9d3b992b0b3c064ae0b03a54fbb559f229df2363fa49
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_nsi_premiere_specialite_v1
+    policy_source_sha256: c93c2149dabf8353fa8959ddaefcee0636c80f6963c8bcd6d25575b9aeab3837
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_nsi_premiere_specialite_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.
+
+  - collection: rag_nexus_nsi_terminale_specialite
+    decision_status: GOVERNED
+    subject_manifest_sha256: 165967fcc21a86c9a337289a0057830abe486c8ccf5b4aaadb0c0058df158288
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: nsi
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_8_2019-07-25
+    programme_taxonomy_path: services/rag-pedago/taxonomy/nsi/terminale.yml
+    programme_taxonomy_sha256: b93a3e4017e99f1647861abac46b5f3136ee8611e7142d4fca2a33a5929eb05f
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_nsi_terminale_specialite_v1
+    policy_source_sha256: b6cb880fdfb0ec7c253e4571ce5683ec4452a6409997406240dde34127a69c7d
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_nsi_terminale_specialite_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.
+
+  - collection: rag_nexus_ses_premiere_specialite
+    decision_status: GOVERNED
+    subject_manifest_sha256: cf13cba2ad3d83b2d4ec4e50e02a8d53a5f355417b59c42d58209ce542e10229
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: ses
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_1_2019-01-22
+    programme_taxonomy_path: services/rag-pedago/taxonomy/ses/premiere_specialite.yml
+    programme_taxonomy_sha256: 7e5a6e6170166a83b2ca8661edff4187d9409016c5f1ceceb22b54daf25ffe0f
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_ses_premiere_specialite_v1
+    policy_source_sha256: e86731b299f9c95e7ddc0395da12b01e4884d9ed47b371805d7f5810ebdd8dfa
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_ses_premiere_specialite_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.
+
+  - collection: rag_nexus_ses_terminale_specialite
+    decision_status: GOVERNED
+    subject_manifest_sha256: 6d45ffc260b680d5b74a63ffec26f29c6ffd63eabeac186d4231da46dc878618
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: ses
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_8_2019-07-25
+    programme_taxonomy_path: services/rag-pedago/taxonomy/ses/terminale_specialite.yml
+    programme_taxonomy_sha256: e927f0b782bbc76979171204f3d39c92703998528fe0460ab3e6ae50a096320e
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_ses_terminale_specialite_v1
+    policy_source_sha256: c906b75e7079b45104cf664b59f68f691f6240823d5813f87f46339c77ac4e66
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_ses_terminale_specialite_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.
+
+  - collection: rag_nexus_svt_premiere_specialite
+    decision_status: GOVERNED
+    subject_manifest_sha256: be8acd85238ff4733ae8ae11b52ad6d9017ba88dbdddee0a25730eedaccbe3ac
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: svt
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_1_2019-01-22
+    programme_taxonomy_path: services/rag-pedago/taxonomy/svt/premiere_specialite.yml
+    programme_taxonomy_sha256: 7d36948c31cb7ccdefa93d2127fc29664ea7ad4a018d0106e4579345dc4e41df
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_svt_premiere_specialite_v1
+    policy_source_sha256: d3bfefe5dd8edb486ed24e9d897ea8891e19d1c53950a46adc186f9bc3f5dfe9
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_svt_premiere_specialite_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.
+
+  - collection: rag_nexus_svt_terminale_specialite
+    decision_status: GOVERNED
+    subject_manifest_sha256: e2a293fa3791d042fbf64c3de0cea2d5a2b2e296bf667a6bb515728c3b8f3d60
+    # Dimensions curriculaires — ce que la release déclare EXISTER.
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: svt
+    statut_enseignement: specialite
+    candidat: libre
+    # Provenance — identifiant de corpus porté par les placements.
+    corpus_provenance_id: EDUSCOL_CORPUS_20260808
+    evidence_visibility: internal
+    # Référence de programme officielle, lue chez son autorité.
+    programme_version: BOEN_special_8_2019-07-25
+    programme_taxonomy_path: services/rag-pedago/taxonomy/svt/terminale_specialite.yml
+    programme_taxonomy_sha256: 201ef0be61a90928f42ef752594a56802b2af366b94aac39bb565eaa54c9da51
+    # Politique d'accès — citée de sa source, jamais écrite ici.
+    authority_source: ADR-0045
+    policy_source_scope_id: prod_svt_terminale_specialite_v1
+    policy_source_sha256: 92fc817fed20305f597299b911e188c65e12f5cbb54b8491fb91293b5dac1f9d
+    policy_visibility: internal
+    audiences: [libre, tous]
+    rights: [officiel_public]
+    # Identité cible — RESTITUÉE du scope source, vérifiée par test.
+    target_audience: libre
+    target_candidates: [libre]
+    human_decision_status: APPROVED_UNDER_ADR_0045
+    justification: >-
+      Politique reconduite à l'identique depuis le scope packagé
+      prod_svt_terminale_specialite_v1, gouverné sous ADR-0045 et épinglé au
+      registre fermé par son digest. Aucune dimension n'est écrite ici.

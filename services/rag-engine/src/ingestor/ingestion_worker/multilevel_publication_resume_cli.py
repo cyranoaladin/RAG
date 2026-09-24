@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 
 import psycopg
+from nexus_contracts.staging_readiness import STAGING_READINESS_PROTOCOL
 from nexus_release_chain.release_readiness import load_release_registry_file
 
 from ingestor.embedding_provider import VerifiedE5EmbeddingProvider
@@ -28,6 +29,15 @@ from ingestor.ingestion_profiles.readiness_gate import (
     enforce_readiness_gate,
 )
 from ingestor.ingestion_profiles.registry import load_profile_registry
+from ingestor.ingestion_profiles.release_qualification import (
+    ReleaseBoundQualification,
+    qualify_release_from_staging_readiness,
+)
+from ingestor.ingestion_profiles.staging_readiness_gate import (
+    EXPECTED_PROTOCOL_ENV,
+    enforce_staging_readiness_gate,
+    require_running_image_matches_manifest,
+)
 
 from .multilevel_runtime_authority import (
     add_multilevel_runtime_authority_arguments,
@@ -199,20 +209,38 @@ def _enforce_production_evidence(
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
-        readiness = enforce_readiness_gate()
-        if readiness.environment not in ("rehearsal", "production"):
+        # ADR-0060 : une readiness de STAGING qualifie une release nommée ; la
+        # qualification se déduit de la readiness vérifiée, jamais d'un
+        # argument. Toute autre readiness suit le chemin inchangé.
+        readiness: ReadinessGateResult | None = None
+        qualification: ReleaseBoundQualification | None = None
+        if os.environ.get(EXPECTED_PROTOCOL_ENV, "") == STAGING_READINESS_PROTOCOL:
+            staging = enforce_staging_readiness_gate()
+            qualification = qualify_release_from_staging_readiness(
+                staging,
+                release_manifest_path=args.release_manifest_path,
+                release_manifest_sha256=args.release_manifest_sha256,
+                running_image=require_running_image_matches_manifest(staging.manifest),
+            )
+            environment = staging.environment
+        else:
+            readiness = enforce_readiness_gate()
+            environment = readiness.environment
+        if environment not in ("rehearsal", "production"):
             raise RuntimeAuthorityStartupError(
                 "multilevel worker requires rehearsal or production readiness"
             )
         product_dsn = _product_dsn()
         _require_distinct_control_and_product_dsn(product_dsn)
-        if readiness.environment == "production":
+        if environment == "production":
+            assert readiness is not None
             _enforce_production_evidence(args, readiness, product_dsn=product_dsn)
         profiles = load_profile_registry(args.profiles_dir)
         authorities = load_multilevel_runtime_authorities(
             multilevel_runtime_authority_inputs_from_args(args),
             profile_registry=profiles,
-            environment=readiness.environment,
+            environment=environment,
+            qualification=qualification,
         )
         resolver = authorities.placement_resolver
         readiness_mapping = getattr(readiness, "authorization_mapping", None)
@@ -241,12 +269,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"MULTILEVEL_PUBLICATION_WORKER_STARTUP_FAILED: {exc}", file=sys.stderr)
         return 1
 
-    if readiness.environment == "production":
+    if environment == "production":
         print(
             "MULTILEVEL_PUBLICATION_WORKER_STARTUP_AUTHORITY "
             "authority_mode=PRODUCTION_SIGNED_READINESS_MANIFEST "
             f"release_registry_sha256={args.release_registry_sha256} "
             f"revocation_registry_sha256={args.revocation_registry_sha256} "
+            f"profile_manifest_sha256={args.profile_manifest_sha256} "
+            f"declared_count={len(profiles)} "
+            f"embedding_inventory_sha256={args.embedding_inventory_sha256}"
+        )
+    elif qualification is not None:
+        print(
+            "MULTILEVEL_PUBLICATION_WORKER_STARTUP_AUTHORITY "
+            "authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION production_approval=false "
+            f"release_id={qualification.release_id} "
+            f"release_manifest_sha256={qualification.release_manifest_sha256} "
+            f"readiness_manifest_sha256={qualification.readiness_manifest_sha256} "
+            f"worker_image={qualification.worker_image} "
             f"profile_manifest_sha256={args.profile_manifest_sha256} "
             f"declared_count={len(profiles)} "
             f"embedding_inventory_sha256={args.embedding_inventory_sha256}"

@@ -20,6 +20,7 @@ from ingestor.ingestion_control.sealed_evidence import (
 )
 from ingestor.ingestion_profiles.manifest import verify_profile_manifest
 from ingestor.ingestion_profiles.registry import ProfileRegistry
+from ingestor.ingestion_profiles.release_qualification import ReleaseBoundQualification
 from ingestor.multilevel_evidence import (
     load_multilevel_candidate_inventory,
     load_multilevel_currentness,
@@ -206,7 +207,9 @@ def _transfer_manifest_arguments_from_args(
     }
 
 
-def review_verification_environment(environment: str) -> str:
+def review_verification_environment(
+    environment: str, *, qualification: ReleaseBoundQualification | None = None
+) -> str:
     """Traduit l'environnement de release en environnement de vérification ADR-0035.
 
     Une répétition et une production ne sont pas signées par la même clé : le
@@ -216,7 +219,21 @@ def review_verification_environment(environment: str) -> str:
     **Ce mode ne retire aucune garde.** Signature Ed25519, liaison du challenge,
     empreintes du decision set, du reçu et de l'ancre, allowlist de reviewers et
     liaison au corpus restent tous vérifiés à l'identique. Seule change la clé
-    recevable."""
+    recevable.
+
+    **Qualification (ADR-0060).** Une répétition qui qualifie une release
+    NOMMÉE par sa readiness de staging vérifie la chaîne documentaire de cette
+    release avec les clés publiques qui l'ont réellement signée. Vérifier une
+    signature n'exerce aucune clé privée et n'autorise aucune exécution de
+    production : l'environnement d'exécution reste la répétition. Une clé de
+    test n'en devient pas recevable pour autant — l'ancre la déclare `test`."""
+    if qualification is not None:
+        if environment != "rehearsal":
+            raise ValueError(
+                "a release qualification applies to a rehearsal only, never to "
+                f"{environment!r}"
+            )
+        return "production"
     if environment == "production":
         return "production"
     if environment == "rehearsal":
@@ -231,8 +248,23 @@ def load_multilevel_runtime_authorities(
     *,
     profile_registry: ProfileRegistry,
     environment: str,
+    qualification: ReleaseBoundQualification | None = None,
 ) -> GovernedRuntimeAuthorities:
-    """Construire une seule autorité cohérente avant toute connexion DB."""
+    """Construire une seule autorité cohérente avant toute connexion DB.
+
+    ``qualification`` (ADR-0060) n'est acceptée qu'en répétition et pour le
+    manifeste de release exact qu'elle nomme : le manifeste de profils de
+    production de cette release est alors consommé par son empreinte
+    canonique, et sa chaîne PII vérifiée avec les clés qui l'ont signée."""
+    if qualification is not None:
+        if environment != "rehearsal":
+            raise RuntimeAuthorityStartupError(
+                "a release qualification applies to a rehearsal only"
+            )
+        if qualification.release_manifest_sha256 != inputs.release_manifest_sha256:
+            raise RuntimeAuthorityStartupError(
+                "the qualified release manifest differs from the loaded release manifest"
+            )
     # Le worker extrait : il porte le runtime pypdf déclaré par la release
     # (une seule autorité, `nexus_pdf_page_policy.CANONICAL_PYPDF_VERSION`),
     # sinon il découperait d'autres chunks que ceux attendus. Refus AVANT toute
@@ -271,7 +303,7 @@ def load_multilevel_runtime_authorities(
             expected_registry_sha256=inputs.programme_registry_sha256,
             repository_root=inputs.repository_root,
         )
-        if environment == "production":
+        if environment == "production" or qualification is not None:
             profile_manifest = production_profile_manifest_verification(
                 verify_profile_manifest(profile_registry, inputs.profile_manifest_path)
             )
@@ -296,6 +328,7 @@ def load_multilevel_runtime_authorities(
             profiles=profile_registry,
             profile_manifest=profile_manifest,
             environment=environment,
+            release_bound=qualification is not None,
             programme_registry=programme,
             collection_config=load_collection_config(inputs.collection_config_path),
             release_eligibility=release,
@@ -317,7 +350,9 @@ def load_multilevel_runtime_authorities(
             expected_review_index_sha256=inputs.pii_review_index_sha256,
             repository_root=inputs.repository_root,
             expected_reviewers_sha256=inputs.pii_review_reviewers_sha256,
-            environment=review_verification_environment(environment),
+            environment=review_verification_environment(
+                environment, qualification=qualification
+            ),
         )
         rights = VerifiedRightsEvidenceRegistry.load(
             inputs.rights_evidence_path,
