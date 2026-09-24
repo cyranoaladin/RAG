@@ -72,9 +72,27 @@ def require_profile_manifest_authority(
     *,
     environment: str,
     profile_count: int,
+    release_bound: bool = False,
 ) -> None:
-    """Refuser explicitement tout croisement staging/production."""
-    if environment == "production":
+    """Refuser explicitement tout croisement staging/production.
+
+    ``release_bound`` (ADR-0060) : une répétition qui qualifie la release
+    nommée par sa readiness de staging consomme le manifeste de PRODUCTION de
+    cette release — et lui seul : un manifeste de staging y est refusé. La
+    production ne connaît pas ce mode."""
+    if release_bound:
+        if environment != "rehearsal":
+            raise MultilevelPlacementResolutionError(
+                "a release-bound qualification never applies to production"
+            )
+        if not isinstance(verification, ProductionProfileManifestVerification) or (
+            verification.authority_mode != "PRODUCTION_PROFILE_MANIFEST"
+        ):
+            raise MultilevelPlacementResolutionError(
+                "a release-bound qualification consumes the release's own "
+                "production profile manifest"
+            )
+    elif environment == "production":
         if not isinstance(verification, ProductionProfileManifestVerification):
             raise MultilevelPlacementResolutionError(
                 "production requires a production profile manifest"
@@ -384,6 +402,7 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
         programme_registry: ProgrammeIndexRegistry,
         collection_config: Mapping[str, object],
         release_eligibility: MultilevelReleaseEligibility,
+        release_bound: bool = False,
     ) -> MultilevelVerifiedPedagogicalPlacementResolver:
         if currentness.school_year != candidate_inventory.school_year:
             raise MultilevelPlacementResolutionError(
@@ -413,6 +432,7 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             profile_manifest,
             environment=environment,
             profile_count=len(profiles),
+            release_bound=release_bound,
         )
         candidate_keys = {
             (item.collection, item.content_sha256, item.source_placement_id)
