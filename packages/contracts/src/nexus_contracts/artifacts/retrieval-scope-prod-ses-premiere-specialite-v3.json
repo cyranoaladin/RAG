@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_ses_premiere_specialite_v3",
+  "status": "eligible_for_promotion",
+  "source_sha256": "cf13cba2ad3d83b2d4ec4e50e02a8d53a5f355417b59c42d58209ce542e10229",
+  "target_identity": {
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "ses",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_ses_premiere_specialite",
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "ses",
+    "statut_enseignement": "specialite",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_1_2019-01-22"
+  }
+}

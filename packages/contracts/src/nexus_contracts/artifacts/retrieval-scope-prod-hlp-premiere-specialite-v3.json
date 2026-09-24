@@ -1,0 +1,36 @@
+{
+  "artifact_version": "2",
+  "scope_id": "prod_hlp_premiere_specialite_v3",
+  "status": "eligible_for_promotion",
+  "source_sha256": "eaf7d3985a6899f9d62e3611f66d40df3810ceb842c8fa0784d7880eb37c9801",
+  "target_identity": {
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "hlp",
+    "statut_enseignement": "specialite",
+    "audience": "libre",
+    "candidates": [
+      "libre"
+    ]
+  },
+  "evidence_subject": {
+    "collection": "rag_nexus_hlp_premiere_specialite",
+    "tenant": "libre_premiere",
+    "niveau": "premiere",
+    "voie": "generale",
+    "matiere": "hlp",
+    "statut_enseignement": "specialite",
+    "candidat": "libre",
+    "audiences": [
+      "libre",
+      "tous"
+    ],
+    "visibility": "internal",
+    "rights": [
+      "officiel_public"
+    ],
+    "school_year": "2026-2027",
+    "programme_version": "BOEN_special_1_2019-01-22"
+  }
+}
