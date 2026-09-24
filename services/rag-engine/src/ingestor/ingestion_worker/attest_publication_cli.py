@@ -308,6 +308,24 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Identite reelle de l'operateur qui adopte.",
     )
 
+    bind = subparsers.add_parser(
+        "bind-publication-authorities",
+        help=(
+            "Lie aux placements adoptes par un successeur l'autorite de PUBLICATION "
+            "de leur collection (LOT41A-V2, ADR-0060), en ajout seul, sans toucher "
+            "l'autorite d'acquisition du payload. N'approuve rien, ne publie rien."
+        ),
+    )
+    bind.add_argument("--release-id", required=True, type=_non_blank)
+    bind.add_argument(
+        "--scope-authorization", required=True, action="append", type=_non_blank,
+        help="collection=authorization_id ; une par collection du successeur",
+    )
+    bind.add_argument(
+        "--bound-by", required=True, type=_non_blank,
+        help="Identite reelle de l'operateur qui lie.",
+    )
+
     record_batch = subparsers.add_parser(
         "record-release-batch-attestation",
         help=(
@@ -1043,6 +1061,55 @@ def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_bind_publication_authorities(args: argparse.Namespace) -> int:
+    """Lie l'autorite de publication des placements adoptes (ADR-0060).
+
+    Chaque autorisation nommee est revérifiee EN DIRECT (revue humaine au
+    head approuve, artefact relu, fenetre de validite, non-revocation) avant
+    que la moindre liaison soit ecrite ; chaque placement doit figurer dans
+    la liste positive de l'autorisation de sa collection."""
+    from ingestor.ingestion_control.scope_authority import (
+        ScopeAuthorizationDeniedError,
+        verify_scope_authorization,
+    )
+    from ingestor.ingestion_control.sealed_release_adoption import (
+        SealedReleaseAdoptionError,
+        bind_publication_authorities,
+    )
+
+    par_collection: dict[str, str] = {}
+    for brut in args.scope_authorization:
+        collection, separateur, identifiant = brut.partition("=")
+        if not separateur or not collection or not identifiant:
+            print(f"BINDING_REFUSED: {brut!r} is not collection=authorization_id", file=sys.stderr)
+            return 2
+        if collection in par_collection:
+            print(f"BINDING_REFUSED: collection {collection!r} named twice", file=sys.stderr)
+            return 2
+        par_collection[collection] = identifiant
+
+    with psycopg.connect(get_attestor_dsn()) as conn:
+        try:
+            autorites = {
+                collection: verify_scope_authorization(conn, authorization_id=identifiant)
+                for collection, identifiant in par_collection.items()
+            }
+            ecrites, deja = bind_publication_authorities(
+                conn, release_id=args.release_id, authorities=autorites,
+                bound_by=args.bound_by,
+            )
+        except (ScopeAuthorizationDeniedError, SealedReleaseAdoptionError) as exc:
+            conn.rollback()
+            print(f"BINDING_REFUSED: {exc}", file=sys.stderr)
+            return 1
+        conn.commit()
+    print(
+        f"PUBLICATION_AUTHORITIES_BOUND release_id={args.release_id} "
+        f"collections={len(par_collection)} written={ecrites} already_present={deja}"
+    )
+    return 0
+
+
 def _cmd_record_release_batch_attestation(args: argparse.Namespace) -> int:
     """Enregistre N attestations batch apres approbation humaine.
 
@@ -1238,6 +1305,8 @@ def main(argv: list[str] | None = None) -> int:
         return _cmd_record_release_batch_attestation(args)
     if args.command == "adopt-predecessor-release":
         return _cmd_adopt_predecessor_release(args)
+    if args.command == "bind-publication-authorities":
+        return _cmd_bind_publication_authorities(args)
     if args.command == "verify-release-sources":
         return _cmd_verify_release_sources(args)
     raise AssertionError(f"unreachable: unknown command {args.command!r}")  # pragma: no cover
