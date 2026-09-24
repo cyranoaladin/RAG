@@ -181,16 +181,26 @@ verifier_historique() {  # ragdb doit être EXACTEMENT celle du pré-vol
     log "RAGDB_INCHANGEE"
 }
 
-vide_cible() {  # la base dédiée : lignes de chaque table métier (0 si absente)
+vide_cible() {  # la base dédiée : lignes des tables métier PRÉSENTES (0 si aucune)
+    # Aucune relation n'est nommée directement : PostgreSQL résout les noms à
+    # l'analyse, même dans une branche de CASE jamais exécutée, et une base
+    # neuve n'en a aucune. Les tables présentes sont trouvées dans pg_class,
+    # puis comptées par query_to_xml — en lecture seule.
     cat <<'SQL'
-select coalesce(sum(n),0) from (
-  select case when to_regclass('public.rag_chunks') is null then 0 else (select count(*) from public.rag_chunks) end as n
-  union all select case when to_regclass('public.rag_artifacts') is null then 0 else (select count(*) from public.rag_artifacts) end
-  union all select case when to_regclass('public.rag_artifact_placements') is null then 0 else (select count(*) from public.rag_artifact_placements) end
-  union all select case when to_regclass('ingestion_control.resources') is null then 0 else (select count(*) from ingestion_control.resources) end
-  union all select case when to_regclass('ingestion_control.artifacts') is null then 0 else (select count(*) from ingestion_control.artifacts) end
-  union all select case when to_regclass('ingestion_control.publication_attestations') is null then 0 else (select count(*) from ingestion_control.publication_attestations) end
-) t
+select coalesce(sum((xpath('/row/lignes/text()', query_to_xml(format('select count(*) as lignes from %s', c.oid::regclass), false, true, '')))[1]::text::bigint), 0)
+  from pg_class c join pg_namespace s on s.oid = c.relnamespace
+ where (s.nspname, c.relname) in (('public','rag_chunks'),('public','rag_artifacts'),('public','rag_artifact_placements'),
+       ('ingestion_control','resources'),('ingestion_control','artifacts'),('ingestion_control','publication_attestations'))
+SQL
+}
+
+tete_si_presente() {  # $1 = schéma : tête de son registre de migrations, 0 s'il est absent
+    local table=schema_migrations
+    [ "$1" = public ] && table=rag_schema_migrations
+    cat <<SQL
+select coalesce((select (xpath('/row/v/text()', query_to_xml(format('select coalesce(max(version),0) as v from %s', c.oid::regclass), false, true, '')))[1]::text::int
+  from pg_class c join pg_namespace s on s.oid = c.relnamespace
+ where s.nspname = '$1' and c.relname = '$table'), 0)
 SQL
 }
 
@@ -359,7 +369,7 @@ etape_product_migrations() {
     remote <<EOF || fail "migrations produit"
 set -euo pipefail
 cd $REMOTE/repo && git fetch -q origin && git checkout -q --detach $AUTH_COMMIT
-test "\$($(psql_ro "$DB" "select case when to_regclass('public.rag_schema_migrations') is null then 0 else (select coalesce(max(version),0) from public.rag_schema_migrations) end"))" = 0 \\
+test "\$($(psql_ro "$DB" "$(tete_si_presente public | tr '\n' ' ')"))" = 0 \\
     || { echo "TETE_PRODUIT_INATTENDUE avant migration" >&2; exit 4; }
 cd services/rag-engine/infra
 ! grep -qE '^[[:space:]]*(export[[:space:]]+)?(PGVECTOR_DB|PGVECTOR_CONTAINER|PGVECTOR_USER)=' .env 2>/dev/null
@@ -381,7 +391,7 @@ etape_control_migrations() {
     remote <<EOF || fail "migrations contrôle"
 set -euo pipefail
 command -v psql >/dev/null || { echo "psql absent de l'hôte" >&2; exit 4; }
-test "\$($(psql_ro "$DB" "select case when to_regclass('ingestion_control.schema_migrations') is null then 0 else (select coalesce(max(version),0) from ingestion_control.schema_migrations) end"))" = 0 \\
+test "\$($(psql_ro "$DB" "$(tete_si_presente ingestion_control | tr '\n' ' ')"))" = 0 \\
     || { echo "TETE_CONTROLE_INATTENDUE avant migration" >&2; exit 4; }
 cd $REMOTE/repo/services/rag-engine/infra
 (
