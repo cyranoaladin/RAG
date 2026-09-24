@@ -174,6 +174,99 @@ def test_l_ingestion_suit_l_enregistrement_des_r4():
     assert ordre.index("control_migrations") < ordre.index("scope_authorization_registration_r4")
 
 
+# ── DC : la base dédiée, et ragdb hors du chemin ───────────────────────────
+
+def test_toute_operation_sur_une_base_vise_la_base_dediee_sauf_la_sauvegarde_en_lecture():
+    for operation, spec in autorisation.OPERATIONS_V4.items():
+        base = spec["cible"].get("database")
+        if base is None:
+            continue
+        if base == autorisation.BASE_HISTORIQUE:
+            assert operation == "backup_before_migration", operation
+            assert spec["cible"]["mode"] == "read_only"
+            assert spec["cible"]["command"] == "pg_dump"
+        else:
+            assert base == autorisation.BASE_V4 == "ragdb_profile_gate_v4", operation
+
+
+@pytest.mark.parametrize("operation", [
+    "database_creation", "product_migrations", "control_migrations", "role_env_derivation",
+    "scope_authorization_registration_r4", "sealed_ingestion_v4", "worker_b_publication",
+])
+def test_une_ecriture_dirigee_vers_ragdb_est_refusee(operation):
+    cible = _cible(operation)
+    cible["database"] = autorisation.BASE_HISTORIQUE
+    assert _autorise(operation, cible, _v4())
+
+
+def test_la_sauvegarde_ne_peut_pas_devenir_une_ecriture_de_ragdb():
+    cible = _cible("backup_before_migration")
+    cible["mode"] = "write"
+    assert _autorise("backup_before_migration", cible, _v4())
+
+
+def test_la_creation_est_additive_et_refuse_une_base_existante():
+    cible = _cible("database_creation")
+    assert (cible["mode"], cible["command"], cible["template"], cible["refuse_if_exists"]) == (
+        "additive", "createdb", "template0", True,
+    )
+    for cle, valeur in (("refuse_if_exists", False), ("command", "dropdb"), ("template", "ragdb")):
+        autre = copy.deepcopy(cible)
+        autre[cle] = valeur
+        assert _autorise("database_creation", autre, _v4()), cle
+
+
+def test_les_migrations_partent_de_zero_jusqu_aux_tetes_du_depot():
+    assert (_cible("product_migrations")["from_head"], _cible("product_migrations")["target_head"]) == ("000", "005")
+    assert (_cible("control_migrations")["from_head"], _cible("control_migrations")["target_head"]) == ("000", "019")
+    for depot, tete in (
+        ("services/rag-engine/infra/postgres/migrations/HEAD", "005"),
+        ("services/rag-engine/infra/postgres/ingestion_control/migrations/HEAD", "019"),
+    ):
+        assert (RACINE / depot).read_text().strip().startswith(tete)
+    assert _cible("product_migrations")["provisions_roles"] == ["rag_reader", "rag_reviewer", "rag_publisher"]
+
+
+def test_la_derivation_des_env_ne_cree_aucun_secret_et_n_ecrit_que_des_fichiers_par_role():
+    cible = _cible("role_env_derivation")
+    assert cible["new_secrets"] is False
+    assert (cible["dir_mode"], cible["file_mode"]) == ("0700", "0600")
+    assert cible["destination"] == autorisation.REPERTOIRE_ROLES
+    assert cible["sources"] == ["staging.env", "ingestion_control.env"]
+    assert (RACINE / cible["script"]).is_file()
+    autre = copy.deepcopy(cible)
+    autre["new_secrets"] = True
+    assert _autorise("role_env_derivation", autre, _v4())
+
+
+def test_ragdb_est_nommee_intangible_et_les_fichiers_globaux_jamais_montes():
+    historique = autorisation.CIBLES_V4["legacy_database"]
+    assert (historique["name"], historique["mode"]) == ("ragdb", "untouched")
+    for fichier in ("staging.env", "ingestion_control.env"):
+        assert fichier in autorisation.CIBLES_V4["worker_never_receives"]
+
+
+def test_le_jeton_github_est_en_lecture_seule_et_cree_par_le_proprietaire():
+    jeton = autorisation.GABARIT_V4["github_read_token"]
+    assert jeton["path"] == "/srv/nexus-staging/secrets/github-read-token/token"
+    assert jeton["permissions"] == {"contents": "read", "metadata": "read"}
+    assert jeton["repository_selection"] == ["cyranoaladin/RAG"]
+    assert (jeton["file_mode"], jeton["dir_mode"]) == ("0600", "0700")
+    assert "jamais par l'agent" in jeton["created_by"]
+    doc = _v4()
+    doc["github_read_token"]["permissions"]["contents"] = "write"
+    assert _ecarts(doc)
+
+
+def test_dc_remplace_l_autorisation_db_non_consommee():
+    assert autorisation.GABARIT_V4["amends"] == "DC"
+    assert autorisation.GABARIT_V4["supersedes"]["amends"] == "DB"
+    assert len(autorisation.GABARIT_V4["supersedes"]["sha256"]) == 64
+    doc = _v4()
+    doc["supersedes"]["sha256"] = "0" * 64
+    assert _ecarts(doc)
+
+
 # ── ce que l'autorisation V4 doit dire, et qu'on ne peut pas retirer ───────
 
 @pytest.mark.parametrize(
@@ -234,7 +327,11 @@ def test_les_deux_images_viennent_du_meme_commit():
 
 @pytest.mark.parametrize(
     "interdit",
-    sorted(autorisation.INTERDITS_REQUIS | {"v2_publication", "v3_publication", "predecessor_adoption"}),
+    sorted(autorisation.INTERDITS_REQUIS | {
+        "v2_publication", "v3_publication", "predecessor_adoption",
+        "legacy_database_modification", "legacy_v2_data_deletion",
+        "pilot_placements_reuse", "api_service_switch",
+    }),
 )
 def test_une_interdiction_omise_est_refusee(interdit):
     doc = _v4()

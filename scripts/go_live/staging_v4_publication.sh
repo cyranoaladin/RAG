@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
-# Orchestrateur de la publication V4 sur le staging cloisonné (lot DB).
+# Orchestrateur de la publication V4 sur le staging cloisonné (lots DB, DC).
 #
 # Plan : docs/runbooks/staging_v4_publication_EXECUTION_PLAN.md
 # Chaque étape est d'abord soumise au vérificateur d'autorisation, sur sa cible
 # exacte (tirée du vérificateur, jamais ressaisie ici). Premier écart : arrêt.
 # Aucune commande canonique n'est réimplémentée : ce script les enchaîne, avec
 # des arguments dérivés de la release par staging_v4_arguments.py.
-# Chemin DIRECT seulement : une base portant des placements acquis arrête le
-# pré-vol (ADR-0061 réserve leur reprise par V4 à une décision distincte).
+#
+# Base DÉDIÉE (lot DC) : V4 vit dans ``ragdb_profile_gate_v4``, créée
+# additivement dans le cluster existant. ``ragdb`` (acquisition V2, placements
+# pilotes) reste intacte : mesurée au pré-vol, revérifiée après chaque étape
+# qui écrit. Tout contenu inattendu dans la base dédiée est un refus.
 #
 #   scripts/go_live/staging_v4_publication.sh [--dry-run] run [--until <étape>]
 #   scripts/go_live/staging_v4_publication.sh status
@@ -16,15 +19,20 @@
 # Reprise : une étape marquée faite n'est pas rejouée ; supprimer son marqueur
 # ne la rejoue qu'après que sa commande canonique a revérifié son état (les
 # commandes sont idempotentes : already_present, rejeu sans écriture).
+# Création de la base interrompue : relancer le pré-vol (marqueur supprimé),
+# qui constate une base dédiée VIERGE ; l'étape de création l'accepte alors.
 set -euo pipefail
 
 ROOT="${NEXUS_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$ROOT"
 STATE_DIR="${STATE_DIR:-$HOME/nexus-staging-v4-run}"
+# Interpréteur LOCAL (poste de l'opérateur) ; l'hôte garde son python3.
+PYTHON="${PYTHON:-python3}"
 SSH_HOST="${SSH_HOST:-nexus-prod}"
 REMOTE="/srv/nexus-staging"
 CONTAINER="nexus-staging-pgvector-1"
-DB="ragdb"
+DB="ragdb_profile_gate_v4"
+LEGACY_DB="ragdb"
 AUTH_V4="docs/reports/go_live/authorizations/staging_v4_publication_authorization.json"
 RUN="$REMOTE/run-db"
 MODELE_NOM="e5-large-prerentree-2026-2027-20260828-materialise"
@@ -36,23 +44,34 @@ READINESS_MANIFESTE="staging-readiness-v4.json"
 READINESS_REMOTE="$REMOTE/readiness"
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && { DRY_RUN=1; shift; }
+# Essai à blanc sans réseau (tests) : le contrôle d'autorisation n'est pas
+# appelé. N'a AUCUN effet hors --dry-run.
+HORS_LIGNE=0
+[ "$DRY_RUN" = 1 ] && [ "${DRY_RUN_OFFLINE:-0}" = 1 ] && HORS_LIGNE=1
 
-# Fichiers d'environnement de l'hôte (0600, jamais affichés). Leurs noms sont
-# constatés au pré-vol ; leur contenu ne transite jamais par ce poste.
-REMOTE_STAGING_ENV="${REMOTE_STAGING_ENV:-$REMOTE/secrets/staging.env}"
-REMOTE_READINESS_ENV="${REMOTE_READINESS_ENV:-$REMOTE/secrets/readiness.env}"
-REMOTE_WORKER_ENV="${REMOTE_WORKER_ENV:-$REMOTE/secrets/ingestion-control-app.env}"
-REMOTE_ATTESTOR_ENV="${REMOTE_ATTESTOR_ENV:-$REMOTE/secrets/ingestion-control-attestor.env}"
-REMOTE_PUBLISHER_ENV="${REMOTE_PUBLISHER_ENV:-$REMOTE/secrets/rag-publisher.env}"
-REMOTE_AUTHORITY_ENV="${REMOTE_AUTHORITY_ENV:-$REMOTE/secrets/ingestion-control-authority.env}"
-REMOTE_READER_ENV="${REMOTE_READER_ENV:-$REMOTE/secrets/rag-reader.env}"
-REMOTE_GITHUB_TOKEN_FILE="${REMOTE_GITHUB_TOKEN_FILE:-$REMOTE/secrets/github-read-token/token}"
+# Fichiers SOURCES de l'hôte (0600, jamais affichés, jamais montés dans un
+# worker) : seules les étapes de migration et de dérivation les lisent.
+REMOTE_STAGING_ENV="$REMOTE/secrets/staging.env"
+REMOTE_CONTROL_SOURCE_ENV="$REMOTE/secrets/ingestion_control.env"
+REMOTE_READINESS_ENV="$REMOTE/secrets/readiness.env"
+# Fichiers PAR RÔLE, dérivés par l'étape role_env_derivation : les seuls que
+# reçoivent les conteneurs.
+REMOTE_ROLES="$REMOTE/secrets/v4-roles"
+REMOTE_WORKER_ENV="$REMOTE_ROLES/ingestion-control-app.env"
+REMOTE_ATTESTOR_ENV="$REMOTE_ROLES/ingestion-control-attestor.env"
+REMOTE_AUTHORITY_ENV="$REMOTE_ROLES/ingestion-control-authority.env"
+REMOTE_PUBLISHER_ENV="$REMOTE_ROLES/rag-publisher.env"
+REMOTE_READER_ENV="$REMOTE_ROLES/rag-reader.env"
+# Jeton GitHub en lecture : créé par le propriétaire après approbation.
+REMOTE_GITHUB_TOKEN_FILE="$REMOTE/secrets/github-read-token/token"
 
 install -d -m 0700 "$STATE_DIR"
 LOG="$STATE_DIR/execution.log"
 
 redact() {  # aucun secret ne passe dans le journal
     sed -E \
+        -e "s#(password=)'([^'\\\\]|\\\\.)*'#\\1'***'#g" \
+        -e 's#(password=)[^ '"'"']+#\1***#g' \
         -e 's#(postgres(ql)?://[^:/ ]+:)[^@ ]+@#\1***@#g' \
         -e 's#(gh[pousr]_|github_pat_)[A-Za-z0-9_]+#\1***#g' \
         -e 's#((PASSWORD|SECRET|TOKEN|KEY|DSN)[A-Z_]*=)[^ ]+#\1***#g'
@@ -61,21 +80,24 @@ log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | redact | tee -a "$LOG" >&2;
 fail() { log "ARRET: $*"; exit 3; }
 
 champ() {  # lit un champ de l'autorisation V4 par chemin pointé
-    python3 -c "
+    "$PYTHON" -c "
 import json,sys
 d=json.load(open('$AUTH_V4'))
 for k in sys.argv[1].split('.'): d=d[k]
 print(d)" "$1"
 }
 cible() {
-    python3 -c "
+    "$PYTHON" -c "
 import json,sys; sys.path.insert(0,'scripts/go_live')
 import check_staging_authorization as a
 print(json.dumps(a.OPERATIONS_V4[sys.argv[1]]['cible'], sort_keys=True))" "$1"
 }
 autoriser() {
     local op="$1" sortie
-    if ! sortie=$(python3 scripts/go_live/check_staging_authorization.py \
+    if [ "$HORS_LIGNE" = 1 ]; then
+        log "SIMULATION: contrôle d'autorisation de $op non appelé (essai hors ligne)"; return 0
+    fi
+    if ! sortie=$("$PYTHON" scripts/go_live/check_staging_authorization.py \
             --operation "$op" --cible "$(cible "$op")" 2>&1); then
         log "$sortie"
         [ "$DRY_RUN" = 1 ] && { log "SIMULATION: $op serait refusée en réel"; return 0; }
@@ -93,13 +115,13 @@ remote() {  # exécute sur l'hôte le script lu sur l'entrée standard
 }
 fait() { [ -f "$STATE_DIR/$1.done" ]; }
 marquer() { printf '%s\n' "$2" > "$STATE_DIR/$1.done"; log "FAIT $1 $2"; }
-psql_ro() {  # requête en lecture, dans le conteneur exact
-    printf 'docker exec %s sh -c %q\n' "$CONTAINER" \
-        "psql -v ON_ERROR_STOP=1 -X -At -U \"\$POSTGRES_USER\" -d $DB -c \"$1\""
+psql_ro() {  # $1 = base, $2 = requête ; lecture seule imposée par le serveur
+    printf 'docker exec -e PGOPTIONS=%q %s sh -c %q\n' "-c default_transaction_read_only=on" "$CONTAINER" \
+        "psql -v ON_ERROR_STOP=1 -X -At -U \"\$POSTGRES_USER\" -d $1 -c \"$2\""
 }
 args_de() {  # arguments canoniques, une ligne par argument, citée pour bash
     local sortie
-    sortie=$(python3 scripts/go_live/staging_v4_arguments.py "$@") || fail "arguments refusés : $*"
+    sortie=$("$PYTHON" scripts/go_live/staging_v4_arguments.py "$@") || fail "arguments refusés : $*"
     local -a tableau; mapfile -t tableau <<<"$sortie"
     printf '%q ' "${tableau[@]}"
 }
@@ -120,14 +142,68 @@ test "\$(docker inspect --format '{{index .RepoDigests 0}}' "$1")" = "$1"
 EOF
 }
 
-worker() {  # $1 = fichiers d'env (':') ; reste = module et arguments
+env_de_role() {  # refuse tout fichier qui n'est pas un fichier PAR RÔLE
+    local f
+    for f in "$@"; do
+        case "$f" in
+            "$REMOTE_ROLES"/*.env) ;;
+            *) fail "fichier d'environnement hors des fichiers par rôle : $f" ;;
+        esac
+    done
+}
+
+jeton_present() {  # le jeton GitHub : présent, 0600, sous 0700 ; jamais lu ici
+    cat <<EOF
+test -s "$REMOTE_GITHUB_TOKEN_FILE" || { echo "JETON_GITHUB_ABSENT" >&2; exit 4; }
+test "\$(stat -c %a "$REMOTE_GITHUB_TOKEN_FILE")" = 600 || { echo "JETON_GITHUB_MODE" >&2; exit 4; }
+test "\$(stat -c %a "\$(dirname "$REMOTE_GITHUB_TOKEN_FILE")")" = 700 || { echo "JETON_GITHUB_DIR_MODE" >&2; exit 4; }
+EOF
+}
+
+mesure_historique() {  # ragdb : têtes, comptes et empreintes des lignes existantes
+    cat <<EOF
+echo "LEGACY_PRODUCT_HEAD=\$($(psql_ro "$LEGACY_DB" "select coalesce(max(version),0) from public.rag_schema_migrations"))"
+echo "LEGACY_CONTROL_HEAD=\$($(psql_ro "$LEGACY_DB" "select coalesce(max(version),0) from ingestion_control.schema_migrations"))"
+echo "LEGACY_RESOURCES=\$($(psql_ro "$LEGACY_DB" "select count(*)||':'||md5(coalesce(string_agg(resource_id::text||resource_state||state_version, ',' order by resource_id),'')) from ingestion_control.resources"))"
+echo "LEGACY_ARTIFACTS=\$($(psql_ro "$LEGACY_DB" "select count(*)||':'||md5(coalesce(string_agg(artifact_id::text||sha256, ',' order by artifact_id),'')) from ingestion_control.artifacts"))"
+echo "LEGACY_PLACEMENTS=\$($(psql_ro "$LEGACY_DB" "select count(*)||':'||md5(coalesce(string_agg(placement_id||placement_status||currentness, ',' order by placement_id),'')) from public.rag_artifact_placements"))"
+echo "LEGACY_CHUNKS=\$($(psql_ro "$LEGACY_DB" "select count(*)||':'||md5(coalesce(string_agg(chunk_id, ',' order by chunk_id),'')) from public.rag_chunks"))"
+echo "LEGACY_SCOPE_AUTHORIZATIONS=\$($(psql_ro "$LEGACY_DB" "select count(*) from ingestion_control.scope_authorizations"))"
+EOF
+}
+
+verifier_historique() {  # ragdb doit être EXACTEMENT celle du pré-vol
+    local apres
+    [ "$DRY_RUN" = 1 ] && { mesure_historique | remote >/dev/null; return 0; }
+    apres=$( { echo "set -euo pipefail"; mesure_historique; } | remote) || fail "ragdb : mesure impossible"
+    [ "$apres" = "$(cat "$STATE_DIR/legacy_baseline.txt")" ] \
+        || fail "ragdb a changé depuis le pré-vol — arrêt de sécurité (voir legacy_baseline.txt)"
+    log "RAGDB_INCHANGEE"
+}
+
+vide_cible() {  # la base dédiée : lignes de chaque table métier (0 si absente)
+    cat <<'SQL'
+select coalesce(sum(n),0) from (
+  select case when to_regclass('public.rag_chunks') is null then 0 else (select count(*) from public.rag_chunks) end as n
+  union all select case when to_regclass('public.rag_artifacts') is null then 0 else (select count(*) from public.rag_artifacts) end
+  union all select case when to_regclass('public.rag_artifact_placements') is null then 0 else (select count(*) from public.rag_artifact_placements) end
+  union all select case when to_regclass('ingestion_control.resources') is null then 0 else (select count(*) from ingestion_control.resources) end
+  union all select case when to_regclass('ingestion_control.artifacts') is null then 0 else (select count(*) from ingestion_control.artifacts) end
+  union all select case when to_regclass('ingestion_control.publication_attestations') is null then 0 else (select count(*) from ingestion_control.publication_attestations) end
+) t
+SQL
+}
+
+worker() {  # $1 = fichiers d'env PAR RÔLE (':') ; reste = module et arguments
     local manifeste="$READINESS_MANIFESTE" envs="" f sha
     sha=$(sha256sum "$READINESS_LOCAL/$manifeste" 2>/dev/null | cut -d' ' -f1) \
         || fail "manifeste de readiness local absent : $manifeste"
     IFS=: read -r -a _fichiers <<<"$1"; shift
+    env_de_role "${_fichiers[@]}"
     for f in "${_fichiers[@]}"; do envs+="--env-file \"$f\" "; done
     cat <<EOF
 set -euo pipefail
+$(jeton_present)
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker pull -q "$IMAGE"
 IMAGE_REELLE=\$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
 test "\$IMAGE_REELLE" = "$IMAGE"
@@ -158,36 +234,87 @@ set -euo pipefail
 test "\$(docker ps --filter name=^/${CONTAINER}\$ --format '{{.Names}}')" = "$CONTAINER"
 echo "DISK_FREE_KB=\$(df -Pk $REMOTE | awk 'NR==2{print \$4}')"
 echo "PSQL_ON_HOST=\$(command -v psql >/dev/null && echo yes || echo no)"
-for f in "$REMOTE_STAGING_ENV" "$REMOTE_READINESS_ENV" "$REMOTE_WORKER_ENV" "$REMOTE_ATTESTOR_ENV" "$REMOTE_PUBLISHER_ENV" "$REMOTE_AUTHORITY_ENV" "$REMOTE_READER_ENV" "$REMOTE_GITHUB_TOKEN_FILE"; do
-    if [ -f "\$f" ]; then echo "SECRET_FILE \$f \$(stat -c %a "\$f")"; else echo "SECRET_FILE_MISSING \$f"; fi
+echo "PYTHON3_ON_HOST=\$(command -v python3 >/dev/null && echo yes || echo no)"
+echo "SUPERUSER=\$(docker exec $CONTAINER printenv POSTGRES_USER)"
+for f in "$REMOTE_STAGING_ENV" "$REMOTE_CONTROL_SOURCE_ENV" "$REMOTE_READINESS_ENV"; do
+    if [ -f "\$f" ]; then echo "SOURCE_FILE \$f \$(stat -c %a "\$f")"; else echo "SOURCE_FILE_MISSING \$f"; fi
 done
+if [ -d "$REMOTE_ROLES" ]; then echo "ROLE_DIR present \$(stat -c %a "$REMOTE_ROLES")"; else echo "ROLE_DIR absent"; fi
+if [ -f "$REMOTE_GITHUB_TOKEN_FILE" ]; then echo "GITHUB_TOKEN present \$(stat -c %a "$REMOTE_GITHUB_TOKEN_FILE")"; else echo "GITHUB_TOKEN absent"; fi
 ls -1 $REMOTE/secrets | sed 's/^/SECRET_NAME /'
+# infra/.env du checkout serveur : le runner produit le source AVANT ses
+# valeurs par défaut — il ne doit fixer ni la base ni le conteneur.
+DOTENV=$REMOTE/repo/services/rag-engine/infra/.env
+if [ -f "\$DOTENV" ]; then
+    if grep -qE '^[[:space:]]*(export[[:space:]]+)?(PGVECTOR_DB|PGVECTOR_CONTAINER|PGVECTOR_USER|PGDATABASE)=' "\$DOTENV"; then
+        echo "INFRA_DOTENV overrides_target"
+    else
+        echo "INFRA_DOTENV present_harmless"
+    fi
+else
+    echo "INFRA_DOTENV absent"
+fi
 for m in $REMOTE/models/*/SHA256SUMS; do [ -f "\$m" ] && echo "MODEL \$(sha256sum "\$m")"; done
 echo "STORE_OBJECTS=\$(ls $REMOTE/artifact-store 2>/dev/null | wc -l)"
-echo "DB_SIZE=\$($(psql_ro "select pg_database_size('$DB')"))"
-echo "PRODUCT_HEAD=\$($(psql_ro "select coalesce(max(version),0) from public.rag_schema_migrations"))"
-echo "CONTROL_HEAD=\$($(psql_ro "select coalesce(max(version),0) from ingestion_control.schema_migrations"))"
-echo "RESOURCES=\$($(psql_ro "select count(*) from ingestion_control.resources"))"
-echo "ARTIFACTS=\$($(psql_ro "select count(*) from ingestion_control.artifacts"))"
-echo "PRODUCT_PLACEMENTS=\$($(psql_ro "select case when to_regclass('public.rag_artifact_placements') is null then -1 else (select count(*) from public.rag_artifact_placements) end"))"
+$(mesure_historique)
+echo "TARGET_EXISTS=\$($(psql_ro "$LEGACY_DB" "select count(*) from pg_database where datname = '$DB'"))"
+if [ "\$($(psql_ro "$LEGACY_DB" "select count(*) from pg_database where datname = '$DB'"))" = 1 ]; then
+    echo "TARGET_ROWS=\$($(psql_ro "$DB" "$(vide_cible | tr '\n' ' ')"))"
+fi
+# Chaque mot de passe source doit authentifier SON rôle : les runners de
+# provisionnement réimposent ces valeurs (ALTER ROLE ... PASSWORD) ; elles
+# doivent donc être celles en vigueur. Aucune valeur n'est affichée.
+(
+    set -a; . "$REMOTE_STAGING_ENV"; . "$REMOTE_CONTROL_SOURCE_ENV"; set +a
+    SU=\$(docker exec $CONTAINER printenv POSTGRES_USER)
+    for couple in "\$SU:PGVECTOR_PASSWORD" \
+                  ingestion_control_migrator:INGESTION_CONTROL_MIGRATOR_PASSWORD \
+                  ingestion_control_app:INGESTION_CONTROL_APP_PASSWORD \
+                  ingestion_control_attestor:INGESTION_CONTROL_ATTESTOR_PASSWORD \
+                  ingestion_control_authority:INGESTION_CONTROL_AUTHORITY_PASSWORD \
+                  rag_publisher:PGVECTOR_PUBLISHER_PASSWORD \
+                  rag_reader:PGVECTOR_RETRIEVAL_PASSWORD \
+                  rag_reviewer:PGVECTOR_REVIEW_PASSWORD; do
+        role=\${couple%%:*}; variable=\${couple#*:}
+        if [ -z "\${!variable:-}" ]; then echo "ROLE_AUTH \$role MISSING_SOURCE"; continue; fi
+        if PGPASSWORD="\${!variable}" \\
+            psql "host=127.0.0.1 port=\$PGVECTOR_PORT user=\$role dbname=$LEGACY_DB options='-c default_transaction_read_only=on'" -X -At -c "select current_user" \\
+            2>/dev/null | grep -qx "\$role"; then
+            echo "ROLE_AUTH \$role OK"
+        else
+            echo "ROLE_AUTH \$role KO"
+        fi
+    done
+)
 EOF
 ) || fail "pré-vol : mesure impossible"
-    [ "$DRY_RUN" = 1 ] && { marquer preflight_measurement "dry-run"; return; }
+    [ "$DRY_RUN" = 1 ] && { printf 'absente\n' > "$STATE_DIR/cible"; marquer preflight_measurement "dry-run"; return; }
+    decision_prevol "$mesures"
+    marquer preflight_measurement "cible=$(cat "$STATE_DIR/cible") $(tr '\n' ' ' < "$STATE_DIR/legacy_baseline.txt")"
+}
+
+decision_prevol() {  # $1 = mesures du pré-vol ; écrit l'état, ou arrête
+    local mesures="$1" existe lignes
     printf '%s\n' "$mesures" > "$STATE_DIR/preflight.txt"
-    if grep -q '^SECRET_FILE_MISSING' <<<"$mesures"; then
-        fail "pré-vol : fichier d'environnement absent — noms réels dans preflight.txt (SECRET_NAME)"
+    grep '^LEGACY_' <<<"$mesures" > "$STATE_DIR/legacy_baseline.txt" || fail "pré-vol : ragdb non mesurée"
+    [ "$(grep -c '^LEGACY_' "$STATE_DIR/legacy_baseline.txt")" = 7 ] || fail "pré-vol : mesure de ragdb incomplète"
+    ! grep -q '^SOURCE_FILE_MISSING' <<<"$mesures" || fail "pré-vol : fichier source absent (preflight.txt)"
+    grep -q '^PSQL_ON_HOST=yes' <<<"$mesures" || fail "pré-vol : psql absent de l'hôte"
+    grep -q '^PYTHON3_ON_HOST=yes' <<<"$mesures" || fail "pré-vol : python3 absent de l'hôte"
+    ! grep -q '^INFRA_DOTENV overrides_target' <<<"$mesures" || fail "pré-vol : infra/.env du serveur fixe la base ou le conteneur"
+    ! grep -qE '^ROLE_AUTH .* (KO|MISSING_SOURCE)$' <<<"$mesures" \
+        || fail "pré-vol : un mot de passe source n'authentifie pas son rôle — le provisionnement le changerait"
+    [ "$(grep -c '^ROLE_AUTH .* OK$' <<<"$mesures")" = 8 ] || fail "pré-vol : identités des rôles incomplètes"
+    existe=$(sed -n 's/^TARGET_EXISTS=//p' <<<"$mesures")
+    if [ "$existe" = 0 ]; then
+        printf 'absente\n' > "$STATE_DIR/cible"
+    elif [ "$existe" = 1 ]; then
+        lignes=$(sed -n 's/^TARGET_ROWS=//p' <<<"$mesures")
+        [ "$lignes" = 0 ] || fail "pré-vol : la base dédiée $DB porte déjà ${lignes:-?} ligne(s) — contenu inattendu, refus"
+        printf 'vierge\n' > "$STATE_DIR/cible"
+    else
+        fail "pré-vol : existence de $DB illisible"
     fi
-    local ressources artefacts produit
-    ressources=$(sed -n 's/^RESOURCES=//p' <<<"$mesures")
-    artefacts=$(sed -n 's/^ARTIFACTS=//p' <<<"$mesures")
-    produit=$(sed -n 's/^PRODUCT_PLACEMENTS=//p' <<<"$mesures")
-    # Chemin direct seulement. Des lignes acquises (sous V2 ou autre) ne sont
-    # ni réingérées ni reprises ici : ADR-0061 réserve leur reprise par V4 à
-    # une décision distincte. Arrêt, preuve conservée.
-    if [ "$ressources" != 0 ] || [ "$artefacts" != 0 ] || { [ "$produit" != 0 ] && [ "$produit" != -1 ]; }; then
-        fail "pré-vol : base non vierge (resources=$ressources artifacts=$artefacts placements_produit=$produit) — reprise hors de cette autorisation (ADR-0061)"
-    fi
-    marquer preflight_measurement "direct resources=0 artifacts=0 placements_produit=$produit"
 }
 
 etape_backup_before_migration() {
@@ -195,11 +322,36 @@ etape_backup_before_migration() {
     local stamp; stamp=$(date -u +%Y%m%dT%H%M%SZ)
     remote <<EOF || fail "sauvegarde"
 set -euo pipefail
-d=$REMOTE/backups/db-$stamp; install -d -m 0700 "\$d"
-docker exec $CONTAINER sh -c 'pg_dump -Fc -U "\$POSTGRES_USER" $DB' > "\$d/ragdb.dump"
-test -s "\$d/ragdb.dump"; sha256sum "\$d/ragdb.dump"
+d=$REMOTE/backups/dc-$stamp; install -d -m 0700 "\$d"
+docker exec $CONTAINER sh -c 'pg_dump -Fc -U "\$POSTGRES_USER" $LEGACY_DB' > "\$d/ragdb.dump"
+test -s "\$d/ragdb.dump"; chmod 600 "\$d/ragdb.dump"; sha256sum "\$d/ragdb.dump"
 EOF
-    marquer backup_before_migration "db-$stamp"
+    marquer backup_before_migration "dc-$stamp (ragdb, lecture)"
+}
+
+etape_database_creation() {
+    autoriser database_creation
+    local etat; etat=$(cat "$STATE_DIR/cible" 2>/dev/null) || fail "création : pré-vol absent"
+    if [ "$etat" = vierge ]; then
+        # Reprise : la base existe, le pré-vol l'a constatée vierge ; on le revérifie.
+        remote <<EOF || fail "création : la base dédiée n'est plus vierge"
+set -euo pipefail
+test "\$($(psql_ro "$DB" "$(vide_cible | tr '\n' ' ')"))" = 0
+EOF
+        marquer database_creation "reprise : $DB présente et vierge"
+        return
+    fi
+    [ "$etat" = absente ] || fail "création : état de la cible inconnu ($etat)"
+    remote <<EOF || fail "création de $DB"
+set -euo pipefail
+test "\$($(psql_ro "$LEGACY_DB" "select count(*) from pg_database where datname = '$DB'"))" = 0 \\
+    || { echo "BASE_DEJA_PRESENTE $DB : refus, rien n'est réutilisé" >&2; exit 4; }
+docker exec $CONTAINER sh -c 'createdb -U "\$POSTGRES_USER" -T template0 -E UTF8 --locale=C $DB'
+test "\$($(psql_ro "$LEGACY_DB" "select pg_encoding_to_char(encoding)||'/'||datcollate||'/'||datctype from pg_database where datname = '$DB'"))" = "UTF8/C/C"
+test "\$($(psql_ro "$DB" "$(vide_cible | tr '\n' ' ')"))" = 0
+EOF
+    verifier_historique
+    marquer database_creation "$DB créée (UTF8/C/C, template0)"
 }
 
 etape_product_migrations() {
@@ -207,11 +359,21 @@ etape_product_migrations() {
     remote <<EOF || fail "migrations produit"
 set -euo pipefail
 cd $REMOTE/repo && git fetch -q origin && git checkout -q --detach $AUTH_COMMIT
+test "\$($(psql_ro "$DB" "select case when to_regclass('public.rag_schema_migrations') is null then 0 else (select coalesce(max(version),0) from public.rag_schema_migrations) end"))" = 0 \\
+    || { echo "TETE_PRODUIT_INATTENDUE avant migration" >&2; exit 4; }
 cd services/rag-engine/infra
-PGVECTOR_CONTAINER=$CONTAINER BACKUP_ROOT=$REMOTE/backups ./scripts/apply_pgvector_migrations.sh
-test "\$($(psql_ro "select max(version) from public.rag_schema_migrations"))" = 5
+! grep -qE '^[[:space:]]*(export[[:space:]]+)?(PGVECTOR_DB|PGVECTOR_CONTAINER|PGVECTOR_USER)=' .env 2>/dev/null
+(
+    set -a; . "$REMOTE_STAGING_ENV"; set +a
+    export PGVECTOR_CONTAINER=$CONTAINER PGVECTOR_DB=$DB
+    export PGVECTOR_USER=\$(docker exec $CONTAINER printenv POSTGRES_USER)
+    export PGVECTOR_RETRIEVAL_USER=rag_reader PGVECTOR_REVIEW_USER=rag_reviewer PGVECTOR_PUBLISHER_USER=rag_publisher
+    BACKUP_ROOT=$REMOTE/backups ./scripts/apply_pgvector_migrations.sh
+)
+test "\$($(psql_ro "$DB" "select max(version) from public.rag_schema_migrations"))" = 5
 EOF
-    marquer product_migrations "head=5"
+    verifier_historique
+    marquer product_migrations "$DB head=5"
 }
 
 etape_control_migrations() {
@@ -219,14 +381,60 @@ etape_control_migrations() {
     remote <<EOF || fail "migrations contrôle"
 set -euo pipefail
 command -v psql >/dev/null || { echo "psql absent de l'hôte" >&2; exit 4; }
+test "\$($(psql_ro "$DB" "select case when to_regclass('ingestion_control.schema_migrations') is null then 0 else (select coalesce(max(version),0) from ingestion_control.schema_migrations) end"))" = 0 \\
+    || { echo "TETE_CONTROLE_INATTENDUE avant migration" >&2; exit 4; }
 cd $REMOTE/repo/services/rag-engine/infra
-set -a; . "$REMOTE_STAGING_ENV"; set +a
-PGHOST=127.0.0.1 PGPORT=\${PGVECTOR_PORT:-15435} PGDATABASE=$DB \\
-PGUSER="\$PGVECTOR_USER" PGPASSWORD="\$PGVECTOR_PASSWORD" \\
+(
+    set -a; . "$REMOTE_STAGING_ENV"; . "$REMOTE_CONTROL_SOURCE_ENV"; set +a
+    export PGHOST=127.0.0.1 PGPORT="\$PGVECTOR_PORT" PGDATABASE=$DB
+    export PGUSER=\$(docker exec $CONTAINER printenv POSTGRES_USER) PGPASSWORD="\$PGVECTOR_PASSWORD"
     ./scripts/provision_and_bootstrap_ingestion_control.sh
-test "\$($(psql_ro "select max(version) from ingestion_control.schema_migrations"))" = 19
+)
+test "\$($(psql_ro "$DB" "select max(version) from ingestion_control.schema_migrations"))" = 19
 EOF
-    marquer control_migrations "head=19"
+    verifier_historique
+    marquer control_migrations "$DB head=19"
+}
+
+etape_role_env_derivation() {
+    autoriser role_env_derivation
+    local script="scripts/go_live/staging_v4_role_env.py" f variable role
+    grep -qx 'PYSRC' "$script" && fail "dérivation : délimiteur réservé présent dans le script"
+    {
+        cat <<EOF
+set -euo pipefail
+umask 077
+(
+    set -a; . "$REMOTE_STAGING_ENV"; . "$REMOTE_CONTROL_SOURCE_ENV"; set +a
+    python3 - --database $DB --out-dir $REMOTE_ROLES <<'PYSRC'
+EOF
+        cat "$script"
+        cat <<EOF
+PYSRC
+)
+EOF
+        # Chaque fichier doit authentifier SON rôle sur la base dédiée, et
+        # aucun autre ; la valeur n'est jamais affichée.
+        for f in ingestion-control-app.env:PG_INGESTION_CONTROL_DSN:ingestion_control_app \
+                 ingestion-control-attestor.env:PG_INGESTION_CONTROL_ATTESTOR_DSN:ingestion_control_attestor \
+                 ingestion-control-authority.env:PG_INGESTION_CONTROL_AUTHORITY_DSN:ingestion_control_authority \
+                 rag-publisher.env:PG_RAG_DSN:rag_publisher \
+                 rag-reader.env:PG_RAG_DSN:rag_reader; do
+            IFS=: read -r fichier variable role <<<"$f"
+            cat <<EOF
+test "\$(stat -c %a "$REMOTE_ROLES/$fichier")" = 600
+test "\$(grep -c '' "$REMOTE_ROLES/$fichier")" = 1
+dsn=\$(sed -n 's/^$variable=//p' "$REMOTE_ROLES/$fichier")
+test "\$(PGOPTIONS='-c default_transaction_read_only=on' psql "\$dsn" -X -At -c "select current_user||'|'||current_database()")" = "$role|$DB"
+echo "ROLE_ENV_VERIFIED $fichier $role $DB"
+EOF
+        done
+        echo "test \"\$(stat -c %a \"$REMOTE_ROLES\")\" = 700"
+    } | remote | tee "$STATE_DIR/role-env.out" || fail "dérivation des fichiers par rôle"
+    [ "$DRY_RUN" = 1 ] || [ "$(grep -c '^ROLE_ENV_VERIFIED ' "$STATE_DIR/role-env.out")" = 5 ] \
+        || fail "dérivation : cinq fichiers vérifiés attendus"
+    verifier_historique
+    marquer role_env_derivation "5 fichiers, $REMOTE_ROLES"
 }
 
 etape_model_artifact_install() {
@@ -275,7 +483,7 @@ set -euo pipefail
 cd $REMOTE/artifact-store && sha256sum -- *.pdf
 EOF
     [ "$DRY_RUN" = 1 ] && { marquer transfer_manifest_v4 "sha256=dry-run"; return; }
-    python3 - "$liste" "$STATE_DIR/store-hashes.txt" "$STATE_DIR/transfer_manifest_v4.json" <<'PY' || fail "manifeste de transfert V4"
+    "$PYTHON" - "$liste" "$STATE_DIR/store-hashes.txt" "$STATE_DIR/transfer_manifest_v4.json" <<'PY' || fail "manifeste de transfert V4"
 import json, sys
 v2 = json.load(open(sys.argv[1]))
 observed = {}
@@ -309,16 +517,18 @@ PY
 
 etape_scope_authorization_registration_r4() {
     autoriser scope_authorization_registration_r4
-    # Conteneur ponctuel d'autorité : il reçoit, seul, le DSN authority ; aucun
-    # worker ne le voit. La CLI relit la revue EN DIRECT (PR ouverte, APPROVED,
-    # head exact, check épinglé) et l'artefact au head approuvé.
+    # Conteneur ponctuel d'autorité : il reçoit, seul, le fichier du rôle
+    # authority ; aucun worker ne le voit. La CLI relit la revue EN DIRECT (PR
+    # ouverte, APPROVED, head exact, check épinglé) et l'artefact au head approuvé.
     local pr head ids id
     pr="$(champ scope_authorizations.pull_request)"
     head="$(champ scope_authorizations.expected_head)"
-    ids=$(python3 scripts/go_live/staging_v4_arguments.py autorisations-r4) || fail "r4 : dérivation refusée"
+    env_de_role "$REMOTE_AUTHORITY_ENV"
+    ids=$("$PYTHON" scripts/go_live/staging_v4_arguments.py autorisations-r4) || fail "r4 : dérivation refusée"
     for id in $ids; do
         remote <<EOF | tee -a "$STATE_DIR/registration.out" || fail "enregistrement de $id"
 set -euo pipefail
+$(jeton_present)
 $(tirer "$IMAGE")
 docker run --rm --network host \\
   --env-file "$REMOTE_AUTHORITY_ENV" \\
@@ -329,15 +539,23 @@ docker run --rm --network host \\
   --pull-request "$pr" --expected-head "$head"
 EOF
     done
+    verifier_historique
     marquer scope_authorization_registration_r4 "pr=$pr head=$head count=$(wc -w <<<"$ids")"
 }
 
 etape_sealed_ingestion_v4() {
     autoriser sealed_ingestion_v4
+    # Ingestion INITIALE : la base dédiée ne doit porter aucune ressource.
+    remote <<EOF || fail "ingestion : la base dédiée n'est plus vierge"
+set -euo pipefail
+test "\$($(psql_ro "$DB" "select count(*) from ingestion_control.resources"))" = 0
+test "\$($(psql_ro "$DB" "select count(*) from public.rag_artifact_placements"))" = 0
+EOF
     worker "$REMOTE_WORKER_ENV" ingestor.ingestion_worker.sealed_release_ingestion_cli \
         "$(args_de ingestion-v4 --transfer-sha256 "$(transfert_sha)")" | remote | tee "$STATE_DIR/ingestion.out" \
         || fail "ingestion scellée V4"
     [ "$DRY_RUN" = 1 ] || grep -q 'resources=479 ' "$STATE_DIR/ingestion.out" || fail "ingestion V4 : comptes inattendus"
+    verifier_historique
     marquer sealed_ingestion_v4 "ok"
 }
 
@@ -355,6 +573,7 @@ etape_batch_review_proposal() {
         --pii-review-index-path /repo/docs/reports/evidence-index/pii_review_index_20260922_profile_gate_v3.json \
         --pii-review-reviewers-sha256 "$(sha256sum scripts/github/trusted-reviewers.json | cut -d' ' -f1)" \
         --repository-root /repo | remote | tee "$STATE_DIR/proposal.out" || fail "proposition de revue batch"
+    verifier_historique
     marquer batch_review_proposal "ok"
     log "ATTENTE_HUMAINE: soumettre l'artefact de revue batch en PR et le faire approuver au head exact"
     exit 0
@@ -368,6 +587,7 @@ etape_batch_review_record() {
         --expected-head "${BATCH_REVIEW_HEAD:?BATCH_REVIEW_HEAD}" \
         --review-artifact-path "${BATCH_REVIEW_ARTIFACT:?BATCH_REVIEW_ARTIFACT}" \
         | remote || fail "enregistrement de l'attestation batch"
+    verifier_historique
     marquer batch_review_record "ok"
 }
 
@@ -379,22 +599,25 @@ etape_worker_b_publication() {
         --max-iterations "${MAX_ITERATIONS:-2000}" | remote | tee "$STATE_DIR/worker-b.out" || fail "Worker B"
     [ "$DRY_RUN" = 1 ] || grep -q 'authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION' "$STATE_DIR/worker-b.out" \
         || fail "Worker B : démarrage hors qualification liée à la release"
+    verifier_historique
     marquer worker_b_publication "ok"
 }
 
 etape_independent_verification() {
     autoriser independent_verification
+    env_de_role "$REMOTE_READER_ENV"
     remote <<EOF | tee "$STATE_DIR/verification.txt" || fail "vérification"
 set -euo pipefail
-echo "PLACEMENTS=\$($(psql_ro "select count(distinct collection)||' '||count(distinct artifact_id)||' '||count(*) from public.rag_artifact_placements"))"
-echo "CHUNKS=\$($(psql_ro "select count(distinct chunk_id) from public.rag_chunks"))"
-echo "RELEASE=\$($(psql_ro "select string_agg(distinct programme_version||'/'||visibility, ',') from public.rag_artifact_placements"))"
+echo "PLACEMENTS=\$($(psql_ro "$DB" "select count(distinct collection)||' '||count(distinct artifact_id)||' '||count(*) from public.rag_artifact_placements"))"
+echo "CHUNKS=\$($(psql_ro "$DB" "select count(distinct chunk_id) from public.rag_chunks"))"
+echo "RELEASE=\$($(psql_ro "$DB" "select string_agg(distinct programme_version||'/'||visibility||'/'||currentness, ',') from public.rag_artifact_placements"))"
 $(tirer "$SONDE")
 docker run --rm --network host --env-file "$REMOTE_READER_ENV" -e PYTHONPATH=/app \\
   -v "$REMOTE/repo:/repo:ro" -v "$RUN:/run-db" -w /app \\
   --entrypoint python "$SONDE" /repo/scripts/go_live/staging_retrieval_probe.py \\
   --repository-root /repo --output /run-db/retrieval-probe.json
 EOF
+    verifier_historique
     [ "$DRY_RUN" = 1 ] && { marquer independent_verification "dry-run"; return; }
     grep -qx 'PLACEMENTS=11 315 479' "$STATE_DIR/verification.txt" || fail "vérification : placements inattendus"
     grep -qx 'CHUNKS=8268' "$STATE_DIR/verification.txt" || fail "vérification : chunks inattendus"
@@ -402,10 +625,13 @@ EOF
     marquer independent_verification "ok"
 }
 
-ORDRE=(preflight_measurement backup_before_migration product_migrations control_migrations
-       model_artifact_install readiness_manifest_install transfer_manifest_v4
-       scope_authorization_registration_r4 sealed_ingestion_v4 batch_review_proposal
-       batch_review_record worker_b_publication independent_verification)
+ORDRE=(preflight_measurement backup_before_migration database_creation product_migrations
+       control_migrations role_env_derivation model_artifact_install readiness_manifest_install
+       transfer_manifest_v4 scope_authorization_registration_r4 sealed_ingestion_v4
+       batch_review_proposal batch_review_record worker_b_publication independent_verification)
+
+# Sourcé (tests) : fonctions définies, rien n'est exécuté.
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
 
 case "${1:-}" in
     status)
@@ -415,7 +641,7 @@ case "${1:-}" in
     run)
         jusqua=""; [ "${2:-}" = "--until" ] && jusqua="${3:?étape attendue}"
         if [ "$DRY_RUN" = 0 ]; then
-            python3 scripts/go_live/check_staging_authorization.py >/dev/null || fail "autorisation de base invalide"
+            "$PYTHON" scripts/go_live/check_staging_authorization.py >/dev/null || fail "autorisation de base invalide"
         fi
         charger_autorisation
         for e in "${ORDRE[@]}"; do
