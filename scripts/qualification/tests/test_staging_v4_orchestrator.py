@@ -267,3 +267,25 @@ def test_la_moindre_variation_de_ragdb_arrete(tmp_path, ligne):
     apres = "".join((ligne if e.startswith(cle + "=") else e) + "\n" for e in base)
     sortie = _historique(tmp_path, apres)
     assert sortie.returncode == 3 and "ragdb a changé" in sortie.stderr
+
+
+# ── DD : les contrôles d'une base NEUVE ne nomment aucune table absente ─────
+
+@pytest.mark.parametrize("appel", ["vide_cible", "tete_si_presente public", "tete_si_presente ingestion_control"])
+def test_les_controles_de_base_neuve_ne_nomment_aucune_relation(tmp_path, appel):
+    """PostgreSQL résout les noms à l'analyse, même dans une branche de CASE
+    jamais exécutée : une base neuve n'a aucune table, et un contrôle qui en
+    nomme une échoue (constaté le 2026-09-24 sur ragdb_profile_gate_v4). Les
+    tables présentes doivent être trouvées dans pg_class, puis comptées par
+    query_to_xml."""
+    sql = _bash(appel, tmp_path).stdout
+    assert "pg_class" in sql and "query_to_xml" in sql, sql
+    assert "to_regclass" not in sql
+    assert not re.search(r"\bfrom\s+(public|ingestion_control)\.", sql, re.IGNORECASE), sql
+
+
+def test_les_tetes_avant_migration_passent_par_la_sonde_sans_relation(essai):
+    texte = essai["texte"].replace("\\ ", " ")
+    for garde in ("TETE_PRODUIT_INATTENDUE", "TETE_CONTROLE_INATTENDUE"):
+        bloc = texte.split(garde)[0].rsplit("[dry-run]", 1)[-1]
+        assert "query_to_xml" in bloc and "to_regclass" not in bloc, garde
