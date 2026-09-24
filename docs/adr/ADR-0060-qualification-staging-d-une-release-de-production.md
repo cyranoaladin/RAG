@@ -66,9 +66,10 @@ publier V2. Toute exigence qui refuse aujourd'hui un mélange non nommé.
 
 ## Conséquences
 
-* Onze autorisations r3 (LOT41A-V2) sont dérivées des r2 et des placements de
-  V3 (`build_lot41a_r3_authorizations.py`) ; elles sont versées par leur
-  propre PR, enregistrées pendant qu'elle est ouverte et approuvée.
+* Onze autorisations de publication LOT41A-V2 sont dérivées des r2 et des
+  placements de la release qualifiée — r4 pour V4 (`build_lot41a_r4_authorizations.py`,
+  ADR-0061) ; elles sont versées par leur propre PR, enregistrées pendant
+  qu'elle est ouverte et approuvée.
 * L'image worker doit être reconstruite depuis le commit qui porte ce code.
 * L'amendement staging nomme les opérations ajoutées : liaison des autorités
-  de publication, enregistrement des r3, migration 019.
+  de publication, enregistrement des r4, migration 019.
