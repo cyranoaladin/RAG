@@ -42,6 +42,10 @@ MODELE_LOCAL="${MODELE_LOCAL:-$HOME/rag-model-artifacts/$MODELE_NOM}"
 READINESS_LOCAL="${READINESS_LOCAL:-$HOME/nexus-staging-v4-readiness}"
 READINESS_MANIFESTE="staging-readiness-v4.json"
 READINESS_REMOTE="$REMOTE/readiness"
+# Ancre de readiness de répétition : le fichier gouverné du dépôt, vu depuis
+# le conteneur (le dépôt de l'hôte y est monté sous /repo). Le chemin de
+# l'hôte que porte readiness.env n'existe pas dans le conteneur.
+ANCRE_READINESS="governance/trust-anchors/rehearsal-readiness-v1.json"
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && { DRY_RUN=1; shift; }
 # Essai à blanc sans réseau (tests) : le contrôle d'autorisation n'est pas
@@ -217,11 +221,13 @@ $(jeton_present)
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker pull -q "$IMAGE"
 IMAGE_REELLE=\$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
 test "\$IMAGE_REELLE" = "$IMAGE"
+test -f "$REMOTE/repo/$ANCRE_READINESS" || { echo "ANCRE_READINESS_ABSENTE" >&2; exit 4; }
 install -d -m 0700 $RUN
 docker run --rm --network host \\
   --env-file "$REMOTE_READINESS_ENV" $envs\\
   -e NEXUS_ENVIRONMENT=rehearsal \\
   -e NEXUS_EXPECTED_READINESS_PROTOCOL=NEXUS-STAGING-READINESS-V1 \\
+  -e NEXUS_STAGING_READINESS_TRUST_ANCHOR="/repo/$ANCRE_READINESS" \\
   -e NEXUS_ACTUAL_WORKER_IMAGE="\$IMAGE_REELLE" \\
   -e NEXUS_READINESS_MANIFEST_PATH="$READINESS_REMOTE/$manifeste" \\
   -e NEXUS_READINESS_MANIFEST_SHA256="$sha" \\
@@ -521,6 +527,7 @@ doc = {
 }
 open(sys.argv[3], "w").write(json.dumps(doc, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
 PY
+    echo "install -d -m 0700 $RUN" | remote || fail "répertoire de travail $RUN"
     scp -q "$STATE_DIR/transfer_manifest_v4.json" "$SSH_HOST:$RUN/transfer_manifest_v4.json" || fail "dépôt du manifeste V4"
     marquer transfer_manifest_v4 "sha256=$(sha256sum "$STATE_DIR/transfer_manifest_v4.json" | cut -d' ' -f1)"
 }
@@ -584,9 +591,37 @@ etape_batch_review_proposal() {
         --pii-review-reviewers-sha256 "$(sha256sum scripts/github/trusted-reviewers.json | cut -d' ' -f1)" \
         --repository-root /repo | remote | tee "$STATE_DIR/proposal.out" || fail "proposition de revue batch"
     verifier_historique
-    marquer batch_review_proposal "ok"
+    [ "$DRY_RUN" = 1 ] && { marquer batch_review_proposal "dry-run"; log "ATTENTE_HUMAINE: revue batch"; exit 0; }
+    extraire_artefact_revue "$STATE_DIR/proposal.out"
+    marquer batch_review_proposal "$(cat "$STATE_DIR/proposal_artifact.txt")"
     log "ATTENTE_HUMAINE: soumettre l'artefact de revue batch en PR et le faire approuver au head exact"
     exit 0
+}
+
+extraire_artefact_revue() {  # $1 = sortie de la proposition ; écrit l'artefact vérifié
+    "$PYTHON" - "$1" "$STATE_DIR" <<'PY' > "$STATE_DIR/proposal_artifact.txt" || fail "artefact de revue batch : extraction refusée"
+import hashlib, pathlib, re, sys
+sortie = pathlib.Path(sys.argv[1]).read_bytes()
+chemin = re.findall(rb"^REVIEW_ARTIFACT_PATH (\S+)$", sortie, re.M)
+digest = re.findall(rb"^REVIEW_ARTIFACT_DIGEST ([0-9a-f]{64})$", sortie, re.M)
+if len(chemin) != 1 or len(digest) != 1:
+    raise SystemExit("REVIEW_ARTIFACT_PATH/DIGEST absents ou multiples")
+chemin, digest = chemin[0].decode(), digest[0].decode()
+if not re.fullmatch(r"governance/publication-reviews/[a-z0-9][a-z0-9._-]{0,127}-[0-9a-f]{64}\.json", chemin) \
+        or not chemin.endswith(f"-{digest}.json"):
+    raise SystemExit("chemin d'artefact non canonique")
+queue = sortie.split(f"REVIEW_ARTIFACT_DIGEST {digest}\n".encode(), 1)[1]
+for octets in (queue, queue.rstrip(b"\n")):
+    if hashlib.sha256(octets).hexdigest() == digest:
+        break
+else:
+    raise SystemExit("les octets extraits ne portent pas le digest annoncé")
+cible = pathlib.Path(sys.argv[2]) / chemin
+cible.parent.mkdir(parents=True, exist_ok=True)
+cible.write_bytes(octets)
+print(f"path={chemin} sha256={digest} bytes={len(octets)}")
+PY
+    log "ARTEFACT_REVUE_BATCH $(cat "$STATE_DIR/proposal_artifact.txt")"
 }
 
 etape_batch_review_record() {

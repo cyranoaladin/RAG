@@ -289,3 +289,65 @@ def test_les_tetes_avant_migration_passent_par_la_sonde_sans_relation(essai):
     for garde in ("TETE_PRODUIT_INATTENDUE", "TETE_CONTROLE_INATTENDUE"):
         bloc = texte.split(garde)[0].rsplit("[dry-run]", 1)[-1]
         assert "query_to_xml" in bloc and "to_regclass" not in bloc, garde
+
+
+# ── DE : répertoire de travail, ancre de readiness, artefact de revue ─────
+
+def test_le_repertoire_de_travail_existe_avant_le_depot_du_manifeste():
+    corps = SCRIPT.read_text(encoding="utf-8").split("etape_transfer_manifest_v4() {", 1)[1]
+    corps = corps.split("etape_scope_authorization_registration_r4() {", 1)[0]
+    creation = corps.index('install -d -m 0700 $RUN')
+    depot = corps.index('scp -q "$STATE_DIR/transfer_manifest_v4.json"')
+    assert creation < depot
+
+
+def test_les_workers_recoivent_l_ancre_au_chemin_du_conteneur(essai):
+    texte = essai["texte"]
+    assert 'NEXUS_STAGING_READINESS_TRUST_ANCHOR="/repo/governance/trust-anchors/rehearsal-readiness-v1.json"' in texte
+    assert "ANCRE_READINESS_ABSENTE" in texte
+
+
+def _proposition(tmp_path: Path, corps: bytes) -> subprocess.CompletedProcess[str]:
+    sortie = tmp_path / "proposal.out"
+    sortie.write_bytes(corps)
+    return _bash(
+        f'extraire_artefact_revue "{sortie}"; cat "$STATE_DIR/proposal_artifact.txt"', tmp_path,
+        env={"PYTHON": sys.executable},
+    )
+
+
+def _artefact() -> tuple[bytes, str, str]:
+    import hashlib
+    octets = b'{"protocol_version":"LOT42-RELEASE-BATCH-V1","review_id":"lot42-release-batch-v4-staging-20260924"}'
+    digest = hashlib.sha256(octets).hexdigest()
+    chemin = f"governance/publication-reviews/lot42-release-batch-v4-staging-20260924-{digest}.json"
+    return octets, digest, chemin
+
+
+@pytest.mark.parametrize("fin", [b"", b"\n"])
+def test_l_artefact_extrait_porte_exactement_son_digest(tmp_path, fin):
+    octets, digest, chemin = _artefact()
+    corps = (b"PROJECTION_PERSISTED written=479\nbruit du conteneur\n"
+             + f"REVIEW_ARTIFACT_PATH {chemin}\nREVIEW_ARTIFACT_DIGEST {digest}\n".encode() + octets + fin)
+    sortie = _proposition(tmp_path, corps)
+    assert sortie.returncode == 0, sortie.stderr
+    assert (tmp_path / chemin).read_bytes() == octets
+    assert f"path={chemin} sha256={digest}" in sortie.stdout
+
+
+@pytest.mark.parametrize("alteration", ["octets", "chemin", "doublon", "absent"])
+def test_un_artefact_altere_ou_ambigu_est_refuse(tmp_path, alteration):
+    octets, digest, chemin = _artefact()
+    entete = f"REVIEW_ARTIFACT_PATH {chemin}\nREVIEW_ARTIFACT_DIGEST {digest}\n"
+    if alteration == "octets":
+        corps = entete.encode() + octets.replace(b"479", b"478") + b"x"
+    elif alteration == "chemin":
+        corps = entete.replace("governance/publication-reviews/", "tmp/").encode() + octets
+    elif alteration == "doublon":
+        corps = (entete + entete).encode() + octets
+    else:
+        corps = octets
+    sortie = _proposition(tmp_path, corps)
+    assert sortie.returncode == 3, sortie.stdout
+    assert "extraction refusée" in sortie.stderr
+    assert not (tmp_path / "governance").exists() or alteration == "doublon"
