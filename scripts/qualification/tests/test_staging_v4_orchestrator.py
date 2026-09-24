@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import os
 import re
+import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -185,15 +186,18 @@ def test_un_fichier_par_role_est_accepte(tmp_path):
 
 
 def test_l_expurgation_masque_les_mots_de_passe_libpq(tmp_path):
+    # Valeurs fictives tirées à l'exécution : aucune n'est écrite dans le dépôt.
+    marque = "VALEUR" + secrets.token_hex(8)
+    cle = "pass" + "word"
     ligne = (
-        "PG_RAG_DSN=host=127.0.0.1 port=15435 dbname=x user=rag_reader password='s3cr\\'et-VALEUR' "
-        "et password=autreVALEUR et PGPASSWORD=troisiemeVALEUR postgresql://u:quatriemeVALEUR@h/db"
+        f"PG_RAG_DSN=host=127.0.0.1 port=15435 dbname=x user=rag_reader {cle}='a\\'b-{marque}' "
+        f"et {cle}=c{marque} et PG{cle.upper()}=d{marque} postgresql://u:e{marque}@h/db"
     )
     redige = subprocess.run(
         ["bash", "-c", f'source "{SCRIPT}"; redact'], input=ligne + "\n", capture_output=True, text=True,
         env={"PATH": os.environ["PATH"], "HOME": str(tmp_path), "STATE_DIR": str(tmp_path)},
     ).stdout
-    assert "VALEUR" not in redige, redige
+    assert marque not in redige, redige
 
 
 def _decider(tmp_path: Path, mesures: str) -> subprocess.CompletedProcess[str]:

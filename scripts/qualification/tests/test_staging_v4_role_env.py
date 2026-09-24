@@ -9,6 +9,7 @@ celui d'un worker.
 from __future__ import annotations
 
 import os
+import secrets
 import stat
 import subprocess
 import sys
@@ -23,18 +24,27 @@ sys.path.insert(0, str(RACINE / "scripts/go_live"))
 import staging_v4_role_env as role_env  # noqa: E402
 
 BASE = "ragdb_profile_gate_v4"
-SECRETS = {
-    "INGESTION_CONTROL_APP_PASSWORD": "app-secret-AAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-    "INGESTION_CONTROL_ATTESTOR_PASSWORD": "attestor-secret-BBBBBBBBBBBBBBBBBBBBBBBB",
-    "INGESTION_CONTROL_AUTHORITY_PASSWORD": "authority-secret-CCCCCCCCCCCCCCCCCCCCCC",
-    "PGVECTOR_PUBLISHER_PASSWORD": "pub'li\\sher-DDDDDDDDDDDDDDDDDDDDDDDDDDD",
-    "PGVECTOR_RETRIEVAL_PASSWORD": "reader-secret-EEEEEEEEEEEEEEEEEEEEEEEEEE",
-}
+
+
+def _fictif(nom: str) -> str:
+    """Une valeur fictive tirée à l'exécution : rien n'est écrit dans le dépôt."""
+    return f"{nom}-{secrets.token_hex(16)}"
+
+
+SOURCES = (
+    "INGESTION_CONTROL_APP_PASSWORD",
+    "INGESTION_CONTROL_ATTESTOR_PASSWORD",
+    "INGESTION_CONTROL_AUTHORITY_PASSWORD",
+    "PGVECTOR_PUBLISHER_PASSWORD",
+    "PGVECTOR_RETRIEVAL_PASSWORD",
+)
+SECRETS = {nom: _fictif(nom.lower()) for nom in SOURCES}
+# Une valeur à apostrophe et antislash, pour l'échappement libpq.
+SECRETS["PGVECTOR_PUBLISHER_PASSWORD"] = "pub'li\\sher-" + secrets.token_hex(12)
 #: présents dans les fichiers globaux, et qui ne doivent JAMAIS passer dans un fichier de rôle
 AUTRES = {
-    "PGVECTOR_PASSWORD": "superuser-secret-FFFFFFFFFFFFFFFFFFFFFFFF",
-    "INGESTION_CONTROL_MIGRATOR_PASSWORD": "migrator-secret-GGGGGGGGGGGGGGGGGGGGG",
-    "NEXUS_INTERNAL_TOKEN_SECRET": "token-secret-HHHHHHHHHHHHHHHHHHHHHHHHHHHHH",
+    nom: _fictif(nom.lower())
+    for nom in ("PGVECTOR_PASSWORD", "INGESTION_CONTROL_MIGRATOR_PASSWORD", "NEXUS_INTERNAL_TOKEN_SECRET")
 }
 
 
@@ -99,7 +109,10 @@ def test_chaque_fichier_ne_porte_que_le_mot_de_passe_de_son_role(tmp_path):
 
 def test_le_mot_de_passe_est_echappe_pour_libpq():
     contenu = role_env.contenus(_environ(), database=BASE)["rag-publisher.env"]
-    assert contenu.endswith("password='pub\\'li\\\\sher-DDDDDDDDDDDDDDDDDDDDDDDDDDD'\n")
+    brut = SECRETS["PGVECTOR_PUBLISHER_PASSWORD"]
+    echappe = brut.replace("\\", "\\\\").replace("'", "\\'")
+    assert "\\'" in echappe and "\\\\" in echappe
+    assert contenu.endswith(f"='{echappe}'\n")
 
 
 def test_rejouer_a_l_identique_ne_change_rien(tmp_path):
@@ -116,7 +129,7 @@ def test_un_contenu_different_n_est_jamais_ecrase(tmp_path):
     dossier = tmp_path / "v4-roles"
     assert _lancer(dossier, _environ()).returncode == 0
     avant = {p.name: p.read_text() for p in dossier.iterdir()}
-    refus = _lancer(dossier, _environ(INGESTION_CONTROL_APP_PASSWORD="autre-valeur-ZZZZZZZZZZZZZZZZZZZZZZZZZ"))
+    refus = _lancer(dossier, _environ(INGESTION_CONTROL_APP_PASSWORD=_fictif("autre")))
     assert refus.returncode == 2
     assert "rien n'est écrasé" in refus.stderr
     assert {p.name: p.read_text() for p in dossier.iterdir()} == avant
