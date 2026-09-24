@@ -98,6 +98,7 @@ if os.environ.get("NEXUS_REAL_RELEASE_ADOPTION") != "1":
         allow_module_level=True,
     )
 
+ENGINE_CONFIG_COLLECTIONS = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
 GENERATEUR_R4 = REPOSITORY_ROOT / "scripts/go_live/build_lot41a_r4_authorizations.py"
 COLLECTIONS_PUBLIEES_PAR_DEFAUT = (
     "rag_nexus_dgemc_terminale_option",
@@ -456,9 +457,160 @@ def test_3b_les_chunks_publies_sont_ceux_que_la_release_scelle(publie: dict[str,
     assert not ecarts_de_chunks, ecarts_de_chunks
 
 
-@pytest.mark.skip(reason="V4 retrieval scopes pending")
-def test_4_retrieval_v4_sous_les_scopes_emis() -> None:
-    """À câbler avec la portée de retrieval V4 réellement émise (contrats)."""
+SUCCESSEURS_V4 = REPOSITORY_ROOT / "packages/contracts/authorities/production-profile-scope-successors-v4.yml"
+SECRET_DU_BANC = "banc-v4-retrieval-internal-secret-32-bytes"
+
+
+def _scopes_emis_v4() -> dict[str, str]:
+    """collection → scope_id, tel que l'autorité de nommage V4 le déclare."""
+    import yaml
+
+    autorite = yaml.safe_load(SUCCESSEURS_V4.read_text(encoding="utf-8"))
+    assert autorite["release_id"] == "production-profile-gate-2026-2027-v4"
+    return {b["collection"]: b["scope_id"] for b in autorite["bindings"]}
+
+
+def _identite_verifiee(scope_id: str, *, role: str) -> Any:
+    """Jeton interne signé pour le scope émis ; l'identité découle du scope."""
+    import base64
+    import hmac
+
+    from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
+
+    environ = {
+        "NEXUS_INTERNAL_TOKEN_SECRET": SECRET_DU_BANC,
+        "NEXUS_INTERNAL_TOKEN_ISSUER": "banc-cockpit",
+        "NEXUS_INTERNAL_TOKEN_AUDIENCE": "banc-engine",
+        "NEXUS_SSO_ISSUER": "banc-sso",
+        "NEXUS_SSO_AUDIENCE": "banc-cockpit-audience",
+    }
+    config = load_identity_verifier_config(environ)
+    artefact = config.artifacts[scope_id]
+    cible, sujet = artefact.target_identity, artefact.evidence_subject
+    maintenant = int(time.time())
+    identite = {
+        "aud": environ["NEXUS_SSO_AUDIENCE"], "exp": maintenant + 600,
+        "iss": environ["NEXUS_SSO_ISSUER"], "jti": f"banc-v4-{scope_id}-{role}",
+        "tenant": cible.tenant, "niveau": cible.niveau.value, "role": role,
+        "school_year": sujet.school_year, "sub": "psn_bancv4retrieval0001",
+        "pedagogical_profile": {
+            "voie": cible.voie.value, "matieres": [cible.matiere],
+            "statut_enseignement": cible.statut_enseignement.value,
+            "candidat": cible.candidates[0].value, "audience": cible.audience,
+        },
+    }
+    charge = {
+        "protocol_version": "1", "iss": environ["NEXUS_INTERNAL_TOKEN_ISSUER"],
+        "aud": environ["NEXUS_INTERNAL_TOKEN_AUDIENCE"], "sub": identite["sub"],
+        "jti": identite["jti"], "iat": maintenant, "exp": maintenant + 300,
+        "identity": identite, "scope_id": scope_id,
+        "scope_digest": artefact.sha256_digest(), "allowed_collections": [sujet.collection],
+    }
+
+    def _b64(valeur: bytes) -> str:
+        return base64.urlsafe_b64encode(valeur).rstrip(b"=").decode("ascii")
+
+    entete = _b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
+    corps = _b64(json.dumps(charge).encode())
+    signature = hmac.new(SECRET_DU_BANC.encode(), f"{entete}.{corps}".encode("ascii"), hashlib.sha256).digest()
+    return verify_identity_token(f"{entete}.{corps}.{_b64(signature)}", config=config)
+
+
+def test_4_retrieval_v4_sous_les_scopes_emis(
+    publie: dict[str, Any], produit_pg: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Chaque chunk publié se retrouve par le vrai store, sous le scope que
+    l'émetteur canonique a produit pour sa collection — et rien d'autre."""
+    from ingestor import retrieval_pg_v2
+    from ingestor.collection_config import load_collection_config
+    from ingestor.retrieval_hybrid_v2 import RetrievalPipelineError
+    from ingestor.retrieval_pg_v2 import PgCandidateStore
+    from ingestor.retrieval_scope_v2 import RetrievalScopeError, build_server_retrieval_scope
+
+    assert publie["succes"], publie["erreurs"][:5]
+    # Le store masque la cause d'un refus dense ; on l'observe à la source.
+    motifs: list[str] = []
+    charge_dense = retrieval_pg_v2._dense_payload
+
+    def _charge_observee(ligne: Any) -> Any:
+        try:
+            return charge_dense(ligne)
+        except RetrievalPipelineError as exc:
+            motifs.append(str(exc))
+            raise
+
+    monkeypatch.setattr(retrieval_pg_v2, "_dense_payload", _charge_observee)
+    configuration = load_collection_config(ENGINE_CONFIG_COLLECTIONS)
+    scopes = _scopes_emis_v4()
+    programmes = _programmes_v4()
+    with psycopg.connect(produit_pg["admin_dsn"]) as conn:
+        lignes = conn.execute(
+            "SELECT collection, chunk_id, vector::text, text FROM public.rag_chunks ORDER BY 1, 2"
+        ).fetchall()
+        doublons = conn.execute(
+            "SELECT collection, count(*), count(DISTINCT vector::text), count(DISTINCT text),"
+            "       (SELECT max(n) FROM (SELECT count(*) AS n FROM public.rag_chunks d"
+            "          WHERE d.collection = c.collection GROUP BY d.vector::text) g)"
+            "  FROM public.rag_chunks c GROUP BY collection ORDER BY 1"
+        ).fetchall()
+        print("REAL_V4_VECTOR_DUPLICATES", doublons)
+        conn.rollback()
+    publies: dict[str, dict[str, tuple[str, str]]] = {}
+    for collection, chunk_id, vecteur, texte in lignes:
+        publies.setdefault(collection, {})[chunk_id] = (vecteur, texte)
+    assert set(publies) == {c for c, _a in publie["cibles"]}
+
+    bilan = {}
+    for collection, chunks in sorted(publies.items()):
+        scope = build_server_retrieval_scope(
+            _identite_verifiee(scopes[collection], role="teacher"),
+            collection=collection, collection_config=configuration,
+        )
+        assert (scope.programme_version, scope.visibilities) == (programmes[collection], ("internal",))
+        store = PgCandidateStore(lambda: psycopg.connect(produit_pg["retrieval_dsn"]), scope)
+        retrouves, en_tete, manques, egalites = 0, 0, [], []
+        for chunk_id, (vecteur, _texte) in chunks.items():
+            valeurs = [float(v) for v in vecteur.strip("[]").split(",")]
+            try:
+                candidats = store.dense(query_vector=valeurs, collection=collection, limit=5)
+            except RetrievalPipelineError:
+                # Seul refus admis : la garde d'égalité à la frontière du pool
+                # (lot 40), constatée à sa source même, pas reconstituée.
+                assert motifs and motifs[-1] == "dense ann tie overflow", (collection, chunk_id, motifs)
+                motifs.clear()
+                egalites.append(chunk_id[:12])
+                continue
+            # Exigence stricte : rien hors du jeu publié de CETTE collection.
+            assert candidats and all(c.chunk_id in chunks for c in candidats), (collection, chunk_id)
+            # Rappel de l'ANN (HNSW, approximatif) : mesuré, jamais supposé.
+            identiques = [c for c in candidats if c.chunk_id == chunk_id or c.vector == tuple(valeurs)]
+            if candidats[0] in identiques:
+                en_tete += 1
+            if identiques:
+                retrouves += 1
+            else:
+                manques.append((chunk_id[:12], round(candidats[0].dense_score or 0.0, 6)))
+        mots = next(t for _v, t in chunks.values() if len(t.split()) >= 8).split()[:8]
+        lexicaux = store.lexical(raw_query=" ".join(mots), collection=collection, limit=10)
+        assert lexicaux and all(c.chunk_id in chunks for c in lexicaux), collection
+        bilan[collection] = {
+            "scope": scopes[collection], "chunks": len(chunks), "rappel_a_1": en_tete,
+            "rappel_a_5": retrouves, "manques": len(manques), "refus_egalite": len(egalites),
+            "lexicaux": len(lexicaux),
+        }
+        if egalites:
+            print("REAL_V4_DENSE_TIE_REFUSALS", collection, egalites)
+        if manques:
+            print("REAL_V4_DENSE_ANN_MISSES", collection, manques)
+
+        # Contre-épreuve : un élève ne lit que ``public`` ; le scope V4 est ``internal``.
+        with pytest.raises(RetrievalScopeError):
+            build_server_retrieval_scope(
+                _identite_verifiee(scopes[collection], role="student"),
+                collection=collection, collection_config=configuration,
+            )
+    print("REAL_V4_RETRIEVAL", bilan)
+    assert all(b["rappel_a_5"] + b["manques"] + b["refus_egalite"] == b["chunks"] for b in bilan.values())
 
 
 # --- Contre-épreuves ----------------------------------------------------------
