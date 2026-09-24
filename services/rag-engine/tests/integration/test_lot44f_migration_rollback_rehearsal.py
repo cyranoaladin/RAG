@@ -288,27 +288,42 @@ class TestPartialRollbackIsRefused:
         La séquence ci-dessous éprouve, sur la même base jetable :
         installation neuve, registre troué (refus), reprise depuis un
         préfixe cohérent, puis base déjà à la tête.
+
+        Le trou est pris sur la paire indépendante la plus récente : 019
+        référence les adoptions de 018, si bien que défaire 018 sous 019 est
+        refusé par la base elle-même (épreuve 1 bis) ; 018 ne dépend pas de
+        017. La tête est donc défaite proprement, puis 017 sous 018.
         """
         tete = _MIGRATION_VERSIONS[-1]
-        avant_derniere = _MIGRATION_VERSIONS[-2]
+        posterieure = _MIGRATION_VERSIONS[-2]
+        trou = _MIGRATION_VERSIONS[-3]
 
         # 1) Installation neuve.
         neuve = _run_bootstrap(pg_container)
         assert neuve.returncode == 0, neuve.stderr
         assert f"SCHEMA_HEAD={tete}" in neuve.stdout
 
-        # 2) Rembobinage PARTIEL : l'avant-dernière est défaite, la dernière
-        #    reste enregistrée. Le registre est troué.
+        # 1 bis) Une migration dont la tête dépend ne se défait pas sous elle.
         with psycopg.connect(_superuser_dsn(pg_container)) as conn:
-            _apply_rollback_file(conn, version=avant_derniere)
+            complet = _versions_enregistrees(conn)
+            with pytest.raises(psycopg.errors.DependentObjectsStillExist):
+                _apply_rollback_file(conn, version=posterieure)
+            conn.rollback()
+            assert _versions_enregistrees(conn) == complet
+
+        # 2) Rembobinage PARTIEL : la tête est défaite proprement, puis
+        #    ``trou`` l'est alors que ``posterieure`` reste enregistrée.
+        with psycopg.connect(_superuser_dsn(pg_container)) as conn:
+            _apply_rollback_file(conn, version=tete)
+            _apply_rollback_file(conn, version=trou)
             troue = _versions_enregistrees(conn)
-        assert avant_derniere not in troue
-        assert tete in troue, "le scenario doit laisser une version POSTERIEURE"
+        assert trou not in troue
+        assert posterieure in troue, "le scenario doit laisser une version POSTERIEURE"
 
         refus = _run_bootstrap(pg_container)
         assert refus.returncode != 0, refus.stdout
         assert "MIGRATION_REGISTRY_NOT_CONTIGUOUS" in refus.stderr, refus.stderr
-        assert str(avant_derniere) in refus.stderr, refus.stderr
+        assert str(trou) in refus.stderr, refus.stderr
         # Le refus précède toute écriture.
         assert "MIGRATIONS_APPLIED" not in refus.stdout, refus.stdout
         with psycopg.connect(_superuser_dsn(pg_container)) as conn:
@@ -317,13 +332,13 @@ class TestPartialRollbackIsRefused:
         # 3) Reprise : le préfixe redevient cohérent, et le bootstrap
         #    applique exactement ce qui manque.
         with psycopg.connect(_superuser_dsn(pg_container)) as conn:
-            _apply_rollback_file(conn, version=tete)
+            _apply_rollback_file(conn, version=posterieure)
             prefixe = _versions_enregistrees(conn)
-        assert prefixe == _MIGRATION_VERSIONS[:-2]
+        assert prefixe == _MIGRATION_VERSIONS[:-3]
 
         reprise = _run_bootstrap(pg_container)
         assert reprise.returncode == 0, reprise.stderr
-        assert "MIGRATIONS_APPLIED=2" in reprise.stdout, reprise.stdout
+        assert "MIGRATIONS_APPLIED=3" in reprise.stdout, reprise.stdout
         assert f"SCHEMA_HEAD={tete}" in reprise.stdout
 
         # 4) Base déjà à la tête : rien n'est réappliqué.
