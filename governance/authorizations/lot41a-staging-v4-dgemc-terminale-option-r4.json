@@ -1,0 +1,49 @@
+{
+  "allowed_content_sha256": [
+    "0acb85cddc0f0e2b436a574bd5d35cc6f3304270bf5e99dd1282c2344711526b",
+    "1087fb5ab5aeaa4330187fd267bc3b210b6f4163725593291613ba8771e880d3",
+    "2732f3d9adf24e8204574b38cd6d884cea4e38cb2145e8d6d179d5e06d587a60",
+    "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
+    "46c8cebda87cba6dd6a7d523289ad69282543a99cc15cd1940fde90bbc2d5714",
+    "a9bb598aea037a96580c81cbeb358e01e89e7a5d0ebac55bcb907d8b9c83c33b",
+    "bce945c221de929f175d2a4adc9703b3a4945a1c535263aca128554446024be0",
+    "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+    "e80d76b74cbb5823d638ab67e56922c495d7282b983b33993e5664fc66bf61ff",
+    "ebe2d96d24600df85e16b67f7185657026e4b1c59010216cbfd99bf657048544",
+    "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134",
+    "f1adebff9abb216e601e1eeac23e9fba8c6fadf49d8eaa65401630baa1967948"
+  ],
+  "allowed_domains": [
+    "eduscol.education.gouv.fr"
+  ],
+  "authorization_id": "lot41a-staging-v4-dgemc-terminale-option-r4",
+  "decision": "AUTHORIZE_INGESTION_SCOPE",
+  "exclusions": [],
+  "manifest_digest": "763c2ad15b935a671725b1a3b829d3326ca65d016129e77cf5a71c5ebbc568b9",
+  "pii_absence_attested": true,
+  "pii_absence_evidence": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/pii_evidence.json@sha256:33e3fbfb943ffded360d2db254061edebe8ccff9e08b7509ebcdf4cd305ca700",
+  "profile_fingerprint": "faad547f1aa105b7035f79447edbdfaf5f67c0918774c1751c531426638645de",
+  "profile_id": "rag_nexus_dgemc_terminale_option",
+  "profile_version": "profile-gate-v3",
+  "protocol_version": "LOT41A-V2",
+  "rights_categories": [
+    "officiel_public"
+  ],
+  "scope": {
+    "audience": [
+      "aefe",
+      "libre"
+    ],
+    "candidat": "libre",
+    "collection": "rag_nexus_dgemc_terminale_option",
+    "matiere": "dgemc",
+    "niveau": "terminale",
+    "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+    "school_year": "2026-2027",
+    "tenant": "libre_terminale",
+    "visibility": "internal",
+    "voie": "generale"
+  },
+  "valid_from": "2026-09-24T00:00:00.000000Z",
+  "valid_until": "2027-08-31T23:59:59.000000Z"
+}

@@ -1,0 +1,73 @@
+{
+  "allowed_content_sha256": [
+    "04bf557a574c4d553fab35eb3175f6f638dd129ffa785ca640367ae5c109881c",
+    "0dda163a792284e1e0df97c0ee72e8c04722bd145684db49a7095cb3b8e6ddc3",
+    "1812d129eeeceeae1a36a11bad8ae3bc8e8ecdcf589ddc200fc6d0f7ee662e3c",
+    "188c7b512edd4aecce488c3898820f1e69898585dbb557814e723de4b79f2630",
+    "284637c904ad2fec3353f97768b87ce4582da19e5a51af1c2e69929307dbdf06",
+    "30cfcc5c63f891eb098acd59858e00da2773597f6562f19508f6df9ee8c12de3",
+    "3a25308fc4c7cf81df78d7bb91fe1d55db3ca4a2a4262f96bc3b44aec0d1dfde",
+    "40b483c559f70a18a290d74071b96112dbdbbea707e896918589d5f8e5f482b3",
+    "44351a24258f24ed9a83d27e6734d0e5fd03915e123a12fb0ab8347303a81627",
+    "45acb12070f3ac0c4eec10be8bf0c3cb3adb1c433e08e14b8d718e093a18889f",
+    "4ab07cbe613921e71af33496947d51e755451f6e0bceb7fe2c0f93dfc5f7c5ed",
+    "5a8d69d488b341c6d82e0bafbef8fc8ce920392681548e209532021684907f54",
+    "5c522bc9cf9f90120e986d8e938b71ec1bf3e3da50c9af8367512208e8ddfdf9",
+    "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5",
+    "692c871ab2003438b1636e19f1e40de097833c39473aae700e8434bcba48a0c8",
+    "79e04a388f5b822fad189644a838df7ece47d6e4c3498f256bfe68587ad8cc28",
+    "821da2c5bd0fbc66b0b32cb09140bd3a6dedd1d651e4761438b9972e91388adf",
+    "85319cb509247343b082abed6012c50ebd157134fd6ce84150cf852ae4f870fb",
+    "8577cf5a9b83352794f6dfba97b0c57b6db247921c867ecb46432cc4e7ed4283",
+    "8eb23c91b035d968bb90019912190bb09b165dbe5ee7573d39217b142047d084",
+    "95c3f17c29c4d9fe7f7a421579cae4222463dbe7b9fce2842aaa31524c70f49a",
+    "96e887c34c0d7db5500632090ee0119d1366d2667217818b65d00a316d3ae329",
+    "9b05a15d39750c3e0fe6150809418dcdf3d1df36862c56406b6c00ac8a9918d7",
+    "a1133cef135e8a7eccc15009678dbc5cc8b9be22c2d2f8be2e6bb9c86c6454ee",
+    "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc",
+    "aa09447740e35e7ab6e2c9caf25c2786a8a0446ae7803b64d163f5b9000fd4f1",
+    "ab9b97062cc3e6965abe02c56cf5cfdda5e6bb549428fbd3a7a5a10b826255d7",
+    "acffa72d962f5acb2f53f4a28d0699c7cc365b3a054410ca99236cb68c5aefd7",
+    "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+    "e0c09c8e021de8b6932ab37be9519d5709c1068b86fe40f77da78d836ab909ef",
+    "e1309f6255fbbc93d554c71b0ab2e98d176d27870edd15432d1b48a614d57294",
+    "e40ccdafb9623c4642249eb68cf5a83a24da0ed3c05a658efe6b846a780dfc23",
+    "e9eb05e1a4ca41be7a1b75ac8854eb82d7ac9b8d85d2c507da47e545b7f94c42",
+    "ed2784baa49214dea462e177c23132c78866b8d5615e0dcd8cf1a9df7f49a9c5",
+    "ed41fbe5317c8a33bfd9349f55af1328eb81230150b081e4d51c2c9987e3adc4",
+    "ffc628e67b99bbcf4fd7a8cafc96619973e6e459ce263632d1cccd1be4ec2c91"
+  ],
+  "allowed_domains": [
+    "eduscol.education.gouv.fr"
+  ],
+  "authorization_id": "lot41a-staging-v4-svt-terminale-specialite-r4",
+  "decision": "AUTHORIZE_INGESTION_SCOPE",
+  "exclusions": [],
+  "manifest_digest": "763c2ad15b935a671725b1a3b829d3326ca65d016129e77cf5a71c5ebbc568b9",
+  "pii_absence_attested": true,
+  "pii_absence_evidence": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/pii_evidence.json@sha256:33e3fbfb943ffded360d2db254061edebe8ccff9e08b7509ebcdf4cd305ca700",
+  "profile_fingerprint": "31929926de2f0823a78f2d8b5413cf38178d9592977f94a0ad848c8b3e706e9f",
+  "profile_id": "rag_nexus_svt_terminale_specialite",
+  "profile_version": "profile-gate-v3",
+  "protocol_version": "LOT41A-V2",
+  "rights_categories": [
+    "officiel_public"
+  ],
+  "scope": {
+    "audience": [
+      "aefe",
+      "libre"
+    ],
+    "candidat": "libre",
+    "collection": "rag_nexus_svt_terminale_specialite",
+    "matiere": "svt",
+    "niveau": "terminale",
+    "programme_version": "BOEN_special_8_2019-07-25",
+    "school_year": "2026-2027",
+    "tenant": "libre_terminale",
+    "visibility": "internal",
+    "voie": "generale"
+  },
+  "valid_from": "2026-09-24T00:00:00.000000Z",
+  "valid_until": "2027-08-31T23:59:59.000000Z"
+}
