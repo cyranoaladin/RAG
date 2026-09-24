@@ -660,11 +660,17 @@ def resume_publication(
         # d'une détection improvisée ici.
         raw_bytes = deps.read_sealed_artifact(content_sha256=artifact_record.sha256)
         mime_detected = artifact_record.mime_declared
+        # ADR-0060 : les chunks publiés seront ceux que la release scelle.
+        chunks_scelles: tuple[str, ...] | None = tuple(
+            str(chunk["chunk_sha256"])
+            for chunk in sorted(scelle.get("chunks") or [], key=lambda c: int(c["chunk_index"]))
+        )
     else:
         raw_bytes = deps.artifact_reader(
             extracted_text_ref=artifact_record.extracted_text_ref
         )
         mime_detected = artifact_record.mime_detected
+        chunks_scelles = None
 
     governed = GovernedArtifact(
         content=raw_bytes,
@@ -676,6 +682,7 @@ def resume_publication(
         source_kind=attribution.source_kind,
         type_doc=attribution.type_doc,
         mime_detected=mime_detected,
+        sealed_chunk_sha256=chunks_scelles,
     )
 
     # Les lectures de préflight ci-dessus ouvrent une transaction psycopg.
