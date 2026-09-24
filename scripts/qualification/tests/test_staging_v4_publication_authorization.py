@@ -258,9 +258,9 @@ def test_le_jeton_github_est_en_lecture_seule_et_cree_par_le_proprietaire():
     assert _ecarts(doc)
 
 
-def test_dc_remplace_l_autorisation_db_non_consommee():
-    assert autorisation.GABARIT_V4["amends"] == "DC"
-    assert autorisation.GABARIT_V4["supersedes"]["amends"] == "DB"
+def test_dg_remplace_l_autorisation_dc_non_consommee():
+    assert autorisation.GABARIT_V4["amends"] == "DG"
+    assert autorisation.GABARIT_V4["supersedes"]["amends"] == "DC"
     assert len(autorisation.GABARIT_V4["supersedes"]["sha256"]) == 64
     doc = _v4()
     doc["supersedes"]["sha256"] = "0" * 64
@@ -431,3 +431,17 @@ def test_les_images_autorisees_sont_celles_de_la_preuve_de_provenance():
 def test_le_commit_de_build_porte_adr_0060_et_0061():
     """L'image vient du commit de fusion de #251, qui porte le code qualifié."""
     assert _reel()["runtime_image"]["source_commit_sha"] == "0569aff60092251eef691ed2a730dec3bdf7ec81"
+
+
+def test_la_mise_en_file_ne_recoit_que_le_role_applicatif_et_le_compte_exact():
+    cible = _cible("publication_job_enqueue")
+    assert (cible["control_role"], cible["job_type"], cible["expected_jobs"]) == (
+        "ingestion_control_app", "publication_resume", 479,
+    )
+    assert cible["database"] == autorisation.BASE_V4
+    assert (RACINE / cible["script"]).is_file()
+    for cle, valeur in (("control_role", "ingestion_control_attestor"), ("expected_jobs", 480),
+                        ("release_id", "production-profile-gate-2026-2027-v3"), ("database", "ragdb")):
+        autre = copy.deepcopy(cible)
+        autre[cle] = valeur
+        assert _autorise("publication_job_enqueue", autre, _v4()), cle

@@ -351,3 +351,62 @@ def test_un_artefact_altere_ou_ambigu_est_refuse(tmp_path, alteration):
     assert sortie.returncode == 3, sortie.stdout
     assert "extraction refusée" in sortie.stderr
     assert not (tmp_path / "governance").exists() or alteration == "doublon"
+
+
+# ── DG : mise en file des jobs de publication, Worker B détaché ───────────
+
+@pytest.fixture(scope="module")
+def essai_publication(tmp_path_factory: pytest.TempPathFactory) -> str:
+    """Essai à blanc hors ligne des étapes qui suivent l'attestation batch."""
+    racine = tmp_path_factory.mktemp("essai-publication")
+    etat, pret = racine / "etat", racine / "readiness"
+    etat.mkdir(mode=0o700)
+    pret.mkdir()
+    (pret / "staging-readiness-v4.json").write_text("{}")
+    ordre = list(autorisation.ORDRE_V4)
+    for etape in ordre[: ordre.index("batch_review_record") + 1]:
+        (etat / f"{etape}.done").write_text("essai\n")
+    (etat / "transfer_manifest_v4.done").write_text("sha256=" + "7" * 64 + "\n")
+    sortie = subprocess.run(
+        ["bash", str(SCRIPT), "--dry-run", "run"], capture_output=True, text=True, check=False,
+        env={
+            "PATH": os.environ["PATH"], "HOME": str(racine), "STATE_DIR": str(etat),
+            "PYTHON": sys.executable, "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
+            "READINESS_LOCAL": str(pret), "DRY_RUN_OFFLINE": "1",
+        },
+    )
+    assert sortie.returncode == 0, (sortie.stdout + sortie.stderr)[-2000:]
+    return sortie.stdout + sortie.stderr
+
+
+def test_la_mise_en_file_precede_worker_b_et_suit_l_attestation():
+    ordre = list(autorisation.ORDRE_V4)
+    assert ordre.index("batch_review_record") < ordre.index("publication_job_enqueue") < ordre.index("worker_b_publication")
+
+
+def test_la_mise_en_file_passe_par_l_outil_sous_le_seul_role_applicatif(essai_publication):
+    bloc = essai_publication.split("--expected-jobs 479", 1)[0].rsplit("[dry-run]", 1)[-1]
+    texte = essai_publication
+    assert "/repo/scripts/go_live/staging_v4_enqueue_publication.py" in texte
+    assert "--expected-jobs 479" in texte
+    assert "--release-id \"production-profile-gate-2026-2027-v4\"" in texte
+    assert f'--env-file "{ROLES}/ingestion-control-app.env"' in bloc
+    for interdit in ("attestor", "authority", "publisher", "staging.env"):
+        assert interdit not in bloc, interdit
+
+
+def test_worker_b_est_detache_nomme_et_borne(essai_publication):
+    texte = essai_publication
+    assert "docker run -d --name nexus-v4-worker-b --network host" in texte
+    assert "WORKER_B_DEJA_PRESENT" in texte
+    assert "--max-iterations 482" in texte
+    assert "docker run --rm --network host" in texte  # les autres conteneurs restent éphémères
+
+
+def test_le_suivi_de_worker_b_exige_la_sortie_nulle_et_le_mode_qualifie():
+    corps = SCRIPT.read_text(encoding="utf-8").split("etape_worker_b_publication() {", 1)[1]
+    corps = corps.split("etape_independent_verification() {", 1)[0]
+    assert '[ "$etat" = "exited 0" ]' in corps
+    assert "authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION" in corps
+    assert "docker inspect --format '{{.State.Status}} {{.State.ExitCode}}'" in corps
+    assert "--rm" not in corps.split("WORKER_DETACHE=")[1].split("\n")[0]

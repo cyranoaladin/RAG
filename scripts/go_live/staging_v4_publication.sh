@@ -209,7 +209,10 @@ SQL
 }
 
 worker() {  # $1 = fichiers d'env PAR RÔLE (':') ; reste = module et arguments
-    local manifeste="$READINESS_MANIFESTE" envs="" f sha
+    # WORKER_DETACHE=<nom> : conteneur détaché et nommé (travail long), suivi
+    # par l'appelant ; sinon conteneur éphémère attaché (--rm).
+    local manifeste="$READINESS_MANIFESTE" envs="" f sha mode="--rm"
+    [ -n "${WORKER_DETACHE:-}" ] && mode="-d --name ${WORKER_DETACHE}"
     sha=$(sha256sum "$READINESS_LOCAL/$manifeste" 2>/dev/null | cut -d' ' -f1) \
         || fail "manifeste de readiness local absent : $manifeste"
     IFS=: read -r -a _fichiers <<<"$1"; shift
@@ -223,7 +226,7 @@ IMAGE_REELLE=\$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
 test "\$IMAGE_REELLE" = "$IMAGE"
 test -f "$REMOTE/repo/$ANCRE_READINESS" || { echo "ANCRE_READINESS_ABSENTE" >&2; exit 4; }
 install -d -m 0700 $RUN
-docker run --rm --network host \\
+docker run $mode --network host \\
   --env-file "$REMOTE_READINESS_ENV" $envs\\
   -e NEXUS_ENVIRONMENT=rehearsal \\
   -e NEXUS_EXPECTED_READINESS_PROTOCOL=NEXUS-STAGING-READINESS-V1 \\
@@ -636,16 +639,60 @@ etape_batch_review_record() {
     marquer batch_review_record "ok"
 }
 
+etape_publication_job_enqueue() {
+    autoriser publication_job_enqueue
+    env_de_role "$REMOTE_WORKER_ENV"
+    local attendu; attendu="$(cible publication_job_enqueue | "$PYTHON" -c 'import json,sys; print(json.load(sys.stdin)["expected_jobs"])')"
+    remote <<EOF | tee "$STATE_DIR/enqueue.out" || fail "mise en file des jobs de publication"
+set -euo pipefail
+cd $REMOTE/repo && git fetch -q origin && git checkout -q --detach $AUTH_COMMIT
+test -f "$REMOTE/repo/scripts/go_live/staging_v4_enqueue_publication.py"
+$(tirer "$IMAGE")
+docker run --rm --network host --env-file "$REMOTE_WORKER_ENV" \\
+  -v "$REMOTE/repo:/repo:ro" -w /repo --entrypoint python "$IMAGE" \\
+  /repo/scripts/go_live/staging_v4_enqueue_publication.py \\
+  --release-id "$(champ release.release_id)" --expected-jobs $attendu
+EOF
+    [ "$DRY_RUN" = 1 ] || grep -q "^PUBLICATION_JOBS_ENQUEUED .* total=$attendu\$" "$STATE_DIR/enqueue.out" \
+        || fail "mise en file : total inattendu"
+    verifier_historique
+    marquer publication_job_enqueue "$(grep -o 'crees=.*' "$STATE_DIR/enqueue.out" 2>/dev/null || echo dry-run)"
+}
+
 etape_worker_b_publication() {
     autoriser worker_b_publication
-    worker "$REMOTE_WORKER_ENV:$REMOTE_PUBLISHER_ENV" \
-        ingestor.ingestion_worker.multilevel_publication_resume_cli \
-        "$(args_de worker-b --transfer-sha256 "$(transfert_sha)" --embedding-root "/models/$MODELE_NOM")" \
-        --max-iterations "${MAX_ITERATIONS:-2000}" | remote | tee "$STATE_DIR/worker-b.out" || fail "Worker B"
-    [ "$DRY_RUN" = 1 ] || grep -q 'authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION' "$STATE_DIR/worker-b.out" \
+    # Travail long (479 placements, vecteurs E5) : conteneur détaché et nommé
+    # sur l'hôte ; l'orchestrateur le suit par de courtes interrogations, puis
+    # exige son code de sortie et son mode d'autorité. Aucune session longue.
+    local nom="nexus-v4-worker-b" attendu etat
+    attendu="$(cible publication_job_enqueue | "$PYTHON" -c 'import json,sys; print(json.load(sys.stdin)["expected_jobs"])')"
+    if [ "$DRY_RUN" = 1 ] || ! grep -qx "LANCE $nom" "$STATE_DIR/worker-b.state" 2>/dev/null; then
+        { echo "set -euo pipefail"
+          echo "! docker inspect $nom >/dev/null 2>&1 || { echo 'WORKER_B_DEJA_PRESENT' >&2; exit 4; }"
+          WORKER_DETACHE=$nom worker "$REMOTE_WORKER_ENV:$REMOTE_PUBLISHER_ENV" \
+            ingestor.ingestion_worker.multilevel_publication_resume_cli \
+            "$(args_de worker-b --transfer-sha256 "$(transfert_sha)" --embedding-root "/models/$MODELE_NOM")" \
+            --max-iterations "$((attendu + 3))"
+        } | remote || fail "Worker B : lancement"
+        echo "LANCE $nom" > "$STATE_DIR/worker-b.state"
+    fi
+    [ "$DRY_RUN" = 1 ] && { marquer worker_b_publication "dry-run"; return; }
+    while :; do
+        etat=$(echo "docker inspect --format '{{.State.Status}} {{.State.ExitCode}}' $nom" | remote) \
+            || fail "Worker B : état illisible"
+        case "$etat" in
+            "exited "*) break ;;
+            "running "*|"created "*|"restarting "*) sleep "${WORKER_B_POLL_S:-60}" ;;
+            *) fail "Worker B : état inattendu ($etat)" ;;
+        esac
+    done
+    echo "docker logs $nom 2>&1" | remote > "$STATE_DIR/worker-b.out" || fail "Worker B : journal"
+    [ "$etat" = "exited 0" ] || fail "Worker B : sortie $etat (journal : worker-b.out, conteneur conservé)"
+    grep -q 'authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION' "$STATE_DIR/worker-b.out" \
         || fail "Worker B : démarrage hors qualification liée à la release"
+    echo "docker rm $nom >/dev/null" | remote || fail "Worker B : retrait du conteneur terminé"
     verifier_historique
-    marquer worker_b_publication "ok"
+    marquer worker_b_publication "succeeded=$(grep -c 'status=succeeded' "$STATE_DIR/worker-b.out")"
 }
 
 etape_independent_verification() {
@@ -673,7 +720,8 @@ EOF
 ORDRE=(preflight_measurement backup_before_migration database_creation product_migrations
        control_migrations role_env_derivation model_artifact_install readiness_manifest_install
        transfer_manifest_v4 scope_authorization_registration_r4 sealed_ingestion_v4
-       batch_review_proposal batch_review_record worker_b_publication independent_verification)
+       batch_review_proposal batch_review_record publication_job_enqueue worker_b_publication
+       independent_verification)
 
 # Sourcé (tests) : fonctions définies, rien n'est exécuté.
 if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
@@ -691,7 +739,7 @@ case "${1:-}" in
         charger_autorisation
         for e in "${ORDRE[@]}"; do
             if fait "$e"; then log "DEJA_FAIT $e"; else "etape_$e"; fi
-            [ -n "$jusqua" ] && [ "$e" = "$jusqua" ] && break
+            if [ -n "$jusqua" ] && [ "$e" = "$jusqua" ]; then break; fi
         done ;;
     *) echo "usage: $0 [--dry-run] run [--until <étape>] | status" >&2; exit 2 ;;
 esac
