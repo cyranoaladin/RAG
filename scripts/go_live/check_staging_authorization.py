@@ -380,15 +380,36 @@ def verifier(racine: Path) -> list[str]:
 # autorisation gouvernée DISTINCTE, liée à la base et à son plan par
 # empreinte, ouvre ces opérations — chacune sur sa cible exacte : hôte,
 # projet, conteneur, base, schéma, rôle, image et release. Ce qui n'y est pas
-# nommé reste refusé. Chemin DIRECT seulement : une base qui porte des
-# placements acquis sous V2 exige une transformation que ADR-0061 réserve à
-# une décision distincte ; le pré-vol s'y arrête.
+# nommé reste refusé. Chemin DIRECT seulement, sur une base DÉDIÉE à V4
+# (lot DC) : ``ragdb`` porte l'acquisition V2 (479 lignes) et 26 placements
+# pilotes ; elle reste intacte, hors du chemin V4, mesurée avant et revérifiée
+# après chaque écriture. La base dédiée est créée, additivement, dans le même
+# cluster ; tout contenu inattendu qu'elle porterait reste un refus.
 
 AUTORISATION_V4 = "docs/reports/go_live/authorizations/staging_v4_publication_authorization.json"
 KIND_V4 = "NEXUS-STAGING-V4-PUBLICATION-AUTHORIZATION-V1"
 PLAN_V4 = "docs/runbooks/staging_v4_publication_EXECUTION_PLAN.md"
 DEPOT_IMAGE = "ghcr.io/cyranoaladin/rag-multilevel-worker-production"
 DEPOT_INGESTOR = "ghcr.io/cyranoaladin/rag-ingestor"
+BASE_V4 = "ragdb_profile_gate_v4"
+BASE_HISTORIQUE = "ragdb"
+REPERTOIRE_ROLES = "/srv/nexus-staging/secrets/v4-roles"
+#: L'autorisation que DC remplace, par ses octets : non consommée, jamais
+#: exécutée au-delà du pré-vol (arrêté sur une base non vierge).
+REMPLACE_V4 = {
+    "amends": "DB",
+    "sha256": "745cd79caa35b29c4b0d5d8ba87c4f95d2da5309bcd984a5eb43c679ff2e7561",
+    "reason": "ragdb non vierge (acquisition V2 et placements pilotes) : base dédiée à V4",
+}
+JETON_GITHUB = {
+    "path": "/srv/nexus-staging/secrets/github-read-token/token",
+    "file_mode": "0600",
+    "dir_mode": "0700",
+    "repository_selection": ["cyranoaladin/RAG"],
+    "permissions": {"contents": "read", "metadata": "read"},
+    "created_by": "propriétaire, après approbation de cette autorisation ; jamais par l'agent",
+    "consumers": ["scope_authorization_registration_r4", "batch_review_record", "worker_b_publication"],
+}
 
 RELEASE_V4 = {
     "release_id": "production-profile-gate-2026-2027-v4",
@@ -432,21 +453,33 @@ CIBLES_V4 = {
     "host": HOTE,
     "compose_project": "nexus-staging",
     "container": "nexus-staging-pgvector-1",
-    "database": "ragdb",
+    "database": BASE_V4,
+    "database_creation": "additive : nouvelle base du cluster existant, jamais une réutilisation",
+    "legacy_database": {
+        "name": BASE_HISTORIQUE,
+        "mode": "untouched",
+        "holds": "acquisition V2 (479 ressources, 479 artefacts) et 26 placements pilotes",
+        "guard": "têtes et comptes mesurés au pré-vol, revérifiés après chaque écriture",
+    },
     "product_schema": "public",
     "control_schema": "ingestion_control",
     "roles": {
         "migrator": "superutilisateur du conteneur staging, via les seuls runners canoniques",
+        "control_migrator": "ingestion_control_migrator",
         "authority": "ingestion_control_authority",
         "worker": "ingestion_control_app",
         "attestor": "ingestion_control_attestor",
         "product_writer": "rag_publisher",
         "product_reader": "rag_reader",
+        "product_reviewer": "rag_reviewer (droits posés par le runner produit, non utilisé par ce plan)",
     },
+    "role_env_dir": REPERTOIRE_ROLES,
     "worker_never_receives": [
         "identifiants du migrateur",
         "DSN ingestion_control_authority",
         "DSN ingestion_control_attestor",
+        "staging.env",
+        "ingestion_control.env",
     ],
 }
 
@@ -454,25 +487,57 @@ _COMMUNE = {
     "host": HOTE,
     "compose_project": "nexus-staging",
     "container": "nexus-staging-pgvector-1",
-    "database": "ragdb",
+    "database": BASE_V4,
 }
 _V4 = RELEASE_V4["release_id"]
 OPERATIONS_V4: dict[str, dict] = {
     "preflight_measurement": {
-        "cible": {**_COMMUNE, "mode": "read_only"},
-        "limite": "mesures en lecture : têtes de migration réelles, comptes, disque ; arrêt si des lignes acquises existent",
+        "cible": {**_COMMUNE, "mode": "read_only", "legacy_database": BASE_HISTORIQUE},
+        "limite": (
+            "mesures en lecture : ragdb (têtes, comptes : référence d'intangibilité), base "
+            "dédiée (absente, ou vierge), identités des rôles, fichiers sources ; arrêt si la "
+            "base dédiée porte un contenu"
+        ),
     },
     "backup_before_migration": {
-        "cible": {**_COMMUNE, "command": "pg_dump", "destination": "/srv/nexus-staging/backups"},
-        "limite": "sauvegarde de ragdb avant toute migration ; jamais supprimée par ce plan",
+        "cible": {**_COMMUNE, "database": BASE_HISTORIQUE, "mode": "read_only", "command": "pg_dump", "destination": "/srv/nexus-staging/backups"},
+        "limite": "sauvegarde de ragdb, en lecture, avant tout changement du cluster ; jamais supprimée par ce plan",
+    },
+    "database_creation": {
+        "cible": {
+            **_COMMUNE, "mode": "additive", "command": "createdb", "template": "template0",
+            "encoding": "UTF8", "locale": "C", "refuse_if_exists": True,
+        },
+        "limite": "crée la base dédiée ; une base de ce nom déjà présente est un refus, hors reprise de cette étape",
     },
     "product_migrations": {
-        "cible": {**_COMMUNE, "schema": "public", "runner": "services/rag-engine/infra/scripts/apply_pgvector_migrations.sh", "target_head": "005"},
-        "limite": "migrations manquantes appliquées dans l'ordre par le runner canonique",
+        "cible": {
+            **_COMMUNE, "schema": "public",
+            "runner": "services/rag-engine/infra/scripts/apply_pgvector_migrations.sh",
+            "from_head": "000", "target_head": "005",
+            "provisions_roles": ["rag_reader", "rag_reviewer", "rag_publisher"],
+        },
+        "limite": "001 à 005 dans l'ordre par le runner canonique ; rôles existants, aucun mot de passe changé ; ragdb revérifiée",
     },
     "control_migrations": {
-        "cible": {**_COMMUNE, "schema": "ingestion_control", "runner": "services/rag-engine/infra/scripts/provision_and_bootstrap_ingestion_control.sh", "target_head": "019"},
-        "limite": "migrations manquantes appliquées dans l'ordre, puis rôles provisionnés, par le runner canonique",
+        "cible": {
+            **_COMMUNE, "schema": "ingestion_control",
+            "runner": "services/rag-engine/infra/scripts/provision_and_bootstrap_ingestion_control.sh",
+            "from_head": "000", "target_head": "019",
+        },
+        "limite": (
+            "001 à 019 dans l'ordre, puis rôles provisionnés, par le runner canonique ; "
+            "chaque mot de passe source doit d'abord authentifier son rôle (ALTER ROLE sans effet)"
+        ),
+    },
+    "role_env_derivation": {
+        "cible": {
+            "host": HOTE, "compose_project": "nexus-staging", "database": BASE_V4,
+            "script": "scripts/go_live/staging_v4_role_env.py",
+            "destination": REPERTOIRE_ROLES, "dir_mode": "0700", "file_mode": "0600",
+            "sources": ["staging.env", "ingestion_control.env"], "new_secrets": False,
+        },
+        "limite": "un fichier par rôle, dérivé des secrets existants, atomique, jamais écrasé ; aucune valeur affichée",
     },
     "model_artifact_install": {
         "cible": {
@@ -530,6 +595,11 @@ ORDRE_V4 = tuple(OPERATIONS_V4)
 MENTIONS_V4 = (
     "staging cloisonne uniquement",
     "Worker B uniquement dans le staging cloisonne",
+    "base dediee ragdb_profile_gate_v4",
+    "ni modification de ragdb",
+    "ni suppression des donnees V2",
+    "ni reutilisation des placements pilotes",
+    "ni bascule du service API",
     "ni publication de V2 ou de V3",
     "ni adoption",
     "ni build sur nexus-prod",
@@ -541,7 +611,8 @@ MENTIONS_V4 = (
 
 GABARIT_V4: dict = {
     "kind": KIND_V4,
-    "amends": "DB",
+    "amends": "DC",
+    "supersedes": REMPLACE_V4,
     "granted_by_pull_request_approval_of": APPROBATEUR,
     "effective_when": (
         "ce fichier est fusionné sur main par une PR à revue humaine épinglée "
@@ -552,6 +623,7 @@ GABARIT_V4: dict = {
     "release": RELEASE_V4,
     "predecessors": PREDECESSEURS,
     "scope_authorizations": AUTORISATIONS_R4,
+    "github_read_token": JETON_GITHUB,
     "targets": CIBLES_V4,
     "runtime_image": {
         "image_repository": DEPOT_IMAGE,
@@ -582,24 +654,31 @@ GABARIT_V4: dict = {
     "operations": list(ORDRE_V4),
     "forbidden": sorted(INTERDITS_REQUIS | {
         "v2_publication", "v3_publication", "predecessor_adoption",
-        "production_image_rebuild_on_host",
+        "production_image_rebuild_on_host", "legacy_database_modification",
+        "legacy_v2_data_deletion", "pilot_placements_reuse", "api_service_switch",
     }),
     "authorization_statement": (
         "L'approbation de cette PR par abenrhouma vaut autorisation, pour le staging "
         "cloisonne uniquement, de publier production-profile-gate-2026-2027-v4 selon "
         "les operations nommees et sur leurs cibles exactes : Worker B uniquement dans "
-        "le staging cloisonne, ecritures limitees a la base ragdb du conteneur "
-        "nexus-staging-pgvector-1. Elle n'autorise ni publication de V2 ou de V3, "
-        "ni adoption, ni build sur nexus-prod, ni tag non epingle, ni ecriture DB "
-        "production, ni current switch, ni exposition publique."
+        "le staging cloisonne, ecritures limitees a une base dediee "
+        "ragdb_profile_gate_v4 creee dans le conteneur nexus-staging-pgvector-1. Elle "
+        "n'autorise ni modification de ragdb, ni suppression des donnees V2, ni "
+        "reutilisation des placements pilotes, ni publication de V2 ou de V3, ni "
+        "adoption, ni build sur nexus-prod, ni tag non epingle, ni ecriture DB "
+        "production, ni current switch, ni bascule du service API, ni exposition "
+        "publique."
     ),
     "stop_conditions": (
         "toute precondition non satisfaite, tout ecart mesure, toute signature ou "
-        "approbation manquante, toute ligne acquise trouvee au pre-vol ; arret de "
-        "securite sans suppression de volume ni de preuve"
+        "approbation manquante, tout contenu trouve dans la base dediee, toute "
+        "variation de ragdb ; arret de securite sans suppression de volume, de base "
+        "ni de preuve"
     ),
     "expected_proof": [
-        "têtes de migration avant et après, mesurées (produit 005, contrôle 019)",
+        "ragdb inchangée : têtes (produit 4, contrôle 15) et comptes (479, 479, 26) identiques avant et après",
+        "base dédiée créée, puis têtes mesurées (produit 005, contrôle 019)",
+        "cinq fichiers par rôle en 0600 sous un répertoire 0700, chacun authentifiant son rôle sur la base dédiée",
         "onze r4 enregistrées au HEAD approuvé de leur PR",
         "rapport d'ingestion scellée sous les r4, rejeu idempotent",
         "attestation batch enregistrée au head exact de la revue approuvée",
@@ -608,7 +687,7 @@ GABARIT_V4: dict = {
     ],
     "rollback": {
         "service": "arrêt des processus lancés par ce plan ; aucune suppression de volume",
-        "database": "restauration de la sauvegarde pg_dump préalable, sur décision humaine",
+        "database": "la base dédiée peut être abandonnée, sur décision humaine ; ragdb n'est jamais touchée",
         "governance_evidence": "jamais supprimée : les preuves et attestations restent",
     },
 }
@@ -652,9 +731,9 @@ def evaluer_v4(document: dict, *, base_sha256: str, plan_sha256: str) -> list[st
     """Écarts de l'autorisation de publication V4. Liste vide = conforme."""
     ecarts: list[str] = []
     for cle in (
-        "kind", "granted_by_pull_request_approval_of", "release", "predecessors",
-        "scope_authorizations", "targets", "operations", "stop_conditions",
-        "expected_proof", "rollback",
+        "kind", "amends", "supersedes", "granted_by_pull_request_approval_of", "release",
+        "predecessors", "scope_authorizations", "github_read_token", "targets", "operations",
+        "stop_conditions", "expected_proof", "rollback",
     ):
         if document.get(cle) != GABARIT_V4[cle]:
             ecarts.append(f"V4 : {cle} ne correspond pas au périmètre gouverné")
