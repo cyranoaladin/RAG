@@ -1,0 +1,19 @@
+{
+  "catalog_artifacts": 315,
+  "currentness_dispositions": {
+    "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 315
+  },
+  "pii_clearance": {
+    "CLEARED": 293,
+    "DETECTED_REVIEWED_ACCEPTED": 22
+  },
+  "pii_refused": {},
+  "preflight_artifacts": 319,
+  "release_id": "production-profile-gate-2026-2027-v4",
+  "verified_review_chain": {
+    "pii_decision_set_sha256": "1b70d91b52d207d301d87076573593cb0899ed2b52d6e2963fbcf8fcd3472a66",
+    "pii_review_index_sha256": "abdd15256eba9ed5717529327131b0afe6f5de17189180bd082fd2a9bfeadb55",
+    "pii_review_receipt_sha256": "22361dd17df811425d87f14ff33649efca320a8ee63292023ff5187d977bd55d",
+    "pii_review_trust_anchor_sha256": "a7835fc6217fe426d9d5c7c28bb0949f05577e6258a620b2bf6a4029db0487ec"
+  }
+}

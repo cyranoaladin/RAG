@@ -1,0 +1,99 @@
+{
+  "artifacts": {
+    "added": [],
+    "base_chunk_count": 8268,
+    "base_count": 315,
+    "changed_fields": {},
+    "chunk_identity_changed": [],
+    "head_chunk_count": 8268,
+    "head_count": 315,
+    "removed": []
+  },
+  "authorities": {
+    "added": {},
+    "changed": {
+      "currentness_evidence_sha256": {
+        "base": "f16871ff8f333440ee2e5d538824d4918f957a18df39b083264491c9c442ef34",
+        "head": "37aa2f4f44d59081ba6b730531027e068bff7a06c2c4d7a52d289ba3e422bc56"
+      },
+      "profile_manifest_sha256": {
+        "base": "c11b2b1f3253f4723ba2ecfdbaf2e70ee9fc9c10fcfd83fde4e1245702fcd39c",
+        "head": "763c2ad15b935a671725b1a3b829d3326ca65d016129e77cf5a71c5ebbc568b9"
+      }
+    },
+    "removed": {}
+  },
+  "base": {
+    "manifest_sha256": "c0f5897bf0a2d2f388ba0534de2cc4bb3198ab5d68173f4d28713572ce222e16",
+    "release_id": "production-profile-gate-2026-2027-v3"
+  },
+  "currentness": {
+    "added": {},
+    "base_counts": {
+      "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 315
+    },
+    "head_counts": {
+      "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 315
+    },
+    "removed": {},
+    "transitions": {
+      "OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE->OFFICIAL_SNAPSHOT_NETWORK_UNVERIFIABLE": 315
+    }
+  },
+  "files": {
+    "added": [],
+    "changed": [
+      "artifacts.release.json",
+      "authority_bindings.json",
+      "currentness_evidence.json",
+      "currentness_network_audit.json",
+      "production-profile-gate.release.json",
+      "subjects/rag_nexus_dgemc_terminale_option.release.json",
+      "subjects/rag_nexus_hggsp_premiere_specialite.release.json",
+      "subjects/rag_nexus_hggsp_terminale_specialite.release.json",
+      "subjects/rag_nexus_hlp_premiere_specialite.release.json",
+      "subjects/rag_nexus_hlp_terminale_specialite.release.json",
+      "subjects/rag_nexus_nsi_premiere_specialite.release.json",
+      "subjects/rag_nexus_nsi_terminale_specialite.release.json",
+      "subjects/rag_nexus_ses_premiere_specialite.release.json",
+      "subjects/rag_nexus_ses_terminale_specialite.release.json",
+      "subjects/rag_nexus_svt_premiere_specialite.release.json",
+      "subjects/rag_nexus_svt_terminale_specialite.release.json"
+    ],
+    "removed": [],
+    "unchanged_count": 12
+  },
+  "head": {
+    "manifest_sha256": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be",
+    "release_id": "production-profile-gate-2026-2027-v4"
+  },
+  "kind": "NEXUS-PROFILE-GATE-RELEASE-DIFF-V1",
+  "manifest_fields": {
+    "release_id": {
+      "base": "production-profile-gate-2026-2027-v3",
+      "head": "production-profile-gate-2026-2027-v4"
+    }
+  },
+  "pii": {
+    "added": {},
+    "base_counts": {
+      "CLEARED": 293,
+      "DETECTED_REVIEWED_ACCEPTED": 22
+    },
+    "head_counts": {
+      "CLEARED": 293,
+      "DETECTED_REVIEWED_ACCEPTED": 22
+    },
+    "removed": {},
+    "transitions": {
+      "CLEARED->CLEARED": 293,
+      "DETECTED_REVIEWED_ACCEPTED->DETECTED_REVIEWED_ACCEPTED": 22
+    }
+  },
+  "placements": {
+    "added": [],
+    "base_count": 479,
+    "head_count": 479,
+    "removed": []
+  }
+}

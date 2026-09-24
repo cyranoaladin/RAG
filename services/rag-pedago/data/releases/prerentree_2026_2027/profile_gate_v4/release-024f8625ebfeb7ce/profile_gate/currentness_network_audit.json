@@ -1,0 +1,42 @@
+{
+  "artifacts": [],
+  "attempts": [],
+  "attempts_made_by_this_producer": false,
+  "audit_kind": "PRODUCTION_PROFILE_GATE_CURRENTNESS_AUDIT_V1",
+  "content_set_sha256": "04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12",
+  "corpus_harvested_at": "2026-08-04/2026-08-05",
+  "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "corpus_sealed_at": "2026-08-08",
+  "counts": {
+    "digest_mismatch": 0,
+    "verified": 0
+  },
+  "currentness_status": "CURRENTNESS_UNVERIFIED_SOURCE_UNREACHABLE",
+  "network_mode": "UNVERIFIED",
+  "out_of_band_evidence": [
+    {
+      "establishes": "Éduscol répond 403 à toute requête programmée — vérifié sur une URL du corpus, et constaté aussi avec un User-Agent de navigateur. Le catalogue de provenance porte l'URL de LISTING, jamais celle de téléchargement direct.",
+      "path": "docs/reports/gate_currentness_audit_20260829.md",
+      "sha256": "ec480356695d775dc432bf04d2603669dfb2ce8f35fb0f0834668d75ccb2a874"
+    },
+    {
+      "establishes": "Les 24 pages de listing du corpus répondent HTTP 403 Forbidden à une requête programmée. Aucun document acquis, aucun scellé.",
+      "path": "docs/reports/lecture_par_agents_20260829.md",
+      "sha256": "42990b437f6701a8d5beb29f26cbf67c5c71834ebb9f6c70cf77844a1e2fc602"
+    },
+    {
+      "establishes": "education.gouv.fr ET eduscol.education.gouv.fr rendent 403 depuis la machine de production des releases — le blocage porte sur deux domaines, non sur un chemin isolé.",
+      "path": "docs/reports/justification_trois_extensions_20260829.md",
+      "sha256": "e9b275072ed18a0c1a97620557c0b5d7828ccb1e72b43ce0152e1b33f78317e1"
+    }
+  ],
+  "reason": "eduscol.education.gouv.fr répond 403 aux pages de listing (protection anti-robot) ; les URL de fichier direct, seules joignables, ne figurent dans aucune preuve du corpus",
+  "verdict_scope": {
+    "consumer": "auditeur humain ; aucun consommateur machine",
+    "kind": "RELEASE_WIDE",
+    "release_id": "production-profile-gate-2026-2027-v4",
+    "school_year": "2026-2027"
+  },
+  "verified_at": null,
+  "write_operations": 0
+}
