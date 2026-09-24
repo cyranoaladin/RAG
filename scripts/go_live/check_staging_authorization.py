@@ -373,40 +373,62 @@ def verifier(racine: Path) -> list[str]:
     return ecarts
 
 
-# ── CY : la publication V3 sur le staging cloisonné ─────────────────────
+# ── DB : la publication V4 sur le staging cloisonné ─────────────────────
 #
 # L'autorisation de base ouvre l'accès et interdit Worker B, la base produit,
-# les migrations et l'adoption. Elle reste telle quelle. Une autorisation
-# gouvernée DISTINCTE, liée à la base et à son plan par empreinte, ouvre ces
-# opérations — chacune sur sa cible exacte : hôte, projet, conteneur, base,
-# schéma, rôle et release. Ce qui n'y est pas nommé reste refusé.
+# les migrations et toute écriture d'autorité. Elle reste telle quelle. Une
+# autorisation gouvernée DISTINCTE, liée à la base et à son plan par
+# empreinte, ouvre ces opérations — chacune sur sa cible exacte : hôte,
+# projet, conteneur, base, schéma, rôle, image et release. Ce qui n'y est pas
+# nommé reste refusé. Chemin DIRECT seulement : une base qui porte des
+# placements acquis sous V2 exige une transformation que ADR-0061 réserve à
+# une décision distincte ; le pré-vol s'y arrête.
 
-AUTORISATION_V3 = "docs/reports/go_live/authorizations/staging_v3_publication_authorization.json"
-KIND_V3 = "NEXUS-STAGING-V3-PUBLICATION-AUTHORIZATION-V1"
-PLAN_V3 = "docs/runbooks/staging_v3_publication_EXECUTION_PLAN.md"
+AUTORISATION_V4 = "docs/reports/go_live/authorizations/staging_v4_publication_authorization.json"
+KIND_V4 = "NEXUS-STAGING-V4-PUBLICATION-AUTHORIZATION-V1"
+PLAN_V4 = "docs/runbooks/staging_v4_publication_EXECUTION_PLAN.md"
 DEPOT_IMAGE = "ghcr.io/cyranoaladin/rag-multilevel-worker-production"
+DEPOT_INGESTOR = "ghcr.io/cyranoaladin/rag-ingestor"
 
-RELEASE_V3 = {
-    "release_id": "production-profile-gate-2026-2027-v3",
+RELEASE_V4 = {
+    "release_id": "production-profile-gate-2026-2027-v4",
     "release_dir": (
-        "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v3/"
-        "release-f8fb983d04f4b7c1/profile_gate"
+        "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/"
+        "release-024f8625ebfeb7ce/profile_gate"
     ),
     "release_manifest_sha256": (
-        "c0f5897bf0a2d2f388ba0534de2cc4bb3198ab5d68173f4d28713572ce222e16"
+        "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be"
     ),
+    "profiles_dir": "services/rag-engine/configs/ingestion_profiles/v3_livraison_315",
     "expected_counts": {"subjects": 11, "unique_artifacts": 315, "placements": 479, "unique_chunks": 8268},
     "served_currentness": "official_snapshot",
+    "served_visibility": "internal",
 }
-PREDECESSEUR_V2 = {
-    "release_id": "production-profile-gate-2026-2027-v2",
-    "release_manifest_sha256": (
-        "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864"
-    ),
-    "use": "attribution_backfill_and_adoption_only",
+PREDECESSEURS = {
     "publication": "forbidden",
+    "releases": [
+        {
+            "release_id": "production-profile-gate-2026-2027-v2",
+            "release_manifest_sha256": "e9506f5a66edec1f54f5a91935b5d3a9ba54c5c47abc040e93c02f278395d864",
+        },
+        {
+            "release_id": "production-profile-gate-2026-2027-v3",
+            "release_manifest_sha256": "c0f5897bf0a2d2f388ba0534de2cc4bb3198ab5d68173f4d28713572ce222e16",
+        },
+    ],
+    "adoption": "non autorisée : placement_id et programme changent (ADR-0061), décision distincte requise",
 }
-CIBLES_V3 = {
+#: Les onze r4, versées par la PR #252 : enregistrées à son HEAD approuvé,
+#: pendant qu'elle est ouverte (ordre enregistrer-puis-fusionner).
+AUTORISATIONS_R4 = {
+    "repository": "cyranoaladin/RAG",
+    "pull_request": 252,
+    "expected_head": "2590a1722fb6ec9f079d3de5aab0ee22ad5fad93",
+    "prefix": "lot41a-staging-v4-",
+    "count": 11,
+    "protocol_version": "LOT41A-V2",
+}
+CIBLES_V4 = {
     "host": HOTE,
     "compose_project": "nexus-staging",
     "container": "nexus-staging-pgvector-1",
@@ -415,6 +437,7 @@ CIBLES_V3 = {
     "control_schema": "ingestion_control",
     "roles": {
         "migrator": "superutilisateur du conteneur staging, via les seuls runners canoniques",
+        "authority": "ingestion_control_authority",
         "worker": "ingestion_control_app",
         "attestor": "ingestion_control_attestor",
         "product_writer": "rag_publisher",
@@ -433,11 +456,11 @@ _COMMUNE = {
     "container": "nexus-staging-pgvector-1",
     "database": "ragdb",
 }
-_V3 = RELEASE_V3["release_id"]
-OPERATIONS_V3: dict[str, dict] = {
+_V4 = RELEASE_V4["release_id"]
+OPERATIONS_V4: dict[str, dict] = {
     "preflight_measurement": {
         "cible": {**_COMMUNE, "mode": "read_only"},
-        "limite": "mesures en lecture : têtes de migration réelles, comptes, disque",
+        "limite": "mesures en lecture : têtes de migration réelles, comptes, disque ; arrêt si des lignes acquises existent",
     },
     "backup_before_migration": {
         "cible": {**_COMMUNE, "command": "pg_dump", "destination": "/srv/nexus-staging/backups"},
@@ -448,8 +471,8 @@ OPERATIONS_V3: dict[str, dict] = {
         "limite": "migrations manquantes appliquées dans l'ordre par le runner canonique",
     },
     "control_migrations": {
-        "cible": {**_COMMUNE, "schema": "ingestion_control", "runner": "services/rag-engine/infra/scripts/bootstrap_ingestion_control_schema.sh", "target_head": "018"},
-        "limite": "migrations manquantes appliquées dans l'ordre par le runner canonique",
+        "cible": {**_COMMUNE, "schema": "ingestion_control", "runner": "services/rag-engine/infra/scripts/provision_and_bootstrap_ingestion_control.sh", "target_head": "019"},
+        "limite": "migrations manquantes appliquées dans l'ordre, puis rôles provisionnés, par le runner canonique",
     },
     "model_artifact_install": {
         "cible": {
@@ -457,55 +480,58 @@ OPERATIONS_V3: dict[str, dict] = {
             "destination": "/srv/nexus-staging/models/e5-large-prerentree-2026-2027-20260828-materialise",
             "inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
         },
-        "limite": "seulement si l'artefact E5 de l'hôte ne porte pas l'inventaire que V3 déclare ; copie vérifiée, rien d'écrasé",
+        "limite": "seulement si l'artefact E5 de l'hôte ne porte pas l'inventaire que V4 déclare ; copie vérifiée, rien d'écrasé",
     },
     "readiness_manifest_install": {
         "cible": {
             "host": HOTE, "compose_project": "nexus-staging",
             "destination": "/srv/nexus-staging/readiness",
-            "manifests": ["staging-readiness-v3.json", "staging-readiness-v2-backfill.json"],
+            "manifests": ["staging-readiness-v4.json"],
         },
-        "limite": "dépôt des manifestes signés localement par le détenteur de la clé ; vérifiés contre l'ancre avant usage",
+        "limite": "dépôt du manifeste signé localement par le détenteur de la clé ; vérifié contre l'ancre avant usage",
     },
-    "transfer_manifest_v3": {
-        "cible": {**_COMMUNE, "mode": "read_only", "artifact_store": "/srv/nexus-staging/artifact-store", "release_id": _V3},
-        "limite": "rehachage en lecture des 315 objets du magasin sous l'identité V3",
+    "transfer_manifest_v4": {
+        "cible": {**_COMMUNE, "mode": "read_only", "artifact_store": "/srv/nexus-staging/artifact-store", "release_id": _V4},
+        "limite": "rehachage en lecture des 315 objets du magasin sous l'identité V4",
     },
-    "sealed_ingestion_v3": {
-        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.sealed_release_ingestion_cli", "control_role": "ingestion_control_app", "release_id": _V3},
-        "limite": "seulement si aucune ligne V2 n'est acquise ; sinon rattrapage puis adoption",
+    "scope_authorization_registration_r4": {
+        "cible": {
+            **_COMMUNE, "schema": "ingestion_control",
+            "entrypoint": "ingestor.ingestion_worker.authorize_scope_cli record-authorization",
+            "control_role": "ingestion_control_authority", "release_id": _V4,
+            "pull_request": AUTORISATIONS_R4["pull_request"],
+            "expected_head": AUTORISATIONS_R4["expected_head"],
+        },
+        "limite": "les onze r4 de la PR nommée, à son HEAD approuvé, avant sa fusion ; aucune autre autorisation",
     },
-    "attribution_backfill_v2": {
-        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.sealed_release_ingestion_cli --only-attributions", "control_role": "ingestion_control_app", "release_id": PREDECESSEUR_V2["release_id"]},
-        "limite": "placements V2 déjà acquis ; ni réingestion, ni réécriture de leurs faits",
-    },
-    "adoption_v3": {
-        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.attest_publication_cli adopt-predecessor-release", "control_role": "ingestion_control_attestor", "release_id": _V3},
-        "limite": "reprise par V3 des placements V2 acquis, bijection et égalité exacte (ADR-0059 § 5)",
+    "sealed_ingestion_v4": {
+        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.sealed_release_ingestion_cli", "control_role": "ingestion_control_app", "release_id": _V4},
+        "limite": "sous les onze r4 seulement ; base sans placement acquis",
     },
     "batch_review_proposal": {
-        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.attest_publication_cli propose-release-batch-review", "control_role": "ingestion_control_attestor", "release_id": _V3},
+        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.attest_publication_cli propose-release-batch-review", "control_role": "ingestion_control_attestor", "release_id": _V4},
         "limite": "projection et artefact de revue ; n'approuve rien",
     },
     "batch_review_record": {
-        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.attest_publication_cli record-release-batch-attestation", "control_role": "ingestion_control_attestor", "release_id": _V3},
+        "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.attest_publication_cli record-release-batch-attestation", "control_role": "ingestion_control_attestor", "release_id": _V4},
         "limite": "après approbation humaine réelle de la revue batch, au head exact, dans sa fenêtre",
     },
     "worker_b_publication": {
-        "cible": {**_COMMUNE, "schema": "public", "entrypoint": "ingestor.ingestion_worker.multilevel_publication_resume_cli", "control_role": "ingestion_control_app", "product_role": "rag_publisher", "release_id": _V3},
-        "limite": "seuls les placements couverts par l'attestation batch enregistrée",
+        "cible": {**_COMMUNE, "schema": "public", "entrypoint": "ingestor.ingestion_worker.multilevel_publication_resume_cli", "control_role": "ingestion_control_app", "product_role": "rag_publisher", "release_id": _V4, "authority_mode": "RELEASE_BOUND_STAGING_QUALIFICATION"},
+        "limite": "seuls les placements couverts par l'attestation batch enregistrée ; qualification tirée de la readiness de staging vérifiée",
     },
     "independent_verification": {
-        "cible": {**_COMMUNE, "mode": "read_only", "product_role": "rag_reader", "release_id": _V3},
-        "limite": "réconciliation des deux schémas et retrieval par le tunnel existant",
+        "cible": {**_COMMUNE, "mode": "read_only", "product_role": "rag_reader", "release_id": _V4, "probe": "scripts/go_live/staging_retrieval_probe.py"},
+        "limite": "réconciliation des deux schémas et retrieval servi sous les onze scopes V4, image ingestor épinglée, conteneur ponctuel",
     },
 }
-ORDRE_V3 = tuple(OPERATIONS_V3)
+ORDRE_V4 = tuple(OPERATIONS_V4)
 
-MENTIONS_V3 = (
+MENTIONS_V4 = (
     "staging cloisonne uniquement",
     "Worker B uniquement dans le staging cloisonne",
-    "ni publication de V2",
+    "ni publication de V2 ou de V3",
+    "ni adoption",
     "ni build sur nexus-prod",
     "ni tag non epingle",
     "ni ecriture DB production",
@@ -513,9 +539,9 @@ MENTIONS_V3 = (
     "ni exposition publique",
 )
 
-GABARIT_V3: dict = {
-    "kind": KIND_V3,
-    "amends": "CY",
+GABARIT_V4: dict = {
+    "kind": KIND_V4,
+    "amends": "DB",
     "granted_by_pull_request_approval_of": APPROBATEUR,
     "effective_when": (
         "ce fichier est fusionné sur main par une PR à revue humaine épinglée "
@@ -523,9 +549,10 @@ GABARIT_V3: dict = {
     ),
     "consumed": False,
     "expires_after_use": True,
-    "release": RELEASE_V3,
-    "predecessor": PREDECESSEUR_V2,
-    "targets": CIBLES_V3,
+    "release": RELEASE_V4,
+    "predecessors": PREDECESSEURS,
+    "scope_authorizations": AUTORISATIONS_R4,
+    "targets": CIBLES_V4,
     "runtime_image": {
         "image_repository": DEPOT_IMAGE,
         "pinning": "pinned_by_digest_no_rebuild",
@@ -534,32 +561,50 @@ GABARIT_V3: dict = {
         "build_on_nexus_prod": "forbidden",
         "build_workflow": ".github/workflows/production-image-provenance.yml",
         "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
-        "contracts_version": "0.20.0",
+        "contracts_version": "0.21.0",
         "runtime_image_binding_guard": "NEXUS_ACTUAL_WORKER_IMAGE",
         "network": "no_inbound_exposure",
         "durable_service": False,
     },
-    "operations": list(ORDRE_V3),
-    "forbidden": sorted(INTERDITS_REQUIS | {"v2_publication", "production_image_rebuild_on_host"}),
+    "probe_image": {
+        "image_repository": DEPOT_INGESTOR,
+        "pinning": "pinned_by_digest_no_rebuild",
+        "tag_alone_accepted": False,
+        "built_off_host": True,
+        "build_on_nexus_prod": "forbidden",
+        "build_workflow": ".github/workflows/production-image-provenance.yml",
+        "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+        "contracts_version": "0.21.0",
+        "use": "sonde de retrieval ponctuelle en lecture (rag_reader) ; aucun service démarré",
+        "network": "no_inbound_exposure",
+        "durable_service": False,
+    },
+    "operations": list(ORDRE_V4),
+    "forbidden": sorted(INTERDITS_REQUIS | {
+        "v2_publication", "v3_publication", "predecessor_adoption",
+        "production_image_rebuild_on_host",
+    }),
     "authorization_statement": (
         "L'approbation de cette PR par abenrhouma vaut autorisation, pour le staging "
-        "cloisonne uniquement, de publier production-profile-gate-2026-2027-v3 selon "
+        "cloisonne uniquement, de publier production-profile-gate-2026-2027-v4 selon "
         "les operations nommees et sur leurs cibles exactes : Worker B uniquement dans "
         "le staging cloisonne, ecritures limitees a la base ragdb du conteneur "
-        "nexus-staging-pgvector-1. Elle n'autorise ni publication de V2, ni build sur "
-        "nexus-prod, ni tag non epingle, ni ecriture DB production, ni current switch, "
-        "ni exposition publique."
+        "nexus-staging-pgvector-1. Elle n'autorise ni publication de V2 ou de V3, "
+        "ni adoption, ni build sur nexus-prod, ni tag non epingle, ni ecriture DB "
+        "production, ni current switch, ni exposition publique."
     ),
     "stop_conditions": (
         "toute precondition non satisfaite, tout ecart mesure, toute signature ou "
-        "approbation manquante ; arret de securite sans suppression de volume ni de preuve"
+        "approbation manquante, toute ligne acquise trouvee au pre-vol ; arret de "
+        "securite sans suppression de volume ni de preuve"
     ),
     "expected_proof": [
-        "têtes de migration avant et après, mesurées",
-        "rapport d'attribution et d'adoption (ou d'ingestion scellée), rejeu idempotent",
+        "têtes de migration avant et après, mesurées (produit 005, contrôle 019)",
+        "onze r4 enregistrées au HEAD approuvé de leur PR",
+        "rapport d'ingestion scellée sous les r4, rejeu idempotent",
         "attestation batch enregistrée au head exact de la revue approuvée",
         "comptes et identités servis : 11 collections, 315 artefacts, 479 placements, 8268 chunks",
-        "retrieval exercé ; actualité servie official_snapshot",
+        "retrieval servi sous les onze scopes V4 : aucun candidat hors du jeu publié",
     ],
     "rollback": {
         "service": "arrêt des processus lancés par ce plan ; aucune suppression de volume",
@@ -568,60 +613,79 @@ GABARIT_V3: dict = {
     },
 }
 
+#: Les digests que DB écarte : l'image de CY précédait ADR-0060/0061 et la
+#: publication exacte des chunks scellés.
+DIGESTS_ECARTES_V4 = (
+    *DIGESTS_ECARTES,
+    IMAGE_WORKER_REQUISE["image_digest"],
+    "sha256:f931f59cb75aecacfb88959aa7b0d85302fd7b40e60851bdb8b1c6860dd35002",
+)
 
-def _ecarts_image_v3(image: object) -> list[str]:
+
+def _ecarts_image(image: object, *, gabarit: dict, depot: str, nom: str) -> list[str]:
     if not isinstance(image, dict):
-        return ["image V3 : objet attendu"]
+        return [f"{nom} : objet attendu"]
     ecarts = [
-        f"image V3 : {cle} = {image.get(cle)!r}, attendu {attendu!r}"
-        for cle, attendu in GABARIT_V3["runtime_image"].items()
+        f"{nom} : {cle} = {image.get(cle)!r}, attendu {attendu!r}"
+        for cle, attendu in gabarit.items()
         if image.get(cle) != attendu
     ]
     digest = image.get("image_digest")
     if not isinstance(digest, str) or not digest.startswith("sha256:") or len(digest) != 71:
-        ecarts.append("image V3 : digest sha256 absent ou mal formé")
-    elif digest in DIGESTS_ECARTES or digest == IMAGE_WORKER_REQUISE["image_digest"]:
-        ecarts.append("image V3 : digest écarté ou antérieur aux contrats 0.20.0")
-    if image.get("reference") != f"{DEPOT_IMAGE}@{digest}":
-        ecarts.append("image V3 : la référence doit être dépôt@digest, jamais un tag")
+        ecarts.append(f"{nom} : digest sha256 absent ou mal formé")
+    elif digest in DIGESTS_ECARTES_V4:
+        ecarts.append(f"{nom} : digest écarté (antérieur à ADR-0060/0061)")
+    if image.get("reference") != f"{depot}@{digest}":
+        ecarts.append(f"{nom} : la référence doit être dépôt@digest, jamais un tag")
     commit = image.get("source_commit_sha")
     if not isinstance(commit, str) or len(commit) != 40:
-        ecarts.append("image V3 : commit de build absent")
+        ecarts.append(f"{nom} : commit de build absent")
     if not isinstance(image.get("build_workflow_run_id"), int):
-        ecarts.append("image V3 : run de build absent")
+        ecarts.append(f"{nom} : run de build absent")
     preuve = image.get("evidence")
     if not isinstance(preuve, dict) or not preuve.get("path") or not preuve.get("sha256"):
-        ecarts.append("image V3 : preuve de provenance absente")
+        ecarts.append(f"{nom} : preuve de provenance absente")
     return ecarts
 
 
-def evaluer_v3(document: dict, *, base_sha256: str, plan_sha256: str) -> list[str]:
-    """Écarts de l'autorisation de publication V3. Liste vide = conforme."""
+def evaluer_v4(document: dict, *, base_sha256: str, plan_sha256: str) -> list[str]:
+    """Écarts de l'autorisation de publication V4. Liste vide = conforme."""
     ecarts: list[str] = []
     for cle in (
-        "kind", "granted_by_pull_request_approval_of", "release", "predecessor",
-        "targets", "operations", "stop_conditions", "expected_proof", "rollback",
+        "kind", "granted_by_pull_request_approval_of", "release", "predecessors",
+        "scope_authorizations", "targets", "operations", "stop_conditions",
+        "expected_proof", "rollback",
     ):
-        if document.get(cle) != GABARIT_V3[cle]:
-            ecarts.append(f"V3 : {cle} ne correspond pas au périmètre gouverné")
+        if document.get(cle) != GABARIT_V4[cle]:
+            ecarts.append(f"V4 : {cle} ne correspond pas au périmètre gouverné")
     if document.get("consumed") is not False:
-        ecarts.append("V3 : autorisation déjà consommée")
+        ecarts.append("V4 : autorisation déjà consommée")
     if document.get("expires_after_use") is not True:
-        ecarts.append("V3 : l'autorisation doit être à usage unique")
+        ecarts.append("V4 : l'autorisation doit être à usage unique")
     base = document.get("extends") or {}
     if base.get("path") != AUTORISATION or base.get("sha256") != base_sha256:
-        ecarts.append("V3 : non liée à l'autorisation de base courante (empreinte)")
+        ecarts.append("V4 : non liée à l'autorisation de base courante (empreinte)")
     plan = document.get("execution_plan") or {}
-    if plan.get("path") != PLAN_V3 or plan.get("sha256") != plan_sha256:
-        ecarts.append("V3 : le plan d'exécution a changé depuis l'autorisation")
-    manquants = sorted(set(GABARIT_V3["forbidden"]) - set(document.get("forbidden") or []))
+    if plan.get("path") != PLAN_V4 or plan.get("sha256") != plan_sha256:
+        ecarts.append("V4 : le plan d'exécution a changé depuis l'autorisation")
+    manquants = sorted(set(GABARIT_V4["forbidden"]) - set(document.get("forbidden") or []))
     if manquants:
-        ecarts.append(f"V3 : interdits manquants : {manquants}")
+        ecarts.append(f"V4 : interdits manquants : {manquants}")
     declaration = document.get("authorization_statement") or ""
     ecarts.extend(
-        f"V3 : déclaration, mention manquante {m!r}" for m in MENTIONS_V3 if m not in declaration
+        f"V4 : déclaration, mention manquante {m!r}" for m in MENTIONS_V4 if m not in declaration
     )
-    ecarts.extend(_ecarts_image_v3(document.get("runtime_image")))
+    ecarts.extend(_ecarts_image(
+        document.get("runtime_image"), gabarit=GABARIT_V4["runtime_image"],
+        depot=DEPOT_IMAGE, nom="image worker V4",
+    ))
+    ecarts.extend(_ecarts_image(
+        document.get("probe_image"), gabarit=GABARIT_V4["probe_image"],
+        depot=DEPOT_INGESTOR, nom="image de sonde V4",
+    ))
+    worker, sonde = document.get("runtime_image") or {}, document.get("probe_image") or {}
+    if worker.get("source_commit_sha") != sonde.get("source_commit_sha"):
+        ecarts.append("V4 : les deux images doivent venir du même commit")
     return ecarts
 
 
@@ -629,22 +693,22 @@ def evaluer_operation(
     operation: str,
     cible: dict,
     *,
-    document_v3: dict | None,
+    document_v4: dict | None,
     base_sha256: str,
-    plan_v3_sha256: str,
+    plan_v4_sha256: str,
 ) -> list[str]:
     """Une opération est-elle autorisée, sur CETTE cible ? Liste vide = oui."""
-    if operation not in OPERATIONS_V3:
+    if operation not in OPERATIONS_V4:
         return [f"opération inconnue : {operation!r} — rien ne l'autorise"]
-    if document_v3 is None:
+    if document_v4 is None:
         return [
             f"l'autorisation de base ne couvre pas {operation!r} : ni Worker B, ni base "
-            "produit, ni migration, ni adoption sans autorisation V3 fusionnée"
+            "produit, ni migration, ni autorité sans autorisation V4 fusionnée"
         ]
-    ecarts = evaluer_v3(document_v3, base_sha256=base_sha256, plan_sha256=plan_v3_sha256)
-    if operation not in (document_v3.get("operations") or []):
-        ecarts.append(f"{operation!r} n'est pas nommée par l'autorisation V3")
-    attendue = OPERATIONS_V3[operation]["cible"]
+    ecarts = evaluer_v4(document_v4, base_sha256=base_sha256, plan_sha256=plan_v4_sha256)
+    if operation not in (document_v4.get("operations") or []):
+        ecarts.append(f"{operation!r} n'est pas nommée par l'autorisation V4")
+    attendue = OPERATIONS_V4[operation]["cible"]
     for cle in sorted(set(attendue) | set(cible)):
         if cible.get(cle) != attendue.get(cle):
             ecarts.append(
@@ -658,26 +722,26 @@ def empreinte_base(racine: Path) -> str:
 
 
 def verifier_operation(racine: Path, operation: str, cible: dict) -> list[str]:
-    """Contrôle complet avant une opération : base valide ET V3 fusionnée et conforme."""
+    """Contrôle complet avant une opération : base valide ET V4 fusionnée et conforme."""
     ecarts = verifier(racine)
-    chemin = racine / AUTORISATION_V3
-    document_v3 = json.loads(chemin.read_text(encoding="utf-8")) if chemin.is_file() else None
-    plan = racine / PLAN_V3
+    chemin = racine / AUTORISATION_V4
+    document_v4 = json.loads(chemin.read_text(encoding="utf-8")) if chemin.is_file() else None
+    plan = racine / PLAN_V4
     plan_sha = hashlib.sha256(plan.read_bytes()).hexdigest() if plan.is_file() else ""
     ecarts += evaluer_operation(
-        operation, cible, document_v3=document_v3,
-        base_sha256=empreinte_base(racine), plan_v3_sha256=plan_sha,
+        operation, cible, document_v4=document_v4,
+        base_sha256=empreinte_base(racine), plan_v4_sha256=plan_sha,
     )
-    if document_v3 is not None:
-        sur_main = _git(racine, "show", f"origin/main:{AUTORISATION_V3}")
+    if document_v4 is not None:
+        sur_main = _git(racine, "show", f"origin/main:{AUTORISATION_V4}")
         if sur_main.returncode != 0 or sur_main.stdout != chemin.read_text(encoding="utf-8"):
-            ecarts.append("l'autorisation V3 n'est pas (ou pas à l'identique) sur origin/main")
+            ecarts.append("l'autorisation V4 n'est pas (ou pas à l'identique) sur origin/main")
     return ecarts
 
 
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestration
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--operation", default=None, help="opération de publication V3 à contrôler")
+    parser.add_argument("--operation", default=None, help="opération de publication V4 à contrôler")
     parser.add_argument("--cible", default="{}", help="cible exacte, en JSON")
     args = parser.parse_args(argv)
     racine = Path(__file__).resolve().parents[2]

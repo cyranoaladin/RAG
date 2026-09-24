@@ -1,4 +1,4 @@
-"""Les arguments des commandes canoniques V3 sont dérivés de la release, jamais ressaisis."""
+"""Les arguments des commandes canoniques V4 sont dérivés de la release, jamais ressaisis."""
 
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ import pytest
 RACINE = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(RACINE / "scripts/go_live"))
 
-import staging_v3_arguments as arguments  # noqa: E402
+import staging_v4_arguments as arguments  # noqa: E402
 
-TRANSFERT = {"path": "/run-cy/transfer_manifest_v3.json", "sha256": "7" * 64}
+TRANSFERT = {"path": "/run-db/transfer_manifest_v4.json", "sha256": "7" * 64}
 
 
 def _valeur(args: list[str], option: str) -> str:
@@ -27,9 +27,10 @@ def _sha(chemin: str) -> str:
 
 def test_worker_b_recoit_les_autorites_que_la_release_declare():
     args = arguments.worker_b(RACINE, transfert=TRANSFERT, embedding_root="/models/e5-large")
-    manifeste = json.loads((RACINE / arguments.V3_DIR / arguments.MANIFESTE).read_text())
+    manifeste = json.loads((RACINE / arguments.V4_DIR / arguments.MANIFESTE).read_text())
     autorites = manifeste["authorities"]
-    assert _valeur(args, "--release-manifest-sha256") == _sha(f"{arguments.V3_DIR}/{arguments.MANIFESTE}")
+    assert _valeur(args, "--release-manifest-sha256") == _sha(f"{arguments.V4_DIR}/{arguments.MANIFESTE}")
+    assert _valeur(args, "--release-manifest-sha256") == arguments.V4_MANIFEST_SHA256
     for option, cle in (
         ("--candidate-inventory-sha256", "candidate_inventory_sha256"),
         ("--currentness-evidence-sha256", "currentness_evidence_sha256"),
@@ -45,9 +46,11 @@ def test_worker_b_recoit_les_autorites_que_la_release_declare():
         ("--pii-review-index-sha256", "pii_review_index_sha256"),
     ):
         assert _valeur(args, option) == autorites[cle], option
-    liaisons = json.loads((RACINE / arguments.V3_DIR / "authority_bindings.json").read_text())
+    liaisons = json.loads((RACINE / arguments.V4_DIR / "authority_bindings.json").read_text())
     assert _valeur(args, "--profile-manifest-sha256") == liaisons["profile_manifest_file_sha256"]
     assert liaisons["profile_manifest_fingerprint"] == autorites["profile_manifest_sha256"]
+    assert _valeur(args, "--profiles-dir") == f"/repo/{arguments.PROFILS}"
+    assert _valeur(args, "--profile-manifest-path").endswith("ingestion_manifest_v3_livraison_315.yml")
     assert _valeur(args, "--corpus-manifest-sha256") == autorites["corpus_manifest_sha256"]
     assert _valeur(args, "--embedding-inventory-sha256") == manifeste["models"]["embedding"]["inventory_sha256"]
     assert _valeur(args, "--expected-role") == "ingestion_control_app"
@@ -66,28 +69,38 @@ def test_un_fichier_d_autorite_divergent_est_refuse(monkeypatch):
         arguments.worker_b(RACINE, transfert=TRANSFERT, embedding_root="/models/e5-large")
 
 
-def test_le_rattrapage_nomme_v2_et_ses_onze_autorisations():
-    args = arguments.rattrapage_v2(RACINE)
-    assert "--only-attributions" in args
-    assert _valeur(args, "--release-manifest-sha256") == arguments.V2_MANIFEST_SHA256
-    scopes = [args[i + 1] for i, a in enumerate(args) if a == "--scope-authorization"]
-    assert len(scopes) == 11 and all(s.endswith("-r2") for s in scopes)
+def test_les_onze_r4_sont_celles_que_le_generateur_derive():
+    r4 = arguments.autorisations_r4(RACINE)
+    assert len(r4) == 11
+    assert all(i.startswith("lot41a-staging-v4-") and i.endswith("-r4") for i in r4.values())
+    programmes = {
+        t["collection"] for t in json.loads(
+            (RACINE / arguments.V4_DIR / "programme_registry.json").read_text()
+        )["taxonomies"]
+    }
+    assert set(r4) == programmes
 
 
-def test_l_ingestion_v3_et_l_adoption_nomment_v3_et_le_transfert_v3():
-    ingestion = arguments.ingestion_v3(RACINE, transfert=TRANSFERT)
-    assert _valeur(ingestion, "--release-manifest-sha256") == arguments.V3_MANIFEST_SHA256
-    assert _valeur(ingestion, "--artifact-transfer-manifest-sha256") == TRANSFERT["sha256"]
-    adoption = arguments.adoption_v3(RACINE, transfert=TRANSFERT, adopted_by="operateur")
-    assert adoption[0] == "adopt-predecessor-release"
-    assert _valeur(adoption, "--predecessor-release-manifest-sha256") == arguments.V2_MANIFEST_SHA256
-    assert _valeur(adoption, "--transfer-manifest-sha256") == TRANSFERT["sha256"]
+def test_l_ingestion_v4_nomme_v4_ses_profils_et_ses_onze_r4():
+    args = arguments.ingestion_v4(RACINE, transfert=TRANSFERT)
+    assert _valeur(args, "--release-manifest-sha256") == arguments.V4_MANIFEST_SHA256
+    assert _valeur(args, "--artifact-transfer-manifest-sha256") == TRANSFERT["sha256"]
+    assert _valeur(args, "--profiles-dir") == f"/repo/{arguments.PROFILS}"
+    portees = [args[i + 1] for i, a in enumerate(args) if a == "--scope-authorization"]
+    assert len(portees) == 11
+    assert all("=" in p and p.split("=", 1)[1].endswith("-r4") for p in portees)
+    assert not any(p.endswith("-r2") for p in portees)
 
 
 def test_un_manifeste_de_release_altere_est_refuse(monkeypatch):
-    monkeypatch.setattr(arguments, "V3_MANIFEST_SHA256", "0" * 64)
+    monkeypatch.setattr(arguments, "V4_MANIFEST_SHA256", "0" * 64)
     with pytest.raises(arguments.ArgumentsRefuses, match="manifeste"):
-        arguments.ingestion_v3(RACINE, transfert=TRANSFERT)
+        arguments.ingestion_v4(RACINE, transfert=TRANSFERT)
+
+
+def test_la_cli_exige_le_transfert_mesure():
+    assert arguments.main(["ingestion-v4"]) == 1
+    assert arguments.main(["worker-b"]) == 1
 
 
 def test_la_cli_imprime_une_ligne_par_argument():

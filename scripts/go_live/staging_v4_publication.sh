@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# Orchestrateur de la publication V3 sur le staging cloisonné (lot CY).
+# Orchestrateur de la publication V4 sur le staging cloisonné (lot DB).
 #
-# Plan : docs/runbooks/staging_v3_publication_EXECUTION_PLAN.md
+# Plan : docs/runbooks/staging_v4_publication_EXECUTION_PLAN.md
 # Chaque étape est d'abord soumise au vérificateur d'autorisation, sur sa cible
 # exacte (tirée du vérificateur, jamais ressaisie ici). Premier écart : arrêt.
 # Aucune commande canonique n'est réimplémentée : ce script les enchaîne, avec
-# des arguments dérivés de la release par staging_v3_arguments.py.
+# des arguments dérivés de la release par staging_v4_arguments.py.
+# Chemin DIRECT seulement : une base portant des placements acquis arrête le
+# pré-vol (ADR-0061 réserve leur reprise par V4 à une décision distincte).
 #
-#   scripts/go_live/staging_v3_publication.sh [--dry-run] run [--until <étape>]
-#   scripts/go_live/staging_v3_publication.sh status
+#   scripts/go_live/staging_v4_publication.sh [--dry-run] run [--until <étape>]
+#   scripts/go_live/staging_v4_publication.sh status
 #
-# État et journal expurgé : $STATE_DIR (défaut ~/nexus-staging-v3-run, 0700).
+# État et journal expurgé : $STATE_DIR (défaut ~/nexus-staging-v4-run, 0700).
 # Reprise : une étape marquée faite n'est pas rejouée ; supprimer son marqueur
 # ne la rejoue qu'après que sa commande canonique a revérifié son état (les
 # commandes sont idempotentes : already_present, rejeu sans écriture).
@@ -18,17 +20,19 @@ set -euo pipefail
 
 ROOT="${NEXUS_REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 cd "$ROOT"
-STATE_DIR="${STATE_DIR:-$HOME/nexus-staging-v3-run}"
+STATE_DIR="${STATE_DIR:-$HOME/nexus-staging-v4-run}"
 SSH_HOST="${SSH_HOST:-nexus-prod}"
 REMOTE="/srv/nexus-staging"
 CONTAINER="nexus-staging-pgvector-1"
 DB="ragdb"
-AUTH_V3="docs/reports/go_live/authorizations/staging_v3_publication_authorization.json"
+AUTH_V4="docs/reports/go_live/authorizations/staging_v4_publication_authorization.json"
+RUN="$REMOTE/run-db"
 MODELE_NOM="e5-large-prerentree-2026-2027-20260828-materialise"
 MODELE_INVENTAIRE="58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6"
 MODELE_LOCAL="${MODELE_LOCAL:-$HOME/rag-model-artifacts/$MODELE_NOM}"
-# Manifestes de readiness signés localement (sign_staging_v3_readiness_manifests.sh).
-READINESS_LOCAL="${READINESS_LOCAL:-$HOME/nexus-staging-v3-readiness}"
+# Manifeste de readiness signé localement (sign_staging_v4_readiness_manifests.sh).
+READINESS_LOCAL="${READINESS_LOCAL:-$HOME/nexus-staging-v4-readiness}"
+READINESS_MANIFESTE="staging-readiness-v4.json"
 READINESS_REMOTE="$REMOTE/readiness"
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && { DRY_RUN=1; shift; }
@@ -40,6 +44,8 @@ REMOTE_READINESS_ENV="${REMOTE_READINESS_ENV:-$REMOTE/secrets/readiness.env}"
 REMOTE_WORKER_ENV="${REMOTE_WORKER_ENV:-$REMOTE/secrets/ingestion-control-app.env}"
 REMOTE_ATTESTOR_ENV="${REMOTE_ATTESTOR_ENV:-$REMOTE/secrets/ingestion-control-attestor.env}"
 REMOTE_PUBLISHER_ENV="${REMOTE_PUBLISHER_ENV:-$REMOTE/secrets/rag-publisher.env}"
+REMOTE_AUTHORITY_ENV="${REMOTE_AUTHORITY_ENV:-$REMOTE/secrets/ingestion-control-authority.env}"
+REMOTE_READER_ENV="${REMOTE_READER_ENV:-$REMOTE/secrets/rag-reader.env}"
 REMOTE_GITHUB_TOKEN_FILE="${REMOTE_GITHUB_TOKEN_FILE:-$REMOTE/secrets/github-read-token/token}"
 
 install -d -m 0700 "$STATE_DIR"
@@ -54,10 +60,10 @@ redact() {  # aucun secret ne passe dans le journal
 log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | redact | tee -a "$LOG" >&2; }
 fail() { log "ARRET: $*"; exit 3; }
 
-champ() {  # lit un champ de l'autorisation V3 par chemin pointé
+champ() {  # lit un champ de l'autorisation V4 par chemin pointé
     python3 -c "
 import json,sys
-d=json.load(open('$AUTH_V3'))
+d=json.load(open('$AUTH_V4'))
 for k in sys.argv[1].split('.'): d=d[k]
 print(d)" "$1"
 }
@@ -65,7 +71,7 @@ cible() {
     python3 -c "
 import json,sys; sys.path.insert(0,'scripts/go_live')
 import check_staging_authorization as a
-print(json.dumps(a.OPERATIONS_V3[sys.argv[1]]['cible'], sort_keys=True))" "$1"
+print(json.dumps(a.OPERATIONS_V4[sys.argv[1]]['cible'], sort_keys=True))" "$1"
 }
 autoriser() {
     local op="$1" sortie
@@ -87,30 +93,35 @@ remote() {  # exécute sur l'hôte le script lu sur l'entrée standard
 }
 fait() { [ -f "$STATE_DIR/$1.done" ]; }
 marquer() { printf '%s\n' "$2" > "$STATE_DIR/$1.done"; log "FAIT $1 $2"; }
-chemin() { cat "$STATE_DIR/chemin" 2>/dev/null || true; }
 psql_ro() {  # requête en lecture, dans le conteneur exact
     printf 'docker exec %s sh -c %q\n' "$CONTAINER" \
         "psql -v ON_ERROR_STOP=1 -X -At -U \"\$POSTGRES_USER\" -d $DB -c \"$1\""
 }
 args_de() {  # arguments canoniques, une ligne par argument, citée pour bash
     local sortie
-    sortie=$(python3 scripts/go_live/staging_v3_arguments.py "$@") || fail "arguments refusés : $*"
+    sortie=$(python3 scripts/go_live/staging_v4_arguments.py "$@") || fail "arguments refusés : $*"
     local -a tableau; mapfile -t tableau <<<"$sortie"
     printf '%q ' "${tableau[@]}"
 }
-transfert_sha() { sed -n 's/^sha256=//p' "$STATE_DIR/transfer_manifest_v3.done"; }
+transfert_sha() { sed -n 's/^sha256=//p' "$STATE_DIR/transfer_manifest_v4.done"; }
 
-IMAGE="" ; AUTH_COMMIT=""
+IMAGE="" ; SONDE="" ; AUTH_COMMIT=""
 charger_autorisation() {
-    [ -f "$AUTH_V3" ] || fail "autorisation V3 absente"
+    [ -f "$AUTH_V4" ] || fail "autorisation V4 absente"
     IMAGE="$(champ runtime_image.reference)"
-    AUTH_COMMIT="$(git log -1 --format=%H -- "$AUTH_V3")"
+    SONDE="$(champ probe_image.reference)"
+    AUTH_COMMIT="$(git log -1 --format=%H -- "$AUTH_V4")"
 }
 
-worker() {  # $1 = v3|v2 (manifeste de readiness) ; $2 = fichiers d'env (':') ; reste = module et arguments
-    local manifeste="staging-readiness-$1.json" envs="" f sha
-    [ "$1" = v2 ] && manifeste="staging-readiness-v2-backfill.json"
-    shift
+tirer() {  # l'image épinglée, et elle seule : le digest réel doit être le nommé
+    cat <<EOF
+docker image inspect "$1" >/dev/null 2>&1 || docker pull -q "$1"
+test "\$(docker inspect --format '{{index .RepoDigests 0}}' "$1")" = "$1"
+EOF
+}
+
+worker() {  # $1 = fichiers d'env (':') ; reste = module et arguments
+    local manifeste="$READINESS_MANIFESTE" envs="" f sha
     sha=$(sha256sum "$READINESS_LOCAL/$manifeste" 2>/dev/null | cut -d' ' -f1) \
         || fail "manifeste de readiness local absent : $manifeste"
     IFS=: read -r -a _fichiers <<<"$1"; shift
@@ -120,9 +131,11 @@ set -euo pipefail
 docker image inspect "$IMAGE" >/dev/null 2>&1 || docker pull -q "$IMAGE"
 IMAGE_REELLE=\$(docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE")
 test "\$IMAGE_REELLE" = "$IMAGE"
-install -d -m 0700 $REMOTE/run-cy
+install -d -m 0700 $RUN
 docker run --rm --network host \\
   --env-file "$REMOTE_READINESS_ENV" $envs\\
+  -e NEXUS_ENVIRONMENT=rehearsal \\
+  -e NEXUS_EXPECTED_READINESS_PROTOCOL=NEXUS-STAGING-READINESS-V1 \\
   -e NEXUS_ACTUAL_WORKER_IMAGE="\$IMAGE_REELLE" \\
   -e NEXUS_READINESS_MANIFEST_PATH="$READINESS_REMOTE/$manifeste" \\
   -e NEXUS_READINESS_MANIFEST_SHA256="$sha" \\
@@ -130,7 +143,7 @@ docker run --rm --network host \\
   -v "$REMOTE_GITHUB_TOKEN_FILE:/run/secrets/github-token:ro" \\
   -v "$REMOTE/repo:/repo:ro" -v "$REMOTE/artifact-store:/store:ro" \\
   -v "$REMOTE/models:/models:ro" -v "$REMOTE/readiness:$REMOTE/readiness:ro" \\
-  -v "$REMOTE/run-cy:/run-cy" \\
+  -v "$RUN:/run-db" \\
   -w /repo --entrypoint python "$IMAGE" -m $*
 EOF
 }
@@ -145,7 +158,7 @@ set -euo pipefail
 test "\$(docker ps --filter name=^/${CONTAINER}\$ --format '{{.Names}}')" = "$CONTAINER"
 echo "DISK_FREE_KB=\$(df -Pk $REMOTE | awk 'NR==2{print \$4}')"
 echo "PSQL_ON_HOST=\$(command -v psql >/dev/null && echo yes || echo no)"
-for f in "$REMOTE_STAGING_ENV" "$REMOTE_READINESS_ENV" "$REMOTE_WORKER_ENV" "$REMOTE_ATTESTOR_ENV" "$REMOTE_PUBLISHER_ENV" "$REMOTE_GITHUB_TOKEN_FILE"; do
+for f in "$REMOTE_STAGING_ENV" "$REMOTE_READINESS_ENV" "$REMOTE_WORKER_ENV" "$REMOTE_ATTESTOR_ENV" "$REMOTE_PUBLISHER_ENV" "$REMOTE_AUTHORITY_ENV" "$REMOTE_READER_ENV" "$REMOTE_GITHUB_TOKEN_FILE"; do
     if [ -f "\$f" ]; then echo "SECRET_FILE \$f \$(stat -c %a "\$f")"; else echo "SECRET_FILE_MISSING \$f"; fi
 done
 ls -1 $REMOTE/secrets | sed 's/^/SECRET_NAME /'
@@ -156,23 +169,25 @@ echo "PRODUCT_HEAD=\$($(psql_ro "select coalesce(max(version),0) from public.rag
 echo "CONTROL_HEAD=\$($(psql_ro "select coalesce(max(version),0) from ingestion_control.schema_migrations"))"
 echo "RESOURCES=\$($(psql_ro "select count(*) from ingestion_control.resources"))"
 echo "ARTIFACTS=\$($(psql_ro "select count(*) from ingestion_control.artifacts"))"
-echo "ATTRIBUTIONS=\$($(psql_ro "select case when to_regclass('ingestion_control.artifact_attributions') is null then -1 else (select count(*) from ingestion_control.artifact_attributions) end"))"
+echo "PRODUCT_PLACEMENTS=\$($(psql_ro "select case when to_regclass('public.rag_artifact_placements') is null then -1 else (select count(*) from public.rag_artifact_placements) end"))"
 EOF
 ) || fail "pré-vol : mesure impossible"
-    [ "$DRY_RUN" = 1 ] && { printf 'A\n' > "$STATE_DIR/chemin"; marquer preflight_measurement "dry-run"; return; }
+    [ "$DRY_RUN" = 1 ] && { marquer preflight_measurement "dry-run"; return; }
     printf '%s\n' "$mesures" > "$STATE_DIR/preflight.txt"
     if grep -q '^SECRET_FILE_MISSING' <<<"$mesures"; then
         fail "pré-vol : fichier d'environnement absent — noms réels dans preflight.txt (SECRET_NAME)"
     fi
-    local ressources artefacts decision
+    local ressources artefacts produit
     ressources=$(sed -n 's/^RESOURCES=//p' <<<"$mesures")
     artefacts=$(sed -n 's/^ARTIFACTS=//p' <<<"$mesures")
-    if [ "$ressources" = 0 ] && [ "$artefacts" = 0 ]; then decision=A
-    elif [ "$artefacts" -gt 0 ]; then decision=B    # rattrapage : la commande vérifie 479/479
-    else fail "pré-vol : état intermédiaire (resources=$ressources artifacts=$artefacts) — écart à instruire"
+    produit=$(sed -n 's/^PRODUCT_PLACEMENTS=//p' <<<"$mesures")
+    # Chemin direct seulement. Des lignes acquises (sous V2 ou autre) ne sont
+    # ni réingérées ni reprises ici : ADR-0061 réserve leur reprise par V4 à
+    # une décision distincte. Arrêt, preuve conservée.
+    if [ "$ressources" != 0 ] || [ "$artefacts" != 0 ] || { [ "$produit" != 0 ] && [ "$produit" != -1 ]; }; then
+        fail "pré-vol : base non vierge (resources=$ressources artifacts=$artefacts placements_produit=$produit) — reprise hors de cette autorisation (ADR-0061)"
     fi
-    printf '%s\n' "$decision" > "$STATE_DIR/chemin"
-    marquer preflight_measurement "chemin=$decision resources=$ressources artifacts=$artefacts"
+    marquer preflight_measurement "direct resources=0 artifacts=0 placements_produit=$produit"
 }
 
 etape_backup_before_migration() {
@@ -180,11 +195,11 @@ etape_backup_before_migration() {
     local stamp; stamp=$(date -u +%Y%m%dT%H%M%SZ)
     remote <<EOF || fail "sauvegarde"
 set -euo pipefail
-d=$REMOTE/backups/cy-$stamp; install -d -m 0700 "\$d"
+d=$REMOTE/backups/db-$stamp; install -d -m 0700 "\$d"
 docker exec $CONTAINER sh -c 'pg_dump -Fc -U "\$POSTGRES_USER" $DB' > "\$d/ragdb.dump"
 test -s "\$d/ragdb.dump"; sha256sum "\$d/ragdb.dump"
 EOF
-    marquer backup_before_migration "cy-$stamp"
+    marquer backup_before_migration "db-$stamp"
 }
 
 etape_product_migrations() {
@@ -209,9 +224,9 @@ set -a; . "$REMOTE_STAGING_ENV"; set +a
 PGHOST=127.0.0.1 PGPORT=\${PGVECTOR_PORT:-15435} PGDATABASE=$DB \\
 PGUSER="\$PGVECTOR_USER" PGPASSWORD="\$PGVECTOR_PASSWORD" \\
     ./scripts/provision_and_bootstrap_ingestion_control.sh
-test "\$($(psql_ro "select max(version) from ingestion_control.schema_migrations"))" = 18
+test "\$($(psql_ro "select max(version) from ingestion_control.schema_migrations"))" = 19
 EOF
-    marquer control_migrations "head=18"
+    marquer control_migrations "head=19"
 }
 
 etape_model_artifact_install() {
@@ -242,31 +257,25 @@ EOF
 
 etape_readiness_manifest_install() {
     autoriser readiness_manifest_install
-    local fichiers=(staging-readiness-v3.json)
-    [ "$(chemin)" = B ] && fichiers+=(staging-readiness-v2-backfill.json)
-    for f in "${fichiers[@]}"; do
-        [ -f "$READINESS_LOCAL/$f" ] || fail "manifeste signé absent : $READINESS_LOCAL/$f (signature du détenteur de la clé)"
-    done
+    local f="$READINESS_MANIFESTE"
+    [ -f "$READINESS_LOCAL/$f" ] || fail "manifeste signé absent : $READINESS_LOCAL/$f (signature du détenteur de la clé)"
     if [ "$DRY_RUN" = 0 ]; then
         echo "install -d -m 0700 $READINESS_REMOTE" | remote || fail "readiness : destination"
-        for f in "${fichiers[@]}"; do
-            scp -q "$READINESS_LOCAL/$f" "$SSH_HOST:$READINESS_REMOTE/$f" || fail "readiness : dépôt de $f"
-        done
+        scp -q "$READINESS_LOCAL/$f" "$SSH_HOST:$READINESS_REMOTE/$f" || fail "readiness : dépôt de $f"
     fi
-    echo "cd $READINESS_REMOTE && chmod 600 ${fichiers[*]} && sha256sum ${fichiers[*]}" | remote \
-        || fail "readiness : vérification"
-    marquer readiness_manifest_install "${fichiers[*]}"
+    echo "cd $READINESS_REMOTE && chmod 600 $f && sha256sum $f" | remote || fail "readiness : vérification"
+    marquer readiness_manifest_install "$f"
 }
 
-etape_transfer_manifest_v3() {
-    autoriser transfer_manifest_v3
+etape_transfer_manifest_v4() {
+    autoriser transfer_manifest_v4
     local liste="docs/reports/evidence/external_staging_v2_artifact_transfer_manifest.json"
     remote <<EOF > "$STATE_DIR/store-hashes.txt" || fail "rehachage du magasin"
 set -euo pipefail
 cd $REMOTE/artifact-store && sha256sum -- *.pdf
 EOF
-    [ "$DRY_RUN" = 1 ] && { marquer transfer_manifest_v3 "sha256=dry-run"; return; }
-    python3 - "$liste" "$STATE_DIR/store-hashes.txt" "$STATE_DIR/transfer_manifest_v3.json" <<'PY' || fail "manifeste de transfert V3"
+    [ "$DRY_RUN" = 1 ] && { marquer transfer_manifest_v4 "sha256=dry-run"; return; }
+    python3 - "$liste" "$STATE_DIR/store-hashes.txt" "$STATE_DIR/transfer_manifest_v4.json" <<'PY' || fail "manifeste de transfert V4"
 import json, sys
 v2 = json.load(open(sys.argv[1]))
 observed = {}
@@ -284,8 +293,8 @@ if bad:
     raise SystemExit(f"{len(bad)} objet(s) absent(s) ou divergent(s), premier : {bad[0]}")
 doc = {
     "manifest_kind": "NEXUS-STAGING-ARTIFACT-TRANSFER-V1",
-    "release_id": "production-profile-gate-2026-2027-v3",
-    "transfer_method": "aucun transfert : objets déjà présents sur l'hôte, rehachés en lecture sous l'identité V3",
+    "release_id": "production-profile-gate-2026-2027-v4",
+    "transfer_method": "aucun transfert : objets déjà présents sur l'hôte, rehachés en lecture sous l'identité V4",
     "destination_path": "/srv/nexus-staging/artifact-store/",
     "file_count": len(files), "files": files,
     "digest_mismatches": 0, "digest_missing": 0,
@@ -294,43 +303,50 @@ doc = {
 }
 open(sys.argv[3], "w").write(json.dumps(doc, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
 PY
-    scp -q "$STATE_DIR/transfer_manifest_v3.json" "$SSH_HOST:$REMOTE/run-cy/transfer_manifest_v3.json" || fail "dépôt du manifeste V3"
-    marquer transfer_manifest_v3 "sha256=$(sha256sum "$STATE_DIR/transfer_manifest_v3.json" | cut -d' ' -f1)"
+    scp -q "$STATE_DIR/transfer_manifest_v4.json" "$SSH_HOST:$RUN/transfer_manifest_v4.json" || fail "dépôt du manifeste V4"
+    marquer transfer_manifest_v4 "sha256=$(sha256sum "$STATE_DIR/transfer_manifest_v4.json" | cut -d' ' -f1)"
 }
 
-etape_sealed_ingestion_v3() {
-    [ "$(chemin)" = A ] || { log "SAUTEE sealed_ingestion_v3 (chemin $(chemin))"; return; }
-    autoriser sealed_ingestion_v3
-    worker v3 "$REMOTE_WORKER_ENV" ingestor.ingestion_worker.sealed_release_ingestion_cli \
-        "$(args_de ingestion-v3 --transfer-sha256 "$(transfert_sha)")" | remote || fail "ingestion scellée V3"
-    marquer sealed_ingestion_v3 "ok"
+etape_scope_authorization_registration_r4() {
+    autoriser scope_authorization_registration_r4
+    # Conteneur ponctuel d'autorité : il reçoit, seul, le DSN authority ; aucun
+    # worker ne le voit. La CLI relit la revue EN DIRECT (PR ouverte, APPROVED,
+    # head exact, check épinglé) et l'artefact au head approuvé.
+    local pr head ids id
+    pr="$(champ scope_authorizations.pull_request)"
+    head="$(champ scope_authorizations.expected_head)"
+    ids=$(python3 scripts/go_live/staging_v4_arguments.py autorisations-r4) || fail "r4 : dérivation refusée"
+    for id in $ids; do
+        remote <<EOF | tee -a "$STATE_DIR/registration.out" || fail "enregistrement de $id"
+set -euo pipefail
+$(tirer "$IMAGE")
+docker run --rm --network host \\
+  --env-file "$REMOTE_AUTHORITY_ENV" \\
+  -e NEXUS_GITHUB_TOKEN_FILE=/run/secrets/github-token \\
+  -v "$REMOTE_GITHUB_TOKEN_FILE:/run/secrets/github-token:ro" \\
+  --entrypoint python "$IMAGE" -m ingestor.ingestion_worker.authorize_scope_cli \\
+  record-authorization --authorization-id "$id" --repository cyranoaladin/RAG \\
+  --pull-request "$pr" --expected-head "$head"
+EOF
+    done
+    marquer scope_authorization_registration_r4 "pr=$pr head=$head count=$(wc -w <<<"$ids")"
 }
 
-etape_attribution_backfill_v2() {
-    [ "$(chemin)" = B ] || { log "SAUTEE attribution_backfill_v2 (chemin $(chemin))"; return; }
-    autoriser attribution_backfill_v2
-    worker v2 "$REMOTE_WORKER_ENV" ingestor.ingestion_worker.sealed_release_ingestion_cli \
-        "$(args_de rattrapage-v2)" | remote | tee "$STATE_DIR/backfill.out" || fail "rattrapage V2"
-    [ "$DRY_RUN" = 1 ] || grep -q 'examined=479 .*missing_rows=0' "$STATE_DIR/backfill.out" || fail "rattrapage V2 : comptes inattendus"
-    marquer attribution_backfill_v2 "ok"
-}
-
-etape_adoption_v3() {
-    [ "$(chemin)" = B ] || { log "SAUTEE adoption_v3 (chemin $(chemin))"; return; }
-    autoriser adoption_v3
-    worker v3 "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli \
-        "$(args_de adoption-v3 --transfer-sha256 "$(transfert_sha)" --adopted-by "${ADOPTED_BY:?ADOPTED_BY : identité réelle de l\'opérateur}")" \
-        | remote | tee "$STATE_DIR/adoption.out" || fail "adoption V3"
-    [ "$DRY_RUN" = 1 ] || grep -q 'placements=479' "$STATE_DIR/adoption.out" || fail "adoption : comptes inattendus"
-    marquer adoption_v3 "ok"
+etape_sealed_ingestion_v4() {
+    autoriser sealed_ingestion_v4
+    worker "$REMOTE_WORKER_ENV" ingestor.ingestion_worker.sealed_release_ingestion_cli \
+        "$(args_de ingestion-v4 --transfer-sha256 "$(transfert_sha)")" | remote | tee "$STATE_DIR/ingestion.out" \
+        || fail "ingestion scellée V4"
+    [ "$DRY_RUN" = 1 ] || grep -q 'resources=479 ' "$STATE_DIR/ingestion.out" || fail "ingestion V4 : comptes inattendus"
+    marquer sealed_ingestion_v4 "ok"
 }
 
 etape_batch_review_proposal() {
     autoriser batch_review_proposal
-    worker v3 "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli propose-release-batch-review \
+    worker "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli propose-release-batch-review \
         --release-id "$(champ release.release_id)" --release-dir "/repo/$(champ release.release_dir)" \
         --release-manifest-sha256 "$(champ release.release_manifest_sha256)" \
-        --transfer-manifest-path /run-cy/transfer_manifest_v3.json --transfer-manifest-sha256 "$(transfert_sha)" \
+        --transfer-manifest-path /run-db/transfer_manifest_v4.json --transfer-manifest-sha256 "$(transfert_sha)" \
         --rights-registry-path /repo/services/rag-pedago/configs/rights_evidence_registry.yml \
         --review-id "${BATCH_REVIEW_ID:?BATCH_REVIEW_ID}" --evaluator "${EVALUATOR:?EVALUATOR : identité réelle}" \
         --pii-decision-set-path /repo/governance/pii-review-decisions/pii-review-2026-09-22-profile-gate-v3.json \
@@ -346,7 +362,7 @@ etape_batch_review_proposal() {
 
 etape_batch_review_record() {
     autoriser batch_review_record
-    worker v3 "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli record-release-batch-attestation \
+    worker "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli record-release-batch-attestation \
         --release-id "$(champ release.release_id)" --review-id "${BATCH_REVIEW_ID:?BATCH_REVIEW_ID}" \
         --repository cyranoaladin/RAG --pull-request "${BATCH_REVIEW_PR:?BATCH_REVIEW_PR}" \
         --expected-head "${BATCH_REVIEW_HEAD:?BATCH_REVIEW_HEAD}" \
@@ -357,10 +373,12 @@ etape_batch_review_record() {
 
 etape_worker_b_publication() {
     autoriser worker_b_publication
-    worker v3 "$REMOTE_WORKER_ENV:$REMOTE_PUBLISHER_ENV" \
+    worker "$REMOTE_WORKER_ENV:$REMOTE_PUBLISHER_ENV" \
         ingestor.ingestion_worker.multilevel_publication_resume_cli \
         "$(args_de worker-b --transfer-sha256 "$(transfert_sha)" --embedding-root "/models/$MODELE_NOM")" \
-        --max-iterations "${MAX_ITERATIONS:-2000}" | remote || fail "Worker B"
+        --max-iterations "${MAX_ITERATIONS:-2000}" | remote | tee "$STATE_DIR/worker-b.out" || fail "Worker B"
+    [ "$DRY_RUN" = 1 ] || grep -q 'authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION' "$STATE_DIR/worker-b.out" \
+        || fail "Worker B : démarrage hors qualification liée à la release"
     marquer worker_b_publication "ok"
 }
 
@@ -370,14 +388,24 @@ etape_independent_verification() {
 set -euo pipefail
 echo "PLACEMENTS=\$($(psql_ro "select count(distinct collection)||' '||count(distinct artifact_id)||' '||count(*) from public.rag_artifact_placements"))"
 echo "CHUNKS=\$($(psql_ro "select count(distinct chunk_id) from public.rag_chunks"))"
+echo "RELEASE=\$($(psql_ro "select string_agg(distinct programme_version||'/'||visibility, ',') from public.rag_artifact_placements"))"
+$(tirer "$SONDE")
+docker run --rm --network host --env-file "$REMOTE_READER_ENV" -e PYTHONPATH=/app \\
+  -v "$REMOTE/repo:/repo:ro" -v "$RUN:/run-db" -w /app \\
+  --entrypoint python "$SONDE" /repo/scripts/go_live/staging_retrieval_probe.py \\
+  --repository-root /repo --output /run-db/retrieval-probe.json
 EOF
+    [ "$DRY_RUN" = 1 ] && { marquer independent_verification "dry-run"; return; }
+    grep -qx 'PLACEMENTS=11 315 479' "$STATE_DIR/verification.txt" || fail "vérification : placements inattendus"
+    grep -qx 'CHUNKS=8268' "$STATE_DIR/verification.txt" || fail "vérification : chunks inattendus"
+    grep -q '^SONDE_RETRIEVAL_V4 ' "$STATE_DIR/verification.txt" || fail "vérification : sonde de retrieval"
     marquer independent_verification "ok"
 }
 
 ORDRE=(preflight_measurement backup_before_migration product_migrations control_migrations
-       model_artifact_install readiness_manifest_install transfer_manifest_v3 sealed_ingestion_v3 attribution_backfill_v2
-       adoption_v3 batch_review_proposal batch_review_record worker_b_publication
-       independent_verification)
+       model_artifact_install readiness_manifest_install transfer_manifest_v4
+       scope_authorization_registration_r4 sealed_ingestion_v4 batch_review_proposal
+       batch_review_record worker_b_publication independent_verification)
 
 case "${1:-}" in
     status)
