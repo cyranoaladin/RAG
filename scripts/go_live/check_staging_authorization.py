@@ -834,6 +834,281 @@ def verifier_operation(racine: Path, operation: str, cible: dict) -> list[str]:
     return ecarts
 
 
+# ── DH : récupérer la publication V4 après la fermeture de la revue #257 ──
+#
+# L'autorisation V4 (DG) a été exercée jusqu'à Worker B, qui a refusé les 479
+# attestations : la PR de revue #257 a été fusionnée avant leur usage. Elle
+# n'est ni rejouée ni élargie. Une autorisation DISTINCTE, liée par empreinte
+# à la V4, à l'identité de la revue périmée et au plan DH, nomme les seules
+# opérations de reprise. Mêmes rôles, même image épinglée, même base dédiée ;
+# rien n'est supprimé, rien n'est réaffecté.
+#
+# Ce dépôt n'en porte qu'une PROPOSITION (``PROPOSITION_DH``) : l'autorisation
+# n'existe qu'une fois copiée à ``AUTORISATION_DH`` par une PR distincte,
+# approuvée par le relecteur gouverné et fusionnée.
+
+AUTORISATION_DH = "docs/reports/go_live/authorizations/staging_v4_publication_recovery_authorization.json"
+PROPOSITION_DH = "docs/reports/go_live/authorizations/proposed/staging_v4_publication_recovery_authorization.json"
+KIND_DH = "NEXUS-STAGING-V4-PUBLICATION-RECOVERY-AUTHORIZATION-V1"
+PLAN_DH = "docs/runbooks/staging_v4_publication_recovery_DH_EXECUTION_PLAN.md"
+IDENTITE_PERIMEE_DH = "docs/reports/go_live/recovery/dh_stale_review_257.json"
+OUTIL_DH = "scripts/go_live/staging_v4_publication_recovery.py"
+REVUE_PERIMEE_DH = {
+    "repository": "cyranoaladin/RAG",
+    "pull_request": 257,
+    "head_sha": "85f9000115df34cab3060a52de6594bebe24c73c",
+    "review_id": "lot42-release-batch-v4-staging-20260924",
+    "review_artifact_sha256": "19ba49a2b56b3075b0f26ac75998cadcc696dab44864e6940d4f004c862279b9",
+    "reuse": "forbidden : une revue fermée ne fonde jamais une reprise",
+}
+CYCLE_DE_REVUE_DH = {
+    "r4_scope_authorizations": (
+        "preuve scellée (ADR-0058) : enregistrées pendant que #252 était ouverte, elles ne "
+        "dépendent plus de l'état de #252"
+    ),
+    "batch_review": (
+        "revue GitHub vérifiée EN DIRECT à chaque usage (ADR-0033 § 5) : la PR doit rester "
+        "ouverte, approuvée au head exact et inchangée tant qu'un job peut être repris"
+    ),
+    "preconditions": ["review-precondition --stage enqueue", "review-precondition --stage worker-b"],
+    "per_publication_checks": "inchangées : Worker B revérifie chaque attestation avant chaque publication",
+    "closure_condition": (
+        "closure-check : toutes les ressources RETRIEVAL_ELIGIBLE, un pin de commit par "
+        "attestation active à son head, aucun job publication_resume en file ou en cours ; "
+        "vérification indépendante faite"
+    ),
+    "merge_or_close": "décision humaine après closure-check ; jamais automatique",
+}
+JETON_GITHUB_DH = {
+    **JETON_GITHUB,
+    "created_by": "propriétaire, après approbation de l'autorisation DH ; jamais par l'agent",
+    "consumers": [
+        "stale_attestation_invalidation", "recovery_review_record",
+        "recovery_job_enqueue", "recovery_worker_b_publication",
+    ],
+}
+_V4_OUTIL = {**_COMMUNE, "schema": "ingestion_control", "script": OUTIL_DH, "release_id": _V4,
+             "stale_review_identity": IDENTITE_PERIMEE_DH}
+OPERATIONS_DH: dict[str, dict] = {
+    "recovery_preflight": {
+        "cible": {**_V4_OUTIL, "mode": "read_only", "control_role": "ingestion_control_app",
+                  "command": "preview", "legacy_database": BASE_HISTORIQUE},
+        "limite": (
+            "mesures en lecture : ragdb (référence), base dédiée (produit vide), conteneur Worker B "
+            "arrêté, manifeste de transfert V4 ; aperçu exact de l'ensemble périmé ; arrêt humain "
+            "avant toute écriture"
+        ),
+    },
+    "stale_job_cancellation": {
+        "cible": {**_V4_OUTIL, "control_role": "ingestion_control_app", "command": "cancel-stale-jobs",
+                  "job_type": "publication_resume", "expected_jobs": 479},
+        "limite": (
+            "jobs nommant une attestation de #257, en file ou à bail EXPIRÉ, seulement ; bail actif = "
+            "refus ; empreintes de l'aperçu exigées ; rien de supprimé ni de réaffecté"
+        ),
+    },
+    "stale_attestation_invalidation": {
+        "cible": {**_V4_OUTIL, "control_role": "ingestion_control_attestor",
+                  "command": "invalidate-stale-attestations", "expected_attestations": 479},
+        "limite": (
+            "attestations de #257 seulement, après constat EN DIRECT que #257 n'autorise plus rien ; "
+            "colonnes invalidated_at/invalidated_reason seulement"
+        ),
+    },
+    "recovery_review_proposal": {
+        "cible": {**_COMMUNE, "schema": "ingestion_control",
+                  "entrypoint": "ingestor.ingestion_worker.attest_publication_cli propose-release-batch-review",
+                  "control_role": "ingestion_control_attestor", "release_id": _V4},
+        "limite": "nouvel artefact de revue sur les faits existants (projection réutilisée) ; n'approuve rien",
+    },
+    "recovery_review_record": {
+        "cible": {**_COMMUNE, "schema": "ingestion_control",
+                  "entrypoint": "ingestor.ingestion_worker.attest_publication_cli record-release-batch-attestation",
+                  "control_role": "ingestion_control_attestor", "release_id": _V4,
+                  "forbidden_pull_request": 257},
+        "limite": "après approbation humaine réelle d'une NOUVELLE PR, au head exact, PR ouverte",
+    },
+    "recovery_job_enqueue": {
+        "cible": {**_COMMUNE, "schema": "ingestion_control",
+                  "script": "scripts/go_live/staging_v4_enqueue_publication.py",
+                  "precondition": "review-precondition --stage enqueue",
+                  "control_role": "ingestion_control_app", "release_id": _V4,
+                  "job_type": "publication_resume", "expected_jobs": 479},
+        "limite": "nouveaux jobs nommant les nouvelles attestations et les artefacts existants ; précondition de revue",
+    },
+    "recovery_worker_b_publication": {
+        "cible": {**_COMMUNE, "schema": "public",
+                  "entrypoint": "ingestor.ingestion_worker.multilevel_publication_resume_cli",
+                  "precondition": "review-precondition --stage worker-b",
+                  "container_name": "nexus-v4-worker-b-dh",
+                  "control_role": "ingestion_control_app", "product_role": "rag_publisher", "release_id": _V4,
+                  "authority_mode": "RELEASE_BOUND_STAGING_QUALIFICATION"},
+        "limite": "Worker B inchangé, sans privilège nouveau ; précondition de revue avant lancement",
+    },
+    "recovery_independent_verification": {
+        "cible": {**_COMMUNE, "mode": "read_only", "product_role": "rag_reader", "release_id": _V4,
+                  "probe": "scripts/go_live/staging_retrieval_probe.py"},
+        "limite": "réconciliation des deux schémas et retrieval servi sous les onze scopes V4",
+    },
+    "recovery_review_closure_check": {
+        "cible": {**_V4_OUTIL, "mode": "read_only", "control_role": "ingestion_control_app",
+                  "command": "closure-check"},
+        "limite": "constat en lecture ; la fusion ou la fermeture de la PR de revue reste humaine",
+    },
+}
+ORDRE_DH = tuple(OPERATIONS_DH)
+MENTIONS_DH = (
+    "staging cloisonne uniquement",
+    "base dediee ragdb_profile_gate_v4",
+    "ni nouvelle base",
+    "ni reingestion",
+    "ni nouvelle release",
+    "ni suppression de ligne",
+    "ni reaffectation d'ancien job",
+    "ni reutilisation de la revue 257",
+    "ni fusion automatique de la revue",
+    "ni modification de ragdb",
+    "ni privilege nouveau",
+    "ni build sur nexus-prod",
+    "ni ecriture DB production",
+    "ni current switch",
+    "ni exposition publique",
+)
+GABARIT_DH: dict = {
+    "kind": KIND_DH,
+    "amends": "DH",
+    "granted_by_pull_request_approval_of": APPROBATEUR,
+    "effective_when": (
+        f"ce document est copié (git mv) de {PROPOSITION_DH} vers {AUTORISATION_DH} par une PR "
+        "distincte, approuvée au head exact par le relecteur gouverné, puis fusionnée sur main"
+    ),
+    "consumed": False,
+    "expires_after_use": True,
+    "release": RELEASE_V4,
+    "stale_review": REVUE_PERIMEE_DH,
+    "review_lifecycle": CYCLE_DE_REVUE_DH,
+    "github_read_token": JETON_GITHUB_DH,
+    "targets": CIBLES_V4,
+    "operations": list(ORDRE_DH),
+    "forbidden": sorted(INTERDITS_REQUIS | {
+        "v2_publication", "v3_publication", "predecessor_adoption",
+        "production_image_rebuild_on_host", "legacy_database_modification",
+        "legacy_v2_data_deletion", "pilot_placements_reuse", "api_service_switch",
+        "new_database", "reingestion", "new_release", "row_deletion", "job_reassignment",
+        "stale_review_reuse", "automatic_review_merge", "worker_b_privilege_escalation",
+        "role_grant_change", "permission_file_modification", "applied_migration_change",
+        "sealed_artifact_change",
+    }),
+    "authorization_statement": (
+        "L'approbation de la PR d'activation par abenrhouma vaut autorisation, pour le staging "
+        "cloisonne uniquement, de reprendre la publication de production-profile-gate-2026-2027-v4 "
+        "sur la base dediee ragdb_profile_gate_v4 selon les operations nommees : apercu, annulation "
+        "des jobs perimes par ingestion_control_app, invalidation des attestations de la revue 257 "
+        "par ingestion_control_attestor, nouvelle revue humaine, nouvelles attestations, nouveaux "
+        "jobs, Worker B, verification. Elle n'autorise ni nouvelle base, ni reingestion, ni nouvelle "
+        "release, ni suppression de ligne, ni reaffectation d'ancien job, ni reutilisation de la "
+        "revue 257, ni fusion automatique de la revue, ni modification de ragdb, ni privilege "
+        "nouveau, ni build sur nexus-prod, ni ecriture DB production, ni current switch, ni "
+        "exposition publique."
+    ),
+    "stop_conditions": (
+        "tout ecart de l'apercu, toute ligne etrangere, tout bail actif, tout pin ou placement "
+        "produit deja present, toute revue non approuvee en direct, toute variation de ragdb ; "
+        "arret sans suppression de ligne, de base ni de preuve"
+    ),
+    "expected_proof": [
+        "ragdb inchangée avant et après chaque écriture",
+        "aperçu : 479 attestations, 479 ressources, 315 contenus, 11 collections, 479 jobs, empreintes",
+        "jobs périmés annulés (en file ou bail expiré), dernier motif de Worker B conservé, rejeu sans effet",
+        "attestations de #257 invalidées par le rôle attestor, motif DH, rejeu sans effet",
+        "nouvelle revue approuvée au head exact, 479 nouvelles attestations",
+        "préconditions de revue avant mise en file et avant Worker B",
+        "479 nouveaux jobs ; publication : 11 collections, 315 artefacts, 479 placements, 8268 chunks",
+        "retrieval servi sous les onze scopes V4 ; closure-check avant toute fermeture de la revue",
+    ],
+    "rollback": {
+        "service": "arrêt des processus lancés ; aucune suppression de volume",
+        "database": "aucune ligne supprimée : anciennes attestations et anciens jobs restent comme historique",
+        "governance_evidence": "jamais supprimée",
+    },
+}
+
+
+def evaluer_dh(
+    document: dict, *, base_sha256: str, v4_sha256: str, plan_sha256: str, identite_sha256: str,
+    document_v4: dict | None,
+) -> list[str]:
+    """Écarts de l'autorisation de reprise DH. Liste vide = conforme."""
+    ecarts = [
+        f"DH : {cle} ne correspond pas au périmètre gouverné"
+        for cle in (
+            "kind", "amends", "granted_by_pull_request_approval_of", "effective_when", "release",
+            "stale_review", "review_lifecycle", "github_read_token", "targets", "operations",
+            "stop_conditions", "expected_proof", "rollback",
+        )
+        if document.get(cle) != GABARIT_DH[cle]
+    ]
+    if document.get("consumed") is not False:
+        ecarts.append("DH : autorisation déjà consommée")
+    if document.get("expires_after_use") is not True:
+        ecarts.append("DH : l'autorisation doit être à usage unique")
+    for cle, chemin, attendu in (
+        ("extends", AUTORISATION, base_sha256),
+        ("extends_v4", AUTORISATION_V4, v4_sha256),
+        ("execution_plan", PLAN_DH, plan_sha256),
+        ("stale_review_identity", IDENTITE_PERIMEE_DH, identite_sha256),
+    ):
+        lien = document.get(cle) or {}
+        if lien.get("path") != chemin or lien.get("sha256") != attendu:
+            ecarts.append(f"DH : {cle} non lié à {chemin} (empreinte)")
+    manquants = sorted(set(GABARIT_DH["forbidden"]) - set(document.get("forbidden") or []))
+    if manquants:
+        ecarts.append(f"DH : interdits manquants : {manquants}")
+    declaration = document.get("authorization_statement") or ""
+    ecarts.extend(f"DH : déclaration, mention manquante {m!r}" for m in MENTIONS_DH if m not in declaration)
+    # Aucune reconstruction : les images sont EXACTEMENT celles de la V4.
+    if document_v4 is None:
+        ecarts.append("DH : autorisation V4 absente, images non vérifiables")
+    else:
+        for cle in ("runtime_image", "probe_image"):
+            if document.get(cle) != document_v4.get(cle):
+                ecarts.append(f"DH : {cle} diffère de celle de la V4 — aucune reconstruction n'est autorisée")
+    return ecarts
+
+
+def verifier_operation_dh(racine: Path, operation: str, cible: dict) -> list[str]:
+    """Contrôle avant une opération DH : base valide, V4 et DH fusionnées et conformes."""
+    if operation not in OPERATIONS_DH:
+        return [f"opération DH inconnue : {operation!r} — rien ne l'autorise"]
+    ecarts = verifier(racine)
+    chemin_v4, chemin_dh = racine / AUTORISATION_V4, racine / AUTORISATION_DH
+    if not chemin_dh.is_file():
+        return [*ecarts, f"aucune autorisation DH : {AUTORISATION_DH} absent (la proposition n'autorise rien)"]
+    document = json.loads(chemin_dh.read_text(encoding="utf-8"))
+    document_v4 = json.loads(chemin_v4.read_text(encoding="utf-8")) if chemin_v4.is_file() else None
+
+    def empreinte(relatif: str) -> str:
+        chemin = racine / relatif
+        return hashlib.sha256(chemin.read_bytes()).hexdigest() if chemin.is_file() else ""
+
+    ecarts += evaluer_dh(
+        document, base_sha256=empreinte(AUTORISATION), v4_sha256=empreinte(AUTORISATION_V4),
+        plan_sha256=empreinte(PLAN_DH), identite_sha256=empreinte(IDENTITE_PERIMEE_DH),
+        document_v4=document_v4,
+    )
+    if operation not in (document.get("operations") or []):
+        ecarts.append(f"{operation!r} n'est pas nommée par l'autorisation DH")
+    attendue = OPERATIONS_DH[operation]["cible"]
+    for cle in sorted(set(attendue) | set(cible)):
+        if cible.get(cle) != attendue.get(cle):
+            ecarts.append(f"{operation} : {cle} = {cible.get(cle)!r}, autorisé {attendue.get(cle)!r}")
+    for relatif in (AUTORISATION_DH, IDENTITE_PERIMEE_DH, PLAN_DH):
+        sur_main = _git(racine, "show", f"origin/main:{relatif}")
+        if sur_main.returncode != 0 or sur_main.stdout != (racine / relatif).read_text(encoding="utf-8"):
+            ecarts.append(f"{relatif} n'est pas (ou pas à l'identique) sur origin/main")
+    return ecarts
+
+
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestration
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--operation", default=None, help="opération de publication V4 à contrôler")
@@ -844,7 +1119,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
         ecarts = verifier(racine)
         print(json.dumps({"ssh_staging_authorized": not ecarts, "ecarts": ecarts}, ensure_ascii=False, indent=2))
         return 1 if ecarts else 0
-    ecarts = verifier_operation(racine, args.operation, json.loads(args.cible))
+    if args.operation in OPERATIONS_DH:
+        ecarts = verifier_operation_dh(racine, args.operation, json.loads(args.cible))
+    else:
+        ecarts = verifier_operation(racine, args.operation, json.loads(args.cible))
     print(json.dumps({"operation": args.operation, "authorized": not ecarts, "ecarts": ecarts}, ensure_ascii=False, indent=2))
     return 1 if ecarts else 0
 
