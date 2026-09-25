@@ -38,6 +38,7 @@ import time
 import uuid
 from collections.abc import Iterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import psycopg
@@ -272,6 +273,45 @@ def _iterer_worker_b(control: dict[str, str], deps: Any, fois: int) -> list[Any]
     return issues
 
 
+class _WorkerB:
+    """Worker B, par sa vraie itération EN PROCESSUS (embeddings de test), ou
+    par son vrai CLI sur E5 réel quand ``NEXUS_DH_WORKER_B_CLI=1`` (machine
+    opérateur : ``RAG_EMBEDDING_MODEL_CACHE_DIR`` doit alors désigner E5).
+
+    Rend les seules itérations qui ont TRAVAILLÉ, dans l'ordre."""
+
+    def __init__(self, control: dict[str, str], product_pg: dict[str, str], banc: Any, github: LocalGitHub,
+                 jeton: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.control, self.product_pg, self.banc = control, product_pg, banc
+        self.github, self.jeton, self.tmp_path, self.monkeypatch = github, jeton, tmp_path, monkeypatch
+        self.cli = os.environ.get("NEXUS_DH_WORKER_B_CLI") == "1"
+        self.deps = None if self.cli else _deps_worker_b(banc, product_pg)
+
+    def iterer(self, fois: int) -> list[Any]:
+        if not self.cli:
+            with _Forge(self.github, self.jeton, self.monkeypatch):
+                return [issue for issue in _iterer_worker_b(self.control, self.deps, fois) if issue.worked]
+        sortie = banc_batch._lancer_worker_b(
+            self.control, self.product_pg, banc=self.banc, github=self.github, jeton=self.jeton,
+            tmp_path=self.tmp_path, iterations=fois,
+        )
+        assert sortie.returncode == 0, sortie.stderr
+        erreurs = {}
+        for ligne in sortie.stderr.splitlines():
+            if ligne.startswith("MULTILEVEL_PUBLICATION_WORKER_ITERATION_ERROR job_id="):
+                job, _, erreur = ligne.split("job_id=", 1)[1].partition(": ")
+                erreurs[job] = erreur
+        issues = []
+        for ligne in sortie.stdout.splitlines():
+            if ligne.startswith("MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id="):
+                champs = dict(morceau.split("=", 1) for morceau in ligne.split()[1:] if "=" in morceau)
+                issues.append(SimpleNamespace(
+                    worked=True, job_id=uuid.UUID(champs["job_id"]), status=champs["status"],
+                    error=erreurs.get(champs["job_id"]),
+                ))
+        return issues
+
+
 class _Forge:
     """Expose la forge locale aux primitives GitHub appelées EN PROCESSUS."""
 
@@ -324,9 +364,8 @@ def test_recuperation_de_bout_en_bout(
     env_app = {"PG_INGESTION_CONTROL_DSN": app_dsn(control)}
 
     # ── 1. Refus RÉEL de Worker B : sa vraie itération, sur la PR fermée ──
-    deps = _deps_worker_b(banc, product_pg)
-    with _Forge(github, jeton, monkeypatch):
-        issues = _iterer_worker_b(control, deps, 4)
+    worker_b = _WorkerB(control, product_pg, banc, github, jeton, tmp_path, monkeypatch)
+    issues = worker_b.iterer(4)
     assert [issue.status for issue in issues] == ["retried"] * 4, issues
     assert all("reason=pull_request_not_open" in (issue.error or "") for issue in issues), issues
     jobs = [issue.job_id for issue in issues]
@@ -342,8 +381,7 @@ def test_recuperation_de_bout_en_bout(
     # worker qui s'arrête ensuite en gardant son bail (2 s).
     for _ in range(2):
         _simuler_delai_ecoule(control, jobs[0])
-        with _Forge(github, jeton, monkeypatch):
-            (issue,) = _iterer_worker_b(control, deps, 1)
+        (issue,) = worker_b.iterer(1)
         assert issue.job_id == jobs[0] and issue.status == "retried", issue
     _simuler_delai_ecoule(control, jobs[1])
     with psycopg.connect(app_dsn(control)) as conn:
@@ -495,10 +533,9 @@ def test_recuperation_de_bout_en_bout(
     assert fermeture.returncode == 1, fermeture.stdout  # rien n'est encore publié
 
     # ── 9. Worker B publie, sous la nouvelle revue ──
-    with _Forge(github, jeton, monkeypatch):
-        issues = _iterer_worker_b(control, deps, 5)
-    assert [issue.status for issue in issues[:4]] == ["succeeded"] * 4, issues
-    assert issues[4].worked is False  # plus rien en file : ni ancien job, ni doublon
+    issues = worker_b.iterer(5)
+    # Quatre publications, puis plus rien en file : ni ancien job, ni doublon.
+    assert [issue.status for issue in issues] == ["succeeded"] * 4, issues
     contenus = sorted(contenu.content_sha256 for contenu in banc.contenus)
     avant_rejeu = banc_batch._compter_dans_le_produit(product_pg, contenus)
     assert avant_rejeu[0] == 2 and avant_rejeu[1] == 4 and avant_rejeu[2] > 0, avant_rejeu
@@ -506,14 +543,13 @@ def test_recuperation_de_bout_en_bout(
     assert trouves and {c.artifact_id for c in trouves} <= set(contenus), trouves
 
     # ── 10. Rejeu après écriture produit : aucun doublon ──
-    nouveaux = [issue.job_id for issue in issues[:4]]
+    nouveaux = [issue.job_id for issue in issues]
     with psycopg.connect(superuser_dsn(control)) as conn:
         conn.execute(
             "UPDATE ingestion_control.jobs SET status = 'queued', lease_token = NULL,"
             " lease_expires_at = NULL, claimed_by = NULL WHERE job_id = ANY(%s)", (nouveaux,))
         conn.commit()
-    with _Forge(github, jeton, monkeypatch):
-        repris = _iterer_worker_b(control, deps, 4)
+    repris = worker_b.iterer(4)
     assert [issue.status for issue in repris] == ["succeeded"] * 4, repris
     assert banc_batch._compter_dans_le_produit(product_pg, contenus) == avant_rejeu
 
