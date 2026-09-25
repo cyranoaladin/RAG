@@ -397,9 +397,12 @@ REPERTOIRE_ROLES = "/srv/nexus-staging/secrets/v4-roles"
 #: L'autorisation que DC remplace, par ses octets : non consommée, jamais
 #: exécutée au-delà du pré-vol (arrêté sur une base non vierge).
 REMPLACE_V4 = {
-    "amends": "DB",
-    "sha256": "745cd79caa35b29c4b0d5d8ba87c4f95d2da5309bcd984a5eb43c679ff2e7561",
-    "reason": "ragdb non vierge (acquisition V2 et placements pilotes) : base dédiée à V4",
+    "amends": "DC",
+    "sha256": "c2b410006516985da819608305462accbbf06e671135048a3f3f3388de0f4fdf",
+    "reason": (
+        "chaînon manquant : aucune opération ne mettait en file les jobs de publication "
+        "que Worker B consomme ; exécution DC arrêtée proprement avant toute publication"
+    ),
 }
 JETON_GITHUB = {
     "path": "/srv/nexus-staging/secrets/github-read-token/token",
@@ -581,6 +584,18 @@ OPERATIONS_V4: dict[str, dict] = {
         "cible": {**_COMMUNE, "schema": "ingestion_control", "entrypoint": "ingestor.ingestion_worker.attest_publication_cli record-release-batch-attestation", "control_role": "ingestion_control_attestor", "release_id": _V4},
         "limite": "après approbation humaine réelle de la revue batch, au head exact, dans sa fenêtre",
     },
+    "publication_job_enqueue": {
+        "cible": {
+            **_COMMUNE, "schema": "ingestion_control",
+            "script": "scripts/go_live/staging_v4_enqueue_publication.py",
+            "control_role": "ingestion_control_app", "release_id": _V4,
+            "job_type": "publication_resume", "expected_jobs": 479,
+        },
+        "limite": (
+            "un job par attestation batch active de V4, sur ressource NEEDS_REVIEW ; "
+            "idempotent ; compte exact exigé ; aucun droit nouveau"
+        ),
+    },
     "worker_b_publication": {
         "cible": {**_COMMUNE, "schema": "public", "entrypoint": "ingestor.ingestion_worker.multilevel_publication_resume_cli", "control_role": "ingestion_control_app", "product_role": "rag_publisher", "release_id": _V4, "authority_mode": "RELEASE_BOUND_STAGING_QUALIFICATION"},
         "limite": "seuls les placements couverts par l'attestation batch enregistrée ; qualification tirée de la readiness de staging vérifiée",
@@ -611,7 +626,7 @@ MENTIONS_V4 = (
 
 GABARIT_V4: dict = {
     "kind": KIND_V4,
-    "amends": "DC",
+    "amends": "DG",
     "supersedes": REMPLACE_V4,
     "granted_by_pull_request_approval_of": APPROBATEUR,
     "effective_when": (
@@ -682,6 +697,7 @@ GABARIT_V4: dict = {
         "onze r4 enregistrées au HEAD approuvé de leur PR",
         "rapport d'ingestion scellée sous les r4, rejeu idempotent",
         "attestation batch enregistrée au head exact de la revue approuvée",
+        "479 jobs publication_resume mis en file par l'outil canonique, rôle ingestion_control_app, rejeu sans effet",
         "comptes et identités servis : 11 collections, 315 artefacts, 479 placements, 8268 chunks",
         "retrieval servi sous les onze scopes V4 : aucun candidat hors du jeu publié",
     ],

@@ -1,4 +1,4 @@
-# Plan d'exécution — publication de V4 sur une base staging dédiée (lots DB, DC)
+# Plan d'exécution — publication de V4 sur une base staging dédiée (lots DB, DC, DG)
 
 **Autorisation :** `docs/reports/go_live/authorizations/staging_v4_publication_authorization.json`
 (lot DC). Elle remplace celle du lot DB, jamais consommée, et complète
@@ -123,10 +123,24 @@ Chaque étape s'arrête au premier écart. L'état est tenu dans `STATE_DIR`
     `22361dd1…`, qui expire le 2026-10-23). **Approbation humaine requise** ;
     l'orchestrateur s'arrête ici.
 13. **`batch_review_record`** : au HEAD exact approuvé.
-14. **`worker_b_publication`** : démarrage exigé en
+14. **`publication_job_enqueue`** (lot DG) : `scripts/go_live/staging_v4_enqueue_publication.py`
+    s'exécute depuis `/repo` (dépôt de l'hôte au commit autorisé), dans l'image
+    worker épinglée, sous le seul fichier `ingestion-control-app.env`.
+    - Il crée un job `publication_resume` par attestation batch active de V4,
+      nommant ressource, run, version d'état, attestation et artefact.
+    - Il est idempotent ; attendu : `PUBLICATION_JOBS_ENQUEUED … total=479`.
+    - Aucun droit nouveau : le rôle applicatif a déjà `INSERT` sur `jobs`.
+15. **`worker_b_publication`** : conteneur **détaché et nommé**
+    (`nexus-v4-worker-b`), sans session longue.
+    - L'orchestrateur suit son état par de courtes interrogations.
+    - Il exige ensuite `exited 0` et le mode
+      `RELEASE_BOUND_STAGING_QUALIFICATION` dans son journal, puis retire le
+      conteneur terminé.
+    - `--max-iterations` vaut le nombre de jobs attendus + 3.
+    - Démarrage exigé en
     `RELEASE_BOUND_STAGING_QUALIFICATION` ; les chunks publiés sont
     exactement ceux que V4 scelle.
-15. **`independent_verification`** (lecture) : la base dédiée doit compter
+16. **`independent_verification`** (lecture) : la base dédiée doit compter
     11/315/479 et 8 268 chunks. Puis la sonde de retrieval
     (`staging_retrieval_probe.py`) tourne dans l'image ingestor épinglée,
     sous `rag-reader.env`, donc sur la base dédiée. Enfin, `ragdb` est

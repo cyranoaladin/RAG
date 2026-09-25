@@ -1,11 +1,11 @@
 {
-    "amends": "DC",
+    "amends": "DG",
     "authorization_statement": "L'approbation de cette PR par abenrhouma vaut autorisation, pour le staging cloisonne uniquement, de publier production-profile-gate-2026-2027-v4 selon les operations nommees et sur leurs cibles exactes : Worker B uniquement dans le staging cloisonne, ecritures limitees a une base dediee ragdb_profile_gate_v4 creee dans le conteneur nexus-staging-pgvector-1. Elle n'autorise ni modification de ragdb, ni suppression des donnees V2, ni reutilisation des placements pilotes, ni publication de V2 ou de V3, ni adoption, ni build sur nexus-prod, ni tag non epingle, ni ecriture DB production, ni current switch, ni bascule du service API, ni exposition publique.",
     "consumed": false,
     "effective_when": "ce fichier est fusionné sur main par une PR à revue humaine épinglée (trusted-human-review/head-pinned)",
     "execution_plan": {
         "path": "docs/runbooks/staging_v4_publication_EXECUTION_PLAN.md",
-        "sha256": "8a09daae09af331b768c4ba50c8c85bb6ba627bb73fbede90ee50a91ab3f8b66"
+        "sha256": "df96be5771934990b071af325623892cd5ad473f4de958b94c4290018c22f874"
     },
     "expected_proof": [
         "ragdb inchangée : têtes (produit 4, contrôle 15) et comptes (479, 479, 26) identiques avant et après",
@@ -14,6 +14,7 @@
         "onze r4 enregistrées au HEAD approuvé de leur PR",
         "rapport d'ingestion scellée sous les r4, rejeu idempotent",
         "attestation batch enregistrée au head exact de la revue approuvée",
+        "479 jobs publication_resume mis en file par l'outil canonique, rôle ingestion_control_app, rejeu sans effet",
         "comptes et identités servis : 11 collections, 315 artefacts, 479 placements, 8268 chunks",
         "retrieval servi sous les onze scopes V4 : aucun candidat hors du jeu publié"
     ],
@@ -81,6 +82,7 @@
         "sealed_ingestion_v4",
         "batch_review_proposal",
         "batch_review_record",
+        "publication_job_enqueue",
         "worker_b_publication",
         "independent_verification"
     ],
@@ -173,9 +175,9 @@
     },
     "stop_conditions": "toute precondition non satisfaite, tout ecart mesure, toute signature ou approbation manquante, tout contenu trouve dans la base dediee, toute variation de ragdb ; arret de securite sans suppression de volume, de base ni de preuve",
     "supersedes": {
-        "amends": "DB",
-        "reason": "ragdb non vierge (acquisition V2 et placements pilotes) : base dédiée à V4",
-        "sha256": "745cd79caa35b29c4b0d5d8ba87c4f95d2da5309bcd984a5eb43c679ff2e7561"
+        "amends": "DC",
+        "reason": "chaînon manquant : aucune opération ne mettait en file les jobs de publication que Worker B consomme ; exécution DC arrêtée proprement avant toute publication",
+        "sha256": "c2b410006516985da819608305462accbbf06e671135048a3f3f3388de0f4fdf"
     },
     "targets": {
         "compose_project": "nexus-staging",

@@ -64,7 +64,6 @@ from _banc_releases_reelles import (  # noqa: E402
     autorisations_derivees,
     champs,
     compte_par_table,
-    creer_les_jobs,
     enregistrer,
     erreurs_d_iteration,
     lancer_worker_b,
@@ -286,6 +285,52 @@ def _arguments_b(banc: dict[str, Any]) -> list[str]:
     ))
 
 
+MISE_EN_FILE = REPOSITORY_ROOT / "scripts/go_live/staging_v4_enqueue_publication.py"
+
+
+def _mettre_en_file_par_le_script(
+    control_pg: dict[str, str], *, collections: tuple[str, ...], attendu: int
+) -> dict[str, dict[str, Any]]:
+    """Les jobs de publication, créés par l'outil que le staging exécutera
+    (``staging_v4_enqueue_publication``), sous le rôle applicatif — pas par un
+    utilitaire de banc en superutilisateur. Rejeu sans effet ; compte faux refusé."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("staging_v4_enqueue_publication", MISE_EN_FILE)
+    assert spec and spec.loader
+    outil = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(outil)
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        assert conn.execute("select current_user").fetchone()[0] == "ingestion_control_app"
+        with pytest.raises(outil.MiseEnFileRefusee):
+            outil.mettre_en_file(conn, release_id=V4_ID, attendu=attendu + 1, collections=collections)
+        conn.rollback()
+        bilan = outil.mettre_en_file(conn, release_id=V4_ID, attendu=attendu, collections=collections)
+        conn.commit()
+    assert bilan == {"crees": attendu, "deja_en_file": 0, "deja_publies": 0}, bilan
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        rejeu = outil.mettre_en_file(conn, release_id=V4_ID, attendu=attendu, collections=collections)
+        conn.commit()
+    assert rejeu == {"crees": 0, "deja_en_file": attendu, "deja_publies": 0}, rejeu
+    print("REAL_V4_ENQUEUE", bilan, "rejeu", rejeu)
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        lignes = conn.execute(
+            "SELECT j.job_id, j.payload, r.collection FROM ingestion_control.jobs j"
+            "  JOIN ingestion_control.resources r ON r.resource_id = j.resource_id"
+            " WHERE j.job_type = 'publication_resume'"
+        ).fetchall()
+        conn.rollback()
+    assert len(lignes) == attendu
+    return {
+        str(job_id): {
+            "collection": collection,
+            "resource_id": uuid.UUID(payload["resource_id"]),
+            "attestation_id": payload["publication_attestation_id"],
+        }
+        for job_id, payload, collection in lignes
+    }
+
+
 @pytest.fixture(scope="module")
 def publie(
     atteste: dict[str, Any],
@@ -297,7 +342,7 @@ def publie(
     """Worker B qualifié par une readiness de staging nommant V4."""
     collections = _collections_publiees()
     cibles = sorted((c, contenu) for (c, contenu) in _placements_v4() if c in collections)
-    jobs = creer_les_jobs(control_pg, release_id=V4_ID, cibles=cibles)
+    jobs = _mettre_en_file_par_le_script(control_pg, collections=collections, attendu=len(cibles))
     debut = time.monotonic()
     worker = lancer_worker_b(
         control_pg, produit_pg, github=github, jeton=banc["jeton"], readiness_env=banc["readiness_v4"],
