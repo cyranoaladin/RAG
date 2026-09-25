@@ -255,14 +255,69 @@ Correction : l'empreinte scellée est celle du texte de page extrait (une page
 du banc est très en deçà du budget de tokens, quel que soit le tokenizer).
 Aucun code de production n'est touché.
 
+## 6 bis. Défaut du banc DH corrigé : sélection du modèle d'embedding
+
+Défaut (signalé par l'opérateur, reproduit dans la VM au HEAD `752086bf`) :
+la fixture `inventaire_de_banc` de `test_dh_publication_recovery_pg.py`
+remplaçait **toujours** `RAG_EMBEDDING_MODEL_CACHE_DIR` par un inventaire
+fictif sans poids, y compris avec `NEXUS_DH_WORKER_B_CLI=1`. Or
+`construire_contexte_du_banc` lit cette variable par `modele_e5_du_banc()`
+(`_banc_multiniveaux.py`), et `_arguments_de_worker_b` transmet ensuite
+`contexte.modele_e5`/`contexte.e5_inventaire_sha256` au CLI
+(`--embedding-artifact-root`, `--embedding-inventory-sha256`). Le chemin E5
+de l'opérateur n'atteignait donc jamais le CLI : la commande proposée
+aurait échoué au démarrage de Worker B sur l'inventaire fictif, et n'aurait
+rien qualifié. Reproduction : en mode CLI avec un chemin opérateur simulé,
+le contexte lisait `/tmp/inventaire-e5-de-banc…`.
+
+Correctif (code de banc uniquement, aucun code de production) :
+
+- `tests/integration/_banc_dh_modele.py` sépare deux modes explicites :
+  - **DEBUG** (défaut) : inventaire FICTIF, marqué
+    `INVENTAIRE-FICTIF-AUCUN-POIDS`, pour l'itération en processus avec
+    l'adaptateur de test ;
+  - **CLI** (`NEXUS_DH_WORKER_B_CLI=1`) : exige `RAG_EMBEDDING_MODEL_CACHE_DIR`
+    et `RAG_EMBEDDING_MODEL_INVENTORY_SHA256`, vérifie l'artefact par le
+    vérificateur canonique `verify_embedding_artifact` (manifeste
+    `intfloat/multilingual-e5-large`/1024, poids présents, inventaire et
+    empreintes) et **ne remplace jamais** le chemin de l'opérateur. Si le
+    chemin ou l'artefact est absent ou invalide, le banc s'arrête en erreur,
+    sans passer en DEBUG ;
+  - toute valeur autre que `0`/`1` est refusée ; la variable modifiée est
+    restaurée à la sortie, exception comprise.
+- `exiger_modele_transmis` vérifie que le contexte du banc **et** les
+  arguments réels du CLI (`_arguments_de_worker_b`) portent le chemin et
+  l'inventaire sélectionnés, et qu'un inventaire fictif n'atteint jamais le
+  CLI. `_WorkerB` tire son mode de la sélection, pas d'une relecture de
+  l'environnement.
+
+Épreuves :
+- `tests/test_dh_bench_model_selection.py` : **16/16**, sans Docker et hors
+  intégration. Elles couvrent :
+  - le chemin opérateur conservé en mode CLI ;
+  - l'inventaire fictif limité au mode DEBUG ;
+  - six cas de refus sans modèle réel, dont chemin ou inventaire absent, poids
+    manquants et manifeste d'un autre modèle ;
+  - la restauration de l'environnement après exception ;
+  - le mode ambigu refusé ;
+  - les arguments réels du CLI conformes à la sélection, avec contre-épreuves
+    sur le chemin et sur l'empreinte ;
+  - l'inventaire fictif refusé au CLI.
+
+  L'« artefact E5 » de ces épreuves est une **fixture** de forme conforme,
+  **sans poids E5** : elles valident la sélection, jamais le modèle.
+- Banc DH en mode DEBUG, relancé après correctif : **24/24**.
+- Mode CLI sans modèle réel dans la VM : le banc s'arrête explicitement en
+  erreur (`ModeleDuBancRefuse: mode CLI : RAG_EMBEDDING_MODEL_CACHE_DIR
+  absent`), sans skip ni repli.
+
 ## 7. Limites réelles
 
-- **Push impossible depuis cette session** : le proxy git refuse
-  `cyranoaladin/RAG` (403, dépôt absent des sources autorisées de la session).
-  Tous les commits sont **locaux** ; aucun n'est sur GitHub ; aucune PR n'a pu
-  être ouverte.
-- API REST GitHub fermée à la session : l'état de #257 et ses revues n'ont pas
-  été relus ; la tête vient de `refs/pull/257/head`.
+- Push : d'abord refusé (403), puis rendu possible par le rattachement natif
+  de `cyranoaladin/RAG` à la session. La branche et la PR #259 (brouillon)
+  sont publiées.
+- La tête de #257 vient de `refs/pull/257/head` ; ses revues n'ont pas été
+  relues par l'API au moment du cadrage.
 - Modèle E5 : téléchargement refusé par la politique réseau (huggingface.co,
   403). Non exécutés ici : le vrai CLI Worker B sur E5, le banc réel V4
   (`test_v4_staging_direct_real_chain.py`, qui exige aussi les PDF des miroirs
@@ -274,9 +329,15 @@ Commandes reproductibles (machine opérateur) :
 ```bash
 cd services/rag-engine
 # banc DH avec le vrai CLI Worker B et E5 réel
+# Prérequis : Docker (image pgvector épinglée), `make install` fait, et un
+# artefact E5 matérialisé (manifest.json, config.json, poids, SHA256SUMS).
+# L'inventaire attendu est sha256(SHA256SUMS) ; pour l'artefact V4
+# e5-large-prerentree-2026-2027-20260828-materialise :
+# 58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6
 NEXUS_DH_RECOVERY_PG=1 NEXUS_DH_WORKER_B_CLI=1 \
-RAG_EMBEDDING_MODEL_CACHE_DIR=<artefact E5, inventaire 58ad18db…> \
-PYTHONPATH=src .venv/bin/python -m pytest tests/integration/test_dh_publication_recovery_pg.py -q
+RAG_EMBEDDING_MODEL_CACHE_DIR=/chemin/absolu/vers/e5-large-prerentree-2026-2027-20260828-materialise \
+RAG_EMBEDDING_MODEL_INVENTORY_SHA256=58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6 \
+PYTHONPATH=src .venv/bin/python -m pytest tests/integration/test_dh_publication_recovery_pg.py -q -rA
 # essai à blanc de l'orchestrateur DH (aucune connexion)
 DRY_RUN_OFFLINE=1 BATCH_REVIEW_ID=<id> EVALUATOR=<identité> \
 scripts/go_live/staging_v4_publication_recovery.sh --dry-run run

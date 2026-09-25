@@ -51,6 +51,7 @@ sys.path.insert(0, str(ENGINE_ROOT / "tests"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts/go_live"))
 
+from _banc_dh_modele import ModeleDuBanc, exiger_modele_transmis, modele_du_banc  # noqa: E402
 from _local_github import REPOSITORY, VALID_TOKEN, LocalGitHub, local_github_server  # noqa: E402
 from _pg_authority import (  # noqa: E402
     app_dsn,
@@ -97,21 +98,12 @@ ATTENDU = {"attestations": 4, "resources": 4, "unique_contents": 2, "collections
 
 
 @pytest.fixture(scope="module")
-def inventaire_de_banc(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
-    """Un INVENTAIRE de modèle de banc : la release du banc en déclare
-    l'empreinte. Ce n'est pas un modèle, et rien ne l'utilise comme tel."""
-    racine = tmp_path_factory.mktemp("inventaire-e5-de-banc")
-    (racine / "LISEZMOI").write_text("inventaire de banc DH — aucun poids de modèle\n")
-    (racine / "SHA256SUMS").write_text(
-        f"{hashlib.sha256((racine / 'LISEZMOI').read_bytes()).hexdigest()}  LISEZMOI\n"
-    )
-    precedent = os.environ.get("RAG_EMBEDDING_MODEL_CACHE_DIR")
-    os.environ["RAG_EMBEDDING_MODEL_CACHE_DIR"] = str(racine)
-    yield racine
-    if precedent is None:
-        os.environ.pop("RAG_EMBEDDING_MODEL_CACHE_DIR", None)
-    else:
-        os.environ["RAG_EMBEDDING_MODEL_CACHE_DIR"] = precedent
+def modele_de_banc(tmp_path_factory: pytest.TempPathFactory) -> Iterator[ModeleDuBanc]:
+    """Le modèle du banc : inventaire FICTIF en mode DEBUG ; en mode CLI, le
+    modèle E5 de l'opérateur, vérifié et conservé (voir ``_banc_dh_modele``).
+    La variable modifiée est restaurée à la sortie, exception comprise."""
+    with modele_du_banc(racine_fictive=tmp_path_factory.mktemp("inventaire-fictif-dh")) as selection:
+        yield selection
 
 
 @pytest.fixture(scope="module")
@@ -276,21 +268,30 @@ def _iterer_worker_b(control: dict[str, str], deps: Any, fois: int) -> list[Any]
 class _WorkerB:
     """Worker B, par sa vraie itération EN PROCESSUS (embeddings de test), ou
     par son vrai CLI sur E5 réel quand ``NEXUS_DH_WORKER_B_CLI=1`` (machine
-    opérateur : ``RAG_EMBEDDING_MODEL_CACHE_DIR`` doit alors désigner E5).
+    opérateur : ``RAG_EMBEDDING_MODEL_CACHE_DIR`` et
+    ``RAG_EMBEDDING_MODEL_INVENTORY_SHA256`` désignent alors E5, vérifié).
 
     Rend les seules itérations qui ont TRAVAILLÉ, dans l'ordre."""
 
     def __init__(self, control: dict[str, str], product_pg: dict[str, str], banc: Any, github: LocalGitHub,
-                 jeton: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+                 jeton: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, modele: ModeleDuBanc) -> None:
         self.control, self.product_pg, self.banc = control, product_pg, banc
         self.github, self.jeton, self.tmp_path, self.monkeypatch = github, jeton, tmp_path, monkeypatch
-        self.cli = os.environ.get("NEXUS_DH_WORKER_B_CLI") == "1"
+        self.modele = modele
+        # Le mode vient de la SÉLECTION du modèle, jamais d'une relecture de
+        # l'environnement : un inventaire fictif ne peut pas atteindre le CLI.
+        self.cli = modele.mode == "cli"
+        exiger_modele_transmis(modele, modele_e5=banc.modele_e5, inventaire_sha256=banc.e5_inventaire_sha256)
         self.deps = None if self.cli else _deps_worker_b(banc, product_pg)
 
     def iterer(self, fois: int) -> list[Any]:
         if not self.cli:
             with _Forge(self.github, self.jeton, self.monkeypatch):
                 return [issue for issue in _iterer_worker_b(self.control, self.deps, fois) if issue.worked]
+        exiger_modele_transmis(
+            self.modele, modele_e5=self.banc.modele_e5, inventaire_sha256=self.banc.e5_inventaire_sha256,
+            arguments=banc_batch._arguments_de_worker_b(self.banc, iterations=fois),
+        )
         sortie = banc_batch._lancer_worker_b(
             self.control, self.product_pg, banc=self.banc, github=self.github, jeton=self.jeton,
             tmp_path=self.tmp_path, iterations=fois,
@@ -343,7 +344,7 @@ def _simuler_delai_ecoule(control: dict[str, str], job_id: object) -> None:
 
 
 def test_recuperation_de_bout_en_bout(
-    inventaire_de_banc: Path,
+    modele_de_banc: ModeleDuBanc,
     control_parcours: dict[str, str],
     product_pg: dict[str, str],
     tmp_path: Path,
@@ -364,7 +365,7 @@ def test_recuperation_de_bout_en_bout(
     env_app = {"PG_INGESTION_CONTROL_DSN": app_dsn(control)}
 
     # ── 1. Refus RÉEL de Worker B : sa vraie itération, sur la PR fermée ──
-    worker_b = _WorkerB(control, product_pg, banc, github, jeton, tmp_path, monkeypatch)
+    worker_b = _WorkerB(control, product_pg, banc, github, jeton, tmp_path, monkeypatch, modele_de_banc)
     issues = worker_b.iterer(4)
     assert [issue.status for issue in issues] == ["retried"] * 4, issues
     assert all("reason=pull_request_not_open" in (issue.error or "") for issue in issues), issues
@@ -578,7 +579,7 @@ def test_recuperation_de_bout_en_bout(
 
 @pytest.fixture(scope="module")
 def etat_perime(
-    inventaire_de_banc: Path, control_perime: dict[str, str], tmp_path_factory: pytest.TempPathFactory
+    modele_de_banc: ModeleDuBanc, control_perime: dict[str, str], tmp_path_factory: pytest.TempPathFactory
 ) -> dict[str, Any]:
     tmp = tmp_path_factory.mktemp("dh-perime")
     github, jeton = LocalGitHub(), tmp / "github-token"
