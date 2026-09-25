@@ -309,7 +309,12 @@ def test_recuperation_de_bout_en_bout(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from ingestor.ingestion_control.jobs import JobLeaseConflictError, claim_job, complete_job, record_job_retry
+    from ingestor.ingestion_control.jobs import (
+        JobLeaseConflictError,
+        claim_job,
+        complete_job,
+        record_job_retry,
+    )
 
     control = control_parcours
     github, jeton = LocalGitHub(), tmp_path / "github-token"
