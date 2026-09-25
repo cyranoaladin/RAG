@@ -311,6 +311,77 @@ Correctif (code de banc uniquement, aucun code de production) :
   erreur (`ModeleDuBancRefuse: mode CLI : RAG_EMBEDDING_MODEL_CACHE_DIR
   absent`), sans skip ni repli.
 
+## 6 ter. Défaut du banc DH corrigé : préparation temporelle non déterministe
+
+**Relevé de l'opérateur, pas une exécution cloud.** Au commit `abec4e39`, sur
+la machine de l'opérateur, avec le vrai CLI Worker B et l'artefact E5
+d'inventaire `58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6`
+(`NEXUS_DH_WORKER_B_CLI=1`) :
+- résultat : 24 tests, 23 réussis, 1 échec ;
+- échec : `test_recuperation_de_bout_en_bout`, à la ligne 386 ;
+- job attendu : `0c8ce441-32db-417d-9557-76ad9868a372` ; job repris :
+  `2b931a1a-eea9-4e53-b131-f9461ec3ef45` ;
+- le statut `retried` et le motif `reason=pull_request_not_open` étaient
+  corrects.
+
+Les journaux de cet essai sont restés sur la machine de l'opérateur ; ils
+n'ont pas été lus depuis le cloud.
+
+**Cause, confirmée dans le code et reproduite sur PostgreSQL dans la VM.**
+- `_simuler_delai_ecoule` posait `next_attempt_at = now()` pour le seul job visé.
+- `claim_job` sert d'abord l'échéance la plus ancienne
+  (`ORDER BY next_attempt_at, job_id`) : rendre un job éligible ne lui donne
+  aucune priorité.
+- Avec le CLI E5, le démarrage de Worker B laisse s'écouler le backoff de 10 s
+  des autres jobs refusés. Ils redeviennent éligibles avec une échéance
+  antérieure et sont réclamés avant la cible.
+- Même fragilité pour le bail : 2 s de bail puis `sleep(2.5)`, ce qui supposait
+  que plusieurs sous-processus finissent en moins de 2 s.
+
+**Correctif, dans le banc uniquement.** L'ordonnanceur, les protections de
+bail, LOT42, les droits, les migrations et les artefacts scellés sont
+inchangés.
+- `_rendre_prioritaire` : **préparation de test**. Le banc écrit uniquement
+  `next_attempt_at`, fixée strictement avant toutes les autres échéances. La
+  priorité est ensuite **constatée** (`_ordre_de_reclamation`, même prédicat et
+  même tri que `claim_job`), puis c'est Worker B qui réclame, refuse et compte
+  la tentative.
+- Le bail du worker interrompu dure 3 600 s : il reste actif quelle que soit la
+  durée des sous-processus. Il n'échoit que par `_faire_echoir_le_bail`,
+  **préparation de test** qui n'écrit que `lease_expires_at`. Son état est
+  constaté avant et après.
+- Assertions conservées, et renforcées :
+  - identité exacte du job traité à chaque tour ;
+  - motif `pull_request_not_open` ;
+  - compteurs lus en base : 1 → 2 → 3, `queued` puis `dead_letter` ;
+  - les trois autres jobs inchangés ;
+  - quatre jobs distincts après les quatre premières itérations.
+
+  Aucun statut ni compteur n'est écrit par le banc.
+- Nouvelle contre-épreuve `test_l_ordonnanceur_sert_l_echeance_la_plus_ancienne_pas_le_job_rendu_eligible`,
+  exécutée par le vrai `claim_job` dans des transactions annulées :
+  - ancien geste : la cible rendue éligible passe après trois jobs aux
+    échéances antérieures, et `claim_job` réclame `autre3` ;
+  - correctif : la cible est réclamée ;
+  - le bail reste actif au-delà de 2,5 s, puis échoit par préparation
+    explicite.
+
+  Identités, statuts, `next_attempt_at`, compteurs et détenteurs sont relevés
+  à chaque étape (visibles avec `-s`).
+
+**Résultats cloud, mode DEBUG, PostgreSQL réel** — ce n'est pas une
+qualification E5 :
+- banc DH : **25/25**, contre-épreuve comprise, sans skip ni xfail ;
+- sélection du modèle : **16/16**.
+
+**Constat séparé, non corrigé ici.** `RequestsDependencyWarning` (requests /
+urllib3 / chardet / charset_normalizer) apparaît aussi dans la VM. Il résulte
+des versions épinglées par `requirements.lock` (`requests==2.32.3`,
+`urllib3==2.7.0`, `chardet==7.4.3`, `charset-normalizer==3.4.7`), antérieures
+à DH. Il n'est ni masqué ni corrigé par une mise à jour générale.
+`requirements.lock`, les autres déclarations de dépendances et les paquets
+locaux sont **inchangés** : aucune réinstallation n'est nécessaire.
+
 ## 7. Limites réelles
 
 - Push : d'abord refusé (403), puis rendu possible par le rattachement natif

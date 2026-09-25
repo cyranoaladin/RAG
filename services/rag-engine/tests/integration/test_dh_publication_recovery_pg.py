@@ -330,14 +330,80 @@ class _Forge:
         self._serveur.__exit__(*exc)
 
 
-def _simuler_delai_ecoule(control: dict[str, str], job_id: object) -> None:
-    """Simule l'écoulement du délai de reprise d'UN job (``next_attempt_at``).
+# ── préparation temporelle du banc ─────────────────────────────────────────
+#
+# Les seules écritures directes du banc sur ``jobs`` portent sur des DATES, et
+# rien d'autre : ``next_attempt_at`` (le délai de reprise est réputé écoulé) et
+# ``lease_expires_at`` (le bail est réputé échu). Statut, jeton, détenteur et
+# compteurs ne sont jamais écrits par le banc : ils ne changent que par les
+# vraies primitives (``claim_job``, ``record_job_retry``, Worker B, outil DH).
+# L'ordonnanceur de production n'est pas modifié.
 
-    Seul le temps est simulé : ni statut, ni bail, ni compteur ne sont touchés.
-    Sans cela, le banc devrait dormir le temps du backoff réel (10 s, 20 s)."""
+REQUETE_ORDRE_DE_RECLAMATION = """
+SELECT job_id FROM ingestion_control.jobs
+ WHERE status = 'queued' AND job_type = 'publication_resume'
+   AND next_attempt_at <= now()
+   AND (lease_token IS NULL OR lease_expires_at < now())
+ ORDER BY next_attempt_at, job_id
+"""
+
+
+def _ordre_de_reclamation(conn: psycopg.Connection) -> list[uuid.UUID]:
+    """OBSERVATION : l'ordre dans lequel ``claim_job`` servirait les jobs
+    éligibles (même prédicat, même tri). Le choix reste fait par ``claim_job``."""
+    return [ligne[0] for ligne in conn.execute(REQUETE_ORDRE_DE_RECLAMATION).fetchall()]
+
+
+def _releve_des_jobs(conn: psycopg.Connection) -> dict[uuid.UUID, tuple[Any, ...]]:
+    """Identité -> (statut, tentatives, next_attempt_at, bail actif, détenteur)."""
+    lignes = conn.execute(
+        "SELECT job_id, status, attempt_count, next_attempt_at,"
+        "       COALESCE(lease_expires_at > clock_timestamp(), false), claimed_by"
+        "  FROM ingestion_control.jobs ORDER BY next_attempt_at, job_id"
+    ).fetchall()
+    return {ligne[0]: tuple(ligne[1:]) for ligne in lignes}
+
+
+def _rendre_prioritaire(conn: psycopg.Connection, job_id: object) -> None:
+    """PRÉPARATION DE TEST : le délai de reprise de ce job est réputé écoulé,
+    et son échéance devient STRICTEMENT antérieure à toutes les autres.
+
+    Rendre un job seulement éligible (``now()``) ne lui donne aucune priorité :
+    ``claim_job`` sert d'abord l'échéance la plus ancienne, et d'autres jobs
+    peuvent être redevenus éligibles pendant un démarrage lent. Seule la date
+    est écrite ; la priorité est ensuite CONSTATÉE, puis ``claim_job`` choisit."""
+    conn.execute(
+        "UPDATE ingestion_control.jobs SET next_attempt_at ="
+        " (SELECT LEAST(now(), min(next_attempt_at)) FROM ingestion_control.jobs) - interval '1 second'"
+        " WHERE job_id = %s",
+        (job_id,),
+    )
+    ordre = _ordre_de_reclamation(conn)
+    assert ordre and ordre[0] == job_id, (job_id, ordre)
+
+
+def _faire_echoir_le_bail(conn: psycopg.Connection, *, job_id: object, lease_token: object) -> None:
+    """PRÉPARATION DE TEST : le bail est réputé échu. Seule son échéance est
+    écrite ; statut, jeton et détenteur restent ceux du worker interrompu."""
+    ligne = conn.execute(
+        "UPDATE ingestion_control.jobs SET lease_expires_at = clock_timestamp() - interval '1 second'"
+        " WHERE job_id = %s AND lease_token = %s AND status = 'running' RETURNING job_id",
+        (job_id, lease_token),
+    ).fetchone()
+    assert ligne is not None, "le bail à faire échoir n'est plus détenu"
+
+
+def _preparer(control: dict[str, str], geste: Any, **kwargs: Any) -> None:
     with psycopg.connect(superuser_dsn(control)) as conn:
-        conn.execute("UPDATE ingestion_control.jobs SET next_attempt_at = now() WHERE job_id = %s", (job_id,))
+        geste(conn, **kwargs)
         conn.commit()
+
+
+def _releve(control: dict[str, str]) -> dict[uuid.UUID, tuple[Any, ...]]:
+    with psycopg.connect(superuser_dsn(control)) as conn:
+        releve = _releve_des_jobs(conn)
+        conn.rollback()
+    return releve
 
 
 # ── le parcours complet ────────────────────────────────────────────────────
@@ -378,17 +444,32 @@ def test_recuperation_de_bout_en_bout(
         conn.rollback()
     assert actives == 4
 
-    # Un job épuise ses tentatives (dead_letter) ; un autre est réclamé par un
-    # worker qui s'arrête ensuite en gardant son bail (2 s).
-    for _ in range(2):
-        _simuler_delai_ecoule(control, jobs[0])
+    # Quatre itérations, quatre jobs DISTINCTS, une tentative chacun : constaté.
+    releve = _releve(control)
+    assert len(set(jobs)) == 4 and set(jobs) == set(releve), (jobs, releve)
+    assert {job: releve[job][:2] for job in jobs} == {job: ("queued", 1) for job in jobs}, releve
+
+    # Un job épuise RÉELLEMENT ses tentatives (dead_letter) : à chaque tour, son
+    # délai de reprise est réputé écoulé et sa priorité constatée ; c'est
+    # ensuite Worker B qui le réclame, le refuse et compte la tentative.
+    for tentatives, statut in ((2, "queued"), (3, "dead_letter")):
+        _preparer(control, _rendre_prioritaire, job_id=jobs[0])
         (issue,) = worker_b.iterer(1)
         assert issue.job_id == jobs[0] and issue.status == "retried", issue
-    _simuler_delai_ecoule(control, jobs[1])
+        assert "reason=pull_request_not_open" in (issue.error or ""), issue
+        releve = _releve(control)
+        assert releve[jobs[0]][:2] == (statut, tentatives), releve[jobs[0]]
+        assert {job: releve[job][:2] for job in jobs[1:]} == {job: ("queued", 1) for job in jobs[1:]}, releve
+
+    # Un autre est réclamé par un worker qui s'arrête ensuite en gardant son
+    # bail. Le bail est LONG : il reste actif quelle que soit la durée des
+    # sous-processus qui suivent, et son état est constaté, jamais supposé.
+    _preparer(control, _rendre_prioritaire, job_id=jobs[1])
     with psycopg.connect(app_dsn(control)) as conn:
-        bail = claim_job(conn, owner="worker-b-interrompu", job_types=("publication_resume",), lease_duration_s=2)
+        bail = claim_job(conn, owner="worker-b-interrompu", job_types=("publication_resume",), lease_duration_s=3600)
         conn.commit()
     assert bail is not None and bail.job_id == jobs[1]
+    assert _releve(control)[jobs[1]][0::3] == ("running", True), _releve(control)[jobs[1]]
 
     # ── 2. Aperçu : bail ACTIF -> refus nommé, et rien d'écrit ──
     avant = _etat_du_controle(control)
@@ -425,7 +506,9 @@ def test_recuperation_de_bout_en_bout(
     assert _etat_du_controle(control) == avant
 
     # ── 4. Le bail EXPIRE (sans être libéré) : annulation, pas confusion ──
-    time.sleep(2.5)
+    assert _releve(control)[jobs[1]][3] is True, "le bail devait être encore actif jusqu'ici"
+    _preparer(control, _faire_echoir_le_bail, job_id=bail.job_id, lease_token=bail.lease_token)
+    assert _releve(control)[jobs[1]][0::3] == ("running", False), _releve(control)[jobs[1]]
     vue = _outil(racine, identite, ["preview"], env_app)
     assert vue.returncode == 0, vue.stdout + vue.stderr
     rendu = json.loads(vue.stdout[: vue.stdout.rindex("}") + 1])
@@ -739,5 +822,71 @@ def test_une_interruption_au_milieu_d_une_operation_ne_valide_rien(
     with psycopg.connect(app_dsn(control)) as conn:
         with pytest.raises(dh.RecuperationRefusee, match="attestation_set_sha256"):
             dh.annuler_jobs_perimes(conn, revue, attestation_set="0" * 64, job_set=vue.job_set_sha256)
+        conn.rollback()
+    assert _etat_du_controle(control) == avant
+
+
+def _afficher(titre: str, conn: psycopg.Connection, noms: dict[uuid.UUID, str]) -> None:
+    print(f"-- {titre}")
+    for job, (statut, tentatives, echeance, actif, detenteur) in _releve_des_jobs(conn).items():
+        print(f"   {noms.get(job, '?'):7} {job} {statut:9} tentatives={tentatives} "
+              f"next_attempt_at={echeance.isoformat()} bail_actif={actif} detenteur={detenteur}")
+
+
+def test_l_ordonnanceur_sert_l_echeance_la_plus_ancienne_pas_le_job_rendu_eligible(
+    etat_perime: dict[str, Any],
+) -> None:
+    """Contre-épreuve du relevé opérateur (``abec4e39``, CLI + E5) : le banc
+    attendait le job qu'il venait de rendre éligible, Worker B en a réclamé un
+    autre. Reproduit par le VRAI ``claim_job``, sans modèle, dans des
+    transactions annulées : l'état partagé n'est pas modifié."""
+    from ingestor.ingestion_control.jobs import claim_job
+
+    control = etat_perime["control"]
+    avant = _etat_du_controle(control)
+    with psycopg.connect(superuser_dsn(control)) as conn:
+        jobs = [ligne[0] for ligne in conn.execute(
+            "SELECT job_id FROM ingestion_control.jobs ORDER BY job_id").fetchall()]
+        conn.rollback()
+    assert len(jobs) == 4
+    cible, autres = jobs[-1], jobs[:-1]
+    noms = {cible: "cible", **{job: f"autre{i}" for i, job in enumerate(autres, 1)}}
+
+    def situation_lente(conn: psycopg.Connection) -> None:
+        # Pendant un démarrage lent, les délais de reprise des AUTRES jobs se
+        # sont écoulés : ils sont éligibles, avec des échéances ANTÉRIEURES.
+        for job, retard in zip(autres, ("5 minutes", "2 hours", "3 days"), strict=True):
+            conn.execute("UPDATE ingestion_control.jobs SET next_attempt_at = now() - %s::interval"
+                         " WHERE job_id = %s", (retard, job))
+
+    # 1. Le défaut : l'ancien geste du banc (``next_attempt_at = now()``).
+    with psycopg.connect(superuser_dsn(control)) as conn:
+        situation_lente(conn)
+        conn.execute("UPDATE ingestion_control.jobs SET next_attempt_at = now() WHERE job_id = %s", (cible,))
+        _afficher("ancien geste : cible seulement rendue éligible", conn, noms)
+        ordre = _ordre_de_reclamation(conn)
+        reclame = claim_job(conn, owner="contre-epreuve", job_types=("publication_resume",))
+        print(f"   ordre={[noms[j] for j in ordre]} reclame={noms[reclame.job_id]}")
+        assert cible in ordre and ordre[0] != cible
+        assert reclame is not None and reclame.job_id != cible and reclame.job_id == ordre[0]
+        conn.rollback()
+
+    # 2. Le correctif : la priorité de la cible est établie ET constatée.
+    with psycopg.connect(superuser_dsn(control)) as conn:
+        situation_lente(conn)
+        _rendre_prioritaire(conn, cible)
+        _afficher("correctif : cible rendue prioritaire", conn, noms)
+        reclame = claim_job(conn, owner="contre-epreuve", job_types=("publication_resume",),
+                            lease_duration_s=3600)
+        assert reclame is not None and reclame.job_id == cible
+        # 3. Le bail ne dépend plus de la vitesse du banc : au-delà de l'ancien
+        # bail de 2 s, il est toujours actif ; il n'échoit que par préparation
+        # explicite, et cela se constate.
+        time.sleep(2.5)
+        assert _releve_des_jobs(conn)[cible][0::3] == ("running", True)
+        _faire_echoir_le_bail(conn, job_id=cible, lease_token=reclame.lease_token)
+        _afficher("bail échu par préparation", conn, noms)
+        assert _releve_des_jobs(conn)[cible][0::3] == ("running", False)
+        assert cible not in _ordre_de_reclamation(conn)  # running : ni en file, ni rendu à un autre
         conn.rollback()
     assert _etat_du_controle(control) == avant
