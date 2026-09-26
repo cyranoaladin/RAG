@@ -877,7 +877,16 @@ def _chunks_mesures(
 
 
 def _artefact_de_registre(contenu: ContenuDuBanc, *, type_doc: str) -> dict[str, Any]:
-    """Une entrée du catalogue : un chunk par page, pages toutes couvertes."""
+    """Une entrée du catalogue : un chunk par page, pages toutes couvertes.
+
+    L'empreinte scellée d'un chunk est celle du TEXTE que le chunker canonique
+    publie (ADR-0060 : le publisher la recompare, dans l'ordre). Une page du
+    banc est très en deçà du budget de tokens : son chunk est le texte de la
+    page, quel que soit le tokenizer. Une empreinte fabriquée ici rendait toute
+    publication batch du banc impossible (lot DH)."""
+    from ingestor.ingestion_agents.extractor import extract_pdf_pages  # noqa: PLC0415
+
+    pages = extract_pdf_pages(contenu.octets)
     chunks = [
         {
             "chunk_id": hashlib.sha256(
@@ -885,7 +894,7 @@ def _artefact_de_registre(contenu: ContenuDuBanc, *, type_doc: str) -> dict[str,
             ).hexdigest(),
             "chunk_index": index,
             "chunk_sha256": hashlib.sha256(
-                f"texte:{contenu.content_sha256}:{index}".encode()
+                pages[index].replace("\x00", "").strip().encode("utf-8")
             ).hexdigest(),
             "page_start": index + 1,
             "page_end": index + 1,

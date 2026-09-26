@@ -1,0 +1,21 @@
+{
+  "database": "ragdb_profile_gate_v4",
+  "expected": {
+    "attestations": 479,
+    "collections": 11,
+    "publication_jobs": 479,
+    "resources": 479,
+    "unique_contents": 315
+  },
+  "head_sha": "85f9000115df34cab3060a52de6594bebe24c73c",
+  "head_source": "refs/pull/257/head relevé par git ls-remote (session cloud DH) ; le pré-vol DH reconstate la tête portée par les attestations et refuse tout écart",
+  "kind": "NEXUS-STAGING-V4-STALE-PUBLICATION-REVIEW-V1",
+  "legacy_database": "ragdb",
+  "lot": "DH",
+  "merge_commit": "5c69c0416c554b9fc1fecf0554cbef6327dd2d6b",
+  "pull_request": 257,
+  "repository": "cyranoaladin/RAG",
+  "review_artifact_path": "governance/publication-reviews/lot42-release-batch-v4-staging-20260924-19ba49a2b56b3075b0f26ac75998cadcc696dab44864e6940d4f004c862279b9.json",
+  "review_artifact_sha256": "19ba49a2b56b3075b0f26ac75998cadcc696dab44864e6940d4f004c862279b9",
+  "why_stale": "la PR de revue #257 a été fusionnée avant l'usage des attestations ; Worker B les refuse (human_review is no longer approved, reason=pull_request_not_open), comme ADR-0033 § 5 le prescrit"
+}
