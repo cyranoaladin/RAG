@@ -309,9 +309,32 @@ Recommandation : **B**, sous réserve. Son périmètre suffit à la seule cause
 revue humaine à 74 attestations. Le choix reste humain : il fixe la lignée de
 release servie par collection.
 
-## 9. Qualification
+## 9. Qualification (session cloud, code au commit `653ef792`)
 
-Résultats consignés dans la PR, au HEAD final.
+Le commit suivant ne modifie que ce rapport.
+
+| Suite | Environnement | Résultat |
+|---|---|---|
+| `services/rag-engine` unitaires (`-m "not integration"`) | venv du service, `PYTHONPATH=src` | **4205 tests, 0 échec**, 16 ignorés |
+| `ruff check .` + `mypy src` (rag-engine) | idem | propres (149 fichiers) |
+| `scripts/qualification/tests` | environnement du job CI | **772 tests, 0 échec**, 4 ignorés (préexistants) |
+| Ciblés DI + DH (PostgreSQL jetable, Docker) | `NEXUS_DH_RECOVERY_PG=1 NEXUS_DI_RECOVERY_PG=1` | **80 tests, 0 échec** : DH 25, DI 1 (parcours), transport GitHub 25 (dont 10 de limitation), Worker B 18, gouvernance des sujets 11 |
+| `scripts/tests` | environnement du job CI | 552 tests, **4 échecs préexistants** (`test_go_live_readiness`, `disk_policy_ok` : dépendent de l'espace disque du conteneur ; identiques sur `0cb6dde7`) |
+| Contrôles du dépôt (`check-repository-hygiene`, `check-authority-uniqueness`, topologie CI) | local | verts |
+| `scripts/check-governance-locks.sh` | local | OK, 18 clés conformes |
+
+Contre-épreuves de mutation du parcours PostgreSQL DI :
+
+- sans le report sur limitation, l'épreuve C échoue (`retried` au lieu de
+  `rate_limited`) ;
+- sans le filtre de collections, les épreuves E/F échouent (des jobs exclus
+  sont réclamés).
+
+Non exécuté ici :
+
+- le CLI Worker B sur E5 réel (poste opérateur) ;
+- l'orchestrateur sur l'hôte ;
+- la construction de l'image.
 
 ## 10. Risques résiduels
 
