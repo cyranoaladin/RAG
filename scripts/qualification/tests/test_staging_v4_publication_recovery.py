@@ -106,11 +106,36 @@ def test_l_outil_n_importe_que_des_primitives_deja_dans_l_image():
     }, imports
 
 
-# ── autorisation DH : proposée, jamais active ici ──────────────────────────
+# ── autorisation DH : trois états du protocole, construits hermétiquement ─
+#
+# Ces épreuves ne lisent PAS l'état d'activation du dépôt pour décider de leur
+# issue. Chaque état est reconstitué dans une racine temporaire, et
+# ``origin/main`` y est simulé par substitution contrôlée de ``_git`` :
+#   1. pré-activation      : proposition seule, rien de canonique ;
+#   2. PR d'activation     : canonique dans l'arbre, absent d'origin/main ;
+#   3. post-fusion         : canonique dans l'arbre ET, octet pour octet, sur
+#                            origin/main.
 
 
-def _proposition() -> dict:
-    return json.loads((RACINE / autorisation.PROPOSITION_DH).read_text())
+def _document_candidat() -> dict:
+    """L'autorisation DH attendue, construite de façon DÉTERMINISTE depuis le
+    gabarit gouverné, les empreintes des fichiers liés et les images de la V4."""
+    v4 = json.loads((RACINE / autorisation.AUTORISATION_V4).read_text())
+    return {
+        **copy.deepcopy(autorisation.GABARIT_DH),
+        "extends": {"path": autorisation.AUTORISATION, "sha256": _sha(autorisation.AUTORISATION)},
+        "extends_v4": {"path": autorisation.AUTORISATION_V4, "sha256": _sha(autorisation.AUTORISATION_V4)},
+        "execution_plan": {"path": autorisation.PLAN_DH, "sha256": _sha(autorisation.PLAN_DH)},
+        "stale_review_identity": {
+            "path": autorisation.IDENTITE_PERIMEE_DH, "sha256": _sha(autorisation.IDENTITE_PERIMEE_DH),
+        },
+        "runtime_image": v4["runtime_image"],
+        "probe_image": v4["probe_image"],
+    }
+
+
+def _octets(document: dict) -> bytes:
+    return (json.dumps(document, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
 def _evaluer(document: dict) -> list[str]:
@@ -124,18 +149,103 @@ def _evaluer(document: dict) -> list[str]:
     )
 
 
-def test_la_proposition_est_conforme_mais_n_est_pas_l_autorisation():
-    assert _evaluer(_proposition()) == []
-    # La PR DH ne vaut pas autorisation : le chemin canonique n'existe pas.
-    assert not (RACINE / autorisation.AUTORISATION_DH).exists()
+def test_le_document_candidat_est_conforme():
+    assert _evaluer(_document_candidat()) == []
 
 
-@pytest.mark.parametrize("operation", sorted(autorisation.OPERATIONS_DH))
-def test_aucune_operation_dh_n_est_autorisee_sans_la_pr_d_activation(operation):
-    ecarts = autorisation.verifier_operation_dh(
-        RACINE, operation, copy.deepcopy(autorisation.OPERATIONS_DH[operation]["cible"])
-    )
-    assert any("aucune autorisation DH" in e for e in ecarts), ecarts
+def test_le_depot_porte_exactement_le_document_candidat_a_un_seul_emplacement():
+    """Proposition OU canonique — jamais les deux, jamais aucun — et, où qu'il
+    soit, octet pour octet le document candidat : un déplacement ne le modifie pas."""
+    presents = [chemin for chemin in (autorisation.PROPOSITION_DH, autorisation.AUTORISATION_DH)
+                if (RACINE / chemin).is_file()]
+    assert len(presents) == 1, presents
+    assert (RACINE / presents[0]).read_bytes() == _octets(_document_candidat())
+
+
+def _fichiers_lies() -> list[str]:
+    base = json.loads((RACINE / autorisation.AUTORISATION).read_text())
+    return [
+        autorisation.AUTORISATION, base["execution_plan"]["path"], autorisation.AUTORISATION_V4,
+        autorisation.PLAN_DH, autorisation.IDENTITE_PERIMEE_DH,
+    ]
+
+
+def _etat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, arbre: str, sur_main: str | None) -> Path:
+    """Racine temporaire : fichiers liés copiés, document candidat posé à
+    ``arbre`` ; ``origin/main`` simulé = mêmes fichiers liés, et le document
+    candidat à ``sur_main`` (ou nulle part)."""
+    racine = tmp_path / "depot"
+    principal: dict[str, str] = {}
+    for relatif in _fichiers_lies():
+        (racine / relatif).parent.mkdir(parents=True, exist_ok=True)
+        (racine / relatif).write_bytes((RACINE / relatif).read_bytes())
+        principal[relatif] = (RACINE / relatif).read_text(encoding="utf-8")
+    octets = _octets(_document_candidat())
+    (racine / arbre).parent.mkdir(parents=True, exist_ok=True)
+    (racine / arbre).write_bytes(octets)
+    if sur_main is not None:
+        principal[sur_main] = octets.decode("utf-8")
+
+    def git_simule(depot: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        assert depot == racine, depot
+        if args[:1] == ("fetch",):
+            return subprocess.CompletedProcess(list(args), 0, "", "")
+        assert args[0] == "show" and args[1].startswith("origin/main:"), args
+        contenu = principal.get(args[1].removeprefix("origin/main:"))
+        if contenu is None:
+            return subprocess.CompletedProcess(list(args), 128, "", "fatal: path does not exist")
+        return subprocess.CompletedProcess(list(args), 0, contenu, "")
+
+    monkeypatch.setattr(autorisation, "_git", git_simule)
+    return racine
+
+
+def _cible(operation: str) -> dict:
+    return copy.deepcopy(autorisation.OPERATIONS_DH[operation]["cible"])
+
+
+@pytest.mark.parametrize("operation", autorisation.ORDRE_DH)
+def test_1_pre_activation_toute_operation_dh_est_refusee(tmp_path, monkeypatch, operation):
+    racine = _etat(tmp_path, monkeypatch, arbre=autorisation.PROPOSITION_DH,
+                   sur_main=autorisation.PROPOSITION_DH)
+    assert not (racine / autorisation.AUTORISATION_DH).exists()
+    ecarts = autorisation.verifier_operation_dh(racine, operation, _cible(operation))
+    assert ecarts and all("aucune autorisation DH" in e for e in ecarts), ecarts
+
+
+@pytest.mark.parametrize("operation", autorisation.ORDRE_DH)
+def test_2_pr_d_activation_non_fusionnee_toute_operation_dh_reste_refusee(tmp_path, monkeypatch, operation):
+    racine = _etat(tmp_path, monkeypatch, arbre=autorisation.AUTORISATION_DH, sur_main=None)
+    ecarts = autorisation.verifier_operation_dh(racine, operation, _cible(operation))
+    assert ecarts == [
+        f"{autorisation.AUTORISATION_DH} n'est pas (ou pas à l'identique) sur origin/main"
+    ], ecarts
+
+
+@pytest.mark.parametrize("operation", autorisation.ORDRE_DH)
+def test_3_post_fusion_chaque_operation_dh_sur_sa_cible_canonique_est_autorisee(tmp_path, monkeypatch, operation):
+    racine = _etat(tmp_path, monkeypatch, arbre=autorisation.AUTORISATION_DH,
+                   sur_main=autorisation.AUTORISATION_DH)
+    document = json.loads((racine / autorisation.AUTORISATION_DH).read_text())
+    assert _evaluer(document) == []
+    assert autorisation.verifier_operation_dh(racine, operation, _cible(operation)) == []
+
+
+@pytest.mark.parametrize("operation", autorisation.ORDRE_DH)
+def test_3_post_fusion_une_cible_falsifiee_reste_refusee(tmp_path, monkeypatch, operation):
+    racine = _etat(tmp_path, monkeypatch, arbre=autorisation.AUTORISATION_DH,
+                   sur_main=autorisation.AUTORISATION_DH)
+    ecarts = autorisation.verifier_operation_dh(racine, operation, {**_cible(operation), "database": "ragdb"})
+    assert ecarts == [f"{operation} : database = 'ragdb', autorisé 'ragdb_profile_gate_v4'"], ecarts
+
+
+def test_3_post_fusion_des_octets_differents_sur_main_sont_refuses(tmp_path, monkeypatch):
+    """Canonique présent partout, mais origin/main ne porte pas les MÊMES octets."""
+    racine = _etat(tmp_path, monkeypatch, arbre=autorisation.AUTORISATION_DH,
+                   sur_main=autorisation.AUTORISATION_DH)
+    (racine / autorisation.AUTORISATION_DH).write_bytes(_octets(_document_candidat()) + b" ")
+    ecarts = autorisation.verifier_operation_dh(racine, "recovery_preflight", _cible("recovery_preflight"))
+    assert f"{autorisation.AUTORISATION_DH} n'est pas (ou pas à l'identique) sur origin/main" in ecarts
 
 
 @pytest.mark.parametrize("alteration,motif", [
@@ -150,8 +260,8 @@ def test_aucune_operation_dh_n_est_autorisee_sans_la_pr_d_activation(operation):
     (lambda d: d["review_lifecycle"].update(merge_or_close="automatique"), "review_lifecycle"),
     (lambda d: d.update(authorization_statement="tout"), "mention manquante"),
 ])
-def test_une_proposition_alteree_est_refusee(alteration, motif):
-    document = _proposition()
+def test_une_autorisation_alteree_est_refusee(alteration, motif):
+    document = _document_candidat()
     alteration(document)
     assert any(motif in e for e in _evaluer(document)), _evaluer(document)
 
