@@ -315,7 +315,7 @@ Recommandation : **B**, sous réserve. Son périmètre suffit à la seule cause
 revue humaine à 74 attestations. Le choix reste humain : il fixe la lignée de
 release servie par collection.
 
-## 9. Qualification (session cloud, code au commit `653ef792`)
+## 9. Qualification (session cloud, code au commit `400166f069218e753a89eb4a0eb2e230e9391f42`)
 
 Le commit suivant ne modifie que ce rapport.
 
@@ -323,8 +323,9 @@ Le commit suivant ne modifie que ce rapport.
 |---|---|---|
 | `services/rag-engine` unitaires (`-m "not integration"`) | venv du service, `PYTHONPATH=src` | **4205 tests, 0 échec**, 16 ignorés |
 | `ruff check .` + `mypy src` (rag-engine) | idem | propres (149 fichiers) |
-| `scripts/qualification/tests` | environnement du job CI | **772 tests, 0 échec**, 4 ignorés (préexistants) |
-| Ciblés DI + DH (PostgreSQL jetable, Docker) | `NEXUS_DH_RECOVERY_PG=1 NEXUS_DI_RECOVERY_PG=1` | **80 tests, 0 échec** : DH 25, DI 1 (parcours), transport GitHub 25 (dont 10 de limitation), Worker B 18, gouvernance des sujets 11 |
+| `scripts/qualification/tests` | environnement du job CI | **784 tests, 0 échec**, 4 ignorés (préexistants) ; dont 68 DI |
+| PostgreSQL jetable (Docker), `NEXUS_DH_RECOVERY_PG=1 NEXUS_DI_RECOVERY_PG=1` | DH + DI | **26 tests, 0 échec** (DH 25, DI 1 parcours) |
+| Ciblés rag-engine DI | unitaires | transport GitHub 25 (dont 10 de limitation), Worker B 20, gouvernance des sujets 11 : verts |
 | `scripts/tests` | environnement du job CI | 552 tests, **4 échecs préexistants** (`test_go_live_readiness`, `disk_policy_ok` : dépendent de l'espace disque du conteneur ; identiques sur `0cb6dde7`) |
 | Contrôles du dépôt (`check-repository-hygiene`, `check-authority-uniqueness`, topologie CI) | local | verts |
 | `scripts/check-governance-locks.sh` | local | OK, 18 clés conformes |
@@ -338,7 +339,7 @@ Contre-épreuves de mutation du parcours PostgreSQL DI :
 
 Non exécuté ici :
 
-- le CLI Worker B sur E5 réel (poste opérateur) ;
+- le CLI Worker B sur E5 réel, dont les bancs réels V3/V4 (poste opérateur) ;
 - l'orchestrateur sur l'hôte ;
 - la construction de l'image.
 
