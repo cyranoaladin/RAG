@@ -1109,6 +1109,303 @@ def verifier_operation_dh(racine: Path, operation: str, cible: dict) -> list[str
     return ecarts
 
 
+
+# ── DI : reprise PARTIELLE de la publication V4 sous la revue #262 ──────────
+#
+# Worker B (DH) a publié 76 des 479 placements attestés sous #262, puis s'est
+# heurté à deux causes distinctes : une limitation GitHub pendant les
+# revérifications live (390 échecs), et 74 placements HGGSP qu'aucun Worker B
+# ne peut publier sous V4 — le mapping de sujets que V4 scelle ne gouverne pas
+# ``hggsp``. L'autorisation DH n'autorise ni une sélection de collections, ni
+# une autre image : DI est une autorisation DISTINCTE, liée par empreinte à
+# DH, à V4, à l'identité de la reprise partielle et à son plan.
+#
+# Elle ne nomme que les 405 placements des neuf collections gouvernées. Les 74
+# HGGSP ne sont ni réclamés, ni annulés, ni retentés : ils attendent la
+# décision sur la release successeur. La revue #262 reste ouverte.
+#
+# Le correctif (limitation nommée, report sans tentative, sélection de
+# collections, contrôle de démarrage) n'est PAS dans l'image de V4/DH. L'image
+# DI n'existe qu'après fusion, construite par le workflow canonique depuis
+# main : la proposition le déclare ``PENDING_BUILD_FROM_MAIN`` et reste
+# inopérante tant qu'une PR d'activation ne l'a pas épinglée par digest.
+
+AUTORISATION_DI = "docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json"
+PROPOSITION_DI = "docs/reports/go_live/authorizations/proposed/staging_v4_partial_recovery_authorization.json"
+KIND_DI = "NEXUS-STAGING-V4-PARTIAL-RECOVERY-AUTHORIZATION-V1"
+PLAN_DI = "docs/runbooks/staging_v4_partial_recovery_DI_EXECUTION_PLAN.md"
+IDENTITE_DI = "docs/reports/go_live/recovery/di_partial_v4_262.json"
+OUTIL_DI = "scripts/go_live/staging_v4_partial_recovery.py"
+SIGNATURE_DI = "scripts/go_live/sign_staging_v4_di_readiness_manifest.sh"
+IMAGE_EN_ATTENTE = "PENDING_BUILD_FROM_MAIN"
+REVUE_ACTIVE_DI = {
+    "repository": "cyranoaladin/RAG",
+    "pull_request": 262,
+    "head_sha": "079461659b60f8a8ce9458145a199599ad822bbc",
+    "state_required": "ouverte, approuvée au head exact, inchangée, jamais fusionnée ni fermée par ce lot",
+}
+COLLECTIONS_REPRISES_DI = (
+    "rag_nexus_dgemc_terminale_option",
+    "rag_nexus_hlp_premiere_specialite",
+    "rag_nexus_hlp_terminale_specialite",
+    "rag_nexus_nsi_premiere_specialite",
+    "rag_nexus_nsi_terminale_specialite",
+    "rag_nexus_ses_premiere_specialite",
+    "rag_nexus_ses_terminale_specialite",
+    "rag_nexus_svt_premiere_specialite",
+    "rag_nexus_svt_terminale_specialite",
+)
+PERIMETRE_DI = {
+    "claimed_collections": list(COLLECTIONS_REPRISES_DI),
+    "excluded_collections": {
+        "rag_nexus_hggsp_premiere_specialite": "external subject 'hggsp' is not governed",
+        "rag_nexus_hggsp_terminale_specialite": "external subject 'hggsp' is not governed",
+    },
+    "exclusion_rule": (
+        "dérivée des mappings SCELLÉS de V4 (ungoverned_release_collections), jamais choisie à la "
+        "main ; Worker B refuse de démarrer sur une collection exclue"
+    ),
+    "excluded_jobs": "ni réclamés, ni annulés, ni retentés, ni reportés : empreinte exacte avant/après",
+    "expected_product_after": {"collections": 9, "artifacts": 263, "placements": 405, "chunks": 5678},
+}
+#: Mesuré sur le banc DI : 63 GET GitHub par publication (neuf vérifications
+#: live d'ADR-0033 § 7bis, aucune supprimée ; 56 pour un job déjà épinglé).
+#: 76 publications en consomment ~4 800 : le quota primaire de 5 000/h par
+#: utilisateur. 60 s par job = au plus ~3 780 requêtes/heure.
+CADENCE_DI = {
+    "min_job_interval_s": 60,
+    "rate_limit_max_wait_s": 900,
+    "max_consecutive_rate_limits": 3,
+    "on_rate_limit": "job différé SANS tentative consommée ; toute réclamation suspendue ; arrêt 75 au-delà",
+    "live_verification": "inchangée : aucune décision de revue mise en cache (ADR-0033 § 5)",
+}
+MARQUEURS_CORRECTIF_DI = {
+    "services/rag-engine/src/ingestor/ingestion_control/github_authority.py": "class GitHubRateLimitedError",
+    "services/rag-engine/src/ingestor/ingestion_control/jobs.py": "def defer_job_for_external_throttle",
+    "services/rag-engine/src/ingestor/ingestion_worker/multilevel_publication_resume_cli.py": (
+        "resolver.require_collections_governed(claim_collections)"
+    ),
+}
+JETON_GITHUB_DI = {
+    **JETON_GITHUB,
+    "created_by": "propriétaire ; le jeton DH existant est réutilisé tel quel, jamais élargi",
+    "consumers": ["partial_preflight", "partial_worker_b_publication"],
+}
+_V4_OUTIL_DI = {**_COMMUNE, "schema": "ingestion_control", "script": OUTIL_DI, "release_id": _V4,
+                "partial_identity": IDENTITE_DI, "control_role": "ingestion_control_app", "mode": "read_only"}
+OPERATIONS_DI: dict[str, dict] = {
+    "partial_readiness_resign": {
+        "cible": {"mode": "local_operator_signing", "script": SIGNATURE_DI, "release_id": _V4,
+                  "worker_image": "runtime_image.reference de l'autorisation DI active"},
+        "limite": "poste du détenteur de la clé ; jamais sur l'hôte ; un seul manifeste, V4, image DI",
+    },
+    "partial_preflight": {
+        "cible": {**_V4_OUTIL_DI, "command": "partial-precondition",
+                  "review_precondition": "review-precondition --pull-request 262 --stage worker-b"},
+        "limite": (
+            "lecture seule : périmètre, exclusions dérivées de l'autorité scellée, empreinte des jobs "
+            "exclus, revue #262 approuvée EN DIRECT au head exact ; aucun Worker B en cours"
+        ),
+    },
+    "partial_worker_b_publication": {
+        "cible": {**_COMMUNE, "schema": "public",
+                  "entrypoint": "ingestor.ingestion_worker.multilevel_publication_resume_cli",
+                  "precondition": "partial_preflight",
+                  "container_name": "nexus-v4-worker-b-di",
+                  "control_role": "ingestion_control_app", "product_role": "rag_publisher", "release_id": _V4,
+                  "authority_mode": "RELEASE_BOUND_STAGING_QUALIFICATION",
+                  "claimed_collections": list(COLLECTIONS_REPRISES_DI),
+                  "min_job_interval_s": CADENCE_DI["min_job_interval_s"],
+                  "rate_limit_max_wait_s": CADENCE_DI["rate_limit_max_wait_s"],
+                  "max_consecutive_rate_limits": CADENCE_DI["max_consecutive_rate_limits"]},
+        "limite": (
+            "Worker B de l'image DI, liste d'autorisation des neuf collections ; aucun privilège "
+            "nouveau ; arrêt 75 sur limitation persistante, sans rien réécrire"
+        ),
+    },
+    "partial_independent_verification": {
+        "cible": {**_COMMUNE, "mode": "read_only", "product_role": "rag_reader", "release_id": _V4,
+                  "probe": "scripts/go_live/staging_retrieval_probe.py",
+                  "expected_product": PERIMETRE_DI["expected_product_after"]},
+        "limite": "9 collections, 263 artefacts, 405 placements, 5678 chunks ; retrieval sous les neuf scopes",
+    },
+    "partial_closure_check": {
+        "cible": {**_V4_OUTIL_DI, "command": "partial-closure-check"},
+        "limite": "constat en lecture ; n'annonce jamais la fermeture de #262 tant que HGGSP attend",
+    },
+}
+ORDRE_DI = tuple(OPERATIONS_DI)
+MENTIONS_DI = (
+    "staging cloisonne uniquement",
+    "base dediee ragdb_profile_gate_v4",
+    "neuf collections gouvernees",
+    "405 placements",
+    "ni reclamation d'un job hggsp",
+    "ni annulation d'un job hggsp",
+    "ni modification sql manuelle d'un job",
+    "ni modification du mapping scelle de v4",
+    "ni nouvelle release",
+    "ni fusion ni fermeture de la revue 262",
+    "ni suppression de ligne",
+    "ni privilege nouveau",
+    "ni elargissement du jeton github",
+    "ni mise en cache d'une revue",
+    "ni build sur nexus-prod",
+    "ni current switch",
+    "ni exposition publique",
+)
+GABARIT_DI: dict = {
+    "kind": KIND_DI,
+    "amends": "DH",
+    "granted_by_pull_request_approval_of": APPROBATEUR,
+    "effective_when": (
+        f"ce document, image DI épinglée par digest, est placé à {AUTORISATION_DI} par une PR "
+        "distincte, approuvée au head exact par le relecteur gouverné, puis fusionnée sur main"
+    ),
+    "consumed": False,
+    "expires_after_use": True,
+    "release": RELEASE_V4,
+    "active_review": REVUE_ACTIVE_DI,
+    "partial_scope": PERIMETRE_DI,
+    "worker_b_pacing": CADENCE_DI,
+    "github_read_token": JETON_GITHUB_DI,
+    "targets": CIBLES_V4,
+    "operations": list(ORDRE_DI),
+    "forbidden": sorted(INTERDITS_REQUIS | {
+        "new_database", "reingestion", "new_release", "successor_release_publication",
+        "row_deletion", "job_reassignment", "hggsp_job_claim", "hggsp_job_cancellation",
+        "excluded_job_modification", "manual_job_sql", "attempt_count_reset", "dead_letter_revival",
+        "v4_subject_mapping_change", "sealed_artifact_change", "applied_migration_change",
+        "review_262_merge_or_close", "automatic_review_merge", "review_verification_caching",
+        "github_permission_widening", "worker_b_privilege_escalation", "role_grant_change",
+        "permission_file_modification", "production_image_rebuild_on_host",
+        "legacy_database_modification", "api_service_switch",
+    }),
+    "authorization_statement": (
+        "L'approbation de la PR d'activation par abenrhouma vaut autorisation, pour le staging "
+        "cloisonne uniquement, de reprendre sur la base dediee ragdb_profile_gate_v4 la publication "
+        "des neuf collections gouvernees de production-profile-gate-2026-2027-v4, soit 405 placements "
+        "attestes sous la revue 262, avec l'image DI epinglee : readiness resignee, preconditions, "
+        "Worker B restreint a ces neuf collections et cadence, verification, controle partiel. Elle "
+        "n'autorise ni reclamation d'un job hggsp, ni annulation d'un job hggsp, ni modification sql "
+        "manuelle d'un job, ni modification du mapping scelle de v4, ni nouvelle release, ni fusion "
+        "ni fermeture de la revue 262, ni suppression de ligne, ni privilege nouveau, ni "
+        "elargissement du jeton github, ni mise en cache d'une revue, ni build sur nexus-prod, ni "
+        "current switch, ni exposition publique."
+    ),
+    "stop_conditions": (
+        "tout ecart de la precondition partielle, toute exclusion non derivee de l'autorite scellee, "
+        "tout job exclu modifie, toute revue 262 non approuvee en direct, tout arret 75 de Worker B "
+        "(limitation persistante), toute variation de ragdb ; arret sans suppression ni reecriture"
+    ),
+    "expected_proof": [
+        "image DI construite depuis main par le workflow canonique, digest et preuve de provenance",
+        "readiness V4 resignee pour l'image DI, verifiee contre l'ancre",
+        "precondition partielle : 479 attestations actives de #262, 405 reprises, 74 exclues, empreinte",
+        "review-precondition --stage worker-b : #262 approuvee en direct au head exact",
+        "Worker B : publications succeeded pour les 329 restants, aucun job HGGSP reclame",
+        "produit : 9 collections, 263 artefacts, 405 placements, 5678 chunks ; retrieval sous 9 scopes",
+        "controle partiel : empreinte des jobs exclus inchangee, review_closure=NOT_SAFE",
+        "closure-check (DH) refuse tant que HGGSP attend : #262 reste ouverte",
+    ],
+    "rollback": {
+        "service": "arret du conteneur Worker B DI ; aucune suppression de volume",
+        "database": "aucune ligne supprimee ni reecrite a la main ; les jobs restent l'historique",
+        "governance_evidence": "jamais supprimee",
+    },
+}
+
+
+def _ecarts_image_di(racine: Path, image: object, *, image_dh: object) -> list[str]:
+    """L'image DI : construite depuis main APRÈS le correctif, jamais celle de DH."""
+    if isinstance(image, dict) and image.get("status") == IMAGE_EN_ATTENTE:
+        return ["DI : runtime_image en attente de construction depuis main — l'autorisation reste inactive"]
+    ecarts = _ecarts_image(image, gabarit=GABARIT_V4["runtime_image"], depot=DEPOT_IMAGE, nom="image worker DI")
+    if not isinstance(image, dict):
+        return ecarts
+    if isinstance(image_dh, dict) and image.get("image_digest") == image_dh.get("image_digest"):
+        ecarts.append("DI : l'image de DH ne contient pas le correctif — une image DI distincte est exigée")
+    commit = image.get("source_commit_sha")
+    if isinstance(commit, str) and len(commit) == 40:
+        for chemin, marqueur in MARQUEURS_CORRECTIF_DI.items():
+            source = _git(racine, "show", f"{commit}:{chemin}")
+            if source.returncode != 0:
+                ecarts.append(f"DI : commit de build {commit} introuvable ou sans {chemin}")
+                break
+            if marqueur not in source.stdout:
+                ecarts.append(f"DI : le commit de build ne porte pas le correctif ({chemin})")
+        if _git(racine, "merge-base", "--is-ancestor", commit, "origin/main").returncode != 0:
+            ecarts.append("DI : le commit de build n'est pas sur origin/main")
+    return ecarts
+
+
+def evaluer_di(
+    racine: Path, document: dict, *, liens: dict[str, str], document_dh: dict | None
+) -> list[str]:
+    """Écarts de l'autorisation de reprise partielle DI. Liste vide = conforme."""
+    ecarts = [
+        f"DI : {cle} ne correspond pas au périmètre gouverné"
+        for cle in (
+            "kind", "amends", "granted_by_pull_request_approval_of", "effective_when", "release",
+            "active_review", "partial_scope", "worker_b_pacing", "github_read_token", "targets",
+            "operations", "stop_conditions", "expected_proof", "rollback",
+        )
+        if document.get(cle) != GABARIT_DI[cle]
+    ]
+    if document.get("consumed") is not False:
+        ecarts.append("DI : autorisation déjà consommée")
+    if document.get("expires_after_use") is not True:
+        ecarts.append("DI : l'autorisation doit être à usage unique")
+    for cle, chemin in (
+        ("extends_dh", AUTORISATION_DH), ("extends_v4", AUTORISATION_V4),
+        ("execution_plan", PLAN_DI), ("partial_identity", IDENTITE_DI),
+    ):
+        lien = document.get(cle) or {}
+        if lien.get("path") != chemin or lien.get("sha256") != liens.get(chemin) or not liens.get(chemin):
+            ecarts.append(f"DI : {cle} non lié à {chemin} (empreinte)")
+    manquants = sorted(set(GABARIT_DI["forbidden"]) - set(document.get("forbidden") or []))
+    if manquants:
+        ecarts.append(f"DI : interdits manquants : {manquants}")
+    declaration = document.get("authorization_statement") or ""
+    ecarts.extend(f"DI : déclaration, mention manquante {m!r}" for m in MENTIONS_DI if m not in declaration)
+    if document_dh is None:
+        ecarts.append("DI : autorisation DH absente — DI ne l'amende que si elle existe")
+    else:
+        if document.get("probe_image") != document_dh.get("probe_image"):
+            ecarts.append("DI : probe_image diffère de celle de DH — aucune reconstruction de la sonde")
+        ecarts.extend(_ecarts_image_di(racine, document.get("runtime_image"),
+                                       image_dh=document_dh.get("runtime_image")))
+    return ecarts
+
+
+def verifier_operation_di(racine: Path, operation: str, cible: dict) -> list[str]:
+    """Contrôle avant une opération DI : base valide, DI fusionnée, conforme, image construite."""
+    if operation not in OPERATIONS_DI:
+        return [f"opération DI inconnue : {operation!r} — rien ne l'autorise"]
+    ecarts = verifier(racine)
+    chemin_di, chemin_dh = racine / AUTORISATION_DI, racine / AUTORISATION_DH
+    if not chemin_di.is_file():
+        return [*ecarts, f"aucune autorisation DI : {AUTORISATION_DI} absent (la proposition n'autorise rien)"]
+    document = json.loads(chemin_di.read_text(encoding="utf-8"))
+    document_dh = json.loads(chemin_dh.read_text(encoding="utf-8")) if chemin_dh.is_file() else None
+    liens = {
+        relatif: hashlib.sha256((racine / relatif).read_bytes()).hexdigest()
+        for relatif in (AUTORISATION_DH, AUTORISATION_V4, PLAN_DI, IDENTITE_DI)
+        if (racine / relatif).is_file()
+    }
+    ecarts += evaluer_di(racine, document, liens=liens, document_dh=document_dh)
+    if operation not in (document.get("operations") or []):
+        ecarts.append(f"{operation!r} n'est pas nommée par l'autorisation DI")
+    attendue = OPERATIONS_DI[operation]["cible"]
+    for cle in sorted(set(attendue) | set(cible)):
+        if cible.get(cle) != attendue.get(cle):
+            ecarts.append(f"{operation} : {cle} = {cible.get(cle)!r}, autorisé {attendue.get(cle)!r}")
+    for relatif in (AUTORISATION_DI, IDENTITE_DI, PLAN_DI):
+        sur_main = _git(racine, "show", f"origin/main:{relatif}")
+        if sur_main.returncode != 0 or sur_main.stdout != (racine / relatif).read_text(encoding="utf-8"):
+            ecarts.append(f"{relatif} n'est pas (ou pas à l'identique) sur origin/main")
+    return ecarts
+
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestration
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--operation", default=None, help="opération de publication V4 à contrôler")
@@ -1119,7 +1416,9 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
         ecarts = verifier(racine)
         print(json.dumps({"ssh_staging_authorized": not ecarts, "ecarts": ecarts}, ensure_ascii=False, indent=2))
         return 1 if ecarts else 0
-    if args.operation in OPERATIONS_DH:
+    if args.operation in OPERATIONS_DI:
+        ecarts = verifier_operation_di(racine, args.operation, json.loads(args.cible))
+    elif args.operation in OPERATIONS_DH:
         ecarts = verifier_operation_dh(racine, args.operation, json.loads(args.cible))
     else:
         ecarts = verifier_operation(racine, args.operation, json.loads(args.cible))

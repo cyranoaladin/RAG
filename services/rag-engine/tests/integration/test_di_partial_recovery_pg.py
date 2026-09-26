@@ -81,6 +81,11 @@ PR, TETE = 7262, hashlib.sha1(b"di-revue-banc").hexdigest()
 REVUE = "di-revue-banc"
 EXCLUE = "rag_nexus_nsi_premiere_specialite"
 PORTEE = "rag_nexus_nsi_terminale_specialite"
+#: GET GitHub d'une publication complète, mesurés sur ce banc (un relecteur
+#: gouverné) : neuf vérifications live d'ADR-0033 § 7bis, aucune supprimée.
+#: La reprise d'un job déjà épinglé saute la promotion : 56.
+APPELS_GITHUB_PAR_PUBLICATION = 63
+APPELS_GITHUB_PAR_REPRISE_EPINGLEE = 56
 LIMITATION = (403, {"Retry-After": "60", "x-ratelimit-remaining": "4210"},
               "You have exceeded a secondary rate limit.")
 
@@ -237,10 +242,20 @@ def test_reprise_partielle_de_bout_en_bout(
     banc_dh._preparer(control, banc_dh._rendre_prioritaire, job_id=echec.job_id)
 
     # ── D/E. reprise : le job épinglé publie, puis le reste du périmètre ──
-    issues = _worker(control, deps, github, jeton, monkeypatch, 4)
-    reussis = [i for i in issues if i.worked]
-    assert [i.status for i in reussis] == ["succeeded", "succeeded"], issues
+    # Une itération à la fois : le coût GitHub de chaque publication est
+    # MESURÉ (il fonde la cadence de l'autorisation DI), jamais supposé.
+    appels_par_publication = []
+    reussis = []
+    for _ in range(2):
+        avant_appels = len(github.request_log)
+        (publie,) = (i for i in _worker(control, deps, github, jeton, monkeypatch, 1) if i.worked)
+        appels_par_publication.append(len(github.request_log) - avant_appels)
+        reussis.append(publie)
+    assert [i.status for i in reussis] == ["succeeded", "succeeded"], reussis
     assert reussis[0].job_id == echec.job_id
+    print(f"DI_GITHUB_GET_PAR_PUBLICATION reprise_epinglee={appels_par_publication[0]} "
+          f"publication_complete={appels_par_publication[1]}")
+    assert appels_par_publication == [APPELS_GITHUB_PAR_REPRISE_EPINGLEE, APPELS_GITHUB_PAR_PUBLICATION]
     repris = _etat_de(control, echec.job_id)
     assert (repris["status"], repris["pins"], repris["promotions"]) == ("succeeded", 1, 2), repris
     apres = banc_batch._compter_dans_le_produit(product_pg, contenus)
