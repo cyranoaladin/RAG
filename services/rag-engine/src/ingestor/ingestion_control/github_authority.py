@@ -98,6 +98,131 @@ class GitHubAuthorityTimeoutError(GitHubAuthorityError):
     (item J), jamais une attente indéfinie."""
 
 
+class GitHubRateLimitedError(GitHubAuthorityError):
+    """GitHub a limité le débit (lot DI) — refus, jamais une approbation.
+
+    Sous-classe de ``GitHubAuthorityError`` : tout appelant existant, qui ne
+    connaît que la classe mère, continue d'échouer fermé exactement comme
+    avant. Seul un appelant qui sait RALENTIR (Worker B) lit en plus le délai
+    d'attente. Aucune attente n'a lieu ici : dormir dans la vérification
+    tiendrait le bail du job et les verrous de la migration 010.
+
+    ``retry_after_s`` est le délai minimal avant tout nouvel appel, dérivé
+    des seuls en-têtes documentés par GitHub (``Retry-After``, sinon
+    ``x-ratelimit-reset`` quand ``x-ratelimit-remaining`` vaut 0), ou
+    ``None`` si GitHub n'en donne aucun (l'appelant applique alors son
+    propre plancher)."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: str,
+        retry_after_s: float | None,
+        diagnostics: GitHubResponseDiagnostics,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.retry_after_s = retry_after_s
+        self.diagnostics = diagnostics
+
+
+#: En-têtes de limitation documentés par GitHub. Aucun autre en-tête n'est
+#: jamais recopié dans un diagnostic : ceux de la REQUÊTE (dont
+#: ``Authorization``) n'y figurent donc jamais.
+_DIAGNOSTIC_HEADERS = (
+    "retry-after",
+    "x-ratelimit-limit",
+    "x-ratelimit-remaining",
+    "x-ratelimit-reset",
+    "x-ratelimit-used",
+    "x-ratelimit-resource",
+    "x-github-request-id",
+)
+_SAFE_HEADER_VALUE = re.compile(r"\A[0-9A-Za-z:._-]{1,64}\Z")
+_MAX_SAFE_MESSAGE_CHARS = 200
+_RATE_LIMIT_MESSAGE = re.compile(r"rate limit", re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class GitHubResponseDiagnostics:
+    """Faits sûrs d'une réponse GitHub non-200 : statut, en-têtes de
+    limitation, et champ ``message`` du corps JSON, borné et filtré.
+
+    Jamais un en-tête de requête, jamais le corps brut, jamais le jeton."""
+
+    status: int
+    headers: tuple[tuple[str, str], ...]
+    message: str | None
+
+    def header(self, name: str) -> str | None:
+        return dict(self.headers).get(name)
+
+    def render(self) -> str:
+        parts = [f"{name}={value}" for name, value in self.headers]
+        if self.message is not None:
+            parts.append(f"message={self.message!r}")
+        return "; ".join(parts)
+
+
+def _safe_message(response: httpx.Response, token: str) -> str | None:
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+    message = payload.get("message") if isinstance(payload, dict) else None
+    if not isinstance(message, str):
+        return None
+    cleaned = "".join(ch for ch in message if ch.isprintable())[:_MAX_SAFE_MESSAGE_CHARS]
+    # Défense en profondeur : GitHub ne renvoie pas le jeton, mais un
+    # diagnostic n'a jamais le droit de le recopier s'il le faisait.
+    return cleaned.replace(token, "[redacted]") if token else cleaned
+
+
+def _diagnostics(response: httpx.Response, token: str) -> GitHubResponseDiagnostics:
+    headers = tuple(
+        (name, value)
+        for name in _DIAGNOSTIC_HEADERS
+        if (value := response.headers.get(name)) is not None
+        and _SAFE_HEADER_VALUE.fullmatch(value)
+        and (not token or token not in value)
+    )
+    return GitHubResponseDiagnostics(
+        status=response.status_code, headers=headers, message=_safe_message(response, token)
+    )
+
+
+def _rate_limit(
+    diagnostics: GitHubResponseDiagnostics, *, now_epoch: float
+) -> tuple[str, float | None] | None:
+    """Classification d'une réponse non-200 : ``(nature, attente)`` si c'est
+    une limitation de débit, ``None`` sinon.
+
+    Règles, dans l'ordre documenté par GitHub :
+
+    - ``Retry-After`` présent (403 ou 429) : limitation, attente imposée ;
+    - ``x-ratelimit-remaining: 0`` : quota primaire épuisé, attente jusqu'à
+      ``x-ratelimit-reset`` ;
+    - 429 sans en-tête, ou 403 dont le message GitHub nomme une limitation
+      de débit : limitation secondaire, sans délai fourni.
+
+    Un autre 403 (droits, jeton révoqué, SSO) n'est PAS une limitation : il
+    reste un refus ordinaire. Ralentir ne le corrigerait pas, et l'étiqueter
+    « limitation » masquerait sa vraie cause."""
+    if diagnostics.status not in (403, 429):
+        return None
+    retry_after = diagnostics.header("retry-after")
+    if retry_after is not None and retry_after.isdigit():
+        return "secondary", float(retry_after)
+    if diagnostics.header("x-ratelimit-remaining") == "0":
+        reset = diagnostics.header("x-ratelimit-reset")
+        wait = max(0.0, float(reset) - now_epoch) if reset and reset.isdigit() else None
+        return "primary", wait
+    if diagnostics.status == 429 or _RATE_LIMIT_MESSAGE.search(diagnostics.message or ""):
+        return "secondary", None
+    return None
+
+
 def _default_repo_root() -> Path | None:
     """Racine du dépôt si ce fichier vit dans un checkout complet, ``None``
     dans l'image aplatie. ``None`` n'est pas une erreur : l'image fournit
@@ -236,6 +361,7 @@ class _ReadOnlyGitHubClient:
     """Client HTTP strictement GET. Aucun verbe mutant n'est exposé."""
 
     def __init__(self, *, token: str, api_base: str, request_timeout_s: float) -> None:
+        self._token = token
         self._api_base = api_base.rstrip("/")
         self._request_timeout_s = request_timeout_s
         self._client = httpx.Client(
@@ -273,9 +399,25 @@ class _ReadOnlyGitHubClient:
                 f"transport error while fetching {path}: {type(exc).__name__}"
             ) from None
         if response.status_code != 200:
-            raise GitHubAuthorityError(
+            # Lot DI : le statut seul ne permettait pas de distinguer une
+            # limitation de débit d'un refus de droits. Les en-têtes de
+            # limitation et le message GitHub, filtrés, sont désormais
+            # conservés — jamais un en-tête de requête, jamais le jeton.
+            diagnostics = _diagnostics(response, self._token)
+            message = (
                 f"GitHub returned HTTP {response.status_code} for {path} — failing closed"
+                + (f" [{diagnostics.render()}]" if diagnostics.render() else "")
             )
+            limitation = _rate_limit(diagnostics, now_epoch=time.time())
+            if limitation is not None:
+                kind, retry_after_s = limitation
+                raise GitHubRateLimitedError(
+                    f"{message} (rate_limited={kind})",
+                    kind=kind,
+                    retry_after_s=retry_after_s,
+                    diagnostics=diagnostics,
+                )
+            raise GitHubAuthorityError(message)
         try:
             return response.json()
         except ValueError:
@@ -639,6 +781,8 @@ __all__ = [
     "GitHubAuthorityError",
     "GitHubAuthorityTimeoutError",
     "GitHubBlob",
+    "GitHubRateLimitedError",
+    "GitHubResponseDiagnostics",
     "PullRequestActorContext",
     "ReviewVerification",
     "fetch_blob_at_ref",

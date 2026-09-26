@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import psycopg
@@ -44,7 +45,11 @@ from .multilevel_runtime_authority import (
     load_multilevel_runtime_authorities,
     multilevel_runtime_authority_inputs_from_args,
 )
-from .publication_resume import PublicationResumeDeps, run_publication_resume_iteration
+from .publication_resume import (
+    PublicationResumeDeps,
+    PublicationResumeOutcome,
+    run_publication_resume_iteration,
+)
 from .runtime_authority import RuntimeAuthorityStartupError
 from .storage import (
     make_filesystem_artifact_reader,
@@ -52,6 +57,14 @@ from .storage import (
 )
 
 DEFAULT_POLL_INTERVAL_S = 5.0
+#: Lot DI — plafond d'une pause imposée par GitHub. Au-delà, le worker
+#: s'arrête (code ``EXIT_RATE_LIMITED``) plutôt que de dormir sans borne :
+#: la reprise redevient une décision d'opérateur.
+DEFAULT_RATE_LIMIT_MAX_WAIT_S = 900.0
+DEFAULT_MAX_CONSECUTIVE_RATE_LIMITS = 3
+#: EX_TEMPFAIL : rien n'a échoué, rien n'a été publié à tort ; la file est
+#: intacte et le même lancement pourra reprendre plus tard.
+EXIT_RATE_LIMITED = 75
 
 
 def _positive_int(raw: str) -> int:
@@ -101,6 +114,46 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--poll-interval-s",
         type=_finite_non_negative_float,
         default=DEFAULT_POLL_INTERVAL_S,
+    )
+    parser.add_argument(
+        "--collection",
+        action="append",
+        default=[],
+        type=_non_blank,
+        help=(
+            "Lot DI — liste d'autorisation (répétable) des collections dont les "
+            "jobs peuvent être réclamés. Absente : toute la file (comportement "
+            "historique). Chaque collection doit appartenir à la release et se "
+            "résoudre par ses mappings scellés, sinon le démarrage est refusé."
+        ),
+    )
+    parser.add_argument(
+        "--min-job-interval-s",
+        type=_finite_non_negative_float,
+        default=0.0,
+        help=(
+            "Lot DI — délai minimal entre deux réclamations de job (cadence des "
+            "vérifications GitHub live). 0 : comportement historique."
+        ),
+    )
+    parser.add_argument(
+        "--rate-limit-max-wait-s",
+        type=_finite_non_negative_float,
+        default=DEFAULT_RATE_LIMIT_MAX_WAIT_S,
+    )
+    parser.add_argument(
+        "--max-consecutive-rate-limits",
+        type=_positive_int,
+        default=DEFAULT_MAX_CONSECUTIVE_RATE_LIMITS,
+    )
+    parser.add_argument(
+        "--max-idle-polls",
+        type=_positive_int,
+        default=None,
+        help=(
+            "Lot DI — arrêt (code 0) après N réclamations consécutives sans job "
+            "éligible : la file du périmètre est vide. Absente : comportement historique."
+        ),
     )
     parser.add_argument(
         "--heartbeat-file",
@@ -260,6 +313,11 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeAuthorityStartupError(
                 "embedding provider inputs differ from the release manifest"
             )
+        claim_collections = tuple(dict.fromkeys(args.collection)) or None
+        # Lot DI : aucune collection réclamable dont les mappings scellés ne
+        # résolvent pas les faits — refus AVANT toute réclamation, au lieu
+        # d'un échec job par job qui consomme les tentatives.
+        resolver.require_collections_governed(claim_collections)
         provider = VerifiedE5EmbeddingProvider.from_artifact(
             artifact_root=args.embedding_artifact_root,
             inventory_sha256=args.embedding_inventory_sha256,
@@ -332,9 +390,14 @@ def main(argv: list[str] | None = None) -> int:
             if authorities.sealed_release_catalog is not None
             else ""
         ),
+        claim_collections=claim_collections,
     )
+    if claim_collections is not None:
+        print(
+            "MULTILEVEL_PUBLICATION_WORKER_CLAIM_SCOPE "
+            f"collections={','.join(claim_collections)}"
+        )
     max_iterations = 1 if args.once else args.max_iterations
-    iterations = 0
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
         try:
             attestation = attest_runtime_role(conn, expected_role=args.expected_role)
@@ -349,29 +412,90 @@ def main(argv: list[str] | None = None) -> int:
             f"current_user={attestation.current_user}"
         )
         _write_heartbeat(args.heartbeat_file)
-        while max_iterations is None or iterations < max_iterations:
-            reap_expired_job_leases(conn)
-            conn.commit()
-            outcome = run_publication_resume_iteration(conn, deps=deps)
-            iterations += 1
-            _write_heartbeat(args.heartbeat_file)
-            if outcome.worked:
+        return _run_worker_loop(conn, deps=deps, args=args, max_iterations=max_iterations)
+
+
+def _run_worker_loop(
+    conn: psycopg.Connection,
+    *,
+    deps: PublicationResumeDeps,
+    args: argparse.Namespace,
+    max_iterations: int | None,
+    iterate: Callable[..., PublicationResumeOutcome] = run_publication_resume_iteration,
+    sleep: Callable[[float], None] = time.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> int:
+    """La boucle de Worker B, séparée de son démarrage pour être éprouvée.
+
+    Lot DI : cadence minimale entre deux réclamations (``--min-job-interval-s``)
+    et suspension de TOUTE réclamation après une limitation GitHub, bornée
+    (``--rate-limit-max-wait-s``, ``--max-consecutive-rate-limits``) : au-delà,
+    arrêt avec ``EXIT_RATE_LIMITED``, la file intacte."""
+    iterations = 0
+    consecutive_rate_limits = 0
+    consecutive_idle_polls = 0
+    last_claim_at: float | None = None
+    while max_iterations is None or iterations < max_iterations:
+        if last_claim_at is not None and args.min_job_interval_s > 0:
+            pause = args.min_job_interval_s - (monotonic() - last_claim_at)
+            if pause > 0:
+                sleep(pause)
+        reap_expired_job_leases(conn)
+        conn.commit()
+        last_claim_at = monotonic()
+        outcome = iterate(conn, deps=deps)
+        iterations += 1
+        _write_heartbeat(args.heartbeat_file)
+        if outcome.status == "rate_limited":
+            consecutive_rate_limits += 1
+            wait_s = float(outcome.retry_after_s or 0.0)
+            print(
+                "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED "
+                f"job_id={outcome.job_id} wait_s={wait_s:.0f} "
+                f"consecutive={consecutive_rate_limits} attempt_consumed=false",
+                file=sys.stderr,
+            )
+            if (
+                consecutive_rate_limits >= args.max_consecutive_rate_limits
+                or wait_s > args.rate_limit_max_wait_s
+            ):
                 print(
-                    f"MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id={outcome.job_id} "
-                    f"status={outcome.status} artifact_id={outcome.artifact_id or ''} "
-                    f"placements={outcome.placement_rows} chunks={outcome.chunk_rows}"
+                    "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED_STOP "
+                    f"wait_s={wait_s:.0f} consecutive={consecutive_rate_limits} "
+                    f"exit_code={EXIT_RATE_LIMITED}",
+                    file=sys.stderr,
                 )
-                if outcome.error:
-                    print(
-                        "MULTILEVEL_PUBLICATION_WORKER_ITERATION_ERROR "
-                        f"job_id={outcome.job_id}: {outcome.error}",
-                        file=sys.stderr,
-                    )
-            elif args.once:
-                print("MULTILEVEL_PUBLICATION_WORKER_ITERATION no_job_available")
-                break
-            else:
-                time.sleep(args.poll_interval_s)
+                return EXIT_RATE_LIMITED
+            # Suspendre TOUTE réclamation : continuer d'appeler GitHub
+            # pendant une limitation la prolonge.
+            sleep(wait_s)
+            continue
+        if outcome.worked and outcome.status != "lease_lost":
+            consecutive_rate_limits = 0
+        consecutive_idle_polls = 0 if outcome.worked else consecutive_idle_polls + 1
+        if args.max_idle_polls is not None and consecutive_idle_polls >= args.max_idle_polls:
+            print(
+                "MULTILEVEL_PUBLICATION_WORKER_IDLE_STOP "
+                f"idle_polls={consecutive_idle_polls} iterations={iterations}"
+            )
+            return 0
+        if outcome.worked:
+            print(
+                f"MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id={outcome.job_id} "
+                f"status={outcome.status} artifact_id={outcome.artifact_id or ''} "
+                f"placements={outcome.placement_rows} chunks={outcome.chunk_rows}"
+            )
+            if outcome.error:
+                print(
+                    "MULTILEVEL_PUBLICATION_WORKER_ITERATION_ERROR "
+                    f"job_id={outcome.job_id}: {outcome.error}",
+                    file=sys.stderr,
+                )
+        elif args.once:
+            print("MULTILEVEL_PUBLICATION_WORKER_ITERATION no_job_available")
+            break
+        else:
+            sleep(args.poll_interval_s)
     return 0
 
 

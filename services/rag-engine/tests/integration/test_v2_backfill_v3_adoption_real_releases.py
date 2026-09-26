@@ -444,14 +444,20 @@ def _lancer_worker_b(
 
 
 def _arguments_b(banc: Mapping[str, Any]) -> list[str]:
-    return list[str](arguments_worker_b(
-        release_dir=V3_DIR,
-        profiles_dir=PROFILES_V2,
-        profile_manifest=PROFILE_MANIFEST_V2,
-        magasin=banc["magasin"],
-        transfert=banc["transfert_v3"],
-        modele=banc["modele"],
-    ))
+    """Lot DI : Worker B reçoit la liste des collections que le banc publie
+    (sans liste, il exige que TOUTE la release se résolve par ses mappings
+    scellés, ce qui est faux pour les collections HGGSP de cette lignée)."""
+    return [
+        *arguments_worker_b(
+            release_dir=V3_DIR,
+            profiles_dir=PROFILES_V2,
+            profile_manifest=PROFILE_MANIFEST_V2,
+            magasin=banc["magasin"],
+            transfert=banc["transfert_v3"],
+            modele=banc["modele"],
+        ),
+        *(option for c in sorted({c for c, _ in PLACEMENTS_PUBLIES}) for option in ("--collection", c)),
+    ]
 
 
 @pytest.fixture(scope="module")
