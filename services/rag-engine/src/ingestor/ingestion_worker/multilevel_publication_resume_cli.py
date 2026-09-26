@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
 
 import psycopg
@@ -44,7 +45,11 @@ from .multilevel_runtime_authority import (
     load_multilevel_runtime_authorities,
     multilevel_runtime_authority_inputs_from_args,
 )
-from .publication_resume import PublicationResumeDeps, run_publication_resume_iteration
+from .publication_resume import (
+    PublicationResumeDeps,
+    PublicationResumeOutcome,
+    run_publication_resume_iteration,
+)
 from .runtime_authority import RuntimeAuthorityStartupError
 from .storage import (
     make_filesystem_artifact_reader,
@@ -282,11 +287,6 @@ def main(argv: list[str] | None = None) -> int:
             qualification=qualification,
         )
         resolver = authorities.placement_resolver
-        claim_collections = tuple(dict.fromkeys(args.collection)) or None
-        # Lot DI : aucune collection réclamable dont les mappings scellés ne
-        # résolvent pas les faits — refus AVANT toute réclamation, au lieu
-        # d'un échec job par job qui consomme les tentatives.
-        resolver.require_collections_governed(claim_collections)
         readiness_mapping = getattr(readiness, "authorization_mapping", None)
         if (
             readiness_mapping is not None
@@ -304,6 +304,11 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeAuthorityStartupError(
                 "embedding provider inputs differ from the release manifest"
             )
+        claim_collections = tuple(dict.fromkeys(args.collection)) or None
+        # Lot DI : aucune collection réclamable dont les mappings scellés ne
+        # résolvent pas les faits — refus AVANT toute réclamation, au lieu
+        # d'un échec job par job qui consomme les tentatives.
+        resolver.require_collections_governed(claim_collections)
         provider = VerifiedE5EmbeddingProvider.from_artifact(
             artifact_root=args.embedding_artifact_root,
             inventory_sha256=args.embedding_inventory_sha256,
@@ -384,7 +389,6 @@ def main(argv: list[str] | None = None) -> int:
             f"collections={','.join(claim_collections)}"
         )
     max_iterations = 1 if args.once else args.max_iterations
-    iterations = 0
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
         try:
             attestation = attest_runtime_role(conn, expected_role=args.expected_role)
@@ -399,62 +403,82 @@ def main(argv: list[str] | None = None) -> int:
             f"current_user={attestation.current_user}"
         )
         _write_heartbeat(args.heartbeat_file)
-        consecutive_rate_limits = 0
-        last_claim_at: float | None = None
-        while max_iterations is None or iterations < max_iterations:
-            if last_claim_at is not None and args.min_job_interval_s > 0:
-                pause = args.min_job_interval_s - (time.monotonic() - last_claim_at)
-                if pause > 0:
-                    time.sleep(pause)
-            reap_expired_job_leases(conn)
-            conn.commit()
-            last_claim_at = time.monotonic()
-            outcome = run_publication_resume_iteration(conn, deps=deps)
-            iterations += 1
-            _write_heartbeat(args.heartbeat_file)
-            if outcome.status == "rate_limited":
-                consecutive_rate_limits += 1
-                wait_s = float(outcome.retry_after_s or 0.0)
+        return _run_worker_loop(conn, deps=deps, args=args, max_iterations=max_iterations)
+
+
+def _run_worker_loop(
+    conn: psycopg.Connection,
+    *,
+    deps: PublicationResumeDeps,
+    args: argparse.Namespace,
+    max_iterations: int | None,
+    iterate: Callable[..., PublicationResumeOutcome] = run_publication_resume_iteration,
+    sleep: Callable[[float], None] = time.sleep,
+    monotonic: Callable[[], float] = time.monotonic,
+) -> int:
+    """La boucle de Worker B, séparée de son démarrage pour être éprouvée.
+
+    Lot DI : cadence minimale entre deux réclamations (``--min-job-interval-s``)
+    et suspension de TOUTE réclamation après une limitation GitHub, bornée
+    (``--rate-limit-max-wait-s``, ``--max-consecutive-rate-limits``) : au-delà,
+    arrêt avec ``EXIT_RATE_LIMITED``, la file intacte."""
+    iterations = 0
+    consecutive_rate_limits = 0
+    last_claim_at: float | None = None
+    while max_iterations is None or iterations < max_iterations:
+        if last_claim_at is not None and args.min_job_interval_s > 0:
+            pause = args.min_job_interval_s - (monotonic() - last_claim_at)
+            if pause > 0:
+                sleep(pause)
+        reap_expired_job_leases(conn)
+        conn.commit()
+        last_claim_at = monotonic()
+        outcome = iterate(conn, deps=deps)
+        iterations += 1
+        _write_heartbeat(args.heartbeat_file)
+        if outcome.status == "rate_limited":
+            consecutive_rate_limits += 1
+            wait_s = float(outcome.retry_after_s or 0.0)
+            print(
+                "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED "
+                f"job_id={outcome.job_id} wait_s={wait_s:.0f} "
+                f"consecutive={consecutive_rate_limits} attempt_consumed=false",
+                file=sys.stderr,
+            )
+            if (
+                consecutive_rate_limits >= args.max_consecutive_rate_limits
+                or wait_s > args.rate_limit_max_wait_s
+            ):
                 print(
-                    "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED "
-                    f"job_id={outcome.job_id} wait_s={wait_s:.0f} "
-                    f"consecutive={consecutive_rate_limits} attempt_consumed=false",
+                    "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED_STOP "
+                    f"wait_s={wait_s:.0f} consecutive={consecutive_rate_limits} "
+                    f"exit_code={EXIT_RATE_LIMITED}",
                     file=sys.stderr,
                 )
-                if (
-                    consecutive_rate_limits >= args.max_consecutive_rate_limits
-                    or wait_s > args.rate_limit_max_wait_s
-                ):
-                    print(
-                        "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED_STOP "
-                        f"wait_s={wait_s:.0f} consecutive={consecutive_rate_limits} "
-                        f"exit_code={EXIT_RATE_LIMITED}",
-                        file=sys.stderr,
-                    )
-                    return EXIT_RATE_LIMITED
-                # Suspendre TOUTE réclamation : continuer d'appeler GitHub
-                # pendant une limitation la prolonge.
-                time.sleep(wait_s)
-                continue
-            if outcome.worked and outcome.status != "lease_lost":
-                consecutive_rate_limits = 0
-            if outcome.worked:
+                return EXIT_RATE_LIMITED
+            # Suspendre TOUTE réclamation : continuer d'appeler GitHub
+            # pendant une limitation la prolonge.
+            sleep(wait_s)
+            continue
+        if outcome.worked and outcome.status != "lease_lost":
+            consecutive_rate_limits = 0
+        if outcome.worked:
+            print(
+                f"MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id={outcome.job_id} "
+                f"status={outcome.status} artifact_id={outcome.artifact_id or ''} "
+                f"placements={outcome.placement_rows} chunks={outcome.chunk_rows}"
+            )
+            if outcome.error:
                 print(
-                    f"MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id={outcome.job_id} "
-                    f"status={outcome.status} artifact_id={outcome.artifact_id or ''} "
-                    f"placements={outcome.placement_rows} chunks={outcome.chunk_rows}"
+                    "MULTILEVEL_PUBLICATION_WORKER_ITERATION_ERROR "
+                    f"job_id={outcome.job_id}: {outcome.error}",
+                    file=sys.stderr,
                 )
-                if outcome.error:
-                    print(
-                        "MULTILEVEL_PUBLICATION_WORKER_ITERATION_ERROR "
-                        f"job_id={outcome.job_id}: {outcome.error}",
-                        file=sys.stderr,
-                    )
-            elif args.once:
-                print("MULTILEVEL_PUBLICATION_WORKER_ITERATION no_job_available")
-                break
-            else:
-                time.sleep(args.poll_interval_s)
+        elif args.once:
+            print("MULTILEVEL_PUBLICATION_WORKER_ITERATION no_job_available")
+            break
+        else:
+            sleep(args.poll_interval_s)
     return 0
 
 
