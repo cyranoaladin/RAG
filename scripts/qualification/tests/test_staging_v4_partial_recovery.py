@@ -388,3 +388,94 @@ def test_la_relance_exige_un_arret_pour_limitation(tmp_path):
     refus = subprocess.run(["bash", str(SCRIPT), "--dry-run", "run"], capture_output=True, text=True, check=False,
                            env=_env(tmp_path, DI_RELAUNCH="1"), cwd=RACINE)
     assert refus.returncode == 3 and "aucun arrêt pour limitation constaté" in refus.stderr, refus.stderr
+
+
+def test_le_reel_refuse_un_etat_d_essai_a_blanc(tmp_path):
+    env = _env(tmp_path)
+    (Path(env["STATE_DIR"]) / "partial_preflight.done").write_text("dry-run\n")
+    reel = subprocess.run(["bash", str(SCRIPT), "run"], capture_output=True, text=True, check=False,
+                          env={**env, "DRY_RUN_OFFLINE": "0"}, cwd=RACINE)
+    assert reel.returncode == 3 and "état d'essai à blanc" in reel.stderr, reel.stderr
+
+
+def test_l_essai_a_blanc_a_son_propre_etat_par_defaut(tmp_path):
+    env = {k: v for k, v in _env(tmp_path).items() if k != "STATE_DIR"}
+    essai = subprocess.run(["bash", str(SCRIPT), "--dry-run", "run", "--until", "partial_readiness_install"],
+                           capture_output=True, text=True, check=False, env=env, cwd=RACINE)
+    assert essai.returncode == 0, essai.stderr[-2000:]
+    assert (tmp_path / "nexus-staging-v4-recovery-di-dry-run" / "partial_readiness_install.done").is_file()
+    assert not (tmp_path / "nexus-staging-v4-recovery-di").exists()
+
+
+# ── précondition partielle sur états synthétiques (sans base) ──────────────
+
+TETE = autorisation.REVUE_ACTIVE_DI["head_sha"]
+
+
+def _perimetre_synthetique() -> di.Perimetre:
+    return di.Perimetre(
+        database="ragdb_profile_gate_v4", release_id="r", release_manifest_sha256="m",
+        repository="cyranoaladin/RAG", pull_request=262, head_sha=TETE,
+        exclues={"x_hggsp": "external subject 'hggsp' is not governed"},
+        attendu={"active_attestations": 4, "scope_collections": 1, "scope_placements": 3,
+                 "excluded_placements": 1, "product_after_partial": {}},
+    )
+
+
+def _attestation(ident: str, collection: str, etat: str) -> dict:
+    return {"attestation_id": ident, "resource_id": "r" + ident, "collection": collection, "release_id": "r",
+            "release_manifest_sha256": "m", "human_review_repository": "cyranoaladin/RAG",
+            "human_review_pull_request": 262, "human_review_head_sha": TETE, "resource_state": etat}
+
+
+def _job(ident: str, statut: str, tentatives: int = 1, bail: bool = False) -> dict:
+    return {"job_id": "j" + ident, "attestation_id": ident, "status": statut, "attempt_count": tentatives,
+            "max_attempts": 3, "next_attempt_at": "2026-09-26T10:00:00+00:00", "last_error": "",
+            "leased": bail, "lease_active": bail}
+
+
+def _etat_synthetique(**remplacements: object) -> di.Etat:
+    """Un publié, un épinglé en attente de produit, un promu sans pin, un exclu."""
+    actives = [_attestation("a", "portee", "RETRIEVAL_ELIGIBLE"), _attestation("b", "portee", "RETRIEVAL_ELIGIBLE"),
+               _attestation("c", "portee", "RETRIEVAL_ELIGIBLE"), _attestation("h", "x_hggsp", "NEEDS_REVIEW")]
+    jobs = [_job("a", "succeeded"), _job("b", "queued"), _job("c", "queued"), _job("h", "queued")]
+    pins = {i: {"attestation_id": i, "publication_review_pull_request": 262, "publication_review_head_sha": TETE}
+            for i in ("a", "b")}
+    etat = {"base": "ragdb_profile_gate_v4", "role": "ingestion_control_app", "actives": actives, "jobs": jobs,
+            "pins": pins}
+    etat.update(remplacements)
+    return di.Etat(**etat)
+
+
+def _precondition(monkeypatch, etat: di.Etat) -> dict:
+    monkeypatch.setattr(di, "lire_etat", lambda _conn, _p: etat)
+    return di.precondition_partielle(object(), _perimetre_synthetique())
+
+
+def test_la_precondition_accepte_publie_epingle_et_promu_sans_pin(monkeypatch):
+    bilan = _precondition(monkeypatch, _etat_synthetique())
+    assert {k: bilan[k] for k in ("claim_scope", "already_published", "to_publish", "pinned_awaiting_product",
+                                  "promoted_awaiting_pin", "excluded_pending")} == {
+        "claim_scope": ["portee"], "already_published": 1, "to_publish": 2, "pinned_awaiting_product": 1,
+        "promoted_awaiting_pin": 1, "excluded_pending": 1}
+
+
+@pytest.mark.parametrize("modifier,motif", [
+    (lambda e: e.jobs.__setitem__(1, _job("b", "dead_letter", 3)), "dead_letter"),
+    (lambda e: e.jobs.__setitem__(1, _job("b", "running", bail=True)), "bail ACTIF"),
+    (lambda e: e.jobs.__setitem__(3, _job("h", "queued", 3)), "sans tentative restante"),
+    (lambda e: e.jobs.__setitem__(3, _job("h", "running", bail=True)), "exclue h : job jh running"),
+    (lambda e: e.pins.__setitem__("h", {"publication_review_head_sha": TETE}), "un pin de commit existe déjà"),
+    (lambda e: e.actives.__setitem__(3, _attestation("h", "x_hggsp", "RETRIEVAL_ELIGIBLE")), "ressource RETRIEVAL"),
+    (lambda e: e.pins.__setitem__("c", {"publication_review_head_sha": TETE})
+     or e.actives.__setitem__(2, _attestation("c", "portee", "NEEDS_REVIEW")), "pin présent mais ressource"),
+    (lambda e: e.actives.__setitem__(0, {**_attestation("a", "portee", "RETRIEVAL_ELIGIBLE"),
+                                         "human_review_pull_request": 257}), "revue(s)"),
+    (lambda e: e.jobs.append(_job("b", "queued")), "2 job(s) vivant(s)"),
+])
+def test_la_precondition_refuse_chaque_etat_non_reprenable(monkeypatch, modifier, motif):
+    etat = _etat_synthetique()
+    modifier(etat)
+    with pytest.raises(di.RepriseRefusee) as refus:
+        _precondition(monkeypatch, etat)
+    assert any(motif in ecart for ecart in refus.value.ecarts), refus.value.ecarts

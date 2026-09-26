@@ -11,7 +11,7 @@
   "effective_when": "ce document, image DI épinglée par digest, est placé à docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json par une PR distincte, approuvée au head exact par le relecteur gouverné, puis fusionnée sur main",
   "execution_plan": {
     "path": "docs/runbooks/staging_v4_partial_recovery_DI_EXECUTION_PLAN.md",
-    "sha256": "2d90760e95a628abf3f75a27fa7aa77b146c5df838aab8abda72df7b22f6f89f"
+    "sha256": "cba05b35fb8b1e7864ba7bd9bfac3680e19da1d5940e27ac1a001a0fa6704476"
   },
   "expected_proof": [
     "image DI construite depuis main par le workflow canonique, digest et preuve de provenance",

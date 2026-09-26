@@ -14,7 +14,13 @@
 set -euo pipefail
 
 ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export STATE_DIR="${STATE_DIR:-$HOME/nexus-staging-v4-recovery-di}"
+# Un essai à blanc ne partage JAMAIS l'état du réel : ses marques « dry-run »
+# feraient sauter des étapes réelles.
+if [ "${1:-}" = "--dry-run" ]; then
+    export STATE_DIR="${STATE_DIR:-$HOME/nexus-staging-v4-recovery-di-dry-run}"
+else
+    export STATE_DIR="${STATE_DIR:-$HOME/nexus-staging-v4-recovery-di}"
+fi
 export READINESS_LOCAL="${READINESS_LOCAL:-$HOME/nexus-staging-v4-di-readiness}"
 _DI_DRY=""
 [ "${1:-}" = "--dry-run" ] && { _DI_DRY="--dry-run"; shift; }
@@ -260,6 +266,9 @@ case "${1:-}" in
     run)
         jusqua=""; [ "${2:-}" = "--until" ] && jusqua="${3:?étape attendue}"
         if [ "$DRY_RUN" = 0 ]; then
+            ! grep -qsx 'dry-run' "$STATE_DIR"/*.done "$STATE_DIR/partial_plan.txt" 2>/dev/null \
+                && ! grep -qs "^excluded_jobs_sha256=$(printf 'e%.0s' {1..64})\$" "$STATE_DIR/partial_plan.txt" \
+                || fail "état d'essai à blanc dans $STATE_DIR : le réel exige un état propre"
             "$PYTHON" scripts/go_live/check_staging_authorization.py >/dev/null || fail "autorisation de base invalide"
         fi
         charger_autorisation_di

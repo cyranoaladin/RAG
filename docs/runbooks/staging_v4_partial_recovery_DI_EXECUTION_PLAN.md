@@ -95,9 +95,11 @@ absent ou mal protégé ; mesure de `ragdb` incomplète. Puis, en lecture seule 
   ressource `NEEDS_REVIEW`, aucun pin, **un** job `queued` sans bail avec au
   moins une tentative restante, aucun `dead_letter` ; chaque attestation reprise :
   publiée (job réussi) ou **un** job vivant, aucun `dead_letter`, aucun bail
-  actif ; un pin sans publication est admis seulement sur une ressource
-  `RETRIEVAL_ELIGIBLE` (le cas NSI terminale).
-  Sortie : `PARTIAL_PRECONDITION_OK claim_scope=… excluded_jobs_sha256=… already_published=76 to_publish=329 pinned_awaiting_product=1 excluded_pending=74`.
+  actif ; une ressource déjà promue (`RETRIEVAL_ELIGIBLE`) sans publication
+  est admise, avec ou sans pin (le cas NSI terminale : avec pin) — le même job
+  reprend sans nouvelle promotion ; un pin sur une ressource non promue est un
+  refus.
+  Sortie : `PARTIAL_PRECONDITION_OK claim_scope=… excluded_jobs_sha256=… already_published=76 to_publish=329 pinned_awaiting_product=1 promoted_awaiting_pin=0 excluded_pending=74`.
 - `review-precondition --pull-request 262 --expected-head 0794… --stage worker-b`
   (outil DH) : #262 approuvée **en direct** au head exact, artefact relu.
 

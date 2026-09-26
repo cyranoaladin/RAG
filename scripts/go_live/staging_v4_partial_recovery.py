@@ -260,7 +260,7 @@ def precondition_partielle(conn: Any, perimetre: Perimetre) -> dict[str, Any]:
     etat = lire_etat(conn, perimetre)
     partition, ecarts = _partition(etat, perimetre)
     ecarts += _ecarts_des_exclus(partition, etat)
-    a_publier = epingles_en_attente = deja = 0
+    a_publier = epingles_en_attente = promues_sans_pin = deja = 0
     for attestation in partition.portee:
         ident = attestation["attestation_id"]
         jobs = partition.jobs_par_attestation.get(ident, [])
@@ -277,12 +277,16 @@ def precondition_partielle(conn: Any, perimetre: Perimetre) -> dict[str, Any]:
             ecarts.append(f"reprise {ident} : {len(vivant)} job(s) vivant(s), attendu 1")
             continue
         a_publier += 1
+        # Promue (avec ou sans pin), le même job reprend sans nouvelle
+        # promotion ; un pin exige toujours une ressource promue.
         if ident in etat.pins:
             epingles_en_attente += 1
             if attestation["resource_state"] != ETAT_PUBLIE:
                 ecarts.append(f"reprise {ident} : pin présent mais ressource {attestation['resource_state']}")
+        elif attestation["resource_state"] == ETAT_PUBLIE:
+            promues_sans_pin += 1
         elif attestation["resource_state"] != ETAT_EN_REVUE:
-            ecarts.append(f"reprise {ident} : ressource {attestation['resource_state']} sans pin")
+            ecarts.append(f"reprise {ident} : ressource {attestation['resource_state']}")
     if ecarts:
         raise RepriseRefusee(ecarts)
     return {
@@ -291,6 +295,7 @@ def precondition_partielle(conn: Any, perimetre: Perimetre) -> dict[str, Any]:
         "already_published": deja,
         "to_publish": a_publier,
         "pinned_awaiting_product": epingles_en_attente,
+        "promoted_awaiting_pin": promues_sans_pin,
         "excluded_pending": len(partition.exclues),
     }
 

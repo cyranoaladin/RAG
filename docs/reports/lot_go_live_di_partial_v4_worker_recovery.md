@@ -211,7 +211,7 @@ Cible après DI : **9 collections, 263 artefacts, 405 placements, 5678 chunks**
   - Aucun digest n'existe encore. Ce lot n'en invente aucun.
 - **Nouvelle autorisation : proposée, inactive.** Le fichier est
   `docs/reports/go_live/authorizations/proposed/staging_v4_partial_recovery_authorization.json`
-  (`453f72fc…187b`).
+  (`7d225139…8564`).
   - Elle est liée par empreinte à DH, V4, au plan DI et à l'identité DI.
   - Son `runtime_image` est `PENDING_BUILD_FROM_MAIN`. Le vérificateur refuse
     toute opération :
