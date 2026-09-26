@@ -275,14 +275,23 @@ def atteste(
 
 
 def _arguments_b(banc: dict[str, Any]) -> list[str]:
-    return list[str](arguments_worker_b(
-        release_dir=V4_DIR,
-        profiles_dir=PROFILES_V4,
-        profile_manifest=PROFILE_MANIFEST_V4,
-        magasin=banc["magasin"],
-        transfert=banc["transfert_v4"],
-        modele=banc["modele"],
-    ))
+    """Lot DI : Worker B reçoit la liste des collections que le banc publie.
+
+    Sans liste, il vérifie au démarrage que TOUTE la release se résout par ses
+    mappings scellés — ce qui est faux pour V4 (HGGSP). ``NEXUS_REAL_V4_PUBLISH_ALL=1``
+    nomme donc HGGSP, et Worker B refuse de démarrer : c'est le comportement
+    voulu, V4 ne peut pas publier HGGSP."""
+    return [
+        *arguments_worker_b(
+            release_dir=V4_DIR,
+            profiles_dir=PROFILES_V4,
+            profile_manifest=PROFILE_MANIFEST_V4,
+            magasin=banc["magasin"],
+            transfert=banc["transfert_v4"],
+            modele=banc["modele"],
+        ),
+        *(option for c in _collections_publiees() for option in ("--collection", c)),
+    ]
 
 
 MISE_EN_FILE = REPOSITORY_ROOT / "scripts/go_live/staging_v4_enqueue_publication.py"

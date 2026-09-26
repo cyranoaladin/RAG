@@ -271,6 +271,12 @@ Tests :
 - `services/rag-engine/tests/_local_github.py` : injection de panne.
 - `services/rag-engine/tests/test_multilevel_worker_cli.py` : trois
   résolveurs factices exposent la nouvelle méthode.
+- `services/rag-engine/tests/integration/test_v4_staging_direct_real_chain.py`
+  et `test_v2_backfill_v3_adoption_real_releases.py` (bancs E5 de l'opérateur,
+  non exécutables ici) : Worker B reçoit `--collection` pour les collections
+  que le banc publie. Sans cela, le nouveau contrôle de démarrage le refuserait
+  sur ces releases, qui portent HGGSP. Pour V4, `NEXUS_REAL_V4_PUBLISH_ALL=1`
+  est désormais refusé au démarrage, ce qui est voulu.
 - `scripts/qualification/tests/test_staging_v4_partial_recovery.py` (nouveau).
 
 Non modifiés :
