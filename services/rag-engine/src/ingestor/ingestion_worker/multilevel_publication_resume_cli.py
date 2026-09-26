@@ -52,6 +52,14 @@ from .storage import (
 )
 
 DEFAULT_POLL_INTERVAL_S = 5.0
+#: Lot DI — plafond d'une pause imposée par GitHub. Au-delà, le worker
+#: s'arrête (code ``EXIT_RATE_LIMITED``) plutôt que de dormir sans borne :
+#: la reprise redevient une décision d'opérateur.
+DEFAULT_RATE_LIMIT_MAX_WAIT_S = 900.0
+DEFAULT_MAX_CONSECUTIVE_RATE_LIMITS = 3
+#: EX_TEMPFAIL : rien n'a échoué, rien n'a été publié à tort ; la file est
+#: intacte et le même lancement pourra reprendre plus tard.
+EXIT_RATE_LIMITED = 75
 
 
 def _positive_int(raw: str) -> int:
@@ -101,6 +109,37 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--poll-interval-s",
         type=_finite_non_negative_float,
         default=DEFAULT_POLL_INTERVAL_S,
+    )
+    parser.add_argument(
+        "--collection",
+        action="append",
+        default=[],
+        type=_non_blank,
+        help=(
+            "Lot DI — liste d'autorisation (répétable) des collections dont les "
+            "jobs peuvent être réclamés. Absente : toute la file (comportement "
+            "historique). Chaque collection doit appartenir à la release et se "
+            "résoudre par ses mappings scellés, sinon le démarrage est refusé."
+        ),
+    )
+    parser.add_argument(
+        "--min-job-interval-s",
+        type=_finite_non_negative_float,
+        default=0.0,
+        help=(
+            "Lot DI — délai minimal entre deux réclamations de job (cadence des "
+            "vérifications GitHub live). 0 : comportement historique."
+        ),
+    )
+    parser.add_argument(
+        "--rate-limit-max-wait-s",
+        type=_finite_non_negative_float,
+        default=DEFAULT_RATE_LIMIT_MAX_WAIT_S,
+    )
+    parser.add_argument(
+        "--max-consecutive-rate-limits",
+        type=_positive_int,
+        default=DEFAULT_MAX_CONSECUTIVE_RATE_LIMITS,
     )
     parser.add_argument(
         "--heartbeat-file",
@@ -243,6 +282,11 @@ def main(argv: list[str] | None = None) -> int:
             qualification=qualification,
         )
         resolver = authorities.placement_resolver
+        claim_collections = tuple(dict.fromkeys(args.collection)) or None
+        # Lot DI : aucune collection réclamable dont les mappings scellés ne
+        # résolvent pas les faits — refus AVANT toute réclamation, au lieu
+        # d'un échec job par job qui consomme les tentatives.
+        resolver.require_collections_governed(claim_collections)
         readiness_mapping = getattr(readiness, "authorization_mapping", None)
         if (
             readiness_mapping is not None
@@ -332,7 +376,13 @@ def main(argv: list[str] | None = None) -> int:
             if authorities.sealed_release_catalog is not None
             else ""
         ),
+        claim_collections=claim_collections,
     )
+    if claim_collections is not None:
+        print(
+            "MULTILEVEL_PUBLICATION_WORKER_CLAIM_SCOPE "
+            f"collections={','.join(claim_collections)}"
+        )
     max_iterations = 1 if args.once else args.max_iterations
     iterations = 0
     with psycopg.connect(get_ingestion_control_dsn()) as conn:
@@ -349,12 +399,45 @@ def main(argv: list[str] | None = None) -> int:
             f"current_user={attestation.current_user}"
         )
         _write_heartbeat(args.heartbeat_file)
+        consecutive_rate_limits = 0
+        last_claim_at: float | None = None
         while max_iterations is None or iterations < max_iterations:
+            if last_claim_at is not None and args.min_job_interval_s > 0:
+                pause = args.min_job_interval_s - (time.monotonic() - last_claim_at)
+                if pause > 0:
+                    time.sleep(pause)
             reap_expired_job_leases(conn)
             conn.commit()
+            last_claim_at = time.monotonic()
             outcome = run_publication_resume_iteration(conn, deps=deps)
             iterations += 1
             _write_heartbeat(args.heartbeat_file)
+            if outcome.status == "rate_limited":
+                consecutive_rate_limits += 1
+                wait_s = float(outcome.retry_after_s or 0.0)
+                print(
+                    "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED "
+                    f"job_id={outcome.job_id} wait_s={wait_s:.0f} "
+                    f"consecutive={consecutive_rate_limits} attempt_consumed=false",
+                    file=sys.stderr,
+                )
+                if (
+                    consecutive_rate_limits >= args.max_consecutive_rate_limits
+                    or wait_s > args.rate_limit_max_wait_s
+                ):
+                    print(
+                        "MULTILEVEL_PUBLICATION_WORKER_RATE_LIMITED_STOP "
+                        f"wait_s={wait_s:.0f} consecutive={consecutive_rate_limits} "
+                        f"exit_code={EXIT_RATE_LIMITED}",
+                        file=sys.stderr,
+                    )
+                    return EXIT_RATE_LIMITED
+                # Suspendre TOUTE réclamation : continuer d'appeler GitHub
+                # pendant une limitation la prolonge.
+                time.sleep(wait_s)
+                continue
+            if outcome.worked and outcome.status != "lease_lost":
+                consecutive_rate_limits = 0
             if outcome.worked:
                 print(
                     f"MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id={outcome.job_id} "

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -44,6 +45,7 @@ try:
     from ingestor.ingestion_control.artifact_attribution import (
         load_artifact_attribution,
     )
+    from ingestor.ingestion_control.github_authority import GitHubRateLimitedError
     from ingestor.ingestion_control.governed_publication_path import (
         promote_reviewed_publication,
     )
@@ -52,6 +54,7 @@ try:
         JobLeaseConflictError,
         claim_job,
         complete_job,
+        defer_job_for_external_throttle,
         record_job_retry,
     )
     from ingestor.ingestion_control.provisioning import (
@@ -89,6 +92,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from ingestion_control.artifact_attribution import (
         load_artifact_attribution,
     )
+    from ingestion_control.github_authority import GitHubRateLimitedError
     from ingestion_control.governed_publication_path import (
         promote_reviewed_publication,
     )
@@ -97,6 +101,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         JobLeaseConflictError,
         claim_job,
         complete_job,
+        defer_job_for_external_throttle,
         record_job_retry,
     )
     from ingestion_control.provisioning import (
@@ -151,6 +156,9 @@ class PublicationResumeOutcome:
     chunk_rows: int = 0
     placement_rows: int = 0
     embedded: bool | None = None
+    #: Lot DI : délai minimal avant tout nouvel appel GitHub, rendu quand le
+    #: job a été différé pour limitation de débit (``status="rate_limited"``).
+    retry_after_s: float | None = None
 
 
 class AuthorizationContext(Protocol):
@@ -192,6 +200,11 @@ class PublicationResumeDeps:
     sealed_artifact_reader: Any = None
     authorization_mapping: AuthorizationMapping | None = None
     authorization_context: AuthorizationContext | None = None
+    #: Lot DI : liste d'autorisation des collections réclamables. ``None`` :
+    #: toute la file, comportement historique. Transmise telle quelle à
+    #: ``claim_job`` — un job hors liste n'est jamais réclamé, donc jamais
+    #: tenté, et ne consomme aucune tentative.
+    claim_collections: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.embedding_provider, EmbeddingProvider):
@@ -748,6 +761,65 @@ def resume_publication(
     )
 
 
+#: Plancher d'attente après une limitation de débit sans délai fourni :
+#: GitHub demande d'attendre au moins une minute dans ce cas.
+RATE_LIMIT_FLOOR_S = 60.0
+
+
+def github_rate_limit_in_chain(exc: BaseException) -> GitHubRateLimitedError | None:
+    """La limitation GitHub à l'origine d'un refus, s'il y en a une.
+
+    Les vérifications live convertissent l'erreur de transport en refus
+    d'autorité (``PublicationAttestationInvalidError`` … ``from exc``) : la
+    cause est donc cherchée dans la chaîne ``__cause__``/``__context__``,
+    bornée, jamais dans le texte du message."""
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen and len(seen) < 32:
+        if isinstance(current, GitHubRateLimitedError):
+            return current
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def _defer_for_rate_limit(
+    control_conn: psycopg.Connection,
+    *,
+    claim: JobClaim,
+    exc: Exception,
+    limitation: GitHubRateLimitedError,
+) -> PublicationResumeOutcome:
+    """Lot DI : une limitation de débit n'est pas un échec du job.
+
+    Rien n'a été publié ni promu sur la foi de cette vérification (elle a
+    échoué fermé). Le job est rendu à la file sans consommer de tentative,
+    pas avant le délai imposé par GitHub ; l'appelant doit en plus suspendre
+    TOUTE réclamation pendant ``retry_after_s`` — continuer d'appeler
+    GitHub pendant une limitation la prolonge."""
+    wait_s = max(limitation.retry_after_s or 0.0, RATE_LIMIT_FLOOR_S)
+    reason = f"github_rate_limited kind={limitation.kind} wait_s={wait_s:.0f}: {exc}"
+    try:
+        defer_job_for_external_throttle(
+            control_conn,
+            job_id=claim.job_id,
+            lease_token=claim.lease_token,
+            reason=reason,
+            not_before=datetime.now(UTC) + timedelta(seconds=wait_s),
+        )
+        control_conn.commit()
+    except JobLeaseConflictError:
+        control_conn.rollback()
+        return PublicationResumeOutcome(
+            worked=True, job_id=claim.job_id, status="lease_lost", error=reason,
+            retry_after_s=wait_s,
+        )
+    return PublicationResumeOutcome(
+        worked=True, job_id=claim.job_id, status="rate_limited", error=reason,
+        retry_after_s=wait_s,
+    )
+
+
 def run_publication_resume_iteration(
     control_conn: psycopg.Connection,
     *,
@@ -762,6 +834,7 @@ def run_publication_resume_iteration(
         control_conn,
         owner=deps.owner,
         job_types=(PUBLICATION_RESUME_JOB_TYPE,),
+        collections=deps.claim_collections,
     )
     if claim is None:
         return PublicationResumeOutcome(
@@ -791,6 +864,9 @@ def run_publication_resume_iteration(
         )
     except Exception as exc:  # refus nommé, jamais silencieux
         control_conn.rollback()
+        limitation = github_rate_limit_in_chain(exc)
+        if limitation is not None:
+            return _defer_for_rate_limit(control_conn, claim=claim, exc=exc, limitation=limitation)
         try:
             record_job_retry(
                 control_conn,
@@ -834,6 +910,8 @@ __all__ = [
     "PublicationResumeDeps",
     "PublicationResumeError",
     "PublicationResumeOutcome",
+    "RATE_LIMIT_FLOOR_S",
+    "github_rate_limit_in_chain",
     "resume_publication",
     "run_publication_resume_iteration",
 ]

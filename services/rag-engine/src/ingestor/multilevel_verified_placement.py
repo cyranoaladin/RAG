@@ -6,7 +6,7 @@ import dataclasses
 import hashlib
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -334,6 +334,49 @@ def load_multilevel_release_eligibility(
     )
 
 
+def ungoverned_release_collections(
+    *,
+    placements: Iterable[MultilevelCandidatePlacement],
+    mapping: ClosedMultilevelMapping,
+    collection_config: Mapping[str, object],
+) -> dict[str, str]:
+    """Collections dont un placement ne se résout PAS par les mappings scellés.
+
+    Lot DI — incident HGGSP : la release V4 scelle un mapping de sujets sans
+    ``hggsp`` alors qu'elle déclare deux collections HGGSP ; rien ne le
+    vérifiait avant Worker B, qui l'a découvert job par job, en consommant
+    des tentatives. Cette fonction applique à TOUT le périmètre, sans réseau
+    ni base, les deux règles que ``resolve`` applique à chaque placement :
+    résolution fermée des trois faits externes, et égalité de la matière
+    mappée avec la matière configurée de la collection. Rien n'est dérivé du
+    nom de collection : un sujet absent du mapping reste absent.
+
+    Rend ``{collection: première raison}`` ; vide = tout est gouverné."""
+    raw_collections = collection_config.get("collections")
+    configured = raw_collections if isinstance(raw_collections, Mapping) else {}
+    refus: dict[str, str] = {}
+    for placement in placements:
+        if placement.collection in refus:
+            continue
+        try:
+            mapped = mapping.resolve(
+                external_level=placement.external_level,
+                external_subject=placement.external_subject,
+                external_document_type=placement.external_document_type,
+            )
+        except MultilevelMappingError as exc:
+            refus[placement.collection] = str(exc)
+            continue
+        entry = configured.get(placement.collection)
+        matiere = entry.get("matiere") if isinstance(entry, Mapping) else None
+        if matiere != mapped.matiere:
+            refus[placement.collection] = (
+                f"mapped subject {mapped.matiere!r} differs from configured "
+                f"subject {matiere!r}"
+            )
+    return refus
+
+
 @dataclass(frozen=True)
 class MultilevelVerifiedPedagogicalPlacementResolver:
     """Resolver compatible Worker A/B, sans règle métier liée à un SHA précis."""
@@ -477,6 +520,45 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             _collection_config=dict(collection_config),
             _release_eligibility=release_eligibility,
         )
+
+    @property
+    def release_collections(self) -> frozenset[str]:
+        return frozenset(item.collection for item in self._release_eligibility.placements)
+
+    def require_collections_governed(self, collections: Iterable[str] | None = None) -> None:
+        """Refus au DÉMARRAGE si une collection du périmètre ne se résout pas.
+
+        ``collections`` : le périmètre réclamable du worker (lot DI), ou
+        ``None`` pour toute la release. Une collection hors release est
+        refusée aussi : une sélection ne peut pas nommer ce que la release ne
+        porte pas."""
+        release = self.release_collections
+        scope = release if collections is None else frozenset(collections)
+        hors_release = sorted(scope - release)
+        if hors_release:
+            raise MultilevelPlacementResolutionError(
+                f"collections outside the release: {hors_release}"
+            )
+        released = {
+            (item.collection, item.content_sha256, item.source_placement_id)
+            for item in self._release_eligibility.placements
+        }
+        refus = ungoverned_release_collections(
+            placements=(
+                item
+                for item in self._candidate_inventory.placements
+                if item.collection in scope
+                and (item.collection, item.content_sha256, item.source_placement_id)
+                in released
+            ),
+            mapping=self._mapping,
+            collection_config=self._collection_config,
+        )
+        if refus:
+            raise MultilevelPlacementResolutionError(
+                "release collections are not governed by the sealed mappings: "
+                + "; ".join(f"{name}: {reason}" for name, reason in sorted(refus.items()))
+            )
 
     def _select_candidate(
         self,
@@ -727,4 +809,5 @@ __all__ = [
     "MultilevelReleasePlacement",
     "MultilevelVerifiedPedagogicalPlacementResolver",
     "load_multilevel_release_eligibility",
+    "ungoverned_release_collections",
 ]

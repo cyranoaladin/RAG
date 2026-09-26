@@ -265,6 +265,7 @@ def claim_job(
     eligible_statuses: tuple[str, ...] = ("queued",),
     job_types: tuple[str, ...] | None = None,
     lease_duration_s: int = DEFAULT_LEASE_DURATION_S,
+    collections: tuple[str, ...] | None = None,
 ) -> JobClaim | None:
     """Réclame atomiquement un job éligible et le fait passer à ``running``.
 
@@ -280,6 +281,15 @@ def claim_job(
     comprend que ``"resource_pipeline"``) doit fournir explicitement ce
     filtre pour ne jamais réclamer, puis épuiser en retries jusqu'au
     ``dead_letter``, un job destiné à un autre type de consommateur.
+
+    ``collections`` (lot DI) : liste d'autorisation optionnelle sur la
+    collection de la RESSOURCE du job. ``None`` (défaut) : comportement
+    historique inchangé. Sinon, un job dont la ressource n'appartient pas à
+    l'une de ces collections — ou qui n'a pas de ressource — n'est jamais
+    réclamé : il reste ``queued``, sans tentative consommée. C'est la seule
+    sélection gouvernée d'un sous-ensemble de la file ; elle ne modifie
+    aucune ligne des jobs écartés (jamais un ``next_attempt_at`` ou un
+    ``status`` réécrit à la main pour les « cacher »).
     """
     if not eligible_statuses:
         raise ValueError("eligible_statuses must not be empty")
@@ -292,6 +302,10 @@ def claim_job(
         raise ValueError("job_types must not be an empty tuple (use None for unfiltered)")
     if lease_duration_s <= 0:
         raise ValueError(f"lease_duration_s must be > 0, got {lease_duration_s!r}")
+    if collections is not None and (
+        not collections or any(not c or not c.strip() for c in collections)
+    ):
+        raise ValueError("collections must be None or a tuple of non-blank names")
 
     lease_token = uuid4()
     lease_expires_at = datetime.now(UTC) + timedelta(seconds=lease_duration_s)
@@ -303,6 +317,14 @@ def claim_job(
             FROM ingestion_control.jobs
             WHERE status = ANY(%s)
               AND (%s::text[] IS NULL OR job_type = ANY(%s))
+              AND (
+                  %s::text[] IS NULL
+                  OR EXISTS (
+                      SELECT 1 FROM ingestion_control.resources AS r
+                      WHERE r.resource_id = jobs.resource_id
+                        AND r.collection = ANY(%s)
+                  )
+              )
               AND next_attempt_at <= now()
               AND (lease_token IS NULL OR lease_expires_at < now())
             ORDER BY next_attempt_at, job_id
@@ -313,6 +335,8 @@ def claim_job(
                 list(eligible_statuses),
                 list(job_types) if job_types is not None else None,
                 list(job_types) if job_types is not None else None,
+                list(collections) if collections is not None else None,
+                list(collections) if collections is not None else None,
             ),
         )
         row = cur.fetchone()
@@ -477,6 +501,52 @@ def record_job_retry(
     )
 
 
+def defer_job_for_external_throttle(
+    conn: psycopg.Connection,
+    *,
+    job_id: UUID,
+    lease_token: UUID,
+    reason: str,
+    not_before: datetime,
+) -> None:
+    """Rend un job à la file SANS consommer de tentative (lot DI).
+
+    Réservé à un refus dont la cause est EXTÉRIEURE au job et temporaire —
+    aujourd'hui la seule limitation de débit GitHub : le job n'a pas échoué,
+    la vérification live n'a pas pu avoir lieu. Même effet sur la file qu'un
+    bail expiré repris par ``reap_expired_job_leases`` (qui ne consomme pas
+    non plus de tentative), mais explicite, tracé dans ``last_error``, et
+    avec un ``next_attempt_at`` qui respecte le délai imposé par GitHub.
+
+    Même garde de bail stricte que ``record_job_retry`` : on ne diffère
+    jamais le job d'un autre détenteur. Rien n'est publié, rien n'est
+    promu : un job différé n'est qu'un job qui n'a pas encore été tenté."""
+    if not_before.tzinfo is None:
+        raise ValueError("not_before must be timezone-aware")
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            UPDATE ingestion_control.jobs
+            SET status = 'queued',
+                last_error = %s,
+                next_attempt_at = GREATEST(next_attempt_at, %s),
+                claimed_by = NULL,
+                lease_token = NULL,
+                lease_expires_at = NULL,
+                updated_at = now()
+            WHERE job_id = %s AND lease_token = %s AND status = 'running'
+              AND lease_expires_at > clock_timestamp()
+            RETURNING job_id
+            """,
+            (reason, not_before, job_id, lease_token),
+        )
+        if cur.fetchone() is None:
+            raise JobLeaseConflictError(
+                f"job {job_id}: lease {lease_token} no longer held (expired, lost, "
+                "or already completed) — refusing to defer another worker's claim"
+            )
+
+
 @dataclass(frozen=True)
 class ReapedJobLease:
     job_id: UUID
@@ -534,6 +604,7 @@ __all__ = [
     "claim_job",
     "complete_job",
     "create_job",
+    "defer_job_for_external_throttle",
     "find_active_job_by_dedup_key",
     "find_or_create_job",
     "reap_expired_job_leases",
