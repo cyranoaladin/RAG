@@ -8,6 +8,9 @@
   `pgvector/pgvector:pg16@sha256:00ba258a…`). Aucun accès au serveur Nexus,
   aucune base réelle, aucun secret.
 - **Cette PR ne vaut pas autorisation d'exécution sur le serveur.**
+- Commit qualifié par les trois bancs E5 réels (relevé opérateur) :
+  `928086c3f490172bb558faea23a4349d2a92fe6f`. Le commit qui le suit sur la
+  branche ne modifie que ce rapport (§ 5.3).
 
 ## 1. Incident (contexte opérateur, NON remesuré ici)
 
@@ -242,6 +245,48 @@ Résultat : **24 réussis sur 24**, aucun skip ni xfail (`rc=0`), en environ 4 m
 qualification et gouvernance l'ont été ci-dessus ; rag-pedago et cockpit ne
 sont pas touchés par ce lot.
 
+### 5.3 Qualification E5 réelle — exécutions locales rapportées par l'opérateur
+
+Ces résultats sont des **relevés de l'opérateur**. Ils n'ont pas été exécutés
+dans la VM cloud, et leurs fichiers (journaux, JUnit, `resultat.json`) restent
+sur sa machine ; ils n'ont pas été relus ici.
+
+Contexte commun aux trois bancs :
+- commit `928086c3f490172bb558faea23a4349d2a92fe6f` ;
+- artefact E5 `e5-large-prerentree-2026-2027-20260828-materialise`, inventaire
+  vérifié `58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6` ;
+- PostgreSQL et Docker jetables locaux ;
+- aucune installation supplémentaire, aucune opération sur le serveur Nexus ;
+- `QUALIFICATION_PRODUCTION=non`.
+
+| Banc | Mode | Résultat rapporté |
+|---|---|---|
+| `test_dh_publication_recovery_pg.py` | `NEXUS_DH_RECOVERY_PG=1`, `NEXUS_DH_WORKER_B_CLI=1` : vrai CLI Worker B | 25 tests, **25 réussis**, 0 échec, 0 erreur, 0 ignoré ; code pytest 0 ; aucun conteneur restant |
+| `test_batch_publication_cli_acceptance.py` | `NEXUS_BATCH_CLI_ACCEPTANCE=1` | 17 tests, **17 réussis**, 0 échec, 0 erreur, 0 ignoré ; code pytest 0 ; aucun conteneur restant |
+| `test_v4_staging_direct_real_chain.py` | `NEXUS_REAL_RELEASE_ADOPTION=1`, 315 PDF réels (pré-vol : 315 trouvés et vérifiés, 0 absent) | 10 tests, **10 réussis**, 0 échec, 0 erreur, 0 ignoré ; code pytest 0 ; aucun conteneur restant |
+
+Total rapporté : 52 tests réussis au même commit.
+
+Périmètre exact du banc réel V4 : **trois collections, 60 placements**
+publiés (réglage par défaut du banc). Ce n'est **pas** une publication des
+479 placements de V4.
+
+Historique des défauts corrigés, qui ne décrit plus l'état courant :
+- `752086bf` : chemin E5 de l'opérateur remplacé par un inventaire fictif
+  (§ 6 bis, corrigé à `abec4e39`) ;
+- `abec4e39` : banc DH/E5 à 23/24, préparation temporelle non déterministe
+  (§ 6 ter, corrigé à `928086c3`).
+
+Répartition des épreuves :
+- **Essais exécutés dans le cloud** : bancs PostgreSQL en mode DEBUG
+  (§ 5.1, § 6 bis, § 6 ter), suites unitaires et de qualification (§ 5.2).
+  L'adaptateur d'embeddings de ces bancs est l'adaptateur de test ; ils ne
+  qualifient pas E5.
+- **Essais E5 réels** : ceux du présent paragraphe, rapportés par
+  l'opérateur.
+- **État du serveur** : non remesuré (§ 1).
+- **Autorisation DH** : toujours proposée et inactive (§ 4).
+
 ## 6. Défaut préexistant corrigé dans le banc multi-niveaux
 
 `_banc_multiniveaux._artefact_de_registre` scellait des empreintes de chunks
@@ -389,10 +434,9 @@ locaux sont **inchangés** : aucune réinstallation n'est nécessaire.
   sont publiées.
 - La tête de #257 vient de `refs/pull/257/head` ; ses revues n'ont pas été
   relues par l'API au moment du cadrage.
-- Modèle E5 : téléchargement refusé par la politique réseau (huggingface.co,
-  403). Non exécutés ici : le vrai CLI Worker B sur E5, le banc réel V4
-  (`test_v4_staging_direct_real_chain.py`, qui exige aussi les PDF des miroirs
-  de l'opérateur).
+- Modèle E5 : téléchargement refusé par la politique réseau de la VM
+  (huggingface.co, 403). Les bancs E5 réels ont donc été exécutés sur la
+  machine de l'opérateur (§ 5.3), pas dans le cloud.
 - Aucune mesure du staging : les états du § 1 restent ceux transmis.
 
 Commandes reproductibles (machine opérateur) :
