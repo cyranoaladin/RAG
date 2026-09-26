@@ -248,3 +248,24 @@ def test_f_une_selection_hors_release_est_refusee(
         _resolveur(autorites, inventaire, configuration, eligibilite).require_collections_governed(
             {*NON_HGGSP, "rag_nexus_maths_terminale_specialite"}
         )
+
+
+def test_l_identite_de_reprise_partielle_nomme_exactement_les_exclusions_derivees(tmp_path) -> None:
+    """L'outil DI refuse une exclusion choisie à la main : l'identité
+    versionnée doit égaler ce que les mappings SCELLÉS de V4 ne gouvernent pas."""
+    import sys
+
+    sys.path.insert(0, str(RACINE / "scripts/go_live"))
+    import staging_v4_partial_recovery as di
+
+    identite = RACINE / di.IDENTITE_PAR_DEFAUT
+    di.verifier_exclusions(RACINE, identite)
+    document = json.loads(identite.read_text(encoding="utf-8"))
+    for exclues in (
+        {"rag_nexus_hggsp_premiere_specialite": REFUS_HGGSP},
+        {**document["excluded_collections"], "rag_nexus_nsi_terminale_specialite": "choix manuel"},
+    ):
+        altere = tmp_path / "identite.json"
+        altere.write_text(json.dumps({**document, "excluded_collections": exclues}))
+        with pytest.raises(di.RepriseRefusee, match="dérivées de l'autorité scellée"):
+            di.verifier_exclusions(RACINE, altere)

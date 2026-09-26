@@ -147,6 +147,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MAX_CONSECUTIVE_RATE_LIMITS,
     )
     parser.add_argument(
+        "--max-idle-polls",
+        type=_positive_int,
+        default=None,
+        help=(
+            "Lot DI — arrêt (code 0) après N réclamations consécutives sans job "
+            "éligible : la file du périmètre est vide. Absente : comportement historique."
+        ),
+    )
+    parser.add_argument(
         "--heartbeat-file",
         type=Path,
         default=None,
@@ -424,6 +433,7 @@ def _run_worker_loop(
     arrêt avec ``EXIT_RATE_LIMITED``, la file intacte."""
     iterations = 0
     consecutive_rate_limits = 0
+    consecutive_idle_polls = 0
     last_claim_at: float | None = None
     while max_iterations is None or iterations < max_iterations:
         if last_claim_at is not None and args.min_job_interval_s > 0:
@@ -462,6 +472,13 @@ def _run_worker_loop(
             continue
         if outcome.worked and outcome.status != "lease_lost":
             consecutive_rate_limits = 0
+        consecutive_idle_polls = 0 if outcome.worked else consecutive_idle_polls + 1
+        if args.max_idle_polls is not None and consecutive_idle_polls >= args.max_idle_polls:
+            print(
+                "MULTILEVEL_PUBLICATION_WORKER_IDLE_STOP "
+                f"idle_polls={consecutive_idle_polls} iterations={iterations}"
+            )
+            return 0
         if outcome.worked:
             print(
                 f"MULTILEVEL_PUBLICATION_WORKER_ITERATION job_id={outcome.job_id} "

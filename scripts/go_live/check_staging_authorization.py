@@ -1176,6 +1176,7 @@ CADENCE_DI = {
     "min_job_interval_s": 60,
     "rate_limit_max_wait_s": 900,
     "max_consecutive_rate_limits": 3,
+    "max_idle_polls": 5,
     "on_rate_limit": "job différé SANS tentative consommée ; toute réclamation suspendue ; arrêt 75 au-delà",
     "live_verification": "inchangée : aucune décision de revue mise en cache (ADR-0033 § 5)",
 }
@@ -1199,6 +1200,12 @@ OPERATIONS_DI: dict[str, dict] = {
                   "worker_image": "runtime_image.reference de l'autorisation DI active"},
         "limite": "poste du détenteur de la clé ; jamais sur l'hôte ; un seul manifeste, V4, image DI",
     },
+    "partial_readiness_install": {
+        "cible": {"host": HOTE, "compose_project": "nexus-staging", "mode": "file_deposit",
+                  "file": "staging-readiness-v4-di.json", "file_mode": "0600",
+                  "destination": "répertoire readiness de l'exécution V4, à côté du manifeste V4 conservé"},
+        "limite": "dépôt du seul manifeste DI signé ; le manifeste V4 n'est ni remplacé ni supprimé",
+    },
     "partial_preflight": {
         "cible": {**_V4_OUTIL_DI, "command": "partial-precondition",
                   "review_precondition": "review-precondition --pull-request 262 --stage worker-b"},
@@ -1217,7 +1224,8 @@ OPERATIONS_DI: dict[str, dict] = {
                   "claimed_collections": list(COLLECTIONS_REPRISES_DI),
                   "min_job_interval_s": CADENCE_DI["min_job_interval_s"],
                   "rate_limit_max_wait_s": CADENCE_DI["rate_limit_max_wait_s"],
-                  "max_consecutive_rate_limits": CADENCE_DI["max_consecutive_rate_limits"]},
+                  "max_consecutive_rate_limits": CADENCE_DI["max_consecutive_rate_limits"],
+                  "max_idle_polls": CADENCE_DI["max_idle_polls"]},
         "limite": (
             "Worker B de l'image DI, liste d'autorisation des neuf collections ; aucun privilège "
             "nouveau ; arrêt 75 sur limitation persistante, sans rien réécrire"
@@ -1300,7 +1308,7 @@ GABARIT_DI: dict = {
     ),
     "expected_proof": [
         "image DI construite depuis main par le workflow canonique, digest et preuve de provenance",
-        "readiness V4 resignee pour l'image DI, verifiee contre l'ancre",
+        "readiness V4 resignee pour l'image DI, verifiee contre l'ancre, deposee a cote de celle de V4",
         "precondition partielle : 479 attestations actives de #262, 405 reprises, 74 exclues, empreinte",
         "review-precondition --stage worker-b : #262 approuvee en direct au head exact",
         "Worker B : publications succeeded pour les 329 restants, aucun job HGGSP reclame",

@@ -211,7 +211,7 @@ class _Horloge:
 def _args(**valeurs: Any) -> argparse.Namespace:
     base = dict(
         min_job_interval_s=0.0, rate_limit_max_wait_s=900.0, max_consecutive_rate_limits=3,
-        heartbeat_file=None, once=False, poll_interval_s=5.0,
+        heartbeat_file=None, once=False, poll_interval_s=5.0, max_idle_polls=None,
     )
     return argparse.Namespace(**{**base, **valeurs})
 
@@ -297,3 +297,20 @@ def test_le_cli_expose_les_options_du_lot_di() -> None:
     ])
     assert (args.collection, args.min_job_interval_s, args.rate_limit_max_wait_s,
             args.max_consecutive_rate_limits) == (["c1", "c2"], 40.0, 600.0, 2)
+
+
+def _vide() -> PublicationResumeOutcome:
+    return PublicationResumeOutcome(worked=False, job_id=None, status=None, error=None)
+
+
+def test_la_boucle_s_arrete_quand_la_file_du_perimetre_reste_vide(monkeypatch, capsys) -> None:
+    issues = [_issue("succeeded"), _vide(), _issue("retried"), _vide(), _vide(), _vide(), _issue("succeeded")]
+    code, horloge, appels = _boucle(monkeypatch, issues, max_idle_polls=3)
+    assert (code, appels) == (0, 6), "un job trouvé remet le compte d'attente à zéro"
+    assert horloge.pauses == [5.0, 5.0, 5.0], "attente entre deux réclamations vides, pas après l'arrêt"
+    assert "IDLE_STOP idle_polls=3" in capsys.readouterr().out
+
+
+def test_sans_borne_d_attente_la_boucle_continue_jusqu_a_max_iterations(monkeypatch) -> None:
+    code, _horloge, appels = _boucle(monkeypatch, [_vide()] * 4)
+    assert (code, appels) == (0, 4)

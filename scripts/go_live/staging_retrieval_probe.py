@@ -230,6 +230,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - exécution
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--repository-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--collection", action="append", default=[],
+        help="lot DI : restreint la sonde à ces collections (répétable) ; absente, toutes",
+    )
     args = parser.parse_args(argv)
     import psycopg
 
@@ -238,7 +242,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - exécution
         print("SONDE_ECHEC: PG_RAG_DSN absent", file=sys.stderr)
         return 1
     try:
-        rapport = sonder(args.repository_root, connexion=lambda: psycopg.connect(dsn))
+        rapport = sonder(
+            args.repository_root, connexion=lambda: psycopg.connect(dsn),
+            collections=args.collection or None,
+        )
     except SondeEchec as exc:
         print(f"SONDE_ECHEC: {exc}", file=sys.stderr)
         return 1

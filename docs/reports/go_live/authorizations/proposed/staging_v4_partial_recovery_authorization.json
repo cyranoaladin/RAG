@@ -1,0 +1,230 @@
+{
+  "active_review": {
+    "head_sha": "079461659b60f8a8ce9458145a199599ad822bbc",
+    "pull_request": 262,
+    "repository": "cyranoaladin/RAG",
+    "state_required": "ouverte, approuvée au head exact, inchangée, jamais fusionnée ni fermée par ce lot"
+  },
+  "amends": "DH",
+  "authorization_statement": "L'approbation de la PR d'activation par abenrhouma vaut autorisation, pour le staging cloisonne uniquement, de reprendre sur la base dediee ragdb_profile_gate_v4 la publication des neuf collections gouvernees de production-profile-gate-2026-2027-v4, soit 405 placements attestes sous la revue 262, avec l'image DI epinglee : readiness resignee, preconditions, Worker B restreint a ces neuf collections et cadence, verification, controle partiel. Elle n'autorise ni reclamation d'un job hggsp, ni annulation d'un job hggsp, ni modification sql manuelle d'un job, ni modification du mapping scelle de v4, ni nouvelle release, ni fusion ni fermeture de la revue 262, ni suppression de ligne, ni privilege nouveau, ni elargissement du jeton github, ni mise en cache d'une revue, ni build sur nexus-prod, ni current switch, ni exposition publique.",
+  "consumed": false,
+  "effective_when": "ce document, image DI épinglée par digest, est placé à docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json par une PR distincte, approuvée au head exact par le relecteur gouverné, puis fusionnée sur main",
+  "execution_plan": {
+    "path": "docs/runbooks/staging_v4_partial_recovery_DI_EXECUTION_PLAN.md",
+    "sha256": "2d90760e95a628abf3f75a27fa7aa77b146c5df838aab8abda72df7b22f6f89f"
+  },
+  "expected_proof": [
+    "image DI construite depuis main par le workflow canonique, digest et preuve de provenance",
+    "readiness V4 resignee pour l'image DI, verifiee contre l'ancre, deposee a cote de celle de V4",
+    "precondition partielle : 479 attestations actives de #262, 405 reprises, 74 exclues, empreinte",
+    "review-precondition --stage worker-b : #262 approuvee en direct au head exact",
+    "Worker B : publications succeeded pour les 329 restants, aucun job HGGSP reclame",
+    "produit : 9 collections, 263 artefacts, 405 placements, 5678 chunks ; retrieval sous 9 scopes",
+    "controle partiel : empreinte des jobs exclus inchangee, review_closure=NOT_SAFE",
+    "closure-check (DH) refuse tant que HGGSP attend : #262 reste ouverte"
+  ],
+  "expires_after_use": true,
+  "extends_dh": {
+    "path": "docs/reports/go_live/authorizations/staging_v4_publication_recovery_authorization.json",
+    "sha256": "4f2af999208d2735d71afd9ffd65bdfbd6542f54d6862f6767e814d409eab4a8"
+  },
+  "extends_v4": {
+    "path": "docs/reports/go_live/authorizations/staging_v4_publication_authorization.json",
+    "sha256": "8f1ce4c65d71319eba15a6110ee5d18e0fba1eacd396b7f278187e1aa74ca63d"
+  },
+  "forbidden": [
+    "api_service_switch",
+    "applied_migration_change",
+    "attempt_count_reset",
+    "automatic_review_merge",
+    "certificate_modification",
+    "current_switch",
+    "dead_letter_revival",
+    "dns_modification",
+    "docker_prune",
+    "excluded_job_modification",
+    "github_permission_widening",
+    "hggsp_job_cancellation",
+    "hggsp_job_claim",
+    "job_reassignment",
+    "legacy_database_modification",
+    "manual_job_sql",
+    "new_database",
+    "new_release",
+    "nginx_modification",
+    "oauth_revocation",
+    "permission_file_modification",
+    "production_db_read",
+    "production_db_write",
+    "production_image_rebuild_on_host",
+    "production_ingestion",
+    "production_secret_read",
+    "production_service_restart",
+    "public_exposure",
+    "rclone_reconfiguration",
+    "reingestion",
+    "remove_orphans",
+    "review_262_merge_or_close",
+    "review_verification_caching",
+    "role_grant_change",
+    "row_deletion",
+    "sealed_artifact_change",
+    "successor_release_publication",
+    "v4_subject_mapping_change",
+    "volume_removal_outside_project",
+    "worker_b_privilege_escalation"
+  ],
+  "github_read_token": {
+    "consumers": [
+      "partial_preflight",
+      "partial_worker_b_publication"
+    ],
+    "created_by": "propriétaire ; le jeton DH existant est réutilisé tel quel, jamais élargi",
+    "dir_mode": "0700",
+    "file_mode": "0600",
+    "path": "/srv/nexus-staging/secrets/github-read-token/token",
+    "permissions": {
+      "contents": "read",
+      "metadata": "read"
+    },
+    "repository_selection": [
+      "cyranoaladin/RAG"
+    ]
+  },
+  "granted_by_pull_request_approval_of": "abenrhouma",
+  "kind": "NEXUS-STAGING-V4-PARTIAL-RECOVERY-AUTHORIZATION-V1",
+  "operations": [
+    "partial_readiness_resign",
+    "partial_readiness_install",
+    "partial_preflight",
+    "partial_worker_b_publication",
+    "partial_independent_verification",
+    "partial_closure_check"
+  ],
+  "partial_identity": {
+    "path": "docs/reports/go_live/recovery/di_partial_v4_262.json",
+    "sha256": "28e8a909307f42a401c364413a261985d002395c54ab6db7066e31ed98f13512"
+  },
+  "partial_scope": {
+    "claimed_collections": [
+      "rag_nexus_dgemc_terminale_option",
+      "rag_nexus_hlp_premiere_specialite",
+      "rag_nexus_hlp_terminale_specialite",
+      "rag_nexus_nsi_premiere_specialite",
+      "rag_nexus_nsi_terminale_specialite",
+      "rag_nexus_ses_premiere_specialite",
+      "rag_nexus_ses_terminale_specialite",
+      "rag_nexus_svt_premiere_specialite",
+      "rag_nexus_svt_terminale_specialite"
+    ],
+    "excluded_collections": {
+      "rag_nexus_hggsp_premiere_specialite": "external subject 'hggsp' is not governed",
+      "rag_nexus_hggsp_terminale_specialite": "external subject 'hggsp' is not governed"
+    },
+    "excluded_jobs": "ni réclamés, ni annulés, ni retentés, ni reportés : empreinte exacte avant/après",
+    "exclusion_rule": "dérivée des mappings SCELLÉS de V4 (ungoverned_release_collections), jamais choisie à la main ; Worker B refuse de démarrer sur une collection exclue",
+    "expected_product_after": {
+      "artifacts": 263,
+      "chunks": 5678,
+      "collections": 9,
+      "placements": 405
+    }
+  },
+  "probe_image": {
+    "build_on_nexus_prod": "forbidden",
+    "build_workflow": ".github/workflows/production-image-provenance.yml",
+    "build_workflow_run_attempt": 1,
+    "build_workflow_run_id": 36017565965,
+    "built_off_host": true,
+    "contracts_version": "0.21.0",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+    "durable_service": false,
+    "evidence": {
+      "path": "docs/reports/evidence/staging_worker_image_provenance_db.json",
+      "sha256": "b8b88626cfc2cef2292fe555b1049823c55d59854c742ce2496d502cec39a282"
+    },
+    "image_digest": "sha256:9dbc8f5598471b856d308f13eec429ab5561093f839e27e7809bae19335c9452",
+    "image_repository": "ghcr.io/cyranoaladin/rag-ingestor",
+    "network": "no_inbound_exposure",
+    "pinning": "pinned_by_digest_no_rebuild",
+    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:9dbc8f5598471b856d308f13eec429ab5561093f839e27e7809bae19335c9452",
+    "source_commit_sha": "0569aff60092251eef691ed2a730dec3bdf7ec81",
+    "source_tree_sha": "2e62a1e700ce14dd50bf46c508b99e837f8a4265",
+    "tag_alone_accepted": false,
+    "use": "sonde de retrieval ponctuelle en lecture (rag_reader) ; aucun service démarré"
+  },
+  "release": {
+    "expected_counts": {
+      "placements": 479,
+      "subjects": 11,
+      "unique_artifacts": 315,
+      "unique_chunks": 8268
+    },
+    "profiles_dir": "services/rag-engine/configs/ingestion_profiles/v3_livraison_315",
+    "release_dir": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate",
+    "release_id": "production-profile-gate-2026-2027-v4",
+    "release_manifest_sha256": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be",
+    "served_currentness": "official_snapshot",
+    "served_visibility": "internal"
+  },
+  "rollback": {
+    "database": "aucune ligne supprimee ni reecrite a la main ; les jobs restent l'historique",
+    "governance_evidence": "jamais supprimee",
+    "service": "arret du conteneur Worker B DI ; aucune suppression de volume"
+  },
+  "runtime_image": {
+    "activation": "la PR d'activation remplace ce bloc par l'image épinglée par digest et sa preuve de provenance",
+    "build_ref": "main, après fusion de la PR DI",
+    "build_workflow": ".github/workflows/production-image-provenance.yml",
+    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "replaces_for_this_lot": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d",
+    "required_fix_markers": {
+      "services/rag-engine/src/ingestor/ingestion_control/github_authority.py": "class GitHubRateLimitedError",
+      "services/rag-engine/src/ingestor/ingestion_control/jobs.py": "def defer_job_for_external_throttle",
+      "services/rag-engine/src/ingestor/ingestion_worker/multilevel_publication_resume_cli.py": "resolver.require_collections_governed(claim_collections)"
+    },
+    "status": "PENDING_BUILD_FROM_MAIN"
+  },
+  "stop_conditions": "tout ecart de la precondition partielle, toute exclusion non derivee de l'autorite scellee, tout job exclu modifie, toute revue 262 non approuvee en direct, tout arret 75 de Worker B (limitation persistante), toute variation de ragdb ; arret sans suppression ni reecriture",
+  "targets": {
+    "compose_project": "nexus-staging",
+    "container": "nexus-staging-pgvector-1",
+    "control_schema": "ingestion_control",
+    "database": "ragdb_profile_gate_v4",
+    "database_creation": "additive : nouvelle base du cluster existant, jamais une réutilisation",
+    "host": "nexus-prod",
+    "legacy_database": {
+      "guard": "têtes et comptes mesurés au pré-vol, revérifiés après chaque écriture",
+      "holds": "acquisition V2 (479 ressources, 479 artefacts) et 26 placements pilotes",
+      "mode": "untouched",
+      "name": "ragdb"
+    },
+    "product_schema": "public",
+    "role_env_dir": "/srv/nexus-staging/secrets/v4-roles",
+    "roles": {
+      "attestor": "ingestion_control_attestor",
+      "authority": "ingestion_control_authority",
+      "control_migrator": "ingestion_control_migrator",
+      "migrator": "superutilisateur du conteneur staging, via les seuls runners canoniques",
+      "product_reader": "rag_reader",
+      "product_reviewer": "rag_reviewer (droits posés par le runner produit, non utilisé par ce plan)",
+      "product_writer": "rag_publisher",
+      "worker": "ingestion_control_app"
+    },
+    "worker_never_receives": [
+      "identifiants du migrateur",
+      "DSN ingestion_control_authority",
+      "DSN ingestion_control_attestor",
+      "staging.env",
+      "ingestion_control.env"
+    ]
+  },
+  "worker_b_pacing": {
+    "live_verification": "inchangée : aucune décision de revue mise en cache (ADR-0033 § 5)",
+    "max_consecutive_rate_limits": 3,
+    "max_idle_polls": 5,
+    "min_job_interval_s": 60,
+    "on_rate_limit": "job différé SANS tentative consommée ; toute réclamation suspendue ; arrêt 75 au-delà",
+    "rate_limit_max_wait_s": 900
+  }
+}
