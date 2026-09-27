@@ -19,6 +19,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -32,7 +33,9 @@ SCRIPT = RACINE / "scripts/go_live/staging_v4_partial_recovery.sh"
 RELEASE = RACINE / autorisation.RELEASE_V4["release_dir"]
 HGGSP = {"rag_nexus_hggsp_premiere_specialite", "rag_nexus_hggsp_terminale_specialite"}
 IMAGE_DH = "sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d"
-COMMIT_DI = "c" * 40
+COMMIT_DI = "fb8a7cc8e85448115a64de8ff5325d639ef9ee70"
+IMAGE_DI = "sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6"
+PREUVE_DI = "docs/reports/evidence/staging_worker_image_provenance_di.json"
 
 
 def _sha(relatif: str) -> str:
@@ -72,6 +75,17 @@ def test_l_identite_correspond_aux_fichiers_de_la_release():
     }
     # Aucun artefact partagé : publier les neuf collections ne publie rien de HGGSP.
     assert not uniques & {x for c in HGGSP for x in par[c]}
+
+
+def test_les_identites_de_chunks_viennent_du_registre_scelle():
+    identite = json.loads((RACINE / di.IDENTITE_PAR_DEFAUT).read_text())
+    chunks, placements = di.faits_de_la_release(RACINE, identite)
+    artefact = json.loads((RELEASE / "artifacts.release.json").read_text())["artifacts"][0]
+    assert chunks[artefact["artifact_id"]] == tuple(c["chunk_id"] for c in artefact["chunks"])
+    sujet = json.loads((RELEASE / "subjects/rag_nexus_svt_terminale_specialite.release.json").read_text())
+    placement = sujet["placements"][0]
+    assert placements[(sujet["collection"], placement["artifact_id"])] == (
+        placement["placement_id"], placement["source_placement_id"])
 
 
 @pytest.mark.parametrize("alteration", [
@@ -130,14 +144,16 @@ def _document_candidat() -> dict:
     }
 
 
-def _image_construite(digest: str = "sha256:" + "a" * 64, commit: str = COMMIT_DI) -> dict:
+def _image_construite(digest: str = IMAGE_DI, commit: str = COMMIT_DI) -> dict:
     return {
         **autorisation.GABARIT_V4["runtime_image"],
         "image_digest": digest,
         "reference": f"{autorisation.DEPOT_IMAGE}@{digest}",
         "source_commit_sha": commit,
-        "build_workflow_run_id": 36999999999,
-        "evidence": {"path": "docs/reports/evidence/staging_worker_image_provenance_di.json", "sha256": "e" * 64},
+        "source_tree_sha": "13971825e149fbe287bce93605f7ccbb182e7c06",
+        "build_workflow_run_id": 36321957702,
+        "build_workflow_run_attempt": 1,
+        "evidence": {"path": PREUVE_DI, "sha256": _sha(PREUVE_DI)},
     }
 
 
@@ -157,12 +173,13 @@ def _liens(racine: Path = RACINE) -> dict[str, str]:
     }
 
 
-def test_la_proposition_est_le_document_candidat_et_reste_inactive():
-    assert (RACINE / autorisation.PROPOSITION_DI).read_bytes() == _octets(_document_candidat())
-    assert not (RACINE / autorisation.AUTORISATION_DI).exists()
+def test_l_autorisation_active_est_epinglee_mais_refusee_avant_fusion():
+    assert (RACINE / autorisation.AUTORISATION_DI).read_bytes() == _octets(_document_active())
+    assert not (RACINE / autorisation.PROPOSITION_DI).exists()
     assert autorisation.evaluer_di(RACINE, _document_candidat(), liens=_liens(), document_dh=_dh()) == [
         "DI : runtime_image en attente de construction depuis main — l'autorisation reste inactive"
     ]
+    assert autorisation.evaluer_di(RACINE, _document_active(), liens=_liens(), document_dh=_dh()) == []
 
 
 def test_les_operations_di_sont_distinctes_et_ne_touchent_jamais_hggsp():
@@ -194,6 +211,10 @@ def _etat(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, document: dict, ar
         (racine / relatif).parent.mkdir(parents=True, exist_ok=True)
         (racine / relatif).write_bytes((RACINE / relatif).read_bytes())
         principal[relatif] = (RACINE / relatif).read_text(encoding="utf-8")
+    (racine / PREUVE_DI).parent.mkdir(parents=True, exist_ok=True)
+    (racine / PREUVE_DI).write_bytes((RACINE / PREUVE_DI).read_bytes())
+    if sur_main is not None:
+        principal[PREUVE_DI] = (RACINE / PREUVE_DI).read_text(encoding="utf-8")
     octets = _octets(document)
     (racine / arbre).parent.mkdir(parents=True, exist_ok=True)
     (racine / arbre).write_bytes(octets)
@@ -245,7 +266,8 @@ def test_3_activation_non_fusionnee_reste_refusee(tmp_path, monkeypatch, operati
     racine = _etat(tmp_path, monkeypatch, document=_document_active(), arbre=autorisation.AUTORISATION_DI,
                    sur_main=None)
     ecarts = autorisation.verifier_operation_di(racine, operation, _cible(operation))
-    assert ecarts == [f"{autorisation.AUTORISATION_DI} n'est pas (ou pas à l'identique) sur origin/main"]
+    assert f"{autorisation.AUTORISATION_DI} n'est pas (ou pas à l'identique) sur origin/main" in ecarts
+    assert any(PREUVE_DI in ecart for ecart in ecarts)
 
 
 @pytest.mark.parametrize("operation", autorisation.ORDRE_DI)
@@ -304,6 +326,22 @@ def test_une_autorisation_di_alteree_est_refusee(tmp_path, monkeypatch, alterati
     assert any(motif in e for e in ecarts), ecarts
 
 
+@pytest.mark.parametrize("modifier,motif", [
+    (lambda d: d["runtime_image"].update(image_digest="sha256:" + "a" * 64,
+                                         reference=autorisation.DEPOT_IMAGE + "@sha256:" + "a" * 64), "digest DI"),
+    (lambda d: d["runtime_image"].update(build_workflow_run_id=36321957703), "run de provenance"),
+    (lambda d: d["runtime_image"].update(source_tree_sha="0" * 40), "arbre de provenance"),
+    (lambda d: d["runtime_image"]["evidence"].update(sha256="0" * 64), "preuve de provenance"),
+])
+def test_autorisation_refuse_une_provenance_di_divergente(tmp_path, monkeypatch, modifier, motif):
+    document = _document_active()
+    modifier(document)
+    racine = _etat(tmp_path, monkeypatch, document=document, arbre=autorisation.AUTORISATION_DI,
+                   sur_main=autorisation.AUTORISATION_DI)
+    ecarts = autorisation.evaluer_di(racine, document, liens=_liens(racine), document_dh=_dh())
+    assert any(motif in e for e in ecarts), ecarts
+
+
 # ── orchestrateur ──────────────────────────────────────────────────────────
 
 
@@ -338,6 +376,7 @@ def test_l_essai_a_blanc_va_jusqu_au_controle_partiel_sans_toucher_hggsp(tmp_pat
     # Pré-vol (précondition partielle + revue #262 en direct) AVANT Worker B.
     assert texte.index("partial-precondition") < texte.index("multilevel_publication_resume_cli")
     assert texte.index("--stage worker-b") < texte.index("multilevel_publication_resume_cli")
+    assert "--env-file /srv/nexus-staging/secrets/v4-roles/rag-reader.env" in texte
     lancement = next(ligne for ligne in texte.splitlines() if "multilevel_publication_resume_cli" in ligne)
     for collection in autorisation.COLLECTIONS_REPRISES_DI:
         assert f"--collection {collection}" in lancement, collection
@@ -424,6 +463,7 @@ def _perimetre_synthetique() -> di.Perimetre:
 
 def _attestation(ident: str, collection: str, etat: str) -> dict:
     return {"attestation_id": ident, "resource_id": "r" + ident, "collection": collection, "release_id": "r",
+            "content_sha256": ident,
             "release_manifest_sha256": "m", "human_review_repository": "cyranoaladin/RAG",
             "human_review_pull_request": 262, "human_review_head_sha": TETE, "resource_state": etat}
 
@@ -449,7 +489,10 @@ def _etat_synthetique(**remplacements: object) -> di.Etat:
 
 def _precondition(monkeypatch, etat: di.Etat) -> dict:
     monkeypatch.setattr(di, "lire_etat", lambda _conn, _p: etat)
-    return di.precondition_partielle(object(), _perimetre_synthetique())
+    return di.precondition_partielle(object(), _perimetre_synthetique(),
+                                    produit=_produit_synthetique(),
+                                    chunks_gouvernes=CHUNKS_GOUVERNES_SYNTHE,
+                                    placements_gouvernes=PLACEMENTS_GOUVERNES_SYNTHE)
 
 
 def test_la_precondition_accepte_publie_epingle_et_promu_sans_pin(monkeypatch):
@@ -458,6 +501,76 @@ def test_la_precondition_accepte_publie_epingle_et_promu_sans_pin(monkeypatch):
                                   "promoted_awaiting_pin", "excluded_pending")} == {
         "claim_scope": ["portee"], "already_published": 1, "to_publish": 2, "pinned_awaiting_product": 1,
         "promoted_awaiting_pin": 1, "excluded_pending": 1}
+
+
+def _produit_synthetique(*, placements=None, artifacts=None, chunks=None,
+                        base="ragdb_profile_gate_v4", role="rag_reader"):
+    lignes = ([{"attestation_id": "a", "collection": "portee", "artifact_id": "a"}]
+              if placements is None else placements)
+    return SimpleNamespace(
+        base=base, role=role,
+        placements=[{"placement_id": "p" + p["artifact_id"],
+                     "source_placement_id": "s" + p["artifact_id"], **p} for p in lignes],
+        artifacts=["a"] if artifacts is None else artifacts,
+        chunks={"a": ["a1", "a2"]} if chunks is None else chunks,
+    )
+
+
+PLACEMENTS_GOUVERNES_SYNTHE = {(c, a): ("p" + a, "s" + a)
+                               for c, a in (("portee", "a"), ("portee", "b"),
+                                            ("portee", "c"), ("x_hggsp", "h"))}
+CHUNKS_GOUVERNES_SYNTHE = {a: tuple(a + str(i) for i in range(1, nombre + 1))
+                           for a, nombre in (("a", 2), ("b", 3), ("c", 4), ("h", 4))}
+
+
+@pytest.mark.parametrize("produit,motif", [
+    (_produit_synthetique(placements=[{"attestation_id": "a", "collection": "portee", "artifact_id": "a"},
+                                        {"attestation_id": "b", "collection": "portee", "artifact_id": "b"}],
+                           artifacts=["a", "b"], chunks={"a": ["a1", "a2"], "b": ["b1", "b2", "b3"]}),
+     "placement(s) produit en plus"),
+    (_produit_synthetique(placements=[], artifacts=[], chunks={}), "placement(s) produit manquant"),
+    (_produit_synthetique(placements=[{"attestation_id": "a", "collection": "portee", "artifact_id": "a"},
+                                        {"attestation_id": "h", "collection": "x_hggsp", "artifact_id": "h"}],
+                           artifacts=["a", "h"], chunks={"a": ["a1", "a2"], "h": ["h1", "h2", "h3", "h4"]}),
+     "placement HGGSP"),
+    (_produit_synthetique(artifacts=["a", "b"]), "artefact(s) produit en plus"),
+    (_produit_synthetique(chunks={"a": ["a1"]}), "chunks du produit"),
+    (_produit_synthetique(chunks={"a": ["a1", "autre"]}), "chunks du produit"),
+    (_produit_synthetique(base="ragdb_autre"), "base produit"),
+    (_produit_synthetique(role="rag_publisher"), "rôle produit"),
+    (_produit_synthetique(placements=[{"attestation_id": "a", "collection": "portee",
+                                       "artifact_id": "a", "placement_id": "faux"}]), "placement(s) produit en plus"),
+])
+def test_prevol_refuse_un_produit_incoherent(monkeypatch, produit, motif):
+    monkeypatch.setattr(di, "lire_etat", lambda _conn, _p: _etat_synthetique())
+    with pytest.raises(di.RepriseRefusee) as refus:
+        di.precondition_partielle(object(), _perimetre_synthetique(),
+                                  produit=produit, chunks_gouvernes=CHUNKS_GOUVERNES_SYNTHE,
+                                  placements_gouvernes=PLACEMENTS_GOUVERNES_SYNTHE)
+    assert any(motif in ecart for ecart in refus.value.ecarts), refus.value.ecarts
+
+
+def test_prevol_accepte_une_reprise_partielle_legitime(monkeypatch):
+    monkeypatch.setattr(di, "lire_etat", lambda _conn, _p: _etat_synthetique())
+    bilan = di.precondition_partielle(object(), _perimetre_synthetique(),
+                                      produit=_produit_synthetique(),
+                                      chunks_gouvernes=CHUNKS_GOUVERNES_SYNTHE,
+                                      placements_gouvernes=PLACEMENTS_GOUVERNES_SYNTHE)
+    assert (bilan["already_published"], bilan["to_publish"]) == (1, 2)
+
+
+def test_prevol_accepte_une_relance_apres_une_publication_supplementaire(monkeypatch):
+    etat = _etat_synthetique()
+    etat.jobs[1] = _job("b", "succeeded")
+    monkeypatch.setattr(di, "lire_etat", lambda _conn, _p: etat)
+    produit = _produit_synthetique(
+        placements=[{"attestation_id": x, "collection": "portee", "artifact_id": x} for x in ("a", "b")],
+        artifacts=["a", "b"], chunks={"a": ["a1", "a2"], "b": ["b1", "b2", "b3"]},
+    )
+    bilan = di.precondition_partielle(object(), _perimetre_synthetique(), produit=produit,
+                                      chunks_gouvernes=CHUNKS_GOUVERNES_SYNTHE,
+                                      placements_gouvernes=PLACEMENTS_GOUVERNES_SYNTHE)
+    assert (bilan["already_published"], bilan["to_publish"]) == (2, 1)
 
 
 @pytest.mark.parametrize("modifier,motif", [
@@ -472,6 +585,8 @@ def test_la_precondition_accepte_publie_epingle_et_promu_sans_pin(monkeypatch):
     (lambda e: e.actives.__setitem__(0, {**_attestation("a", "portee", "RETRIEVAL_ELIGIBLE"),
                                          "human_review_pull_request": 257}), "revue(s)"),
     (lambda e: e.jobs.append(_job("b", "queued")), "2 job(s) vivant(s)"),
+    (lambda e: e.jobs.append(_job("a", "queued")), "job réussi et job vivant"),
+    (lambda e: e.jobs.append(_job("a", "succeeded")), "plusieurs jobs réussis"),
 ])
 def test_la_precondition_refuse_chaque_etat_non_reprenable(monkeypatch, modifier, motif):
     etat = _etat_synthetique()

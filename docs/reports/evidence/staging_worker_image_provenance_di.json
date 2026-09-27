@@ -1,0 +1,31 @@
+{
+  "build": {
+    "build_on_nexus_prod": false,
+    "built_at": "2026-09-27T13:23:08.133936Z",
+    "built_off_host": true,
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+    "inventory_artifact": "nexus-deployment-image-inventory",
+    "inventory_artifact_id": 10932683454,
+    "inventory_protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
+    "inventory_zip_sha256": "91fa5c0b3d57eb25b0db7a79969366756f3b09728584c8af68cae97923639696",
+    "platform": "linux/amd64",
+    "source_commit_sha": "fb8a7cc8e85448115a64de8ff5325d639ef9ee70",
+    "source_tree_sha": "13971825e149fbe287bce93605f7ccbb182e7c06",
+    "worker_a_and_b_share_digest": true,
+    "workflow_path": ".github/workflows/production-image-provenance.yml",
+    "workflow_ref": "refs/heads/main",
+    "workflow_run_attempt": 1,
+    "workflow_run_id": 36321957702
+  },
+  "image_digest": "sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6",
+  "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+  "kind": "NEXUS-STAGING-WORKER-IMAGE-PROVENANCE",
+  "lot": "DI",
+  "not_done_by_this_evidence": [
+    "aucune exécution sur l’hôte",
+    "aucun déploiement",
+    "aucune écriture de base"
+  ],
+  "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6"
+}

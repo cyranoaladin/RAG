@@ -11,12 +11,12 @@
   "effective_when": "ce document, image DI épinglée par digest, est placé à docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json par une PR distincte, approuvée au head exact par le relecteur gouverné, puis fusionnée sur main",
   "execution_plan": {
     "path": "docs/runbooks/staging_v4_partial_recovery_DI_EXECUTION_PLAN.md",
-    "sha256": "cba05b35fb8b1e7864ba7bd9bfac3680e19da1d5940e27ac1a001a0fa6704476"
+    "sha256": "8f73fc906e93b18267dd8ea7ed0ebd1c383f19914bd5491b265e3c8f3428d048"
   },
   "expected_proof": [
     "image DI construite depuis main par le workflow canonique, digest et preuve de provenance",
     "readiness V4 resignee pour l'image DI, verifiee contre l'ancre, deposee a cote de celle de V4",
-    "precondition partielle : 479 attestations actives de #262, 405 reprises, 74 exclues, empreinte",
+    "precondition partielle : 479 attestations actives de #262, 405 reprises, 74 exclues, produit exact des jobs succeeded, zéro placement HGGSP, empreinte",
     "review-precondition --stage worker-b : #262 approuvee en direct au head exact",
     "Worker B : publications succeeded pour les 329 restants, aucun job HGGSP reclame",
     "produit : 9 collections, 263 artefacts, 405 placements, 5678 chunks ; retrieval sous 9 scopes",
@@ -173,17 +173,27 @@
     "service": "arret du conteneur Worker B DI ; aucune suppression de volume"
   },
   "runtime_image": {
-    "activation": "la PR d'activation remplace ce bloc par l'image épinglée par digest et sa preuve de provenance",
-    "build_ref": "main, après fusion de la PR DI",
+    "build_on_nexus_prod": "forbidden",
     "build_workflow": ".github/workflows/production-image-provenance.yml",
-    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
-    "replaces_for_this_lot": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d",
-    "required_fix_markers": {
-      "services/rag-engine/src/ingestor/ingestion_control/github_authority.py": "class GitHubRateLimitedError",
-      "services/rag-engine/src/ingestor/ingestion_control/jobs.py": "def defer_job_for_external_throttle",
-      "services/rag-engine/src/ingestor/ingestion_worker/multilevel_publication_resume_cli.py": "resolver.require_collections_governed(claim_collections)"
+    "build_workflow_run_attempt": 1,
+    "build_workflow_run_id": 36321957702,
+    "built_off_host": true,
+    "contracts_version": "0.21.0",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "durable_service": false,
+    "evidence": {
+      "path": "docs/reports/evidence/staging_worker_image_provenance_di.json",
+      "sha256": "b2ac47c2876e0e22a59f34f32ca20c41833ddbfbca1b51871fc7362819959c56"
     },
-    "status": "PENDING_BUILD_FROM_MAIN"
+    "image_digest": "sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6",
+    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "network": "no_inbound_exposure",
+    "pinning": "pinned_by_digest_no_rebuild",
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6",
+    "runtime_image_binding_guard": "NEXUS_ACTUAL_WORKER_IMAGE",
+    "source_commit_sha": "fb8a7cc8e85448115a64de8ff5325d639ef9ee70",
+    "source_tree_sha": "13971825e149fbe287bce93605f7ccbb182e7c06",
+    "tag_alone_accepted": false
   },
   "stop_conditions": "tout ecart de la precondition partielle, toute exclusion non derivee de l'autorite scellee, tout job exclu modifie, toute revue 262 non approuvee en direct, tout arret 75 de Worker B (limitation persistante), toute variation de ragdb ; arret sans suppression ni reecriture",
   "targets": {

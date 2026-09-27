@@ -78,14 +78,20 @@ charger_autorisation_di() {
     REVUE_TETE="$(champ_dh active_review.head_sha)"
 }
 
-outil_di() {  # reste = arguments de l'outil DI ; rôle app, lecture seule, aucun jeton
-    env_de_role "$REMOTE_WORKER_ENV"
+outil_di() {  # pré-vol : rôles app + reader ; contrôle final : app seulement
+    local produit_env=""
+    if [ "${1:-}" = partial-precondition ]; then
+        env_de_role "$REMOTE_WORKER_ENV" "$REMOTE_READER_ENV"
+        produit_env="--env-file $REMOTE_READER_ENV"
+    else
+        env_de_role "$REMOTE_WORKER_ENV"
+    fi
     cat <<EOF2
 set -euo pipefail
 cd $REMOTE/repo && git fetch -q origin && git checkout -q --detach $AUTH_COMMIT
 test -f "$REMOTE/repo/$OUTIL_DI" && test -f "$REMOTE/repo/$IDENTITE_DI"
 $(tirer "$IMAGE")
-docker run --rm --network host --env-file "$REMOTE_WORKER_ENV" \\
+docker run --rm --network host --env-file "$REMOTE_WORKER_ENV" $produit_env \\
   -v "$REMOTE/repo:/repo:ro" -w /repo --entrypoint python "$IMAGE" \\
   /repo/$OUTIL_DI --repository-root /repo --identity /repo/$IDENTITE_DI $*
 EOF2
