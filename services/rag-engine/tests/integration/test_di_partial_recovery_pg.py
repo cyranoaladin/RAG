@@ -185,6 +185,19 @@ def _worker(control: dict[str, str], deps: Any, github: LocalGitHub, jeton: Path
         return banc_dh._iterer_worker_b(control, deps, fois)
 
 
+def _precondition(conn: Any, perimetre: di.Perimetre, product_pg: dict[str, str], banc: Any) -> dict[str, Any]:
+    with psycopg.connect(product_pg["retrieval_dsn"]) as produit_conn:
+        produit = di.lire_produit(produit_conn)
+    chunks, placements = di.faits_de_la_release(banc.racine, {
+        "release": {"release_manifest_sha256": banc.digests["release_manifest_sha256"]},
+        "exclusion_authority": {"release_manifest": "production-profile-gate.release.json"},
+    })
+    return di.precondition_partielle(
+        conn, perimetre, produit=produit, chunks_gouvernes=chunks,
+        placements_gouvernes=placements, role_produit="banc_retrieval",
+    )
+
+
 def test_reprise_partielle_de_bout_en_bout(
     modele_de_banc: Any, control: dict[str, str], product_pg: dict[str, str],
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
@@ -197,7 +210,7 @@ def test_reprise_partielle_de_bout_en_bout(
 
     # ── précondition : le périmètre et l'empreinte des exclus ──
     with psycopg.connect(app_dsn(control)) as conn:
-        pre = di.precondition_partielle(conn, perimetre)
+        pre = _precondition(conn, perimetre, product_pg, banc)
     assert pre["claim_scope"] == [PORTEE]
     assert (pre["to_publish"], pre["already_published"], pre["excluded_pending"]) == (2, 0, 2)
     exclus_avant = _jobs_par_collection(control)[EXCLUE]
@@ -238,7 +251,7 @@ def test_reprise_partielle_de_bout_en_bout(
         "queued", 1, "RETRIEVAL_ELIGIBLE", 1, 2), epingle
     assert banc_batch._compter_dans_le_produit(product_pg, contenus)[1] == 0, "aucun placement produit"
     with psycopg.connect(app_dsn(control)) as conn:
-        assert di.precondition_partielle(conn, perimetre)["pinned_awaiting_product"] == 1
+        assert _precondition(conn, perimetre, product_pg, banc)["pinned_awaiting_product"] == 1
     banc_dh._preparer(control, banc_dh._rendre_prioritaire, job_id=echec.job_id)
 
     # ── D/E. reprise : le job épinglé publie, puis le reste du périmètre ──
@@ -298,7 +311,7 @@ def test_reprise_partielle_de_bout_en_bout(
         chemin = tmp_path / "faux.json"
         chemin.write_text(json.dumps({**identite, **alteration}))
         with psycopg.connect(app_dsn(control)) as conn, pytest.raises(di.RepriseRefusee) as refus:
-            di.precondition_partielle(conn, di.charger_perimetre(chemin))
+            _precondition(conn, di.charger_perimetre(chemin), product_pg, banc)
         assert any(attendu in ecart for ecart in refus.value.ecarts), (alteration, refus.value.ecarts)
     assert _requete(control, "SELECT job_id, status, attempt_count, updated_at"
                     " FROM ingestion_control.jobs ORDER BY 1") == avant_refus

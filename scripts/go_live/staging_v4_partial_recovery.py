@@ -107,7 +107,7 @@ def charger_perimetre(chemin: Path) -> Perimetre:
 
 REQUETE_ACTIVES = """
 SELECT pa.attestation_id::text AS attestation_id, pa.resource_id::text AS resource_id,
-       pa.collection, pa.release_id, pa.release_manifest_sha256,
+       pa.content_sha256, pa.collection, pa.release_id, pa.release_manifest_sha256,
        pa.human_review_repository, pa.human_review_pull_request, pa.human_review_head_sha,
        r.resource_state
   FROM ingestion_control.publication_attestations pa
@@ -129,6 +129,15 @@ SELECT publication_attestation_id::text AS attestation_id, publication_review_pu
        publication_review_head_sha
   FROM ingestion_control.publication_commit_pins
 """
+REQUETE_PLACEMENTS_PRODUIT = """
+SELECT publication_attestation_id::text AS attestation_id, collection, artifact_id,
+       placement_id, source_placement_id
+  FROM public.rag_artifact_placements ORDER BY publication_attestation_id
+"""
+REQUETE_ARTEFACTS_PRODUIT = "SELECT artifact_id FROM public.rag_artifacts ORDER BY artifact_id"
+REQUETE_CHUNKS_PRODUIT = """
+SELECT artifact_id, chunk_id FROM public.rag_chunks ORDER BY artifact_id, chunk_id
+"""
 
 
 def _lignes(conn: Any, requete: str, parametres: Any = None) -> list[dict[str, Any]]:
@@ -144,6 +153,68 @@ class Etat:
     actives: list[dict[str, Any]]
     jobs: list[dict[str, Any]]
     pins: dict[str, dict[str, Any]]
+
+
+@dataclass
+class Produit:
+    base: str
+    role: str
+    placements: list[dict[str, Any]]
+    artifacts: list[str]
+    chunks: dict[str | None, list[str]]
+
+
+def lire_produit(conn: Any) -> Produit:
+    """Inventaire intégral du produit dédié, sous rag_reader et en lecture seule."""
+    conn.execute("SET TRANSACTION READ ONLY")
+    try:
+        base, role = conn.execute("SELECT current_database(), current_user").fetchone()
+        chunks: dict[str | None, list[str]] = {}
+        for row in _lignes(conn, REQUETE_CHUNKS_PRODUIT):
+            chunks.setdefault(row["artifact_id"], []).append(str(row["chunk_id"]))
+        return Produit(
+            base=str(base), role=str(role),
+            placements=_lignes(conn, REQUETE_PLACEMENTS_PRODUIT),
+            artifacts=[str(row["artifact_id"]) for row in _lignes(conn, REQUETE_ARTEFACTS_PRODUIT)],
+            chunks=chunks,
+        )
+    finally:
+        conn.rollback()
+
+
+def faits_de_la_release(
+    racine: Path, identite: Mapping[str, Any]
+) -> tuple[dict[str, tuple[str, ...]], dict[tuple[str, str], tuple[str, str]]]:
+    """Chunks et identités de placements liés au manifeste scellé de V4."""
+    chemin = racine / identite["exclusion_authority"]["release_manifest"]
+    octets = chemin.read_bytes()
+    if hashlib.sha256(octets).hexdigest() != identite["release"]["release_manifest_sha256"]:
+        raise RepriseRefusee(["manifeste de release : empreinte incorrecte"])
+    manifeste = json.loads(octets)
+    registre = manifeste["artifact_registry"]
+    chemin_registre = chemin.parent / registre["path"]
+    registre_octets = chemin_registre.read_bytes()
+    if hashlib.sha256(registre_octets).hexdigest() != registre["sha256"]:
+        raise RepriseRefusee(["registre d'artefacts de la release : empreinte incorrecte"])
+    artefacts = json.loads(registre_octets)["artifacts"]
+    chunks = {a["artifact_id"]: tuple(c["chunk_id"] for c in a["chunks"]) for a in artefacts}
+    if len(chunks) != len(artefacts) or any(len(ids) != len(set(ids)) for ids in chunks.values()):
+        raise RepriseRefusee(["registre d'artefacts de la release : identités en double"])
+    placements: dict[tuple[str, str], tuple[str, str]] = {}
+    for sujet in manifeste["subjects"]:
+        chemin_sujet = chemin.parent / sujet["path"]
+        octets_sujet = chemin_sujet.read_bytes()
+        if hashlib.sha256(octets_sujet).hexdigest() != sujet["sha256"]:
+            raise RepriseRefusee([f"sujet scellé {sujet['collection']} : empreinte incorrecte"])
+        document = json.loads(octets_sujet)
+        if document["collection"] != sujet["collection"]:
+            raise RepriseRefusee([f"sujet scellé {sujet['collection']} : collection divergente"])
+        for placement in document["placements"]:
+            cle = (placement["collection"], placement["artifact_id"])
+            if cle in placements or placement["collection"] != sujet["collection"]:
+                raise RepriseRefusee([f"sujet scellé {sujet['collection']} : placement en double ou divergent"])
+            placements[cle] = (placement["placement_id"], placement["source_placement_id"])
+    return chunks, placements
 
 
 def lire_etat(conn: Any, perimetre: Perimetre) -> Etat:
@@ -256,10 +327,72 @@ def _ecarts_des_exclus(partition: Partition, etat: Etat) -> list[str]:
     return ecarts
 
 
-def precondition_partielle(conn: Any, perimetre: Perimetre) -> dict[str, Any]:
+def _ecarts_produit(
+    partition: Partition, perimetre: Perimetre, produit: Produit,
+    chunks_gouvernes: Mapping[str, tuple[str, ...]],
+    placements_gouvernes: Mapping[tuple[str, str], tuple[str, str]],
+    role_produit: str,
+) -> list[str]:
+    """Le produit doit être exactement la projection des jobs déjà réussis."""
+    reussies = [a for a in partition.portee if any(
+        j["status"] == "succeeded" for j in partition.jobs_par_attestation.get(a["attestation_id"], []))]
+    ecarts: list[str] = []
+    if produit.base != perimetre.database:
+        ecarts.append(f"base produit {produit.base!r}, attendu {perimetre.database!r}")
+    if produit.role != role_produit:
+        ecarts.append(f"rôle produit {produit.role!r}, attendu {role_produit!r}")
+    cles_inconnues = {(a["collection"], a["content_sha256"]) for a in reussies} - set(placements_gouvernes)
+    if cles_inconnues:
+        ecarts.append(f"{len(cles_inconnues)} placement(s) succeeded absents de la release scellée")
+    attendu = {
+        (a["attestation_id"], a["collection"], a["content_sha256"],
+         *placements_gouvernes[(a["collection"], a["content_sha256"])])
+        for a in reussies if (a["collection"], a["content_sha256"]) not in cles_inconnues
+    }
+    observe = [
+        (p["attestation_id"], p["collection"], p["artifact_id"],
+         p["placement_id"], p["source_placement_id"]) for p in produit.placements
+    ]
+    if len(observe) != len(set(observe)):
+        ecarts.append("placement(s) produit en double")
+    hggsp = [p for p in produit.placements if p["collection"] in perimetre.exclues]
+    if hggsp:
+        ecarts.append(f"placement HGGSP présent : {len(hggsp)}")
+    surplus, manquants = set(observe) - attendu, attendu - set(observe)
+    if surplus:
+        ecarts.append(f"{len(surplus)} placement(s) produit en plus des jobs succeeded")
+    if manquants:
+        ecarts.append(f"{len(manquants)} placement(s) produit manquant pour les jobs succeeded")
+    artefacts_attendus = {a["content_sha256"] for a in reussies}
+    artefacts_observes = set(produit.artifacts)
+    if len(produit.artifacts) != len(artefacts_observes):
+        ecarts.append("artefact(s) produit en double")
+    if artefacts_observes - artefacts_attendus:
+        ecarts.append(f"{len(artefacts_observes - artefacts_attendus)} artefact(s) produit en plus")
+    if artefacts_attendus - artefacts_observes:
+        ecarts.append(f"{len(artefacts_attendus - artefacts_observes)} artefact(s) produit manquant")
+    inconnus = artefacts_attendus - set(chunks_gouvernes)
+    if inconnus:
+        ecarts.append(f"{len(inconnus)} artefact(s) succeeded absents du registre scellé")
+    chunks_attendus = {a: set(chunks_gouvernes[a]) for a in artefacts_attendus - inconnus}
+    chunks_observes = {a: set(ids) for a, ids in produit.chunks.items()}
+    if (chunks_observes != chunks_attendus
+            or any(len(ids) != len(chunks_observes[a]) for a, ids in produit.chunks.items())):
+        ecarts.append("chunks du produit incohérents avec le registre scellé et les jobs succeeded")
+    return ecarts
+
+
+def precondition_partielle(
+    conn: Any, perimetre: Perimetre, *, produit: Produit,
+    chunks_gouvernes: Mapping[str, tuple[str, ...]],
+    placements_gouvernes: Mapping[tuple[str, str], tuple[str, str]],
+    role_produit: str = "rag_reader",
+) -> dict[str, Any]:
     etat = lire_etat(conn, perimetre)
     partition, ecarts = _partition(etat, perimetre)
     ecarts += _ecarts_des_exclus(partition, etat)
+    ecarts += _ecarts_produit(
+        partition, perimetre, produit, chunks_gouvernes, placements_gouvernes, role_produit)
     a_publier = epingles_en_attente = promues_sans_pin = deja = 0
     for attestation in partition.portee:
         ident = attestation["attestation_id"]
@@ -268,8 +401,13 @@ def precondition_partielle(conn: Any, perimetre: Perimetre) -> dict[str, Any]:
             ecarts.append(f"reprise {ident} : job en dead_letter — hors de ce lot, jamais réanimé à la main")
         if any(j["lease_active"] for j in jobs):
             ecarts.append(f"reprise {ident} : bail ACTIF — un Worker B tourne encore")
-        reussi = any(j["status"] == "succeeded" for j in jobs)
+        reussis = [j for j in jobs if j["status"] == "succeeded"]
+        reussi = bool(reussis)
         vivant = [j for j in jobs if j["status"] in ("queued", "running")]
+        if len(reussis) > 1:
+            ecarts.append(f"reprise {ident} : plusieurs jobs réussis")
+        if reussi and vivant:
+            ecarts.append(f"reprise {ident} : job réussi et job vivant")
         if reussi and attestation["resource_state"] == ETAT_PUBLIE:
             deja += 1
             continue
@@ -414,7 +552,17 @@ def main(argv: Iterable[str] | None = None) -> int:  # pragma: no cover - exécu
             raise RepriseRefusee(["PG_INGESTION_CONTROL_DSN absent"])
         with psycopg.connect(dsn) as conn:
             if args.commande == "partial-precondition":
-                bilan = precondition_partielle(conn, perimetre)
+                dsn_produit = os.environ.get("PG_RAG_DSN", "").strip()
+                if not dsn_produit:
+                    raise RepriseRefusee(["PG_RAG_DSN absent : produit non mesuré"])
+                with psycopg.connect(dsn_produit) as connexion_produit:
+                    produit = lire_produit(connexion_produit)
+                identite = json.loads(chemin.read_text(encoding="utf-8"))
+                chunks, placements = faits_de_la_release(args.repository_root, identite)
+                bilan = precondition_partielle(
+                    conn, perimetre, produit=produit,
+                    chunks_gouvernes=chunks, placements_gouvernes=placements,
+                )
                 print("PARTIAL_PRECONDITION_OK " + " ".join(
                     f"{k}={','.join(v) if isinstance(v, list) else v}" for k, v in bilan.items()
                 ))

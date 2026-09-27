@@ -3,10 +3,10 @@
 Orchestrateur : `scripts/go_live/staging_v4_partial_recovery.sh`.
 Outil : `scripts/go_live/staging_v4_partial_recovery.py`.
 Identité de la reprise partielle : `docs/reports/go_live/recovery/di_partial_v4_262.json`.
-Autorisation : `docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json`
-(**absente** tant que la PR d'activation n'est pas approuvée et fusionnée ; la
-PR DI n'en porte qu'une proposition sous `authorizations/proposed/`, dont
-l'image est `PENDING_BUILD_FROM_MAIN`).
+Autorisation : `docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json`.
+La PR d'activation la porte avec l'image épinglée ; le vérificateur refuse toute
+opération tant que ce document et le plan ne sont pas fusionnés à l'identique
+sur `main`.
 
 ## 0. État de départ (donnée d'incident)
 
@@ -51,19 +51,18 @@ Les 403 jobs en file se partagent entre :
 
 ## 2. Avant toute exécution (hors hôte)
 
-1. **Fusion de la PR DI** (code, tests, outil, proposition) — revue humaine.
-2. **Construction de l'image DI** depuis `main` :
-   `Actions → production-image-provenance → Run workflow` sur `main`
-   (le workflow refuse toute autre branche). Relever le digest de
-   `rag-multilevel-worker-production` dans l'inventaire
-   `NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1` (artefact
-   `nexus-deployment-image-inventory`) et la preuve de provenance.
-3. **PR d'activation DI**, distincte : déplace la proposition vers
-   `authorizations/`, remplace le bloc `runtime_image` en attente par l'image
-   épinglée (digest, commit de build sur `main`, run, preuve), ajoute la preuve
-   de provenance. Le vérificateur exige : digest bien formé et distinct de
-   celui de DH, commit de build sur `origin/main` portant le correctif
-   (marqueurs dans les trois modules), sonde identique à DH.
+1. **PR DI fusionnée** : le commit `fb8a7cc8e85448115a64de8ff5325d639ef9ee70`
+   est sur `main` et porte le correctif.
+2. **Image DI construite depuis ce commit** : run de provenance
+   `36321957702` (`workflow_dispatch`, tentative 1, `success`) ; inventaire
+   `NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1`, artefact
+   `nexus-deployment-image-inventory` n° `10932683454` ; image Worker B
+   `ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6`.
+3. **PR d'activation DI**, distincte : déplacement de la proposition dans
+   `authorizations/`, image épinglée et preuve de provenance. Elle doit être
+   approuvée au HEAD exact et fusionnée avant toute opération. Le vérificateur
+   exige ce document et ce plan à l'identique sur `origin/main`, le commit de
+   build sur `origin/main` avec le correctif, et la même sonde que DH.
 4. **Signature locale** de la readiness pour l'image DI (détenteur de la clé) :
    `scripts/go_live/sign_staging_v4_di_readiness_manifest.sh` →
    `~/nexus-staging-v4-di-readiness/staging-readiness-v4-di.json`.
@@ -98,7 +97,16 @@ absent ou mal protégé ; mesure de `ragdb` incomplète. Puis, en lecture seule 
   actif ; une ressource déjà promue (`RETRIEVAL_ELIGIBLE`) sans publication
   est admise, avec ou sans pin (le cas NSI terminale : avec pin) — le même job
   reprend sans nouvelle promotion ; un pin sur une ressource non promue est un
-  refus.
+  refus. Sous le rôle produit `rag_reader`, le pré-vol vérifie la base et le
+  rôle de la connexion, puis lit tous les placements, artefacts et identités de
+  chunks de la base dédiée. Il dérive les placements attendus des seules
+  attestations dont le job est `succeeded`, avec `placement_id` et
+  `source_placement_id` des sujets scellés de V4, puis les artefacts et
+  `chunk_id` du registre de la release. Il refuse tout
+  produit supplémentaire ou manquant, toute discordance job réussi/placement
+  et tout placement HGGSP. Cette garde est réévaluée avant Worker B lors de
+  chaque reprise partielle ; elle n'impose pas les comptes initiaux
+  72/76/1532.
   Sortie : `PARTIAL_PRECONDITION_OK claim_scope=… excluded_jobs_sha256=… already_published=76 to_publish=329 pinned_awaiting_product=1 promoted_awaiting_pin=0 excluded_pending=74`.
 - `review-precondition --pull-request 262 --expected-head 0794… --stage worker-b`
   (outil DH) : #262 approuvée **en direct** au head exact, artefact relu.

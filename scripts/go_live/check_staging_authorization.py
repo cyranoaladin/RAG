@@ -1126,9 +1126,8 @@ def verifier_operation_dh(racine: Path, operation: str, cible: dict) -> list[str
 #
 # Le correctif (limitation nommée, report sans tentative, sélection de
 # collections, contrôle de démarrage) n'est PAS dans l'image de V4/DH. L'image
-# DI n'existe qu'après fusion, construite par le workflow canonique depuis
-# main : la proposition le déclare ``PENDING_BUILD_FROM_MAIN`` et reste
-# inopérante tant qu'une PR d'activation ne l'a pas épinglée par digest.
+# DI est construite depuis main par le workflow canonique et épinglée dans
+# l'autorisation d'activation. Celle-ci reste inopérante jusqu'à sa fusion.
 
 AUTORISATION_DI = "docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json"
 PROPOSITION_DI = "docs/reports/go_live/authorizations/proposed/staging_v4_partial_recovery_authorization.json"
@@ -1138,6 +1137,20 @@ IDENTITE_DI = "docs/reports/go_live/recovery/di_partial_v4_262.json"
 OUTIL_DI = "scripts/go_live/staging_v4_partial_recovery.py"
 SIGNATURE_DI = "scripts/go_live/sign_staging_v4_di_readiness_manifest.sh"
 IMAGE_EN_ATTENTE = "PENDING_BUILD_FROM_MAIN"
+PROVENANCE_DI = {
+    "source_commit_sha": "fb8a7cc8e85448115a64de8ff5325d639ef9ee70",
+    "source_tree_sha": "13971825e149fbe287bce93605f7ccbb182e7c06",
+    "image_digest": "sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6",
+    "build_workflow_run_id": 36321957702,
+    "build_workflow_run_attempt": 1,
+    "inventory_protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
+    "inventory_artifact": "nexus-deployment-image-inventory",
+    "inventory_artifact_id": 10932683454,
+    "inventory_zip_sha256": "91fa5c0b3d57eb25b0db7a79969366756f3b09728584c8af68cae97923639696",
+    "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+    "evidence_path": "docs/reports/evidence/staging_worker_image_provenance_di.json",
+    "evidence_sha256": "b2ac47c2876e0e22a59f34f32ca20c41833ddbfbca1b51871fc7362819959c56",
+}
 REVUE_ACTIVE_DI = {
     "repository": "cyranoaladin/RAG",
     "pull_request": 262,
@@ -1208,10 +1221,12 @@ OPERATIONS_DI: dict[str, dict] = {
     },
     "partial_preflight": {
         "cible": {**_V4_OUTIL_DI, "command": "partial-precondition",
+                  "product_role": "rag_reader",
                   "review_precondition": "review-precondition --pull-request 262 --stage worker-b"},
         "limite": (
-            "lecture seule : périmètre, exclusions dérivées de l'autorité scellée, empreinte des jobs "
-            "exclus, revue #262 approuvée EN DIRECT au head exact ; aucun Worker B en cours"
+            "lecture seule : périmètre, produit exact dérivé des jobs succeeded et du registre scellé, "
+            "zéro placement HGGSP, exclusions et empreinte des jobs exclus, revue #262 approuvée "
+            "EN DIRECT au head exact ; aucun Worker B en cours"
         ),
     },
     "partial_worker_b_publication": {
@@ -1309,7 +1324,8 @@ GABARIT_DI: dict = {
     "expected_proof": [
         "image DI construite depuis main par le workflow canonique, digest et preuve de provenance",
         "readiness V4 resignee pour l'image DI, verifiee contre l'ancre, deposee a cote de celle de V4",
-        "precondition partielle : 479 attestations actives de #262, 405 reprises, 74 exclues, empreinte",
+        "precondition partielle : 479 attestations actives de #262, 405 reprises, 74 exclues, "
+        "produit exact des jobs succeeded, zéro placement HGGSP, empreinte",
         "review-precondition --stage worker-b : #262 approuvee en direct au head exact",
         "Worker B : publications succeeded pour les 329 restants, aucun job HGGSP reclame",
         "produit : 9 collections, 263 artefacts, 405 placements, 5678 chunks ; retrieval sous 9 scopes",
@@ -1333,6 +1349,37 @@ def _ecarts_image_di(racine: Path, image: object, *, image_dh: object) -> list[s
         return ecarts
     if isinstance(image_dh, dict) and image.get("image_digest") == image_dh.get("image_digest"):
         ecarts.append("DI : l'image de DH ne contient pas le correctif — une image DI distincte est exigée")
+    for cle, motif in (
+        ("image_digest", "digest DI"),
+        ("source_commit_sha", "commit de provenance"),
+        ("source_tree_sha", "arbre de provenance"),
+        ("build_workflow_run_id", "run de provenance"),
+        ("build_workflow_run_attempt", "tentative de provenance"),
+    ):
+        if image.get(cle) != PROVENANCE_DI[cle]:
+            ecarts.append(f"DI : {motif} différent du run de provenance 36321957702")
+    preuve = image.get("evidence")
+    chemin_preuve = racine / str(PROVENANCE_DI["evidence_path"])
+    if preuve != {"path": PROVENANCE_DI["evidence_path"], "sha256": PROVENANCE_DI["evidence_sha256"]}:
+        ecarts.append("DI : preuve de provenance non épinglée")
+    if not chemin_preuve.is_file() or hashlib.sha256(chemin_preuve.read_bytes()).hexdigest() != PROVENANCE_DI["evidence_sha256"]:
+        ecarts.append("DI : preuve de provenance absente ou altérée")
+    else:
+        preuve_lue = json.loads(chemin_preuve.read_text(encoding="utf-8"))
+        build = preuve_lue.get("build") or {}
+        for cle in (
+            "source_commit_sha", "source_tree_sha", "workflow_run_id", "workflow_run_attempt",
+            "inventory_protocol", "inventory_artifact", "inventory_artifact_id",
+            "inventory_zip_sha256", "dockerfile_sha256",
+        ):
+            attendu = PROVENANCE_DI.get(cle, PROVENANCE_DI.get("build_" + cle))
+            if build.get(cle) != attendu:
+                ecarts.append(f"DI : preuve de provenance divergente ({cle})")
+        if (preuve_lue.get("image_digest") != PROVENANCE_DI["image_digest"]
+                or preuve_lue.get("reference") != f"{DEPOT_IMAGE}@{PROVENANCE_DI['image_digest']}"
+                or build.get("worker_a_and_b_share_digest") is not True
+                or build.get("workflow_ref") != "refs/heads/main"):
+            ecarts.append("DI : preuve de provenance divergente (image ou ref)")
     commit = image.get("source_commit_sha")
     if isinstance(commit, str) and len(commit) == 40:
         for chemin, marqueur in MARQUEURS_CORRECTIF_DI.items():
@@ -1408,7 +1455,7 @@ def verifier_operation_di(racine: Path, operation: str, cible: dict) -> list[str
     for cle in sorted(set(attendue) | set(cible)):
         if cible.get(cle) != attendue.get(cle):
             ecarts.append(f"{operation} : {cle} = {cible.get(cle)!r}, autorisé {attendue.get(cle)!r}")
-    for relatif in (AUTORISATION_DI, IDENTITE_DI, PLAN_DI):
+    for relatif in (AUTORISATION_DI, IDENTITE_DI, PLAN_DI, str(PROVENANCE_DI["evidence_path"])):
         sur_main = _git(racine, "show", f"origin/main:{relatif}")
         if sur_main.returncode != 0 or sur_main.stdout != (racine / relatif).read_text(encoding="utf-8"):
             ecarts.append(f"{relatif} n'est pas (ou pas à l'identique) sur origin/main")
