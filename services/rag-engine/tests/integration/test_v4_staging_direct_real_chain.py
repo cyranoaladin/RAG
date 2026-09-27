@@ -534,7 +534,15 @@ def test_4_retrieval_v4_sous_les_scopes_emis(publie: dict[str, Any], produit_pg:
     print("REAL_V4_RETRIEVAL", json.dumps(rapport, sort_keys=True))
     assert sorted(rapport["collections"]) == publiees
     totaux = rapport["totaux"]
-    assert totaux["chunks"] == len(publie["produit"]["identites"])
+    chunks_par_artefact: dict[str, set[str]] = {}
+    for artefact, _ancre_physique, chunk_id, _sha, _index in publie["produit"]["identites"]:
+        chunks_par_artefact.setdefault(artefact, set()).add(chunk_id)
+    # La sonde interroge chaque chunk atteignable dans chaque collection
+    # gouvernée. Un artefact multi-placement compte dans les deux scopes.
+    assert totaux["chunks"] == sum(
+        len(chunks_par_artefact[artefact]) for collection, artefact in publie["cibles"]
+        if collection in publiees
+    )
     assert totaux["rappel_a_5"] + totaux["manques"] + totaux["refus_egalite"] == totaux["chunks"]
     assert all(c["student"] == "refuse" for c in rapport["collections"].values())
 

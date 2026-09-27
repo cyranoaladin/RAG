@@ -8,9 +8,9 @@ Lecture seule, rôle ``rag_reader`` (``PG_RAG_DSN``), dans l'image ingestor
   sonde, sous le scope émis ; le scope serveur en est dérivé par le code servi ;
 * son programme et sa visibilité sont confrontés au registre de programme de
   la release et à la visibilité servie (``internal``) ;
-* chaque chunk publié est interrogé par son vecteur (périmètre entier, jamais
-  un échantillon) et une requête lexicale est posée ;
-* aucun candidat ne sort du jeu publié de la collection ; un refus dense n'est
+* chaque chunk atteignable par le scope est interrogé par son vecteur
+  (périmètre entier, jamais un échantillon) et une requête lexicale est posée ;
+* aucun candidat ne sort des placements autorisés du scope ; un refus dense n'est
   admis que constaté à sa source comme ``dense ann tie overflow`` ;
 * le rôle ``student`` est refusé.
 
@@ -126,6 +126,105 @@ def identite_verifiee(modules: Mapping[str, Any], scope_id: str, *, role: str, s
     return identity.verify_identity_token(f"{entete}.{corps}.{_b64(signature)}", config=config)
 
 
+# Oracle indépendant du magasin de candidats : la collection de rag_chunks est
+# l'ancre physique. Pour un artefact gouverné, seul son placement décide dans
+# quels scopes ses chunks sont atteignables. Le cas legacy n'a pas de placement
+# et doit donc satisfaire toutes les dimensions physiques du scope.
+_JEU_PUBLIE_SQL = """
+SELECT chunk_id, vector_text, text, artifact_id, placement_id
+FROM (
+    SELECT chunk.chunk_id, chunk.vector::text AS vector_text, chunk.text,
+           chunk.artifact_id, NULL::text AS placement_id
+      FROM public.rag_chunks AS chunk
+     WHERE chunk.artifact_id IS NULL
+       AND chunk.collection = %(collection)s
+       AND chunk.tenant = %(tenant)s
+       AND chunk.niveau = %(niveau)s
+       AND chunk.voie IS NOT DISTINCT FROM %(voie)s
+       AND chunk.matiere = %(matiere)s
+       AND chunk.statut_enseignement = %(statut_enseignement)s
+       AND chunk.candidat = ANY(%(candidats)s::text[])
+       AND chunk.audience && %(audiences)s::text[]
+       AND chunk.rights = ANY(%(rights)s::text[])
+       AND chunk.visibility = ANY(%(visibilities)s::text[])
+       AND chunk.school_year = %(school_year)s
+       AND chunk.programme_version = %(programme_version)s
+       AND chunk.review_status = 'reviewed'
+       AND btrim(chunk.source_label) <> ''
+       AND btrim(chunk.source_uri) <> ''
+       AND btrim(chunk.rights) <> ''
+    UNION ALL
+    SELECT chunk.chunk_id, chunk.vector::text AS vector_text, chunk.text,
+           chunk.artifact_id, placement.placement_id
+      FROM public.rag_chunks AS chunk
+      JOIN public.rag_artifacts AS artifact ON artifact.artifact_id = chunk.artifact_id
+      JOIN public.rag_artifact_placements AS placement
+        ON placement.artifact_id = artifact.artifact_id
+     WHERE chunk.artifact_id IS NOT NULL
+       AND placement.collection = %(collection)s
+       AND placement.tenant = %(tenant)s
+       AND placement.niveau = %(niveau)s
+       AND placement.voie IS NOT DISTINCT FROM %(voie)s
+       AND placement.matiere = %(matiere)s
+       AND placement.statut_enseignement = %(statut_enseignement)s
+       AND placement.candidat = ANY(%(candidats)s::text[])
+       AND placement.audience && %(audiences)s::text[]
+       AND placement.visibility = ANY(%(visibilities)s::text[])
+       AND placement.school_year = %(school_year)s
+       AND placement.programme_version = %(programme_version)s
+       AND placement.placement_status = 'active'
+       AND placement.currentness IN ('current', 'official_snapshot')
+       AND placement.review_status = 'reviewed'
+       AND artifact.rights = ANY(%(rights)s::text[])
+       AND btrim(artifact.source_label) <> ''
+       AND btrim(artifact.source_uri) <> ''
+       AND btrim(artifact.rights) <> ''
+       AND btrim(placement.source_uri) <> ''
+) AS atteignable
+ORDER BY chunk_id, placement_id NULLS FIRST
+"""
+
+
+def jeu_publie(conn: Any, scope: Any) -> tuple[dict[str, tuple[str, str]], set[tuple[str, str | None, str | None]]]:
+    """Chunks à interroger et identités de placement autorisées par le scope."""
+    parametres = {
+        "collection": scope.collection,
+        "tenant": scope.tenant,
+        "niveau": scope.niveau,
+        "voie": scope.voie,
+        "matiere": scope.matiere,
+        "statut_enseignement": scope.statut_enseignement,
+        "candidats": list(dict.fromkeys((scope.candidat, "both"))),
+        "audiences": list(scope.audiences),
+        "rights": [droit.value for droit in scope.rights],
+        "visibilities": list(scope.visibilities),
+        "school_year": scope.school_year,
+        "programme_version": scope.programme_version,
+    }
+    chunks: dict[str, tuple[str, str]] = {}
+    autorises: set[tuple[str, str | None, str | None]] = set()
+    for chunk_id, vecteur, texte, artifact_id, placement_id in conn.execute(
+        _JEU_PUBLIE_SQL, parametres
+    ).fetchall():
+        if not vecteur or not texte or not texte.strip():
+            raise SondeEchec(f"{scope.collection} : chunk publié sans vecteur ou texte ({chunk_id})")
+        valeur = (vecteur, texte)
+        if chunk_id in chunks and chunks[chunk_id] != valeur:
+            raise SondeEchec(f"{scope.collection} : chunk {chunk_id} incohérent entre placements")
+        chunks[chunk_id] = valeur
+        autorises.add((chunk_id, artifact_id, placement_id))
+    return chunks, autorises
+
+
+def verifier_candidats_publies(
+    candidats: Iterable[Any], autorises: set[tuple[str, str | None, str | None]],
+    *, collection: str, canal: str,
+) -> None:
+    """Refuse un candidat dont le chunk OU le placement sort du scope."""
+    if any((c.chunk_id, c.artifact_id, c.placement_id) not in autorises for c in candidats):
+        raise SondeEchec(f"{collection} : candidat {canal} hors du jeu publié")
+
+
 def sonder(
     racine: Path,
     *,
@@ -171,15 +270,10 @@ def sonder(
             if (scope.programme_version, scope.visibilities) != (officiels[collection], (VISIBILITE_SERVIE,)):
                 raise SondeEchec(f"{collection} : scope {scope.programme_version} {scope.visibilities}")
             with connexion() as conn:
-                lignes = conn.execute(
-                    "SELECT chunk_id, vector::text, text FROM public.rag_chunks"
-                    " WHERE collection = %s ORDER BY chunk_id",
-                    (collection,),
-                ).fetchall()
+                chunks, autorises = jeu_publie(conn, scope)
                 conn.rollback()
-            if not lignes:
+            if not chunks:
                 raise SondeEchec(f"{collection} : aucun chunk publié lisible par rag_reader")
-            chunks = {chunk_id: (vecteur, texte) for chunk_id, vecteur, texte in lignes}
             store = modules["pg"].PgCandidateStore(connexion, scope)
             en_tete, retrouves, manques, egalites = 0, 0, 0, 0
             for chunk_id, (vecteur, _texte) in chunks.items():
@@ -192,16 +286,16 @@ def sonder(
                     motifs.clear()
                     egalites += 1
                     continue
-                if not candidats or any(c.chunk_id not in chunks for c in candidats):
+                if not candidats:
                     raise SondeEchec(f"{collection} {chunk_id[:12]} : candidat hors du jeu publié")
+                verifier_candidats_publies(candidats, autorises, collection=collection, canal="dense")
                 identiques = [c for c in candidats if c.chunk_id == chunk_id or c.vector == tuple(valeurs)]
                 en_tete += candidats[0] in identiques
                 retrouves += bool(identiques)
                 manques += not identiques
             mots = next((t for _v, t in chunks.values() if len(t.split()) >= 8), "").split()[:8]
             lexicaux = store.lexical(raw_query=" ".join(mots), collection=collection, limit=10) if mots else []
-            if any(c.chunk_id not in chunks for c in lexicaux):
-                raise SondeEchec(f"{collection} : candidat lexical hors du jeu publié")
+            verifier_candidats_publies(lexicaux, autorises, collection=collection, canal="lexical")
             try:
                 modules["scope"].build_server_retrieval_scope(
                     identite_verifiee(modules, emis[collection], role="student", secret=secret),

@@ -388,6 +388,7 @@ def test_l_essai_a_blanc_va_jusqu_au_controle_partiel_sans_toucher_hggsp(tmp_pat
         assert option in lancement, option
     assert "--name nexus-v4-worker-b-di-1" in texte
     assert "staging-readiness-v4-di.json" in texte
+    assert texte.index("checkout de la sonde épinglé") < texte.index("staging_retrieval_probe.py")
     assert "--collection rag_nexus_dgemc_terminale_option" in texte.split("staging_retrieval_probe.py", 1)[1]
     assert "ATTENTE_HUMAINE: la revue #262 reste OUVERTE" in texte
     for interdit in ("DELETE FROM", "UPDATE ingestion_control", "TRUNCATE", "dropdb", "cancel-stale-jobs",
