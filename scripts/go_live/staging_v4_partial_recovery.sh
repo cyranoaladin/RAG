@@ -220,14 +220,53 @@ etape_partial_worker_b_publication() {
     marquer partial_worker_b_publication "$nom $(grep -c 'status=succeeded' "$STATE_DIR/$nom.out") succeeded"
 }
 
+pinner_sonde_di() {
+    # La sonde est montée depuis /repo, pas embarquée dans l'image. Une reprise
+    # sur l'ancien checkout de l'hôte rejouerait l'oracle erroné même après
+    # fusion de son correctif. Le commit et le blob vus localement doivent être
+    # exactement ceux qu'exécutera le conteneur.
+    SONDE_DI_COMMIT="" SONDE_DI_BLOB=""
+    if [ "$DRY_RUN" = 1 ]; then
+        log "SIMULATION: checkout de la sonde épinglé à origin/main avant vérification"
+        return 0
+    fi
+    local commit main blob chemin="scripts/go_live/staging_retrieval_probe.py"
+    [ -z "$(git status --porcelain=v1 --untracked-files=all)" ] \
+        || fail "sonde DI : checkout opérateur non propre"
+    commit="$(git rev-parse HEAD)" || fail "sonde DI : HEAD local illisible"
+    main="$(git rev-parse refs/remotes/origin/main)" || fail "sonde DI : origin/main absent"
+    [ "$commit" = "$main" ] || fail "sonde DI : checkout opérateur différent de origin/main"
+    blob="$(git rev-parse "$commit:$chemin")" || fail "sonde DI : blob absent du commit"
+    [ "$(git hash-object "$chemin")" = "$blob" ] \
+        || fail "sonde DI : fichier local différent du commit"
+    remote <<EOF5 || fail "sonde DI : checkout distant non épinglé"
+set -euo pipefail
+cd "$REMOTE/repo"
+test -z "\$(git status --porcelain=v1 --untracked-files=all)"
+git fetch -q origin main
+test "\$(git rev-parse FETCH_HEAD)" = "$commit"
+git checkout -q --detach "$commit"
+test "\$(git rev-parse HEAD)" = "$commit"
+test -z "\$(git status --porcelain=v1 --untracked-files=all)"
+test "\$(git hash-object "$chemin")" = "$blob"
+EOF5
+    SONDE_DI_COMMIT="$commit" SONDE_DI_BLOB="$blob"
+    log "SONDE_DI_EPINGLEE commit=$commit blob=$blob"
+}
+
 etape_partial_independent_verification() {
     autoriser_di partial_independent_verification
+    pinner_sonde_di
     local collections args_sonde="" c
     collections="$(cible_di_champ partial_worker_b_publication claimed_collections)"
     for c in $collections; do args_sonde+="--collection $c "; done
     env_de_role "$REMOTE_READER_ENV"
     remote <<EOF4 | tee "$STATE_DIR/verification.txt" || fail "vérification"
 set -euo pipefail
+cd "$REMOTE/repo"
+test "\$(git rev-parse HEAD)" = "$SONDE_DI_COMMIT"
+test -z "\$(git status --porcelain=v1 --untracked-files=all)"
+test "\$(git hash-object scripts/go_live/staging_retrieval_probe.py)" = "$SONDE_DI_BLOB"
 echo "PLACEMENTS=\$($(psql_ro "$DB" "select count(distinct collection)||' '||count(distinct artifact_id)||' '||count(*) from public.rag_artifact_placements"))"
 echo "CHUNKS=\$($(psql_ro "$DB" "select count(distinct chunk_id) from public.rag_chunks"))"
 echo "HGGSP=\$($(psql_ro "$DB" "select count(*) from public.rag_artifact_placements where collection like 'rag_nexus_hggsp_%'"))"
