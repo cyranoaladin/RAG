@@ -52,7 +52,7 @@ V4_RELEASE_ID = "production-profile-gate-2026-2027-v4"
 V4_MANIFEST_SHA256 = "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be"
 
 #: 52 après le lot CN, + les onze scopes V4.
-PACKAGED_SCOPE_COUNT = 63
+PACKAGED_SCOPE_COUNT = 65
 
 #: Valeurs de POLITIQUE : toutes reprises du registre V2, aucune décidée ici.
 POLICY_FIELDS: tuple[str, ...] = (
@@ -285,7 +285,7 @@ def test_every_v4_scope_is_named_by_the_successor_authority() -> None:
 
 
 def test_every_v4_scope_is_the_successor_of_the_v2_scope() -> None:
-    """ADR-0045 : `_v<N>` → `_v<N+1>`, sur la dernière version packagée."""
+    """ADR-0045 : chaque scope V4 succède au scope V2 de sa collection."""
     v2_named = {
         str(b["collection"]): str(b["scope_id"])
         for b in _yaml(V2_SUCCESSORS)["bindings"]
@@ -301,8 +301,8 @@ def test_every_v4_scope_is_the_successor_of_the_v2_scope() -> None:
         versions = [
             int(s.rpartition("_v")[2]) for s in PINNED if s.rpartition("_v")[0] == stem
         ]
-        # Le successeur V4 est la version la plus haute packagée : rien après.
-        assert max(versions) == int(version) + 1, collection
+        latest = int(version) + (2 if "hggsp" in collection else 1)
+        assert max(versions) == latest, collection
 
 
 def test_every_v4_scope_matches_its_placements_on_every_cross_checked_dimension() -> (

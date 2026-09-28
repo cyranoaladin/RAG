@@ -636,6 +636,18 @@ _RETRIEVAL_SCOPE_RESOURCES: Mapping[str, tuple[str, str, Literal["1", "2"]]] = (
                 "6101644987d86a5410bc01f5efaee2f10c69686d2ff415c1650f4fcec8896791",
                 "2",
             ),
+            # ADR-0063 : subjects HGGSP du successeur V5, sous la politique
+            # HGGSP gouvernée. Les artefacts V4 restent figés et adressables.
+            "prod_hggsp_premiere_specialite_v3": (
+                "artifacts/retrieval-scope-prod-hggsp-premiere-specialite-v3.json",
+                "ceab3ef201fa12d5a33edf3ffc2a1fb86bfd09428b4e5139923dc3e9e60e1bbf",
+                "2",
+            ),
+            "prod_hggsp_terminale_specialite_v3": (
+                "artifacts/retrieval-scope-prod-hggsp-terminale-specialite-v3.json",
+                "1406aa3ffc45c25c346e1ff8353b7ee77db9496dfbad8ae8865c74fa63a94215",
+                "2",
+            ),
             "prod_hlp_premiere_specialite_v3": (
                 "artifacts/retrieval-scope-prod-hlp-premiere-specialite-v3.json",
                 "b005a8e7b615386e62d80a898a9e1cb018429096c37c30f239e75ca1950ba328",

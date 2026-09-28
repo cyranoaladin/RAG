@@ -41,9 +41,9 @@ GOVERNED = "GOVERNED"
 BY_HUMAN_DECISION = "GOVERNED_BY_HUMAN_DECISION"
 
 #: Taille du registre fermé : 41 avant le lot CN, 52 après les onze scopes de
-#: la release V2, 63 après les onze de la release V4 (lot CZ). Le compte est
+#: la release V2, 65 après les onze de V4 et les deux HGGSP V5. Le compte est
 #: épinglé : une entrée ajoutée sans test fait échouer la suite.
-PACKAGED_SCOPE_COUNT = 63
+PACKAGED_SCOPE_COUNT = 65
 
 #: Vocabulaire canonique, dérivé du contrat et jamais réécrit ici.
 CANONICAL_AUDIENCES = frozenset(
