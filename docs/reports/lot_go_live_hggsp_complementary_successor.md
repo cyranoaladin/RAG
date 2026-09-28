@@ -25,6 +25,14 @@ collections HGGSP et au mapping additif du commit
 cardinalités calculées avant et après construction. Le mécanisme existant
 `--authority-change-motive` a prouvé le commit qui porte le nouveau mapping.
 
+La projection authentifie aussi les preuves auxiliaires lues depuis V4
+contre les autorités du manifeste épinglé : inventaire, préflight, registre
+de programme, preuve PII et preuve d'actualité. Le journal d'actualité est
+lié par l'empreinte scellée dans cette dernière ; toutes les liaisons
+`authority_bindings.json` sont confrontées aux autorités du manifeste et
+ses octets entiers sont épinglés par un SHA-256 source distinct. Une copie
+modifiée de ces fichiers est refusée avant toute construction.
+
 V4 n'est pas réécrite. Le registre mixte `registry_version=2` attribue
 explicitement ses neuf collections servies à V4 et les deux HGGSP au
 successeur. Le chargeur valide chaque manifeste **entier** avant projection,
@@ -87,7 +95,7 @@ collection donnent les mêmes propriétaires.
 
 | Suite | Résultat |
 |---|---|
-| Producteur, PII, lignée, identité, actualité | 159 tests réussis avec le runtime canonique `pypdf 6.14.2` |
+| Producteur, PII, lignée, identité, actualité | 167 tests réussis avec le runtime canonique `pypdf 6.14.2`, dont sept contre-épreuves d'altération d'une copie V4 et le refus du SHA des liaisons absent |
 | Readiness et gouvernance des sujets DI | 201 tests réussis, dont la projection multi-placement avec ancre physique hors collection servie |
 | Retrieval, garde runtime, parité d'autorité, montage | 111 tests réussis |
 | C1 et clôture de release V2 | 44 tests réussis, 2 ignorés |

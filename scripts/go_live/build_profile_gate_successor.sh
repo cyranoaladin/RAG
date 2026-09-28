@@ -45,6 +45,7 @@ RIGHTS="services/rag-pedago/configs/rights_evidence_registry.yml"
 REVIEWERS="scripts/github/trusted-reviewers.json"
 HGGSP_V4="${RELEASES}/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate"
 HGGSP_V4_SHA="bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be"
+HGGSP_V4_BINDINGS_SHA="60bd9df71425e42a20287a88344f74b330510998c451107094786307855673fe"
 HGGSP_MAPPING="services/rag-engine/configs/mappings/eduscol_profile_gate_subjects_hggsp.yml"
 HGGSP_MAPPING_SHA="b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a"
 HGGSP_V4_MAPPING="services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml"
@@ -266,6 +267,7 @@ builder=(
 if [ "${HGGSP_COMPLEMENTARY:-0}" = 1 ]; then
     builder+=(
         --source-release-manifest-sha256 "$HGGSP_V4_SHA"
+        --source-authority-bindings-sha256 "$HGGSP_V4_BINDINGS_SHA"
         --subject-mapping-path "$SUBJECT_MAPPING_PATH"
         --subject-mapping-sha256 "$SUBJECT_MAPPING_SHA256"
         --collection rag_nexus_hggsp_premiere_specialite

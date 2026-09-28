@@ -138,6 +138,7 @@ def test_voie_hggsp_validee_transmet_mapping_et_deux_collections(tmp_path: Path)
     assert f"--subject-mapping-path {MAPPING} --subject-mapping-sha256 {MAPPING_SHA}" in result.stdout
     assert "--collection rag_nexus_hggsp_premiere_specialite --collection rag_nexus_hggsp_terminale_specialite" in result.stdout
     assert "--source-release-manifest-sha256 bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be" in result.stdout
+    assert "--source-authority-bindings-sha256 60bd9df71425e42a20287a88344f74b330510998c451107094786307855673fe" in result.stdout
     assert "PROFILE_ROOT=services/rag-engine/configs/ingestion_profiles/v3_livraison_315" in result.stdout
     assert "PROFILE_MANIFEST=services/rag-engine/configs/ingestion_profiles/ingestion_manifest_v3_livraison_315.yml" in result.stdout
     assert "FINAL_SET=04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12" in result.stdout
