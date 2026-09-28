@@ -1,0 +1,74 @@
+{
+  "authorities": {
+    "pii_decisions": {
+      "path": "governance/pii-review-decisions/pii-review-2026-09-17-final.json",
+      "sha256": "0805c9babfc16def873bbf0b3593ae6f7d0ce6fcb9002a68eb456d80b8906352"
+    },
+    "servability_matrix": {
+      "path": "docs/reports/handoff/servability_matrix_v1.json",
+      "sha256": "5dc4c8983ec8feb4f7ce1a76babba4b75ff2840af00b4de880d4120c19d14f9c"
+    }
+  },
+  "excluded_contents": [
+    {
+      "content_sha256": "157309db13b674ffe4bf1371015bfc7c9c9cf475af75769a6beaf4dade45925f",
+      "currentness_status": "ARCHIVE_DECLARED",
+      "exclusion_reason": "ARCHIVE_DECLARED_BY_SOURCE_ADR_0055",
+      "is_promoted": true,
+      "label": "Archive Eduscol 2024 / EAF",
+      "pii_status": "PII_CLEARED",
+      "servability_verdict": "BLOCKED_NOT_CURRENT_BY_SOURCE",
+      "short_sha": "157309db13b6",
+      "title": "la définition des épreuves anticipées de français du baccalauréat général et technologique"
+    },
+    {
+      "content_sha256": "174f273ff25818064be60cd4c7cded89ab8f257de484b32a21250578f323149b",
+      "currentness_status": "ARCHIVE_DECLARED",
+      "exclusion_reason": "ARCHIVE_DECLARED_BY_SOURCE_ADR_0055",
+      "is_promoted": true,
+      "label": "Archive Eduscol DGEMC",
+      "pii_status": "PII_CLEARED_OR_NOT_SCANNED",
+      "servability_verdict": "BLOCKED_NOT_CURRENT_BY_SOURCE",
+      "short_sha": "174f273ff258",
+      "title": "glossaire"
+    },
+    {
+      "content_sha256": "ccffe628bbd64e34a8442a045f95ec2ef65109765c0a0a476c0156aa84a5f9a2",
+      "currentness_status": "ARCHIVE_DECLARED",
+      "exclusion_reason": "ARCHIVE_DECLARED_BY_SOURCE_ADR_0055",
+      "is_promoted": true,
+      "label": "Archive Eduscol SVT voie technologique",
+      "pii_status": "PII_CLEARED_OR_NOT_SCANNED",
+      "servability_verdict": "BLOCKED_NOT_CURRENT_BY_SOURCE",
+      "short_sha": "ccffe628bbd6",
+      "title": "pour la voie technologique"
+    },
+    {
+      "content_sha256": "dc58fcc42ef9b4e6d15a129124eff54ce5d76e0e16e1e4f62115b64482e94fd2",
+      "currentness_status": "ARCHIVE_DECLARED",
+      "exclusion_reason": "ARCHIVE_DECLARED_BY_SOURCE_ADR_0055",
+      "is_promoted": true,
+      "label": "Archive Eduscol SVT voie générale",
+      "pii_status": "PII_CLEARED_OR_NOT_SCANNED",
+      "servability_verdict": "BLOCKED_NOT_CURRENT_BY_SOURCE",
+      "short_sha": "dc58fcc42ef9",
+      "title": "pour la voie générale"
+    }
+  ],
+  "excluded_contents_count": 4,
+  "generated_at": "2026-09-17T22:13:13.562343+00:00",
+  "governance_reference": "ADR-0055",
+  "kind": "NEXUS-CURRENTNESS-EXCLUSION-REGISTRY-V1",
+  "proof_guarantees": {
+    "all_excluded_contents_blocked_by_currentness": true,
+    "all_excluded_contents_promoted": true,
+    "canonical_verdict": "BLOCKED_NOT_CURRENT_BY_SOURCE",
+    "governance_basis": "ADR-0055",
+    "historical_v1_immutable": true,
+    "no_other_contents_excluded": true,
+    "no_pii_decisions_reinterpreted": true,
+    "pii_undecided_count": 0
+  },
+  "purpose": "Sceller la liste gouvernée des 4 contenus archives Eduscol exclus de la prochaine release promue (Lot CG), conformément à l'ADR-0055.",
+  "schema_version": "1.0.0"
+}

@@ -1,0 +1,16 @@
+{
+  "registry_version": "1",
+  "releases": [
+    {
+      "collections": [
+        "rag_nexus_hggsp_premiere_specialite",
+        "rag_nexus_hggsp_terminale_specialite"
+      ],
+      "expected_manifest_sha256": "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf",
+      "manifest_path": "profile_gate/production-profile-gate.release.json",
+      "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+      "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2"
+    }
+  ],
+  "school_year": "2026-2027"
+}

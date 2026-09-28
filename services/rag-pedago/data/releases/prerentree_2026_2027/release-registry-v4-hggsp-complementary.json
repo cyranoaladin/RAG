@@ -1,0 +1,33 @@
+{
+  "registry_version": "2",
+  "school_year": "2026-2027",
+  "releases": [
+    {
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+      "manifest_path": "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/production-profile-gate.release.json",
+      "expected_manifest_sha256": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be",
+      "collections": [
+        "rag_nexus_dgemc_terminale_option",
+        "rag_nexus_hlp_premiere_specialite",
+        "rag_nexus_hlp_terminale_specialite",
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_ses_premiere_specialite",
+        "rag_nexus_ses_terminale_specialite",
+        "rag_nexus_svt_premiere_specialite",
+        "rag_nexus_svt_terminale_specialite"
+      ]
+    },
+    {
+      "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+      "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+      "manifest_path": "profile_gate_hggsp_v5/release-b34b11e678bf9559/profile_gate/production-profile-gate.release.json",
+      "expected_manifest_sha256": "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf",
+      "collections": [
+        "rag_nexus_hggsp_premiere_specialite",
+        "rag_nexus_hggsp_terminale_specialite"
+      ]
+    }
+  ]
+}

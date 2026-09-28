@@ -1,0 +1,68 @@
+{
+  "base_commit_sha": "2124826ae3302179a2fe19a5356c48c1bee63c28",
+  "kind": "NEXUS-HGGSP-COMPLEMENTARY-RELEASE-BUILD-PROOF-V1",
+  "machine_diff": {
+    "path": "docs/reports/evidence/profile_gate_v4_to_hggsp_v5_diff.json",
+    "sha256": "bbb5b0fac53f4cd965eb422ebf93fbcdbf489a17c7e3c2a7ab8e3bf29f78d0b0"
+  },
+  "mixed_registry": {
+    "path": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json",
+    "sha256": "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6",
+    "successor_owned_collections": 2,
+    "v4_owned_collections": 9
+  },
+  "pdf_mirror_verification": {
+    "content_set_sha256": "b76b84b03b8b47e936555f0bb1135b4e0580d702a8f11d353285c928c215619f",
+    "files_present_and_matching_sha256": 52,
+    "files_required": 52
+  },
+  "pii": {
+    "cleared": 52,
+    "detected": 0,
+    "projection_kind": "SIGNED_SOURCE_SUBSET_V1",
+    "signed_source_review_bound": true,
+    "source_evidence_sha256": "33e3fbfb943ffded360d2db254061edebe8ccff9e08b7509ebcdf4cd305ca700"
+  },
+  "reproducibility": {
+    "byte_differences": 0,
+    "full_builds": 2,
+    "release_files_compared": 19
+  },
+  "server_operations": {
+    "database": 0,
+    "ssh": 0,
+    "worker_b": 0
+  },
+  "source_v4": {
+    "artifact_intersection": 0,
+    "hggsp_artifacts": 52,
+    "hggsp_placements": 74,
+    "manifest_sha256": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be",
+    "non_hggsp_artifacts": 263,
+    "non_hggsp_placements": 405,
+    "release_id": "production-profile-gate-2026-2027-v4",
+    "tracked_files_byte_identical_to_base": 28
+  },
+  "successor": {
+    "activation_status": "NO_PRODUCTION_ACTIVATION",
+    "collections": [
+      "rag_nexus_hggsp_premiere_specialite",
+      "rag_nexus_hggsp_terminale_specialite"
+    ],
+    "document_type_mapping_unchanged": true,
+    "expected_counts": {
+      "placements": 74,
+      "subjects": 2,
+      "unique_artifacts": 52,
+      "unique_chunks": 2590
+    },
+    "level_mapping_unchanged": true,
+    "manifest_sha256": "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf",
+    "models_unchanged": true,
+    "promotion_status": "NOT_PROMOTABLE",
+    "release_dir": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_hggsp_v5/release-b34b11e678bf9559/profile_gate",
+    "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+    "review_status": "PRE_REVIEW",
+    "subject_mapping_sha256": "b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a"
+  }
+}

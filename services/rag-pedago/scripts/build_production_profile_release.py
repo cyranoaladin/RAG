@@ -16,7 +16,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, NamedTuple, Protocol
+from typing import Any, NamedTuple, Protocol, cast
 
 import nexus_pdf_page_policy as page_policy
 import yaml
@@ -1211,7 +1211,8 @@ def _dedupe(values: Sequence[str], *, excluded: frozenset[str]) -> list[str]:
 
 
 def _recount_candidate_inventory(
-    source: Mapping[str, Any], *, excluded: frozenset[str]
+    source: Mapping[str, Any], *, excluded: frozenset[str],
+    collections_scope: frozenset[str] | None = None,
 ) -> dict[str, Any]:
     """Reprend l'inventaire d'une release source, sans ses exclus, recompté.
 
@@ -1223,6 +1224,8 @@ def _recount_candidate_inventory(
     population et ses comptes changent."""
     collections = []
     for collection in source["collections"]:
+        if collections_scope is not None and collection["collection"] not in collections_scope:
+            continue
         candidates = [
             candidate
             for candidate in collection["candidates"]
@@ -1253,8 +1256,16 @@ def _recount_candidate_inventory(
         for candidate in collection["candidates"]
     }
     source_partition = source["candidate_partition"]
-    named = _dedupe(source_partition.get("named_noneligible", []), excluded=excluded)
-    unevaluated = _dedupe(source_partition.get("unevaluated", []), excluded=excluded)
+    # Une projection de collections retire aussi les artefacts de leurs
+    # partitions globales. Ne jamais conserver une disposition hors produit.
+    outside_scope = {
+        candidate["content_sha256"]
+        for collection in source["collections"]
+        for candidate in collection["candidates"]
+    } - unique_shas
+    removed = frozenset(set(excluded) | outside_scope)
+    named = _dedupe(source_partition.get("named_noneligible", []), excluded=removed)
+    unevaluated = _dedupe(source_partition.get("unevaluated", []), excluded=removed)
     pending = sorted(unique_shas - set(named) - set(unevaluated))
     if set(pending) | set(named) | set(unevaluated) != unique_shas or set(named) & set(
         unevaluated
@@ -2311,12 +2322,71 @@ def require_review_covers_produced_content_set(
         )
 
 
+def _select_signed_review_subset(
+    *,
+    decision_document: dict[str, Any] | None,
+    review_bundles: Mapping[str, str],
+    authority_digests: Mapping[str, str],
+    source_contents: frozenset[str],
+    selected_contents: frozenset[str],
+    source_pii_evidence: Mapping[str, Any] | None,
+    source_pii_evidence_sha256: str | None,
+) -> tuple[dict[str, Any] | None, dict[str, str]]:
+    """Projeter une campagne signée sur un sous-ensemble prouvé de sa release source."""
+    if decision_document is None or source_pii_evidence is None or not source_pii_evidence_sha256:
+        raise ValueError("complementary PII projection requires the signed source review and PII evidence")
+    if authority_digests.get("reviewed_content_set_sha256") != _final_set_digest(
+        sorted(source_contents)
+    ):
+        raise ValueError("signed review population differs from the sealed source release")
+    if not selected_contents <= source_contents:
+        raise ValueError("complementary PII population escapes the signed source release")
+    source_rows = source_pii_evidence.get("results")
+    if not isinstance(source_rows, list) or len(source_rows) != len(source_contents):
+        raise ValueError("source PII evidence population differs from source release")
+    source_by_sha = {row.get("content_sha256"): row for row in source_rows}
+    if set(source_by_sha) != source_contents:
+        raise ValueError("source PII evidence content set differs from source release")
+    selected_decisions = [
+        decision for decision in decision_document["decisions"]
+        if decision["content_sha256"] in selected_contents
+    ]
+    if len({decision["content_sha256"] for decision in selected_decisions}) != len(selected_decisions):
+        raise ValueError("selected PII decisions contain duplicate content")
+    return (
+        {**decision_document, "decisions": selected_decisions} if selected_decisions else None,
+        {sha: bundle for sha, bundle in review_bundles.items() if sha in selected_contents},
+    )
+
+
+def _require_subscan_matches_source(
+    results: Sequence[Mapping[str, Any]], source_pii_evidence: Mapping[str, Any]
+) -> None:
+    parent_rows = {
+        row["content_sha256"]: row for row in source_pii_evidence["results"]
+    }
+    compared_fields = (
+        "content_sha256", "pages_scanned", "characters_scanned",
+        "ignored_empty_pages", "pii_detected", "status", "review_bundle_sha256",
+        "review_status", "decision_set_id", "source_path",
+    )
+    for row in results:
+        parent = parent_rows.get(row["content_sha256"])
+        if parent is None or any(row.get(field) != parent.get(field) for field in compared_fields):
+            raise ValueError(
+                f"complementary PII scan differs from sealed source for {row['content_sha256']}"
+            )
+
+
 def _pii_evidence(
     placement_rows: list[dict[str, Any]],
     *,
     pdfs: Mapping[str, VerifiedPdf],
     inventory_sha256: str,
     review_authority: ReviewAuthorityInputs = NO_REVIEW_AUTHORITY,
+    reviewed_source_contents: frozenset[str] | None = None,
+    source_pii_evidence: Mapping[str, Any] | None = None,
+    source_pii_evidence_sha256: str | None = None,
 ) -> dict[str, Any]:
     patterns = load_patterns_from_config(PII_POLICY_PATH)
     grouped = _group_artifact_rows(placement_rows)
@@ -2327,6 +2397,16 @@ def _pii_evidence(
     decision_document, review_bundles, authority_digests = _load_review_authority(
         review_authority
     )
+    if reviewed_source_contents is not None:
+        decision_document, review_bundles = _select_signed_review_subset(
+            decision_document=decision_document,
+            review_bundles=review_bundles,
+            authority_digests=authority_digests,
+            source_contents=reviewed_source_contents,
+            selected_contents=frozenset(grouped),
+            source_pii_evidence=source_pii_evidence,
+            source_pii_evidence_sha256=source_pii_evidence_sha256,
+        )
 
     # ── LE SCAN MESURE, LA REVUE DÉCIDE ─────────────────────────────────
     #
@@ -2455,11 +2535,12 @@ def _pii_evidence(
                     for decision in (decision_document or {}).get("decisions", [])
                 ),
             )
-    require_review_covers_produced_content_set(
-        reviewed_content_set_sha256=authority_digests.get("reviewed_content_set_sha256"),
-        produced_content_set_sha256=_final_set_digest(sorted(grouped)),
-        canonical_scope=canonical_scope,
-    )
+    if reviewed_source_contents is None:
+        require_review_covers_produced_content_set(
+            reviewed_content_set_sha256=authority_digests.get("reviewed_content_set_sha256"),
+            produced_content_set_sha256=_final_set_digest(sorted(grouped)),
+            canonical_scope=canonical_scope,
+        )
 
     source_by_sha = {
         group["artifact_row"]["content_sha256"]: group["artifact_row"]["physical_path"]
@@ -2473,6 +2554,9 @@ def _pii_evidence(
         }
         for entry in projection.entries
     ]
+    if reviewed_source_contents is not None:
+        assert source_pii_evidence is not None
+        _require_subscan_matches_source(results, source_pii_evidence)
 
     # `raw_pii_in_output: false`, plus bas, était une CONSTANTE : le producteur
     # certifiait que sa preuve ne porte aucune matière brute sans l'avoir
@@ -2498,6 +2582,14 @@ def _pii_evidence(
         "raw_pii_in_logs": False,
         "decision_set_id": projection.decision_set_id,
         **authority_digests,
+        **(
+            {
+                "review_projection_kind": "SIGNED_SOURCE_SUBSET_V1",
+                "source_pii_evidence_sha256": source_pii_evidence_sha256,
+                "produced_content_set_sha256": _final_set_digest(sorted(grouped)),
+            }
+            if reviewed_source_contents is not None else {}
+        ),
         "summary": {
             "unique_contents_required": len(grouped),
             "unique_contents_scanned": len(grouped),
@@ -2599,7 +2691,7 @@ def _preflight(
         covered_pages = {
             page
             for chunk in chunk_rows
-            for page in range(chunk["page_start"], chunk["page_end"] + 1)
+            for page in range(cast(int, chunk["page_start"]), cast(int, chunk["page_end"]) + 1)
         }
         ignored_pages = set(authoritative_ignored)
         expected_pages = set(range(1, page_count + 1))
@@ -2672,6 +2764,9 @@ def _rehearsal_pii_evidence(
     inventory_sha256: str,
     review_authority: ReviewAuthorityInputs,
     preflight_by_sha: Mapping[str, Mapping[str, Any]],
+    reviewed_source_contents: frozenset[str] | None = None,
+    source_pii_evidence: Mapping[str, Any] | None = None,
+    source_pii_evidence_sha256: str | None = None,
 ) -> dict[str, Any]:
     """Réémet la preuve PII d'une répétition avec la fonction de production.
 
@@ -2695,6 +2790,9 @@ def _rehearsal_pii_evidence(
         pdfs=pdfs,
         inventory_sha256=inventory_sha256,
         review_authority=review_authority,
+        reviewed_source_contents=reviewed_source_contents,
+        source_pii_evidence=source_pii_evidence,
+        source_pii_evidence_sha256=source_pii_evidence_sha256,
     )
     for row in evidence["results"]:
         sha = row["content_sha256"]
@@ -3631,8 +3729,31 @@ def _build_rehearsal_release(
     activation_status: str,
     review_status: str,
     exclusion_registry: GovernedExclusionRegistry | None = None,
+    collections_scope: tuple[str, ...] | None = None,
+    source_release_manifest_sha256: str | None = None,
+    subject_mapping_path: Path | None = None,
+    subject_mapping_sha256: str | None = None,
 ) -> dict[Path, bytes]:
     src_root = source_release_root.resolve()
+    selected = None if collections_scope is None else frozenset(collections_scope)
+    if selected is not None:
+        assert collections_scope is not None
+        if not selected or len(selected) != len(collections_scope):
+            raise ValueError("collection selection is empty or duplicated")
+        if not source_release_manifest_sha256:
+            raise ValueError("collection selection requires source release manifest SHA-256")
+        source_expectation = load_release_expectation(
+            src_root / "production-profile-gate.release.json",
+            source_release_manifest_sha256,
+        )
+        if source_expectation.release_kind != "MULTILEVEL_AGGREGATE_RELEASE_V2":
+            raise ValueError("collection selection requires a V2 source release")
+        if not selected <= set(source_expectation.collections):
+            raise ValueError("collection selection contains a collection absent from source release")
+        if pdf_root is None:
+            raise ValueError("collection selection requires PDF root to remeasure PII evidence")
+    elif source_release_manifest_sha256 is not None:
+        raise ValueError("source release manifest SHA-256 requires collection selection")
     # La lignée de profils est celle que `resolve_release_lineage` résout —
     # par défaut les onze profils historiques, sinon une lignée déclarée
     # (NEXUS_PROFILE_ROOT / NEXUS_PROFILE_MANIFEST, ensemble épinglé).
@@ -3642,6 +3763,19 @@ def _build_rehearsal_release(
     registry = load_profile_registry(profile_dir)
     manifest = verify_profile_manifest(registry, profile_manifest_path)
     profiles = {p.scope.collection: p for p in registry.values()}
+    if selected is not None:
+        source_profile_binding = _load_json(src_root / "authority_bindings.json")["bindings"][
+            "profile_manifest_sha256"
+        ]
+        if (
+            _repo_relative(profile_manifest_path) != source_profile_binding["path"]
+            or _file_sha256(profile_manifest_path) != source_profile_binding["file_sha256"]
+            or manifest.manifest_fingerprint != source_profile_binding["authority_sha256"]
+        ):
+            raise ValueError("selected collection profile lineage differs from sealed source")
+        if not selected <= set(profiles):
+            raise ValueError("selected collection has no governed profile")
+        profiles = {name: profiles[name] for name in sorted(selected)}
     # ADR-0061 : hors de la lignée historique (V2/V3, reproductibles telles
     # qu'elles ont été scellées), le programme d'un profil EST la référence
     # officielle que le registre de programme de la release déclare.
@@ -3654,9 +3788,91 @@ def _build_rehearsal_release(
     drive = {row["content_sha256"]: row for row in _load_json(DRIVE_MAPPING_PATH)}
     preflight_by_sha: dict[str, dict[str, Any]] = {}
     placement_rows: list[dict[str, Any]] = []
+    source_inventory = _load_json(src_root / "candidate_inventory.json")
+    candidates_by_collection = {
+        collection["collection"]: {
+            candidate["content_sha256"]: candidate
+            for candidate in collection["candidates"]
+        }
+        for collection in source_inventory["collections"]
+    }
+    source_artifacts = (
+        {
+            artifact["artifact_id"]: artifact
+            for artifact in _load_json(src_root / "artifacts.release.json")["artifacts"]
+        }
+        if selected is not None else {}
+    )
+    source_pii_evidence: Mapping[str, Any] | None = None
+    source_pii_evidence_sha256: str | None = None
+    if selected is not None:
+        source_pii_path = src_root / "pii_evidence.json"
+        source_pii_evidence_sha256 = _file_sha256(source_pii_path)
+        source_manifest = _load_json(src_root / "production-profile-gate.release.json")
+        if source_pii_evidence_sha256 != source_manifest["authorities"]["pii_evidence_sha256"]:
+            raise ValueError("source PII evidence digest differs from sealed release")
+        source_pii_evidence = _load_json(source_pii_path)
+    source_preflight = _load_json(src_root / "preflight_evidence.json") if selected is not None else None
+    detailed_preflight = (
+        {row["content_sha256"]: row for row in source_preflight["artifacts"]}
+        if source_preflight is not None else {}
+    )
+    seen_source_collections: set[str] = set()
     for subj_file in sorted(subjects_dir.glob("*.release.json")):
         subj = _load_json(subj_file)
         col = subj["collection"]
+        if selected is not None and col not in selected:
+            continue
+        if col in seen_source_collections:
+            raise ValueError(f"duplicate source collection {col}")
+        seen_source_collections.add(col)
+        if selected is not None:
+            for placement in subj["placements"]:
+                sha = placement["artifact_id"]
+                artifact = source_artifacts.get(sha)
+                candidate = candidates_by_collection.get(col, {}).get(sha)
+                if artifact is None or candidate is None:
+                    raise ValueError(f"source collection inventory/artifact missing {col}:{sha}")
+                if artifact["source_path"] != candidate["physical_path"]:
+                    raise ValueError(f"source artifact path differs from inventory for {sha}")
+                matches = [
+                    fact for fact in candidate["placements"]
+                    if fact["source_placement_id"] == placement["source_placement_id"]
+                ]
+                if len(matches) != 1:
+                    raise ValueError(f"source placement differs from inventory for {col}:{sha}")
+                fact = matches[0]
+                if fact["external_scope"] != placement["source_scope"]:
+                    raise ValueError(f"source scope differs from inventory for {col}:{sha}")
+                if sha not in drive:
+                    raise ValueError(f"Drive snapshot fact is absent for {sha}")
+                preflight_by_sha[sha] = {
+                    "content_sha256": sha,
+                    "source_path": artifact["source_path"],
+                    "page_count": artifact["page_count"],
+                    "ignored_empty_pages": artifact.get("ignored_empty_pages", []),
+                    "chunks": artifact["chunks"],
+                }
+                detailed = detailed_preflight.get(sha)
+                if detailed is None or detailed["source_path"] != artifact["source_path"]:
+                    raise ValueError(f"source preflight differs for {sha}")
+                if [c["chunk_id"] for c in detailed["chunks"]] != [
+                    c["chunk_id"] for c in artifact["chunks"]
+                ]:
+                    raise ValueError(f"source preflight chunks differ for {sha}")
+                placement_rows.append({
+                    "content_sha256": sha,
+                    "physical_path": artifact["source_path"],
+                    "drive_modified_time": drive[sha]["modified_time"],
+                    "source_url": fact["source_url"],
+                    "current_download_url": "",
+                    "title": fact["title"],
+                    "external_document_type": fact["external_document_type"],
+                    "collection": col,
+                    "source_placement_id": fact["source_placement_id"],
+                    "external_scope": fact["external_scope"],
+                })
+            continue
         for art in subj["artifacts"]:
             sha = art["content_sha256"]
             if exclusion_registry is not None and sha in exclusion_registry.excluded_contents:
@@ -3685,6 +3901,33 @@ def _build_rehearsal_release(
                     "external_scope": pl["source_scope"],
                 })
 
+    if selected is not None and seen_source_collections != selected:
+        raise ValueError("selected collections differ from source subjects")
+    selected_preflight: dict[str, Any] | None = None
+    if source_preflight is not None:
+        selected_rows = [detailed_preflight[sha] for sha in sorted(preflight_by_sha)]
+        selected_preflight = {
+            **source_preflight,
+            "artifacts": selected_rows,
+            "counts": {
+                "artifacts": len(selected_rows),
+                "chunks": sum(len(row["chunks"]) for row in selected_rows),
+                "empty_chunks": sum(
+                    not chunk["character_count"]
+                    for row in selected_rows for chunk in row["chunks"]
+                ),
+                "empty_pages": sum(
+                    len(preflight_by_sha[row["content_sha256"]]["ignored_empty_pages"])
+                    for row in selected_rows
+                ),
+                "oversized_chunks": sum(
+                    chunk["token_count"] > source_preflight["target_tokens"]
+                    for row in selected_rows for chunk in row["chunks"]
+                ),
+                "pages": sum(row["page_count"] for row in selected_rows),
+            },
+        }
+
     collection_config = load_collection_config(COLLECTION_CONFIG_PATH)["collections"]
     type_doc_mapping = _load_yaml(DOCUMENT_TYPE_MAPPING_PATH)["document_types"]
     effective_type_doc_mapping = {**type_doc_mapping, **{v: v for v in type_doc_mapping.values()}}
@@ -3692,6 +3935,20 @@ def _build_rehearsal_release(
     auth_doc = _load_json(src_root / "authority_bindings.json")
     raw_bindings = dict(auth_doc["bindings"])
     authorities = {k: v["authority_sha256"] for k, v in raw_bindings.items()}
+
+    if (subject_mapping_path is None) != (subject_mapping_sha256 is None):
+        raise ValueError("subject mapping path and SHA-256 must be supplied together")
+    if subject_mapping_path is not None:
+        actual = _file_sha256(subject_mapping_path)
+        if actual != subject_mapping_sha256:
+            raise ValueError("subject mapping SHA-256 differs from supplied digest")
+        authorities["subject_mapping_sha256"] = actual
+        raw_bindings["subject_mapping_sha256"] = {
+            "path": _repo_relative(subject_mapping_path),
+            "file_sha256": actual,
+            "authority_sha256": actual,
+            "authority_kind": "FILE_SHA256",
+        }
 
     authorities["document_type_mapping_sha256"] = _file_sha256(DOCUMENT_TYPE_MAPPING_PATH)
     raw_bindings["document_type_mapping_sha256"] = {
@@ -3739,7 +3996,7 @@ def _build_rehearsal_release(
         exclusion_registry.excluded_contents if exclusion_registry is not None else frozenset()
     )
     inventory = _recount_candidate_inventory(
-        _load_json(src_root / "candidate_inventory.json"), excluded=frozenset(excluded)
+        source_inventory, excluded=frozenset(excluded), collections_scope=selected
     )
     inventory_keys = {
         (collection["collection"], candidate["content_sha256"], placement["source_placement_id"])
@@ -3782,6 +4039,16 @@ def _build_rehearsal_release(
         "currentness_network_audit.json": canonical_json_bytes(network_audit),
         "currentness_evidence.json": canonical_json_bytes(currentness),
     }
+    if selected_preflight is not None:
+        assert selected is not None
+        reemitted["preflight_evidence.json"] = canonical_json_bytes(selected_preflight)
+        programme = _load_json(src_root / "programme_registry.json")
+        programme["taxonomies"] = [
+            row for row in programme["taxonomies"] if row["collection"] in selected
+        ]
+        if {row["collection"] for row in programme["taxonomies"]} != selected:
+            raise ValueError("selected collection programme registry differs")
+        reemitted["programme_registry.json"] = canonical_json_bytes(programme)
     # ── LA PREUVE PII, RÉÉMISE QUAND LE MIROIR EST FOURNI ──────────────
     #
     # Sans miroir, la preuve source est recopiée — et la garde d'écriture la
@@ -3792,6 +4059,11 @@ def _build_rehearsal_release(
         ("candidate_inventory_sha256", "candidate_inventory.json"),
         ("currentness_evidence_sha256", "currentness_evidence.json"),
     ]
+    if selected_preflight is not None:
+        renamed_bindings.extend((
+            ("preflight_evidence_sha256", "preflight_evidence.json"),
+            ("programme_registry_sha256", "programme_registry.json"),
+        ))
     if pdf_root is not None:
         reemitted["pii_evidence.json"] = canonical_json_bytes(
             _rehearsal_pii_evidence(
@@ -3800,6 +4072,11 @@ def _build_rehearsal_release(
                 inventory_sha256=_sha256_bytes(inventory_raw),
                 review_authority=review_authority,
                 preflight_by_sha=preflight_by_sha,
+                reviewed_source_contents=(
+                    frozenset(source_artifacts) if selected is not None else None
+                ),
+                source_pii_evidence=source_pii_evidence,
+                source_pii_evidence_sha256=source_pii_evidence_sha256,
             )
         )
         renamed_bindings.append(("pii_evidence_sha256", "pii_evidence.json"))
@@ -3869,8 +4146,8 @@ def _build_rehearsal_release(
         "effective_catalog_authority.json",
         "corpus_manifest_authority.json",
         *(() if "pii_evidence.json" in reemitted else ("pii_evidence.json",)),
-        "preflight_evidence.json",
-        "programme_registry.json",
+        *(() if "preflight_evidence.json" in reemitted else ("preflight_evidence.json",)),
+        *(() if "programme_registry.json" in reemitted else ("programme_registry.json",)),
         "models/embedding/manifest.json",
         "models/embedding/SHA256SUMS",
         "models/reranker/manifest.json",
@@ -3909,6 +4186,10 @@ def build_release(
     review_authority: ReviewAuthorityInputs | None = None,
     exclusion_registry: GovernedExclusionRegistry | None = None,
     currentness_authority: GovernedCurrentnessAuthority | None = None,
+    collections: tuple[str, ...] | None = None,
+    source_release_manifest_sha256: str | None = None,
+    subject_mapping_path: Path | None = None,
+    subject_mapping_sha256: str | None = None,
 ) -> dict[Path, bytes]:
     # ADR-0059 : l'actualité d'une release dérive de la matrice de servabilité
     # gouvernée. Sans elle, aucune disposition ne peut être écrite — ni par la
@@ -3918,6 +4199,13 @@ def build_release(
             "the governed servability matrix is required to build a release "
             "(--servability-matrix / --servability-matrix-sha256)"
         )
+    if (subject_mapping_path is None) != (subject_mapping_sha256 is None):
+        raise ValueError("subject mapping path and SHA-256 must be supplied together")
+    if subject_mapping_path is not None:
+        if _file_sha256(subject_mapping_path) != subject_mapping_sha256:
+            raise ValueError("subject mapping SHA-256 differs from supplied digest")
+    if collections is not None and release_mode != "rehearsal":
+        raise ValueError("collection selection is supported only for rehearsal source releases")
     if release_mode == "rehearsal":
         return _build_rehearsal_release(
             currentness_authority=currentness_authority,
@@ -3930,6 +4218,10 @@ def build_release(
             activation_status=activation_status or "NO_PRODUCTION_ACTIVATION",
             review_status=review_status or "PRE_REVIEW",
             exclusion_registry=exclusion_registry,
+            collections_scope=collections,
+            source_release_manifest_sha256=source_release_manifest_sha256,
+            subject_mapping_path=subject_mapping_path,
+            subject_mapping_sha256=subject_mapping_sha256,
         )
     if pdf_root is None or embedding_snapshot is None or reranker_snapshot is None:
         raise ValueError("pdf_root, embedding_snapshot, and reranker_snapshot are required in production mode")
@@ -4090,7 +4382,7 @@ def build_release(
         "programme_registry_sha256": RELEASE_ROOT / "programme_registry.json",
         "profile_manifest_sha256": lineage.profile_manifest_path,
         "level_mapping_sha256": LEVEL_MAPPING_PATH,
-        "subject_mapping_sha256": SUBJECT_MAPPING_PATH,
+        "subject_mapping_sha256": subject_mapping_path or SUBJECT_MAPPING_PATH,
         "document_type_mapping_sha256": DOCUMENT_TYPE_MAPPING_PATH,
         "embedding_inventory_sha256": RELEASE_ROOT / "models/embedding/SHA256SUMS",
         "reranker_inventory_sha256": RELEASE_ROOT / "models/reranker/SHA256SUMS",
@@ -4139,6 +4431,13 @@ def build_release(
         row["content_sha256"]: row for row in preflight["artifacts"]
     }
     type_doc_mapping = _load_yaml(DOCUMENT_TYPE_MAPPING_PATH)["document_types"]
+    lifecycle = resolve_release_lifecycle_statuses(
+        release_mode=release_mode,
+        release_id=release_id,
+        promotion_status=promotion_status,
+        activation_status=activation_status,
+        review_status=review_status,
+    )
     documents.update(
         _release_topology_documents(
             placement_rows,
@@ -4163,13 +4462,9 @@ def build_release(
             # NO_PRODUCTION_ACTIVATION. Ces statuts traversent donc aussi la
             # voie production, sans quoi une candidate serait silencieusement
             # activable au seul motif que sa PII est en règle.
-            **resolve_release_lifecycle_statuses(
-                release_mode=release_mode,
-                release_id=release_id,
-                promotion_status=promotion_status,
-                activation_status=activation_status,
-                review_status=review_status,
-            ),
+            promotion_status=lifecycle["promotion_status"],
+            activation_status=lifecycle["activation_status"],
+            review_status=lifecycle["review_status"],
         )
     )
     bindings = {
@@ -4387,6 +4682,22 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="Répertoire source pour la génération rehearsal",
     )
+    parser.add_argument(
+        "--source-release-manifest-sha256", default=None,
+        help="SHA-256 attendu du manifeste source V2 pour une projection de collections.",
+    )
+    parser.add_argument(
+        "--collection", action="append", default=None, dest="collections",
+        help="Collection explicitement retenue dans la release complémentaire (répétable).",
+    )
+    parser.add_argument(
+        "--subject-mapping-path", type=Path, default=None,
+        help="Mapping de sujets choisi explicitement pour cette émission.",
+    )
+    parser.add_argument(
+        "--subject-mapping-sha256", default=None,
+        help="SHA-256 attendu des octets du mapping de sujets choisi.",
+    )
     # ── PRODUIRE NE DOIT PAS POUVOIR TOUCHER CE QUI SERT ────────────────
     #
     # Le 29/08/2026, ce producteur a écrasé la release EN SERVICE et rendu le
@@ -4535,6 +4846,12 @@ def main(argv: list[str] | None = None) -> int:
         or args.reranker_snapshot is None
     ):
         parser.error("--pdf-root, --embedding-snapshot, and --reranker-snapshot are required in production mode")
+    if args.collections is not None and (
+        args.source_release_root is None or not args.source_release_manifest_sha256
+    ):
+        parser.error("--collection requires --source-release-root and --source-release-manifest-sha256")
+    if (args.subject_mapping_path is None) != (args.subject_mapping_sha256 is None):
+        parser.error("--subject-mapping-path and --subject-mapping-sha256 are required together")
 
     require_canonical_runtime()  # D-41 : à la porte, avant les huit minutes.
     documents = build_release(
@@ -4551,6 +4868,10 @@ def main(argv: list[str] | None = None) -> int:
         review_authority=review_authority,
         exclusion_registry=exclusion_registry,
         currentness_authority=currentness_authority,
+        collections=tuple(args.collections) if args.collections is not None else None,
+        source_release_manifest_sha256=args.source_release_manifest_sha256,
+        subject_mapping_path=args.subject_mapping_path,
+        subject_mapping_sha256=args.subject_mapping_sha256,
     )
 
     if args.dry_run:
