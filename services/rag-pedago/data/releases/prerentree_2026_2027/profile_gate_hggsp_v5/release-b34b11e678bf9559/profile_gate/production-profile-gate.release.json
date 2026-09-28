@@ -1,0 +1,68 @@
+{
+  "activation_status": "NO_PRODUCTION_ACTIVATION",
+  "artifact_registry": {
+    "path": "artifacts.release.json",
+    "sha256": "4192b7dd3703bf4aa8bcd2e2435dd928f748aead4a6d9ecedc88e1b6418757b8"
+  },
+  "authorities": {
+    "candidate_inventory_sha256": "29e42e8390473e47d76dc25f9ebb033bbf1cf03efd5c012c4328d065be72a61a",
+    "catalog_delta_sha256": "08c5bef23f8fe6ebadc64ef211d7ffc0529ce91c4deae2c1803da5d05b08e845",
+    "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+    "currentness_evidence_sha256": "516d11bf5d5bf3fd72fcfb4863be37067a124d39c175770d44f50752ac2e6619",
+    "currentness_exclusion_registry_sha256": "07a346b84ae4ebbf1ef7f14dd3f588c95acce36050e8c335f904c37cabe4c72c",
+    "document_type_mapping_sha256": "3518fe87d4394a4615c10887f276d95cfd58f517adb58af6f8efc686f242561b",
+    "effective_catalog_authority_sha256": "275551368eeaf3e46a1352ead1ad79c249f16bd988fa0d92c832b28e35ba166f",
+    "embedding_inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+    "level_mapping_sha256": "8ad9e7a6d62e26e5c233f8a3c62fba7a1df72da29f690a3c17d5e7660e740e1e",
+    "parent_sealed_catalog_sha256": "75ac6bd288882939d2bb8fcad758730238037c5266913166fcbc61c3be47cdc8",
+    "pii_decision_set_sha256": "1b70d91b52d207d301d87076573593cb0899ed2b52d6e2963fbcf8fcd3472a66",
+    "pii_evidence_sha256": "e5f39023d1d58bd911b6e085c1238d1ace1d030048e9df4660c09e331b88563d",
+    "pii_policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+    "pii_review_index_sha256": "abdd15256eba9ed5717529327131b0afe6f5de17189180bd082fd2a9bfeadb55",
+    "pii_review_receipt_sha256": "22361dd17df811425d87f14ff33649efca320a8ee63292023ff5187d977bd55d",
+    "pii_review_trust_anchor_sha256": "a7835fc6217fe426d9d5c7c28bb0949f05577e6258a620b2bf6a4029db0487ec",
+    "pii_scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+    "placement_catalog_sha256": "88bf51621c1a75fd0cd951a3d8292596eb3e7ce6fd243b77b1bad325df958370",
+    "preflight_evidence_sha256": "231db497769dcaf73e7caf63c588127b8e57cf0f03af861468a7021cca6d99d8",
+    "profile_manifest_sha256": "763c2ad15b935a671725b1a3b829d3326ca65d016129e77cf5a71c5ebbc568b9",
+    "programme_registry_sha256": "692a27d41451574abd1659ed97d1dcffeadd4f5d40901bb884f6cc5aa406965f",
+    "reranker_inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+    "rights_registry_sha256": "e3c9a157f1f78171c0052750fa08b7726b99ea4dd348728f1b90db07f93ef1ff",
+    "subject_mapping_sha256": "b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a"
+  },
+  "expected_counts": {
+    "placements": 74,
+    "subjects": 2,
+    "unique_artifacts": 52,
+    "unique_chunks": 2590
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "promotion_status": "NOT_PROMOTABLE",
+  "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+  "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+  "release_mode": "rehearsal",
+  "review_status": "PRE_REVIEW",
+  "school_year": "2026-2027",
+  "subjects": [
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "path": "subjects/rag_nexus_hggsp_premiere_specialite.release.json",
+      "sha256": "f47525e1e6b1cc2216bc650de9a581ba04f5f36e65abc713215215357d411b4e"
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "path": "subjects/rag_nexus_hggsp_terminale_specialite.release.json",
+      "sha256": "5146d79f54739aafc49d439530a2180b831f48d0565061ed6b105c2f82eeafc9"
+    }
+  ]
+}

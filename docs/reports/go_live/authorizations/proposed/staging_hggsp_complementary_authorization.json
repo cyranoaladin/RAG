@@ -1,0 +1,67 @@
+{
+  "kind": "NEXUS-STAGING-HGGSP-COMPLEMENTARY-AUTHORIZATION-PROPOSAL-V1",
+  "status": "PROPOSED_INACTIVE",
+  "repository": "cyranoaladin/RAG",
+  "base_commit_sha": "2124826ae3302179a2fe19a5356c48c1bee63c28",
+  "effective_when": "Une PR d'activation distincte lie un plan opérateur vérifié, les images par digest et leurs preuves de provenance, la readiness signée, le HEAD approuvé par le reviewer gouverné, puis est fusionnée sur main. Ce fichier au chemin proposed n'autorise aucune opération.",
+  "release": {
+    "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+    "release_dir": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_hggsp_v5/release-b34b11e678bf9559/profile_gate",
+    "manifest_sha256": "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf",
+    "expected_counts": {
+      "collections": 2,
+      "placements": 74,
+      "unique_artifacts": 52,
+      "unique_chunks": 2590
+    },
+    "collections": [
+      "rag_nexus_hggsp_premiere_specialite",
+      "rag_nexus_hggsp_terminale_specialite"
+    ],
+    "subject_mapping_path": "services/rag-engine/configs/mappings/eduscol_profile_gate_subjects_hggsp.yml",
+    "subject_mapping_sha256": "b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a",
+    "authority_commit_sha": "fb8a7cc8e85448115a64de8ff5325d639ef9ee70"
+  },
+  "collection_ownership_registry": {
+    "path": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json",
+    "sha256": "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6",
+    "protocol": "registry_version=2"
+  },
+  "preconditions": {
+    "v4_published_placements": 405,
+    "v4_published_artifacts": 263,
+    "v4_published_chunks": 5678,
+    "v4_review_pull_request": 262,
+    "v4_review_head_sha": "079461659b60f8a8ce9458145a199599ad822bbc",
+    "v4_review_state": "OPEN_APPROVED_UNCHANGED",
+    "v4_hggsp_jobs_pending": 74,
+    "v4_hggsp_jobs_sha256": "fef6d99df13b08c3ea02f79f29be94fa5f8d12a639ef7af85989bfcdaba6af31",
+    "historical_ragdb": "unchanged",
+    "runtime_image": "PENDING_PROVENANCE_FROM_MERGED_MAIN",
+    "retrieval_scope_authority": "PENDING_SEPARATE_HGGSP_SUCCESSOR_SCOPE_REVIEW",
+    "signed_readiness": "PENDING_SEPARATE_ACTIVATION"
+  },
+  "proposed_operations": [
+    "successor_readiness_install",
+    "successor_scope_authorization_registration_r4",
+    "successor_sealed_ingestion_or_binding",
+    "successor_batch_review_proposal",
+    "successor_batch_review_record",
+    "successor_attestations",
+    "successor_publication_job_enqueue",
+    "successor_worker_b_publication",
+    "successor_independent_verification"
+  ],
+  "forbidden": [
+    "v4_405_placement_adoption_or_republication",
+    "v4_hggsp_job_claim_or_mutation_before_successor_verification",
+    "v4_mapping_modification",
+    "historical_ragdb_modification",
+    "manual_job_sql",
+    "production_current_switch",
+    "public_exposure",
+    "review_262_modification_or_close_or_merge",
+    "worker_image_build_on_server"
+  ],
+  "execution_plan": "docs/runbooks/staging_hggsp_complementary_SUCCESSOR_PLAN.md"
+}
