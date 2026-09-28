@@ -3728,6 +3728,7 @@ def _verify_projected_source_evidence(
         "programme_registry_sha256": "programme_registry.json",
         "currentness_evidence_sha256": "currentness_evidence.json",
         "pii_evidence_sha256": "pii_evidence.json",
+        "catalog_delta_sha256": "catalog_delta.json",
         "embedding_inventory_sha256": "models/embedding/SHA256SUMS",
         "reranker_inventory_sha256": "models/reranker/SHA256SUMS",
     }
@@ -3776,6 +3777,19 @@ def _verify_projected_source_evidence(
         )
     ):
         raise ValueError("source authority binding differs from sealed release")
+
+    for name, filename in (
+        ("effective_catalog_authority_sha256", "effective_catalog_authority.json"),
+        ("corpus_manifest_sha256", "corpus_manifest_authority.json"),
+    ):
+        binding = raw_bindings[name]
+        path = src_root / filename
+        if (
+            binding.get("authority_kind") != "LOGICAL_SHA256"
+            or _file_sha256(path) != binding.get("file_sha256")
+            or _load_json(path).get("authority_sha256") != authorities[name]
+        ):
+            raise ValueError(f"source {filename} digest differs from sealed release")
 
 
 def _build_rehearsal_release(

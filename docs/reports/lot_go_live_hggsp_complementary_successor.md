@@ -34,6 +34,9 @@ ses octets entiers sont épinglés par un SHA-256 source distinct. Une copie
 modifiée de ces fichiers est refusée avant toute construction. Les inventaires
 des modèles E5 et reranker sont liés au manifeste source, et chaque
 `models/*/manifest.json` est contrôlé contre sa ligne `SHA256SUMS` avant copie.
+Le delta de catalogue est vérifié par son SHA de manifeste ; les deux
+descripteurs d'autorité logiques copiés sont vérifiés par leurs SHA de fichier
+dans les liaisons épinglées et par leur empreinte logique du manifeste.
 
 V4 n'est pas réécrite. Le registre mixte `registry_version=2` attribue
 explicitement ses neuf collections servies à V4 et les deux HGGSP au
@@ -97,7 +100,7 @@ collection donnent les mêmes propriétaires.
 
 | Suite | Résultat |
 |---|---|
-| Producteur, PII, lignée, identité, actualité | 171 tests réussis avec le runtime canonique `pypdf 6.14.2`, dont onze contre-épreuves d'altération d'une copie V4 et le refus du SHA des liaisons absent |
+| Producteur, PII, lignée, identité, actualité | 174 tests réussis avec le runtime canonique `pypdf 6.14.2`, dont quatorze contre-épreuves d'altération d'une copie V4 et le refus du SHA des liaisons absent |
 | Readiness et gouvernance des sujets DI | 201 tests réussis, dont la projection multi-placement avec ancre physique hors collection servie |
 | Retrieval, garde runtime, parité d'autorité, montage | 111 tests réussis |
 | C1 et clôture de release V2 | 44 tests réussis, 2 ignorés |
