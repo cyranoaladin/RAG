@@ -205,8 +205,16 @@ class PublicationResumeDeps:
     #: ``claim_job`` — un job hors liste n'est jamais réclamé, donc jamais
     #: tenté, et ne consomme aucune tentative.
     claim_collections: tuple[str, ...] | None = None
+    #: Dérivés uniquement de la readiness de staging vérifiée. Ils bornent
+    #: le claim avant toute mutation de bail et restent absents hors staging.
+    claim_release_id: str | None = None
+    claim_release_manifest_sha256: str | None = None
 
     def __post_init__(self) -> None:
+        if (self.claim_release_id is None) != (self.claim_release_manifest_sha256 is None):
+            raise PublicationResumeError(
+                "release qualification requires both release_id and manifest SHA-256"
+            )
         if not isinstance(self.embedding_provider, EmbeddingProvider):
             raise PublicationResumeError(
                 "publication worker requires an explicit embedding provider"
@@ -830,11 +838,17 @@ def run_publication_resume_iteration(
 
     Ne réclame que ``publication_resume`` : Phase A et Phase B ne peuvent
     pas se voler leurs jobs."""
+    release_binding = (
+        {"release_id": deps.claim_release_id,
+         "release_manifest_sha256": deps.claim_release_manifest_sha256}
+        if deps.claim_release_id is not None else {}
+    )
     claim = claim_job(
         control_conn,
         owner=deps.owner,
         job_types=(PUBLICATION_RESUME_JOB_TYPE,),
         collections=deps.claim_collections,
+        **release_binding,
     )
     if claim is None:
         return PublicationResumeOutcome(

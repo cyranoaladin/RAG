@@ -17,8 +17,10 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_21_0() -> None:
-    """0.21.0 empaquette les onze scopes de la release V4 (lot CZ).
+def test_package_version_is_0_22_0() -> None:
+    """0.22.0 ajoute deux scopes HGGSP successeurs (ADR-0063).
+
+    0.21.0 empaquette les onze scopes de la release V4 (lot CZ).
 
     Mineure et non majeure : onze `RetrievalScopeArtifactV2` sont AJOUTÉS au
     registre fermé (52 → 63), émis depuis un registre de politique qui reprend
@@ -50,7 +52,7 @@ def test_package_version_is_0_21_0() -> None:
     """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.21.0"
+    assert pyproject["project"]["version"] == "0.22.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -99,7 +101,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first_lock = json.loads((first / "contracts.lock.json").read_text())
     second_lock = json.loads((second / "contracts.lock.json").read_text())
     assert first_lock == second_lock
-    assert first_lock["packageVersion"] == "0.21.0"
+    assert first_lock["packageVersion"] == "0.22.0"
     assert set(first_lock["schemas"]) == expected
     fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
     assert first_lock["fixtures"] == {

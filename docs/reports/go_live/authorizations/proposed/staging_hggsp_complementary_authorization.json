@@ -37,7 +37,7 @@
     "v4_hggsp_jobs_pending": 74,
     "v4_hggsp_jobs_sha256": "fef6d99df13b08c3ea02f79f29be94fa5f8d12a639ef7af85989bfcdaba6af31",
     "historical_ragdb": "unchanged",
-    "runtime_image": "PENDING_PROVENANCE_FROM_MERGED_MAIN",
+    "runtime_image": "PENDING_RUNTIME_PREREQUISITES_AND_FRESH_IMAGE_PROVENANCE",
     "retrieval_scope_authority": "PENDING_SEPARATE_HGGSP_SUCCESSOR_SCOPE_REVIEW",
     "signed_readiness": "PENDING_SEPARATE_ACTIVATION"
   },

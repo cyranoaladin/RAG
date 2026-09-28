@@ -106,6 +106,8 @@ from nexus_contracts.scope import (
     RetrievalScopeTargetIdentity,
     RetrievalScopeTargetPolicy,
     load_pilot_retrieval_scope,
+)
+from nexus_contracts.hggsp_successor_scopes import (
     load_retrieval_scope_artifact,
     load_retrieval_scope_registry,
 )

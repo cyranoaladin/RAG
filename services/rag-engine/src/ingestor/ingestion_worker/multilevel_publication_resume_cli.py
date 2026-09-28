@@ -259,6 +259,17 @@ def _enforce_production_evidence(
         ) from exc
 
 
+def _require_qualified_claim_scope(
+    qualification: ReleaseBoundQualification | None,
+    collections: tuple[str, ...] | None,
+) -> tuple[str, ...] | None:
+    if qualification is not None and not collections:
+        raise RuntimeAuthorityStartupError(
+            "release-bound staging worker requires explicit --collection allowlist"
+        )
+    return collections
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
     try:
@@ -313,7 +324,9 @@ def main(argv: list[str] | None = None) -> int:
             raise RuntimeAuthorityStartupError(
                 "embedding provider inputs differ from the release manifest"
             )
-        claim_collections = tuple(dict.fromkeys(args.collection)) or None
+        claim_collections = _require_qualified_claim_scope(
+            qualification, tuple(dict.fromkeys(args.collection)) or None
+        )
         # Lot DI : aucune collection réclamable dont les mappings scellés ne
         # résolvent pas les faits — refus AVANT toute réclamation, au lieu
         # d'un échec job par job qui consomme les tentatives.
@@ -391,7 +404,20 @@ def main(argv: list[str] | None = None) -> int:
             else ""
         ),
         claim_collections=claim_collections,
+        claim_release_id=qualification.release_id if qualification is not None else None,
+        claim_release_manifest_sha256=(
+            qualification.release_manifest_sha256 if qualification is not None else None
+        ),
     )
+    if qualification is not None:
+        assert claim_collections is not None
+        print(
+            "MULTILEVEL_PUBLICATION_WORKER_CLAIM_RELEASE "
+            f"claim_scope={','.join(claim_collections)} "
+            f"claim_release_id={qualification.release_id} "
+            f"release_manifest_sha256={qualification.release_manifest_sha256} "
+            f"collections={','.join(claim_collections)}"
+        )
     if claim_collections is not None:
         print(
             "MULTILEVEL_PUBLICATION_WORKER_CLAIM_SCOPE "
@@ -440,7 +466,14 @@ def _run_worker_loop(
             pause = args.min_job_interval_s - (monotonic() - last_claim_at)
             if pause > 0:
                 sleep(pause)
-        reap_expired_job_leases(conn)
+        if deps.claim_release_id is None:
+            reap_expired_job_leases(conn)
+        else:
+            reap_expired_job_leases(
+                conn, release_id=deps.claim_release_id,
+                release_manifest_sha256=deps.claim_release_manifest_sha256,
+                collections=deps.claim_collections,
+            )
         conn.commit()
         last_claim_at = monotonic()
         outcome = iterate(conn, deps=deps)
