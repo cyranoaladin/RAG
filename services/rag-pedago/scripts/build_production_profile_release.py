@@ -3728,10 +3728,25 @@ def _verify_projected_source_evidence(
         "programme_registry_sha256": "programme_registry.json",
         "currentness_evidence_sha256": "currentness_evidence.json",
         "pii_evidence_sha256": "pii_evidence.json",
+        "embedding_inventory_sha256": "models/embedding/SHA256SUMS",
+        "reranker_inventory_sha256": "models/reranker/SHA256SUMS",
     }
     for name, filename in source_files.items():
         if _file_sha256(src_root / filename) != authorities[name]:
             raise ValueError(f"source {filename} digest differs from sealed release")
+
+    for model in ("embedding", "reranker"):
+        inventory_path = src_root / "models" / model / "SHA256SUMS"
+        manifest_path = src_root / "models" / model / "manifest.json"
+        manifest_rows = [
+            row.split("  ", 1)[0]
+            for row in inventory_path.read_text(encoding="utf-8").splitlines()
+            if row.endswith("  manifest.json")
+        ]
+        if len(manifest_rows) != 1 or _file_sha256(manifest_path) != manifest_rows[0]:
+            raise ValueError(
+                f"source models/{model}/manifest.json digest differs from sealed release"
+            )
 
     currentness = _load_json(src_root / "currentness_evidence.json")
     if _file_sha256(src_root / "currentness_network_audit.json") != currentness.get(

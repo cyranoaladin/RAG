@@ -83,6 +83,10 @@ def _build(
         "currentness_evidence.json",
         "currentness_network_audit.json",
         "pii_evidence.json",
+        "models/embedding/SHA256SUMS",
+        "models/embedding/manifest.json",
+        "models/reranker/SHA256SUMS",
+        "models/reranker/manifest.json",
     ],
 )
 def test_copied_source_rejects_unsealed_consumed_evidence(

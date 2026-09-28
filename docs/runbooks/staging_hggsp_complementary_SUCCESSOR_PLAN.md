@@ -44,7 +44,9 @@ les opérations, les images par digest et leurs preuves de provenance.
    toute troisième collection, toute intersection d'artefacts ou de
    placements avec les neuf collections V4. La construction complémentaire
    vérifie en outre les octets des liaisons d'autorité V4 contre le SHA-256
-   `60bd9df71425e42a20287a88344f74b330510998c451107094786307855673fe`.
+   `60bd9df71425e42a20287a88344f74b330510998c451107094786307855673fe`,
+   puis les manifestes E5 et reranker contre leurs inventaires `SHA256SUMS`
+   épinglés.
 2. Produire hors hôte une nouvelle image Worker B à partir de ce `main` et
    enregistrer son digest, le commit source et l'inventaire de provenance.
    Le chargeur du registre mixte étant nouveau, l'image précédente n'est pas
