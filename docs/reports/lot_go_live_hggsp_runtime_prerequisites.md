@@ -56,6 +56,15 @@ octet : `prod_hggsp_premiere_specialite_v3` et
 distincts ; les neuf artefacts V4 toujours servis gardent leurs octets.
 Le manifeste scellé et le registre mixte ne sont pas modifiés.
 
+Le registre historique `packages/contracts/src/nexus_contracts/scope.py`
+reste également octet-identique (SHA-256
+`831e021070dbb681bd8363898ce5a80fa1fe2ef043f733c9ba3d73f4295162ad`) :
+il est une entrée de l'attestation multilevel publiée le 6 septembre. Le
+module `hggsp_successor_scopes.py` ajoute les deux entrées V5 au registre
+public du paquet, sans collision avec les 63 entrées historiques. Il vérifie
+leur digest avant chargement. Les chemins runtime retrieval importent ce
+registre public ; l'émetteur historique et sa preuve restent reproductibles.
+
 ## Frontière des prochaines images
 
 Le Dockerfile retrieval installe `packages/contracts` dans l’image. Le
@@ -67,8 +76,12 @@ ou workflow de provenance n’a été lancé dans ce lot.
 
 ## Qualification et preuves
 
-- `packages/contracts/tests` : 1003 réussis ; le contrôle d’export du schéma
+- `packages/contracts/tests` : 1006 réussis ; le contrôle d’export du schéma
   et la reproduction canonique des deux nouveaux artefacts passent.
+- La preuve multilevel historique passe `--check` et ses 13 tests dédiés ;
+  l'ajout V5 n'invalide plus l'empreinte de son registre attesté.
+- `services/rag-pedago/tests` : 3578 réussis, 12 ignorés, avec le runtime
+  PDF canonique et les sources de ce worktree sur `PYTHONPATH`.
 - `packages/release-chain/tests` : 56 réussis.
 - Six modules de tests retrieval et d’identité moteur : 332 cas collectés,
   suite terminée sans échec.

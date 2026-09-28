@@ -301,8 +301,9 @@ def test_every_v4_scope_is_the_successor_of_the_v2_scope() -> None:
         versions = [
             int(s.rpartition("_v")[2]) for s in PINNED if s.rpartition("_v")[0] == stem
         ]
-        latest = int(version) + (2 if "hggsp" in collection else 1)
-        assert max(versions) == latest, collection
+        # Le registre historique scope.py reste figé pour la provenance
+        # multilevel. Les deux successeurs HGGSP V5 sont une extension.
+        assert max(versions) == int(version) + 1, collection
 
 
 def test_every_v4_scope_matches_its_placements_on_every_cross_checked_dimension() -> (

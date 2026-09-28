@@ -12,6 +12,7 @@ import yaml
 import pytest
 
 from nexus_contracts import load_retrieval_scope_registry
+from nexus_contracts import hggsp_successor_scopes, scope as historical_scope
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -82,6 +83,55 @@ def test_new_scopes_resolve_and_v4_hggsp_bytes_stay_pinned() -> None:
         assert new.source_sha256 != old.source_sha256
         assert new.evidence_subject == old.evidence_subject
         assert new.target_identity == old.target_identity
+
+
+def test_historical_registry_remains_attested_and_successor_is_disjoint() -> None:
+    source = ROOT / "packages/contracts/src/nexus_contracts/scope.py"
+    assert hashlib.sha256(source.read_bytes()).hexdigest() == (
+        "831e021070dbb681bd8363898ce5a80fa1fe2ef043f733c9ba3d73f4295162ad"
+    )
+    historical = historical_scope.load_retrieval_scope_registry()
+    combined = load_retrieval_scope_registry()
+    assert len(historical) == 63
+    assert set(combined) == set(historical) | set(SUCCESSOR.values())
+    assert set(historical).isdisjoint(SUCCESSOR.values())
+    for scope_id, artifact in historical.items():
+        assert combined[scope_id] == artifact
+
+
+def test_successor_extension_refuses_historical_id_collision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        hggsp_successor_scopes,
+        "_HGGSP_SUCCESSOR_RESOURCES",
+        {"prod_hggsp_premiere_specialite_v2": ("unused.json", "0" * 64)},
+    )
+    with pytest.raises(ValueError, match="collides"):
+        hggsp_successor_scopes.load_retrieval_scope_registry()
+    with pytest.raises(ValueError, match="collides"):
+        hggsp_successor_scopes.load_retrieval_scope_artifact(
+            "prod_hggsp_premiere_specialite_v2"
+        )
+
+
+def test_successor_extension_refuses_bad_digest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        hggsp_successor_scopes,
+        "_HGGSP_SUCCESSOR_RESOURCES",
+        {
+            "prod_hggsp_premiere_specialite_v3": (
+                "artifacts/retrieval-scope-prod-hggsp-premiere-specialite-v3.json",
+                "0" * 64,
+            )
+        },
+    )
+    with pytest.raises(ValueError, match="digest mismatch"):
+        hggsp_successor_scopes.load_retrieval_scope_artifact(
+            "prod_hggsp_premiere_specialite_v3"
+        )
 
 
 def test_canonical_derivation_reproduces_every_packaged_byte() -> None:
