@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -31,6 +32,9 @@ def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+V4_BINDINGS_SHA = _sha(V4 / "authority_bindings.json")
+
+
 @pytest.fixture(scope="module")
 def authorities():  # noqa: ANN201
     builder = load_producer()
@@ -40,7 +44,10 @@ def authorities():  # noqa: ANN201
     )
 
 
-def _build(authorities, *, collections=HGGSP, mapping=MAPPING, mapping_sha=None):  # noqa: ANN001, ANN202
+def _build(
+    authorities, *, collections=HGGSP, mapping=MAPPING, mapping_sha=None,
+    source_root=V4, bindings_sha=V4_BINDINGS_SHA,
+):  # noqa: ANN001, ANN202
     builder = load_producer()
     excluded, currentness = authorities
     artifacts = json.loads((V4 / "artifacts.release.json").read_text())["artifacts"]
@@ -55,8 +62,9 @@ def _build(authorities, *, collections=HGGSP, mapping=MAPPING, mapping_sha=None)
         return builder.build_release(
             release_mode="rehearsal",
             pdf_root=ROOT,
-            source_release_root=V4,
+            source_release_root=source_root,
             source_release_manifest_sha256=_sha(V4 / "production-profile-gate.release.json"),
+            source_authority_bindings_sha256=bindings_sha,
             release_id=RELEASE_ID,
             exclusion_registry=excluded,
             currentness_authority=currentness,
@@ -64,6 +72,53 @@ def _build(authorities, *, collections=HGGSP, mapping=MAPPING, mapping_sha=None)
             subject_mapping_path=mapping,
             subject_mapping_sha256=mapping_sha or _sha(mapping),
         )
+
+
+@pytest.mark.parametrize(
+    "source_file",
+    [
+        "candidate_inventory.json",
+        "preflight_evidence.json",
+        "programme_registry.json",
+        "currentness_evidence.json",
+        "currentness_network_audit.json",
+        "pii_evidence.json",
+        "catalog_delta.json",
+        "effective_catalog_authority.json",
+        "corpus_manifest_authority.json",
+        "models/embedding/SHA256SUMS",
+        "models/embedding/manifest.json",
+        "models/reranker/SHA256SUMS",
+        "models/reranker/manifest.json",
+    ],
+)
+def test_copied_source_rejects_unsealed_consumed_evidence(
+    authorities, tmp_path: Path, source_file: str,
+) -> None:  # noqa: ANN001
+    source = tmp_path / "copied-v4"
+    shutil.copytree(V4, source)
+    path = source / source_file
+    path.write_bytes(path.read_bytes() + b"\n")
+    with pytest.raises(ValueError, match="source .*digest differs from sealed release"):
+        _build(authorities, source_root=source)
+
+
+def test_copied_source_rejects_binding_authority_drift(
+    authorities, tmp_path: Path,
+) -> None:  # noqa: ANN001
+    source = tmp_path / "copied-v4"
+    shutil.copytree(V4, source)
+    path = source / "authority_bindings.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["bindings"]["candidate_inventory_sha256"]["authority_sha256"] = "0" * 64
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="source authority binding differs from sealed release"):
+        _build(authorities, source_root=source)
+
+
+def test_collection_projection_requires_source_binding_digest(authorities) -> None:  # noqa: ANN001
+    with pytest.raises(ValueError, match="source authority bindings SHA-256 is required"):
+        _build(authorities, bindings_sha=None)
 
 
 def test_complementary_release_contains_only_hggsp_and_seals_subject_mapping(authorities) -> None:  # noqa: ANN001

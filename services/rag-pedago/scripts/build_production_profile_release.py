@@ -3717,6 +3717,81 @@ def _verifier_preconditions(
         )
 
 
+def _verify_projected_source_evidence(
+    src_root: Path, aggregate: Mapping[str, Any], bindings_sha256: str,
+) -> None:
+    """Authentifier les fichiers V2 lus hors du chargeur de manifeste."""
+    authorities = aggregate["authorities"]
+    source_files = {
+        "candidate_inventory_sha256": "candidate_inventory.json",
+        "preflight_evidence_sha256": "preflight_evidence.json",
+        "programme_registry_sha256": "programme_registry.json",
+        "currentness_evidence_sha256": "currentness_evidence.json",
+        "pii_evidence_sha256": "pii_evidence.json",
+        "catalog_delta_sha256": "catalog_delta.json",
+        "embedding_inventory_sha256": "models/embedding/SHA256SUMS",
+        "reranker_inventory_sha256": "models/reranker/SHA256SUMS",
+    }
+    for name, filename in source_files.items():
+        if _file_sha256(src_root / filename) != authorities[name]:
+            raise ValueError(f"source {filename} digest differs from sealed release")
+
+    for model in ("embedding", "reranker"):
+        inventory_path = src_root / "models" / model / "SHA256SUMS"
+        manifest_path = src_root / "models" / model / "manifest.json"
+        manifest_rows = [
+            row.split("  ", 1)[0]
+            for row in inventory_path.read_text(encoding="utf-8").splitlines()
+            if row.endswith("  manifest.json")
+        ]
+        if len(manifest_rows) != 1 or _file_sha256(manifest_path) != manifest_rows[0]:
+            raise ValueError(
+                f"source models/{model}/manifest.json digest differs from sealed release"
+            )
+
+    currentness = _load_json(src_root / "currentness_evidence.json")
+    if _file_sha256(src_root / "currentness_network_audit.json") != currentness.get(
+        "currentness_audit_sha256"
+    ):
+        raise ValueError("source currentness_network_audit.json digest differs from sealed release")
+
+    bindings_path = src_root / "authority_bindings.json"
+    if _file_sha256(bindings_path) != bindings_sha256:
+        raise ValueError("source authority binding differs from sealed release")
+    bindings = _load_json(bindings_path)
+    raw_bindings = bindings.get("bindings")
+    if (
+        bindings.get("binding_kind") != "PRODUCTION_PROFILE_RELEASE_AUTHORITY_BINDINGS_V1"
+        or not isinstance(raw_bindings, dict)
+        or set(raw_bindings) != set(authorities)
+        or bindings.get("profile_manifest_fingerprint") != authorities["profile_manifest_sha256"]
+        or any(
+            not isinstance(binding, dict)
+            or binding.get("authority_sha256") != authorities[name]
+            for name, binding in raw_bindings.items()
+        )
+        or any(
+            raw_bindings[name].get("file_sha256") != authorities[name]
+            or raw_bindings[name].get("authority_kind") != "FILE_SHA256"
+            for name in source_files
+        )
+    ):
+        raise ValueError("source authority binding differs from sealed release")
+
+    for name, filename in (
+        ("effective_catalog_authority_sha256", "effective_catalog_authority.json"),
+        ("corpus_manifest_sha256", "corpus_manifest_authority.json"),
+    ):
+        binding = raw_bindings[name]
+        path = src_root / filename
+        if (
+            binding.get("authority_kind") != "LOGICAL_SHA256"
+            or _file_sha256(path) != binding.get("file_sha256")
+            or _load_json(path).get("authority_sha256") != authorities[name]
+        ):
+            raise ValueError(f"source {filename} digest differs from sealed release")
+
+
 def _build_rehearsal_release(
     *,
     currentness_authority: GovernedCurrentnessAuthority,
@@ -3731,6 +3806,7 @@ def _build_rehearsal_release(
     exclusion_registry: GovernedExclusionRegistry | None = None,
     collections_scope: tuple[str, ...] | None = None,
     source_release_manifest_sha256: str | None = None,
+    source_authority_bindings_sha256: str | None = None,
     subject_mapping_path: Path | None = None,
     subject_mapping_sha256: str | None = None,
 ) -> dict[Path, bytes]:
@@ -3742,6 +3818,8 @@ def _build_rehearsal_release(
             raise ValueError("collection selection is empty or duplicated")
         if not source_release_manifest_sha256:
             raise ValueError("collection selection requires source release manifest SHA-256")
+        if not source_authority_bindings_sha256:
+            raise ValueError("source authority bindings SHA-256 is required for collection selection")
         source_expectation = load_release_expectation(
             src_root / "production-profile-gate.release.json",
             source_release_manifest_sha256,
@@ -3752,8 +3830,13 @@ def _build_rehearsal_release(
             raise ValueError("collection selection contains a collection absent from source release")
         if pdf_root is None:
             raise ValueError("collection selection requires PDF root to remeasure PII evidence")
-    elif source_release_manifest_sha256 is not None:
-        raise ValueError("source release manifest SHA-256 requires collection selection")
+        _verify_projected_source_evidence(
+            src_root,
+            _load_json(src_root / "production-profile-gate.release.json"),
+            source_authority_bindings_sha256,
+        )
+    elif source_release_manifest_sha256 is not None or source_authority_bindings_sha256 is not None:
+        raise ValueError("source release authority SHA-256 requires collection selection")
     # La lignée de profils est celle que `resolve_release_lineage` résout —
     # par défaut les onze profils historiques, sinon une lignée déclarée
     # (NEXUS_PROFILE_ROOT / NEXUS_PROFILE_MANIFEST, ensemble épinglé).
@@ -4188,6 +4271,7 @@ def build_release(
     currentness_authority: GovernedCurrentnessAuthority | None = None,
     collections: tuple[str, ...] | None = None,
     source_release_manifest_sha256: str | None = None,
+    source_authority_bindings_sha256: str | None = None,
     subject_mapping_path: Path | None = None,
     subject_mapping_sha256: str | None = None,
 ) -> dict[Path, bytes]:
@@ -4220,6 +4304,7 @@ def build_release(
             exclusion_registry=exclusion_registry,
             collections_scope=collections,
             source_release_manifest_sha256=source_release_manifest_sha256,
+            source_authority_bindings_sha256=source_authority_bindings_sha256,
             subject_mapping_path=subject_mapping_path,
             subject_mapping_sha256=subject_mapping_sha256,
         )
@@ -4687,6 +4772,10 @@ def main(argv: list[str] | None = None) -> int:
         help="SHA-256 attendu du manifeste source V2 pour une projection de collections.",
     )
     parser.add_argument(
+        "--source-authority-bindings-sha256", default=None,
+        help="SHA-256 attendu des liaisons d'autorité source V2 pour une projection de collections.",
+    )
+    parser.add_argument(
         "--collection", action="append", default=None, dest="collections",
         help="Collection explicitement retenue dans la release complémentaire (répétable).",
     )
@@ -4847,9 +4936,14 @@ def main(argv: list[str] | None = None) -> int:
     ):
         parser.error("--pdf-root, --embedding-snapshot, and --reranker-snapshot are required in production mode")
     if args.collections is not None and (
-        args.source_release_root is None or not args.source_release_manifest_sha256
+        args.source_release_root is None
+        or not args.source_release_manifest_sha256
+        or not args.source_authority_bindings_sha256
     ):
-        parser.error("--collection requires --source-release-root and --source-release-manifest-sha256")
+        parser.error(
+            "--collection requires --source-release-root, --source-release-manifest-sha256 "
+            "and --source-authority-bindings-sha256"
+        )
     if (args.subject_mapping_path is None) != (args.subject_mapping_sha256 is None):
         parser.error("--subject-mapping-path and --subject-mapping-sha256 are required together")
 
@@ -4870,6 +4964,7 @@ def main(argv: list[str] | None = None) -> int:
         currentness_authority=currentness_authority,
         collections=tuple(args.collections) if args.collections is not None else None,
         source_release_manifest_sha256=args.source_release_manifest_sha256,
+        source_authority_bindings_sha256=args.source_authority_bindings_sha256,
         subject_mapping_path=args.subject_mapping_path,
         subject_mapping_sha256=args.subject_mapping_sha256,
     )
