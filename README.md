@@ -7,6 +7,11 @@ des contenus, la recherche dans pgvector et le Cockpit. La chaîne visée est
 job → publication → retrieval filtré`. La génération de réponses reste
 verrouillée.
 
+Le **runtime v2** du moteur, lancé par `api_v2:app`, sert uniquement la
+**lecture/revue**. Les requêtes humaines passent par le **Cockpit BFF** avec
+une identité signée et un scope dérivé côté serveur ; ce chemin ne constitue
+pas une autorisation de publication ni d'ouverture publique.
+
 **Instantané audité : 28 septembre 2026, `main` au commit de base
 `5203c737aa41dd2994504e671819b7a1f024d5f1`.** Ce SHA précède le commit
 qui portera cette mise à jour du README. Il est une borne de reproductibilité,

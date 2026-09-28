@@ -47,7 +47,15 @@ comme futur, la NSI comme en cours et une tolérance d'échec CI inexistante.
 - `bash scripts/check-repository-hygiene.sh` : PASS.
 - Revue indépendante du diff : aucun écart factuel majeur ; deux précisions
   intégrées sur le SHA de base et le miroir PDF hors dépôt.
+- Test ciblé `test_canonical_operations_docs_describe_the_closed_v2_runtime`
+  : réussi après rétablissement des quatre termes de contrat dans
+  l'introduction (`runtime v2`, `api_v2:app`, `lecture/revue`, `Cockpit BFF`).
 
-La CI complète de cette branche sera exécutée par la PR. Les deux workflows
-de `main` au SHA de base étaient `success` ; ce résultat ne préjuge pas de la
-CI du futur HEAD documentaire.
+La première CI PR a exposé ce test documentaire ; le job Worker B a échoué
+pendant `make install` sur des délais de lecture de PyPI pour
+`python-dateutil`, avant les tests. Le code du Worker B n'a pas changé dans
+ce lot. Une nouvelle CI sur le HEAD corrigé est nécessaire pour qualifier
+la PR.
+
+Les deux workflows de `main` au SHA de base étaient `success` ; ce résultat ne
+préjuge pas de la CI du HEAD documentaire.
