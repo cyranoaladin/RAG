@@ -1,44 +1,394 @@
-# Nexus RAG Pedagogique
+# Nexus RAG pédagogique — état du projet et dossier d'audit
 
-Plateforme RAG pedagogique multi-services pour Nexus Reussite. Le depot combine un plan de controle pedagogique, un moteur de retrieval, un cockpit SaaS et un contrat partage. Il sert a construire une chaine auditable de bout en bout : sources pedagogiques gouvernees -> taxonomies -> chunks -> embeddings -> index pgvector -> retrieval filtre -> contexte exploitable par des agents, sans generation de reponse tant que la gouvernance ne l'autorise pas.
+Nexus est une plateforme RAG pédagogique pour les candidats libres et les
+élèves AEFE. Elle sépare le contrôle des sources et des droits, la publication
+des contenus, la recherche dans pgvector et le Cockpit. La chaîne visée est
+`source → qualité → gate → revue humaine → release scellée → attestation →
+job → publication → retrieval filtré`. La génération de réponses reste
+verrouillée.
 
-Ce README est le point d'entree racine pour un auditeur. Les regles imperatives pour les agents restent dans `AGENTS.md`. Les decisions structurantes sont dans `docs/adr/`. Les rapports de lots sont dans `docs/reports/`.
+**Instantané audité : 28 septembre 2026, `main` au commit de base
+`5203c737aa41dd2994504e671819b7a1f024d5f1`.** Ce SHA précède le commit
+qui portera cette mise à jour du README. Il est une borne de reproductibilité,
+pas une affirmation que `main` restera à ce commit. Les
+chiffres de release proviennent des artefacts versionnés ; l'état des PR et de
+la CI a été relu sur GitHub ; les chiffres du staging DI proviennent des
+journaux locaux de l'opérateur, qui ne sont pas versionnés. Aucun accès serveur
+ou base n'a été effectué pour rédiger cet instantané. Un audit opérationnel
+ultérieur doit relire le serveur, la base dédiée et les preuves signées avant
+toute mutation.
 
-## État canonique LOT41U
+Les règles de contribution sont dans [AGENTS.md](AGENTS.md), les décisions
+dans [docs/adr](docs/adr), les rapports dans [docs/reports](docs/reports), et
+les procédures dans [docs/runbooks](docs/runbooks). Le
+[rapport de ce lot documentaire](docs/reports/lot_20260928_readme_audit.md)
+trace la méthode et les contrôles. Les sections numérotées
+plus bas conservent le détail des fondations historiques ; **la présente
+section fait autorité pour l'état au SHA indiqué**.
 
-Le runtime v2 gouverné est désormais un service **lecture/revue** lancé par
-`api_v2:app`. Son image et son Compose n'embarquent aucun writer, worker,
-parseur, client distant ou route legacy. PostgreSQL doit être au head
-`003_profile_filtering` et l'accès humain passe uniquement par le **Cockpit BFF**,
-avec identité signée et scope dérivé côté serveur.
-La readiness refuse également tout artefact modèle absent ou non conforme et
-tout rôle PostgreSQL de retrieval ou de revue qui ne respecte pas son moindre
-privilège exact.
-Le head PostgreSQL est contrôlé sur les 31 colonnes, les dix index et
-l'expression générée `text_tsv` des migrations 001–003 ; un index lexical ou
-vectoriel manquant maintient le service indisponible. Les métriques HTTP
-normalisent également toute méthode non standard vers le seul label `other`.
-Les modèles sont hachés intégralement au démarrage ; la route publique de santé
-utilise ensuite une attestation bornée et ne relit pas les poids. Les rôles
-runtime ne peuvent être membres d'aucun autre rôle atteignable par `SET ROLE`.
-Les inventaires de modèles sont liés à deux empreintes SHA-256 de déploiement
-séparées des montages, afin qu'un remplacement cohérent du manifeste, des poids
-et de `SHA256SUMS` reste refusé.
+## Sommaire de l'état audité
 
-L'ingestion et la publication restent fermées jusqu'aux autorités LOT41A et
-LOT42 capables de prouver `quality → gate → review`. La génération de réponse
-reste également verrouillée. Le verdict global demeure **GO_LIVE: NO_GO** tant
-que la revue golden et les preuves externes de production ne sont pas établies.
+- [Verdict et frontière des preuves](#verdict-et-frontière-des-preuves)
+- [Architecture et composants](#architecture-et-composants-au-sha-audité)
+- [Gouvernance et sécurité](#gouvernance-et-sécurité-au-sha-audité)
+- [V4, reprise DI et revue #262](#v4-reprise-di-et-revue-262)
+- [Complément HGGSP, option B](#complément-hggsp-option-b)
+- [Ce qui reste à faire](#ce-qui-reste-à-faire-avant-le-complément-hggsp)
+- [Qualifications et reproduction](#qualifications-et-reproduction-de-laudit)
+- [Référence historique](#sommaire-historique)
 
-Le runbook actuel est [`docs/runbooks/go_live.md`](docs/runbooks/go_live.md).
-Les descriptions de la production historique plus bas sont conservées comme
-inventaire et ne constituent pas une procédure de déploiement du runtime v2.
+## Verdict et frontière des preuves
+
+| Sujet | État vérifié au 28 septembre 2026 | Preuve / limite |
+|---|---|---|
+| Code de référence | `main` = `5203c737aa41dd2994504e671819b7a1f024d5f1` ; les PR [#266](https://github.com/cyranoaladin/RAG/pull/266) et [#267](https://github.com/cyranoaladin/RAG/pull/267) sont fusionnées. | Git et API GitHub, contrôle ponctuel. |
+| CI du `main` audité | [CI — Nexus RAG Platform](https://github.com/cyranoaladin/RAG/actions/runs/36407773355) et [Corpus CAS reproducibility (C1)](https://github.com/cyranoaladin/RAG/actions/runs/36407773249) : `success` sur ce SHA. | Exécutions GitHub du 28 septembre 2026, à reconsulter pour un autre SHA. |
+| Staging V4 hors HGGSP | Reprise DI clôturée : 9 collections, 263 artefacts, 405 placements, 5 678 chunks, zéro placement HGGSP. | Journaux opérateur locaux et contrôle de clôture, détaillés ci-dessous ; ce dépôt ne contient pas leur transcript complet. |
+| Successeur HGGSP | Release complémentaire construite : 2 collections, 52 artefacts, 74 placements, 2 590 chunks. | Manifeste, registre mixte, preuve de build et diff machine versionnés. |
+| Autorisation HGGSP | `PROPOSED_INACTIVE` ; aucune image, readiness ni autorité de scopes successeurs activée. | [Proposition](docs/reports/go_live/authorizations/proposed/staging_hggsp_complementary_authorization.json). |
+| Revue V4 [#262](https://github.com/cyranoaladin/RAG/pull/262) | `OPEN`, non draft, `APPROVED`, non fusionnée ; HEAD `079461659b60f8a8ce9458145a199599ad822bbc`. | API GitHub relue le 28 septembre 2026 ; son état doit être revérifié avant toute opération. |
+| Production publique | **`GO_LIVE: NO_GO`** ; aucun current switch ni déploiement du complément ne découle des fusions #266/#267. | [Runbook go-live](docs/runbooks/go_live.md) et statuts `NO_PRODUCTION_ACTIVATION` des manifests. |
+
+Il faut distinguer trois catégories de faits : **scellé dans Git** (fichiers et
+SHA recalculables), **mesuré hors dépôt** (journaux DI locaux conservés par
+l'opérateur) et **état live** (PR et CI, susceptible de changer). Le fichier
+[go_live_readiness_state.json](docs/reports/go_live/go_live_readiness_state.json)
+se déclare lui-même non courant (`snapshot_is_operational_current=false`,
+`evaluated_head=470c4b991a4234428d3f1960881d45e9bebf3dfa`) ; il ne
+prouve pas une readiness de production au SHA de cet audit. Une CI verte
+valide le code et les gardes testées ; elle
+ne vaut ni attestation de droits, ni vérification de la base actuelle, ni
+autorisation de bascule publique.
+
+## Architecture et composants au SHA audité
+
+| Composant | Responsabilité et frontière | Entrée d'audit |
+|---|---|---|
+| [`services/rag-pedago`](services/rag-pedago) | Plan de contrôle : référentiels, taxonomies, acquisition, qualité, PII, droits, actualité, releases, revue et attestations. | [Rapport successeur HGGSP](docs/reports/lot_go_live_hggsp_complementary_successor.md) |
+| [`services/rag-engine`](services/rag-engine) | Plan de données : PostgreSQL/pgvector, placements d'artefacts, Worker B, retrieval hybride et API v2. Le runtime HTTP `api_v2:app` est limité à la lecture/revue. | [Compose v2](services/rag-engine/infra/docker-compose.v2.yml), [runbook](docs/runbooks/go_live.md) |
+| [`services/cockpit`](services/cockpit) | Application Next.js et BFF Auth.js : session humaine, scope dérivé côté serveur, identité interne signée. Aucun accès direct aux documents bruts ou à pgvector. | [Package Cockpit](services/cockpit/package.json) |
+| [`packages/contracts`](packages/contracts) | `nexus-contracts` **v0.21.0**, schémas Pydantic partagés et contrat de retrieval ; Python ≥ 3.11. | [pyproject](packages/contracts/pyproject.toml) |
+| [`packages/release-chain`](packages/release-chain) | `nexus-release-chain` v0.1.0 : chargeurs et validations canoniques des releases et de la readiness, dont le registre mixte par collection. La pile PDF est optionnelle pour le cœur. | [pyproject](packages/release-chain/pyproject.toml), [ADR-0062](docs/adr/ADR-0062-coexistence-par-collection-v4-et-successeur-hggsp.md) |
+| [`packages/pdf-page-policy`](packages/pdf-page-policy) et [`packages/pdf-ocr`](packages/pdf-ocr) | Politique de pages PDF v1.0.0 et OCR v0.1.0 sous contrôle de la chaîne de contenu. | Leurs `pyproject.toml` et tests. |
+| [`corpus`](corpus) | Référentiels source et cadrage pédagogique ; la présence d'un document ne prouve pas son admission au retrieval. | [Référentiel candidat libre](corpus/REFERENTIEL_CANDIDAT_LIBRE.md) |
+
+Le flux de recherche part du Cockpit BFF, passe par le contrat partagé et
+l'API `rag-engine`, puis applique les scopes de profil et les droits aux
+placements publiés. `chunk.collection` indique l'ancre physique d'ingestion ;
+pour un artefact gouverné, `rag_artifact_placements` définit dans quelles
+collections il est atteignable. Un artefact peut donc être servi dans plusieurs
+collections sans duplication physique. La [sonde indépendante](scripts/go_live/staging_retrieval_probe.py)
+utilise cette autorité de placement depuis la correction [#265](https://github.com/cyranoaladin/RAG/pull/265),
+avec contrôles de collection, profil, visibilité, année, version de programme,
+statut actif, actualité, revue et droits.
+
+Le [Compose v2](services/rag-engine/infra/docker-compose.v2.yml) lie le
+registre de release et les inventaires de modèles à des SHA fournis par le
+déploiement. Le [Compose de promotion](services/rag-engine/infra/docker-compose.production-release.yml)
+exige des images par digest provenant de l'inventaire de provenance. Leur
+présence dans le dépôt ne signifie pas que le complément HGGSP est déployé.
+Le [runbook go-live](docs/runbooks/go_live.md) exige le head du schéma produit
+`005_official_snapshot_currentness` (avec `rag_chunks`, `rag_artifacts` et
+`rag_artifact_placements`) et la chaîne de migrations `ingestion_control`
+jusqu'à `013` pour une cible qualifiée ; les anciennes indications `003`
+des lots pilotes ne sont pas suffisantes.
+Le modèle d'embedding scellé est `intfloat/multilingual-e5-large` en 1 024
+dimensions ; le reranker est `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+
+## Gouvernance et sécurité au SHA audité
+
+- Toute écriture de contenu suit `quality → gate → review`, puis des
+  attestations et jobs liés à la release. Ni le Cockpit ni un agent de requête
+  ne publie directement dans pgvector. Le contrat interservices est versionné
+  dans `packages/contracts` ; voir [AGENTS.md](AGENTS.md) et
+  [ADR-0001](docs/adr/ADR-0001-separation-controle-donnees-cockpit.md).
+- Les verrous de [pedago_interface_contract.yml](services/rag-pedago/configs/pedago_interface_contract.yml)
+  incluent `answer_generation_allowed: false`. Le
+  [garde CI](scripts/check-governance-locks.sh) les compare à la baseline ;
+  une évolution d'autorité exige l'ADR et la revue prévues par le dépôt.
+- Les manifests de release lient les mappings, inventaires, modèles, preuves
+  PII, droits, actualité, profils et catalogue par empreinte. La correction
+  [#267](https://github.com/cyranoaladin/RAG/pull/267) ajoute le contrôle des
+  octets des preuves V4 recopiées, dont les liaisons d'autorité, les
+  inventaires de modèles et les descripteurs de catalogue. Une copie altérée
+  doit être refusée avant la construction du complément.
+- Les scopes de retrieval sont dérivés et approuvés par une autorité r4 ; les
+  nouveaux scopes HGGSP doivent être propres au successeur. Les anciens
+  scopes et jobs HGGSP V4 ne sont pas adoptés par simple renommage.
+- L'API v2 sert la lecture/revue avec identité signée issue du BFF et rôles
+  PostgreSQL séparés à privilèges minimaux. Le serveur de production, les
+  secrets, les certificats et la base historique `ragdb` restent hors du
+  périmètre de cet audit documentaire.
+
+## V4, reprise DI et revue #262
+
+La release source `production-profile-gate-2026-2027-v4` est immuable. Son
+[manifeste](services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/production-profile-gate.release.json)
+a pour SHA-256
+`bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be`.
+Il décrit historiquement **11 collections, 315 artefacts uniques, 479
+placements et 8 268 chunks** ; son statut est `rehearsal`, `PRE_REVIEW`,
+`NOT_PROMOTABLE`, `NO_PRODUCTION_ACTIVATION`. Le mapping de sujets V4
+[`eduscol_profile_gate_subjects.yml`](services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml)
+est inchangé, SHA-256
+`85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c`.
+Il ne gouverne pas `hggsp`, raison du refus des 74 jobs HGGSP dans la première
+publication. [Le rapport DI](docs/reports/lot_go_live_di_partial_v4_worker_recovery.md)
+analyse l'incident, le cas « pin sans produit », le 403 GitHub et la reprise
+idempotente. La cause exacte du 403 initial n'est pas prouvée
+rétrospectivement ; la limitation primaire est une hypothèse étayée, pas un
+fait établi.
+
+La [reprise partielle DI](docs/runbooks/staging_v4_partial_recovery_DI_EXECUTION_PLAN.md)
+a été autorisée par la [PR #264](https://github.com/cyranoaladin/RAG/pull/264),
+après provenance du Worker B par le run GitHub Actions
+[`36321957702`](https://github.com/cyranoaladin/RAG/actions/runs/36321957702),
+tentative 1, protocole `NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1`. L'image exacte
+était
+`ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:8980977c6eda1fe2f7545cd9e2cedee4655a6afbd5abea45765780af067175e6`,
+construite depuis `fb8a7cc8e85448115a64de8ff5325d639ef9ee70` (arbre
+`13971825e149fbe287bce93605f7ccbb182e7c06`). Le Dockerfile avait le
+SHA-256 `feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de`.
+L'artefact d'inventaire `nexus-deployment-image-inventory` a l'ID
+`10932683454` et son ZIP le SHA-256
+`91fa5c0b3d57eb25b0db7a79969366756f3b09728584c8af68cae97923639696`.
+La
+[preuve d'image](docs/reports/evidence/staging_worker_image_provenance_di.json)
+et l'[autorisation DI](docs/reports/go_live/authorizations/staging_v4_partial_recovery_authorization.json)
+épinglent cette identité. La reprise réclamait seulement les neuf
+collections non HGGSP et conservait l'empreinte des 74 jobs exclus :
+`fef6d99df13b08c3ea02f79f29be94fa5f8d12a639ef7af85989bfcdaba6af31`.
+
+Les **journaux locaux opérateur, non versionnés**, relus pour ce README,
+rapportent : les cinq étapes DI (`partial_readiness_install`,
+`partial_preflight`, `partial_worker_b_publication`,
+`partial_independent_verification`, `partial_closure_check`) terminées ;
+Worker B : **329 `succeeded`, 1 `retried`** après HTTP 502, **0
+`lease_lost`, 0 rate limit, 0 `dead_letter`**. La vérification produit donne
+`PLACEMENTS=9 263 405`, `CHUNKS=5678`, `HGGSP=0` et
+`SONDE_RETRIEVAL_V4` réussie (`chunks=8584`, `manques=4`,
+`rappel_a_1=8572`, `rappel_a_5=8573`, `refus_egalite=7` ; ce compteur de
+sonde ne remplace pas les 5 678 chunks du produit). Le contrôle final émet
+`DI_PARTIAL_PUBLICATION_COMPLETE published=405 excluded_pending=74`
+avec l'empreinte ci-dessus et `review_closure=NOT_SAFE`. Les comparaisons de
+baseline du journal émettent `RAGDB_INCHANGEE`. Les SHA-256 des journaux
+locaux `partial-closure.out`, `verification.txt` et de la sortie Worker B sont
+respectivement `4f532af1aa8e1332e18a4ed7653ad77337f0950cabf7d0e1c986095057ef494d`,
+`b11fcb3eead2358585e6a798c808a53b33658750d95a02cac8935aaf1a18d28a`
+et `175c89d9d250a918e5e9fd4ba6ad271e2becd3e679075468f051523c1cc6a78f`.
+Ces SHA permettent de reconnaître une copie des preuves, mais les fichiers
+locaux doivent encore être fournis à un auditeur indépendant : le README
+n'est pas une attestation live de la base.
+
+La revue [#262](https://github.com/cyranoaladin/RAG/pull/262) est restée
+ouverte, approuvée et non fusionnée au HEAD exact
+`079461659b60f8a8ce9458145a199599ad822bbc` lors du contrôle GitHub.
+Le check `trusted-human-review/head-pinned` est `success` sur cette revue ;
+la liste GitHub conserve aussi un ancien job `Evaluate trusted human review`
+en échec, qui ne doit pas être présenté comme un succès de toute l'histoire
+des checks.
+Elle continue de gouverner la revue V4 ; les 74 anciens jobs HGGSP doivent
+rester intacts jusqu'à publication et vérification du successeur. Le contrôle
+de clôture V4 ne peut pas être présenté comme sûr sur les 405 seules.
+
+## Complément HGGSP, option B
+
+L'arbitrage humain du 28 septembre 2026 retient un **complément par
+collection**, et non une V5 qui réadopterait les 405 placements V4. La
+[décision ADR-0062](docs/adr/ADR-0062-coexistence-par-collection-v4-et-successeur-hggsp.md)
+et le [registre mixte v2](services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json)
+attribuent explicitement chaque collection servie à une release. Le registre
+porte le SHA-256
+`59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6`.
+Le chargeur valide les manifests complets et refuse collection étrangère,
+doublon, collision d'artefact ou divergence de modèle ; la version 1 du
+registre conserve sa sémantique.
+
+| Propriétaire dans le registre mixte | Collection | Placements |
+|---|---|---:|
+| V4 | `rag_nexus_dgemc_terminale_option` | 12 |
+| V4 | `rag_nexus_hlp_premiere_specialite` | 115 |
+| V4 | `rag_nexus_hlp_terminale_specialite` | 89 |
+| V4 | `rag_nexus_nsi_premiere_specialite` | 29 |
+| V4 | `rag_nexus_nsi_terminale_specialite` | 47 |
+| V4 | `rag_nexus_ses_premiere_specialite` | 30 |
+| V4 | `rag_nexus_ses_terminale_specialite` | 28 |
+| V4 | `rag_nexus_svt_premiere_specialite` | 19 |
+| V4 | `rag_nexus_svt_terminale_specialite` | 36 |
+| **Sous-total V4 servi** | **9 collections, 263 artefacts, 5 678 chunks** | **405** |
+| Successeur | `rag_nexus_hggsp_premiere_specialite` | 39 |
+| Successeur | `rag_nexus_hggsp_terminale_specialite` | 35 |
+| **Sous-total HGGSP** | **2 collections, 52 artefacts, 2 590 chunks** | **74** |
+| **Union logique visée** | **11 collections, 315 artefacts, 8 268 chunks** | **479** |
+
+Le successeur s'appelle exactement
+`production-profile-gate-2026-2027-v5-hggsp`. Son
+[manifeste](services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_hggsp_v5/release-b34b11e678bf9559/profile_gate/production-profile-gate.release.json)
+porte le SHA-256
+`8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf`.
+Le mapping additif
+[`eduscol_profile_gate_subjects_hggsp.yml`](services/rag-engine/configs/mappings/eduscol_profile_gate_subjects_hggsp.yml)
+porte le SHA-256
+`b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a`
+et ajoute `hggsp: hggsp` au mapping V4 sans le modifier. Le motif de
+changement d'autorité cite le commit
+`fb8a7cc8e85448115a64de8ff5325d639ef9ee70` qui porte ce mapping.
+Mappings de niveau et type de document et modèles E5/reranker sont conservés.
+
+La [preuve de build](docs/reports/evidence/hggsp_v5_complementary_build_proof.json)
+et le [diff machine](docs/reports/evidence/profile_gate_v4_to_hggsp_v5_diff.json)
+établissent : 52 PDF sur 52 présents avec SHA-256 conforme ; 52 résultats PII
+`CLEARED`, zéro détection, avec chaîne de revue source V4 signée préservée ;
+deux builds identiques octet pour octet sur 19 fichiers ; 28 fichiers V4
+byte-identical à la base ; **zéro intersection** entre les 52 artefacts
+HGGSP et les 263 déjà publiés ; aucun des 405 placements V4 servis n'est
+inclus dans le complément. Le nombre de 2 590 chunks est recalculé depuis les
+autorités scellées et confronté au produit, et non accepté comme constante.
+La correction #267 épingle et vérifie aussi les octets des preuves sources
+auxiliaires avant la projection.
+Le miroir des PDF est **hors dépôt** ; la preuve scelle l'ensemble de contenus
+par `content_set_sha256=b76b84b03b8b47e936555f0bb1135b4e0580d702a8f11d353285c928c215619f`.
+La preuve PII source V4 porte le SHA-256
+`33e3fbfb943ffded360d2db254061edebe8ccff9e08b7509ebcdf4cd305ca700`.
+Un auditeur qui veut reconstruire la release doit disposer du même miroir et
+revérifier les 52 SHA individuels ; le dépôt seul permet de contrôler les
+manifests et les preuves scellées, pas de recréer les PDF absents.
+
+Le produit reste `rehearsal`, `PRE_REVIEW`, `NOT_PROMOTABLE` et
+`NO_PRODUCTION_ACTIVATION`. La
+[proposition d'autorisation HGGSP](docs/reports/go_live/authorizations/proposed/staging_hggsp_complementary_authorization.json)
+est `PROPOSED_INACTIVE` : image Worker B, image retrieval, readiness signée et
+autorité des scopes successeurs restent à produire et à lier. Le registre
+mixte est un artefact candidat ; sa présence dans Git n'installe aucun
+runtime. L'ADR-0062 conserve encore un libellé initial « Proposé » : ses
+conditions de revue/fusion ont été remplies par #266/#267, mais ce libellé
+documentaire n'a pas été actualisé dans ce lot README.
+
+## Ce qui reste à faire avant le complément HGGSP
+
+Le [plan opérateur HGGSP](docs/runbooks/staging_hggsp_complementary_SUCCESSOR_PLAN.md)
+est le chemin gouverné. Chaque étape dépend d'une autorité vérifiée au HEAD
+exact ; ce tableau décrit des **travaux à venir**, pas une permission de les
+exécuter à partir du README.
+
+1. Construire hors hôte et épingler par digest les nouvelles images Worker B
+   et retrieval depuis le `main` fusionné, avec inventaires de provenance.
+   Le nouveau chargeur du registre mixte rend les anciennes images
+   insuffisantes comme preuve de ces octets.
+2. Ouvrir une PR d'activation HGGSP distincte qui lie manifeste, registre,
+   images, SHA, opérateur et prévol. Obtenir la revue humaine fiable au HEAD
+   exact puis fusionner cette PR avant toute mutation de staging. La
+   proposition actuelle sous `proposed/` reste inactive.
+3. Produire une readiness **successeur** signée et deux autorisations r4 de
+   scopes HGGSP propres à cette lignée ; les relire et les enregistrer par le
+   mécanisme canonique. Préserver la readiness V4.
+4. Lier/acquérir les 74 placements sous la nouvelle release, établir la
+   proposition de revue batch, attendre sa décision humaine distincte,
+   enregistrer 74 attestations et créer 74 **nouveaux** jobs. Vérifier à
+   chaque prévol les 405 placements V4 et l'empreinte inchangée des 74 anciens
+   jobs HGGSP V4.
+5. Publier uniquement les deux collections HGGSP avec Worker B borné par
+   l'image, la readiness et la liste positive ; un arrêt sûr `75` exige un
+   nouveau prévol et une reprise opérateur. Vérifier indépendamment les deux
+   scopes HGGSP, les neuf scopes V4, le produit 2/52/74/2 590 et l'union
+   11/315/479/8 268, ainsi que la base historique.
+6. Après succès de cette vérification, préparer **une autre** autorisation et
+   revue pour annuler/invalider canoniquement les 74 anciens jobs et
+   attestations HGGSP V4. Décider séparément du traitement de #262, du
+   contrôle de fermeture V4, d'une éventuelle promotion de release et du
+   déploiement public. Aucun SQL manuel ni current switch n'est autorisé
+   par ce plan.
+
+## Qualifications et reproduction de l'audit
+
+Le [rapport HGGSP](docs/reports/lot_go_live_hggsp_complementary_successor.md)
+consigne les qualifications du lot #266/#267 : 174 tests producteur/PII/
+lignée, 201 tests readiness et gouvernance de sujets, 111 tests retrieval,
+44 tests de chaîne C1 (2 ignorés), 22 tests wrapper/orchestrateur, ainsi que
+`ruff`, `mypy` ciblé, syntaxe Bash, hygiène, verrous, unicité des autorités,
+chargeurs canoniques et reproductibilité. Ces résultats sont des preuves de
+lot, **pas** une nouvelle exécution de toutes les suites pour ce README.
+La CI GitHub du `main` audité est verte pour les deux workflows indiqués en
+tête. La [CI locale](scripts/ci-local.sh) couvre contrats, politiques PDF,
+release-chain, services, Cockpit, hygiène, gouvernance, revue humaine fiable
+et qualification C1 ; elle renvoie un échec si une cible échoue. Python ≥ 3.11
+et Node ≥ 22.22 sont requis. Les cibles `rag-engine` utilisant PostgreSQL
+jetable/Docker ne doivent pas être confondues avec une simple lecture du
+dépôt.
+
+Pour reproduire **sans serveur ni base**, depuis la racine d'un checkout du
+SHA audité :
+
+```bash
+git rev-parse HEAD
+git status --short
+sha256sum \
+  services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml \
+  services/rag-engine/configs/mappings/eduscol_profile_gate_subjects_hggsp.yml \
+  services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json \
+  services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/production-profile-gate.release.json \
+  services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_hggsp_v5/release-b34b11e678bf9559/profile_gate/production-profile-gate.release.json
+bash scripts/check-governance-locks.sh
+bash scripts/check-authority-uniqueness.sh
+```
+
+Les cinq SHA attendus, dans cet ordre, sont :
+`85a8efa17a9b04659800363ea3386208b46874ca673bdcb0889c6270bfc9c71c`,
+`b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a`,
+`59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6`,
+`bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be`,
+`8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf`.
+Le calcul suivant lit **en lecture seule** le registre, les sujets et les
+artefacts scellés, sans solliciter le moteur ni une base :
+
+```bash
+python3 - <<'PY'
+import json
+from pathlib import Path
+
+registry = Path('services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json')
+owners = []
+for owner in json.loads(registry.read_text())['releases']:
+    base = (registry.parent / owner['manifest_path']).parent
+    manifest = json.loads((base / 'production-profile-gate.release.json').read_text())
+    placements = [p for subject in manifest['subjects']
+                  if subject['collection'] in owner['collections']
+                  for p in json.loads((base / subject['path']).read_text())['placements']]
+    ids = {p['artifact_id'] for p in placements}
+    artifacts = json.loads((base / 'artifacts.release.json').read_text())['artifacts']
+    chunks = sum(len(a['chunks']) for a in artifacts if a['artifact_id'] in ids)
+    owners.append((owner['release_id'], ids, {p['placement_id'] for p in placements}))
+    print(owner['release_id'], len(owner['collections']), len(ids), len(placements), chunks)
+assert not (owners[0][1] & owners[1][1])
+assert not (owners[0][2] & owners[1][2])
+PY
+```
+
+La sortie attendue est `production-profile-gate-2026-2027-v4 9 263 405
+5678`, puis `production-profile-gate-2026-2027-v5-hggsp 2 52 74 2590`.
+Ce calcul de lecture contrôle les cardinalités et la disjonction ; les
+chargeurs canoniques et les validations d'autorité testent en plus les SHA,
+identités, mappings et statuts.
+Pour l'état live, relire [#262](https://github.com/cyranoaladin/RAG/pull/262)
+et les workflows du nouveau SHA ; pour l'état du produit, obtenir les
+journaux DI aux SHA ci-dessus et une mesure indépendante autorisée de la base
+dédiée. **Ne pas transformer un état versionné en constat live.**
+
+## Sommaire historique
+
+Les sections 1 à 20 ci-dessous détaillent les fondations et l'inventaire
+historique. Plusieurs mesures y sont datées des premiers lots, notamment
+LOT20/LOT41U ; elles ne remplacent pas l'état audité ci-dessus. Les anciens
+comptages de fichiers, dettes, chemins pilotes et descriptions de production
+ne doivent pas être utilisés comme preuves de la cible DI ou du complément
+HGGSP. La procédure courante de qualification de production reste
+[docs/runbooks/go_live.md](docs/runbooks/go_live.md).
 
 ## Sommaire
 
 - [1. Resume executif](#1-resume-executif)
 - [2. Logique metier](#2-logique-metier)
-- [3. Etat actuel du projet](#3-etat-actuel-du-projet)
+- [3. Etat historique du projet (lots initiaux)](#3-etat-historique-du-projet-lots-initiaux)
 - [4. Architecture generale](#4-architecture-generale)
 - [5. Arborescence commentee](#5-arborescence-commentee)
 - [6. Contrat partage `nexus-contracts`](#6-contrat-partage-nexus-contracts)
@@ -75,7 +425,8 @@ La couture entre les plans est `packages/contracts/`, package Python `nexus-cont
 Les lots 0 à 22 ont établi les fondations historiques suivantes :
 
 - monorepo en place ;
-- contrat partage `nexus-contracts` v0.2.0 ;
+- contrat partagé `nexus-contracts` v0.2.0 **à cette étape historique**
+  (v0.21.0 au SHA audité) ;
 - taxonomies pedagogiques multi-niveaux ;
 - acquisition gouvernee depuis des sources whitelistes ;
 - chunks pilotes Terminale ;
@@ -150,7 +501,7 @@ Les sources admises doivent etre :
 - conformes robots.txt quand elles viennent du web ;
 - passees par quality, gate et revue avant indexation.
 
-## 3. Etat actuel du projet
+## 3. Etat historique du projet (lots initiaux)
 
 ### 3.1 Snapshot historique de lecture du dépôt
 
@@ -217,7 +568,7 @@ Repartition taxonomique actuelle :
 - Runtime v2 PostgreSQL lecture/revue sans writer ni surface legacy.
 - CI locale racine avec contrats, services, garde-fous de gouvernance et validation taxonomie.
 
-### 3.3 Ce qui n'est pas encore livre
+### 3.3 Ce qui n'était pas encore livré lors des lots initiaux
 
 - Activation go-live du Cockpit et du moteur, encore bloquée par les preuves
   d'autorité, de corpus et d'exploitation.
@@ -226,7 +577,8 @@ Repartition taxonomique actuelle :
 - Ingestion generale de vrais documents proprietaires.
 - Migration du corpus prod vers le moteur gouverne (9 199 chunks admissibles sur 17 912, cf. LOT 20).
 - Deploiement production coherent de l'ensemble Nexus trois plans.
-- Ingestion NSI gouvernee de bout en bout (LOT 22, en cours).
+- Ingestion NSI gouvernée de bout en bout (LOT 22, alors en cours ; la
+  publication V4/DI ultérieure figure dans l'état audité en tête).
 
 ## 4. Architecture generale
 
@@ -275,7 +627,7 @@ Repartition taxonomique actuelle :
 | Indexation pgvector | `rag-engine` | Lit les artefacts pedago et ecrit dans pgvector. |
 | Retrieval HTTP pilote | `rag-engine` | `/search`, lecture seule, filtres serveur. |
 | Agents de requete | `rag-pedago` | Signent le profil et assemblent un contexte via l'API. |
-| UI SaaS | `cockpit` | Placeholder ; futur Next.js. |
+| UI SaaS | `cockpit` | Application Next.js et BFF présents au SHA audité. |
 | Contrat inter-service | `packages/contracts` | Source unique des modeles partages. |
 
 ### 4.3 Invariant majeur : pas de raccourci cross-service
@@ -1094,7 +1446,10 @@ La CI locale execute :
 6. tests du garde-fou ;
 7. tests failsafe de la CI.
 
-La CI tolere au plus un echec preexistant documente dans `rag-pedago` selon `docs/BACKLOG.md`.
+Le script CI courant renvoie un code non nul si une cible échoue. Cette
+description de ses cibles date des premiers lots ; les packages PDF et
+release-chain, le Cockpit, la revue humaine fiable, l'hygiène et C1 sont
+également couverts au SHA audité (voir l'état en tête et le script réel).
 
 ### 14.3 Commandes par service
 
@@ -1384,44 +1739,33 @@ L'etat courant du code et des ADR recents est :
 
 ## 20. Lecture rapide pour auditeur
 
-Pour comprendre le projet en moins d'une heure :
+Pour auditer **l'état au SHA de base indiqué en tête** :
 
-1. Lire ce README.
-2. Lire `AGENTS.md` pour les invariants de contribution.
-3. Lire ADR-0001, ADR-0003, ADR-0010, ADR-0011, ADR-0012.
-4. Verifier les verrous :
+1. Vérifier le SHA de la base, l'absence de modifications locales, les deux
+   fusions #266/#267 et la CI de ce SHA. L'état GitHub est temporel : le
+   relire, ne pas le déduire du texte de ce README.
+2. Recalculer les cinq SHA du bloc « Qualifications et reproduction » et
+   charger les manifests V4, HGGSP et le registre mixte par les chargeurs
+   canoniques de `packages/release-chain`. Vérifier les listes de collections,
+   les 405 et 74 placements, les 263 et 52 artefacts, leur disjonction et
+   les 5 678 et 2 590 chunks issus des registres scellés.
+3. Contrôler le [diff machine](docs/reports/evidence/profile_gate_v4_to_hggsp_v5_diff.json),
+   la [preuve de build](docs/reports/evidence/hggsp_v5_complementary_build_proof.json),
+   le mapping HGGSP et le motif citant le commit de l'autorité. Pour une
+   reconstruction complète, demander le miroir des 52 PDF hors dépôt et
+   vérifier chaque SHA ; le `content_set_sha256` ne le remplace pas.
+4. Relire les journaux DI locaux identifiés par SHA plus haut en suivant le
+   [plan DI](docs/runbooks/staging_v4_partial_recovery_DI_EXECUTION_PLAN.md),
+   puis mesurer de nouveau la base dédiée par
+   la procédure opérateur approuvée. Vérifier aussi le maintien de #262
+   ouverte au même HEAD et des 74 anciens jobs HGGSP inchangés.
+5. Constater la proposition HGGSP `PROPOSED_INACTIVE`, les statuts
+   `NOT_PROMOTABLE`/`NO_PRODUCTION_ACTIVATION`, le verdict
+   `GO_LIVE: NO_GO` et les autorités absentes avant d'envisager une suite.
+   Le [plan opérateur HGGSP](docs/runbooks/staging_hggsp_complementary_SUCCESSOR_PLAN.md)
+   décrit les étapes futures ; il n'est pas une autorisation en lui-même.
 
-   ```bash
-   bash scripts/check-governance-locks.sh
-   ```
-
-5. Inspecter le contrat :
-
-   ```bash
-   sed -n '1,240p' packages/contracts/src/nexus_contracts/retrieval.py
-   sed -n '1,220p' packages/contracts/src/nexus_contracts/profile_auth.py
-   ```
-
-6. Inspecter le chemin runtime pilote :
-
-   ```bash
-   sed -n '1,260p' services/rag-engine/scripts/retrieval_api.py
-   sed -n '1,260p' services/rag-engine/scripts/index_pgvector.py
-   ```
-
-7. Inspecter les agents de requete :
-
-   ```bash
-   sed -n '1,220p' services/rag-pedago/query_agents/query_orchestrator.py
-   sed -n '1,220p' services/rag-pedago/query_agents/query_subject_agent.py
-   ```
-
-8. Inspecter les artefacts pilotes :
-
-   ```bash
-   find services/rag-pedago/data/chunks -name '*.jsonl' -print0 | xargs -0 wc -l
-   find services/rag-pedago/data/embeddings -name '*.jsonl' -print0 | xargs -0 wc -l
-   python -m json.tool services/rag-pedago/data/embeddings/review_manifest.json | head -80
-   ```
-
-La question d'audit centrale n'est pas seulement "le retrieval repond-il ?", mais "peut-on prouver que chaque passage a ete admis, filtre et servi dans le bon perimetre ?". C'est l'objectif de l'architecture actuelle.
+La question d'audit est : **quelles preuves établissent que chaque passage a
+été admis, publié et servi dans le périmètre autorisé, pour un commit et un
+état de base précis ?** Les preuves versionnées et les preuves d'exploitation
+doivent être lues ensemble avant toute décision de production.
