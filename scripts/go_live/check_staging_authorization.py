@@ -14,7 +14,12 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
+import runpy
+import shutil
 import subprocess
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 AUTORISATION = "docs/reports/go_live/authorizations/staging_ssh_authorization.json"
@@ -304,10 +309,10 @@ def evaluer(document: dict, *, plan_sha256: str) -> list[str]:
             "staging_index_source doit être un périmètre chiffré, pas une phrase"
         )
     else:
-        for cle, attendu in INDEX_SOURCE_REQUIS.items():
-            if source.get(cle) != attendu:
+        for cle, attendu_source in INDEX_SOURCE_REQUIS.items():
+            if source.get(cle) != attendu_source:
                 ecarts.append(
-                    f"source d'index : {cle} = {source.get(cle)!r}, attendu {attendu!r}"
+                    f"source d'index : {cle} = {source.get(cle)!r}, attendu {attendu_source!r}"
                 )
         comptes = source.get("expected_counts")
         if comptes != INDEX_COUNTS_REQUIS:
@@ -1461,6 +1466,527 @@ def verifier_operation_di(racine: Path, operation: str, cible: dict) -> list[str
             ecarts.append(f"{relatif} n'est pas (ou pas à l'identique) sur origin/main")
     return ecarts
 
+# ── HGGSP : release successeur, complément seulement ──────────────────────
+
+AUTORISATION_HGGSP = "docs/reports/go_live/authorizations/staging_hggsp_complementary_authorization.json"
+PROPOSITION_HGGSP = "docs/reports/go_live/authorizations/proposed/staging_hggsp_complementary_authorization.json"
+PREUVE_HGGSP = "docs/reports/evidence/staging_hggsp_image_provenance.json"
+PLAN_HGGSP = "docs/runbooks/staging_hggsp_complementary_SUCCESSOR_PLAN.md"
+RELEASE_HGGSP = (
+    "services/rag-pedago/data/releases/prerentree_2026_2027/"
+    "profile_gate_hggsp_v5/release-b34b11e678bf9559/profile_gate"
+)
+MANIFESTE_HGGSP = f"{RELEASE_HGGSP}/production-profile-gate.release.json"
+REGISTRE_MIXTE_HGGSP = (
+    "services/rag-pedago/data/releases/prerentree_2026_2027/"
+    "release-registry-v4-hggsp-complementary.json"
+)
+MAPPING_HGGSP = "services/rag-engine/configs/mappings/eduscol_profile_gate_subjects_hggsp.yml"
+COLLECTIONS_HGGSP = [
+    "rag_nexus_hggsp_premiere_specialite",
+    "rag_nexus_hggsp_terminale_specialite",
+]
+IMAGE_WORKER_HGGSP = (
+    "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:"
+    "14aef8482dc3f322101b0bb3383d442c278386f383c2aaf42a3cca7acbd0416e"
+)
+IMAGE_RETRIEVAL_HGGSP = (
+    "ghcr.io/cyranoaladin/rag-ingestor@sha256:"
+    "e9a2e5dd5681911afe950c8852de36f907ed8945c97d736ebcb9debab206ad14"
+)
+SHA_MANIFESTE_HGGSP = "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf"
+SHA_REGISTRE_MIXTE_HGGSP = "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6"
+SHA_MAPPING_HGGSP = "b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a"
+SHA_PREUVE_HGGSP = "f5dbe4eb5f999e96a529cd3448bc3cc2e95ec9260f28f0b22c70522fea18a10c"
+SHA_AUTORISATION_HGGSP = "9cb0d29eaf5f23b308504d1e0517cae2b1cddbd74b168e0c24b4ad0eaf43bb36"
+SHA_PLAN_HGGSP = "e1655be65290df6f59371127d18376be6ada516abaca031407fa95c2793edcce"
+SCOPES_SUCCESSEURS_HGGSP = {
+    "naming": {
+        "path": "packages/contracts/authorities/production-profile-scope-successors-hggsp-v5.yml",
+        "sha256": "f72935d27e94d67868ab7e5bed604e4c0a2dba1943ab165918d3ced7ba0aeb8d",
+    },
+    "premiere": {
+        "path": "packages/contracts/src/nexus_contracts/artifacts/retrieval-scope-prod-hggsp-premiere-specialite-v3.json",
+        "sha256": "58c4e8a86c810da2fb6f1636b2fdfbe57c4f879dd7df1f2c98706e4e12f7dacc",
+    },
+    "terminale": {
+        "path": "packages/contracts/src/nexus_contracts/artifacts/retrieval-scope-prod-hggsp-terminale-specialite-v3.json",
+        "sha256": "2fbfe511f1be6cbb2da0b9f5ab7a1de7e1b069a57461b4f48d4d8dcf1373d262",
+    },
+}
+AUTORISATIONS_R4_HGGSP = {
+    "premiere": {
+        "path": "governance/authorizations/lot41a-staging-v5-hggsp-premiere-specialite-r4.json",
+        "sha256": "e960288743dc02aa7e4e974f0016652a362e701a1ab14e983ee44bb0d9c2e0ee",
+    },
+    "terminale": {
+        "path": "governance/authorizations/lot41a-staging-v5-hggsp-terminale-specialite-r4.json",
+        "sha256": "82ea181de4ac8eb7e421103346c455c071c66559d5c2ededc47fd965b382fa8a",
+    },
+}
+COMPTES_HGGSP = {"collections": 2, "unique_artifacts": 52, "placements": 74, "unique_chunks": 2590}
+COMPTES_V4_HGGSP = {"collections": 9, "unique_artifacts": 263, "placements": 405, "unique_chunks": 5678}
+COMPTES_UNION_HGGSP = {"collections": 11, "unique_artifacts": 315, "placements": 479, "unique_chunks": 8268}
+ANCIENS_JOBS_HGGSP_SHA = "fef6d99df13b08c3ea02f79f29be94fa5f8d12a639ef7af85989bfcdaba6af31"
+RELEASE_ID_HGGSP = "production-profile-gate-2026-2027-v5-hggsp"
+_CIBLE_HGGSP = {
+    "database": BASE_V4,
+    "release_id": RELEASE_ID_HGGSP,
+    "manifest_sha256": SHA_MANIFESTE_HGGSP,
+    "registry_sha256": SHA_REGISTRE_MIXTE_HGGSP,
+    "collections": COLLECTIONS_HGGSP,
+    "script": "scripts/go_live/staging_hggsp_complementary.sh",
+}
+_ETAPES_HGGSP = (
+    "successor_readiness_sign", "successor_readiness_install", "successor_preflight",
+    "successor_scope_authorization_registration_r4",
+    "successor_sealed_ingestion_or_binding", "successor_batch_review_proposal",
+    "successor_batch_review_record", "successor_attestations",
+    "successor_publication_job_enqueue", "successor_worker_b_publication",
+    "successor_independent_verification",
+)
+OPERATIONS_HGGSP: dict[str, dict] = {
+    name: {"cible": {**_CIBLE_HGGSP, "stage": name}} for name in _ETAPES_HGGSP
+}
+OPERATIONS_HGGSP["successor_worker_b_publication"]["cible"].update({
+    "worker_image": IMAGE_WORKER_HGGSP,
+    "retrieval_image": IMAGE_RETRIEVAL_HGGSP,
+    "claimed_collections": COLLECTIONS_HGGSP,
+    "min_job_interval_s": 60,
+    "rate_limit_max_wait_s": 900,
+    "max_consecutive_rate_limits": 3,
+    "max_idle_polls": 5,
+})
+OPERATIONS_HGGSP["successor_independent_verification"]["cible"].update({
+    "retrieval_image": IMAGE_RETRIEVAL_HGGSP,
+    "expected_successor_counts": COMPTES_HGGSP,
+    "expected_v4_counts": COMPTES_V4_HGGSP,
+    "expected_union_counts": COMPTES_UNION_HGGSP,
+})
+FICHIERS_FUSION_HGGSP = (
+    AUTORISATION_HGGSP, PREUVE_HGGSP, PLAN_HGGSP, MANIFESTE_HGGSP,
+    REGISTRE_MIXTE_HGGSP, MAPPING_HGGSP,
+    "packages/contracts/authorities/production-profile-scope-successors-hggsp-v5.yml",
+    "packages/contracts/src/nexus_contracts/artifacts/retrieval-scope-prod-hggsp-premiere-specialite-v3.json",
+    "packages/contracts/src/nexus_contracts/artifacts/retrieval-scope-prod-hggsp-terminale-specialite-v3.json",
+    "governance/authorizations/lot41a-staging-v5-hggsp-premiere-specialite-r4.json",
+    "governance/authorizations/lot41a-staging-v5-hggsp-terminale-specialite-r4.json",
+    "scripts/go_live/build_hggsp_successor_r4_authorizations.py",
+    "packages/contracts/scripts/build_hggsp_successor_scope_artifacts.py",
+    "packages/contracts/src/nexus_contracts/hggsp_successor_scopes.py",
+    "scripts/go_live/hggsp_successor_readiness.py",
+    "scripts/go_live/sign_staging_hggsp_successor_readiness.sh",
+    "scripts/go_live/staging_hggsp_complementary.py",
+    "scripts/go_live/staging_hggsp_complementary.sh",
+    "scripts/go_live/check_staging_authorization.py",
+    "scripts/go_live/staging_retrieval_probe.py",
+    "packages/contracts/src/nexus_contracts/scope.py",
+    "packages/contracts/pyproject.toml",
+    "docs/governance/retrieval_scope_policy_registry_hggsp_v5.yml",
+    "docs/adr/ADR-0063-scopes-hggsp-successeurs-v5.md",
+    "scripts/github/trusted_human_review.py",
+    "scripts/github/trusted-reviewers.json",
+)
+
+
+def _empreinte_hggsp(racine: Path, relatif: str) -> str:
+    chemin = racine / relatif
+    return hashlib.sha256(chemin.read_bytes()).hexdigest() if chemin.is_file() else ""
+
+
+def evaluer_hggsp(racine: Path, document: dict) -> list[str]:
+    """Contrôle les ancrages fermés de l'autorisation et tous ses liens locaux."""
+    ecarts: list[str] = []
+    if document.get("kind") != "NEXUS-STAGING-HGGSP-COMPLEMENTARY-AUTHORIZATION-V1":
+        ecarts.append("HGGSP : kind incorrect")
+    if document.get("status") != "ACTIVE_AFTER_MERGE":
+        ecarts.append("HGGSP : autorisation inactive")
+    if document.get("granted_by_pull_request_approval_of") != APPROBATEUR:
+        ecarts.append("HGGSP : reviewer incorrect")
+    if document.get("consumed") is not False or document.get("expires_after_use") is not True:
+        ecarts.append("HGGSP : autorisation consommée ou non limitée à usage unique")
+    if document.get("base_commit_sha") != "2bc65c9386aafb80d66ce25096b50c75eeeb5412":
+        ecarts.append("HGGSP : base SHA incorrect")
+    release = document.get("release") or {}
+    for cle, attendu in (
+        ("release_id", RELEASE_ID_HGGSP), ("release_dir", RELEASE_HGGSP),
+        ("manifest_sha256", SHA_MANIFESTE_HGGSP), ("collections", COLLECTIONS_HGGSP),
+        ("expected_counts", COMPTES_HGGSP), ("subject_mapping_path", MAPPING_HGGSP),
+        ("subject_mapping_sha256", SHA_MAPPING_HGGSP),
+    ):
+        if release.get(cle) != attendu:
+            ecarts.append(f"HGGSP : release.{cle} incorrect")
+    registre = document.get("collection_ownership_registry") or {}
+    if (registre.get("path"), registre.get("sha256"), registre.get("protocol")) != (
+        REGISTRE_MIXTE_HGGSP, SHA_REGISTRE_MIXTE_HGGSP, "registry_version=2"
+    ):
+        ecarts.append("HGGSP : registre mixte incorrect")
+    for cle, chemin, sha in (
+        ("manifest", MANIFESTE_HGGSP, SHA_MANIFESTE_HGGSP),
+        ("registry", REGISTRE_MIXTE_HGGSP, SHA_REGISTRE_MIXTE_HGGSP),
+        ("mapping", MAPPING_HGGSP, SHA_MAPPING_HGGSP),
+        ("evidence", PREUVE_HGGSP, SHA_PREUVE_HGGSP),
+        ("execution_plan", PLAN_HGGSP, SHA_PLAN_HGGSP),
+    ):
+        if _empreinte_hggsp(racine, chemin) != sha:
+            ecarts.append(f"HGGSP : {cle} absent ou empreinte incorrecte")
+    plan = document.get("execution_plan") or {}
+    if plan != {"path": PLAN_HGGSP, "sha256": SHA_PLAN_HGGSP}:
+        ecarts.append("HGGSP : lien au plan incorrect")
+    for key, expected in (
+        ("successor_scope_authority", SCOPES_SUCCESSEURS_HGGSP),
+        ("r4_scope_authorizations", AUTORISATIONS_R4_HGGSP),
+    ):
+        if document.get(key) != expected:
+            ecarts.append(f"HGGSP : {key} incorrect")
+        for binding in expected.values():
+            if _empreinte_hggsp(racine, binding["path"]) != binding["sha256"]:
+                ecarts.append(f"HGGSP : {binding['path']} absent ou empreinte incorrecte")
+    provenance = document.get("provenance") or {}
+    provenance_attendue = {
+        "protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", "run_id": 36476516316,
+        "run_attempt": 1, "artifact_id": 10993199399,
+        "artifact_zip_sha256": "4d4a664cbcf69f800dcd72850cf77845175333eeb9990e849fa7cde36441723b",
+        "inventory_file_sha256": "826bbdd474ff5714aafa091b1d0414f90335b17bca4686b2f6826d0299fca761",
+        "source_commit_sha": "2bc65c9386aafb80d66ce25096b50c75eeeb5412",
+        "source_tree_sha": "2960a1a3ca9cc3110623e3870df95de4f45e504c",
+        "evidence": {"path": PREUVE_HGGSP, "sha256": SHA_PREUVE_HGGSP},
+    }
+    if provenance != provenance_attendue:
+        ecarts.append("HGGSP : provenance incorrecte")
+    evidence = racine / PREUVE_HGGSP
+    if evidence.is_file():
+        try:
+            evidence_lue = json.loads(evidence.read_text(encoding="utf-8"))
+            for cle, attendu_preuve in (
+                ("inventory_protocol", provenance_attendue["protocol"]),
+                ("workflow_run_id", provenance_attendue["run_id"]),
+                ("workflow_run_attempt", provenance_attendue["run_attempt"]),
+                ("artifact_id", provenance_attendue["artifact_id"]),
+                ("artifact_zip_sha256", provenance_attendue["artifact_zip_sha256"]),
+                ("inventory_file_sha256", provenance_attendue["inventory_file_sha256"]),
+                ("source_commit_sha", provenance_attendue["source_commit_sha"]),
+                ("source_tree_sha", provenance_attendue["source_tree_sha"]),
+            ):
+                if evidence_lue.get(cle) != attendu_preuve:
+                    ecarts.append(f"HGGSP : preuve de provenance {cle} incorrecte")
+            if (evidence_lue.get("ingestor") or {}).get("reference") != IMAGE_RETRIEVAL_HGGSP:
+                ecarts.append("HGGSP : preuve retrieval incorrecte")
+            if (evidence_lue.get("worker_a_and_b") or {}).get("reference") != IMAGE_WORKER_HGGSP:
+                ecarts.append("HGGSP : preuve worker incorrecte")
+        except (ValueError, TypeError):
+            ecarts.append("HGGSP : preuve de provenance illisible")
+    if document.get("runtime_image") != {
+        "reference": IMAGE_WORKER_HGGSP,
+        "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+        "build_on_server": False,
+    }:
+        ecarts.append("HGGSP : image Worker incorrecte")
+    if document.get("retrieval_image") != {
+        "reference": IMAGE_RETRIEVAL_HGGSP,
+        "dockerfile_sha256": "f7f53bab7a66713aee7d2c836974941d19d84bdbfcec4f136b2740e0c91663b1",
+        "build_on_server": False,
+    }:
+        ecarts.append("HGGSP : image retrieval incorrecte")
+    prevol = document.get("v4_preconditions") or {}
+    for cle, attendu_prevol in (
+        ("published_counts", COMPTES_V4_HGGSP), ("review_pull_request", 262),
+        ("review_head_sha", "079461659b60f8a8ce9458145a199599ad822bbc"),
+        ("review_state", "OPEN"), ("review_decision", "APPROVED"),
+        ("review_draft", False), ("old_hggsp_jobs", 74),
+        ("old_hggsp_jobs_sha256", ANCIENS_JOBS_HGGSP_SHA),
+        ("historical_ragdb", "unchanged"),
+        ("successor_placements_before_publication", 0),
+        ("successor_jobs_before_enqueue", 0), ("successor_jobs_after_enqueue", 74),
+    ):
+        if prevol.get(cle) != attendu_prevol:
+            ecarts.append(f"HGGSP : précondition {cle} incorrecte")
+    if document.get("union_expected_counts") != COMPTES_UNION_HGGSP:
+        ecarts.append("HGGSP : union mixte incorrecte")
+    if document.get("targets") != {
+        "database": BASE_V4, "historical_database": BASE_HISTORIQUE,
+        "historical_database_mode": "untouched", "host": HOTE,
+        "compose_project": "nexus-staging", "public_exposure": False,
+    }:
+        ecarts.append("HGGSP : cible staging incorrecte")
+    if document.get("operations") != list(OPERATIONS_HGGSP):
+        ecarts.append("HGGSP : opérations non canoniques")
+    interdits = {
+        "v4_405_placement_adoption_or_republication", "v4_hggsp_job_claim_or_mutation",
+        "v4_hggsp_job_cancellation", "manual_job_sql", "attempt_count_reset",
+        "current_switch", "public_exposure", "production_image_rebuild_on_host",
+        "historical_ragdb_modification", "v4_review_262_modification",
+        "successor_job_reassignment", "post_publication_v4_hggsp_retirement",
+    }
+    if not interdits <= set(document.get("forbidden") or []):
+        ecarts.append("HGGSP : interdits manquants")
+    if _empreinte_hggsp(racine, AUTORISATION_HGGSP) != SHA_AUTORISATION_HGGSP:
+        ecarts.append("HGGSP : autorisation altérée")
+    return ecarts
+
+
+def evaluer_revue_activation_hggsp(
+    pr: dict, reviews: list[dict], statuses: list[dict], permission: dict,
+    *, racine: Path | None = None,
+) -> list[str]:
+    """Vérifie une PR déjà fusionnée avec la décision canonique prise au HEAD."""
+    if (pr.get("merged") is not True or pr.get("state") != "closed"
+            or (pr.get("base") or {}).get("ref") != "main"
+            or pr.get("draft") is not False):
+        return ["HGGSP : PR d'activation non fusionnée sur main"]
+    head = (pr.get("head") or {}).get("sha")
+    if not isinstance(head, str) or len(head) != 40:
+        return ["HGGSP : HEAD d'activation invalide"]
+    merged_at = pr.get("merged_at")
+    if not isinstance(merged_at, str) or not merged_at.endswith("Z"):
+        return ["HGGSP : date de fusion invalide"]
+    expected_context = "trusted-human-review/head-pinned"
+    eligible_statuses = [
+        s for s in statuses
+        if s.get("context") == expected_context
+        and isinstance(s.get("created_at"), str)
+        and s["created_at"] <= merged_at
+    ]
+    status = max(eligible_statuses, key=lambda s: s["created_at"], default=None)
+    if (status is None or status.get("state") != "success"
+            or (status.get("creator") or {}).get("login") != "github-actions[bot]"):
+        return ["HGGSP : statut trusted review au HEAD absent ou non réussi"]
+    root = racine or Path(__file__).resolve().parents[2]
+    try:
+        canonical = runpy.run_path(str(root / "scripts/github/trusted_human_review.py"))
+        config = canonical["load_config"](root / "scripts/github/trusted-reviewers.json")
+        # La décision a été prise pendant que la PR était OPEN. Après fusion,
+        # seul ce champ GitHub change ; merged=true et le statut exact HEAD
+        # sont vérifiés ci-dessus avant de réappliquer le moteur canonique.
+        open_snapshot = {**pr, "state": "open"}
+        decision = canonical["evaluate_trusted_review"](
+            pull_request=open_snapshot,
+            reviews=[r for r in reviews if isinstance(r.get("submitted_at"), str)
+                     and r["submitted_at"] <= merged_at],
+            permissions={APPROBATEUR: permission}, config=config,
+            reviews_complete=True,
+        )
+    except (OSError, ValueError, TypeError, KeyError) as erreur:
+        return [f"HGGSP : revue d'activation illisible : {erreur}"]
+    if not decision.approved or decision.head_sha != head:
+        return [f"HGGSP : approbation au HEAD exact absente ({decision.reason})"]
+    return []
+
+
+def commit_integration_hggsp(racine: Path) -> str:
+    """Commit de main qui a introduit l'autorisation (squash ou merge commit)."""
+    introduction = _git(
+        racine, "log", "--first-parent", "--diff-filter=AR", "-1",
+        "--format=%H", "origin/main",
+        "--", AUTORISATION_HGGSP,
+    )
+    commit = introduction.stdout.strip()
+    if (introduction.returncode != 0 or len(commit) != 40
+            or any(char not in "0123456789abcdef" for char in commit)):
+        return ""
+    return commit
+
+
+def _jeton_hggsp() -> str:
+    token = os.environ.get("GH_TOKEN") or os.environ.get("NEXUS_GITHUB_TOKEN")
+    if not token:
+        token_file = os.environ.get("NEXUS_GITHUB_TOKEN_FILE")
+        if token_file:
+            try:
+                token = Path(token_file).read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                raise ValueError("fichier de jeton GitHub illisible") from exc
+    if not token:
+        if shutil.which("gh"):
+            try:
+                result = subprocess.run(
+                    ["gh", "auth", "token"], capture_output=True, text=True,
+                    timeout=5, check=False,
+                )
+                if result.returncode == 0:
+                    token = result.stdout.strip()
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+    if not token:
+        raise ValueError("jeton GitHub de lecture absent")
+    return token
+
+
+def _api_hggsp(endpoint: str, token: str) -> object:
+    request = urllib.request.Request(
+        f"https://api.github.com/{endpoint}",
+        headers={
+            "Accept": "application/vnd.github+json",
+            "Authorization": f"Bearer {token}",
+            "X-GitHub-Api-Version": "2022-11-28",
+        },
+        method="GET",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            raw = response.read(4_194_305)
+    except (urllib.error.URLError, TimeoutError) as exc:
+        raise ValueError(f"GitHub API {endpoint} indisponible") from exc
+    if len(raw) > 4_194_304:
+        raise ValueError(f"GitHub API {endpoint} trop volumineuse")
+    return json.loads(raw)
+
+
+def verifier_revue_activation_hggsp(
+    racine: Path, *, introduction_commit: str | None = None,
+) -> list[str]:
+    """Dérive la PR qui a introduit l'autorisation et relit sa revue via GitHub."""
+    try:
+        token = _jeton_hggsp()
+    except ValueError as erreur:
+        return [f"HGGSP : {erreur}"]
+    commit = introduction_commit or commit_integration_hggsp(racine)
+    if not commit:
+        return ["HGGSP : commit d'introduction de l'autorisation introuvable"]
+
+    def api(endpoint: str) -> object:
+        return _api_hggsp(endpoint, token)
+
+    try:
+        associated = api(f"repos/cyranoaladin/RAG/commits/{commit}/pulls")
+        if not isinstance(associated, list) or len(associated) != 1:
+            return ["HGGSP : PR d'activation associée au commit ambiguë ou absente"]
+        number = associated[0].get("number")
+        if type(number) is not int or number <= 0:
+            return ["HGGSP : numéro de PR d'activation invalide"]
+        pr = api(f"repos/cyranoaladin/RAG/pulls/{number}")
+        if not isinstance(pr, dict) or pr.get("merge_commit_sha") != commit:
+            return ["HGGSP : la PR d'activation ne correspond pas au commit fusionné"]
+        head = (pr.get("head") or {}).get("sha")
+        reviews: list[dict] = []
+        statuses: list[dict] = []
+        for page in range(1, 21):
+            batch = api(f"repos/cyranoaladin/RAG/pulls/{number}/reviews?per_page=100&page={page}")
+            if not isinstance(batch, list):
+                raise ValueError("reviews response invalid")
+            reviews.extend(batch)
+            if len(batch) < 100:
+                break
+        else:
+            return ["HGGSP : revue d'activation incomplète"]
+        for page in range(1, 21):
+            batch = api(f"repos/cyranoaladin/RAG/commits/{head}/statuses?per_page=100&page={page}")
+            if not isinstance(batch, list):
+                raise ValueError("statuses response invalid")
+            statuses.extend(batch)
+            if len(batch) < 100:
+                break
+        else:
+            return ["HGGSP : statuts du HEAD incomplets"]
+        permission = api(f"repos/cyranoaladin/RAG/collaborators/{APPROBATEUR}/permission")
+        if not isinstance(permission, dict):
+            raise ValueError("permission response invalid")
+        return evaluer_revue_activation_hggsp(
+            pr, reviews, statuses, permission, racine=racine
+        )
+    except (OSError, subprocess.TimeoutExpired, ValueError, TypeError, KeyError) as erreur:
+        return [f"HGGSP : preuve live de la PR d'activation indisponible : {erreur}"]
+
+
+def verifier_operation_hggsp(racine: Path, operation: str, cible: dict) -> list[str]:
+    """N'autorise que la cible exacte, après fusion de toute la chaîne sur main."""
+    if operation not in OPERATIONS_HGGSP:
+        return [f"opération HGGSP inconnue : {operation!r} — rien ne l'autorise"]
+    ecarts = verifier(racine)
+    chemin = racine / AUTORISATION_HGGSP
+    if not chemin.is_file():
+        return [*ecarts, f"aucune autorisation HGGSP : {AUTORISATION_HGGSP} absent"]
+    try:
+        document = json.loads(chemin.read_text(encoding="utf-8"))
+    except (ValueError, TypeError):
+        return [*ecarts, "autorisation HGGSP illisible"]
+    ecarts.extend(evaluer_hggsp(racine, document))
+    if (racine / PROPOSITION_HGGSP).exists():
+        ecarts.append("HGGSP : une seconde proposition subsiste")
+    # Une copie de branche ne vaut jamais le HEAD de main réellement fusionné.
+    local_head = _git(racine, "rev-parse", "HEAD")
+    main_head = _git(racine, "rev-parse", "origin/main")
+    if (local_head.returncode or main_head.returncode
+            or local_head.stdout.strip() != main_head.stdout.strip()):
+        ecarts.append("HGGSP : HEAD local différent de origin/main")
+    if _git(
+        racine, "merge-base", "--is-ancestor",
+        "2bc65c9386aafb80d66ce25096b50c75eeeb5412", "origin/main",
+    ).returncode:
+        ecarts.append("HGGSP : commit source des images absent de origin/main")
+    attendue = OPERATIONS_HGGSP[operation]["cible"]
+    if cible != attendue:
+        ecarts.append(f"HGGSP : cible de {operation} différente du périmètre gouverné")
+    for relatif in FICHIERS_FUSION_HGGSP:
+        sur_main = _git(racine, "show", f"origin/main:{relatif}")
+        local = racine / relatif
+        if not local.is_file() or sur_main.returncode != 0 or sur_main.stdout != local.read_text(encoding="utf-8"):
+            ecarts.append(f"HGGSP : {relatif} n'est pas (ou pas à l'identique) sur origin/main")
+    if not ecarts:
+        ecarts.extend(verifier_revue_activation_hggsp(racine))
+    return ecarts
+
+
+def verifier_operation_hggsp_image(racine: Path, operation: str, cible: dict) -> list[str]:
+    """Même autorité dans les images minimales, sans binaire git ni checkout mutable.
+
+    Le shell opérateur exerce la garde complète avec git avant tout SSH. Ce
+    contrôle embarqué ferme aussi les points d'entrée Python directs : la
+    branche PR ne peut produire ni HEAD de main ni blob actif sur GitHub.
+    """
+    if operation not in OPERATIONS_HGGSP:
+        return [f"HGGSP : opération inconnue : {operation}"]
+    if cible != OPERATIONS_HGGSP[operation]["cible"]:
+        return ["HGGSP : cible hors du périmètre gouverné"]
+    chemin = racine / AUTORISATION_HGGSP
+    if not chemin.is_file() or (racine / PROPOSITION_HGGSP).exists():
+        return ["HGGSP : autorisation active unique absente"]
+    try:
+        document = json.loads(chemin.read_bytes())
+        ecarts = evaluer_hggsp(racine, document)
+        if ecarts:
+            return ecarts
+        token = _jeton_hggsp()
+        ref = _api_hggsp("repos/cyranoaladin/RAG/git/ref/heads/main", token)
+        if not isinstance(ref, dict) or not isinstance(ref.get("object"), dict):
+            return ["HGGSP : référence main live illisible"]
+        main_sha = ref["object"]["sha"]
+        if not isinstance(main_sha, str) or len(main_sha) != 40:
+            return ["HGGSP : SHA de main live invalide"]
+        checkout_head = (racine / ".git/HEAD").read_text(encoding="ascii").strip()
+        if checkout_head != main_sha:
+            return ["HGGSP : checkout image différent de main live fusionné"]
+        blob = _api_hggsp(
+            f"repos/cyranoaladin/RAG/contents/{AUTORISATION_HGGSP}?ref={main_sha}", token
+        )
+        if not isinstance(blob, dict):
+            return ["HGGSP : blob d'autorisation illisible"]
+        raw = chemin.read_bytes()
+        local_blob = hashlib.sha1(f"blob {len(raw)}\0".encode() + raw).hexdigest()
+        if blob.get("type") != "file" or blob.get("sha") != local_blob:
+            return ["HGGSP : autorisation active absente ou divergente de main live"]
+        source = document["base_commit_sha"]
+        comparison = _api_hggsp(
+            f"repos/cyranoaladin/RAG/compare/{source}...{main_sha}", token
+        )
+        if not isinstance(comparison, dict):
+            return ["HGGSP : comparaison de commits illisible"]
+        if comparison.get("status") not in ("ahead", "identical"):
+            return ["HGGSP : commit source des images absent de main live"]
+        history = _api_hggsp(
+            f"repos/cyranoaladin/RAG/commits?path={AUTORISATION_HGGSP}&sha={main_sha}&per_page=1",
+            token,
+        )
+        if not isinstance(history, list) or len(history) != 1:
+            return ["HGGSP : introduction de l'autorisation ambiguë"]
+        introduction = history[0]["sha"]
+        if not isinstance(introduction, str) or len(introduction) != 40:
+            return ["HGGSP : commit d'introduction invalide"]
+        return verifier_revue_activation_hggsp(racine, introduction_commit=introduction)
+    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError) as erreur:
+        return [f"HGGSP : preuve main live indisponible : {type(erreur).__name__}"]
+
+
 def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestration
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--operation", default=None, help="opération de publication V4 à contrôler")
@@ -1471,7 +1997,9 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - orchestrat
         ecarts = verifier(racine)
         print(json.dumps({"ssh_staging_authorized": not ecarts, "ecarts": ecarts}, ensure_ascii=False, indent=2))
         return 1 if ecarts else 0
-    if args.operation in OPERATIONS_DI:
+    if args.operation in OPERATIONS_HGGSP:
+        ecarts = verifier_operation_hggsp(racine, args.operation, json.loads(args.cible))
+    elif args.operation in OPERATIONS_DI:
         ecarts = verifier_operation_di(racine, args.operation, json.loads(args.cible))
     elif args.operation in OPERATIONS_DH:
         ecarts = verifier_operation_dh(racine, args.operation, json.loads(args.cible))

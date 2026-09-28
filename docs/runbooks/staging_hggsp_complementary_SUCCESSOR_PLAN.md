@@ -1,10 +1,47 @@
 # Plan gouverné — complément HGGSP après V4 DI
 
-**Statut : préparation hors serveur.** Ce document ne constitue pas une
-autorisation de staging. L'autorisation proposée dans
-`docs/reports/go_live/authorizations/proposed/` est inactive ; une PR
-d'activation distincte, approuvée au HEAD exact puis fusionnée, devra nommer
-les opérations, les images par digest et leurs preuves de provenance.
+**Statut : PR d'activation candidate, sans opération serveur.** Ce document
+ne constitue pas à lui seul une autorisation de staging. Le fichier actif
+`docs/reports/go_live/authorizations/staging_hggsp_complementary_authorization.json`
+est inutilisable tant qu'il n'est pas présent, identique octet pour octet,
+dans `origin/main` après approbation au HEAD exact et fusion de cette PR.
+
+## Images et chaîne opérateur après fusion
+
+- Provenance canonique : `production-image-provenance.yml`, run
+  `36476516316`, tentative `1`, artifact `10993199399`. L'inventaire a le
+  SHA-256 `826bbdd474ff5714aafa091b1d0414f90335b17bca4686b2f6826d0299fca761`.
+- Worker B :
+  `ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:14aef8482dc3f322101b0bb3383d442c278386f383c2aaf42a3cca7acbd0416e`.
+  Retrieval :
+  `ghcr.io/cyranoaladin/rag-ingestor@sha256:e9a2e5dd5681911afe950c8852de36f907ed8945c97d736ebcb9debab206ad14`.
+- Première action opérateur après fusion : signer localement la readiness
+  successeur avec
+  `scripts/go_live/sign_staging_hggsp_successor_readiness.sh`, sous la clé
+  privée gardée hors du dépôt. Aucune graine n'est lue avant le contrôle
+  d'autorisation fusionnée. Vérifier les deux fichiers signés.
+- Ensuite, `scripts/go_live/staging_hggsp_complementary.sh run` exécute dans
+  cet ordre : `successor_readiness_install`, `successor_preflight`,
+  `successor_scope_authorization_registration_r4`,
+  `successor_sealed_ingestion_or_binding`,
+  `successor_batch_review_proposal`. Ce dernier s'arrête obligatoirement pour
+  une revue batch humaine distincte. Une reprise explicite, après revue
+  approuvée au HEAD exact, permet `successor_batch_review_record`,
+  `successor_attestations`, `successor_publication_job_enqueue`,
+  `successor_worker_b_publication`, `successor_independent_verification`.
+- Avant l'enregistrement r4, renseigner `SCOPE_REVIEW_PR` et
+  `SCOPE_REVIEW_HEAD` d'une revue humaine des deux artefacts r4, distincte de
+  #262. Le script vérifie l'approbation live au HEAD exact. Le jeton GitHub
+  de lecture gouverné doit être disponible pour chaque contrôle live.
+- Le Worker B journalise et borne conjointement
+  `claim_release_id=production-profile-gate-2026-2027-v5-hggsp` et
+  `claim_scope=rag_nexus_hggsp_premiere_specialite,rag_nexus_hggsp_terminale_specialite`.
+  Le filtre est appliqué dans la transaction de claim par la liaison
+  `job → publication_attestation_id → publication_attestations.release_id`.
+- Les deux scopes successeurs sont ceux livrés par #269 :
+  `prod_hggsp_premiere_specialite_v3` et
+  `prod_hggsp_terminale_specialite_v3`. Leurs autorités V4 historiques
+  restent inchangées.
 
 ## Identités et frontière
 
@@ -34,10 +71,10 @@ les opérations, les images par digest et leurs preuves de provenance.
 - La base historique `ragdb` reste hors périmètre. Aucune bascule `current`,
   aucun service de production ni exposition publique ne découle de ce plan.
 
-## Phase 0 — autorité et prévol, sous une future PR distincte
+## Phase 0 — prérequis accomplis et gardes à maintenir
 
-1. Fusionner la PR de **production de release**, puis vérifier que le checkout
-   opérateur est exactement le `main` qui contient les octets scellés. Relire
+1. La PR de **production de release** est fusionnée. Le checkout opérateur doit
+   rester exactement le `main` qui contient les octets scellés. Relire
    par les chargeurs canoniques le manifeste successeur, le mapping sujets,
    les deux profils, l'inventaire, le reçu PII, les mappings niveau et type de
    document et le registre mixte version 2. Refuser toute divergence de SHA,
@@ -48,16 +85,14 @@ les opérations, les images par digest et leurs preuves de provenance.
    puis les manifestes E5 et reranker contre leurs inventaires `SHA256SUMS`
    épinglés. Le delta de catalogue et les descripteurs d'autorité logiques
    copiés doivent également correspondre aux empreintes source scellées.
-2. Produire hors hôte une nouvelle image Worker B à partir de ce `main` et
-   enregistrer son digest, le commit source et l'inventaire de provenance.
-   Le chargeur du registre mixte étant nouveau, l'image précédente n'est pas
-   une preuve de ces octets. Construire et épingler également l'image du
-   moteur de retrieval qui embarque le chargeur v2 avant d'envisager le
-   registre mixte comme cible de runtime. Ne rien reconstruire sur
+2. Les images Worker B et retrieval ont été construites hors hôte depuis le
+   `main` contenant #269. Leur provenance finale est le run `36476516316`,
+   lié au commit source `2bc65c9386aafb80d66ce25096b50c75eeeb5412`.
+   Les images antérieures ne prouvent pas ces octets. Ne rien reconstruire sur
    `nexus-prod`.
-3. Soumettre une **nouvelle autorisation de staging** liée au manifeste
-   successeur, au registre mixte, à ces images et à leurs SHA. La placer à son
-   chemin actif uniquement dans cette PR d'activation. Son approbation au
+3. La présente PR soumet une **nouvelle autorisation de staging** liée au
+   manifeste successeur, au registre mixte, à ces images et à leurs SHA. Elle
+   place le fichier à son chemin actif, mais son approbation au
    HEAD exact et sa fusion sont nécessaires avant toute mutation. L'autorité
    borne la cible à `ragdb_profile_gate_v4`, à deux collections et à 74
    placements ; elle interdit d'adopter ou republier les 405 V4 et de toucher
