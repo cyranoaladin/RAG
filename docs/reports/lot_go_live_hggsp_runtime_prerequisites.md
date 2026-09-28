@@ -41,7 +41,7 @@ prochaine tentative, propriétaire, jeton et expiration du bail.
 ## Autorités de scopes
 
 Le registre gouverné HGGSP externe, d’empreinte
-`55c44631ece57a5337a3733015a57e5add6cb478c86165464fe95c2a0044f442`,
+`eee2f69e30d32c5c115b9446c1d0a186c7a049a2b132f1f48ba93d761d489eb2`,
 reprend les dimensions de politique V4 sans les élargir. L’autorité de
 nommage, d’empreinte
 `f72935d27e94d67868ab7e5bed604e4c0a2dba1943ab165918d3ced7ba0aeb8d`,
@@ -55,6 +55,12 @@ octet : `prod_hggsp_premiere_specialite_v3` et
 `prod_hggsp_terminale_specialite_v3`. Les onze identifiants V4 restent
 distincts ; les neuf artefacts V4 toujours servis gardent leurs octets.
 Le manifeste scellé et le registre mixte ne sont pas modifiés.
+L'évidence d'admissibilité versionnée lie 39 placements de première et 35 de
+terminale à leurs subjects scellés. Le producteur revérifie les 74 lignes :
+`review_status=reviewed`, `placement_status=active` et
+`currentness=official_snapshot`. Une preuve absente, forgée ou contredite par
+un seul placement refuse l'émission, même si le SHA du registre de politique
+est recalculé. Cette correction répond au commentaire P2 de la revue de PR.
 
 Le registre historique `packages/contracts/src/nexus_contracts/scope.py`
 reste également octet-identique (SHA-256
@@ -76,7 +82,7 @@ ou workflow de provenance n’a été lancé dans ce lot.
 
 ## Qualification et preuves
 
-- `packages/contracts/tests` : 1006 réussis ; le contrôle d’export du schéma
+- `packages/contracts/tests` : 1012 réussis ; le contrôle d’export du schéma
   et la reproduction canonique des deux nouveaux artefacts passent.
 - La preuve multilevel historique passe `--check` et ses 13 tests dédiés ;
   l'ajout V5 n'invalide plus l'empreinte de son registre attesté.

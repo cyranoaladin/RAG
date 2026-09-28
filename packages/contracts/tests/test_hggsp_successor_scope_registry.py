@@ -6,6 +6,7 @@ import hashlib
 import importlib
 import importlib.util
 import json
+from copy import deepcopy
 from pathlib import Path
 
 import yaml
@@ -68,6 +69,50 @@ def test_successor_subjects_and_mixed_owner_are_exact() -> None:
     assert {entry["collection"]: entry["scope_id"] for entry in authority["bindings"]} == SUCCESSOR
     subject_sha = {entry["collection"]: entry["sha256"] for entry in release["subjects"]}
     assert {entry["collection"]: entry["subject_sha256"] for entry in authority["bindings"]} == subject_sha
+
+
+def test_successor_admissibility_is_recounted_on_all_sealed_placements() -> None:
+    builder = _builder()
+    policy = yaml.safe_load((ROOT / builder.POLICY_PATH).read_bytes())
+    release = json.loads(RELEASE.read_bytes())
+    entries = {item["collection"]: item for item in policy["collections"]}
+    for specification in release["subjects"]:
+        subject = json.loads((RELEASE.parent / specification["path"]).read_bytes())
+        builder.validate_admissibility_evidence(
+            entries[specification["collection"]], specification, subject
+        )
+
+
+@pytest.mark.parametrize("field,bad", [
+    ("review_status", "pending"),
+    ("placement_status", "inactive"),
+    ("currentness", "stale"),
+])
+def test_successor_admissibility_refuses_one_bad_placement(field: str, bad: str) -> None:
+    builder = _builder()
+    policy = yaml.safe_load((ROOT / builder.POLICY_PATH).read_bytes())
+    specification = json.loads(RELEASE.read_bytes())["subjects"][0]
+    subject = json.loads((RELEASE.parent / specification["path"]).read_bytes())
+    changed = deepcopy(subject)
+    changed["placements"][-1][field] = bad
+    with pytest.raises(builder.ScopeDerivationRefused, match="admissibilité"):
+        builder.validate_admissibility_evidence(policy["collections"][0], specification, changed)
+
+
+def test_successor_admissibility_refuses_missing_or_false_evidence() -> None:
+    builder = _builder()
+    policy = yaml.safe_load((ROOT / builder.POLICY_PATH).read_bytes())
+    specification = json.loads(RELEASE.read_bytes())["subjects"][0]
+    subject = json.loads((RELEASE.parent / specification["path"]).read_bytes())
+    entry = deepcopy(policy["collections"][0])
+    entry.pop("admissibility_evidence", None)
+    with pytest.raises(builder.ScopeDerivationRefused, match="admissibilité"):
+        builder.validate_admissibility_evidence(entry, specification, subject)
+    entry["admissibility_evidence"] = {
+        "placements_total": len(subject["placements"]) - 1
+    }
+    with pytest.raises(builder.ScopeDerivationRefused, match="admissibilité"):
+        builder.validate_admissibility_evidence(entry, specification, subject)
 
 
 def test_new_scopes_resolve_and_v4_hggsp_bytes_stay_pinned() -> None:
@@ -193,6 +238,26 @@ def test_canonical_derivation_rejects_mutated_policy_even_with_new_digest(
     mutated.write_text(yaml.safe_dump(policy, sort_keys=False))
     monkeypatch.setattr(builder, "POLICY_SHA256", hashlib.sha256(mutated.read_bytes()).hexdigest())
     with pytest.raises(builder.ScopeDerivationRefused, match="audiences"):
+        builder.derive(tmp_path)
+
+
+def test_canonical_derivation_rejects_forged_admissibility_even_with_new_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    builder = _builder()
+    (tmp_path / "services").symlink_to(ROOT / "services", target_is_directory=True)
+    (tmp_path / "packages").symlink_to(ROOT / "packages", target_is_directory=True)
+    governance = tmp_path / "docs/governance"
+    governance.mkdir(parents=True)
+    (governance / "retrieval_scope_policy_registry_v4.yml").symlink_to(
+        ROOT / "docs/governance/retrieval_scope_policy_registry_v4.yml"
+    )
+    policy = yaml.safe_load((ROOT / builder.POLICY_PATH).read_text())
+    policy["collections"][0]["admissibility_evidence"]["placements_total"] = 38
+    mutated = governance / "retrieval_scope_policy_registry_hggsp_v5.yml"
+    mutated.write_text(yaml.safe_dump(policy, sort_keys=False))
+    monkeypatch.setattr(builder, "POLICY_SHA256", hashlib.sha256(mutated.read_bytes()).hexdigest())
+    with pytest.raises(builder.ScopeDerivationRefused, match="admissibilité"):
         builder.derive(tmp_path)
 
 

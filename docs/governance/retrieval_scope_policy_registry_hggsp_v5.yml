@@ -43,6 +43,13 @@ collections:
   rights:
   - officiel_public
   admissibility_status: ADMISSIBLE_ON_SEALED_RELEASE_EVIDENCE
+  admissibility_evidence:
+    placements_total: 39
+    review_status: reviewed
+    placement_status: active
+    currentness: official_snapshot
+    subject_manifest_sha256: f47525e1e6b1cc2216bc650de9a581ba04f5f36e65abc713215215357d411b4e
+    subject_path: profile_gate/subjects/rag_nexus_hggsp_premiere_specialite.release.json
   target_audience: libre
   target_candidates:
   - libre
@@ -74,6 +81,13 @@ collections:
   rights:
   - officiel_public
   admissibility_status: ADMISSIBLE_ON_SEALED_RELEASE_EVIDENCE
+  admissibility_evidence:
+    placements_total: 35
+    review_status: reviewed
+    placement_status: active
+    currentness: official_snapshot
+    subject_manifest_sha256: 5146d79f54739aafc49d439530a2180b831f48d0565061ed6b105c2f82eeafc9
+    subject_path: profile_gate/subjects/rag_nexus_hggsp_terminale_specialite.release.json
   target_audience: libre
   target_candidates:
   - libre

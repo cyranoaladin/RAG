@@ -36,7 +36,7 @@ MIXED_SHA256 = "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6
 V4_POLICY_PATH = "docs/governance/retrieval_scope_policy_registry_v4.yml"
 V4_POLICY_SHA256 = "83bbabb8f446a34e0745d1cb7a7eabcaae597dbd175d57a0eee99a07d78c630c"
 POLICY_PATH = "docs/governance/retrieval_scope_policy_registry_hggsp_v5.yml"
-POLICY_SHA256 = "55c44631ece57a5337a3733015a57e5add6cb478c86165464fe95c2a0044f442"
+POLICY_SHA256 = "eee2f69e30d32c5c115b9446c1d0a186c7a049a2b132f1f48ba93d761d489eb2"
 AUTHORITY_PATH = "packages/contracts/authorities/production-profile-scope-successors-hggsp-v5.yml"
 AUTHORITY_SHA256 = "f72935d27e94d67868ab7e5bed604e4c0a2dba1943ab165918d3ced7ba0aeb8d"
 ARTIFACT_DIR = "packages/contracts/src/nexus_contracts/artifacts"
@@ -85,6 +85,48 @@ def validate_successor_authority(authority: dict[str, Any]) -> None:
         raise ScopeDerivationRefused("autorité de nommage non liée au successeur")
 
 
+def validate_admissibility_evidence(
+    entry: dict[str, Any], specification: dict[str, Any], subject: dict[str, Any]
+) -> None:
+    """Recompter les preuves d'admissibilité sur chaque placement scellé."""
+    collection = specification.get("collection")
+    path = specification.get("path")
+    digest = specification.get("sha256")
+    placements = subject.get("placements")
+    if (
+        collection not in SCOPES
+        or subject.get("collection") != collection
+        or not isinstance(path, str)
+        or not path.startswith("subjects/")
+        or not isinstance(digest, str)
+        or not isinstance(placements, list)
+        or not placements
+        or entry.get("admissibility_status") != "ADMISSIBLE_ON_SEALED_RELEASE_EVIDENCE"
+    ):
+        raise ScopeDerivationRefused(f"admissibilité scellée invalide : {collection}")
+    expected = {
+        "placements_total": len(placements),
+        "review_status": "reviewed",
+        "placement_status": "active",
+        "currentness": "official_snapshot",
+        "subject_manifest_sha256": digest,
+        "subject_path": f"profile_gate/{path}",
+    }
+    if entry.get("admissibility_evidence") != expected:
+        raise ScopeDerivationRefused(f"admissibilité non prouvée : {collection}")
+    for placement in placements:
+        if not isinstance(placement, dict) or any(
+            placement.get(field) != value
+            for field, value in (
+                ("collection", collection),
+                ("review_status", expected["review_status"]),
+                ("placement_status", expected["placement_status"]),
+                ("currentness", expected["currentness"]),
+            )
+        ):
+            raise ScopeDerivationRefused(f"admissibilité d'un placement refusée : {collection}")
+
+
 def derive(root: Path) -> tuple[bytes, dict[str, bytes]]:
     """Vérifie les liaisons puis reproduit les octets par l'émetteur canonique."""
     release = json.loads(_checked(root, RELEASE_PATH, RELEASE_SHA256))
@@ -131,6 +173,15 @@ def derive(root: Path) -> tuple[bytes, dict[str, bytes]]:
     subjects = {e["collection"]: e["sha256"] for e in release["subjects"]}
     if set(new_entries) != set(SCOPES) or set(bindings) != set(SCOPES):
         raise ScopeDerivationRefused("registre ou autorité hors des deux scopes")
+    total_placements = 0
+    for specification in release["subjects"]:
+        collection = specification["collection"]
+        subject_path = Path(RELEASE_PATH).parent / specification["path"]
+        subject = json.loads(_checked(root, str(subject_path), specification["sha256"]))
+        validate_admissibility_evidence(new_entries[collection], specification, subject)
+        total_placements += len(subject["placements"])
+    if total_placements != 74 or release["expected_counts"]["placements"] != 74:
+        raise ScopeDerivationRefused("admissibilité : cardinalité de placements divergente")
     for collection, (old_id, new_id) in SCOPES.items():
         validate_inherited_policy(new_entries[collection], old_entries[collection])
         old = load_retrieval_scope_artifact(old_id)

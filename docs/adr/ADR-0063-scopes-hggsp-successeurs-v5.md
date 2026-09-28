@@ -16,6 +16,10 @@ Ses dimensions d'accès sont vérifiées champ par champ contre le registre V4
 épinglé. Le producteur canonique
 `packages/contracts/scripts/build_retrieval_scope_artifacts.py` émet les
 artefacts après croisement des placements, programmes et visibilités.
+Le wrapper HGGSP recalcule aussi la preuve d'admissibilité de chacun des 74
+placements des deux subjects scellés : tous doivent être `reviewed`, `active`
+et `official_snapshot`, et leurs comptes doivent correspondre à l'évidence
+versionnée du registre V5. Une divergence refuse l'émission.
 Les scopes V4 `_v2` et leurs digests restent disponibles et inchangés.
 
 Le contrat `nexus-contracts` passe de `0.21.0` à `0.22.0` : deux artefacts de
