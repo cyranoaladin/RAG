@@ -150,10 +150,10 @@ def test_tampering_is_refused(path: tuple[str, str], replacement: object) -> Non
 def test_readiness_and_worker_are_restricted_to_successor() -> None:
     doc = _document()
     assert doc["runtime_image"]["reference"].endswith(
-        "@sha256:14aef8482dc3f322101b0bb3383d442c278386f383c2aaf42a3cca7acbd0416e"
+        "@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
     )
     assert doc["retrieval_image"]["reference"].endswith(
-        "@sha256:e9a2e5dd5681911afe950c8852de36f907ed8945c97d736ebcb9debab206ad14"
+        "@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
     )
     assert auth.OPERATIONS_HGGSP["successor_worker_b_publication"]["cible"]["claimed_collections"] == [
         "rag_nexus_hggsp_premiere_specialite", "rag_nexus_hggsp_terminale_specialite"
@@ -167,15 +167,15 @@ def test_provenance_is_the_new_build_from_merged_runtime() -> None:
     document = _document()
     proof = json.loads((ROOT / auth.PREUVE_HGGSP).read_text(encoding="utf-8"))
     assert document["base_commit_sha"] == proof["source_commit_sha"] == (
-        "2bc65c9386aafb80d66ce25096b50c75eeeb5412"
+        "a9e3701965503d2862a248c46fd7e7e175058c8f"
     )
-    assert document["provenance"]["run_id"] == proof["workflow_run_id"] == 36476516316
-    assert document["provenance"]["artifact_id"] == proof["artifact_id"] == 10993199399
+    assert document["provenance"]["run_id"] == proof["workflow_run_id"] == 36633288414
+    assert document["provenance"]["artifact_id"] == proof["artifact_id"] == 11062997847
     assert document["provenance"]["inventory_file_sha256"] == proof["inventory_file_sha256"] == (
-        "826bbdd474ff5714aafa091b1d0414f90335b17bca4686b2f6826d0299fca761"
+        "5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767"
     )
     assert document["provenance"]["artifact_zip_sha256"] == proof["artifact_zip_sha256"] == (
-        "4d4a664cbcf69f800dcd72850cf77845175333eeb9990e849fa7cde36441723b"
+        "4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946"
     )
     assert auth.evaluer_hggsp(ROOT, document) == []
 
@@ -352,3 +352,29 @@ def test_exact_target_rejects_non_hggsp_claim_or_wrong_counts(
     target = copy.deepcopy(auth.OPERATIONS_HGGSP[operation]["cible"])
     target[key] = bad
     assert auth.verifier_operation_hggsp(root, operation, target)
+
+
+@pytest.mark.parametrize(
+    ("cle", "valeur"),
+    [
+        ("from_head", 18), ("to_head", 21), ("role", "ingestion_control_attestor"),
+        ("database", "ragdb"),
+        ("historical_roles", "realigned"),
+    ],
+)
+def test_control_020_scope_tampering_is_refused(cle: str, valeur: object) -> None:
+    doc = copy.deepcopy(_document())
+    doc["control_schema_020"][cle] = valeur
+    assert "HGGSP : périmètre de la migration 020 et du rôle adopter incorrect" in auth.evaluer_hggsp(ROOT, doc)
+
+
+def test_control_020_binds_exact_bytes_of_migration_provisioner_and_operation() -> None:
+    doc = _document()
+    for binding in ("migration", "provisioner", "operation"):
+        lien = doc["control_schema_020"][binding]
+        assert hashlib.sha256((ROOT / lien["path"]).read_bytes()).hexdigest() == lien["sha256"]
+        assert lien["path"] in auth.FICHIERS_FUSION_HGGSP
+    assert auth.OPERATIONS_HGGSP["successor_control_schema_020_and_adopter_role"]["cible"]["to_head"] == 20
+    for interdit in ("historical_role_password_rotation", "adopter_password_reset",
+                     "control_schema_migration_beyond_020", "product_schema_migration"):
+        assert interdit in doc["forbidden"]

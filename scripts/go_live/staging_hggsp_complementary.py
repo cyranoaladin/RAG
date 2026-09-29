@@ -307,11 +307,12 @@ def inspect_database(
 
 
 def enqueue_successor(conn: Any, *, create_job: Any = None) -> dict[str, int]:
-    """74 jobs NEUFS depuis les adoptions successeur, en une transaction.
+    """74 jobs NEUFS depuis les adoptions successeur V2, en une transaction.
 
-    Le V4 enqueue générique exige le release_id dans le payload ACQUIS ; les
-    HGGSP hérités gardent V4 dans ce payload immuable. La table d'adoption
-    fournit l'identité successeur sans réaffecter un job V4.
+    Adoption V2 (migration 020) : chaque attestation V5 porte sur la
+    ressource et l'artefact de contrôle SUCCESSEURS que l'adoption nomme ;
+    la ressource prédécesseur V4, ses attestations et ses jobs ne sont ni
+    lus comme cible ni réaffectés.
     """
     if create_job is None:
         from ingestor.ingestion_control.jobs import find_or_create_job  # noqa: PLC0415
@@ -338,8 +339,10 @@ def enqueue_successor(conn: Any, *, create_job: Any = None) -> dict[str, int]:
           FROM ingestion_control.publication_attestations pa
           JOIN ingestion_control.resources r ON r.resource_id = pa.resource_id
           JOIN ingestion_control.sealed_release_adoptions ad
-            ON ad.release_id = pa.release_id AND ad.resource_id = pa.resource_id
-           AND ad.artifact_id = pa.artifact_id
+            ON ad.release_id = pa.release_id
+           AND ad.adoption_version = 'SEALED-RELEASE-ADOPTION-V2'
+           AND ad.successor_resource_id = pa.resource_id
+           AND ad.successor_artifact_id = pa.artifact_id
          WHERE pa.release_id = %s AND pa.invalidated_at IS NULL
          ORDER BY pa.collection, pa.resource_id FOR SHARE OF pa, r, ad
     """, (RELEASE,)).fetchall()
@@ -388,6 +391,87 @@ def enqueue_successor(conn: Any, *, create_job: Any = None) -> dict[str, int]:
     if len(final_jobs) != 74 or {j["attestation_id"] for j in final_jobs} != {str(r[0]) for r in rows}:
         raise HGGSPRefused("enqueue : 74 nouveaux jobs relationnels non prouvés")
     return counts
+
+
+def verify_v2_lineage(conn: Any) -> dict[str, int]:
+    """Filiation V2 prouvée par ensembles et identités, en lecture seule.
+
+    74 ressources et 74 artefacts de contrôle successeurs, distincts de V4 ;
+    chaque prédécesseur est l'une des 74 ressources V4 HGGSP dont
+    l'attestation reste active ; mêmes octets ; anciens jobs V4 inchangés.
+    """
+    conn.execute("SET TRANSACTION READ ONLY")
+    try:
+        database, role = conn.execute("SELECT current_database(), current_user").fetchone()
+        if (database, role) != (DATABASE, "ingestion_control_app"):
+            raise HGGSPRefused("filiation V2 : base ou rôle de lecture incorrect")
+        adoptions = _rows(conn, """
+            SELECT ad.adoption_version, ad.predecessor_release_id, ad.collection,
+                   ad.resource_id::text AS predecessor_resource,
+                   ad.artifact_id::text AS predecessor_artifact,
+                   ad.successor_resource_id::text AS successor_resource,
+                   ad.successor_artifact_id::text AS successor_artifact,
+                   r.resource_state, r.collection AS successor_collection,
+                   a.resource_id::text AS successor_owner,
+                   a.sha256 AS successor_sha256, p.sha256 AS predecessor_sha256
+              FROM ingestion_control.sealed_release_adoptions ad
+              LEFT JOIN ingestion_control.resources r ON r.resource_id = ad.successor_resource_id
+              LEFT JOIN ingestion_control.artifacts a ON a.artifact_id = ad.successor_artifact_id
+              LEFT JOIN ingestion_control.artifacts p ON p.artifact_id = ad.artifact_id
+             WHERE ad.release_id = %s ORDER BY ad.successor_resource_id
+        """, (RELEASE,))
+        v4_active = _rows(conn, """
+            SELECT resource_id::text AS resource_id, artifact_id::text AS artifact_id
+              FROM ingestion_control.publication_attestations
+             WHERE release_id = %s AND collection = ANY(%s) AND invalidated_at IS NULL
+        """, (V4_RELEASE, list(COLLECTIONS)))
+        old_jobs = _rows(conn, """
+            SELECT j.job_id::text AS job_id, j.payload->>'publication_attestation_id' AS attestation_id,
+                   j.status, j.attempt_count, j.max_attempts, j.next_attempt_at, j.last_error,
+                   j.lease_token IS NOT NULL AS leased
+              FROM ingestion_control.jobs j
+              JOIN ingestion_control.publication_attestations pa
+                ON pa.attestation_id::text = j.payload->>'publication_attestation_id'
+             WHERE j.job_type = 'publication_resume' AND pa.release_id = %s
+               AND pa.collection = ANY(%s) ORDER BY j.job_id
+        """, (V4_RELEASE, list(COLLECTIONS)))
+    finally:
+        conn.rollback()
+    errors: list[str] = []
+    if len(adoptions) != 74:
+        errors.append(f"{len(adoptions)} adoptions successeur, 74 attendues")
+    if any(a["adoption_version"] != "SEALED-RELEASE-ADOPTION-V2" for a in adoptions):
+        errors.append("adoption successeur non V2")
+    if any(a["predecessor_release_id"] != V4_RELEASE for a in adoptions):
+        errors.append("prédécesseur autre que V4")
+    if {a["collection"] for a in adoptions} != set(COLLECTIONS):
+        errors.append("collections successeur hors des deux HGGSP")
+    successors = {a["successor_resource"] for a in adoptions}
+    artifacts = {a["successor_artifact"] for a in adoptions}
+    predecessors = {a["predecessor_resource"] for a in adoptions}
+    v4_resources = {row["resource_id"] for row in v4_active}
+    if len(successors) != 74 or len(artifacts) != 74 or None in successors | artifacts:
+        errors.append("identités successeur absentes ou dupliquées")
+    if successors & (predecessors | v4_resources) or artifacts & {a["predecessor_artifact"] for a in adoptions}:
+        errors.append("identité successeur confondue avec V4")
+    if len(v4_active) != 74 or predecessors != v4_resources:
+        errors.append("prédécesseurs différents des 74 ressources V4 HGGSP actives")
+    for a in adoptions:
+        if a["successor_owner"] != a["successor_resource"]:
+            errors.append("artefact successeur sans son propriétaire successeur")
+            break
+        if a["successor_sha256"] != a["predecessor_sha256"] or a["successor_collection"] != a["collection"]:
+            errors.append("octets ou collection successeur divergents")
+            break
+        if a["resource_state"] not in ("NEEDS_REVIEW", "REVIEWED", "RETRIEVAL_ELIGIBLE"):
+            errors.append(f"ressource successeur en {a['resource_state']}")
+            break
+    if len(old_jobs) != 74 or old_job_fingerprint(old_jobs) != OLD_JOBS_SHA256:
+        errors.append("anciens jobs V4 HGGSP modifiés")
+    if errors:
+        raise HGGSPRefused("filiation V2 : " + "; ".join(errors))
+    return {"adoptions": 74, "successor_resources": 74, "successor_artifacts": 74,
+            "v4_active_attestations": 74, "old_v4_jobs": 74}
 
 
 def require_authority_for_write(root: Path, operation: str) -> None:
@@ -491,6 +575,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--artifact-store", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--worker-args", action="store_true")
+    parser.add_argument("--verify-v2-lineage", action="store_true")
     parser.add_argument("--transfer-sha256")
     parser.add_argument("--embedding-root", default="/models/e5-large-prerentree-2026-2027-20260828-materialise")
     parser.add_argument("--legacy-baseline-sha256")
@@ -505,6 +590,21 @@ def main(argv: list[str] | None = None) -> int:
         except (HGGSPRefused, OSError, KeyError, ValueError) as exc:
             print(f"HGGSP_REFUSED: {exc}", file=sys.stderr)
             return 1
+        return 0
+    if args.verify_v2_lineage:
+        control_dsn = os.environ.get("PG_INGESTION_CONTROL_DSN")
+        if not control_dsn:
+            print("HGGSP_REFUSED: DSN de lecture manquant", file=sys.stderr)
+            return 2
+        import psycopg  # noqa: PLC0415
+
+        try:
+            with psycopg.connect(control_dsn) as control:
+                counts = verify_v2_lineage(control)
+        except (HGGSPRefused, psycopg.Error) as exc:
+            print(f"HGGSP_REFUSED: {exc}", file=sys.stderr)
+            return 1
+        print("HGGSP_V2_LINEAGE_OK " + " ".join(f"{k}={v}" for k, v in counts.items()))
         return 0
     if args.build_transfer_manifest:
         if args.phase or not args.artifact_store or not args.output:

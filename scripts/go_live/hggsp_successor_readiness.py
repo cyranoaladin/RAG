@@ -35,9 +35,9 @@ from nexus_contracts.staging_readiness import (  # type: ignore[import-untyped] 
 RELEASE_ID = "production-profile-gate-2026-2027-v5-hggsp"
 MANIFEST_SHA256 = "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf"
 MIXED_REGISTRY_SHA256 = "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6"
-WORKER_IMAGE = "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:14aef8482dc3f322101b0bb3383d442c278386f383c2aaf42a3cca7acbd0416e"
-RETRIEVAL_IMAGE = "ghcr.io/cyranoaladin/rag-ingestor@sha256:e9a2e5dd5681911afe950c8852de36f907ed8945c97d736ebcb9debab206ad14"
-SOURCE_COMMIT = "2bc65c9386aafb80d66ce25096b50c75eeeb5412"
+WORKER_IMAGE = "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
+RETRIEVAL_IMAGE = "ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
+SOURCE_COMMIT = "a9e3701965503d2862a248c46fd7e7e175058c8f"
 DATABASE = "ragdb_profile_gate_v4"
 COLLECTIONS = (
     "rag_nexus_hggsp_premiere_specialite",

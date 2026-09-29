@@ -86,3 +86,29 @@ def test_enqueue_is_only_orchestrated_after_live_preflight() -> None:
     assert 'conn.commit()' in enqueue
     assert 'preflight_hggsp "$op"' in source
     assert source.index('preflight_hggsp "$op"') < source.index('"etape_$op"')
+
+
+def test_control_020_precedes_scopes_and_adoption_and_adoption_is_v2_under_adopter() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    ordre = source.split("ORDRE_HGGSP=(", 1)[1].split(")", 1)[0].split()
+    assert ordre.index("successor_control_schema_020_and_adopter_role") == ordre.index("successor_preflight") + 1
+    assert ordre.index("successor_control_schema_020_and_adopter_role") < ordre.index(
+        "successor_sealed_ingestion_or_binding")
+    adoption = source.split("adopt-predecessor-release", 1)[0].rsplit("worker ", 1)[1]
+    assert adoption.startswith('"$REMOTE_ADOPTER_ENV"')
+    assert "--adoption-version SEALED-RELEASE-ADOPTION-V2" in source
+    assert "--verify-v2-lineage" in source
+    assert "written=74 already_present=0|written=0 already_present=74" in source
+
+
+def test_control_020_step_never_passes_secrets_as_arguments() -> None:
+    source = SCRIPT.read_text(encoding="utf-8")
+    etape = source.split("etape_successor_control_schema_020_and_adopter_role() {", 1)[1].split("\n}\n", 1)[0]
+    # Seul le fichier staging.env (connexion administrative) est sourcé ; les
+    # mots de passe des rôles historiques ne sont même pas chargés.
+    assert '. "$REMOTE_STAGING_ENV"' in etape
+    assert "REMOTE_CONTROL_SOURCE_ENV" not in etape
+    assert "INGESTION_CONTROL_" not in etape
+    assert "--secret-file" in etape and "PASSWORD=" not in etape.replace('PGPASSWORD="\\$PGVECTOR_PASSWORD"', "")
+    assert "pg_restore --list" in etape
+    assert "HGGSP_CONTROL020_OK head=20" in etape

@@ -29,9 +29,15 @@ TRANSFER_HOST="$RUN/transfer_manifest_hggsp_successor.json"
 TRANSFER_CONTAINER="/run-db/transfer_manifest_hggsp_successor.json"
 WORKER_B_HGGSP="nexus-hggsp-successor-worker-b"
 PROBE_IMAGE=""
+CONTROL020="scripts/go_live/hggsp_control_schema_020.py"
+# Adoption V2 : sixième fichier par rôle, et secret adopter conservé hors Git.
+REMOTE_ADOPTER_ENV="$REMOTE_ROLES/ingestion-control-adopter.env"
+REMOTE_ADOPTER_SECRET_DIR="$REMOTE/secrets/hggsp-adopter"
+REMOTE_ADOPTER_SECRET="$REMOTE_ADOPTER_SECRET_DIR/ingestion_control_adopter.password"
 
 ORDRE_HGGSP=(
     successor_readiness_install successor_preflight
+    successor_control_schema_020_and_adopter_role
     successor_scope_authorization_registration_r4 successor_sealed_ingestion_or_binding
     successor_batch_review_proposal successor_batch_review_record
     successor_attestations successor_publication_job_enqueue successor_worker_b_publication
@@ -94,9 +100,9 @@ images_locales() {
     local image scope1 scope2 ids
     IMAGE="$(champ_hggsp runtime_image.reference)"
     PROBE_IMAGE="$(champ_hggsp retrieval_image.reference)"
-    [ "$IMAGE" = 'ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:14aef8482dc3f322101b0bb3383d442c278386f383c2aaf42a3cca7acbd0416e' ] \
+    [ "$IMAGE" = 'ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf' ] \
         || fail "digest Worker B divergent"
-    [ "$PROBE_IMAGE" = 'ghcr.io/cyranoaladin/rag-ingestor@sha256:e9a2e5dd5681911afe950c8852de36f907ed8945c97d736ebcb9debab206ad14' ] \
+    [ "$PROBE_IMAGE" = 'ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf' ] \
         || fail "digest retrieval divergent"
     "$PYTHON" packages/contracts/scripts/build_hggsp_successor_scope_artifacts.py --check \
         || fail "autorités de scopes successeurs #269 divergentes"
@@ -253,6 +259,47 @@ etape_successor_preflight() {
     marquer successor_preflight "V4=9/263/405/5678 HGGSP=0 vieux_jobs=$OLD_JOBS_SHA256 ragdb inchangée"
 }
 
+etape_successor_control_schema_020_and_adopter_role() {
+    # Base de contrôle ragdb_profile_gate_v4 : 019 -> 020 par le runner
+    # canonique, puis le SEUL rôle adopter (provisionneur ciblé, aucun autre
+    # rôle touché). Le secret est créé et conservé sur l'hôte AVANT le rôle ;
+    # il n'apparaît dans aucun argument ni aucune sortie. Le compte
+    # administratif (superutilisateur du conteneur) reste confiné à cette
+    # étape : il n'est transmis à aucun conteneur. La logique, les reprises
+    # et les refus sont dans $CONTROL020 ; chaque exécution repart de l'état
+    # réel, le marqueur .done n'en dispense pas.
+    local stamp; stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    remote <<EOF | tee "$STATE_DIR/control020.out" || fail "migration 020 / rôle adopter refusés"
+set -euo pipefail
+umask 077
+command -v psql >/dev/null || { echo "psql absent de l'hôte" >&2; exit 4; }
+cd $REMOTE/repo && git fetch -q origin && git checkout -q --detach $AUTH_COMMIT
+test -z "\$(docker ps -q --filter name=worker)" \\
+    || { echo "WORKER_ACTIF : aucune migration pendant un Worker" >&2; exit 4; }
+taille=\$($(psql_ro "$DB" "select pg_database_size(current_database())"))
+libre=\$(df -B1 --output=avail $REMOTE/backups | tail -1)
+test "\$libre" -gt "\$((taille * 3))" || { echo "DISQUE_INSUFFISANT pour la sauvegarde" >&2; exit 4; }
+install -d -m 0700 $REMOTE_ADOPTER_SECRET_DIR
+d=$REMOTE/backups/hggsp-020-$stamp; install -d -m 0700 "\$d"
+docker exec $CONTAINER sh -c 'pg_dump -Fc -U "\$POSTGRES_USER" $DB' > "\$d/$DB.dump"
+test -s "\$d/$DB.dump"; chmod 600 "\$d/$DB.dump"
+docker exec -i $CONTAINER pg_restore --list < "\$d/$DB.dump" > /dev/null \\
+    || { echo "SAUVEGARDE_ILLISIBLE" >&2; exit 4; }
+(
+    set -a; . "$REMOTE_STAGING_ENV"; set +a
+    export PGHOST=127.0.0.1 PGPORT="\$PGVECTOR_PORT" PGDATABASE=$DB
+    export PGUSER=\$(docker exec $CONTAINER printenv POSTGRES_USER) PGPASSWORD="\$PGVECTOR_PASSWORD"
+    python3 $CONTROL020 apply --repository-root $REMOTE/repo \\
+        --secret-file $REMOTE_ADOPTER_SECRET --roles-dir $REMOTE_ROLES --backup-file "\$d/$DB.dump"
+)
+EOF
+    [ "$DRY_RUN" = 1 ] && { marquer successor_control_schema_020_and_adopter_role "dry-run"; return; }
+    grep -q '^HGGSP_CONTROL020_OK head=20 adopter=ingestion_control_adopter ' "$STATE_DIR/control020.out" \
+        || fail "020 et rôle adopter non prouvés"
+    verifier_historique
+    marquer successor_control_schema_020_and_adopter_role "head=20, adopter provisionné, secret conservé, DSN 0600"
+}
+
 exiger_revue_scopes() {
     if [ -z "${SCOPE_REVIEW_PR:-}" ] || [ -z "${SCOPE_REVIEW_HEAD:-}" ]; then
         fail "revue humaine distincte des deux r4 absente : SCOPE_REVIEW_PR et SCOPE_REVIEW_HEAD requis"
@@ -328,8 +375,12 @@ manifest=json.loads((Path(auth["release"]["release_dir"])/"production-profile-ga
 print(manifest["authorities"]["candidate_inventory_sha256"])
 PY
 )"
-    worker "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli \
-      adopt-predecessor-release --release-id "$RELEASE_HGGSP" --release-dir "$release_dir" \
+    # Adoption V2 (migration 020) : ressources et artefacts de contrôle
+    # successeurs DISTINCTS, sous le rôle adopter et lui seul ; l'adoption V1
+    # sous attestor heurterait les 74 attestations V4 actives.
+    worker "$REMOTE_ADOPTER_ENV" ingestor.ingestion_worker.attest_publication_cli \
+      adopt-predecessor-release --adoption-version SEALED-RELEASE-ADOPTION-V2 \
+      --release-id "$RELEASE_HGGSP" --release-dir "$release_dir" \
       --release-manifest-sha256 "$(champ_hggsp release.manifest_sha256)" \
       --artifacts-release-sha256 "$registry_sha" --candidate-inventory-sha256 "$inventory_sha" \
       --transfer-manifest-path "$TRANSFER_CONTAINER" --transfer-manifest-sha256 "$digest" \
@@ -337,8 +388,9 @@ PY
       --predecessor-release-manifest-sha256 bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be \
       --adopted-by "${OPERATOR_ID:?OPERATOR_ID requis}" | remote | tee "$STATE_DIR/adoption.out" \
       || fail "adoption bornée des 74 refusée"
-    grep -q '^ADOPTION_RECORDED .* placements=74 ' "$STATE_DIR/adoption.out" \
-      || fail "adoption autre que 74 refusée"
+    # Premier passage : written=74 already_present=0 ; rejeu : 0 et 74.
+    grep -Eq '^ADOPTION_RECORDED .* adoption_version=SEALED-RELEASE-ADOPTION-V2 .* placements=74 (written=74 already_present=0|written=0 already_present=74) ' \
+        "$STATE_DIR/adoption.out" || fail "adoption V2 autre que 74 refusée"
     local ids id1 id2
     ids="$(ids_r4)"; read -r id1 id2 <<<"$ids"
     worker "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli \
@@ -348,6 +400,17 @@ PY
       || fail "liaison des deux autorités refusée"
     grep -q '^PUBLICATION_AUTHORITIES_BOUND .* collections=2 ' "$STATE_DIR/binding.out" \
       || fail "liaison autre que deux collections refusée"
+    # Ensembles et identités, pas seulement « 74 » : lecture seule, rôle app.
+    env_de_role "$REMOTE_WORKER_ENV"
+    remote <<EOF | tee "$STATE_DIR/lineage.out" || fail "filiation V2 non prouvée"
+set -euo pipefail
+$(tirer "$IMAGE")
+docker run --rm --network host --env-file "$REMOTE_WORKER_ENV" \\
+  -v "$REMOTE/repo:/repo:ro" -w /repo --entrypoint python "$IMAGE" \\
+  /repo/$PREFLIGHT --verify-v2-lineage
+EOF
+    [ "$DRY_RUN" = 1 ] || grep -q '^HGGSP_V2_LINEAGE_OK adoptions=74 ' "$STATE_DIR/lineage.out" \
+      || fail "filiation V2 : 74 identités successeur distinctes non prouvées"
     verifier_historique
     marquer successor_sealed_ingestion_or_binding "adopted=74 bound=2 transfer=$digest"
 }

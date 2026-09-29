@@ -1488,18 +1488,22 @@ COLLECTIONS_HGGSP = [
 ]
 IMAGE_WORKER_HGGSP = (
     "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:"
-    "14aef8482dc3f322101b0bb3383d442c278386f383c2aaf42a3cca7acbd0416e"
+    "2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
 )
 IMAGE_RETRIEVAL_HGGSP = (
     "ghcr.io/cyranoaladin/rag-ingestor@sha256:"
-    "e9a2e5dd5681911afe950c8852de36f907ed8945c97d736ebcb9debab206ad14"
+    "11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
 )
+#: Commit source des images (run 36633288414) ET base de l'activation : il
+#: porte #271 (migration 020, adoption V2) et #273 (Worker B pour V5). Le
+#: futur commit d'activation (fusion de cette PR) n'a pas à lui être égal.
+SOURCE_IMAGES_HGGSP = "a9e3701965503d2862a248c46fd7e7e175058c8f"
 SHA_MANIFESTE_HGGSP = "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf"
 SHA_REGISTRE_MIXTE_HGGSP = "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6"
 SHA_MAPPING_HGGSP = "b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a"
-SHA_PREUVE_HGGSP = "f5dbe4eb5f999e96a529cd3448bc3cc2e95ec9260f28f0b22c70522fea18a10c"
-SHA_AUTORISATION_HGGSP = "9cb0d29eaf5f23b308504d1e0517cae2b1cddbd74b168e0c24b4ad0eaf43bb36"
-SHA_PLAN_HGGSP = "e1655be65290df6f59371127d18376be6ada516abaca031407fa95c2793edcce"
+SHA_PREUVE_HGGSP = "9ea07238780d21927e7d3358ccec664175c3140fac4d3773bfe7111cbc934c23"
+SHA_AUTORISATION_HGGSP = "8b0b0224170e5745f021056373c356d4bacf9f1e407ffcc2885c2ba60c0d2a70"
+SHA_PLAN_HGGSP = "e12af619fafb4805a5b75fabb37b9d9842c903468fc377a2521a59e71f092c59"
 SCOPES_SUCCESSEURS_HGGSP = {
     "naming": {
         "path": "packages/contracts/authorities/production-profile-scope-successors-hggsp-v5.yml",
@@ -1539,6 +1543,7 @@ _CIBLE_HGGSP = {
 }
 _ETAPES_HGGSP = (
     "successor_readiness_sign", "successor_readiness_install", "successor_preflight",
+    "successor_control_schema_020_and_adopter_role",
     "successor_scope_authorization_registration_r4",
     "successor_sealed_ingestion_or_binding", "successor_batch_review_proposal",
     "successor_batch_review_record", "successor_attestations",
@@ -1556,6 +1561,33 @@ OPERATIONS_HGGSP["successor_worker_b_publication"]["cible"].update({
     "rate_limit_max_wait_s": 900,
     "max_consecutive_rate_limits": 3,
     "max_idle_polls": 5,
+})
+#: Opération ajoutée : 019 -> 020 sur le schéma de contrôle de la base
+#: cible, puis le seul rôle adopter. Octets exécutés depuis le checkout fusionné.
+MIGRATION_020_HGGSP = (
+    "services/rag-engine/infra/postgres/ingestion_control/migrations/"
+    "020_successor_control_resource_identity.sql"
+)
+SHA_MIGRATION_020_HGGSP = "f14dbc099790b898b16640297ba4ec87531823d04824e5b15a07f3d8df5dedc4"
+PROVISIONNEUR_ADOPTER_HGGSP = "services/rag-engine/infra/scripts/provision_ingestion_control_adopter_role.sh"
+SHA_PROVISIONNEUR_ADOPTER_HGGSP = "c485325027411c904c24fd4e3c803f3d513308eec2117037b0190dc853914d67"
+OPERATION_020_HGGSP = "scripts/go_live/hggsp_control_schema_020.py"
+SHA_OPERATION_020_HGGSP = "ca6408e261630f5560420d821bb7b2d6442426ef1bd4ae004e3eeb34932d4081"
+CONTROLE_020_HGGSP = {
+    "database": BASE_V4, "schema": "ingestion_control",
+    "from_head": 19, "to_head": 20,
+    "migration": {"path": MIGRATION_020_HGGSP, "sha256": SHA_MIGRATION_020_HGGSP},
+    "role": "ingestion_control_adopter",
+    "provisioner": {"path": PROVISIONNEUR_ADOPTER_HGGSP, "sha256": SHA_PROVISIONNEUR_ADOPTER_HGGSP},
+    "operation": {"path": OPERATION_020_HGGSP, "sha256": SHA_OPERATION_020_HGGSP},
+    "secret_storage": "host:/srv/nexus-staging/secrets/hggsp-adopter (0700), file 0600, never in Git",
+    "dsn_file": "/srv/nexus-staging/secrets/v4-roles/ingestion-control-adopter.env",
+    "historical_roles": "untouched: no password rotation, no attribute or membership change",
+    "rollback": "020 -> 019 only while no V2 adoption or successor_* value exists; role and secret are left in place",
+}
+OPERATIONS_HGGSP["successor_control_schema_020_and_adopter_role"]["cible"].update({
+    "database": BASE_V4, "from_head": 19, "to_head": 20,
+    "migration_sha256": SHA_MIGRATION_020_HGGSP, "role": "ingestion_control_adopter",
 })
 OPERATIONS_HGGSP["successor_independent_verification"]["cible"].update({
     "retrieval_image": IMAGE_RETRIEVAL_HGGSP,
@@ -1579,6 +1611,9 @@ FICHIERS_FUSION_HGGSP = (
     "scripts/go_live/staging_hggsp_complementary.py",
     "scripts/go_live/staging_hggsp_complementary.sh",
     "scripts/go_live/check_staging_authorization.py",
+    OPERATION_020_HGGSP, PROVISIONNEUR_ADOPTER_HGGSP, MIGRATION_020_HGGSP,
+    "services/rag-engine/infra/scripts/bootstrap_ingestion_control_schema.sh",
+    "scripts/go_live/staging_v4_role_env.py",
     "scripts/go_live/staging_retrieval_probe.py",
     "packages/contracts/src/nexus_contracts/scope.py",
     "packages/contracts/pyproject.toml",
@@ -1605,7 +1640,7 @@ def evaluer_hggsp(racine: Path, document: dict) -> list[str]:
         ecarts.append("HGGSP : reviewer incorrect")
     if document.get("consumed") is not False or document.get("expires_after_use") is not True:
         ecarts.append("HGGSP : autorisation consommée ou non limitée à usage unique")
-    if document.get("base_commit_sha") != "2bc65c9386aafb80d66ce25096b50c75eeeb5412":
+    if document.get("base_commit_sha") != SOURCE_IMAGES_HGGSP:
         ecarts.append("HGGSP : base SHA incorrect")
     release = document.get("release") or {}
     for cle, attendu in (
@@ -1644,12 +1679,12 @@ def evaluer_hggsp(racine: Path, document: dict) -> list[str]:
                 ecarts.append(f"HGGSP : {binding['path']} absent ou empreinte incorrecte")
     provenance = document.get("provenance") or {}
     provenance_attendue = {
-        "protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", "run_id": 36476516316,
-        "run_attempt": 1, "artifact_id": 10993199399,
-        "artifact_zip_sha256": "4d4a664cbcf69f800dcd72850cf77845175333eeb9990e849fa7cde36441723b",
-        "inventory_file_sha256": "826bbdd474ff5714aafa091b1d0414f90335b17bca4686b2f6826d0299fca761",
-        "source_commit_sha": "2bc65c9386aafb80d66ce25096b50c75eeeb5412",
-        "source_tree_sha": "2960a1a3ca9cc3110623e3870df95de4f45e504c",
+        "protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", "run_id": 36633288414,
+        "run_attempt": 1, "artifact_id": 11062997847,
+        "artifact_zip_sha256": "4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946",
+        "inventory_file_sha256": "5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767",
+        "source_commit_sha": SOURCE_IMAGES_HGGSP,
+        "source_tree_sha": "68a4f905a4e42faeaf7671b1fb4016643ede921f",
         "evidence": {"path": PREUVE_HGGSP, "sha256": SHA_PREUVE_HGGSP},
     }
     if provenance != provenance_attendue:
@@ -1703,6 +1738,12 @@ def evaluer_hggsp(racine: Path, document: dict) -> list[str]:
             ecarts.append(f"HGGSP : précondition {cle} incorrecte")
     if document.get("union_expected_counts") != COMPTES_UNION_HGGSP:
         ecarts.append("HGGSP : union mixte incorrecte")
+    if document.get("control_schema_020") != CONTROLE_020_HGGSP:
+        ecarts.append("HGGSP : périmètre de la migration 020 et du rôle adopter incorrect")
+    for binding in ("migration", "provisioner", "operation"):
+        lien = CONTROLE_020_HGGSP[binding]
+        if _empreinte_hggsp(racine, lien["path"]) != lien["sha256"]:
+            ecarts.append(f"HGGSP : {lien['path']} absent ou empreinte incorrecte")
     if document.get("targets") != {
         "database": BASE_V4, "historical_database": BASE_HISTORIQUE,
         "historical_database_mode": "untouched", "host": HOTE,
@@ -1717,6 +1758,9 @@ def evaluer_hggsp(racine: Path, document: dict) -> list[str]:
         "current_switch", "public_exposure", "production_image_rebuild_on_host",
         "historical_ragdb_modification", "v4_review_262_modification",
         "successor_job_reassignment", "post_publication_v4_hggsp_retirement",
+        "historical_role_password_rotation", "historical_role_realignment",
+        "adopter_password_reset", "control_schema_migration_beyond_020",
+        "product_schema_migration",
     }
     if not interdits <= set(document.get("forbidden") or []):
         ecarts.append("HGGSP : interdits manquants")
@@ -1911,7 +1955,7 @@ def verifier_operation_hggsp(racine: Path, operation: str, cible: dict) -> list[
         ecarts.append("HGGSP : HEAD local différent de origin/main")
     if _git(
         racine, "merge-base", "--is-ancestor",
-        "2bc65c9386aafb80d66ce25096b50c75eeeb5412", "origin/main",
+        SOURCE_IMAGES_HGGSP, "origin/main",
     ).returncode:
         ecarts.append("HGGSP : commit source des images absent de origin/main")
     attendue = OPERATIONS_HGGSP[operation]["cible"]

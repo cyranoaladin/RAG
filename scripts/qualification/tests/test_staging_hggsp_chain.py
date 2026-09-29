@@ -459,8 +459,11 @@ def test_real_postgres_enqueue_preserves_same_collection_v4_jobs(
             conn.execute("""CREATE TABLE ingestion_control.resources (
                 resource_id text PRIMARY KEY, run_id text, state_version integer,
                 resource_state text)""")
+            # Forme V2 (migration 020) : resource_id/artifact_id nomment le
+            # PRÉDÉCESSEUR V4 ; les identités successeur sont distinctes.
             conn.execute("""CREATE TABLE ingestion_control.sealed_release_adoptions (
-                release_id text, resource_id text, artifact_id text)""")
+                release_id text, adoption_version text, resource_id text, artifact_id text,
+                successor_resource_id text, successor_artifact_id text)""")
             conn.execute("""CREATE TABLE ingestion_control.jobs (
                 job_id text PRIMARY KEY, job_type text, payload jsonb, status text,
                 attempt_count integer, max_attempts integer, next_attempt_at timestamptz,
@@ -475,10 +478,12 @@ def test_real_postgres_enqueue_preserves_same_collection_v4_jobs(
                 conn.execute("INSERT INTO ingestion_control.publication_attestations VALUES (%s,%s,%s,%s,%s,NULL)",
                              (f"new-att-{i}", f"resource-{i}", f"artifact-{i}",
                               collection, module.RELEASE))
-                conn.execute("INSERT INTO ingestion_control.resources VALUES (%s,%s,1,'NEEDS_REVIEW')",
+                # Une ressource successeur V2 naît à state_version 0.
+                conn.execute("INSERT INTO ingestion_control.resources VALUES (%s,%s,0,'NEEDS_REVIEW')",
                              (f"resource-{i}", "run-successor"))
-                conn.execute("INSERT INTO ingestion_control.sealed_release_adoptions VALUES (%s,%s,%s)",
-                             (module.RELEASE, f"resource-{i}", f"artifact-{i}"))
+                conn.execute("INSERT INTO ingestion_control.sealed_release_adoptions VALUES (%s,%s,%s,%s,%s,%s)",
+                             (module.RELEASE, "SEALED-RELEASE-ADOPTION-V2", f"old-resource-{i}",
+                              f"old-artifact-{i}", f"resource-{i}", f"artifact-{i}"))
             conn.execute("GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control_app")
             conn.execute("GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA ingestion_control TO ingestion_control_app")
             conn.commit()
@@ -530,3 +535,68 @@ def test_real_postgres_enqueue_preserves_same_collection_v4_jobs(
             assert module._rows(conn, old_sql, (module.V4_RELEASE,)) == old_before
     finally:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True, text=True, check=False)
+
+
+# ── filiation V2 : ensembles et identités, pas seulement « 74 » ──────────────
+
+
+def _lineage_state() -> dict:
+    adoptions = [{
+        "adoption_version": "SEALED-RELEASE-ADOPTION-V2", "predecessor_release_id": module.V4_RELEASE,
+        "collection": module.COLLECTIONS[i % 2],
+        "predecessor_resource": f"old-r{i}", "predecessor_artifact": f"old-a{i}",
+        "successor_resource": f"new-r{i}", "successor_artifact": f"new-a{i}",
+        "resource_state": "NEEDS_REVIEW", "successor_collection": module.COLLECTIONS[i % 2],
+        "successor_owner": f"new-r{i}", "successor_sha256": f"{i:064x}", "predecessor_sha256": f"{i:064x}",
+    } for i in range(74)]
+    v4_active = [{"resource_id": f"old-r{i}", "artifact_id": f"old-a{i}"} for i in range(74)]
+    old_jobs = [{"job_id": f"j{i}", "attestation_id": f"a{i}", "status": "queued", "attempt_count": 0,
+                 "max_attempts": 3, "next_attempt_at": None, "last_error": None, "leased": False}
+                for i in range(74)]
+    return {"adoptions": adoptions, "v4_active": v4_active, "old_jobs": old_jobs}
+
+
+def _verify_lineage(monkeypatch: pytest.MonkeyPatch, state: dict) -> dict:
+    monkeypatch.setattr(module, "OLD_JOBS_SHA256", module.old_job_fingerprint(_lineage_state()["old_jobs"]))
+    reponses = iter((state["adoptions"], state["v4_active"], state["old_jobs"]))
+    monkeypatch.setattr(module, "_rows", lambda *_a, **_k: next(reponses))
+
+    class Connection:
+        def execute(self, sql: str, *_a: object) -> object:
+            return type("R", (), {"fetchone": lambda _s: (module.DATABASE, "ingestion_control_app")})()
+
+        def rollback(self) -> None:
+            pass
+
+    return module.verify_v2_lineage(Connection())
+
+
+def test_v2_lineage_accepts_exact_distinct_successors(monkeypatch: pytest.MonkeyPatch) -> None:
+    assert _verify_lineage(monkeypatch, _lineage_state())["adoptions"] == 74
+
+
+@pytest.mark.parametrize("mutation", [
+    "successor_is_predecessor", "missing_adoption", "v4_attestation_invalidated",
+    "version_v1", "bytes_differ", "old_job_changed", "duplicate_successor",
+])
+def test_v2_lineage_refuses_confused_or_incomplete_identities(
+    monkeypatch: pytest.MonkeyPatch, mutation: str,
+) -> None:
+    state = _lineage_state()
+    first = state["adoptions"][0]
+    if mutation == "successor_is_predecessor":
+        first["successor_resource"] = first["successor_owner"] = "old-r0"
+    elif mutation == "missing_adoption":
+        state["adoptions"].pop()
+    elif mutation == "v4_attestation_invalidated":
+        state["v4_active"].pop()
+    elif mutation == "version_v1":
+        first["adoption_version"] = "SEALED-RELEASE-ADOPTION-V1"
+    elif mutation == "bytes_differ":
+        first["successor_sha256"] = "f" * 64
+    elif mutation == "old_job_changed":
+        state["old_jobs"][0]["status"] = "running"
+    else:
+        state["adoptions"][1]["successor_resource"] = first["successor_resource"]
+    with pytest.raises(module.HGGSPRefused, match="filiation V2"):
+        _verify_lineage(monkeypatch, state)

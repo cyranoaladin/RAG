@@ -1,6 +1,6 @@
 {
   "authorization_statement": "Approbation au HEAD exact puis fusion de la PR obligatoires. Le complément HGGSP sous ragdb_profile_gate_v4 peut préparer une readiness distincte, deux scopes successeurs, r4, liaison, revue batch humaine distincte, 74 attestations et 74 nouveaux jobs, Worker B borné aux deux collections et vérification indépendante. V4 9/263/405/5678, anciens 74 jobs et ragdb doivent rester inchangés. Aucune adoption ou republication des 405 V4, aucun SQL manuel, aucune mutation des anciens jobs HGGSP V4, aucun current switch, aucune exposition publique, aucun build Docker sur le serveur, aucun retrait V4 HGGSP.",
-  "base_commit_sha": "2bc65c9386aafb80d66ce25096b50c75eeeb5412",
+  "base_commit_sha": "a9e3701965503d2862a248c46fd7e7e175058c8f",
   "collection_ownership_registry": {
     "path": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json",
     "protocol": "registry_version=2",
@@ -10,11 +10,12 @@
   "effective_when": "Cette autorisation ne prend effet que lorsque la PR d’activation, approuvée par abenrhouma au HEAD exact avec NEXUS-TRUSTED-REVIEW-V1, est fusionnée sur main et que tous ses fichiers liés sont identiques octet pour octet à origin/main. Chaque opération exige un prévol réel renouvelé.",
   "execution_plan": {
     "path": "docs/runbooks/staging_hggsp_complementary_SUCCESSOR_PLAN.md",
-    "sha256": "e1655be65290df6f59371127d18376be6ada516abaca031407fa95c2793edcce"
+    "sha256": "e12af619fafb4805a5b75fabb37b9d9842c903468fc377a2521a59e71f092c59"
   },
   "expected_proof": [
     "readiness successeur distincte signée localement après fusion",
     "prévol réel renouvelé avant chaque opération : V4, #262, 74 jobs V4, ragdb, absence HGGSP successeur",
+    "schéma de contrôle 019 -> 020 par le runner canonique et rôle adopter ciblé (secret conservé avant le rôle, droits effectifs vérifiés, rôles historiques intacts), puis adoption V2 : 74 ressources et artefacts de contrôle successeurs distincts de V4",
     "deux scopes successeurs déjà livrés par #269, autorisations r4 revues humainement",
     "revue batch successeur humaine distincte puis 74 attestations et 74 nouveaux jobs",
     "Worker B limité aux deux collections HGGSP, sortie 75 sur limitation persistante",
@@ -22,11 +23,16 @@
   ],
   "expires_after_use": true,
   "forbidden": [
+    "adopter_password_reset",
     "attempt_count_reset",
+    "control_schema_migration_beyond_020",
     "current_switch",
     "historical_ragdb_modification",
+    "historical_role_password_rotation",
+    "historical_role_realignment",
     "manual_job_sql",
     "post_publication_v4_hggsp_retirement",
+    "product_schema_migration",
     "production_current_switch",
     "production_image_rebuild_on_host",
     "public_exposure",
@@ -46,6 +52,7 @@
     "successor_readiness_sign",
     "successor_readiness_install",
     "successor_preflight",
+    "successor_control_schema_020_and_adopter_role",
     "successor_scope_authorization_registration_r4",
     "successor_sealed_ingestion_or_binding",
     "successor_batch_review_proposal",
@@ -56,18 +63,18 @@
     "successor_independent_verification"
   ],
   "provenance": {
-    "artifact_id": 10993199399,
-    "artifact_zip_sha256": "4d4a664cbcf69f800dcd72850cf77845175333eeb9990e849fa7cde36441723b",
+    "artifact_id": 11062997847,
+    "artifact_zip_sha256": "4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946",
     "evidence": {
       "path": "docs/reports/evidence/staging_hggsp_image_provenance.json",
-      "sha256": "f5dbe4eb5f999e96a529cd3448bc3cc2e95ec9260f28f0b22c70522fea18a10c"
+      "sha256": "9ea07238780d21927e7d3358ccec664175c3140fac4d3773bfe7111cbc934c23"
     },
-    "inventory_file_sha256": "826bbdd474ff5714aafa091b1d0414f90335b17bca4686b2f6826d0299fca761",
+    "inventory_file_sha256": "5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767",
     "protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
     "run_attempt": 1,
-    "run_id": 36476516316,
-    "source_commit_sha": "2bc65c9386aafb80d66ce25096b50c75eeeb5412",
-    "source_tree_sha": "2960a1a3ca9cc3110623e3870df95de4f45e504c"
+    "run_id": 36633288414,
+    "source_commit_sha": "a9e3701965503d2862a248c46fd7e7e175058c8f",
+    "source_tree_sha": "68a4f905a4e42faeaf7671b1fb4016643ede921f"
   },
   "release": {
     "authority_commit_sha": "fb8a7cc8e85448115a64de8ff5325d639ef9ee70",
@@ -91,12 +98,12 @@
   "retrieval_image": {
     "build_on_server": false,
     "dockerfile_sha256": "f7f53bab7a66713aee7d2c836974941d19d84bdbfcec4f136b2740e0c91663b1",
-    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:e9a2e5dd5681911afe950c8852de36f907ed8945c97d736ebcb9debab206ad14"
+    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
   },
   "runtime_image": {
     "build_on_server": false,
     "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
-    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:14aef8482dc3f322101b0bb3383d442c278386f383c2aaf42a3cca7acbd0416e"
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
   },
   "status": "ACTIVE_AFTER_MERGE",
   "stop_conditions": "Tout écart de provenance, release, registre mixte, images, readiness, périmètre, cardinalités, revue #262, empreinte des 74 jobs V4, ragdb historique ou revue humaine successeur ; arrêt 75 du Worker B ; arrêt avant toute invalidation V4 HGGSP.",
@@ -156,5 +163,28 @@
       "path": "governance/authorizations/lot41a-staging-v5-hggsp-terminale-specialite-r4.json",
       "sha256": "82ea181de4ac8eb7e421103346c455c071c66559d5c2ededc47fd965b382fa8a"
     }
+  },
+  "control_schema_020": {
+    "database": "ragdb_profile_gate_v4",
+    "schema": "ingestion_control",
+    "from_head": 19,
+    "to_head": 20,
+    "migration": {
+      "path": "services/rag-engine/infra/postgres/ingestion_control/migrations/020_successor_control_resource_identity.sql",
+      "sha256": "f14dbc099790b898b16640297ba4ec87531823d04824e5b15a07f3d8df5dedc4"
+    },
+    "role": "ingestion_control_adopter",
+    "provisioner": {
+      "path": "services/rag-engine/infra/scripts/provision_ingestion_control_adopter_role.sh",
+      "sha256": "c485325027411c904c24fd4e3c803f3d513308eec2117037b0190dc853914d67"
+    },
+    "operation": {
+      "path": "scripts/go_live/hggsp_control_schema_020.py",
+      "sha256": "ca6408e261630f5560420d821bb7b2d6442426ef1bd4ae004e3eeb34932d4081"
+    },
+    "secret_storage": "host:/srv/nexus-staging/secrets/hggsp-adopter (0700), file 0600, never in Git",
+    "dsn_file": "/srv/nexus-staging/secrets/v4-roles/ingestion-control-adopter.env",
+    "historical_roles": "untouched: no password rotation, no attribute or membership change",
+    "rollback": "020 -> 019 only while no V2 adoption or successor_* value exists; role and secret are left in place"
   }
 }
