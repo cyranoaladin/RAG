@@ -123,14 +123,17 @@ def test_pas_de_faux_fichier_de_configuration_racine() -> None:
 # settings.json
 # --------------------------------------------------------------------------
 
-def test_settings_json_valide_et_sans_mode_sans_garde() -> None:
+def test_settings_laisse_le_choix_du_mode_sans_l_imposer() -> None:
+    """Le propriétaire peut choisir bypass au lancement ; le dépôt ne
+    l'interdit plus, mais ne l'impose à personne (aucun mode par défaut sans
+    garde) et ne désactive aucun hook."""
     reglages = _settings()
     permissions = reglages["permissions"]
-    assert permissions.get("defaultMode") not in {"bypassPermissions", "dontAsk"}
-    assert permissions["disableBypassPermissionsMode"] == "disable"
-    assert "bypassPermissions" not in SETTINGS.read_text(encoding="utf-8").replace(
-        "disableBypassPermissionsMode", ""
-    )
+    assert "disableBypassPermissionsMode" not in permissions
+    assert permissions.get("defaultMode") not in {"bypassPermissions", "dontAsk", "auto"}
+    assert "bypassPermissions" not in SETTINGS.read_text(encoding="utf-8")
+    assert reglages.get("disableAllHooks") is not True
+    assert permissions["deny"] and permissions["ask"]
 
 
 def test_settings_refuse_la_lecture_des_secrets() -> None:
