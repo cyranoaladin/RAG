@@ -1,5 +1,86 @@
 # Lot go-live — activation staging du complément HGGSP
 
+## Mise à niveau du 29/09/2026 — adoption V2, migration 020, images reconstruites
+
+Les sections suivantes décrivent l'état initial de la PR ; celle-ci les
+**remplace** pour la provenance, les images et la chaîne d'adoption.
+
+**Pourquoi.** #271 a démontré sur PostgreSQL que l'adoption V1 sous le rôle
+attestor aboutit à `ATTESTATION_CONFLICT` face aux 74 attestations V4 actives,
+et #273 a corrigé deux défauts qui empêchaient Worker B de publier V5. La PR
+d'origine utilisait l'adoption V1, joignait l'enqueue sur l'identité
+prédécesseur et épinglait des images antérieures à ces correctifs.
+
+**Base et provenance.** `main` = `a9e3701965503d2862a248c46fd7e7e175058c8f`
+(#271 et #273 fusionnées, CI post-fusion verte), intégré par fusion.
+Build `production-image-provenance` run `36633288414` sur ce commit (arbre
+`68a4f905a4e42faeaf7671b1fb4016643ede921f`) : artifact `11062997847`, ZIP
+`4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946`,
+inventaire `5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767`.
+Worker A/B `ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf`,
+retrieval `ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf`.
+Dockerfiles inchangés (`feeceb78…`, `f7f53bab…`, recalculés). Le futur
+commit d'activation (fusion de cette PR) n'a pas à égaler le commit source.
+
+| Fichier exécuté | Origine | Autorité |
+|---|---|---|
+| CLI d'adoption V2, Worker B, `ingestor.*` | image worker | digest `2228650e…`, commit `a9e37019` |
+| sonde retrieval | image ingestor | digest `11aa98d5…` |
+| orchestrateur, vérificateur, prévol, `hggsp_control_schema_020.py`, `staging_v4_role_env.py`, migration 020, runner, provisionneur adopter | checkout fusionné (`/repo` ou hôte) | commit d'activation sur `main` |
+
+Aucun fichier modifié par cette mise à niveau n'est exécuté depuis l'image :
+pas de nouveau build.
+
+**Opération ajoutée** `successor_control_schema_020_and_adopter_role`, entre
+`successor_preflight` et l'enregistrement des r4 (détail et reprises :
+runbook). Base `ragdb_profile_gate_v4`, schéma `ingestion_control`, 019 → 020
+(octets de `main`, SHA-256 lié), rôle `ingestion_control_adopter`.
+- Effets locaux à la base : 020 (contraintes, colonnes successeur), droits du
+  rôle sur `ingestion_control`, `CONNECT` sur la base.
+- Effet **global au cluster** : un rôle est créé dans le catalogue partagé.
+- Les quatre rôles historiques ne sont pas touchés : provisionneur ciblé
+  (`provision_ingestion_control_adopter_role.sh`), sans rotation, attribut ni
+  appartenance ; le provisionneur canonique n'est pas relancé.
+- Secret : généré sur l'hôte, conservé (0600 sous 0700) AVANT le rôle ;
+  seul un vérificateur SCRAM part au serveur, journalisation coupée pour la
+  transaction ; rôle sans secret ou secret incohérent : refus, jamais de
+  réinitialisation.
+- Accès hérités de PUBLIC (par exemple `CONNECT` sur d'autres bases) :
+  rapportés par l'opération, jamais corrigés par un `REVOKE` global.
+
+**Chaîne corrigée.** Adoption `--adoption-version SEALED-RELEASE-ADOPTION-V2`
+sous le DSN adopter, sortie contrôlée au premier passage comme au rejeu ;
+filiation V2 vérifiée par ensembles et identités (`--verify-v2-lineage`,
+lecture seule) ; enqueue joint sur `successor_resource_id` /
+`successor_artifact_id` ; readiness successeur, autorisation, preuve, plan
+et vérificateur épinglent les nouvelles images. Interdits ajoutés : rotation
+ou réalignement des rôles historiques, réinitialisation du mot de passe
+adopter, migration au-delà de 020, migration produit.
+
+**Qualification (sur ce code).**
+- PostgreSQL réel, opt-in `NEXUS_HGGSP_PG=1` —
+  `test_hggsp_control_schema_020_pg.py` : 10 réussis (départ 019 avec les
+  quatre rôles historiques et des lignes V4 acquises par les primitives ;
+  rôles historiques identiques ; cinq DSN historiques non réécrits ; aucune
+  valeur secrète ni vérificateur en sortie ni dans le journal serveur en
+  `log_statement=all` ; rejeu sans rotation ; mauvaise base, job en cours,
+  rôle sans secret, secret incohérent, DSN divergent refusés sans écriture ;
+  reprises après secret, après migration, après rôle ; rollback permis sans
+  V2 puis refusé après une adoption V2 réelle sous le DSN dérivé ; parité des
+  droits avec le provisionneur canonique ; vérificateur SCRAM accepté par
+  PostgreSQL). `test_staging_hggsp_chain.py` sur PostgreSQL : 2 réussis
+  (schéma d'enqueue aligné sur la forme V2, `state_version=0`).
+- `scripts/qualification/tests` : 943 réussis, 7 ignorés (dont les tests PostgreSQL opt-in) ; parmi eux 24 tests unitaires de l'opération 020 (`test_hggsp_control_schema_020.py`), les mutations de la filiation V2 et de l'autorisation.
+- `scripts/tests` : 701 réussis, 17 ignorés, 4 échecs `test_go_live_readiness` sur `disk_policy_ok` (5 Gio libres, seuil 40 Gio inchangé) — dette disque préexistante ; configuration #272 (`test_claude_config.py`) incluse.
+- Limites : secrets et forge synthétiques ; aucune base staging lue ; les
+  tests PostgreSQL ne sont pas exécutés par la CI (opt-in).
+
+**Brouillon préservé.** Un fichier non suivi du worktree (ancienne version de
+`test_hggsp_successor_attestation_coexistence_pg.py`, remplacée par la
+version fusionnée de #271) bloquait l'intégration de `main` ; il a été
+déplacé, sans suppression, hors du dépôt
+(`~/nexus-agent-handoffs/pr270-untracked-20260929T223232/`).
+
 ## Périmètre
 
 La branche part exactement de `2bc65c9386aafb80d66ce25096b50c75eeeb5412`
