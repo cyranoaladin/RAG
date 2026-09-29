@@ -40,7 +40,11 @@ Pas de `.mcp.json` ni de `.worktreeinclude` : aucun besoin actuel (voir plus bas
 
 - Variables : `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (pas de sous-agent imbriqué),
   `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3`.
-- `permissions.disableBypassPermissionsMode: "disable"` : le mode sans garde est refusé dans ce dépôt.
+- Mode de permissions : le dépôt n'impose aucun `defaultMode` et n'interdit plus `bypassPermissions`,
+  choisi explicitement par le propriétaire au lancement (`--permission-mode bypassPermissions`).
+  Ce choix ne s'applique qu'à la session qui le demande. En bypass, les confirmations `ask` ne sont
+  plus présentées à l'opérateur ; l'effet exact sur les décisions des hooks n'est pas qualifié ici.
+  Le mode ne vaut autorisation d'aucune fusion, suppression de données ni opération serveur.
 - Les `allow` de `.claude/settings.json` ne s'appliquent qu'après acceptation interactive de la
   confiance du dossier (jamais en `claude -p`) ; `deny`, `ask` et les hooks s'appliquent toujours.
 
