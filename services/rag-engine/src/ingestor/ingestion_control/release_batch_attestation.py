@@ -24,7 +24,10 @@ from nexus_contracts.authority_artifacts import (
     ReleaseBatchPublicationReviewArtifact,
 )
 
-from ingestor.ingestion_control.sealed_release_adoption import load_adopted_rows
+from ingestor.ingestion_control.sealed_release_adoption import (
+    load_adopted_rows,
+    successor_identity_schema_available,
+)
 
 BATCH_PROTOCOL = "LOT42-RELEASE-BATCH-V1"
 #: Les actualités qu'une revue batch peut couvrir (ADR-0059).
@@ -84,13 +87,21 @@ def measure_release_batch_facts(
     Rien n'est passé en argument hormis l'identité de la release : les
     comptes, les collections et les autorisations sont lus.
     """
+    exclude_v2 = (
+        "   AND NOT EXISTS ("
+        "       SELECT 1 FROM ingestion_control.sealed_release_adoptions ad"
+        "        WHERE ad.adoption_version = 'SEALED-RELEASE-ADOPTION-V2'"
+        "          AND ad.successor_artifact_id = a.artifact_id"
+        "   )"
+        if successor_identity_schema_available(conn) else ""
+    )
     lignes = conn.execute(
         "SELECT r.resource_id, a.artifact_id, a.sha256, r.collection, a.payload"
         "  FROM ingestion_control.resources r"
         "  JOIN ingestion_control.artifacts a USING (resource_id)"
         " WHERE r.pipeline_kind = %s"
         "   AND a.payload->>'release_id' = %s"
-        " ORDER BY r.resource_id",
+        + exclude_v2 + " ORDER BY r.resource_id",
         (SEALED_RELEASE_PIPELINE, release_id),
     ).fetchall()
     # Un successeur ne possède aucune ligne acquise : il couvre celles de son

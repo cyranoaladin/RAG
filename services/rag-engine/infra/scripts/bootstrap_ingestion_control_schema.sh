@@ -187,6 +187,15 @@ apply_migration() {
     {
         advisory_lock_sql
         registry_schema_sql
+        # Le registre lu avant la transaction peut être devenu obsolète
+        # pendant l'attente du verrou. Relire sous CE verrou avant le DDL :
+        # une seconde invocation ne doit pas rejouer une migration à DDL
+        # déclaratif non idempotent (contraintes FK/UNIQUE de 020).
+        printf '%s\n' \
+            "SELECT EXISTS (SELECT 1 FROM ingestion_control.schema_migrations" \
+            "WHERE version = :'migration_version'::integer) AS already_applied \\gset" \
+            '\if :already_applied' \
+            '\else'
         strip_inner_transaction_control < "$file"
         printf '\n'
         # Remédiation revue PR#90 (Cubic P2, revue incrémentale) : deux
@@ -197,16 +206,15 @@ apply_migration() {
         # seconde instance, bloquée le temps que la première committe sa
         # propre transaction pour cette version, reste programmée pour
         # rejouer cette MÊME version dès que le verrou se libère. Le corps
-        # de chaque migration est déjà idempotent (IF NOT EXISTS partout,
-        # documenté comme tel), donc le rejeu du DDL lui-même est sans
-        # danger — seul cet INSERT ne l'était pas (échouait sur une
-        # violation de clé primaire au lieu d'un no-op silencieux).
-        # ``ON CONFLICT (version) DO NOTHING`` aligne l'enregistrement sur
-        # la même idempotence que le reste de cette migration.
+        # Les anciens fragments sont largement idempotents, mais 020 pose
+        # des contraintes déclaratives qui ne doivent pas être rejouées.
+        # La garde ci-dessus tranche sous le verrou ; l'INSERT conserve
+        # néanmoins son ON CONFLICT pour une reprise sûre du registre.
         printf '%s\n' \
             "INSERT INTO ingestion_control.schema_migrations (version, file_name, sha256)" \
             "VALUES (:'migration_version'::integer, :'migration_file', :'migration_sha')" \
             "ON CONFLICT (version) DO NOTHING;"
+        printf '%s\n' '\endif'
     } | psql -X -q --single-transaction \
         -v ON_ERROR_STOP=1 \
         -v "migration_version=$version" \

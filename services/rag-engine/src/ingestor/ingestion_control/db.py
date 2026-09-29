@@ -15,6 +15,7 @@ import os
 APP_DSN_ENV = "PG_INGESTION_CONTROL_DSN"
 AUTHORITY_DSN_ENV = "PG_INGESTION_CONTROL_AUTHORITY_DSN"
 ATTESTOR_DSN_ENV = "PG_INGESTION_CONTROL_ATTESTOR_DSN"
+ADOPTER_DSN_ENV = "PG_INGESTION_CONTROL_ADOPTER_DSN"
 
 
 def _require_dsn(name: str, *, role_hint: str) -> str:
@@ -48,11 +49,18 @@ def get_attestor_dsn() -> str:
     return _require_dsn(ATTESTOR_DSN_ENV, role_hint="ingestion_control_attestor")
 
 
+def get_adopter_dsn() -> str:
+    """Dedicated V2 successor control writer; never falls back to attestor/app."""
+    return _require_dsn(ADOPTER_DSN_ENV, role_hint="ingestion_control_adopter")
+
+
 __all__ = [
     "APP_DSN_ENV",
     "ATTESTOR_DSN_ENV",
+    "ADOPTER_DSN_ENV",
     "AUTHORITY_DSN_ENV",
     "get_attestor_dsn",
+    "get_adopter_dsn",
     "get_authority_dsn",
     "get_ingestion_control_dsn",
 ]

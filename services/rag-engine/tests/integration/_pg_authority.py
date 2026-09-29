@@ -41,6 +41,7 @@ APP_PASSWORD = secrets.token_urlsafe(24)
 MIGRATOR_PASSWORD = secrets.token_urlsafe(24)
 AUTHORITY_PASSWORD = secrets.token_urlsafe(24)
 ATTESTOR_PASSWORD = secrets.token_urlsafe(24)
+ADOPTER_PASSWORD = secrets.token_urlsafe(24)
 
 #: Mode obligatoire. Positionné par ``make test-governance-pg`` dans sa
 #: propre recette — jamais hérité de l'environnement de l'appelant, pour
@@ -326,6 +327,7 @@ def start_ingestion_control_postgres(label: str) -> Iterator[dict[str, str]]:
             "INGESTION_CONTROL_APP_PASSWORD": APP_PASSWORD,
             "INGESTION_CONTROL_AUTHORITY_PASSWORD": AUTHORITY_PASSWORD,
             "INGESTION_CONTROL_ATTESTOR_PASSWORD": ATTESTOR_PASSWORD,
+            "INGESTION_CONTROL_ADOPTER_PASSWORD": ADOPTER_PASSWORD,
         })
         provision = subprocess.run(
             [str(PROVISION_SCRIPT)], cwd=ENGINE_ROOT, env=provision_env,
@@ -348,6 +350,11 @@ def dsn_for(pg: dict[str, str], *, user: str, password: str) -> str:
 
 def superuser_dsn(pg: dict[str, str]) -> str:
     return dsn_for(pg, user=PG_SUPERUSER, password=PG_SUPERUSER_PASSWORD)
+
+
+def adopter_dsn(pg: dict[str, str]) -> str:
+    """DSN du rôle V2 isolé, limité à l'ajout de ressources de contrôle."""
+    return dsn_for(pg, user="ingestion_control_adopter", password=ADOPTER_PASSWORD)
 
 
 def app_dsn(pg: dict[str, str]) -> str:

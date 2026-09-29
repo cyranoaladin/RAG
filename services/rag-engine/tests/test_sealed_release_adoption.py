@@ -6,6 +6,7 @@ adoptable, et la persistance n'écrit que ce qu'elle a décidé.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -17,6 +18,8 @@ from ingestor.ingestion_control.sealed_release_adoption import (
     SealedReleaseAdoptionError,
     SuccessorIdentity,
     plan_adoption,
+    plan_successor_control_adoption,
+    successor_control_dedup_key,
 )
 
 PREDECESSEUR = "production-profile-gate-2026-2027-v2"
@@ -115,6 +118,61 @@ def test_un_successeur_adopte_chaque_placement_acquis_une_fois() -> None:
     assert {ligne.currentness for ligne in lignes} == {"official_snapshot"}
     assert {ligne.successor for ligne in lignes} == {SUCCESSEUR}
     assert {ligne.predecessor_release_id for ligne in lignes} == {PREDECESSEUR}
+
+
+def test_v2_control_identity_is_deterministic_and_disjoint() -> None:
+    acquis = _acquis()
+    first = plan_successor_control_adoption(
+        acquired=acquis, successor_placements=_prescrits(), successor=SUCCESSEUR,
+        predecessor_release_id=PREDECESSEUR,
+        predecessor_release_manifest_sha256=MANIFESTE_PREDECESSEUR,
+    )
+    again = plan_successor_control_adoption(
+        acquired=list(reversed(acquis)), successor_placements=list(reversed(_prescrits())),
+        successor=SUCCESSEUR, predecessor_release_id=PREDECESSEUR,
+        predecessor_release_manifest_sha256=MANIFESTE_PREDECESSEUR,
+    )
+    assert [(r.successor_resource_id, r.successor_artifact_id, r.digest()) for r in first] == [
+        (r.successor_resource_id, r.successor_artifact_id, r.digest()) for r in again
+    ]
+    assert all(r.successor_resource_id != r.resource_id for r in first)
+    assert all(r.successor_artifact_id != r.artifact_id for r in first)
+    assert len({r.successor_resource_id for r in first}) == len(first)
+    assert len({r.successor_artifact_id for r in first}) == len(first)
+    assert all(successor_control_dedup_key(r) != r.content_sha256 for r in first)
+    other = SuccessorIdentity(**{**SUCCESSEUR.__dict__, "release_id": "different-release"})
+    changed = plan_successor_control_adoption(
+        acquired=acquis,
+        successor_placements=[{**p, "release_id": other.release_id} for p in _prescrits()],
+        successor=other, predecessor_release_id=PREDECESSEUR,
+        predecessor_release_manifest_sha256=MANIFESTE_PREDECESSEUR,
+    )
+    assert all(a.successor_resource_id != b.successor_resource_id for a, b in zip(first, changed, strict=True))
+
+
+def test_v2_control_identity_golden_vector() -> None:
+    row = plan_successor_control_adoption(
+        acquired=_acquis(), successor_placements=_prescrits(), successor=SUCCESSEUR,
+        predecessor_release_id=PREDECESSEUR,
+        predecessor_release_manifest_sha256=MANIFESTE_PREDECESSEUR,
+    )[0]
+    assert str(row.successor_resource_id) == "4ef47b98-2530-5726-b744-6e759308b909"
+    assert str(row.successor_artifact_id) == "d2ff1356-54a3-5a00-9c40-d3419bd55a7b"
+    assert successor_control_dedup_key(row) == (
+        "successor-control-v2:277a697c02363f1bcc897c84bcb289d615df388af5e702b9e03a807a786b54d6"
+    )
+
+
+@pytest.mark.parametrize(
+    "field", ("resource_id", "artifact_id", "successor_resource_id", "successor_artifact_id")
+)
+def test_v2_digest_binds_all_four_control_identities(field: str) -> None:
+    row = plan_successor_control_adoption(
+        acquired=_acquis(), successor_placements=_prescrits(), successor=SUCCESSEUR,
+        predecessor_release_id=PREDECESSEUR,
+        predecessor_release_manifest_sha256=MANIFESTE_PREDECESSEUR,
+    )[0]
+    assert replace(row, **{field: uuid4()}).digest() != row.digest()
 
 
 def test_l_adoption_ne_touche_pas_la_ligne_acquise() -> None:
