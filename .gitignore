@@ -42,3 +42,11 @@ rag-local/dev/http/rest-settings.http
 # dérive en silence : 71 fichiers de `packages/contracts/build/lib/` étaient
 # entrés par accident et divergeaient déjà des sources.
 build/
+
+# Claude Code : état local jamais versionné (permissions personnelles, worktrees
+# de sous-agents, mémoire locale). La configuration partagée vit dans
+# `.claude/settings.json`, `.claude/rules/`, `.claude/skills/`, `.claude/agents/`.
+.claude/settings.local.json*
+.claude/worktrees/
+.claude/agent-memory-local/
+CLAUDE.local.md

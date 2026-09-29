@@ -221,7 +221,7 @@ def test_les_migrations_partent_de_zero_jusqu_aux_tetes_du_depot():
     assert (_cible("control_migrations")["from_head"], _cible("control_migrations")["target_head"]) == ("000", "019")
     for depot, tete in (
         ("services/rag-engine/infra/postgres/migrations/HEAD", "005"),
-        ("services/rag-engine/infra/postgres/ingestion_control/migrations/HEAD", "019"),
+        ("services/rag-engine/infra/postgres/ingestion_control/migrations/HEAD", "020"),
     ):
         assert (RACINE / depot).read_text().strip().startswith(tete)
     assert _cible("product_migrations")["provisions_roles"] == ["rag_reader", "rag_reviewer", "rag_publisher"]

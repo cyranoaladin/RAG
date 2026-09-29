@@ -854,3 +854,64 @@ def test_lease_expiry_then_reclaim_completes_the_same_job(
         second.lease_token,
     ]
     assert completed == [second.lease_token]
+
+
+# ── contrat du payload : présence, type et valeur ────────────────────────────
+
+
+def _payload_valide(**remplacements: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "resource_id": str(uuid4()), "run_id": str(uuid4()),
+        "expected_state_version": 0, "publication_attestation_id": str(uuid4()),
+    }
+    payload.update(remplacements)
+    return payload
+
+
+def test_une_version_d_etat_nulle_est_une_version() -> None:
+    """Une ressource successeur V2 naît à ``state_version=0`` (défaut du
+    schéma, ``CHECK >= 0``) : 0 est une version, pas une absence."""
+    from ingestor.ingestion_worker.publication_resume import _require_payload
+
+    payload = _payload_valide()
+    assert _require_payload(payload) == payload
+    assert _require_payload(_payload_valide(expected_state_version=10))["expected_state_version"] == 10
+
+
+@pytest.mark.parametrize(
+    ("champ", "valeur", "motif"),
+    [
+        ("expected_state_version", None, "missing"),
+        ("expected_state_version", False, "non-negative integer"),
+        ("expected_state_version", True, "non-negative integer"),
+        ("expected_state_version", -1, "non-negative integer"),
+        ("expected_state_version", "0", "non-negative integer"),
+        ("expected_state_version", 1.0, "non-negative integer"),
+        ("resource_id", None, "missing"),
+        ("resource_id", "", "missing"),
+        ("resource_id", "   ", "missing"),
+        ("run_id", 7, "non-blank string"),
+        ("publication_attestation_id", "", "missing"),
+    ],
+)
+def test_un_champ_absent_ou_invalide_est_refuse(champ: str, valeur: object, motif: str) -> None:
+    from ingestor.ingestion_worker.publication_resume import (
+        PublicationResumeError,
+        _require_payload,
+    )
+
+    with pytest.raises(PublicationResumeError, match=motif):
+        _require_payload(_payload_valide(**{champ: valeur}))
+
+
+def test_un_champ_retire_est_refuse() -> None:
+    from ingestor.ingestion_worker.publication_resume import (
+        PublicationResumeError,
+        _require_payload,
+    )
+
+    for champ in ("resource_id", "run_id", "expected_state_version", "publication_attestation_id"):
+        payload = _payload_valide()
+        del payload[champ]
+        with pytest.raises(PublicationResumeError, match=rf"missing \['{champ}'\]"):
+            _require_payload(payload)

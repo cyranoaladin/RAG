@@ -293,6 +293,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         ),
     )
     adopt.add_argument("--release-id", required=True, type=_non_blank)
+    adopt.add_argument(
+        "--adoption-version",
+        choices=("SEALED-RELEASE-ADOPTION-V1", "SEALED-RELEASE-ADOPTION-V2"),
+        default="SEALED-RELEASE-ADOPTION-V1",
+    )
     adopt.add_argument("--release-dir", required=True, type=Path)
     adopt.add_argument("--release-manifest-sha256", required=True, type=_non_blank)
     adopt.add_argument("--artifacts-release-sha256", required=True, type=_non_blank)
@@ -974,12 +979,17 @@ def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
     canonique, et l'accord entre l'actualité que son catalogue prescrit à
     chaque placement et celle que sa preuve établit.
     """
+    from ingestor.ingestion_control.db import get_adopter_dsn
     from ingestor.ingestion_control.sealed_release_adoption import (
+        SUCCESSOR_CONTROL_ADOPTION_VERSION,
         SealedReleaseAdoptionError,
         SuccessorIdentity,
         load_acquired_rows,
         persist_adoption,
+        persist_successor_control_adoption,
         plan_adoption,
+        plan_successor_control_adoption,
+        successor_identity_schema_available,
     )
     from ingestor.ingestion_worker.sealed_release_ingestion import (
         load_sealed_release,
@@ -1035,17 +1045,41 @@ def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
         print(f"SUCCESSOR_RELEASE_UNUSABLE: {exc}", file=sys.stderr)
         return 1
 
-    with psycopg.connect(get_attestor_dsn()) as conn:
+    dsn = (
+        get_adopter_dsn()
+        if args.adoption_version == SUCCESSOR_CONTROL_ADOPTION_VERSION
+        else get_attestor_dsn()
+    )
+    with psycopg.connect(dsn) as conn:
         try:
-            lignes = plan_adoption(
+            if args.adoption_version == SUCCESSOR_CONTROL_ADOPTION_VERSION:
+                conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+                if not successor_identity_schema_available(conn):
+                    raise SealedReleaseAdoptionError(
+                        "adoption V2 requires control schema migration 020"
+                    )
+            planner = (
+                plan_successor_control_adoption
+                if args.adoption_version == SUCCESSOR_CONTROL_ADOPTION_VERSION
+                else plan_adoption
+            )
+            lignes = planner(
                 acquired=load_acquired_rows(conn, release_id=args.predecessor_release_id),
                 successor_placements=prescrits,
                 successor=successeur,
                 predecessor_release_id=args.predecessor_release_id,
                 predecessor_release_manifest_sha256=args.predecessor_release_manifest_sha256,
             )
-            ecrites, deja = persist_adoption(conn, lignes=lignes, adopted_by=args.adopted_by)
-        except SealedReleaseAdoptionError as exc:
+            if args.adoption_version == SUCCESSOR_CONTROL_ADOPTION_VERSION:
+                ressources, artefacts, ecrites, deja = persist_successor_control_adoption(
+                    conn, lignes=lignes, adopted_by=args.adopted_by
+                )
+            else:
+                ecrites, deja = persist_adoption(
+                    conn, lignes=lignes, adopted_by=args.adopted_by
+                )
+                ressources = artefacts = 0
+        except (SealedReleaseAdoptionError, psycopg.Error) as exc:
             conn.rollback()
             print(f"ADOPTION_REFUSED: {exc}", file=sys.stderr)
             return 1
@@ -1053,8 +1087,12 @@ def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
     actualites = sorted({ligne.currentness for ligne in lignes})
     print(
         f"ADOPTION_RECORDED release_id={successeur.release_id} "
+        f"adoption_version={args.adoption_version} "
         f"predecessor={args.predecessor_release_id} placements={len(lignes)} "
         f"written={ecrites} already_present={deja} currentness={','.join(actualites)} "
+        f"created_successor_resources={ressources} "
+        f"created_successor_artifacts={artefacts} "
+        f"created_adoptions={ecrites} "
         f"currentness_evidence={successeur.currentness_evidence_sha256} "
         f"pii_evidence={successeur.pii_evidence_sha256}"
     )

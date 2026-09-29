@@ -102,6 +102,8 @@ test-governance-pg: install
 	    tests/integration/test_lot44f_migration_rollback_rehearsal.py \
 	    tests/integration/test_lot44f_migration_upgrade_paths.py \
 	    tests/integration/test_lot44f_rollback_runner.py \
+	    tests/integration/test_migration_020_successor_control_identity.py \
+	    tests/integration/test_hggsp_successor_attestation_coexistence_pg.py \
 	    tests/integration/test_resource_registry_bootstrap_inventory_pg.py \
 	    tests/integration/test_lot44e_worker_e2e.py \
 	    tests/integration/test_c6_chunk_metadata_filters_never_widen_placement.py

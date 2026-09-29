@@ -2,7 +2,7 @@
 # Provisionnement des rôles PostgreSQL du schéma ingestion_control (LOT44b,
 # décision D1 : rôles et privilèges séparés du rôle applicatif rag-engine).
 #
-# Quatre rôles, jamais confondus :
+# Quatre rôles historiques, jamais confondus :
 #   - rôle de migration (INGESTION_CONTROL_MIGRATOR_ROLE) : seul habilité à
 #     créer/modifier le schéma (via bootstrap_ingestion_control_schema.sh) ;
 #   - rôle runtime (INGESTION_CONTROL_APP_ROLE) : seul utilisé par la couche
@@ -17,8 +17,11 @@
 #     LOT42, ADR-0033) : seul habilité à écrire dans
 #     publication_attestations, via attest_publication_cli.py et le worker
 #     pour les attestations déterministes — distinct du rôle d'autorité.
+# Un cinquième rôle opt-in (INGESTION_CONTROL_ADOPTER_ROLE) est réservé aux
+# nouvelles lignes de contrôle V2. Son mot de passe doit être fourni pour le
+# créer ; les quatre appels historiques restent valides sans lui.
 #
-# Aucun mot de passe codé en dur : les quatre mots de passe sont exigés en
+# Aucun mot de passe codé en dur : les quatre mots de passe historiques sont exigés en
 # variables d'environnement (échec explicite si absentes) et transmis à
 # psql via ``\getenv`` (jamais visibles dans les arguments du processus
 # psql — remédiation revue PR#90, même motif que
@@ -41,6 +44,7 @@
 #         INGESTION_CONTROL_APP_PASSWORD=... \
 #         INGESTION_CONTROL_AUTHORITY_PASSWORD=... \
 #         INGESTION_CONTROL_ATTESTOR_PASSWORD=... \
+#         INGESTION_CONTROL_ADOPTER_PASSWORD=... (adoption V2 seulement) \
 #         ./scripts/provision_ingestion_control_roles.sh
 set -euo pipefail
 
@@ -56,11 +60,17 @@ MIGRATOR_ROLE="${INGESTION_CONTROL_MIGRATOR_ROLE:-ingestion_control_migrator}"
 APP_ROLE="${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}"
 AUTHORITY_ROLE="${INGESTION_CONTROL_AUTHORITY_ROLE:-ingestion_control_authority}"
 ATTESTOR_ROLE="${INGESTION_CONTROL_ATTESTOR_ROLE:-ingestion_control_attestor}"
-export MIGRATOR_ROLE APP_ROLE AUTHORITY_ROLE ATTESTOR_ROLE
+ADOPTER_ROLE="${INGESTION_CONTROL_ADOPTER_ROLE:-ingestion_control_adopter}"
+ADOPTER_ENABLED=0
+if [[ -n "${INGESTION_CONTROL_ADOPTER_PASSWORD:-}" ]]; then
+    ADOPTER_ENABLED=1
+    export INGESTION_CONTROL_ADOPTER_PASSWORD
+fi
+export MIGRATOR_ROLE APP_ROLE AUTHORITY_ROLE ATTESTOR_ROLE ADOPTER_ROLE ADOPTER_ENABLED
 
 # Remédiation revue PR#90 : un rôle mal formé (guillemet, espace) échoue
 # maintenant explicitement avant tout accès base, jamais interpolé tel quel.
-for role in "$MIGRATOR_ROLE" "$APP_ROLE" "$AUTHORITY_ROLE" "$ATTESTOR_ROLE"; do
+for role in "$MIGRATOR_ROLE" "$APP_ROLE" "$AUTHORITY_ROLE" "$ATTESTOR_ROLE" "$ADOPTER_ROLE"; do
     if [[ ! "$role" =~ ^[a-z_][a-z0-9_]{0,62}$ ]]; then
         printf 'ERROR: invalid PostgreSQL role name: %s\n' "$role" >&2
         exit 1
@@ -77,6 +87,10 @@ done
 # script est censé garantir pour chacun d'eux indépendamment.
 all_roles=("$MIGRATOR_ROLE" "$APP_ROLE" "$AUTHORITY_ROLE" "$ATTESTOR_ROLE")
 all_role_names=(MIGRATOR_ROLE APP_ROLE AUTHORITY_ROLE ATTESTOR_ROLE)
+if [[ "$ADOPTER_ENABLED" == 1 ]]; then
+    all_roles+=("$ADOPTER_ROLE")
+    all_role_names+=(ADOPTER_ROLE)
+fi
 for ((i = 0; i < ${#all_roles[@]}; i++)); do
     for ((j = i + 1; j < ${#all_roles[@]}; j++)); do
         if [[ "${all_roles[$i]}" == "${all_roles[$j]}" ]]; then
@@ -108,10 +122,15 @@ psql -X -q --single-transaction -v ON_ERROR_STOP=1 <<'SQL'
 \getenv app_role APP_ROLE
 \getenv authority_role AUTHORITY_ROLE
 \getenv attestor_role ATTESTOR_ROLE
+\getenv adopter_enabled ADOPTER_ENABLED
+\getenv adopter_role ADOPTER_ROLE
 \getenv migrator_password INGESTION_CONTROL_MIGRATOR_PASSWORD
 \getenv app_password INGESTION_CONTROL_APP_PASSWORD
 \getenv authority_password INGESTION_CONTROL_AUTHORITY_PASSWORD
 \getenv attestor_password INGESTION_CONTROL_ATTESTOR_PASSWORD
+\if :adopter_enabled
+\getenv adopter_password INGESTION_CONTROL_ADOPTER_PASSWORD
+\endif
 
 -- Créer ou faire évoluer les deux rôles, idempotent.
 --
@@ -169,6 +188,16 @@ SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT
 WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'attestor_role')
 \gexec
 
+\if :adopter_enabled
+SELECT format('CREATE ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', :'adopter_role', :'adopter_password')
+WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'adopter_role')
+\gexec
+
+SELECT format('ALTER ROLE %I LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD %L', :'adopter_role', :'adopter_password')
+WHERE EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'adopter_role')
+\gexec
+\endif
+
 -- Remédiation revue PR#90 (Cubic P1, revue incrémentale) : ni MIGRATOR_ROLE
 -- ni APP_ROLE ne doivent jamais rester membres d'un autre rôle. NOINHERIT
 -- (ci-dessus) empêche seulement l'héritage *automatique* des privilèges
@@ -205,6 +234,14 @@ FROM pg_auth_members m
 JOIN pg_roles g ON g.oid = m.roleid
 WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = :'attestor_role')
 \gexec
+
+\if :adopter_enabled
+SELECT format('REVOKE %I FROM %I', g.rolname, :'adopter_role')
+FROM pg_auth_members m
+JOIN pg_roles g ON g.oid = m.roleid
+WHERE m.member = (SELECT oid FROM pg_roles WHERE rolname = :'adopter_role')
+\gexec
+\endif
 
 -- Rôle de migration : seul habilité à créer/modifier le schéma. Ne reçoit
 -- aucun privilège de données au-delà de ce qui est nécessaire pour créer
@@ -391,6 +428,28 @@ REVOKE INSERT, UPDATE, DELETE, TRUNCATE
 GRANT EXECUTE ON FUNCTION ingestion_control.artifact_attribution_digest(
     uuid, text, boolean, text, text) TO :"attestor_role" ;
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM :"attestor_role" ;
+
+-- Adoption V2 : un cinquième rôle facultatif, provisionné uniquement quand
+-- son mot de passe est fourni explicitement. Il peut créer les nouvelles
+-- lignes de contrôle et leur filiation dans UNE transaction. Il ne peut ni
+-- modifier le passé, ni attester, ni créer des jobs, ni écrire un scope.
+\if :adopter_enabled
+SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), :'adopter_role')
+\gexec
+GRANT USAGE ON SCHEMA ingestion_control TO :"adopter_role" ;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ingestion_control FROM :"adopter_role" ;
+GRANT SELECT, INSERT ON ingestion_control.ingestion_runs TO :"adopter_role" ;
+GRANT SELECT, INSERT ON ingestion_control.resources TO :"adopter_role" ;
+GRANT SELECT, INSERT ON ingestion_control.artifacts TO :"adopter_role" ;
+GRANT SELECT, INSERT ON ingestion_control.workflow_events TO :"adopter_role" ;
+GRANT SELECT, INSERT ON ingestion_control.artifact_attributions TO :"adopter_role" ;
+GRANT SELECT, INSERT ON ingestion_control.sealed_release_adoptions TO :"adopter_role" ;
+GRANT SELECT ON ingestion_control.scope_authorizations TO :"adopter_role" ;
+GRANT EXECUTE ON FUNCTION ingestion_control.artifact_attribution_digest(
+    uuid, text, boolean, text, text) TO :"adopter_role" ;
+REVOKE UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA ingestion_control FROM :"adopter_role" ;
+REVOKE ALL PRIVILEGES ON SCHEMA public FROM :"adopter_role" ;
+\endif
 SQL
 
 echo "ROLES_PROVISIONED=1"

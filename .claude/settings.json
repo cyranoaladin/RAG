@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git rev-parse *)",
+      "Bash(git branch --show-current)",
+      "Bash(git worktree list *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-files *)",
+      "Bash(git merge-base *)",
+      "Bash(gh pr view *)",
+      "Bash(gh pr list *)",
+      "Bash(gh pr checks *)",
+      "Bash(gh pr diff *)",
+      "Bash(gh run list *)",
+      "Bash(gh run view *)",
+      "Bash(make lint)",
+      "Bash(make typecheck)",
+      "Bash(make test)",
+      "Bash(make doctor)",
+      "Bash(python3 -m pytest *)",
+      "Bash(bash scripts/check-governance-locks.sh)",
+      "Bash(bash scripts/check-authority-uniqueness.sh)",
+      "Bash(bash scripts/check-repository-hygiene.sh)",
+      "Bash(python3 scripts/go_live/check_go_live_readiness.py --assert-ready)",
+      "Bash(python3 scripts/go_live/check_go_live_readiness.py --check-only)"
+    ],
+    "ask": [
+      "Bash(git push *)",
+      "Bash(git reset --hard *)",
+      "Bash(git clean *)",
+      "Bash(git worktree remove *)",
+      "Bash(gh pr merge *)",
+      "Bash(gh pr close *)",
+      "Bash(gh pr ready *)",
+      "Bash(gh pr review *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(rsync *)",
+      "Bash(psql *)",
+      "Bash(pg_dump *)",
+      "Bash(pg_restore *)",
+      "Bash(docker system prune *)",
+      "Bash(docker volume rm *)",
+      "Bash(docker volume prune *)",
+      "Bash(docker push *)",
+      "Bash(sudo *)",
+      "Bash(gh * merge *)",
+      "Bash(gh * close *)",
+      "Bash(gh * ready *)",
+      "Bash(gh * reopen *)",
+      "Bash(gh * review *)",
+      "Bash(gh * edit *)",
+      "Bash(gh * create *)",
+      "Bash(gh * comment *)",
+      "Bash(gh * delete *)",
+      "Bash(gh api * -X *)",
+      "Bash(gh api * --method *)",
+      "Bash(gh api * -f *)",
+      "Bash(gh api * -F *)",
+      "Bash(gh api * --field *)",
+      "Bash(gh api * --raw-field *)",
+      "Bash(gh api * --input *)",
+      "Bash(*.env*)",
+      "Bash(*.seed*)",
+      "Bash(*.pem*)",
+      "Bash(*.key*)",
+      "Bash(*id_rsa*)",
+      "Bash(*id_ed25519*)"
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(!.env.example)",
+      "Read(*.pem)",
+      "Read(*.key)",
+      "Read(*.seed)",
+      "Read(**/creds/**)",
+      "Read(.pgpass)",
+      "Read(~/.ssh/**)",
+      "Read(~/.pgpass)",
+      "Read(~/.netrc)",
+      "Read(~/.git-credentials)",
+      "Read(~/.config/gh/hosts.yml)",
+      "Read(~/.claude/.credentials.json)",
+      "Read(~/.claude/seed-admin/**)",
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(!.env.example)",
+      "Edit(*.pem)",
+      "Edit(*.key)",
+      "Edit(*.seed)",
+      "Read(*.seed.hex)",
+      "Edit(*.seed.hex)",
+      "Bash(gh * --approve*)",
+      "Bash(gh auth token*)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "1",
+    "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "3"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/scripts/claude/session-context.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|Read|Grep|Glob|Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/scripts/claude/pretool-guard.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/scripts/claude/post-edit-check.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/scripts/claude/stop-check.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

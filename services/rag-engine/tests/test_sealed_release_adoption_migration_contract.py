@@ -28,7 +28,7 @@ def _code(path: Path) -> str:
 
 def test_la_migration_018_est_la_tete_declaree_et_reversible() -> None:
     assert (MIGRATIONS / "HEAD").read_text(encoding="utf-8") == (
-        "019_sealed_release_publication_authorizations\n"
+        "020_successor_control_resource_identity\n"
     )
     assert MIGRATION.is_file()
     assert ROLLBACK.is_file()
