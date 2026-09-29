@@ -304,3 +304,7 @@ doivent encore porter les corrections des défauts 1 et 2 (Worker B et
 publication_resume) ; une image construite sur le `main` actuel refuserait
 de démarrer sur V5. Aucun build ni opération serveur ne fait partie de cette
 PR.
+
+Suite : les défauts 1 et 2 sont corrigés par le lot
+`lot_go_live_hggsp_v5_worker_b_runtime.md` (PR distincte, #271 étant
+fusionnée).
