@@ -1,10 +1,112 @@
 # Plan gouverné — complément HGGSP après V4 DI
 
-**Statut : préparation hors serveur.** Ce document ne constitue pas une
-autorisation de staging. L'autorisation proposée dans
-`docs/reports/go_live/authorizations/proposed/` est inactive ; une PR
-d'activation distincte, approuvée au HEAD exact puis fusionnée, devra nommer
-les opérations, les images par digest et leurs preuves de provenance.
+**Statut : PR d'activation candidate, sans opération serveur.** Ce document
+ne constitue pas à lui seul une autorisation de staging. Le fichier actif
+`docs/reports/go_live/authorizations/staging_hggsp_complementary_authorization.json`
+est inutilisable tant qu'il n'est pas présent, identique octet pour octet,
+dans `origin/main` après approbation au HEAD exact et fusion de cette PR.
+
+## Images et chaîne opérateur après fusion
+
+- Provenance canonique : `production-image-provenance.yml`, run
+  `36633288414`, tentative `1`, artifact `11062997847` (ZIP
+  `4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946`).
+  L'inventaire a le SHA-256
+  `5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767`.
+  Commit source des images : `a9e3701965503d2862a248c46fd7e7e175058c8f`
+  (arbre `68a4f905a4e42faeaf7671b1fb4016643ede921f`), qui porte #271
+  (migration 020, adoption V2) et #273 (Worker B pour V5). Le futur commit
+  d'activation est la fusion de cette PR ; il n'a pas à égaler ce commit.
+- Worker B :
+  `ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf`.
+  Retrieval :
+  `ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf`.
+- Octets exécutés : le CLI d'adoption V2, Worker B et `ingestor.*` viennent
+  de l'image ; l'orchestrateur, le vérificateur, le prévol, le dérivateur de
+  DSN, la migration 020, le runner et le provisionneur adopter viennent du
+  checkout fusionné (monté en `/repo` ou exécutés sur l'hôte). Aucun de ces
+  derniers n'est requis dans l'image : pas de nouveau build.
+- Première action opérateur après fusion : signer localement la readiness
+  successeur avec
+  `scripts/go_live/sign_staging_hggsp_successor_readiness.sh`, sous la clé
+  privée gardée hors du dépôt. Aucune graine n'est lue avant le contrôle
+  d'autorisation fusionnée. Vérifier les deux fichiers signés.
+- Ensuite, `scripts/go_live/staging_hggsp_complementary.sh run` exécute dans
+  cet ordre : `successor_readiness_install`, `successor_preflight`,
+  `successor_control_schema_020_and_adopter_role`,
+  `successor_scope_authorization_registration_r4`,
+  `successor_sealed_ingestion_or_binding`,
+  `successor_batch_review_proposal`. Ce dernier s'arrête obligatoirement pour
+  une revue batch humaine distincte. Une reprise explicite, après revue
+  approuvée au HEAD exact, permet `successor_batch_review_record`,
+  `successor_attestations`, `successor_publication_job_enqueue`,
+  `successor_worker_b_publication`, `successor_independent_verification`.
+- Avant l'enregistrement r4, renseigner `SCOPE_REVIEW_PR` et
+  `SCOPE_REVIEW_HEAD` d'une revue humaine des deux artefacts r4, distincte de
+  #262. Le script vérifie l'approbation live au HEAD exact. Le jeton GitHub
+  de lecture gouverné doit être disponible pour chaque contrôle live.
+- Le Worker B journalise et borne conjointement
+  `claim_release_id=production-profile-gate-2026-2027-v5-hggsp` et
+  `claim_scope=rag_nexus_hggsp_premiere_specialite,rag_nexus_hggsp_terminale_specialite`.
+  Le filtre est appliqué dans la transaction de claim par la liaison
+  `job → publication_attestation_id → publication_attestations.release_id`.
+- Les deux scopes successeurs sont ceux livrés par #269 :
+  `prod_hggsp_premiere_specialite_v3` et
+  `prod_hggsp_terminale_specialite_v3`. Leurs autorités V4 historiques
+  restent inchangées.
+
+## Opération `successor_control_schema_020_and_adopter_role`
+
+Cible : base `ragdb_profile_gate_v4`, schéma `ingestion_control`,
+019 → 020 (`020_successor_control_resource_identity.sql`, octets de
+`main`), rôle `ingestion_control_adopter`. Logique :
+`scripts/go_live/hggsp_control_schema_020.py apply` sur l'hôte, sous le
+compte administratif du conteneur PostgreSQL, qui n'est transmis à aucun
+conteneur.
+
+1. **Préflight en lecture seule, valable sur 019** : base et rôle
+   administratif, tête 19 (ou 20 déjà présente : jamais rejouée), registre des
+   migrations contigu et SHA-256 identiques aux fichiers, aucun job en cours
+   ni sous bail, aucun conteneur worker actif, espace disque suffisant pour
+   la sauvegarde. Les colonnes de 020 ne sont nommées qu'une fois prouvées
+   présentes. Le prévol HGGSP (autorité fusionnée, #262 live, V4, 74 anciens
+   jobs, `ragdb`) précède l'étape comme toutes les autres.
+2. **Sauvegarde** `pg_dump -Fc` de la base cible, 0600 sous un répertoire
+   0700, relue par `pg_restore --list`.
+3. **Secret** (`/srv/nexus-staging/secrets/hggsp-adopter`, 0700 ; fichier
+   0600, propriétaire vérifié, liens refusés), généré par `secrets` et
+   CONSERVÉ avant le rôle : secret et rôle absents → création ; secret seul →
+   réutilisé ; rôle et secret présents → connexion réelle exigée ; rôle
+   présent sans secret, ou secret incohérent → **refus, aucune
+   réinitialisation**. Jamais dans un argument, une sortie, un journal ni un
+   fichier versionné.
+4. **Migration** par `bootstrap_ingestion_control_schema.sh` (runner
+   canonique, superutilisateur : propriété historique des tables),
+   `lock_timeout` de 020 respecté : une contention est un arrêt explicite.
+5. **Rôle** par `provision_ingestion_control_adopter_role.sh`, provisionneur
+   CIBLÉ : aucun autre rôle n'est touché (pas de rotation, d'attribut ni
+   d'appartenance). Le serveur ne reçoit qu'un vérificateur SCRAM calculé sur
+   l'hôte, la journalisation des instructions étant coupée pour la
+   transaction. **Effet global au cluster** : un rôle est créé (catalogue
+   partagé) ; ses privilèges de données sont bornés à la base cible.
+6. **DSN** : `staging_v4_role_env.py --adopter-only` écrit le seul
+   `ingestion-control-adopter.env` (0600), sans relire ni réécrire les cinq
+   fichiers existants.
+7. **Vérifications** : connexion adopter réelle ; droits EFFECTIFS
+   (appartenances, PUBLIC, fonctions `SECURITY DEFINER`, écriture produit,
+   CREATE de schéma) ; empreintes des tables de contrôle identiques
+   avant/après (colonnes 020 exclues) ; tête 20 et contraintes de 020 ;
+   aucune adoption V2 créée. Les accès hérités de PUBLIC hors mandat (CONNECT
+   sur d'autres bases, lecture produit) sont **rapportés**, jamais corrigés
+   par un `REVOKE` global.
+
+Reprise : chaque exécution repart de l'état réel (marqueur ignoré). Fichier
+secret, DDL et DSN ne sont pas une transaction atomique : l'ordre 3 → 5
+empêche un rôle utilisable sans secret conservé. Rollback 020 → 019 : runner
+canonique, refusé dès qu'une adoption V2 ou une valeur `successor_*`
+existe ; il laisse le rôle, son secret et le fichier DSN en place (état
+résiduel à documenter, aucune suppression automatique). Aucun rollback
+automatique après une panne de dérivation.
 
 ## Identités et frontière
 
@@ -34,10 +136,10 @@ les opérations, les images par digest et leurs preuves de provenance.
 - La base historique `ragdb` reste hors périmètre. Aucune bascule `current`,
   aucun service de production ni exposition publique ne découle de ce plan.
 
-## Phase 0 — autorité et prévol, sous une future PR distincte
+## Phase 0 — prérequis accomplis et gardes à maintenir
 
-1. Fusionner la PR de **production de release**, puis vérifier que le checkout
-   opérateur est exactement le `main` qui contient les octets scellés. Relire
+1. La PR de **production de release** est fusionnée. Le checkout opérateur doit
+   rester exactement le `main` qui contient les octets scellés. Relire
    par les chargeurs canoniques le manifeste successeur, le mapping sujets,
    les deux profils, l'inventaire, le reçu PII, les mappings niveau et type de
    document et le registre mixte version 2. Refuser toute divergence de SHA,
@@ -48,16 +150,15 @@ les opérations, les images par digest et leurs preuves de provenance.
    puis les manifestes E5 et reranker contre leurs inventaires `SHA256SUMS`
    épinglés. Le delta de catalogue et les descripteurs d'autorité logiques
    copiés doivent également correspondre aux empreintes source scellées.
-2. Produire hors hôte une nouvelle image Worker B à partir de ce `main` et
-   enregistrer son digest, le commit source et l'inventaire de provenance.
-   Le chargeur du registre mixte étant nouveau, l'image précédente n'est pas
-   une preuve de ces octets. Construire et épingler également l'image du
-   moteur de retrieval qui embarque le chargeur v2 avant d'envisager le
-   registre mixte comme cible de runtime. Ne rien reconstruire sur
+2. Les images Worker B et retrieval ont été construites hors hôte depuis le
+   `main` contenant #271 et #273. Leur provenance est le run `36633288414`,
+   lié au commit source `a9e3701965503d2862a248c46fd7e7e175058c8f`.
+   Les images antérieures (run `36476516316`) ne contiennent ni l'adoption V2
+   ni les correctifs Worker B : elles sont refusées. Ne rien reconstruire sur
    `nexus-prod`.
-3. Soumettre une **nouvelle autorisation de staging** liée au manifeste
-   successeur, au registre mixte, à ces images et à leurs SHA. La placer à son
-   chemin actif uniquement dans cette PR d'activation. Son approbation au
+3. La présente PR soumet une **nouvelle autorisation de staging** liée au
+   manifeste successeur, au registre mixte, à ces images et à leurs SHA. Elle
+   place le fichier à son chemin actif, mais son approbation au
    HEAD exact et sa fusion sont nécessaires avant toute mutation. L'autorité
    borne la cible à `ragdb_profile_gate_v4`, à deux collections et à 74
    placements ; elle interdit d'adopter ou republier les 405 V4 et de toucher
@@ -83,10 +184,15 @@ les opérations, les images par digest et leurs preuves de provenance.
    être émis par un registre successeur HGGSP dédié. Relire leurs autorités puis les
    faire approuver sur une PR ouverte et au HEAD exact ; enregistrer les deux
    r4 par le CLI canonique et le rôle `ingestion_control_authority`.
-3. Acquérir ou lier les 74 placements sous la **nouvelle** release, en
-   vérifiant l'identité d'octets des 52 artefacts et l'absence de publication
-   HGGSP préalable. Le registre mixte attribue chaque collection à un seul
-   manifeste ; aucune autorisation V4 HGGSP n'est réemployée.
+3. Adopter les 74 placements sous la **nouvelle** release par l'adoption
+   **V2** (`--adoption-version SEALED-RELEASE-ADOPTION-V2`, DSN adopter), qui
+   crée 74 ressources et 74 artefacts de contrôle successeurs distincts des
+   lignes V4 — l'adoption V1 heurterait les 74 attestations V4 actives
+   (`ATTESTATION_CONFLICT`, démontré par #271). Vérifier l'identité d'octets
+   des 52 artefacts, puis la filiation par ensembles et identités
+   (`--verify-v2-lineage`) : prédécesseurs = les 74 ressources V4 HGGSP dont
+   l'attestation reste active, successeurs disjoints, anciens jobs
+   inchangés. Aucune autorisation V4 HGGSP n'est réemployée.
 4. Produire une proposition de revue batch bornée aux 74 placements et à
    la chaîne PII du successeur. Attendre la décision humaine sur une PR
    distincte, ouverte et au HEAD exact ; enregistrer ensuite la revue,

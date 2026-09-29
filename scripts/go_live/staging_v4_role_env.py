@@ -18,6 +18,10 @@ qui évite tout encodage d'URL du mot de passe ; les fichiers sont lus par
     set -a; . staging.env; . ingestion_control.env; set +a
     python3 staging_v4_role_env.py --database ragdb_profile_gate_v4 \\
         --out-dir /srv/nexus-staging/secrets/v4-roles
+
+Adoption V2 : ``--adopter-only`` dérive le seul sixième fichier
+(``INGESTION_CONTROL_ADOPTER_PASSWORD`` requis), les cinq autres n'étant ni
+exigés, ni lus, ni réécrits.
 """
 
 from __future__ import annotations
@@ -47,6 +51,14 @@ FICHIERS: dict[str, tuple[str, str, str]] = {
     "rag-publisher.env": ("PG_RAG_DSN", "rag_publisher", "PGVECTOR_PUBLISHER_PASSWORD"),
     "rag-reader.env": ("PG_RAG_DSN", "rag_reader", "PGVECTOR_RETRIEVAL_PASSWORD"),
 }
+#: Adoption V2 (HGGSP) : sixième fichier, produit SEULEMENT sur demande
+#: explicite (``--adopter-only``), sans relire ni réécrire les cinq autres.
+FICHIER_ADOPTER: dict[str, tuple[str, str, str]] = {
+    "ingestion-control-adopter.env": (
+        "PG_INGESTION_CONTROL_ADOPTER_DSN", "ingestion_control_adopter",
+        "INGESTION_CONTROL_ADOPTER_PASSWORD",
+    ),
+}
 NOM_BASE = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
 
@@ -58,7 +70,10 @@ def _valeur_libpq(valeur: str) -> str:
     return "'" + valeur.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def contenus(environ: Mapping[str, str], *, database: str) -> dict[str, str]:
+def contenus(
+    environ: Mapping[str, str], *, database: str,
+    fichiers: Mapping[str, tuple[str, str, str]] = FICHIERS,
+) -> dict[str, str]:
     """Le contenu de chaque fichier, sans rien écrire."""
     if not NOM_BASE.match(database) or database == "ragdb":
         raise DerivationRefusee(f"base cible invalide ou historique : {database!r}")
@@ -66,7 +81,7 @@ def contenus(environ: Mapping[str, str], *, database: str) -> dict[str, str]:
     if not port.isdigit():
         raise DerivationRefusee("PGVECTOR_PORT absent ou non numérique")
     sortie: dict[str, str] = {}
-    for fichier, (variable, role, source) in FICHIERS.items():
+    for fichier, (variable, role, source) in fichiers.items():
         secret = environ.get(source, "")
         if not secret:
             raise DerivationRefusee(f"{source} absent : {fichier} ne peut être dérivé")
@@ -133,14 +148,22 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--database", required=True)
     parser.add_argument("--out-dir", required=True, type=Path)
+    parser.add_argument(
+        "--adopter-only", action="store_true",
+        help="dériver seulement ingestion-control-adopter.env (adoption V2)",
+    )
     args = parser.parse_args(argv)
+    fichiers = FICHIER_ADOPTER if args.adopter_only else FICHIERS
     try:
-        etats = ecrire(contenus(os.environ, database=args.database), dossier=args.out_dir)
+        etats = ecrire(
+            contenus(os.environ, database=args.database, fichiers=fichiers),
+            dossier=args.out_dir,
+        )
     except DerivationRefusee as exc:
         print(f"ROLE_ENV_REFUSED: {exc}", file=sys.stderr)
         return 2
     for nom, etat in etats.items():
-        variable, role, _source = FICHIERS[nom]
+        variable, role, _source = fichiers[nom]
         print(f"ROLE_ENV {etat} {nom} variable={variable} role={role} mode=0600")
     print(f"ROLE_ENV_DONE count={len(etats)} dir_mode=0700")
     return 0
