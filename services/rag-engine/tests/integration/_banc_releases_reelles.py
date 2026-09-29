@@ -133,15 +133,16 @@ def remplacer(arguments: Sequence[str], option: str, valeur: str) -> list[str]:
     return copie
 
 
-def magasin_reel(tmp_path: Path) -> Path:
+def magasin_reel(tmp_path: Path, *, release_dir: Path = V2_DIR) -> Path:
     """Le magasin d'artefacts, reconstruit depuis les miroirs et rehaché.
 
-    Les 315 contenus sont communs à V2, V3 et V4."""
+    Les 315 contenus sont communs à V2, V3 et V4 ; ``release_dir`` restreint
+    le magasin au catalogue d'une autre release (les 52 de HGGSP V5)."""
     brut = os.environ.get(MIRRORS_ENV, "").strip()
     if not brut:
         raise AssertionError(f"{MIRRORS_ENV} is required: the 315 real PDFs are never assumed")
     racines = [Path(r) for r in brut.split(":") if r.strip()]
-    catalogue = json.loads((V2_DIR / "artifacts.release.json").read_bytes())
+    catalogue = json.loads((release_dir / "artifacts.release.json").read_bytes())
     magasin = tmp_path / "artifact-store"
     magasin.mkdir()
     absents: list[str] = []
@@ -158,14 +159,28 @@ def magasin_reel(tmp_path: Path) -> Path:
     return magasin
 
 
-def transfert_nomme(tmp_path: Path, release_id: str) -> Path:
+def transfert_nomme(tmp_path: Path, release_id: str, *, release_dir: Path | None = None) -> Path:
     """Un manifeste de transfert au nom de ``release_id`` — document de TEST
-    dérivé de celui de V2 (mêmes 315 objets), jamais une preuve."""
+    dérivé de celui de V2 (mêmes 315 objets), jamais une preuve.
+
+    ``release_dir`` restreint les objets au catalogue de cette release (les 52
+    de HGGSP V5) : Worker B n'établit le format que sur un transfert qui
+    couvre EXACTEMENT le catalogue."""
     chemin = tmp_path / f"bench_{release_id}_artifact_transfer_manifest.json"
+    source = json.loads(TRANSFER_V2.read_bytes())
+    if release_dir is not None:
+        catalogue = {
+            entree["content_sha256"]
+            for entree in json.loads((release_dir / "artifacts.release.json").read_bytes())["artifacts"]
+        }
+        source["files"] = [f for f in source["files"] if f["sha256_expected"] in catalogue]
+        assert len(source["files"]) == len(catalogue)
+        source["file_count"] = len(source["files"])
+        source.pop("total_bytes_source", None)
     chemin.write_text(
         json.dumps(
             {
-                **json.loads(TRANSFER_V2.read_bytes()),
+                **source,
                 "release_id": release_id,
                 "manifest_kind": "REAL_RELEASE_ADOPTION_BENCH_TRANSFER_V1",
                 "bench_note": "test document derived from the V2 transfer; not evidence",
@@ -380,6 +395,7 @@ def arguments_worker_b(
     magasin: Path,
     transfert: Path,
     modele: Path,
+    subjects_mapping: str = "services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml",
 ) -> list[str]:
     """La sémantique EXACTE de ``scripts/go_live/staging_v3_arguments.worker_b``
     appliquée à ``release_dir``, chemins du conteneur remplacés par ceux du
@@ -416,7 +432,7 @@ def arguments_worker_b(
         ("--programme-registry", "programme_registry_sha256", None, "programme_registry.json"),
         ("--pii-evidence", "pii_evidence_sha256", None, "pii_evidence.json"),
         ("--levels-mapping", "level_mapping_sha256", "services/rag-engine/configs/mappings/eduscol_multilevel_levels.yml", None),
-        ("--subjects-mapping", "subject_mapping_sha256", "services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml", None),
+        ("--subjects-mapping", "subject_mapping_sha256", subjects_mapping, None),
         ("--document-types-mapping", "document_type_mapping_sha256", "services/rag-engine/configs/mappings/eduscol_multilevel_document_types.yml", None),
         ("--rights-evidence", "rights_registry_sha256", "services/rag-pedago/configs/rights_evidence_registry.yml", None),
         ("--pii-decision-set", "pii_decision_set_sha256", CHAINE_PII["--pii-decision-set-path"], None),

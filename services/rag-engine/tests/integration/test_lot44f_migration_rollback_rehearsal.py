@@ -289,14 +289,16 @@ class TestPartialRollbackIsRefused:
         installation neuve, registre troué (refus), reprise depuis un
         préfixe cohérent, puis base déjà à la tête.
 
-        Le trou est pris sur la paire indépendante la plus récente : 019
-        référence les adoptions de 018, si bien que défaire 018 sous 019 est
-        refusé par la base elle-même (épreuve 1 bis) ; 018 ne dépend pas de
-        017. La tête est donc défaite proprement, puis 017 sous 018.
+        Le trou est pris sur la paire historique 018/017 : 019 référence
+        les adoptions de 018, si bien que défaire 018 sous 019 est refusé
+        par la base elle-même (épreuve 1 bis) ; 018 ne dépend pas de 017.
+        Les têtes ultérieures sont d'abord défaites proprement, puis 017
+        est retirée sous 018.
         """
         tete = _MIGRATION_VERSIONS[-1]
-        posterieure = _MIGRATION_VERSIONS[-2]
-        trou = _MIGRATION_VERSIONS[-3]
+        posterieure = 18
+        trou = 17
+        tetes_ulterieures = [version for version in _MIGRATION_VERSIONS if version > posterieure]
 
         # 1) Installation neuve.
         neuve = _run_bootstrap(pg_container)
@@ -311,10 +313,11 @@ class TestPartialRollbackIsRefused:
             conn.rollback()
             assert _versions_enregistrees(conn) == complet
 
-        # 2) Rembobinage PARTIEL : la tête est défaite proprement, puis
+        # 2) Rembobinage PARTIEL : les têtes sont défaites proprement, puis
         #    ``trou`` l'est alors que ``posterieure`` reste enregistrée.
         with psycopg.connect(_superuser_dsn(pg_container)) as conn:
-            _apply_rollback_file(conn, version=tete)
+            for version in reversed(tetes_ulterieures):
+                _apply_rollback_file(conn, version=version)
             _apply_rollback_file(conn, version=trou)
             troue = _versions_enregistrees(conn)
         assert trou not in troue
@@ -334,11 +337,11 @@ class TestPartialRollbackIsRefused:
         with psycopg.connect(_superuser_dsn(pg_container)) as conn:
             _apply_rollback_file(conn, version=posterieure)
             prefixe = _versions_enregistrees(conn)
-        assert prefixe == _MIGRATION_VERSIONS[:-3]
+        assert prefixe == _MIGRATION_VERSIONS[:_MIGRATION_VERSIONS.index(trou)]
 
         reprise = _run_bootstrap(pg_container)
         assert reprise.returncode == 0, reprise.stderr
-        assert "MIGRATIONS_APPLIED=3" in reprise.stdout, reprise.stdout
+        assert f"MIGRATIONS_APPLIED={len(tetes_ulterieures) + 2}" in reprise.stdout, reprise.stdout
         assert f"SCHEMA_HEAD={tete}" in reprise.stdout
 
         # 4) Base déjà à la tête : rien n'est réappliqué.
