@@ -23,7 +23,9 @@ docs/ROADMAP.md        — gates jusqu'à la production
 
 Décision fondatrice : ADR-0001 (séparation plan de contrôle / plan de données / cockpit).
 Les `AGENTS.md` de service précisent leur périmètre ; en cas de contradiction, ce fichier et les ADR
-acceptés prévalent, et la contradiction est signalée dans le rapport de lot.
+acceptés prévalent, et la contradiction est signalée dans le rapport de lot. Cette précédence est
+une consigne de lecture, pas un mécanisme des outils : tous les fichiers d'instructions sont
+chargés ensemble, et une contradiction se corrige à la source.
 
 ## Règles cross-service (impératives)
 

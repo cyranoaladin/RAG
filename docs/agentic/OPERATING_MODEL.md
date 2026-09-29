@@ -44,11 +44,12 @@ JSON, résumés de session et mémoires d'agent ne sont jamais une source LIVE.
 |---|---|---|
 | `AGENTS.md`, `CLAUDE.md`, rules | orienter le comportement | contexte, pas contrainte |
 | Permissions (`.claude/settings.json`) | `deny` secrets, `ask` mutations externes | une commande reformulée peut échapper à un motif |
-| Hook `pretool-guard.py` | analyse chaque commande : `deny`/`ask` | heuristique ; échoue fermé sur erreur interne |
+| Hook `pretool-guard.sh` | analyse chaque commande : `deny`/`ask` | heuristique ; échoue fermé sur erreur, interpréteur absent ou lenteur, pas si le script manque ou si Claude Code coupe le hook |
 | CI (gardes de gouvernance, tests de refus) | non-régression mécanique | ne voit pas le live |
 | Revue humaine sur head exact | autorité de fusion et d'activation | — |
 
-Aucune couche ne suffit seule ; aucune ne se contourne.
+Aucune couche ne suffit seule ; aucune ne se contourne. Aucune n'est une isolation du
+système : ce dépôt n'installe pas de sandbox OS.
 
 ## 5. Sous-agents
 

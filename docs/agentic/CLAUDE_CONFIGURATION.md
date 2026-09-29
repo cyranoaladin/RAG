@@ -34,13 +34,49 @@ Pas de `.mcp.json` ni de `.worktreeinclude` : aucun besoin actuel (voir plus bas
 | Événement | Script | Effet |
 |---|---|---|
 | SessionStart | `session-context.sh` | worktree, branche, HEAD, `origin/main` du dernier fetch (daté), PR de la branche |
-| PreToolUse | `pretool-guard.py` | `deny` : écriture sur `main`, push forcé ou vers `main`, lecture de secret, auto-approbation ; `ask` : SSH/scp/rsync, psql distant, `gh pr merge/close/…`, `gh api` en écriture, push, `reset --hard`, `clean -f`, `rm -r` hors worktree ou sur motif, bascule `current`, Docker distant/prune |
+| PreToolUse | `pretool-guard.sh` → `pretool-guard.py` | `deny` : écriture sur `main`, push forcé ou vers `main`, lecture de secret (chemin, motif, lien, lecture récursive, redirection), auto-approbation, affichage de jeton ; `ask` : SSH/scp/rsync, psql distant, `sudo`, mutations `gh` (options héritées `-R/--repo` comprises), push, `reset --hard`, `clean -f`, `rm -r` hors worktree ou sur motif, bascule `current`, Docker distant/prune, et toute commande que le garde ne sait pas classer |
 | PostToolUse (Write/Edit) | `post-edit-check.sh` | `git diff --check`, syntaxe Python/Bash/JSON/YAML, ruff (erreurs fatales), chemin absolu ajouté — quelques secondes, jamais de suite de tests |
 | Stop | `stop-check.sh` | espaces fautifs, secret probable dans un fichier modifié, fichier non suivi suspect |
 
 - Variables : `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` (pas de sous-agent imbriqué),
   `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS=3`.
 - `permissions.disableBypassPermissionsMode: "disable"` : le mode sans garde est refusé dans ce dépôt.
+- Les `allow` de `.claude/settings.json` ne s'appliquent qu'après acceptation interactive de la
+  confiance du dossier (jamais en `claude -p`) ; `deny`, `ask` et les hooks s'appliquent toujours.
+
+## Deux couches de protection, et leurs limites
+
+Les règles natives (`deny`/`ask`) et le garde PreToolUse sont indépendants. Ni l'une ni
+l'autre n'est une frontière de sécurité : aucune isolation OS (sandbox) n'est installée par
+ce dépôt, et un programme qui ouvre lui-même des fichiers (script Python, Node…) échappe
+aux deux.
+
+| Couche | Ce qu'elle voit | Ce qu'elle ne voit pas (mesuré) |
+|---|---|---|
+| Règles natives | texte de la commande après retrait des préfixes `timeout`, `nice`, `nohup`, `command`… ; fichiers nommés par `cat`, `head`, `tail`, `sed` ; outils Read/Edit/Write (liens résolus) | `sudo` et options de `gh` placées avant la sous-commande sans règle dédiée ; lecture récursive (`grep -r`) ; tout ce qui n'est pas écrit en clair |
+| Garde (`pretool-guard.sh`) | préfixes et leurs options, options héritées de `gh`, motifs développés en Python, liens, arbres parcourus pour `grep -r`/`find -exec`, substitutions `$(…)`, heredocs vers un shell, composition | programmes qui lisent sans nommer (scripts), alias shell, commandes construites dynamiquement hors `eval` (reçoivent `ask`) |
+
+Comportement réel en panne (Claude Code 2.1.284, mesuré par
+`scripts/tests/claude_permissions_integration.py`) :
+
+| Panne | Effet | Défense restante |
+|---|---|---|
+| Exception dans le garde Python | `deny` | — |
+| Interpréteur Python absent | `deny` (enveloppe `sh`) | — |
+| Garde plus lent que 10 s | `deny` (enveloppe, avant le délai de 15 s de Claude Code) | — |
+| Délai du hook dépassé côté Claude Code | l'action **passe** | règles natives |
+| Script du hook absent (mesuré) ; `/bin/sh` indisponible (non mesuré, même mécanisme) | l'action **passe** | règles natives |
+
+Les règles natives du dépôt arrêtent seules sudo, `gh` avec `-R`, les motifs `.env*`,
+les graines `*.seed.hex` et les liens vers un secret ; `grep -r` sur un arbre qui contient un
+secret n'est arrêté que par le garde.
+
+Qualifier après chaque changement de `settings.json` ou du garde (quelques centimes, bac à
+sable jetable, exécutables factices, cibles `.invalid`) :
+
+```
+python3 scripts/tests/claude_permissions_integration.py --model sonnet --out rapport.json
+```
 
 Les hooks utilisateur (`~/.claude/settings.json`) s'ajoutent à ceux du projet. Au
 29/09/2026, le seul hook utilisateur (`nexus-s5-tests.sh`) est inerte hors d'un autre dépôt :
@@ -80,10 +116,11 @@ Toute commande SSH, psql distante ou bascule `current` déclenche une confirmati
 
 - `/hooks` liste les hooks chargés ; `claude --debug hooks` trace leurs exécutions.
 - Rejouer un hook à la main :
-  `echo '{"tool_name":"Bash","tool_input":{"command":"git push -f"},"cwd":"'$PWD'"}' | scripts/claude/pretool-guard.py`
+  `echo '{"tool_name":"Bash","tool_input":{"command":"git push -f"},"cwd":"'$PWD'"}' | scripts/claude/pretool-guard.sh`
 - Un hook qui sort avec un code autre que 0 ou 2, qui expire ou qui manque **laisse passer
-  l'action** : le garde convertit donc ses propres erreurs en `deny`. Si `python3` ou `jq`
-  manquent, les hooks sont inopérants : `scripts/tests/test_claude_config.py` le détecte.
+  l'action** : voir le tableau des pannes ci-dessus. `jq` est requis par les hooks
+  d'information (SessionStart, PostToolUse, Stop) ; `scripts/tests/test_claude_config.py`
+  vérifie sa présence.
 - Faux positif du garde : corriger le motif dans `pretool-guard.py` et ajouter un cas au
   test, par PR. Ne pas contourner par une autre forme de commande.
 - Désactiver ponctuellement tous les hooks (diagnostic seulement, jamais en opération) :
