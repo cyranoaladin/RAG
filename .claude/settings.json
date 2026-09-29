@@ -48,7 +48,30 @@
       "Bash(docker system prune *)",
       "Bash(docker volume rm *)",
       "Bash(docker volume prune *)",
-      "Bash(docker push *)"
+      "Bash(docker push *)",
+      "Bash(sudo *)",
+      "Bash(gh * merge *)",
+      "Bash(gh * close *)",
+      "Bash(gh * ready *)",
+      "Bash(gh * reopen *)",
+      "Bash(gh * review *)",
+      "Bash(gh * edit *)",
+      "Bash(gh * create *)",
+      "Bash(gh * comment *)",
+      "Bash(gh * delete *)",
+      "Bash(gh api * -X *)",
+      "Bash(gh api * --method *)",
+      "Bash(gh api * -f *)",
+      "Bash(gh api * -F *)",
+      "Bash(gh api * --field *)",
+      "Bash(gh api * --raw-field *)",
+      "Bash(gh api * --input *)",
+      "Bash(*.env*)",
+      "Bash(*.seed*)",
+      "Bash(*.pem*)",
+      "Bash(*.key*)",
+      "Bash(*id_rsa*)",
+      "Bash(*id_ed25519*)"
     ],
     "deny": [
       "Read(.env)",
@@ -71,7 +94,11 @@
       "Edit(!.env.example)",
       "Edit(*.pem)",
       "Edit(*.key)",
-      "Edit(*.seed)"
+      "Edit(*.seed)",
+      "Read(*.seed.hex)",
+      "Edit(*.seed.hex)",
+      "Bash(gh * --approve*)",
+      "Bash(gh auth token*)"
     ]
   },
   "env": {
@@ -96,7 +123,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR}\"/scripts/claude/pretool-guard.py",
+            "command": "\"${CLAUDE_PROJECT_DIR}\"/scripts/claude/pretool-guard.sh",
             "timeout": 15
           }
         ]

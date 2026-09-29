@@ -28,7 +28,9 @@ fi
 
 case "$f" in
     *.py)
-        out="$(timeout 10 python3 -m py_compile "$f" 2>&1)" || add "py_compile : ${out}"
+        # ast.parse plutôt que py_compile : aucun __pycache__ écrit dans le worktree.
+        out="$(timeout 10 python3 -c 'import ast,sys; ast.parse(open(sys.argv[1], encoding="utf-8").read(), sys.argv[1])' "$f" 2>&1)" \
+            || add "syntaxe Python : ${out}"
         if command -v ruff >/dev/null 2>&1; then
             out="$(timeout 10 ruff check --quiet --select E9,F63,F7,F82 "$f" 2>&1)" || add "ruff (erreurs fatales) : ${out}"
         fi ;;

@@ -41,7 +41,7 @@ def _config_files() -> list[Path]:
     fichiers += sorted(CLAUDE_DIR.glob("rules/*.md"))
     fichiers += sorted(CLAUDE_DIR.glob("skills/*/SKILL.md"))
     fichiers += sorted(CLAUDE_DIR.glob("agents/*.md"))
-    fichiers += sorted((RACINE / "scripts/claude").iterdir())
+    fichiers += sorted(p for p in (RACINE / "scripts/claude").iterdir() if p.is_file())
     fichiers += sorted((RACINE / "docs/agentic").glob("*.md"))
     fichiers += sorted(RACINE.glob("services/*/CLAUDE.md"))
     return fichiers
@@ -456,3 +456,205 @@ def test_stop_bloque_un_secret_sans_l_afficher(depots: dict[str, Path]) -> None:
     fuite.unlink()
     (depots["lot"] / "dump.sql.gz").write_bytes(b"x")
     assert _run(STOP, {"cwd": str(depots["lot"]), "stop_hook_active": False}).returncode == 2
+
+
+# --------------------------------------------------------------------------
+# Revue #272 : préfixes, gh, motifs, cas du projet, pannes du garde
+# --------------------------------------------------------------------------
+
+WRAPPER = RACINE / "scripts/claude/pretool-guard.sh"
+
+
+@pytest.fixture()
+def bac(tmp_path: Path) -> Path:
+    """Bac à sable jetable : secrets SYNTHÉTIQUES, lien symbolique, arbre imbriqué."""
+    racine = tmp_path / "bac"
+    (racine / "nested/deep").mkdir(parents=True)
+    (racine / "nested/keys").mkdir(parents=True)
+    (racine / "docs").mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "lot/x", str(racine)], check=True)
+    (racine / ".env.production").write_text("SYNTHETIC=1\n", encoding="utf-8")
+    (racine / ".env.example").write_text("EXAMPLE=1\n", encoding="utf-8")
+    (racine / "nested/deep/.env.local").write_text("SYNTHETIC=1\n", encoding="utf-8")
+    (racine / "nested/keys/rehearsal-readiness-ed25519.seed.hex").write_text("00\n", encoding="utf-8")
+    (racine / "docs/notes.md").write_text("public\n", encoding="utf-8")
+    (racine / "innocent-link.txt").symlink_to(".env.production")
+    return racine
+
+
+@pytest.mark.parametrize("commande, attendu", [
+    # A — préfixes : options consommées, commande enveloppée classée
+    ("sudo -u postgres psql -c 'select 1'", "ask"),
+    ("sudo -nu postgres psql", "ask"),
+    ("sudo --user=postgres -- psql", "ask"),
+    ("env -u HOME psql -h db.invalid", "ask"),
+    ("env -i PATH=/usr/bin psql -h db.invalid", "ask"),
+    ("command -- psql -h db.invalid", "ask"),
+    ("command -p ssh nexus-prod.invalid", "ask"),
+    ("env -u X timeout -s KILL 5 nice -n 5 gh pr merge 1", "ask"),
+    ("sudo -E env -u X cat .env.production", "deny"),
+    ("sudo --option-inconnue ls", "ask"),
+    ("env -S 'ls -l'", "ask"),
+    ("env --split-string='ls -l'", "ask"),
+    ("env", "ask"),
+    ("bash -c 'gh -R o/r pr merge 1'", "ask"),
+    ("eval \"$CMD\"", "ask"),
+    ("command -v psql", None),
+    ("timeout 30 make test", None),
+    ("nice -n 5 python3 -m pytest -q", None),
+    # B — gh : options héritées normalisées avant la sous-commande
+    ("gh -R example-invalid/none pr merge 1", "ask"),
+    ("gh --repo example-invalid/none pr close 1", "ask"),
+    ("gh --repo=example-invalid/none pr ready 1", "ask"),
+    ("gh -Rexample-invalid/none pr merge 1", "ask"),
+    ("gh pr -R example-invalid/none merge 1", "ask"),
+    ("gh -R o/r pr review 1 --approve", "deny"),
+    ("gh pr review 1 -a", "deny"),
+    ("gh api repos/o/r/pulls/1/reviews -f event=APPROVE", "deny"),
+    ("gh api -XPUT repos/o/r/pulls/1/merge", "ask"),
+    ("gh auth token", "deny"),
+    ("gh auth status --show-token", "deny"),
+    ("gh --flag-inconnu pr view 1", "ask"),
+    ("gh mon-alias 1", "ask"),
+    ("gh -R o/r pr view 1 --json state,mergeable", None),
+    ("gh pr list --search review:required", None),
+    ("gh run view 123 --log", None),
+    ("gh api repos/o/r/pulls/1", None),
+    ("gh auth status", None),
+    # C — motifs et lectures sensibles, sans expansion par un shell
+    ("cat .env*", "deny"),
+    ("head -n 2 .env.*", "deny"),
+    ("tail -5 .env{,.production}", "deny"),
+    ("less *.env", "deny"),
+    ("cat nested/deep/.env.local", "deny"),
+    ("cat nested/keys/*.seed.hex", "deny"),
+    ("cat nested/keys/rehearsal-readiness-ed25519.seed.hex", "deny"),
+    ("xxd nested/keys/rehearsal-readiness-ed25519.seed.hex", "deny"),
+    ("cat innocent-link.txt", "deny"),
+    ("grep -rn SYNTHETIC nested", "deny"),
+    ("grep -r SYNTHETIC .", "deny"),
+    ("find . -name '*.md' -exec cat {} +", "deny"),
+    ("ls | xargs cat", "ask"),
+    ("cat < .env.production", "deny"),
+    ("diff <(cat .env.production) docs/notes.md", "deny"),
+    ("echo \"$(cat .env.production)\"", "deny"),
+    ("cat \"$FICHIER\"", "ask"),
+    ("echo \"$GITHUB_TOKEN\"", "ask"),
+    ("cat /proc/self/environ", "deny"),
+    ("cat .env.example", None),
+    ("cat docs/*.md", None),
+    ("grep -rn public docs", None),
+    ("rg SYNTHETIC", None),
+    ("git grep -n SYNTHETIC", None),
+    ("test -f .env.production && echo présent", None),
+    ("grep -n '.env' docs/notes.md", None),
+    # Composition : la décision la plus sévère l'emporte
+    ("ssh nexus.invalid true; cat .env.production", "deny"),
+    ("gh pr view 1 && gh pr merge 1", "ask"),
+])
+def test_revue_272_decisions_du_garde(bac: Path, commande: str, attendu: str | None) -> None:
+    assert _bash(commande, bac) == attendu
+
+
+def test_revue_272_message_de_commit_heredoc_sans_friction(bac: Path) -> None:
+    commande = (
+        "git commit -m \"$(cat <<'EOF'\n"
+        "docs: l'état du lot (ssh, rm -rf /, cat .env et gh pr merge dans le texte)\n"
+        "\n"
+        "Co-Authored-By: x <x@example.invalid>\n"
+        "EOF\n"
+        ")\""
+    )
+    assert _bash(commande, bac) is None
+
+
+def test_revue_272_heredoc_vers_un_shell_est_analyse(bac: Path) -> None:
+    assert _bash("bash <<'EOF'\ncat .env.production\nEOF", bac) == "deny"
+
+
+def test_revue_272_outils_fichiers_liens_et_graines(bac: Path) -> None:
+    for outil, chemin in (("Read", "innocent-link.txt"),
+                          ("Read", "nested/keys/rehearsal-readiness-ed25519.seed.hex"),
+                          ("Edit", "innocent-link.txt"),
+                          ("Write", "nested/keys/autre.seed.hex")):
+        sortie = _garde({"tool_name": outil, "cwd": str(bac),
+                         "tool_input": {"file_path": str(bac / chemin)}})
+        assert sortie and sortie["permissionDecision"] == "deny", (outil, chemin)
+
+
+def test_revue_272_le_garde_n_execute_rien(bac: Path, tmp_path: Path) -> None:
+    # Des exécutables factices en tête du PATH : s'ils étaient appelés, ils laisseraient une trace.
+    faux = tmp_path / "faux-bin"
+    faux.mkdir()
+    trace = tmp_path / "invocations.log"
+    for nom in ("gh", "ssh", "psql", "sudo", "cat"):
+        script = faux / nom
+        script.write_text(f"#!/bin/sh\necho {nom} >> '{trace}'\n", encoding="utf-8")
+        script.chmod(0o755)
+    env = dict(os.environ, PATH=f"{faux}{os.pathsep}{os.environ['PATH']}")
+    for commande in ("sudo -u postgres psql", "gh -R o/r pr merge 1", "cat .env*", "ssh h.invalid"):
+        payload = json.dumps({"tool_name": "Bash", "cwd": str(bac), "tool_input": {"command": commande}})
+        subprocess.run([str(WRAPPER)], input=payload, env=env, capture_output=True, text=True,
+                       timeout=20, check=True)
+    assert not trace.exists()
+
+
+def _enveloppe(env_extra: dict[str, str]) -> tuple[dict | None, float]:
+    import time
+    payload = json.dumps({"tool_name": "Bash", "cwd": "/", "tool_input": {"command": "ls"}})
+    debut = time.monotonic()
+    res = subprocess.run([str(WRAPPER)], input=payload, env=dict(os.environ, **env_extra),
+                         capture_output=True, text=True, timeout=30)
+    assert res.returncode == 0
+    sortie = json.loads(res.stdout)["hookSpecificOutput"] if res.stdout.strip() else None
+    return sortie, time.monotonic() - debut
+
+
+def test_enveloppe_refuse_si_interpreteur_absent() -> None:
+    sortie, _ = _enveloppe({"NEXUS_GUARD_PYTHON": "interpreteur-absent-xyz"})
+    assert sortie and sortie["permissionDecision"] == "deny"
+
+
+def test_enveloppe_refuse_avant_le_delai_de_claude(tmp_path: Path) -> None:
+    lent = tmp_path / "python-lent"
+    lent.write_text("#!/bin/sh\nsleep 30\n", encoding="utf-8")
+    lent.chmod(0o755)
+    sortie, duree = _enveloppe({"NEXUS_GUARD_PYTHON": str(lent), "NEXUS_GUARD_TIMEOUT": "1"})
+    assert sortie and sortie["permissionDecision"] == "deny"
+    assert duree < 10
+
+
+def test_enveloppe_refuse_si_le_garde_plante(tmp_path: Path) -> None:
+    casse = tmp_path / "python-casse"
+    casse.write_text("#!/bin/sh\nexit 3\n", encoding="utf-8")
+    casse.chmod(0o755)
+    sortie, _ = _enveloppe({"NEXUS_GUARD_PYTHON": str(casse)})
+    assert sortie and sortie["permissionDecision"] == "deny"
+
+
+def test_enveloppe_laisse_passer_une_commande_sure() -> None:
+    sortie, _ = _enveloppe({})
+    assert sortie is None
+
+
+def test_delai_de_l_enveloppe_inferieur_a_celui_du_hook() -> None:
+    hook = _settings()["hooks"]["PreToolUse"][0]["hooks"][0]
+    assert hook["command"].endswith("/scripts/claude/pretool-guard.sh")
+    texte = WRAPPER.read_text(encoding="utf-8")
+    delai = int(re.search(r"NEXUS_GUARD_TIMEOUT:-(\d+)", texte).group(1))
+    assert delai < hook["timeout"]
+
+
+def test_regles_natives_independantes_du_hook() -> None:
+    # Défense qui tient quand le hook manque ou expire (mesuré en session réelle,
+    # voir scripts/tests/claude_permissions_integration.py).
+    permissions = _settings()["permissions"]
+    for regle in ("Bash(sudo *)", "Bash(gh * merge *)", "Bash(gh * close *)", "Bash(gh * review *)",
+                  "Bash(gh api * -X *)", "Bash(*.env*)", "Bash(*.seed*)"):
+        assert regle in permissions["ask"], regle
+    for regle in ("Read(*.seed.hex)", "Edit(*.seed.hex)", "Bash(gh * --approve*)", "Bash(gh auth token*)"):
+        assert regle in permissions["deny"], regle
+    # La négation ne carve que les règles qui la précèdent dans la même liste.
+    refus = permissions["deny"]
+    assert refus.index("Read(!.env.example)") > refus.index("Read(.env.*)")
+    assert refus.index("Edit(!.env.example)") > refus.index("Edit(.env.*)")
