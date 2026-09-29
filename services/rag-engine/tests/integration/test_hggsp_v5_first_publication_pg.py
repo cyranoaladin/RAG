@@ -13,24 +13,10 @@ Chaîne V5, par les vrais CLI et rôles : adoption V2, liaison des autorités,
 proposition de revue batch, approbation sur la forge du banc,
 ``record-release-batch-attestation``, mise en file par l'outil de staging.
 
-Worker B, deux fois :
-
-1. le **vrai CLI en sous-processus**, tel que le staging le lancera : il
-   refuse de démarrer (défaut 1 ci-dessous), sans rien écrire ;
-2. le **même ``main()``, en processus**, sous les deux seules corrections
-   minimales proposées (``_correctif_de_demarrage_propose``), appliquées par
-   le banc et JAMAIS livrées par ce lot : claim release-bound, vérifications
-   live, promotion, publisher gouverné et E5 restent ceux du dépôt. Puis un
-   rejeu.
-
-Défauts constatés (reproduits sans Docker dans
-``tests/test_hggsp_v5_runtime_blockers.py``) :
-
-* défaut 1 — ``from_authorities`` exige une taxonomie scellée pour chacun
-  des 11 profils du registre ; le registre de programmes de V5 n'en porte
-  que 2 ;
-* défaut 2 — une ressource successeur V2 naît à ``state_version=0`` ;
-  ``_require_payload`` prend ce 0 pour une absence.
+Worker B : le **vrai CLI en sous-processus**, tel que le staging le lancera
+(readiness de staging liée à V5, rôles opérationnels, claim release-bound,
+vérifications live, promotion, publisher gouverné, E5 réel), sur le runtime
+du dépôt **tel que livré**, sans aucun correctif injecté ; puis un rejeu.
 
 Ce qui est simulé, et seulement cela :
 
@@ -53,16 +39,12 @@ et rehachés. Opt-in : ``NEXUS_HGGSP_V5_PRODUCT_BENCH=1``.
 from __future__ import annotations
 
 import hashlib
-import io
 import json
 import os
 import sys
 import uuid
 from collections.abc import Iterator
-from contextlib import contextmanager, redirect_stderr, redirect_stdout
-from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 
 import psycopg
@@ -92,7 +74,6 @@ from _banc_releases_reelles import (  # noqa: E402
     lancer_worker_b,
     magasin_reel,
     readiness,
-    refus_au_demarrage,
     run,
     sha,
     transfert_nomme,
@@ -377,85 +358,15 @@ def _readiness_v5(tmp: Path) -> dict[str, str]:
     return readiness(tmp, release_id=V5_ID, manifest_sha256=sha(V5_DIR / MANIFESTE))
 
 
-def _vrai_cli_worker_b(control: dict[str, str], product: dict[str, str], tmp: Path,
-                       github: LocalGitHub, jeton: Path, transfer_v5: Path) -> Any:
-    """Le vrai CLI, en sous-processus, tel que le staging le lancera."""
+def _worker_b(control: dict[str, str], product: dict[str, str], tmp: Path,
+              github: LocalGitHub, jeton: Path, transfer_v5: Path, *, iterations: int) -> Any:
+    """Le vrai CLI de Worker B, en sous-processus, tel que le staging le
+    lancera : rôles opérationnels, readiness liée à V5, runtime du dépôt tel
+    que livré — aucun correctif injecté."""
     return lancer_worker_b(
         control, product, github=github, jeton=jeton, readiness_env=_readiness_v5(tmp),
-        arguments=_arguments_v5(tmp, transfer_v5, iterations=1), timeout=1800,
+        arguments=_arguments_v5(tmp, transfer_v5, iterations=iterations), timeout=3 * 3600,
     )
-
-
-@contextmanager
-def _correctif_de_demarrage_propose() -> Iterator[None]:
-    """BANC SEULEMENT — les corrections minimales proposées, jamais livrées ici.
-
-    Correction 1 : ``from_authorities`` exige une taxonomie scellée pour CHAQUE profil du
-    registre gouverné (11), alors que le registre de programmes de V5 n'en
-    scelle que 2 : le vrai CLI refuse de démarrer. La correction proposée
-    borne ce contrôle aux collections que la release porte. Le banc l'applique
-    en présentant au résolveur les seuls profils de la release — le manifeste
-    de profils a déjà été vérifié sur le registre COMPLET par
-    ``load_multilevel_runtime_authorities`` avant cet appel. Rien d'autre
-    n'est modifié : claim, vérifications live, publisher, E5.
-    """
-    from ingestor.multilevel_verified_placement import (
-        MultilevelVerifiedPedagogicalPlacementResolver as Resolver,
-    )
-
-    original = Resolver.from_authorities
-
-    def borne(*, profiles: Any, profile_manifest: Any, release_eligibility: Any,
-              **autres: Any) -> Any:
-        release = {item.collection for item in release_eligibility.placements}
-        gardes = {cle: profil for cle, profil in profiles.items() if cle[0] in release}
-        return original(
-            profiles=gardes,
-            profile_manifest=replace(profile_manifest, declared_count=len(gardes)),
-            release_eligibility=release_eligibility, **autres,
-        )
-
-    from ingestor.ingestion_worker import publication_resume
-
-    def payload_complet(payload: dict[str, Any]) -> dict[str, Any]:
-        # Correction 2 : une ressource successeur V2 naît à ``state_version``
-        # 0 (défaut du schéma, ``CHECK >= 0``) ; ``not payload.get(...)``
-        # prenait ce 0 pour une absence. Seuls None et "" sont absents.
-        manquants = [champ for champ in publication_resume.REQUIRED_PAYLOAD_FIELDS
-                     if payload.get(champ) is None or payload.get(champ) == ""]
-        if manquants:
-            raise publication_resume.PublicationResumeError(
-                f"publication_resume payload is missing {manquants}")
-        return payload
-
-    with pytest.MonkeyPatch.context() as patch:
-        patch.setattr(Resolver, "from_authorities", staticmethod(borne))
-        patch.setattr(publication_resume, "_require_payload", payload_complet)
-        yield
-
-
-def _worker_b_corrige(control: dict[str, str], product: dict[str, str], tmp: Path,
-                      github: LocalGitHub, jeton: Path, transfer_v5: Path, *,
-                      iterations: int) -> SimpleNamespace:
-    """Le ``main()`` du vrai CLI, en processus, sous la seule correction
-    proposée ; mêmes arguments, même readiness, mêmes rôles."""
-    from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
-
-    arguments = _arguments_v5(tmp, transfer_v5, iterations=iterations)
-    sortie, erreur = io.StringIO(), io.StringIO()
-    with local_github_server(github) as github_url, pytest.MonkeyPatch.context() as env, \
-            _correctif_de_demarrage_propose():
-        for nom, valeur in {
-            **_readiness_v5(tmp),
-            "PG_INGESTION_CONTROL_DSN": app_dsn(control),
-            "PG_RAG_DSN": product["publisher_dsn"],
-            "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1", "CUDA_VISIBLE_DEVICES": "",
-            **acces_github(github_url, jeton),
-        }.items():
-            env.setenv(nom, valeur)
-        with redirect_stdout(sortie), redirect_stderr(erreur):
-            code = cli.main(arguments)
-    return SimpleNamespace(returncode=code, stdout=sortie.getvalue(), stderr=erreur.getvalue())
 
 
 def _jobs_v5(control: dict[str, str]) -> dict[str, int]:
@@ -487,23 +398,20 @@ def scenario_b(tmp_path_factory: pytest.TempPathFactory) -> Iterator[dict[str, A
                            "hggsp": _produit(product, hggsp=True)}
         chaine = _chaine_v5_jusqu_a_la_file(control, tmp, github, jeton, graine="hggsp-v5-b")
         jobs_v4_avant = _jobs_v4(control)
-        vrai_cli = _vrai_cli_worker_b(control, product, tmp, github, jeton, chaine["transfer_v5"])
-        produit_apres_vrai_cli = _produit(product, hggsp=True)
-        premiere = _worker_b_corrige(control, product, tmp, github, jeton, chaine["transfer_v5"],
-                                     iterations=74 + 4)
+        premiere = _worker_b(control, product, tmp, github, jeton, chaine["transfer_v5"],
+                             iterations=74 + 4)
         jobs_v5 = _jobs_v5(control)
         produit_publie = {"non_hggsp": _produit(product, hggsp=False),
                           "hggsp": _produit(product, hggsp=True)}
         rejeu_file = run(ENQUEUE, chaine["file_args"], chaine["file_env"])
-        rejeu = _worker_b_corrige(control, product, tmp, github, jeton, chaine["transfer_v5"],
-                                  iterations=4)
+        rejeu = _worker_b(control, product, tmp, github, jeton, chaine["transfer_v5"],
+                          iterations=4)
         yield {
             "control": control, "product": product, "chaine": chaine,
             "produit_initial": produit_initial, "produit_publie": produit_publie,
             "produit_rejeu": {"non_hggsp": _produit(product, hggsp=False),
                               "hggsp": _produit(product, hggsp=True)},
             "jobs_v4_avant": jobs_v4_avant, "jobs_v4_apres": _jobs_v4(control),
-            "vrai_cli": vrai_cli, "produit_apres_vrai_cli": produit_apres_vrai_cli,
             "premiere": premiere, "jobs_v5": jobs_v5, "rejeu_file": rejeu_file, "rejeu": rejeu,
             "jobs_v5_rejeu": _jobs_v5(control),
             "apres": {"controle": _snapshot_v4_control(control),
@@ -522,19 +430,7 @@ def test_etat_initial_zero_hggsp_et_v4_non_hggsp_servie(scenario_b: dict[str, An
     assert sorted(scenario_b["jobs_v4_avant"]) == [("queued", 0, None)] * 74
 
 
-def test_le_vrai_cli_refuse_de_demarrer_sans_ecrire(scenario_b: dict[str, Any]) -> None:
-    """Le blocage CONSTATÉ du scénario B : démarrage, pas produit."""
-    sortie = scenario_b["vrai_cli"]
-    if sortie.returncode == 0:
-        pytest.fail("le vrai CLI démarre désormais sur V5 : retirer le correctif de banc")
-    assert refus_au_demarrage(sortie).endswith(
-        "collection 'rag_nexus_dgemc_terminale_option' has no sealed taxonomy")
-    assert scenario_b["produit_apres_vrai_cli"]["cardinalites"] == (0, 0, 0, 0)
-
-
-def test_premiere_publication_v5_reussit_sous_le_correctif_propose(
-    scenario_b: dict[str, Any],
-) -> None:
+def test_premiere_publication_v5_reussit_par_le_vrai_cli(scenario_b: dict[str, Any]) -> None:
     sortie = scenario_b["premiere"]
     assert sortie.returncode == 0, sortie.stderr[-3000:]
     assert "authority_mode=RELEASE_BOUND_STAGING_QUALIFICATION" in sortie.stdout
@@ -654,8 +550,8 @@ def test_cas_3_une_ligne_hggsp_v4_preexistante_refuse_le_remplacement(
         _seed_product(product, v4_hggsp, authorization_ids=chaine["old_auth"],
                       attestations=v4_attestations, marque="fixture-v4-hggsp-cas-3")
         avant = _produit(product, hggsp=True)
-        sortie = _worker_b_corrige(control, product, tmp_path, github, jeton,
-                                   chaine["transfer_v5"], iterations=1)
+        sortie = _worker_b(control, product, tmp_path, github, jeton, chaine["transfer_v5"],
+                           iterations=1)
         assert sortie.returncode == 0, sortie.stderr[-3000:]
         erreurs = erreurs_d_iteration(sortie.stderr)
         assert len(erreurs) == 1, (sortie.stdout[-2000:], sortie.stderr[-2000:])

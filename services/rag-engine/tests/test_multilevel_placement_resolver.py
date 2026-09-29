@@ -804,6 +804,9 @@ def _resolver(
     release_profile_fingerprint: str | None = None,
     release_programme_version: str | None = None,
     evidence_writer: Callable[[Path], tuple[Path, str, Path, str]] | None = None,
+    taxonomies: frozenset[str] | None = None,
+    extra_profile: bool = False,
+    drop_profiles: frozenset[str] = frozenset(),
 ) -> MultilevelVerifiedPedagogicalPlacementResolver:
     inventory_path, inventory_sha, currentness_path, currentness_sha = (
         (evidence_writer or _write_evidence)(tmp_path)
@@ -837,6 +840,7 @@ def _resolver(
         index_sha256_by_path={"index.yml": "9" * 64},
         taxonomy_sha256_by_collection={
             collection: "a" * 64 for collection in programmes
+            if taxonomies is None or collection in taxonomies
         },
         programme_by_collection=programmes,
     )
@@ -854,9 +858,19 @@ def _resolver(
             programme="PROGRAMME_SECONDE",
         ),
     }
+    if extra_profile:
+        # Un profil gouverné dont la release ne porte aucun placement, et
+        # dont le registre de programmes ne scelle pas la taxonomie.
+        profiles[("rag_nexus_maths_troisieme_tc", "multilevel-v1")] = _profile(
+            collection="rag_nexus_maths_troisieme_tc",
+            niveau="troisieme",
+            voie="college",
+            programme="PROGRAMME_TROISIEME",
+        )
+    profiles = {key: value for key, value in profiles.items() if key[0] not in drop_profiles}
     profile_manifest = StagingProfileManifestVerification(
         manifest_sha256="b" * 64,
-        declared_count=2,
+        declared_count=len(profiles),
         provenance="test staging",
         generated_at="2026-08-12T00:00:00Z",
         authority_mode="STAGING_LOCAL_GITHUB_ONLY",
@@ -888,16 +902,15 @@ def _resolver(
                     nexus_statut_enseignement=release_status,
                     programme_version=(
                         release_programme_version
-                        or str(
-                            profiles[(placement.collection, "multilevel-v1")]
-                            .scope.programme_version
-                        )
+                        or programmes[placement.collection]
                     ),
                     profile_version=release_profile_version,
                     profile_fingerprint=(
                         release_profile_fingerprint
-                        or profile_fingerprint(
-                            profiles[(placement.collection, "multilevel-v1")]
+                        or (
+                            profile_fingerprint(profiles[(placement.collection, "multilevel-v1")])
+                            if (placement.collection, "multilevel-v1") in profiles
+                            else "0" * 64
                         )
                     ),
                     profile_manifest_digest=profile_manifest.manifest_sha256,
@@ -1015,6 +1028,57 @@ def test_resolver_denies_review_required_even_when_release_allowlist_contains_it
                 "par-scope/lycee/commun/mathematiques/seconde/review.pdf"
             ),
         )
+
+
+def test_resolver_requires_taxonomies_only_for_the_release_collections(
+    tmp_path: Path,
+) -> None:
+    """Scénario B HGGSP : le registre de profils gouverné porte des
+    collections que la release ne publie pas, et dont elle ne scelle pas la
+    taxonomie. Seul le périmètre de la release est exigé."""
+    resolver = _resolver(tmp_path, extra_profile=True)
+
+    assert resolver.release_collections == {
+        "rag_nexus_maths_quatrieme_tc", "rag_nexus_maths_seconde_tc",
+    }
+
+
+def test_resolver_still_refuses_a_missing_taxonomy_inside_the_release(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        MultilevelPlacementResolutionError,
+        match="collection 'rag_nexus_maths_seconde_tc' has no sealed taxonomy",
+    ):
+        _resolver(tmp_path, taxonomies=frozenset({"rag_nexus_maths_quatrieme_tc"}))
+
+
+def test_resolver_refuses_a_release_collection_without_governed_profile(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(
+        MultilevelPlacementResolutionError,
+        match="release collection 'rag_nexus_maths_seconde_tc' has no governed profile",
+    ):
+        _resolver(tmp_path, drop_profiles=frozenset({"rag_nexus_maths_seconde_tc"}))
+
+
+def test_resolver_keeps_verifying_the_profile_manifest_count(tmp_path: Path) -> None:
+    """Le bornage ne touche pas au manifeste : le compte reste celui du
+    registre COMPLET, profils hors release compris."""
+    from ingestor import multilevel_verified_placement as module
+
+    original = module.require_profile_manifest_authority
+    seen: list[int] = []
+
+    def spy(verification: Any, **kwargs: Any) -> None:
+        seen.append(kwargs["profile_count"])
+        original(verification, **kwargs)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(module, "require_profile_manifest_authority", spy)
+        _resolver(tmp_path, extra_profile=True)
+    assert seen == [3]
 
 
 def test_resolver_construction_rejects_release_authority_digest_drift(
