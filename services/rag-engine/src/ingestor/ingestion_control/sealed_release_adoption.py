@@ -479,6 +479,8 @@ def persist_successor_control_adoption(
         for row in lignes
     ):
         raise SealedReleaseAdoptionError("V2 requires both successor identities on every row")
+    if not successor_identity_schema_available(conn):
+        raise SealedReleaseAdoptionError("adoption V2 requires control schema migration 020")
     ecrites = deja = ressources_creees = artefacts_crees = 0
     for row in lignes:
         predecessor = conn.execute(
@@ -931,7 +933,21 @@ def _digest_de_liaison(
 def artifact_belongs_to_release(
     conn: psycopg.Connection, *, artifact_id: UUID, release_id: str
 ) -> bool:
-    """L'artefact a-t-il été acquis sous cette release, ou adopté par elle ?"""
+    """L'artefact a-t-il été acquis sous cette release, ou adopté par elle ?
+
+    Le prédicat V2 nomme ``successor_artifact_id``, que le rollback 020
+    supprime ; un ``OR`` SQL n'épargne pas la résolution d'une colonne
+    absente. Le texte de la requête est donc choisi à chaque appel d'après
+    le schéma présent — jamais mis en cache. Sur 019, aucune ligne V2 ne
+    peut exister (le rollback est refusé tant qu'il en reste une) : la
+    requête V1 seule y est complète, et un artefact successeur n'y est
+    jamais reconnu.
+    """
+    v2 = (
+        "       OR (adoption_version = 'SEALED-RELEASE-ADOPTION-V2'"
+        "             AND successor_artifact_id = %s)"
+        if successor_identity_schema_available(conn) else ""
+    )
     ligne = conn.execute(
         "SELECT EXISTS ("
         "  SELECT 1 FROM ingestion_control.artifacts"
@@ -940,11 +956,10 @@ def artifact_belongs_to_release(
         "  SELECT 1 FROM ingestion_control.sealed_release_adoptions"
         "   WHERE ((adoption_version = 'SEALED-RELEASE-ADOPTION-V1'"
         "             AND artifact_id = %s)"
-        "       OR (adoption_version = 'SEALED-RELEASE-ADOPTION-V2'"
-        "             AND successor_artifact_id = %s))"
+        + v2 + ")"
         "     AND release_id = %s"
         ")",
-        (artifact_id, release_id, artifact_id, artifact_id, release_id),
+        (artifact_id, release_id, artifact_id, *((artifact_id,) if v2 else ()), release_id),
     ).fetchone()
     return bool(ligne and ligne[0])
 

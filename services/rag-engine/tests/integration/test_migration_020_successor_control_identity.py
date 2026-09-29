@@ -23,6 +23,7 @@ from _pg_authority import (  # noqa: E402
     PG_SUPERUSER,
     PG_SUPERUSER_PASSWORD,
     adopter_dsn,
+    app_dsn,
     attestor_dsn,
     requires_docker,
     start_ingestion_control_postgres,
@@ -30,11 +31,23 @@ from _pg_authority import (  # noqa: E402
 )
 from test_migration_016_release_identity import ressource_reelle  # noqa: E402
 from test_migration_018_sealed_release_adoption import (  # noqa: E402
+    MANIFESTE_PREDECESSEUR,
+    PREDECESSEUR,
+    SUCCESSEUR,
     _plan,
+    _prescrits,
     lignes_acquises,
 )
 
-from ingestor.ingestion_control.sealed_release_adoption import persist_adoption  # noqa: E402
+from ingestor.ingestion_control.sealed_release_adoption import (  # noqa: E402
+    SealedReleaseAdoptionError,
+    SuccessorIdentity,
+    artifact_belongs_to_release,
+    load_acquired_rows,
+    persist_adoption,
+    persist_successor_control_adoption,
+    plan_successor_control_adoption,
+)
 
 pytestmark = [pytest.mark.integration, requires_docker]
 SCRIPTS = ENGINE_ROOT / "infra/scripts"
@@ -280,3 +293,159 @@ def test_adopter_role_can_only_append_its_control_facts(pg: dict[str, str]) -> N
         assert conn.execute("SELECT current_user").fetchone()[0] == "ingestion_control_adopter"
         with pytest.raises(psycopg.errors.InsufficientPrivilege):
             conn.execute("UPDATE ingestion_control.resources SET last_error='forbidden'")
+
+
+V5 = SuccessorIdentity(
+    release_id="test-successor-control-v5",
+    release_manifest_sha256="c" * 64,
+    artifacts_release_sha256="3" * 64,
+    candidate_inventory_sha256="4" * 64,
+    artifact_transfer_manifest_sha256="5" * 64,
+    currentness_evidence_sha256="6" * 64,
+    pii_evidence_sha256="7" * 64,
+)
+
+
+def _attribute(pg: dict[str, str], contents: list[str]) -> None:
+    """Governed attribution of the predecessor rows, as acquisition writes it."""
+    from ingestor.ingestion_control.artifact_attribution import (
+        derive_sealed_release_artifact_attribution,
+        persist_artifact_attribution,
+    )
+    from ingestor.ingestion_profiles.registry import load_profile_registry
+
+    profile = next(
+        p for p in load_profile_registry(
+            ENGINE_ROOT / "configs/ingestion_profiles/v3_livraison_315"
+        ).values() if p.scope.collection == "rag_nexus_nsi_terminale_specialite"
+    )
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        for artifact_id, run_id, url in conn.execute(
+            "SELECT a.artifact_id, a.run_id, a.original_url"
+            "  FROM ingestion_control.artifacts a WHERE a.sha256 = ANY(%s)", (contents,)
+        ).fetchall():
+            persist_artifact_attribution(
+                conn,
+                attribution=derive_sealed_release_artifact_attribution(
+                    ingestion_artifact_id=artifact_id,
+                    catalog_entry={"type_doc": "ressource_officielle", "source_url": url},
+                    profile=profile,
+                ),
+                run_id=run_id, actor="migration-020-test",
+            )
+
+
+def _v5_plan(conn: psycopg.Connection[Any], contents: list[str]) -> list[Any]:
+    acquired = [
+        row for row in load_acquired_rows(conn, release_id=PREDECESSEUR)
+        if row.content_sha256 in contents
+    ]
+    placements = _prescrits(contents)
+    for placement in placements:
+        placement["release_id"] = V5.release_id
+        placement["release_manifest_sha256"] = V5.release_manifest_sha256
+    return plan_successor_control_adoption(
+        acquired=acquired, successor_placements=placements, successor=V5,
+        predecessor_release_id=PREDECESSEUR,
+        predecessor_release_manifest_sha256=MANIFESTE_PREDECESSEUR,
+    )
+
+
+def _assert_v1_membership(
+    conn: psycopg.Connection[Any], *, acquired: uuid.UUID, adopted: uuid.UUID,
+) -> None:
+    """The four V1 verdicts, whatever the schema head."""
+    assert artifact_belongs_to_release(conn, artifact_id=acquired, release_id=PREDECESSEUR)
+    assert artifact_belongs_to_release(
+        conn, artifact_id=adopted, release_id=SUCCESSEUR.release_id
+    )
+    assert not artifact_belongs_to_release(
+        conn, artifact_id=acquired, release_id="another-release"
+    )
+    assert not artifact_belongs_to_release(
+        conn, artifact_id=uuid.uuid4(), release_id=PREDECESSEUR
+    )
+
+
+def test_artifact_membership_survives_019_020_and_rollback(pg: dict[str, str]) -> None:
+    """Regression for the P1 on #271: the V2 predicate named a column that
+    rollback 020 drops, so V1 membership failed with ``UndefinedColumn``.
+
+    One application connection is held across the upgrade and the rollback,
+    and the predicate runs more often than psycopg's auto-prepare threshold:
+    neither a cached schema assumption nor a server-side prepared statement
+    may outlive the schema it was built for.
+    """
+    assert _runner(pg, "rollback_ingestion_control_schema.sh", target="19").returncode == 0
+    fixture = lignes_acquises.__wrapped__(pg)  # type: ignore[attr-defined]
+    contents = next(fixture)
+    with psycopg.connect(attestor_dsn(pg)) as conn:
+        lignes = _plan(conn, contents)
+        assert persist_adoption(conn, lignes=lignes, adopted_by="banc") == (2, 0)
+    fixture.close()
+    acquired = adopted = lignes[0].artifact_id
+    with psycopg.connect(app_dsn(pg), autocommit=True) as app:
+        for _ in range(7):
+            _assert_v1_membership(app, acquired=acquired, adopted=adopted)
+        upgrade = _runner(pg, "bootstrap_ingestion_control_schema.sh")
+        assert upgrade.returncode == 0, upgrade.stderr
+        for _ in range(7):
+            _assert_v1_membership(app, acquired=acquired, adopted=adopted)
+        rollback = _runner(pg, "rollback_ingestion_control_schema.sh", target="19")
+        assert rollback.returncode == 0, rollback.stderr
+        assert "SCHEMA_HEAD=19" in rollback.stdout
+        for _ in range(7):
+            _assert_v1_membership(app, acquired=acquired, adopted=adopted)
+
+
+def test_v2_membership_names_successor_identities_and_keeps_rollback_closed(
+    pg: dict[str, str],
+) -> None:
+    fixture = lignes_acquises.__wrapped__(pg)  # type: ignore[attr-defined]
+    contents = next(fixture)
+    _attribute(pg, contents)
+    with psycopg.connect(adopter_dsn(pg)) as conn:
+        conn.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+        lignes = _v5_plan(conn, contents)
+        assert persist_successor_control_adoption(
+            conn, lignes=lignes, adopted_by="banc"
+        )[2] == 2
+    fixture.close()
+    with psycopg.connect(app_dsn(pg)) as app:
+        for row in lignes:
+            assert artifact_belongs_to_release(
+                app, artifact_id=row.successor_artifact_id, release_id=V5.release_id
+            )
+            # The predecessor stays the predecessor's: V2 never lends it to V5.
+            assert not artifact_belongs_to_release(
+                app, artifact_id=row.artifact_id, release_id=V5.release_id
+            )
+            assert artifact_belongs_to_release(
+                app, artifact_id=row.artifact_id, release_id=PREDECESSEUR
+            )
+            assert not artifact_belongs_to_release(
+                app, artifact_id=row.successor_artifact_id, release_id=PREDECESSEUR
+            )
+    rollback = _runner(pg, "rollback_ingestion_control_schema.sh", target="19")
+    assert rollback.returncode != 0
+    assert "rollback 020 refused" in rollback.stderr
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        assert _head(conn) == 20
+
+
+def test_v2_adoption_is_refused_explicitly_on_schema_019(pg: dict[str, str]) -> None:
+    fixture = lignes_acquises.__wrapped__(pg)  # type: ignore[attr-defined]
+    contents = next(fixture)
+    _attribute(pg, contents)
+    with psycopg.connect(adopter_dsn(pg)) as conn:
+        lignes = _v5_plan(conn, contents)
+    assert _runner(pg, "rollback_ingestion_control_schema.sh", target="19").returncode == 0
+    with psycopg.connect(adopter_dsn(pg)) as conn:
+        with pytest.raises(SealedReleaseAdoptionError, match="migration 020"):
+            persist_successor_control_adoption(conn, lignes=lignes, adopted_by="banc")
+    fixture.close()
+    with psycopg.connect(superuser_dsn(pg)) as conn:
+        assert conn.execute(
+            "SELECT count(*) FROM ingestion_control.artifacts WHERE artifact_id = ANY(%s)",
+            ([row.successor_artifact_id for row in lignes],),
+        ).fetchone()[0] == 0
