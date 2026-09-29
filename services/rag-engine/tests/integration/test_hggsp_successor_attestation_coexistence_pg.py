@@ -179,8 +179,14 @@ def _insert_old_attestation(
 
 def _seed_v4(
     pg: dict[str, str], *, facts: Any, transfer: Path,
-    authorization_ids: dict[str, str],
+    authorization_ids: dict[str, str], served: bool = True,
 ) -> None:
+    """Les 74 lignes V4 HGGSP du plan de contrôle.
+
+    ``served=True`` : jobs V4 terminés, ressources éligibles (contre-épreuve
+    historique). ``served=False`` : décision B — jobs V4 en file, jamais
+    exécutés, ressources NEEDS_REVIEW ; aucun placement produit HGGSP.
+    """
     from ingestor.ingestion_control.artifact_attribution import (
         derive_sealed_release_artifact_attribution,
         persist_artifact_attribution,
@@ -278,6 +284,8 @@ def _seed_v4(
                          "publication_attestation_id": str(old_attestation),
                          "artifact_id": str(artifact)},
             )
+            if not served:
+                continue
             # L'état à reproduire est V4 déjà servie : le job historique est
             # terminal, la ressource est éligible. V5 doit malgré tout créer
             # SA ressource NEEDS_REVIEW et 74 jobs neufs.
