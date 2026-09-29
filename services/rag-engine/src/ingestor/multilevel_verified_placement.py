@@ -493,7 +493,17 @@ class MultilevelVerifiedPedagogicalPlacementResolver:
             raise MultilevelPlacementResolutionError(
                 "release allowlist contains a placement absent from candidate inventory"
             )
-        for collection, _version in profiles:
+        # Le périmètre exigé est celui de la release VÉRIFIÉE (manifeste
+        # confronté à son empreinte), jamais un argument de l'appelant : une
+        # release complémentaire (HGGSP V5) ne scelle que ses propres
+        # taxonomies, tandis que le manifeste de profils — vérifié plus haut
+        # sur le registre complet — en gouverne d'autres.
+        governed = {collection for collection, _version in profiles}
+        for collection in sorted({item.collection for item in release_eligibility.placements}):
+            if collection not in governed:
+                raise MultilevelPlacementResolutionError(
+                    f"release collection {collection!r} has no governed profile"
+                )
             if collection not in programme_registry.taxonomy_sha256_by_collection:
                 raise MultilevelPlacementResolutionError(
                     f"collection {collection!r} has no sealed taxonomy"

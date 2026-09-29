@@ -314,11 +314,35 @@ class _VerifiedSealedCatalog:
 
 
 def _require_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    missing = [field for field in REQUIRED_PAYLOAD_FIELDS if not payload.get(field)]
+    """Présence, puis type et valeur de chaque champ exigé.
+
+    ``expected_state_version`` vaut 0 pour une ressource qui n'a encore connu
+    aucune transition — une ressource successeur V2 naît ainsi (défaut du
+    schéma, ``CHECK >= 0``) : 0 est une version, jamais une absence. Un
+    booléen n'est pas une version, même si Python le tient pour un entier."""
+    missing = [
+        field for field in REQUIRED_PAYLOAD_FIELDS
+        if payload.get(field) is None
+        or (isinstance(payload.get(field), str) and not payload[field].strip())
+    ]
     if missing:
         raise PublicationResumeError(
             f"publication_resume payload is missing {missing} — this worker names "
             "what it publishes; it never resolves 'the latest' anything"
+        )
+    version = payload["expected_state_version"]
+    if isinstance(version, bool) or not isinstance(version, int) or version < 0:
+        raise PublicationResumeError(
+            "publication_resume payload expected_state_version must be a "
+            f"non-negative integer, not {version!r}"
+        )
+    invalid = [
+        field for field in REQUIRED_PAYLOAD_FIELDS
+        if field != "expected_state_version" and not isinstance(payload[field], str)
+    ]
+    if invalid:
+        raise PublicationResumeError(
+            f"publication_resume payload fields {invalid} must be non-blank strings"
         )
     return payload
 
