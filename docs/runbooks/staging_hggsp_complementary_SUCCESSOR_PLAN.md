@@ -6,21 +6,55 @@ ne constitue pas à lui seul une autorisation de staging. Le fichier actif
 est inutilisable tant qu'il n'est pas présent, identique octet pour octet,
 dans `origin/main` après approbation au HEAD exact et fusion de cette PR.
 
+## Amendement du runtime (après #279)
+
+Cette section amende l'activation fusionnée par #270 ; elle ne la remplace pas
+et n'exécute rien. Le CLI d'adoption V2 est embarqué dans l'image Worker B :
+#279 (adoption bornée aux collections du successeur, ADR-0062) change donc les
+octets exécutés, et les images du run `36633288414` (Worker B
+`2228650e2245…`, retrieval `11aa98d58ebc…`) sont **supersédées** par celles du
+run `37063628014`. Aucun build sur l'hôte.
+
+- **Faits persistants, conservés et non rejoués** : la migration 020 et le
+  rôle `ingestion_control_adopter` (opération
+  `successor_control_schema_020_and_adopter_role`), puis l'enregistrement des
+  deux r4 sous une revue distincte et ouverte
+  (`successor_scope_authorization_registration_r4`). Leurs marqueurs `.done`
+  restent. Ils décrivent l'état du serveur et se relisent en direct.
+- **Preuve runtime à renouveler** : `successor_readiness_install` et
+  `successor_preflight`, parce que la readiness signée lie l'image Worker B et
+  l'image retrieval. Leurs marqueurs ne sont jamais supprimés : ils sont
+  **renommés** `*.done.superseded-<horodatage>`.
+- **Non effectué, et jamais marqué comme tel** : adoption V2, attestations
+  successeur, jobs successeur, publication.
+- **Readiness** : l'ancienne paire signée reste sur l'hôte comme preuve, dans
+  `readiness/superseded/<horodatage>-<empreinte>/`. La nouvelle paire est
+  signée localement après fusion, hors du dépôt, puis installée par
+  `staging_hggsp_complementary.sh run` ; l'installation ne remplace une paire
+  distante que si **les deux** fichiers portent exactement les empreintes de
+  l'ancienne paire pinnées dans le bloc `amendment` de l'autorisation ; tout
+  autre état (fichier seul, empreinte inconnue, paire mixte) est refusé.
+- **Commande** : `staging_hggsp_complementary.sh supersede-runtime` vérifie
+  l'autorité active, la nouvelle readiness locale et l'ancienne paire distante,
+  puis retire les deux marqueurs. Elle ne touche pas au serveur.
+
 ## Images et chaîne opérateur après fusion
 
 - Provenance canonique : `production-image-provenance.yml`, run
-  `36633288414`, tentative `1`, artifact `11062997847` (ZIP
-  `4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946`).
+  `37063628014`, tentative `1`, artifact `11251726187` (ZIP
+  `989fd82afa4b0f5dca2f170e9ebd899d33d2fe5b69155c819c490acc0bb88691`).
   L'inventaire a le SHA-256
-  `5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767`.
-  Commit source des images : `a9e3701965503d2862a248c46fd7e7e175058c8f`
-  (arbre `68a4f905a4e42faeaf7671b1fb4016643ede921f`), qui porte #271
-  (migration 020, adoption V2) et #273 (Worker B pour V5). Le futur commit
-  d'activation est la fusion de cette PR ; il n'a pas à égaler ce commit.
+  `fa8406bb589aec405ca75e2bacd4282469fadc7c1358159827c337e06a7cf84f`.
+  Commit source des images : `242d267046f1e9200b009e664410bc7b40816fae`
+  (arbre `dc01b1bfc0d8722a3347da69b72cb5580f337197`), qui porte #271
+  (migration 020, adoption V2), #273 (Worker B pour V5), #275 (anciens jobs
+  gouvernés), #277 (garde Worker B) et #279 (adoption V2 bornée aux
+  collections du successeur, ADR-0062). Le futur commit d'activation est la
+  fusion de cette PR ; il n'a pas à égaler ce commit.
 - Worker B :
-  `ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf`.
+  `ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:318ef58490e8de66a3f0bb0bea4d147cb1a700eaa6648a6b374c940e7b8fc222`.
   Retrieval :
-  `ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf`.
+  `ghcr.io/cyranoaladin/rag-ingestor@sha256:90cba4293be3a74ff333ea0a3e8c1c2dcc66d8e4ce4c8f8d35df1e887f172abb`.
 - Octets exécutés : le CLI d'adoption V2, Worker B et `ingestor.*` viennent
   de l'image ; l'orchestrateur, le vérificateur, le prévol, le dérivateur de
   DSN, la migration 020, le runner et le provisionneur adopter viennent du
@@ -151,11 +185,12 @@ automatique après une panne de dérivation.
    épinglés. Le delta de catalogue et les descripteurs d'autorité logiques
    copiés doivent également correspondre aux empreintes source scellées.
 2. Les images Worker B et retrieval ont été construites hors hôte depuis le
-   `main` contenant #271 et #273. Leur provenance est le run `36633288414`,
-   lié au commit source `a9e3701965503d2862a248c46fd7e7e175058c8f`.
-   Les images antérieures (run `36476516316`) ne contiennent ni l'adoption V2
-   ni les correctifs Worker B : elles sont refusées. Ne rien reconstruire sur
-   `nexus-prod`.
+   `main` contenant #271, #273, #275, #277 et #279. Leur provenance est le
+   run `37063628014`, lié au commit source
+   `242d267046f1e9200b009e664410bc7b40816fae`. Les images antérieures (run
+   `36476516316`, puis run `36633288414`) ne contiennent pas l'adoption V2
+   bornée aux collections du successeur (#279) : elles sont refusées. Ne rien
+   reconstruire sur `nexus-prod`.
 3. La présente PR soumet une **nouvelle autorisation de staging** liée au
    manifeste successeur, au registre mixte, à ces images et à leurs SHA. Elle
    place le fichier à son chemin actif, mais son approbation au

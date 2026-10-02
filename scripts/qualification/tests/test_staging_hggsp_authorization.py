@@ -150,10 +150,10 @@ def test_tampering_is_refused(path: tuple[str, str], replacement: object) -> Non
 def test_readiness_and_worker_are_restricted_to_successor() -> None:
     doc = _document()
     assert doc["runtime_image"]["reference"].endswith(
-        "@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
+        "@sha256:318ef58490e8de66a3f0bb0bea4d147cb1a700eaa6648a6b374c940e7b8fc222"
     )
     assert doc["retrieval_image"]["reference"].endswith(
-        "@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
+        "@sha256:90cba4293be3a74ff333ea0a3e8c1c2dcc66d8e4ce4c8f8d35df1e887f172abb"
     )
     assert auth.OPERATIONS_HGGSP["successor_worker_b_publication"]["cible"]["claimed_collections"] == [
         "rag_nexus_hggsp_premiere_specialite", "rag_nexus_hggsp_terminale_specialite"
@@ -167,15 +167,15 @@ def test_provenance_is_the_new_build_from_merged_runtime() -> None:
     document = _document()
     proof = json.loads((ROOT / auth.PREUVE_HGGSP).read_text(encoding="utf-8"))
     assert document["base_commit_sha"] == proof["source_commit_sha"] == (
-        "a9e3701965503d2862a248c46fd7e7e175058c8f"
+        "242d267046f1e9200b009e664410bc7b40816fae"
     )
-    assert document["provenance"]["run_id"] == proof["workflow_run_id"] == 36633288414
-    assert document["provenance"]["artifact_id"] == proof["artifact_id"] == 11062997847
+    assert document["provenance"]["run_id"] == proof["workflow_run_id"] == 37063628014
+    assert document["provenance"]["artifact_id"] == proof["artifact_id"] == 11251726187
     assert document["provenance"]["inventory_file_sha256"] == proof["inventory_file_sha256"] == (
-        "5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767"
+        "fa8406bb589aec405ca75e2bacd4282469fadc7c1358159827c337e06a7cf84f"
     )
     assert document["provenance"]["artifact_zip_sha256"] == proof["artifact_zip_sha256"] == (
-        "4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946"
+        "989fd82afa4b0f5dca2f170e9ebd899d33d2fe5b69155c819c490acc0bb88691"
     )
     assert auth.evaluer_hggsp(ROOT, document) == []
 
@@ -378,3 +378,76 @@ def test_control_020_binds_exact_bytes_of_migration_provisioner_and_operation() 
     for interdit in ("historical_role_password_rotation", "adopter_password_reset",
                      "control_schema_migration_beyond_020", "product_schema_migration"):
         assert interdit in doc["forbidden"]
+
+
+# ── amendement du runtime après #279 : supersession bornée et cohérente ────────
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda d: d.pop("amendment"),
+        lambda d: d["amendment"].update(triggered_by_pull_request=278),
+        lambda d: d["amendment"]["superseded_runtime"].update(provenance_run_id=1),
+        lambda d: d["amendment"]["superseded_runtime"]["readiness"].update(manifest_sha256="0" * 64),
+        lambda d: d["amendment"]["superseded_runtime"]["readiness"].update(binding_sha256="0" * 64),
+        lambda d: d["amendment"]["superseded_runtime"]["readiness"].pop("binding_sha256"),
+        lambda d: d["amendment"]["superseded_runtime"].update(runtime_image="ghcr.io/x/y@sha256:" + "0" * 64),
+        lambda d: d["amendment"].update(carried_over_operations=["successor_control_schema_020_and_adopter_role"]),
+        lambda d: d["amendment"].update(renewed_operations=["successor_readiness_install"]),
+        lambda d: d["amendment"]["carried_over_operations"].append("successor_attestations"),
+        lambda d: d["amendment"].update(not_performed_operations=[]),
+        lambda d: d["amendment"].update(extra="un champ non prévu"),
+    ],
+    ids=["absent", "pr", "run", "pin-manifeste", "pin-liaison", "pin-liaison-absent", "image", "report-020-seul",
+         "renouvele-incomplet", "report-attestations", "non-effectue-vide", "champ-en-trop"],
+)
+def test_amendment_tampering_is_refused(mutation: object) -> None:
+    doc = copy.deepcopy(_document())
+    mutation(doc)  # type: ignore[operator]
+    assert any("amendement" in ecart for ecart in auth.evaluer_hggsp(ROOT, doc))
+
+
+def test_amendment_supersedes_exactly_the_previous_runtime_and_not_the_current_one() -> None:
+    doc = _document()
+    ancien = doc["amendment"]["superseded_runtime"]
+    assert ancien["runtime_image"] != doc["runtime_image"]["reference"]
+    assert ancien["retrieval_image"] != doc["retrieval_image"]["reference"]
+    assert ancien["provenance_run_id"] != doc["provenance"]["run_id"]
+    assert ancien["source_commit_sha"] != doc["base_commit_sha"]
+    for cle in ("manifest_sha256", "binding_sha256"):
+        assert len(ancien["readiness"][cle]) == 64 and set(ancien["readiness"][cle]) <= set("0123456789abcdef")
+    assert doc["amendment"]["amends_pull_request"] == 270 and doc["amendment"]["triggered_by_pull_request"] == 279
+
+
+def test_amendment_partitions_operations_without_marking_unperformed_ones_done() -> None:
+    doc = _document()
+    amendement = doc["amendment"]
+    groupes = [amendement["carried_over_operations"], amendement["renewed_operations"],
+               amendement["not_performed_operations"]]
+    assert set(sum(groupes, [])) | {"successor_readiness_sign"} == set(doc["operations"])
+    assert len(sum(groupes, [])) == len(set(sum(groupes, [])))  # une opération dans un seul groupe
+    # les faits persistants sont exactement la migration 020 et les r4 ; rien d'autre n'est reporté
+    assert amendement["carried_over_operations"] == [
+        "successor_control_schema_020_and_adopter_role", "successor_scope_authorization_registration_r4"]
+    assert amendement["renewed_operations"] == ["successor_readiness_install", "successor_preflight"]
+    for jamais_fait in ("successor_sealed_ingestion_or_binding", "successor_batch_review_proposal",
+                        "successor_attestations", "successor_publication_job_enqueue",
+                        "successor_worker_b_publication", "successor_independent_verification"):
+        assert jamais_fait in amendement["not_performed_operations"]
+
+
+def test_the_images_pinned_by_the_orchestrator_and_the_readiness_follow_the_authorization() -> None:
+    doc = _document()
+    runtime, retrieval = doc["runtime_image"]["reference"], doc["retrieval_image"]["reference"]
+    orchestrateur = (ROOT / "scripts/go_live/staging_hggsp_complementary.sh").read_text(encoding="utf-8")
+    readiness = (ROOT / "scripts/go_live/hggsp_successor_readiness.py").read_text(encoding="utf-8")
+    plan = (ROOT / auth.PLAN_HGGSP).read_text(encoding="utf-8")
+    for source in (orchestrateur, readiness, plan):
+        assert runtime in source and retrieval in source
+    assert f'SOURCE_COMMIT = "{doc["base_commit_sha"]}"' in readiness
+    # aucune trace de l'ancien runtime comme runtime courant
+    ancien = doc["amendment"]["superseded_runtime"]
+    for source in (orchestrateur, readiness):
+        assert ancien["runtime_image"] not in source and ancien["retrieval_image"] not in source
+    assert str(doc["provenance"]["run_id"]) in plan and str(ancien["provenance_run_id"]) in plan

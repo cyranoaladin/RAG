@@ -45,14 +45,14 @@ def test_bundle_roundtrip_and_v4_rejected() -> None:
     assert verified["retrieval_image"] == module.RETRIEVAL_IMAGE
     assert verified["database"] == "ragdb_profile_gate_v4"
     assert verified["collections"] == list(module.COLLECTIONS)
-    assert verified["source_commit"] == "a9e3701965503d2862a248c46fd7e7e175058c8f"
+    assert verified["source_commit"] == "242d267046f1e9200b009e664410bc7b40816fae"
     assert verified["worker_image"] == (
         "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:"
-        "2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
+        "318ef58490e8de66a3f0bb0bea4d147cb1a700eaa6648a6b374c940e7b8fc222"
     )
     assert verified["retrieval_image"] == (
         "ghcr.io/cyranoaladin/rag-ingestor@sha256:"
-        "11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
+        "90cba4293be3a74ff333ea0a3e8c1c2dcc66d8e4ce4c8f8d35df1e887f172abb"
     )
 
     wrong = json.loads(v1)
