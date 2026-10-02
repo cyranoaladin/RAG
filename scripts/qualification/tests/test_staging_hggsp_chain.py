@@ -600,3 +600,247 @@ def test_v2_lineage_refuses_confused_or_incomplete_identities(
         state["adoptions"][1]["successor_resource"] = first["successor_resource"]
     with pytest.raises(module.HGGSPRefused, match="filiation V2"):
         _verify_lineage(monkeypatch, state)
+
+
+# ── ensemble gouverné : attestations ACTIVES, jamais l'historique invalidé ───
+#
+# Le staging porte légitimement deux générations de 74 jobs HGGSP V4 : celle de
+# la revue #257 (jobs annulés, attestations invalidées par DH) et celle de #262
+# (jobs en file, attestations actives). L'autorité #270 et le contrôle DI ne
+# protègent que la seconde. « Historique conservé » n'est pas « ensemble gouverné ».
+
+
+def _function_calls(name: str) -> set[str]:
+    tree = ast.parse((ROOT / "scripts/go_live/staging_hggsp_complementary.py").read_text(encoding="utf-8"))
+    function = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == name)
+    return {c.func.id for c in ast.walk(function) if isinstance(c, ast.Call) and isinstance(c.func, ast.Name)}
+
+
+def test_three_guards_share_one_active_only_selection() -> None:
+    source = (ROOT / "scripts/go_live/staging_hggsp_complementary.py").read_text(encoding="utf-8")
+    selection = source.split("def _active_v4_hggsp_jobs", 1)[1].split("\ndef ", 1)[0]
+    assert "pa.invalidated_at IS NULL" in selection
+    assert "status = " not in selection and "j.status IN" not in selection  # le statut reste dans l'empreinte
+    for guard in ("inspect_database", "enqueue_successor", "verify_v2_lineage"):
+        assert "_active_v4_hggsp_jobs" in _function_calls(guard), guard
+    # Aucune sélection ad hoc des anciens jobs ne subsiste hors de la fonction commune.
+    rest = source.replace(selection, "")
+    assert rest.count("pa.release_id = %s\n           AND pa.collection = ANY(%s)") == 0
+
+
+def test_old_job_fingerprint_still_covers_status_and_attempts() -> None:
+    base = [{"job_id": "j", "attestation_id": "a", "status": "queued", "attempt_count": 0,
+             "max_attempts": 3, "next_attempt_at": None, "last_error": None, "leased": False}]
+    for change in ({"status": "running"}, {"attempt_count": 1}, {"leased": True}, {"last_error": "x"}):
+        assert module.old_job_fingerprint(base) != module.old_job_fingerprint([{**base[0], **change}])
+
+
+def _pg_active_vs_historical_schema(conn: object) -> None:
+    conn.execute("CREATE SCHEMA ingestion_control")
+    conn.execute("""CREATE TABLE ingestion_control.publication_attestations (
+        attestation_id text PRIMARY KEY, resource_id text, artifact_id text, content_sha256 text,
+        collection text, release_id text, release_manifest_sha256 text,
+        human_review_repository text, human_review_pull_request integer, human_review_head_sha text,
+        invalidated_at timestamptz)""")
+    conn.execute("""CREATE TABLE ingestion_control.resources (
+        resource_id text PRIMARY KEY, run_id text, state_version integer, resource_state text,
+        collection text)""")
+    conn.execute("""CREATE TABLE ingestion_control.artifacts (
+        artifact_id text PRIMARY KEY, resource_id text, sha256 text)""")
+    conn.execute("""CREATE TABLE ingestion_control.sealed_release_adoptions (
+        release_id text, adoption_version text, predecessor_release_id text, collection text,
+        resource_id text, artifact_id text, successor_resource_id text, successor_artifact_id text)""")
+    conn.execute("""CREATE TABLE ingestion_control.jobs (
+        job_id text PRIMARY KEY, job_type text, payload jsonb, status text,
+        attempt_count integer, max_attempts integer, next_attempt_at timestamptz,
+        last_error text, lease_token text, lease_expires_at timestamptz)""")
+    conn.execute("""CREATE TABLE ingestion_control.publication_commit_pins (
+        publication_attestation_id text, publication_review_pull_request integer,
+        publication_review_head_sha text)""")
+    for i in range(74):
+        collection = module.COLLECTIONS[i % 2]
+        sha = f"{i:064x}"
+        payload = lambda att: json.dumps({"publication_attestation_id": att})  # noqa: E731
+        # Génération #257 : attestations invalidées, jobs annulés (DH).
+        conn.execute("INSERT INTO ingestion_control.publication_attestations VALUES (%s,%s,%s,%s,%s,%s,'m','cyranoaladin/RAG',257,'h257',now())",
+                     (f"hist-att-{i}", f"old-resource-{i}", f"old-artifact-{i}", sha, collection, module.V4_RELEASE))
+        conn.execute("INSERT INTO ingestion_control.jobs VALUES (%s,'publication_resume',%s::jsonb,'cancelled',0,3,NULL,NULL,NULL,NULL)",
+                     (f"hist-job-{i}", payload(f"hist-att-{i}")))
+        # Génération #262 : mêmes placements, attestations actives, jobs en file.
+        conn.execute("INSERT INTO ingestion_control.publication_attestations VALUES (%s,%s,%s,%s,%s,%s,'m','cyranoaladin/RAG',262,'h262',NULL)",
+                     (f"act-att-{i}", f"old-resource-{i}", f"old-artifact-{i}", sha, collection, module.V4_RELEASE))
+        conn.execute("INSERT INTO ingestion_control.jobs VALUES (%s,'publication_resume',%s::jsonb,'queued',0,3,NULL,NULL,NULL,NULL)",
+                     (f"act-job-{i}", payload(f"act-att-{i}")))
+        # Successeur V2 : identités distinctes, mêmes octets.
+        conn.execute("INSERT INTO ingestion_control.publication_attestations VALUES (%s,%s,%s,%s,%s,%s,'m','cyranoaladin/RAG',262,'h262',NULL)",
+                     (f"new-att-{i}", f"resource-{i}", f"artifact-{i}", sha, collection, module.RELEASE))
+        conn.execute("INSERT INTO ingestion_control.resources VALUES (%s,'run-old',1,'RETRIEVAL_ELIGIBLE',%s)",
+                     (f"old-resource-{i}", collection))
+        conn.execute("INSERT INTO ingestion_control.resources VALUES (%s,'run-successor',0,'NEEDS_REVIEW',%s)",
+                     (f"resource-{i}", collection))
+        conn.execute("INSERT INTO ingestion_control.artifacts VALUES (%s,%s,%s)", (f"old-artifact-{i}", f"old-resource-{i}", sha))
+        conn.execute("INSERT INTO ingestion_control.artifacts VALUES (%s,%s,%s)", (f"artifact-{i}", f"resource-{i}", sha))
+        conn.execute("INSERT INTO ingestion_control.sealed_release_adoptions VALUES (%s,'SEALED-RELEASE-ADOPTION-V2',%s,%s,%s,%s,%s,%s)",
+                     (module.RELEASE, module.V4_RELEASE, collection, f"old-resource-{i}", f"old-artifact-{i}",
+                      f"resource-{i}", f"artifact-{i}"))
+
+
+@pytest.mark.skipif(os.environ.get("NEXUS_HGGSP_PG") != "1", reason="PostgreSQL jetable opt-in")
+def test_real_postgres_148_historical_jobs_74_governed(monkeypatch: pytest.MonkeyPatch) -> None:
+    """74 invalidés/annulés + 74 actifs/en file : 148 en base, 74 gouvernés."""
+    import psycopg
+
+    sys.path.insert(0, str(ROOT / "scripts/go_live"))
+    import staging_v4_partial_recovery as di  # noqa: PLC0415
+
+    name = f"nexus-hggsp-active-{uuid4().hex[:10]}"
+    with socket.socket() as probe:
+        probe.bind(("127.0.0.1", 0))
+        port = probe.getsockname()[1]
+    subprocess.run(
+        ["docker", "run", "-d", "--rm", "--name", name, "-e", "POSTGRES_PASSWORD=test-only",
+         "-p", f"127.0.0.1:{port}:5432", "postgres:16-alpine"],
+        capture_output=True, text=True, check=True,
+    )
+    try:
+        base = f"postgresql://postgres:test-only@127.0.0.1:{port}"
+        for _ in range(60):
+            try:
+                with psycopg.connect(f"{base}/postgres"):
+                    break
+            except psycopg.OperationalError:
+                time.sleep(0.25)
+        else:
+            pytest.fail("PostgreSQL jetable indisponible")
+        with psycopg.connect(f"{base}/postgres", autocommit=True) as conn:
+            conn.execute("CREATE ROLE ingestion_control_app")
+            conn.execute("CREATE ROLE rag_reader")
+            conn.execute("CREATE DATABASE ragdb_profile_gate_v4")
+        dsn = f"{base}/ragdb_profile_gate_v4"
+        with psycopg.connect(dsn) as setup:
+            _pg_active_vs_historical_schema(setup)
+            setup.execute("GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control_app")
+            setup.execute("GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA ingestion_control TO ingestion_control_app")
+            setup.commit()
+        admin = psycopg.connect(dsn, autocommit=True)
+
+        def control() -> object:
+            return psycopg.connect(dsn, options="-c role=ingestion_control_app")
+
+        def jobs(prefix: str) -> list[dict]:
+            return module._rows(admin, """
+                SELECT j.job_id::text AS job_id, j.payload->>'publication_attestation_id' AS attestation_id,
+                       j.status, j.attempt_count, j.max_attempts, j.next_attempt_at, j.last_error,
+                       j.lease_token IS NOT NULL AS leased
+                  FROM ingestion_control.jobs j WHERE j.job_id LIKE %s ORDER BY j.job_id""", (f"{prefix}%",))
+
+        def hist_rows() -> list[dict]:
+            return module._rows(admin, "SELECT * FROM ingestion_control.jobs WHERE job_id LIKE %s ORDER BY job_id", ("hist-job-%",)) + \
+                module._rows(admin, "SELECT * FROM ingestion_control.publication_attestations WHERE attestation_id LIKE %s ORDER BY attestation_id", ("hist-att-%",))
+
+        # État de départ : 148 jobs V4 HGGSP physiques, 74 gouvernés.
+        assert admin.execute("SELECT count(*) FROM ingestion_control.jobs").fetchone()[0] == 148
+        assert admin.execute("SELECT count(*) FROM ingestion_control.publication_attestations WHERE release_id=%s AND invalidated_at IS NOT NULL",
+                             (module.V4_RELEASE,)).fetchone()[0] == 74
+        assert {j["status"] for j in jobs("hist-job-")} == {"cancelled"}
+        assert {j["status"] for j in jobs("act-job-")} == {"queued"}
+        expected_active = jobs("act-job-")
+        monkeypatch.setattr(module, "OLD_JOBS_SHA256", module.old_job_fingerprint(expected_active))
+        history_before = hist_rows()
+
+        # 1. La sélection canonique rend 74 (pas 148), avec l'empreinte des 74 actifs.
+        with control() as conn:
+            selected = module._active_v4_hggsp_jobs(conn)
+        assert len(selected) == 74
+        assert {j["job_id"] for j in selected} == {j["job_id"] for j in expected_active}
+        assert module.old_job_fingerprint(selected) == module.OLD_JOBS_SHA256
+        # Le défaut corrigé : la sélection sans filtre d'attestation active comptait l'historique.
+        unfiltered = module._rows(admin, """
+            SELECT j.job_id::text AS job_id FROM ingestion_control.jobs j
+              JOIN ingestion_control.publication_attestations pa
+                ON pa.attestation_id::text = j.payload->>'publication_attestation_id'
+             WHERE j.job_type = 'publication_resume' AND pa.release_id = %s
+               AND pa.collection = ANY(%s)""", (module.V4_RELEASE, list(module.COLLECTIONS)))
+        assert len(unfiltered) == 148
+        every_v4 = jobs("hist-job-") + jobs("act-job-")
+        assert len(every_v4) == 148 and module.old_job_fingerprint(every_v4) != module.OLD_JOBS_SHA256
+
+        # 2. Cohérence DI : même ensemble d'attestations/jobs que le contrôle des « jobs exclus ».
+        perimetre = di.Perimetre(
+            database="ragdb_profile_gate_v4", release_id=module.V4_RELEASE, release_manifest_sha256="m",
+            repository="cyranoaladin/RAG", pull_request=262, head_sha="h262",
+            exclues={c: "x" for c in module.COLLECTIONS}, attendu={})
+        with control() as conn:
+            etat = di.lire_etat(conn, perimetre)
+        exclues = [a for a in etat.actives if a["collection"] in perimetre.exclues]
+        par_attestation: dict[str, list[dict]] = {}
+        for job in etat.jobs:
+            par_attestation.setdefault(str(job["attestation_id"]), []).append(job)
+        di_jobs = di._jobs_exclus(di.Partition(portee=[], exclues=exclues, jobs_par_attestation=par_attestation))
+        assert len(exclues) == 74 and len(di_jobs) == 74
+        assert {j["attestation_id"] for j in di_jobs} == {j["attestation_id"] for j in selected}
+        assert {j["job_id"] for j in di_jobs} == {j["job_id"] for j in selected}
+        assert di.empreinte_des_jobs_exclus(di_jobs) == module.old_job_fingerprint(selected)
+
+        # 3. Les trois gardes acceptent ce contexte.
+        monkeypatch.setattr(module, "_counts", lambda *_a, **_k: ({"c": 1}, {"c": 0}, {"c": 1}))
+        with control() as ctl, psycopg.connect(dsn, options="-c role=rag_reader") as product:
+            observation = module.inspect_database(
+                ctl, product, review={}, owners={}, historical_unchanged=True)
+        assert observation["old_v4_hggsp_jobs"] == 74
+        assert observation["old_v4_hggsp_jobs_sha256"] == module.OLD_JOBS_SHA256
+
+        with control() as conn:
+            assert module.verify_v2_lineage(conn)["old_v4_jobs"] == 74
+
+        def create_job(db: object, **kwargs: object) -> tuple[None, bool]:
+            attestation = str(kwargs["payload"]["publication_attestation_id"])
+            db.execute("""INSERT INTO ingestion_control.jobs
+                VALUES (%s,'publication_resume',%s::jsonb,'queued',0,3,NULL,NULL,NULL,NULL)""",
+                (f"successor-{attestation}", json.dumps(kwargs["payload"])))
+            return None, True
+
+        with control() as conn:
+            assert module.enqueue_successor(conn, create_job=create_job) == {"created": 74, "already_queued": 0}
+            conn.commit()
+        assert admin.execute("SELECT count(*) FROM ingestion_control.jobs").fetchone()[0] == 222
+        # Aucune garde ne touche à l'historique, ni aux 74 jobs actifs.
+        assert hist_rows() == history_before
+        assert jobs("act-job-") == expected_active
+
+        # 4. Refus : dérive de l'ensemble actif ou d'un job actif.
+        def refuses(message: str) -> None:
+            with control() as conn, pytest.raises(module.HGGSPRefused, match=message):
+                module.verify_v2_lineage(conn)
+            with control() as conn, pytest.raises(module.HGGSPRefused, match=message):
+                module.enqueue_successor(conn, create_job=create_job)
+            with control() as ctl, psycopg.connect(dsn, options="-c role=rag_reader") as product:
+                seen = module.inspect_database(ctl, product, review={}, owners={}, historical_unchanged=True)
+            assert (seen["old_v4_hggsp_jobs"], seen["old_v4_hggsp_jobs_sha256"]) != (74, module.OLD_JOBS_SHA256)
+
+        # 4a. une attestation active supplémentaire (avec son job)
+        admin.execute("INSERT INTO ingestion_control.publication_attestations VALUES ('extra-att','old-resource-0','old-artifact-0',%s,%s,%s,'m','cyranoaladin/RAG',262,'h262',NULL)",
+                      (f"{0:064x}", module.COLLECTIONS[0], module.V4_RELEASE))
+        admin.execute("INSERT INTO ingestion_control.jobs VALUES ('extra-job','publication_resume','{\"publication_attestation_id\":\"extra-att\"}','queued',0,3,NULL,NULL,NULL,NULL)")
+        refuses("anciens jobs V4|filiation V2")
+        admin.execute("DELETE FROM ingestion_control.jobs WHERE job_id='extra-job'")
+        admin.execute("DELETE FROM ingestion_control.publication_attestations WHERE attestation_id='extra-att'")
+        # 4b. une attestation active manque (invalidée après coup)
+        admin.execute("UPDATE ingestion_control.publication_attestations SET invalidated_at=now() WHERE attestation_id='act-att-0'")
+        refuses("anciens jobs V4|filiation V2")
+        # Une attestation historique invalidée n'entre jamais dans l'ensemble protégé.
+        with control() as conn:
+            assert "hist-job-0" not in {j["job_id"] for j in module._active_v4_hggsp_jobs(conn)}
+            assert "act-job-0" not in {j["job_id"] for j in module._active_v4_hggsp_jobs(conn)}
+        admin.execute("UPDATE ingestion_control.publication_attestations SET invalidated_at=NULL WHERE attestation_id='act-att-0'")
+        # 4c. un des 74 jobs actifs change de statut : l'empreinte diverge
+        admin.execute("UPDATE ingestion_control.jobs SET status='running' WHERE job_id='act-job-0'")
+        refuses("anciens jobs V4|filiation V2")
+        admin.execute("UPDATE ingestion_control.jobs SET status='queued' WHERE job_id='act-job-0'")
+        # Retour à l'état initial : les gardes acceptent de nouveau.
+        with control() as conn:
+            assert module.verify_v2_lineage(conn)["old_v4_jobs"] == 74
+        assert hist_rows() == history_before
+        admin.close()
+    finally:
+        subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, text=True, check=False)
