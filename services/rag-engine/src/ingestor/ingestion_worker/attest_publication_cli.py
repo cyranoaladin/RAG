@@ -985,6 +985,7 @@ def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
         SealedReleaseAdoptionError,
         SuccessorIdentity,
         load_acquired_rows,
+        load_acquired_rows_in_successor_scope,
         persist_adoption,
         persist_successor_control_adoption,
         plan_adoption,
@@ -1063,8 +1064,20 @@ def _cmd_adopt_predecessor_release(args: argparse.Namespace) -> int:
                 if args.adoption_version == SUCCESSOR_CONTROL_ADOPTION_VERSION
                 else plan_adoption
             )
+            # V2 (ADR-0062) : le domaine de la bijection est le périmètre que le
+            # successeur possède, dérivé de ses placements scellés — jamais fourni
+            # par l'opérateur. V1 garde la release prédécesseur entière.
+            acquis = (
+                load_acquired_rows_in_successor_scope(
+                    conn,
+                    release_id=args.predecessor_release_id,
+                    successor_placements=prescrits,
+                )
+                if args.adoption_version == SUCCESSOR_CONTROL_ADOPTION_VERSION
+                else load_acquired_rows(conn, release_id=args.predecessor_release_id)
+            )
             lignes = planner(
-                acquired=load_acquired_rows(conn, release_id=args.predecessor_release_id),
+                acquired=acquis,
                 successor_placements=prescrits,
                 successor=successeur,
                 predecessor_release_id=args.predecessor_release_id,
