@@ -274,8 +274,11 @@ set -euo pipefail
 umask 077
 command -v psql >/dev/null || { echo "psql absent de l'hôte" >&2; exit 4; }
 cd $REMOTE/repo && git fetch -q origin && git checkout -q --detach $AUTH_COMMIT
-test -z "\$(docker ps -q --filter name=worker)" \\
-    || { echo "WORKER_ACTIF : aucune migration pendant un Worker" >&2; exit 4; }
+ids=\$(docker ps -q) || { echo "INSPECTION_DOCKER_IMPOSSIBLE : aucune migration" >&2; exit 4; }
+if [ -n "\$ids" ]; then
+    docker inspect \$ids | python3 $REMOTE/repo/scripts/go_live/worker_b_guard.py \\
+        || { echo "WORKER_B_ACTIF_OU_INSPECTION_AMBIGUE : aucune migration" >&2; exit 4; }
+fi
 taille=\$($(psql_ro "$DB" "select pg_database_size(current_database())"))
 libre=\$(df -B1 --output=avail $REMOTE/backups | tail -1)
 test "\$libre" -gt "\$((taille * 3))" || { echo "DISQUE_INSUFFISANT pour la sauvegarde" >&2; exit 4; }
