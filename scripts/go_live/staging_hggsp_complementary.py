@@ -245,6 +245,27 @@ def _counts(product: Any, *, owners: Mapping[str, str]) -> tuple[dict[str, int],
     return one(v4), one(successor), one(placements)
 
 
+def _active_v4_hggsp_jobs(conn: Any) -> list[dict[str, Any]]:
+    """Les anciens jobs V4 HGGSP rattachés aux attestations V4 ACTIVES.
+
+    Les attestations invalidées (revue #257, DH) et leurs jobs annulés restent
+    en base comme historique : ils ne font pas partie de l'ensemble gouverné.
+    Le statut du job n'est volontairement PAS un critère d'appartenance ; il
+    reste dans la projection de ``old_job_fingerprint``, de sorte que toute
+    mutation d'un des 74 jobs actifs change l'empreinte.
+    """
+    return _rows(conn, """
+        SELECT j.job_id::text AS job_id, j.payload->>'publication_attestation_id' AS attestation_id,
+               j.status, j.attempt_count, j.max_attempts, j.next_attempt_at, j.last_error,
+               j.lease_token IS NOT NULL AS leased
+          FROM ingestion_control.jobs j
+          JOIN ingestion_control.publication_attestations pa
+            ON pa.attestation_id::text = j.payload->>'publication_attestation_id'
+         WHERE j.job_type = 'publication_resume' AND pa.release_id = %s
+           AND pa.collection = ANY(%s) AND pa.invalidated_at IS NULL ORDER BY j.job_id
+    """, (V4_RELEASE, list(COLLECTIONS)))
+
+
 def inspect_database(
     control: Any, product: Any, *, review: Mapping[str, Any], owners: Mapping[str, str],
     historical_unchanged: bool,
@@ -260,16 +281,7 @@ def inspect_database(
         ):
             raise HGGSPRefused("base ou rôles de lecture inattendus")
         v4, successor, union = _counts(product, owners=owners)
-        old_jobs = _rows(control, """
-            SELECT j.job_id::text AS job_id, j.payload->>'publication_attestation_id' AS attestation_id,
-                   j.status, j.attempt_count, j.max_attempts, j.next_attempt_at, j.last_error,
-                   j.lease_token IS NOT NULL AS leased
-              FROM ingestion_control.jobs j
-              JOIN ingestion_control.publication_attestations pa
-                ON pa.attestation_id::text = j.payload->>'publication_attestation_id'
-             WHERE j.job_type = 'publication_resume' AND pa.release_id = %s
-               AND pa.collection = ANY(%s) ORDER BY j.job_id
-        """, (V4_RELEASE, list(COLLECTIONS)))
+        old_jobs = _active_v4_hggsp_jobs(control)
         successor_jobs = _rows(control, """
             SELECT j.job_id::text AS job_id, pa.collection,
                    j.payload->>'publication_attestation_id' AS attestation_id, j.status
@@ -321,16 +333,7 @@ def enqueue_successor(conn: Any, *, create_job: Any = None) -> dict[str, int]:
     database, role = conn.execute("SELECT current_database(), current_user").fetchone()
     if (database, role) != (DATABASE, "ingestion_control_app"):
         raise HGGSPRefused("enqueue : base ou rôle applicatif incorrect")
-    old_jobs = _rows(conn, """
-        SELECT j.job_id::text AS job_id, j.payload->>'publication_attestation_id' AS attestation_id,
-               j.status, j.attempt_count, j.max_attempts, j.next_attempt_at, j.last_error,
-               j.lease_token IS NOT NULL AS leased
-          FROM ingestion_control.jobs j
-          JOIN ingestion_control.publication_attestations pa
-            ON pa.attestation_id::text = j.payload->>'publication_attestation_id'
-         WHERE j.job_type = 'publication_resume' AND pa.release_id = %s
-           AND pa.collection = ANY(%s) ORDER BY j.job_id
-    """, (V4_RELEASE, list(COLLECTIONS)))
+    old_jobs = _active_v4_hggsp_jobs(conn)
     if len(old_jobs) != 74 or old_job_fingerprint(old_jobs) != OLD_JOBS_SHA256:
         raise HGGSPRefused("enqueue : anciens jobs V4 HGGSP modifiés")
     rows = conn.execute("""
@@ -425,16 +428,7 @@ def verify_v2_lineage(conn: Any) -> dict[str, int]:
               FROM ingestion_control.publication_attestations
              WHERE release_id = %s AND collection = ANY(%s) AND invalidated_at IS NULL
         """, (V4_RELEASE, list(COLLECTIONS)))
-        old_jobs = _rows(conn, """
-            SELECT j.job_id::text AS job_id, j.payload->>'publication_attestation_id' AS attestation_id,
-                   j.status, j.attempt_count, j.max_attempts, j.next_attempt_at, j.last_error,
-                   j.lease_token IS NOT NULL AS leased
-              FROM ingestion_control.jobs j
-              JOIN ingestion_control.publication_attestations pa
-                ON pa.attestation_id::text = j.payload->>'publication_attestation_id'
-             WHERE j.job_type = 'publication_resume' AND pa.release_id = %s
-               AND pa.collection = ANY(%s) ORDER BY j.job_id
-        """, (V4_RELEASE, list(COLLECTIONS)))
+        old_jobs = _active_v4_hggsp_jobs(conn)
     finally:
         conn.rollback()
     errors: list[str] = []
