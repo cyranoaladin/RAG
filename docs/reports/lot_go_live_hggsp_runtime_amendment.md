@@ -35,15 +35,24 @@ Les deux images sont épinglées depuis le même inventaire ; mélanger un Worke
 - `hggsp_successor_readiness.py` : nouvelles images et commit source (la readiness signée lie les images).
 - **Supersession de la readiness** (aucun mécanisme n'existait : l'installation refusait toute divergence distante) :
   - `scripts/go_live/readiness_install_remote.sh` : exécuté sur l'hôte, toute la décision y est (installation / déjà installée / **supersession** / refus).
-    La paire distante n'est remplacée que si ses **deux** fichiers portent les empreintes pinnées dans `amendment` ; l'ancienne paire est **archivée**
-    (`readiness/superseded/<horodatage>-<empreinte>/`, copie vérifiée, **les deux fichiers en lecture seule**) avant un `mv -T` par fichier.
-    Les deux renommages ne sont pas atomiques ensemble : si le second échoue, l'ancienne paire est **restaurée depuis l'archive** (jamais de paire mixte) ;
-    si la restauration échoue aussi, le script le dit et l'archive reste la preuve. Un fichier seul, une empreinte inconnue, une paire mixte, l'absence de
-    pin, ou **un lien symbolique, même cassé**, sont refusés sans rien modifier. Le dépôt entrant, qui n'est qu'une copie, est nettoyé à la sortie, y compris
-    sur refus ; il doit être un sous-répertoire strict de la destination, jamais celle-ci (ce nettoyage supprimerait sinon la paire active).
+    - La paire distante n'est remplacée que si ses **deux** fichiers portent les empreintes pinnées dans `amendment`. L'ancienne paire est **archivée**
+      (`readiness/superseded/<horodatage>-<empreinte>/`, copie vérifiée, les deux fichiers en lecture seule) avant les renommages.
+    - **Entrées validées avant tout nettoyage** : noms (basename simple, ni `..` ni `/`), empreintes, horodatage, destination (chemin absolu, répertoire réel).
+      Le nettoyage de sortie n'existe qu'ensuite et ne supprime que les deux fichiers déposés.
+    - **Dépôt entrant** : répertoire réel, jamais un lien symbolique (même cassé), enfant direct de la destination, nommé `.incoming-*`. Le nettoyage le
+      revérifie avant de supprimer : un lien vers la destination ferait sinon supprimer la paire active, qui porte les mêmes noms.
+    - **Remplacement interrompu** : les deux renommages ne sont pas atomiques ensemble. La restauration prépare d'abord les **deux** anciens fichiers sous des
+      noms temporaires, vérifiés, puis les renomme, puis revérifie les deux empreintes. Si elle n'aboutit pas, le script **refuse en donnant l'état exact des
+      deux fichiers** (`manifeste=… liaison=…`) et dit que la paire active n'est pas garantie valide ; il ne prétend jamais qu'une paire est restaurée sans
+      l'avoir vérifié, et ne laisse aucun temporaire.
+    - **Installation fraîche interrompue** : l'annulation est vérifiée ; le message dit l'état réel (aucune paire active, ou paire partielle à corriger à la main)
+      et ne promet plus un fichier à récupérer dans un dépôt que la sortie nettoie.
+    - Un fichier seul, une empreinte inconnue, une paire mixte, l'absence de pin ou un lien symbolique sont refusés sans rien modifier.
   - `scripts/go_live/retire_runtime_markers.sh` : **renomme** (jamais ne supprime) les marqueurs `.done` du préflight puis de la readiness en
     `*.done.superseded-<horodatage>`, dans cet ordre (un état interrompu ne peut pas rejouer l'installation en sautant le préflight). Chaque renommage est
-    **vérifié** (`mv -n` ne dit pas s'il a déplacé) ; au premier échec, ou si le journal n'est pas écrivable, tout est annulé et rien n'est journalisé.
+    **vérifié** (`mv -n` ne dit pas s'il a déplacé). Le journal est **transactionnel avec les marqueurs** : les deux lignes `SUPERSEDE` sont composées et
+    ajoutées en une seule écriture, et au premier échec (renommage, écriture, écriture partielle) les marqueurs sont restaurés **et** le journal ramené à sa
+    taille initiale, de sorte qu'il ne reste jamais une ligne affirmant une supersession dont les `.done` ont été restaurés.
     Les marqueurs 020 et r4 ne sont jamais touchés.
   - `staging_hggsp_complementary.sh supersede-runtime` : vérifie l'autorité active, la nouvelle readiness locale et l'ancienne paire distante
     (lecture seule), puis retire les marqueurs. En `--dry-run` il dit explicitement ce qu'il **ne** vérifie **pas** (paire distante, état des marqueurs).
