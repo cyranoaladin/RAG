@@ -36,12 +36,18 @@ Les deux images sont épinglées depuis le même inventaire ; mélanger un Worke
 - **Supersession de la readiness** (aucun mécanisme n'existait : l'installation refusait toute divergence distante) :
   - `scripts/go_live/readiness_install_remote.sh` : exécuté sur l'hôte, toute la décision y est (installation / déjà installée / **supersession** / refus).
     La paire distante n'est remplacée que si ses **deux** fichiers portent les empreintes pinnées dans `amendment` ; l'ancienne paire est **archivée**
-    (`readiness/superseded/<horodatage>-<empreinte>/`, copie vérifiée, lecture seule) avant un `mv -T` atomique par fichier. Un fichier seul,
-    une empreinte inconnue, une paire mixte, un remplacement interrompu ou une absence de pin : **refus sans rien modifier**.
-  - `scripts/go_live/retire_runtime_markers.sh` : **renomme** (jamais ne supprime) les marqueurs `.done` de la readiness et du préflight en
-    `*.done.superseded-<horodatage>` ; les marqueurs 020 et r4 ne sont jamais touchés ; aucun renommage partiel.
+    (`readiness/superseded/<horodatage>-<empreinte>/`, copie vérifiée, **les deux fichiers en lecture seule**) avant un `mv -T` par fichier.
+    Les deux renommages ne sont pas atomiques ensemble : si le second échoue, l'ancienne paire est **restaurée depuis l'archive** (jamais de paire mixte) ;
+    si la restauration échoue aussi, le script le dit et l'archive reste la preuve. Un fichier seul, une empreinte inconnue, une paire mixte, l'absence de
+    pin, ou **un lien symbolique, même cassé**, sont refusés sans rien modifier. Le dépôt entrant, qui n'est qu'une copie, est nettoyé à la sortie, y compris
+    sur refus ; il doit être un sous-répertoire strict de la destination, jamais celle-ci (ce nettoyage supprimerait sinon la paire active).
+  - `scripts/go_live/retire_runtime_markers.sh` : **renomme** (jamais ne supprime) les marqueurs `.done` du préflight puis de la readiness en
+    `*.done.superseded-<horodatage>`, dans cet ordre (un état interrompu ne peut pas rejouer l'installation en sautant le préflight). Chaque renommage est
+    **vérifié** (`mv -n` ne dit pas s'il a déplacé) ; au premier échec, ou si le journal n'est pas écrivable, tout est annulé et rien n'est journalisé.
+    Les marqueurs 020 et r4 ne sont jamais touchés.
   - `staging_hggsp_complementary.sh supersede-runtime` : vérifie l'autorité active, la nouvelle readiness locale et l'ancienne paire distante
-    (lecture seule), puis retire les marqueurs. `run` installe ensuite la nouvelle paire et rejoue le préflight.
+    (lecture seule), puis retire les marqueurs. En `--dry-run` il dit explicitement ce qu'il **ne** vérifie **pas** (paire distante, état des marqueurs).
+    `run` installe ensuite la nouvelle paire et rejoue le préflight.
 
 ## Après fusion (aucune de ces étapes n'est exécutée par cette PR)
 
@@ -53,13 +59,22 @@ Les deux images sont épinglées depuis le même inventaire ; mélanger un Worke
 4. `supersede-runtime`, puis `run --until successor_preflight`, puis la suite (adoption bornée, liaison, proposition de revue batch).
 5. Un jeton GitHub de lecture d'un jour est requis pour les contrôles live.
 
-## Qualification
+## Qualification (exécutée sur ce code, depuis `scripts/qualification/tests`)
 
-- `scripts/qualification/tests/test_hggsp_runtime_supersession.py` : 34 tests hermétiques (répertoires temporaires, aucun SSH, aucun Docker) qui
-  exécutent réellement les deux scripts. Deux mutations volontaires du script (pas d'archivage ; remplacement sans pin) font échouer 2 puis 6 tests.
-- `test_staging_hggsp_authorization.py` : refus sur chaque altération du bloc `amendment`, partition des opérations, cohérence des images entre
-  l'autorisation, l'orchestrateur, la readiness et le runbook.
-- 215 + 65 tests des suites HGGSP : passent (le test `test_premerge_run_fails_before_ssh` est écarté : dette connue, non hermétique).
+| Commande | Résultat |
+|---|---|
+| `pytest test_hggsp_runtime_supersession.py` | 50 passed |
+| `pytest test_staging_hggsp_authorization.py` | 65 passed |
+| `pytest test_hggsp_successor_readiness.py` | 11 passed |
+| `pytest test_staging_hggsp_orchestrator.py test_staging_hggsp_chain.py test_worker_b_guard.py --deselect …::test_premerge_run_fails_before_ssh` | 86 passed, 3 skipped |
+
+Total des quatre commandes : 212 passed, 3 skipped. `test_premerge_run_fails_before_ssh` est écarté : dette connue, non hermétique.
+
+- `test_hggsp_runtime_supersession.py` exécute réellement les deux scripts sur des répertoires temporaires, sans SSH ni Docker. Six mutations volontaires des
+  scripts (restauration, lien symbolique, nettoyage de sortie, garde du dépôt entrant, vérification du renommage, annulation sur journal) font chacune échouer
+  au moins un test ; deux mutations antérieures (archivage, pin) en font échouer 2 et 6.
+- `test_staging_hggsp_authorization.py` : refus sur chaque altération du bloc `amendment`, valeurs exactes du runtime et de la readiness supersédés,
+  égalité exacte des groupes d'opérations avec les opérations moins la signature, cohérence des images entre autorisation, orchestrateur, readiness et runbook.
 
 Limites : la supersession est éprouvée en local sur des répertoires, pas sur le serveur ; elle suppose `mv -T` atomique sur un même système de fichiers
 (le dépôt entrant est créé dans `readiness/`). Aucune clé n'a été lue et aucune readiness signée.
