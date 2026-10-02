@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Complément HGGSP : commandes futures seulement, après fusion de l'autorité.
 # Aucun retrait des anciens jobs V4, aucune fermeture de #262.
-# Usage : staging_hggsp_complementary.sh status | [--dry-run] run [--until ETAPE]
+# Usage : staging_hggsp_complementary.sh status | supersede-runtime | [--dry-run] run [--until ETAPE]
 set -euo pipefail
 
 ICI="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -100,9 +100,9 @@ images_locales() {
     local image scope1 scope2 ids
     IMAGE="$(champ_hggsp runtime_image.reference)"
     PROBE_IMAGE="$(champ_hggsp retrieval_image.reference)"
-    [ "$IMAGE" = 'ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf' ] \
+    [ "$IMAGE" = 'ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:318ef58490e8de66a3f0bb0bea4d147cb1a700eaa6648a6b374c940e7b8fc222' ] \
         || fail "digest Worker B divergent"
-    [ "$PROBE_IMAGE" = 'ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf' ] \
+    [ "$PROBE_IMAGE" = 'ghcr.io/cyranoaladin/rag-ingestor@sha256:90cba4293be3a74ff333ea0a3e8c1c2dcc66d8e4ce4c8f8d35df1e887f172abb' ] \
         || fail "digest retrieval divergent"
     "$PYTHON" packages/contracts/scripts/build_hggsp_successor_scope_artifacts.py --check \
         || fail "autorités de scopes successeurs #269 divergentes"
@@ -238,25 +238,40 @@ ids_r4() {
     "$PYTHON" "$SCOPES" --ids || fail "deux autorisations r4 introuvables"
 }
 
+# Empreintes de la paire de readiness que l'amendement permet de superséder (vides : aucune).
+pin_readiness_supersedee() {  # $1 = manifest | binding
+    champ_hggsp "amendment.superseded_runtime.readiness.${1}_sha256" 2>/dev/null || true
+}
+
 etape_successor_readiness_install() {
-    local file expected observed
+    # Installe la paire signée, ou la SUPERSÈDE : toute la décision (installation, déjà installée,
+    # supersession, refus) est dans readiness_install_remote.sh, testé sans SSH. L'ancienne paire
+    # n'est remplacée que si ses DEUX fichiers portent les empreintes pinnées dans `amendment`.
+    local file nouveau_m nouveau_b ancien_m ancien_b stamp incoming sortie
     for file in "$READINESS_MANIFESTE" "$READINESS_BINDING"; do
         [ -f "$READINESS_LOCAL/$file" ] || fail "readiness signée manquante : $file"
-        expected="$(sha256sum "$READINESS_LOCAL/$file" | cut -d' ' -f1)"
-        if [ "$DRY_RUN" = 0 ]; then
-            if echo "test -f '$READINESS_REMOTE/$file'" | remote >/dev/null 2>&1; then
-                observed="$(echo "sha256sum '$READINESS_REMOTE/$file'" | remote | cut -d' ' -f1)"
-                [ "$observed" = "$expected" ] || fail "readiness distante déjà présente mais divergente : $file"
-            else
-                echo "install -d -m 0700 '$READINESS_REMOTE' && test ! -e '$READINESS_REMOTE/$file'" | remote \
-                    || fail "destination readiness indisponible : $file"
-                scp -q "$READINESS_LOCAL/$file" "$SSH_HOST:$READINESS_REMOTE/$file" \
-                    || fail "installation readiness $file"
-            fi
-            observed="$(echo "chmod 600 '$READINESS_REMOTE/$file' && sha256sum '$READINESS_REMOTE/$file'" | remote | cut -d' ' -f1)"
-            [ "$observed" = "$expected" ] || fail "readiness installée divergente : $file"
-        fi
     done
+    nouveau_m="$(sha256sum "$READINESS_LOCAL/$READINESS_MANIFESTE" | cut -d' ' -f1)"
+    nouveau_b="$(sha256sum "$READINESS_LOCAL/$READINESS_BINDING" | cut -d' ' -f1)"
+    if [ "$DRY_RUN" = 0 ]; then
+        ancien_m="$(pin_readiness_supersedee manifest)"
+        ancien_b="$(pin_readiness_supersedee binding)"
+        stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+        incoming="$READINESS_REMOTE/.incoming-$stamp-$$"
+        echo "install -d -m 0700 '$READINESS_REMOTE' && install -d -m 0700 '$incoming'" | remote >/dev/null \
+            || fail "destination readiness indisponible"
+        for file in "$READINESS_MANIFESTE" "$READINESS_BINDING"; do
+            scp -q "$READINESS_LOCAL/$file" "$SSH_HOST:$incoming/$file" || fail "dépôt readiness $file"
+        done
+        sortie="$({
+            printf 'export D=%q M=%q B=%q NEW_M=%q NEW_B=%q OLD_M=%q OLD_B=%q INCOMING=%q STAMP=%q\n' \
+                "$READINESS_REMOTE" "$READINESS_MANIFESTE" "$READINESS_BINDING" "$nouveau_m" "$nouveau_b" \
+                "$ancien_m" "$ancien_b" "$incoming" "$stamp"
+            cat "$ICI/readiness_install_remote.sh"
+        } | remote)" || fail "installation ou supersession de la readiness refusée"
+        grep -Eq '^READINESS_(INSTALLED|ALREADY_INSTALLED|SUPERSEDED) ' <<<"$sortie" \
+            || fail "bilan d'installation de la readiness absent"
+    fi
     readiness_distante
     marquer successor_readiness_install "deux fichiers signés, V4 conservée"
 }
@@ -618,5 +633,34 @@ case "${1:-}" in
             "etape_$op"
             [ "$op" = "$until_op" ] && break
         done ;;
-    *) echo "usage: $0 status | [--dry-run] run [--until ETAPE]" >&2; exit 2 ;;
+    supersede-runtime)
+        # Après un amendement du runtime : retire (renomme, jamais supprime) les marqueurs de la
+        # readiness et du préflight supersédés, pour que `run` les rejoue. Lecture seule sur l'hôte.
+        charger_hggsp
+        autoriser_hggsp successor_readiness_install
+        readiness_locale
+        ancien_m="$(champ_hggsp amendment.superseded_runtime.readiness.manifest_sha256 2>/dev/null)" \
+            || fail "aucun bloc amendment dans l'autorisation : rien à superséder"
+        ancien_b="$(champ_hggsp amendment.superseded_runtime.readiness.binding_sha256 2>/dev/null)" \
+            || fail "aucun bloc amendment dans l'autorisation : rien à superséder"
+        nouveau_m="$(sha256sum "$READINESS_LOCAL/$READINESS_MANIFESTE" | cut -d' ' -f1)"
+        nouveau_b="$(sha256sum "$READINESS_LOCAL/$READINESS_BINDING" | cut -d' ' -f1)"
+        [ "$nouveau_m" != "$ancien_m" ] && [ "$nouveau_b" != "$ancien_b" ] \
+            || fail "la readiness locale est celle qui est supersédée : signer d'abord la nouvelle paire"
+        if [ "$DRY_RUN" = 1 ]; then
+            log "SIMULATION : readiness locale nouvelle, paire distante comparée aux empreintes pinnées, marqueurs non touchés"
+            exit 0
+        fi
+        observe="$(remote <<EOF
+set -euo pipefail
+sha256sum "$READINESS_REMOTE/$READINESS_MANIFESTE" "$READINESS_REMOTE/$READINESS_BINDING"
+EOF
+)" || fail "readiness distante indisponible"
+        grep -qx "$ancien_m  $READINESS_REMOTE/$READINESS_MANIFESTE" <<<"$observe" \
+            && grep -qx "$ancien_b  $READINESS_REMOTE/$READINESS_BINDING" <<<"$observe" \
+            || fail "la paire distante n'est pas celle que l'amendement permet de superséder"
+        bash "$ICI/retire_runtime_markers.sh" "$STATE_DIR" "$(date -u +%Y%m%dT%H%M%SZ)" \
+            || fail "marqueurs de la preuve runtime non retirés"
+        log "RUNTIME_SUPERSEDE marqueurs retirés ; lancer run pour installer la nouvelle readiness et rejouer le préflight" ;;
+    *) echo "usage: $0 status | supersede-runtime | [--dry-run] run [--until ETAPE]" >&2; exit 2 ;;
 esac

@@ -1,6 +1,6 @@
 {
   "authorization_statement": "Approbation au HEAD exact puis fusion de la PR obligatoires. Le complément HGGSP sous ragdb_profile_gate_v4 peut préparer une readiness distincte, deux scopes successeurs, r4, liaison, revue batch humaine distincte, 74 attestations et 74 nouveaux jobs, Worker B borné aux deux collections et vérification indépendante. V4 9/263/405/5678, anciens 74 jobs et ragdb doivent rester inchangés. Aucune adoption ou republication des 405 V4, aucun SQL manuel, aucune mutation des anciens jobs HGGSP V4, aucun current switch, aucune exposition publique, aucun build Docker sur le serveur, aucun retrait V4 HGGSP.",
-  "base_commit_sha": "a9e3701965503d2862a248c46fd7e7e175058c8f",
+  "base_commit_sha": "242d267046f1e9200b009e664410bc7b40816fae",
   "collection_ownership_registry": {
     "path": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json",
     "protocol": "registry_version=2",
@@ -10,7 +10,7 @@
   "effective_when": "Cette autorisation ne prend effet que lorsque la PR d’activation, approuvée par abenrhouma au HEAD exact avec NEXUS-TRUSTED-REVIEW-V1, est fusionnée sur main et que tous ses fichiers liés sont identiques octet pour octet à origin/main. Chaque opération exige un prévol réel renouvelé.",
   "execution_plan": {
     "path": "docs/runbooks/staging_hggsp_complementary_SUCCESSOR_PLAN.md",
-    "sha256": "e12af619fafb4805a5b75fabb37b9d9842c903468fc377a2521a59e71f092c59"
+    "sha256": "eba6ebd984b040a29ea721ddd12e487abf1aa0116b2be2462424cdddfad1ce9a"
   },
   "expected_proof": [
     "readiness successeur distincte signée localement après fusion",
@@ -63,18 +63,18 @@
     "successor_independent_verification"
   ],
   "provenance": {
-    "artifact_id": 11062997847,
-    "artifact_zip_sha256": "4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946",
+    "artifact_id": 11251726187,
+    "artifact_zip_sha256": "989fd82afa4b0f5dca2f170e9ebd899d33d2fe5b69155c819c490acc0bb88691",
     "evidence": {
       "path": "docs/reports/evidence/staging_hggsp_image_provenance.json",
-      "sha256": "9ea07238780d21927e7d3358ccec664175c3140fac4d3773bfe7111cbc934c23"
+      "sha256": "d5c0a6e5dd8985abd603a9231f6a0b42ce44d431af647eb3beacda13a358d8a8"
     },
-    "inventory_file_sha256": "5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767",
+    "inventory_file_sha256": "fa8406bb589aec405ca75e2bacd4282469fadc7c1358159827c337e06a7cf84f",
     "protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
     "run_attempt": 1,
-    "run_id": 36633288414,
-    "source_commit_sha": "a9e3701965503d2862a248c46fd7e7e175058c8f",
-    "source_tree_sha": "68a4f905a4e42faeaf7671b1fb4016643ede921f"
+    "run_id": 37063628014,
+    "source_commit_sha": "242d267046f1e9200b009e664410bc7b40816fae",
+    "source_tree_sha": "dc01b1bfc0d8722a3347da69b72cb5580f337197"
   },
   "release": {
     "authority_commit_sha": "fb8a7cc8e85448115a64de8ff5325d639ef9ee70",
@@ -98,12 +98,12 @@
   "retrieval_image": {
     "build_on_server": false,
     "dockerfile_sha256": "f7f53bab7a66713aee7d2c836974941d19d84bdbfcec4f136b2740e0c91663b1",
-    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
+    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:90cba4293be3a74ff333ea0a3e8c1c2dcc66d8e4ce4c8f8d35df1e887f172abb"
   },
   "runtime_image": {
     "build_on_server": false,
     "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
-    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:318ef58490e8de66a3f0bb0bea4d147cb1a700eaa6648a6b374c940e7b8fc222"
   },
   "status": "ACTIVE_AFTER_MERGE",
   "stop_conditions": "Tout écart de provenance, release, registre mixte, images, readiness, périmètre, cardinalités, revue #262, empreinte des 74 jobs V4, ragdb historique ou revue humaine successeur ; arrêt 75 du Worker B ; arrêt avant toute invalidation V4 HGGSP.",
@@ -186,5 +186,37 @@
     "dsn_file": "/srv/nexus-staging/secrets/v4-roles/ingestion-control-adopter.env",
     "historical_roles": "untouched: no password rotation, no attribute or membership change",
     "rollback": "020 -> 019 only while no V2 adoption or successor_* value exists; role and secret are left in place"
+  },
+  "amendment": {
+    "amends_pull_request": 270,
+    "triggered_by_pull_request": 279,
+    "reason": "Le CLI d'adoption V2 est embarqué dans l'image Worker B : #279 borne l'adoption aux collections du successeur (ADR-0062) et change donc les octets exécutés. Les images du run 36633288414 sont supersédées par celles du run 37063628014 ; la readiness signée qui les lie est supersédée par une nouvelle paire.",
+    "superseded_runtime": {
+      "provenance_run_id": 36633288414,
+      "source_commit_sha": "a9e3701965503d2862a248c46fd7e7e175058c8f",
+      "runtime_image": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf",
+      "retrieval_image": "ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf",
+      "readiness": {
+        "manifest_sha256": "70fb399bf4fd005760bb141e5717e9a68329b0f7681c49f44eddeddd07c67c01",
+        "binding_sha256": "ed8d08141f7b2ef5becda2760b692974b92940ea1382139dea828b1b64b7fb01"
+      }
+    },
+    "carried_over_operations": [
+      "successor_control_schema_020_and_adopter_role",
+      "successor_scope_authorization_registration_r4"
+    ],
+    "renewed_operations": [
+      "successor_readiness_install",
+      "successor_preflight"
+    ],
+    "not_performed_operations": [
+      "successor_sealed_ingestion_or_binding",
+      "successor_batch_review_proposal",
+      "successor_batch_review_record",
+      "successor_attestations",
+      "successor_publication_job_enqueue",
+      "successor_worker_b_publication",
+      "successor_independent_verification"
+    ]
   }
 }

@@ -1488,22 +1488,22 @@ COLLECTIONS_HGGSP = [
 ]
 IMAGE_WORKER_HGGSP = (
     "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:"
-    "2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf"
+    "318ef58490e8de66a3f0bb0bea4d147cb1a700eaa6648a6b374c940e7b8fc222"
 )
 IMAGE_RETRIEVAL_HGGSP = (
     "ghcr.io/cyranoaladin/rag-ingestor@sha256:"
-    "11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf"
+    "90cba4293be3a74ff333ea0a3e8c1c2dcc66d8e4ce4c8f8d35df1e887f172abb"
 )
-#: Commit source des images (run 36633288414) ET base de l'activation : il
+#: Commit source des images (run 37063628014) ET base de l'activation : il
 #: porte #271 (migration 020, adoption V2) et #273 (Worker B pour V5). Le
 #: futur commit d'activation (fusion de cette PR) n'a pas à lui être égal.
-SOURCE_IMAGES_HGGSP = "a9e3701965503d2862a248c46fd7e7e175058c8f"
+SOURCE_IMAGES_HGGSP = "242d267046f1e9200b009e664410bc7b40816fae"
 SHA_MANIFESTE_HGGSP = "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf"
 SHA_REGISTRE_MIXTE_HGGSP = "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6"
 SHA_MAPPING_HGGSP = "b909c1fb0a8b874b2bbe53cdb1973d5eadce97823c987f4e2b75fefd0d48bb6a"
-SHA_PREUVE_HGGSP = "9ea07238780d21927e7d3358ccec664175c3140fac4d3773bfe7111cbc934c23"
-SHA_AUTORISATION_HGGSP = "8b0b0224170e5745f021056373c356d4bacf9f1e407ffcc2885c2ba60c0d2a70"
-SHA_PLAN_HGGSP = "e12af619fafb4805a5b75fabb37b9d9842c903468fc377a2521a59e71f092c59"
+SHA_PREUVE_HGGSP = "d5c0a6e5dd8985abd603a9231f6a0b42ce44d431af647eb3beacda13a358d8a8"
+SHA_AUTORISATION_HGGSP = "6b4b0af4b37e492aa15186256c369f86360f7cdac19a86ea214e16c1452695b7"
+SHA_PLAN_HGGSP = "eba6ebd984b040a29ea721ddd12e487abf1aa0116b2be2462424cdddfad1ce9a"
 SCOPES_SUCCESSEURS_HGGSP = {
     "naming": {
         "path": "packages/contracts/authorities/production-profile-scope-successors-hggsp-v5.yml",
@@ -1532,6 +1532,42 @@ COMPTES_HGGSP = {"collections": 2, "unique_artifacts": 52, "placements": 74, "un
 COMPTES_V4_HGGSP = {"collections": 9, "unique_artifacts": 263, "placements": 405, "unique_chunks": 5678}
 COMPTES_UNION_HGGSP = {"collections": 11, "unique_artifacts": 315, "placements": 479, "unique_chunks": 8268}
 ANCIENS_JOBS_HGGSP_SHA = "fef6d99df13b08c3ea02f79f29be94fa5f8d12a639ef7af85989bfcdaba6af31"
+#: Amendement du runtime après #279 : le CLI d'adoption V2 est dans l'image Worker B, dont les
+#: images (run 36633288414) sont supersédées. Comparé EXACTEMENT au bloc `amendment` de
+#: l'autorisation : ses empreintes pinnées (images et readiness supersédées) bornent la seule
+#: supersession que l'installation de readiness accepte.
+AMENDEMENT_HGGSP = {
+    "amends_pull_request": 270,
+    "triggered_by_pull_request": 279,
+    "reason": "Le CLI d'adoption V2 est embarqué dans l'image Worker B : #279 borne l'adoption aux collections du successeur (ADR-0062) et change donc les octets exécutés. Les images du run 36633288414 sont supersédées par celles du run 37063628014 ; la readiness signée qui les lie est supersédée par une nouvelle paire.",
+    "superseded_runtime": {
+        "provenance_run_id": 36633288414,
+        "source_commit_sha": "a9e3701965503d2862a248c46fd7e7e175058c8f",
+        "runtime_image": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf",
+        "retrieval_image": "ghcr.io/cyranoaladin/rag-ingestor@sha256:11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf",
+        "readiness": {
+            "manifest_sha256": "70fb399bf4fd005760bb141e5717e9a68329b0f7681c49f44eddeddd07c67c01",
+            "binding_sha256": "ed8d08141f7b2ef5becda2760b692974b92940ea1382139dea828b1b64b7fb01"
+        }
+    },
+    "carried_over_operations": [
+        "successor_control_schema_020_and_adopter_role",
+        "successor_scope_authorization_registration_r4"
+    ],
+    "renewed_operations": [
+        "successor_readiness_install",
+        "successor_preflight"
+    ],
+    "not_performed_operations": [
+        "successor_sealed_ingestion_or_binding",
+        "successor_batch_review_proposal",
+        "successor_batch_review_record",
+        "successor_attestations",
+        "successor_publication_job_enqueue",
+        "successor_worker_b_publication",
+        "successor_independent_verification"
+    ]
+}
 RELEASE_ID_HGGSP = "production-profile-gate-2026-2027-v5-hggsp"
 _CIBLE_HGGSP = {
     "database": BASE_V4,
@@ -1610,6 +1646,9 @@ FICHIERS_FUSION_HGGSP = (
     "scripts/go_live/sign_staging_hggsp_successor_readiness.sh",
     "scripts/go_live/staging_hggsp_complementary.py",
     "scripts/go_live/staging_hggsp_complementary.sh",
+    "scripts/go_live/readiness_install_remote.sh",
+    "scripts/go_live/retire_runtime_markers.sh",
+    "scripts/go_live/worker_b_guard.py",
     "scripts/go_live/check_staging_authorization.py",
     OPERATION_020_HGGSP, PROVISIONNEUR_ADOPTER_HGGSP, MIGRATION_020_HGGSP,
     "services/rag-engine/infra/scripts/bootstrap_ingestion_control_schema.sh",
@@ -1679,12 +1718,12 @@ def evaluer_hggsp(racine: Path, document: dict) -> list[str]:
                 ecarts.append(f"HGGSP : {binding['path']} absent ou empreinte incorrecte")
     provenance = document.get("provenance") or {}
     provenance_attendue = {
-        "protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", "run_id": 36633288414,
-        "run_attempt": 1, "artifact_id": 11062997847,
-        "artifact_zip_sha256": "4789b260c03c0cd178459e148223a506cc72244ba7ca763f967aa1e76a25c946",
-        "inventory_file_sha256": "5e8c0332d87552a6df0804add10abbbe7f6b18682c5255c5a258ccfd047da767",
+        "protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", "run_id": 37063628014,
+        "run_attempt": 1, "artifact_id": 11251726187,
+        "artifact_zip_sha256": "989fd82afa4b0f5dca2f170e9ebd899d33d2fe5b69155c819c490acc0bb88691",
+        "inventory_file_sha256": "fa8406bb589aec405ca75e2bacd4282469fadc7c1358159827c337e06a7cf84f",
         "source_commit_sha": SOURCE_IMAGES_HGGSP,
-        "source_tree_sha": "68a4f905a4e42faeaf7671b1fb4016643ede921f",
+        "source_tree_sha": "dc01b1bfc0d8722a3347da69b72cb5580f337197",
         "evidence": {"path": PREUVE_HGGSP, "sha256": SHA_PREUVE_HGGSP},
     }
     if provenance != provenance_attendue:
@@ -1736,6 +1775,8 @@ def evaluer_hggsp(racine: Path, document: dict) -> list[str]:
     ):
         if prevol.get(cle) != attendu_prevol:
             ecarts.append(f"HGGSP : précondition {cle} incorrecte")
+    if document.get("amendment") != AMENDEMENT_HGGSP:
+        ecarts.append("HGGSP : amendement du runtime incorrect")
     if document.get("union_expected_counts") != COMPTES_UNION_HGGSP:
         ecarts.append("HGGSP : union mixte incorrecte")
     if document.get("control_schema_020") != CONTROLE_020_HGGSP:
