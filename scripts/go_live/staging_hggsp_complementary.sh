@@ -228,6 +228,12 @@ transfer_sha() {
     printf '%s' "$digest"
 }
 
+# `worker` reconstruit la commande distante avec $* : un argument qui contient des
+# espaces y serait coupé. L'identité d'audit (« Alaeddine Ben Rhouma ») doit arriver
+# comme UN seul argv, sans guillemets littéraux dans OPERATOR_ID : on l'échappe pour
+# le shell distant, qui la relit telle quelle.
+arg_shell() { printf '%q' "$1"; }
+
 ids_r4() {
     "$PYTHON" "$SCOPES" --ids || fail "deux autorisations r4 introuvables"
 }
@@ -338,6 +344,7 @@ EOF
 }
 
 etape_successor_sealed_ingestion_or_binding() {
+    [ -n "${OPERATOR_ID:-}" ] || fail "OPERATOR_ID requis (auteur d'audit de l'adoption et de la liaison)"
     # Les 74 ressources V4 HGGSP existent déjà ; adoption canonique bornée
     # par le manifeste successeur (74 placements), jamais réingestion des 405.
     remote <<EOF | tee "$STATE_DIR/transfer.out" || fail "52 PDF : empreintes divergentes"
@@ -389,7 +396,7 @@ PY
       --transfer-manifest-path "$TRANSFER_CONTAINER" --transfer-manifest-sha256 "$digest" \
       --predecessor-release-id production-profile-gate-2026-2027-v4 \
       --predecessor-release-manifest-sha256 bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be \
-      --adopted-by "${OPERATOR_ID:?OPERATOR_ID requis}" | remote | tee "$STATE_DIR/adoption.out" \
+      --adopted-by "$(arg_shell "$OPERATOR_ID")" | remote | tee "$STATE_DIR/adoption.out" \
       || fail "adoption bornée des 74 refusée"
     # Premier passage : written=74 already_present=0 ; rejeu : 0 et 74.
     grep -Eq '^ADOPTION_RECORDED .* adoption_version=SEALED-RELEASE-ADOPTION-V2 .* placements=74 (written=74 already_present=0|written=0 already_present=74) ' \
@@ -399,7 +406,7 @@ PY
     worker "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli \
       bind-publication-authorities --release-id "$RELEASE_HGGSP" \
       --scope-authorization "$COLLECTION_P=$id1" --scope-authorization "$COLLECTION_T=$id2" \
-      --bound-by "${OPERATOR_ID:?OPERATOR_ID requis}" | remote | tee "$STATE_DIR/binding.out" \
+      --bound-by "$(arg_shell "$OPERATOR_ID")" | remote | tee "$STATE_DIR/binding.out" \
       || fail "liaison des deux autorités refusée"
     grep -q '^PUBLICATION_AUTHORITIES_BOUND .* collections=2 ' "$STATE_DIR/binding.out" \
       || fail "liaison autre que deux collections refusée"

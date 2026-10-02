@@ -5,6 +5,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = ROOT / "scripts/go_live/staging_hggsp_complementary.sh"
@@ -112,3 +114,59 @@ def test_control_020_step_never_passes_secrets_as_arguments() -> None:
     assert "--secret-file" in etape and "PASSWORD=" not in etape.replace('PGPASSWORD="\\$PGVECTOR_PASSWORD"', "")
     assert "pg_restore --list" in etape
     assert "HGGSP_CONTROL020_OK head=20" in etape
+
+
+# ── OPERATOR_ID : l'identité d'audit arrive comme UN seul argv ────────────────
+
+OPERATEUR = "Alaeddine Ben Rhouma"
+
+
+def _arg_shell(valeur: str) -> str:
+    """La vraie fonction du script, extraite et exécutée telle quelle."""
+    ligne = next(
+        ligne for ligne in SCRIPT.read_text(encoding="utf-8").splitlines()
+        if ligne.startswith("arg_shell() {")
+    )
+    resultat = subprocess.run(
+        ["bash", "-c", f'{ligne}\narg_shell "$1"', "_", valeur],
+        capture_output=True, text=True, check=True,
+    )
+    return resultat.stdout
+
+
+def _argv_distant(ligne_de_commande: str) -> list[str]:
+    """Ce que le shell distant lit dans la commande que `worker` reconstruit avec $*."""
+    sortie = subprocess.run(
+        ["bash", "-c", f"printf '%s\\n' {ligne_de_commande}"],
+        capture_output=True, text=True, check=True,
+    )
+    return sortie.stdout.splitlines()
+
+
+def test_operator_id_non_echappe_serait_coupe_en_trois_arguments() -> None:
+    assert _argv_distant(f"--adopted-by {OPERATEUR}") == [
+        "--adopted-by", "Alaeddine", "Ben", "Rhouma",
+    ]
+
+
+def test_operator_id_arrive_comme_un_seul_argv_sans_guillemets_stockes() -> None:
+    echappe = _arg_shell(OPERATEUR)
+    assert "'" not in echappe and '"' not in echappe
+    assert _argv_distant(f"--adopted-by {echappe} --bound-by {echappe} --autre x") == [
+        "--adopted-by", OPERATEUR, "--bound-by", OPERATEUR, "--autre", "x",
+    ]
+
+
+@pytest.mark.parametrize("valeur", ["simple", "a b", "Alaeddine Ben Rhouma", "d'Artagnan", 'dit "oui"', "x;y", "$(id)"])
+def test_operator_id_aller_retour_exact(valeur: str) -> None:
+    assert _argv_distant(f"--adopted-by {_arg_shell(valeur)}") == ["--adopted-by", valeur]
+
+
+def test_operator_id_est_valide_puis_echappe_aux_deux_sites() -> None:
+    etape = SCRIPT.read_text(encoding="utf-8").split(
+        "etape_successor_sealed_ingestion_or_binding() {", 1)[1].split("\netape_", 1)[0]
+    assert '--adopted-by "$(arg_shell "$OPERATOR_ID")"' in etape
+    assert '--bound-by "$(arg_shell "$OPERATOR_ID")"' in etape
+    assert "${OPERATOR_ID:?" not in etape
+    # validé AVANT le premier appel distant : aucun effet si l'identité manque
+    assert etape.index('[ -n "${OPERATOR_ID:-}" ]') < etape.index("remote <<EOF")

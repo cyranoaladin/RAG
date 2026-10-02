@@ -216,7 +216,8 @@ def plan_adoption(
         raise SealedReleaseAdoptionError(
             f"the successor and the acquired placements are not in bijection: "
             f"{len(absents)} prescribed but never acquired, {len(orphelins)} acquired "
-            "but not prescribed — an adoption covers the whole release or nothing"
+            "but not prescribed — an adoption covers the whole predecessor scope "
+            "selected by the successor's collections, or nothing"
         )
 
     lignes: list[AdoptionRow] = []
@@ -345,7 +346,68 @@ def successor_identity_schema_available(conn: psycopg.Connection) -> bool:
     return bool(row and row[0])
 
 
-def load_acquired_rows(conn: psycopg.Connection, *, release_id: str) -> list[AcquiredRow]:
+def successor_scope_collections(
+    successor_placements: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Les collections que le successeur possède, dérivées de SES placements scellés.
+
+    ADR-0062 : un successeur complémentaire ne possède que ses collections ; le
+    prédécesseur reste propriétaire des autres. Le périmètre n'est jamais fourni
+    par l'opérateur : il ne peut venir que des placements que la release scellée
+    prescrit.
+    """
+    collections: set[str] = set()
+    for placement in successor_placements:
+        collection = placement.get("collection")
+        if not isinstance(collection, str) or not collection:
+            raise SealedReleaseAdoptionError(
+                "a prescribed placement names no collection — the successor's scope "
+                "cannot be derived"
+            )
+        collections.add(collection)
+    if not collections:
+        raise SealedReleaseAdoptionError(
+            "the successor prescribes no placement — it owns no collection"
+        )
+    return sorted(collections)
+
+
+def load_acquired_rows_in_successor_scope(
+    conn: psycopg.Connection,
+    *,
+    release_id: str,
+    successor_placements: Sequence[Mapping[str, Any]],
+) -> list[AcquiredRow]:
+    """Les placements acquis par le prédécesseur DANS les collections du successeur.
+
+    Domaine de la bijection d'une adoption V2 complémentaire : les placements
+    du prédécesseur dans les collections que le successeur possède, et eux seuls.
+    La bijection reste stricte à l'intérieur : un acquis en trop ou en moins dans
+    ces collections refuse l'adoption.
+    """
+    return load_acquired_rows(
+        conn,
+        release_id=release_id,
+        collections=successor_scope_collections(successor_placements),
+    )
+
+
+def load_acquired_rows(
+    conn: psycopg.Connection,
+    *,
+    release_id: str,
+    collections: Sequence[str] | None = None,
+) -> list[AcquiredRow]:
+    """Les placements acquis sous ``release_id``.
+
+    ``collections=None`` : toute la release (adoption V1, comportement historique).
+    Sinon : seulement ces collections, qui ne doivent venir que des placements
+    scellés du successeur (``successor_scope_collections``).
+    """
+    if collections is not None and not collections:
+        raise SealedReleaseAdoptionError("an empty collection scope selects nothing to adopt")
+    scope_sql = "   AND r.collection = ANY(%s)" if collections is not None else ""
+    scope_params: tuple[Any, ...] = (list(collections),) if collections is not None else ()
     exclude_v2 = (
         "   AND NOT EXISTS ("
         "       SELECT 1 FROM ingestion_control.sealed_release_adoptions ad"
@@ -360,8 +422,8 @@ def load_acquired_rows(conn: psycopg.Connection, *, release_id: str) -> list[Acq
         "  JOIN ingestion_control.artifacts a USING (resource_id)"
         " WHERE r.pipeline_kind = %s"
         "   AND a.payload->>'release_id' = %s"
-        + exclude_v2 + " ORDER BY r.resource_id",
-        (SEALED_RELEASE_PIPELINE, release_id),
+        + scope_sql + exclude_v2 + " ORDER BY r.resource_id",
+        (SEALED_RELEASE_PIPELINE, release_id, *scope_params),
     ).fetchall()
     return [
         AcquiredRow(
