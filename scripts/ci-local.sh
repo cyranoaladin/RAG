@@ -182,7 +182,7 @@ run_cockpit() {
         npm run lint
         npm test -- --run
         npm run build
-        npm audit
+        "$REPO_ROOT/services/rag-pedago/.venv/bin/python" "$REPO_ROOT/scripts/ci/cockpit_audit_policy.py"
         npm audit --omit=dev
         cd "$REPO_ROOT"
         "$REPO_ROOT/services/rag-pedago/.venv/bin/python" scripts/tests/test-cockpit-snapshot-coherence.py
