@@ -1,0 +1,33 @@
+{
+  "artifact_transfer_manifest_sha256": "9d1f7f6bdba0642b3e801e92d728b02c6e525a0892154c12015f3064a8246480",
+  "artifacts_release_sha256": "4192b7dd3703bf4aa8bcd2e2435dd928f748aead4a6d9ecedc88e1b6418757b8",
+  "candidate_inventory_sha256": "29e42e8390473e47d76dc25f9ebb033bbf1cf03efd5c012c4328d065be72a61a",
+  "collections": [
+    "rag_nexus_hggsp_premiere_specialite",
+    "rag_nexus_hggsp_terminale_specialite"
+  ],
+  "decision": "AUTHORIZE_SEALED_RELEASE_PUBLICATION",
+  "expected_counts": {
+    "placements": 74,
+    "subjects": 2,
+    "unique_artifacts": 52,
+    "unique_chunks": 2590
+  },
+  "placement_evidence": {
+    "currentness": "official_snapshot",
+    "placement_status": "active",
+    "review_status": "reviewed"
+  },
+  "protocol_version": "LOT42-RELEASE-BATCH-V1",
+  "provenance_note": "Provenance documentaire scellee : 2 URL(s) de provenance pour 52 artefacts. Ce champ dit d'ou le corpus vient ; il ne designe pas une ressource a recuperer et n'est pas une URL canonique.",
+  "provenance_source_url_count": 2,
+  "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+  "release_manifest_sha256": "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf",
+  "review_id": "lot42-release-batch-hggsp-v5-staging-20261003",
+  "scope_authorization_ids": [
+    "lot41a-staging-v5-hggsp-premiere-specialite-r4",
+    "lot41a-staging-v5-hggsp-terminale-specialite-r4"
+  ],
+  "valid_from": "2026-10-03T05:44:41.514965Z",
+  "valid_until": "2026-11-02T05:44:41.514965Z"
+}
