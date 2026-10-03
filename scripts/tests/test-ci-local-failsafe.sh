@@ -680,7 +680,7 @@ validate_shell_cockpit_commands() {
         "npm run lint" \
         "npm test -- --run" \
         "npm run build" \
-        "npm audit" \
+        '"$REPO_ROOT/services/rag-pedago/.venv/bin/python" "$REPO_ROOT/scripts/ci/cockpit_audit_policy.py"' \
         "npm audit --omit=dev" \
         '"$REPO_ROOT/services/rag-pedago/.venv/bin/python" scripts/tests/test-cockpit-snapshot-coherence.py' \
         "bash scripts/tests/test-cockpit-clean-build.sh"; do
@@ -811,7 +811,7 @@ npm|ci|$instrument_root/repo/services/cockpit
 npm|run lint|$instrument_root/repo/services/cockpit
 npm|test -- --run|$instrument_root/repo/services/cockpit
 npm|run build|$instrument_root/repo/services/cockpit
-npm|audit|$instrument_root/repo/services/cockpit
+python|$instrument_root/repo/scripts/ci/cockpit_audit_policy.py|$instrument_root/repo/services/cockpit
 npm|audit --omit=dev|$instrument_root/repo/services/cockpit
 python|scripts/tests/test-cockpit-snapshot-coherence.py|$instrument_root/repo
 bash|scripts/tests/test-cockpit-clean-build.sh|$instrument_root/repo
@@ -841,7 +841,7 @@ EOF
         "npm run lint"
         "npm test -- --run"
         "npm run build"
-        "npm audit"
+        "python $instrument_root/repo/scripts/ci/cockpit_audit_policy.py"
         "npm audit --omit=dev"
         "python scripts/tests/test-cockpit-snapshot-coherence.py"
         "bash scripts/tests/test-cockpit-clean-build.sh"
@@ -980,7 +980,7 @@ required_commands: tuple[tuple[str, str | None], ...] = (
     ("npm run lint", "services/cockpit"),
     ("npm test -- --run", "services/cockpit"),
     ("npm run build", "services/cockpit"),
-    ("npm audit", "services/cockpit"),
+    ("python3 ../../scripts/ci/cockpit_audit_policy.py", "services/cockpit"),
     ("npm audit --omit=dev", "services/cockpit"),
     ("python3 scripts/tests/test-cockpit-snapshot-coherence.py", None),
     ("bash scripts/tests/test-cockpit-clean-build.sh", None),

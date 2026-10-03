@@ -413,8 +413,10 @@ jobs:
         run: npm test -- --run
       - working-directory: services/cockpit
         run: npm run build
+      # Audit complet : exception TEMPORAIRE et bornée à GHSA-vfj7-8cjw-p6xm (braces, aucun correctif amont),
+      # échéance 2026-10-17 ; toute autre vulnérabilité fait échouer. Voir scripts/ci/cockpit_audit_policy.py.
       - working-directory: services/cockpit
-        run: npm audit
+        run: python3 ../../scripts/ci/cockpit_audit_policy.py
       - working-directory: services/cockpit
         run: npm audit --omit=dev
       - run: python3 scripts/tests/test-cockpit-snapshot-coherence.py
