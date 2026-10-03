@@ -336,6 +336,10 @@ def enqueue_successor(conn: Any, *, create_job: Any = None) -> dict[str, int]:
     old_jobs = _active_v4_hggsp_jobs(conn)
     if len(old_jobs) != 74 or old_job_fingerprint(old_jobs) != OLD_JOBS_SHA256:
         raise HGGSPRefused("enqueue : anciens jobs V4 HGGSP modifiés")
+    # `FOR SHARE` exige le droit UPDATE sur chaque table verrouillée. Le rôle applicatif n'a que SELECT sur
+    # les attestations et les adoptions, que d'autres rôles écrivent : seule `resources`, où il écrit, est
+    # verrouillée. Une attestation invalidée entre cette lecture et la publication est refusée par le claim
+    # de Worker B (jointure sur `invalidated_at IS NULL`) et par la revérification live de la revue.
     rows = conn.execute("""
         SELECT pa.attestation_id, pa.resource_id, pa.artifact_id, pa.collection,
                r.run_id, r.state_version, r.resource_state
@@ -347,7 +351,7 @@ def enqueue_successor(conn: Any, *, create_job: Any = None) -> dict[str, int]:
            AND ad.successor_resource_id = pa.resource_id
            AND ad.successor_artifact_id = pa.artifact_id
          WHERE pa.release_id = %s AND pa.invalidated_at IS NULL
-         ORDER BY pa.collection, pa.resource_id FOR SHARE OF pa, r, ad
+         ORDER BY pa.collection, pa.resource_id FOR SHARE OF r
     """, (RELEASE,)).fetchall()
     if len(rows) != 74 or len({r[1] for r in rows}) != 74:
         raise HGGSPRefused(f"enqueue : {len(rows)} attestations adoptées, 74 attendues")
