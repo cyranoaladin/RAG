@@ -1,0 +1,51 @@
+{
+  "artifact_transfer_manifest_sha256": "d6cd4c2222da6aa0c435673f40170ffcddd78d786fedbaaf8dcadae6f71e27ed",
+  "artifacts_release_sha256": "9f8485127e16574183ee192a02fa192f1d714b5f17cda7e96f9522c11d93dc64",
+  "candidate_inventory_sha256": "1aeda3d22e0e9bd20ecf0d47b8516ae02ac39a646282841be62283a59a5d0d3f",
+  "collections": [
+    "rag_nexus_dgemc_terminale_option",
+    "rag_nexus_hggsp_premiere_specialite",
+    "rag_nexus_hggsp_terminale_specialite",
+    "rag_nexus_hlp_premiere_specialite",
+    "rag_nexus_hlp_terminale_specialite",
+    "rag_nexus_nsi_premiere_specialite",
+    "rag_nexus_nsi_terminale_specialite",
+    "rag_nexus_ses_premiere_specialite",
+    "rag_nexus_ses_terminale_specialite",
+    "rag_nexus_svt_premiere_specialite",
+    "rag_nexus_svt_terminale_specialite"
+  ],
+  "decision": "AUTHORIZE_SEALED_RELEASE_PUBLICATION",
+  "expected_counts": {
+    "placements": 479,
+    "subjects": 11,
+    "unique_artifacts": 315,
+    "unique_chunks": 8268
+  },
+  "placement_evidence": {
+    "currentness": "official_snapshot",
+    "placement_status": "active",
+    "review_status": "reviewed"
+  },
+  "protocol_version": "LOT42-RELEASE-BATCH-V1",
+  "provenance_note": "Provenance documentaire scellee : 27 URL(s) de provenance pour 315 artefacts. Ce champ dit d'ou le corpus vient ; il ne designe pas une ressource a recuperer et n'est pas une URL canonique.",
+  "provenance_source_url_count": 27,
+  "release_id": "production-profile-gate-2026-2027-v4",
+  "release_manifest_sha256": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be",
+  "review_id": "lot42-release-batch-v4-staging-dh-20260926",
+  "scope_authorization_ids": [
+    "lot41a-staging-v4-dgemc-terminale-option-r4",
+    "lot41a-staging-v4-hggsp-premiere-specialite-r4",
+    "lot41a-staging-v4-hggsp-terminale-specialite-r4",
+    "lot41a-staging-v4-hlp-premiere-specialite-r4",
+    "lot41a-staging-v4-hlp-terminale-specialite-r4",
+    "lot41a-staging-v4-nsi-premiere-specialite-r4",
+    "lot41a-staging-v4-nsi-terminale-specialite-r4",
+    "lot41a-staging-v4-ses-premiere-specialite-r4",
+    "lot41a-staging-v4-ses-terminale-specialite-r4",
+    "lot41a-staging-v4-svt-premiere-specialite-r4",
+    "lot41a-staging-v4-svt-terminale-specialite-r4"
+  ],
+  "valid_from": "2026-09-26T14:55:10.878071Z",
+  "valid_until": "2026-10-26T14:55:10.878071Z"
+}
