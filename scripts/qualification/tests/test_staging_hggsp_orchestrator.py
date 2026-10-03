@@ -170,3 +170,18 @@ def test_operator_id_est_valide_puis_echappe_aux_deux_sites() -> None:
     assert "${OPERATOR_ID:?" not in etape
     # validé AVANT le premier appel distant : aucun effet si l'identité manque
     assert etape.index('[ -n "${OPERATOR_ID:-}" ]') < etape.index("remote <<EOF")
+
+
+def test_l_evaluateur_de_la_revue_batch_est_valide_puis_echappe() -> None:
+    """Même défaut que OPERATOR_ID : sans échappement, `--evaluator "Alaeddine Ben Rhouma"` était coupé
+    en trois arguments et la proposition refusée (`unrecognized arguments: Ben Rhouma`)."""
+    etape = SCRIPT.read_text(encoding="utf-8").split(
+        "etape_successor_batch_review_proposal() {", 1)[1].split("\netape_", 1)[0]
+    assert '--evaluator "$(arg_shell "$EVALUATOR")"' in etape
+    assert "${EVALUATOR:?" not in etape
+    assert etape.index('[ -n "${EVALUATOR:-}" ]') < etape.index("worker ")  # validé avant l'appel distant
+    echappe = _arg_shell(OPERATEUR)
+    assert "'" not in echappe and '"' not in echappe
+    assert _argv_distant(f"--evaluator {echappe} --review-id lot42-x") == [
+        "--evaluator", OPERATEUR, "--review-id", "lot42-x",
+    ]

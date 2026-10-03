@@ -485,7 +485,13 @@ def test_real_postgres_enqueue_preserves_same_collection_v4_jobs(
                              (module.RELEASE, "SEALED-RELEASE-ADOPTION-V2", f"old-resource-{i}",
                               f"old-artifact-{i}", f"resource-{i}", f"artifact-{i}"))
             conn.execute("GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control_app")
-            conn.execute("GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA ingestion_control TO ingestion_control_app")
+            # Privilèges RÉELS du rôle applicatif sur le staging (relus en direct) : SELECT seulement sur les
+            # attestations et les adoptions, que le rôle attestor/adopter écrit. Accorder UPDATE partout
+            # masquait que `FOR SHARE` sur ces tables exige UPDATE.
+            conn.execute("GRANT SELECT ON ingestion_control.publication_attestations,"
+                         " ingestion_control.sealed_release_adoptions TO ingestion_control_app")
+            conn.execute("GRANT SELECT, INSERT, UPDATE ON ingestion_control.resources,"
+                         " ingestion_control.jobs TO ingestion_control_app")
             conn.commit()
             old_sql = """SELECT j.job_id::text AS job_id,
                 j.payload->>'publication_attestation_id' AS attestation_id,
@@ -720,7 +726,11 @@ def test_real_postgres_148_historical_jobs_74_governed(monkeypatch: pytest.Monke
         with psycopg.connect(dsn) as setup:
             _pg_active_vs_historical_schema(setup)
             setup.execute("GRANT USAGE ON SCHEMA ingestion_control TO ingestion_control_app")
-            setup.execute("GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA ingestion_control TO ingestion_control_app")
+            # Privilèges réels du rôle applicatif (cf. test d'enqueue) : lecture seule sur ce que d'autres rôles écrivent.
+            setup.execute("GRANT SELECT ON ingestion_control.publication_attestations, ingestion_control.sealed_release_adoptions,"
+                          " ingestion_control.artifacts, ingestion_control.publication_commit_pins TO ingestion_control_app")
+            setup.execute("GRANT SELECT, INSERT, UPDATE ON ingestion_control.resources,"
+                          " ingestion_control.jobs TO ingestion_control_app")
             setup.commit()
         admin = psycopg.connect(dsn, autocommit=True)
 
@@ -844,3 +854,13 @@ def test_real_postgres_148_historical_jobs_74_governed(monkeypatch: pytest.Monke
         admin.close()
     finally:
         subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, text=True, check=False)
+
+
+def test_enqueue_locks_only_what_the_application_role_may_lock() -> None:
+    """`FOR SHARE` exige UPDATE sur chaque table verrouillée. Le rôle applicatif n'a que SELECT sur les
+    attestations et les adoptions : seule `resources` (où il peut écrire) est verrouillée."""
+    source = (ROOT / "scripts/go_live/staging_hggsp_complementary.py").read_text(encoding="utf-8")
+    fonction = source.split("def enqueue_successor(", 1)[1].split("\ndef ", 1)[0]
+    assert "FOR SHARE OF r\n" in fonction
+    for interdit in ("FOR SHARE OF pa", "FOR SHARE OF ad", "FOR UPDATE", "FOR NO KEY UPDATE", "FOR KEY SHARE"):
+        assert interdit not in fonction, interdit
