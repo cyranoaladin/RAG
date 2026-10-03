@@ -62,11 +62,16 @@ def lancer(d: Path, incoming: Path, *, new: tuple[bytes, bytes] = (NOUVEAU_M, NO
 
 
 def instantane(d: Path) -> dict[str, str]:
-    """Contenu et noms de tout l'arbre, hors dépôt entrant : pour prouver « rien n'a changé »."""
+    """Contenu, noms et type de tout l'arbre sauf le dépôt entrant : pour prouver « rien n'a changé »."""
     return {
-        str(p.relative_to(d)): (sha(p.read_bytes()) if p.is_file() else "dir")
+        str(p.relative_to(d)): ("lien" if p.is_symlink() else sha(p.read_bytes()) if p.is_file() else "dir")
         for p in sorted(d.rglob("*")) if ".incoming" not in str(p)
     }
+
+
+def sans_depot_entrant(incoming: Path) -> None:
+    """Sur refus comme sur succès, le dépôt entrant (une copie) est nettoyé ; jamais l'état distant."""
+    assert not incoming.exists()
 
 
 # ── installation, rejeu, supersession ────────────────────────────────────────
@@ -104,6 +109,7 @@ def test_supersession_archive_l_ancienne_paire_puis_remplace(tmp_path: Path) -> 
     archive = d / "superseded" / f"20261003T100000Z-{sha(ANCIEN_M)[:12]}"
     assert (archive / M).read_bytes() == ANCIEN_M and (archive / B).read_bytes() == ANCIEN_B
     assert stat.S_IMODE((archive / M).stat().st_mode) == 0o400  # preuve en lecture seule
+    assert stat.S_IMODE((archive / B).stat().st_mode) == 0o400
     assert stat.S_IMODE((d / M).stat().st_mode) == 0o600
     assert not incoming.exists()
     assert f"archive={archive}" in resultat.stdout
@@ -148,6 +154,7 @@ def test_etat_distant_non_supersedable_refuse_sans_rien_modifier(
     resultat = lancer(d, incoming, old=pins)
     assert resultat.returncode == 4 and motif in resultat.stderr
     assert instantane(d) == avant and not (d / "superseded").exists()
+    sans_depot_entrant(incoming)
     assert (d / M).read_bytes() == distant[0] and (d / B).read_bytes() == distant[1]
 
 
@@ -160,6 +167,7 @@ def test_paire_distante_partielle_refuse(tmp_path: Path, present: str) -> None:
     resultat = lancer(d, incoming)
     assert resultat.returncode == 4 and "partielle" in resultat.stderr
     assert instantane(d) == avant
+    sans_depot_entrant(incoming)
 
 
 def test_nouvelle_paire_alteree_refuse_avant_tout_remplacement(tmp_path: Path) -> None:
@@ -211,6 +219,99 @@ def test_ancienne_et_nouvelle_identiques_refuse(tmp_path: Path) -> None:
     deposer(incoming, m=ANCIEN_M, b=ANCIEN_B)
     resultat = lancer(d, incoming, new=(ANCIEN_M, ANCIEN_B))
     assert resultat.returncode == 4 and "identiques" in resultat.stderr
+
+
+# ── anomalies de fichiers, remplacement interrompu, dépôt entrant ───────────────
+
+
+@pytest.mark.parametrize("liens", [(True, True), (True, False), (False, True)], ids=["deux", "manifeste", "liaison"])
+def test_lien_symbolique_casse_est_une_anomalie_pas_une_absence(tmp_path: Path, liens: tuple[bool, bool]) -> None:
+    """Deux liens cassés : `-e` les croirait absents et l'installation les remplacerait en silence."""
+    d, incoming = dossiers(tmp_path)
+    for nom, octets, lien in ((M, ANCIEN_M, liens[0]), (B, ANCIEN_B, liens[1])):
+        if lien:
+            (d / nom).symlink_to(tmp_path / "cible-inexistante")
+        else:
+            (d / nom).write_bytes(octets)
+    deposer(incoming)
+    avant = instantane(d)
+    resultat = lancer(d, incoming, old=None)
+    assert resultat.returncode == 4 and instantane(d) == avant
+    assert (d / M).is_symlink() == liens[0] and (d / B).is_symlink() == liens[1]  # rien n'a été remplacé
+    assert resultat.stdout == ""  # ni READINESS_INSTALLED ni READINESS_SUPERSEDED
+    sans_depot_entrant(incoming)
+
+
+def test_paire_distante_en_liens_symboliques_refuse(tmp_path: Path) -> None:
+    d, incoming = dossiers(tmp_path)
+    (tmp_path / "m").write_bytes(ANCIEN_M)
+    (tmp_path / "b").write_bytes(ANCIEN_B)
+    (d / M).symlink_to(tmp_path / "m")
+    (d / B).symlink_to(tmp_path / "b")
+    deposer(incoming)
+    resultat = lancer(d, incoming)
+    assert resultat.returncode == 4 and "lien symbolique" in resultat.stderr
+    assert (d / M).is_symlink() and (d / B).is_symlink() and not (d / "superseded").exists()
+
+
+def test_lien_symbolique_dans_le_depot_entrant_refuse(tmp_path: Path) -> None:
+    d, incoming = dossiers(tmp_path)
+    poser(d, ANCIEN_M, ANCIEN_B)
+    (tmp_path / "vrai.json").write_bytes(NOUVEAU_M)
+    (incoming / M).symlink_to(tmp_path / "vrai.json")
+    (incoming / B).write_bytes(NOUVEAU_B)
+    avant = instantane(d)
+    assert lancer(d, incoming).returncode == 4 and instantane(d) == avant
+
+
+def stub_mv(tmp_path: Path, *, echoue_pour: str) -> str:
+    """`mv` qui échoue UNE fois quand sa destination finit par `echoue_pour`, puis délègue : simule
+    un second renommage interrompu sans toucher au script."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir(exist_ok=True)
+    marque = tmp_path / "deja-echoue"
+    (bin_ / "mv").write_text(
+        "#!/usr/bin/env bash\n"
+        f'for dernier; do :; done\n'
+        f'if [[ "$dernier" == *{echoue_pour} && ! -e "{marque}" ]]; then : > "{marque}"; exit 1; fi\n'
+        'exec /bin/mv "$@"\n'
+    )
+    (bin_ / "mv").chmod(0o755)
+    return f"{bin_}:{os.environ['PATH']}"
+
+
+def test_remplacement_interrompu_restaure_l_ancienne_paire_depuis_l_archive(tmp_path: Path) -> None:
+    d, incoming = dossiers(tmp_path)
+    poser(d, ANCIEN_M, ANCIEN_B)
+    deposer(incoming)
+    resultat = lancer(d, incoming, PATH=stub_mv(tmp_path, echoue_pour=B))
+    assert resultat.returncode == 4 and "remplacement interrompu" in resultat.stderr
+    assert "ancienne paire restaurée" in resultat.stderr
+    # jamais de paire mixte : l'ancienne paire est revenue, octet pour octet, en 0600
+    assert (d / M).read_bytes() == ANCIEN_M and (d / B).read_bytes() == ANCIEN_B
+    assert stat.S_IMODE((d / M).stat().st_mode) == 0o600
+    archive = d / "superseded" / f"20261003T100000Z-{sha(ANCIEN_M)[:12]}"
+    assert (archive / M).read_bytes() == ANCIEN_M and (archive / B).read_bytes() == ANCIEN_B
+    assert not list(d.glob("*.restauration")) and not list(d.glob(".incoming*"))
+
+
+def test_installation_interrompue_ne_laisse_pas_de_paire_partielle(tmp_path: Path) -> None:
+    d, incoming = dossiers(tmp_path)
+    deposer(incoming)
+    resultat = lancer(d, incoming, old=None, PATH=stub_mv(tmp_path, echoue_pour=B))
+    assert resultat.returncode == 4 and "installation interrompue" in resultat.stderr
+    assert not (d / M).exists() and not (d / B).exists()
+
+
+@pytest.mark.parametrize("entrant", ["{d}", "{d}/../ailleurs", "/tmp/x", "{d}/a/../..", "{d}/.incoming-test/../.incoming-x"])
+def test_depot_entrant_hors_du_repertoire_refuse_sans_rien_supprimer(tmp_path: Path, entrant: str) -> None:
+    d, incoming = dossiers(tmp_path)
+    poser(d, NOUVEAU_M, NOUVEAU_B)  # la paire ACTIVE porte les mêmes noms que le dépôt entrant
+    avant = instantane(d)
+    cible = entrant.format(d=d)
+    resultat = lancer(d, Path(cible))
+    assert resultat.returncode == 4 and "enfant direct" in resultat.stderr
+    assert instantane(d) == avant and (d / M).read_bytes() == NOUVEAU_M  # le nettoyage n'a rien supprimé
 
 
 # ── marqueurs : renommés, jamais supprimés ────────────────────────────────────
@@ -316,5 +417,223 @@ def test_les_scripts_d_aide_ne_suppriment_aucune_preuve() -> None:
     marqueurs = MARQUEURS.read_text(encoding="utf-8")
     assert not re.search(r"\brm\b", marqueurs.replace("# ", "#"))  # renommage seulement
     distant = REMOTE.read_text(encoding="utf-8")
-    assert "rm -f \"$INCOMING/$M\" \"$INCOMING/$B\"" in distant  # seul le dépôt entrant est nettoyé
+    assert 'rm -f -- "$INCOMING/$M" "$INCOMING/$B"' in distant  # seul le dépôt entrant est nettoyé
+    assert "trap nettoyer EXIT" in distant
     assert not re.search(r"rm\s+[^\n]*\$D/", distant)
+
+
+def stub_mv_sans_deplacement(tmp_path: Path, op: str) -> str:
+    """`mv -n` qui « réussit » sans rien déplacer pour un marqueur : la course dénoncée par la revue."""
+    bin_ = tmp_path / "bin"
+    bin_.mkdir(exist_ok=True)
+    (bin_ / "mv").write_text(
+        "#!/usr/bin/env bash\n"
+        f'if [[ "$*" == *"{op}.done "* && "$1" == "-n" ]]; then exit 0; fi\n'
+        'exec /bin/mv "$@"\n'
+    )
+    (bin_ / "mv").chmod(0o755)
+    return f"{bin_}:{os.environ['PATH']}"
+
+
+@pytest.mark.parametrize("op", ["successor_preflight", "successor_readiness_install"])
+def test_un_renommage_qui_ne_deplace_rien_annule_tout_et_ne_journalise_pas(tmp_path: Path, op: str) -> None:
+    e = etat(tmp_path)
+    avant = {p.name: p.read_text() for p in e.iterdir()}
+    env = {**os.environ, "PATH": stub_mv_sans_deplacement(tmp_path, op)}
+    resultat = subprocess.run(["bash", str(MARQUEURS), str(e), "20261003T120000Z"],
+                              env=env, capture_output=True, text=True, check=False)
+    assert resultat.returncode == 3 and "renommage non effectué" in resultat.stderr
+    assert {p.name: p.read_text() for p in e.iterdir()} == avant  # tout annulé, journal intact
+    assert "SUPERSEDE" not in (e / "execution.log").read_text()
+
+
+def test_journal_non_ecrivable_annule_les_renommages(tmp_path: Path) -> None:
+    e = etat(tmp_path)
+    (e / "execution.log").unlink()
+    (e / "execution.log").mkdir()  # l'ajout au journal échouera
+    resultat = retirer(e)
+    assert resultat.returncode == 3 and "journal non régulier" in resultat.stderr
+    for op in ("successor_readiness_install", "successor_preflight"):
+        assert (e / f"{op}.done").read_text() == TOUS[op] + "\n"
+        assert not (e / f"{op}.done.superseded-20261003T120000Z").exists()
+
+
+def test_le_preflight_est_retire_avant_l_installation(tmp_path: Path) -> None:
+    """Un état interrompu ne doit jamais rejouer l'installation en sautant le préflight."""
+    texte = MARQUEURS.read_text(encoding="utf-8")
+    ligne = next(ligne for ligne in texte.splitlines() if ligne.startswith("OPERATIONS="))
+    assert ligne.index("successor_preflight") < ligne.index("successor_readiness_install")
+
+
+def test_un_marqueur_lien_symbolique_refuse(tmp_path: Path) -> None:
+    e = etat(tmp_path)
+    (e / "successor_preflight.done").unlink()
+    (tmp_path / "ailleurs").write_text("x\n")
+    (e / "successor_preflight.done").symlink_to(tmp_path / "ailleurs")
+    assert retirer(e).returncode == 3 and (e / "successor_readiness_install.done").exists()
+
+
+# ── retours de revue : journal transactionnel, dépôt entrant, noms, restauration ─────────────────
+
+
+def stub_mv_appels(tmp_path: Path, echecs: set[int]) -> str:
+    """`mv` dont les appels numérotés `echecs` échouent (les autres délèguent) : simule un renommage
+    interrompu à un point précis du script, sans le modifier."""
+    bin_ = tmp_path / "binmv"
+    bin_.mkdir(exist_ok=True)
+    compteur = tmp_path / "compteur-mv"
+    liste = "," + ",".join(str(n) for n in sorted(echecs)) + ","
+    (bin_ / "mv").write_text(
+        "#!/usr/bin/env bash\n"
+        f'n=$(( $(cat "{compteur}" 2>/dev/null || echo 0) + 1 )); echo $n > "{compteur}"\n'
+        f'case "{liste}" in *",$n,"*) exit 1;; esac\n'
+        'exec /bin/mv "$@"\n'
+    )
+    (bin_ / "mv").chmod(0o755)
+    return f"{bin_}:{os.environ['PATH']}"
+
+
+def sans_temporaires(d: Path) -> None:
+    assert not list(d.glob("*.restauration"))
+
+
+def test_ecriture_partielle_du_journal_restaure_marqueurs_et_journal(tmp_path: Path) -> None:
+    import resource
+    import signal
+
+    e = etat(tmp_path)
+    initial = b"x" * 900  # sous la limite ci-dessous, mais l'ajout des deux lignes la dépasse
+    (e / "execution.log").write_bytes(initial)
+
+    def limiter() -> None:
+        resource.setrlimit(resource.RLIMIT_FSIZE, (1000, 1000))
+        signal.signal(signal.SIGXFSZ, signal.SIG_IGN)  # l'écriture échoue (EFBIG) au lieu de tuer le processus
+
+    resultat = subprocess.run(["bash", str(MARQUEURS), str(e), "20261003T120000Z"],
+                              capture_output=True, text=True, check=False, preexec_fn=limiter)
+    assert resultat.returncode == 3 and "journal non écrit ou écrit partiellement" in resultat.stderr
+    # le journal est EXACTEMENT revenu à son état initial : aucune ligne n'affirme une supersession
+    assert (e / "execution.log").read_bytes() == initial
+    assert b"SUPERSEDE" not in (e / "execution.log").read_bytes()
+    for op in ("successor_readiness_install", "successor_preflight"):
+        assert (e / f"{op}.done").read_text() == TOUS[op] + "\n"
+        assert not (e / f"{op}.done.superseded-20261003T120000Z").exists()
+
+
+def test_journal_absent_puis_ecriture_reussie_ecrit_les_deux_lignes_d_un_bloc(tmp_path: Path) -> None:
+    e = etat(tmp_path)
+    (e / "execution.log").unlink()
+    assert retirer(e).returncode == 0
+    lignes = (e / "execution.log").read_text().splitlines()
+    assert len(lignes) == 2 and all("SUPERSEDE" in ligne for ligne in lignes)
+    assert "successor_preflight" in lignes[0] and "successor_readiness_install" in lignes[1]
+
+
+@pytest.mark.parametrize("cible", ["vers-d", "casse", "fichier"])
+def test_depot_entrant_symbolique_ou_non_repertoire_refuse_sans_rien_supprimer(tmp_path: Path, cible: str) -> None:
+    """Un lien vers D ferait supprimer par le nettoyage la paire ACTIVE (mêmes noms de fichiers)."""
+    d, _ = dossiers(tmp_path)
+    poser(d, NOUVEAU_M, NOUVEAU_B)
+    lien = d / ".incoming-lien"
+    if cible == "vers-d":
+        lien.symlink_to(d)
+    elif cible == "casse":
+        lien.symlink_to(tmp_path / "inexistant")
+    else:
+        lien.write_bytes(b"pas un repertoire")
+    avant = instantane(d)
+    resultat = lancer(d, lien)
+    assert resultat.returncode == 4 and ("lien symbolique" in resultat.stderr or "non répertoire" in resultat.stderr)
+    assert (d / M).read_bytes() == NOUVEAU_M and (d / B).read_bytes() == NOUVEAU_B  # paire active intacte
+    assert instantane(d) == avant
+
+
+def test_depot_entrant_remplace_par_un_lien_apres_validation_n_est_pas_suivi_par_le_nettoyage(tmp_path: Path) -> None:
+    """Le nettoyage revérifie : un dépôt devenu lien n'est jamais parcouru."""
+    texte = REMOTE.read_text(encoding="utf-8")
+    nettoyage = texte.split("nettoyer() {", 1)[1].split("\n}\n", 1)[0]
+    assert '[ -d "$INCOMING" ] && [ ! -L "$INCOMING" ] || return 0' in nettoyage
+    assert nettoyage.index("return 0") < nettoyage.index("rm -f")
+
+
+@pytest.mark.parametrize("nom", ["../sentinelle.json", "a/b", "", ".caché/..", "x y", "-rf", "/etc/passwd"],
+                         ids=["parent", "slash", "vide", "point-point", "espace", "option", "absolu"])
+def test_noms_invalides_refuses_avant_le_nettoyage_et_rien_hors_du_depot_n_est_supprime(
+    tmp_path: Path, nom: str,
+) -> None:
+    d, incoming = dossiers(tmp_path)
+    poser(d, ANCIEN_M, ANCIEN_B)
+    sentinelle = d / "sentinelle.json"  # atteignable par « $INCOMING/../sentinelle.json »
+    sentinelle.write_bytes(b"ne pas supprimer\n")
+    deposer(incoming)
+    avant = instantane(d)
+    # NEW_M invalide : avec un `trap` posé avant la validation, ce refus déclencherait le nettoyage
+    resultat = lancer(d, incoming, M=nom, NEW_M="zz")
+    assert resultat.returncode in (1, 4)  # 1 : nom vide, refusé par `${M:?}` ; 4 : refus explicite
+    assert sentinelle.read_bytes() == b"ne pas supprimer\n"
+    assert instantane(d) == avant
+    assert (incoming / M).exists() and (incoming / B).exists()  # refus avant le nettoyage : le dépôt est laissé tel quel
+
+
+def test_installation_interrompue_annulation_verifiee_aucune_paire_active(tmp_path: Path) -> None:
+    d, incoming = dossiers(tmp_path)
+    deposer(incoming)
+    resultat = lancer(d, incoming, old=None, PATH=stub_mv_appels(tmp_path, {2}))
+    assert resultat.returncode == 4 and "installation interrompue" in resultat.stderr
+    assert "aucune paire active" in resultat.stderr
+    assert "remis dans" not in resultat.stderr  # ne promet plus un fichier récupérable
+    assert not (d / M).exists() and not (d / B).exists() and not incoming.exists()
+
+
+def test_installation_interrompue_et_annulation_impossible_dit_l_etat_partiel(tmp_path: Path) -> None:
+    d, incoming = dossiers(tmp_path)
+    deposer(incoming)
+    resultat = lancer(d, incoming, old=None, PATH=stub_mv_appels(tmp_path, {2, 3}))
+    assert resultat.returncode == 4 and "PARTIELLE" in resultat.stderr
+    assert "manifeste=nouveau" in resultat.stderr and "liaison=absent" in resultat.stderr
+    assert (d / M).read_bytes() == NOUVEAU_M and not (d / B).exists()  # l'état annoncé est l'état réel
+
+
+def test_restauration_reussie_est_verifiee_sans_temporaire(tmp_path: Path) -> None:
+    d, incoming = dossiers(tmp_path)
+    poser(d, ANCIEN_M, ANCIEN_B)
+    deposer(incoming)
+    resultat = lancer(d, incoming, PATH=stub_mv_appels(tmp_path, {2}))
+    assert resultat.returncode == 4 and "restaurée et vérifiée" in resultat.stderr
+    assert "manifeste=ancien liaison=ancien" in resultat.stderr
+    assert (d / M).read_bytes() == ANCIEN_M and (d / B).read_bytes() == ANCIEN_B
+    sans_temporaires(d)
+
+
+def test_restauration_incomplete_ne_pretend_pas_qu_une_paire_valide_est_restauree(tmp_path: Path) -> None:
+    """Le remplacement échoue sur la liaison (M nouveau, B ancien) ; la restauration échoue aussi."""
+    d, incoming = dossiers(tmp_path)
+    poser(d, ANCIEN_M, ANCIEN_B)
+    deposer(incoming)
+    resultat = lancer(d, incoming, PATH=stub_mv_appels(tmp_path, {2, 3}))
+    assert resultat.returncode == 4 and "restauration INCOMPLÈTE" in resultat.stderr
+    assert "n'est PAS garantie valide" in resultat.stderr
+    assert "manifeste=nouveau liaison=ancien" in resultat.stderr  # l'état exact : une paire mixte
+    assert "restaurée et vérifiée" not in resultat.stderr
+    assert (d / M).read_bytes() == NOUVEAU_M and (d / B).read_bytes() == ANCIEN_B
+    sans_temporaires(d)  # aucun fichier .restauration orphelin
+    archive = d / "superseded" / f"20261003T100000Z-{sha(ANCIEN_M)[:12]}"
+    assert (archive / M).read_bytes() == ANCIEN_M and (archive / B).read_bytes() == ANCIEN_B  # preuve intacte
+
+
+def test_la_restauration_prepare_les_deux_anciens_fichiers_avant_de_renommer() -> None:
+    texte = REMOTE.read_text(encoding="utf-8")
+    fonction = texte.split("restaurer() {", 1)[1].split("\n}\n", 1)[0]
+    assert fonction.index('cp -p -- "$archive/$M" "$temp_m"') < fonction.index('mv -T -- "$temp_m"')
+    assert fonction.index('cp -p -- "$archive/$B" "$temp_b"') < fonction.index('mv -T -- "$temp_m"')
+    assert fonction.index('"$(sha "$temp_m")" = "$OLD_M"') < fonction.index('mv -T -- "$temp_m"')  # vérifiés d'abord
+    assert fonction.rstrip().endswith('[ "$(sha "$D/$M")" = "$OLD_M" ] && [ "$(sha "$D/$B")" = "$OLD_B" ]')
+
+
+def test_les_noms_et_chemins_sont_valides_avant_l_enregistrement_du_trap() -> None:
+    texte = REMOTE.read_text(encoding="utf-8")
+    avant_trap = texte.split("trap nettoyer EXIT", 1)[0]
+    for exigence in ("nom_valide \"$M\" && nom_valide \"$B\"", 'hex64 "$NEW_M"', '[ "$(dirname -- "$INCOMING")" = "$D" ]',
+                     '[ -d "$INCOMING" ] && [ ! -L "$INCOMING" ]', 'STAMP" =~'):
+        assert exigence in avant_trap, exigence
+    assert texte.count("trap nettoyer EXIT") == 1

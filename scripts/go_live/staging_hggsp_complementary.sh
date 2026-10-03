@@ -648,7 +648,7 @@ case "${1:-}" in
         [ "$nouveau_m" != "$ancien_m" ] && [ "$nouveau_b" != "$ancien_b" ] \
             || fail "la readiness locale est celle qui est supersédée : signer d'abord la nouvelle paire"
         if [ "$DRY_RUN" = 1 ]; then
-            log "SIMULATION : readiness locale nouvelle, paire distante comparée aux empreintes pinnées, marqueurs non touchés"
+            log "SIMULATION : autorité active et nouvelle readiness locale vérifiées ; NON vérifiés en simulation : paire distante (empreintes pinnées) et état des marqueurs ; marqueurs non touchés"
             exit 0
         fi
         observe="$(remote <<EOF

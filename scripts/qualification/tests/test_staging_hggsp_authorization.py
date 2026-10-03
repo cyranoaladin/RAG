@@ -411,12 +411,24 @@ def test_amendment_tampering_is_refused(mutation: object) -> None:
 def test_amendment_supersedes_exactly_the_previous_runtime_and_not_the_current_one() -> None:
     doc = _document()
     ancien = doc["amendment"]["superseded_runtime"]
+    # La cible de la supersession est EXACTEMENT le runtime et la readiness installés par #270 (valeurs
+    # figées ici : un autre run, une autre image ou une autre paire ne doit jamais devenir la cible).
+    assert ancien == {
+        "provenance_run_id": 36633288414,
+        "source_commit_sha": "a9e3701965503d2862a248c46fd7e7e175058c8f",
+        "runtime_image": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:"
+                         "2228650e2245ea2fdc45d442a78363fd362781c2f80e2270618eedca0abf9bcf",
+        "retrieval_image": "ghcr.io/cyranoaladin/rag-ingestor@sha256:"
+                           "11aa98d58ebcd10ee09543d4791f63b67542b764ab0484f004cccc8d43e86caf",
+        "readiness": {
+            "manifest_sha256": "70fb399bf4fd005760bb141e5717e9a68329b0f7681c49f44eddeddd07c67c01",
+            "binding_sha256": "ed8d08141f7b2ef5becda2760b692974b92940ea1382139dea828b1b64b7fb01",
+        },
+    }
     assert ancien["runtime_image"] != doc["runtime_image"]["reference"]
     assert ancien["retrieval_image"] != doc["retrieval_image"]["reference"]
     assert ancien["provenance_run_id"] != doc["provenance"]["run_id"]
     assert ancien["source_commit_sha"] != doc["base_commit_sha"]
-    for cle in ("manifest_sha256", "binding_sha256"):
-        assert len(ancien["readiness"][cle]) == 64 and set(ancien["readiness"][cle]) <= set("0123456789abcdef")
     assert doc["amendment"]["amends_pull_request"] == 270 and doc["amendment"]["triggered_by_pull_request"] == 279
 
 
@@ -425,8 +437,11 @@ def test_amendment_partitions_operations_without_marking_unperformed_ones_done()
     amendement = doc["amendment"]
     groupes = [amendement["carried_over_operations"], amendement["renewed_operations"],
                amendement["not_performed_operations"]]
-    assert set(sum(groupes, [])) | {"successor_readiness_sign"} == set(doc["operations"])
-    assert len(sum(groupes, [])) == len(set(sum(groupes, [])))  # une opération dans un seul groupe
+    tous = sum(groupes, [])
+    # exactement les opérations, sauf la signature locale de la readiness (qui n'est dans aucun groupe)
+    assert set(tous) == set(doc["operations"]) - {"successor_readiness_sign"}
+    assert "successor_readiness_sign" not in tous
+    assert len(tous) == len(set(tous))  # une opération dans un seul groupe
     # les faits persistants sont exactement la migration 020 et les r4 ; rien d'autre n'est reporté
     assert amendement["carried_over_operations"] == [
         "successor_control_schema_020_and_adopter_role", "successor_scope_authorization_registration_r4"]
