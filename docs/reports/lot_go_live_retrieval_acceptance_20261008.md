@@ -85,13 +85,16 @@ est absent. Dans l'image runtime dépourvue de Git, le SHA de checkout
 précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` avec
 `NEXUS_ACCEPTANCE_CHECKOUT_CLEAN=true` après contrôle `git status` de l'hôte ;
 si Git est présent, le runner vérifie lui-même la propreté et toute divergence
-du SHA bloque la recette.
+du SHA bloque la recette. Un Git présent qui échoue à résoudre le checkout
+bloque aussi la recette ; l'attestation hôte ne sert qu'à l'image sans Git.
 
 Préparation vérifiée localement le 2026-10-08 dans un venv propre lié à ce
 worktree, depuis le main de base `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
 
 ```bash
-python -m pytest services/rag-engine/tests/test_final_retrieval_acceptance.py -q
+python -m pytest services/rag-engine/tests/test_final_retrieval_acceptance.py \
+  services/rag-engine/tests/test_rag_query_client.py \
+  services/rag-engine/tests/test_staging_external_acceptance.py -q
 ruff check --config services/rag-engine/pyproject.toml --ignore I001 \
   scripts/go_live/final_retrieval_acceptance.py \
   scripts/go_live/staging_retrieval_probe.py scripts/rag_query.py \
@@ -101,5 +104,6 @@ ruff check --config services/rag-engine/pyproject.toml --ignore I001 \
 La première commande vérifie la suite, les clients HTTP, l'émetteur étudiant,
 les refus `dense ann tie overflow`, le rattachement de la sonde au checkout et
 à la DB, ainsi que la provenance du verdict ; la seconde vérifie les fichiers
-modifiés. Ces vérifications synthétiques ne valent pas mesure du staging final
+modifiés. Résultats locaux : **54 tests réussis**, **Ruff réussi**. Ces
+vérifications synthétiques ne valent pas mesure du staging final
 et ne produisent pas `QUALITY_PASS=true`.

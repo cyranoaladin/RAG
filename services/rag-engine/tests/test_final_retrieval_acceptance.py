@@ -451,6 +451,19 @@ def test_runtime_without_git_refuses_missing_clean_checkout_attestation(monkeypa
         acceptance._git_head(ROOT)
 
 
+def test_present_git_failure_cannot_use_host_checkout_attestation(monkeypatch):
+    import subprocess
+
+    def failing_git(*_args, **_kwargs):
+        raise subprocess.CalledProcessError(128, ["git", "rev-parse", "HEAD"])
+
+    monkeypatch.setenv("NEXUS_ACCEPTANCE_CHECKOUT_SHA", "e" * 40)
+    monkeypatch.setenv("NEXUS_ACCEPTANCE_CHECKOUT_CLEAN", "true")
+    monkeypatch.setattr(subprocess, "check_output", failing_git)
+    with pytest.raises(acceptance.AcceptanceFailure, match="SHA du checkout"):
+        acceptance._git_head(ROOT)
+
+
 def test_git_checkout_refuses_tracked_modifications(monkeypatch):
     import subprocess
 

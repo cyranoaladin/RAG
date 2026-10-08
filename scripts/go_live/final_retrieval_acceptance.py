@@ -485,10 +485,12 @@ def _git_head(root: Path) -> str:
             ["git", "-C", str(root), "rev-parse", "HEAD"], text=True,
             stderr=subprocess.DEVNULL,
         ).strip()
-    except (FileNotFoundError, subprocess.CalledProcessError):
+    except FileNotFoundError:
         if expected and os.environ.get("NEXUS_ACCEPTANCE_CHECKOUT_CLEAN") == "true":
             return expected  # image runtime sans git ; SHA précontrôlé par l'hôte.
         raise AcceptanceFailure("SHA ou attestation de checkout propre indisponible") from None
+    except subprocess.CalledProcessError:
+        raise AcceptanceFailure("SHA du checkout indisponible malgré Git présent") from None
     if expected and expected != actual:
         raise AcceptanceFailure("SHA du checkout divergent")
     status = subprocess.check_output(
