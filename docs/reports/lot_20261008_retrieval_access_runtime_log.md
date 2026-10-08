@@ -1,0 +1,11 @@
+# Lot 2026-10-08 — journal d'accès du retrieval en runtime
+
+Base : `origin/main` `4b62104d9887eb418b6c50b39cde9ddb6d55b884`, arbre `a0492fa14720a88b81ce3250343cdbd2dbf3d40f`, worktree et venv isolés. Contrôle staging en lecture seule le 8 octobre 2026 à 20:56 UTC ; projet Compose `nexus-staging`, API `nexus-staging-ingestor-1` construite depuis cette base.
+
+Le runtime exposait bien `/metrics` : après une recherche refusée avec HTTP 401, `retrieval_requests_total=7`, `retrieval_errors_total{cause="authentication"}=1`, `retrieval_empty_results_total=5`, `retrieval_scope_refusals_total=0`, `retrieval_http_503_total=0`. En revanche, `docker logs --since 2m nexus-staging-ingestor-1` contenait **zéro** événement `retrieval_access`, alors que les requêtes HTTP figuraient dans les logs Uvicorn. Le logger dédié héritait du niveau `WARNING` du logger racine et ses lignes `INFO` étaient éliminées.
+
+Le correctif configure une seule fois le logger dédié à `INFO` avec une sortie JSON vers stdout, en gardant le contenu du journal et le chemin de retrieval inchangés. Un test reproduit la configuration Uvicorn, vérifie deux lignes JSON pour deux requêtes et échouait avant le correctif avec `[]` à la place de deux identifiants. Après correction : **89 tests ciblés passés**, `ruff` et `git diff --check` verts. Le test ne remplace pas une vérification sur l'image déployée.
+
+Les familles de métriques demandées sont présentes dans `/metrics`, avec les latences dense, lexical, reranker et totale ainsi que les compteurs 503 et overflow ANN. Les quatre règles du fichier `retrieval.rules.yml` passent `promtool check config` avec l'image Prometheus épinglée. **Aucune règle n'est actuellement chargée en staging** : aucun conteneur `nexus-staging-prometheus` n'est lancé et le port staging 19191 refuse la connexion. Après fusion, l'API doit être reconstruite et redéployée sur le SHA courant, puis une requête doit produire une unique ligne `retrieval_access` dans `docker logs`. Le service Prometheus staging doit être lancé et `/api/v1/rules`, `/api/v1/targets` vérifiés avant `OBSERVABILITY_PASS=true`.
+
+Ce lot ne modifie ni le ranking, ni les seuils, ni les filtres de portée, ni les règles Prometheus, ni la production. Il ne prouve pas encore l'observabilité sur l'image finale.

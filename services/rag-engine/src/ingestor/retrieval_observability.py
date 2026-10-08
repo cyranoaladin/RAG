@@ -34,6 +34,7 @@ import json
 import logging
 import os
 import re
+import sys
 import unicodedata
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
@@ -44,6 +45,18 @@ from typing import Any
 #: Nom du logger dédié — séparé des logs applicatifs pour qu'un exploitant
 #: puisse router ce flux vers sa collecte sans embarquer le reste.
 ACCESS_LOGGER_NAME = "nexus.retrieval.access"
+
+# Uvicorn ne configure pas le logger racine à INFO. Sans handler propre, les
+# lignes structurées existent en mémoire mais ne sortent jamais du conteneur.
+# Le nom du handler évite une double émission si le module est importé à la
+# fois comme paquet et comme module autonome dans un même processus.
+_ACCESS_LOGGER = logging.getLogger(ACCESS_LOGGER_NAME)
+_ACCESS_LOGGER.setLevel(logging.INFO)
+if not any(handler.get_name() == "nexus-retrieval-access-stdout" for handler in _ACCESS_LOGGER.handlers):
+    _access_handler = logging.StreamHandler(sys.stdout)
+    _access_handler.set_name("nexus-retrieval-access-stdout")
+    _access_handler.setFormatter(logging.Formatter("%(message)s"))
+    _ACCESS_LOGGER.addHandler(_access_handler)
 
 #: En-tête de corrélation déjà utilisé par le plan d'ingestion
 #: (`audit_logger`, `admin_api`) : une seule convention pour tout le service.
@@ -239,7 +252,7 @@ def log_retrieval_access(
     Un journal qui casse la réponse transforme un incident d'observabilité en
     incident de service : la défaillance est absorbée ici.
     """
-    target = logger if logger is not None else logging.getLogger(ACCESS_LOGGER_NAME)
+    target = logger if logger is not None else _ACCESS_LOGGER
     try:
         target.info(record.as_json())
     except Exception:  # pragma: no cover - défense en profondeur
