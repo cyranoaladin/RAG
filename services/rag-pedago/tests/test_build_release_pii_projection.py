@@ -53,6 +53,9 @@ class TestReviewReceiptCurrentness:
             producer._load_review_authority(inputs)
 
     def test_v4_v5_use_the_current_receipt_and_exact_digest(self) -> None:
+        # Vérification volontairement à l'heure réelle : après expiration,
+        # la CI doit refuser ce reçu et exiger une nouvelle revue gouvernée.
+        # Figer l'horloge transformerait une preuve périmée en faux vert.
         import hashlib
         import json
 

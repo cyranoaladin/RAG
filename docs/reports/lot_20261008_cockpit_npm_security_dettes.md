@@ -1,4 +1,4 @@
-# Antériorité et fermeture des échecs CI — lot npm et PII du 2026-10-08
+# Antériorité des échecs CI et corrections apportées — lot npm et PII du 2026-10-08
 
 Sur le parent `ee35544bce5af74d6186ea0ef61f6902a2258ffe`, la [CI main 37730000035](https://github.com/cyranoaladin/RAG/actions/runs/37730000035) avait trois jobs rouges : `rag-pedago` (deux tests PII), `rag-engine` (trois tests PII) et `cockpit` (audit npm). Les échecs PII étaient dus aux attentes temporelles de tests relisant un reçu du 3 septembre expiré le 3 octobre ; le vérificateur le refusait correctement. L'échec Cockpit venait des avis courants `sharp`, `source-map-js` et `postcss-selector-parser`.
 
