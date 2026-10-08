@@ -1,0 +1,42 @@
+{
+  "kind": "NEXUS-FINAL-V4-V5-STAGING-C0-BUDGET-V1",
+  "adopted": true,
+  "scope": "QUALIFICATION_THRESHOLD_NOT_PRODUCTION_SLA",
+  "declared_before_measurement": true,
+  "decision_ref": "LOT_GO_LIVE_FINAL_C0_STAGING_20261008",
+  "anchor": "services/cockpit/src/lib/request-deadlines.ts : SEARCH_ROUTE_BUDGET_MS = 7500 ms. Une requête plus lente que ce délai est une erreur visible côté Cockpit : le délai client du banc et le plafond p99 en découlent.",
+  "load_profile": {
+    "concurrent_clients": 8,
+    "measured_requests_total": 240,
+    "warmup_requests": 10,
+    "endpoint": "POST /search/v2",
+    "retrieval_options": {"k": 8, "hybrid": true, "rerank": true, "include_citations": true},
+    "query_suite": "services/rag-engine/tests/fixtures/final_v4_v5_acceptance.json (33 requêtes positives liées aux manifests V4/V5, 11 collections)",
+    "client_timeout_ms": 7500
+  },
+  "budget": {
+    "p50_ms_max": 3000.0,
+    "p95_ms_max": 6000.0,
+    "p99_ms_max": 7500.0,
+    "error_rate_max": 0.0,
+    "errors_max": 0,
+    "timeouts_max": 0,
+    "db_connections_peak_max": 10
+  },
+  "rules": [
+    "le budget est déclaré et commité avant toute mesure ; il n'est jamais ajusté après lecture des résultats",
+    "toute mesure hors budget laisse CONCURRENCE ouvert (fail-closed)",
+    "chaque réponse 200 doit porter des résultats avec citations ; une réponse vide ou sans citation compte comme erreur",
+    "le pic de connexions PostgreSQL du rôle de retrieval ne dépasse pas 10 sur ragdb_profile_gate_v4",
+    "le runner est en lecture seule et ne redémarre pas le runtime staging",
+    "le verdict lie le checkout main, le registre mixte V4/V5 et les 33 requêtes positives",
+    "ce budget est un seuil de qualification staging, pas un SLA de production"
+  ],
+  "does_not_close": [
+    "DEPLOIEMENT_PRODUCTION",
+    "STUDENT_PUBLIC_PATH",
+    "C1",
+    "BACKUP_RESTORE_PRODUCTION",
+    "le go-live lui-même"
+  ]
+}
