@@ -2,7 +2,7 @@
 
 ## Périmètre et base
 
-Exécution le 2026-10-08 UTC sur un worktree propre créé après `git fetch origin main`, sans utiliser le checkout CU divergent. Base : `origin/main` `ee35544bce5af74d6186ea0ef61f6902a2258ffe`, arbre `e7f13396a17676ceba5550d039b50a6a2160838f`. Seul `services/cockpit/package.json` et son lockfile changent ; aucune donnée de staging ou de production n'a été écrite.
+Exécution le 2026-10-08 UTC sur un worktree propre créé après `git fetch origin main`, sans utiliser le checkout CU divergent. Base : `origin/main` `ee35544bce5af74d6186ea0ef61f6902a2258ffe`, arbre `e7f13396a17676ceba5550d039b50a6a2160838f`. Les seuls fichiers applicatifs modifiés sont `services/cockpit/package.json` et son lockfile ; aucune donnée de staging ou de production n'a été écrite. Les échecs CI préexistants hors Cockpit sont consignés dans `lot_20261008_cockpit_npm_security_dettes.md`.
 
 Les mesures npm ont été refaites contre le registre courant. Avant correction, `npm audit --omit=dev --json` sortait avec code 1 et trois vulnérabilités **high** : `sharp` `<0.35.5` (GHSA-wq5f-xc86-pv6w), `source-map-js` `<1.2.2` (GHSA-68fv-2mgg-jv7q) et `next` par dépendance de `sharp`. L'audit complet sortait avec code 1 : neuf **high** et trois **moderate**. Les trois nouvelles moderate provenaient de `postcss-selector-parser` `<7.1.6` (GHSA-rj75-hqrm-r3gf), via `postcss-nested` puis `tailwindcss-animate`.
 
