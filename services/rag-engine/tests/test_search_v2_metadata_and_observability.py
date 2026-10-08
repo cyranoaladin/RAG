@@ -369,6 +369,7 @@ def test_une_requete_refusee_produit_aussi_sa_ligne_de_journal(
     (line,) = _access_lines(caplog)
     assert line["status_code"] == 422
     assert line["outcome"] == "refused"
+    assert line["cause"] == "invalid_request"
     assert line["endpoint"] == "/search/v2"
 
 
@@ -401,10 +402,27 @@ def test_un_echec_de_retrieval_est_journalise_avec_l_etape_fautive(
     (line,) = _access_lines(caplog)
     assert line["status_code"] == 503
     assert line["outcome"] == "refused"
+    assert line["cause"] == "service_unavailable"
     assert line["dense_status"] == "ok"
     assert line["lexical_status"] == "failed"
     assert line["dense_count"] == 5
     assert line["filters"]["collection"] == "rag_nexus_nsi_terminale_specialite"
+
+
+def test_resultat_vide_valide_est_distingue_d_une_panne(
+    client, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    endpoint, http = client
+    monkeypatch.setattr(endpoint, "_retrieve_hybrid_hits", lambda *_a, **_kw: [])
+
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = http.post("/search/v2", json=_payload())
+
+    assert response.status_code == 200
+    assert response.json()["results"] == []
+    (line,) = _access_lines(caplog)
+    assert line["outcome"] == "empty_valid_result"
+    assert line["cause"] == "empty_valid_result"
 
 
 def test_un_identifiant_de_correlation_hostile_est_remplace(

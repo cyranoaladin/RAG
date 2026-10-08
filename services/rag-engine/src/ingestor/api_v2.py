@@ -64,6 +64,7 @@ try:
     from .pg_pool import (
         PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         close_pool,
         current_runtime_request_deadline,
         get_pool,
@@ -130,6 +131,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from pg_pool import (  # type: ignore[no-redef]
         PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         close_pool,
         current_runtime_request_deadline,
         get_pool,
@@ -505,11 +507,15 @@ async def _metrics_middleware(request: Request, call_next):
                             remaining_request_budget_ms()
                             response = await call_next(request)
                         else:
+                            request.state.retrieval_failure_cause = "service_unavailable"
                             response = JSONResponse(
                                 content={"detail": "service unavailable"},
                                 status_code=503,
                             )
-                except PoolConfigurationError:
+                except PoolConfigurationError as exc:
+                    request.state.retrieval_failure_cause = (
+                        "timeout" if isinstance(exc, RuntimeBudgetExpired) else "pool_failure"
+                    )
                     response = JSONResponse(
                         content={"detail": "service unavailable"},
                         status_code=503,
@@ -526,6 +532,13 @@ async def _metrics_middleware(request: Request, call_next):
             )
     finally:
         path = request.url.path
+        if path == "/search/v2" and request.method == "POST":
+            _journal_unrecorded_access(
+                request,
+                endpoint=path,
+                status_code=status_code,
+                started=started,
+            )
         ingest_metrics.record_http_request(
             _business_route_template(path)
             or (path if path in _OBSERVED_ROUTES else "unmatched"),
@@ -533,6 +546,13 @@ async def _metrics_middleware(request: Request, call_next):
             status_code,
             time.perf_counter() - started,
         )
+        if path == "/search/v2" and request.method == "POST":
+            ingest_metrics.record_retrieval_http(
+                status_code=status_code,
+                seconds=time.perf_counter() - started,
+                cause=getattr(request.state, "retrieval_failure_cause", None),
+                empty=getattr(request.state, "retrieval_empty_result", False),
+            )
     return response
 
 
@@ -575,8 +595,17 @@ def _journal_unrecorded_access(
             status_code=status_code,
             latency_ms=(time.perf_counter() - started) * 1000.0,
             outcome="pre_route",
+            cause=getattr(state, "retrieval_failure_cause", None) or (
+                "authentication" if status_code == 401 else
+                "scope_refusal" if status_code == 403 else
+                "invalid_request" if status_code in {400, 422} else
+                "service_unavailable" if status_code == 503 else
+                "internal_error" if status_code >= 400 else None
+            ),
         )
     )
+    if state is not None:
+        state.access_journaled = True
 
 
 def _mount_allowed_routes() -> None:

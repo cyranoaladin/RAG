@@ -1,0 +1,33 @@
+groups:
+  - name: retrieval-v2
+    rules:
+      - alert: RAGRetrievalMetricsScrapeFailed
+        expr: up{job="rag-engine-v2"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Collecte Prometheus du retrieval v2 indisponible
+      - alert: RAGRetrievalUnavailable
+        expr: increase(retrieval_http_503_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Réponses 503 sur le retrieval v2
+      - alert: RAGRetrievalTieOverflow
+        expr: increase(retrieval_tie_overflow_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: Débordement d'égalité ANN dense
+      - alert: RAGRetrievalP95High
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(retrieval_total_search_latency_seconds_bucket[5m]))) > 6
+          and sum(increase(retrieval_requests_total[5m])) >= 20
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: P95 du retrieval supérieur à 6 secondes
