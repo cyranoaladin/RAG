@@ -33,7 +33,7 @@ le digest du nouveau registre de release. La preuve privée (`0600`) lie
 checkout, tree, registre, artefact pilote, population, statuts HTTP, citations
 et identités de contenus ; elle ne conserve aucun jeton.
 
-Limite vérifiée sur `ee35544b` : le BFF signe actuellement le pilote immuable
+Limite vérifiée sur `6f33805` : le BFF signe actuellement le pilote immuable
 `libre_terminale_maths_nsi_real_v1` (maths et NSI terminale), tandis que le
 registre final V4+V5 ne contient pas maths. Sa readiness agrège les deux
 collections signées ; le parcours BFF risque donc un 503 avant la recherche
@@ -43,7 +43,7 @@ obligatoire. Une évolution gouvernée distincte du scope BFF est nécessaire
 pour le chemin Cockpit sur le produit final, et une nouvelle release de
 visibilité publique pour le succès élève.
 
-Validation locale au SHA `ee35544bce5af74d6186ea0ef61f6902a2258ffe` :
+Validation locale au SHA `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
 14 tests Python du harnais, 180 tests Cockpit, Ruff, ESLint, TypeScript,
 vérification des contrats et build Next.js réussis. Aucune mesure BFF live
 sur le staging final n'est affirmée dans ce lot.
