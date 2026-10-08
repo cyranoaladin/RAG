@@ -54,7 +54,8 @@ runtime déployé dont le SHA diffère du checkout qualifié. L'image et la
 provenance de l'archive restent à contrôler séparément lors du déploiement.
 
 Validation locale sur la base `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
-`npm ci` PASS ; `npm run test -- --run` : 204/204 PASS ;
+`npm ci` PASS ; `npm run test -- --run` : 215/215 PASS, dont la parité
+de signature des onze scopes V2 ;
 `npm run lint`, `npm run typecheck`, `npm run contracts:check` et
 `npm run build` PASS ; `npm audit --omit=dev` : zéro vulnérabilité.
 La mesure live est confiée au harnais de la PR #293,

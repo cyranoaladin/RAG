@@ -4,6 +4,9 @@ import path from 'node:path'
 import { jwtVerify } from 'jose'
 import { describe, expect, it } from 'vitest'
 
+import finalScopes from '@/generated/final-retrieval-scopes-v4-v5.json'
+import { canonicalScopeDigest } from '@/server/pilot-scope'
+
 const helper = path.resolve(process.cwd(), 'scripts/mint-session-token.mjs')
 
 describe('session synthétique de qualification BFF', () => {
@@ -42,5 +45,33 @@ describe('session synthétique de qualification BFF', () => {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
     })).toThrow()
+  })
+
+  it.each(finalScopes)('signe exactement le scope canonique $scope_id', async (scope) => {
+    const target = scope.target_identity
+    const output = execFileSync('node', [helper], {
+      cwd: process.cwd(),
+      input: JSON.stringify({
+        nextauth_secret: 'nextauth-secret-qualification-1234567890',
+        internal_token_secret: 'internal-secret-qualification-1234567890',
+        tenant: target.tenant,
+        niveau: target.niveau,
+        voie: target.voie,
+        matieres: [target.matiere],
+        statut_enseignement: target.statut_enseignement,
+        candidat: target.candidates[0],
+        audience: target.audience,
+        school_year: scope.evidence_subject.school_year,
+      }),
+      encoding: 'utf8',
+    })
+    const minted = JSON.parse(output)
+    const { payload } = await jwtVerify(
+      minted.internal_access_token,
+      new TextEncoder().encode('internal-secret-qualification-1234567890'),
+    )
+    expect(payload.scope_id).toBe(scope.scope_id)
+    expect(payload.scope_digest).toBe(canonicalScopeDigest(scope))
+    expect(payload.allowed_collections).toEqual([scope.evidence_subject.collection])
   })
 })

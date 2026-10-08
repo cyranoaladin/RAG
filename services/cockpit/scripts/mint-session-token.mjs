@@ -49,14 +49,14 @@ async function main() {
     tenant,
     niveau,
     role,
-    school_year: '2026-2027',
+    school_year: params.school_year || '2026-2027',
     exp: now + 600,
     pedagogical_profile: {
-      voie: 'generale',
+      voie: params.voie || 'generale',
       matieres,
-      statut_enseignement: 'specialite',
+      statut_enseignement: params.statut_enseignement || 'specialite',
       candidat,
-      audience: 'libre',
+      audience: params.audience || 'libre',
     },
   }
 
