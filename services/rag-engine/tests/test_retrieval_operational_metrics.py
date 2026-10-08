@@ -8,6 +8,7 @@ import pytest
 import yaml
 
 from ingestor import metrics
+from ingestor import retrieval_v2_endpoint as endpoint
 from ingestor.retrieval_observability import RetrievalAccessRecord
 
 
@@ -71,6 +72,13 @@ def test_access_log_exposes_only_a_bounded_failure_cause() -> None:
 
     assert record.as_mapping()["cause"] == "timeout"
     assert "query" not in record.as_json()
+
+
+def test_wrapped_inference_timeout_retains_only_bounded_diagnostic() -> None:
+    try:
+        raise RuntimeError("secret model path") from TimeoutError("secret timeout")
+    except RuntimeError as exc:
+        assert endpoint._bounded_retrieval_failure_cause(exc) == "timeout"
 
 
 def test_v2_prometheus_loads_the_retrieval_alert_file() -> None:

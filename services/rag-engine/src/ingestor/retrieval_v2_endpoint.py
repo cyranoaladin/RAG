@@ -1432,6 +1432,20 @@ def _retrieval_unavailable() -> HTTPException:
     return HTTPException(status_code=503, detail="retrieval unavailable")
 
 
+def _bounded_retrieval_failure_cause(exc: BaseException) -> str:
+    """Conserver seulement un type de panne connu à travers les wrappers internes."""
+    current: BaseException | None = exc
+    for _ in range(4):
+        if current is None:
+            break
+        if isinstance(current, PoolConfigurationError):
+            return "pool_failure"
+        if isinstance(current, TimeoutError):
+            return "timeout"
+        current = current.__cause__
+    return "internal_error"
+
+
 def _retrieve_hybrid_hits(
     query: str,
     collection: str,
@@ -1467,11 +1481,7 @@ def _retrieve_hybrid_hits(
     except Exception as exc:
         cause = getattr(diagnostics, "failure_cause", None)
         if cause is None:
-            cause = (
-                "pool_failure"
-                if isinstance(exc, PoolConfigurationError)
-                else "timeout" if isinstance(exc, TimeoutError) else "internal_error"
-            )
+            cause = _bounded_retrieval_failure_cause(exc)
         if diagnostics is not None:
             diagnostics.failure_cause = cause
         logger.error("hybrid retrieval unavailable", extra={"retrieval_cause": cause})
