@@ -11,7 +11,7 @@
     "warmup_requests": 10,
     "endpoint": "POST /search/v2",
     "retrieval_options": {"k": 8, "hybrid": true, "rerank": true, "include_citations": true},
-    "query_suite": "SEARCH_CASES de test_multilevel_real_ingestion.py (30 requêtes gouvernées, 10 collections)",
+    "query_suite": "services/rag-engine/tests/fixtures/final_v4_v5_acceptance.json (33 requêtes positives liées aux manifests V4/V5, 11 collections)",
     "client_timeout_ms": 7500
   },
   "budget": {
