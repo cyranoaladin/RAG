@@ -109,3 +109,10 @@ def test_v2_prometheus_loads_the_retrieval_alert_file() -> None:
         "RAGRetrievalTieOverflow",
         "RAGRetrievalP95High",
     } <= names
+    scrape_failure = next(
+        rule
+        for group in alerts["groups"]
+        for rule in group["rules"]
+        if rule["alert"] == "RAGRetrievalMetricsScrapeFailed"
+    )
+    assert scrape_failure["labels"]["severity"] == "critical"

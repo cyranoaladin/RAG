@@ -5,7 +5,7 @@ groups:
         expr: up{job="rag-engine-v2"} == 0
         for: 2m
         labels:
-          severity: warning
+          severity: critical
         annotations:
           summary: Collecte Prometheus du retrieval v2 indisponible
       - alert: RAGRetrievalUnavailable
