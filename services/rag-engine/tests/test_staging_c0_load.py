@@ -123,3 +123,13 @@ def test_real_http_shape_requires_signed_scope_and_complete_citation() -> None:
     assert row["status"] == 200
     assert row["outcome"] == "ok"
     assert row["detail"] is None
+
+
+def test_c0_evidence_is_private_and_cannot_overwrite_prior_measurement(tmp_path: Path) -> None:
+    path = tmp_path / "qualification" / "c0.json"
+    c0.write_report(path, {"verdict": {"pass": False}})
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert path.parent.stat().st_mode & 0o777 == 0o700
+    with pytest.raises(FileExistsError):
+        c0.write_report(path, {"verdict": {"pass": True}})
+    assert '"pass": false' in path.read_text()

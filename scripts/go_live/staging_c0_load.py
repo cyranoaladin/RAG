@@ -316,6 +316,21 @@ def run_c0(
     return result
 
 
+def write_report(path: Path, report: Mapping[str, Any]) -> None:
+    """Écrire une preuve privée nouvelle ; une mesure précédente est immuable."""
+    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(report, stream, indent=2, sort_keys=True)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--suite", type=Path, required=True)
@@ -324,11 +339,14 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     try:
+        args.output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+        if args.output.exists():
+            raise FileExistsError("preuve C0 existante")
         report = run_c0(
             suite_path=args.suite, budget_path=args.budget,
             api_url=args.api_url, environ=os.environ,
         )
-        args.output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        write_report(args.output, report)
         print(json.dumps({"verdict": report["verdict"], "output": str(args.output)}, sort_keys=True))
         return 0 if report["verdict"]["pass"] else 1
     except Exception as exc:
