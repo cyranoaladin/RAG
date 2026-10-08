@@ -13,8 +13,8 @@ en place. Le canal lexical et le contrat API ne changent pas.
 
 ## Vérification de ce lot
 
-Code testé au commit `3e22c0f2337f7092e35e34a0ab76ebca33fce211`, arbre
-`services/rag-engine` `c18cc677e9c4eab34a0b4620d7218e3f93b38fa3`.
+Code testé après rebase au commit `fe64bd82bf05495864b6aa8638a3692c9d914c68`, arbre
+`services/rag-engine` `ff860ebb5f2dca65c829e000b90788f7eebb3215`.
 Depuis `services/rag-engine`, les commandes et résultats étaient :
 
 ```bash
@@ -29,8 +29,8 @@ PYTHONPATH=src /tmp/nexus-exact-retrieval-venv-3cef/bin/pytest -q \
 # All checks passed! ; exit 0
 /tmp/nexus-exact-retrieval-venv-3cef/bin/mypy src/ingestor/retrieval_pg_v2.py
 # Success: no issues found in 1 source file ; exit 0
-git diff --check 96f7506af14847c8084f07ed597995e029f5c63d \
-  3e22c0f2337f7092e35e34a0ab76ebca33fce211
+git diff --check 162f5f0a137342d8a07298935480d98a4742e04c \
+  fe64bd82bf05495864b6aa8638a3692c9d914c68
 # exit 0
 ```
 
