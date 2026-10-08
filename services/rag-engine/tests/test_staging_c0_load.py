@@ -221,6 +221,7 @@ def test_c0_evidence_is_private_and_cannot_overwrite_prior_measurement(tmp_path:
 def test_c0_evidence_refuses_permissive_parent_and_never_exposes_partial_final(tmp_path: Path) -> None:
     directory = tmp_path / "qualification"
     directory.mkdir(mode=0o755)
+    directory.chmod(0o755)
     path = directory / "c0.json"
     with pytest.raises(PermissionError):
         c0.write_report(path, {"verdict": {"pass": True}})
