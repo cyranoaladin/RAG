@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 import pytest
@@ -106,6 +107,56 @@ def test_pilot_scope_must_match_the_complete_sealed_release_population():
         )
 
 
+def test_final_scope_index_matches_all_sealed_collections_and_governed_artifacts(tmp_path):
+    harness = load_harness()
+    artifacts = tmp_path / "artifacts"
+    artifacts.mkdir()
+    scopes = []
+    collections = {"rag_nexus_nsi_terminale_specialite", "rag_nexus_hggsp_terminale_specialite"}
+    for subject, collection in (("nsi", "rag_nexus_nsi_terminale_specialite"), ("hggsp", "rag_nexus_hggsp_terminale_specialite")):
+        scope = {
+            "scope_id": f"prod_{subject}_terminale_specialite_v3",
+            "status": "eligible_for_promotion",
+            "target_identity": {"tenant": "libre_terminale", "niveau": "terminale", "voie": "generale", "matiere": subject, "statut_enseignement": "specialite", "audience": "libre", "candidates": ["libre"]},
+            "evidence_subject": {"collection": collection, "school_year": "2026-2027", "visibility": "internal"},
+        }
+        (artifacts / f"retrieval-scope-prod-{subject}-terminale-specialite-v3.json").write_text(json.dumps(scope))
+        scopes.append(scope)
+    generated = tmp_path / "final.json"
+    generated.write_text(json.dumps(scopes))
+    result = harness.load_final_scopes(generated, artifacts, collections)
+    assert set(result) == collections
+    assert result["rag_nexus_nsi_terminale_specialite"]["scope_id"] == "prod_nsi_terminale_specialite_v3"
+    with pytest.raises(ValueError, match="scope.*release"):
+        harness.load_final_scopes(generated, artifacts, {"rag_nexus_nsi_terminale_specialite"})
+    scopes[0]["scope_id"] = "prod_nsi_terminale_specialite_v4"
+    generated.write_text(json.dumps(scopes))
+    with pytest.raises(ValueError, match="gouverné"):
+        harness.load_final_scopes(generated, artifacts, collections)
+
+
+def test_signed_claims_match_selected_final_scope_and_digest():
+    harness = load_harness()
+    scope = {"scope_id": "prod_nsi_terminale_specialite_v3", "evidence_subject": {"collection": "rag_nexus_nsi_terminale_specialite"}}
+    claims = {"role": "teacher", "scope_id": scope["scope_id"], "scope_digest": harness.canonical_scope_digest(scope), "allowed_collections": [scope["evidence_subject"]["collection"]]}
+    harness.assess_signed_claims(claims, "teacher", scope)
+    with pytest.raises(ValueError, match="scope"):
+        harness.assess_signed_claims({**claims, "scope_digest": "0" * 64}, "teacher", scope)
+
+
+def test_signed_identity_uses_exact_final_collection_profile():
+    harness = load_harness()
+    scope = {
+        "target_identity": {"tenant": "libre_premiere", "niveau": "premiere", "voie": "generale", "matiere": "hggsp", "statut_enseignement": "specialite", "audience": "libre", "candidates": ["libre"]},
+        "evidence_subject": {"school_year": "2026-2027", "collection": "rag_nexus_hggsp_premiere_specialite"},
+    }
+    assert harness.identity_for_scope(scope, "teacher") == {
+        "tenant": "libre_premiere", "niveau": "premiere", "voie": "generale", "matieres": ["hggsp"],
+        "statut_enseignement": "specialite", "audience": "libre", "candidat": "libre",
+        "school_year": "2026-2027", "role": "teacher",
+    }
+
+
 def test_cockpit_url_accepts_only_local_origin_without_credentials_or_query():
     harness = load_harness()
     assert harness.safe_cockpit_url("http://127.0.0.1:18004") == "http://127.0.0.1:18004"
@@ -132,19 +183,21 @@ def test_deployed_cockpit_must_report_exact_build_sha():
 
 def test_signed_claims_validator_requires_expected_role_and_scope():
     harness = load_harness()
+    scope = {
+        "scope_id": "prod_nsi_terminale_specialite_v3",
+        "evidence_subject": {"collection": "rag_nexus_nsi_terminale_specialite"},
+    }
     claims = {
         "role": "student",
-        "scope_id": "libre_terminale_maths_nsi_real_v1",
-        "allowed_collections": [
-            "rag_nexus_maths_terminale_gen_specialite",
-            "rag_nexus_nsi_terminale_specialite",
-        ],
+        "scope_id": scope["scope_id"],
+        "scope_digest": harness.canonical_scope_digest(scope),
+        "allowed_collections": [scope["evidence_subject"]["collection"]],
     }
-    harness.assess_signed_claims(claims, "student", claims["allowed_collections"])
+    harness.assess_signed_claims(claims, "student", scope)
     with pytest.raises(ValueError, match="role"):
-        harness.assess_signed_claims(claims, "teacher", claims["allowed_collections"])
+        harness.assess_signed_claims(claims, "teacher", scope)
     with pytest.raises(ValueError, match="scope"):
-        harness.assess_signed_claims({**claims, "scope_id": "unknown"}, "student", claims["allowed_collections"])
+        harness.assess_signed_claims({**claims, "scope_id": "unknown"}, "student", scope)
 
 
 def test_release_index_is_bound_to_the_requested_collection():

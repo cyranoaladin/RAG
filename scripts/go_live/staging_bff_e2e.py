@@ -22,9 +22,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-SCOPE_ID = "libre_terminale_maths_nsi_real_v1"
 NSI_COLLECTION = "rag_nexus_nsi_terminale_specialite"
-OUT_OF_SCOPE_COLLECTION = "rag_nexus_svt_terminale_specialite"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
 REQUIRED_ENV = (
     "NEXTAUTH_SECRET",
@@ -65,6 +63,43 @@ def safe_cockpit_url(raw: str) -> str:
 def assert_scope_registry_parity(scope_collections: set[str], registry_collections: set[str]) -> None:
     if scope_collections != registry_collections:
         raise ValueError("scope signé incompatible avec la release scellée")
+
+
+def canonical_scope_digest(scope: dict[str, Any]) -> str:
+    encoded = json.dumps(scope, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def load_final_scopes(
+    generated_path: Path, artifact_dir: Path, registry_collections: set[str]
+) -> dict[str, dict[str, Any]]:
+    """Lier la projection BFF aux onze artefacts gouvernés et au registre final."""
+    generated = json.loads(generated_path.read_text(encoding="utf-8"))
+    if not isinstance(generated, list):
+        raise TypeError("index final BFF invalide")
+    scopes: dict[str, dict[str, Any]] = {}
+    scope_ids: set[str] = set()
+    for raw in generated:
+        scope = _object(raw, "scope final")
+        scope_id = scope.get("scope_id")
+        subject = _object(scope.get("evidence_subject"), "subject final")
+        collection = subject.get("collection")
+        if (
+            not isinstance(scope_id, str)
+            or not re.fullmatch(r"prod_[a-z0-9_]+_v[0-9]+", scope_id)
+            or not isinstance(collection, str)
+            or scope_id in scope_ids
+            or collection in scopes
+            or scope.get("status") != "eligible_for_promotion"
+        ):
+            raise ValueError("index de scopes finaux ambigu ou invalide")
+        canonical = artifact_dir / f"retrieval-scope-{scope_id.replace('_', '-')}.json"
+        if not canonical.is_file() or json.loads(canonical.read_text(encoding="utf-8")) != scope:
+            raise ValueError("scope final différent de l'artefact gouverné")
+        scopes[collection] = scope
+        scope_ids.add(scope_id)
+    assert_scope_registry_parity(set(scopes), registry_collections)
+    return scopes
 
 
 def assess_runtime_identity(status: int, payload: Any, expected_sha: str) -> str:
@@ -174,11 +209,15 @@ def assess_cross_scope(status: int, payload: Any) -> bool:
 
 
 def assess_signed_claims(
-    claims: dict[str, Any], role: str, allowed_collections: list[str]
+    claims: dict[str, Any], role: str, scope: dict[str, Any]
 ) -> None:
     if claims.get("role") != role:
         raise ValueError("role signé inattendu")
-    if claims.get("scope_id") != SCOPE_ID or claims.get("allowed_collections") != allowed_collections:
+    if (
+        claims.get("scope_id") != scope["scope_id"]
+        or claims.get("scope_digest") != canonical_scope_digest(scope)
+        or claims.get("allowed_collections") != [scope["evidence_subject"]["collection"]]
+    ):
         raise ValueError("scope signé inattendu")
 
 
@@ -256,7 +295,26 @@ def _live_main_sha(root: Path) -> str:
     return response[0]
 
 
-def _mint_session(root: Path, role: str) -> tuple[str, dict[str, Any]]:
+def identity_for_scope(scope: dict[str, Any], role: str) -> dict[str, Any]:
+    target = _object(scope.get("target_identity"), "target identity")
+    subject = _object(scope.get("evidence_subject"), "evidence subject")
+    candidates = target.get("candidates")
+    if not isinstance(candidates, list) or "libre" not in candidates:
+        raise ValueError("candidat libre absent du scope final")
+    return {
+        "tenant": target["tenant"],
+        "niveau": target["niveau"],
+        "voie": target["voie"],
+        "matieres": [target["matiere"]],
+        "statut_enseignement": target["statut_enseignement"],
+        "audience": target["audience"],
+        "candidat": "libre",
+        "school_year": subject["school_year"],
+        "role": role,
+    }
+
+
+def _mint_session(root: Path, role: str, scope: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     missing = [name for name in REQUIRED_ENV if not os.environ.get(name)]
     if missing:
         raise ValueError("configuration d'identité absente: " + ", ".join(missing))
@@ -267,8 +325,7 @@ def _mint_session(root: Path, role: str) -> tuple[str, dict[str, Any]]:
         "internal_token_audience": os.environ["NEXUS_INTERNAL_TOKEN_AUDIENCE"],
         "sso_issuer": os.environ["NEXUS_SSO_ISSUER"],
         "sso_audience": os.environ["NEXUS_SSO_AUDIENCE"],
-        "matieres": ["nsi"],
-        "role": role,
+        **identity_for_scope(scope, role),
     }
     completed = subprocess.run(
         ["node", str(root / "services/cockpit/scripts/mint-session-token.mjs")],
@@ -285,11 +342,7 @@ def _mint_session(root: Path, role: str) -> tuple[str, dict[str, Any]]:
     assess_signed_claims(
         {**claims, "role": _object(claims.get("identity"), "identity").get("role")},
         role,
-        [subject["collection"] for subject in json.loads(
-            (root / "services/cockpit/src/generated/pilot-retrieval-scope-v1.json").read_text(
-                encoding="utf-8"
-            )
-        )["subjects"]],
+        scope,
     )
     return minted["session_token"], claims
 
@@ -343,30 +396,37 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("checkout différent du main final attendu")
     if _git(root, "status", "--porcelain"):
         raise ValueError("checkout de qualification non propre")
-    scope_path = root / "services/cockpit/src/generated/pilot-retrieval-scope-v1.json"
-    scope = _object(json.loads(scope_path.read_text(encoding="utf-8")), "pilot scope")
-    if scope.get("scope_id") != SCOPE_ID or args.collection not in [
-        subject["collection"] for subject in scope["subjects"]
-    ]:
-        raise ValueError("collection absente du scope BFF signé")
+    scope_path = root / "services/cockpit/src/generated/final-retrieval-scopes-v4-v5.json"
     if _sha256(args.registry) != args.registry_sha256:
         raise ValueError("release registry digest invalide")
     registry = _object(json.loads(args.registry.read_text(encoding="utf-8")), "registry")
-    assert_scope_registry_parity(
-        {subject["collection"] for subject in scope["subjects"]},
-        {collection for release in registry["releases"] for collection in release["collections"]},
+    registry_collections = {
+        collection for release in registry["releases"] for collection in release["collections"]
+    }
+    if len(registry_collections) != 11:
+        raise ValueError("registre final BFF attendu à 11 collections")
+    scopes = load_final_scopes(
+        scope_path,
+        root / "packages/contracts/src/nexus_contracts/artifacts",
+        registry_collections,
     )
+    scope = scopes.get(args.collection)
+    if scope is None:
+        raise ValueError("collection absente du scope BFF signé")
     health_status, health_body = _get_health(cockpit_url)
     runtime_build_sha = assess_runtime_identity(health_status, health_body, head)
     release_placements = load_release_evidence(args.registry, args.registry_sha256, args.collection)
     contents = {placement["content_sha256"] for placement in release_placements.values()}
-    teacher_session, _ = _mint_session(root, "teacher")
-    student_session, _ = _mint_session(root, "student")
+    teacher_session, _ = _mint_session(root, "teacher", scope)
+    student_session, _ = _mint_session(root, "student", scope)
     unauth_status, unauth_body = _post_search(cockpit_url, None, args.query, args.collection)
     if unauth_status != 401 or _object(unauth_body, "unauth").get("error") != "unauthorized":
         raise ValueError("BFF sans session non refusé")
     cross_status, cross_body = _post_search(
-        cockpit_url, teacher_session, args.query, OUT_OF_SCOPE_COLLECTION
+        cockpit_url,
+        teacher_session,
+        args.query,
+        next(collection for collection in sorted(registry_collections) if collection != args.collection),
     )
     assess_cross_scope(cross_status, cross_body)
     teacher_status, teacher_body = _post_search(
@@ -392,7 +452,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "cockpit_runtime_build_sha": runtime_build_sha,
         "checkout_tree": _git(root, "rev-parse", "HEAD^{tree}"),
         "release_registry_sha256": args.registry_sha256,
-        "pilot_scope_sha256": _sha256(scope_path),
+        "final_scope_index_sha256": _sha256(scope_path),
+        "selected_scope_digest": canonical_scope_digest(scope),
         "cockpit_url": cockpit_url,
         "query": args.query,
         "decision_author": args.operator_id,
@@ -407,8 +468,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "student_mode": args.student_mode,
         },
         "collection": args.collection,
-        "scope_id": SCOPE_ID,
-        "population": "BFF signed pilot scope: one collection; final 11 need direct API qualification",
+        "scope_id": scope["scope_id"],
+        "population": "BFF signed final scope: one of 11 collections; direct API acceptance covers all 11",
         "unauthenticated_status": unauth_status,
         "cross_scope_status": cross_status,
         "teacher_status": teacher_status,
