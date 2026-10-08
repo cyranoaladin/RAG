@@ -39,6 +39,8 @@ def test_image_scope_guard_is_local_and_precedes_remote() -> None:
     assert "--network none" in source
     local_guard = source.split("images_locales() {", 1)[1].split("\n}\n", 1)[0]
     assert "PYTHONPATH=" not in local_guard
+    remote_probe = source.split("etape_successor_independent_verification() {", 1)[1].split("\n}\n", 1)[0]
+    assert "-e PYTHONPATH=/app" in remote_probe
     assert "cancel" not in " ".join(source.split("ORDRE_HGGSP=(", 1)[1].split(")", 1)[0].split())
 
 
