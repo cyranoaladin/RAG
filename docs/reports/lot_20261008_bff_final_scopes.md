@@ -7,8 +7,9 @@ empêche donc le parcours HTTP de recherche sur le produit final.
 
 Cette PR génère depuis `packages/contracts` la projection Cockpit des **11
 artefacts V2 internes déjà gouvernés** par les autorisations successeurs V4 et
-HGGSP V5. La génération les charge aussi par le registre Python canonique,
-qui valide schéma et digest épinglé, puis vérifie l'unicité des `scope_id` et
+HGGSP V5. Le générateur Node compare les digests JSON canoniques aux onze
+empreintes épinglées par les registres `nexus_contracts.scope` et
+`nexus_contracts.hggsp_successor_scopes`, puis vérifie l'unicité des `scope_id` et
 l'égalité de la population des collections
 avec le registre de release V4+V5 ; la sélection est explicitement figée dans
 le générateur et n'adopte pas automatiquement de futurs artefacts publics. La
@@ -27,7 +28,13 @@ silencieuse. La rotation d'un jeton conserve son `scope_id`.
 Le contrat V2 canonique impose exactement une matière dans l'identité signée
 (`profile.matieres == [target.matiere]`). Un profil SSO multi-matières qui ne
 correspond pas au pilote historique reste refusé à la connexion : sélectionner
-une matière et dériver une nouvelle identité exigerait un lot gouverné distinct.
+une matière et dériver une nouvelle identité exigerait un lot gouverné distinct
+(ADR, évolution du contrat, autorité de dérivation et tests de bout en bout).
+Le simple retrait de la condition mono-matière dans le Cockpit fabriquerait une
+enveloppe que `RetrievalScopeArtifactV2.validate_envelope` refuse côté API.
+La décision produit reste ouverte : confirmer un périmètre V1 mono-matière ou
+autoriser explicitement ce nouveau protocole. Aucune identité SSO n'est
+réétiquetée pour contourner ce refus.
 Ce lot qualifie les onze collections avec des identités mono-matière distinctes.
 
 La visibilité des 11 artefacts est toujours `internal`. Aucun filtre moteur,
@@ -53,10 +60,32 @@ ou `NEXUS_COCKPIT_BUILD_SHA` explicite pour une archive immuable). La route
 runtime déployé dont le SHA diffère du checkout qualifié. L'image et la
 provenance de l'archive restent à contrôler séparément lors du déploiement.
 
-Validation locale sur la base `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
-`npm ci` PASS ; `npm run test -- --run` : 215/215 PASS, dont la parité
-de signature des onze scopes V2 ;
-`npm run lint`, `npm run typecheck`, `npm run contracts:check` et
-`npm run build` PASS ; `npm audit --omit=dev` : zéro vulnérabilité.
-La mesure live est confiée au harnais de la PR #293,
-à adapter au scope NSI V2 après l'intégration de ce lot.
+Code testé : `cb9547f6fd792bc623176c337bdc27858639062c` (arbre
+`bf2ba108fe154ab85de5610a4456931a487a332d`), sur `main`
+`1ab971838e90c876bf185da03b67423f9f0a32c9` (arbre
+`cbdae38bedfe6a4ba9f3a1f32a6b29fe9bfa4c88`). Depuis
+`services/cockpit` dans ce worktree isolé :
+
+```sh
+npm ci --no-audit --no-fund             # 495 paquets installés
+npm test -- --run                       # 218 tests, 25 fichiers, tous verts
+npm run lint                            # exit 0
+npm run typecheck                       # exit 0
+npm run contracts:check                 # exit 0
+npm run build                           # exit 0 ; .next/BUILD_ID = cb9547f6...
+env PATH='' /usr/bin/node scripts/generate-contracts.mjs --check # exit 0 sans Python
+```
+
+Les nouveaux tests ont d'abord échoué parce que l'import du générateur
+réécrivait `src/generated`, que le contrôle lançait Python même sous Vitest,
+et que la commande Git de provenance n'avait pas de délai maximal. Ils passent
+après garde de l'entrée CLI, vérification Node des digests épinglés et délai
+Git de 5 secondes. `contracts:check` conserve le prérequis Python existant
+pour exporter les schémas ; `npm test` et `contracts:generate` n'en ajoutent
+aucun. Le commit de rapport suivant est documentaire seulement.
+
+Le harnais #293 au HEAD `a6749e6be61b0bffe8470f810edfac92e8077014`
+lit toujours le même JSON de onze scopes, le digest canonique et le SHA exposé
+par `/api/health` ; ses interfaces restent compatibles. Aucun parcours HTTP
+staging n'a été exécuté ici, et son E2E reste conditionné au déploiement du
+Cockpit final sur la cible qualifiée.
