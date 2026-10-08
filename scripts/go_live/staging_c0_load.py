@@ -41,7 +41,7 @@ def validate_api_url(value: str) -> str:
     if (
         parsed.scheme != "http"
         or parsed.hostname not in {"127.0.0.1", "localhost"}
-        or parsed.port is None
+        or parsed.port != 18003
         or parsed.username is not None
         or parsed.password is not None
         or parsed.path not in {"", "/"}

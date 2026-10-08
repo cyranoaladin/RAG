@@ -46,7 +46,9 @@ def test_nearest_rank_uses_observed_tail() -> None:
 
 
 def test_staging_c0_refuses_prod_or_secret_bearing_url() -> None:
-    assert validate_api_url("http://127.0.0.1:8001") == "http://127.0.0.1:8001"
+    assert validate_api_url("http://127.0.0.1:18003") == "http://127.0.0.1:18003"
+    with pytest.raises(ValueError):
+        validate_api_url("http://127.0.0.1:8001")
     with pytest.raises(ValueError):
         validate_api_url("https://api.example.org")
     with pytest.raises(ValueError):
