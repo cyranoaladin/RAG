@@ -29,7 +29,17 @@ refuser ces placements ; le succès élève requiert la décision de droits,
 la revue et la release publique distinctes. Ce lot ne revendique aucun
 succès HTTP staging tant que le Cockpit final n'y est pas déployé et mesuré.
 
+La release V1 expose seulement la recherche avec passages cités. Le verrou
+`answer_generation_allowed=false` de
+`services/rag-pedago/configs/pedago_interface_contract.yml` reste intact,
+conformément aux ADR-0012 et ADR-0037. `/api/chat` répond explicitement
+`503 answer_generation_disabled` après contrôle de session et de collection,
+sans appeler le moteur ; l'interface ne présente plus de bouton de génération.
+Cela évite également une erreur 500 sur les nouvelles collections, auparavant
+absentes du scope pilote du chat. Une transition gouvernée distincte devra
+réouvrir cette fonction.
+
 Validation locale sur la base `ee35544bce5af74d6186ea0ef61f6902a2258ffe` :
-200 tests Cockpit, ESLint, TypeScript, vérification des schémas et artefacts
+202 tests Cockpit, ESLint, TypeScript, vérification des schémas et artefacts
 générés, build Next.js. La mesure live est confiée au harnais de la PR #293,
 à adapter au scope NSI V2 après l'intégration de ce lot.

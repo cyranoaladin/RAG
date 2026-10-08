@@ -67,4 +67,12 @@ describe('SearchSection', () => {
     expect((screen.getByRole('button', { name: 'Rechercher les sources' }) as HTMLButtonElement).disabled).toBe(true)
     expect(chatMock).not.toHaveBeenCalled()
   })
+
+  it('présente uniquement la recherche de passages pour la release sans génération', () => {
+    render(<SearchSection collections={collections} launchReady blockers={[]} />)
+
+    expect(screen.getByRole('button', { name: 'Rechercher les sources' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Répondre avec sources' })).toBeNull()
+    expect(screen.getByText('Recherche pédagogique avec passages cités')).toBeTruthy()
+  })
 })
