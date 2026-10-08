@@ -16,4 +16,13 @@ python scripts/go_live/staging_c0_load.py \
 
 La fixture finale apportée par #291 est présente sur `main` `96f7506af14847c8084f07ed597995e029f5c63d` ; le runner vérifie ce fichier versionné avant toute requête. Cette PR livre le banc, **pas un verdict de charge**. Le seul verdict opposable sera le rapport issu du staging final après preuve des 74 jobs V5 réussis et de l'identité du conteneur API, de sa base et du registre V4/V5. Le rapport est écrit atomiquement dans un répertoire privé et ne remplace jamais une mesure antérieure. Une citation sans page reste valide selon le contrat ; le contrôle détaillé des bornes de pages appartient à la qualification de contenu. Aucun seuil ne sera déplacé pour rendre une mesure rouge verte.
 
-Validation locale sur la branche rebasée depuis ce `main` : `/tmp/nexus-c0-venv-ec7429b6/bin/python -m pytest -q services/rag-engine/tests/test_staging_c0_load.py` (12 tests), `ruff check services/rag-engine/tests/test_staging_c0_load.py scripts/go_live/staging_c0_load.py` et `git diff --check` verts. Le test du répertoire permissif force maintenant le mode `0755` indépendamment du `umask`. La mesure live reste à exécuter.
+Validation locale du code et des tests au SHA `b59d705b95fd7a080a1b4f434e3ff068609fe2dd` (tree `05d4e21d038dfb758501165a89436443f9ccbeee`, base `main` `96f7506af14847c8084f07ed597995e029f5c63d`) :
+
+| Commande | Résultat |
+| --- | --- |
+| `/tmp/nexus-c0-venv-ec7429b6/bin/python -m pytest -q services/rag-engine/tests/test_staging_c0_load.py` | exit 0 ; 12 tests réussis |
+| `ruff check services/rag-engine/tests/test_staging_c0_load.py scripts/go_live/staging_c0_load.py` | exit 0 ; `All checks passed!` |
+| `python -m json.tool docs/reports/go_live/concurrency_load_budget_final_v4_v5.json >/dev/null` | exit 0 |
+| `git diff --check` | exit 0 |
+
+Le test du répertoire permissif force maintenant le mode `0755` indépendamment du `umask`. La mesure live reste à exécuter ; ce tableau ne constitue pas une preuve de charge.
