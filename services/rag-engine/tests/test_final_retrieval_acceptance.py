@@ -6,6 +6,7 @@ import base64
 import copy
 import json
 import sys
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
@@ -426,6 +427,20 @@ def test_live_db_transport_opens_read_only_transaction(monkeypatch):
     assert "current_database()" in commands[1][0]
     assert "rag_chunks" in commands[2][0]
     assert report["db_fingerprint"]["database"] == "ragdb_profile_gate_v4"
+
+
+def test_report_provenance_names_command_runner_digest_and_automated_verdict_author():
+    args = Namespace(repository_root=ROOT, api_url="http://ingestor:8001",
+                     dense_probe_report=Path("/run-db/retrieval-probe-mixed.json"),
+                     output=Path("/run-db/final-retrieval-acceptance.json"))
+    provenance = acceptance.command_provenance(args)
+    assert provenance["decision_author"] == "automated:final_retrieval_acceptance.py"
+    assert provenance["runner_sha256"] == acceptance._sha256(
+        ROOT / "scripts/go_live/final_retrieval_acceptance.py"
+    )
+    assert provenance["command_argv"][-2:] == [
+        "--output", "/run-db/final-retrieval-acceptance.json"
+    ]
 
 
 def test_runtime_without_git_refuses_missing_clean_checkout_attestation(monkeypatch):

@@ -76,7 +76,10 @@ L'API de transport est `rag_query_external.post_search`, avec trois
 credentials distincts. Le rapport inclut, pour chaque résultat positif,
 l'identité du chunk/contenu/placement, l'URI, le libellé, la page servie, les
 bornes du manifeste et les bornes lues en DB ; il n'inclut aucun jeton ou
-secret.
+secret. Il inscrit également la commande effective sous forme d'arguments
+(`command_argv`), le SHA-256 du runner (`runner_sha256`) et
+`decision_author=automated:final_retrieval_acceptance.py`. Cet auteur désigne
+le verdict mécanique, pas une approbation pédagogique ou de mise en production.
 Sur staging, le runner peut lire `COCKPIT_STAGING_API_KEY` si `RAG_API_KEY`
 est absent. Dans l'image runtime dépourvue de Git, le SHA de checkout
 précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` avec
@@ -85,7 +88,18 @@ si Git est présent, le runner vérifie lui-même la propreté et toute divergen
 du SHA bloque la recette.
 
 Préparation vérifiée localement le 2026-10-08 dans un venv propre lié à ce
-worktree : tests de la suite, des clients HTTP et de l'émetteur étudiant,
-ainsi que les tests de refus `dense ann tie overflow`. Cette vérification
-synthétique ne vaut
-pas mesure du staging final et ne produit pas `QUALITY_PASS=true`.
+worktree, depuis le main de base `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
+
+```bash
+python -m pytest services/rag-engine/tests/test_final_retrieval_acceptance.py -q
+ruff check --config services/rag-engine/pyproject.toml --ignore I001 \
+  scripts/go_live/final_retrieval_acceptance.py \
+  scripts/go_live/staging_retrieval_probe.py scripts/rag_query.py \
+  services/rag-engine/tests/test_final_retrieval_acceptance.py
+```
+
+La première commande vérifie la suite, les clients HTTP, l'émetteur étudiant,
+les refus `dense ann tie overflow`, le rattachement de la sonde au checkout et
+à la DB, ainsi que la provenance du verdict ; la seconde vérifie les fichiers
+modifiés. Ces vérifications synthétiques ne valent pas mesure du staging final
+et ne produisent pas `QUALITY_PASS=true`.

@@ -500,6 +500,21 @@ def _git_head(root: Path) -> str:
     return actual
 
 
+def command_provenance(args: argparse.Namespace) -> dict[str, Any]:
+    """Identifier le runner, sa commande sans secret et l'auteur du verdict."""
+    return {
+        "decision_author": "automated:final_retrieval_acceptance.py",
+        "runner_sha256": _sha256(Path(__file__)),
+        "command_argv": [
+            sys.executable, str(Path(__file__).resolve()),
+            "--repository-root", str(args.repository_root),
+            "--api-url", args.api_url,
+            "--dense-probe-report", str(args.dense_probe_report),
+            "--output", str(args.output),
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--repository-root", type=Path, default=ROOT)
@@ -524,6 +539,7 @@ def main() -> int:
             report["page_end_evidence"] = "live_db_manifest_match"
         report["dense_probe_sha256"] = _sha256(args.dense_probe_report)
         report["dense_tie_overflow_count"] = overflow_count
+        report.update(command_provenance(args))
     except (AcceptanceFailure, ValueError, KeyError, OSError) as exc:
         print(f"FINAL_RETRIEVAL_ACCEPTANCE=FAIL reason={type(exc).__name__}", file=sys.stderr)
         return 1
