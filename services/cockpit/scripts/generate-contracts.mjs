@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,6 +9,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const cockpitRoot = path.resolve(scriptDir, '..')
 const schemaRoot = path.resolve(cockpitRoot, '../../packages/contracts/schema')
 const artifactRoot = path.resolve(cockpitRoot, '../../packages/contracts/src/nexus_contracts/artifacts')
+const contractSourceRoot = path.dirname(path.dirname(artifactRoot))
 const releaseRegistryPath = path.resolve(cockpitRoot, '../../services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json')
 const generatedRoot = path.resolve(cockpitRoot, 'src/generated')
 const schemaOutputRoot = path.join(generatedRoot, 'schema')
@@ -28,6 +30,27 @@ const finalScopeFiles = [
   'retrieval-scope-prod-svt-premiere-specialite-v3.json',
   'retrieval-scope-prod-svt-terminale-specialite-v3.json',
 ]
+
+export function verifyGovernedFinalScopes(scopes, sourceRoot) {
+  if (new Set(scopes.map((scope) => scope.scope_id)).size !== scopes.length) {
+    throw new Error('Duplicate governed scope_id')
+  }
+  const verifier = `import json, sys
+sys.path.insert(0, sys.argv[1])
+from nexus_contracts.hggsp_successor_scopes import load_retrieval_scope_artifact
+from nexus_contracts.scope import RetrievalScopeArtifactV2
+for source in json.load(sys.stdin):
+    candidate = RetrievalScopeArtifactV2.model_validate(source)
+    governed = load_retrieval_scope_artifact(candidate.scope_id)
+    if candidate.sha256_digest() != governed.sha256_digest():
+        raise ValueError("governed scope digest mismatch")
+`
+  execFileSync('python3', ['-c', verifier, sourceRoot], {
+    encoding: 'utf8',
+    input: JSON.stringify(scopes),
+    stdio: ['pipe', 'pipe', 'pipe'],
+  })
+}
 
 const schemas = [
   ['retrieval-request.json', 'RetrievalRequest'],
@@ -85,6 +108,7 @@ async function expectedOutputs() {
   const finalScopes = await Promise.all(finalScopeFiles.map(async (filename) =>
     JSON.parse(await readFile(path.join(artifactRoot, filename), 'utf8')),
   ))
+  verifyGovernedFinalScopes(finalScopes, contractSourceRoot)
   const registry = JSON.parse(await readFile(releaseRegistryPath, 'utf8'))
   const releaseCollections = new Set(registry.releases.flatMap((release) => release.collections))
   const scopeCollections = finalScopes.map((scope) => scope.evidence_subject.collection)

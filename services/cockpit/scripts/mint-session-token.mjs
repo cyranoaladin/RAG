@@ -75,6 +75,18 @@ async function main() {
       && target.candidates.includes(profile.candidat) && profile.audience === target.audience
   })
   if (matches.length > 1) throw new Error('Scope de qualification ambigu')
+  if (matches.length === 0) {
+    const target = pilotScope.identity
+    const profile = identity.pedagogical_profile
+    const allowed = new Set(pilotScope.subjects.map((subject) => subject.matiere))
+    if (identity.tenant !== target.tenant || identity.niveau !== target.niveau
+      || identity.school_year !== pilotScope.school_year || profile.voie !== target.voie
+      || profile.statut_enseignement !== target.statut_enseignement
+      || profile.audience !== target.audience || !target.candidates.includes(profile.candidat)
+      || !profile.matieres.every((matiere) => allowed.has(matiere))) {
+      throw new Error('Identité hors scope de qualification')
+    }
+  }
   const selectedScope = matches[0] || pilotScope
   const scopeDigest = crypto
     .createHash('sha256')

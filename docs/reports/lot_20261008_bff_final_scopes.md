@@ -7,7 +7,9 @@ empêche donc le parcours HTTP de recherche sur le produit final.
 
 Cette PR génère depuis `packages/contracts` la projection Cockpit des **11
 artefacts V2 internes déjà gouvernés** par les autorisations successeurs V4 et
-HGGSP V5. La génération vérifie l'égalité de la population des collections
+HGGSP V5. La génération les charge aussi par le registre Python canonique,
+qui valide schéma et digest épinglé, puis vérifie l'unicité des `scope_id` et
+l'égalité de la population des collections
 avec le registre de release V4+V5 ; la sélection est explicitement figée dans
 le générateur et n'adopte pas automatiquement de futurs artefacts publics. La
 copie générée conserve le digest canonique des artefacts Python : NSI terminale
@@ -21,6 +23,12 @@ recherche construit le profil API v2 depuis ce scope. La readiness moteur ne
 porte plus sur une collection maths absente pour ces profils. Le scope pilote
 historique reste accepté et inchangé pour ses identités, sans promotion
 silencieuse. La rotation d'un jeton conserve son `scope_id`.
+
+Le contrat V2 canonique impose exactement une matière dans l'identité signée
+(`profile.matieres == [target.matiere]`). Un profil SSO multi-matières qui ne
+correspond pas au pilote historique reste refusé à la connexion : sélectionner
+une matière et dériver une nouvelle identité exigerait un lot gouverné distinct.
+Ce lot qualifie les onze collections avec des identités mono-matière distinctes.
 
 La visibilité des 11 artefacts est toujours `internal`. Aucun filtre moteur,
 aucune liste `_ROLE_VISIBILITIES`, aucun chunk ni placement n'est modifié.
@@ -39,7 +47,15 @@ Cela évite également une erreur 500 sur les nouvelles collections, auparavant
 absentes du scope pilote du chat. Une transition gouvernée distincte devra
 réouvrir cette fonction.
 
+Le build Next.js porte le SHA source dans son `BUILD_ID` (Git sur checkout,
+ou `NEXUS_COCKPIT_BUILD_SHA` explicite pour une archive immuable). La route
+`/api/health` expose ce SHA sans détail moteur ; le harnais BFF refuse un
+runtime déployé dont le SHA diffère du checkout qualifié. L'image et la
+provenance de l'archive restent à contrôler séparément lors du déploiement.
+
 Validation locale sur la base `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
-202 tests Cockpit, ESLint, TypeScript, vérification des schémas et artefacts
-générés, build Next.js. La mesure live est confiée au harnais de la PR #293,
+`npm ci` PASS ; `npm run test -- --run` : 204/204 PASS ;
+`npm run lint`, `npm run typecheck`, `npm run contracts:check` et
+`npm run build` PASS ; `npm audit --omit=dev` : zéro vulnérabilité.
+La mesure live est confiée au harnais de la PR #293,
 à adapter au scope NSI V2 après l'intégration de ce lot.
