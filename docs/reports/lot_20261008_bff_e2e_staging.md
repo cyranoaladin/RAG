@@ -1,9 +1,13 @@
 # Lot — qualification HTTP du BFF sur le staging final
 
-Le harnais `scripts/go_live/staging_bff_e2e.py` envoie de vraies requêtes HTTP
-au Cockpit, avec sessions NextAuth et identités internes signées par le
-générateur de test existant. Il vérifie le refus sans session (401), le refus
-hors scope avant le moteur (403), puis la recherche enseignant. Chaque passage
+Le harnais `scripts/go_live/staging_bff_e2e.py` est préparé pour envoyer de
+vraies requêtes HTTP au Cockpit, avec sessions NextAuth et identités internes
+signées par le générateur de test existant. Il exige d'abord que les onze scopes
+BFF V2 projetés correspondent un pour un aux onze collections du registre
+V4+V5 et aux artefacts gouvernés de `packages/contracts`. Il sélectionne
+ensuite le profil, la matière, le niveau et le scope signé de la collection
+demandée. Il vérifie le refus sans session (401), le refus hors scope avant le
+moteur (403), puis la recherche enseignant. Chaque passage
 doit porter la collection exacte, une revue `reviewed`, une citation complète,
 un chunk et un placement exacts du sujet de la release scellée. L'URI, le
 libellé et la page citée sont rapprochés de l'artefact et du chunk scellés.
@@ -26,6 +30,7 @@ python3 scripts/go_live/staging_bff_e2e.py \
   --registry-sha256 59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6 \
   --expected-sha "$(git rev-parse origin/main)" \
   --operator-id "$USER" \
+  --collection rag_nexus_nsi_terminale_specialite \
   --student-mode internal \
   --output "$NEXUS_QUALIFICATION_DIR/bff-e2e-internal.json"
 ```
@@ -33,25 +38,32 @@ python3 scripts/go_live/staging_bff_e2e.py \
 Changer `--student-mode public` et le chemin de sortie seulement après
 autorisation, revue, scellement et publication du scope public. Passer alors
 le digest du nouveau registre de release. La preuve privée (`0600`) lie
-checkout, tree, HEAD distant interrogé en direct, registre, artefact pilote,
+checkout, tree, HEAD distant interrogé en direct, registre, scope final,
 population, statuts HTTP, citations, identité des placements et identifiant
 de l'opérateur ; elle ne conserve aucun jeton. Le Cockpit doit exposer dans
 `/api/health` le SHA de build exact de ce checkout. Un serveur déployé depuis
 un autre build ou une redirection HTTP fait échouer l'épreuve avant usage des
 sessions signées. L'URL est limitée à une origine loopback sans identifiants.
 
-Limite vérifiée sur `6f33805` : le BFF signe actuellement le pilote immuable
-`libre_terminale_maths_nsi_real_v1` (maths et NSI terminale), tandis que le
-registre final V4+V5 ne contient pas maths. Sa readiness agrège les deux
-collections signées ; le parcours BFF risque donc un 503 avant la recherche
-NSI. Le harnais **échoue avant toute requête** quand le scope signé n'a pas
-exactement les collections du registre final. Il ne
-qualifie pas onze collections : l'acceptance API v2 sur les onze reste
-obligatoire. Une évolution gouvernée distincte du scope BFF est nécessaire
-pour le chemin Cockpit sur le produit final, et une nouvelle release de
-visibilité publique pour le succès élève.
+Le `main` au moment de cette préparation signe encore le pilote immuable
+`libre_terminale_maths_nsi_real_v1`, qui contient une collection maths absente
+de V4+V5. Le harnais échoue donc avant toute requête tant que la PR #294,
+qui projette les onze scopes finaux, n'est pas intégrée et déployée sur staging.
+Une exécution du harnais cible une collection et prouve le chemin BFF réel
+pour celle-ci ; elle ne remplace pas l'acceptance API v2 des onze collections.
+La réussite élève exige toujours une publication publique gouvernée distincte.
 
-Validation locale au SHA `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
-18 tests Python du harnais, 180 tests Cockpit, Ruff, ESLint, TypeScript,
-vérification des contrats et build Next.js réussis. Aucune mesure BFF live
-sur le staging final n'est affirmée dans ce lot.
+Base relue : `origin/main=1ab971838e90c876bf185da03b67423f9f0a32c9`.
+Le code a été vérifié dans un worktree détaché propre au commit
+`fae819760a8da14d7a88b12fa515fb3c7fc31f78`, tree
+`9daa3bc153aeadb962e4fff83209ceaa9b693664`, avec un venv dédié :
+`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` donne `21 passed` ;
+`ruff check scripts/go_live/staging_bff_e2e.py
+scripts/tests/test_staging_bff_e2e.py` donne `All checks passed`. La projection
+de travail de #294, lue sans la modifier, contient bien onze scopes : le digest
+canonique du scope NSI terminale calculé par le harnais est
+`dd6eeafd7749b9cd7f3084fec826707100756f330005a68f385d0dada1979b2d`,
+égal à celui annoncé par #294. Cette lecture locale ne constitue pas une
+qualification BFF live. Aucun trafic staging n'a été lancé pendant la sonde
+dense. Les contrôles Cockpit et le harnais seront rejoués au HEAD final de
+cette PR et après l'intégration de #294.
