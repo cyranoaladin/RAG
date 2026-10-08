@@ -48,9 +48,13 @@ elle rapporte séparément chaque refus `dense ann tie overflow` constaté à la
 source. Sa répétition finale, en lecture seule depuis le checkout qualifié,
 doit recevoir `NEXUS_PROBE_CHECKOUT_SHA` et produire le registre mixte, les
 digests des deux manifests, l'horodatage et l'empreinte DB (nom, OID,
-comptes, dernières dates de publication). L'empreinte est comparée avant et
-après la sonde puis à la lecture DB du runner HTTP ; un ancien rapport sans
-provenance ou issu d'une autre cible est refusé. Aucun ajustement du classement, du reranking, du nombre
+comptes, dernières dates de publication et digest déterministe des lignes
+complètes de chunks, artefacts et placements). L'empreinte est comparée avant
+et après la sonde puis à la lecture DB du runner HTTP ; une mise à jour en
+place des statuts, droits, textes ou vecteurs est ainsi détectée. Le rapport
+de sonde doit dater d'au plus **six heures**, avec au plus cinq minutes d'avance
+sur l'horloge du runner. Un ancien rapport sans provenance ou issu d'une autre
+cible est refusé. Aucun ajustement du classement, du reranking, du nombre
 de candidats ou des paramètres HNSW n'est inclus dans ce lot.
 
 Exécution, **après** publication V5 74/74 et sonde dense finale, depuis le
@@ -87,6 +91,9 @@ précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` avec
 si Git est présent, le runner vérifie lui-même la propreté et toute divergence
 du SHA bloque la recette. Un Git présent qui échoue à résoudre le checkout
 bloque aussi la recette ; l'attestation hôte ne sert qu'à l'image sans Git.
+La sonde finale applique la même vérification à
+`NEXUS_PROBE_CHECKOUT_SHA` ; dans l'image sans Git, l'hôte doit en plus
+transmettre `NEXUS_PROBE_CHECKOUT_CLEAN=true` **après** contrôle du checkout.
 
 Préparation vérifiée localement le 2026-10-08 dans un venv propre lié à ce
 worktree, depuis le main de base `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
@@ -104,6 +111,6 @@ ruff check --config services/rag-engine/pyproject.toml --ignore I001 \
 La première commande vérifie la suite, les clients HTTP, l'émetteur étudiant,
 les refus `dense ann tie overflow`, le rattachement de la sonde au checkout et
 à la DB, ainsi que la provenance du verdict ; la seconde vérifie les fichiers
-modifiés. Résultats locaux : **54 tests réussis**, **Ruff réussi**. Ces
+modifiés. Résultats locaux : **57 tests réussis**, **Ruff réussi**. Ces
 vérifications synthétiques ne valent pas mesure du staging final
 et ne produisent pas `QUALITY_PASS=true`.

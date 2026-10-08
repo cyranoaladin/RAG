@@ -16,6 +16,7 @@ import re
 import sys
 import time
 import unicodedata
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -222,6 +223,15 @@ def check_dense_probe(
     provenance = probe.get("provenance")
     if not isinstance(provenance, dict):
         raise AcceptanceFailure("sonde dense : provenance absente")
+    try:
+        generated_at = datetime.strptime(
+            provenance["generated_at_utc"], "%Y-%m-%dT%H:%M:%SZ"
+        ).replace(tzinfo=UTC)
+    except (KeyError, TypeError, ValueError):
+        raise AcceptanceFailure("sonde dense : horodatage de provenance invalide") from None
+    age = datetime.now(UTC) - generated_at
+    if age < -timedelta(minutes=5) or age > timedelta(hours=6):
+        raise AcceptanceFailure("sonde dense : fraîcheur supérieure à six heures")
     fingerprint = provenance.get("db_fingerprint")
     if (not isinstance(fingerprint, dict)
             or not re.fullmatch(r"[0-9a-f]{40}", str(provenance.get("checkout_sha", "")))
@@ -234,6 +244,7 @@ def check_dense_probe(
             or not isinstance(fingerprint.get("database_oid"), int)
             or {key: fingerprint.get(key) for key in ("chunks", "artifacts", "placements")}
             != {key: suite["expected_population"][key] for key in ("chunks", "artifacts", "placements")}
+            or not re.fullmatch(r"[0-9a-f]{64}", str(fingerprint.get("retrieval_rows_sha256", "")))
             or any(not fingerprint.get(key) for key in (
                 "max_chunk_indexed_at", "max_artifact_created_at", "max_placement_created_at"
             ))):

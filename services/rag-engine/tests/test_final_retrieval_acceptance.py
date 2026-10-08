@@ -7,6 +7,7 @@ import copy
 import json
 import sys
 from argparse import Namespace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -31,10 +32,11 @@ def _probe_provenance(suite):
         "checkout_sha": "e" * 40,
         "mixed_registry_sha256": suite["mixed_registry_sha256"],
         "release_manifest_sha256": suite["release_manifest_sha256"],
-        "generated_at_utc": "2026-10-08T00:00:00Z",
+        "generated_at_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "db_fingerprint": {
             "database": "ragdb_profile_gate_v4", "database_oid": 1,
             "chunks": 8268, "artifacts": 315, "placements": 479,
+            "retrieval_rows_sha256": "a" * 64,
             "max_chunk_indexed_at": "2026-10-08 00:00:00",
             "max_artifact_created_at": "2026-10-08 00:00:00",
             "max_placement_created_at": "2026-10-08 00:00:00",
@@ -217,14 +219,61 @@ def test_dense_probe_requires_all_chunks_and_reports_tie_overflow():
         acceptance.check_dense_probe(probe, suite, index)
 
 
+def test_dense_probe_rejects_stale_report_with_unchanged_checkout_and_db():
+    suite, index, _case = _case_and_index()
+    probe = {
+        "release_id": "mixed-v4-hggsp", "collections": {},
+        "totaux": {"chunks": suite["expected_dense_scope_chunk_visits"]},
+        "provenance": _probe_provenance(suite),
+    }
+    probe["provenance"]["generated_at_utc"] = "2026-10-01T00:00:00Z"
+    with pytest.raises(acceptance.AcceptanceFailure, match="fraîcheur"):
+        acceptance.check_dense_probe(probe, suite, index, expected_checkout_sha="e" * 40)
+
+
+def test_probe_checkout_sha_requires_clean_git_or_explicit_gitless_host_attestation(monkeypatch):
+    import subprocess
+    import staging_retrieval_probe
+
+    monkeypatch.setenv("NEXUS_PROBE_CHECKOUT_SHA", "e" * 40)
+    monkeypatch.setenv("NEXUS_PROBE_CHECKOUT_CLEAN", "true")
+    calls = []
+    def clean_git(argv, **_kwargs):
+        calls.append(argv[-2:])
+        return "e" * 40 if argv[-2:] == ["rev-parse", "HEAD"] else ""
+    monkeypatch.setattr(subprocess, "check_output", clean_git)
+    assert staging_retrieval_probe.verified_probe_checkout_sha(ROOT) == "e" * 40
+    assert calls == [["rev-parse", "HEAD"], ["--porcelain", "--untracked-files=all"]]
+
+    monkeypatch.setattr(subprocess, "check_output", lambda *_args, **_kwargs: "f" * 40)
+    with pytest.raises(staging_retrieval_probe.SondeEchec, match="divergent"):
+        staging_retrieval_probe.verified_probe_checkout_sha(ROOT)
+
+    def dirty_git(argv, **_kwargs):
+        return "e" * 40 if argv[-2:] == ["rev-parse", "HEAD"] else " M scripts/go_live/staging_retrieval_probe.py"
+    monkeypatch.setattr(subprocess, "check_output", dirty_git)
+    with pytest.raises(staging_retrieval_probe.SondeEchec, match="propre"):
+        staging_retrieval_probe.verified_probe_checkout_sha(ROOT)
+
+    def git_missing(*_args, **_kwargs):
+        raise FileNotFoundError
+    monkeypatch.setattr(subprocess, "check_output", git_missing)
+    assert staging_retrieval_probe.verified_probe_checkout_sha(ROOT) == "e" * 40
+    monkeypatch.delenv("NEXUS_PROBE_CHECKOUT_CLEAN")
+    with pytest.raises(staging_retrieval_probe.SondeEchec, match="attestation"):
+        staging_retrieval_probe.verified_probe_checkout_sha(ROOT)
+
+
 def test_probe_database_fingerprint_records_target_and_publication_watermarks():
     import staging_retrieval_probe
 
     class FakeConnection:
         def execute(self, query):
-            assert "current_database()" in query
+            self.query = query
             return self
         def fetchone(self):
+            if "string_agg" in self.query:
+                return ("a" * 32, "b" * 32, "c" * 32)
             return ("ragdb_profile_gate_v4", 16438, 8268, 315, 479,
                     "2026-10-08 05:00:00", "2026-10-08 04:00:00", "2026-10-08 04:30:00")
 
@@ -234,7 +283,31 @@ def test_probe_database_fingerprint_records_target_and_publication_watermarks():
         "max_chunk_indexed_at": "2026-10-08 05:00:00",
         "max_artifact_created_at": "2026-10-08 04:00:00",
         "max_placement_created_at": "2026-10-08 04:30:00",
+        "retrieval_rows_sha256": fingerprint["retrieval_rows_sha256"],
     }
+    assert len(fingerprint["retrieval_rows_sha256"]) == 64
+
+
+def test_probe_fingerprint_changes_for_in_place_review_status_with_same_counts_and_timestamps():
+    import staging_retrieval_probe
+
+    class FakeConnection:
+        def __init__(self, placement_digest):
+            self.placement_digest = placement_digest
+        def execute(self, query):
+            self.query = query
+            return self
+        def fetchone(self):
+            if "string_agg" in self.query:
+                return ("a" * 32, "b" * 32, self.placement_digest)
+            return ("ragdb_profile_gate_v4", 16438, 8268, 315, 479,
+                    "2026-10-08 05:00:00", "2026-10-08 04:00:00", "2026-10-08 04:30:00")
+
+    before = staging_retrieval_probe.db_fingerprint(FakeConnection("c" * 32))
+    after = staging_retrieval_probe.db_fingerprint(FakeConnection("d" * 32))
+    assert before["chunks"] == after["chunks"]
+    assert before["max_placement_created_at"] == after["max_placement_created_at"]
+    assert before["retrieval_rows_sha256"] != after["retrieval_rows_sha256"]
 
 
 def test_dense_probe_rejects_wrong_scope_and_swapped_collection_counts():
@@ -415,9 +488,12 @@ def test_live_db_transport_opens_read_only_transaction(monkeypatch):
         def __exit__(self, *_args): return None
         def execute(self, sql, args=None):
             commands.append((sql, args))
+            self.last_sql = sql
             return self
         def fetchall(self): return []
         def fetchone(self):
+            if "string_agg" in self.last_sql:
+                return ("a" * 32, "b" * 32, "c" * 32)
             return ("ragdb_profile_gate_v4", 16438, 8268, 315, 479,
                     "2026-10-08 05:00:00", "2026-10-08 04:00:00", "2026-10-08 04:30:00")
         def rollback(self): pass

@@ -72,7 +72,7 @@ class SondeEchec(RuntimeError):
 
 
 def db_fingerprint(conn: Any) -> dict[str, Any]:
-    """Identité et marqueurs de la DB lue, comparables à la recette HTTP finale."""
+    """Identité et contenu des trois tables servies, comparables au HTTP final."""
     row = conn.execute("""
         SELECT current_database(),
                (SELECT oid FROM pg_database WHERE datname = current_database()),
@@ -85,10 +85,63 @@ def db_fingerprint(conn: Any) -> dict[str, Any]:
     """).fetchone()
     if row is None:
         raise SondeEchec("empreinte DB indisponible")
-    return dict(zip((
+    fingerprint = dict(zip((
         "database", "database_oid", "chunks", "artifacts", "placements",
         "max_chunk_indexed_at", "max_artifact_created_at", "max_placement_created_at",
     ), row, strict=True))
+    # Un changement in-place de review_status/visibility ne change ni les
+    # comptes ni les dates de création. L'agrégat ordonné couvre aussi vecteur,
+    # texte et toutes les autres colonnes servies sans transférer les lignes.
+    row_hashes = conn.execute("""
+        SELECT (SELECT md5(string_agg(md5(row_to_json(c)::text), '' ORDER BY c.chunk_id))
+                  FROM public.rag_chunks AS c),
+               (SELECT md5(string_agg(md5(row_to_json(a)::text), '' ORDER BY a.artifact_id))
+                  FROM public.rag_artifacts AS a),
+               (SELECT md5(string_agg(md5(row_to_json(p)::text), '' ORDER BY p.placement_id))
+                  FROM public.rag_artifact_placements AS p)
+    """).fetchone()
+    if (row_hashes is None or len(row_hashes) != 3
+            or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value)
+                   for value in row_hashes)):
+        raise SondeEchec("empreinte de contenu DB indisponible")
+    fingerprint["retrieval_rows_sha256"] = hashlib.sha256(
+        json.dumps(row_hashes, separators=(",", ":")).encode("ascii")
+    ).hexdigest()
+    return fingerprint
+
+
+def verified_probe_checkout_sha(root: Path) -> str | None:
+    """Sceller le SHA seulement si Git ou l'hôte atteste le checkout propre."""
+    import subprocess  # noqa: PLC0415
+
+    expected = os.environ.get("NEXUS_PROBE_CHECKOUT_SHA", "").strip()
+    if not expected:
+        return None  # sonde diagnostique ; la recette finale refuse ce rapport.
+    if not re.fullmatch(r"[0-9a-f]{40}", expected):
+        raise SondeEchec("SHA de checkout de la sonde invalide")
+    try:
+        actual = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"],
+            text=True, stderr=subprocess.DEVNULL,
+        ).strip()
+    except FileNotFoundError:
+        if os.environ.get("NEXUS_PROBE_CHECKOUT_CLEAN") == "true":
+            return expected  # checkout précontrôlé par l'hôte, image sans Git.
+        raise SondeEchec("attestation de checkout propre absente") from None
+    except subprocess.CalledProcessError:
+        raise SondeEchec("Git présent mais SHA de la sonde indisponible") from None
+    if actual != expected:
+        raise SondeEchec("SHA réel de la sonde divergent")
+    try:
+        status = subprocess.check_output(
+            ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
+            text=True, stderr=subprocess.DEVNULL,
+        )
+    except subprocess.CalledProcessError:
+        raise SondeEchec("état du checkout de la sonde indisponible") from None
+    if status:
+        raise SondeEchec("checkout de la sonde non propre")
+    return actual
 
 
 def _modules() -> dict[str, Any]:
@@ -463,12 +516,10 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - exécution
             after = snapshot()
             if before != after:
                 raise SondeEchec("DB modifiée pendant la sonde mixte")
-            checkout_sha = os.environ.get("NEXUS_PROBE_CHECKOUT_SHA", "").strip()
-            if checkout_sha and not re.fullmatch(r"[0-9a-f]{40}", checkout_sha):
-                raise SondeEchec("SHA de checkout de la sonde invalide")
+            checkout_sha = verified_probe_checkout_sha(args.repository_root)
             registry = json.loads(args.mixed_registry.read_text(encoding="utf-8"))
             rapport["provenance"] = {
-                "checkout_sha": checkout_sha or None,
+                "checkout_sha": checkout_sha,
                 "mixed_registry_sha256": args.mixed_registry_sha256,
                 "release_manifest_sha256": {
                     item["release_id"]: item["expected_manifest_sha256"]
