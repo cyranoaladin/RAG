@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 from nexus_contracts import Citation, RetrievalResponse, RetrievalResult
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "scripts" / "go_live"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -176,13 +176,16 @@ def test_dense_probe_requires_all_chunks_and_reports_tie_overflow():
 
 
 @pytest.mark.parametrize("missing_first", [False, True])
-def test_http_runner_covers_33_positives_and_refusals(monkeypatch, missing_first):
+@pytest.mark.parametrize("key_name", ["RAG_API_KEY", "COCKPIT_STAGING_API_KEY"])
+def test_http_runner_covers_33_positives_and_refusals(monkeypatch, missing_first, key_name):
     import rag_query_external
 
     suite, index, _case = _case_and_index()
+    monkeypatch.delenv("RAG_API_KEY", raising=False)
+    monkeypatch.delenv("COCKPIT_STAGING_API_KEY", raising=False)
     for key, value in {
         "RAG_BFF_SERVICE_TOKEN": "b" * 32,
-        "RAG_API_KEY": "a" * 32,
+        key_name: "a" * 32,
         "NEXUS_INTERNAL_TOKEN_SECRET": "s" * 32,
         "NEXUS_INTERNAL_TOKEN_ISSUER": "nexus-test",
         "NEXUS_INTERNAL_TOKEN_AUDIENCE": "engine-test",
@@ -217,3 +220,10 @@ def test_http_runner_covers_33_positives_and_refusals(monkeypatch, missing_first
     assert report["totals"]["student_refusals"] == 11
     assert report["totals"]["scope_mismatch_refusals"] == 11
     assert len(seen) == 66
+
+
+def test_checkout_sha_is_explicit_in_runtime_image_without_git(monkeypatch):
+    sha = "e" * 40
+    monkeypatch.setenv("NEXUS_ACCEPTANCE_CHECKOUT_SHA", sha)
+    monkeypatch.setenv("PATH", "")
+    assert acceptance._git_head(ROOT) == sha

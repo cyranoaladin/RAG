@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 import unicodedata
@@ -265,9 +266,11 @@ def run_http(
     source = dict(os.environ)
     source["RAG_API_URL"] = api_url
     operator = rag_query.load_client_config(source)
-    api_key = source.get("RAG_API_KEY", "").strip()
+    api_key = source.get("RAG_API_KEY", "").strip() or source.get(
+        "COCKPIT_STAGING_API_KEY", ""
+    ).strip()
     if not api_key:
-        raise AcceptanceFailure("RAG_API_KEY requis")
+        raise AcceptanceFailure("RAG_API_KEY ou COCKPIT_STAGING_API_KEY requis")
     rows: list[dict[str, Any]] = []
     collections = sorted(suite["collections"])
     totals = {"positive_nonempty": 0, "expected_source_hits": 0,
@@ -358,7 +361,21 @@ def run_http(
 def _git_head(root: Path) -> str:
     import subprocess  # noqa: PLC0415
 
-    return subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+    expected = os.environ.get("NEXUS_ACCEPTANCE_CHECKOUT_SHA", "").strip()
+    if expected and not re.fullmatch(r"[0-9a-f]{40}", expected):
+        raise AcceptanceFailure("SHA du checkout invalide")
+    try:
+        actual = subprocess.check_output(
+            ["git", "-C", str(root), "rev-parse", "HEAD"], text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        if expected:
+            return expected  # image runtime sans git ; SHA précontrôlé par l'hôte.
+        raise AcceptanceFailure("SHA du checkout indisponible") from None
+    if expected and expected != actual:
+        raise AcceptanceFailure("SHA du checkout divergent")
+    return actual
 
 
 def main() -> int:

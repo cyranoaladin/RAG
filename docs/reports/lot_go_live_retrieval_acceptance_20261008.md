@@ -57,6 +57,10 @@ leurs textes ; l'émetteur JWT canonique partagé est
 `rag_query.issue_scope_identity(scope_id, config=config, role="teacher")`.
 L'API de transport est `rag_query_external.post_search`, avec trois
 credentials distincts. Le rapport n'inclut aucun jeton ou secret.
+Sur staging, le runner peut lire `COCKPIT_STAGING_API_KEY` si `RAG_API_KEY`
+est absent. Dans l'image runtime dépourvue de Git, le SHA de checkout
+précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` ; si
+Git est présent, une divergence avec cette valeur bloque la recette.
 
 Préparation vérifiée localement le 2026-10-08 sur `ee35544b` : 50 tests ciblés
 de la suite, des clients HTTP et de l'émetteur étudiant, puis 5 tests de
