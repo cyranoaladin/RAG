@@ -489,6 +489,38 @@ def _snapshot() -> ReleaseDatabaseSnapshot:
     )
 
 
+def test_v2_sealed_release_attribution_is_required_for_readiness(tmp_path: Path) -> None:
+    manifest, digest, _registry, _subjects = _v2_release_files(tmp_path)
+    expectation = load_release_expectation(manifest, digest)
+    original = _snapshot()
+    artifact = dict(original.artifacts[0])
+    artifact["source_kind"] = "sealed_release"
+    placement = dict(original.placements[0])
+    placement["source_path"] = expectation.artifacts[0].source_path
+    placement["source_placement_id"] = "catalog-placement-0"
+    snapshot = ReleaseDatabaseSnapshot(
+        artifacts=(artifact,),
+        placements=(placement,),
+        chunks=original.chunks,
+    )
+
+    report = evaluate_release_snapshot(expectation, snapshot)
+
+    assert report.ready is True
+    assert report.wrong_artifact_metadata == 0
+
+
+def test_v2_discovery_kind_cannot_substitute_reviewed_sealed_attribution(
+    tmp_path: Path,
+) -> None:
+    manifest, digest, _registry, _subjects = _v2_release_files(tmp_path)
+    expectation = load_release_expectation(manifest, digest)
+    report = evaluate_release_snapshot(expectation, _snapshot())
+
+    assert report.ready is False
+    assert report.wrong_artifact_metadata == 1
+
+
 def test_manifest_absent_fails_closed(tmp_path: Path) -> None:
     report = validate_release_readiness(tmp_path / "missing.json", "0" * 64, object())
 
@@ -1786,7 +1818,7 @@ def test_v2_database_snapshot_scopes_shared_chunks_by_artifact_identity(
         "https://eduscol.education.fr/document/a/download",
         "officiel_public",
         True,
-        "eduscol.education.fr",
+        "sealed_release",
         "ressource_officielle",
     )
     placement_rows: list[tuple[object, ...]] = []
