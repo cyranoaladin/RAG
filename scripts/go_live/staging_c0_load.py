@@ -17,6 +17,7 @@ import math
 import os
 import subprocess
 import sys
+import tempfile
 import time
 from collections.abc import Mapping
 from concurrent.futures import ThreadPoolExecutor
@@ -354,16 +355,23 @@ def run_c0(
 def write_report(path: Path, report: Mapping[str, Any]) -> None:
     """Écrire une preuve privée nouvelle ; une mesure précédente est immuable."""
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    if path.parent.stat().st_mode & 0o077:
+        raise PermissionError("répertoire de preuve non privé")
+    descriptor, temporary = tempfile.mkstemp(prefix=".c0-", suffix=".json", dir=path.parent)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
             json.dump(report, stream, indent=2, sort_keys=True)
             stream.write("\n")
             stream.flush()
             os.fsync(stream.fileno())
-    except BaseException:
-        path.unlink(missing_ok=True)
-        raise
+        os.link(temporary, path)
+        parent_fd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
 
 
 def main() -> int:

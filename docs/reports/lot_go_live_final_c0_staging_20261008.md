@@ -14,6 +14,6 @@ python scripts/go_live/staging_c0_load.py \
   --output /srv/nexus-staging/qualification/final-c0-20261008.json
 ```
 
-Cette PR dépend de la fixture finale apportée par #291. Elle livre le banc, **pas un verdict de charge**. Le seul verdict opposable sera le rapport issu du staging final après publication des 74 jobs V5 et après preuve de l'identité du conteneur API, de sa base et du registre V4/V5. Une citation sans page reste valide selon le contrat ; le contrôle détaillé des bornes de pages appartient à la qualification de contenu. Aucun seuil ne sera déplacé pour rendre une mesure rouge verte.
+Cette PR dépend de la fixture finale apportée par #291. Elle livre le banc, **pas un verdict de charge**. Le seul verdict opposable sera le rapport issu du staging final après publication des 74 jobs V5 et après preuve de l'identité du conteneur API, de sa base et du registre V4/V5. Le rapport est écrit atomiquement dans un répertoire privé et ne remplace jamais une mesure antérieure. Une citation sans page reste valide selon le contrat ; le contrôle détaillé des bornes de pages appartient à la qualification de contenu. Aucun seuil ne sera déplacé pour rendre une mesure rouge verte.
 
-Validation locale de l'implémentation : `cd services/rag-engine && PYTHONPATH=src pytest -q tests/test_staging_c0_load.py` (11 tests), Ruff et `git diff --check` verts. La mesure live reste à exécuter.
+Validation locale de l'implémentation : `cd services/rag-engine && PYTHONPATH=src pytest -q tests/test_staging_c0_load.py` (12 tests), Ruff et `git diff --check` verts. La mesure live reste à exécuter.

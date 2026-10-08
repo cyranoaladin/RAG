@@ -216,3 +216,18 @@ def test_c0_evidence_is_private_and_cannot_overwrite_prior_measurement(tmp_path:
     with pytest.raises(FileExistsError):
         c0.write_report(path, {"verdict": {"pass": True}})
     assert '"pass": false' in path.read_text()
+
+
+def test_c0_evidence_refuses_permissive_parent_and_never_exposes_partial_final(tmp_path: Path) -> None:
+    directory = tmp_path / "qualification"
+    directory.mkdir(mode=0o755)
+    path = directory / "c0.json"
+    with pytest.raises(PermissionError):
+        c0.write_report(path, {"verdict": {"pass": True}})
+    assert not path.exists()
+
+    directory.chmod(0o700)
+    with pytest.raises(TypeError):
+        c0.write_report(path, {"unserializable": object()})
+    assert not path.exists()
+    assert list(directory.iterdir()) == []
