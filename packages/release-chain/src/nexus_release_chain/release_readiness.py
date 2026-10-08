@@ -1544,10 +1544,15 @@ def evaluate_release_snapshot(
     for artifact_id in expected_artifacts.keys() & actual_artifacts.keys():
         exp_artifact = expected_artifacts[artifact_id]
         actual = actual_artifacts[artifact_id]
-        expected_source_kind = urlparse(exp_artifact.source_url).hostname
+        expected_source_label = urlparse(exp_artifact.source_url).hostname
+        expected_source_kind = (
+            "sealed_release"
+            if expectation.release_kind == _MULTILEVEL_AGGREGATE_KIND_V2
+            else expected_source_label
+        )
         if (
             actual.get("content_sha256") != exp_artifact.content_sha256
-            or actual.get("source_label") != expected_source_kind
+            or actual.get("source_label") != expected_source_label
             or actual.get("source_uri") != exp_artifact.source_url
             or actual.get("type_doc") != exp_artifact.type_doc
             or actual.get("rights") != "officiel_public"
