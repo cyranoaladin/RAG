@@ -1,14 +1,15 @@
 # Lot go-live — décision d'accès étudiant public, sans activation
 
 - Branche : `go-live/student-public-v4-v5-20261008`.
-- Base de lecture : `main` `96f7506af14847c8084f07ed597995e029f5c63d` ; arbre `461e5841097a75be99983647160ec714fe9abe02`.
-- Cible relue **en lecture seule** le 2026-10-08 à 12:14:25 UTC : hôte SSH `nexus-prod` (`korrigo`, connexion `root`), conteneur `nexus-staging-pgvector-1` (image `sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc`), base `ragdb_profile_gate_v4` sous rôle `raguser` ; transaction `BEGIN READ ONLY` puis `ROLLBACK`.
-- Auteur du relevé : agent Codex exécutant, via les accès opérateur existants ; aucune valeur de secret n'est extraite. Requête versionnée : [SQL](go_live/evidence/student_servability_staging_20261008.sql), SHA-256 `7881658cd467437d0fc84dca1eddb21d48a593d38fdca0180efa3d277e8611fa`. Résultat brut : [sortie](go_live/evidence/student_servability_staging_20261008.txt), SHA-256 `8a6724dffbe310b8de11ca1d5b10194db83b39158949f9bc0d81851e82c12550`.
+- Base de lecture : `main` `1ab971838e90c876bf185da03b67423f9f0a32c9` ; arbre `cbdae38bedfe6a4ba9f3a1f32a6b29fe9bfa4c88`.
+- Cible relue **en lecture seule** le 2026-10-08 à 20:12:50 UTC : hôte SSH `nexus-prod` (`korrigo`, connexion `root`), conteneur `nexus-staging-pgvector-1` (image `sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc`), base `ragdb_profile_gate_v4` sous rôle `raguser` ; transaction `BEGIN READ ONLY` puis `ROLLBACK`.
+- Auteur du relevé : agent Codex exécutant, via les accès opérateur existants ; aucune valeur de secret n'est extraite. Requête versionnée : [SQL](go_live/evidence/student_servability_staging_20261008.sql), SHA-256 `14f27046bfd2b935db8de7f0299f7a8d48f12747fce5ae520dce51d2e9fe3b99`. Résultat brut : [sortie](go_live/evidence/student_servability_staging_20261008.txt), SHA-256 `8a6724dffbe310b8de11ca1d5b10194db83b39158949f9bc0d81851e82c12550`.
 - Décision proposée : ADR-0064 ; exécution différée selon `docs/runbooks/student_public_release_PLAN.md`.
 
 Commande exécutée depuis la racine du worktree, après vérification du SHA et de l'arbre ci-dessus :
 
 ```sh
+set -euo pipefail
 ssh -o ProxyJump=none -o BatchMode=yes nexus-prod \
   'docker exec -i nexus-staging-pgvector-1 psql -X -A -F "|" -v ON_ERROR_STOP=1 -U raguser -d ragdb_profile_gate_v4' \
   < docs/reports/go_live/evidence/student_servability_staging_20261008.sql \
@@ -34,7 +35,7 @@ sha256sum docs/reports/go_live/evidence/student_servability_staging_20261008.sql
 | `rag_nexus_svt_terminale_specialite` | 36 | 1 078 | `internal` | `false` |
 | **Produit présent** | **479** | **8 268 chunks physiques** | **479/479 `internal`** | **0/11** |
 
-La somme des chunks par scope vaut 12 316 : certains artefacts sont placés dans plusieurs collections ; l'union physique en base vaut 8 268. Les 479 placements relus sont `active`, `reviewed` et `current` ou `official_snapshot` ; les 315 artefacts correspondants portent `rights=officiel_public`. Les 74 placements HGGSP V5 sont désormais présents. La mesure précédente de 05:02 UTC décrivait l'état **avant** leur publication et ne décrit plus le staging actuel. Le conteneur PostgreSQL est `running` après correction de son montage de santé ; ce relevé ne qualifie pas à lui seul l'API, qui attend le correctif de réconciliation de release #296.
+Les colonnes `artifacts` et `scope_chunks` sont dédupliquées **dans chaque collection**, pas entre collections : un même artefact et ses chunks sont répétés dans plusieurs lignes. Leurs sommes valent respectivement 479 et 12 316 ; les totaux physiques distincts sont 315 artefacts et 8 268 chunks. La jointure externe de la requête conserve les placements d'artefacts sans chunks, si de tels cas apparaissent. Les 479 placements relus sont `active`, `reviewed` et `current` ou `official_snapshot` ; les 315 artefacts correspondants portent `rights=officiel_public`. Les 74 placements HGGSP V5 sont présents. Ce relevé ne qualifie pas à lui seul l'API ou l'accès public.
 
 Le code au SHA de base fixe `_ROLE_VISIBILITIES['student'] = ('public',)` ; `build_server_retrieval_scope` refuse les scopes V4/V5 `internal` pour ce rôle. Pour les chunks gouvernés, le SQL de retrieval exige en plus `rag_artifact_placements.visibility` dans la portée signée et `rag_artifacts.rights` dans les droits admis. Les onze scopes du registre mixte portent `internal` ; les onze profils V4 et les deux politiques HGGSP V5 portent également `internal`. Les anciens `rag_chunks.visibility=internal` sont conservés, jamais changés pour masquer ce refus.
 

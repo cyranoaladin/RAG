@@ -4,6 +4,9 @@ SELECT current_database() AS database_name, current_user AS database_role,
        current_setting('server_version') AS postgres_version,
        (SELECT extversion FROM pg_extension WHERE extname = 'vector') AS vector_version;
 
+-- Une même pièce peut être placée dans plusieurs collections. Les comptes
+-- artifacts/scope_chunks sont distincts PAR collection ; leurs sommes ne sont
+-- pas les totaux physiques, calculés séparément ci-dessous.
 SELECT p.collection,
        count(DISTINCT p.placement_id) AS placements,
        count(DISTINCT p.artifact_id) AS artifacts,
@@ -16,7 +19,7 @@ SELECT p.collection,
                 AND p.currentness IN ('current', 'official_snapshot')) AS governed_active
   FROM public.rag_artifact_placements AS p
   JOIN public.rag_artifacts AS a ON a.artifact_id = p.artifact_id
-  JOIN public.rag_chunks AS c ON c.artifact_id = p.artifact_id
+  LEFT JOIN public.rag_chunks AS c ON c.artifact_id = p.artifact_id
  GROUP BY p.collection
  ORDER BY p.collection;
 
