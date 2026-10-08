@@ -9,10 +9,15 @@ from numbers import Real
 from typing import Any, Literal
 
 from nexus_contracts import Rights
+from psycopg.errors import QueryCanceled
 
 if __package__:
     from . import metrics as ingest_metrics
-    from .pg_pool import PoolConfigurationError, execute_with_database_budget
+    from .pg_pool import (
+        PoolConfigurationError,
+        RuntimeBudgetExpired,
+        execute_with_database_budget,
+    )
     from .retrieval_hybrid_v2 import (
         CHANNEL_LIMIT,
         EMBED_DIMENSION,
@@ -30,6 +35,7 @@ else:
     import metrics as ingest_metrics  # type: ignore[no-redef]
     from pg_pool import (  # type: ignore[no-redef]
         PoolConfigurationError,
+        RuntimeBudgetExpired,
         execute_with_database_budget,
     )
     from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
@@ -544,10 +550,10 @@ def _dense_payload(row: object) -> Sequence[object]:
 def _bounded_store_failure_cause(exc: Exception) -> str | None:
     if isinstance(exc, RetrievalPipelineError) and str(exc) == "dense ann tie overflow":
         return "ann_overflow"
+    if isinstance(exc, RuntimeBudgetExpired | QueryCanceled | TimeoutError):
+        return "timeout"
     if isinstance(exc, PoolConfigurationError):
         return "pool_failure"
-    if isinstance(exc, TimeoutError):
-        return "timeout"
     return None
 
 

@@ -64,6 +64,7 @@ try:
     from .pg_pool import (
         PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         close_pool,
         current_runtime_request_deadline,
         get_pool,
@@ -130,6 +131,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from pg_pool import (  # type: ignore[no-redef]
         PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         close_pool,
         current_runtime_request_deadline,
         get_pool,
@@ -510,8 +512,10 @@ async def _metrics_middleware(request: Request, call_next):
                                 content={"detail": "service unavailable"},
                                 status_code=503,
                             )
-                except PoolConfigurationError:
-                    request.state.retrieval_failure_cause = "pool_failure"
+                except PoolConfigurationError as exc:
+                    request.state.retrieval_failure_cause = (
+                        "timeout" if isinstance(exc, RuntimeBudgetExpired) else "pool_failure"
+                    )
                     response = JSONResponse(
                         content={"detail": "service unavailable"},
                         status_code=503,
@@ -600,6 +604,8 @@ def _journal_unrecorded_access(
             ),
         )
     )
+    if state is not None:
+        state.access_journaled = True
 
 
 def _mount_allowed_routes() -> None:

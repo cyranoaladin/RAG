@@ -74,7 +74,7 @@ CLOSED_FILTER_DIMENSIONS = frozenset(
 )
 
 _FINGERPRINT_PREFIX_LENGTH = 16
-_BOUNDED_CAUSES = frozenset(
+RETRIEVAL_ERROR_CAUSES = frozenset(
     {
         "authentication",
         "invalid_request",
@@ -84,9 +84,9 @@ _BOUNDED_CAUSES = frozenset(
         "ann_overflow",
         "service_unavailable",
         "internal_error",
-        "empty_valid_result",
     }
 )
+_BOUNDED_CAUSES = RETRIEVAL_ERROR_CAUSES | {"empty_valid_result"}
 
 
 def resolve_request_id(headers: Mapping[str, str] | None) -> str:

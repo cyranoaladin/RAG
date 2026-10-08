@@ -67,16 +67,27 @@ def test_access_log_exposes_only_a_bounded_failure_cause() -> None:
         granted_scopes=("rag:search",),
         status_code=503,
         latency_ms=200.0,
-        cause="timeout",
+        cause="secret user-supplied failure",
     )
 
-    assert record.as_mapping()["cause"] == "timeout"
+    assert record.as_mapping()["cause"] == "internal_error"
+    assert "secret user-supplied failure" not in record.as_json()
     assert "query" not in record.as_json()
 
 
 def test_wrapped_inference_timeout_retains_only_bounded_diagnostic() -> None:
     try:
         raise RuntimeError("secret model path") from TimeoutError("secret timeout")
+    except RuntimeError as exc:
+        assert endpoint._bounded_retrieval_failure_cause(exc) == "timeout"
+
+
+def test_suppressed_inference_timeout_retains_only_bounded_diagnostic() -> None:
+    try:
+        try:
+            raise TimeoutError("private model path")
+        except TimeoutError:
+            raise RuntimeError("inference unavailable") from None
     except RuntimeError as exc:
         assert endpoint._bounded_retrieval_failure_cause(exc) == "timeout"
 
@@ -92,4 +103,9 @@ def test_v2_prometheus_loads_the_retrieval_alert_file() -> None:
     assert "./prometheus/rules:/etc/prometheus/rules:ro" in prometheus["volumes"]
     alerts = yaml.safe_load((root / "prometheus/rules/retrieval.rules.yml").read_text())
     names = {rule["alert"] for group in alerts["groups"] for rule in group["rules"]}
-    assert {"RAGRetrievalUnavailable", "RAGRetrievalTieOverflow", "RAGRetrievalP95High"} <= names
+    assert {
+        "RAGRetrievalMetricsScrapeFailed",
+        "RAGRetrievalUnavailable",
+        "RAGRetrievalTieOverflow",
+        "RAGRetrievalP95High",
+    } <= names

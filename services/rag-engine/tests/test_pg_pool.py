@@ -15,7 +15,7 @@ from psycopg import ProgrammingError
 from psycopg_pool import PoolClosed, PoolTimeout, TooManyRequests
 
 from ingestor import pg_pool
-from ingestor.pg_pool import PoolConfigurationError, PoolSettings
+from ingestor.pg_pool import PoolConfigurationError, PoolSettings, RuntimeBudgetExpired
 
 _ENV_KEYS = (
     "PG_RAG_DSN",
@@ -306,7 +306,7 @@ def test_runtime_database_budget_fails_after_its_deadline(
     monkeypatch.setattr(pg_pool.time, "monotonic", lambda: next(moments))
 
     with pg_pool.runtime_database_budget(6_000):
-        with pytest.raises(PoolConfigurationError, match="Budget PostgreSQL épuisé"):
+        with pytest.raises(RuntimeBudgetExpired, match="Budget PostgreSQL épuisé"):
             pg_pool.remaining_database_budget_ms()
 
 

@@ -1268,7 +1268,12 @@ def test_v2_middleware_records_bounded_request_metrics(
 
 def test_search_middleware_records_one_retrieval_metric_for_pre_route_failure(
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
+    import logging
+
+    from ingestor.retrieval_observability import ACCESS_LOGGER_NAME
+
     observations: list[tuple[int, str | None, bool]] = []
     monkeypatch.setattr(api_v2, "require_bff_service", lambda *_a, **_kw: None)
     monkeypatch.setattr(api_v2, "require_api_scope", lambda *_a, **_kw: None)
@@ -1286,10 +1291,12 @@ def test_search_middleware_records_one_retrieval_metric_for_pre_route_failure(
     async def route(_request: Request) -> JSONResponse:
         pytest.fail("unavailable database must not start retrieval")
 
-    response = asyncio.run(api_v2._metrics_middleware(Request(scope), route))
+    with caplog.at_level(logging.INFO, logger=ACCESS_LOGGER_NAME):
+        response = asyncio.run(api_v2._metrics_middleware(Request(scope), route))
 
     assert response.status_code == 503
     assert observations == [(503, "service_unavailable", False)]
+    assert len(_access_records(caplog)) == 1
 
 
 def test_search_middleware_records_empty_result_once(
@@ -1317,6 +1324,34 @@ def test_search_middleware_records_empty_result_once(
 
     assert response.status_code == 200
     assert observations == [(200, None, True)]
+
+
+def test_search_middleware_classifies_exhausted_budget_as_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[str | None] = []
+    monkeypatch.setattr(api_v2, "require_bff_service", lambda *_a, **_kw: None)
+    monkeypatch.setattr(api_v2, "require_api_scope", lambda *_a, **_kw: None)
+
+    def expired() -> bool:
+        raise pg_pool.RuntimeBudgetExpired("budget exhausted")
+
+    monkeypatch.setattr(api_v2, "_database_runtime_ready", expired)
+    monkeypatch.setattr(
+        api_v2.ingest_metrics,
+        "record_retrieval_http",
+        lambda *, status_code, seconds, cause=None, empty=False: observed.append(cause),
+    )
+    scope = dict(_business_request("/search/v2").scope)
+    scope["method"] = "POST"
+
+    async def route(_request: Request) -> JSONResponse:
+        pytest.fail("expired budget must not reach route")
+
+    response = asyncio.run(api_v2._metrics_middleware(Request(scope), route))
+
+    assert response.status_code == 503
+    assert observed == ["timeout"]
 
 
 def test_v2_middleware_normalizes_custom_http_methods(

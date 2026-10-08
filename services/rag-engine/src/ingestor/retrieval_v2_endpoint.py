@@ -98,6 +98,7 @@ try:
     from .pg_pool import (
         PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         execute_with_database_budget,
         pool_connection,
         remaining_database_budget_ms,
@@ -178,6 +179,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from pg_pool import (  # type: ignore[no-redef]
         PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         execute_with_database_budget,
         pool_connection,
         remaining_database_budget_ms,
@@ -1438,11 +1440,11 @@ def _bounded_retrieval_failure_cause(exc: BaseException) -> str:
     for _ in range(4):
         if current is None:
             break
+        if isinstance(current, RuntimeBudgetExpired | TimeoutError):
+            return "timeout"
         if isinstance(current, PoolConfigurationError):
             return "pool_failure"
-        if isinstance(current, TimeoutError):
-            return "timeout"
-        current = current.__cause__
+        current = current.__cause__ or current.__context__
     return "internal_error"
 
 

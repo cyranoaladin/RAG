@@ -1,13 +1,13 @@
 groups:
   - name: retrieval-v2
     rules:
-      - alert: RAGRetrievalDown
+      - alert: RAGRetrievalMetricsScrapeFailed
         expr: up{job="rag-engine-v2"} == 0
         for: 2m
         labels:
-          severity: critical
+          severity: warning
         annotations:
-          summary: API retrieval v2 indisponible
+          summary: Collecte Prometheus du retrieval v2 indisponible
       - alert: RAGRetrievalUnavailable
         expr: increase(retrieval_http_503_total[5m]) > 0
         for: 1m

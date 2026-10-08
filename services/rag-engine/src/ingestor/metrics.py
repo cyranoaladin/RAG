@@ -33,6 +33,11 @@ from typing import Any, TypeVar, cast
 
 from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest
 
+if __package__:
+    from .retrieval_observability import RETRIEVAL_ERROR_CAUSES
+else:
+    from retrieval_observability import RETRIEVAL_ERROR_CAUSES  # type: ignore[no-redef]
+
 __all__ = [
     "METRICS_ENABLED",
     "REGISTRY",
@@ -126,18 +131,7 @@ _MM_FAILURES = Counter(
 
 # Route et causes à cardinalité fermée : ni requête, ni collection, ni identité
 # élève ne deviennent des labels Prometheus.
-_RETRIEVAL_CAUSES = frozenset(
-    {
-        "authentication",
-        "invalid_request",
-        "scope_refusal",
-        "timeout",
-        "pool_failure",
-        "ann_overflow",
-        "service_unavailable",
-        "internal_error",
-    }
-)
+_RETRIEVAL_CAUSES = RETRIEVAL_ERROR_CAUSES
 _RETRIEVAL_REQUESTS = Counter(
     "retrieval_requests_total", "POST /search/v2 requests", registry=REGISTRY
 )
