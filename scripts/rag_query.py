@@ -149,6 +149,7 @@ def issue_scope_identity(
     *,
     config: ClientConfig,
     now: int | None = None,
+    role: str = "teacher",
 ) -> tuple[str, RetrievalScopeArtifactV2]:
     """Émettre puis revérifier localement l'enveloppe par le verifier canonique."""
     artifact = load_retrieval_scope_artifact(scope_id)
@@ -171,7 +172,7 @@ def issue_scope_identity(
         jti=jti,
         tenant=target.tenant,
         niveau=target.niveau,
-        role="teacher",
+        role=role,
         school_year=evidence.school_year,
         sub=pseudonymous_subject,
         pedagogical_profile=PedagogicalProfile(
