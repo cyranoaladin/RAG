@@ -245,6 +245,7 @@ def test_worker_b_model_drift_fails_before_model_load_and_postgres(
             "release_embedding_model_id": "intfloat/multilingual-e5-large",
             "release_embedding_dimension": 1024,
             "release_embedding_inventory_sha256": "b" * 64,
+            "require_collections_governed": lambda _self, _collections=None: None,
         },
     )()
     authorities = type("Authorities", (), {"placement_resolver": resolver})()
@@ -308,6 +309,7 @@ def test_worker_b_production_model_drift_fails_before_model_load_and_postgres(
             "release_embedding_model_id": "intfloat/multilingual-e5-large",
             "release_embedding_dimension": 1024,
             "release_embedding_inventory_sha256": "b" * 64,
+            "require_collections_governed": lambda _self, _collections=None: None,
         },
     )()
     authorities = type("Authorities", (), {"placement_resolver": resolver})()
@@ -834,6 +836,7 @@ def test_worker_b_production_with_full_evidence_reaches_model_load(
             "release_embedding_model_id": "intfloat/multilingual-e5-large",
             "release_embedding_dimension": 1024,
             "release_embedding_inventory_sha256": SHA,
+            "require_collections_governed": lambda _self, _collections=None: None,
         },
     )()
     authorities = type("Authorities", (), {"placement_resolver": resolver})()

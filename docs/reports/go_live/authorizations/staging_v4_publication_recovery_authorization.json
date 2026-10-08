@@ -1,0 +1,220 @@
+{
+  "amends": "DH",
+  "authorization_statement": "L'approbation de la PR d'activation par abenrhouma vaut autorisation, pour le staging cloisonne uniquement, de reprendre la publication de production-profile-gate-2026-2027-v4 sur la base dediee ragdb_profile_gate_v4 selon les operations nommees : apercu, annulation des jobs perimes par ingestion_control_app, invalidation des attestations de la revue 257 par ingestion_control_attestor, nouvelle revue humaine, nouvelles attestations, nouveaux jobs, Worker B, verification. Elle n'autorise ni nouvelle base, ni reingestion, ni nouvelle release, ni suppression de ligne, ni reaffectation d'ancien job, ni reutilisation de la revue 257, ni fusion automatique de la revue, ni modification de ragdb, ni privilege nouveau, ni build sur nexus-prod, ni ecriture DB production, ni current switch, ni exposition publique.",
+  "consumed": false,
+  "effective_when": "ce document est copié (git mv) de docs/reports/go_live/authorizations/proposed/staging_v4_publication_recovery_authorization.json vers docs/reports/go_live/authorizations/staging_v4_publication_recovery_authorization.json par une PR distincte, approuvée au head exact par le relecteur gouverné, puis fusionnée sur main",
+  "execution_plan": {
+    "path": "docs/runbooks/staging_v4_publication_recovery_DH_EXECUTION_PLAN.md",
+    "sha256": "9bda7b83040205ffa1c6a4921a80d2467315a0e8a4617b76922b989e3e1f0836"
+  },
+  "expected_proof": [
+    "ragdb inchangée avant et après chaque écriture",
+    "aperçu : 479 attestations, 479 ressources, 315 contenus, 11 collections, 479 jobs, empreintes",
+    "jobs périmés annulés (en file ou bail expiré), dernier motif de Worker B conservé, rejeu sans effet",
+    "attestations de #257 invalidées par le rôle attestor, motif DH, rejeu sans effet",
+    "nouvelle revue approuvée au head exact, 479 nouvelles attestations",
+    "préconditions de revue avant mise en file et avant Worker B",
+    "479 nouveaux jobs ; publication : 11 collections, 315 artefacts, 479 placements, 8268 chunks",
+    "retrieval servi sous les onze scopes V4 ; closure-check avant toute fermeture de la revue"
+  ],
+  "expires_after_use": true,
+  "extends": {
+    "path": "docs/reports/go_live/authorizations/staging_ssh_authorization.json",
+    "sha256": "86c06350b61f51331566e534938432561dc568d80f0b6d5a63d9eed8213d07a0"
+  },
+  "extends_v4": {
+    "path": "docs/reports/go_live/authorizations/staging_v4_publication_authorization.json",
+    "sha256": "8f1ce4c65d71319eba15a6110ee5d18e0fba1eacd396b7f278187e1aa74ca63d"
+  },
+  "forbidden": [
+    "api_service_switch",
+    "applied_migration_change",
+    "automatic_review_merge",
+    "certificate_modification",
+    "current_switch",
+    "dns_modification",
+    "docker_prune",
+    "job_reassignment",
+    "legacy_database_modification",
+    "legacy_v2_data_deletion",
+    "new_database",
+    "new_release",
+    "nginx_modification",
+    "oauth_revocation",
+    "permission_file_modification",
+    "pilot_placements_reuse",
+    "predecessor_adoption",
+    "production_db_read",
+    "production_db_write",
+    "production_image_rebuild_on_host",
+    "production_ingestion",
+    "production_secret_read",
+    "production_service_restart",
+    "public_exposure",
+    "rclone_reconfiguration",
+    "reingestion",
+    "remove_orphans",
+    "role_grant_change",
+    "row_deletion",
+    "sealed_artifact_change",
+    "stale_review_reuse",
+    "v2_publication",
+    "v3_publication",
+    "volume_removal_outside_project",
+    "worker_b_privilege_escalation"
+  ],
+  "github_read_token": {
+    "consumers": [
+      "stale_attestation_invalidation",
+      "recovery_review_record",
+      "recovery_job_enqueue",
+      "recovery_worker_b_publication"
+    ],
+    "created_by": "propriétaire, après approbation de l'autorisation DH ; jamais par l'agent",
+    "dir_mode": "0700",
+    "file_mode": "0600",
+    "path": "/srv/nexus-staging/secrets/github-read-token/token",
+    "permissions": {
+      "contents": "read",
+      "metadata": "read"
+    },
+    "repository_selection": [
+      "cyranoaladin/RAG"
+    ]
+  },
+  "granted_by_pull_request_approval_of": "abenrhouma",
+  "kind": "NEXUS-STAGING-V4-PUBLICATION-RECOVERY-AUTHORIZATION-V1",
+  "operations": [
+    "recovery_preflight",
+    "stale_job_cancellation",
+    "stale_attestation_invalidation",
+    "recovery_review_proposal",
+    "recovery_review_record",
+    "recovery_job_enqueue",
+    "recovery_worker_b_publication",
+    "recovery_independent_verification",
+    "recovery_review_closure_check"
+  ],
+  "probe_image": {
+    "build_on_nexus_prod": "forbidden",
+    "build_workflow": ".github/workflows/production-image-provenance.yml",
+    "build_workflow_run_attempt": 1,
+    "build_workflow_run_id": 36017565965,
+    "built_off_host": true,
+    "contracts_version": "0.21.0",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+    "durable_service": false,
+    "evidence": {
+      "path": "docs/reports/evidence/staging_worker_image_provenance_db.json",
+      "sha256": "b8b88626cfc2cef2292fe555b1049823c55d59854c742ce2496d502cec39a282"
+    },
+    "image_digest": "sha256:9dbc8f5598471b856d308f13eec429ab5561093f839e27e7809bae19335c9452",
+    "image_repository": "ghcr.io/cyranoaladin/rag-ingestor",
+    "network": "no_inbound_exposure",
+    "pinning": "pinned_by_digest_no_rebuild",
+    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:9dbc8f5598471b856d308f13eec429ab5561093f839e27e7809bae19335c9452",
+    "source_commit_sha": "0569aff60092251eef691ed2a730dec3bdf7ec81",
+    "source_tree_sha": "2e62a1e700ce14dd50bf46c508b99e837f8a4265",
+    "tag_alone_accepted": false,
+    "use": "sonde de retrieval ponctuelle en lecture (rag_reader) ; aucun service démarré"
+  },
+  "release": {
+    "expected_counts": {
+      "placements": 479,
+      "subjects": 11,
+      "unique_artifacts": 315,
+      "unique_chunks": 8268
+    },
+    "profiles_dir": "services/rag-engine/configs/ingestion_profiles/v3_livraison_315",
+    "release_dir": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate",
+    "release_id": "production-profile-gate-2026-2027-v4",
+    "release_manifest_sha256": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be",
+    "served_currentness": "official_snapshot",
+    "served_visibility": "internal"
+  },
+  "review_lifecycle": {
+    "batch_review": "revue GitHub vérifiée EN DIRECT à chaque usage (ADR-0033 § 5) : la PR doit rester ouverte, approuvée au head exact et inchangée tant qu'un job peut être repris",
+    "closure_condition": "closure-check : toutes les ressources RETRIEVAL_ELIGIBLE, un pin de commit par attestation active à son head, aucun job publication_resume en file ou en cours ; vérification indépendante faite",
+    "merge_or_close": "décision humaine après closure-check ; jamais automatique",
+    "per_publication_checks": "inchangées : Worker B revérifie chaque attestation avant chaque publication",
+    "preconditions": [
+      "review-precondition --stage enqueue",
+      "review-precondition --stage worker-b"
+    ],
+    "r4_scope_authorizations": "preuve scellée (ADR-0058) : enregistrées pendant que #252 était ouverte, elles ne dépendent plus de l'état de #252"
+  },
+  "rollback": {
+    "database": "aucune ligne supprimée : anciennes attestations et anciens jobs restent comme historique",
+    "governance_evidence": "jamais supprimée",
+    "service": "arrêt des processus lancés ; aucune suppression de volume"
+  },
+  "runtime_image": {
+    "build_on_nexus_prod": "forbidden",
+    "build_workflow": ".github/workflows/production-image-provenance.yml",
+    "build_workflow_run_attempt": 1,
+    "build_workflow_run_id": 36017565965,
+    "built_off_host": true,
+    "contracts_version": "0.21.0",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "durable_service": false,
+    "evidence": {
+      "path": "docs/reports/evidence/staging_worker_image_provenance_db.json",
+      "sha256": "b8b88626cfc2cef2292fe555b1049823c55d59854c742ce2496d502cec39a282"
+    },
+    "image_digest": "sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d",
+    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "network": "no_inbound_exposure",
+    "pinning": "pinned_by_digest_no_rebuild",
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d",
+    "runtime_image_binding_guard": "NEXUS_ACTUAL_WORKER_IMAGE",
+    "source_commit_sha": "0569aff60092251eef691ed2a730dec3bdf7ec81",
+    "source_tree_sha": "2e62a1e700ce14dd50bf46c508b99e837f8a4265",
+    "tag_alone_accepted": false
+  },
+  "stale_review": {
+    "head_sha": "85f9000115df34cab3060a52de6594bebe24c73c",
+    "pull_request": 257,
+    "repository": "cyranoaladin/RAG",
+    "reuse": "forbidden : une revue fermée ne fonde jamais une reprise",
+    "review_artifact_sha256": "19ba49a2b56b3075b0f26ac75998cadcc696dab44864e6940d4f004c862279b9",
+    "review_id": "lot42-release-batch-v4-staging-20260924"
+  },
+  "stale_review_identity": {
+    "path": "docs/reports/go_live/recovery/dh_stale_review_257.json",
+    "sha256": "53a8e680be714b9cf3461d228f462315c1b4ca83e342a6edd15e1b8b7389a546"
+  },
+  "stop_conditions": "tout ecart de l'apercu, toute ligne etrangere, tout bail actif, tout pin ou placement produit deja present, toute revue non approuvee en direct, toute variation de ragdb ; arret sans suppression de ligne, de base ni de preuve",
+  "targets": {
+    "compose_project": "nexus-staging",
+    "container": "nexus-staging-pgvector-1",
+    "control_schema": "ingestion_control",
+    "database": "ragdb_profile_gate_v4",
+    "database_creation": "additive : nouvelle base du cluster existant, jamais une réutilisation",
+    "host": "nexus-prod",
+    "legacy_database": {
+      "guard": "têtes et comptes mesurés au pré-vol, revérifiés après chaque écriture",
+      "holds": "acquisition V2 (479 ressources, 479 artefacts) et 26 placements pilotes",
+      "mode": "untouched",
+      "name": "ragdb"
+    },
+    "product_schema": "public",
+    "role_env_dir": "/srv/nexus-staging/secrets/v4-roles",
+    "roles": {
+      "attestor": "ingestion_control_attestor",
+      "authority": "ingestion_control_authority",
+      "control_migrator": "ingestion_control_migrator",
+      "migrator": "superutilisateur du conteneur staging, via les seuls runners canoniques",
+      "product_reader": "rag_reader",
+      "product_reviewer": "rag_reviewer (droits posés par le runner produit, non utilisé par ce plan)",
+      "product_writer": "rag_publisher",
+      "worker": "ingestion_control_app"
+    },
+    "worker_never_receives": [
+      "identifiants du migrateur",
+      "DSN ingestion_control_authority",
+      "DSN ingestion_control_attestor",
+      "staging.env",
+      "ingestion_control.env"
+    ]
+  }
+}

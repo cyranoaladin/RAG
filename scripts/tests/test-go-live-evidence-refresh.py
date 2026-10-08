@@ -28,6 +28,10 @@ REPORT = REPO_ROOT / "docs/reports/lot_go_live_evidence_refresh_20260824.md"
 RUNBOOK = REPO_ROOT / "docs/runbooks/go_live.md"
 README_PROD = REPO_ROOT / "services/rag-engine/README-PROD.md"
 ROLLBACK_RUNBOOK = REPO_ROOT / "docs/runbooks/rollback.md"
+INGESTION_CONTROL_HEAD = (
+    REPO_ROOT
+    / "services/rag-engine/infra/postgres/ingestion_control/migrations/HEAD"
+)
 CI_LOCAL = REPO_ROOT / "scripts/ci-local.sh"
 DOCKER_V2_EVIDENCE = (
     REPO_ROOT / "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.json"
@@ -428,9 +432,12 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, report)
 
-    def test_operator_docs_require_head_005_and_exact_migration_sequence(self) -> None:
+    def test_operator_docs_require_declared_migration_heads(self) -> None:
         runbook = RUNBOOK.read_text(encoding="utf-8")
         readme = README_PROD.read_text(encoding="utf-8")
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        ingestion_control_head = INGESTION_CONTROL_HEAD.read_text(encoding="utf-8").strip()
+        ingestion_control_version = ingestion_control_head.partition("_")[0]
         normalized_runbook = " ".join(runbook.split())
         self.assertNotIn("head `003_profile_filtering`", runbook)
         self.assertNotIn("head 003", runbook)
@@ -450,11 +457,30 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             "adopter le head structurel non enregistré `001`",
             "appliquer `002`, `003`, `004`, puis `005`",
             "backup frais",
-            "`001` à `013`",
+            f"`001` à `{ingestion_control_version}`",
+            f"`{ingestion_control_head}`",
             "rollback",
         ):
             with self.subTest(expected=expected):
                 self.assertIn(expected, normalized_runbook)
+        for migration in (
+            "019_sealed_release_publication_authorizations.sql",
+            "020_successor_control_resource_identity.sql",
+        ):
+            with self.subTest(migration=migration):
+                self.assertIn(f"`{migration}`", normalized_runbook)
+        self.assertIn(
+            "SHA-256 recalculé pour chaque fichier enregistré, y compris les "
+            "versions `019` et `020`",
+            normalized_runbook,
+        )
+        self.assertIn(
+            f"`ingestion_control.schema_migrations` doit être la suite contiguë "
+            f"`1..{int(ingestion_control_version)}`",
+            normalized_runbook,
+        )
+        self.assertIn(f"`SCHEMA_HEAD={int(ingestion_control_version)}`", normalized_runbook)
+        self.assertIn(f"`{ingestion_control_head}`", rollback)
 
     def test_custom_dump_restore_is_isolated_and_migrator_only(self) -> None:
         rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")

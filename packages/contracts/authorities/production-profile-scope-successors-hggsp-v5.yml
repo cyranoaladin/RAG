@@ -1,0 +1,14 @@
+authority_id: PRODUCTION_PROFILE_SCOPE_SUCCESSORS_V1
+authority_name: HGGSP_V5_COMPLEMENTARY
+release_id: production-profile-gate-2026-2027-v5-hggsp
+release_manifest_sha256: 8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf
+mixed_registry_sha256: 59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6
+bindings:
+- collection: rag_nexus_hggsp_premiere_specialite
+  scope_id: prod_hggsp_premiere_specialite_v3
+  predecessor_scope_id: prod_hggsp_premiere_specialite_v2
+  subject_sha256: f47525e1e6b1cc2216bc650de9a581ba04f5f36e65abc713215215357d411b4e
+- collection: rag_nexus_hggsp_terminale_specialite
+  scope_id: prod_hggsp_terminale_specialite_v3
+  predecessor_scope_id: prod_hggsp_terminale_specialite_v2
+  subject_sha256: 5146d79f54739aafc49d439530a2180b831f48d0565061ed6b105c2f82eeafc9

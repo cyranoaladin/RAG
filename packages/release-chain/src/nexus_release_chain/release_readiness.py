@@ -27,7 +27,7 @@ _MULTILEVEL_ARTIFACT_REGISTRY_KIND_V2 = "MULTILEVEL_ARTIFACT_REGISTRY_V2"
 _MULTILEVEL_AGGREGATE_KIND_V2 = "MULTILEVEL_AGGREGATE_RELEASE_V2"
 _MULTILEVEL_SUBJECT_KIND_V2 = "MULTILEVEL_SUBJECT_RELEASE_V2"
 MAX_RELEASE_MANIFESTS = 32
-_REGISTRY_SUPPORTED_VERSIONS = frozenset({"1"})
+_REGISTRY_SUPPORTED_VERSIONS = frozenset({"1", "2"})
 _REGISTRY_ENTRY_FIELDS = frozenset(
     {
         "release_id",
@@ -1311,16 +1311,94 @@ def load_release_registry(
     )
 
 
+def _project_release_expectation(
+    expectation: ReleaseExpectation,
+    served_collections: tuple[str, ...],
+) -> ReleaseExpectation:
+    """Expose only an explicitly owned subset of a fully validated release."""
+    served = set(served_collections)
+    if not served <= set(expectation.collections):
+        raise ReleaseReadinessError("release registry collection is not declared by the manifest")
+    placements = tuple(
+        placement for placement in expectation.placements if placement.collection in served
+    )
+    referenced_artifacts = {placement.artifact_id for placement in placements}
+    artifacts = tuple(
+        artifact
+        for artifact in expectation.artifacts
+        if artifact.content_sha256 in referenced_artifacts
+    )
+    return replace(
+        expectation,
+        collections=served_collections,
+        artifacts=artifacts,
+        placements=placements,
+        subject_manifest_sha256_by_collection=tuple(
+            (collection, sha256)
+            for collection, sha256 in expectation.subject_manifest_sha256_by_collection
+            if collection in served
+        ),
+    )
+
+
+def _load_partitioned_release_registry(
+    configurations: Sequence[tuple[Path, str]],
+    declared_collections: Sequence[tuple[str, ...]],
+    declared_kinds: Sequence[str],
+    declared_ids: Sequence[str],
+    school_year: str,
+) -> ReleaseRegistryExpectation:
+    """Registry v2: validate full manifests, then apply explicit collection ownership."""
+    full: list[ReleaseExpectation] = [
+        load_release_expectation(path, sha256) for path, sha256 in configurations
+    ]
+    for expectation, kind, release_id in zip(full, declared_kinds, declared_ids, strict=True):
+        if expectation.release_id != release_id:
+            raise ReleaseReadinessError(
+                "release registry release_id does not match the manifest it names"
+            )
+        if expectation.release_kind != kind:
+            raise ReleaseReadinessError(
+                "release registry release_kind does not match the manifest it names"
+            )
+        if expectation.school_year != school_year:
+            raise ReleaseReadinessError("release registry school_year does not match the manifest")
+
+    manifests: list[ReleaseManifestBinding] = []
+    collections: list[str] = []
+    seen_artifacts: set[str] = set()
+    model_contract: tuple[str, str, int, str, str] | None = None
+    for (path, sha256), expectation, served in zip(
+        configurations, full, declared_collections, strict=True
+    ):
+        projected = _project_release_expectation(expectation, served)
+        contract = _expectation_model_contract(projected)
+        if model_contract is None:
+            model_contract = contract
+        elif contract != model_contract:
+            raise ReleaseReadinessError("release registry model contract mismatch")
+        if set(served).intersection(collections):
+            raise ReleaseReadinessError("release registry collection collision")
+        artifact_ids = {artifact.content_sha256 for artifact in projected.artifacts}
+        if artifact_ids.intersection(seen_artifacts):
+            raise ReleaseReadinessError("release registry artifact collision")
+        collections.extend(served)
+        seen_artifacts.update(artifact_ids)
+        manifests.append(
+            ReleaseManifestBinding(path=path, expected_sha256=sha256, expectation=projected)
+        )
+    return ReleaseRegistryExpectation(manifests=tuple(manifests), collections=tuple(collections))
+
+
 def load_release_registry_file(path: Path, expected_sha256: str) -> ReleaseRegistryExpectation:
     """Charger le registre canonique borné des releases actives.
 
     Le registre est un fichier versionné, vérifié par sa propre empreinte
-    externe, qui énumère explicitement chaque release active (2 releases
-    Troisième + 10 releases multi-niveaux au démarrage courant). Il ne fait
-    que borner *quels* manifests agrégés sont chargés — toute la validation
-    de contenu (digest par manifest, collisions de collection/artefact,
-    contrat modèle unique) reste celle de :func:`load_release_registry`,
-    jamais dupliquée ici.
+    externe, qui énumère explicitement chaque release active. La version 1
+    exige l'égalité entre collections déclarées et manifest et conserve le
+    chargeur historique. La version 2 vérifie chaque manifest entier avant
+    de n'exposer que les collections explicitement attribuées à sa release.
+    Les collisions après projection et le contrat modèle restent obligatoires.
     """
     payload = _read_json_with_digest(Path(path), expected_sha256, "release registry")
     if payload.get("registry_version") not in _REGISTRY_SUPPORTED_VERSIONS:
@@ -1387,7 +1465,16 @@ def load_release_registry_file(path: Path, expected_sha256: str) -> ReleaseRegis
         declared_kind_by_index.append(release_kind)
         declared_release_id_by_index.append(release_id)
 
-    registry = load_release_registry(tuple(configurations))
+    if payload["registry_version"] == "1":
+        registry = load_release_registry(tuple(configurations))
+    else:
+        registry = _load_partitioned_release_registry(
+            tuple(configurations),
+            tuple(declared_collections_by_index),
+            tuple(declared_kind_by_index),
+            tuple(declared_release_id_by_index),
+            school_year,
+        )
 
     for binding, declared_collections, declared_kind, declared_release_id in zip(
         registry.manifests,
@@ -1457,10 +1544,15 @@ def evaluate_release_snapshot(
     for artifact_id in expected_artifacts.keys() & actual_artifacts.keys():
         exp_artifact = expected_artifacts[artifact_id]
         actual = actual_artifacts[artifact_id]
-        expected_source_kind = urlparse(exp_artifact.source_url).hostname
+        expected_source_label = urlparse(exp_artifact.source_url).hostname
+        expected_source_kind = (
+            "sealed_release"
+            if expectation.release_kind == _MULTILEVEL_AGGREGATE_KIND_V2
+            else expected_source_label
+        )
         if (
             actual.get("content_sha256") != exp_artifact.content_sha256
-            or actual.get("source_label") != expected_source_kind
+            or actual.get("source_label") != expected_source_label
             or actual.get("source_uri") != exp_artifact.source_url
             or actual.get("type_doc") != exp_artifact.type_doc
             or actual.get("rights") != "officiel_public"

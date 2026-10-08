@@ -1,5 +1,13 @@
 # Runbook Rollback — Plateforme RAG
 
+> **Release gouvernée V2 :** les recettes Docker des sections 1 à 4
+> décrivent l'ancienne stack. Elles ne constituent pas une commande de
+> rollback pour le go-live. La bascule et le retour doivent utiliser les
+> bundles immuables et les digests d'image vérifiés par le déploiement
+> atomique ; la commande exacte et la cible de retour sont figées au gate de
+> cutover. Ne pas faire `git checkout`, `up --build`, `down` sur le projet de
+> production, ni employer `--remove-orphans` comme raccourci de retour.
+
 ## Quand déclencher un rollback
 
 - Erreurs 500/503 persistantes après déploiement
@@ -179,6 +187,22 @@ reste un human gate distinct : backup frais, arrêt contrôlé des writers,
 validation de l'identité de la cible, restauration, migrations via le seul
 migrateur, reprovisionnement explicite des rôles runtime, contrôles de schéma,
 puis seulement redémarrage des runtimes.
+
+Le dump de la production **avant** le go-live peut encore être une base
+historique sans schéma `ingestion_control` ; sa restauration réussie prouve
+seulement que ce point de retour est lisible. Elle ne prouve ni le schéma
+final, ni les placements et chunks à publier. La sauvegarde prise après
+cutover doit associer le dump `ragdb` et le volume d'artefacts au même
+instant, puis être restaurée sur une cible isolée et contrôlée avant de
+servir la release. Pour cette release, comparer les registres restaurés aux
+fichiers canoniques : head produit `005_official_snapshot_currentness` et
+head d'ingestion déclaré dans `migrations/HEAD` (actuellement
+`020_successor_control_resource_identity`, avec `019` et `020` appliquées et
+leurs SHA-256 vérifiés). Si le snapshot est antérieur à ce head, ne pas
+démarrer l'API ou les workers : appliquer uniquement les migrations
+manquantes avec les runners canoniques sur la cible **isolée**, puis refaire
+les contrôles. Ne pas dérouler les fichiers `019`/`020` ni leurs rollbacks
+manuellement sur des adoptions existantes.
 
 ### Chroma (v1)
 

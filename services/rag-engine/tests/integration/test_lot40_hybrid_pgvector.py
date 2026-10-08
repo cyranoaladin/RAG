@@ -48,8 +48,8 @@ from ingestor.retrieval_hybrid_v2 import (
 )
 from ingestor.retrieval_metadata_v2 import chunk_metadata_filter_params
 from ingestor.retrieval_pg_v2 import (
-    _DENSE_ANN_POOL_LIMIT,
-    _DENSE_ANN_PROBE_LIMIT,
+    _DENSE_EXACT_PROBE_LIMIT,
+    _DENSE_POOL_LIMIT,
     _DENSE_SQL,
     _LEXICAL_SQL,
     PgCandidateStore,
@@ -931,7 +931,7 @@ def _seed_rows() -> list[tuple[object, ...]]:
                 text="algorithme graphe egalite complete",
             )
         )
-    for index in range(_DENSE_ANN_PROBE_LIMIT + 4):
+    for index in range(_DENSE_EXACT_PROBE_LIMIT + 4):
         rows.append(
             _row(
                 f"overflow-tie-{index:03d}",
@@ -1035,7 +1035,7 @@ def seeded_database() -> Iterator[None]:
 
 @contextmanager
 def _app_store_connection() -> Iterator[psycopg.Connection[Any]]:
-    """Connexion applicative brute; seul le store active pgvector et strict_order."""
+    """Connexion applicative brute ; seul le store active le type vector."""
 
     with psycopg.connect(APP_DSN) as connection:
         yield connection
@@ -1047,9 +1047,8 @@ def _exact_store_connection() -> Iterator[psycopg.Connection[Any]]:
 
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
-            # Une égalité de préfixe est une propriété d'oracle exact, pas une
-            # garantie d'un index HNSW approximatif. Les propriétés HNSW sont
-            # prouvées séparément par leurs plans et leurs bornes ci-dessous.
+            # Oracle indépendant : désactive les index pour recalculer
+            # directement le préfixe attendu de la collection historique.
             cursor.execute("SET LOCAL enable_indexscan = off")
             cursor.execute("SET LOCAL enable_bitmapscan = off")
         yield connection
@@ -1057,7 +1056,7 @@ def _exact_store_connection() -> Iterator[psycopg.Connection[Any]]:
 
 @contextmanager
 def _underfill_store_connection() -> Iterator[psycopg.Connection[Any]]:
-    """Connexion réglée exclusivement pour provoquer un underfill HNSW borné."""
+    """Réglages ANN dégradés, sans effet attendu sur le parcours exact."""
 
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
@@ -1096,22 +1095,27 @@ def _plan_nodes(node: dict[str, Any]) -> Iterator[dict[str, Any]]:
         yield from _plan_nodes(child)
 
 
-def _assert_bounded_hnsw_json_plan(plan_payload: dict[str, Any]) -> None:
+def _assert_scoped_exact_json_plan(plan_payload: dict[str, Any]) -> None:
     nodes = list(_plan_nodes(plan_payload["Plan"]))
     rag_scans = [node for node in nodes if node.get("Relation Name") == "rag_chunks"]
     assert len(rag_scans) == 1, rag_scans
-    assert rag_scans[0].get("Node Type") == "Index Scan", rag_scans[0]
-    assert rag_scans[0].get("Index Name") == "idx_rag_chunks_vector", rag_scans[0]
-    cte_nodes = [
+    assert all(node.get("Index Name") != "idx_rag_chunks_vector" for node in nodes)
+    eligible_nodes = [
         node
         for node in nodes
-        if str(node.get("Subplan Name", "")).endswith("hnsw_candidates")
+        if str(node.get("Subplan Name", "")).endswith("eligible_chunks")
     ]
-    assert len(cte_nodes) == 1, cte_nodes
-    assert int(cte_nodes[0]["Actual Rows"]) <= _DENSE_ANN_PROBE_LIMIT
+    assert len(eligible_nodes) == 1, eligible_nodes
+    exact_nodes = [
+        node
+        for node in nodes
+        if str(node.get("Subplan Name", "")).endswith("exact_candidates")
+    ]
+    assert len(exact_nodes) == 1, exact_nodes
+    assert int(exact_nodes[0]["Actual Rows"]) <= _DENSE_EXACT_PROBE_LIMIT
+    assert any(node.get("CTE Name") == "eligible_chunks" for node in nodes)
     sort_nodes = [node for node in nodes if node.get("Node Type") == "Sort"]
     assert sort_nodes
-    assert max(int(node["Actual Rows"]) for node in sort_nodes) <= _DENSE_ANN_PROBE_LIMIT
     assert any(any(str(key).endswith("Blocks") for key in node) for node in nodes)
 
 
@@ -1144,13 +1148,13 @@ def _assert_ids(actual: Sequence[str], expected: Sequence[str]) -> None:
 def _dense_params(collection: str) -> tuple[object, ...]:
     """Les paramètres de ``_DENSE_SQL``, dans l'ordre de PgCandidateStore.dense."""
     return (
-        QUERY_VECTOR_TEXT,
         *_dense_filter_sql_params(collection),
         *chunk_metadata_filter_params(None),
-        _DENSE_ANN_PROBE_LIMIT,
+        QUERY_VECTOR_TEXT,
+        _DENSE_EXACT_PROBE_LIMIT,
         *_placement_scope_sql_params(collection),
-        _DENSE_ANN_POOL_LIMIT,
-        _DENSE_ANN_PROBE_LIMIT,
+        _DENSE_POOL_LIMIT,
+        _DENSE_EXACT_PROBE_LIMIT,
         50,
     )
 
@@ -2565,7 +2569,7 @@ def test_candidate_by_subject_scope_matrix_is_real(
     print(f"SCOPE_MATRIX_{matiere.upper()}_{candidat.upper()}=PASS")
 
 
-def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
+def test_real_gin_and_scoped_exact_plans_filters_top_50_and_local_scope() -> None:
     with psycopg.connect(APP_DSN, autocommit=True) as connection:
         assert connection.execute(
             "SELECT current_setting('hnsw.iterative_scan', true)"
@@ -2587,12 +2591,12 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
             connection.execute("SET LOCAL hnsw.iterative_scan = 'strict_order'")
             connection.execute("SET LOCAL hnsw.ef_search = 40")
             connection.execute("SET LOCAL hnsw.max_scan_tuples = 100000")
-            hnsw_plan = _plan_json(
+            exact_plan = _plan_json(
                 connection,
                 _DENSE_SQL,
                 _dense_params(TARGET_COLLECTION),
             )
-            _assert_bounded_hnsw_json_plan(hnsw_plan)
+            _assert_scoped_exact_json_plan(exact_plan)
 
         with connection.transaction():
             connection.execute("SET LOCAL enable_seqscan = off")
@@ -2606,7 +2610,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
                 _DENSE_SQL,
                 _dense_params(TARGET_COLLECTION),
             )
-            _assert_bounded_hnsw_json_plan(structural_plan)
+            _assert_scoped_exact_json_plan(structural_plan)
 
         with connection.transaction():
             _assert_gin_plan(connection)
@@ -2722,7 +2726,7 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
                 _DENSE_SQL,
                 _dense_params(TARGET_COLLECTION),
             )
-            _assert_bounded_hnsw_json_plan(underfill_plan)
+            _assert_scoped_exact_json_plan(underfill_plan)
     underfill_store = PgCandidateStore(
         _underfill_store_connection,
         _scope(TARGET_COLLECTION),
@@ -2737,6 +2741,9 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         collection=TARGET_COLLECTION,
         limit=50,
     )
+    # Le réglage ANN volontairement dégradé ne doit plus changer le rappel
+    # dense sur le périmètre gouverné : l'oracle exact reste la référence.
+    _assert_ids([item.chunk_id for item in underfill_actual], expected_ids)
     assert len(underfill_actual) <= 50
     _assert_ids(
         [item.chunk_id for item in underfill_actual],
@@ -2754,15 +2761,14 @@ def test_real_gin_and_hnsw_plans_filters_top_50_and_local_scope() -> None:
         (item.dense_score for item in underfill_actual),
         reverse=True,
     )
-    execution_ms = float(hnsw_plan["Execution Time"])
+    execution_ms = float(exact_plan["Execution Time"])
     assert execution_ms >= 0.0
     print("GIN_PLAN=PASS")
-    print("HNSW_STRICT_FILTERED_BOUNDED=PASS")
-    print(f"HNSW_BOUNDED_JSON_PLAN_MS={execution_ms:.3f}")
-    print("HNSW_NATURAL_AND_STRUCTURAL_BOUNDED_PLAN=PASS")
-    print("APP_STORE_DEFAULT_HNSW_SETTINGS=PASS")
+    print("DENSE_SCOPED_EXACT_PLAN=PASS")
+    print(f"DENSE_SCOPED_EXACT_JSON_PLAN_MS={execution_ms:.3f}")
+    print("DENSE_NATURAL_AND_STRUCTURAL_EXACT_PLAN=PASS")
     print("DENSE_EXACT_ORACLE_PREFIX=PASS")
-    print("HNSW_UNDERFILL_BOUNDED_NO_GLOBAL_SCAN=PASS")
+    print("HNSW_UNDERFILL_EXACT_ORACLE=PASS")
 
 
 class DeterministicEmbedder:
@@ -2789,7 +2795,7 @@ class DeterministicReranker:
         return scores
 
 
-def test_deterministic_reranker_accepts_ann_load_candidates() -> None:
+def test_deterministic_reranker_accepts_load_candidates() -> None:
     assert DeterministicReranker().predict(
         [(QUERY, "algorithme graphe preuve pedagogique de charge")]
     ) == [0.0]
@@ -2807,9 +2813,8 @@ class PilotFixtureReranker:
 
 
 def test_exact_store_and_core_prove_union_scores_page_dedup_and_dimension_failure() -> None:
-    # Les canaris dense/lexical prouvent ici la fusion contre l'oracle exact.
-    # Le chemin HNSW runtime reste approximatif par contrat et ses propriétés
-    # de plan, de scope, de bornes et d'underfill sont prouvées séparément.
+    # Les canaris dense/lexical prouvent la fusion contre l'oracle indépendant.
+    # Le plan, le scope et les bornes du parcours exact sont vérifiés ailleurs.
     store = PgCandidateStore(_exact_store_connection, _scope(TARGET_COLLECTION))
     hits = retrieve_hybrid(
         QUERY,

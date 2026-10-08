@@ -1,6 +1,9 @@
 # ADR-0059 — Publier un instantané officiel sans le déclarer vérifié
 
-- **Statut** : Proposé — HUMAN GATE requis sur la PR
+- **Statut** : Accepté — décision enregistrée : review `APPROVED` d'`abenrhouma`
+  sur le HEAD exact `afe0b5c9` de la PR #247 (2026-09-22T22:35:20Z), fusionnée
+  en `d7611667daef6af45c62e67afcd1db0fd5b3dc5d`. Mise à jour documentaire du
+  statut (lot CY) : aucun contenu de la décision n'est modifié.
 - **Date** : 2026-09-22
 - **Décideur attendu** : reviewer humain habilité, lié au HEAD exact de la PR
 - **S'appuie sur** : ADR-0047 (décisions PII par contenu), ADR-0050 (identité

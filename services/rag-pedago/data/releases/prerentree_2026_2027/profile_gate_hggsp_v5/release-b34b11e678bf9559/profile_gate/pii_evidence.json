@@ -1,0 +1,562 @@
+{
+  "candidate_inventory_sha256": "29e42e8390473e47d76dc25f9ebb033bbf1cf03efd5c012c4328d065be72a61a",
+  "corpus_manifest_sha256": "d7e5caa59278b98d6982a8441332c22fed493d2e0dec913c603d400148e4cc1e",
+  "decision_set_id": null,
+  "evidence_kind": "REAL_CORPUS_PII_SCAN",
+  "page_policy_id": "NEXUS-PDF-PAGE-POLICY-V1",
+  "page_policy_sha256": "82e1de44719bf06bbd6bbff8bae121a6d654ce434d08e225cd386508d9661d02",
+  "pii_decision_set_sha256": "1b70d91b52d207d301d87076573593cb0899ed2b52d6e2963fbcf8fcd3472a66",
+  "pii_review_index_sha256": "abdd15256eba9ed5717529327131b0afe6f5de17189180bd082fd2a9bfeadb55",
+  "pii_review_receipt_sha256": "22361dd17df811425d87f14ff33649efca320a8ee63292023ff5187d977bd55d",
+  "pii_review_trust_anchor_sha256": "a7835fc6217fe426d9d5c7c28bb0949f05577e6258a620b2bf6a4029db0487ec",
+  "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
+  "policy_version": "pii_gate_policy_h2b_v5",
+  "produced_content_set_sha256": "b76b84b03b8b47e936555f0bb1135b4e0580d702a8f11d353285c928c215619f",
+  "raw_pii_in_logs": false,
+  "raw_pii_in_output": false,
+  "remote_access_mode": "READ_ONLY",
+  "remote_write_operations": 0,
+  "required_pdf_path_count": 52,
+  "results": [
+    {
+      "characters_scanned": 24144,
+      "content_sha256": "00cbf8eac19ed34d5e7317f436b7ed84aee6df9b2feaf1989db537343b5a476d",
+      "evidence_sha256": "5e19b115be1fdf24529d0f45f4d783bcb4b0cf1f5dfc110369f66d5ea995f83a",
+      "ignored_empty_pages": [],
+      "pages_scanned": 10,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/04_EVALUATIONS_EXAMENS/2019/specialite-histoire-geographie-geopolitique-et-sciences-politiques-en-terminale-bo-special-n-8-du-25-juillet-2019-pdf-366-73-ko--00cbf8eac1.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 20365,
+      "content_sha256": "0b69bcd141b15512cb007c9ce13c82ac346094828174ac2806ae601a7c9d8d62",
+      "evidence_sha256": "e865b6630aa53af019bcda869a5b43b62c9e6b2335415f63f993d6904cb10fc3",
+      "ignored_empty_pages": [],
+      "pages_scanned": 8,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2019/une-diversification-des-espaces-et-des-acteurs-de-la-production-pdf-232-45-ko--0b69bcd141.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 77275,
+      "content_sha256": "0d580861899f1148132e595c19a53fa5d44b8c37e080fa9594a2064babc7333e",
+      "evidence_sha256": "0f9c94affee155816320d22436afdb5869ccf204669978041f57ca8e0984e569",
+      "ignored_empty_pages": [],
+      "pages_scanned": 16,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2025/annexes-de-la-fiche-la-france-au-cameroun-pdf-2-49-mo--0d58086189.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 73771,
+      "content_sha256": "197c2f5f1f674aecbebe12f416123cf60d960e1a6767118a42b43d517f9e6f51",
+      "evidence_sha256": "729b0ef2daf3eb183ccaf3059734ea65ce0f30777b1c90126def19c19ac17b3e",
+      "ignored_empty_pages": [],
+      "pages_scanned": 20,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2022/la-france-de-1945-a-nos-jours-une-democratie-pdf-294-94-ko--197c2f5f1f.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 46100,
+      "content_sha256": "1d4d522350ee03ce4453ffe5766dedc0257a7faff317177cb4d34ca3c5213cd6",
+      "evidence_sha256": "0f3d589f5a6581f896c0f94d25140fa321abbed6b2ea881a168c64192a4ec39c",
+      "ignored_empty_pages": [],
+      "pages_scanned": 14,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2022/l-union-europeenne-dans-la-mondialisation-des-dynamiques-complexes-pdf-850-42-ko--1d4d522350.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 45143,
+      "content_sha256": "1e8950bde2797f7762a8298616eb094c3c1b7844a0222a1177ef6a328e5a91f1",
+      "evidence_sha256": "efb568d215cce6013240519f785a50ddcb466bd4cddd9ab5bd189fdea2ca72aa",
+      "ignored_empty_pages": [],
+      "pages_scanned": 14,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/l-europe-face-aux-revolutions-pdf-304-55-ko--1e8950bde2.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 66515,
+      "content_sha256": "217f6201bab340c601411fd9aac10805326d00708033efa0fe2d97411b035f44",
+      "evidence_sha256": "afd90def573ae2530696a64142c17cb7e0f5173b761fdae37067a91eb1cf31b5",
+      "ignored_empty_pages": [],
+      "pages_scanned": 20,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2022/la-france-dans-l-europe-des-nationalites-politique-et-societe-1848-1871-pdf-320-91-ko--217f6201ba.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 56034,
+      "content_sha256": "2252e83a8f1adc1030d9da2e363f7aa4a5acefe7b88a0f8b61e88cca39992277",
+      "evidence_sha256": "8bff0e91cb1229b14c0b3c378c89e36d6abb6101ef64e688792d07e135b05fe4",
+      "ignored_empty_pages": [],
+      "pages_scanned": 16,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2020/s-informer-un-regard-critique-sur-les-sources-et-modes-de-communication-pdf-308-36-ko--2252e83a8f.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 30270,
+      "content_sha256": "2960fd0b0980ad3f6f51a739a34dd9f112c309693cff85c551b782de1917bd74",
+      "evidence_sha256": "2c6a191094871ef3c093e225be30c67d8489bbfa50003aa0c9996d224b6d4d6d",
+      "ignored_empty_pages": [],
+      "pages_scanned": 10,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/la-metropolisation-un-processus-mondial-differencie-pdf-336-44-ko--2960fd0b09.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 25964,
+      "content_sha256": "2f9442c83e62e483c96a0150196132953665b0b892e7cb313b4526977d0a933c",
+      "evidence_sha256": "48b80b0380366d54132f2340cb267e6f38619652d2dca2f86be7193c9599053f",
+      "ignored_empty_pages": [],
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2020/des-territoires-inegalement-integres-dans-la-mondialisation-en-fonction-des-decisions-publiques-et-des-strategies-des-entreprises--2f9442c83e.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 46749,
+      "content_sha256": "34266a6070800766d64859ffbbd9443cf529c52b8d944426c07e4013f4c4f58b",
+      "evidence_sha256": "67926515afc1ab0aeb3bf0d5ffe9038ffbc997c9f7dce23547397461f3c9152a",
+      "ignored_empty_pages": [],
+      "pages_scanned": 15,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2021/les-remises-en-causes-economiques-politiques-et-sociales-des-annees-1970-a-1991-pdf-236-84-ko--34266a6070.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 67366,
+      "content_sha256": "3b32b3d0317be88648fa0e8986302f2bba6fe301531d2e975ab671f7d60646f2",
+      "evidence_sha256": "d185d5d1fb8703ce744a4e4ba73502b4ff850f06a515f4d961e55e9efb32f446",
+      "ignored_empty_pages": [],
+      "pages_scanned": 21,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2021/fragilites-des-democraties-totalitarismes-et-seconde-guerre-mondiale-pdf-276-24-ko--3b32b3d031.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 87211,
+      "content_sha256": "3fa21b8c9d7affb74314a068e730223e25ab5e0cfd62715b88395ce136d5009c",
+      "evidence_sha256": "5b5a857d21f6efc96fea162cf790f96ada2cb7e4b275e30ec2a5e3e100e56f2d",
+      "ignored_empty_pages": [],
+      "pages_scanned": 25,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2019/etudier-les-divisions-politiques-du-monde-les-frontieres-pdf-325-69-ko--3fa21b8c9d.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 38624,
+      "content_sha256": "43d5497cf39ac1a0f0b02d1dd94f2699a5cb6239dc5e8de228b036c00e65d0fe",
+      "evidence_sha256": "e42a35f53ff4441d0c589b32522cc199dc85f31bc655d83194f06aa04a90350f",
+      "ignored_empty_pages": [],
+      "pages_scanned": 12,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2020/les-espaces-ruraux-multifonctionnalite-ou-fragmentation-pdf-248-57-ko--43d5497cf3.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 22115,
+      "content_sha256": "4e65046778399929df388031adbc3a5b1257e7bac2efc64791bbb8b5bf2efc6d",
+      "evidence_sha256": "d6e117ba8849f2a10f8a1fe43191b4829b8a78860725b018bea0f6eba893bca6",
+      "ignored_empty_pages": [],
+      "pages_scanned": 8,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2019/la-metropolisation-un-processus-mondial-differencie-pdf-233-97-ko--4e65046778.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 41164,
+      "content_sha256": "4eac6d80fabcfe1fc56d01d97fcf399c251501eab9034176b6c2eb316c434919",
+      "evidence_sha256": "9754f26433366f8dd7ccf96163776f92023c2f3781be305669032e398d6d6a86",
+      "ignored_empty_pages": [],
+      "pages_scanned": 16,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/01_PROGRAMMES_OFFICIELS/2019/premiere-generale-bo-special-n-1-du-22-janvier-2019-pdf-255-46-ko--4eac6d80fa.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 56089,
+      "content_sha256": "505f86ce513d830ea64b679b977036532fe8df68f340b48e09462de2db4c8d45",
+      "evidence_sha256": "772cf69ce43d87e40b356f6e488b3e8fa23907a5e7f91819c5aba34c76f475ce",
+      "ignored_empty_pages": [],
+      "pages_scanned": 18,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2021/la-multiplication-des-acteurs-internationaux-dans-un-monde-bipolaire-de-1945-aux-annees-1970-pdf-272-22-ko--505f86ce51.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 38997,
+      "content_sha256": "50b511d556a7ed0c77f3c586582ac495b4d6092601984c2cfd12a470d5e04031",
+      "evidence_sha256": "fa157cee8070961d6ee4f9fed08642c1b19cad8dd85b34cdb28497c90328b20a",
+      "ignored_empty_pages": [],
+      "pages_scanned": 16,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/SECONDE/HGGSP/01_PROGRAMMES_OFFICIELS/2019/seconde-generale-et-technologique-bo-special-n-1-du-22-janvier-2019-pdf-294-75-ko--50b511d556.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 129252,
+      "content_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf",
+      "evidence_sha256": "47f53b6072ccd18a18bb47c211362dbea4237bc3191c6b29ca76d7f9aba44b9c",
+      "ignored_empty_pages": [],
+      "pages_scanned": 41,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2022/faire-la-guerre-faire-la-paix-formes-de-conflits-et-modes-de-resolution-pdf-458-47-ko--50cdfb015f.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 42278,
+      "content_sha256": "51114e9ffc8e01f632585701b7919fe5f3c8ac86a5f6252fe7fdf8dea6a28393",
+      "evidence_sha256": "79da81baded4c3d7b5bc9bed2f3b6a3cd6fd88e2c52d30a2b6892ccb523113b4",
+      "ignored_empty_pages": [],
+      "pages_scanned": 13,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2020/mers-et-oceans-au-c-ur-de-la-mondialisation-pdf-227-62-ko--51114e9ffc.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 40502,
+      "content_sha256": "5139f5575b64ae7542dd7b52e191cdf2e9d0ada74a4214fd86a3587fbfd2f0c0",
+      "evidence_sha256": "e262e534f45ab0d55fa10c0b6d73544dd23ee524c701f5538e055e638af1ae90",
+      "ignored_empty_pages": [],
+      "pages_scanned": 15,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/01_PROGRAMMES_OFFICIELS/2019/terminale-generale-bo-special-n-8-du-25-juillet-2019-pdf-346-6-ko--5139f5575b.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 162732,
+      "content_sha256": "52104b2a60daeef500869952f5ffc84bb379f057bf47990a311bea94a62dae0e",
+      "evidence_sha256": "be26424e9755b0292ac11a14272c047d986a332e0ec049dc4d180ca04da0e6db",
+      "ignored_empty_pages": [],
+      "pages_scanned": 47,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2023/histoire-et-memoires-pdf-520-56-ko--52104b2a60.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 78206,
+      "content_sha256": "587ab86c478dc11edf4a16d847f92e29bb4f96ce26c8460195fd3b10f79e2425",
+      "evidence_sha256": "4dafa0488fe76cd1c52133660f6eb2d41df7b67d894a7797e7e164eeaff8611e",
+      "ignored_empty_pages": [],
+      "pages_scanned": 23,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2022/la-troisieme-republique-avant-1914-un-regime-politique-un-empire-colonial-pdf-313-2-ko--587ab86c47.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 83636,
+      "content_sha256": "6fe0291155b423f705d1e1278075046042b7ee1c5776e6c8b135cbb494bbf366",
+      "evidence_sha256": "911d05b41174b791319b7ad03c6531b602816df50290357968e4c3e026086caf",
+      "ignored_empty_pages": [],
+      "pages_scanned": 24,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2021/la-premiere-guerre-mondiale-le-suicide-de-l-europe-et-la-fin-des-empires-europeens-pdf-314-13-ko--6fe0291155.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 59141,
+      "content_sha256": "7e488b99d2848aef582f1ac371dc0dc59ec5ff01647efa277e22f4c8d1ea6117",
+      "evidence_sha256": "e13bd169ecdfd698f03f8bb7006dc55276ab23d09c4c02bd6bb930facf1f83b7",
+      "ignored_empty_pages": [],
+      "pages_scanned": 18,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2023/la-premiere-guerre-mondiale-et-la-fin-des-empires-europeens-pdf-388-35-ko--7e488b99d2.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 110856,
+      "content_sha256": "829dd4543f545dff24cac277c0dd67256114731a018c32c6f76452120940904e",
+      "evidence_sha256": "4cda49a176ea3ae44ec2d9cdc2d37f018950f211ef5e4a97c02b593fbbbc28e1",
+      "ignored_empty_pages": [],
+      "pages_scanned": 30,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2020/analyser-les-relations-entre-etats-et-religions-pdf-428-34-ko--829dd4543f.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 119566,
+      "content_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5",
+      "evidence_sha256": "29ab84925c60c721c9712bd5c77beef72a9b2f6105cbd1e77bed6ae58e27d988",
+      "ignored_empty_pages": [],
+      "pages_scanned": 33,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2019/analyser-les-dynamiques-des-puissances-internationales-pdf-530-68-ko--836ad638ff.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 27423,
+      "content_sha256": "848db37c3957daef2f7f3982fd5338afc0eb90387f58c9395a66426007bde02a",
+      "evidence_sha256": "4327ffce5a8f3aac1fce5857ce6d819e885312b888a7afbe67264805c7a8fb55",
+      "ignored_empty_pages": [],
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2020/la-france-et-ses-regions-dans-l-union-europeenne-et-dans-la-mondialisation-lignes-de-force-et-recompositions-pdf-296-87-ko--848db37c39.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 29063,
+      "content_sha256": "8a9db0f95c2efb434b0e6c3335e9b9ffb5ddd3a370f2d6800ae28c30eaeb45f8",
+      "evidence_sha256": "fc73542934e264eff505b453d0edbd43d5f0aa787c339c04edcda1db9d148241",
+      "ignored_empty_pages": [],
+      "pages_scanned": 10,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2019/l-europe-bouleversee-par-la-revolution-francaise-1789-1815-pdf-264-69-ko--8a9db0f95c.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 46295,
+      "content_sha256": "8dc03c641671d3a7b4d3e0bb0e8d18c3d3de30677ac78a4b3ae4c9cfee697003",
+      "evidence_sha256": "43e9d299cb74ddc470ec20adc6b387ed5b14f876b10fb72a338e0bbc6aefe443",
+      "ignored_empty_pages": [],
+      "pages_scanned": 14,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2019/comprendre-un-regime-politique-la-democratie-pdf-381-98-ko--8dc03c6416.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 136699,
+      "content_sha256": "91c5a3123a2c4df70fb0fb91e9cb481ce8834996a21548d52565be3d615a8c3c",
+      "evidence_sha256": "db1c7f715cd757697edebba0dcb5cf46c765c6a48fb29ca0150d82bfc21331bc",
+      "ignored_empty_pages": [],
+      "pages_scanned": 36,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2020/de-nouveaux-espaces-de-conquete-pdf-384-35-ko--91c5a3123a.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 13851,
+      "content_sha256": "9643eb5b5854700c4ad70b2062efb27840d5f619e108c00bca6b6967dff29c8d",
+      "evidence_sha256": "f5a320665242c50f026bff40d9a52d97d6cf0025feaff77a53c22873165ba552",
+      "ignored_empty_pages": [],
+      "pages_scanned": 5,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2025/la-ressource-pour-la-classe-terminale-en-specialite-hggsp-la-france-au-cameroun-reconnaitre-une-guerre-oubliee-la-guerre-de-decolo--9643eb5b58.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 65313,
+      "content_sha256": "983cd4d898872f3f210da937560f934cd33cb3b6a3d17fe0b27bbafb5d7b91b2",
+      "evidence_sha256": "26bcf39a3f2fbec3a842086f7f43bf186ec3675740f824c4933ebb4854192667",
+      "ignored_empty_pages": [],
+      "pages_scanned": 19,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2020/mers-et-oceans-au-c-ur-de-la-mondialisation-pdf-288-45-ko--983cd4d898.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 37156,
+      "content_sha256": "9e8479e7e6f1c49b9a147add91cc304e022b97d037fade641257352c9c44ed00",
+      "evidence_sha256": "34730a4f46465ff847624006d2a818bc33f325815786839f4cd52eb5fbedf747",
+      "ignored_empty_pages": [],
+      "pages_scanned": 12,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2020/dynamiques-territoriales-cooperations-et-tensions-dans-la-mondialisation-pdf-894-96-ko--9e8479e7e6.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 35169,
+      "content_sha256": "a288fe8b982827d02adcf3dce69a291ff91c24d963e49d1f152a994d2ceca172",
+      "evidence_sha256": "aa6d320ca42a37db24418499cca2c9c625d5fbde22211716148d1082ceb3c23c",
+      "ignored_empty_pages": [],
+      "pages_scanned": 16,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/01_PROGRAMMES_OFFICIELS/2019/premiere-technologique-bo-special-n-1-du-22-janvier-2019-pdf-226-33-ko--a288fe8b98.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 213581,
+      "content_sha256": "a76478f060cb0b75d72a27b0f6da185bfcbeec20a49f5358a3661220705dd8f0",
+      "evidence_sha256": "46b27c85239f6b3f1005b88d469b17186b175899566b9a30d89ff3e73a4c169c",
+      "ignored_empty_pages": [],
+      "pages_scanned": 57,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2023/l-environnement-entre-exploitation-et-protection-un-enjeu-planetaire-pdf-610-13-ko--a76478f060.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 24375,
+      "content_sha256": "ac4b61f423d2c8d05006a392423a5c4d0338647f3ad579015cd775af0b0295ad",
+      "evidence_sha256": "50c19c70f1c715d14a0468babb4a1ea6559536a3795bbbdd03abece6e0b54a67",
+      "ignored_empty_pages": [],
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2020/la-france-et-ses-regions-dans-l-union-europeenne-et-dans-la-mondialisation-lignes-de-force-et-recompositions-pdf-1-53-mo--ac4b61f423.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 20340,
+      "content_sha256": "ae43e89ffb0bfdf20cd222de4bd5b8098b77d766af47a590a0ce9d5d81b14fef",
+      "evidence_sha256": "47d74b8914681c9b2af966d9b5cf76a3de8784a378ab512a7a255ce51c3e1f34",
+      "ignored_empty_pages": [],
+      "pages_scanned": 6,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2025/la-ressource-pour-la-classe-terminale-generale-la-france-au-cameroun-une-guerre-de-decolonisation-en-afrique-centrale-pdf-436-82-k--ae43e89ffb.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 35317,
+      "content_sha256": "b01714547d98f31c594999fe6aaaf46f2299d7ea33a384d2d83becdb35a85cc2",
+      "evidence_sha256": "53978001e4fc52e35680b08d632e54c50a399b612cbd85d50ca05f2dce3d1f37",
+      "ignored_empty_pages": [],
+      "pages_scanned": 11,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2019/une-diversification-des-espaces-et-des-acteurs-de-la-production-pdf-371-48-ko--b01714547d.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 158444,
+      "content_sha256": "b8ff5e625242cf7c6062ca576ba30efe18471b272f68fe0023b90b0a9247435d",
+      "evidence_sha256": "7a9d2eb1464eccbaa5a0ee30cc7d01ab424d62ef52ecd902c47bc92c91d05d05",
+      "ignored_empty_pages": [],
+      "pages_scanned": 42,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2024/l-enjeu-de-la-connaissance-pdf-511-12-ko--b8ff5e6252.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 33415,
+      "content_sha256": "c2eccccaa1113c97750878935c46ebfe4da42b8d3f3d358b92b8d582d72cabec",
+      "evidence_sha256": "884f88c05b67946cf96f8be2fdfa2672c77abfd661f6dd04bc92f74a29ed4a5f",
+      "ignored_empty_pages": [],
+      "pages_scanned": 13,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/01_PROGRAMMES_OFFICIELS/2019/terminale-technologique-bo-special-n-8-du-25-juillet-2019-pdf-314-84-ko--c2eccccaa1.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 23539,
+      "content_sha256": "c457195d78009475a3a9d021a36c9f5fbbcda0b1390af79430a63ea07c259ffc",
+      "evidence_sha256": "ddb3a8e106bc9a8683c744ff938e50209659f3e11c3d6c09cbb1f4670ee0f505",
+      "ignored_empty_pages": [],
+      "pages_scanned": 8,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2020/les-espaces-ruraux-une-multifonctionnalite-toujours-plus-marquee-pdf-198-72-ko--c457195d78.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 164439,
+      "content_sha256": "c5bac2ab5072178f7e76c0098cb22b8bb32dd78b8164f328fc9867ec5736d784",
+      "evidence_sha256": "6fcb37201f28ed065b2112b16f63f1494ee4dc13f6b8c957821d655ac03af5d5",
+      "ignored_empty_pages": [],
+      "pages_scanned": 44,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2025/identifier-proteger-et-valoriser-le-patrimoine-enjeux-geopolitiques-pdf-541-83-ko--c5bac2ab50.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 87709,
+      "content_sha256": "d271b5ae5aa15bc0ef4c9e7da050d3b78b19ad079a259db4379247f674759c52",
+      "evidence_sha256": "0f8c1795bf4c9ef4e22403960b88929f2275d373ea9c92854b417e66fd001987",
+      "ignored_empty_pages": [],
+      "pages_scanned": 36,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2025/la-ressource-enseigner-la-participation-des-juifs-a-l-histoire-de-france-pdf-7-92-mo--d271b5ae5a.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 21192,
+      "content_sha256": "d5383995988f9669949777f189fcf55dfb74d37de230bcc20d6089196a19cfa1",
+      "evidence_sha256": "95fd10eed4b42e220f21977c86c1b234f6e913d57e6fd91450f103771c3e0304",
+      "ignored_empty_pages": [],
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/PREMIERE/HGGSP/04_EVALUATIONS_EXAMENS/2019/specialite-histoire-geographie-geopolitique-et-sciences-politiques-en-premiere-bo-special-n-1-du-22-janvier-2019-pdf-191-51-ko--d538399598.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 42446,
+      "content_sha256": "dbdf2a37a879c1c43b32fe27783d5f9932d1ff3095b2f9d88c9693610ef1b77e",
+      "evidence_sha256": "7f46552e3fb5f1fb0c56a750f502729648b84b94b104b8bcfccd9d81e68d60b8",
+      "ignored_empty_pages": [],
+      "pages_scanned": 13,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2022/les-transformations-politiques-et-sociales-de-la-france-de-1848-a-1870-pdf-801-67-ko--dbdf2a37a8.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 20216,
+      "content_sha256": "e8eb4be88578d123c356c18cc6bc7f76fae5485a77a7807f9d9ec02db46b3b1c",
+      "evidence_sha256": "fc93c03c8c2bc187f57314494bc0ce6a408d51f9e5e108302bf7c3528fcb00f0",
+      "ignored_empty_pages": [],
+      "pages_scanned": 9,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2020/la-chine-des-recompositions-spatiales-multiples-pdf-592-16-ko--e8eb4be885.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 60940,
+      "content_sha256": "e93a6ce5299140c298d25a0563f81970183159d23fcca4612f15c7a5e837e3f9",
+      "evidence_sha256": "ef9618badda2d28b4eb4895d9d16a05ce257d22399794d163345c0b0e41de325",
+      "ignored_empty_pages": [],
+      "pages_scanned": 18,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2023/du-monde-bipolaire-au-monde-multipolaire-pdf-268-68-ko--e93a6ce529.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 58398,
+      "content_sha256": "f3aeb9b1ccb699f5beba4b6d4aa08e3cce4dab5f21daae01e3ee0f30816d468b",
+      "evidence_sha256": "066ef65bb8c73686aab9e5c95ee459da364e0ca3a0a6321d3638cf69b034c7a3",
+      "ignored_empty_pages": [],
+      "pages_scanned": 17,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2024/la-troisieme-republique-un-regime-un-empire-colonial-pdf-229-98-ko--f3aeb9b1cc.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 10166,
+      "content_sha256": "faaad0c16d759083d672d420be7838ff68a2f7ba9232d28af53e9008a82d9459",
+      "evidence_sha256": "f91ca2ef7e8bbf5e2f5a9079b25281ec2d6b82c8500f831340d9123c935bd3e7",
+      "ignored_empty_pages": [],
+      "pages_scanned": 4,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TERMINALE/HGGSP/03_RESSOURCES_ACCOMPAGNEMENT/2025/la-ressource-pour-la-classe-terminale-technologique-la-france-au-cameroun-une-guerre-de-decolonisation-en-afrique-centrale-pdf-417--faaad0c16d.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 63507,
+      "content_sha256": "fc7a8b53bc7bbcd95e213cfa41fcfa7477e581a7f0eef93891e6b4d4f6071776",
+      "evidence_sha256": "b2472717a7bac5f7fe76be085f2d2da5e8182395e8c412118b7e8dbeac4cf3cb",
+      "ignored_empty_pages": [],
+      "pages_scanned": 20,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/09_AUTRES/2021/le-monde-l-europe-et-la-france-depuis-les-annees-1990-entre-cooperations-et-conflits-pdf-270-48-ko--fc7a8b53bc.pdf",
+      "status": "CLEARED"
+    },
+    {
+      "characters_scanned": 34898,
+      "content_sha256": "fedb0951e4f1aa715ea1ca5b766da4467cc5c07733f448c1e972961a21f0c5c7",
+      "evidence_sha256": "687de15043dff3a996be4f037910b6534729ba17c7f5cdd8274b22571c0385dc",
+      "ignored_empty_pages": [],
+      "pages_scanned": 12,
+      "pii_detected": false,
+      "source_path": "01_EDUSCOL_OFFICIEL/LYCEE/TRANSVERSAL_MULTI_NIVEAUX/80_A_VERIFIER/_MULTI_DISCIPLINES/03_RESSOURCES_ACCOMPAGNEMENT/2020/la-chine-des-recompositions-spatiales-multiples-pdf-484-4-ko--fedb0951e4.pdf",
+      "status": "CLEARED"
+    }
+  ],
+  "review_projection_kind": "SIGNED_SOURCE_SUBSET_V1",
+  "reviewed_content_set_sha256": "04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12",
+  "scanner_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
+  "scanner_version": "production-profile-gate-v1",
+  "school_year": "2026-2027",
+  "source_pii_evidence_sha256": "33e3fbfb943ffded360d2db254061edebe8ccff9e08b7509ebcdf4cd305ca700",
+  "summary": {
+    "authorized_count": 52,
+    "cleared_count": 52,
+    "detected_count": 0,
+    "pii_scan_coverage": 1.0,
+    "quarantined_count": 0,
+    "rejected_count": 0,
+    "reviewed_accepted_count": 0,
+    "scanned_count": 52,
+    "sha256_mismatches": 0,
+    "unique_contents_not_scanned": 0,
+    "unique_contents_required": 52,
+    "unique_contents_scanned": 52
+  }
+}

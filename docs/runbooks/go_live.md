@@ -148,10 +148,26 @@ migration à valider est :
    `001` ;
 3. appliquer `002`, `003`, `004`, puis `005` dans cet ordre (une base dont
    le registre s'arrête à `004_artifact_placements` ne reçoit que `005`) ;
-4. appliquer ensuite les migrations `ingestion_control` de `001` à `013` et
-   provisionner leurs rôles dédiés selon `ingestion_control_go_live.md` ;
-5. valider les deux registres, le schéma exact, les rôles et l'absence de lock
-   en attente ;
+4. appliquer ensuite les migrations `ingestion_control` avec le runner
+   canonique jusqu'au `migrations/HEAD` **de la release déployée** : au
+   8 octobre 2026, `020_successor_control_resource_identity` (versions
+   `001` à `020`). Si un registre existe déjà, le runner doit vérifier sa
+   continuité et les SHA-256 enregistrés avant de ne jouer que les versions
+   manquantes. `019` lie l'autorisation de publication aux placements adoptés ;
+   `020` ajoute les identités de contrôle du successeur et leurs contraintes.
+   Ne pas insérer ces versions à la main dans le registre, ni réécrire les
+   adoptions V1 pour simuler une migration ; provisionner ensuite les rôles
+   dédiés selon `ingestion_control_go_live.md` ;
+5. valider les deux registres et leurs SHA-256 contre les fichiers de cette
+   release, l'application effective de
+   `019_sealed_release_publication_authorizations.sql` et
+   `020_successor_control_resource_identity.sql`, le schéma exact, les rôles
+   et l'absence de lock en attente. Comparer les colonnes `file_name` et
+   `sha256` du registre aux fichiers de la release, avec SHA-256 recalculé
+   pour chaque fichier enregistré, y compris les versions `019` et `020`.
+   Pour le head actuel, le registre
+   `ingestion_control.schema_migrations` doit être la suite contiguë `1..20`
+   et le runner doit annoncer `SCHEMA_HEAD=20` ;
 6. exercer `pg_restore` et rollback depuis le backup frais, dans un projet
    isolé et sans démarrer API ou workers, selon `rollback.md`.
 

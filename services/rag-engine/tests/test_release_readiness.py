@@ -51,6 +51,18 @@ REHEARSAL_RELEASE_REGISTRY = (
     if _rehearsal_candidates
     else RELEASE_REGISTRY
 )
+V4_RELEASE_ROOT = (
+    REPO_ROOT
+    / "services/rag-pedago/data/releases/prerentree_2026_2027/"
+    "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate"
+)
+V4_MANIFEST = V4_RELEASE_ROOT / "production-profile-gate.release.json"
+HGGSP_COMPLEMENTARY_REGISTRY = (
+    RELEASE_REGISTRY.parent / "release-registry-v4-hggsp-complementary.json"
+)
+HGGSP_COMPLEMENTARY_REGISTRY_SHA256 = (
+    "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6"
+)
 PRODUCTION_PROFILE_RELEASE_ROOT = RELEASE_REGISTRY.parent / "profile_gate"
 
 ARTIFACT_SHA = "a" * 64
@@ -475,6 +487,38 @@ def _snapshot() -> ReleaseDatabaseSnapshot:
             },
         ),
     )
+
+
+def test_v2_sealed_release_attribution_is_required_for_readiness(tmp_path: Path) -> None:
+    manifest, digest, _registry, _subjects = _v2_release_files(tmp_path)
+    expectation = load_release_expectation(manifest, digest)
+    original = _snapshot()
+    artifact = dict(original.artifacts[0])
+    artifact["source_kind"] = "sealed_release"
+    placement = dict(original.placements[0])
+    placement["source_path"] = expectation.artifacts[0].source_path
+    placement["source_placement_id"] = "catalog-placement-0"
+    snapshot = ReleaseDatabaseSnapshot(
+        artifacts=(artifact,),
+        placements=(placement,),
+        chunks=original.chunks,
+    )
+
+    report = evaluate_release_snapshot(expectation, snapshot)
+
+    assert report.ready is True
+    assert report.wrong_artifact_metadata == 0
+
+
+def test_v2_discovery_kind_cannot_substitute_reviewed_sealed_attribution(
+    tmp_path: Path,
+) -> None:
+    manifest, digest, _registry, _subjects = _v2_release_files(tmp_path)
+    expectation = load_release_expectation(manifest, digest)
+    report = evaluate_release_snapshot(expectation, _snapshot())
+
+    assert report.ready is False
+    assert report.wrong_artifact_metadata == 1
 
 
 def test_manifest_absent_fails_closed(tmp_path: Path) -> None:
@@ -1774,7 +1818,7 @@ def test_v2_database_snapshot_scopes_shared_chunks_by_artifact_identity(
         "https://eduscol.education.fr/document/a/download",
         "officiel_public",
         True,
-        "eduscol.education.fr",
+        "sealed_release",
         "ressource_officielle",
     )
     placement_rows: list[tuple[object, ...]] = []
@@ -2630,6 +2674,222 @@ def test_real_release_registry_file_exposes_all_eleven_production_collections() 
         "rag_nexus_dgemc_terminale_option",
         "rag_nexus_nsi_terminale_specialite",
     } < set(registry.collections)
+
+
+def test_v2_registry_projects_real_v4_to_the_nine_published_collections(
+    tmp_path: Path,
+) -> None:
+    local_v4 = tmp_path / "v4"
+    shutil.copytree(V4_RELEASE_ROOT, local_v4)
+    local_manifest = local_v4 / V4_MANIFEST.name
+    full = load_release_expectation(
+        local_manifest, hashlib.sha256(V4_MANIFEST.read_bytes()).hexdigest()
+    )
+    hggsp = {
+        "rag_nexus_hggsp_premiere_specialite",
+        "rag_nexus_hggsp_terminale_specialite",
+    }
+    served = sorted(set(full.collections) - hggsp)
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "2",
+            "school_year": full.school_year,
+            "releases": [
+                _registry_entry(
+                    local_manifest,
+                    hashlib.sha256(V4_MANIFEST.read_bytes()).hexdigest(),
+                    release_id=full.release_id,
+                    collections=served,
+                    registry_root=tmp_path,
+                    release_kind=full.release_kind,
+                )
+            ],
+        },
+        name="collection-partition-test.json",
+    )
+    registry = load_release_registry_file(registry_path, registry_digest)
+    (view,) = registry.manifests
+    assert set(registry.collections) == set(served)
+    assert set(view.expectation.collections) == set(served)
+    assert len(view.expectation.placements) == 405
+    assert len(view.expectation.artifacts) == 263
+    assert sum(len(a.chunks) for a in view.expectation.artifacts) == 5678
+    assert set(dict(view.expectation.subject_manifest_sha256_by_collection)) == set(served)
+    assert registry.manifest_for_collection("rag_nexus_hggsp_premiere_specialite") is None
+    assert len(full.collections) == 11
+    assert len(full.placements) == 479
+
+
+def test_real_v4_and_hggsp_complementary_registry_has_explicit_disjoint_owners() -> None:
+    assert hashlib.sha256(HGGSP_COMPLEMENTARY_REGISTRY.read_bytes()).hexdigest() == (
+        HGGSP_COMPLEMENTARY_REGISTRY_SHA256
+    )
+    registry = load_release_registry_file(
+        HGGSP_COMPLEMENTARY_REGISTRY, HGGSP_COMPLEMENTARY_REGISTRY_SHA256
+    )
+    assert len(registry.manifests) == 2
+    v4, hggsp = (binding.expectation for binding in registry.manifests)
+    assert v4.release_id == "production-profile-gate-2026-2027-v4"
+    assert hggsp.release_id == "production-profile-gate-2026-2027-v5-hggsp"
+    assert len(v4.collections) == 9
+    assert len(v4.placements) == 405
+    assert len(v4.artifacts) == 263
+    assert sum(len(a.chunks) for a in v4.artifacts) == 5678
+    assert set(hggsp.collections) == {
+        "rag_nexus_hggsp_premiere_specialite",
+        "rag_nexus_hggsp_terminale_specialite",
+    }
+    assert len(hggsp.placements) == 74
+    assert len(hggsp.artifacts) == 52
+    assert sum(len(a.chunks) for a in hggsp.artifacts) == 2590
+    v4_artifacts = {artifact.content_sha256 for artifact in v4.artifacts}
+    hggsp_artifacts = {artifact.content_sha256 for artifact in hggsp.artifacts}
+    assert not (v4_artifacts & hggsp_artifacts)
+    assert not (set(v4.collections) & set(hggsp.collections))
+    assert len(registry.collections) == 11
+    assert len(v4.placements) + len(hggsp.placements) == 479
+    assert len(v4_artifacts | hggsp_artifacts) == 315
+    assert sum(len(a.chunks) for binding in registry.manifests for a in binding.expectation.artifacts) == 8268
+    for collection in v4.collections:
+        assert registry.manifest_for_collection(collection) is registry.manifests[0]
+    for collection in hggsp.collections:
+        assert registry.manifest_for_collection(collection) is registry.manifests[1]
+    assert set(dict(v4.subject_manifest_sha256_by_collection)) == set(v4.collections)
+    assert set(dict(hggsp.subject_manifest_sha256_by_collection)) == set(hggsp.collections)
+
+
+def test_v2_registry_exposes_only_explicit_owners_after_full_manifest_validation(
+    tmp_path: Path,
+) -> None:
+    first, first_digest, _, _ = _v2_release_files(
+        tmp_path / "first", collections=(COLLECTION, SECOND_COLLECTION)
+    )
+    second, second_digest = _release_files(
+        tmp_path / "second",
+        collection=SECOND_COLLECTION,
+        artifact_sha="3" * 64,
+        placement_id="4" * 64,
+        chunk_id="5" * 64,
+        chunk_sha="6" * 64,
+    )
+    payload = {
+        "registry_version": "2",
+        "school_year": "2026-2027",
+        "releases": [
+            _registry_entry(
+                first, first_digest, release_id="multilevel-2026-2027",
+                collections=[COLLECTION], registry_root=tmp_path,
+                release_kind="MULTILEVEL_AGGREGATE_RELEASE_V2",
+            ),
+            _registry_entry(
+                second, second_digest, release_id="wave0-2026-2027",
+                collections=[SECOND_COLLECTION], registry_root=tmp_path,
+            ),
+        ],
+    }
+    registry_path, registry_digest = _write_registry(tmp_path, payload)
+    registry = load_release_registry_file(registry_path, registry_digest)
+
+    assert registry.collections == (COLLECTION, SECOND_COLLECTION)
+    assert registry.manifest_for_collection(COLLECTION).expectation.release_id == "multilevel-2026-2027"
+    assert registry.manifest_for_collection(SECOND_COLLECTION).expectation.release_id == "wave0-2026-2027"
+    assert len(registry.manifests[0].expectation.placements) == 1
+    assert set(dict(registry.manifests[0].expectation.subject_manifest_sha256_by_collection)) == {COLLECTION}
+    assert {a.content_sha256 for m in registry.manifests for a in m.expectation.artifacts} == {
+        ARTIFACT_SHA, "3" * 64
+    }
+
+
+def test_collection_projection_keeps_artifact_with_physical_anchor_elsewhere(
+    tmp_path: Path,
+) -> None:
+    manifest, digest, _, _ = _v2_release_files(
+        tmp_path, collections=(COLLECTION, SECOND_COLLECTION)
+    )
+    expectation = load_release_expectation(manifest, digest)
+    anchored_artifact = replace(expectation.artifacts[0], collection=SECOND_COLLECTION)
+    anchored = replace(expectation, artifacts=(anchored_artifact,))
+
+    projected = readiness._project_release_expectation(anchored, (COLLECTION,))
+
+    assert projected.collections == (COLLECTION,)
+    assert len(projected.placements) == 1
+    assert projected.placements[0].collection == COLLECTION
+    assert projected.artifacts == (anchored_artifact,)
+
+
+def test_v1_registry_still_refuses_a_partial_manifest_claim(tmp_path: Path) -> None:
+    manifest, digest, _, _ = _v2_release_files(
+        tmp_path / "full", collections=(COLLECTION, SECOND_COLLECTION)
+    )
+    registry_path, registry_digest = _write_registry(
+        tmp_path,
+        {
+            "registry_version": "1",
+            "school_year": "2026-2027",
+            "releases": [
+                _registry_entry(
+                    manifest, digest, release_id="multilevel-2026-2027",
+                    collections=[COLLECTION], registry_root=tmp_path,
+                    release_kind="MULTILEVEL_AGGREGATE_RELEASE_V2",
+                )
+            ],
+        },
+    )
+    with pytest.raises(ReleaseReadinessError, match="declared collections"):
+        load_release_registry_file(registry_path, registry_digest)
+
+
+@pytest.mark.parametrize(
+    "fault", [
+        "unknown_collection", "overlap", "artifact_collision", "bad_digest",
+        "model_drift", "omitted_subject_tamper",
+    ]
+)
+def test_v2_registry_refuses_invalid_collection_ownership(tmp_path: Path, fault: str) -> None:
+    first, first_digest, _, subjects = _v2_release_files(
+        tmp_path / "first", collections=(COLLECTION, SECOND_COLLECTION)
+    )
+    if fault == "omitted_subject_tamper":
+        subjects[1].write_bytes(subjects[1].read_bytes() + b"\n")
+    second, second_digest = _release_files(
+        tmp_path / "second",
+        collection=SECOND_COLLECTION,
+        artifact_sha=ARTIFACT_SHA if fault == "artifact_collision" else "3" * 64,
+        placement_id="4" * 64,
+        chunk_id="5" * 64,
+        chunk_sha="6" * 64,
+        embedding_inventory_sha256="7" * 64 if fault == "model_drift" else "1" * 64,
+    )
+    first_collections = ["not-in-manifest"] if fault == "unknown_collection" else [COLLECTION]
+    second_collections = [COLLECTION] if fault == "overlap" else [SECOND_COLLECTION]
+    payload = {
+        "registry_version": "2",
+        "school_year": "2026-2027",
+        "releases": [
+            _registry_entry(
+                first, "0" * 64 if fault == "bad_digest" else first_digest,
+                release_id="multilevel-2026-2027", collections=first_collections,
+                registry_root=tmp_path, release_kind="MULTILEVEL_AGGREGATE_RELEASE_V2",
+            ),
+            _registry_entry(
+                second, second_digest, release_id="wave0-2026-2027",
+                collections=second_collections, registry_root=tmp_path,
+            ),
+        ],
+    }
+    registry_path, registry_digest = _write_registry(tmp_path, payload)
+    reason = {
+        "unknown_collection": "not declared by the manifest",
+        "overlap": "collection collision",
+        "artifact_collision": "artifact collision",
+        "bad_digest": "digest mismatch",
+        "model_drift": "model contract mismatch",
+        "omitted_subject_tamper": "subject release manifest digest mismatch",
+    }[fault]
+    with pytest.raises(ReleaseReadinessError, match=reason):
+        load_release_registry_file(registry_path, registry_digest)
 
 
 

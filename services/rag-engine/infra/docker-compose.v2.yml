@@ -89,7 +89,7 @@ services:
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
       RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS: "${RAG_MIN_COLLECTION_SUBSTANCE_CHUNKS:-1}"
-      RAG_RELEASE_REGISTRY_PATH: /app/release/release-registry.json
+      RAG_RELEASE_REGISTRY_PATH: ${RAG_RELEASE_REGISTRY_PATH:-/app/release/release-registry.json}
       RAG_RELEASE_REGISTRY_SHA256: "${RAG_RELEASE_REGISTRY_SHA256:?empreinte SHA-256 externe du registre de releases requise}"
       RAG_SERVABLE_CORPUS_DIRECTORY: /app/servable-corpus
       RAG_SERVABLE_CORPUS_INDEX_SHA256: "${RAG_SERVABLE_CORPUS_INDEX_SHA256:?empreinte SHA-256 externe du registre de corpus servables requise}"
@@ -151,6 +151,7 @@ services:
         condition: service_healthy
     volumes:
       - ./prometheus/prometheus.v2.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
       - rag_prometheus_data:/prometheus
     ports:
       - "127.0.0.1:${PROMETHEUS_PORT:-19091}:9090"

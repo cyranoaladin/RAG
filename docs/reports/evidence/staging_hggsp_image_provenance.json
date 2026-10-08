@@ -1,0 +1,26 @@
+{
+  "kind": "NEXUS-STAGING-HGGSP-IMAGE-PROVENANCE-V1",
+  "inventory_protocol": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
+  "workflow_path": ".github/workflows/production-image-provenance.yml",
+  "workflow_run_id": 37063628014,
+  "workflow_run_attempt": 1,
+  "artifact_name": "nexus-deployment-image-inventory",
+  "artifact_id": 11251726187,
+  "artifact_zip_sha256": "989fd82afa4b0f5dca2f170e9ebd899d33d2fe5b69155c819c490acc0bb88691",
+  "inventory_file_sha256": "fa8406bb589aec405ca75e2bacd4282469fadc7c1358159827c337e06a7cf84f",
+  "source_commit_sha": "242d267046f1e9200b009e664410bc7b40816fae",
+  "source_tree_sha": "dc01b1bfc0d8722a3347da69b72cb5580f337197",
+  "platform": "linux/amd64",
+  "ingestor": {
+    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:90cba4293be3a74ff333ea0a3e8c1c2dcc66d8e4ce4c8f8d35df1e887f172abb",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+    "dockerfile_sha256": "f7f53bab7a66713aee7d2c836974941d19d84bdbfcec4f136b2740e0c91663b1"
+  },
+  "worker_a_and_b": {
+    "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:318ef58490e8de66a3f0bb0bea4d147cb1a700eaa6648a6b374c940e7b8fc222",
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de"
+  },
+  "built_off_host": true,
+  "server_operation_performed": false
+}

@@ -9,7 +9,9 @@ from typing import Any
 
 import pytest
 from nexus_contracts import Rights
+from psycopg.errors import QueryCanceled
 
+from ingestor.pg_pool import RuntimeBudgetExpired
 from ingestor.retrieval_hybrid_v2 import (
     CHANNEL_LIMIT,
     RetrievalCandidate,
@@ -17,9 +19,9 @@ from ingestor.retrieval_hybrid_v2 import (
     reciprocal_rank_fusion,
 )
 from ingestor.retrieval_pg_v2 import (
-    _DENSE_ANN_POOL_FACTOR,
-    _DENSE_ANN_POOL_LIMIT,
-    _DENSE_ANN_PROBE_LIMIT,
+    _DENSE_EXACT_PROBE_LIMIT,
+    _DENSE_POOL_FACTOR,
+    _DENSE_POOL_LIMIT,
     PgCandidateStore,
 )
 from ingestor.retrieval_pg_v2 import (
@@ -119,7 +121,6 @@ DENSE_SQL = _normalize_sql(
     """
 )
 
-DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
 PGVECTOR_ACTIVATION_SQL = "SELECT %s::vector IS NOT NULL"
 
 LEXICAL_SQL = _normalize_sql(
@@ -262,12 +263,11 @@ class CursorSpy:
         fails_on_activation = (
             self.fail_at == "activation" and normalized_sql == PGVECTOR_ACTIVATION_SQL
         )
-        fails_on_set = self.fail_at == "set" and normalized_sql == DENSE_STRICT_ORDER_SQL
         fails_on_select = self.fail_at == "execute" and normalized_sql in {
             DENSE_SQL,
             LEXICAL_SQL,
         }
-        if fails_on_activation or fails_on_set or fails_on_select:
+        if fails_on_activation or fails_on_select:
             raise RuntimeError("query leaked: postgresql://secret@db/rag")
 
     def fetchall(self) -> object:
@@ -287,7 +287,7 @@ class ConnectionSpy:
 
 
 class FreshBackendCursor(CursorSpy):
-    """Reproduit un backend où les GUC pgvector ne sont pas encore enregistrés."""
+    """Exige l'activation du type vector avant la requête dense exacte."""
 
     def __init__(self, events: list[tuple[Any, ...]], rows: object) -> None:
         super().__init__(events, rows)
@@ -295,8 +295,8 @@ class FreshBackendCursor(CursorSpy):
 
     def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
         normalized_sql = _normalize_sql(sql)
-        if normalized_sql == DENSE_STRICT_ORDER_SQL and not self.pgvector_loaded:
-            raise RuntimeError("unrecognized configuration parameter hnsw.iterative_scan")
+        if normalized_sql == DENSE_SQL and not self.pgvector_loaded:
+            raise RuntimeError("vector type unavailable on fresh backend")
         super().execute(sql, params)
         if normalized_sql == PGVECTOR_ACTIVATION_SQL:
             self.pgvector_loaded = True
@@ -361,13 +361,13 @@ def _dense_params(
     metadata: tuple[object, ...] = NO_METADATA_PARAMS,
 ) -> tuple[object, ...]:
     return (
-        VECTOR_TEXT,
         *_dense_filter_params(collection=collection),
         *metadata,
-        _DENSE_ANN_PROBE_LIMIT,
+        VECTOR_TEXT,
+        _DENSE_EXACT_PROBE_LIMIT,
         *_placement_params(collection=collection),
-        _DENSE_ANN_POOL_LIMIT,
-        _DENSE_ANN_PROBE_LIMIT,
+        _DENSE_POOL_LIMIT,
+        _DENSE_EXACT_PROBE_LIMIT,
         limit,
     )
 
@@ -433,7 +433,6 @@ def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
 
     assert provider.cursor.executions == [
         (PGVECTOR_ACTIVATION_SQL, (VECTOR_TEXT,)),
-        (DENSE_STRICT_ORDER_SQL, None),
         (DENSE_SQL, _dense_params()),
     ]
     assert candidates == [
@@ -453,7 +452,7 @@ def test_dense_uses_the_exact_parameterized_reviewed_only_query() -> None:
     ]
 
 
-def test_dense_initializes_pgvector_before_strict_order_on_a_fresh_backend() -> None:
+def test_dense_initializes_pgvector_before_exact_query_on_a_fresh_backend() -> None:
     provider = ProviderSpy([_dense_row()])
     provider.cursor = FreshBackendCursor(provider.events, [_dense_row()])
     provider.connection = ConnectionSpy(provider.cursor)
@@ -463,15 +462,14 @@ def test_dense_initializes_pgvector_before_strict_order_on_a_fresh_backend() -> 
     assert candidates[0].chunk_id == "chunk-a"
     assert provider.cursor.executions == [
         (PGVECTOR_ACTIVATION_SQL, (VECTOR_TEXT,)),
-        (DENSE_STRICT_ORDER_SQL, None),
         (DENSE_SQL, _dense_params()),
     ]
 
 
-def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() -> None:
-    assert _DENSE_ANN_POOL_FACTOR == 4
-    assert _DENSE_ANN_POOL_LIMIT == CHANNEL_LIMIT * 4 == 200
-    assert _DENSE_ANN_PROBE_LIMIT == _DENSE_ANN_POOL_LIMIT + 1 == 201
+def test_dense_sql_is_one_scoped_exact_scan_with_determinism_inside_the_pool() -> None:
+    assert _DENSE_POOL_FACTOR == 4
+    assert _DENSE_POOL_LIMIT == CHANNEL_LIMIT * 4 == 200
+    assert _DENSE_EXACT_PROBE_LIMIT == _DENSE_POOL_LIMIT + 1 == 201
     assert ACTUAL_DENSE_SQL.count("%s") == len(_dense_params())
     assert DENSE_SQL.count("FROM public.rag_chunks") == 1
     assert "FROM rag_chunks" not in DENSE_SQL
@@ -482,13 +480,14 @@ def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() ->
     assert DENSE_SQL.count("vector IS NOT NULL") == 1
     assert DENSE_SQL.count("btrim(chunk.source_label) <> ''") == 1
     assert DENSE_SQL.count("btrim(artifact.source_label) <> ''") == 1
-    assert "hnsw_candidates AS MATERIALIZED" in DENSE_SQL
+    assert "eligible_chunks AS MATERIALIZED" in DENSE_SQL
+    assert "exact_candidates AS MATERIALIZED" in DENSE_SQL
     assert "projected_candidates AS MATERIALIZED" in DENSE_SQL
     assert "ranked_pool AS MATERIALIZED" in DENSE_SQL
     assert "pool_diagnostics AS MATERIALIZED" in DENSE_SQL
-    hnsw_phase, bounded_phase = DENSE_SQL.split("ranked_pool AS MATERIALIZED", 1)
-    assert "ORDER BY distance ASC LIMIT %s" in hnsw_phase
-    assert "ORDER BY distance ASC, chunk_id ASC" not in hnsw_phase
+    exact_phase, bounded_phase = DENSE_SQL.split("ranked_pool AS MATERIALIZED", 1)
+    assert "ORDER BY distance ASC LIMIT %s" in exact_phase
+    assert "ORDER BY distance ASC, chunk_id ASC" not in exact_phase
     assert "rag_chunks" not in bounded_phase
     assert "pool_rank = %s" in bounded_phase
     assert "boundary_distance" in bounded_phase
@@ -497,6 +496,30 @@ def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() ->
     assert "ORDER BY ranked_pool.distance ASC, ranked_pool.chunk_id ASC" in bounded_phase
     assert "candidate_count" not in DENSE_SQL
     assert "max_distance" not in DENSE_SQL
+
+
+def test_dense_materializes_governed_eligible_rows_before_exact_distance() -> None:
+    normalized = _normalize_sql(ACTUAL_DENSE_SQL)
+    eligible_start = normalized.index("eligible_chunks AS MATERIALIZED")
+    exact_start = normalized.index("exact_candidates AS MATERIALIZED")
+    assert eligible_start < exact_start
+    eligible_sql = normalized[eligible_start:exact_start]
+    assert "FROM public.rag_chunks AS chunk" in eligible_sql
+    assert "placement.placement_status = 'active'" in eligible_sql
+    assert "placement.review_status = 'reviewed'" in eligible_sql
+    assert "artifact.rights = ANY(%s::text[])" in eligible_sql
+    assert "chunk.vector <=>" not in eligible_sql
+    assert "FROM eligible_chunks AS chunk" in normalized[exact_start:]
+    assert "chunk.vector <=> %s::vector" in normalized[exact_start:]
+
+
+def test_dense_exact_channel_skips_inert_hnsw_setup() -> None:
+    provider = ProviderSpy([_dense_row()])
+    _dense(provider)
+    assert [sql for sql, _ in provider.cursor.executions] == [
+        PGVECTOR_ACTIVATION_SQL,
+        DENSE_SQL,
+    ]
 
 
 def test_governed_sql_matches_one_placement_without_duplicating_chunks() -> None:
@@ -526,22 +549,40 @@ def test_governed_sql_matches_one_placement_without_duplicating_chunks() -> None
 
 
 @pytest.mark.parametrize("limit", [1, 17, CHANNEL_LIMIT])
-def test_dense_keeps_a_fixed_ann_probe_for_every_valid_output_limit(limit: int) -> None:
+def test_dense_keeps_a_fixed_exact_prefix_for_every_valid_output_limit(limit: int) -> None:
     provider = ProviderSpy([_dense_row()])
 
     _dense(provider, limit=limit)
 
-    assert provider.cursor.executions[2] == (DENSE_SQL, _dense_params(limit=limit))
+    assert provider.cursor.executions[1] == (DENSE_SQL, _dense_params(limit=limit))
 
 
 def test_dense_fails_closed_when_the_ann_sentinel_overflows_an_equality() -> None:
     provider = ProviderSpy([_dense_row(tie_overflow=True)])
+    store = PgCandidateStore(provider, SCOPE)
 
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed") as exc:
-        _dense(provider)
+        store.dense(query_vector=VECTOR, collection="libre_terminale", limit=CHANNEL_LIMIT)
 
     assert exc.value.__cause__ is None
     assert exc.value.__context__ is None
+    assert store.failure_cause == "ann_overflow"
+
+
+@pytest.mark.parametrize("failure", [QueryCanceled(), RuntimeBudgetExpired("budget")])
+def test_dense_classifies_sql_and_budget_timeouts_before_sanitizing(
+    monkeypatch: pytest.MonkeyPatch, failure: Exception,
+) -> None:
+    store = PgCandidateStore(ProviderSpy([]), SCOPE)
+
+    def timeout(*_args: object, **_kwargs: object) -> None:
+        raise failure
+
+    monkeypatch.setattr(store, "_fetch", timeout)
+    with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
+        store.dense(query_vector=VECTOR, collection="libre_terminale", limit=CHANNEL_LIMIT)
+
+    assert store.failure_cause == "timeout"
 
 
 @pytest.mark.parametrize("tie_overflow", [None, 0, 1, "false"])
@@ -550,22 +591,6 @@ def test_dense_rejects_a_malformed_ann_tie_diagnostic(tie_overflow: object) -> N
 
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
         _dense(provider)
-
-
-def test_dense_set_local_failure_skips_select_and_releases_both_contexts() -> None:
-    provider = ProviderSpy([_row()], fail_at="set")
-
-    with pytest.raises(RetrievalPipelineError, match="dense channel query failed") as exc_info:
-        _dense(provider)
-
-    assert provider.cursor.executions == [
-        (PGVECTOR_ACTIVATION_SQL, (VECTOR_TEXT,)),
-        (DENSE_STRICT_ORDER_SQL, None),
-    ]
-    assert any(event[0] == "cursor-exit" for event in provider.events)
-    assert any(event[0] == "connection-exit" for event in provider.events)
-    assert exc_info.value.__cause__ is None
-    assert exc_info.value.__context__ is None
 
 
 def test_lexical_uses_one_exact_parameterized_french_tsquery() -> None:
@@ -591,7 +616,7 @@ def test_lexical_uses_one_exact_parameterized_french_tsquery() -> None:
     assert candidates[0].lexical_score == 0.75
 
 
-def test_dense_pgvector_activation_failure_skips_guc_and_select_and_cleans_up() -> None:
+def test_dense_pgvector_activation_failure_skips_select_and_cleans_up() -> None:
     provider = ProviderSpy([_row()], fail_at="activation")
 
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed"):
@@ -882,12 +907,11 @@ def test_runtime_failures_are_sanitized_and_contexts_are_released(
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__context__ is None
     assert provider.calls == 1
-    maximum_executions = 3 if channel == "dense" else 1
+    maximum_executions = 2 if channel == "dense" else 1
     assert len(provider.cursor.executions) <= maximum_executions
     if channel == "dense" and fail_at == "execute":
         assert provider.cursor.executions == [
             (PGVECTOR_ACTIVATION_SQL, (VECTOR_TEXT,)),
-            (DENSE_STRICT_ORDER_SQL, None),
             (DENSE_SQL, _dense_params()),
         ]
     if fail_at in {"execute", "fetchall"}:

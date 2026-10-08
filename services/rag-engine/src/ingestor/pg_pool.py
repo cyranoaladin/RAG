@@ -20,6 +20,10 @@ class PoolConfigurationError(RuntimeError):
     """Signale une configuration ou une initialisation de pool invalide."""
 
 
+class RuntimeBudgetExpired(PoolConfigurationError):
+    """Signale une deadline de requête épuisée, distincte d'une panne de pool."""
+
+
 class RuntimeConnectionKwargs(TypedDict):
     """Arguments libpq bornés partagés par les connexions runtime."""
 
@@ -95,7 +99,7 @@ def remaining_database_budget_ms() -> int:
         return runtime_database_budget_ms_from_env()
     remaining_ms = math.ceil((deadline - time.monotonic()) * 1_000)
     if remaining_ms <= 0:
-        raise PoolConfigurationError("Budget PostgreSQL épuisé.")
+        raise RuntimeBudgetExpired("Budget PostgreSQL épuisé.")
     return min(remaining_ms, MAX_RUNTIME_DATABASE_BUDGET_MS)
 
 

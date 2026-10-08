@@ -1,0 +1,337 @@
+{
+  "collections": {
+    "rag_nexus_dgemc_terminale_option": {
+      "positive": [
+        {
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "expected_content_sha256": "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
+          "id": "factual",
+          "query": "Comment la Constitution du 4 octobre 1958 répartit-elle les pouvoirs publics ?"
+        },
+        {
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "expected_content_sha256": "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
+          "id": "no_accent",
+          "query": "constitution de 1958 souverainete et pouvoirs publics"
+        },
+        {
+          "collection": "rag_nexus_dgemc_terminale_option",
+          "expected_content_sha256": "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
+          "id": "notion",
+          "query": "Que signifie la souveraineté nationale dans la Constitution de 1958 ?"
+        }
+      ],
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_dgemc_terminale_option_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hggsp_premiere_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_hggsp_premiere_specialite",
+          "expected_content_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5",
+          "id": "factual",
+          "query": "Comment analyser les dynamiques des puissances internationales ?"
+        },
+        {
+          "collection": "rag_nexus_hggsp_premiere_specialite",
+          "expected_content_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5",
+          "id": "no_accent",
+          "query": "dynamiques des puissances internationales"
+        },
+        {
+          "collection": "rag_nexus_hggsp_premiere_specialite",
+          "expected_content_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5",
+          "id": "notion",
+          "query": "Quels critères permettent d'évaluer la puissance d'un État ?"
+        }
+      ],
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+      "scope_id": "prod_hggsp_premiere_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hggsp_terminale_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_hggsp_terminale_specialite",
+          "expected_content_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf",
+          "id": "factual",
+          "query": "Quelles formes prennent les conflits armés contemporains ?"
+        },
+        {
+          "collection": "rag_nexus_hggsp_terminale_specialite",
+          "expected_content_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf",
+          "id": "no_accent",
+          "query": "faire la guerre faire la paix formes de conflits"
+        },
+        {
+          "collection": "rag_nexus_hggsp_terminale_specialite",
+          "expected_content_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf",
+          "id": "notion",
+          "query": "Quels modes de résolution permettent de construire la paix ?"
+        }
+      ],
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "release_id": "production-profile-gate-2026-2027-v5-hggsp",
+      "scope_id": "prod_hggsp_terminale_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hlp_premiere_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "expected_content_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
+          "id": "factual",
+          "query": "Comment la rhétorique aide-t-elle à convaincre un auditoire ?"
+        },
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "expected_content_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
+          "id": "no_accent",
+          "query": "rhetorique jeux et enjeux de la parole"
+        },
+        {
+          "collection": "rag_nexus_hlp_premiere_specialite",
+          "expected_content_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
+          "id": "notion",
+          "query": "Quelle différence entre persuader et convaincre ?"
+        }
+      ],
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_hlp_premiere_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_hlp_terminale_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_hlp_terminale_specialite",
+          "expected_content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+          "id": "factual",
+          "query": "Comment Hannah Arendt décrit-elle la condition de l'homme moderne ?"
+        },
+        {
+          "collection": "rag_nexus_hlp_terminale_specialite",
+          "expected_content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+          "id": "no_accent",
+          "query": "condition de l homme moderne Hannah Arendt"
+        },
+        {
+          "collection": "rag_nexus_hlp_terminale_specialite",
+          "expected_content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
+          "id": "notion",
+          "query": "Que signifie le travail chez Hannah Arendt ?"
+        }
+      ],
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_hlp_terminale_specialite_v2",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_nsi_premiere_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "expected_content_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
+          "id": "factual",
+          "query": "Comment accéder à une valeur associée à une clé dans un dictionnaire Python ?"
+        },
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "expected_content_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
+          "id": "no_accent",
+          "query": "p uplets nommes et dictionnaires python"
+        },
+        {
+          "collection": "rag_nexus_nsi_premiere_specialite",
+          "expected_content_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
+          "id": "notion",
+          "query": "Quelle différence entre un p-uplet nommé et un dictionnaire ?"
+        }
+      ],
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_nsi_premiere_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_nsi_terminale_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "expected_content_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3",
+          "id": "factual",
+          "query": "Comment représenter un graphe par une liste d'adjacence ?"
+        },
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "expected_content_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3",
+          "id": "no_accent",
+          "query": "graphe sommets aretes liste d adjacence"
+        },
+        {
+          "collection": "rag_nexus_nsi_terminale_specialite",
+          "expected_content_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3",
+          "id": "notion",
+          "query": "Quelle différence entre un graphe orienté et un graphe non orienté ?"
+        }
+      ],
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_nsi_terminale_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_ses_premiere_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_ses_premiere_specialite",
+          "expected_content_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14",
+          "id": "factual",
+          "query": "Comment le prix se forme-t-il sur un marché concurrentiel ?"
+        },
+        {
+          "collection": "rag_nexus_ses_premiere_specialite",
+          "expected_content_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14",
+          "id": "no_accent",
+          "query": "prix offre demande marche concurrentiel"
+        },
+        {
+          "collection": "rag_nexus_ses_premiere_specialite",
+          "expected_content_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14",
+          "id": "notion",
+          "query": "Qu'est-ce que l'équilibre concurrentiel ?"
+        }
+      ],
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_ses_premiere_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_ses_terminale_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_ses_terminale_specialite",
+          "expected_content_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92",
+          "id": "factual",
+          "query": "Quelles politiques permettent de lutter contre le chômage ?"
+        },
+        {
+          "collection": "rag_nexus_ses_terminale_specialite",
+          "expected_content_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92",
+          "id": "no_accent",
+          "query": "politiques de lutte contre le chomage"
+        },
+        {
+          "collection": "rag_nexus_ses_terminale_specialite",
+          "expected_content_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92",
+          "id": "notion",
+          "query": "Quelle différence entre chômage conjoncturel et structurel ?"
+        }
+      ],
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_ses_terminale_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_svt_premiere_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_svt_premiere_specialite",
+          "expected_content_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31",
+          "id": "factual",
+          "query": "Comment une mutation de l'ADN peut-elle modifier une protéine ?"
+        },
+        {
+          "collection": "rag_nexus_svt_premiere_specialite",
+          "expected_content_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31",
+          "id": "no_accent",
+          "query": "mutation adn proteine information genetique"
+        },
+        {
+          "collection": "rag_nexus_svt_premiere_specialite",
+          "expected_content_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31",
+          "id": "notion",
+          "query": "Comment l'information génétique se transmet-elle lors de la division cellulaire ?"
+        }
+      ],
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_svt_premiere_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    },
+    "rag_nexus_svt_terminale_specialite": {
+      "positive": [
+        {
+          "collection": "rag_nexus_svt_terminale_specialite",
+          "expected_content_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5",
+          "id": "factual",
+          "query": "Comment la sélection humaine a-t-elle transformé les plantes cultivées ?"
+        },
+        {
+          "collection": "rag_nexus_svt_terminale_specialite",
+          "expected_content_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5",
+          "id": "no_accent",
+          "query": "de la plante sauvage a la plante domestiquee"
+        },
+        {
+          "collection": "rag_nexus_svt_terminale_specialite",
+          "expected_content_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5",
+          "id": "notion",
+          "query": "Qu'est-ce que la domestication des plantes ?"
+        }
+      ],
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "release_id": "production-profile-gate-2026-2027-v4",
+      "scope_id": "prod_svt_terminale_specialite_v3",
+      "scope_mismatch_expected_http": 403,
+      "student_expected_http": 403,
+      "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
+    }
+  },
+  "expected_dense_scope_chunk_visits": 12316,
+  "expected_population": {
+    "artifacts": 315,
+    "chunks": 8268,
+    "collections": 11,
+    "placements": 479
+  },
+  "mixed_registry_path": "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json",
+  "mixed_registry_sha256": "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6",
+  "release_manifest_sha256": {
+    "production-profile-gate-2026-2027-v4": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be",
+    "production-profile-gate-2026-2027-v5-hggsp": "8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf"
+  },
+  "schema_version": 1,
+  "thresholds": {
+    "dense_misses": 0,
+    "expected_source_hits_min": 26,
+    "expected_source_hits_per_collection_min": 2,
+    "missing_citations": 0,
+    "out_of_scope_results": 0,
+    "positive_nonempty": 33,
+    "scope_mismatch_refusals": 11,
+    "student_refusals": 11,
+    "zero_result_pass": 11
+  }
+}

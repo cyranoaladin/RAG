@@ -24,7 +24,7 @@ import base64
 import json
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from hashlib import sha1
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -121,6 +121,10 @@ class LocalGitHub:
         #: l'adaptateur est réellement en lecture seule est faite ici, pas
         #: seulement par relecture de code.
         self.non_get_requests: list[tuple[str, str]] = []
+        #: Lot DI — injection de panne : appelée avec le chemin de chaque GET
+        #: authentifié ; si elle rend ``(statut, en-têtes, message)``, cette
+        #: réponse est servie à la place de la vraie. ``None`` : aucune panne.
+        self.fault: Callable[[str], tuple[int, dict[str, str], str] | None] | None = None
 
     # -- helpers de scénario -------------------------------------------
 
@@ -181,9 +185,13 @@ def _make_handler(state: LocalGitHub) -> type[BaseHTTPRequestHandler]:
         def log_message(self, *args: Any) -> None:  # silence pytest output
             return
 
-        def _send(self, code: int, payload: Any) -> None:
+        def _send(
+            self, code: int, payload: Any, headers: dict[str, str] | None = None
+        ) -> None:
             body = json.dumps(payload).encode("utf-8")
             self.send_response(code)
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -212,6 +220,12 @@ def _make_handler(state: LocalGitHub) -> type[BaseHTTPRequestHandler]:
             if state.require_token is not None:
                 if self.headers.get("Authorization", "") != f"Bearer {state.require_token}":
                     self._send(401, {"message": "Bad credentials"})
+                    return
+            if state.fault is not None:
+                panne = state.fault(self.path)
+                if panne is not None:
+                    statut, entetes, message = panne
+                    self._send(statut, {"message": message}, entetes)
                     return
             if state.force_status is not None:
                 self._send(state.force_status, {"message": "forced"})

@@ -34,6 +34,7 @@ from nexus_contracts.authority_artifacts import git_blob_sha1
 from ingestor.ingestion_control.github_authority import (
     GitHubAuthorityError,
     GitHubAuthorityTimeoutError,
+    GitHubRateLimitedError,
     fetch_blob_at_ref,
     verify_review,
 )
@@ -87,6 +88,13 @@ class _State:
         self.blobs: dict[str, bytes] = {}
         self.delay_s: float = 0.0
         self.force_status: int | None = None
+        #: Lot DI : en-têtes et message servis avec ``force_status``.
+        self.force_headers: dict[str, str] = {}
+        self.force_message: str = "forced"
+        #: Nombre de réponses forcées restantes (``None`` = toutes).
+        self.force_count: int | None = None
+        self.requests: list[str] = []
+        self.request_authorizations: list[str] = []
         self.require_token: str | None = VALID_TOKEN
         #: Force un `sha` erroné pour prouver que le client le recalcule.
         self.lying_blob_sha: str | None = None
@@ -99,15 +107,21 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
         def log_message(self, *args: Any) -> None:  # silence
             return
 
-        def _send(self, code: int, payload: Any) -> None:
+        def _send(
+            self, code: int, payload: Any, headers: dict[str, str] | None = None
+        ) -> None:
             body = json.dumps(payload).encode("utf-8")
             self.send_response(code)
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
 
         def do_GET(self) -> None:  # noqa: N802 - imposé par BaseHTTPRequestHandler
+            state.requests.append(self.path)
+            state.request_authorizations.append(self.headers.get("Authorization", ""))
             if state.delay_s:
                 time.sleep(state.delay_s)
             if state.require_token is not None:
@@ -115,8 +129,12 @@ def _make_handler(state: _State) -> type[BaseHTTPRequestHandler]:
                 if auth != f"Bearer {state.require_token}":
                     self._send(401, {"message": "Bad credentials"})
                     return
-            if state.force_status is not None:
-                self._send(state.force_status, {"message": "forced"})
+            if state.force_status is not None and state.force_count != 0:
+                if state.force_count is not None:
+                    state.force_count -= 1
+                self._send(
+                    state.force_status, {"message": state.force_message}, state.force_headers
+                )
                 return
 
             path = self.path
@@ -350,3 +368,133 @@ class TestBlobFetch:
                 path="governance/authorizations/absent.json",
                 ref=HEAD_SHA,
             )
+
+
+class TestRateLimitingFailsClosedWithSafeDiagnostics:
+    """Lot DI — incident Worker B : 390 jobs ont échoué sur
+    ``GitHub returned HTTP 403 for repos/…/pulls/262`` sans qu'aucun
+    en-tête de limitation ne soit conservé. Une limitation de débit reste un
+    REFUS (jamais une approbation, jamais une décision en cache) ; elle est
+    seulement nommée, avec le délai que GitHub impose."""
+
+    SECRET = "ghp_rate_limit_secret_never_logged"
+
+    @pytest.fixture(autouse=True)
+    def _secret_token(
+        self, fake_github: _State, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        token_file = tmp_path / "rl-token"
+        token_file.write_text(self.SECRET, encoding="utf-8")
+        monkeypatch.setenv("NEXUS_GITHUB_TOKEN_FILE", str(token_file))
+        fake_github.require_token = self.SECRET
+
+    def _verify(self) -> Any:
+        return verify_review(repository=REPOSITORY, pull_request=4242, expected_head=HEAD_SHA)
+
+    def _assert_no_secret(self, error: BaseException) -> None:
+        for rendered in (str(error), repr(error), repr(getattr(error, "diagnostics", ""))):
+            assert self.SECRET not in rendered
+
+    def test_secondary_403_with_retry_after_is_rate_limited_and_refused(
+        self, fake_github: _State
+    ) -> None:
+        fake_github.force_status = 403
+        fake_github.force_headers = {"Retry-After": "60", "x-ratelimit-remaining": "4210"}
+        fake_github.force_message = "You have exceeded a secondary rate limit."
+        with pytest.raises(GitHubRateLimitedError) as excinfo:
+            self._verify()
+        error = excinfo.value
+        assert isinstance(error, GitHubAuthorityError), "fail-closed pour tout appelant existant"
+        assert (error.kind, error.retry_after_s) == ("secondary", 60.0)
+        assert "GitHub returned HTTP 403 for repos/cyranoaladin/RAG/pulls/4242" in str(error)
+        assert "retry-after=60" in str(error) and "x-ratelimit-remaining=4210" in str(error)
+        assert "secondary rate limit" in str(error)
+        self._assert_no_secret(error)
+        assert len(fake_github.requests) == 1, "aucun appel supplémentaire après la limitation"
+
+    def test_secondary_403_without_retry_after_is_rate_limited_without_delay(
+        self, fake_github: _State
+    ) -> None:
+        fake_github.force_status = 403
+        fake_github.force_message = "You have exceeded a secondary rate limit. Please wait."
+        with pytest.raises(GitHubRateLimitedError) as excinfo:
+            self._verify()
+        assert (excinfo.value.kind, excinfo.value.retry_after_s) == ("secondary", None)
+        self._assert_no_secret(excinfo.value)
+
+    def test_primary_quota_exhaustion_waits_until_reset(self, fake_github: _State) -> None:
+        reset = int(time.time()) + 120
+        fake_github.force_status = 403
+        fake_github.force_headers = {
+            "x-ratelimit-limit": "5000",
+            "x-ratelimit-remaining": "0",
+            "x-ratelimit-reset": str(reset),
+        }
+        fake_github.force_message = "API rate limit exceeded for user ID 1."
+        with pytest.raises(GitHubRateLimitedError) as excinfo:
+            self._verify()
+        assert excinfo.value.kind == "primary"
+        assert excinfo.value.retry_after_s is not None
+        assert 100.0 <= excinfo.value.retry_after_s <= 120.0
+
+    @pytest.mark.parametrize("headers", [{"Retry-After": "7"}, {}])
+    def test_429_is_rate_limited_with_or_without_retry_after(
+        self, fake_github: _State, headers: dict[str, str]
+    ) -> None:
+        fake_github.force_status = 429
+        fake_github.force_headers = headers
+        with pytest.raises(GitHubRateLimitedError) as excinfo:
+            self._verify()
+        assert excinfo.value.retry_after_s == (7.0 if headers else None)
+        self._assert_no_secret(excinfo.value)
+
+    def test_a_permission_403_is_not_disguised_as_rate_limiting(
+        self, fake_github: _State
+    ) -> None:
+        """Un 403 de droits reste un refus ordinaire : ralentir ne le
+        corrigerait pas, et l'étiqueter « limitation » masquerait sa cause."""
+        fake_github.force_status = 403
+        fake_github.force_headers = {"x-ratelimit-remaining": "4999"}
+        fake_github.force_message = "Resource not accessible by personal access token"
+        with pytest.raises(GitHubAuthorityError) as excinfo:
+            self._verify()
+        assert not isinstance(excinfo.value, GitHubRateLimitedError)
+        assert "Resource not accessible by personal access token" in str(excinfo.value)
+
+    def test_a_message_echoing_the_token_is_redacted(self, fake_github: _State) -> None:
+        fake_github.force_status = 403
+        fake_github.force_message = f"secondary rate limit for {self.SECRET}"
+        with pytest.raises(GitHubRateLimitedError) as excinfo:
+            self._verify()
+        self._assert_no_secret(excinfo.value)
+        assert "[redacted]" in str(excinfo.value)
+
+    def test_hostile_header_values_are_not_copied(self, fake_github: _State) -> None:
+        fake_github.force_status = 429
+        fake_github.force_headers = {"x-github-request-id": "a béc"}
+        with pytest.raises(GitHubRateLimitedError) as excinfo:
+            self._verify()
+        assert "x-github-request-id" not in str(excinfo.value)
+
+    def test_a_rate_limited_blob_read_fails_closed(self, fake_github: _State) -> None:
+        fake_github.blobs["governance/a.json?ref=" + HEAD_SHA] = b"{}"
+        fake_github.force_status = 429
+        fake_github.force_headers = {"Retry-After": "30"}
+        with pytest.raises(GitHubRateLimitedError):
+            fetch_blob_at_ref(repository=REPOSITORY, path="governance/a.json", ref=HEAD_SHA)
+
+    def test_after_the_limit_lifts_the_same_verification_is_live_again(
+        self, fake_github: _State
+    ) -> None:
+        """Aucune décision n'est mémorisée : après la levée, la vérification
+        suivante refait TOUS les appels live et rend le verdict courant."""
+        fake_github.force_status = 403
+        fake_github.force_headers = {"Retry-After": "1"}
+        fake_github.force_count = 1
+        with pytest.raises(GitHubRateLimitedError):
+            self._verify()
+        before = len(fake_github.requests)
+        assert self._verify().approved is True
+        assert len(fake_github.requests) - before >= 4, "la vérification reste entièrement live"
+        fake_github.pull_request = _pull_request(state="closed")
+        assert self._verify().approved is False, "l'état GitHub courant, jamais un cache"

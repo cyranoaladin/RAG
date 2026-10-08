@@ -64,7 +64,6 @@ from _banc_releases_reelles import (  # noqa: E402
     autorisations_derivees,
     champs,
     compte_par_table,
-    creer_les_jobs,
     enregistrer,
     erreurs_d_iteration,
     lancer_worker_b,
@@ -98,7 +97,6 @@ if os.environ.get("NEXUS_REAL_RELEASE_ADOPTION") != "1":
         allow_module_level=True,
     )
 
-ENGINE_CONFIG_COLLECTIONS = REPOSITORY_ROOT / "services/rag-engine/configs/rag_collections.yml"
 GENERATEUR_R4 = REPOSITORY_ROOT / "scripts/go_live/build_lot41a_r4_authorizations.py"
 COLLECTIONS_PUBLIEES_PAR_DEFAUT = (
     "rag_nexus_dgemc_terminale_option",
@@ -277,14 +275,69 @@ def atteste(
 
 
 def _arguments_b(banc: dict[str, Any]) -> list[str]:
-    return list[str](arguments_worker_b(
-        release_dir=V4_DIR,
-        profiles_dir=PROFILES_V4,
-        profile_manifest=PROFILE_MANIFEST_V4,
-        magasin=banc["magasin"],
-        transfert=banc["transfert_v4"],
-        modele=banc["modele"],
-    ))
+    """Lot DI : Worker B reçoit la liste des collections que le banc publie.
+
+    Sans liste, il vérifie au démarrage que TOUTE la release se résout par ses
+    mappings scellés — ce qui est faux pour V4 (HGGSP). ``NEXUS_REAL_V4_PUBLISH_ALL=1``
+    nomme donc HGGSP, et Worker B refuse de démarrer : c'est le comportement
+    voulu, V4 ne peut pas publier HGGSP."""
+    return [
+        *arguments_worker_b(
+            release_dir=V4_DIR,
+            profiles_dir=PROFILES_V4,
+            profile_manifest=PROFILE_MANIFEST_V4,
+            magasin=banc["magasin"],
+            transfert=banc["transfert_v4"],
+            modele=banc["modele"],
+        ),
+        *(option for c in _collections_publiees() for option in ("--collection", c)),
+    ]
+
+
+MISE_EN_FILE = REPOSITORY_ROOT / "scripts/go_live/staging_v4_enqueue_publication.py"
+
+
+def _mettre_en_file_par_le_script(
+    control_pg: dict[str, str], *, collections: tuple[str, ...], attendu: int
+) -> dict[str, dict[str, Any]]:
+    """Les jobs de publication, créés par l'outil que le staging exécutera
+    (``staging_v4_enqueue_publication``), sous le rôle applicatif — pas par un
+    utilitaire de banc en superutilisateur. Rejeu sans effet ; compte faux refusé."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("staging_v4_enqueue_publication", MISE_EN_FILE)
+    assert spec and spec.loader
+    outil = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(outil)
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        assert conn.execute("select current_user").fetchone()[0] == "ingestion_control_app"
+        with pytest.raises(outil.MiseEnFileRefusee):
+            outil.mettre_en_file(conn, release_id=V4_ID, attendu=attendu + 1, collections=collections)
+        conn.rollback()
+        bilan = outil.mettre_en_file(conn, release_id=V4_ID, attendu=attendu, collections=collections)
+        conn.commit()
+    assert bilan == {"crees": attendu, "deja_en_file": 0, "deja_publies": 0}, bilan
+    with psycopg.connect(app_dsn(control_pg)) as conn:
+        rejeu = outil.mettre_en_file(conn, release_id=V4_ID, attendu=attendu, collections=collections)
+        conn.commit()
+    assert rejeu == {"crees": 0, "deja_en_file": attendu, "deja_publies": 0}, rejeu
+    print("REAL_V4_ENQUEUE", bilan, "rejeu", rejeu)
+    with psycopg.connect(superuser_dsn(control_pg)) as conn:
+        lignes = conn.execute(
+            "SELECT j.job_id, j.payload, r.collection FROM ingestion_control.jobs j"
+            "  JOIN ingestion_control.resources r ON r.resource_id = j.resource_id"
+            " WHERE j.job_type = 'publication_resume'"
+        ).fetchall()
+        conn.rollback()
+    assert len(lignes) == attendu
+    return {
+        str(job_id): {
+            "collection": collection,
+            "resource_id": uuid.UUID(payload["resource_id"]),
+            "attestation_id": payload["publication_attestation_id"],
+        }
+        for job_id, payload, collection in lignes
+    }
 
 
 @pytest.fixture(scope="module")
@@ -298,7 +351,7 @@ def publie(
     """Worker B qualifié par une readiness de staging nommant V4."""
     collections = _collections_publiees()
     cibles = sorted((c, contenu) for (c, contenu) in _placements_v4() if c in collections)
-    jobs = creer_les_jobs(control_pg, release_id=V4_ID, cibles=cibles)
+    jobs = _mettre_en_file_par_le_script(control_pg, collections=collections, attendu=len(cibles))
     debut = time.monotonic()
     worker = lancer_worker_b(
         control_pg, produit_pg, github=github, jeton=banc["jeton"], readiness_env=banc["readiness_v4"],
@@ -457,160 +510,41 @@ def test_3b_les_chunks_publies_sont_ceux_que_la_release_scelle(publie: dict[str,
     assert not ecarts_de_chunks, ecarts_de_chunks
 
 
-SUCCESSEURS_V4 = REPOSITORY_ROOT / "packages/contracts/authorities/production-profile-scope-successors-v4.yml"
-SECRET_DU_BANC = "banc-v4-retrieval-internal-secret-32-bytes"
+SONDE = REPOSITORY_ROOT / "scripts/go_live/staging_retrieval_probe.py"
 
 
-def _scopes_emis_v4() -> dict[str, str]:
-    """collection → scope_id, tel que l'autorité de nommage V4 le déclare."""
-    import yaml
-
-    autorite = yaml.safe_load(SUCCESSEURS_V4.read_text(encoding="utf-8"))
-    assert autorite["release_id"] == "production-profile-gate-2026-2027-v4"
-    return {b["collection"]: b["scope_id"] for b in autorite["bindings"]}
-
-
-def _identite_verifiee(scope_id: str, *, role: str) -> Any:
-    """Jeton interne signé pour le scope émis ; l'identité découle du scope."""
-    import base64
-    import hmac
-
-    from ingestor.identity_v2 import load_identity_verifier_config, verify_identity_token
-
-    environ = {
-        "NEXUS_INTERNAL_TOKEN_SECRET": SECRET_DU_BANC,
-        "NEXUS_INTERNAL_TOKEN_ISSUER": "banc-cockpit",
-        "NEXUS_INTERNAL_TOKEN_AUDIENCE": "banc-engine",
-        "NEXUS_SSO_ISSUER": "banc-sso",
-        "NEXUS_SSO_AUDIENCE": "banc-cockpit-audience",
-    }
-    config = load_identity_verifier_config(environ)
-    artefact = config.artifacts[scope_id]
-    cible, sujet = artefact.target_identity, artefact.evidence_subject
-    maintenant = int(time.time())
-    identite = {
-        "aud": environ["NEXUS_SSO_AUDIENCE"], "exp": maintenant + 600,
-        "iss": environ["NEXUS_SSO_ISSUER"], "jti": f"banc-v4-{scope_id}-{role}",
-        "tenant": cible.tenant, "niveau": cible.niveau.value, "role": role,
-        "school_year": sujet.school_year, "sub": "psn_bancv4retrieval0001",
-        "pedagogical_profile": {
-            "voie": cible.voie.value, "matieres": [cible.matiere],
-            "statut_enseignement": cible.statut_enseignement.value,
-            "candidat": cible.candidates[0].value, "audience": cible.audience,
-        },
-    }
-    charge = {
-        "protocol_version": "1", "iss": environ["NEXUS_INTERNAL_TOKEN_ISSUER"],
-        "aud": environ["NEXUS_INTERNAL_TOKEN_AUDIENCE"], "sub": identite["sub"],
-        "jti": identite["jti"], "iat": maintenant, "exp": maintenant + 300,
-        "identity": identite, "scope_id": scope_id,
-        "scope_digest": artefact.sha256_digest(), "allowed_collections": [sujet.collection],
-    }
-
-    def _b64(valeur: bytes) -> str:
-        return base64.urlsafe_b64encode(valeur).rstrip(b"=").decode("ascii")
-
-    entete = _b64(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-    corps = _b64(json.dumps(charge).encode())
-    signature = hmac.new(SECRET_DU_BANC.encode(), f"{entete}.{corps}".encode("ascii"), hashlib.sha256).digest()
-    return verify_identity_token(f"{entete}.{corps}.{_b64(signature)}", config=config)
-
-
-def test_4_retrieval_v4_sous_les_scopes_emis(
-    publie: dict[str, Any], produit_pg: dict[str, str], monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Chaque chunk publié se retrouve par le vrai store, sous le scope que
-    l'émetteur canonique a produit pour sa collection — et rien d'autre."""
-    from ingestor import retrieval_pg_v2
-    from ingestor.collection_config import load_collection_config
-    from ingestor.retrieval_hybrid_v2 import RetrievalPipelineError
-    from ingestor.retrieval_pg_v2 import PgCandidateStore
-    from ingestor.retrieval_scope_v2 import RetrievalScopeError, build_server_retrieval_scope
+def test_4_retrieval_v4_sous_les_scopes_emis(publie: dict[str, Any], produit_pg: dict[str, str]) -> None:
+    """La sonde que le staging exécutera (``staging_retrieval_probe``), sur le
+    banc : scope émis par collection, chaque chunk publié interrogé par son
+    vecteur, rien hors du jeu publié, refus dense constaté à sa source,
+    ``student`` refusé. Le même code, pas une réplique."""
+    import importlib.util
 
     assert publie["succes"], publie["erreurs"][:5]
-    # Le store masque la cause d'un refus dense ; on l'observe à la source.
-    motifs: list[str] = []
-    charge_dense = retrieval_pg_v2._dense_payload
-
-    def _charge_observee(ligne: Any) -> Any:
-        try:
-            return charge_dense(ligne)
-        except RetrievalPipelineError as exc:
-            motifs.append(str(exc))
-            raise
-
-    monkeypatch.setattr(retrieval_pg_v2, "_dense_payload", _charge_observee)
-    configuration = load_collection_config(ENGINE_CONFIG_COLLECTIONS)
-    scopes = _scopes_emis_v4()
-    programmes = _programmes_v4()
-    with psycopg.connect(produit_pg["admin_dsn"]) as conn:
-        lignes = conn.execute(
-            "SELECT collection, chunk_id, vector::text, text FROM public.rag_chunks ORDER BY 1, 2"
-        ).fetchall()
-        doublons = conn.execute(
-            "SELECT collection, count(*), count(DISTINCT vector::text), count(DISTINCT text),"
-            "       (SELECT max(n) FROM (SELECT count(*) AS n FROM public.rag_chunks d"
-            "          WHERE d.collection = c.collection GROUP BY d.vector::text) g)"
-            "  FROM public.rag_chunks c GROUP BY collection ORDER BY 1"
-        ).fetchall()
-        print("REAL_V4_VECTOR_DUPLICATES", doublons)
-        conn.rollback()
-    publies: dict[str, dict[str, tuple[str, str]]] = {}
-    for collection, chunk_id, vecteur, texte in lignes:
-        publies.setdefault(collection, {})[chunk_id] = (vecteur, texte)
-    assert set(publies) == {c for c, _a in publie["cibles"]}
-
-    bilan = {}
-    for collection, chunks in sorted(publies.items()):
-        scope = build_server_retrieval_scope(
-            _identite_verifiee(scopes[collection], role="teacher"),
-            collection=collection, collection_config=configuration,
-        )
-        assert (scope.programme_version, scope.visibilities) == (programmes[collection], ("internal",))
-        store = PgCandidateStore(lambda: psycopg.connect(produit_pg["retrieval_dsn"]), scope)
-        retrouves, en_tete, manques, egalites = 0, 0, [], []
-        for chunk_id, (vecteur, _texte) in chunks.items():
-            valeurs = [float(v) for v in vecteur.strip("[]").split(",")]
-            try:
-                candidats = store.dense(query_vector=valeurs, collection=collection, limit=5)
-            except RetrievalPipelineError:
-                # Seul refus admis : la garde d'égalité à la frontière du pool
-                # (lot 40), constatée à sa source même, pas reconstituée.
-                assert motifs and motifs[-1] == "dense ann tie overflow", (collection, chunk_id, motifs)
-                motifs.clear()
-                egalites.append(chunk_id[:12])
-                continue
-            # Exigence stricte : rien hors du jeu publié de CETTE collection.
-            assert candidats and all(c.chunk_id in chunks for c in candidats), (collection, chunk_id)
-            # Rappel de l'ANN (HNSW, approximatif) : mesuré, jamais supposé.
-            identiques = [c for c in candidats if c.chunk_id == chunk_id or c.vector == tuple(valeurs)]
-            if candidats[0] in identiques:
-                en_tete += 1
-            if identiques:
-                retrouves += 1
-            else:
-                manques.append((chunk_id[:12], round(candidats[0].dense_score or 0.0, 6)))
-        mots = next(t for _v, t in chunks.values() if len(t.split()) >= 8).split()[:8]
-        lexicaux = store.lexical(raw_query=" ".join(mots), collection=collection, limit=10)
-        assert lexicaux and all(c.chunk_id in chunks for c in lexicaux), collection
-        bilan[collection] = {
-            "scope": scopes[collection], "chunks": len(chunks), "rappel_a_1": en_tete,
-            "rappel_a_5": retrouves, "manques": len(manques), "refus_egalite": len(egalites),
-            "lexicaux": len(lexicaux),
-        }
-        if egalites:
-            print("REAL_V4_DENSE_TIE_REFUSALS", collection, egalites)
-        if manques:
-            print("REAL_V4_DENSE_ANN_MISSES", collection, manques)
-
-        # Contre-épreuve : un élève ne lit que ``public`` ; le scope V4 est ``internal``.
-        with pytest.raises(RetrievalScopeError):
-            build_server_retrieval_scope(
-                _identite_verifiee(scopes[collection], role="student"),
-                collection=collection, collection_config=configuration,
-            )
-    print("REAL_V4_RETRIEVAL", bilan)
-    assert all(b["rappel_a_5"] + b["manques"] + b["refus_egalite"] == b["chunks"] for b in bilan.values())
+    spec = importlib.util.spec_from_file_location("staging_retrieval_probe", SONDE)
+    assert spec and spec.loader
+    sonde = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(sonde)
+    publiees = sorted({c for c, _a in publie["cibles"]})
+    rapport = sonde.sonder(
+        REPOSITORY_ROOT,
+        connexion=lambda: psycopg.connect(produit_pg["retrieval_dsn"]),
+        collections=publiees,
+    )
+    print("REAL_V4_RETRIEVAL", json.dumps(rapport, sort_keys=True))
+    assert sorted(rapport["collections"]) == publiees
+    totaux = rapport["totaux"]
+    chunks_par_artefact: dict[str, set[str]] = {}
+    for artefact, _ancre_physique, chunk_id, _sha, _index in publie["produit"]["identites"]:
+        chunks_par_artefact.setdefault(artefact, set()).add(chunk_id)
+    # La sonde interroge chaque chunk atteignable dans chaque collection
+    # gouvernée. Un artefact multi-placement compte dans les deux scopes.
+    assert totaux["chunks"] == sum(
+        len(chunks_par_artefact[artefact]) for collection, artefact in publie["cibles"]
+        if collection in publiees
+    )
+    assert totaux["rappel_a_5"] + totaux["manques"] + totaux["refus_egalite"] == totaux["chunks"]
+    assert all(c["student"] == "refuse" for c in rapport["collections"].values())
 
 
 # --- Contre-épreuves ----------------------------------------------------------

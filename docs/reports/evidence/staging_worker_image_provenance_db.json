@@ -1,0 +1,104 @@
+{
+  "build": {
+    "build_on_nexus_prod": false,
+    "built_at": "2026-09-24T15:10:25.021568Z",
+    "built_off_host": true,
+    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+    "dockerfile_sha256": "feeceb7813ad2cfb38e984ceef12cf51088c7054d13045ff03ab30eba57c60de",
+    "inventory_artifact": "nexus-deployment-image-inventory",
+    "inventory_sha256": "bc28156fca88879540cc7a9ba6ea196a9653551c5789da1c6e764e1eb334b39e",
+    "platform": "linux/amd64",
+    "source_commit_sha": "0569aff60092251eef691ed2a730dec3bdf7ec81",
+    "source_tree_sha": "2e62a1e700ce14dd50bf46c508b99e837f8a4265",
+    "worker_a_and_b_share_digest": true,
+    "workflow_path": ".github/workflows/production-image-provenance.yml",
+    "workflow_ref": "refs/heads/main",
+    "workflow_run_attempt": 1,
+    "workflow_run_id": 36017565965
+  },
+  "generated_at_utc": "2026-09-24T00:00:00Z",
+  "image_digest": "sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d",
+  "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+  "kind": "NEXUS-STAGING-WORKER-IMAGE-PROVENANCE",
+  "lot": "DB",
+  "not_done_by_this_evidence": [
+    "aucune exécution sur l'hôte",
+    "aucun déploiement",
+    "aucune écriture de base"
+  ],
+  "probe_image": {
+    "default_cmd": [
+      "uvicorn",
+      "api_v2:app",
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "8001"
+    ],
+    "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+    "dockerfile_sha256": "f7f53bab7a66713aee7d2c836974941d19d84bdbfcec4f136b2740e0c91663b1",
+    "image_digest": "sha256:9dbc8f5598471b856d308f13eec429ab5561093f839e27e7809bae19335c9452",
+    "image_repository": "ghcr.io/cyranoaladin/rag-ingestor",
+    "image_size_bytes": 1499235815,
+    "module_layout": "modules à plat sous /app (PYTHONPATH=/app pour la sonde)",
+    "nexus_contracts_version": "0.21.0",
+    "psycopg_version": "3.2.1",
+    "pyyaml_version": "6.0.3",
+    "reference": "ghcr.io/cyranoaladin/rag-ingestor@sha256:9dbc8f5598471b856d308f13eec429ab5561093f839e27e7809bae19335c9452",
+    "retrieval_modules": [
+      "retrieval_pg_v2",
+      "retrieval_scope_v2",
+      "identity_v2",
+      "collection_config",
+      "api_v2"
+    ],
+    "scope_registry_size": 63,
+    "use": "sonde de retrieval ponctuelle en lecture ; aucun service démarré",
+    "v4_scopes_present": 11
+  },
+  "reference": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d",
+  "supersedes_image_digest": "sha256:f931f59cb75aecacfb88959aa7b0d85302fd7b40e60851bdb8b1c6860dd35002",
+  "verification": {
+    "attest_publication_cli_subcommands": [
+      "adopt-predecessor-release",
+      "bind-publication-authorities",
+      "propose-release-batch-review",
+      "propose-review",
+      "record-attestation",
+      "record-release-batch-attestation",
+      "verify-release-sources"
+    ],
+    "carries_adr_0060_0061": {
+      "bind_publication_authorities": true,
+      "release_bound_qualification": true,
+      "sealed_chunk_exact_publication": "governed_publisher_v2.select_publication_chunks"
+    },
+    "default_cmd": [
+      "python",
+      "-m",
+      "ingestor.ingestion_worker.multilevel_cli"
+    ],
+    "image_size_bytes": 1469685368,
+    "importable_entrypoints": [
+      "ingestor.ingestion_worker.sealed_release_ingestion_cli",
+      "ingestor.ingestion_worker.attest_publication_cli",
+      "ingestor.ingestion_worker.multilevel_publication_resume_cli",
+      "ingestor.ingestion_worker.authorize_scope_cli",
+      "ingestor.ingestion_profiles.staging_readiness_gate",
+      "ingestor.ingestion_profiles.release_qualification",
+      "ingestor.ingestion_control.sealed_release_adoption",
+      "ingestor.governed_publisher_v2"
+    ],
+    "method": "docker pull par digest sur le poste de travail, puis exécution hors réseau (--network none)",
+    "nexus_contracts_version": "0.21.0",
+    "nexus_pdf_page_policy_version": "1.0.0",
+    "nexus_release_chain_version": "0.1.0",
+    "public_environment_variables_matching_secret_pattern": {
+      "GPG_KEY": "empreinte publique de la clé de signature des sources Python (image officielle python:3.11), pas un secret"
+    },
+    "python": "3.11.15",
+    "repo_digest_observed": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:57e079792ecfdd3720ac5936c66ea72b7efc766430407be3bb74057eec2bb20d",
+    "retrieval_modules_present": false,
+    "secret_like_environment_variables": []
+  }
+}

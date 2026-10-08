@@ -1,0 +1,38 @@
+{
+  "database": "ragdb_profile_gate_v4",
+  "excluded_collections": {
+    "rag_nexus_hggsp_premiere_specialite": "external subject 'hggsp' is not governed",
+    "rag_nexus_hggsp_terminale_specialite": "external subject 'hggsp' is not governed"
+  },
+  "exclusion_authority": {
+    "collection_config": "services/rag-engine/configs/rag_collections.yml",
+    "mappings": {
+      "document_types": "services/rag-engine/configs/mappings/eduscol_multilevel_document_types.yml",
+      "levels": "services/rag-engine/configs/mappings/eduscol_multilevel_levels.yml",
+      "subjects": "services/rag-engine/configs/mappings/eduscol_profile_gate_subjects.yml"
+    },
+    "release_manifest": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/production-profile-gate.release.json"
+  },
+  "expected": {
+    "active_attestations": 479,
+    "excluded_placements": 74,
+    "product_after_partial": {
+      "artifacts": 263,
+      "chunks": 5678,
+      "collections": 9,
+      "placements": 405
+    },
+    "scope_collections": 9,
+    "scope_placements": 405
+  },
+  "kind": "NEXUS-STAGING-V4-PARTIAL-RECOVERY-V1",
+  "release": {
+    "release_id": "production-profile-gate-2026-2027-v4",
+    "release_manifest_sha256": "bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be"
+  },
+  "review": {
+    "head_sha": "079461659b60f8a8ce9458145a199599ad822bbc",
+    "pull_request": 262,
+    "repository": "cyranoaladin/RAG"
+  }
+}
