@@ -129,7 +129,7 @@ def test_deployed_cockpit_must_report_exact_build_sha():
             harness.assess_runtime_identity(200, payload, sha)
 
 
-def test_minted_session_must_have_expected_role_and_scope():
+def test_signed_claims_validator_requires_expected_role_and_scope():
     harness = load_harness()
     claims = {
         "role": "student",
@@ -189,6 +189,11 @@ def test_real_release_placement_and_citation_are_checked_together():
     candidate["metadata"]["placement_id"] = placement_id
     with pytest.raises(ValueError, match="public"):
         harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence, require_public=True)
+    candidate["metadata"]["content_sha256"] = "c" * 64
+    candidate["metadata"]["artifact_id"] = "c" * 64
+    candidate["doc_id"] = "c" * 64
+    with pytest.raises(ValueError, match="content"):
+        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence)
 
 
 def test_final_release_does_not_contain_the_other_pilot_collection():
