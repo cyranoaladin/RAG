@@ -39,7 +39,7 @@ Cela évite également une erreur 500 sur les nouvelles collections, auparavant
 absentes du scope pilote du chat. Une transition gouvernée distincte devra
 réouvrir cette fonction.
 
-Validation locale sur la base `ee35544bce5af74d6186ea0ef61f6902a2258ffe` :
+Validation locale sur la base `6f33805601bdd04b9b10b3ae75febf01c63773e2` :
 202 tests Cockpit, ESLint, TypeScript, vérification des schémas et artefacts
 générés, build Next.js. La mesure live est confiée au harnais de la PR #293,
 à adapter au scope NSI V2 après l'intégration de ce lot.
