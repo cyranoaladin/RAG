@@ -32,7 +32,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 import rag_query  # noqa: E402
 
-DEFAULT_BUDGET = REPOSITORY_ROOT / "docs/reports/go_live/concurrency_load_budget.json"
+DEFAULT_BUDGET = REPOSITORY_ROOT / "docs/reports/go_live/concurrency_load_budget_final_v4_v5.json"
 
 
 def validate_api_url(value: str) -> str:
