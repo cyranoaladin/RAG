@@ -145,6 +145,10 @@ def test_operator_issues_student_identity_for_negative_http_case():
     body = token.split(".")[1]
     payload = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
     assert payload["identity"]["role"] == "student"
+    with pytest.raises(rag_query.RagQueryClientError, match="rôle"):
+        rag_query.issue_scope_identity(
+            "prod_nsi_terminale_specialite_v1", config=config, role="admin"
+        )
 
 
 def test_dense_probe_requires_all_chunks_and_reports_tie_overflow():

@@ -152,6 +152,8 @@ def issue_scope_identity(
     role: str = "teacher",
 ) -> tuple[str, RetrievalScopeArtifactV2]:
     """Émettre puis revérifier localement l'enveloppe par le verifier canonique."""
+    if role not in {"teacher", "student"}:
+        raise RagQueryClientError("rôle opérateur invalide")
     artifact = load_retrieval_scope_artifact(scope_id)
     if not isinstance(artifact, RetrievalScopeArtifactV2):
         raise RagQueryClientError("scope Wave 0 invalide")
