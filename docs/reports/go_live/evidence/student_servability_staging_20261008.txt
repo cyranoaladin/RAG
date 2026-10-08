@@ -1,4 +1,7 @@
 BEGIN
+observed_at_utc|query_revision
+2026-10-08T21:06:39.044692Z|student_servability_left_join_v2
+(1 row)
 database_name|database_role|postgres_version|vector_version
 ragdb_profile_gate_v4|raguser|16.14 (Debian 16.14-1.pgdg12+1)|0.8.2
 (1 row)

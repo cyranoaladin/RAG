@@ -1,9 +1,9 @@
 # Lot go-live — décision d'accès étudiant public, sans activation
 
 - Branche : `go-live/student-public-v4-v5-20261008`.
-- Base de lecture : `main` `1ab971838e90c876bf185da03b67423f9f0a32c9` ; arbre `cbdae38bedfe6a4ba9f3a1f32a6b29fe9bfa4c88`.
-- Cible relue **en lecture seule** le 2026-10-08 à 20:12:50 UTC : hôte SSH `nexus-prod` (`korrigo`, connexion `root`), conteneur `nexus-staging-pgvector-1` (image `sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc`), base `ragdb_profile_gate_v4` sous rôle `raguser` ; transaction `BEGIN READ ONLY` puis `ROLLBACK`.
-- Auteur du relevé : agent Codex exécutant, via les accès opérateur existants ; aucune valeur de secret n'est extraite. Requête versionnée : [SQL](go_live/evidence/student_servability_staging_20261008.sql), SHA-256 `14f27046bfd2b935db8de7f0299f7a8d48f12747fce5ae520dce51d2e9fe3b99`. Résultat brut : [sortie](go_live/evidence/student_servability_staging_20261008.txt), SHA-256 `8a6724dffbe310b8de11ca1d5b10194db83b39158949f9bc0d81851e82c12550`.
+- Base de lecture : `main` `0e47ea707c9dbdf68bc0c181e414da2577d4b332` ; arbre `b650b5096ad6e42e44c7b17d4ba08a1a7ce8846e`. Worktree propre de cette PR avant la commande : HEAD `f73e352a16af6671a30114a0fd061eeb77bc677f` ; arbre `2279169d2aea99b9a55e1d17fc29014fbec52907`.
+- Cible relue **en lecture seule** le 2026-10-08 à 21:06:39.044692 UTC : hôte SSH `nexus-prod` (`korrigo`, connexion `root`), conteneur `nexus-staging-pgvector-1` (image `sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc`), base `ragdb_profile_gate_v4` sous rôle `raguser` ; transaction `BEGIN READ ONLY` puis `ROLLBACK`. La sortie brute porte cet horodatage et le marqueur `student_servability_left_join_v2`.
+- Auteur du relevé : agent Codex exécutant, via les accès opérateur existants ; aucune valeur de secret n'est extraite. Requête versionnée : [SQL](go_live/evidence/student_servability_staging_20261008.sql), SHA-256 `2d3196aa446d70dca4beb7fba043625a35694f156d0296557c46ebfe9b0a6a21`. Résultat brut : [sortie](go_live/evidence/student_servability_staging_20261008.txt), SHA-256 `4772e36173a4f0a3adf3875262321137d93daed4b94bc6ae0ddffe643ad6aa55`.
 - Décision proposée : ADR-0064 ; exécution différée selon `docs/runbooks/student_public_release_PLAN.md`.
 
 Commande exécutée depuis la racine du worktree, après vérification du SHA et de l'arbre ci-dessus :
