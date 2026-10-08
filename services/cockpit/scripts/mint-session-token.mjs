@@ -62,12 +62,28 @@ async function main() {
 
   const pilotScopePath = path.resolve(__dirname, '../src/generated/pilot-retrieval-scope-v1.json')
   const pilotScope = JSON.parse(fs.readFileSync(pilotScopePath, 'utf8'))
+  const finalScopesPath = path.resolve(__dirname, '../src/generated/final-retrieval-scopes-v4-v5.json')
+  const finalScopes = JSON.parse(fs.readFileSync(finalScopesPath, 'utf8'))
+  const matches = finalScopes.filter((scope) => {
+    const target = scope.target_identity
+    const profile = identity.pedagogical_profile
+    return identity.tenant === target.tenant && identity.niveau === target.niveau
+      && identity.school_year === scope.evidence_subject.school_year
+      && profile.voie === target.voie && profile.matieres.length === 1
+      && profile.matieres[0] === target.matiere
+      && profile.statut_enseignement === target.statut_enseignement
+      && target.candidates.includes(profile.candidat) && profile.audience === target.audience
+  })
+  if (matches.length > 1) throw new Error('Scope de qualification ambigu')
+  const selectedScope = matches[0] || pilotScope
   const scopeDigest = crypto
     .createHash('sha256')
-    .update(canonicalJson(pilotScope), 'utf8')
+    .update(canonicalJson(selectedScope), 'utf8')
     .digest('hex')
 
-  const allowedCollections = pilotScope.subjects.map((subject) => subject.collection)
+  const allowedCollections = selectedScope.evidence_subject
+    ? [selectedScope.evidence_subject.collection]
+    : pilotScope.subjects.map((subject) => subject.collection)
 
   const envelope = {
     protocol_version: '1',
@@ -78,7 +94,7 @@ async function main() {
     iat: now,
     exp: now + 300,
     identity,
-    scope_id: pilotScope.scope_id,
+    scope_id: selectedScope.scope_id,
     scope_digest: scopeDigest,
     allowed_collections: allowedCollections,
   }

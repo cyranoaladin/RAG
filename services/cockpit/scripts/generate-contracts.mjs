@@ -8,9 +8,26 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const cockpitRoot = path.resolve(scriptDir, '..')
 const schemaRoot = path.resolve(cockpitRoot, '../../packages/contracts/schema')
 const artifactRoot = path.resolve(cockpitRoot, '../../packages/contracts/src/nexus_contracts/artifacts')
+const releaseRegistryPath = path.resolve(cockpitRoot, '../../services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json')
 const generatedRoot = path.resolve(cockpitRoot, 'src/generated')
 const schemaOutputRoot = path.join(generatedRoot, 'schema')
 const check = process.argv.includes('--check')
+
+// Pins from the governed V4 r4 and V5 HGGSP successor authorities. A new
+// public artifact needs an explicit new lot; generation never auto-promotes it.
+const finalScopeFiles = [
+  'retrieval-scope-prod-dgemc-terminale-option-v3.json',
+  'retrieval-scope-prod-hggsp-premiere-specialite-v3.json',
+  'retrieval-scope-prod-hggsp-terminale-specialite-v3.json',
+  'retrieval-scope-prod-hlp-premiere-specialite-v3.json',
+  'retrieval-scope-prod-hlp-terminale-specialite-v2.json',
+  'retrieval-scope-prod-nsi-premiere-specialite-v3.json',
+  'retrieval-scope-prod-nsi-terminale-specialite-v3.json',
+  'retrieval-scope-prod-ses-premiere-specialite-v3.json',
+  'retrieval-scope-prod-ses-terminale-specialite-v3.json',
+  'retrieval-scope-prod-svt-premiere-specialite-v3.json',
+  'retrieval-scope-prod-svt-terminale-specialite-v3.json',
+]
 
 const schemas = [
   ['retrieval-request.json', 'RetrievalRequest'],
@@ -65,6 +82,21 @@ function aggregateSchema(entries) {
 async function expectedOutputs() {
   const entries = await readSchemas()
   const pilotScope = JSON.parse(await readFile(path.join(artifactRoot, 'pilot-retrieval-scope-v1.json'), 'utf8'))
+  const finalScopes = await Promise.all(finalScopeFiles.map(async (filename) =>
+    JSON.parse(await readFile(path.join(artifactRoot, filename), 'utf8')),
+  ))
+  const registry = JSON.parse(await readFile(releaseRegistryPath, 'utf8'))
+  const releaseCollections = new Set(registry.releases.flatMap((release) => release.collections))
+  const scopeCollections = finalScopes.map((scope) => scope.evidence_subject.collection)
+  if (
+    finalScopes.length !== 11 ||
+    new Set(scopeCollections).size !== finalScopes.length ||
+    releaseCollections.size !== finalScopes.length ||
+    scopeCollections.some((collection) => !releaseCollections.has(collection)) ||
+    finalScopes.some((scope) => scope.artifact_version !== '2' || scope.evidence_subject.visibility !== 'internal')
+  ) {
+    throw new Error('Scopes BFF incompatibles avec la release V4/V5 scellée')
+  }
   const typeSource = await compile(aggregateSchema(entries), 'ContractBundle', {
     bannerComment: '// Generated from packages/contracts/schema. Do not edit manually.\n',
     style: { singleQuote: true },
@@ -106,6 +138,7 @@ async function expectedOutputs() {
     [path.join(generatedRoot, 'contracts.ts'), typeSource],
     [path.join(generatedRoot, 'validators.ts'), validatorSource],
     [path.join(generatedRoot, 'pilot-retrieval-scope-v1.json'), `${JSON.stringify(pilotScope, null, 2)}\n`],
+    [path.join(generatedRoot, 'final-retrieval-scopes-v4-v5.json'), `${JSON.stringify(finalScopes, null, 2)}\n`],
     ...entries.map(({ filename, schema }) => [path.join(schemaOutputRoot, filename), `${JSON.stringify(schema, null, 2)}\n`]),
   ])
 }

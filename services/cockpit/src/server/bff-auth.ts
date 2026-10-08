@@ -3,8 +3,8 @@ import { getToken } from 'next-auth/jwt'
 import type { NextRequest } from 'next/server'
 
 import type { InternalIdentity } from '@/generated/contracts'
+import { effectiveCollectionsForIdentity, scopeForIdentity } from '@/server/final-scope'
 import { rotateInternalIdentityToken, verifyInternalIdentityToken } from '@/server/internal-token'
-import { PILOT_RETRIEVAL_SCOPE } from '@/server/pilot-scope'
 import { isRevoked } from '@/server/revocation-store'
 
 interface ServerSessionToken extends JWT {
@@ -15,6 +15,7 @@ export interface BffAuthContext {
   readonly allowedCollections: readonly string[]
   readonly identity: InternalIdentity
   readonly identityToken: string
+  readonly scopeId: string
 }
 
 export type SessionTokenReader = (request: Request) => Promise<JWT | null>
@@ -51,16 +52,15 @@ export async function requireBffAuth(
       envelope.identity.tenant,
     )) return null
 
-    const signedMatieres = new Set(envelope.identity.pedagogical_profile.matieres)
-    const allowedCollections = PILOT_RETRIEVAL_SCOPE.subjects
-      .filter((subject) => signedMatieres.has(subject.matiere))
-      .map((subject) => subject.collection)
+    const scope = scopeForIdentity(envelope.identity, envelope.scope_id)
+    const allowedCollections = effectiveCollectionsForIdentity(envelope.identity, scope)
     if (allowedCollections.length === 0) return null
 
     return {
       allowedCollections,
       identity: envelope.identity,
       identityToken: freshIdentityToken,
+      scopeId: envelope.scope_id,
     }
   } catch {
     return null

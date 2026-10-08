@@ -2,11 +2,10 @@ import { SignJWT, decodeJwt, jwtVerify } from 'jose'
 
 import type { InternalIdentity, InternalIdentityEnvelope } from '@/generated/contracts'
 import {
-  PILOT_RETRIEVAL_SCOPE,
-  PILOT_RETRIEVAL_SCOPE_DIGEST,
-  assertEnvelopeMatchesPilotScope,
-  assertIdentityMatchesPilotScope,
-} from '@/server/pilot-scope'
+  assertEnvelopeMatchesBffScope,
+  scopeForIdentity,
+} from '@/server/final-scope'
+import { canonicalScopeDigest } from '@/server/pilot-scope'
 
 const DEFAULT_INTERNAL_TTL_SECONDS = 300
 
@@ -61,8 +60,9 @@ function assertExternalParties(identity: InternalIdentity): void {
 
 export async function mintInternalIdentityToken(
   identity: InternalIdentity,
+  pinnedScopeId?: string,
 ): Promise<string> {
-  assertIdentityMatchesPilotScope(identity)
+  const scope = scopeForIdentity(identity, pinnedScopeId)
   assertExternalParties(identity)
   const issuedAt = nowSeconds()
   const ttl = parseInternalTokenTtl()
@@ -71,8 +71,11 @@ export async function mintInternalIdentityToken(
     throw new Error('Identité interne expirée')
   }
 
-  const allowedCollections = PILOT_RETRIEVAL_SCOPE.subjects
-    .map((subject) => subject.collection) as InternalIdentityEnvelope['allowed_collections']
+  const allowedCollections = (
+    'evidence_subject' in scope
+      ? [scope.evidence_subject.collection]
+      : scope.subjects.map((subject) => subject.collection)
+  ) as InternalIdentityEnvelope['allowed_collections']
   const envelope: InternalIdentityEnvelope = {
     protocol_version: '1',
     iss: requireEnv('NEXUS_INTERNAL_TOKEN_ISSUER'),
@@ -82,11 +85,11 @@ export async function mintInternalIdentityToken(
     iat: issuedAt,
     exp,
     identity,
-    scope_id: PILOT_RETRIEVAL_SCOPE.scope_id,
-    scope_digest: PILOT_RETRIEVAL_SCOPE_DIGEST,
+    scope_id: scope.scope_id,
+    scope_digest: canonicalScopeDigest(scope),
     allowed_collections: allowedCollections,
   }
-  assertEnvelopeMatchesPilotScope(envelope)
+  assertEnvelopeMatchesBffScope(envelope)
 
   return new SignJWT({ ...envelope })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
@@ -114,7 +117,7 @@ async function verifySignedEnvelope(
     throw new Error('Jeton interne invalide ou expiré', { cause: error })
   }
   const envelope = payload as InternalIdentityEnvelope
-  assertEnvelopeMatchesPilotScope(envelope)
+  assertEnvelopeMatchesBffScope(envelope)
   assertExternalParties(envelope.identity)
   return envelope
 }
@@ -153,5 +156,5 @@ export async function rotateInternalIdentityToken(token: string): Promise<string
   }
   const envelope = await verifySignedEnvelope(token, new Date(issuedAt * 1000))
   assertTransportWindow(envelope)
-  return mintInternalIdentityToken(envelope.identity)
+  return mintInternalIdentityToken(envelope.identity, envelope.scope_id)
 }
