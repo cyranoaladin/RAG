@@ -53,6 +53,7 @@ def test_teacher_requires_real_cited_content_bound_to_final_manifest():
     ("mutation", "reason"),
     [
         ({"citation": None}, "citation"),
+        ({"citation": {"source_uri": "https://eduscol.education.fr/document.pdf", "source_label": "Document officiel", "rights": "officiel_public", "page": None}}, "citation"),
         ({"metadata": {"collection": "rag_nexus_maths_terminale_gen_specialite", "review_status": "reviewed", "content_sha256": None}}, "content"),
         ({"metadata": {"collection": "rag_nexus_maths_terminale_gen_specialite", "review_status": "reviewed", "content_sha256": "c" * 64}}, "content"),
         ({"doc_id": "d" * 64}, "content"),

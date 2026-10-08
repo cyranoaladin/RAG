@@ -44,6 +44,6 @@ pour le chemin Cockpit sur le produit final, et une nouvelle release de
 visibilité publique pour le succès élève.
 
 Validation locale au SHA `ee35544bce5af74d6186ea0ef61f6902a2258ffe` :
-13 tests Python du harnais, 180 tests Cockpit, Ruff, ESLint, TypeScript,
+14 tests Python du harnais, 180 tests Cockpit, Ruff, ESLint, TypeScript,
 vérification des contrats et build Next.js réussis. Aucune mesure BFF live
 sur le staging final n'est affirmée dans ce lot.

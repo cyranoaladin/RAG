@@ -75,7 +75,7 @@ def assess_positive(
         ):
             raise ValueError("citation incomplète")
         page = citation.get("page")
-        if page is not None and (not isinstance(page, int) or isinstance(page, bool) or page < 1):
+        if not isinstance(page, int) or isinstance(page, bool) or page < 1:
             raise ValueError("citation page invalide")
         contents.add(content)
     return {
