@@ -1,28 +1,40 @@
 # Lot go-live — décision d'accès étudiant public, sans activation
 
 - Branche : `go-live/student-public-v4-v5-20261008`.
-- Base de lecture : `main` `ee35544bce5af74d6186ea0ef61f6902a2258ffe`.
-- Cible relue **en lecture seule** le 2026-10-08 à 05:02 UTC : hôte SSH `nexus-prod`, conteneur `nexus-staging-pgvector-1`, base `ragdb_profile_gate_v4` ; transactions `BEGIN READ ONLY`.
+- Base de lecture : `main` `96f7506af14847c8084f07ed597995e029f5c63d` ; arbre `461e5841097a75be99983647160ec714fe9abe02`.
+- Cible relue **en lecture seule** le 2026-10-08 à 12:14:25 UTC : hôte SSH `nexus-prod` (`korrigo`, connexion `root`), conteneur `nexus-staging-pgvector-1` (image `sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc`), base `ragdb_profile_gate_v4` sous rôle `raguser` ; transaction `BEGIN READ ONLY` puis `ROLLBACK`.
+- Auteur du relevé : agent Codex exécutant, via les accès opérateur existants ; aucune valeur de secret n'est extraite. Requête versionnée : [SQL](go_live/evidence/student_servability_staging_20261008.sql), SHA-256 `7881658cd467437d0fc84dca1eddb21d48a593d38fdca0180efa3d277e8611fa`. Résultat brut : [sortie](go_live/evidence/student_servability_staging_20261008.txt), SHA-256 `8a6724dffbe310b8de11ca1d5b10194db83b39158949f9bc0d81851e82c12550`.
 - Décision proposée : ADR-0064 ; exécution différée selon `docs/runbooks/student_public_release_PLAN.md`.
+
+Commande exécutée depuis la racine du worktree, après vérification du SHA et de l'arbre ci-dessus :
+
+```sh
+ssh -o ProxyJump=none -o BatchMode=yes nexus-prod \
+  'docker exec -i nexus-staging-pgvector-1 psql -X -A -F "|" -v ON_ERROR_STOP=1 -U raguser -d ragdb_profile_gate_v4' \
+  < docs/reports/go_live/evidence/student_servability_staging_20261008.sql \
+  > docs/reports/go_live/evidence/student_servability_staging_20261008.txt
+sha256sum docs/reports/go_live/evidence/student_servability_staging_20261008.sql \
+  docs/reports/go_live/evidence/student_servability_staging_20261008.txt
+```
 
 ## État réellement mesuré
 
-| Collection | Placements publiés | Chunks publiés | Visibilité des placements | STUDENT_SERVABLE |
+| Collection | Placements | Chunks sous ce scope | Visibilité | STUDENT_SERVABLE |
 |---|---:|---:|---|---|
 | `rag_nexus_dgemc_terminale_option` | 12 | 343 | `internal` | `false` |
-| `rag_nexus_hggsp_premiere_specialite` | 0 | 0 | aucun ; r4 V5 `internal` | `false` |
-| `rag_nexus_hggsp_terminale_specialite` | 0 | 0 | aucun ; r4 V5 `internal` | `false` |
-| `rag_nexus_hlp_premiere_specialite` | 115 | 1 274 | `internal` | `false` |
-| `rag_nexus_hlp_terminale_specialite` | 89 | 756 | `internal` | `false` |
-| `rag_nexus_nsi_premiere_specialite` | 29 | 223 | `internal` | `false` |
-| `rag_nexus_nsi_terminale_specialite` | 47 | 690 | `internal` | `false` |
-| `rag_nexus_ses_premiere_specialite` | 30 | 466 | `internal` | `false` |
-| `rag_nexus_ses_terminale_specialite` | 28 | 573 | `internal` | `false` |
-| `rag_nexus_svt_premiere_specialite` | 19 | 592 | `internal` | `false` |
-| `rag_nexus_svt_terminale_specialite` | 36 | 761 | `internal` | `false` |
-| **Produit présent** | **405** | **5 678** | **405/405 `internal`** | **0/11** |
+| `rag_nexus_hggsp_premiere_specialite` | 39 | 1 858 | `internal` | `false` |
+| `rag_nexus_hggsp_terminale_specialite` | 35 | 1 874 | `internal` | `false` |
+| `rag_nexus_hlp_premiere_specialite` | 115 | 1 984 | `internal` | `false` |
+| `rag_nexus_hlp_terminale_specialite` | 89 | 1 599 | `internal` | `false` |
+| `rag_nexus_nsi_premiere_specialite` | 29 | 483 | `internal` | `false` |
+| `rag_nexus_nsi_terminale_specialite` | 47 | 904 | `internal` | `false` |
+| `rag_nexus_ses_premiere_specialite` | 30 | 726 | `internal` | `false` |
+| `rag_nexus_ses_terminale_specialite` | 28 | 804 | `internal` | `false` |
+| `rag_nexus_svt_premiere_specialite` | 19 | 663 | `internal` | `false` |
+| `rag_nexus_svt_terminale_specialite` | 36 | 1 078 | `internal` | `false` |
+| **Produit présent** | **479** | **8 268 chunks physiques** | **479/479 `internal`** | **0/11** |
 
-Les 405 placements présents sont `active`, `reviewed`, `official_snapshot` ; les 263 artefacts publiés portent `rights=officiel_public`. Les 13 autorisations r4 enregistrées pour les onze collections (11 V4 et 2 V5 HGGSP) ont toutes `visibility=internal`, `rights_categories={officiel_public}`, `pii_absence_attested=true`, aucune révocation et une validité observée au moins jusqu'au 2027-08-31. Les ressources HGGSP en contrôle restent `NEEDS_REVIEW` : ce relevé **précède** la publication V5 et ne doit pas être présenté comme un état final. Le conteneur PostgreSQL était `Up` mais déclaré `unhealthy` par Docker lors du relevé ; ce statut demande un diagnostic séparé avant qualification finale.
+La somme des chunks par scope vaut 12 316 : certains artefacts sont placés dans plusieurs collections ; l'union physique en base vaut 8 268. Les 479 placements relus sont `active`, `reviewed` et `current` ou `official_snapshot` ; les 315 artefacts correspondants portent `rights=officiel_public`. Les 74 placements HGGSP V5 sont désormais présents. La mesure précédente de 05:02 UTC décrivait l'état **avant** leur publication et ne décrit plus le staging actuel. Le conteneur PostgreSQL est `running` après correction de son montage de santé ; ce relevé ne qualifie pas à lui seul l'API, qui attend le correctif de réconciliation de release #296.
 
 Le code au SHA de base fixe `_ROLE_VISIBILITIES['student'] = ('public',)` ; `build_server_retrieval_scope` refuse les scopes V4/V5 `internal` pour ce rôle. Pour les chunks gouvernés, le SQL de retrieval exige en plus `rag_artifact_placements.visibility` dans la portée signée et `rag_artifacts.rights` dans les droits admis. Les onze scopes du registre mixte portent `internal` ; les onze profils V4 et les deux politiques HGGSP V5 portent également `internal`. Les anciens `rag_chunks.visibility=internal` sont conservés, jamais changés pour masquer ce refus.
 

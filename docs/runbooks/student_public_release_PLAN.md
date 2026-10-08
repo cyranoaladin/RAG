@@ -4,7 +4,7 @@
 
 ## Entrées immuables et prévol
 
-Partir du `main` courant dans un worktree propre et d'un environnement Python non partagé avec un autre worktree. Vérifier les manifests V4 (`bab9c398…`), HGGSP V5 (`82863880…`) et le registre mixte (`59db12e8…`) par les chargeurs canoniques et par SHA-256. Reprendre le staging final uniquement après les 74 publications V5 réussies et la qualification des onze collections ; aucune mesure de fixture ou d'un ancien checkout n'y supplée.
+Partir du `main` courant dans un worktree propre et d'un environnement Python non partagé avec un autre worktree. Vérifier les manifests V4 (`bab9c398…`), HGGSP V5 (`82863880…`) et le registre mixte (`59db12e8…`) par les chargeurs canoniques et par SHA-256. Avant de construire les releases publiques, qualifier la **source interne existante** : les 74 publications V5 réussies, l'union 11/315/479/8268 et le retrieval des onze collections sur son API réelle. Cette qualification source est distincte de celle de la nouvelle cible publique, créée à l'étape 5 puis contrôlée à l'étape 6 ; aucune mesure de fixture ou d'un ancien checkout n'y supplée.
 
 Établir la liste exacte des 315 `content_sha256` et des 479 placements autorisés, les 11 collections, les références BOEN, l'état des droits et de PII de chacun des 315 contenus, l'actualité et les révocations. Refuser tout écart entre le set réel, le registre mixte et la future entrée de release. Les droits `officiel_public` observés en staging sont une condition nécessaire, pas une revue humaine d'ouverture du service.
 

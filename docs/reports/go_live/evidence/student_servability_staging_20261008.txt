@@ -1,0 +1,21 @@
+BEGIN
+database_name|database_role|postgres_version|vector_version
+ragdb_profile_gate_v4|raguser|16.14 (Debian 16.14-1.pgdg12+1)|0.8.2
+(1 row)
+collection|placements|artifacts|scope_chunks|visibilities|public_placements|rights_public|governed_active
+rag_nexus_dgemc_terminale_option|12|12|343|internal|0|t|t
+rag_nexus_hggsp_premiere_specialite|39|39|1858|internal|0|t|t
+rag_nexus_hggsp_terminale_specialite|35|35|1874|internal|0|t|t
+rag_nexus_hlp_premiere_specialite|115|115|1984|internal|0|t|t
+rag_nexus_hlp_terminale_specialite|89|89|1599|internal|0|t|t
+rag_nexus_nsi_premiere_specialite|29|29|483|internal|0|t|t
+rag_nexus_nsi_terminale_specialite|47|47|904|internal|0|t|t
+rag_nexus_ses_premiere_specialite|30|30|726|internal|0|t|t
+rag_nexus_ses_terminale_specialite|28|28|804|internal|0|t|t
+rag_nexus_svt_premiere_specialite|19|19|663|internal|0|t|t
+rag_nexus_svt_terminale_specialite|36|36|1078|internal|0|t|t
+(11 rows)
+collections|artifacts|placements|chunks
+11|315|479|8268
+(1 row)
+ROLLBACK
