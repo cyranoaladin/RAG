@@ -1,0 +1,133 @@
+{
+  "collections": {
+    "rag_nexus_dgemc_terminale_option": {
+      "chunks": 343,
+      "lexicaux": 8,
+      "manques": 4,
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "rappel_a_1": 337,
+      "rappel_a_5": 337,
+      "refus_egalite": 2,
+      "scope_id": "prod_dgemc_terminale_option_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_hggsp_premiere_specialite": {
+      "chunks": 1858,
+      "lexicaux": 10,
+      "manques": 1,
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "rappel_a_1": 1853,
+      "rappel_a_5": 1856,
+      "refus_egalite": 1,
+      "scope_id": "prod_hggsp_premiere_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_hggsp_terminale_specialite": {
+      "chunks": 1874,
+      "lexicaux": 10,
+      "manques": 1,
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "rappel_a_1": 1871,
+      "rappel_a_5": 1873,
+      "refus_egalite": 0,
+      "scope_id": "prod_hggsp_terminale_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_hlp_premiere_specialite": {
+      "chunks": 1984,
+      "lexicaux": 1,
+      "manques": 1,
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "rappel_a_1": 1983,
+      "rappel_a_5": 1983,
+      "refus_egalite": 0,
+      "scope_id": "prod_hlp_premiere_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_hlp_terminale_specialite": {
+      "chunks": 1599,
+      "lexicaux": 1,
+      "manques": 1,
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "rappel_a_1": 1597,
+      "rappel_a_5": 1598,
+      "refus_egalite": 0,
+      "scope_id": "prod_hlp_terminale_specialite_v2",
+      "student": "refuse"
+    },
+    "rag_nexus_nsi_premiere_specialite": {
+      "chunks": 483,
+      "lexicaux": 1,
+      "manques": 2,
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "rappel_a_1": 479,
+      "rappel_a_5": 479,
+      "refus_egalite": 2,
+      "scope_id": "prod_nsi_premiere_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_nsi_terminale_specialite": {
+      "chunks": 904,
+      "lexicaux": 1,
+      "manques": 2,
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "rappel_a_1": 900,
+      "rappel_a_5": 900,
+      "refus_egalite": 2,
+      "scope_id": "prod_nsi_terminale_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_ses_premiere_specialite": {
+      "chunks": 726,
+      "lexicaux": 1,
+      "manques": 0,
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "rappel_a_1": 726,
+      "rappel_a_5": 726,
+      "refus_egalite": 0,
+      "scope_id": "prod_ses_premiere_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_ses_terminale_specialite": {
+      "chunks": 804,
+      "lexicaux": 1,
+      "manques": 0,
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "rappel_a_1": 804,
+      "rappel_a_5": 804,
+      "refus_egalite": 0,
+      "scope_id": "prod_ses_terminale_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_svt_premiere_specialite": {
+      "chunks": 663,
+      "lexicaux": 1,
+      "manques": 0,
+      "programme_version": "BOEN_special_1_2019-01-22",
+      "rappel_a_1": 663,
+      "rappel_a_5": 663,
+      "refus_egalite": 0,
+      "scope_id": "prod_svt_premiere_specialite_v3",
+      "student": "refuse"
+    },
+    "rag_nexus_svt_terminale_specialite": {
+      "chunks": 1078,
+      "lexicaux": 1,
+      "manques": 0,
+      "programme_version": "BOEN_special_8_2019-07-25",
+      "rappel_a_1": 1078,
+      "rappel_a_5": 1078,
+      "refus_egalite": 0,
+      "scope_id": "prod_svt_terminale_specialite_v3",
+      "student": "refuse"
+    }
+  },
+  "release_id": "mixed-v4-hggsp",
+  "totaux": {
+    "chunks": 12316,
+    "manques": 12,
+    "rappel_a_1": 12291,
+    "rappel_a_5": 12297,
+    "refus_egalite": 7
+  }
+}

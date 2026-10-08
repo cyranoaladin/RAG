@@ -53,10 +53,9 @@ else:
     from retrieval_scope_v2 import ServerRetrievalScope  # type: ignore[no-redef]
 
 _PGVECTOR_ACTIVATION_SQL = "SELECT %s::vector IS NOT NULL"
-_DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
-_DENSE_ANN_POOL_FACTOR = 4
-_DENSE_ANN_POOL_LIMIT = CHANNEL_LIMIT * _DENSE_ANN_POOL_FACTOR
-_DENSE_ANN_PROBE_LIMIT = _DENSE_ANN_POOL_LIMIT + 1
+_DENSE_POOL_FACTOR = 4
+_DENSE_POOL_LIMIT = CHANNEL_LIMIT * _DENSE_POOL_FACTOR
+_DENSE_EXACT_PROBE_LIMIT = _DENSE_POOL_LIMIT + 1
 
 _LEGACY_SCOPE_PREDICATE_SQL = """
           chunk.collection = %s
@@ -645,17 +644,16 @@ class PgCandidateStore(CandidateStore):
                     *self._dense_filter_params,
                     *self._metadata_params,
                     vector_text,
-                    _DENSE_ANN_PROBE_LIMIT,
+                    _DENSE_EXACT_PROBE_LIMIT,
                     *self._placement_scope_params,
-                    _DENSE_ANN_POOL_LIMIT,
-                    _DENSE_ANN_PROBE_LIMIT,
+                    _DENSE_POOL_LIMIT,
+                    _DENSE_EXACT_PROBE_LIMIT,
                     normalized_limit,
                 ),
                 limit=normalized_limit,
                 channel="dense",
                 setup_statements=(
                     (_PGVECTOR_ACTIVATION_SQL, (vector_text,)),
-                    (_DENSE_STRICT_ORDER_SQL, None),
                 ),
             )
         except Exception as exc:

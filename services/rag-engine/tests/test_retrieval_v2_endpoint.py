@@ -1340,16 +1340,15 @@ class TestHybridSearchDelegation:
 
         assert response.status_code == 503
         assert response.json() == {"detail": "retrieval unavailable"}
-        assert len(executed_sql) == 6
+        assert len(executed_sql) == 4
         assert executed_sql[0::2] == [
             "SELECT set_config('statement_timeout', %s, true)",
-        ] * 3
+        ] * 2
         assert "SELECT %s::vector IS NOT NULL" in executed_sql[1]
-        assert executed_sql[3].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
-        assert "WITH eligible_chunks AS MATERIALIZED" in executed_sql[5]
-        assert executed_sql[5].count("FROM public.rag_chunks") == 1
-        assert "FROM rag_chunks" not in executed_sql[5]
-        assert "ranked_pool.chunk_id ASC" in executed_sql[5]
+        assert "WITH eligible_chunks AS MATERIALIZED" in executed_sql[3]
+        assert executed_sql[3].count("FROM public.rag_chunks") == 1
+        assert "FROM rag_chunks" not in executed_sql[3]
+        assert "ranked_pool.chunk_id ASC" in executed_sql[3]
         assert "SENSITIVE_DSN_SENTINEL" not in response.text
         assert "SENSITIVE_QUERY_SENTINEL" not in response.text
         assert "requête extrêmement sensible" not in response.text

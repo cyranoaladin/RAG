@@ -8,18 +8,31 @@
 ## Fait déclencheur
 
 Sur le staging mixte V4 + HGGSP V5, l'image de retrieval épinglée interroge
-8 268 chunks physiques sous onze scopes gouvernés. La sonde du checkout
-`6f33805601bdd04b9b10b3ae75febf01c63773e2` a relevé 12 manques sur
+8 268 chunks physiques sous onze scopes gouvernés. La sonde exécutée le
+2026-10-08 à 11:18 UTC depuis le checkout
+`3cefcc27a49f88356c20c0bfaebed3a5f18cf068` a relevé 12 manques sur
 12 316 visites chunk–scope et sept refus distincts `dense ann tie overflow`.
 Les 12 manques représentent huit chunks physiques : quatre DGEMC, un HGGSP
 servi sous deux scopes, un HLP sous deux scopes et deux NSI sous deux scopes.
 Pour chacune des 12 visites, la requête par le vecteur stocké donne une
 distance exacte nulle et le même SQL, évalué sans index ANN, place ce chunk
 au rang un. L'index HNSW global (`m=16`, `ef_construction=64`) l'omet du top 5
-avec `hnsw.ef_search=40`, même en `strict_order`. La JSON diagnostique
-`retrieval-probe-mixed-diagnostic-6f338056.json` porte l'empreinte SHA-256
+avec `hnsw.ef_search=40`, même en `strict_order`. L'agrégat JSON diagnostique porte l'empreinte SHA-256
 `246814ea1b8899f0a9aed57a16a50724c388cf97c7ad5e371eceac00cea6e1c5`.
-Ce diagnostic n'est pas une qualification finale.
+Ce diagnostic n'est pas une qualification finale. Son agrégat JSON exact est
+versionné dans
+`docs/reports/evidence/retrieval_probe_mixed_diagnostic_20261008.json` ;
+il provient de `/srv/nexus-staging/run-db/retrieval-probe-mixed.json` sur
+l'hôte staging `korrigo`, avec la même empreinte SHA-256 ci-dessus. Il ne
+contient que les onze agrégats de collection et le total, sans identité élève
+ni secret. L'agent Codex, sous mandat opérateur, a déclenché la commande
+`STATE_DIR=$HOME/nexus-staging-hggsp-real-6aabdf4f V4_STATE_DIR=$HOME/nexus-staging-v4-run-dc HGGSP_READINESS_LOCAL=$HOME/nexus-staging-hggsp-successor-readiness-0e62d339 PYTHON=/tmp/nexus-go-live-venv-3cefcc27/bin/python bash scripts/go_live/staging_hggsp_complementary.sh run --until successor_independent_verification`.
+Cette étape appelle `scripts/go_live/staging_retrieval_probe.py` avec le
+registre mixte et son digest épinglé ; les lignes 591–613 de
+`scripts/go_live/staging_hggsp_complementary.sh` détaillent le lancement
+container. Le journal local de l'étape est
+`$STATE_DIR/retrieval.out` (SHA-256
+`545f6b280d716376e8d1a0b16883b5400944346d8f86bc4680a387de1eb528f0`).
 
 ## Décision
 

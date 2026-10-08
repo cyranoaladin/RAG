@@ -48,8 +48,8 @@ from ingestor.retrieval_hybrid_v2 import (
 )
 from ingestor.retrieval_metadata_v2 import chunk_metadata_filter_params
 from ingestor.retrieval_pg_v2 import (
-    _DENSE_ANN_POOL_LIMIT,
-    _DENSE_ANN_PROBE_LIMIT,
+    _DENSE_EXACT_PROBE_LIMIT,
+    _DENSE_POOL_LIMIT,
     _DENSE_SQL,
     _LEXICAL_SQL,
     PgCandidateStore,
@@ -931,7 +931,7 @@ def _seed_rows() -> list[tuple[object, ...]]:
                 text="algorithme graphe egalite complete",
             )
         )
-    for index in range(_DENSE_ANN_PROBE_LIMIT + 4):
+    for index in range(_DENSE_EXACT_PROBE_LIMIT + 4):
         rows.append(
             _row(
                 f"overflow-tie-{index:03d}",
@@ -1035,7 +1035,7 @@ def seeded_database() -> Iterator[None]:
 
 @contextmanager
 def _app_store_connection() -> Iterator[psycopg.Connection[Any]]:
-    """Connexion applicative brute; seul le store active pgvector et strict_order."""
+    """Connexion applicative brute ; seul le store active le type vector."""
 
     with psycopg.connect(APP_DSN) as connection:
         yield connection
@@ -1047,9 +1047,8 @@ def _exact_store_connection() -> Iterator[psycopg.Connection[Any]]:
 
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
-            # Une égalité de préfixe est une propriété d'oracle exact, pas une
-            # garantie d'un index HNSW approximatif. Les propriétés HNSW sont
-            # prouvées séparément par leurs plans et leurs bornes ci-dessous.
+            # Oracle indépendant : désactive les index pour recalculer
+            # directement le préfixe attendu de la collection historique.
             cursor.execute("SET LOCAL enable_indexscan = off")
             cursor.execute("SET LOCAL enable_bitmapscan = off")
         yield connection
@@ -1057,7 +1056,7 @@ def _exact_store_connection() -> Iterator[psycopg.Connection[Any]]:
 
 @contextmanager
 def _underfill_store_connection() -> Iterator[psycopg.Connection[Any]]:
-    """Connexion réglée exclusivement pour provoquer un underfill HNSW borné."""
+    """Réglages ANN dégradés, sans effet attendu sur le parcours exact."""
 
     with psycopg.connect(APP_DSN) as connection:
         with connection.cursor() as cursor:
@@ -1113,7 +1112,7 @@ def _assert_scoped_exact_json_plan(plan_payload: dict[str, Any]) -> None:
         if str(node.get("Subplan Name", "")).endswith("exact_candidates")
     ]
     assert len(exact_nodes) == 1, exact_nodes
-    assert int(exact_nodes[0]["Actual Rows"]) <= _DENSE_ANN_PROBE_LIMIT
+    assert int(exact_nodes[0]["Actual Rows"]) <= _DENSE_EXACT_PROBE_LIMIT
     assert any(node.get("CTE Name") == "eligible_chunks" for node in nodes)
     sort_nodes = [node for node in nodes if node.get("Node Type") == "Sort"]
     assert sort_nodes
@@ -1152,10 +1151,10 @@ def _dense_params(collection: str) -> tuple[object, ...]:
         *_dense_filter_sql_params(collection),
         *chunk_metadata_filter_params(None),
         QUERY_VECTOR_TEXT,
-        _DENSE_ANN_PROBE_LIMIT,
+        _DENSE_EXACT_PROBE_LIMIT,
         *_placement_scope_sql_params(collection),
-        _DENSE_ANN_POOL_LIMIT,
-        _DENSE_ANN_PROBE_LIMIT,
+        _DENSE_POOL_LIMIT,
+        _DENSE_EXACT_PROBE_LIMIT,
         50,
     )
 
@@ -2796,7 +2795,7 @@ class DeterministicReranker:
         return scores
 
 
-def test_deterministic_reranker_accepts_ann_load_candidates() -> None:
+def test_deterministic_reranker_accepts_load_candidates() -> None:
     assert DeterministicReranker().predict(
         [(QUERY, "algorithme graphe preuve pedagogique de charge")]
     ) == [0.0]
@@ -2814,9 +2813,8 @@ class PilotFixtureReranker:
 
 
 def test_exact_store_and_core_prove_union_scores_page_dedup_and_dimension_failure() -> None:
-    # Les canaris dense/lexical prouvent ici la fusion contre l'oracle exact.
-    # Le chemin HNSW runtime reste approximatif par contrat et ses propriétés
-    # de plan, de scope, de bornes et d'underfill sont prouvées séparément.
+    # Les canaris dense/lexical prouvent la fusion contre l'oracle indépendant.
+    # Le plan, le scope et les bornes du parcours exact sont vérifiés ailleurs.
     store = PgCandidateStore(_exact_store_connection, _scope(TARGET_COLLECTION))
     hits = retrieve_hybrid(
         QUERY,
