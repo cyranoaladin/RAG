@@ -14,13 +14,13 @@ python scripts/go_live/staging_c0_load.py \
   --output /srv/nexus-staging/qualification/final-c0-20261008.json
 ```
 
-La fixture finale apportée par #291 est présente sur `main` `96f7506af14847c8084f07ed597995e029f5c63d` ; le runner vérifie ce fichier versionné avant toute requête. Cette PR livre le banc, **pas un verdict de charge**. Le seul verdict opposable sera le rapport issu du staging final après preuve des 74 jobs V5 réussis et de l'identité du conteneur API, de sa base et du registre V4/V5. Le rapport est écrit atomiquement dans un répertoire privé et ne remplace jamais une mesure antérieure. Une citation sans page reste valide selon le contrat ; le contrôle détaillé des bornes de pages appartient à la qualification de contenu. Aucun seuil ne sera déplacé pour rendre une mesure rouge verte.
+La fixture finale apportée par #291 est présente sur `main` ; le runner vérifie ce fichier versionné avant toute requête. Cette PR livre le banc, **pas un verdict de charge**. Le seul verdict opposable sera le rapport issu du staging final après preuve des 74 jobs V5 réussis et de l'identité du conteneur API, de sa base et du registre V4/V5. Le rapport est écrit atomiquement dans un répertoire privé et ne remplace jamais une mesure antérieure. Une citation sans page reste valide selon le contrat ; le contrôle détaillé des bornes de pages appartient à la qualification de contenu. Aucun seuil ne sera déplacé pour rendre une mesure rouge verte.
 
-Validation locale du code et des tests au SHA `b59d705b95fd7a080a1b4f434e3ff068609fe2dd` (tree `05d4e21d038dfb758501165a89436443f9ccbeee`, base `main` `96f7506af14847c8084f07ed597995e029f5c63d`) :
+Validation locale du code et des tests après rebase sur `main` `4b62104d9887eb418b6c50b39cde9ddb6d55b884` (commit de code `420e963fe3abd15116c737865a44c0b3c0676c93`, tree `12421e14a074dcc0aafb945f4a8f1fc2ce916aa3`) :
 
 | Commande | Résultat |
 | --- | --- |
-| `/tmp/nexus-c0-venv-ec7429b6/bin/python -m pytest -q services/rag-engine/tests/test_staging_c0_load.py` | exit 0 ; 12 tests réussis |
+| `python -m pytest -q services/rag-engine/tests/test_staging_c0_load.py` | exit 0 ; 12 tests réussis |
 | `ruff check services/rag-engine/tests/test_staging_c0_load.py scripts/go_live/staging_c0_load.py` | exit 0 ; `All checks passed!` |
 | `python -m json.tool docs/reports/go_live/concurrency_load_budget_final_v4_v5.json >/dev/null` | exit 0 |
 | `git diff --check` | exit 0 |
