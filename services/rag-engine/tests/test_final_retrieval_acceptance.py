@@ -321,6 +321,12 @@ def test_http_runner_covers_33_positives_and_refusals(monkeypatch, missing_first
     assert report["totals"]["scope_mismatch_refusals"] == 11
     assert report["page_end_evidence"] == "manifest_only_db_check_required"
     assert report["http_path"] == "direct_api_v2"
+    if not missing_first:
+        first = report["cases"][0]["results"][0]
+        assert first["chunk_id"] in index[report["cases"][0]["collection"]][first["content_sha256"]]["chunks"]
+        assert first["page_end_manifest"] >= first["page_start"]
+        assert first["source_uri"].startswith("https://")
+        assert first["source_label"]
     assert len(seen) == 66
 
 

@@ -316,6 +316,19 @@ def run_http(
                 )
                 row["expected_source_hit"] = check_positive(case, response, index)
                 row["result_count"] = len(response.results)
+                row["results"] = [
+                    {
+                        "chunk_id": result.chunk_id,
+                        "content_sha256": result.metadata["content_sha256"],
+                        "placement_id": result.metadata["placement_id"],
+                        "source_uri": result.citation.source_uri,
+                        "source_label": result.citation.source_label,
+                        "page_start": result.citation.page,
+                        "page_end_manifest": index[collection][str(result.metadata["content_sha256"])]["chunks"][result.chunk_id]["page_end"],
+                        "rights": result.citation.rights,
+                    }
+                    for result in response.results
+                ]
                 totals["expected_source_hits"] += bool(row["expected_source_hit"])
                 row["verdict"] = "pass" if row["expected_source_hit"] else "source_miss"
             except Exception as exc:  # collecter toutes les lacunes, jamais un succès implicite

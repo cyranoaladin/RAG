@@ -63,7 +63,9 @@ requêtes de la fixture peuvent être utilisées par C0 sans recopier ni changer
 leurs textes ; l'émetteur JWT canonique partagé est
 `rag_query.issue_scope_identity(scope_id, config=config, role="teacher")`.
 L'API de transport est `rag_query_external.post_search`, avec trois
-credentials distincts. Le rapport n'inclut aucun jeton ou secret.
+credentials distincts. Le rapport inclut, pour chaque résultat positif,
+l'identité du chunk/contenu/placement, l'URI, le libellé, la page servie et la
+borne `page_end` du manifeste ; il n'inclut aucun jeton ou secret.
 Sur staging, le runner peut lire `COCKPIT_STAGING_API_KEY` si `RAG_API_KEY`
 est absent. Dans l'image runtime dépourvue de Git, le SHA de checkout
 précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` avec
