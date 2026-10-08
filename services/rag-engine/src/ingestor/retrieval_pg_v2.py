@@ -53,10 +53,9 @@ else:
     from retrieval_scope_v2 import ServerRetrievalScope  # type: ignore[no-redef]
 
 _PGVECTOR_ACTIVATION_SQL = "SELECT %s::vector IS NOT NULL"
-_DENSE_STRICT_ORDER_SQL = "SET LOCAL hnsw.iterative_scan = 'strict_order'"
-_DENSE_ANN_POOL_FACTOR = 4
-_DENSE_ANN_POOL_LIMIT = CHANNEL_LIMIT * _DENSE_ANN_POOL_FACTOR
-_DENSE_ANN_PROBE_LIMIT = _DENSE_ANN_POOL_LIMIT + 1
+_DENSE_POOL_FACTOR = 4
+_DENSE_POOL_LIMIT = CHANNEL_LIMIT * _DENSE_POOL_FACTOR
+_DENSE_EXACT_PROBE_LIMIT = _DENSE_POOL_LIMIT + 1
 
 _LEGACY_SCOPE_PREDICATE_SQL = """
           chunk.collection = %s
@@ -152,12 +151,12 @@ _READINESS_SCOPE_PREDICATE_SQL = f"""
         )
 """
 
-# Le parcours ANN reste strictement borné à 200 candidats plus une sentinelle.
-# L'ordre total est exact dans ce pool seulement; une égalité qui déborde la
-# frontière 200/201 est refusée car son appartenance déterministe est inconnue.
+# Le préfixe exact reste borné à 200 candidats plus une sentinelle. Le scope
+# gouverné est matérialisé avant le calcul des distances : l'index HNSW global
+# ne peut donc pas omettre un chunk autorisé du préfixe.
 _DENSE_SQL = f"""
-    WITH hnsw_candidates AS MATERIALIZED (
-        SELECT chunk.*, chunk.vector <=> %s::vector AS distance
+    WITH eligible_chunks AS MATERIALIZED (
+        SELECT chunk.*
         FROM public.rag_chunks AS chunk
         WHERE {_READINESS_SCOPE_PREDICATE_SQL}
           AND {CHUNK_METADATA_FILTER_SQL}
@@ -172,6 +171,10 @@ _DENSE_SQL = f"""
               )
               OR chunk.artifact_id IS NOT NULL
           )
+    ),
+    exact_candidates AS MATERIALIZED (
+        SELECT chunk.*, chunk.vector <=> %s::vector AS distance
+        FROM eligible_chunks AS chunk
         ORDER BY distance ASC
         LIMIT %s
     ),
@@ -213,7 +216,7 @@ _DENSE_SQL = f"""
                matched_placement.source_placement_id,
                matched_placement.source_path,
                chunk.distance
-        FROM hnsw_candidates AS chunk
+        FROM exact_candidates AS chunk
         {_GOVERNED_SCOPE_JOINS_SQL}
         WHERE (
             chunk.artifact_id IS NULL
@@ -638,20 +641,19 @@ class PgCandidateStore(CandidateStore):
             candidates = self._fetch(
                 _DENSE_SQL,
                 (
-                    vector_text,
                     *self._dense_filter_params,
                     *self._metadata_params,
-                    _DENSE_ANN_PROBE_LIMIT,
+                    vector_text,
+                    _DENSE_EXACT_PROBE_LIMIT,
                     *self._placement_scope_params,
-                    _DENSE_ANN_POOL_LIMIT,
-                    _DENSE_ANN_PROBE_LIMIT,
+                    _DENSE_POOL_LIMIT,
+                    _DENSE_EXACT_PROBE_LIMIT,
                     normalized_limit,
                 ),
                 limit=normalized_limit,
                 channel="dense",
                 setup_statements=(
                     (_PGVECTOR_ACTIVATION_SQL, (vector_text,)),
-                    (_DENSE_STRICT_ORDER_SQL, None),
                 ),
             )
         except Exception as exc:
