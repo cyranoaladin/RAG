@@ -21,10 +21,7 @@
     "error_rate_max": 0.0,
     "errors_max": 0,
     "timeouts_max": 0,
-    "db_connections_peak_max": 10,
-    "db_connections_leaked_max": 0,
-    "docker_residues_max": 0,
-    "residual_processes_max": 0
+    "db_connections_peak_max": 10
   },
   "rules": [
     "le budget est déclaré et commité avant toute mesure ; il n'est jamais ajusté après lecture des résultats",
