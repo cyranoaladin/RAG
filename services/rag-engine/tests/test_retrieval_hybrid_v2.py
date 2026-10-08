@@ -11,6 +11,7 @@ import pytest
 from nexus_contracts.embedding_utils import format_query as canonical_format_query
 
 import ingestor.retrieval_hybrid_v2 as hybrid
+from ingestor import metrics as ingest_metrics
 from ingestor.retrieval_hybrid_v2 import (
     CHANNEL_LIMIT,
     EMBED_DIMENSION,
@@ -825,7 +826,7 @@ def test_pipeline_observes_each_executed_channel_without_changing_hits(
 ) -> None:
     observed: list[tuple[str, float]] = []
     monkeypatch.setattr(
-        hybrid.ingest_metrics,
+        ingest_metrics,
         "observe_retrieval_stage",
         lambda stage, seconds: observed.append((stage, seconds)),
     )

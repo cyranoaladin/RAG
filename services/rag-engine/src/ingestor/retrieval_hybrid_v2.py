@@ -13,11 +13,6 @@ from typing import Literal, Protocol
 
 from nexus_contracts.embedding_utils import format_query
 
-if __package__:
-    from . import metrics as ingest_metrics
-else:
-    import metrics as ingest_metrics  # type: ignore[no-redef]
-
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 try:
@@ -38,6 +33,16 @@ EMBED_DIMENSION = 1024
 
 class RetrievalPipelineError(ValueError):
     """Controlled, sanitizable failure in the hybrid retrieval pipeline."""
+
+
+def _observe_retrieval_stage(stage: str, seconds: float) -> None:
+    # Les workers de publication importent EMBED_DIMENSION sans embarquer
+    # l'observabilité de l'API : cette dépendance ne se charge qu'au retrieval.
+    if __package__:
+        from .metrics import observe_retrieval_stage
+    else:
+        from metrics import observe_retrieval_stage  # type: ignore[no-redef]
+    observe_retrieval_stage(stage, seconds)
 
 
 def _require_nonblank(value: object, field_name: str) -> None:
@@ -520,7 +525,7 @@ def retrieve_hybrid(
                 )
             )
         finally:
-            ingest_metrics.observe_retrieval_stage(
+            _observe_retrieval_stage(
                 "dense", time.perf_counter() - channel_started
             )
         recorder.dense_count = len(dense)
@@ -536,7 +541,7 @@ def retrieve_hybrid(
                 )
             )
         finally:
-            ingest_metrics.observe_retrieval_stage(
+            _observe_retrieval_stage(
                 "lexical", time.perf_counter() - channel_started
             )
         recorder.lexical_count = len(lexical)
@@ -557,7 +562,7 @@ def retrieve_hybrid(
         try:
             logits = [float(score) for score in reranker.predict(pairs)]
         finally:
-            ingest_metrics.observe_retrieval_stage(
+            _observe_retrieval_stage(
                 "reranker", time.perf_counter() - channel_started
             )
         reranked = rerank_candidates(fused, logits)

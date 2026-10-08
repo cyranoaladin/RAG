@@ -13,5 +13,6 @@ Vérifications effectuées le 8 octobre 2026 :
 - `ruff check .` et `git diff --check` : verts.
 - `docker compose -f infra/docker-compose.v2.yml config --no-interpolate --format json` : valide ; fichier de configuration et répertoire de règles montés en lecture seule.
 - `promtool check config` dans `prom/prometheus:v2.54.1` : configuration valide, un fichier de règles chargé, quatre règles trouvées.
+- Construction de `Dockerfile.ingestion-worker` puis import dans l'image réelle des deux entrypoints Worker B : `WORKER_ENTRYPOINTS_OK`. Le module hybride charge les métriques uniquement lorsqu'une recherche est exécutée ; le worker peut toujours importer sa constante de dimension sans dépendance à l'API.
 
 Limites : ce lot n'a pas été déployé en staging ni en production ; aucune métrique ou alerte de runtime final ne peut être déclarée effectivement active. La qualification staging, la charge C0 et la vérification de l'API Prometheus doivent utiliser l'image finale déployée. Les vérifications locales complètes bloquées par l'environnement et les erreurs préexistantes de typage figurent dans le [registre des dettes](lot_20261008_retrieval_observability_dettes.md).
