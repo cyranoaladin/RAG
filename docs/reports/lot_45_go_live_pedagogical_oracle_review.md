@@ -1,6 +1,6 @@
 # Lot 45 — Paquet de revue pédagogique des oracles V4/V5
 
-**Statut : décision pédagogique requise.** Ce document prépare une seule revue humaine des trois associations question–source contestées. Il ne modifie ni la suite scellée, ni les seuils, ni le retrieval. `QUALITY_PASS=false` reste le verdict de la mesure.
+**Statut : décision pédagogique requise.** Ce document prépare une seule revue humaine des trois associations question–source contestées. Il ne modifie ni la suite scellée, ni les seuils, ni le retrieval. `QUALITY_PASS=false` reste le verdict de la mesure. Les observations du staging ci-dessous sont des faits **LIVE datés** : elles ne prouvent pas à elles seules l'état du staging au moment d'une décision ultérieure.
 
 ## Périmètre et provenance
 
@@ -14,9 +14,21 @@
 | Mesure d'acceptation | Staging `nexus-staging`, base `ragdb_profile_gate_v4`, rapport opérateur `qualification/final-retrieval-1ab97183.json` produit le `2026-10-08T20:46:32Z` depuis le checkout `1ab971838e90c876bf185da03b67423f9f0a32c9`, SHA-256 du rapport `f955c112aa8686e3b96732e4290933eaa468445b75eff799419d3824fe2bd8a7`, verdict `fail` |
 | Sonde dense liée | Rapport opérateur `qualification/dense-mixed-1ab97183.json` du `2026-10-08T20:44:19Z`, SHA-256 `dc7914f2756c0fa53a23b475a66b38f156288b75f7facc10e560ac23285cfe02`, 12 316 visites, 0 manque, 9 égalités débordantes ; empreinte des lignes de retrieval `b3a98b623a2bd08fb990f002edbcbf9fa8a9ae7d1f1a0610aaa9f2ed6d930d11` |
 | Runtime des six rejouages ciblés | Image staging `sha256:00398ba7773e95fddbed7b088b083759182af70d2836d60d6056b258eefd588c` construite au checkout `4b62104d9887eb418b6c50b39cde9ddb6d55b884`. Les six requêtes signées ont reproduit les résultats du rapport avant que le checkout distant passe à `0e47ea70` ; l'image et la base n'ont pas été reconstruites pendant ce passage. Aucun de ces rejouages n'est une nouvelle qualification au SHA `0e47ea70`. |
-| Vérification ciblée des sources | SQL `BEGIN READ ONLY` directement sur la base staging le `2026-10-08T21:11:34Z` : les sept artefacts cités ci-dessous ont droits `officiel_public`, placement `active`, `reviewed`, `official_snapshot`, visibilité `internal`. Les pages indiquées sont les `page_start`/`page_end` des chunks indexés. |
+| Vérification ciblée des sources | SQL `BEGIN READ ONLY` directement sur la base staging le `2026-10-08T21:36:15Z` : les sept artefacts cités ci-dessous ont droits `officiel_public`, placement `active`, `reviewed`, `official_snapshot`, visibilité `internal`. Les pages indiquées sont les `page_start`/`page_end` des chunks indexés. Auteur du diagnostic : `automated:Codex`; aucune décision pédagogique humaine n'a encore été enregistrée. |
+| Sonde SQL reproductible | `docs/reports/lot_45_go_live_pedagogical_oracle_source_probe.sql`, SHA-256 `547e2072bd2bb47abe09b475908199a7c6ce77f1bb87bbc63c684e2e2d873527`. Sortie canonique à 18 lignes, SHA-256 `0c643de0668c66ac320510882f555b6bd8eca97d11bff686c66232547b614e29`. Identité DB liée à cette sortie : OID `416766`, `8268` chunks, `315` artefacts, `479` placements, dernier `indexed_at` `2026-10-08 06:27:31.940976+00`, dernier placement `2026-10-08 06:28:28.381843+00`. |
 
-Le rapport d'acceptation couvre les 11 collections, 33 cas positifs et 33 négatifs. Ses totaux sont `positive_nonempty=28/33`, `expected_source_hits=27/33`, `out_of_scope_results=0`, `missing_citations=0`, `student_refusals=11/11`, `scope_mismatch_refusals=11/11`, `zero_result_pass=11/11`. La suite, le runner et les trois modules du pipeline (`retrieval_hybrid_v2.py`, `retrieval_pg_v2.py`, `retrieval_v2_endpoint.py`) ne diffèrent pas entre `1ab97183` et la base de cette PR. Les preuves HTTP restent néanmoins attribuées à leur image et à leur heure réelles, pas au nouveau checkout documentaire.
+Le rapport d'acceptation couvre les 11 collections, 33 cas positifs et 33 négatifs. Ses totaux sont `positive_nonempty=28/33`, `expected_source_hits=27/33`, `out_of_scope_results=0`, `missing_citations=0`, `student_refusals=11/11`, `scope_mismatch_refusals=11/11`, `zero_result_pass=11/11`. La suite, le runner et les trois modules du pipeline (`retrieval_hybrid_v2.py`, `retrieval_pg_v2.py`, `retrieval_v2_endpoint.py`) ne diffèrent pas entre `1ab97183` et la base de cette PR. Les preuves HTTP restent néanmoins attribuées à leur image et à leur heure réelles, pas au nouveau checkout documentaire. Au moment de la sonde SQL, le checkout distant est `0e47ea70` (tree `b650b509`), tandis que l'image API reste celle construite depuis `4b62104d` ; il ne faut pas les présenter comme un runtime reconstruit au checkout distant.
+
+Avant la décision pédagogique groupée, l'opérateur doit **relire en direct** le même staging, vérifier cible DB, image API, checkout et empreintes des manifests, puis rejouer la sonde SQL ci-dessous. Si la population, les sept sources, les quatre contrôles de substance ou les six comptes lexicaux diffèrent, il faut suspendre la décision sur cette version du paquet et réconcilier la preuve. La sonde n'écrit rien et ne remplace pas la recette HTTP finale.
+
+Commande exacte depuis la racine du checkout sur l'hôte staging, avec les accès existants et sans afficher de secret :
+
+```bash
+docker exec -i nexus-staging-pgvector-1 sh -c 'exec psql -X -q -At -F "|" -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d ragdb_profile_gate_v4' < docs/reports/lot_45_go_live_pedagogical_oracle_source_probe.sql > lot45-evidence.out
+sha256sum lot45-evidence.out
+```
+
+La sortie scellée contient la ligne d'identité `DB|ragdb_profile_gate_v4|416766|8268|315|479|…`, sept lignes `SOURCE`, puis `HLP1_SAME_CHUNK|0`, `HLPT_ARENDT_ARTIFACTS|2`, `HLPT_ARENDT_TRAVAIL_SAME_CHUNK|0`, `SVT_ORACLE_MUTAT_PROTEIN_SAME_CHUNK|0` et six lignes `LEXICAL|…|0`. Les contrôles négatifs sont des **tests lexicaux ciblés**, pas une preuve qu'aucune autre formulation pédagogique n'existe dans tout le corpus.
 
 ## Les trois décisions pédagogiques à prendre ensemble
 
