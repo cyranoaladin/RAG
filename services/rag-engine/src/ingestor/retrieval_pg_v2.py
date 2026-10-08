@@ -152,12 +152,12 @@ _READINESS_SCOPE_PREDICATE_SQL = f"""
         )
 """
 
-# Le parcours ANN reste strictement borné à 200 candidats plus une sentinelle.
-# L'ordre total est exact dans ce pool seulement; une égalité qui déborde la
-# frontière 200/201 est refusée car son appartenance déterministe est inconnue.
+# Le préfixe exact reste borné à 200 candidats plus une sentinelle. Le scope
+# gouverné est matérialisé avant le calcul des distances : l'index HNSW global
+# ne peut donc pas omettre un chunk autorisé du préfixe.
 _DENSE_SQL = f"""
-    WITH hnsw_candidates AS MATERIALIZED (
-        SELECT chunk.*, chunk.vector <=> %s::vector AS distance
+    WITH eligible_chunks AS MATERIALIZED (
+        SELECT chunk.*
         FROM public.rag_chunks AS chunk
         WHERE {_READINESS_SCOPE_PREDICATE_SQL}
           AND {CHUNK_METADATA_FILTER_SQL}
@@ -172,6 +172,10 @@ _DENSE_SQL = f"""
               )
               OR chunk.artifact_id IS NOT NULL
           )
+    ),
+    exact_candidates AS MATERIALIZED (
+        SELECT chunk.*, chunk.vector <=> %s::vector AS distance
+        FROM eligible_chunks AS chunk
         ORDER BY distance ASC
         LIMIT %s
     ),
@@ -213,7 +217,7 @@ _DENSE_SQL = f"""
                matched_placement.source_placement_id,
                matched_placement.source_path,
                chunk.distance
-        FROM hnsw_candidates AS chunk
+        FROM exact_candidates AS chunk
         {_GOVERNED_SCOPE_JOINS_SQL}
         WHERE (
             chunk.artifact_id IS NULL
@@ -638,9 +642,9 @@ class PgCandidateStore(CandidateStore):
             candidates = self._fetch(
                 _DENSE_SQL,
                 (
-                    vector_text,
                     *self._dense_filter_params,
                     *self._metadata_params,
+                    vector_text,
                     _DENSE_ANN_PROBE_LIMIT,
                     *self._placement_scope_params,
                     _DENSE_ANN_POOL_LIMIT,

@@ -1302,7 +1302,7 @@ class TestHybridSearchDelegation:
 
             def execute(self, sql: str, _params: object = None) -> None:
                 executed_sql.append(sql)
-                if "WITH hnsw_candidates AS MATERIALIZED" in sql:
+                if "WITH eligible_chunks AS MATERIALIZED" in sql:
                     raise RuntimeError("SENSITIVE_DSN_SENTINEL SENSITIVE_QUERY_SENTINEL")
 
         class Connection:
@@ -1346,7 +1346,7 @@ class TestHybridSearchDelegation:
         ] * 3
         assert "SELECT %s::vector IS NOT NULL" in executed_sql[1]
         assert executed_sql[3].strip() == ("SET LOCAL hnsw.iterative_scan = 'strict_order'")
-        assert "WITH hnsw_candidates AS MATERIALIZED" in executed_sql[5]
+        assert "WITH eligible_chunks AS MATERIALIZED" in executed_sql[5]
         assert executed_sql[5].count("FROM public.rag_chunks") == 1
         assert "FROM rag_chunks" not in executed_sql[5]
         assert "ranked_pool.chunk_id ASC" in executed_sql[5]

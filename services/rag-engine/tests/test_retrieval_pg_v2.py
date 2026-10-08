@@ -363,9 +363,9 @@ def _dense_params(
     metadata: tuple[object, ...] = NO_METADATA_PARAMS,
 ) -> tuple[object, ...]:
     return (
-        VECTOR_TEXT,
         *_dense_filter_params(collection=collection),
         *metadata,
+        VECTOR_TEXT,
         _DENSE_ANN_PROBE_LIMIT,
         *_placement_params(collection=collection),
         _DENSE_ANN_POOL_LIMIT,
@@ -470,7 +470,7 @@ def test_dense_initializes_pgvector_before_strict_order_on_a_fresh_backend() -> 
     ]
 
 
-def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() -> None:
+def test_dense_sql_is_one_scoped_exact_scan_with_determinism_inside_the_pool() -> None:
     assert _DENSE_ANN_POOL_FACTOR == 4
     assert _DENSE_ANN_POOL_LIMIT == CHANNEL_LIMIT * 4 == 200
     assert _DENSE_ANN_PROBE_LIMIT == _DENSE_ANN_POOL_LIMIT + 1 == 201
@@ -484,13 +484,14 @@ def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() ->
     assert DENSE_SQL.count("vector IS NOT NULL") == 1
     assert DENSE_SQL.count("btrim(chunk.source_label) <> ''") == 1
     assert DENSE_SQL.count("btrim(artifact.source_label) <> ''") == 1
-    assert "hnsw_candidates AS MATERIALIZED" in DENSE_SQL
+    assert "eligible_chunks AS MATERIALIZED" in DENSE_SQL
+    assert "exact_candidates AS MATERIALIZED" in DENSE_SQL
     assert "projected_candidates AS MATERIALIZED" in DENSE_SQL
     assert "ranked_pool AS MATERIALIZED" in DENSE_SQL
     assert "pool_diagnostics AS MATERIALIZED" in DENSE_SQL
-    hnsw_phase, bounded_phase = DENSE_SQL.split("ranked_pool AS MATERIALIZED", 1)
-    assert "ORDER BY distance ASC LIMIT %s" in hnsw_phase
-    assert "ORDER BY distance ASC, chunk_id ASC" not in hnsw_phase
+    exact_phase, bounded_phase = DENSE_SQL.split("ranked_pool AS MATERIALIZED", 1)
+    assert "ORDER BY distance ASC LIMIT %s" in exact_phase
+    assert "ORDER BY distance ASC, chunk_id ASC" not in exact_phase
     assert "rag_chunks" not in bounded_phase
     assert "pool_rank = %s" in bounded_phase
     assert "boundary_distance" in bounded_phase
@@ -499,6 +500,21 @@ def test_dense_sql_is_one_bounded_ann_scan_with_determinism_inside_the_pool() ->
     assert "ORDER BY ranked_pool.distance ASC, ranked_pool.chunk_id ASC" in bounded_phase
     assert "candidate_count" not in DENSE_SQL
     assert "max_distance" not in DENSE_SQL
+
+
+def test_dense_materializes_governed_eligible_rows_before_exact_distance() -> None:
+    normalized = _normalize_sql(ACTUAL_DENSE_SQL)
+    eligible_start = normalized.index("eligible_chunks AS MATERIALIZED")
+    exact_start = normalized.index("exact_candidates AS MATERIALIZED")
+    assert eligible_start < exact_start
+    eligible_sql = normalized[eligible_start:exact_start]
+    assert "FROM public.rag_chunks AS chunk" in eligible_sql
+    assert "placement.placement_status = 'active'" in eligible_sql
+    assert "placement.review_status = 'reviewed'" in eligible_sql
+    assert "artifact.rights = ANY(%s::text[])" in eligible_sql
+    assert "chunk.vector <=>" not in eligible_sql
+    assert "FROM eligible_chunks AS chunk" in normalized[exact_start:]
+    assert "chunk.vector <=> %s::vector" in normalized[exact_start:]
 
 
 def test_governed_sql_matches_one_placement_without_duplicating_chunks() -> None:
