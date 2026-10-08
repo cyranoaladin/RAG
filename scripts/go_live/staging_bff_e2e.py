@@ -19,7 +19,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 SCOPE_ID = "libre_terminale_maths_nsi_real_v1"
 NSI_COLLECTION = "rag_nexus_nsi_terminale_specialite"
@@ -35,6 +36,45 @@ REQUIRED_ENV = (
 )
 
 
+class RefuseRedirects(HTTPRedirectHandler):
+    def redirect_request(self, request, fp, code, msg, headers, newurl):  # type: ignore[override]
+        return None
+
+
+def safe_cockpit_url(raw: str) -> str:
+    """N'envoyer les sessions de qualification qu'au BFF local de staging."""
+    try:
+        parsed = urlsplit(raw)
+        valid = (
+            parsed.scheme in {"http", "https"}
+            and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+            and parsed.port is not None
+            and parsed.username is None
+            and parsed.password is None
+            and parsed.path in {"", "/"}
+            and not parsed.query
+            and not parsed.fragment
+        )
+    except ValueError:
+        valid = False
+    if not valid:
+        raise ValueError("Cockpit URL non locale ou non assainie")
+    return raw.rstrip("/")
+
+
+def assert_scope_registry_parity(scope_collections: set[str], registry_collections: set[str]) -> None:
+    if scope_collections != registry_collections:
+        raise ValueError("scope signé incompatible avec la release scellée")
+
+
+def assess_runtime_identity(status: int, payload: Any, expected_sha: str) -> str:
+    body = _object(payload, "Cockpit health")
+    build_sha = body.get("build_sha")
+    if status != 200 or body.get("status") != "ok" or build_sha != expected_sha:
+        raise ValueError("Cockpit build SHA différent du main qualifié")
+    return build_sha
+
+
 def _object(value: Any, label: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise TypeError(f"{label} invalide")
@@ -46,6 +86,9 @@ def assess_positive(
     payload: Any,
     collection: str,
     allowed_contents: set[str],
+    release_placements: dict[str, dict[str, Any]] | None = None,
+    *,
+    require_public: bool = False,
 ) -> dict[str, Any]:
     """Exiger un vrai passage cité, revu et lié au registre de release."""
     if status != 200:
@@ -54,6 +97,7 @@ def assess_positive(
     if not isinstance(results, list) or not results:
         raise ValueError("positive results empty")
     contents: set[str] = set()
+    citations: list[dict[str, Any]] = []
     for result in results:
         hit = _object(result, "result")
         metadata = _object(hit.get("metadata"), "metadata")
@@ -62,8 +106,12 @@ def assess_positive(
         if metadata.get("review_status") != "reviewed":
             raise ValueError("review status invalide")
         content = metadata.get("content_sha256")
+        if content is None:
+            content = hit.get("content_sha256")
         if not isinstance(content, str) or not SHA256.fullmatch(content):
             raise ValueError("content identity manquante")
+        if hit.get("content_sha256") is not None and hit["content_sha256"] != content:
+            raise ValueError("content identity incohérente")
         if content not in allowed_contents:
             raise ValueError("content absent de la release scellée")
         if hit.get("doc_id") != content or metadata.get("artifact_id") != content:
@@ -77,10 +125,34 @@ def assess_positive(
         page = citation.get("page")
         if not isinstance(page, int) or isinstance(page, bool) or page < 1:
             raise ValueError("citation page invalide")
+        if release_placements is not None:
+            placement_id = metadata.get("placement_id")
+            sealed = release_placements.get(placement_id) if isinstance(placement_id, str) else None
+            if sealed is None or sealed["artifact_id"] != metadata.get("artifact_id") or sealed["content_sha256"] != content:
+                raise ValueError("placement absent de la release scellée")
+            if require_public and sealed["visibility"] != "public":
+                raise ValueError("placement non public")
+            if sealed["source_uri"] != citation["source_uri"] or sealed["source_label"] != citation["source_label"]:
+                raise ValueError("citation non liée à l'artefact scellé")
+            pages = sealed["chunks"].get(hit.get("chunk_id"))
+            if pages is None or not pages[0] <= page <= pages[1]:
+                raise ValueError("citation page hors chunk scellé")
+        elif require_public:
+            raise ValueError("placement public non vérifié")
+        citations.append({
+            "chunk_id": hit.get("chunk_id"),
+            "placement_id": metadata.get("placement_id"),
+            "content_sha256": content,
+            "source_uri": citation["source_uri"],
+            "source_label": citation["source_label"],
+            "rights": citation["rights"],
+            "page": page,
+        })
         contents.add(content)
     return {
         "results": len(results),
-        "citations": len(results),
+        "citation_count": len(citations),
+        "citations": citations,
         "content_sha256": sorted(contents),
     }
 
@@ -114,11 +186,13 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def load_release_contents(registry_path: Path, expected_digest: str, collection: str) -> set[str]:
+def load_release_evidence(
+    registry_path: Path, expected_digest: str, collection: str
+) -> dict[str, dict[str, Any]]:
     if not SHA256.fullmatch(expected_digest) or _sha256(registry_path) != expected_digest:
         raise ValueError("release registry digest invalide")
     registry = _object(json.loads(registry_path.read_text(encoding="utf-8")), "registry")
-    contents: set[str] = set()
+    placements: dict[str, dict[str, Any]] = {}
     for release in registry.get("releases", []):
         if collection not in release.get("collections", []):
             continue
@@ -131,7 +205,7 @@ def load_release_contents(registry_path: Path, expected_digest: str, collection:
         if _sha256(artifact_path) != artifact_ref["sha256"]:
             raise ValueError("artifact registry digest invalide")
         artifacts = _object(json.loads(artifact_path.read_text(encoding="utf-8")), "artifacts")
-        artifact_ids = {artifact["content_sha256"] for artifact in artifacts["artifacts"]}
+        artifact_index = {artifact["artifact_id"]: artifact for artifact in artifacts["artifacts"]}
         subject_refs = [
             subject for subject in manifest["subjects"] if subject["collection"] == collection
         ]
@@ -144,17 +218,42 @@ def load_release_contents(registry_path: Path, expected_digest: str, collection:
         subject = _object(json.loads(subject_path.read_text(encoding="utf-8")), "subject")
         if subject.get("collection") != collection:
             raise ValueError("subject collection incohérente")
-        scoped_ids = {placement["artifact_id"] for placement in subject["placements"]}
-        if not scoped_ids <= artifact_ids:
-            raise ValueError("subject hors registre artefact")
-        contents.update(scoped_ids)
-    if not contents:
+        for placement in subject["placements"]:
+            artifact = artifact_index.get(placement["artifact_id"])
+            if artifact is None or placement["placement_id"] in placements:
+                raise ValueError("placement hors registre ou dupliqué")
+            placements[placement["placement_id"]] = {
+                "artifact_id": artifact["artifact_id"],
+                "content_sha256": artifact["content_sha256"],
+                "visibility": placement["visibility"],
+                "source_uri": artifact["source_url"],
+                "source_label": artifact["title"],
+                "chunks": {
+                    chunk["chunk_id"]: (chunk["page_start"], chunk["page_end"])
+                    for chunk in artifact["chunks"]
+                },
+            }
+    if not placements:
         raise ValueError("collection absente des releases scellées")
-    return contents
+    return placements
+
+
+def load_release_contents(registry_path: Path, expected_digest: str, collection: str) -> set[str]:
+    return {
+        placement["content_sha256"]
+        for placement in load_release_evidence(registry_path, expected_digest, collection).values()
+    }
 
 
 def _git(root: Path, *args: str) -> str:
     return subprocess.check_output(["git", "-C", str(root), *args], text=True).strip()
+
+
+def _live_main_sha(root: Path) -> str:
+    response = _git(root, "ls-remote", "origin", "refs/heads/main").split()
+    if len(response) != 2 or not re.fullmatch(r"[0-9a-f]{40}", response[0]):
+        raise ValueError("main distant indisponible")
+    return response[0]
 
 
 def _mint_session(root: Path, role: str) -> tuple[str, dict[str, Any]]:
@@ -196,6 +295,7 @@ def _mint_session(root: Path, role: str) -> tuple[str, dict[str, Any]]:
 
 
 def _post_search(url: str, session: str | None, query: str, collection: str) -> tuple[int, Any]:
+    url = safe_cockpit_url(url)
     headers = {"Content-Type": "application/json"}
     if session is not None:
         cookie_name = "__Secure-next-auth.session-token" if url.startswith("https://") else "next-auth.session-token"
@@ -207,10 +307,26 @@ def _post_search(url: str, session: str | None, query: str, collection: str) -> 
         method="POST",
     )
     try:
-        with urlopen(request, timeout=20) as response:
+        with build_opener(RefuseRedirects).open(request, timeout=20) as response:
             return response.status, json.load(response)
     except HTTPError as exc:
         try:
+            if 300 <= exc.code < 400:
+                raise ValueError("redirection Cockpit refusée")
+            return exc.code, json.load(exc)
+        finally:
+            exc.close()
+
+
+def _get_health(url: str) -> tuple[int, Any]:
+    request = Request(safe_cockpit_url(url) + "/api/health", method="GET")
+    try:
+        with build_opener(RefuseRedirects).open(request, timeout=20) as response:
+            return response.status, json.load(response)
+    except HTTPError as exc:
+        try:
+            if 300 <= exc.code < 400:
+                raise ValueError("redirection Cockpit refusée")
             return exc.code, json.load(exc)
         finally:
             exc.close()
@@ -218,8 +334,12 @@ def _post_search(url: str, session: str | None, query: str, collection: str) -> 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     root = args.repository_root.resolve()
+    if not re.fullmatch(r"[A-Za-z0-9_.-]{2,64}", args.operator_id):
+        raise ValueError("identifiant opérateur invalide")
+    cockpit_url = safe_cockpit_url(args.cockpit_url)
     head = _git(root, "rev-parse", "HEAD")
-    if head != args.expected_sha or _git(root, "rev-parse", "origin/main") != head:
+    live_main_sha = _live_main_sha(root)
+    if head != args.expected_sha or _git(root, "rev-parse", "origin/main") != head or live_main_sha != head:
         raise ValueError("checkout différent du main final attendu")
     if _git(root, "status", "--porcelain"):
         raise ValueError("checkout de qualification non propre")
@@ -229,36 +349,63 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         subject["collection"] for subject in scope["subjects"]
     ]:
         raise ValueError("collection absente du scope BFF signé")
-    contents = load_release_contents(args.registry, args.registry_sha256, args.collection)
+    if _sha256(args.registry) != args.registry_sha256:
+        raise ValueError("release registry digest invalide")
+    registry = _object(json.loads(args.registry.read_text(encoding="utf-8")), "registry")
+    assert_scope_registry_parity(
+        {subject["collection"] for subject in scope["subjects"]},
+        {collection for release in registry["releases"] for collection in release["collections"]},
+    )
+    health_status, health_body = _get_health(cockpit_url)
+    runtime_build_sha = assess_runtime_identity(health_status, health_body, head)
+    release_placements = load_release_evidence(args.registry, args.registry_sha256, args.collection)
+    contents = {placement["content_sha256"] for placement in release_placements.values()}
     teacher_session, _ = _mint_session(root, "teacher")
     student_session, _ = _mint_session(root, "student")
-    unauth_status, unauth_body = _post_search(args.cockpit_url, None, args.query, args.collection)
+    unauth_status, unauth_body = _post_search(cockpit_url, None, args.query, args.collection)
     if unauth_status != 401 or _object(unauth_body, "unauth").get("error") != "unauthorized":
         raise ValueError("BFF sans session non refusé")
     cross_status, cross_body = _post_search(
-        args.cockpit_url, teacher_session, args.query, OUT_OF_SCOPE_COLLECTION
+        cockpit_url, teacher_session, args.query, OUT_OF_SCOPE_COLLECTION
     )
     assess_cross_scope(cross_status, cross_body)
     teacher_status, teacher_body = _post_search(
-        args.cockpit_url, teacher_session, args.query, args.collection
+        cockpit_url, teacher_session, args.query, args.collection
     )
-    teacher = assess_positive(teacher_status, teacher_body, args.collection, contents)
+    teacher = assess_positive(teacher_status, teacher_body, args.collection, contents, release_placements)
     student_status, student_body = _post_search(
-        args.cockpit_url, student_session, args.query, args.collection
+        cockpit_url, student_session, args.query, args.collection
     )
     student: dict[str, Any]
     if args.student_mode == "public":
-        student = assess_positive(student_status, student_body, args.collection, contents)
+        student = assess_positive(
+            student_status, student_body, args.collection, contents, release_placements,
+            require_public=True,
+        )
     else:
         student = {"refusal": assess_internal_student(student_status, student_body)}
     return {
         "kind": "NEXUS-FINAL-STAGING-BFF-E2E-V1",
         "observed_at": datetime.now(timezone.utc).isoformat(),
         "checkout_sha": head,
+        "live_main_sha": live_main_sha,
+        "cockpit_runtime_build_sha": runtime_build_sha,
         "checkout_tree": _git(root, "rev-parse", "HEAD^{tree}"),
         "release_registry_sha256": args.registry_sha256,
         "pilot_scope_sha256": _sha256(scope_path),
-        "cockpit_url": args.cockpit_url,
+        "cockpit_url": cockpit_url,
+        "query": args.query,
+        "decision_author": args.operator_id,
+        "invocation": {
+            "repository_root": ".",
+            "cockpit_url": cockpit_url,
+            "registry": str(args.registry.resolve().relative_to(root)),
+            "registry_sha256": args.registry_sha256,
+            "expected_sha": args.expected_sha,
+            "collection": args.collection,
+            "query": args.query,
+            "student_mode": args.student_mode,
+        },
         "collection": args.collection,
         "scope_id": SCOPE_ID,
         "population": "BFF signed pilot scope: one collection; final 11 need direct API qualification",
@@ -282,6 +429,7 @@ def main() -> int:
     parser.add_argument("--expected-sha", required=True)
     parser.add_argument("--collection", default=NSI_COLLECTION)
     parser.add_argument("--query", default="Quel est le programme de spécialité NSI en terminale ?")
+    parser.add_argument("--operator-id", required=True)
     parser.add_argument("--student-mode", choices=("internal", "public"), required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()

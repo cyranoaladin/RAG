@@ -45,7 +45,8 @@ def test_teacher_requires_real_cited_content_bound_to_final_manifest():
     collection = "rag_nexus_maths_terminale_gen_specialite"
     result = harness.assess_positive(200, {"results": [hit(collection)]}, collection, {"b" * 64})
     assert result["results"] == 1
-    assert result["citations"] == 1
+    assert result["citation_count"] == 1
+    assert result["citations"][0]["source_label"] == "Document officiel"
     assert result["content_sha256"] == ["b" * 64]
 
 
@@ -53,7 +54,7 @@ def test_teacher_requires_real_cited_content_bound_to_final_manifest():
     ("mutation", "reason"),
     [
         ({"citation": None}, "citation"),
-        ({"citation": {"source_uri": "https://eduscol.education.fr/document.pdf", "source_label": "Document officiel", "rights": "officiel_public", "page": None}}, "citation"),
+        ({"citation": {"source_uri": "https://eduscol.education.fr/document.pdf", "source_label": "Document officiel", "rights": "official_public_administrative", "page": None}}, "citation"),
         ({"metadata": {"collection": "rag_nexus_maths_terminale_gen_specialite", "review_status": "reviewed", "content_sha256": None}}, "content"),
         ({"metadata": {"collection": "rag_nexus_maths_terminale_gen_specialite", "review_status": "reviewed", "content_sha256": "c" * 64}}, "content"),
         ({"doc_id": "d" * 64}, "content"),
@@ -96,6 +97,38 @@ def test_cross_scope_must_be_bff_403():
         harness.assess_cross_scope(200, {"results": []})
 
 
+def test_pilot_scope_must_match_the_complete_sealed_release_population():
+    harness = load_harness()
+    with pytest.raises(ValueError, match="scope.*release"):
+        harness.assert_scope_registry_parity(
+            {"rag_nexus_maths_terminale_gen_specialite", "rag_nexus_nsi_terminale_specialite"},
+            {"rag_nexus_nsi_terminale_specialite"},
+        )
+
+
+def test_cockpit_url_accepts_only_local_origin_without_credentials_or_query():
+    harness = load_harness()
+    assert harness.safe_cockpit_url("http://127.0.0.1:18004") == "http://127.0.0.1:18004"
+    for url in (
+        "https://example.invalid",
+        "http://user:secret@127.0.0.1:18004",
+        "http://127.0.0.1:18004/?token=secret",
+        "http://127.0.0.1:18004/path",
+    ):
+        with pytest.raises(ValueError, match="Cockpit URL"):
+            harness.safe_cockpit_url(url)
+    assert harness.RefuseRedirects().redirect_request(None, None, 302, "Found", {}, "https://elsewhere.invalid") is None
+
+
+def test_deployed_cockpit_must_report_exact_build_sha():
+    harness = load_harness()
+    sha = "a" * 40
+    assert harness.assess_runtime_identity(200, {"status": "ok", "build_sha": sha}, sha) == sha
+    for payload in ({"status": "ok"}, {"status": "ok", "build_sha": "b" * 40}):
+        with pytest.raises(ValueError, match="build"):
+            harness.assess_runtime_identity(200, payload, sha)
+
+
 def test_minted_session_must_have_expected_role_and_scope():
     harness = load_harness()
     claims = {
@@ -122,6 +155,40 @@ def test_release_index_is_bound_to_the_requested_collection():
         "rag_nexus_nsi_terminale_specialite",
     )
     assert len(contents) == 47
+
+
+def test_real_release_placement_and_citation_are_checked_together():
+    harness = load_harness()
+    collection = "rag_nexus_nsi_terminale_specialite"
+    registry = ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json"
+    evidence = harness.load_release_evidence(
+        registry,
+        "59db12e82dcbf6fc1b7581a2576d728860d8828de55d72c04e6ab51c77071ab6",
+        collection,
+    )
+    placement_id, sealed = next(iter(evidence.items()))
+    chunk_id, pages = next(iter(sealed["chunks"].items()))
+    candidate = hit(collection)
+    candidate["chunk_id"] = chunk_id
+    candidate["doc_id"] = sealed["content_sha256"]
+    candidate["metadata"].update({
+        "artifact_id": sealed["artifact_id"],
+        "content_sha256": sealed["content_sha256"],
+        "placement_id": placement_id,
+    })
+    candidate["citation"].update({
+        "source_uri": sealed["source_uri"],
+        "source_label": sealed["source_label"],
+        "page": pages[0],
+    })
+    allowed = {item["content_sha256"] for item in evidence.values()}
+    assert harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence)["results"] == 1
+    candidate["metadata"]["placement_id"] = "0" * 64
+    with pytest.raises(ValueError, match="placement"):
+        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence)
+    candidate["metadata"]["placement_id"] = placement_id
+    with pytest.raises(ValueError, match="public"):
+        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence, require_public=True)
 
 
 def test_final_release_does_not_contain_the_other_pilot_collection():
