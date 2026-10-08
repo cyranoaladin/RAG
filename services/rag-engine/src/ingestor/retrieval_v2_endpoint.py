@@ -96,7 +96,9 @@ try:
     )
     from .inference_runtime import BoundedInferenceEmbedder, BoundedInferenceReranker
     from .pg_pool import (
+        PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         execute_with_database_budget,
         pool_connection,
         remaining_database_budget_ms,
@@ -175,7 +177,9 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         BoundedInferenceReranker,
     )
     from pg_pool import (  # type: ignore[no-redef]
+        PoolConfigurationError,
         PoolSettings,
+        RuntimeBudgetExpired,
         execute_with_database_budget,
         pool_connection,
         remaining_database_budget_ms,
@@ -1430,6 +1434,20 @@ def _retrieval_unavailable() -> HTTPException:
     return HTTPException(status_code=503, detail="retrieval unavailable")
 
 
+def _bounded_retrieval_failure_cause(exc: BaseException) -> str:
+    """Conserver seulement un type de panne connu à travers les wrappers internes."""
+    current: BaseException | None = exc
+    for _ in range(4):
+        if current is None:
+            break
+        if isinstance(current, RuntimeBudgetExpired | TimeoutError):
+            return "timeout"
+        if isinstance(current, PoolConfigurationError):
+            return "pool_failure"
+        current = current.__cause__ or current.__context__
+    return "internal_error"
+
+
 def _retrieve_hybrid_hits(
     query: str,
     collection: str,
@@ -1462,8 +1480,13 @@ def _retrieve_hybrid_hits(
                 reranker=BoundedInferenceReranker(_get_reranker()),
                 diagnostics=diagnostics,
             )
-    except Exception:
-        logger.error("hybrid retrieval unavailable")
+    except Exception as exc:
+        cause = getattr(diagnostics, "failure_cause", None)
+        if cause is None:
+            cause = _bounded_retrieval_failure_cause(exc)
+        if diagnostics is not None:
+            diagnostics.failure_cause = cause
+        logger.error("hybrid retrieval unavailable", extra={"retrieval_cause": cause})
         raise _retrieval_unavailable() from None
 
 
@@ -2034,7 +2057,10 @@ class _AccessJournal:
         self.query: str | None = None
         self._emitted = False
 
-    def emit(self, *, status_code: int, outcome: str | None = None) -> None:
+    def emit(
+        self, *, status_code: int, outcome: str | None = None, cause: str | None = None,
+        empty: bool = False,
+    ) -> None:
         if self._emitted:
             return
         self._emitted = True
@@ -2046,6 +2072,8 @@ class _AccessJournal:
         if state is not None:
             try:
                 state.access_journaled = True
+                state.retrieval_failure_cause = cause
+                state.retrieval_empty_result = empty
             except Exception:  # pragma: no cover - état non inscriptible
                 pass
         # `unattributed` ne se voit pas accorder de portée : affirmer
@@ -2069,6 +2097,7 @@ class _AccessJournal:
                 ),
                 query_length=len(self.query) if self.query is not None else None,
                 outcome=outcome,
+                cause=cause,
             )
         )
 
@@ -2090,12 +2119,25 @@ def search_v2(payload: RetrievalRequest, request: Request) -> RetrievalResponse:
     try:
         response = _search_v2_served(payload, request, journal)
     except HTTPException as exc:
-        journal.emit(status_code=exc.status_code, outcome="refused")
+        cause = (
+            "scope_refusal" if exc.status_code == 403 else
+            "authentication" if exc.status_code == 401 else
+            "invalid_request" if exc.status_code in (400, 422) else
+            journal.diagnostics.failure_cause or "service_unavailable"
+            if exc.status_code == 503 else "internal_error"
+        )
+        journal.emit(status_code=exc.status_code, outcome="refused", cause=cause)
         raise
     except Exception:
-        journal.emit(status_code=500, outcome="unhandled")
+        journal.emit(status_code=500, outcome="unhandled", cause="internal_error")
         raise
-    journal.emit(status_code=200)
+    empty = not response.results
+    journal.emit(
+        status_code=200,
+        outcome="empty_valid_result" if empty else None,
+        cause="empty_valid_result" if empty else None,
+        empty=empty,
+    )
     return response
 
 
