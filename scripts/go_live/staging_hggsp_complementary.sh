@@ -601,7 +601,7 @@ etape_successor_independent_verification() {
 set -euo pipefail
 $(jeton_present)
 $(tirer "$PROBE_IMAGE")
-docker run --rm --network host --env-file "$REMOTE_READER_ENV" \\
+docker run --rm --network host --env-file "$REMOTE_READER_ENV" -e PYTHONPATH=/app \\
   -e NEXUS_GITHUB_TOKEN_FILE=/run/secrets/github-token \\
   -v "$REMOTE_GITHUB_TOKEN_FILE:/run/secrets/github-token:ro" \\
   -v "$REMOTE/repo:/repo:ro" -v "$RUN:/run-db" -w /app \\
