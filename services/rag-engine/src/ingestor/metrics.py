@@ -15,7 +15,9 @@
 #   * Metric helper functions MUST no-op when disabled.
 #
 # - Namespace guidance:
-#   * ``METRICS_NAMESPACE`` scopes all families (e.g. ``rag_*``).
+#   * ``METRICS_NAMESPACE`` scopes legacy ingest families (e.g. ``rag_*``).
+#   * Retrieval families keep their fixed ``retrieval_*`` names, shared with
+#     the operational alert rules and the go-live metric contract.
 #   * Counters/histograms should always pass ``registry=REGISTRY``.
 #
 # - Tests:

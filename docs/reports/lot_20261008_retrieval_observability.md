@@ -9,7 +9,7 @@ Compose v2 monte le répertoire des règles Prometheus en lecture seule et charg
 Vérifications effectuées le 8 octobre 2026 :
 
 - Red→Green : tests d'instrumentation, de pré-route 503, de résultat vide, de diagnostic ANN et de montage Compose.
-- Suite ciblée retrieval/runtime/Compose : verte (`test_pg_pool.py`, `test_retrieval_operational_metrics.py`, `test_retrieval_hybrid_v2.py`, `test_retrieval_pg_v2.py`, `test_search_v2_metadata_and_observability.py`, `test_v2_runtime_surface.py`, test du registre Compose v2). Les tests distinguent l'expiration du budget et `QueryCanceled` d'une panne de pool, conservent le timeout d'inférence masqué dans la chaîne d'exceptions, rejettent une cause privée dans le journal, et vérifient un seul journal sur l'échec pré-route.
+- Suite ciblée retrieval/runtime/Compose : **381 passed, 1 warning, exit 0** (`test_pg_pool.py`, `test_retrieval_operational_metrics.py`, `test_retrieval_hybrid_v2.py`, `test_retrieval_pg_v2.py`, `test_search_v2_metadata_and_observability.py`, `test_v2_runtime_surface.py`, test du registre Compose v2). Les tests distinguent l'expiration du budget et `QueryCanceled` d'une panne de pool, conservent le timeout d'inférence masqué dans la chaîne d'exceptions, rejettent une cause privée dans le journal, et vérifient un seul journal sur l'échec pré-route.
 - `ruff check .` et `git diff --check` : verts.
 - `docker compose -f infra/docker-compose.v2.yml config --no-interpolate --format json` : valide ; fichier de configuration et répertoire de règles montés en lecture seule.
 - `promtool check config` dans `prom/prometheus:v2.54.1` : configuration valide, un fichier de règles chargé, quatre règles trouvées.
@@ -18,7 +18,7 @@ Vérifications effectuées le 8 octobre 2026 :
 Commande de la suite ciblée depuis `services/rag-engine` :
 
 ```sh
-PYTHONPATH=src:../../packages/contracts/src:../../packages/release-chain/src:../../packages/pdf-page-policy/src python3 -m pytest -q tests/test_pg_pool.py tests/test_retrieval_operational_metrics.py tests/test_retrieval_hybrid_v2.py tests/test_retrieval_pg_v2.py tests/test_search_v2_metadata_and_observability.py tests/test_v2_runtime_surface.py tests/test_prod_compose_config_mount.py
+PYTHONPATH=src:../../packages/contracts/src:../../packages/release-chain/src:../../packages/pdf-page-policy/src python3 -m pytest -q -o addopts='' tests/test_pg_pool.py tests/test_retrieval_operational_metrics.py tests/test_retrieval_hybrid_v2.py tests/test_retrieval_pg_v2.py tests/test_search_v2_metadata_and_observability.py tests/test_v2_runtime_surface.py tests/test_prod_compose_config_mount.py
 ```
 
 Limites : ce lot n'a pas été déployé en staging ni en production ; aucune métrique ou alerte de runtime final ne peut être déclarée effectivement active. La qualification staging, la charge C0 et la vérification de l'API Prometheus doivent utiliser l'image finale déployée. Les vérifications locales complètes bloquées par l'environnement et les erreurs préexistantes de typage figurent dans le [registre des dettes](lot_20261008_retrieval_observability_dettes.md).
