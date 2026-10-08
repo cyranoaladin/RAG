@@ -13,13 +13,19 @@ second nombre ne doit pas être confondu avec la population physique.
 
 Chaque collection porte trois questions étudiantes fixées ici : une factuelle,
 une sans accents et une de notion. Chaque question déclare un `content_sha256`
-attendu issu d'un document de programme officiel placé dans le sujet scellé.
+attendu issu d'une **ressource thématique officielle** placée dans le sujet
+scellé, plutôt que d'un PDF générique de programme. La sélection s'appuie
+sur la correspondance entre le thème explicite de la ressource et la requête ;
+la revue pédagogique humaine et la mesure réelle restent nécessaires.
 L'acceptation HTTP vérifie chaque résultat (collection, contenu, chunk,
-placement, revue, URI, page de citation et droits) avant de compter le rappel
+placement, revue, URI, page de citation, cohérence du libellé et droits) avant de compter le rappel
 de la source attendue. La page de citation doit égaler `page_start` du chunk
 scellé ; `page_end` est vérifié dans l'oracle du manifeste, mais n'est pas un
-champ exposé par le contrat HTTP actuel. Le libellé de source, absent du
-manifeste, doit être non vide. Une réponse vide à une question positive échoue.
+champ exposé par le contrat HTTP actuel. La conformité de `page_end` en base
+devra donc être prouvée par une lecture DB ciblée distincte ; ce rapport HTTP
+ne peut pas prétendre la démontrer. Le libellé de source, absent du manifeste,
+doit être non vide et identique au titre renvoyé. Une réponse vide à une
+question positive échoue.
 
 Pour chaque collection, la même requête hors corpus sur un filtre à huile de
 tracteur exige une réponse HTTP 200 avec **zéro résultat**. Elle peut révéler
@@ -35,8 +41,9 @@ Seuils fixés **avant mesure** : 33/33 questions positives non vides ; au moins
 collection ; 11/11 réponses hors corpus vides ; 11/11 refus étudiant ; 11/11
 refus de scope croisé ; zéro résultat hors scope ; zéro citation absente.
 La sonde canonique `staging_retrieval_probe.py` doit couvrir les 11 scopes et
-12 316 visites, et rapporter séparément chaque refus `dense ann tie overflow`
-constaté à la source. Aucun ajustement du classement, du reranking, du nombre
+12 316 visites, chaque population exacte par scope et **zéro manque dense** ;
+elle rapporte séparément chaque refus `dense ann tie overflow` constaté à la
+source. Aucun ajustement du classement, du reranking, du nombre
 de candidats ou des paramètres HNSW n'est inclus dans ce lot.
 
 Exécution, **après** publication V5 74/74 et sonde dense finale, depuis le
@@ -59,11 +66,13 @@ L'API de transport est `rag_query_external.post_search`, avec trois
 credentials distincts. Le rapport n'inclut aucun jeton ou secret.
 Sur staging, le runner peut lire `COCKPIT_STAGING_API_KEY` si `RAG_API_KEY`
 est absent. Dans l'image runtime dépourvue de Git, le SHA de checkout
-précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` ; si
-Git est présent, une divergence avec cette valeur bloque la recette.
+précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` avec
+`NEXUS_ACCEPTANCE_CHECKOUT_CLEAN=true` après contrôle `git status` de l'hôte ;
+si Git est présent, le runner vérifie lui-même la propreté et toute divergence
+du SHA bloque la recette.
 
-Préparation vérifiée localement le 2026-10-08 sur `ee35544b` : 50 tests ciblés
-de la suite, des clients HTTP et de l'émetteur étudiant, puis 5 tests de
-refus `dense ann tie overflow`, ont réussi dans un venv propre lié à ce
-worktree. Cette vérification synthétique ne vaut
+Préparation vérifiée localement le 2026-10-08 dans un venv propre lié à ce
+worktree : tests de la suite, des clients HTTP et de l'émetteur étudiant,
+ainsi que les tests de refus `dense ann tie overflow`. Cette vérification
+synthétique ne vaut
 pas mesure du staging final et ne produit pas `QUALITY_PASS=true`.

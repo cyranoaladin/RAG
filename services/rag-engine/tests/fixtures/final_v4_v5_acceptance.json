@@ -4,21 +4,21 @@
       "positive": [
         {
           "collection": "rag_nexus_dgemc_terminale_option",
-          "expected_content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+          "expected_content_sha256": "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
           "id": "factual",
-          "query": "Quelle différence entre un règlement européen et une directive européenne ?"
+          "query": "Comment la Constitution du 4 octobre 1958 répartit-elle les pouvoirs publics ?"
         },
         {
           "collection": "rag_nexus_dgemc_terminale_option",
-          "expected_content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+          "expected_content_sha256": "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
           "id": "no_accent",
-          "query": "difference entre reglement europeen et directive europeenne"
+          "query": "constitution de 1958 souverainete et pouvoirs publics"
         },
         {
           "collection": "rag_nexus_dgemc_terminale_option",
-          "expected_content_sha256": "e591a87aee633ca3b2593e2d4fd5b183e518ebe0f9d4861e4cdfe0f494f39439",
+          "expected_content_sha256": "45ccb2812bc44c55cc2e8d670ceba82ecc5875efeb1109142edb1c3f12000e5d",
           "id": "notion",
-          "query": "Qu'est-ce qu'une norme juridique dans l'Union européenne ?"
+          "query": "Que signifie la souveraineté nationale dans la Constitution de 1958 ?"
         }
       ],
       "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
@@ -32,21 +32,21 @@
       "positive": [
         {
           "collection": "rag_nexus_hggsp_premiere_specialite",
-          "expected_content_sha256": "4eac6d80fabcfe1fc56d01d97fcf399c251501eab9034176b6c2eb316c434919",
+          "expected_content_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5",
           "id": "factual",
-          "query": "Comment les États exercent-ils leur puissance dans le monde ?"
+          "query": "Comment analyser les dynamiques des puissances internationales ?"
         },
         {
           "collection": "rag_nexus_hggsp_premiere_specialite",
-          "expected_content_sha256": "4eac6d80fabcfe1fc56d01d97fcf399c251501eab9034176b6c2eb316c434919",
+          "expected_content_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5",
           "id": "no_accent",
-          "query": "comment les etats exercent leur puissance dans le monde"
+          "query": "dynamiques des puissances internationales"
         },
         {
           "collection": "rag_nexus_hggsp_premiere_specialite",
-          "expected_content_sha256": "4eac6d80fabcfe1fc56d01d97fcf399c251501eab9034176b6c2eb316c434919",
+          "expected_content_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5",
           "id": "notion",
-          "query": "Quels sont les fondements de la puissance d'un État ?"
+          "query": "Quels critères permettent d'évaluer la puissance d'un État ?"
         }
       ],
       "programme_version": "BOEN_special_1_2019-01-22",
@@ -60,21 +60,21 @@
       "positive": [
         {
           "collection": "rag_nexus_hggsp_terminale_specialite",
-          "expected_content_sha256": "5139f5575b64ae7542dd7b52e191cdf2e9d0ada74a4214fd86a3587fbfd2f0c0",
+          "expected_content_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf",
           "id": "factual",
-          "query": "Comment les guerres façonnent-elles la mémoire collective ?"
+          "query": "Quelles formes prennent les conflits armés contemporains ?"
         },
         {
           "collection": "rag_nexus_hggsp_terminale_specialite",
-          "expected_content_sha256": "5139f5575b64ae7542dd7b52e191cdf2e9d0ada74a4214fd86a3587fbfd2f0c0",
+          "expected_content_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf",
           "id": "no_accent",
-          "query": "guerres et memoire collective"
+          "query": "faire la guerre faire la paix formes de conflits"
         },
         {
           "collection": "rag_nexus_hggsp_terminale_specialite",
-          "expected_content_sha256": "5139f5575b64ae7542dd7b52e191cdf2e9d0ada74a4214fd86a3587fbfd2f0c0",
+          "expected_content_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf",
           "id": "notion",
-          "query": "Pourquoi l'environnement est-il un enjeu géopolitique ?"
+          "query": "Quels modes de résolution permettent de construire la paix ?"
         }
       ],
       "programme_version": "BOEN_special_8_2019-07-25",
@@ -88,21 +88,21 @@
       "positive": [
         {
           "collection": "rag_nexus_hlp_premiere_specialite",
-          "expected_content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+          "expected_content_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
           "id": "factual",
-          "query": "Comment la parole permet-elle de convaincre ?"
+          "query": "Comment la rhétorique aide-t-elle à convaincre un auditoire ?"
         },
         {
           "collection": "rag_nexus_hlp_premiere_specialite",
-          "expected_content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+          "expected_content_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
           "id": "no_accent",
-          "query": "parole argumentation convaincre"
+          "query": "rhetorique jeux et enjeux de la parole"
         },
         {
           "collection": "rag_nexus_hlp_premiere_specialite",
-          "expected_content_sha256": "b88b5c685ec05d44b0c22d64f491443759fc0f544fe9ad33e626fb6cc29bf65a",
+          "expected_content_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e",
           "id": "notion",
-          "query": "Quels usages du langage étudie-t-on en HLP ?"
+          "query": "Quelle différence entre persuader et convaincre ?"
         }
       ],
       "programme_version": "BOEN_special_1_2019-01-22",
@@ -116,21 +116,21 @@
       "positive": [
         {
           "collection": "rag_nexus_hlp_terminale_specialite",
-          "expected_content_sha256": "2932dd2349bffba126e8764f788e28489d712524e38593062a424b073b96114f",
+          "expected_content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
           "id": "factual",
-          "query": "Comment réfléchir à la condition humaine ?"
+          "query": "Comment Hannah Arendt décrit-elle la condition de l'homme moderne ?"
         },
         {
           "collection": "rag_nexus_hlp_terminale_specialite",
-          "expected_content_sha256": "2932dd2349bffba126e8764f788e28489d712524e38593062a424b073b96114f",
+          "expected_content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
           "id": "no_accent",
-          "query": "condition humaine philosophie"
+          "query": "condition de l homme moderne Hannah Arendt"
         },
         {
           "collection": "rag_nexus_hlp_terminale_specialite",
-          "expected_content_sha256": "2932dd2349bffba126e8764f788e28489d712524e38593062a424b073b96114f",
+          "expected_content_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b",
           "id": "notion",
-          "query": "Quels liens entre la technique et l'humanité ?"
+          "query": "Que signifie le travail chez Hannah Arendt ?"
         }
       ],
       "programme_version": "BOEN_special_8_2019-07-25",
@@ -144,21 +144,21 @@
       "positive": [
         {
           "collection": "rag_nexus_nsi_premiere_specialite",
-          "expected_content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+          "expected_content_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
           "id": "factual",
-          "query": "Comment un algorithme utilise-t-il des dictionnaires ?"
+          "query": "Comment accéder à une valeur associée à une clé dans un dictionnaire Python ?"
         },
         {
           "collection": "rag_nexus_nsi_premiere_specialite",
-          "expected_content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+          "expected_content_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
           "id": "no_accent",
-          "query": "algorithme dictionnaires python"
+          "query": "p uplets nommes et dictionnaires python"
         },
         {
           "collection": "rag_nexus_nsi_premiere_specialite",
-          "expected_content_sha256": "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+          "expected_content_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
           "id": "notion",
-          "query": "Quelles structures de données étudie-t-on en première NSI ?"
+          "query": "Quelle différence entre un p-uplet nommé et un dictionnaire ?"
         }
       ],
       "programme_version": "BOEN_special_1_2019-01-22",
@@ -172,21 +172,21 @@
       "positive": [
         {
           "collection": "rag_nexus_nsi_terminale_specialite",
-          "expected_content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+          "expected_content_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3",
           "id": "factual",
-          "query": "Comment une base de données relationnelle stocke-t-elle des informations ?"
+          "query": "Comment représenter un graphe par une liste d'adjacence ?"
         },
         {
           "collection": "rag_nexus_nsi_terminale_specialite",
-          "expected_content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+          "expected_content_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3",
           "id": "no_accent",
-          "query": "bases de donnees relationnelles sql"
+          "query": "graphe sommets aretes liste d adjacence"
         },
         {
           "collection": "rag_nexus_nsi_terminale_specialite",
-          "expected_content_sha256": "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+          "expected_content_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3",
           "id": "notion",
-          "query": "Que signifie manipuler des données avec SQL ?"
+          "query": "Quelle différence entre un graphe orienté et un graphe non orienté ?"
         }
       ],
       "programme_version": "BOEN_special_8_2019-07-25",
@@ -200,21 +200,21 @@
       "positive": [
         {
           "collection": "rag_nexus_ses_premiere_specialite",
-          "expected_content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+          "expected_content_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14",
           "id": "factual",
-          "query": "Comment fonctionne un marché concurrentiel ?"
+          "query": "Comment le prix se forme-t-il sur un marché concurrentiel ?"
         },
         {
           "collection": "rag_nexus_ses_premiere_specialite",
-          "expected_content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+          "expected_content_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14",
           "id": "no_accent",
-          "query": "fonctionnement marche concurrentiel"
+          "query": "prix offre demande marche concurrentiel"
         },
         {
           "collection": "rag_nexus_ses_premiere_specialite",
-          "expected_content_sha256": "06e491d369c5164d9f746176edeef45363cef53d3de2d5fb55153e6e96f98f2e",
+          "expected_content_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14",
           "id": "notion",
-          "query": "Pourquoi dit-on que le marché est une institution ?"
+          "query": "Qu'est-ce que l'équilibre concurrentiel ?"
         }
       ],
       "programme_version": "BOEN_special_1_2019-01-22",
@@ -228,21 +228,21 @@
       "positive": [
         {
           "collection": "rag_nexus_ses_terminale_specialite",
-          "expected_content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+          "expected_content_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92",
           "id": "factual",
-          "query": "Quelles sont les causes du chômage ?"
+          "query": "Quelles politiques permettent de lutter contre le chômage ?"
         },
         {
           "collection": "rag_nexus_ses_terminale_specialite",
-          "expected_content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+          "expected_content_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92",
           "id": "no_accent",
-          "query": "causes du chomage"
+          "query": "politiques de lutte contre le chomage"
         },
         {
           "collection": "rag_nexus_ses_terminale_specialite",
-          "expected_content_sha256": "2f1035c74db485d12e80d7c887cb9090807be32e5f79a6074d2decb1073ec154",
+          "expected_content_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92",
           "id": "notion",
-          "query": "Comment distinguer emploi, chômage et inactivité ?"
+          "query": "Quelle différence entre chômage conjoncturel et structurel ?"
         }
       ],
       "programme_version": "BOEN_special_8_2019-07-25",
@@ -256,21 +256,21 @@
       "positive": [
         {
           "collection": "rag_nexus_svt_premiere_specialite",
-          "expected_content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+          "expected_content_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31",
           "id": "factual",
-          "query": "Comment les mutations modifient-elles le patrimoine génétique ?"
+          "query": "Comment une mutation de l'ADN peut-elle modifier une protéine ?"
         },
         {
           "collection": "rag_nexus_svt_premiere_specialite",
-          "expected_content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+          "expected_content_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31",
           "id": "no_accent",
-          "query": "mutations patrimoine genetique"
+          "query": "mutation adn proteine information genetique"
         },
         {
           "collection": "rag_nexus_svt_premiere_specialite",
-          "expected_content_sha256": "8eb0e41f95bf4aca37e6231c06109579faf6bf410d6bd2bc210574e66e2762fa",
+          "expected_content_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31",
           "id": "notion",
-          "query": "Quel rôle joue un agent mutagène dans les cancers ?"
+          "query": "Comment l'information génétique se transmet-elle lors de la division cellulaire ?"
         }
       ],
       "programme_version": "BOEN_special_1_2019-01-22",
@@ -284,21 +284,21 @@
       "positive": [
         {
           "collection": "rag_nexus_svt_terminale_specialite",
-          "expected_content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+          "expected_content_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5",
           "id": "factual",
-          "query": "Comment fonctionne la réponse immunitaire ?"
+          "query": "Comment la sélection humaine a-t-elle transformé les plantes cultivées ?"
         },
         {
           "collection": "rag_nexus_svt_terminale_specialite",
-          "expected_content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+          "expected_content_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5",
           "id": "no_accent",
-          "query": "reponse immunitaire"
+          "query": "de la plante sauvage a la plante domestiquee"
         },
         {
           "collection": "rag_nexus_svt_terminale_specialite",
-          "expected_content_sha256": "d2cbd06f2e8099d9080f17f3abb5b0fc90460b86b3c11f808b99daa01f77f897",
+          "expected_content_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5",
           "id": "notion",
-          "query": "Comment l'organisme réagit-il à un agent pathogène ?"
+          "query": "Qu'est-ce que la domestication des plantes ?"
         }
       ],
       "programme_version": "BOEN_special_8_2019-07-25",
@@ -324,6 +324,7 @@
   },
   "schema_version": 1,
   "thresholds": {
+    "dense_misses": 0,
     "expected_source_hits_min": 26,
     "expected_source_hits_per_collection_min": 2,
     "missing_citations": 0,

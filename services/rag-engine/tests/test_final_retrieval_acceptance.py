@@ -33,6 +33,7 @@ def _response(case, index, *, citation=True, collection=None, content=None, chun
     result = RetrievalResult(
         chunk_id=chosen,
         doc_id=content or expected,
+        title=artifact["title"],
         excerpt="Les règlements et directives de l'Union européenne sont des normes juridiques.",
         score=0.9,
         metadata={
@@ -61,6 +62,17 @@ def test_dataset_is_bound_to_exact_mixed_registry_and_11_subjects():
     assert suite["expected_population"] == {
         "collections": 11, "artifacts": 315, "placements": 479, "chunks": 8268
     }
+    assert suite["thresholds"]["dense_misses"] == 0
+
+
+def test_expected_sources_are_topic_resources_not_generic_programmes():
+    suite, index, _case = _case_and_index()
+    for collection, spec in suite["collections"].items():
+        for case in spec["positive"]:
+            title = index[collection][case["expected_content_sha256"]]["title"].lower()
+            assert "programme de " not in title
+            assert "bo spécial" not in title
+            assert "bo special" not in title
 
 
 def test_population_mismatch_refused():
@@ -105,6 +117,14 @@ def test_missing_citation_refused_even_when_expected_source_found():
     _suite, index, case = _case_and_index()
     with pytest.raises(acceptance.AcceptanceFailure, match="citation"):
         acceptance.check_positive(case, _response(case, index, citation=False), index)
+
+
+def test_citation_label_must_match_result_title():
+    _suite, index, case = _case_and_index()
+    response = _response(case, index)
+    response.results[0].title = "Autre source"
+    with pytest.raises(acceptance.AcceptanceFailure, match="citation"):
+        acceptance.check_positive(case, response, index)
 
 
 def test_out_of_scope_result_refused():
@@ -160,7 +180,9 @@ def test_dense_probe_requires_all_chunks_and_reports_tie_overflow():
     probe = {
         "release_id": "mixed-v4-hggsp",
         "collections": {
-            name: {"chunks": count, "rappel_a_1": count - 1,
+            name: {"scope_id": suite["collections"][name]["scope_id"],
+                   "programme_version": suite["collections"][name]["programme_version"],
+                   "chunks": count, "rappel_a_1": count - 1,
                    "rappel_a_5": count - 1,
                    "manques": 0, "refus_egalite": 1, "lexicaux": 1,
                    "student": "refuse"}
@@ -169,10 +191,69 @@ def test_dense_probe_requires_all_chunks_and_reports_tie_overflow():
         "totaux": {"chunks": 12316, "rappel_a_1": 12305,
                    "rappel_a_5": 12305, "manques": 0, "refus_egalite": 11},
     }
-    assert acceptance.check_dense_probe(probe, suite) == 11
+    assert acceptance.check_dense_probe(probe, suite, index) == 11
     probe["totaux"]["chunks"] = 12315
     with pytest.raises(acceptance.AcceptanceFailure, match="dense"):
-        acceptance.check_dense_probe(probe, suite)
+        acceptance.check_dense_probe(probe, suite, index)
+
+
+def test_dense_probe_rejects_wrong_scope_and_swapped_collection_counts():
+    suite, index, _case = _case_and_index()
+    counts = {name: len({chunk for artifact in selected.values() for chunk in artifact["chunks"]})
+              for name, selected in index.items()}
+    probe = {
+        "release_id": "mixed-v4-hggsp",
+        "collections": {
+            name: {"scope_id": suite["collections"][name]["scope_id"],
+                   "programme_version": suite["collections"][name]["programme_version"],
+                   "chunks": count, "rappel_a_1": count, "rappel_a_5": count,
+                   "manques": 0, "refus_egalite": 0, "student": "refuse"}
+            for name, count in counts.items()
+        },
+        "totaux": {"chunks": 12316, "rappel_a_1": 12316, "rappel_a_5": 12316,
+                   "manques": 0, "refus_egalite": 0},
+    }
+    wrong_scope = copy.deepcopy(probe)
+    first, second = list(counts)[:2]
+    wrong_scope["collections"][first]["scope_id"] = suite["collections"][second]["scope_id"]
+    with pytest.raises(acceptance.AcceptanceFailure, match="scope"):
+        acceptance.check_dense_probe(wrong_scope, suite, index)
+    swapped = copy.deepcopy(probe)
+    for field in ("chunks", "rappel_a_1", "rappel_a_5"):
+        swapped["collections"][first][field], swapped["collections"][second][field] = (
+            swapped["collections"][second][field], swapped["collections"][first][field]
+        )
+    with pytest.raises(acceptance.AcceptanceFailure, match="population"):
+        acceptance.check_dense_probe(swapped, suite, index)
+
+
+@pytest.mark.parametrize("field,value", [("rappel_a_1", -1), ("manques", 1)])
+def test_dense_probe_rejects_negative_or_missing_recall(field, value):
+    suite, index, _case = _case_and_index()
+    counts = {name: len({chunk for artifact in selected.values() for chunk in artifact["chunks"]})
+              for name, selected in index.items()}
+    probe = {
+        "release_id": "mixed-v4-hggsp",
+        "collections": {
+            name: {"scope_id": suite["collections"][name]["scope_id"],
+                   "programme_version": suite["collections"][name]["programme_version"],
+                   "chunks": count, "rappel_a_1": count, "rappel_a_5": count,
+                   "manques": 0, "refus_egalite": 0, "student": "refuse"}
+            for name, count in counts.items()
+        },
+        "totaux": {"chunks": 12316, "rappel_a_1": 12316, "rappel_a_5": 12316,
+                   "manques": 0, "refus_egalite": 0},
+    }
+    name = next(iter(counts))
+    probe["collections"][name][field] = value
+    if field == "rappel_a_1":
+        probe["totaux"]["rappel_a_1"] -= counts[name] + 1
+    else:
+        probe["collections"][name]["rappel_a_5"] -= 1
+        probe["totaux"]["rappel_a_5"] -= 1
+        probe["totaux"]["manques"] = 1
+    with pytest.raises(acceptance.AcceptanceFailure, match="dense"):
+        acceptance.check_dense_probe(probe, suite, index)
 
 
 @pytest.mark.parametrize("missing_first", [False, True])
@@ -181,6 +262,7 @@ def test_http_runner_covers_33_positives_and_refusals(monkeypatch, missing_first
     import rag_query_external
 
     suite, index, _case = _case_and_index()
+    monkeypatch.setattr(acceptance, "_git_head", lambda _root: "e" * 40)
     monkeypatch.delenv("RAG_API_KEY", raising=False)
     monkeypatch.delenv("COCKPIT_STAGING_API_KEY", raising=False)
     for key, value in {
@@ -197,17 +279,35 @@ def test_http_runner_covers_33_positives_and_refusals(monkeypatch, missing_first
     seen: list[str] = []
 
     def fake_search(payload, *, config):
+        from nexus_contracts import load_retrieval_scope_artifact
+        from rag_query_external import build_request
+
         call = len(seen)
         collection = names[call // 6]
         phase = call % 6
         seen.append(payload.need.query)
+        body = config.identity_token.split(".")[1]
+        token = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        assert token["scope_id"] == suite["collections"][collection]["scope_id"]
         if phase < 3:
+            assert token["identity"]["role"] == "teacher"
             case = suite["collections"][collection]["positive"][phase]
             assert payload.need.query == case["query"]
             return _response(case, index, citation=not (missing_first and call == 0))
         if phase == 3:
+            assert token["identity"]["role"] == "teacher"
             assert payload.need.query == suite["collections"][collection]["zero_result_query"]
             return RetrievalResponse(results=[])
+        if phase == 4:
+            assert token["identity"]["role"] == "student"
+            assert payload.need.query == suite["collections"][collection]["positive"][0]["query"]
+        else:
+            assert token["identity"]["role"] == "teacher"
+            other = suite["collections"][names[(call // 6 + 1) % len(names)]]
+            expected = build_request(
+                "Quels thèmes sont étudiés ?", load_retrieval_scope_artifact(other["scope_id"])
+            )
+            assert payload == expected
         raise rag_query_external.RagQueryExternalClientError("API HTTP 403")
 
     monkeypatch.setattr(rag_query_external, "post_search", fake_search)
@@ -219,11 +319,35 @@ def test_http_runner_covers_33_positives_and_refusals(monkeypatch, missing_first
     assert report["totals"]["zero_result_pass"] == 11
     assert report["totals"]["student_refusals"] == 11
     assert report["totals"]["scope_mismatch_refusals"] == 11
+    assert report["page_end_evidence"] == "manifest_only_db_check_required"
+    assert report["http_path"] == "direct_api_v2"
     assert len(seen) == 66
 
 
 def test_checkout_sha_is_explicit_in_runtime_image_without_git(monkeypatch):
     sha = "e" * 40
     monkeypatch.setenv("NEXUS_ACCEPTANCE_CHECKOUT_SHA", sha)
+    monkeypatch.setenv("NEXUS_ACCEPTANCE_CHECKOUT_CLEAN", "true")
     monkeypatch.setenv("PATH", "")
     assert acceptance._git_head(ROOT) == sha
+
+
+def test_runtime_without_git_refuses_missing_clean_checkout_attestation(monkeypatch):
+    monkeypatch.setenv("NEXUS_ACCEPTANCE_CHECKOUT_SHA", "e" * 40)
+    monkeypatch.delenv("NEXUS_ACCEPTANCE_CHECKOUT_CLEAN", raising=False)
+    monkeypatch.setenv("PATH", "")
+    with pytest.raises(acceptance.AcceptanceFailure, match="propre"):
+        acceptance._git_head(ROOT)
+
+
+def test_git_checkout_refuses_tracked_modifications(monkeypatch):
+    import subprocess
+
+    monkeypatch.delenv("NEXUS_ACCEPTANCE_CHECKOUT_SHA", raising=False)
+    def fake_check_output(command, **kwargs):
+        if "status" in command:
+            return " M scripts/go_live/final_retrieval_acceptance.py\n"
+        return "e" * 40
+    monkeypatch.setattr(subprocess, "check_output", fake_check_output)
+    with pytest.raises(acceptance.AcceptanceFailure, match="propre"):
+        acceptance._git_head(ROOT)

@@ -69,6 +69,7 @@ def validate_suite(
         raise AcceptanceFailure("la suite doit couvrir exactement 11 collections")
     thresholds = suite.get("thresholds", {})
     if thresholds != {
+        "dense_misses": 0,
         "positive_nonempty": 33,
         "expected_source_hits_min": 26,
         "expected_source_hits_per_collection_min": 2,
@@ -198,6 +199,7 @@ def check_positive(
             raise AcceptanceFailure(f"{collection} : chunk ou pages hors manifeste")
         citation = result.citation
         if (citation is None or not citation.source_label.strip()
+                or result.title != citation.source_label
                 or citation.source_uri != artifact["source_url"]
                 or citation.page != locator["page_start"]
                 or citation.rights != "officiel_public"):
@@ -211,7 +213,10 @@ def check_zero_result(response: RetrievalResponse) -> None:
         raise AcceptanceFailure("requête hors corpus : zéro résultat exigé")
 
 
-def check_dense_probe(probe: dict[str, Any], suite: dict[str, Any]) -> int:
+def check_dense_probe(
+    probe: dict[str, Any], suite: dict[str, Any],
+    index: dict[str, dict[str, dict[str, Any]]],
+) -> int:
     """Réconcilier la sonde exhaustive qui constate les refus ANN à la source."""
     collections = probe.get("collections", {})
     totals = probe.get("totaux", {})
@@ -221,14 +226,23 @@ def check_dense_probe(probe: dict[str, Any], suite: dict[str, Any]) -> int:
         raise AcceptanceFailure("sonde dense : population ou release divergente")
     for name, row in collections.items():
         chunks = row.get("chunks")
+        first = row.get("rappel_a_1")
         found = row.get("rappel_a_5")
         missed = row.get("manques")
         overflow = row.get("refus_egalite")
+        expected_chunks = len({
+            chunk_id for artifact in index[name].values() for chunk_id in artifact["chunks"]
+        })
         if (not all(isinstance(value, int) and not isinstance(value, bool)
-                    for value in (chunks, found, missed, overflow))
-                or chunks <= 0 or found + missed + overflow != chunks
+                    for value in (chunks, first, found, missed, overflow))
+                or min(chunks, first, found, missed, overflow) < 0
+                or chunks != expected_chunks or first > found or found > chunks
+                or missed != suite["thresholds"]["dense_misses"]
+                or found + missed + overflow != chunks
+                or row.get("scope_id") != suite["collections"][name]["scope_id"]
+                or row.get("programme_version") != suite["collections"][name]["programme_version"]
                 or row.get("student") != "refuse"):
-            raise AcceptanceFailure(f"sonde dense incohérente : {name}")
+            raise AcceptanceFailure(f"sonde dense : scope, population ou rappel incohérent : {name}")
     for key in ("chunks", "rappel_a_1", "rappel_a_5", "manques", "refus_egalite"):
         if totals.get(key) != sum(row.get(key, 0) for row in collections.values()):
             raise AcceptanceFailure(f"sonde dense : total {key} divergent")
@@ -349,6 +363,8 @@ def run_http(
         and all(row["verdict"] != "fail" for row in rows)
     )
     return {"schema_version": 1, "checkout_sha": _git_head(root),
+            "http_path": "direct_api_v2",
+            "page_end_evidence": "manifest_only_db_check_required",
             "suite_sha256": _sha256(root / SUITE),
             "mixed_registry_sha256": suite["mixed_registry_sha256"],
             "release_manifest_sha256": suite["release_manifest_sha256"],
@@ -370,11 +386,17 @@ def _git_head(root: Path) -> str:
             stderr=subprocess.DEVNULL,
         ).strip()
     except (FileNotFoundError, subprocess.CalledProcessError):
-        if expected:
+        if expected and os.environ.get("NEXUS_ACCEPTANCE_CHECKOUT_CLEAN") == "true":
             return expected  # image runtime sans git ; SHA précontrôlé par l'hôte.
-        raise AcceptanceFailure("SHA du checkout indisponible") from None
+        raise AcceptanceFailure("SHA ou attestation de checkout propre indisponible") from None
     if expected and expected != actual:
         raise AcceptanceFailure("SHA du checkout divergent")
+    status = subprocess.check_output(
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=all"],
+        text=True, stderr=subprocess.DEVNULL,
+    )
+    if status:
+        raise AcceptanceFailure("checkout non propre")
     return actual
 
 
@@ -388,7 +410,7 @@ def main() -> int:
     try:
         suite, index = load_suite(args.repository_root)
         dense_report = _read_json(args.dense_probe_report)
-        overflow_count = check_dense_probe(dense_report, suite)
+        overflow_count = check_dense_probe(dense_report, suite, index)
         report = run_http(args.repository_root, suite, index, api_url=args.api_url)
         report["dense_probe_sha256"] = _sha256(args.dense_probe_report)
         report["dense_tie_overflow_count"] = overflow_count
