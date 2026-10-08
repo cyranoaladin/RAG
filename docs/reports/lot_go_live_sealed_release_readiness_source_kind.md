@@ -2,13 +2,51 @@
 
 ## Défaillance observée
 
-Sur le staging V4/V5, la base contient les 315 artefacts publiés et le
-validateur de démarrage signale `wrong_artifact_metadata` pour chacune des 11
-collections. La comparaison des champs sur un artefact DGEMC montre que seul
-`source_kind` diverge : le produit porte `sealed_release` alors que le
-validateur attend le nom d'hôte de `source_url`. Le runtime refuse alors de
-démarrer (`release database reconciliation unavailable`). Aucun manifeste ni
-enregistrement produit n'est modifié par ce lot.
+**LIVE — instantané du 2026-10-08 à 12:16:24 UTC, pas état durable.** Une
+lecture directe de `nexus-staging-pgvector-1`, base dédiée
+`ragdb_profile_gate_v4`, rôle `raguser`, dans une transaction `READ ONLY`,
+donne 315 artefacts, tous avec `source_kind=sealed_release`, aucun avec
+`source_kind=source_label`, et 315 dont `source_label` égale l'hôte de
+`source_uri`. Les 315 portent aussi `rights=officiel_public` et
+`official=true`. La même base a 11 collections et 479 placements. La
+commande de lecture, sans valeur de secret, est :
+
+```sh
+ssh -o ProxyJump=none -o BatchMode=yes nexus-prod \
+  'date -u +%Y-%m-%dT%H:%M:%SZ; docker exec -i nexus-staging-pgvector-1 sh -c '\''exec psql -X -v ON_ERROR_STOP=1 -At -F "|" -U "$POSTGRES_USER" -d ragdb_profile_gate_v4'\''' <<'SQL'
+BEGIN READ ONLY;
+SELECT current_database(), current_user, current_setting('transaction_read_only');
+SELECT count(*) AS artifacts_total,
+       count(*) FILTER (WHERE source_kind = 'sealed_release') AS sealed_release_kind,
+       count(*) FILTER (WHERE source_kind = source_label) AS kind_equals_label,
+       count(*) FILTER (WHERE source_label = substring(source_uri from '^https?://([^/:?#]+)')) AS label_equals_uri_host,
+       count(*) FILTER (WHERE rights = 'officiel_public') AS public_official_rights,
+       count(*) FILTER (WHERE official IS TRUE) AS official_true
+FROM public.rag_artifacts;
+SELECT count(DISTINCT collection) AS collections_total,
+       count(*) AS placements_total
+FROM public.rag_artifact_placements;
+COMMIT;
+SQL
+```
+
+Sortie expurgée :
+
+```text
+2026-10-08T12:16:24Z
+BEGIN
+ragdb_profile_gate_v4|raguser|on
+315|315|0|315|315|315
+11|479
+COMMIT
+```
+
+Lors de la tentative de démarrage API précédente, le validateur avait
+signalé `wrong_artifact_metadata` dans chacune des 11 collections, puis
+`release database reconciliation unavailable`. Ce journal de tentative
+est un **diagnostic daté**, pas un état de service courant. Le rapprochement
+avec le code d'attribution ci-dessous explique le champ divergent ; ce lot
+ne change aucun manifeste ni enregistrement produit.
 
 ## Cause et correction
 
@@ -32,20 +70,35 @@ verrous de gouvernance, du schéma, des manifestes ou des données.
 
 ## Vérification locale
 
-- Deux tests de régression V2 ont échoué avant correction dans les deux sens
-  (`sealed_release` refusé et domaine accepté), puis réussi après correction.
-- La fixture V2 de partage d'artefact reflète maintenant l'attribution que
-  le worker publie ; son test reste vert.
-- `tests/test_release_readiness.py` : 192 réussites, 0 échec, avec les sources
-  de ce worktree explicitement placées dans `PYTHONPATH`.
-- `tests/test_h2f_artifact_attribution.py`,
-  `tests/test_sealed_release_attribution.py` et
-  `tests/test_publication_resume.py` : 55 réussites, 0 échec.
-- Ruff sur les deux fichiers Python modifiés et `git diff --check` : verts.
-- Venv isolé de ce worktree : les 16 tests ciblés de réconciliation et de
-  dérive passent. Le reste de la suite a été exécuté avec les dépendances
-  système et les sources du worktree épinglées par `PYTHONPATH` ; la CI de la
-  PR reste le contrôle complet.
+**SEALED — code testé :** commit
+`c71bb4aafabd6432c7c383788cdd4a29ee129858`, tree
+`2931cac8caf13e04b340b0a0aa7fc67076473505`, basé sur
+`96f7506af14847c8084f07ed597995e029f5c63d`. La modification ultérieure
+de ce rapport ne touche aucun fichier Python. Les commandes ont été lancées
+depuis ce worktree, avec les sources de ses propres packages en tête de
+`PYTHONPATH` :
+
+```sh
+cd services/rag-engine
+PYTHONPATH=src:../../packages/contracts/src:../../packages/release-chain/src:../../packages/pdf-page-policy/src python3 -m pytest -q tests/test_release_readiness.py tests/test_h2f_artifact_attribution.py tests/test_sealed_release_attribution.py tests/test_publication_resume.py --tb=short
+# Exit 0 : 247/247 cas collectés, 0 échec (192 readiness + 55 attribution/publication).
+
+cd ../..
+PYTHONPATH=packages/contracts/src:packages/release-chain/src:packages/pdf-page-policy/src python3 -m pytest -q packages/release-chain/tests --tb=short
+# Exit 0 : 56 passed, 2 avertissements de dépréciation setuptools/pkg_resources.
+
+python3 -m ruff check packages/release-chain/src/nexus_release_chain/release_readiness.py services/rag-engine/tests/test_release_readiness.py
+# Exit 0 : All checks passed!
+git diff --check origin/main...HEAD
+# Exit 0 : aucune erreur.
+```
+
+Avant le correctif, sur la base `d9c05db7d19130ba96bc191b1e0ef8ae8b9d4279`
+avec les deux tests nouveaux seuls dans le worktree, la commande
+`PYTHONPATH=src /tmp/nexus-release-source-kind-venv-d9c05db7/bin/python -m pytest -q tests/test_release_readiness.py -k 'v2_sealed_release_attribution_is_required_for_readiness or v2_discovery_kind_cannot_substitute_reviewed_sealed_attribution'`
+a produit **2 failed** : l'attribution scellée était refusée et le domaine
+était accepté. Après correction, les deux tests et la fixture V2 de partage
+d'artefact passent. La CI de la PR reste la validation intégrale au HEAD final.
 
 ## Limite opérationnelle
 
