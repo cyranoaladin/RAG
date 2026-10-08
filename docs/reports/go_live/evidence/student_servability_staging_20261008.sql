@@ -1,5 +1,9 @@
 BEGIN READ ONLY;
 
+-- Le marqueur et l'horodatage lient la sortie brute à cette version de requête.
+SELECT to_char(clock_timestamp() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS observed_at_utc,
+       'student_servability_left_join_v2' AS query_revision;
+
 SELECT current_database() AS database_name, current_user AS database_role,
        current_setting('server_version') AS postgres_version,
        (SELECT extversion FROM pg_extension WHERE extname = 'vector') AS vector_version;
