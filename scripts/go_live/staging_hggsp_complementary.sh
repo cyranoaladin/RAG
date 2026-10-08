@@ -441,6 +441,10 @@ EOF
 }
 
 etape_successor_batch_review_proposal() {
+    # `worker` reconstruit la commande avec $* : l'évaluateur (« Alaeddine Ben Rhouma ») doit être échappé
+    # pour arriver comme UN seul argument, comme --adopted-by et --bound-by.
+    [ -n "${EVALUATOR:-}" ] || fail "EVALUATOR requis (évaluateur de la revue batch)"
+    [ -n "${BATCH_REVIEW_ID:-}" ] || fail "BATCH_REVIEW_ID requis"
     local release_dir="/repo/$(champ_hggsp release.release_dir)"
     worker "$REMOTE_ATTESTOR_ENV" ingestor.ingestion_worker.attest_publication_cli \
       propose-release-batch-review --release-id "$RELEASE_HGGSP" --release-dir "$release_dir" \
@@ -448,7 +452,7 @@ etape_successor_batch_review_proposal() {
       --transfer-manifest-path "$TRANSFER_CONTAINER" --transfer-manifest-sha256 "$(transfer_sha)" \
       --rights-registry-path /repo/services/rag-pedago/configs/rights_evidence_registry.yml \
       --review-id "${BATCH_REVIEW_ID:?BATCH_REVIEW_ID requis}" \
-      --evaluator "${EVALUATOR:?EVALUATOR requis}" \
+      --evaluator "$(arg_shell "$EVALUATOR")" \
       --pii-decision-set-path /repo/governance/pii-review-decisions/pii-review-2026-09-22-profile-gate-v3.json \
       --pii-review-receipt-path /repo/governance/pii-review-bindings/pii-review-2026-09-22-profile-gate-v3.json \
       --review-trust-anchor-path /repo/governance/trust-anchors/review-binding-v1.json \
