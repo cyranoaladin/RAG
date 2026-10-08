@@ -338,6 +338,50 @@ def test_checkout_sha_is_explicit_in_runtime_image_without_git(monkeypatch):
     assert acceptance._git_head(ROOT) == sha
 
 
+def test_live_db_reconciles_each_returned_chunk_content_placement_and_pages():
+    result = {
+        "chunk_id": "chunk-1", "placement_id": "placement-1", "content_sha256": "a" * 64,
+        "source_uri": "https://eduscol.example/source", "source_label": "Éduscol",
+        "page_start": 2, "page_end_manifest": 3, "rights": "officiel_public",
+    }
+    report = {"cases": [{"collection": "collection-1", "results": [result]}]}
+    db_row = (
+        "chunk-1", "placement-1", "a" * 64, 2, 3, "collection-1",
+        "active", "reviewed", "current", "internal", "officiel_public",
+        "https://eduscol.example/source", "Éduscol",
+    )
+    assert acceptance.reconcile_db_rows(report, [db_row]) == 1
+    assert result["page_start_db"] == 2
+    assert result["page_end_db"] == 3
+    for index, replacement in [(2, "b" * 64), (4, 4), (5, "other-collection"),
+                               (8, "stale"), (11, "https://other.example")]:
+        tampered = list(db_row)
+        tampered[index] = replacement
+        with pytest.raises(acceptance.AcceptanceFailure, match="DB"):
+            acceptance.reconcile_db_rows(report, [tuple(tampered)])
+    with pytest.raises(acceptance.AcceptanceFailure, match="DB"):
+        acceptance.reconcile_db_rows(report, [])
+
+
+def test_live_db_transport_opens_read_only_transaction(monkeypatch):
+    import psycopg
+
+    report = {"cases": []}
+    commands = []
+    class FakeConnection:
+        def __enter__(self): return self
+        def __exit__(self, *_args): return None
+        def execute(self, sql, args=None):
+            commands.append((sql, args))
+            return self
+        def fetchall(self): return []
+        def rollback(self): pass
+    monkeypatch.setattr(psycopg, "connect", lambda _dsn: FakeConnection())
+    assert acceptance.verify_db_evidence(report, "postgresql://reader@example/db") == 0
+    assert commands[0][0] == "SET TRANSACTION READ ONLY"
+    assert "rag_chunks" in commands[1][0]
+
+
 def test_runtime_without_git_refuses_missing_clean_checkout_attestation(monkeypatch):
     monkeypatch.setenv("NEXUS_ACCEPTANCE_CHECKOUT_SHA", "e" * 40)
     monkeypatch.delenv("NEXUS_ACCEPTANCE_CHECKOUT_CLEAN", raising=False)

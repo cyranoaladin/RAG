@@ -387,6 +387,71 @@ def run_http(
             "cases": rows, "verdict": "pass" if passed else "fail"}
 
 
+def reconcile_db_rows(report: dict[str, Any], db_rows: list[tuple[Any, ...]]) -> int:
+    """Rapprocher chaque résultat HTTP des lignes physiques de publication."""
+    by_pair: dict[tuple[str, str], tuple[Any, ...]] = {}
+    for db_row in db_rows:
+        pair = (db_row[0], db_row[1])
+        if pair in by_pair:
+            raise AcceptanceFailure("DB : couple chunk/placement dupliqué")
+        by_pair[pair] = db_row
+    checked = 0
+    for case in report["cases"]:
+        for result in case.get("results", []):
+            row = by_pair.get((result["chunk_id"], result["placement_id"]))
+            if row is None or (
+                row[2] != result["content_sha256"]
+                or row[3] != result["page_start"]
+                or row[4] != result["page_end_manifest"]
+                or row[5] != case["collection"]
+                or row[6] != "active"
+                or row[7] != "reviewed"
+                or row[8] not in {"current", "official_snapshot"}
+                or row[9] != "internal"
+                or row[10] != result["rights"]
+                or row[11] != result["source_uri"]
+                or row[12] != result["source_label"]
+            ):
+                raise AcceptanceFailure("DB : identité, visibilité ou citation divergente")
+            result["page_start_db"] = row[3]
+            result["page_end_db"] = row[4]
+            checked += 1
+    return checked
+
+
+def verify_db_evidence(report: dict[str, Any], dsn: str) -> int:
+    """Lecture bornée au rôle reader, transaction explicitement READ ONLY."""
+    import psycopg  # noqa: PLC0415
+
+    if not dsn:
+        raise AcceptanceFailure("PG_RAG_DSN reader requis")
+    results = [result for case in report["cases"] for result in case.get("results", [])]
+    chunk_ids = sorted({result["chunk_id"] for result in results})
+    placement_ids = sorted({result["placement_id"] for result in results})
+    try:
+        with psycopg.connect(dsn) as conn:
+            conn.execute("SET TRANSACTION READ ONLY")
+            rows = conn.execute(
+                """SELECT chunk.chunk_id, placement.placement_id, artifact.content_sha256,
+                          chunk.page_start, chunk.page_end, placement.collection,
+                          placement.placement_status, placement.review_status,
+                          placement.currentness, placement.visibility, artifact.rights,
+                          placement.source_uri, artifact.source_label
+                     FROM public.rag_chunks AS chunk
+                     JOIN public.rag_artifacts AS artifact
+                       ON artifact.artifact_id = chunk.artifact_id
+                     JOIN public.rag_artifact_placements AS placement
+                       ON placement.artifact_id = artifact.artifact_id
+                    WHERE chunk.chunk_id = ANY(%s::text[])
+                      AND placement.placement_id = ANY(%s::text[])""",
+                (chunk_ids, placement_ids),
+            ).fetchall()
+            conn.rollback()
+    except psycopg.Error:
+        raise AcceptanceFailure("DB reader indisponible") from None
+    return reconcile_db_rows(report, rows)
+
+
 def _git_head(root: Path) -> str:
     import subprocess  # noqa: PLC0415
 
@@ -425,6 +490,11 @@ def main() -> int:
         dense_report = _read_json(args.dense_probe_report)
         overflow_count = check_dense_probe(dense_report, suite, index)
         report = run_http(args.repository_root, suite, index, api_url=args.api_url)
+        if report["verdict"] == "pass":
+            report["db_result_rows_verified"] = verify_db_evidence(
+                report, os.environ.get("PG_RAG_DSN", "")
+            )
+            report["page_end_evidence"] = "live_db_manifest_match"
         report["dense_probe_sha256"] = _sha256(args.dense_probe_report)
         report["dense_tie_overflow_count"] = overflow_count
     except (AcceptanceFailure, ValueError, KeyError, OSError) as exc:

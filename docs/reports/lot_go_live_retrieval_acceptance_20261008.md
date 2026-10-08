@@ -18,14 +18,16 @@ scellé, plutôt que d'un PDF générique de programme. La sélection s'appuie
 sur la correspondance entre le thème explicite de la ressource et la requête ;
 la revue pédagogique humaine et la mesure réelle restent nécessaires.
 L'acceptation HTTP vérifie chaque résultat (collection, contenu, chunk,
-placement, revue, URI, page de citation, cohérence du libellé et droits) avant de compter le rappel
-de la source attendue. La page de citation doit égaler `page_start` du chunk
-scellé ; `page_end` est vérifié dans l'oracle du manifeste, mais n'est pas un
-champ exposé par le contrat HTTP actuel. La conformité de `page_end` en base
-devra donc être prouvée par une lecture DB ciblée distincte ; ce rapport HTTP
-ne peut pas prétendre la démontrer. Le libellé de source, absent du manifeste,
-doit être non vide et identique au titre renvoyé. Une réponse vide à une
-question positive échoue.
+placement, revue, URI, page de citation, cohérence du libellé et droits) avant
+de compter le rappel de la source attendue. La page de citation doit égaler
+`page_start` du chunk scellé ; `page_end` n'est pas exposé par le contrat HTTP.
+Le même runner lit ensuite en transaction SQL `READ ONLY`, sous
+`PG_RAG_DSN`/`rag_reader`, **chaque couple chunk/placement réellement
+retourné**. Il rapproche contenu, collection, statut, visibilité, droits,
+URI, libellé, `page_start` et `page_end` avec le manifeste et la citation.
+Le rapport conserve les deux bornes lues en DB et refuse un couple manquant
+ou divergent. Le libellé de source, absent du manifeste, doit être non vide
+et identique au titre renvoyé. Une réponse vide à une question positive échoue.
 
 Pour chaque collection, la même requête hors corpus sur un filtre à huile de
 tracteur exige une réponse HTTP 200 avec **zéro résultat**. Elle peut révéler
@@ -58,14 +60,18 @@ python scripts/go_live/final_retrieval_acceptance.py \
   --output "$QUALIFICATION_DIR/final-retrieval-acceptance.json"
 ```
 
-Le programme rend 0 uniquement si le rapport vaut `verdict=pass`. Les 33
+`PG_RAG_DSN` doit cibler la DB staging qualifiée et être joignable depuis le
+runner, sur le même réseau Docker que l'API et pgvector. Le programme rend 0
+uniquement si le rapport vaut `verdict=pass` et si la lecture DB ciblée est
+réconciliée. Les 33
 requêtes de la fixture peuvent être utilisées par C0 sans recopier ni changer
 leurs textes ; l'émetteur JWT canonique partagé est
 `rag_query.issue_scope_identity(scope_id, config=config, role="teacher")`.
 L'API de transport est `rag_query_external.post_search`, avec trois
 credentials distincts. Le rapport inclut, pour chaque résultat positif,
-l'identité du chunk/contenu/placement, l'URI, le libellé, la page servie et la
-borne `page_end` du manifeste ; il n'inclut aucun jeton ou secret.
+l'identité du chunk/contenu/placement, l'URI, le libellé, la page servie, les
+bornes du manifeste et les bornes lues en DB ; il n'inclut aucun jeton ou
+secret.
 Sur staging, le runner peut lire `COCKPIT_STAGING_API_KEY` si `RAG_API_KEY`
 est absent. Dans l'image runtime dépourvue de Git, le SHA de checkout
 précontrôlé sur l'hôte est transmis par `NEXUS_ACCEPTANCE_CHECKOUT_SHA` avec
