@@ -233,6 +233,7 @@ def test_dense_probe_rejects_stale_report_with_unchanged_checkout_and_db():
 
 def test_probe_checkout_sha_requires_clean_git_or_explicit_gitless_host_attestation(monkeypatch):
     import subprocess
+
     import staging_retrieval_probe
 
     monkeypatch.setenv("NEXUS_PROBE_CHECKOUT_SHA", "e" * 40)
