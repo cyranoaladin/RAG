@@ -25,7 +25,7 @@ function canonicalJson(value: unknown): string {
   return `{${entries.join(',')}}`
 }
 
-function deepFreeze<T>(value: T): T {
+export function deepFreeze<T>(value: T): T {
   if (value !== null && typeof value === 'object') {
     for (const entry of Object.values(value as Record<string, unknown>)) {
       deepFreeze(entry)
@@ -48,9 +48,10 @@ if (!isConsecutiveSchoolYear(pilotScopeSource.school_year)) {
 }
 
 export const PILOT_RETRIEVAL_SCOPE: PilotRetrievalScopeArtifact = deepFreeze(pilotScopeSource)
-export const PILOT_RETRIEVAL_SCOPE_DIGEST = createHash('sha256')
-  .update(canonicalJson(PILOT_RETRIEVAL_SCOPE), 'utf8')
-  .digest('hex')
+export function canonicalScopeDigest(scope: unknown): string {
+  return createHash('sha256').update(canonicalJson(scope), 'utf8').digest('hex')
+}
+export const PILOT_RETRIEVAL_SCOPE_DIGEST = canonicalScopeDigest(PILOT_RETRIEVAL_SCOPE)
 
 export function assertIdentityMatchesPilotScope(identity: InternalIdentity): void {
   if (!validateInternalIdentity(identity) || !isConsecutiveSchoolYear(identity.school_year)) {

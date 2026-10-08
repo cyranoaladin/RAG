@@ -39,7 +39,7 @@ const authContext = {
       audience: 'libre',
     },
   },
-} as never
+}
 
 function chatRequest(collections: string[]): Request {
   return new Request('http://cockpit.test/api/chat', {
@@ -52,7 +52,7 @@ function chatRequest(collections: string[]): Request {
 describe('POST /api/chat', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockedRequireBffAuth.mockResolvedValue(authContext)
+    mockedRequireBffAuth.mockResolvedValue(authContext as never)
     mockedIsPublicLaunchReady.mockResolvedValue(true)
     mockedFetchEngine.mockResolvedValue({
       status: 200,
@@ -85,42 +85,45 @@ describe('POST /api/chat', () => {
     expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 
-  it('dérive le profil du chat uniquement de l’identité signée', async () => {
-    const response = await POST(chatRequest(['rag_nexus_nsi_terminale_specialite']))
+  it('ferme explicitement la génération pour un scope final HGGSP sans appel moteur', async () => {
+    mockedRequireBffAuth.mockResolvedValue({
+      ...authContext,
+      scopeId: 'prod_hggsp_terminale_specialite_v3',
+      allowedCollections: ['rag_nexus_hggsp_terminale_specialite'],
+      identity: {
+        ...authContext.identity,
+        pedagogical_profile: {
+          ...authContext.identity.pedagogical_profile,
+          matieres: ['hggsp'],
+          candidat: 'libre',
+        },
+      },
+    } as never)
 
-    expect(response.status).toBe(200)
-    expect(mockedIsPublicLaunchReady).toHaveBeenCalledWith('signed-identity-token')
-    expect(mockedFetchEngine).toHaveBeenCalledWith('/chat', {
-      method: 'POST',
-      identityToken: 'signed-identity-token',
-      body: expect.objectContaining({
-        collections: ['rag_nexus_nsi_terminale_specialite'],
-        student_profile: expect.objectContaining({
-          niveau: 'terminale',
-          voie: 'generale',
-          matieres: ['nsi'],
-          statut_enseignement: 'specialite',
-          candidat: 'cned_libre',
-          school_year: '2026-2027',
-          zone: 'libre',
-        }),
-      }),
-    })
+    const response = await POST(chatRequest(['rag_nexus_hggsp_terminale_specialite']))
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'answer_generation_disabled' })
+    expect(mockedIsPublicLaunchReady).not.toHaveBeenCalled()
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 
-  it('normalise une collection dupliquée avant de construire le profil moteur', async () => {
+  it('refuse aussi la génération sur le pilote historique', async () => {
+    const response = await POST(chatRequest(['rag_nexus_nsi_terminale_specialite']))
+
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'answer_generation_disabled' })
+    expect(mockedIsPublicLaunchReady).not.toHaveBeenCalled()
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
+  })
+
+  it('n’envoie pas non plus une requête dupliquée au moteur', async () => {
     const collection = 'rag_nexus_nsi_terminale_specialite'
 
     const response = await POST(chatRequest([collection, collection]))
 
-    expect(response.status).toBe(200)
-    expect(mockedFetchEngine).toHaveBeenCalledWith('/chat', {
-      method: 'POST',
-      identityToken: 'signed-identity-token',
-      body: expect.objectContaining({
-        collections: [collection],
-        student_profile: expect.objectContaining({ matieres: ['nsi'] }),
-      }),
-    })
+    expect(response.status).toBe(503)
+    expect(mockedIsPublicLaunchReady).not.toHaveBeenCalled()
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 })

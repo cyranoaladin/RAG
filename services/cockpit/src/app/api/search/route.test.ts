@@ -17,9 +17,16 @@ const mockedIsPublicLaunchReady = vi.mocked(isPublicLaunchReady)
 const mockedRequireBffAuth = vi.mocked(requireBffAuth)
 const MATHS_COLLECTION = 'rag_nexus_maths_terminale_gen_specialite'
 const NSI_COLLECTION = 'rag_nexus_nsi_terminale_specialite'
+const HGGSP_COLLECTION = 'rag_nexus_hggsp_terminale_specialite'
 const authIdentity = {
+  iss: 'nexus-issuer',
+  aud: 'nexus-cockpit',
   sub: 'psn_1234567890abcdef',
+  jti: 'jti-12345',
+  exp: 1_800_000_600,
+  tenant: 'libre_terminale',
   niveau: 'terminale',
+  role: 'teacher',
   school_year: '2026-2027',
   pedagogical_profile: {
     voie: 'generale',
@@ -128,6 +135,40 @@ describe('POST /api/search', () => {
     expect(response.status).toBe(503)
     expect(body.error).toBe('service_unavailable')
     expect(mockedFetchEngine).not.toHaveBeenCalled()
+  })
+
+  it('construit la requête V5 HGGSP depuis le scope final signé', async () => {
+    mockedRequireBffAuth.mockResolvedValue({
+      identityToken: 'signed-hggsp-identity',
+      scopeId: 'prod_hggsp_terminale_specialite_v3',
+      allowedCollections: [HGGSP_COLLECTION],
+      identity: {
+        ...authIdentity,
+        pedagogical_profile: {
+          ...authIdentity.pedagogical_profile,
+          matieres: ['hggsp'],
+          candidat: 'libre',
+        },
+      },
+    } as never)
+    mockedFetchEngine.mockResolvedValue({
+      status: 200,
+      payload: {
+        results: [engineResult('hggsp-passage', 0.8, { collection: HGGSP_COLLECTION })],
+        warnings: [],
+        filters_applied: { collection: HGGSP_COLLECTION },
+      },
+    })
+
+    const response = await POST(searchRequest([HGGSP_COLLECTION]))
+
+    expect(response.status).toBe(200)
+    expect(mockedFetchEngine).toHaveBeenCalledWith('/search/v2', expect.objectContaining({
+      identityToken: 'signed-hggsp-identity',
+      body: expect.objectContaining({
+        student_profile: expect.objectContaining({ matieres: ['hggsp'], candidat: 'libre' }),
+      }),
+    }))
   })
 
   it('préserve bit à bit l’ordre MMR du moteur et publie score_final', async () => {

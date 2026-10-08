@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,9 +9,64 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url))
 const cockpitRoot = path.resolve(scriptDir, '..')
 const schemaRoot = path.resolve(cockpitRoot, '../../packages/contracts/schema')
 const artifactRoot = path.resolve(cockpitRoot, '../../packages/contracts/src/nexus_contracts/artifacts')
+const releaseRegistryPath = path.resolve(cockpitRoot, '../../services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json')
 const generatedRoot = path.resolve(cockpitRoot, 'src/generated')
 const schemaOutputRoot = path.join(generatedRoot, 'schema')
 const check = process.argv.includes('--check')
+
+// Pins from the governed V4 r4 and V5 HGGSP successor authorities. A new
+// public artifact needs an explicit new lot; generation never auto-promotes it.
+const finalScopeFiles = [
+  'retrieval-scope-prod-dgemc-terminale-option-v3.json',
+  'retrieval-scope-prod-hggsp-premiere-specialite-v3.json',
+  'retrieval-scope-prod-hggsp-terminale-specialite-v3.json',
+  'retrieval-scope-prod-hlp-premiere-specialite-v3.json',
+  'retrieval-scope-prod-hlp-terminale-specialite-v2.json',
+  'retrieval-scope-prod-nsi-premiere-specialite-v3.json',
+  'retrieval-scope-prod-nsi-terminale-specialite-v3.json',
+  'retrieval-scope-prod-ses-premiere-specialite-v3.json',
+  'retrieval-scope-prod-ses-terminale-specialite-v3.json',
+  'retrieval-scope-prod-svt-premiere-specialite-v3.json',
+  'retrieval-scope-prod-svt-terminale-specialite-v3.json',
+]
+
+// Canonical artifact digests from nexus_contracts.scope and
+// nexus_contracts.hggsp_successor_scopes. A changed policy needs a reviewed lot.
+const governedFinalScopeDigests = Object.freeze({
+  prod_dgemc_terminale_option_v3: '36024a3750480b99416dd3e31842bdc84cf27e6eef5f8744cecd37e28fd2aa09',
+  prod_hggsp_premiere_specialite_v3: 'ceab3ef201fa12d5a33edf3ffc2a1fb86bfd09428b4e5139923dc3e9e60e1bbf',
+  prod_hggsp_terminale_specialite_v3: '1406aa3ffc45c25c346e1ff8353b7ee77db9496dfbad8ae8865c74fa63a94215',
+  prod_hlp_premiere_specialite_v3: 'b005a8e7b615386e62d80a898a9e1cb018429096c37c30f239e75ca1950ba328',
+  prod_hlp_terminale_specialite_v2: '765cb9c9b123a28d0923dafa4564c4e9b288adfcdbc9a4b65aeb68d0c2706097',
+  prod_nsi_premiere_specialite_v3: '1e4f82a79f5077b519bb76bdceb94d08784faa6abe23471adac991a1c160f1b5',
+  prod_nsi_terminale_specialite_v3: 'dd6eeafd7749b9cd7f3084fec826707100756f330005a68f385d0dada1979b2d',
+  prod_ses_premiere_specialite_v3: 'c5217ea40baea927ccf91a1a9c386fc8a3c551f6e100780d4758a6371d5afe43',
+  prod_ses_terminale_specialite_v3: 'bebfb0a2b291d2d068cb791d498bcbd4c92120663aec34abc6a72c91aa48b258',
+  prod_svt_premiere_specialite_v3: 'f9b68a7e5d0a0f4df6915a32617e7066c8a6732d73495677a14bc437309c6559',
+  prod_svt_terminale_specialite_v3: '95bcf4ea9a7fe5a2b5f2002e38e17b4862a023e731bec3f12c7bea7e08048d43',
+})
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  return `{${Object.entries(value)
+    .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+    .map(([key, entry]) => `${JSON.stringify(key)}:${canonicalJson(entry)}`)
+    .join(',')}}`
+}
+
+export function verifyGovernedFinalScopes(scopes) {
+  if (new Set(scopes.map((scope) => scope.scope_id)).size !== scopes.length) {
+    throw new Error('Duplicate governed scope_id')
+  }
+  for (const scope of scopes) {
+    const expected = governedFinalScopeDigests[scope.scope_id]
+    const observed = createHash('sha256').update(canonicalJson(scope), 'utf8').digest('hex')
+    if (!expected || observed !== expected) {
+      throw new Error(`governed scope digest mismatch: ${scope.scope_id}`)
+    }
+  }
+}
 
 const schemas = [
   ['retrieval-request.json', 'RetrievalRequest'],
@@ -65,6 +121,22 @@ function aggregateSchema(entries) {
 async function expectedOutputs() {
   const entries = await readSchemas()
   const pilotScope = JSON.parse(await readFile(path.join(artifactRoot, 'pilot-retrieval-scope-v1.json'), 'utf8'))
+  const finalScopes = await Promise.all(finalScopeFiles.map(async (filename) =>
+    JSON.parse(await readFile(path.join(artifactRoot, filename), 'utf8')),
+  ))
+  verifyGovernedFinalScopes(finalScopes)
+  const registry = JSON.parse(await readFile(releaseRegistryPath, 'utf8'))
+  const releaseCollections = new Set(registry.releases.flatMap((release) => release.collections))
+  const scopeCollections = finalScopes.map((scope) => scope.evidence_subject.collection)
+  if (
+    finalScopes.length !== 11 ||
+    new Set(scopeCollections).size !== finalScopes.length ||
+    releaseCollections.size !== finalScopes.length ||
+    scopeCollections.some((collection) => !releaseCollections.has(collection)) ||
+    finalScopes.some((scope) => scope.artifact_version !== '2' || scope.evidence_subject.visibility !== 'internal')
+  ) {
+    throw new Error('Scopes BFF incompatibles avec la release V4/V5 scellée')
+  }
   const typeSource = await compile(aggregateSchema(entries), 'ContractBundle', {
     bannerComment: '// Generated from packages/contracts/schema. Do not edit manually.\n',
     style: { singleQuote: true },
@@ -106,6 +178,7 @@ async function expectedOutputs() {
     [path.join(generatedRoot, 'contracts.ts'), typeSource],
     [path.join(generatedRoot, 'validators.ts'), validatorSource],
     [path.join(generatedRoot, 'pilot-retrieval-scope-v1.json'), `${JSON.stringify(pilotScope, null, 2)}\n`],
+    [path.join(generatedRoot, 'final-retrieval-scopes-v4-v5.json'), `${JSON.stringify(finalScopes, null, 2)}\n`],
     ...entries.map(({ filename, schema }) => [path.join(schemaOutputRoot, filename), `${JSON.stringify(schema, null, 2)}\n`]),
   ])
 }
@@ -128,4 +201,6 @@ async function main() {
   }
 }
 
-await main()
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await main()
+}

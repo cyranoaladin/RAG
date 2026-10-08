@@ -96,6 +96,24 @@ describe('jeton interne cockpit vers moteur', () => {
     expect(after.iat).toBe(NOW_SECONDS + 120)
   })
 
+  it('signe et préserve le scope NSI V4 mono-collection pour le profil enseignant', async () => {
+    const nsiIdentity = {
+      ...identity(),
+      role: 'teacher',
+      pedagogical_profile: { ...identity().pedagogical_profile, matieres: ['nsi'], candidat: 'libre' },
+    } as InternalIdentity
+    const initial = await mintInternalIdentityToken(nsiIdentity)
+    const before = await verifyInternalIdentityToken(initial)
+    expect(before.scope_id).toBe('prod_nsi_terminale_specialite_v3')
+    expect(before.allowed_collections).toEqual(['rag_nexus_nsi_terminale_specialite'])
+    vi.setSystemTime((NOW_SECONDS + 120) * 1000)
+    const rotated = await rotateInternalIdentityToken(initial)
+    const after = await verifyInternalIdentityToken(rotated)
+    expect(after.scope_id).toBe(before.scope_id)
+    expect(after.scope_digest).toBe(before.scope_digest)
+    expect(after.allowed_collections).toEqual(before.allowed_collections)
+  })
+
   it('refuse une signature interne altérée', async () => {
     const token = await mintInternalIdentityToken(identity())
     const altered = `${token.slice(0, -1)}${token.endsWith('a') ? 'b' : 'a'}`

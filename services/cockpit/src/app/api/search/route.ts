@@ -13,7 +13,7 @@ import {
 } from '@/generated/validators'
 import { requireBffAuth } from '@/server/bff-auth'
 import type { BffAuthContext } from '@/server/bff-auth'
-import { PILOT_RETRIEVAL_SCOPE } from '@/server/pilot-scope'
+import { scopeForIdentity, subjectForIdentityCollection } from '@/server/final-scope'
 import { SEARCH_ROUTE_BUDGET_MS } from '@/lib/request-deadlines'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
@@ -25,9 +25,13 @@ function buildRetrievalRequest(
   payload: SearchPayload,
   collection: string,
 ): RetrievalRequest | null {
-  const subject = PILOT_RETRIEVAL_SCOPE.subjects.find(
-    (candidate) => candidate.collection === collection,
-  )
+  let subject
+  try {
+    const scope = scopeForIdentity(auth.identity, auth.scopeId)
+    subject = subjectForIdentityCollection(auth.identity, collection, scope)
+  } catch {
+    return null
+  }
   if (!subject || !auth.identity.pedagogical_profile.matieres.includes(subject.matiere)) {
     return null
   }

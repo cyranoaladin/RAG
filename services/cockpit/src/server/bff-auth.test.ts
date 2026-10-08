@@ -100,6 +100,24 @@ describe('authentification serveur des routes BFF', () => {
     expect(context?.allowedCollections).toEqual(expected)
   })
 
+  it('transmet le scope HGGSP V5 signé sans repli sur le pilote', async () => {
+    const hggspIdentity = {
+      ...identity,
+      role: 'teacher',
+      pedagogical_profile: { ...identity.pedagogical_profile, matieres: ['hggsp'], candidat: 'libre' },
+    } as InternalIdentity
+    const internalAccessToken = await mintInternalIdentityToken(hggspIdentity)
+
+    const context = await requireBffAuth(
+      new Request('http://cockpit.test/api/search'),
+      async () => ({ sub: identity.sub, internalAccessToken }),
+    )
+
+    expect(context?.allowedCollections).toEqual(['rag_nexus_hggsp_terminale_specialite'])
+    expect(context?.scopeId).toBe('prod_hggsp_terminale_specialite_v3')
+    expect(context?.identityToken).toBe(internalAccessToken)
+  })
+
   it('refuse une session absente ou non liée au sujet interne', async () => {
     const internalAccessToken = await mintInternalIdentityToken(identity)
 
