@@ -46,6 +46,16 @@ from typing import Any
 #: puisse router ce flux vers sa collecte sans embarquer le reste.
 ACCESS_LOGGER_NAME = "nexus.retrieval.access"
 
+
+class _StdoutFallbackFilter(logging.Filter):
+    """Éviter une seconde ligne si un handler racine collecte déjà les INFO."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not any(
+            handler.level <= record.levelno for handler in logging.getLogger().handlers
+        )
+
+
 # Uvicorn ne configure pas le logger racine à INFO. Sans handler propre, les
 # lignes structurées existent en mémoire mais ne sortent jamais du conteneur.
 # Le nom du handler évite une double émission si le module est importé à la
@@ -56,6 +66,7 @@ if not any(handler.get_name() == "nexus-retrieval-access-stdout" for handler in 
     _access_handler = logging.StreamHandler(sys.stdout)
     _access_handler.set_name("nexus-retrieval-access-stdout")
     _access_handler.setFormatter(logging.Formatter("%(message)s"))
+    _access_handler.addFilter(_StdoutFallbackFilter())
     _ACCESS_LOGGER.addHandler(_access_handler)
 
 #: En-tête de corrélation déjà utilisé par le plan d'ingestion

@@ -8,14 +8,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 
-def test_retrieval_access_is_emitted_once_per_request_under_uvicorn_logging() -> None:
+
+@pytest.mark.parametrize("root_info_handler", [False, True])
+def test_retrieval_access_is_emitted_once_per_request_under_uvicorn_logging(
+    root_info_handler: bool,
+) -> None:
     src = Path(__file__).resolve().parents[1] / "src"
-    script = """
+    script = f"""
 import logging.config
+import sys
 from uvicorn.config import LOGGING_CONFIG
 
 logging.config.dictConfig(LOGGING_CONFIG)
+if {root_info_handler}:
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    root.addHandler(handler)
 from ingestor.retrieval_observability import RetrievalAccessRecord, log_retrieval_access
 
 for request_id in ("request-1", "request-2"):
