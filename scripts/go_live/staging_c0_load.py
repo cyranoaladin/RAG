@@ -33,6 +33,34 @@ sys.path.insert(0, str(REPOSITORY_ROOT / "scripts"))
 import rag_query  # noqa: E402
 
 DEFAULT_BUDGET = REPOSITORY_ROOT / "docs/reports/go_live/concurrency_load_budget_final_v4_v5.json"
+DEFAULT_SUITE = REPOSITORY_ROOT / "services/rag-engine/tests/fixtures/final_v4_v5_acceptance.json"
+
+
+def _assert_canonical_input_paths(suite_path: Path, budget_path: Path) -> None:
+    if suite_path.resolve() != DEFAULT_SUITE.resolve():
+        raise ValueError("suite canonique finale requise")
+    if budget_path.resolve() != DEFAULT_BUDGET.resolve():
+        raise ValueError("budget canonique final requis")
+    for path in (DEFAULT_SUITE, DEFAULT_BUDGET):
+        subprocess.check_output(
+            ["git", "-C", str(REPOSITORY_ROOT), "ls-files", "--error-unmatch", "--",
+             str(path.relative_to(REPOSITORY_ROOT))],
+            text=True,
+        )
+
+
+def _live_main_sha() -> str:
+    """Lire la référence distante, sans croire le cache origin/main local."""
+    output = subprocess.check_output(
+        ["git", "-C", str(REPOSITORY_ROOT), "ls-remote", "origin", "refs/heads/main"],
+        text=True,
+        timeout=15,
+    ).strip()
+    parts = output.split("\t")
+    if (len(parts) != 2 or parts[1] != "refs/heads/main" or len(parts[0]) != 40
+            or any(char not in "0123456789abcdef" for char in parts[0])):
+        raise ValueError("main distant introuvable ou invalide")
+    return parts[0]
 
 
 def validate_api_url(value: str) -> str:
@@ -85,11 +113,13 @@ def evaluate_measurement(measurement: Mapping[str, Any], budget_doc: Mapping[str
             for row in rows
         ),
         "errors": errors <= limits["errors_max"],
+        "error_rate": errors / expected <= limits["error_rate_max"],
         "timeouts": timeouts <= limits["timeouts_max"],
         "p50": p50 is not None and p50 <= limits["p50_ms_max"],
         "p95": p95 is not None and p95 <= limits["p95_ms_max"],
         "p99": p99 is not None and p99 <= limits["p99_ms_max"],
         "db_samples": db["samples_count"] > 0,
+        "db_sampler": db.get("sampler_failure") is None,
         "db_connections": 0 <= db["peak_during_load"] <= limits["db_connections_peak_max"],
     }
     return {
@@ -122,7 +152,10 @@ def _cases(suite: Mapping[str, Any]) -> list[tuple[str, str, str, str]]:
 
 
 def _db_connections(dsn: str) -> int:
-    with psycopg.connect(dsn, autocommit=True, options="-c default_transaction_read_only=on") as conn:
+    with psycopg.connect(
+        dsn, autocommit=True, connect_timeout=2,
+        options="-c default_transaction_read_only=on -c statement_timeout=2000",
+    ) as conn:
         dbname, role = conn.execute("SELECT current_database(), current_user").fetchone()
         if dbname != "ragdb_profile_gate_v4" or role != "rag_reader":
             raise RuntimeError("cible DB ou rôle inattendu")
@@ -151,6 +184,8 @@ class _DbSampler(threading.Thread):
     def stop(self) -> None:
         self.stop_event.set()
         self.join(timeout=10)
+        if self.is_alive():
+            self.failure = "SamplerJoinTimeout"
 
 
 def _one_request(
@@ -190,7 +225,9 @@ def _one_request(
                 or result.citation is None
                 or not result.citation.source_uri.strip()
                 or not result.citation.source_label.strip()
-                or result.citation.page is None
+                or not isinstance(result.metadata.get("content_sha256"), str)
+                or len(result.metadata["content_sha256"]) != 64
+                or any(c not in "0123456789abcdef" for c in result.metadata["content_sha256"])
                 for result in parsed.results
             ):
                 detail = "scope_or_citation"
@@ -227,6 +264,7 @@ def run_c0(
     *, suite_path: Path, budget_path: Path, api_url: str, environ: Mapping[str, str]
 ) -> dict[str, Any]:
     api_url = validate_api_url(api_url)
+    _assert_canonical_input_paths(suite_path, budget_path)
     suite_bytes, budget_bytes = suite_path.read_bytes(), budget_path.read_bytes()
     suite, budget = json.loads(suite_bytes), json.loads(budget_bytes)
     registry_path = REPOSITORY_ROOT / suite["mixed_registry_path"]
@@ -235,9 +273,7 @@ def run_c0(
     checkout_sha = subprocess.check_output(
         ["git", "-C", str(REPOSITORY_ROOT), "rev-parse", "HEAD"], text=True
     ).strip()
-    origin_main_sha = subprocess.check_output(
-        ["git", "-C", str(REPOSITORY_ROOT), "rev-parse", "origin/main"], text=True
-    ).strip()
+    origin_main_sha = _live_main_sha()
     if checkout_sha != origin_main_sha:
         raise ValueError("C0 exige le main courant, pas un ancien checkout")
     if subprocess.check_output(
@@ -251,7 +287,8 @@ def run_c0(
         raise ValueError("profil C0 déclaré divergent")
     if any(budget["budget"][key] != value for key, value in {
         "p50_ms_max": 3000, "p95_ms_max": 6000, "p99_ms_max": 7500,
-        "errors_max": 0, "timeouts_max": 0, "db_connections_peak_max": 10,
+        "errors_max": 0, "error_rate_max": 0, "timeouts_max": 0,
+        "db_connections_peak_max": 10,
     }.items()):
         raise ValueError("seuil C0 déclaré divergent")
     config = rag_query.load_client_config({**environ, "RAG_API_URL": api_url})
@@ -311,8 +348,6 @@ def run_c0(
         },
     }
     result["verdict"] = evaluate_measurement(result, budget)
-    if sampler.failure is not None:
-        result["verdict"]["pass"] = False
     return result
 
 

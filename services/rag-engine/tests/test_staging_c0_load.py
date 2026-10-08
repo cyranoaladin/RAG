@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import base64
+import json
 import sys
 from pathlib import Path
 
@@ -24,6 +26,7 @@ BUDGET = {
         "p95_ms_max": 6000,
         "p99_ms_max": 7500,
         "errors_max": 0,
+        "error_rate_max": 0,
         "timeouts_max": 0,
         "db_connections_peak_max": 10,
     },
@@ -93,18 +96,57 @@ def test_c0_refuses_missing_requests_timeouts_latency_and_pool_overflow() -> Non
     unsampled["db_connections"]["samples_count"] = 0
     assert evaluate_measurement(unsampled, BUDGET)["pass"] is False
 
+    failed_sampler = _measurement()
+    failed_sampler["db_connections"]["sampler_failure"] = "SamplerJoinTimeout"
+    assert evaluate_measurement(failed_sampler, BUDGET)["pass"] is False
+
+
+def test_c0_refuses_external_suite_or_budget_paths(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="suite canonique"):
+        c0._assert_canonical_input_paths(tmp_path / "suite.json", c0.DEFAULT_BUDGET)
+    with pytest.raises(ValueError, match="budget canonique"):
+        c0._assert_canonical_input_paths(c0.DEFAULT_SUITE, tmp_path / "budget.json")
+
+
+def test_c0_reads_remote_main_live_and_refuses_malformed_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    def remote(*args: object, **kwargs: object) -> str:
+        assert args[0] == ["git", "-C", str(c0.REPOSITORY_ROOT), "ls-remote", "origin", "refs/heads/main"]
+        return "a" * 40 + "\trefs/heads/main\n"
+
+    monkeypatch.setattr(c0.subprocess, "check_output", remote)
+    assert c0._live_main_sha() == "a" * 40
+    monkeypatch.setattr(c0.subprocess, "check_output", lambda *args, **kwargs: "garbage")
+    with pytest.raises(ValueError, match="main distant"):
+        c0._live_main_sha()
+
+
+def test_sampler_join_timeout_fails_closed(monkeypatch: pytest.MonkeyPatch) -> None:
+    sampler = c0._DbSampler("unused")
+    monkeypatch.setattr(sampler, "join", lambda timeout: None)
+    monkeypatch.setattr(sampler, "is_alive", lambda: True)
+    sampler.stop()
+    assert sampler.failure == "SamplerJoinTimeout"
+
 
 def test_real_http_shape_requires_signed_scope_and_complete_citation() -> None:
+    scope_id = c0.rag_query.available_scopes()[0]
     def handle(request: httpx.Request) -> httpx.Response:
         assert request.url.path == "/search/v2"
         assert request.headers["authorization"] == "Bearer bff-secret"
         assert request.headers["x-rag-api-key"] == "api-key"
-        assert request.headers["x-nexus-identity"] == "signed-identity"
+        token_parts = request.headers["x-nexus-identity"].split(".")
+        assert len(token_parts) == 3
+        claims = json.loads(base64.urlsafe_b64decode(token_parts[1] + "=="))
+        assert claims["scope_id"] == scope_id
+        assert len(claims["allowed_collections"]) == 1
+        payload = json.loads(request.content)
+        assert payload["student_profile"]["niveau"]
+        assert payload["curriculum_scope"]["matiere"]
         return httpx.Response(200, json={
             "results": [{
                 "chunk_id": "chunk-1", "doc_id": "doc-1", "score": 1,
                 "excerpt": "La norme européenne", "citation": {
-                    "source_label": "BOEN", "page": 3,
+                    "source_label": "BOEN", "page": None,
                     "source_uri": "https://example.org/boen.pdf", "rights": "officiel_public",
                 },
                 "metadata": {"collection": "collection-1", "content_sha256": "a" * 64},
@@ -113,7 +155,47 @@ def test_real_http_shape_requires_signed_scope_and_complete_citation() -> None:
 
     config = c0.rag_query.ClientConfig(
         api_url="http://127.0.0.1:8001", bff_token="bff-secret",
-        internal_secret="internal-secret", internal_issuer="issuer",
+        internal_secret="internal-secret-32-characters-long", internal_issuer="issuer",
+        internal_audience="audience", identity_issuer="sso", identity_audience="cockpit",
+    )
+    token, payload = c0._prepare_request(
+        ("collection-1", scope_id, "Question pédagogique", "a" * 64), config
+    )
+    with httpx.Client(base_url="http://127.0.0.1:8001", transport=httpx.MockTransport(handle)) as client:
+        row = c0._one_request(
+            ("collection-1", scope_id, "Question pédagogique", "a" * 64),
+            config=config, api_key="api-key", timeout_s=7.5, client=client,
+            identity_token=token, payload=payload,
+        )
+    assert row["status"] == 200
+    assert row["outcome"] == "ok"
+    assert row["detail"] is None
+
+
+def test_c0_refuses_one_result_without_content_identity_even_if_expected_source_is_present() -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"results": [
+            {
+                "chunk_id": "expected", "doc_id": "doc-1", "score": 1,
+                "excerpt": "Texte", "citation": {
+                    "source_label": "BOEN", "source_uri": "https://example.org/boen.pdf",
+                    "rights": "officiel_public",
+                },
+                "metadata": {"collection": "collection-1", "content_sha256": "a" * 64},
+            },
+            {
+                "chunk_id": "missing", "doc_id": "doc-2", "score": 0.5,
+                "excerpt": "Autre texte", "citation": {
+                    "source_label": "Autre", "source_uri": "https://example.org/other.pdf",
+                    "rights": "officiel_public",
+                },
+                "metadata": {"collection": "collection-1"},
+            },
+        ]})
+
+    config = c0.rag_query.ClientConfig(
+        api_url="http://127.0.0.1:8001", bff_token="bff-secret",
+        internal_secret="internal-secret-32-characters-long", internal_issuer="issuer",
         internal_audience="audience", identity_issuer="sso", identity_audience="cockpit",
     )
     with httpx.Client(base_url="http://127.0.0.1:8001", transport=httpx.MockTransport(handle)) as client:
@@ -122,9 +204,8 @@ def test_real_http_shape_requires_signed_scope_and_complete_citation() -> None:
             config=config, api_key="api-key", timeout_s=7.5, client=client,
             identity_token="signed-identity", payload={"need": {"query": "Question pédagogique"}},
         )
-    assert row["status"] == 200
-    assert row["outcome"] == "ok"
-    assert row["detail"] is None
+    assert row["outcome"] == "error"
+    assert row["detail"] == "scope_or_citation"
 
 
 def test_c0_evidence_is_private_and_cannot_overwrite_prior_measurement(tmp_path: Path) -> None:
