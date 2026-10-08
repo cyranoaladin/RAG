@@ -111,6 +111,7 @@ def test_cockpit_url_accepts_only_local_origin_without_credentials_or_query():
     assert harness.safe_cockpit_url("http://127.0.0.1:18004") == "http://127.0.0.1:18004"
     for url in (
         "https://example.invalid",
+        "http://localhost:18004",
         "http://user:secret@127.0.0.1:18004",
         "http://127.0.0.1:18004/?token=secret",
         "http://127.0.0.1:18004/path",

@@ -47,7 +47,7 @@ def safe_cockpit_url(raw: str) -> str:
         parsed = urlsplit(raw)
         valid = (
             parsed.scheme in {"http", "https"}
-            and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+            and parsed.hostname in {"127.0.0.1", "::1"}
             and parsed.port is not None
             and parsed.username is None
             and parsed.password is None
