@@ -30,7 +30,8 @@ divergence est un REFUS — jamais un élargissement silencieux de droits.
 
 **Immuabilité.** Aucun artefact existant n'est réécrit : ADR-0045 exige qu'une
 nouvelle version de subject reçoive un nouveau `scope_id` ET un nouveau digest.
-L'émetteur refuse tout identifiant déjà détenu par le registre historique, et
+L'émetteur refuse tout identifiant déjà détenu par le registre historique ou
+son extension HGGSP successeur, et
 tout identifiant qui ne suit pas la convention de succession `_v<N>`.
 
 **Déterminisme.** Aucun horodatage, aucun chemin de poste de travail, aucun
@@ -53,7 +54,10 @@ from nexus_contracts.scope import (
     RetrievalScopeArtifactV2,
     load_retrieval_scope_artifact,
 )
-from nexus_contracts.scope import _RETRIEVAL_SCOPE_RESOURCES as HISTORICAL_REGISTRY
+from nexus_contracts.hggsp_successor_scopes import (
+    load_retrieval_scope_artifact as load_hggsp_successor_scope,
+    load_retrieval_scope_registry as load_scope_registry,
+)
 
 #: Identifiant de l'autorité de politique que cet émetteur sait lire.
 POLICY_AUTHORITY_KIND = "MULTILEVEL_RETRIEVAL_SCOPE_POLICY_V1"
@@ -299,15 +303,15 @@ def _require_registry_reuse_is_a_strict_reproduction(
     réutilisation que le contrat autorise. Toute autre valeur signifierait
     qu'un scope déjà adressable change de contenu sous le même nom.
     """
-    pinned = HISTORICAL_REGISTRY.get(scope_id)
+    pinned = load_scope_registry().get(scope_id)
     if pinned is None:
         return
-    _resource, expected_digest, _version = pinned
+    expected_digest = pinned.sha256_digest()
     observed = artifact.sha256_digest()
     if observed != expected_digest:
         raise ScopeEmissionError(
             f"collision de scope_id avec des octets différents : {scope_id} est "
-            f"déjà épinglé au registre historique sous {expected_digest}, "
+            f"déjà épinglé au registre historique ou successeur sous {expected_digest}, "
             f"émission {observed}"
         )
 
@@ -394,10 +398,9 @@ def exact_existing_matches(
     reproduit est comparé octet à octet à ce qui est déjà packagé.
     """
     matches: list[str] = []
-    for scope_id in HISTORICAL_REGISTRY:
+    for scope_id, artifact in load_scope_registry().items():
         if scope_id in excluded_scope_ids:
             continue
-        artifact = load_retrieval_scope_artifact(scope_id)
         if not isinstance(artifact, RetrievalScopeArtifactV2):
             continue
         if (
@@ -700,6 +703,23 @@ CURRICULAR_CROSS_CHECKED_DIMENSIONS: tuple[str, ...] = (
 #: Les deux statuts qu'une entrée de registre peut porter, et eux seuls.
 _GOVERNED = "GOVERNED"
 _BY_HUMAN_DECISION = "GOVERNED_BY_HUMAN_DECISION"
+
+# ADR-0064 décide la visibilité de principe pour onze politiques internes
+# épinglées. Cette liste ne prouve ni les droits individuels des contenus ni
+# l'autorisation des futures releases publiques.
+STUDENT_PUBLIC_PREDECESSORS: Mapping[str, str] = {
+    "rag_nexus_dgemc_terminale_option": "prod_dgemc_terminale_option_v3",
+    "rag_nexus_hggsp_premiere_specialite": "prod_hggsp_premiere_specialite_v3",
+    "rag_nexus_hggsp_terminale_specialite": "prod_hggsp_terminale_specialite_v3",
+    "rag_nexus_hlp_premiere_specialite": "prod_hlp_premiere_specialite_v3",
+    "rag_nexus_hlp_terminale_specialite": "prod_hlp_terminale_specialite_v2",
+    "rag_nexus_nsi_premiere_specialite": "prod_nsi_premiere_specialite_v3",
+    "rag_nexus_nsi_terminale_specialite": "prod_nsi_terminale_specialite_v3",
+    "rag_nexus_ses_premiere_specialite": "prod_ses_premiere_specialite_v3",
+    "rag_nexus_ses_terminale_specialite": "prod_ses_terminale_specialite_v3",
+    "rag_nexus_svt_premiere_specialite": "prod_svt_premiere_specialite_v3",
+    "rag_nexus_svt_terminale_specialite": "prod_svt_terminale_specialite_v3",
+}
 
 
 @dataclass(frozen=True)
@@ -1090,10 +1110,44 @@ def _require_human_decision_is_declared_as_such(entry: PolicyRegistryEntry) -> N
         f"{entry.collection} : une décision humaine ne peut pas invoquer un "
         f"policy_source_scope_id",
     )
+    if entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0053":
+        return
     _require(
-        entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0053",
-        f"{entry.collection} : décision humaine sans autorité ADR-0053",
+        entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064",
+        f"{entry.collection} : décision humaine sans autorité ADR-0053 ou ADR-0064",
     )
+    predecessor_id = STUDENT_PUBLIC_PREDECESSORS.get(entry.collection)
+    if predecessor_id is None:
+        raise ScopeEmissionError(
+            f"{entry.collection} : hors du périmètre étudiant ADR-0064"
+        )
+    predecessor = load_hggsp_successor_scope(predecessor_id)
+    _require(
+        isinstance(predecessor, RetrievalScopeArtifactV2),
+        f"{entry.collection} : prédécesseur non V2",
+    )
+    evidence = predecessor.evidence_subject
+    target = predecessor.target_identity
+    expected = {
+        "tenant": target.tenant,
+        "niveau": target.niveau,
+        "voie": target.voie,
+        "matiere": target.matiere,
+        "statut_enseignement": target.statut_enseignement,
+        "candidat": evidence.candidat.value,
+        "audiences": tuple(evidence.audiences),
+        "rights": ("officiel_public",),
+        "policy_visibility": "public",
+        "evidence_visibility": "public",
+        "programme_version": evidence.programme_version,
+        "target_audience": "libre",
+        "target_candidates": ("libre",),
+    }
+    for field, value in expected.items():
+        _require(
+            getattr(entry, field) == value,
+            f"{entry.collection} : ADR-0064 non conforme sur {field} (attendu {value!r})",
+        )
 
 
 def _build_artifact_from_registry(
