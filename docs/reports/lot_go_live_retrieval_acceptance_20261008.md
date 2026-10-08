@@ -45,7 +45,12 @@ refus de scope croisé ; zéro résultat hors scope ; zéro citation absente.
 La sonde canonique `staging_retrieval_probe.py` doit couvrir les 11 scopes et
 12 316 visites, chaque population exacte par scope et **zéro manque dense** ;
 elle rapporte séparément chaque refus `dense ann tie overflow` constaté à la
-source. Aucun ajustement du classement, du reranking, du nombre
+source. Sa répétition finale, en lecture seule depuis le checkout qualifié,
+doit recevoir `NEXUS_PROBE_CHECKOUT_SHA` et produire le registre mixte, les
+digests des deux manifests, l'horodatage et l'empreinte DB (nom, OID,
+comptes, dernières dates de publication). L'empreinte est comparée avant et
+après la sonde puis à la lecture DB du runner HTTP ; un ancien rapport sans
+provenance ou issu d'une autre cible est refusé. Aucun ajustement du classement, du reranking, du nombre
 de candidats ou des paramètres HNSW n'est inclus dans ce lot.
 
 Exécution, **après** publication V5 74/74 et sonde dense finale, depuis le

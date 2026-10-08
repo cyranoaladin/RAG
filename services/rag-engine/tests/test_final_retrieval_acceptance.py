@@ -25,6 +25,22 @@ def _case_and_index():
     return suite, index, suite["collections"][collection]["positive"][0]
 
 
+def _probe_provenance(suite):
+    return {
+        "checkout_sha": "e" * 40,
+        "mixed_registry_sha256": suite["mixed_registry_sha256"],
+        "release_manifest_sha256": suite["release_manifest_sha256"],
+        "generated_at_utc": "2026-10-08T00:00:00Z",
+        "db_fingerprint": {
+            "database": "ragdb_profile_gate_v4", "database_oid": 1,
+            "chunks": 8268, "artifacts": 315, "placements": 479,
+            "max_chunk_indexed_at": "2026-10-08 00:00:00",
+            "max_artifact_created_at": "2026-10-08 00:00:00",
+            "max_placement_created_at": "2026-10-08 00:00:00",
+        },
+    }
+
+
 def _response(case, index, *, citation=True, collection=None, content=None, chunk=None):
     expected = case["expected_content_sha256"]
     artifact = index[case["collection"]][content or expected]
@@ -191,10 +207,33 @@ def test_dense_probe_requires_all_chunks_and_reports_tie_overflow():
         "totaux": {"chunks": 12316, "rappel_a_1": 12305,
                    "rappel_a_5": 12305, "manques": 0, "refus_egalite": 11},
     }
+    with pytest.raises(acceptance.AcceptanceFailure, match="provenance"):
+        acceptance.check_dense_probe(probe, suite, index)
+    probe["provenance"] = _probe_provenance(suite)
     assert acceptance.check_dense_probe(probe, suite, index) == 11
     probe["totaux"]["chunks"] = 12315
     with pytest.raises(acceptance.AcceptanceFailure, match="dense"):
         acceptance.check_dense_probe(probe, suite, index)
+
+
+def test_probe_database_fingerprint_records_target_and_publication_watermarks():
+    import staging_retrieval_probe
+
+    class FakeConnection:
+        def execute(self, query):
+            assert "current_database()" in query
+            return self
+        def fetchone(self):
+            return ("ragdb_profile_gate_v4", 16438, 8268, 315, 479,
+                    "2026-10-08 05:00:00", "2026-10-08 04:00:00", "2026-10-08 04:30:00")
+
+    fingerprint = staging_retrieval_probe.db_fingerprint(FakeConnection())
+    assert fingerprint == _probe_provenance(_case_and_index()[0])["db_fingerprint"] | {
+        "database_oid": 16438,
+        "max_chunk_indexed_at": "2026-10-08 05:00:00",
+        "max_artifact_created_at": "2026-10-08 04:00:00",
+        "max_placement_created_at": "2026-10-08 04:30:00",
+    }
 
 
 def test_dense_probe_rejects_wrong_scope_and_swapped_collection_counts():
@@ -203,6 +242,7 @@ def test_dense_probe_rejects_wrong_scope_and_swapped_collection_counts():
               for name, selected in index.items()}
     probe = {
         "release_id": "mixed-v4-hggsp",
+        "provenance": _probe_provenance(suite),
         "collections": {
             name: {"scope_id": suite["collections"][name]["scope_id"],
                    "programme_version": suite["collections"][name]["programme_version"],
@@ -234,6 +274,7 @@ def test_dense_probe_rejects_negative_or_missing_recall(field, value):
               for name, selected in index.items()}
     probe = {
         "release_id": "mixed-v4-hggsp",
+        "provenance": _probe_provenance(suite),
         "collections": {
             name: {"scope_id": suite["collections"][name]["scope_id"],
                    "programme_version": suite["collections"][name]["programme_version"],
@@ -375,11 +416,16 @@ def test_live_db_transport_opens_read_only_transaction(monkeypatch):
             commands.append((sql, args))
             return self
         def fetchall(self): return []
+        def fetchone(self):
+            return ("ragdb_profile_gate_v4", 16438, 8268, 315, 479,
+                    "2026-10-08 05:00:00", "2026-10-08 04:00:00", "2026-10-08 04:30:00")
         def rollback(self): pass
     monkeypatch.setattr(psycopg, "connect", lambda _dsn: FakeConnection())
     assert acceptance.verify_db_evidence(report, "postgresql://reader@example/db") == 0
     assert commands[0][0] == "SET TRANSACTION READ ONLY"
-    assert "rag_chunks" in commands[1][0]
+    assert "current_database()" in commands[1][0]
+    assert "rag_chunks" in commands[2][0]
+    assert report["db_fingerprint"]["database"] == "ragdb_profile_gate_v4"
 
 
 def test_runtime_without_git_refuses_missing_clean_checkout_attestation(monkeypatch):

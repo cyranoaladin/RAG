@@ -28,6 +28,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import sys
 import time
@@ -68,6 +69,26 @@ REFUS_EGALITE = "dense ann tie overflow"
 
 class SondeEchec(RuntimeError):
     """Un manquement du retrieval servi."""
+
+
+def db_fingerprint(conn: Any) -> dict[str, Any]:
+    """Identité et marqueurs de la DB lue, comparables à la recette HTTP finale."""
+    row = conn.execute("""
+        SELECT current_database(),
+               (SELECT oid FROM pg_database WHERE datname = current_database()),
+               (SELECT count(*) FROM public.rag_chunks),
+               (SELECT count(*) FROM public.rag_artifacts),
+               (SELECT count(*) FROM public.rag_artifact_placements),
+               (SELECT (max(indexed_at) AT TIME ZONE 'UTC')::text FROM public.rag_chunks),
+               (SELECT (max(created_at) AT TIME ZONE 'UTC')::text FROM public.rag_artifacts),
+               (SELECT (max(created_at) AT TIME ZONE 'UTC')::text FROM public.rag_artifact_placements)
+    """).fetchone()
+    if row is None:
+        raise SondeEchec("empreinte DB indisponible")
+    return dict(zip((
+        "database", "database_oid", "chunks", "artifacts", "placements",
+        "max_chunk_indexed_at", "max_artifact_created_at", "max_placement_created_at",
+    ), row, strict=True))
 
 
 def _modules() -> dict[str, Any]:
@@ -425,11 +446,37 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - exécution
             print("SONDE_ECHEC: autorisation HGGSP non consommable : " + "; ".join(errors), file=sys.stderr)
             return 1
     try:
+        def snapshot() -> dict[str, Any]:
+            with psycopg.connect(dsn) as conn:
+                conn.execute("SET TRANSACTION READ ONLY")
+                state = db_fingerprint(conn)
+                conn.rollback()
+                return state
+
+        before = snapshot() if args.mixed_registry else None
         rapport = sonder(
             args.repository_root, connexion=lambda: psycopg.connect(dsn),
             collections=args.collection or None,
             mixed_registry=(args.mixed_registry, args.mixed_registry_sha256) if args.mixed_registry else None,
         )
+        if args.mixed_registry:
+            after = snapshot()
+            if before != after:
+                raise SondeEchec("DB modifiée pendant la sonde mixte")
+            checkout_sha = os.environ.get("NEXUS_PROBE_CHECKOUT_SHA", "").strip()
+            if checkout_sha and not re.fullmatch(r"[0-9a-f]{40}", checkout_sha):
+                raise SondeEchec("SHA de checkout de la sonde invalide")
+            registry = json.loads(args.mixed_registry.read_text(encoding="utf-8"))
+            rapport["provenance"] = {
+                "checkout_sha": checkout_sha or None,
+                "mixed_registry_sha256": args.mixed_registry_sha256,
+                "release_manifest_sha256": {
+                    item["release_id"]: item["expected_manifest_sha256"]
+                    for item in registry["releases"]
+                },
+                "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "db_fingerprint": after,
+            }
     except SondeEchec as exc:
         print(f"SONDE_ECHEC: {exc}", file=sys.stderr)
         return 1

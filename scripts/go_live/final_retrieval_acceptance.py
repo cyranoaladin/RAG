@@ -216,8 +216,28 @@ def check_zero_result(response: RetrievalResponse) -> None:
 def check_dense_probe(
     probe: dict[str, Any], suite: dict[str, Any],
     index: dict[str, dict[str, dict[str, Any]]],
+    *, expected_checkout_sha: str | None = None,
 ) -> int:
     """Réconcilier la sonde exhaustive qui constate les refus ANN à la source."""
+    provenance = probe.get("provenance")
+    if not isinstance(provenance, dict):
+        raise AcceptanceFailure("sonde dense : provenance absente")
+    fingerprint = provenance.get("db_fingerprint")
+    if (not isinstance(fingerprint, dict)
+            or not re.fullmatch(r"[0-9a-f]{40}", str(provenance.get("checkout_sha", "")))
+            or (expected_checkout_sha is not None
+                and provenance["checkout_sha"] != expected_checkout_sha)
+            or provenance.get("mixed_registry_sha256") != suite["mixed_registry_sha256"]
+            or provenance.get("release_manifest_sha256") != suite["release_manifest_sha256"]
+            or not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", str(provenance.get("generated_at_utc", "")))
+            or not isinstance(fingerprint.get("database"), str)
+            or not isinstance(fingerprint.get("database_oid"), int)
+            or {key: fingerprint.get(key) for key in ("chunks", "artifacts", "placements")}
+            != {key: suite["expected_population"][key] for key in ("chunks", "artifacts", "placements")}
+            or any(not fingerprint.get(key) for key in (
+                "max_chunk_indexed_at", "max_artifact_created_at", "max_placement_created_at"
+            ))):
+        raise AcceptanceFailure("sonde dense : provenance divergente")
     collections = probe.get("collections", {})
     totals = probe.get("totaux", {})
     if (probe.get("release_id") != "mixed-v4-hggsp"
@@ -422,6 +442,7 @@ def reconcile_db_rows(report: dict[str, Any], db_rows: list[tuple[Any, ...]]) ->
 def verify_db_evidence(report: dict[str, Any], dsn: str) -> int:
     """Lecture bornée au rôle reader, transaction explicitement READ ONLY."""
     import psycopg  # noqa: PLC0415
+    from staging_retrieval_probe import db_fingerprint  # noqa: PLC0415
 
     if not dsn:
         raise AcceptanceFailure("PG_RAG_DSN reader requis")
@@ -431,6 +452,7 @@ def verify_db_evidence(report: dict[str, Any], dsn: str) -> int:
     try:
         with psycopg.connect(dsn) as conn:
             conn.execute("SET TRANSACTION READ ONLY")
+            report["db_fingerprint"] = db_fingerprint(conn)
             rows = conn.execute(
                 """SELECT chunk.chunk_id, placement.placement_id, artifact.content_sha256,
                           chunk.page_start, chunk.page_end, placement.collection,
@@ -488,12 +510,17 @@ def main() -> int:
     try:
         suite, index = load_suite(args.repository_root)
         dense_report = _read_json(args.dense_probe_report)
-        overflow_count = check_dense_probe(dense_report, suite, index)
+        overflow_count = check_dense_probe(
+            dense_report, suite, index,
+            expected_checkout_sha=_git_head(args.repository_root),
+        )
         report = run_http(args.repository_root, suite, index, api_url=args.api_url)
         if report["verdict"] == "pass":
             report["db_result_rows_verified"] = verify_db_evidence(
                 report, os.environ.get("PG_RAG_DSN", "")
             )
+            if report["db_fingerprint"] != dense_report["provenance"]["db_fingerprint"]:
+                raise AcceptanceFailure("sonde dense : cible DB modifiée ou divergente")
             report["page_end_evidence"] = "live_db_manifest_match"
         report["dense_probe_sha256"] = _sha256(args.dense_probe_report)
         report["dense_tie_overflow_count"] = overflow_count
