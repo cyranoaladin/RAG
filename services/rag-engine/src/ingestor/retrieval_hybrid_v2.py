@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from fractions import Fraction
@@ -11,6 +12,11 @@ from numbers import Real
 from typing import Literal, Protocol
 
 from nexus_contracts.embedding_utils import format_query
+
+if __package__:
+    from . import metrics as ingest_metrics
+else:
+    import metrics as ingest_metrics  # type: ignore[no-redef]
 
 _SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
@@ -457,6 +463,7 @@ class ChannelDiagnostics:
     lexical_count: int = 0
     candidate_count: int = 0
     returned_count: int = 0
+    failure_cause: str | None = None
 
     def as_mapping(self) -> dict[str, object]:
         return {
@@ -503,23 +510,35 @@ def retrieve_hybrid(
         recorder.embedding_status = "ok"
 
         stage = "dense_status"
-        dense = list(
-            store.dense(
-                query_vector=query_vector,
-                collection=collection,
-                limit=CHANNEL_LIMIT,
+        channel_started = time.perf_counter()
+        try:
+            dense = list(
+                store.dense(
+                    query_vector=query_vector,
+                    collection=collection,
+                    limit=CHANNEL_LIMIT,
+                )
             )
-        )
+        finally:
+            ingest_metrics.observe_retrieval_stage(
+                "dense", time.perf_counter() - channel_started
+            )
         recorder.dense_count = len(dense)
         recorder.dense_status = "ok" if dense else "empty"
         stage = "lexical_status"
-        lexical = list(
-            store.lexical(
-                raw_query=query,
-                collection=collection,
-                limit=CHANNEL_LIMIT,
+        channel_started = time.perf_counter()
+        try:
+            lexical = list(
+                store.lexical(
+                    raw_query=query,
+                    collection=collection,
+                    limit=CHANNEL_LIMIT,
+                )
             )
-        )
+        finally:
+            ingest_metrics.observe_retrieval_stage(
+                "lexical", time.perf_counter() - channel_started
+            )
         recorder.lexical_count = len(lexical)
         recorder.lexical_status = "ok" if lexical else "empty"
 
@@ -534,7 +553,13 @@ def retrieve_hybrid(
 
         stage = "reranker_status"
         pairs = [(query, item.candidate.text) for item in fused]
-        logits = [float(score) for score in reranker.predict(pairs)]
+        channel_started = time.perf_counter()
+        try:
+            logits = [float(score) for score in reranker.predict(pairs)]
+        finally:
+            ingest_metrics.observe_retrieval_stage(
+                "reranker", time.perf_counter() - channel_started
+            )
         reranked = rerank_candidates(fused, logits)
         recorder.reranker_status = "ok" if reranked else "empty"
 
@@ -545,4 +570,6 @@ def retrieve_hybrid(
         return hits
     except Exception as exc:
         setattr(recorder, stage, "failed")
+        if stage in {"dense_status", "lexical_status"}:
+            recorder.failure_cause = getattr(store, "failure_cause", None)
         raise RetrievalPipelineError("hybrid retrieval failed") from exc

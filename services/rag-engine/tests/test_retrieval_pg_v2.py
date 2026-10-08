@@ -536,12 +536,14 @@ def test_dense_keeps_a_fixed_ann_probe_for_every_valid_output_limit(limit: int) 
 
 def test_dense_fails_closed_when_the_ann_sentinel_overflows_an_equality() -> None:
     provider = ProviderSpy([_dense_row(tie_overflow=True)])
+    store = PgCandidateStore(provider, SCOPE)
 
     with pytest.raises(RetrievalPipelineError, match="dense channel query failed") as exc:
-        _dense(provider)
+        store.dense(query_vector=VECTOR, collection="libre_terminale", limit=CHANNEL_LIMIT)
 
     assert exc.value.__cause__ is None
     assert exc.value.__context__ is None
+    assert store.failure_cause == "ann_overflow"
 
 
 @pytest.mark.parametrize("tie_overflow", [None, 0, 1, "false"])

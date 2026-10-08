@@ -11,7 +11,8 @@ from typing import Any, Literal
 from nexus_contracts import Rights
 
 if __package__:
-    from .pg_pool import execute_with_database_budget
+    from . import metrics as ingest_metrics
+    from .pg_pool import PoolConfigurationError, execute_with_database_budget
     from .retrieval_hybrid_v2 import (
         CHANNEL_LIMIT,
         EMBED_DIMENSION,
@@ -26,7 +27,11 @@ if __package__:
     )
     from .retrieval_scope_v2 import ServerRetrievalScope
 else:
-    from pg_pool import execute_with_database_budget  # type: ignore[no-redef]
+    import metrics as ingest_metrics  # type: ignore[no-redef]
+    from pg_pool import (  # type: ignore[no-redef]
+        PoolConfigurationError,
+        execute_with_database_budget,
+    )
     from retrieval_hybrid_v2 import (  # type: ignore[no-redef]
         CHANNEL_LIMIT,
         EMBED_DIMENSION,
@@ -531,8 +536,19 @@ def _dense_payload(row: object) -> Sequence[object]:
     if not isinstance(tie_overflow, bool):
         raise RetrievalPipelineError("invalid dense tie diagnostic")
     if tie_overflow:
+        ingest_metrics.record_retrieval_tie_overflow()
         raise RetrievalPipelineError("dense ann tie overflow")
     return row[:_ROW_CARDINALITY]
+
+
+def _bounded_store_failure_cause(exc: Exception) -> str | None:
+    if isinstance(exc, RetrievalPipelineError) and str(exc) == "dense ann tie overflow":
+        return "ann_overflow"
+    if isinstance(exc, PoolConfigurationError):
+        return "pool_failure"
+    if isinstance(exc, TimeoutError):
+        return "timeout"
+    return None
 
 
 class PgCandidateStore(CandidateStore):
@@ -555,6 +571,7 @@ class PgCandidateStore(CandidateStore):
         # Restriction pédagogique, jamais autorisation : ces paramètres
         # alimentent un fragment conjoint au prédicat de placement.
         self._metadata_params = chunk_metadata_filter_params(metadata_filters)
+        self.failure_cause: str | None = None
 
     def _execute(
         self,
@@ -603,6 +620,7 @@ class PgCandidateStore(CandidateStore):
         self, *, query_vector: Sequence[float], collection: str, limit: int
     ) -> Sequence[RetrievalCandidate]:
         failed = False
+        self.failure_cause = None
         candidates: list[RetrievalCandidate] = []
         try:
             normalized_vector = _query_vector(query_vector)
@@ -630,7 +648,8 @@ class PgCandidateStore(CandidateStore):
                     (_DENSE_STRICT_ORDER_SQL, None),
                 ),
             )
-        except Exception:
+        except Exception as exc:
+            self.failure_cause = _bounded_store_failure_cause(exc)
             failed = True
         if failed:
             raise RetrievalPipelineError("dense channel query failed") from None
@@ -640,6 +659,7 @@ class PgCandidateStore(CandidateStore):
         self, *, raw_query: str, collection: str, limit: int
     ) -> Sequence[RetrievalCandidate]:
         failed = False
+        self.failure_cause = None
         candidates: list[RetrievalCandidate] = []
         try:
             normalized_query = _nonblank(raw_query)
@@ -658,7 +678,8 @@ class PgCandidateStore(CandidateStore):
                 limit=normalized_limit,
                 channel="lexical",
             )
-        except Exception:
+        except Exception as exc:
+            self.failure_cause = _bounded_store_failure_cause(exc)
             failed = True
         if failed:
             raise RetrievalPipelineError("lexical channel query failed") from None

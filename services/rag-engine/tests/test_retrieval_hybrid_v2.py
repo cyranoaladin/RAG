@@ -820,6 +820,31 @@ def test_pipeline_uses_one_prefixed_embedding_and_raw_query_elsewhere(
     assert len(embedder.calls) == 1
 
 
+def test_pipeline_observes_each_executed_channel_without_changing_hits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[tuple[str, float]] = []
+    monkeypatch.setattr(
+        hybrid.ingest_metrics,
+        "observe_retrieval_stage",
+        lambda stage, seconds: observed.append((stage, seconds)),
+    )
+    store = RecordingStore(dense=[named_candidate("A", dense_score=0.9)], lexical=[])
+
+    hits = retrieve_hybrid(
+        "question brute",
+        "libre_terminale",
+        1,
+        store=store,
+        embedder=RecordingEmbedder(),
+        reranker=RecordingReranker([2.2]),
+    )
+
+    assert [hit.candidate.chunk_id for hit in hits] == ["A"]
+    assert [stage for stage, _ in observed] == ["dense", "lexical", "reranker"]
+    assert all(seconds >= 0 for _, seconds in observed)
+
+
 @pytest.mark.parametrize(
     ("query", "collection", "top_k"),
     [

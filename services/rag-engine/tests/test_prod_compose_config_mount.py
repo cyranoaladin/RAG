@@ -219,7 +219,7 @@ def test_v2_compose_mounts_exact_release_registry_authority_read_only() -> None:
 
     assert (
         configured["RAG_RELEASE_REGISTRY_PATH"]
-        == "/app/release/release-registry.json"
+        == "${RAG_RELEASE_REGISTRY_PATH:-/app/release/release-registry.json}"
     )
     assert _compose_env_ref_is_valid(
         configured["RAG_RELEASE_REGISTRY_SHA256"],

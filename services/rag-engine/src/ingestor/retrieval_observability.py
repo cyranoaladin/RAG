@@ -74,6 +74,19 @@ CLOSED_FILTER_DIMENSIONS = frozenset(
 )
 
 _FINGERPRINT_PREFIX_LENGTH = 16
+_BOUNDED_CAUSES = frozenset(
+    {
+        "authentication",
+        "invalid_request",
+        "scope_refusal",
+        "timeout",
+        "pool_failure",
+        "ann_overflow",
+        "service_unavailable",
+        "internal_error",
+        "empty_valid_result",
+    }
+)
 
 
 def resolve_request_id(headers: Mapping[str, str] | None) -> str:
@@ -181,11 +194,14 @@ class RetrievalAccessRecord:
     query_sha256: str | None = None
     query_length: int | None = None
     outcome: str | None = None
+    cause: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "filters", _frozen(self.filters))
         object.__setattr__(self, "channels", _frozen(self.channels))
         object.__setattr__(self, "granted_scopes", tuple(self.granted_scopes))
+        if self.cause is not None and self.cause not in _BOUNDED_CAUSES:
+            object.__setattr__(self, "cause", "internal_error")
 
     def as_mapping(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -205,6 +221,8 @@ class RetrievalAccessRecord:
             payload["query_length"] = self.query_length
         if self.outcome is not None:
             payload["outcome"] = self.outcome
+        if self.cause is not None:
+            payload["cause"] = self.cause
         return payload
 
     def as_json(self) -> str:

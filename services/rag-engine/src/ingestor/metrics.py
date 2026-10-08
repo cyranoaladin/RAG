@@ -52,6 +52,9 @@ __all__ = [
     "track_mm_parse_latency",
     "record_mm_chunk",
     "record_mm_failure",
+    "record_retrieval_http",
+    "record_retrieval_tie_overflow",
+    "observe_retrieval_stage",
 ]
 
 METRICS_ENABLED = os.getenv("METRICS_ENABLED", "true").lower() == "true"
@@ -118,6 +121,55 @@ _MM_FAILURES = Counter(
     f"{NAMESPACE}_mm_parse_failures_total",
     "Multimodal parse failures by reason",
     ("reason",),
+    registry=REGISTRY,
+)
+
+# Route et causes à cardinalité fermée : ni requête, ni collection, ni identité
+# élève ne deviennent des labels Prometheus.
+_RETRIEVAL_CAUSES = frozenset(
+    {
+        "authentication",
+        "invalid_request",
+        "scope_refusal",
+        "timeout",
+        "pool_failure",
+        "ann_overflow",
+        "service_unavailable",
+        "internal_error",
+    }
+)
+_RETRIEVAL_REQUESTS = Counter(
+    "retrieval_requests_total", "POST /search/v2 requests", registry=REGISTRY
+)
+_RETRIEVAL_ERRORS = Counter(
+    "retrieval_errors_total", "Retrieval failures by bounded cause", ("cause",), registry=REGISTRY
+)
+_RETRIEVAL_EMPTY = Counter(
+    "retrieval_empty_results_total", "Valid searches with no results", registry=REGISTRY
+)
+_RETRIEVAL_SCOPE_REFUSALS = Counter(
+    "retrieval_scope_refusals_total", "Search scope refusals", registry=REGISTRY
+)
+_RETRIEVAL_HTTP_503 = Counter(
+    "retrieval_http_503_total", "Search HTTP 503 responses", registry=REGISTRY
+)
+_RETRIEVAL_TIE_OVERFLOW = Counter(
+    "retrieval_tie_overflow_total", "Dense ANN tie overflows", registry=REGISTRY
+)
+_RETRIEVAL_LATENCY_BUCKETS = (0.01, 0.03, 0.1, 0.3, 0.6, 1.0, 3.0, 6.0, 7.5, 10.0)
+_RETRIEVAL_STAGE_LATENCY = {
+    stage: Histogram(
+        f"retrieval_{stage}_latency_seconds",
+        f"Retrieval {stage} stage latency",
+        buckets=_RETRIEVAL_LATENCY_BUCKETS,
+        registry=REGISTRY,
+    )
+    for stage in ("dense", "lexical", "reranker")
+}
+_RETRIEVAL_TOTAL_LATENCY = Histogram(
+    "retrieval_total_search_latency_seconds",
+    "POST /search/v2 end-to-end latency",
+    buckets=_RETRIEVAL_LATENCY_BUCKETS,
     registry=REGISTRY,
 )
 
@@ -244,3 +296,52 @@ def record_mm_failure(reason: str) -> None:
     if not safe_reason:
         safe_reason = "unknown"
     _MM_FAILURES.labels(reason=safe_reason).inc()
+
+
+@_guarded
+def record_retrieval_http(
+    *, status_code: int, seconds: float, cause: str | None = None, empty: bool = False
+) -> None:
+    """Compter une seule fois chaque POST search, sans rompre le service si Prometheus échoue."""
+    try:
+        _RETRIEVAL_REQUESTS.inc()
+        _RETRIEVAL_TOTAL_LATENCY.observe(max(seconds, 0.0))
+        if status_code == 200 and empty:
+            _RETRIEVAL_EMPTY.inc()
+        if status_code == 403:
+            _RETRIEVAL_SCOPE_REFUSALS.inc()
+        if status_code == 503:
+            _RETRIEVAL_HTTP_503.inc()
+        if status_code >= 400:
+            fallback = (
+                "authentication" if status_code == 401 else
+                "scope_refusal" if status_code == 403 else
+                "invalid_request" if status_code in {400, 422} else
+                "service_unavailable" if status_code == 503 else
+                "internal_error"
+            )
+            _RETRIEVAL_ERRORS.labels(
+                cause=cause if cause in _RETRIEVAL_CAUSES else fallback
+            ).inc()
+    except Exception:  # pragma: no cover - observabilité non bloquante
+        pass
+
+
+@_guarded
+def observe_retrieval_stage(stage: str, seconds: float) -> None:
+    """Observer uniquement les trois étapes exécutées, sans label dynamique."""
+    histogram = _RETRIEVAL_STAGE_LATENCY.get(stage)
+    if histogram is None:
+        return
+    try:
+        histogram.observe(max(seconds, 0.0))
+    except Exception:  # pragma: no cover - observabilité non bloquante
+        pass
+
+
+@_guarded
+def record_retrieval_tie_overflow() -> None:
+    try:
+        _RETRIEVAL_TIE_OVERFLOW.inc()
+    except Exception:  # pragma: no cover - observabilité non bloquante
+        pass
