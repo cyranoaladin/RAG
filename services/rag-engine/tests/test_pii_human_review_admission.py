@@ -30,6 +30,7 @@ from nexus_contracts.pii_review_decisions import (
 )
 from nexus_contracts.review_binding import (
     REVIEW_BINDING_PROTOCOL_VERSION,
+    ReviewBindingError,
     ScopeAuthorizationReviewBindingV1,
     TrustAnchor,
     expected_challenge_digest,
@@ -70,6 +71,9 @@ BUNDLE_APPROVED = "1" * 64
 BUNDLE_REJECTED = "2" * 64
 
 NOW = datetime(2026, 9, 3, 12, 0, tzinfo=UTC)
+# La campagne réelle du 3 septembre n'est vérifiable qu'en tant que preuve
+# historique. Ce point est postérieur à son émission et antérieur à l'expiration.
+HISTORICAL_RECEIPT_AS_OF = datetime(2026, 9, 4, tzinfo=UTC)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -655,10 +659,34 @@ REAL_REVIEWERS = REPO_ROOT / CANONICAL_REVIEWERS_RELATIVE_PATH
 REAL_REVIEW_INDEX = (
     REPO_ROOT / "docs/reports/evidence-index/pii_review_index_20260903.json"
 )
+CURRENT_RECEIPT = (
+    REPO_ROOT / "governance/pii-review-bindings/pii-review-2026-09-22-profile-gate-v3.json"
+)
 
 
 class TestRealCandidateDecisionSet:
     """Preuve du candidat réel — distincte des tests unitaires déterministes."""
+
+    def test_historical_receipt_is_not_a_current_publication_authority(self) -> None:
+        anchor = TrustAnchor.model_validate(json.loads(REAL_ANCHOR.read_text(encoding="utf-8")))
+        with pytest.raises(ReviewBindingError, match="review binding receipt expired"):
+            verify_review_binding(
+                REAL_RECEIPT.read_bytes(),
+                trust_anchor=anchor,
+                environment="production",
+                now=datetime.now(UTC),
+            )
+
+    def test_final_v4_v5_receipt_remains_current(self) -> None:
+        anchor = TrustAnchor.model_validate(json.loads(REAL_ANCHOR.read_text(encoding="utf-8")))
+        binding = verify_review_binding(
+            CURRENT_RECEIPT.read_bytes(),
+            trust_anchor=anchor,
+            environment="production",
+            now=datetime.now(UTC),
+        )
+        assert binding.authorization_id == "pii-review-2026-09-22-profile-gate-v3"
+        assert binding.authorization_decision == "APPROVE_PII_REVIEW_DECISIONS"
 
     def test_real_decision_set_is_canonical_and_fully_dispositioned(self) -> None:
         decision_set = parse_pii_review_decision_set(REAL_DS.read_bytes())
@@ -675,7 +703,7 @@ class TestRealCandidateDecisionSet:
             REAL_RECEIPT.read_bytes(),
             trust_anchor=anchor,
             environment="production",
-            now=datetime.now(UTC),
+            now=HISTORICAL_RECEIPT_AS_OF,
         )
         assert binding.authorization_decision == "APPROVE_PII_REVIEW_DECISIONS"
         assert binding.authorization_id == "pii-review-2026-09-03-final"
@@ -690,7 +718,7 @@ class TestRealCandidateDecisionSet:
             REAL_RECEIPT.read_bytes(),
             trust_anchor=anchor,
             environment="production",
-            now=datetime.now(UTC),
+            now=HISTORICAL_RECEIPT_AS_OF,
         )
         require_matches_pii_review_decision_set(
             binding,
@@ -764,7 +792,7 @@ class TestRealCandidateDecisionSet:
             expected_review_index_sha256=hashlib.sha256(
                 REAL_REVIEW_INDEX.read_bytes()
             ).hexdigest(),
-            now=datetime.now(UTC),
+            now=HISTORICAL_RECEIPT_AS_OF,
         )
         admitted = [
             sha for sha in approved

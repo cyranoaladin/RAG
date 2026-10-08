@@ -32,6 +32,57 @@ REAL_RECEIPT = REPO_ROOT / "governance/pii-review-bindings/pii-review-2026-09-03
 REAL_ANCHOR = REPO_ROOT / "governance/trust-anchors/review-binding-v1.json"
 REAL_INDEX = REPO_ROOT / "docs/reports/evidence-index/pii_review_index_20260903.json"
 REAL_REVIEWERS = REPO_ROOT / "scripts/github/trusted-reviewers.json"
+CURRENT_DECISION_SET = REPO_ROOT / "governance/pii-review-decisions/pii-review-2026-09-22-profile-gate-v3.json"
+CURRENT_RECEIPT = REPO_ROOT / "governance/pii-review-bindings/pii-review-2026-09-22-profile-gate-v3.json"
+CURRENT_INDEX = REPO_ROOT / "docs/reports/evidence-index/pii_review_index_20260922_profile_gate_v3.json"
+
+
+class TestReviewReceiptCurrentness:
+    def test_historical_receipt_is_refused_by_the_live_producer(self) -> None:
+        from conftest import load_producer
+
+        producer = load_producer()
+        inputs = producer.ReviewAuthorityInputs(
+            decision_set_path=REAL_DECISION_SET,
+            receipt_path=REAL_RECEIPT,
+            trust_anchor_path=REAL_ANCHOR,
+            review_index_path=REAL_INDEX,
+            reviewers=("abenrhouma",),
+        )
+        with pytest.raises(ValueError, match="review binding receipt expired"):
+            producer._load_review_authority(inputs)
+
+    def test_v4_v5_use_the_current_receipt_and_exact_digest(self) -> None:
+        # Vérification volontairement à l'heure réelle : après expiration,
+        # la CI doit refuser ce reçu et exiger une nouvelle revue gouvernée.
+        # Figer l'horloge transformerait une preuve périmée en faux vert.
+        import hashlib
+        import json
+
+        from conftest import load_producer
+
+        producer = load_producer()
+        inputs = producer.ReviewAuthorityInputs(
+            decision_set_path=CURRENT_DECISION_SET,
+            receipt_path=CURRENT_RECEIPT,
+            trust_anchor_path=REAL_ANCHOR,
+            review_index_path=CURRENT_INDEX,
+            reviewers=("abenrhouma",),
+        )
+        decisions, _bundles, digests = producer._load_review_authority(inputs)
+        assert decisions is not None
+        assert decisions["decision_set_id"] == "pii-review-2026-09-22-profile-gate-v3"
+        receipt_digest = hashlib.sha256(CURRENT_RECEIPT.read_bytes()).hexdigest()
+        assert digests["pii_review_receipt_sha256"] == receipt_digest
+        releases = (
+            "profile_gate_v3/release-f8fb983d04f4b7c1",
+            "profile_gate_hggsp_v5/release-b34b11e678bf9559",
+        )
+        for release in releases:
+            bindings = REPO_ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027" / release / "profile_gate/authority_bindings.json"
+            entry = json.loads(bindings.read_text(encoding="utf-8"))["bindings"]["pii_review_receipt_sha256"]
+            assert entry["file_sha256"] == receipt_digest
+            assert entry["path"] == CURRENT_RECEIPT.relative_to(REPO_ROOT).as_posix()
 
 
 class TestProducerCarriesNoBusinessConstant:
@@ -594,13 +645,13 @@ class TestTheReviewIndexCannotDisableItsOwnCheck:
         from conftest import load_producer
 
         module = load_producer()
-        index = _json.loads(REAL_INDEX.read_text(encoding="utf-8"))
+        index = _json.loads(CURRENT_INDEX.read_text(encoding="utf-8"))
         index["campaign_id"] = "pii-review-autre-campagne"
         forged = tmp_path / "index.json"
         forged.write_text(_json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
         inputs = module.ReviewAuthorityInputs(
-            decision_set_path=REAL_DECISION_SET,
-            receipt_path=REAL_RECEIPT,
+            decision_set_path=CURRENT_DECISION_SET,
+            receipt_path=CURRENT_RECEIPT,
             trust_anchor_path=REAL_ANCHOR,
             review_index_path=forged,
             reviewers=("abenrhouma",),
@@ -788,11 +839,12 @@ class TestTheHumanReviewBindsTheFinalCandidateCorpus:
             produced_content_set_sha256="a" * 64,
         )
 
-    def test_the_loader_carries_the_reviewed_content_set_through(self) -> None:
+    def test_the_loader_carries_the_current_reviewed_content_set_through(self) -> None:
         """Le CÂBLAGE, pas seulement la garde.
 
         La garde peut être parfaite et ne jamais recevoir la valeur : si le
-        chargeur d'autorité cesse d'extraire `content_set_sha256` de l'index,
+        chargeur d'autorité cesse d'extraire
+        `review_input_content_set_sha256` de l'index canonique,
         la confrontation reçoit `None` et se tait. Ce test exerce la chaîne
         réelle, sur les artefacts scellés de la campagne."""
         import json
@@ -800,19 +852,19 @@ class TestTheHumanReviewBindsTheFinalCandidateCorpus:
         from conftest import load_producer
 
         producer = load_producer()
-        index_path = REAL_INDEX
+        index_path = CURRENT_INDEX
         reviewers = tuple(
             json.loads(REAL_REVIEWERS.read_text(encoding="utf-8"))["reviewers"]
         )
         inputs = producer.ReviewAuthorityInputs(
-            decision_set_path=REAL_DECISION_SET,
-            receipt_path=REAL_RECEIPT,
+            decision_set_path=CURRENT_DECISION_SET,
+            receipt_path=CURRENT_RECEIPT,
             trust_anchor_path=REAL_ANCHOR,
             review_index_path=index_path,
             reviewers=reviewers,
         )
         _document, _bundles, digests = producer._load_review_authority(inputs)
-        expected = json.loads(index_path.read_text(encoding="utf-8"))["content_set_sha256"]
+        expected = json.loads(index_path.read_text(encoding="utf-8"))["review_input_content_set_sha256"]
         assert digests.get("reviewed_content_set_sha256") == expected, (
             "le chargeur ne transmet plus l'ensemble de contenus revu : la "
             "confrontation avec la candidate ne recevrait rien à comparer"
