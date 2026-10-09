@@ -11,6 +11,7 @@
     "contracts:generate": "node scripts/generate-contracts.mjs",
     "dev": "next dev",
     "build": "npm run contracts:check && next build",
+    "build:container": "node scripts/generate-contracts.mjs --check && next build",
     "lint": "eslint .",
     "test": "vitest",
     "typecheck": "tsc --noEmit",
