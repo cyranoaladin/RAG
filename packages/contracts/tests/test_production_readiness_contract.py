@@ -14,6 +14,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 import nexus_contracts
@@ -45,6 +46,12 @@ LEGACY_V1_FIXTURE = (
 )
 LEGACY_V1_FIXTURE_SHA256 = (
     "b709335c20f949b2e9b08ed2610e921d5684f5602e1ef5ce38355d4fa51a8009"
+)
+LEGACY_V2_MANIFEST_FIXTURE = (
+    Path(__file__).parent / "fixtures/legacy_v2/production_readiness_manifest_v2.json"
+)
+LEGACY_V2_MANIFEST_FIXTURE_SHA256 = (
+    "3d239870851d42458a937c871ada1db49e48c99bd34f043ab39e54cb875f8b9b"
 )
 FROZEN_READINESS_PUBLIC_KEY = (
     "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737"
@@ -138,6 +145,115 @@ def _v2_manifest(
 
 
 class TestProductionReadinessV2:
+    def test_public_candidate_repository_map_is_immutable(self) -> None:
+        repositories = readiness_contract.PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
+        assert isinstance(repositories, MappingProxyType)
+        with pytest.raises(TypeError):
+            repositories["ingestor"] = "ghcr.io/untrusted/image"  # type: ignore[index]
+
+    def test_public_candidate_inventory_is_signed_without_changing_legacy_v2_bytes(self) -> None:
+        legacy = _v2_manifest()
+        frozen = LEGACY_V2_MANIFEST_FIXTURE.read_bytes()
+        assert hashlib.sha256(frozen).hexdigest() == LEGACY_V2_MANIFEST_FIXTURE_SHA256
+        assert legacy.canonical_bytes() == frozen
+        assert "public_candidate_inventory_digest" not in legacy.canonical_document()
+        assert "public_candidate_provenance_run_id" not in legacy.canonical_document()
+
+        images = {
+            "ingestor": "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "1" * 64,
+            "multilevel-worker-a-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "2" * 64,
+            "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "2" * 64,
+            "cockpit": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "3" * 64,
+        }
+        public = _v2_manifest(
+            application_image_digests=images,
+            public_candidate_inventory_digest="a" * 64,
+            public_candidate_provenance_run_id=789,
+            public_candidate_provenance_run_attempt=2,
+        )
+        signed = readiness_contract.sign_production_readiness_manifest_v2(
+            public, private_key_hex=READINESS_SEED, key_id=KEY_ID
+        )
+        verified = readiness_contract.verify_production_readiness_manifest_v2(
+            signed.canonical_bytes(), trust_anchor=_anchor()
+        )
+        assert verified.public_candidate_inventory_digest == "a" * 64
+        assert verified.canonical_document()["public_candidate_provenance_run_id"] == 789
+        assert verified.digest() != legacy.digest()
+
+    @pytest.mark.parametrize("missing", [
+        "public_candidate_inventory_digest",
+        "public_candidate_provenance_run_id",
+        "public_candidate_provenance_run_attempt",
+    ])
+    def test_public_candidate_refuses_partial_binding(self, missing: str) -> None:
+        fields = {
+            "public_candidate_inventory_digest": "a" * 64,
+            "public_candidate_provenance_run_id": 789,
+            "public_candidate_provenance_run_attempt": 2,
+        }
+        del fields[missing]
+        with pytest.raises(ValidationError, match="public candidate inventory"):
+            _v2_manifest(**fields)
+
+    def test_public_candidate_refuses_missing_cockpit_or_divergent_workers(self) -> None:
+        images = {
+            "ingestor": "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "1" * 64,
+            "multilevel-worker-a-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "2" * 64,
+            "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "3" * 64,
+            "cockpit": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "4" * 64,
+        }
+        fields = {
+            "public_candidate_inventory_digest": "a" * 64,
+            "public_candidate_provenance_run_id": 789,
+            "public_candidate_provenance_run_attempt": 2,
+        }
+        with pytest.raises(ValidationError, match="worker"):
+            _v2_manifest(application_image_digests=images, **fields)
+        images["multilevel-worker-b-production"] = images["multilevel-worker-a-production"]
+        del images["cockpit"]
+        with pytest.raises(ValidationError, match="four"):
+            _v2_manifest(application_image_digests=images, **fields)
+
+    def test_public_candidate_checker_requires_exact_digest_run_and_images(self) -> None:
+        images = {
+            "ingestor": "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "1" * 64,
+            "multilevel-worker-a-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "2" * 64,
+            "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "2" * 64,
+            "cockpit": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "3" * 64,
+        }
+        manifest = _v2_manifest(
+            application_image_digests=images,
+            public_candidate_inventory_digest="a" * 64,
+            public_candidate_provenance_run_id=789,
+            public_candidate_provenance_run_attempt=2,
+        )
+        check = readiness_contract.require_public_candidate_inventory_matches_readiness
+        check(manifest, inventory_digest="a" * 64, provenance_run_id=789,
+              provenance_run_attempt=2, application_image_digests=images)
+        for changed, cause in (
+            ({"inventory_digest": "b" * 64}, "inventory digest"),
+            ({"provenance_run_id": 790}, "provenance run id"),
+            ({"provenance_run_attempt": 3}, "provenance run attempt"),
+            ({"application_image_digests": {**images, "cockpit": images["ingestor"]}}, "application image map"),
+        ):
+            facts = dict(inventory_digest="a" * 64, provenance_run_id=789,
+                         provenance_run_attempt=2, application_image_digests=images)
+            facts.update(changed)
+            with pytest.raises(ProductionReadinessError, match=cause):
+                check(manifest, **facts)
+        with pytest.raises(ProductionReadinessError, match="inventory binding is absent"):
+            check(_v2_manifest(), inventory_digest="a" * 64, provenance_run_id=789,
+                  provenance_run_attempt=2, application_image_digests=images)
+        legacy = _v2_manifest()
+        with pytest.raises(ProductionReadinessError, match="public candidate inventory binding is absent"):
+            check(legacy, inventory_digest=None, provenance_run_id=None,
+                  provenance_run_attempt=None,
+                  application_image_digests=legacy.application_image_digests)  # type: ignore[arg-type]
+        with pytest.raises(ProductionReadinessError, match="manifest type"):
+            check(_manifest(), inventory_digest="a" * 64, provenance_run_id=789,
+                  provenance_run_attempt=2, application_image_digests=images)  # type: ignore[arg-type]
+
     def test_v2_replaces_singular_authority_digests_with_the_set_digest(self) -> None:
         manifest = _v2_manifest()
 

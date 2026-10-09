@@ -222,6 +222,7 @@ from nexus_contracts.production_readiness import (
     ProductionReadinessManifestV2,
     SignedProductionReadinessManifestV2,
     parse_signed_production_readiness_manifest_v2,
+    require_public_candidate_inventory_matches_readiness,
     sign_production_readiness_manifest_v2,
     verify_production_readiness_manifest_v2,
 )
@@ -460,6 +461,7 @@ __all__ = [
     "ProductionReadinessManifestV2",
     "SignedProductionReadinessManifestV2",
     "parse_signed_production_readiness_manifest_v2",
+    "require_public_candidate_inventory_matches_readiness",
     "REHEARSAL_ENVIRONMENT",
     "STAGING_READINESS_PROTOCOL",
     "SignedStagingReadinessManifest",

@@ -5,6 +5,7 @@ doubles fournis explicitement à chaque appel, jamais un vrai ``gh``.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from copy import deepcopy
@@ -16,6 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import deployment_image_inventory as dii  # noqa: E402
+import nexus_contracts.production_readiness as readiness_contract  # noqa: E402
 
 REPOSITORY = "cyranoaladin/RAG"
 RUN_ID = 555
@@ -116,7 +118,12 @@ class _Fakes:
         if self.inventory is None:
             raise dii.DeploymentImageInventoryError("artifact not found (simulated)")
         path = dest_dir / dii._ARTIFACT_FILENAME
-        path.write_text(json.dumps(self.inventory), encoding="utf-8")
+        raw = (
+            json.dumps(self.inventory, sort_keys=True, indent=2) + "\n"
+            if artifact_name == PUBLIC_ARTIFACT
+            else json.dumps(self.inventory)
+        )
+        path.write_text(raw, encoding="utf-8")
         return path
 
 
@@ -195,6 +202,47 @@ def test_public_inventory_requires_explicit_v2_and_four_bound_images(tmp_path: P
     assert fakes.download_calls == [(RUN_ID, PUBLIC_ARTIFACT, tmp_path)]
     with pytest.raises(dii.DeploymentImageInventoryError, match="protocol_version"):
         _verify(fakes, tmp_path)
+
+
+def test_public_image_repositories_match_the_signed_contract() -> None:
+    producer_repositories = {
+        name: repository for name, (_dockerfile, repository) in dii._PUBLIC_SERVICE_SOURCES.items()
+    }
+    assert producer_repositories == readiness_contract.PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
+
+
+def test_public_inventory_exposes_one_verified_document_for_signed_digest(tmp_path: Path) -> None:
+    inventory = _public_inventory()
+    fakes = _Fakes(run=_run_document(), inventory=inventory)
+    document = dii.fetch_and_verify_public_candidate_image_provenance_document(
+        repository=REPOSITORY,
+        source_commit_sha=SOURCE_COMMIT_SHA,
+        source_tree_sha=SOURCE_TREE_SHA,
+        provenance_run_id=RUN_ID,
+        provenance_run_attempt=RUN_ATTEMPT,
+        github_api_get=fakes.github_api_get,
+        download_artifact=fakes.download_artifact,
+        work_dir=tmp_path,
+    )
+    assert document == inventory
+    assert fakes.download_calls == [(RUN_ID, PUBLIC_ARTIFACT, tmp_path)]
+    expected = hashlib.sha256((json.dumps(inventory, sort_keys=True, indent=2) + "\n").encode()).hexdigest()
+    assert dii.public_candidate_inventory_digest(document) == expected
+
+
+def test_public_inventory_refuses_noncanonical_artifact_bytes(tmp_path: Path) -> None:
+    fakes = _Fakes(run=_run_document(), inventory=_public_inventory())
+    def noncanonical_download(run_id: int, artifact_name: str, destination: Path) -> Path:
+        path = fakes.download_artifact(run_id, artifact_name, destination)
+        path.write_text(json.dumps(fakes.inventory), encoding="utf-8")
+        return path
+    with pytest.raises(dii.DeploymentImageInventoryError, match="canonical"):
+        dii.fetch_and_verify_public_candidate_image_provenance_document(
+            repository=REPOSITORY, source_commit_sha=SOURCE_COMMIT_SHA,
+            source_tree_sha=SOURCE_TREE_SHA, provenance_run_id=RUN_ID,
+            provenance_run_attempt=RUN_ATTEMPT, github_api_get=fakes.github_api_get,
+            download_artifact=noncanonical_download, work_dir=tmp_path,
+        )
 
 
 @pytest.mark.parametrize(
