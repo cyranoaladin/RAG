@@ -3,7 +3,7 @@
 ## Base et identité
 
 - Fetch frais du 2026-10-09 : `origin/main` = `029f6c9987b718fb96142b6ae63836ccf2f922e4`, arbre `8d82d42347ec9545a68baaa7e5aa4a71ee4b9cff`. La PR #310 y est fusionnée. Worktree propre créé depuis ce main ; seuls les deux commits du lot 311 ont été transplantés, sans cherry-pick du lot 310.
-- HEAD de code qualifié : `7e3afd488734dde9c65099ece4ca57ddc6bceb40`, arbre `997e43fe3e5ce709d1fb6fe39795013ddc9f1158`. La preuve Docker ci-dessous est épinglée à ce code, avant le commit documentaire.
+- HEAD de code qualifié : `0bb271753fe0d450c16415ea0eb7be4c1fecc79b`, arbre `1072b17e317e3a13872e2f6997afbca640476407`. La preuve Docker ci-dessous est épinglée à ce code, avant le commit documentaire. Le harnais Docker V2 historique conserve son empreinte canonique `af109874ba8c0740734a2446a8de8122e9ce156622a631b396f2242dfd72e2ae` : le changement local qui l'avait modifié a été retiré après l'échec du contrôle CI de qualification.
 - Venv Python 3.12 propre et non éditable, propre à ce worktree. Aucun staging, registre, serveur ou base de production muté ; aucune clé opérateur lue ou utilisée ; aucune image applicative construite ou poussée.
 
 ## Changement
@@ -17,7 +17,7 @@ Avant le premier inventaire, un verrou de couleur indépendant du répertoire d'
 ## TDD et vérifications sur la base courante
 
 - Red confirmé pour les deux racines d'état concurrentes, l'ancien bundle tentant le rollback d'une nouvelle génération, les labels ambigus, les règles Prometheus absentes et l'échec `fsync` après publication de l'état. Green après correction : 24 tests ciblés, dont le témoin Docker public réel à cinq Alpine.
-- Suite élargie lancée depuis `services/rag-engine` avec `PYTHONPATH=src:src/ingestor` sur les treize fichiers ci-dessous : **670 collectés, 669 réussis, 1 skip**. Le premier essai depuis la racine avait 15 échecs d'import (`collection_config`, puis `prometheus_client`) dus au PYTHONPATH et au venv ciblé. Le paquet manquant a été installé à son pin `prometheus-client==0.20.0`, puis cette suite a passé. L'ancienne suite main59 de 467 cas n'est pas réutilisée comme preuve : sa commande exacte n'était pas conservée et celle-ci couvre explicitement davantage de fichiers pertinents.
+- Suite élargie relancée sur ce HEAD depuis `services/rag-engine` avec `PYTHONPATH=src:src/ingestor` sur les treize fichiers ci-dessous : **669 collectés, 668 réussis, 1 skip**. Le premier essai depuis la racine avait 15 échecs d'import (`collection_config`, puis `prometheus_client`) dus au PYTHONPATH et au venv ciblé. Le paquet manquant a été installé à son pin `prometheus-client==0.20.0`, puis cette suite a passé. L'ancienne suite main59 de 467 cas n'est pas réutilisée comme preuve : sa commande exacte n'était pas conservée et celle-ci couvre explicitement davantage de fichiers pertinents.
 - `ruff check` sur les trois fichiers Python modifiés et `git diff --check` : zéro erreur. Mypy ciblé sur wrapper et harnais V2 : 60 diagnostics dans le candidat et exactement les mêmes 60 diagnostics normalisés (fichier + message) sur un worktree détaché de main 029f6c99 avec le même venv. Aucune nouvelle erreur ; mypy n'est pas vert.
 - Répétition Docker publique synthétique : cinq conteneurs Alpine par digest, projet `nexus-rag-blue`, témoin étranger inchangé, refus avant mutation du mauvais digest et de la mauvaise readiness, zéro ressource de cette couleur après rollback. La signature et le préflight y sont remplacés par une fixture ; ce témoin ne qualifie pas une vraie release RAG.
 
@@ -40,7 +40,7 @@ PYTHONPATH=src:src/ingestor ../../.venv/bin/python -m pytest -q \
   tests/test_production_workers_compose.py
 ```
 
-Le harnais Docker V2 historique a été rejoué séparément sur le HEAD de code ci-dessus, au `2026-10-09T19:45:20Z`. Il établit `ATOMIC_DOCKER_V2_REHEARSAL_PASS=true`, `BAD_DIGEST_REFUSED=true`, `BAD_READINESS_REFUSED=true`, `ROLLBACK_REHEARSAL_PASS=true`, `FOREIGN_SERVICES_TOUCHED=0`, `REMOVE_ORPHANS_USED=false`, `PRODUCTION_PROJECT_NAME_USED=false`, avec zéro conteneur, réseau ou volume résiduel. [JSON](evidence/lot_311_main029/atomic_docker_v2_rehearsal_20260825.json), [transcript](evidence/lot_311_main029/atomic_docker_v2_rehearsal_20260825.transcript.txt), [empreintes](evidence/lot_311_main029/atomic_docker_v2_rehearsal_20260825.sha256). SHA-256 du JSON : `0363fcd598781bb29984791995a5d075877e118aa1e388b91be2a96b2f4cfbd1`. Cette preuve reste synthétique et distincte du témoin du chemin public du lot.
+Le harnais Docker V2 historique intact a été rejoué séparément sous `umask 077` sur le HEAD de code ci-dessus, au `2026-10-09T19:49:06Z`. Il établit `ATOMIC_DOCKER_V2_REHEARSAL_PASS=true`, `BAD_DIGEST_REFUSED=true`, `BAD_READINESS_REFUSED=true`, `ROLLBACK_REHEARSAL_PASS=true`, `FOREIGN_SERVICES_TOUCHED=0`, `REMOVE_ORPHANS_USED=false`, `PRODUCTION_PROJECT_NAME_USED=false`, avec zéro conteneur, réseau ou volume résiduel. [JSON](evidence/lot_311_main029/atomic_docker_v2_rehearsal_20260825.json), [transcript](evidence/lot_311_main029/atomic_docker_v2_rehearsal_20260825.transcript.txt), [empreintes](evidence/lot_311_main029/atomic_docker_v2_rehearsal_20260825.sha256). SHA-256 du JSON : `109a8f18fc5734becc7ece17af28c6ecb9aac1099c5154d184719f110010d10e`. Cette preuve reste synthétique et distincte du témoin du chemin public du lot.
 
 ## Limites pour le go-live
 
