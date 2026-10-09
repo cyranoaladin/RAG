@@ -1,9 +1,11 @@
 # Lot — interface réseau interne du BFF pour le candidat blue-green
 
-Base relue le 9 octobre 2026 : `main=14cb787310d1ffda1e8c6f215cfb1435e80573fb`.
+Base initiale relue le 9 octobre 2026 :
+`main=14cb787310d1ffda1e8c6f215cfb1435e80573fb`. Après fusion de #305,
+base intégrée : `main=73916df3196b046e94c3b4126c140500a59c742a`.
 Le candidat public de PR #302/#303 expose l'API sur un port **loopback** de
 l'hôte et place initialement API, DB et Prometheus sur `rag_net`. Le vhost
-public proposé par PR #305 ne transmet que `POST /search/v2` ; le BFF a aussi
+public livré par PR #305 ne transmet que `POST /search/v2` ; le BFF a aussi
 besoin de `/health`, `/collections/readiness` et `/collections/v2`. Il ne peut
 donc pas utiliser ce vhost comme amont interne.
 
@@ -38,17 +40,32 @@ la cible finale avant publication. La visibilité `student → internal` reste
 refusée ; aucun filtre
 de retrieval, droit, placement ou chunk n'est modifié ici.
 
-Validation locale sans staging ni production : le Compose résolu des deux
-couleurs conserve trois images par digest, aucun port DB et les seuls ports
-API/Prometheus sur loopback. `NEXUS_REQUIRE_DOCKER=1 pytest -q` sur les tests
-Compose, préflight, plan V2 signé et témoin réseau donne **43 succès**. Le
-témoin crée deux ponts temporaires et trois conteneurs Node éphémères, sans
-port publié ni bind ; après une attente API bornée, un client sur `bff_net`
-obtient 200 sur les quatre routes API ci-dessus. La DB témoin est d'abord
+Validation locale sans staging ni production au commit
+`508e65775907e6ab98090a842d9e337a2a6ab005` (tree
+`a9a6e0f3f711beb1f58c3bbfa669ccd07ba37623`) : le Compose résolu des deux
+couleurs conserve trois références d'images par digest synthétique, aucun port
+DB et les seuls ports API/Prometheus sur loopback. Depuis la racine du dépôt,
+avec le venv isolé activé, la commande complète donne **45 succès** :
+
+```bash
+NEXUS_REQUIRE_DOCKER=1 python -m pytest -q \
+  services/rag-engine/tests/test_public_blue_green_compose.py \
+  services/rag-engine/tests/test_public_blue_green_preflight.py \
+  services/rag-engine/tests/test_signed_public_candidate_plan.py \
+  services/rag-engine/tests/test_public_bff_network_witness.py \
+  services/rag-engine/tests/test_public_search_edge.py
+```
+
+Le témoin crée deux ponts temporaires et trois conteneurs Node éphémères, sans
+port publié ni bind. Après une attente bornée, le client sur `bff_net` atteint
+un **serveur Node témoin** qui répond 200 sur les quatre chemins ci-dessus ;
+cette sonde ne lance pas l'image API candidate et ne prouve pas ses handlers.
+La DB témoin est d'abord
 prouvée joignable sur `rag_net` après attente bornée, puis inaccessible depuis
 `bff_net` par DNS et par IP privée. Une seconde sonde positive sur `rag_net`
-confirme qu'elle écoute encore après ces refus. Le nettoyage laisse zéro conteneur et zéro réseau
-`nexus-bff-witness-*`. Cette preuve est une **segmentation réseau locale** :
+confirme qu'elle écoute encore après ces refus. Le nettoyage laisse zéro
+conteneur et zéro réseau `nexus-bff-witness-*`. Cette preuve est une
+**segmentation réseau locale** :
 elle n'est pas un E2E du vrai Cockpit et ne valide aucun élève public.
 
 `STUDENT_E2E_PASS=false` et `GO_LIVE_READY=false` pour ce lot. L'E2E réel
