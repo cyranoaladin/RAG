@@ -1,0 +1,88 @@
+# Overlay du candidat de recherche publique. Toujours combiner avec
+# docker-compose.v2.yml sous un projet Compose explicite distinct de `infra`.
+# NEXUS_RELEASE_MATERIAL_ROOT désigne une copie immuable et vérifiée du SHA
+# final, jamais un checkout Git ou un lien `current` mutable.
+x-immutable-bind: &immutable-bind
+  type: bind
+  read_only: true
+  bind:
+    create_host_path: false
+
+services:
+  pgvector:
+    volumes: !override
+      - rag_pgvector_data:/var/lib/postgresql/data
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/init.sql
+        target: /docker-entrypoint-initdb.d/00_init.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/003_profile_filtering.sql
+        target: /docker-entrypoint-initdb.d/01_003_profile_filtering.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/004_artifact_placements.sql
+        target: /docker-entrypoint-initdb.d/02_004_artifact_placements.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/005_official_snapshot_currentness.sql
+        target: /docker-entrypoint-initdb.d/03_005_official_snapshot_currentness.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/register_bootstrap_migrations.sh
+        target: /docker-entrypoint-initdb.d/04_register_bootstrap_migrations.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/provision_runtime_roles.sh
+        target: /docker-entrypoint-initdb.d/05_provision_runtime_roles.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations
+        target: /docker-entrypoint-migrations
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/healthcheck.sh
+        target: /docker-entrypoint-healthcheck.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/scripts/lib/pgvector_migration_state.sh
+        target: /pgvector-migration-state.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_005_fingerprints.env
+        target: /schema-head-005-fingerprints.env
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_005_columns.tsv
+        target: /schema-head-005-columns.tsv
+    # Administration de la DB par `docker compose exec` dans ce seul projet.
+    ports: !override []
+
+  ingestor:
+    build: !reset null
+    # Le dépôt de l'image est fixe : la variable ne peut plus devenir un tag.
+    # Le wrapper signé devra encore lier ce digest à la provenance du SHA final.
+    image: ghcr.io/cyranoaladin/rag-ingestor@sha256:${NEXUS_INGESTOR_IMAGE_SHA256:?digest API de provenance requis}
+    volumes: !override
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/configs
+        target: /app/configs
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/release
+        target: /app/release
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/servable-corpus
+        target: /app/servable-corpus
+      - <<: *immutable-bind
+        source: ${NEXUS_RUNTIME_SECRETS_ROOT:?secrets runtime requis}/api-clients.json
+        target: /app/api-clients/api-clients.json
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/models/e5-large
+        target: /models/e5-large
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/models/reranker
+        target: /models/reranker
+    ports: !override
+      - 127.0.0.1:${NEXUS_SEARCH_PORT:?port API du candidat requis}:8001
+
+  prometheus:
+    volumes: !override
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/prometheus/prometheus.v2.yml
+        target: /etc/prometheus/prometheus.yml
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/prometheus/rules
+        target: /etc/prometheus/rules
+      - rag_prometheus_data:/prometheus
+    ports: !override
+      - 127.0.0.1:${NEXUS_PROM_PORT:?port Prometheus du candidat requis}:9090
