@@ -103,6 +103,18 @@ def _docker(*args: str, timeout: int = 30) -> str:
     return result.stdout.strip()
 
 
+def _assert_database_reachable(rag_net: str, image: str) -> None:
+    result = subprocess.run(
+        ["docker", "run", "--rm", "--network", rag_net, image, "node", "-e", _RAG_DB_PROBE],
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr[:500]
+    assert json.loads(result.stdout) == {"db_reachable": True}
+
+
 @pytest.mark.skipif(
     os.environ.get("NEXUS_REQUIRE_DOCKER") != "1" or shutil.which("docker") is None,
     reason="témoin réseau Docker local opt-in",
@@ -142,15 +154,7 @@ def test_only_api_joins_bff_and_database_networks() -> None:
         database_ip = _docker(
             "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", database
         ).split()[0]
-        rag_result = subprocess.run(
-            ["docker", "run", "--rm", "--network", rag_net, image, "node", "-e", _RAG_DB_PROBE],
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=30,
-        )
-        assert rag_result.returncode == 0, rag_result.stderr[:500]
-        assert json.loads(rag_result.stdout) == {"db_reachable": True}
+        _assert_database_reachable(rag_net, image)
         result = subprocess.run(
             [
                 "docker",
@@ -176,6 +180,7 @@ def test_only_api_joins_bff_and_database_networks() -> None:
             "db_ip_refused": True,
             "db_dns_refused": True,
         }
+        _assert_database_reachable(rag_net, image)
     finally:
         for container in reversed(created_containers):
             subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
