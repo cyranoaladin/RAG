@@ -53,6 +53,8 @@ services:
     # Le dépôt de l'image est fixe : la variable ne peut plus devenir un tag.
     # Le wrapper signé devra encore lier ce digest à la provenance du SHA final.
     image: ghcr.io/cyranoaladin/rag-ingestor@sha256:${NEXUS_INGESTOR_IMAGE_SHA256:?digest API de provenance requis}
+    labels:
+      nexus.release-material.sha256: ${NEXUS_RELEASE_MATERIAL_MANIFEST_SHA256:?digest du manifeste des matériaux requis}
     volumes: !override
       - <<: *immutable-bind
         source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/configs
