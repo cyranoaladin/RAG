@@ -571,11 +571,11 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         classifier = re.search(r"(?ms)^classify_restore_schema_heads\(\) \{\n.*?^\}", rollback)
         self.assertIsNotNone(classifier)
         assert classifier is not None
-        final_branch = rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_VERIFIED ]]; then')
+        final_branch = rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_CANDIDATE ]]; then')
         self.assertLess(final_branch, rollback.index('cat >"$RESTORE_FINGERPRINT_SQL"', final_branch))
         self.assertIn("FINAL_SCHEMA_UNVERIFIED=true", rollback[final_branch:])
         for heads, expected in (
-            ("5|20", "FINAL_SCHEMA_VERIFIED"),
+            ("5|20", "FINAL_SCHEMA_CANDIDATE"),
             ("", "FINAL_SCHEMA_UNVERIFIED"),
             ("5|19", "FINAL_SCHEMA_UNVERIFIED"),
         ):
@@ -588,6 +588,54 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
                     check=True,
                 )
                 self.assertEqual(result.stdout.strip(), expected)
+
+    def test_final_restore_validates_complete_canonical_migration_registries(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        helper = re.search(r"(?ms)^assert_canonical_registry_rows\(\) \{\n.*?^\}", rollback)
+        self.assertIsNotNone(helper)
+        assert helper is not None
+        self.assertIn('source "$MIGRATION_STATE_LIB"', rollback)
+        self.assertIn('test "$SOURCE_PRODUCT_REGISTRY" = "$RESTORE_PRODUCT_REGISTRY"', rollback)
+        self.assertIn('test "$SOURCE_CONTROL_REGISTRY" = "$RESTORE_CONTROL_REGISTRY"', rollback)
+        product_validation = rollback.index('assert_canonical_registry_rows "$RESTORE_PRODUCT_REGISTRY"')
+        control_validation = rollback.index('assert_canonical_registry_rows "$RESTORE_CONTROL_REGISTRY"')
+        verified = rollback.index("RESTORE_SCHEMA_VERDICT=FINAL_SCHEMA_VERIFIED")
+        self.assertLess(product_validation, verified)
+        self.assertLess(control_validation, verified)
+        for directory, head in (
+            (REPO_ROOT / "services/rag-engine/infra/postgres/migrations", 5),
+            (REPO_ROOT / "services/rag-engine/infra/postgres/ingestion_control/migrations", 20),
+        ):
+            rows = [
+                f"{int(path.name[:3])}|{path.name}|{hashlib.sha256(path.read_bytes()).hexdigest()}"
+                for path in sorted(directory.glob("*.sql"))
+            ]
+            valid = "\n".join(rows)
+            cases = (
+                (valid, True),
+                ("\n".join(rows[:1] + rows[2:]), False),
+                (valid.replace(rows[1], rows[1].replace(".sql", "_changed.sql")), False),
+                (valid.replace(rows[1], rows[1][:-1] + ("0" if rows[1][-1] != "0" else "1")), False),
+                (valid + "\n" + rows[-1], False),
+            )
+            for registry, accepted in cases:
+                with self.subTest(directory=directory.name, accepted=accepted, rows=registry.count("\n")):
+                    script = (
+                        'set -euo pipefail\nsource "$1"\n'
+                        + helper.group(0)
+                        + '\nassert_canonical_registry_rows "$2" "$3" "$4"\n'
+                    )
+                    result = subprocess.run(
+                        [
+                            "bash", "-c", script, "registry-guard",
+                            str(REPO_ROOT / "services/rag-engine/infra/scripts/lib/pgvector_migration_state.sh"),
+                            registry, str(directory), str(head),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
 
     def test_restore_project_name_is_accepted_by_compose(self) -> None:
         rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
@@ -640,9 +688,10 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         reprovision = rollback.index("provision_runtime_roles.sh", restore)
         self.assertLess(restore, reprovision)
         self.assertLess(
-            rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_VERIFIED ]]; then'),
+            rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_CANDIDATE ]]; then'),
             reprovision,
         )
+        self.assertLess(reprovision, rollback.index("\nelse\n  printf 'FINAL_SCHEMA_UNVERIFIED=true", reprovision))
         migrator = rollback.index("  restore-migrator:")
         migrator_environment = rollback[migrator : rollback.index("    networks:", migrator)]
         for variable in (

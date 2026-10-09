@@ -103,11 +103,15 @@ RESTORE_FIXTURE_DIR="$(mktemp -d)"
 RESTORE_COMPOSE="$RESTORE_FIXTURE_DIR/compose.yml"
 RESTORE_FINGERPRINT_SQL="$RESTORE_FIXTURE_DIR/fingerprint.sql"
 RUNTIME_ROLE_PROVISIONING="$PWD/postgres/provision_runtime_roles.sh"
+MIGRATION_STATE_LIB="$PWD/scripts/lib/pgvector_migration_state.sh"
 test -f "$RESTORE_BACKUP_FILE"
 test -f "$RESTORE_ENV_FILE"
 test -f "$RUNTIME_ROLE_PROVISIONING"
+test -f "$MIGRATION_STATE_LIB"
 test "$RESTORE_PROJECT" != infra
 test "$RESTORE_PROJECT" != production
+# Bibliothèque canonique de validation des registres, sans application de DDL.
+source "$MIGRATION_STATE_LIB"
 
 # Le dump custom ne crée pas la base cible. Sans encodage/locale identiques,
 # PostgreSQL recalcule text_tsv différemment pendant la restauration.
@@ -214,10 +218,28 @@ test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
 # Le contrôle complet est réservé à une base restaurée au head final 005/020.
 classify_restore_schema_heads() {
   if [[ "$1" == '5|20' ]]; then
-    printf 'FINAL_SCHEMA_VERIFIED\n'
+    printf 'FINAL_SCHEMA_CANDIDATE\n'
   else
     printf 'FINAL_SCHEMA_UNVERIFIED\n'
   fi
+}
+assert_canonical_registry_rows() {
+  local rows="$1" migration_dir="$2" expected_head="$3"
+  local version file_name sha256 extra
+  discover_manifest "$migration_dir" "$migration_dir/HEAD"
+  test "${#MIGRATION_VERSIONS[@]}" -eq "$expected_head"
+  APPLIED_VERSIONS=()
+  APPLIED_NAMES=()
+  APPLIED_SHA256=()
+  while IFS='|' read -r version file_name sha256 extra; do
+    [[ "$version" =~ ^[1-9][0-9]*$ && -n "$file_name" \
+       && "$sha256" =~ ^[0-9a-f]{64}$ && -z "$extra" ]] || return 1
+    APPLIED_VERSIONS+=("$version")
+    APPLIED_NAMES+=("$file_name")
+    APPLIED_SHA256+=("$sha256")
+  done <<< "$rows"
+  validate_registry_state 1
+  test "$EFFECTIVE_HEAD" -eq "$expected_head"
 }
 SCHEMA_TABLES_SQL="SELECT CASE WHEN to_regclass('public.rag_schema_migrations') IS NOT NULL AND to_regclass('ingestion_control.schema_migrations') IS NOT NULL AND to_regclass('public.rag_artifacts') IS NOT NULL AND to_regclass('public.rag_artifact_placements') IS NOT NULL AND to_regclass('public.rag_chunks') IS NOT NULL THEN 'present' ELSE 'missing' END"
 RESTORE_SCHEMA_TABLES="$("${restore_compose[@]}" exec -T \
@@ -233,7 +255,33 @@ if [[ "$RESTORE_SCHEMA_TABLES" == present ]]; then
     sh "$SCHEMA_HEADS_SQL")"
 fi
 RESTORE_SCHEMA_VERDICT="$(classify_restore_schema_heads "$RESTORE_SCHEMA_HEADS")"
-if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_VERIFIED ]]; then
+if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_CANDIDATE ]]; then
+  # Vérifier la suite entière, les noms et SHA-256 contre les fichiers
+  # canoniques, sur la source comme sur la cible restaurée, sans DDL.
+  PRODUCT_REGISTRY_SQL="SELECT version||'|'||file_name||'|'||sha256 FROM public.rag_schema_migrations ORDER BY version"
+  CONTROL_REGISTRY_SQL="SELECT version||'|'||file_name||'|'||sha256 FROM ingestion_control.schema_migrations ORDER BY version"
+  read_source_registry() {
+    docker exec -e PGOPTIONS='-c default_transaction_read_only=on' \
+      "$RESTORE_SOURCE_CONTAINER" sh -c \
+      'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1" -c "$2"' \
+      sh "$RESTORE_SOURCE_DB" "$1"
+  }
+  read_restored_registry() {
+    "${restore_compose[@]}" exec -T \
+      -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+      'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+      sh "$1"
+  }
+  SOURCE_PRODUCT_REGISTRY="$(read_source_registry "$PRODUCT_REGISTRY_SQL")"
+  RESTORE_PRODUCT_REGISTRY="$(read_restored_registry "$PRODUCT_REGISTRY_SQL")"
+  SOURCE_CONTROL_REGISTRY="$(read_source_registry "$CONTROL_REGISTRY_SQL")"
+  RESTORE_CONTROL_REGISTRY="$(read_restored_registry "$CONTROL_REGISTRY_SQL")"
+  test "$SOURCE_PRODUCT_REGISTRY" = "$RESTORE_PRODUCT_REGISTRY"
+  test "$SOURCE_CONTROL_REGISTRY" = "$RESTORE_CONTROL_REGISTRY"
+  assert_canonical_registry_rows "$RESTORE_PRODUCT_REGISTRY" "$PWD/postgres/migrations" 5
+  assert_canonical_registry_rows "$RESTORE_CONTROL_REGISTRY" \
+    "$PWD/postgres/ingestion_control/migrations" 20
+
   # `--no-privileges` exige de réimposer les ACL runtime sur le schéma final.
   # Une base historique sans ces tables reste uniquement lisible en isolation.
   "${restore_compose[@]}" run --rm --no-deps \
@@ -262,6 +310,7 @@ RESTORE_FINGERPRINT="$("${restore_compose[@]}" exec -T \
   'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   <"$RESTORE_FINGERPRINT_SQL")"
 test "$SOURCE_FINGERPRINT" = "$RESTORE_FINGERPRINT"
+  RESTORE_SCHEMA_VERDICT=FINAL_SCHEMA_VERIFIED
   printf 'FINAL_SCHEMA_VERIFIED=true\n'
 else
   printf 'FINAL_SCHEMA_UNVERIFIED=true (restauration historique lisible, pas une preuve de release finale)\n'
