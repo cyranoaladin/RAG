@@ -70,13 +70,13 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
 
 ## Qualification locale sur la base fusionnée
 
-- **SEALED** sur le HEAD de code candidat `2be707a1331605abe28ac67fb5f06f3c36e04de7`,
-  arbre `f1a5059effd459628d9511c06bd8454fec4146a2` :
+- **SEALED** sur le HEAD de code candidat `81bf0b4b631aaef6be5d5d514b89c3118c73d3ff`,
+  arbre `6b370fbd7bdebbbea9f13b0b049234c1477ed482` :
   `pytest -q` sur le contrat readiness et les six suites
   `rag-engine` ciblées (inventaire, vérificateur, signer, wrapper,
   préflight public, plan signé), l'export de schéma et la suite
   `test_public_blue_green_compose.py` contre le vrai moteur Docker Compose,
-  ainsi que les tests de l'ancre staging : **506 passed**.
+  ainsi que les tests de l'ancre staging : **507 passed**.
 - `ruff check` sur les quinze fichiers Python modifiés par le lot : **0 erreur** ;
   `git diff --check` : **0 erreur**.
 - La recette officielle `make typecheck` (sans réinstallation, via
@@ -101,12 +101,13 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
   `legacy.canonical_bytes()` est comparé à ces octets complets. Les refus de
   liaison publique identifient désormais le fait divergent sans imprimer les
   digests ; un test inter-paquets confronte la carte des dépôts signables au
-  producteur de provenance. L'échec d'ouverture du bundle est traduit en
+  producteur de provenance ; la carte exportée est immuable en mémoire.
+  L'échec d'ouverture du bundle est traduit en
   `DeploymentWrapperError` et testé. La primitive de liaison refuse
   explicitement un V2 historique sans inventaire public, même si un appelant
   non typé fournit des valeurs `None` à tous les arguments de provenance.
 - `docker compose config` réel (Compose 5.6.0) depuis les objets Git du HEAD
-  candidat `2be707a1331605abe28ac67fb5f06f3c36e04de7`, avec variables
+  candidat `81bf0b4b631aaef6be5d5d514b89c3118c73d3ff`, avec variables
   et matériaux fictifs isolés : cinq services exacts, aucun `build` pour
   l'API ou le Cockpit. Aucun conteneur n'a été démarré.
 - La CI de qualification a révélé le pin à l'octet du lot d'ancrage #239.
@@ -114,7 +115,7 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
   `production_readiness.py` de
   `2e3398903b9a46fca1cbc7dfd923bb67cdb25e44b249ed2915ec3635ad430245`
   sur la base fusionnée à
-  `bcf620507be667a1cb50c661f23592a5cc766537c8dd69921132f5f00f167df6`
+  `cadcc7e3a9a5c2f5eda07794b06c625834150b5cb164fe35fbe011910169dee1`
   sur ce lot. Les tests de qualification et du gate staging conservent
   l'assertion de hash sur les trois membres de la chaîne ; seule la valeur du
   contrat est mise à jour.

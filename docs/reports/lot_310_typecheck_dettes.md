@@ -1,7 +1,7 @@
 # Lot 310 — dette de typage préexistante
 
 - Date de contrôle : 2026-10-09, Python 3.12, `mypy` 1.11.2.
-- Base **SEALED** : `origin/main` `59da01c9821cbbff8b12194394d232dc33ecf149` ; candidat code **SEALED** : `2be707a1331605abe28ac67fb5f06f3c36e04de7`.
+- Base **SEALED** : `origin/main` `59da01c9821cbbff8b12194394d232dc33ecf149` ; candidat code **SEALED** : `81bf0b4b631aaef6be5d5d514b89c3118c73d3ff`.
 - Commande identique dans deux worktrees propres, avec le même venv non éditable :
   `make -o install-dev typecheck VENVDIR=<venv-du-lot>`. L'option `-o`
   évite de réinstaller les dépendances dans le venv déjà préparé ; la recette

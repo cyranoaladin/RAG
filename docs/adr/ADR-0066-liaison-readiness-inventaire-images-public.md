@@ -49,7 +49,7 @@ de l'inventaire public ni la tentative de run qui les a publiés.
    non privé est refusé avant toute copie de secret.
 5. Les octets canoniques des manifests V2 existants, sans ces champs,
    restent identiques, contrôlés par une fixture complète figée depuis la base
-   de ce lot. La carte des dépôts signables du contrat est confrontée à celle
+   de ce lot. La carte immuable des dépôts signables du contrat est confrontée à celle
    du producteur de provenance par un test inter-paquets. La voie V1 garde son
    protocole et ses trois services.
    Aucun nouveau type de clé ni aucune signature automatique n'est ajouté.
