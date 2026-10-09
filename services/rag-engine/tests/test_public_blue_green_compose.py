@@ -17,7 +17,7 @@ OVERLAY = INFRA / "docker-compose.public-blue-green.yml"
 
 
 @pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose indisponible")
-def test_public_blue_green_compose_is_isolated_and_immutable(tmp_path: Path) -> None:
+def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> None:
     material = tmp_path / "release-material"
     secrets = tmp_path / "runtime-secrets"
     names = set(re.findall(r"\$\{([A-Z][A-Z0-9_]+):\?", BASE.read_text() + OVERLAY.read_text()))

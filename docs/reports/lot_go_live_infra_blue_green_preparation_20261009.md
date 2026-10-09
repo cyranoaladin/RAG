@@ -69,9 +69,9 @@ n'a pas de port publié ; l'API et Prometheus n'ont que des ports loopback
 distincts par couleur. Aucun worker d'ingestion n'est lancé, et le Dockerfile
 de l'API V2 porte une allowlist de modules sans writer.
 
-Les montages réels sont des fichiers en lecture seule sous un répertoire de
-matériaux de release durable, hors checkout, et un magasin privé distinct pour
-le registre de clients API. Ce répertoire doit être assemblé depuis le **SHA
+Les sources de montage déclarées visent des fichiers en lecture seule sous un
+répertoire de matériaux de release durable, hors checkout, et un magasin privé
+distinct pour le registre de clients API. Ce répertoire doit être assemblé depuis le **SHA
 final**, inclure les scripts SQL/init, configurations, modèle E5, reranker,
 release-registry publique scellée, corpus servable et règles Prometheus, puis
 être rehaché et figé avant `compose up`. Il ne doit être ni un lien `current`
@@ -120,8 +120,12 @@ pas. Le test `promtool check config` local a trouvé 1 fichier de règles et
 
 - `python3 -m pytest -q services/rag-engine/tests/test_public_blue_green_compose.py`
   : 1 test réussi. Il résout la fusion Compose réelle, vérifie les trois
-  services, toutes les images par digest, aucun `build`, aucun bind dans le
-  checkout, tous les binds read-only, API/Prometheus loopback et DB sans port.
+  services, toutes les images déclarées par digest, aucun `build`, sources de
+  bind synthétiques sous les deux racines déclarées, tous les binds read-only,
+  API/Prometheus loopback et DB sans port. Il ne vérifie ni `realpath` des
+  sources sur la cible ni empreinte des matériaux ; le wrapper final doit
+  refuser les symlinks, les chemins résolus dans un checkout et tout digest
+  divergent avant mutation.
 - `promtool check config` via l'image Prometheus épinglée
   `sha256:f6639335d34a77d9d9db382b92eeb7fc00934be8eae81dbc03b31cfe90411a94`
   : configuration valide, 4 règles.
