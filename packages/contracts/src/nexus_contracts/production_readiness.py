@@ -829,6 +829,8 @@ def require_public_candidate_inventory_matches_readiness(
     """
     if not isinstance(manifest, ProductionReadinessManifestV2):
         raise ProductionReadinessError("public candidate manifest type differs from signed readiness")
+    if manifest.public_candidate_inventory_digest is None:
+        raise ProductionReadinessError("public candidate inventory binding is absent from signed readiness")
     if manifest.public_candidate_inventory_digest != inventory_digest:
         raise ProductionReadinessError("public candidate inventory digest differs from signed readiness")
     if manifest.public_candidate_provenance_run_id != provenance_run_id:

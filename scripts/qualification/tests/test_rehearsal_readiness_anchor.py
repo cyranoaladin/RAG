@@ -41,7 +41,7 @@ CHAINE_DE_PRODUCTION_INTACTE = {
     "services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py":
         "a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28",
     "packages/contracts/src/nexus_contracts/production_readiness.py":
-        "0d03daa7a21e10f0ed0c25d2c6fffc648cd0b97b01e02404a40ab40478e54dae",
+        "bcf620507be667a1cb50c661f23592a5cc766537c8dd69921132f5f00f167df6",
     "governance/trust-anchors/production-readiness-v1.json":
         "f123e9f35a9430d02092df675e5ed657fbccf8fb10af90fe03416335e7d1d238",
 }

@@ -235,9 +235,14 @@ class TestProductionReadinessV2:
             facts.update(changed)
             with pytest.raises(ProductionReadinessError, match=cause):
                 check(manifest, **facts)
-        with pytest.raises(ProductionReadinessError, match="inventory digest"):
+        with pytest.raises(ProductionReadinessError, match="inventory binding is absent"):
             check(_v2_manifest(), inventory_digest="a" * 64, provenance_run_id=789,
                   provenance_run_attempt=2, application_image_digests=images)
+        legacy = _v2_manifest()
+        with pytest.raises(ProductionReadinessError, match="public candidate inventory binding is absent"):
+            check(legacy, inventory_digest=None, provenance_run_id=None,
+                  provenance_run_attempt=None,
+                  application_image_digests=legacy.application_image_digests)  # type: ignore[arg-type]
         with pytest.raises(ProductionReadinessError, match="manifest type"):
             check(_manifest(), inventory_digest="a" * 64, provenance_run_id=789,
                   provenance_run_attempt=2, application_image_digests=images)  # type: ignore[arg-type]
