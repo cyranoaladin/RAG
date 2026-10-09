@@ -47,6 +47,9 @@ name: Corpus CAS reproducibility (C1)
       - "services/rag-engine/scripts/**"
       # L'orchestrateur du complément choisit le registre mixte servi.
       - "scripts/go_live/staging_hggsp_complementary.py"
+      # La garde des droits étudiants décide si le nouveau registre public
+      # peut être matérialisé ; son évolution change le périmètre servable.
+      - "scripts/go_live/public_rights_release_guard.py"
       # Le plan de contrôle produit et rescelle les registres et leurs
       # autorités : sa gouvernance et ses scripts décident de ce qui devient
       # servable.
