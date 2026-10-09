@@ -1,0 +1,48 @@
+# Proposition explicite de droits pour ADR-0064. Aucun producteur ne consomme
+# ce fichier comme autorisation active ; une review humaine au HEAD exact et
+# une nouvelle chaîne de release sont requises avant publication.
+authority_kind: NEXUS_STUDENT_PUBLIC_RIGHTS_DECISION_PROPOSAL_V1
+status: PENDING_HUMAN_APPROVAL
+decision_maker_expected: abenrhouma
+decision_scope:
+  population: libre
+  roles: [student, teacher]
+  service: recherche_pedagogique_avec_passages_cites
+  answer_generation_allowed: false
+  permitted_operations: [retrieval, citation]
+  rights_category_required: officiel_public
+  source_attribution_required: true
+  source_attribution_format: "Source : Eduscol (eduscol.education.gouv.fr)"
+  collection_count: 11
+  artifact_count: 315
+  placement_count: 479
+  content_sha256_set_digest: 04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12
+  content_set_canonicalization: >-
+    SHA-256 des 315 artifact_id uniques des placements des neuf subjects non-HGGSP
+    de la release V4 et des deux subjects HGGSP V5, triés lexicalement en
+    minuscules, un identifiant et un saut de ligne par entrée.
+  source_releases:
+    - release_id: production-profile-gate-2026-2027-v4
+      manifest_sha256: bab9c398f59eb8b0f2f5324ed28536525b37052ba075a4b5547e851b38cda4be
+      collections: 9
+      placements: 405
+    - release_id: production-profile-gate-2026-2027-v5-hggsp
+      manifest_sha256: 8286388002071e31a4d80d357feb19d802292c862055e6749d9371fc15441daf
+      collections: 2
+      placements: 74
+  all_sources_must_be_in_zone: 01_EDUSCOL_OFFICIEL/
+  document_specific_restriction_disposition: REVIEW_REQUIRED
+  excluded_rights: [usage_interne, nexus_proprietaire, unknown, revoked]
+  excluded_content: [third_party_restricted, stale, unreviewed, pii_blocked]
+  target_policy_visibility: public
+  target_placement_visibility: public
+  existing_internal_releases_unchanged: true
+decision_requested: >-
+  Nexus Réussite autorise-t-elle explicitement le service public de recherche
+  et citation pour les élèves libres et leurs enseignants sur le seul ensemble
+  de 315 content_sha256 ci-dessus, sous attribution Eduscol, contrôle
+  documentaire individuel, revue, actualité, PII, révocations et portée signée ?
+activation_condition: >-
+  Une review APPROVED par abenrhouma sur le HEAD exact de la PR qui porte cette
+  proposition, puis de nouvelles releases publiques, autorisations liées aux
+  contenus, revues de batch et preuves E2E. Ce fichier seul n'active rien.
