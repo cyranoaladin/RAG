@@ -24,7 +24,13 @@ TEMPLATE = Path(__file__).resolve().parents[1] / "infra/nginx/rag-cockpit.public
     not (shutil.which("nginx") and shutil.which("openssl")),
     reason="Nginx et OpenSSL nécessaires",
 )
-def test_public_cockpit_vhost_only_forwards_student_search_routes(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("rate", "burst", "capacity_case"),
+    [("20r/s", 40, True), ("1r/m", 1, False)],
+)
+def test_public_cockpit_vhost_only_forwards_student_search_routes(
+    tmp_path: Path, rate: str, burst: int, capacity_case: bool
+) -> None:
     calls: list[tuple[str, str, str | None, str | None, str | None, str | None, str | None]] = []
 
     class Backend(BaseHTTPRequestHandler):
@@ -65,6 +71,9 @@ def test_public_cockpit_vhost_only_forwards_student_search_routes(tmp_path: Path
         )
         assert certificate.returncode == 0, certificate.stderr
         rendered = TEMPLATE.read_text(encoding="utf-8")
+        if not capacity_case:
+            rendered = rendered.replace("rate=20r/s;", f"rate={rate};")
+            rendered = rendered.replace("burst=40 nodelay;", f"burst={burst} nodelay;")
         rendered = rendered.replace("${RAG_COCKPIT_EXTERNAL_DOMAIN}", "cockpit.example.test")
         rendered = rendered.replace("${NGINX_COCKPIT_PORT}", str(backend.server_port))
         rendered = rendered.replace("listen 80;", f"listen 127.0.0.1:{http_port};")
@@ -142,11 +151,11 @@ def test_public_cockpit_vhost_only_forwards_student_search_routes(tmp_path: Path
         assert http_status("/") == 308
         assert http_status("/ingest") == 404
         assert http_status("/api/search") == 404
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            assert list(executor.map(lambda _: status("/api/search", "POST"), range(8))) == [200] * 8
-        with ThreadPoolExecutor(max_workers=32) as executor:
-            flood = list(executor.map(lambda _: status("/api/search", "POST"), range(80)))
-        assert 429 in flood
+        if capacity_case:
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                assert list(executor.map(lambda _: status("/api/search", "POST"), range(8))) == [200] * 8
+        else:
+            assert 429 in [status("/api/search", "POST") for _ in range(5)]
     finally:
         if nginx is not None:
             nginx.terminate()
