@@ -49,10 +49,10 @@ modification. La branche a ensuite intégré par merge normal le `main`
 - Sur cette branche intégrée : suite Cockpit `185/185`, lint, typecheck,
   `contracts:check` et build Next.js réussis. Le contrôle Python du contrat a
   utilisé une installation **non éditable** dans un venv isolé. `npm run start`
-  répond HTTP 200 après ce build local. Le `Dockerfile` ne copie que les
-  schémas et artefacts figés ; le contrôle Pydantic canonique
-  `export_schemas.py --check` est bloquant dans le context CI requis
-  `packages/contracts` avant la fusion et le build de release.
+  répond HTTP 200 après ce build local. Depuis `packages/contracts`, le
+  `Dockerfile` ne copie que les schémas et artefacts figés ; le contrôle
+  Pydantic canonique `export_schemas.py --check` est bloquant dans le contexte
+  CI requis `packages/contracts` avant la fusion et le build de release.
 - `npm audit --omit=dev --json` : exit 0, zéro vulnérabilité de production,
   dont zéro high et critical. `npm audit --json` : exit 1, sept high de
   développement seulement ; la politique exacte temporaire #284 accepte
