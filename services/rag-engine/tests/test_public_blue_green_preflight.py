@@ -193,6 +193,22 @@ def test_refuses_mutable_root_alias_and_hardlinked_material(tmp_path: Path) -> N
         _check(config, root, secrets, repo)
 
 
+def test_refuses_release_material_under_a_different_git_worktree(tmp_path: Path) -> None:
+    config, root, secrets, repo = _fixture(tmp_path)
+    sibling = tmp_path / "other-worktree"
+    sibling.mkdir()
+    (sibling / ".git").write_text("gitdir: ../.git/worktrees/other\n", encoding="utf-8")
+    moved = sibling / root.name
+    root.rename(moved)
+    for service in config["services"].values():
+        for volume in service["volumes"]:
+            source = volume.get("source", "")
+            if source.startswith(str(root) + "/"):
+                volume["source"] = str(moved / Path(source).relative_to(root))
+    with pytest.raises(preflight.PublicCandidateError, match="checkout"):
+        _check(config, moved, secrets, repo)
+
+
 @pytest.mark.parametrize("mutation", ["wrong_project", "wrong_image", "writer", "public_db", "external_db", "query_override", "checkout_bind", "writable_bind", "wrong_label", "missing_label", "changed_file", "extra_file", "symlink", "missing_bind", "unlisted_target", "foreign_volume", "missing_volume"])
 def test_refuses_unsealed_or_unsafe_candidate(tmp_path: Path, mutation: str) -> None:
     config, root, secrets, repo = _fixture(tmp_path)

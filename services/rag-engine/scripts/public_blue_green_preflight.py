@@ -83,6 +83,17 @@ def _no_symlink_components(path: Path) -> Path:
     return path.resolve(strict=True)
 
 
+def _require_outside_git_checkout(path: Path) -> None:
+    for ancestor in (path, *path.parents):
+        try:
+            (ancestor / ".git").lstat()
+        except FileNotFoundError:
+            continue
+        except OSError as exc:
+            raise PublicCandidateError(f"cannot inspect Git boundary: {ancestor}: {exc}") from exc
+        raise PublicCandidateError(f"release bind root is inside a Git checkout: {ancestor}")
+
+
 def _sha256_file(path: Path) -> str:
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
@@ -172,6 +183,8 @@ def require_public_candidate(
     root = _no_symlink_components(material_root)
     secret_root = _no_symlink_components(secrets_root)
     checkout = _no_symlink_components(repo_root)
+    _require_outside_git_checkout(root)
+    _require_outside_git_checkout(secret_root)
     _require(root != checkout and not root.is_relative_to(checkout),
              "release material is inside a checkout")
     _require(secret_root != checkout and not secret_root.is_relative_to(checkout),
