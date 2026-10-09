@@ -190,7 +190,8 @@ def require_private_work_dir(work_dir: Path) -> None:
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(absolute.anchor, flags)
     try:
-        for part in absolute.parts[1:]:
+        components = absolute.parts[1:]
+        for index, part in enumerate(components):
             parent = os.fstat(descriptor)
             trusted_owner = parent.st_uid in {0, os.geteuid()}
             writable = bool(parent.st_mode & (stat.S_IWGRP | stat.S_IWOTH))
@@ -202,7 +203,7 @@ def require_private_work_dir(work_dir: Path) -> None:
             try:
                 child = os.open(part, flags, dir_fd=descriptor)
             except FileNotFoundError:
-                if part != absolute.name:
+                if index != len(components) - 1:
                     raise ReleaseVerificationError("private work directory parent is missing") from None
                 os.mkdir(part, 0o700, dir_fd=descriptor)
                 child = os.open(part, flags, dir_fd=descriptor)

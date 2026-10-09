@@ -300,6 +300,12 @@ class TestVerifyReleaseImagesEndToEnd:
             _verify(fakes, tmp_path, work_dir=alias)
         assert fakes.compose_calls == []
 
+    def test_missing_repeated_basename_ancestor_is_not_created(self, tmp_path: Path) -> None:
+        repeated = tmp_path / "scratch" / "middle" / "scratch"
+        with pytest.raises(vri.ReleaseVerificationError, match="parent is missing"):
+            vri.require_private_work_dir(repeated)
+        assert not (tmp_path / "scratch").exists()
+
     def test_existing_snapshot_symlink_or_hardlink_cannot_be_reused(self, tmp_path: Path) -> None:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
