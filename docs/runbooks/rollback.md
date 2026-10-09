@@ -78,19 +78,41 @@ toute mutation. L'exercice ci-dessous est isolé ; il ne touche pas la stack de
 production et ne démarre ni API, ni worker.
 
 ```bash
+set -euo pipefail
 cd services/rag-engine/infra
 
 # Valeurs explicites : jamais le projet production, jamais le projet infra.
-RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dT%H%M%SZ)"
+RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dt%H%M%Sz)"
 : "${RESTORE_BACKUP_FILE:?exporter le chemin exact publié par BACKUP_COMPLETE}"
+: "${RESTORE_ENV_FILE:?chemin du fichier de secrets existant, sans afficher les valeurs}"
+: "${RESTORE_SOURCE_CONTAINER:?conteneur PostgreSQL source à lire seulement}"
+: "${RESTORE_SOURCE_DB:?base source du dump à lire seulement}"
 umask 077
 RESTORE_FIXTURE_DIR="$(mktemp -d)"
 RESTORE_COMPOSE="$RESTORE_FIXTURE_DIR/compose.yml"
+RESTORE_FINGERPRINT_SQL="$RESTORE_FIXTURE_DIR/fingerprint.sql"
 RUNTIME_ROLE_PROVISIONING="$PWD/postgres/provision_runtime_roles.sh"
 test -f "$RESTORE_BACKUP_FILE"
+test -f "$RESTORE_ENV_FILE"
 test -f "$RUNTIME_ROLE_PROVISIONING"
 test "$RESTORE_PROJECT" != infra
 test "$RESTORE_PROJECT" != production
+
+# Le dump custom ne crée pas la base cible. Sans encodage/locale identiques,
+# PostgreSQL recalcule text_tsv différemment pendant la restauration.
+DB_IDENTITY_SQL="SELECT pg_encoding_to_char(encoding)||'|'||datcollate||'|'||datctype FROM pg_database WHERE datname=current_database()"
+SOURCE_DB_IDENTITY="$(docker exec -e PGOPTIONS='-c default_transaction_read_only=on' \
+  "$RESTORE_SOURCE_CONTAINER" sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1" -c "$2"' \
+  sh "$RESTORE_SOURCE_DB" "$DB_IDENTITY_SQL")"
+
+assert_restore_compatible_identity() {
+  local source_identity="$1" target_identity="$2"
+  if [[ "$source_identity" != 'UTF8|C|C' || "$target_identity" != "$source_identity" ]]; then
+    printf 'Refus de restauration : identité PostgreSQL encodage/locale différente de UTF8|C|C.\n' >&2
+    return 1
+  fi
+}
 
 # Fixture autonome : seulement la base isolée et un client de restauration.
 # Les placeholders restent littéraux dans ce fichier privé ; Compose les résout
@@ -104,6 +126,7 @@ services:
       POSTGRES_DB: ${PGVECTOR_DB:-ragdb}
       POSTGRES_USER: ${PGVECTOR_USER:-raguser}
       POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
     volumes: [restore_pgvector_data:/var/lib/postgresql/data]
     networks: [restore_net]
     healthcheck:
@@ -136,13 +159,13 @@ volumes:
 YAML
 
 restore_compose=(
-  docker compose -p "$RESTORE_PROJECT" --env-file .env
+  docker compose -p "$RESTORE_PROJECT" --env-file "$RESTORE_ENV_FILE"
   -f "$RESTORE_COMPOSE"
 )
 
 cleanup_restore_fixture() {
   "${restore_compose[@]}" down -v >/dev/null 2>&1 || true
-  rm -f -- "$RESTORE_COMPOSE"
+  rm -f -- "$RESTORE_COMPOSE" "$RESTORE_FINGERPRINT_SQL"
   rmdir -- "$RESTORE_FIXTURE_DIR" 2>/dev/null || true
 }
 trap cleanup_restore_fixture EXIT
@@ -159,6 +182,12 @@ test "$("${restore_compose[@]}" config --services | sort)" = \
 
 # Démarrer uniquement PostgreSQL, puis restaurer avec le client migrateur.
 "${restore_compose[@]}" up -d --wait pgvector
+RESTORE_DB_IDENTITY="$("${restore_compose[@]}" exec -T \
+  -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+  sh "$DB_IDENTITY_SQL")"
+assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"
+
 "${restore_compose[@]}" run --rm --no-deps \
   --volume "$RESTORE_BACKUP_FILE:/restore/source.dump:ro" \
   restore-migrator \
@@ -177,6 +206,28 @@ test "$("${restore_compose[@]}" config --services | sort)" = \
 
 # Aucun service applicatif ne doit exister dans le projet de rehearsal.
 test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
+
+# Comparer les identités métier et la colonne lexicale générée. Un dump ancien
+# ou une source modifiée depuis sa capture échoue au lieu de simuler un vert.
+cat >"$RESTORE_FINGERPRINT_SQL" <<'SQL'
+SELECT 'product_head|'||max(version)::text FROM public.rag_schema_migrations;
+SELECT 'control_head|'||max(version)::text FROM ingestion_control.schema_migrations;
+SELECT 'collections|'||count(DISTINCT collection)::text FROM public.rag_artifact_placements;
+SELECT 'artifacts|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(to_jsonb(t)::text),'|' ORDER BY artifact_id),'')) FROM public.rag_artifacts t;
+SELECT 'placements|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(to_jsonb(t)::text),'|' ORDER BY placement_id),'')) FROM public.rag_artifact_placements t;
+SELECT 'chunks|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(to_jsonb(t)::text),'|' ORDER BY chunk_id),'')) FROM public.rag_chunks t;
+SELECT 'text_tsv|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(chunk_id||':'||text_tsv::text),'|' ORDER BY chunk_id),'')) FROM public.rag_chunks;
+SQL
+SOURCE_FINGERPRINT="$(docker exec -i \
+  -e PGOPTIONS='-c default_transaction_read_only=on' \
+  "$RESTORE_SOURCE_CONTAINER" sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1"' \
+  sh "$RESTORE_SOURCE_DB" <"$RESTORE_FINGERPRINT_SQL")"
+RESTORE_FINGERPRINT="$("${restore_compose[@]}" exec -T \
+  -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  <"$RESTORE_FINGERPRINT_SQL")"
+test "$SOURCE_FINGERPRINT" = "$RESTORE_FINGERPRINT"
 
 # Après validation du schéma restauré, détruire la seule fixture isolée.
 "${restore_compose[@]}" down -v

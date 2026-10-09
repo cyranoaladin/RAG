@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
 import unittest
 
@@ -512,6 +513,55 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             rollback,
         )
 
+    def test_restore_identity_guard_rejects_encoding_and_locale_drift(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        guard = re.search(
+            r"(?ms)^assert_restore_compatible_identity\(\) \{\n.*?^\}", rollback
+        )
+        self.assertIsNotNone(guard, "garde exécutable absent du runbook")
+        assert guard is not None
+        script = guard.group(0) + '\nassert_restore_compatible_identity "$1" "$2"\n'
+
+        for source, restored, accepted in (
+            ("UTF8|C|C", "UTF8|C|C", True),
+            ("UTF8|C|C", "SQL_ASCII|C|C", False),
+            ("UTF8|C|C", "UTF8|en_US.utf8|en_US.utf8", False),
+            ("SQL_ASCII|C|C", "SQL_ASCII|C|C", False),
+            ("UTF8|C|C", "", False),
+        ):
+            with self.subTest(source=source, restored=restored):
+                result = subprocess.run(
+                    ["bash", "-c", script, "restore-guard", source, restored],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode == 0, accepted, result.stderr)
+
+    def test_restore_project_name_is_accepted_by_compose(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        assignment = re.search(r'^RESTORE_PROJECT=".*"$', rollback, re.MULTILINE)
+        self.assertIsNotNone(assignment)
+        assert assignment is not None
+        result = subprocess.run(
+            ["bash", "-c", assignment.group(0) + '\nprintf "%s" "$RESTORE_PROJECT"\n'],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertRegex(result.stdout, r"^nexus-pg-restore-rehearsal-[a-z0-9-]+$")
+
+    def test_restore_guard_precedes_mutation_and_compares_generated_tsv(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        self.assertIn('POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"', rollback)
+        self.assertIn("pg_encoding_to_char(encoding)", rollback)
+        self.assertIn("text_tsv::text", rollback)
+        self.assertIn('assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"', rollback)
+        self.assertLess(
+            rollback.index('assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"'),
+            rollback.index("--exit-on-error --clean --if-exists"),
+        )
+
     def test_restore_requires_the_real_backup_path_without_overwriting_it(self) -> None:
         rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
 
@@ -527,6 +577,8 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         restore = rollback.index("--no-privileges")
         reprovision = rollback.index("provision_runtime_roles.sh", restore)
         self.assertLess(restore, reprovision)
+        migrator = rollback.index("  restore-migrator:")
+        migrator_environment = rollback[migrator : rollback.index("    networks:", migrator)]
         for variable in (
             "PGVECTOR_RETRIEVAL_USER",
             "PGVECTOR_RETRIEVAL_PASSWORD",
@@ -536,7 +588,7 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             "PGVECTOR_PUBLISHER_PASSWORD",
         ):
             with self.subTest(variable=variable):
-                self.assertIn(variable, rollback[reprovision - 2500 :])
+                self.assertIn(variable, migrator_environment)
 
 
 if __name__ == "__main__":
