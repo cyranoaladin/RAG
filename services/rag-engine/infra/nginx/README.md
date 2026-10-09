@@ -4,8 +4,8 @@ Ces fichiers sont des **templates** de vhosts Nginx (hôte) :
 - `rag-api.public-search.conf.template` pour le **candidat public V1** : seul
   `POST /search/v2` est transmis au port loopback du candidat blue-green.
   Les routes de writer, revue, ingestion, métriques, catalogue et readiness
-  reçoivent 404 au proxy public ; le scrape et les sondes utilisent le port
-  loopback directement.
+  reçoivent 404 sur HTTP et HTTPS ; seule `/search/v2` est redirigée de HTTP
+  vers HTTPS. Le scrape et les sondes utilisent le port loopback directement.
 - `rag-v2.conf` est l'alternative TLS déjà matérialisée ; elle doit être rendue
   avec `RAG_API_EXTERNAL_DOMAIN` et `NGINX_API_PORT` et cible le même port
   loopback.

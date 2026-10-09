@@ -8,8 +8,11 @@ server {
   location ^~ /.well-known/acme-challenge/ {
     root /var/www/certbot;
   }
-  location / {
+  location = /search/v2 {
     return 308 https://${RAG_API_EXTERNAL_DOMAIN}$request_uri;
+  }
+  location / {
+    return 404;
   }
 }
 

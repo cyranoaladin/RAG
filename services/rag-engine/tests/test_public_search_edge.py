@@ -8,6 +8,7 @@ import ssl
 import subprocess
 import threading
 import time
+from http.client import HTTPConnection
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -103,6 +104,14 @@ def test_public_vhost_forwards_only_post_search(tmp_path: Path) -> None:
         except HTTPError as error:
             return error.code
 
+    def http_status(path: str) -> int:
+        connection = HTTPConnection("127.0.0.1", http_port, timeout=2)
+        try:
+            connection.request("GET", path, headers={"Host": "api.example.test"})
+            return connection.getresponse().status
+        finally:
+            connection.close()
+
     try:
         for _ in range(40):
             try:
@@ -120,6 +129,9 @@ def test_public_vhost_forwards_only_post_search(tmp_path: Path) -> None:
             assert status(path) == 404, path
         for path in ("/ingest", "/ingest/v2", "/review/v2/decide", "/chat"):
             assert status(path, "POST") == 404, path
+        assert http_status("/search/v2") == 308
+        for path in ("/ingest", "/ingest/v2", "/review/v2/decide", "/metrics"):
+            assert http_status(path) == 404, path
         assert calls == [("POST", "/search/v2")]
     finally:
         nginx.terminate()
