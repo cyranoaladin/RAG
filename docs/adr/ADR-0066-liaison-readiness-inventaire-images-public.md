@@ -36,8 +36,13 @@ de l'inventaire public ni la tentative de run qui les a publiés.
    le bundle, qui conserve les octets canoniques exacts de l'artefact V2.
    Le mode public matérialise les deux fichiers Compose de la pile
    blue-green depuis les objets Git du commit attesté et revérifie leur
-   résolution contre le digest signé. Il ne produit qu'un plan : `--execute`
-   est refusé même si toutes les preuves passent.
+   résolution contre le digest signé. Il ne produit qu'un verdict plan-only
+   sans commande de mutation copiable : `--execute` est refusé même si toutes
+   les preuves passent.
+   Le bundle, en V1 comme en V2 public, est créé dans un répertoire privé
+   `0700` sous un parent de confiance déjà préparé ; chaque fichier est
+   écrit atomiquement à `0600`, car `.env` et le Compose résolu peuvent
+   contenir des secrets runtime.
 5. Les octets canoniques des manifests V2 existants, sans ces champs,
    restent identiques ; la voie V1 garde son protocole et ses trois services.
    Aucun nouveau type de clé ni aucune signature automatique n'est ajouté.
