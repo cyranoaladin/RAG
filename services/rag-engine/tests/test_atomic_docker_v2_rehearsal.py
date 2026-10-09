@@ -29,6 +29,25 @@ def test_project_name_is_unique_rehearsal_namespace() -> None:
     assert rehearsal.require_rehearsal_project_name(name) == name
 
 
+def test_compose_fixture_prepares_private_work_dir_for_current_verifier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work_dir = tmp_path / "materialization-work"
+    env_file = tmp_path / ".env"
+    env_file.write_text("COMPOSE_PROJECT_NAME=fixture\n", encoding="utf-8")
+    monkeypatch.setattr(
+        rehearsal, "_run",
+        lambda args, **_kw: subprocess.CompletedProcess(args, 0, '{"services":{}}', ""),
+    )
+    rehearsal._resolve_compose_sources(
+        sources={"docker-compose.v2.yml": b"services: {}\n"},
+        compose_files=("docker-compose.v2.yml",),
+        work_dir=work_dir,
+        env_file=env_file,
+    )
+    assert work_dir.stat().st_mode & 0o777 == 0o700
+
+
 @pytest.mark.parametrize(
     "name",
     [

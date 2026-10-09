@@ -59,8 +59,9 @@ la seule preuve de provenance d'image ne suffit jamais à autoriser une
 mutation réelle (par défaut : verdict + bundle matérialisé + plan
 imprimé, aucune commande Docker mutante lancée —
 `LIVE_MUTATIONS_ALLOWED=false` par défaut). Il ne recalcule aucun verdict
-de gouvernance pédagogique (ADR-0001). Il n'arrête ni ne supprime jamais
-aucun conteneur lui-même."""
+de gouvernance pédagogique (ADR-0001). La voie historique n'arrête aucun
+conteneur ; la voie publique peut retirer uniquement la couleur candidate
+après un échec de démarrage ou sur rollback explicite."""
 from __future__ import annotations
 
 import argparse
@@ -150,6 +151,8 @@ class RunningContainerInfo:
 
 
 ListRunningContainers = Callable[[], list[RunningContainerInfo]]
+ProjectInventory = Callable[[str], dict[str, list[str]]]
+ReadinessAssert = Callable[[], bool]
 
 
 class DeploymentWrapperError(RuntimeError):
@@ -825,6 +828,56 @@ def materialize_verified_bundle(
 
 def _default_run_subprocess(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600, check=False)
+
+
+def _default_project_inventory(project: str) -> dict[str, list[str]]:
+    """Inventorie aussi les conteneurs arrêtés et volumes d'une couleur."""
+    commands = {
+        "containers": [
+            "docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={project}"
+        ],
+        "networks": ["docker", "network", "ls", "--format", "{{.Name}}"],
+        "volumes": ["docker", "volume", "ls", "--format", "{{.Name}}"],
+    }
+    inventory: dict[str, list[str]] = {}
+    for kind, command in commands.items():
+        try:
+            completed = subprocess.run(
+                command, capture_output=True, text=True, timeout=30, check=False
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise DeploymentWrapperError(f"Docker {kind} inventory failed") from exc
+        if completed.returncode != 0:
+            raise DeploymentWrapperError(f"Docker {kind} inventory failed")
+        names = completed.stdout.splitlines()
+        inventory[kind] = (
+            names if kind == "containers" else
+            [name for name in names if name.startswith(project + "_")]
+        )
+    return inventory
+
+
+def _assert_go_live_ready(repo_root: Path, merge_sha: str) -> bool:
+    """Relit le garde canonique sur le checkout exact, jamais son snapshot."""
+    head = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if head.returncode != 0 or head.stdout.strip() != merge_sha:
+        return False
+    status = subprocess.run(
+        ["git", "-C", str(repo_root), "status", "--porcelain", "--untracked-files=all"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if status.returncode != 0 or status.stdout.strip():
+        return False
+    checker = subprocess.run(
+        [sys.executable, str(repo_root / "scripts/go_live/check_go_live_readiness.py"),
+         "--assert-ready"],
+        cwd=repo_root, capture_output=True, text=True, timeout=300, check=False,
+        env={**os.environ, "NEXUS_REPO_ROOT": str(repo_root)},
+    )
+    return checker.returncode == 0 and "GO_LIVE_READY=true" in checker.stdout.splitlines()
 
 
 def _default_list_running_containers() -> list[RunningContainerInfo]:
@@ -2050,6 +2103,173 @@ def _verify_deploy_inputs(
     )
 
 
+def _public_compose_args(bundle_dir: Path, project: str) -> list[str]:
+    command = [
+        "docker", "compose", "--project-name", project,
+        "--project-directory", str(bundle_dir),
+        "--env-file", str(bundle_dir / _ENV_BUNDLE_NAME),
+    ]
+    for name in vri._PUBLIC_CANDIDATE_COMPOSE_FILES:
+        command.extend(("-f", str(bundle_dir / name)))
+    return command
+
+
+def _require_empty_public_project(project: str, inventory: ProjectInventory) -> None:
+    observed = inventory(project)
+    if set(observed) != {"containers", "networks", "volumes"} or any(
+        not isinstance(observed[kind], list) for kind in observed
+    ):
+        raise DeploymentWrapperError("public candidate project inventory is incomplete")
+    if any(observed.values()):
+        raise DeploymentWrapperError("pre-existing resources in candidate project")
+
+
+def _public_preflight_from_bundle(
+    *,
+    verified: _VerifiedDeployInputs,
+    merge_sha: str,
+    color: str | None,
+    material_root: Path | None,
+    secrets_root: Path | None,
+    repo_root: Path | None,
+) -> str:
+    if color not in {"blue", "green"} or any(
+        value is None for value in (material_root, secrets_root, repo_root)
+    ):
+        raise DeploymentWrapperError("public candidate color and material roots are required")
+    assert color is not None and material_root is not None
+    assert secrets_root is not None and repo_root is not None
+    try:
+        effective = json.loads(verified.effective_compose_bytes)
+        evidence = public_preflight.require_public_candidate(
+            resolved_compose=effective,
+            source_sha=merge_sha,
+            color=color,
+            material_root=material_root,
+            secrets_root=secrets_root,
+            repo_root=repo_root,
+            verified_application_images=verified.bundle_document["verified_images"],
+        )
+    except (json.JSONDecodeError, public_preflight.PublicCandidateError) as exc:
+        raise DeploymentWrapperError(f"public candidate preflight refused: {exc}") from exc
+    project = evidence.get("project")
+    if not isinstance(project, str) or project != f"nexus-rag-{color}":
+        raise DeploymentWrapperError("public candidate project differs from selected color")
+    return project
+
+
+def rollback_public_candidate_from_bundle(
+    *,
+    bundle_dir: Path,
+    merge_sha: str,
+    public_color: str,
+    run_bundle_compose_config: RunBundleComposeConfig = _run_bundle_compose_config,
+    run_subprocess: RunSubprocess = _default_run_subprocess,
+) -> None:
+    """Arrête seulement la couleur candidate, sans supprimer ses volumes."""
+    document = _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha)
+    if document.get("public_candidate") is not True or public_color not in {"blue", "green"}:
+        raise DeploymentWrapperError("rollback requires a public candidate bundle and color")
+    effective = run_bundle_compose_config(
+        bundle_dir, bundle_dir / _ENV_BUNDLE_NAME, vri._PUBLIC_CANDIDATE_COMPOSE_FILES
+    )
+    if vri.canonical_resolved_compose_bytes(effective) != signer._read_bytes_no_follow(  # noqa: SLF001
+        bundle_dir / _RESOLVED_COMPOSE_BUNDLE_NAME, label="resolved_compose"
+    ):
+        raise DeploymentWrapperError("rollback effective Compose differs from candidate bundle")
+    project = f"nexus-rag-{public_color}"
+    if effective.get("name") != project or set(effective.get("services", {})) != (
+        vri._PUBLIC_CANDIDATE_SERVICES
+    ):
+        raise DeploymentWrapperError("rollback project or services differ from candidate bundle")
+    command = _public_compose_args(bundle_dir, project) + ["down", "--timeout", "10"]
+    try:
+        result = run_subprocess(command, bundle_dir)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise DeploymentWrapperError("public candidate rollback failed") from exc
+    if result.returncode != 0:
+        raise DeploymentWrapperError("public candidate rollback failed")
+
+
+def _deploy_public_candidate_from_bundle(
+    *,
+    bundle_dir: Path,
+    merge_sha: str,
+    verified: _VerifiedDeployInputs,
+    trusted_readiness_anchor_raw: bytes | None,
+    run_bundle_compose_config: RunBundleComposeConfig,
+    run_subprocess: RunSubprocess,
+    public_color: str | None,
+    public_material_root: Path | None,
+    public_secrets_root: Path | None,
+    public_repo_root: Path | None,
+    public_final_cutover_go: bool,
+    assert_readiness: ReadinessAssert | None,
+    project_inventory: ProjectInventory,
+) -> list[str]:
+    if public_final_cutover_go is not True:
+        raise DeploymentWrapperError("public candidate remains plan-only until final cutover GO")
+    if public_repo_root is None:
+        raise DeploymentWrapperError("public candidate requires final repository checkout")
+    ready = assert_readiness or (lambda: _assert_go_live_ready(public_repo_root, merge_sha))
+    try:
+        if ready() is not True:
+            raise DeploymentWrapperError("canonical --assert-ready did not pass")
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise DeploymentWrapperError("canonical --assert-ready could not run") from exc
+    project = _public_preflight_from_bundle(
+        verified=verified, merge_sha=merge_sha, color=public_color,
+        material_root=public_material_root, secrets_root=public_secrets_root,
+        repo_root=public_repo_root,
+    )
+    _require_empty_public_project(project, project_inventory)
+    command = _public_compose_args(bundle_dir, project)
+    services = verified.explicit_services
+    try:
+        pull = run_subprocess(command + ["pull", *services], bundle_dir)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise DeploymentWrapperError("public candidate pull failed") from exc
+    if pull.returncode != 0:
+        raise DeploymentWrapperError("public candidate pull failed")
+    reverified = _verify_deploy_inputs(
+        bundle_dir=bundle_dir, merge_sha=merge_sha, execute=True,
+        trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
+        run_bundle_compose_config=run_bundle_compose_config,
+    )
+    if reverified != verified:
+        raise DeploymentWrapperError("public candidate bundle changed after pull")
+    _public_preflight_from_bundle(
+        verified=reverified, merge_sha=merge_sha, color=public_color,
+        material_root=public_material_root, secrets_root=public_secrets_root,
+        repo_root=public_repo_root,
+    )
+    try:
+        if ready() is not True:
+            raise DeploymentWrapperError("canonical --assert-ready changed after pull")
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise DeploymentWrapperError("canonical --assert-ready could not run after pull") from exc
+    _require_empty_public_project(project, project_inventory)
+    try:
+        up = run_subprocess(
+            command + ["up", "-d", "--no-build", "--pull", "never", "--wait",
+                       "--wait-timeout", "300", *services],
+            bundle_dir,
+        )
+        up_failed = up.returncode != 0
+    except (OSError, subprocess.SubprocessError):
+        up_failed = True
+    if up_failed:
+        try:
+            rollback = run_subprocess(command + ["down", "--timeout", "10"], bundle_dir)
+            rollback_passed = rollback.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            rollback_passed = False
+        if not rollback_passed:
+            raise DeploymentWrapperError("public candidate up failed; rollback failed")
+        raise DeploymentWrapperError("public candidate up failed; rollback passed")
+    return ["PUBLIC_CANDIDATE_DEPLOYED=true", "EDGE_SWITCHED=false"]
+
+
 def deploy_from_bundle(
     *,
     bundle_dir: Path,
@@ -2060,6 +2280,13 @@ def deploy_from_bundle(
     trusted_readiness_anchor_raw: bytes | None = None,
     run_bundle_compose_config: RunBundleComposeConfig = _run_bundle_compose_config,
     deployment_state_root: Path | None = None,
+    public_color: str | None = None,
+    public_material_root: Path | None = None,
+    public_secrets_root: Path | None = None,
+    public_repo_root: Path | None = None,
+    public_final_cutover_go: bool = False,
+    assert_readiness: ReadinessAssert | None = None,
+    project_inventory: ProjectInventory = _default_project_inventory,
 ) -> list[str]:
     """Phase 3 (déployer) — toujours et uniquement depuis ``bundle_dir``,
     contre une liste explicite de services.
@@ -2071,7 +2298,9 @@ def deploy_from_bundle(
     la suivante ne soit lancée — un `pull` en échec n'est jamais suivi
     d'un `up`. Jamais d'option de nettoyage des conteneurs orphelins :
     le projet Compose de production est partagé avec une stack non-RAG
-    sur l'hôte cible.
+    sur l'hôte cible. La voie publique V2 est distincte : elle exige le GO
+    explicite, le garde canonique frais, un projet/couleur vide, puis attend
+    la santé de ses cinq services ; elle ne change pas le routage public.
 
     En V2, la source de bind de l'AuthorizationSet et l'allowlist exacte des
     fichiers relus par le readiness gate vivent dans une génération durable
@@ -2092,9 +2321,21 @@ def deploy_from_bundle(
     )
     explicit_services = verified.explicit_services
     public_candidate = verified.bundle_document.get("public_candidate") is True
-    if public_candidate and execute:
-        raise DeploymentWrapperError("public candidate bundle is plan-only; cutover requires a separate gate")
     if public_candidate:
+        if execute:
+            return _deploy_public_candidate_from_bundle(
+                bundle_dir=bundle_dir, merge_sha=merge_sha, verified=verified,
+                trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
+                run_bundle_compose_config=run_bundle_compose_config,
+                run_subprocess=run_subprocess,
+                public_color=public_color,
+                public_material_root=public_material_root,
+                public_secrets_root=public_secrets_root,
+                public_repo_root=public_repo_root,
+                public_final_cutover_go=public_final_cutover_go,
+                assert_readiness=assert_readiness,
+                project_inventory=project_inventory,
+            )
         return [
             "PUBLIC_CANDIDATE_VERIFIED=true",
             "MUTATION_ALLOWED=false",
@@ -2329,7 +2570,20 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--public-candidate", action="store_true", default=False,
-        help="Matérialise le candidat public V2 avec ses deux fichiers Compose; plan-only.",
+        help="Matérialise le candidat public V2 avec ses deux fichiers Compose.",
+    )
+    p.add_argument("--public-color", choices=("blue", "green"), default=None)
+    p.add_argument("--public-material-root", type=Path, default=None)
+    p.add_argument("--public-secrets-root", type=Path, default=None)
+    p.add_argument(
+        "--final-cutover-go", action="store_true", default=False,
+        help="Autorisation humaine explicite du cutover final ; l'exécution exige aussi "
+        "le garde canonique --assert-ready frais et le bundle public signé.",
+    )
+    p.add_argument(
+        "--rollback-public-candidate", action="store_true", default=False,
+        help="Arrête uniquement la couleur candidate issue du bundle existant ; "
+        "conserve ses volumes et ne rematérialise rien.",
     )
     p.add_argument(
         "--deployment-state-root",
@@ -2354,10 +2608,36 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
-    if args.public_candidate and (
-        args.execute or args.readiness_protocol != "NEXUS-PRODUCTION-READINESS-V2"
-    ):
-        print("REFUSED: --public-candidate requires V2 and forbids --execute", file=sys.stderr)
+    final_cutover_go = getattr(args, "final_cutover_go", False)
+    if getattr(args, "rollback_public_candidate", False):
+        if not args.public_candidate or args.execute or final_cutover_go or getattr(
+            args, "public_color", None
+        ) not in {"blue", "green"}:
+            print("REFUSED: public candidate rollback requires a color and forbids execute/GO", file=sys.stderr)
+            return 1
+        try:
+            rollback_public_candidate_from_bundle(
+                bundle_dir=args.bundle_dir,
+                merge_sha=args.merge_sha,
+                public_color=args.public_color,
+            )
+        except DeploymentWrapperError as exc:
+            print(f"REFUSED: {exc}", file=sys.stderr)
+            return 1
+        if args.json_output:
+            print('{"edge_switched":false,"rolled_back":true}')
+        else:
+            print("PUBLIC_CANDIDATE_ROLLBACK_PASS=true")
+            print("EDGE_SWITCHED=false")
+        return 0
+    if args.public_candidate and args.readiness_protocol != "NEXUS-PRODUCTION-READINESS-V2":
+        print("REFUSED: --public-candidate requires signed readiness V2", file=sys.stderr)
+        return 1
+    if args.public_candidate and args.execute and not final_cutover_go:
+        print("REFUSED: public candidate execution requires final cutover GO", file=sys.stderr)
+        return 1
+    if final_cutover_go and not (args.public_candidate and args.execute):
+        print("REFUSED: final cutover GO requires public candidate execution", file=sys.stderr)
         return 1
     if args.execute and (args.readiness_manifest_file is None or args.trust_anchor_file is None):
         print(
@@ -2450,6 +2730,11 @@ def main(argv: list[str] | None = None) -> int:
             execute=args.execute,
             trusted_readiness_anchor_raw=trusted_anchor_raw,
             deployment_state_root=args.deployment_state_root,
+            public_color=getattr(args, "public_color", None),
+            public_material_root=getattr(args, "public_material_root", None),
+            public_secrets_root=getattr(args, "public_secrets_root", None),
+            public_repo_root=args.repo_root,
+            public_final_cutover_go=final_cutover_go,
         )
     except (DeploymentWrapperError, vri.ReleaseVerificationError) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
@@ -2463,8 +2748,9 @@ def main(argv: list[str] | None = None) -> int:
             "verified_images": bundle_document["verified_images"],
         }
         if args.public_candidate:
-            output["mutation_allowed"] = False
-            output["cutover_gate_required"] = True
+            output["mutation_allowed"] = bool(args.execute)
+            output["cutover_gate_required"] = not args.execute
+            output["edge_switched"] = False
         print(
             json.dumps(
                 output,
