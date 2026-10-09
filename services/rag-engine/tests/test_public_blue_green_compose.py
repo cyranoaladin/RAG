@@ -45,7 +45,8 @@ def _overlay_document() -> dict:
 
 
 @pytest.mark.skipif(not _compose_available(), reason="Docker Compose indisponible")
-def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> None:
+@pytest.mark.parametrize("color", ["blue", "green"])
+def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path, color: str) -> None:
     material = tmp_path / "release-material"
     secrets = tmp_path / "runtime-secrets"
     names = set(
@@ -68,8 +69,8 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> 
         NEXUS_RUNTIME_SECRETS_ROOT=str(secrets),
         NEXUS_INGESTOR_IMAGE_SHA256="a" * 64,
         NEXUS_RELEASE_MATERIAL_MANIFEST_SHA256="e" * 64,
-        NEXUS_SEARCH_PORT="18101",
-        NEXUS_PROM_PORT="19101",
+        NEXUS_SEARCH_PORT="18101" if color == "blue" else "18102",
+        NEXUS_PROM_PORT="19101" if color == "blue" else "19102",
         PG_RAG_DSN="postgresql://rag_reader:synthetic@pgvector:5432/ragdb",
         PG_REVIEW_DSN="postgresql://rag_reviewer:synthetic@pgvector:5432/ragdb",
     )
@@ -77,7 +78,7 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> 
         "docker",
         "compose",
         "-p",
-        "nexus-rag-blue",
+        f"nexus-rag-{color}",
         "-f",
         str(BASE),
         "-f",
@@ -89,15 +90,18 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> 
     completed = subprocess.run(command, env=env, text=True, capture_output=True, check=False)
     assert completed.returncode == 0, completed.stderr
     resolved = json.loads(completed.stdout)
-    assert resolved["name"] == "nexus-rag-blue"
+    assert resolved["name"] == f"nexus-rag-{color}"
     assert resolved["networks"] == {
-        "rag_net": {"name": "nexus-rag-blue_rag_net", "driver": "bridge", "ipam": {}}
+        "rag_net": {"name": f"nexus-rag-{color}_rag_net", "driver": "bridge", "ipam": {}},
+        "bff_net": {"name": f"nexus-rag-{color}_bff_net", "driver": "bridge", "ipam": {}},
     }
     assert resolved["volumes"] == {
-        "rag_pgvector_data": {"name": "nexus-rag-blue_rag_pgvector_data"},
-        "rag_prometheus_data": {"name": "nexus-rag-blue_rag_prometheus_data"},
+        "rag_pgvector_data": {"name": f"nexus-rag-{color}_rag_pgvector_data"},
+        "rag_prometheus_data": {"name": f"nexus-rag-{color}_rag_prometheus_data"},
     }
-    assert all(service["networks"] == {"rag_net": None} for service in resolved["services"].values())
+    assert resolved["services"]["ingestor"]["networks"] == {"rag_net": None, "bff_net": None}
+    assert resolved["services"]["pgvector"]["networks"] == {"rag_net": None}
+    assert resolved["services"]["prometheus"]["networks"] == {"rag_net": None}
     assert set(resolved["services"]) == {"pgvector", "ingestor", "prometheus"}
     assert resolved["services"]["ingestor"]["image"] == (
         "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "a" * 64
@@ -157,8 +161,8 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> 
     }
     assert ports == {
         "pgvector": [],
-        "ingestor": [("127.0.0.1", "18101", 8001)],
-        "prometheus": [("127.0.0.1", "19101", 9090)],
+        "ingestor": [("127.0.0.1", "18101" if color == "blue" else "18102", 8001)],
+        "prometheus": [("127.0.0.1", "19101" if color == "blue" else "19102", 9090)],
     }
     prometheus_targets = {
         mount["target"] for mount in resolved["services"]["prometheus"]["volumes"]
