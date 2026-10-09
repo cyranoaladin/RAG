@@ -29,14 +29,24 @@ rien et ne déploie rien.
   `23568c4067b67c9051248d582cb4a903ea9d0852`, worktree propre avant
   changement ; constat du 2026-10-09T16:35:27Z.
 - TDD : les tests V2 ont d'abord échoué faute de
-  `verify_public_candidate_image_provenance` ; après implémentation, **299/299**
+  `verify_public_candidate_image_provenance` ; après implémentation, **300/300**
   tests de provenance V1/V2, signataire, wrapper, préflight et plan signé
   réussissent dans un venv neuf avec paquets locaux installés sans mode
-  éditable. L'assembleur Python réel extrait du YAML a été
+  éditable. Le contrôle a été rejoué le 2026-10-09T16:46:30Z sur le commit
+  de code et de tests `102d48d340a6e8652f375657f975a3d2953bafbf`, arbre
+  `4afd0126b07241953f40eaa2ca480faf3619f2c7`, worktree propre. Commande
+  depuis la racine, avec le Python du venv isolé :
+
+  ```bash
+  python -m pytest -o addopts='' services/rag-engine/tests/test_deployment_image_inventory.py services/rag-engine/tests/test_verify_release_image_provenance_cli.py services/rag-engine/tests/test_sign_production_readiness_manifest_cli.py services/rag-engine/tests/test_deploy_verified_release_cli.py services/rag-engine/tests/test_public_blue_green_preflight.py services/rag-engine/tests/test_signed_public_candidate_plan.py scripts/tests/test-production-image-provenance-workflow.py
+  ```
+
+  L'assembleur Python réel extrait du YAML a été
   exécuté en deux modes : V1 émet toujours exactement trois services et son
-  nom de fichier historique ; V2 émet quatre services avec Cockpit et un
-  fichier distinct. Les cas de run, SHA, arbre, protocole, source et digest
-  divergents sont refusés.
+  document entier est comparé à un oracle figé hors horodatage ; V2 émet
+  exactement les quatre services attendus avec Cockpit et un fichier
+  distinct. Les modes invalides et digests Cockpit absents, ainsi que les cas
+  de run, SHA, arbre, protocole, source et digest divergents sont refusés.
 - Ruff avec la configuration `rag-engine` : succès. `git diff --check` :
   succès.
 - Build Docker **local** `linux/amd64` du Dockerfile Cockpit : succès avec
