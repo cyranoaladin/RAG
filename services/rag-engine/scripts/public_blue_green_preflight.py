@@ -158,13 +158,21 @@ def _cockpit_environment(secret_root: Path, api_env: dict[str, Any]) -> dict[str
              "cockpit environment keys differ")
     _require(values["RAG_ENGINE_INTERNAL_URL"] == "http://ingestor:8001",
              "Cockpit must call the project API over bff_net")
+    try:
+        origin = urlsplit(values["NEXTAUTH_URL"])
+        valid_origin = (origin.scheme == "https" and bool(origin.hostname) and
+                        origin.username is None and origin.password is None and
+                        origin.port is None and origin.path in ("", "/") and
+                        not origin.query and not origin.fragment)
+    except ValueError:
+        valid_origin = False
     _require(values["NEXTAUTH_URL"] == values["NEXUS_COCKPIT_PUBLIC_ORIGIN"] and
-             values["NEXTAUTH_URL"].startswith("https://") and
-             urlsplit(values["NEXTAUTH_URL"]).path in ("", "/") and
-             not urlsplit(values["NEXTAUTH_URL"]).query and
-             not urlsplit(values["NEXTAUTH_URL"]).fragment,
+             valid_origin,
              "Cockpit public origin differs")
-    _require(re.fullmatch(r"20[0-9]{2}-20[0-9]{2}", values["NEXUS_RELEASE_SCHOOL_YEAR"]) is not None,
+    school_year = re.fullmatch(r"(20[0-9]{2})-(20[0-9]{2})",
+                               values["NEXUS_RELEASE_SCHOOL_YEAR"])
+    _require(school_year is not None and
+             int(school_year.group(2)) == int(school_year.group(1)) + 1,
              "Cockpit school year differs")
     if "NEXUS_SSO_JWKS_URL" in values:
         _require(values["NEXUS_SSO_JWKS_URL"].startswith("https://"),

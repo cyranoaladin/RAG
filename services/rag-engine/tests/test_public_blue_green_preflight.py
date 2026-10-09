@@ -277,6 +277,7 @@ def test_accepts_actual_resolved_five_service_compose(tmp_path: Path) -> None:
     "api_registry_unknown_key", "api_registry_ingest_scope", "api_registry_admin_scope",
     "api_registry_read_source_scope", "api_registry_inline_override",
     "redis_acl_unreadable_by_image_user", "secret_root_not_private",
+    "school_year_gap", "public_origin_missing_host", "public_origin_userinfo",
 ])
 def test_refuses_unsafe_cockpit_or_redis(tmp_path: Path, mutation: str) -> None:
     config, root, secrets, repo = _cockpit_fixture(tmp_path)
@@ -361,6 +362,20 @@ def test_refuses_unsafe_cockpit_or_redis(tmp_path: Path, mutation: str) -> None:
         (secrets / "session-redis.acl").chmod(0o600)
     elif mutation == "secret_root_not_private":
         secrets.chmod(0o755)
+    elif mutation in {"school_year_gap", "public_origin_missing_host", "public_origin_userinfo"}:
+        replacement = {
+            "school_year_gap": ("NEXUS_RELEASE_SCHOOL_YEAR", "2026-2028"),
+            "public_origin_missing_host": ("NEXTAUTH_URL", "https://"),
+            "public_origin_userinfo": ("NEXTAUTH_URL", "https://user:pass@cockpit.example.test"),
+        }[mutation]
+        key, value = replacement
+        if key == "NEXTAUTH_URL":
+            cockpit["environment"]["NEXUS_COCKPIT_PUBLIC_ORIGIN"] = value
+        cockpit["environment"][key] = value
+        path = secrets / "cockpit.env"
+        lines = path.read_text().splitlines()
+        keys = {key, "NEXUS_COCKPIT_PUBLIC_ORIGIN"} if key == "NEXTAUTH_URL" else {key}
+        path.write_text("\n".join(f"{line.split('=', 1)[0]}={value}" if line.split('=', 1)[0] in keys else line for line in lines) + "\n")
     with pytest.raises(preflight.PublicCandidateError):
         _check(config, root, secrets, repo)
 

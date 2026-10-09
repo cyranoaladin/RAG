@@ -26,8 +26,13 @@ atomique dans Nginx appartient au cutover signé : ce dépôt ne prouve ni la
 connexion interne Cockpit BFF → API du réseau blue-green, ni l'activation du
 vhost en production. Ne jamais activer deux vhosts pour le même domaine API.
 Le vhost Cockpit se rend séparément avec
-`envsubst '${RAG_COCKPIT_EXTERNAL_DOMAIN} ${NGINX_COCKPIT_PORT}'` et ne doit
+`envsubst '${RAG_COCKPIT_EXTERNAL_DOMAIN} ${NGINX_COCKPIT_PORT}'`, avec
+`NGINX_COCKPIT_PORT` égal au `NEXUS_COCKPIT_PORT` du candidat, et ne doit
 pas coexister avec un autre vhost pour le domaine Cockpit.
+Il transmet `GET /api/health`, nécessaire au chemin actuel
+`HomeClient → getCollections`, mais aucune autre méthode ni route de santé.
+`POST /api/search` utilise sa propre zone Nginx à `20r/s` par IP et
+`burst=40` (réponse `429` sous rafale), sans dépendre de la zone du vhost API.
 
 ## Rendu des vhosts via `envsubst`
 

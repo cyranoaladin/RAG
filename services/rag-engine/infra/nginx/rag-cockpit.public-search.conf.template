@@ -1,5 +1,11 @@
 # Candidat public Cockpit : uniquement authentification et recherche citée.
 # Activation réservée au cutover signé, jamais aux vhosts historiques.
+map $request_method $cockpit_search_limit_key {
+  default "";
+  POST $binary_remote_addr;
+}
+limit_req_zone $cockpit_search_limit_key zone=cockpit_search_v1:10m rate=20r/s;
+
 server {
   listen 80;
   server_name ${RAG_COCKPIT_EXTERNAL_DOMAIN};
@@ -62,8 +68,14 @@ server {
     limit_except GET { deny all; }
     proxy_pass http://127.0.0.1:${NGINX_COCKPIT_PORT};
   }
+  location = /api/health {
+    limit_except GET { deny all; }
+    proxy_pass http://127.0.0.1:${NGINX_COCKPIT_PORT};
+  }
   location = /api/search {
     limit_except POST { deny all; }
+    limit_req zone=cockpit_search_v1 burst=40 nodelay;
+    limit_req_status 429;
     proxy_pass http://127.0.0.1:${NGINX_COCKPIT_PORT};
   }
   location / {
