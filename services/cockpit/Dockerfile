@@ -11,8 +11,6 @@ RUN cd services/cockpit && npm ci --no-audit --no-fund
 COPY services/cockpit/ ./services/cockpit/
 COPY packages/contracts/schema/ ./packages/contracts/schema/
 COPY packages/contracts/src/nexus_contracts/artifacts/pilot-retrieval-scope-v1.json ./packages/contracts/src/nexus_contracts/artifacts/pilot-retrieval-scope-v1.json
-COPY packages/contracts/src/nexus_contracts/artifacts/retrieval-scope-prod-*.json ./packages/contracts/src/nexus_contracts/artifacts/
-COPY services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json ./services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json
 
 RUN printf '%s' "$SOURCE_COMMIT_SHA" | grep -Eq '^[0-9a-f]{40}$' \
  && cd services/cockpit \

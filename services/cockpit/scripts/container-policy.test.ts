@@ -30,13 +30,4 @@ describe('image Cockpit de production', () => {
     expect(source).toContain('services/cockpit/node_modules')
   })
 
-  it('rend disponibles les scopes gouvernés et le registre final du BFF', () => {
-    const dockerSource = readFileSync(dockerfile, 'utf8')
-    const ignoreSource = readFileSync(path.join(cockpitRoot, 'Dockerfile.dockerignore'), 'utf8')
-
-    expect(dockerSource).toContain('retrieval-scope-prod-*.json')
-    expect(dockerSource).toContain('release-registry-v4-hggsp-complementary.json')
-    expect(ignoreSource).toContain('!packages/contracts/src/nexus_contracts/artifacts/retrieval-scope-prod-*.json')
-    expect(ignoreSource).toContain('!services/rag-pedago/data/releases/prerentree_2026_2027/release-registry-v4-hggsp-complementary.json')
-  })
 })

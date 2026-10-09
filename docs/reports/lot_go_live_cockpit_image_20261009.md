@@ -8,10 +8,10 @@ les tests, le lint, le contrôle TypeScript et le contrôle du contrat JavaScrip
 puis construit un bundle `standalone`. Le conteneur final sert ce bundle avec
 l'utilisateur non privilégié `node`, sans dépôt monté. La base Node 22.22.0
 `bookworm-slim` est épinglée par digest ; le contexte Docker est réduit aux
-sources Cockpit, aux artefacts de contrat nécessaires et au registre final.
-Le contexte inclut aussi les scopes `retrieval-scope-prod-*.json` consommés
-par la génération BFF de PR #294, encore ouverte au moment de ce lot. Son
-intégration finale devra être revalidée après le merge de #294.
+sources Cockpit et aux artefacts de contrat nécessaires au `main` actuel.
+Les artefacts V4/V5 de répétition ne sont pas copiés dans cette image. Le
+successeur de scopes publics du BFF devra être intégré et revalidé avant un
+build de release ; PR #294 est encore ouverte au moment de ce lot.
 
 Le `SOURCE_COMMIT_SHA` doit être un SHA Git hexadécimal de 40 caractères. Il
 devient l'ID de build Next.js et le label OCI `org.opencontainers.image.revision`.
@@ -26,8 +26,7 @@ modification. Aucune mutation staging ou production ; aucune image poussée.
 ## Validation exécutée
 
 - TDD : quatre tests nouveaux ont échoué sur l'état initial, puis sont passés
-  après implémentation. Un cinquième test a échoué avant l'ajout du contexte
-  requis par PR #294, puis est passé. Suite Cockpit finale : **185/185 tests** ; lint et
+  après implémentation. Suite Cockpit finale : **184/184 tests** ; lint et
   TypeScript : succès.
 - Contrat Python + JavaScript : `npm run contracts:check` avec un venv isolé
   contenant `nexus-contracts[dev]` ; build Next.js local : succès.
@@ -41,9 +40,8 @@ modification. Aucune mutation staging ou production ; aucune image poussée.
 
 La répétition locale a utilisé le SHA **sentinelle synthétique**
 `0000000000000000000000000000000000000000`, parce que le worktree contenait
-les changements non committés. Son image locale avait l'ID
-`sha256:9930f0f34c6424be34b123299151d39b74e028bb5321983d0c33c4ff7045fd60`.
-Cet ID **n'est ni un digest de registre ni `COCKPIT_IMAGE_DIGEST` final**.
+les changements non committés. L'ID d'image locale obtenu n'est **ni un
+digest de registre ni `COCKPIT_IMAGE_DIGEST` final**.
 
 ## Intégration de release restant à faire
 
