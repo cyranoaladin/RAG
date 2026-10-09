@@ -10,6 +10,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+import yaml
 
 INFRA = Path(__file__).resolve().parents[1] / "infra"
 BASE = INFRA / "docker-compose.v2.yml"
@@ -26,6 +27,17 @@ def _compose_available() -> bool:
         ).returncode
         == 0
     )
+
+
+def _overlay_document() -> dict:
+    class ComposeLoader(yaml.SafeLoader):
+        pass
+
+    ComposeLoader.add_constructor("!override", lambda loader, node: loader.construct_sequence(node))
+    ComposeLoader.add_constructor("!reset", lambda loader, node: None)
+    document = yaml.load(OVERLAY.read_text(encoding="utf-8"), Loader=ComposeLoader)
+    assert isinstance(document, dict)
+    return document
 
 
 @pytest.mark.skipif(not _compose_available(), reason="Docker Compose indisponible")
@@ -101,7 +113,12 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> 
         if mount["target"] == "/app/api-clients/api-clients.json"
     )
     assert Path(client_mount["source"]).is_relative_to(secrets)
-    assert client_mount["bind"]["create_host_path"] is False
+    client_spec = next(
+        mount
+        for mount in _overlay_document()["services"]["ingestor"]["volumes"]
+        if isinstance(mount, dict) and mount.get("target") == "/app/api-clients/api-clients.json"
+    )
+    assert client_spec["bind"]["create_host_path"] is False
     ports = {
         service: [
             (port["host_ip"], port["published"], port["target"]) for port in spec.get("ports", [])

@@ -135,6 +135,10 @@ pas. Le test `promtool check config` local a trouvé 1 fichier de règles et
   sources sur la cible ni empreinte des matériaux ; le wrapper final doit
   refuser les symlinks, les chemins résolus dans un checkout et tout digest
   divergent avant mutation.
+  Le bind du registre clients porte `create_host_path: false`, vérifié dans
+  l'overlay source : certaines versions de `docker compose config --format
+  json` n'émettent pas cette valeur `false` dans leur sérialisation. La
+  présence du fichier réel reste à vérifier avant `compose up`.
 - `promtool check config` via l'image Prometheus épinglée
   `sha256:f6639335d34a77d9d9db382b92eeb7fc00934be8eae81dbc03b31cfe90411a94`
   : configuration valide, 4 règles.
