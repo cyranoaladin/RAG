@@ -109,6 +109,14 @@ Le staging `nexus-staging-prometheus-1` monte bien
 `/etc/prometheus/prometheus.yml` et `/prometheus` ; le répertoire de règles
 est absent dans le conteneur et son `/api/v1/rules` renvoie `[]` à la même
 heure. La production actuelle ne dispose donc pas de ces alertes chargées.
+Ce constat provient de `docker inspect rag_prometheus --format
+'{{range .Mounts}}{{.Destination}} {{end}}'` sur le conteneur **en cours**, qui
+a rendu exactement ces deux destinations, puis de `docker exec
+rag_prometheus wget -qO- http://127.0.0.1:9090/api/v1/rules` (JSON
+`{"status":"success","data":{"groups":[]}}`). Le fichier versionné
+`docker-compose.obs.yml` prévoit un montage de règles : il ne décrit pas le
+conteneur historique effectivement lancé et ne remplace pas cette lecture
+directe.
 L'overlay du candidat monte explicitement la configuration V2 et le
 répertoire des règles depuis les matériaux figés. Avant readiness, l'API du
 Prometheus de la *couleur candidate* devra réellement lister les quatre
@@ -120,7 +128,8 @@ pas. Le test `promtool check config` local a trouvé 1 fichier de règles et
 
 - `python3 -m pytest -q services/rag-engine/tests/test_public_blue_green_compose.py`
   : 1 test réussi. Il résout la fusion Compose réelle, vérifie les trois
-  services, toutes les images déclarées par digest, aucun `build`, sources de
+  services, toutes les images déclarées par digest, aucun `build`, égalité des
+  cibles de montage avec le Compose de base, sources de
   bind synthétiques sous les deux racines déclarées, tous les binds read-only,
   API/Prometheus loopback et DB sans port. Il ne vérifie ni `realpath` des
   sources sur la cible ni empreinte des matériaux ; le wrapper final doit

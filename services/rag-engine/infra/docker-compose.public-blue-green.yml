@@ -22,12 +22,19 @@ services:
 
   ingestor:
     build: !reset null
-    image: ${NEXUS_INGESTOR_IMAGE_DIGEST:?image API par digest requise}
+    # Le dépôt de l'image est fixe : la variable ne peut plus devenir un tag.
+    # Le wrapper signé devra encore lier ce digest à la provenance du SHA final.
+    image: ghcr.io/cyranoaladin/rag-ingestor@sha256:${NEXUS_INGESTOR_IMAGE_SHA256:?digest API de provenance requis}
     volumes: !override
       - ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/configs:/app/configs:ro
       - ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/release:/app/release:ro
       - ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/servable-corpus:/app/servable-corpus:ro
-      - ${NEXUS_RUNTIME_SECRETS_ROOT:?secrets runtime requis}/api-clients.json:/app/api-clients/api-clients.json:ro
+      - type: bind
+        source: ${NEXUS_RUNTIME_SECRETS_ROOT:?secrets runtime requis}/api-clients.json
+        target: /app/api-clients/api-clients.json
+        read_only: true
+        bind:
+          create_host_path: false
       - ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/models/e5-large:/models/e5-large:ro
       - ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/models/reranker:/models/reranker:ro
     ports: !override
