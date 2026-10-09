@@ -238,7 +238,7 @@ def verify_readiness_manifest_if_supplied(
     return manifest
 
 
-def verify_readiness_manifest_v2_with_material(
+def _verify_readiness_manifest_v2_with_material_details(
     *,
     readiness_manifest_raw: bytes,
     trust_anchor_raw: bytes,
@@ -246,7 +246,7 @@ def verify_readiness_manifest_v2_with_material(
     environment: str,
     merge_sha: str,
     resolved_compose_digest: str,
-) -> ProductionReadinessManifestV2:
+) -> tuple[ProductionReadinessManifestV2, signer.VerifiedV2ReleaseMaterial]:
     """Chemin V2 explicite : signature puis toutes les preuves exactes.
 
     Aucun fallback V1 et aucun digest seul : le même snapshot de release est
@@ -329,6 +329,27 @@ def verify_readiness_manifest_v2_with_material(
         < verified.verified_authorization_set.authorizations_effective_valid_until
     ):
         raise DeploymentWrapperError("readiness V2 authorization window is not active")
+    return manifest, verified
+
+
+def verify_readiness_manifest_v2_with_material(
+    *,
+    readiness_manifest_raw: bytes,
+    trust_anchor_raw: bytes,
+    material: signer.V2ReleaseMaterial,
+    environment: str,
+    merge_sha: str,
+    resolved_compose_digest: str,
+) -> ProductionReadinessManifestV2:
+    """Conserve le contrat public du vérificateur V2 existant."""
+    manifest, _ = _verify_readiness_manifest_v2_with_material_details(
+        readiness_manifest_raw=readiness_manifest_raw,
+        trust_anchor_raw=trust_anchor_raw,
+        material=material,
+        environment=environment,
+        merge_sha=merge_sha,
+        resolved_compose_digest=resolved_compose_digest,
+    )
     return manifest
 
 
@@ -359,7 +380,7 @@ def plan_signed_public_candidate(
     if not readiness_manifest_raw or not trust_anchor_raw:
         raise DeploymentWrapperError("public candidate requires signed V2 readiness and trust anchor")
     compose_digest = _sha256_bytes(vri.canonical_resolved_compose_bytes(resolved_compose))
-    manifest = verify_readiness_manifest_v2_with_material(
+    manifest, verified = _verify_readiness_manifest_v2_with_material_details(
         readiness_manifest_raw=readiness_manifest_raw,
         trust_anchor_raw=trust_anchor_raw,
         material=release_material,
@@ -369,10 +390,7 @@ def plan_signed_public_candidate(
     )
     if manifest.merge_tree_sha != source_tree_sha:
         raise DeploymentWrapperError("public candidate source tree differs from signed readiness")
-    try:
-        promotion = signer.verify_v2_release_material(release_material).promotion
-    except signer.SigningToolError as exc:
-        raise DeploymentWrapperError(f"public candidate release material rejected: {exc}") from exc
+    promotion = verified.promotion
     if (
         promotion.image_provenance_run_id != provenance_run_id
         or promotion.image_provenance_run_attempt != provenance_run_attempt

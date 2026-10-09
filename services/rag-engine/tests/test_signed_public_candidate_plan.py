@@ -28,20 +28,24 @@ from tests.test_sign_production_readiness_manifest_cli import (  # noqa: E402
 )
 
 
-def _signed_public(config: dict) -> tuple[bytes, bytes, dep.signer.V2ReleaseMaterial]:
+def _signed_public(
+    config: dict, *, application_claim: str = IMAGE, upstream_claim: str | None = None
+) -> tuple[bytes, bytes, dep.signer.V2ReleaseMaterial]:
     material = _v2_material()
     digest = hashlib.sha256(public.vri.canonical_resolved_compose_bytes(config)).hexdigest()
     upstream = {
         name: config["services"][name]["image"]
         for name in ("pgvector", "prometheus")
     }
+    if upstream_claim is not None:
+        upstream["pgvector"] = upstream_claim
     manifest = dep.signer.assemble_and_sign_v2(
         material,
         repository="cyranoaladin/RAG",
         pr_number=PR_NUMBER,
         pr_head_sha=PR_HEAD_SHA,
         pr_head_tree_sha=TREE_SHA,
-        application_image_digests={"ingestor": IMAGE},
+        application_image_digests={"ingestor": application_claim},
         upstream_image_digests=upstream,
         compose_digest=digest,
         key_id=TEST_KEY_ID,
@@ -55,10 +59,32 @@ def _signed_public(config: dict) -> tuple[bytes, bytes, dep.signer.V2ReleaseMate
     return signed, json.dumps(anchor).encode(), material
 
 
-def _plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, mutation: str = "") -> dict:
+def _plan(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    mutation: str = "",
+    verify_calls: list[None] | None = None,
+) -> dict:
     config, root, secrets, repo = _fixture(tmp_path)
-    signed, anchor, material = _signed_public(config)
+    application_claim = IMAGE
+    upstream_claim = None
+    if mutation == "application_claim":
+        application_claim = "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "0" * 64
+    elif mutation == "upstream_claim":
+        upstream_claim = "postgres@sha256:" + "0" * 64
+    signed, anchor, material = _signed_public(
+        config, application_claim=application_claim, upstream_claim=upstream_claim
+    )
     promotion = dep.signer.verify_v2_release_material(material).promotion
+    if verify_calls is not None:
+        original_verify = dep.signer.verify_v2_release_material
+
+        def count_verify(material: dep.signer.V2ReleaseMaterial) -> dep.signer.VerifiedV2ReleaseMaterial:
+            verify_calls.append(None)
+            return original_verify(material)
+
+        monkeypatch.setattr(dep.signer, "verify_v2_release_material", count_verify)
     monkeypatch.setattr(
         public.dii,
         "verify_application_image_provenance",
@@ -92,7 +118,9 @@ def _plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, mutation: str = ""
 
 
 def test_signed_public_candidate_is_only_a_plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    result = _plan(tmp_path, monkeypatch)
+    verify_calls: list[None] = []
+    result = _plan(tmp_path, monkeypatch, verify_calls=verify_calls)
+    assert len(verify_calls) == 1
     assert result["signed_readiness_valid"] is True
     assert result["project"] == "nexus-rag-blue"
     assert result["mutation_allowed"] is False
@@ -106,4 +134,18 @@ def test_plan_refuses_unsigned_or_divergent_candidate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
 ) -> None:
     with pytest.raises((dep.DeploymentWrapperError, public.PublicCandidateError)):
+        _plan(tmp_path, monkeypatch, mutation=mutation)
+
+
+@pytest.mark.parametrize(
+    ("mutation", "message"),
+    [
+        ("application_claim", "public candidate API image differs from signed readiness"),
+        ("upstream_claim", "public candidate upstream images differ from signed readiness"),
+    ],
+)
+def test_plan_refuses_validly_signed_but_wrong_image_claim(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str, message: str
+) -> None:
+    with pytest.raises(dep.DeploymentWrapperError, match=message):
         _plan(tmp_path, monkeypatch, mutation=mutation)
