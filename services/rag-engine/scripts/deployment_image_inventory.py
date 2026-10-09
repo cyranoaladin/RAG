@@ -16,6 +16,7 @@ pour ces images (Codex, instruction humaine PR #100 §12).
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import subprocess
@@ -43,6 +44,7 @@ _EXPECTED_APPLICATION_SERVICES = frozenset(
     {"ingestor", "multilevel-worker-a-production", "multilevel-worker-b-production"}
 )
 _PUBLIC_APPLICATION_SERVICES = _EXPECTED_APPLICATION_SERVICES | {"cockpit"}
+_PUBLIC_RUNTIME_APPLICATION_SERVICES = frozenset({"ingestor", "cockpit"})
 _PUBLIC_SERVICE_SOURCES = {
     "ingestor": ("services/rag-engine/infra/Dockerfile.ingestor-v2", "ghcr.io/cyranoaladin/rag-ingestor"),
     "multilevel-worker-a-production": ("services/rag-engine/infra/Dockerfile.multilevel-worker-production", "ghcr.io/cyranoaladin/rag-multilevel-worker-production"),
@@ -322,7 +324,8 @@ def _fetch_and_verify_image_provenance_document(
     github_api_get(f"repos/{repository}/actions/runs/{provenance_run_id}/attempts/{provenance_run_attempt}")
 
     artifact_path = download_artifact(provenance_run_id, expected_artifact_name, work_dir)
-    document = _parse_inventory_document(artifact_path.read_bytes())
+    raw = artifact_path.read_bytes()
+    document = _parse_inventory_document(raw)
 
     _require(
         set(document) == _EXPECTED_TOP_LEVEL_KEYS,
@@ -397,6 +400,11 @@ def _fetch_and_verify_image_provenance_document(
 
     for name, service in services.items():
         _verify_service_entry(name, service)
+    if expected_protocol == _PUBLIC_PROTOCOL_VERSION:
+        _require(
+            raw == public_candidate_inventory_bytes(document),
+            "public candidate image inventory bytes are not canonical",
+        )
     return document
 
 
@@ -423,6 +431,25 @@ def verify_public_candidate_image_provenance(
     github_api_get: GitHubApiGet, download_artifact: DownloadArtifact, work_dir: Path,
 ) -> dict[str, str]:
     """V2 opt-in : quatre images applicatives de la même source `main`."""
+    document = fetch_and_verify_public_candidate_image_provenance_document(
+        repository=repository, source_commit_sha=source_commit_sha,
+        source_tree_sha=source_tree_sha, provenance_run_id=provenance_run_id,
+        provenance_run_attempt=provenance_run_attempt,
+        github_api_get=github_api_get, download_artifact=download_artifact,
+        work_dir=work_dir,
+    )
+    return {
+        name: f"{service['image_repository']}@{service['image_digest']}"
+        for name, service in document["services"].items()
+    }
+
+
+def fetch_and_verify_public_candidate_image_provenance_document(
+    *, repository: str, source_commit_sha: str, source_tree_sha: str,
+    provenance_run_id: int, provenance_run_attempt: int,
+    github_api_get: GitHubApiGet, download_artifact: DownloadArtifact, work_dir: Path,
+) -> dict[str, Any]:
+    """Retourne l'unique document V2 intégralement vérifié, pour le signer."""
     _require(repository == "cyranoaladin/RAG", "public image inventory requires canonical repository")
     document = _fetch_and_verify_image_provenance_document(
         repository=repository, source_commit_sha=source_commit_sha,
@@ -434,7 +461,6 @@ def verify_public_candidate_image_provenance(
         github_api_get=github_api_get, download_artifact=download_artifact,
         work_dir=work_dir,
     )
-    digests: dict[str, str] = {}
     for name, service in document["services"].items():
         dockerfile, image_repository = _PUBLIC_SERVICE_SOURCES[name]
         _require(
@@ -443,7 +469,7 @@ def verify_public_candidate_image_provenance(
             and service["image_repository"] == image_repository,
             f"public image source identity differs for {name}",
         )
-        _, digests[name] = _verify_service_entry(name, service)
+        _verify_service_entry(name, service)
     a = document["services"]["multilevel-worker-a-production"]
     b = document["services"]["multilevel-worker-b-production"]
     _require(
@@ -451,7 +477,17 @@ def verify_public_candidate_image_provenance(
         and a["dockerfile_sha256"] == b["dockerfile_sha256"],
         "two worker services must reference one identical image build",
     )
-    return digests
+    return document
+
+
+def public_candidate_inventory_bytes(document: dict[str, Any]) -> bytes:
+    """Octets exacts du producteur V2 (json.dump sort_keys/indent, LF final)."""
+    return (json.dumps(document, sort_keys=True, indent=2) + "\n").encode("utf-8")
+
+
+def public_candidate_inventory_digest(document: dict[str, Any]) -> str:
+    """SHA-256 des octets canoniques vérifiés de l'inventaire V2."""
+    return hashlib.sha256(public_candidate_inventory_bytes(document)).hexdigest()
 
 
 def verify_application_image_provenance(

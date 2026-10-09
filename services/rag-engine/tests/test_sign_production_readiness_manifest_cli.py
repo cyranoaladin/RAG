@@ -2089,6 +2089,105 @@ profiles:
 
 
 class TestMultiAuthorizationReadinessV2Verification:
+    def test_public_compose_binds_only_deployed_images_while_attesting_four(self) -> None:
+        public_images = {
+            **APPLICATION_IMAGE_DIGESTS,
+            "cockpit": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "5" * 64,
+        }
+        upstream = {
+            "pgvector": "pgvector/pgvector@sha256:" + "6" * 64,
+            "session-redis": "redis@sha256:" + "7" * 64,
+            "prometheus": "prom/prometheus@sha256:" + "8" * 64,
+        }
+        services = {
+            "ingestor": {"image": public_images["ingestor"]},
+            "cockpit": {"image": public_images["cockpit"]},
+            **{name: {"image": ref} for name, ref in upstream.items()},
+        }
+        tool._verify_image_bindings(
+            {"services": services}, application_image_digests=public_images,
+            upstream_image_digests=upstream,
+            expected_application_services=frozenset({"ingestor", "cockpit"}),
+        )
+        services["cockpit"] = {"image": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "9" * 64}
+        with pytest.raises(tool.SigningToolError, match="cockpit"):
+            tool._verify_image_bindings(
+                {"services": services}, application_image_digests=public_images,
+                upstream_image_digests=upstream,
+                expected_application_services=frozenset({"ingestor", "cockpit"}),
+            )
+        services["cockpit"] = {"image": public_images["cockpit"]}
+        services["writer"] = {"image": "ghcr.io/cyranoaladin/rag-writer@sha256:" + "9" * 64}
+        upstream["writer"] = services["writer"]["image"]
+        with pytest.raises(tool.SigningToolError, match="exactly five"):
+            tool._verify_image_bindings(
+                {"services": services}, application_image_digests=public_images,
+                upstream_image_digests=upstream,
+                expected_application_services=frozenset({"ingestor", "cockpit"}),
+            )
+
+    def test_public_candidate_signer_derives_verified_inventory_and_binds_promotion_run(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        material = _v2_material()
+        cockpit_ref = "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "5" * 64
+        services = {
+            "ingestor": ("services/rag-engine/infra/Dockerfile.ingestor-v2", INGESTOR_REPO, INGESTOR_DIGEST),
+            "multilevel-worker-a-production": ("services/rag-engine/infra/Dockerfile.multilevel-worker-production", WORKER_REPO, WORKER_DIGEST),
+            "multilevel-worker-b-production": ("services/rag-engine/infra/Dockerfile.multilevel-worker-production", WORKER_REPO, WORKER_DIGEST),
+            "cockpit": ("services/cockpit/Dockerfile", "ghcr.io/cyranoaladin/rag-cockpit", "sha256:" + "5" * 64),
+        }
+        inventory = {
+            "protocol_version": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2",
+            "repository": REPOSITORY, "source_commit_sha": MERGE_SHA,
+            "source_tree_sha": TREE_SHA, "platform": "linux/amd64",
+            "workflow_path": PROVENANCE_WORKFLOW_PATH,
+            "workflow_run_id": PROVENANCE_RUN_ID,
+            "workflow_run_attempt": PROVENANCE_RUN_ATTEMPT,
+            "workflow_ref": "refs/heads/main", "built_at": "2026-10-09T12:00:00Z",
+            "services": {
+                name: {"source_kind": "build", "build_context": ".", "dockerfile": dockerfile,
+                       "dockerfile_sha256": DOCKERFILE_SHA,
+                       "image_repository": repository, "image_digest": digest}
+                for name, (dockerfile, repository, digest) in services.items()
+            },
+        }
+        def api(path: str) -> dict[str, Any]:
+            assert path in {
+                f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}",
+                f"repos/{REPOSITORY}/actions/runs/{PROVENANCE_RUN_ID}/attempts/{PROVENANCE_RUN_ATTEMPT}",
+            }
+            return {"path": PROVENANCE_WORKFLOW_PATH, "repository": {"full_name": REPOSITORY},
+                    "event": "workflow_dispatch", "status": "completed", "conclusion": "success",
+                    "head_sha": MERGE_SHA, "run_attempt": PROVENANCE_RUN_ATTEMPT}
+        def download(run_id: int, artifact_name: str, destination: Path) -> Path:
+            assert run_id == PROVENANCE_RUN_ID
+            assert artifact_name == "nexus-public-deployment-image-inventory-v2"
+            path = destination / "inventory.json"
+            path.write_bytes(dii.public_candidate_inventory_bytes(inventory))
+            return path
+        monkeypatch.setattr(tool, "_github_api_get", api)
+        monkeypatch.setattr(dii, "make_public_candidate_download_artifact_via_gh", lambda **_: download)
+        args = argparse.Namespace(provenance_run_id=PROVENANCE_RUN_ID,
+                                  provenance_run_attempt=PROVENANCE_RUN_ATTEMPT)
+        images, digest = tool._derive_public_candidate_image_inventory(
+            args, merge_sha=MERGE_SHA, merge_tree_sha=TREE_SHA
+        )
+        assert images == {**APPLICATION_IMAGE_DIGESTS, "cockpit": cockpit_ref}
+        assert digest == dii.public_candidate_inventory_digest(inventory)
+        manifest = tool.assemble_and_sign_v2(
+            material, repository=REPOSITORY, pr_number=PR_NUMBER,
+            pr_head_sha=PR_HEAD_SHA, pr_head_tree_sha=TREE_SHA,
+            application_image_digests=images,
+            upstream_image_digests={UPSTREAM_IMAGE_SERVICE: UPSTREAM_IMAGE_REF},
+            compose_digest="8" * 64, key_id=TEST_KEY_ID, workflow_ref=WORKFLOW_REF,
+            public_candidate_inventory_digest=digest,
+        )
+        assert manifest.public_candidate_inventory_digest == digest
+        assert manifest.public_candidate_provenance_run_id == PROVENANCE_RUN_ID
+        assert manifest.public_candidate_provenance_run_attempt == PROVENANCE_RUN_ATTEMPT
+        assert "--public-candidate" in tool._build_v2_arg_parser()._option_string_actions
+
     def test_exact_release_material_is_verified_by_one_global_boundary(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:

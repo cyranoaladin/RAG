@@ -94,6 +94,7 @@ from nexus_contracts.production_readiness import (  # noqa: E402
     ProductionReadinessManifestV2,
     parse_production_readiness_trust_anchor,
     require_manifest_matches_release,
+    require_public_candidate_inventory_matches_readiness,
     verify_production_readiness_manifest,
     verify_production_readiness_manifest_v2,
 )
@@ -236,6 +237,67 @@ def verify_readiness_manifest_if_supplied(
     except ProductionReadinessError as exc:
         raise DeploymentWrapperError(f"readiness manifest rejected: {exc}") from exc
     return manifest
+
+
+def require_public_candidate_inventory_binding(
+    manifest: ProductionReadinessManifestV2, document: dict[str, Any]
+) -> None:
+    """Relie l'inventaire V2 vérifié au manifeste signé, sans réseau nouveau."""
+    if manifest.public_candidate_inventory_digest is None:
+        return
+    services = document.get("services")
+    if (
+        document.get("protocol_version") != dii._PUBLIC_PROTOCOL_VERSION
+        or document.get("repository") != manifest.repository
+        or document.get("source_commit_sha") != manifest.merge_sha
+        or document.get("source_tree_sha") != manifest.merge_tree_sha
+        or not isinstance(services, dict)
+    ):
+        raise DeploymentWrapperError("public candidate inventory identity differs from signed readiness")
+    try:
+        images = {
+            name: f"{service['image_repository']}@{service['image_digest']}"
+            for name, service in services.items()
+        }
+        require_public_candidate_inventory_matches_readiness(
+            manifest,
+            inventory_digest=dii.public_candidate_inventory_digest(document),
+            provenance_run_id=document["workflow_run_id"],
+            provenance_run_attempt=document["workflow_run_attempt"],
+            application_image_digests=images,
+        )
+    except (KeyError, TypeError, ProductionReadinessError) as exc:
+        raise DeploymentWrapperError(
+            f"public candidate inventory differs from signed readiness: {exc}"
+        ) from exc
+
+
+def _runtime_application_services(
+    manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2,
+) -> frozenset[str]:
+    if isinstance(manifest, ProductionReadinessManifestV2) and (
+        manifest.public_candidate_inventory_digest is not None
+    ):
+        return dii._PUBLIC_RUNTIME_APPLICATION_SERVICES
+    return dii._EXPECTED_APPLICATION_SERVICES
+
+
+def require_runtime_images_match_readiness(
+    manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2,
+    pinned_images: dict[str, str],
+) -> None:
+    """Deux images exécutées pour le public ; quatre restent signées."""
+    if isinstance(manifest, ProductionReadinessManifestV2) and (
+        manifest.public_candidate_inventory_digest is not None
+    ):
+        expected = {
+            name: manifest.application_image_digests[name]
+            for name in dii._PUBLIC_RUNTIME_APPLICATION_SERVICES
+        }
+    else:
+        expected = manifest.application_image_digests
+    if pinned_images != expected:
+        raise DeploymentWrapperError("runtime images differ from signed readiness")
 
 
 def _verify_readiness_manifest_v2_with_material_details(
@@ -537,16 +599,17 @@ def materialize_verified_bundle(
             merge_sha=merge_sha,
             resolved_compose_digest=resolved_compose_digest,
         )
-        if (
-            readiness_v2.application_image_digests != materialization.pinned_images
-            or readiness_v2.upstream_image_digests
-            != signer._upstream_services_from_resolved_compose(  # noqa: SLF001
-                materialization.resolved_compose
-            )
+        require_runtime_images_match_readiness(readiness_v2, materialization.pinned_images)
+        if readiness_v2.upstream_image_digests != signer._upstream_services_from_resolved_compose(  # noqa: SLF001
+            materialization.resolved_compose,
+            application_services=_runtime_application_services(readiness_v2),
         ):
             raise DeploymentWrapperError(
                 "readiness V2 image inventory differs from verified provenance/Compose"
             )
+        require_public_candidate_inventory_binding(
+            readiness_v2, materialization.image_provenance_document
+        )
     else:
         raise DeploymentWrapperError(f"unsupported readiness protocol {readiness_protocol!r}")
 
@@ -1791,17 +1854,20 @@ def _verify_deploy_inputs(
             "effective compose differs from the signed/materialized resolved compose"
         )
     compose_digest = _sha256_bytes(effective_bytes)
+    manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2
     if actual_protocol == "NEXUS-PRODUCTION-READINESS-V1":
-        manifest = verify_readiness_manifest_if_supplied(
+        manifest_v1 = verify_readiness_manifest_if_supplied(
             readiness_manifest_raw=readiness_raw,
             trust_anchor_raw=trusted_readiness_anchor_raw,
             environment="production",
             merge_sha=merge_sha,
             resolved_compose_digest=compose_digest,
         )
-        assert manifest is not None
+        if manifest_v1 is None:
+            raise DeploymentWrapperError("signed V1 readiness is missing")
+        manifest = manifest_v1
     elif actual_protocol == "NEXUS-PRODUCTION-READINESS-V2":
-        manifest = verify_readiness_manifest_v2_with_material(
+        manifest_v2 = verify_readiness_manifest_v2_with_material(
             readiness_manifest_raw=readiness_raw,
             trust_anchor_raw=trusted_readiness_anchor_raw,
             material=_load_v2_release_material_from_bundle(bundle_dir, bundle_document),
@@ -1809,6 +1875,22 @@ def _verify_deploy_inputs(
             merge_sha=merge_sha,
             resolved_compose_digest=compose_digest,
         )
+        manifest = manifest_v2
+        if manifest_v2.public_candidate_inventory_digest is not None:
+            try:
+                inventory_document = json.loads(
+                    signer._read_bytes_no_follow(  # noqa: SLF001 - octets du bundle gelé
+                        bundle_dir / _IMAGE_PROVENANCE_BUNDLE_NAME,
+                        label="bundle:image_provenance",
+                    )
+                )
+            except (json.JSONDecodeError, signer.SigningToolError) as exc:
+                raise DeploymentWrapperError(
+                    f"public candidate inventory bundle cannot be read: {exc}"
+                ) from exc
+            if not isinstance(inventory_document, dict):
+                raise DeploymentWrapperError("public candidate inventory bundle is not an object")
+            require_public_candidate_inventory_binding(manifest_v2, inventory_document)
     else:  # pragma: no cover - exhaustivité imposée par _signed_readiness_protocol
         raise DeploymentWrapperError(f"unsupported signed readiness protocol {actual_protocol!r}")
 
@@ -1823,9 +1905,13 @@ def _verify_deploy_inputs(
     explicit_services = sorted(services)
     if bundle_document.get("explicit_services") != explicit_services:
         raise DeploymentWrapperError("bundle explicit_services differ from effective compose")
-    if bundle_document.get("verified_images") != manifest.application_image_digests:
-        raise DeploymentWrapperError("bundle verified_images differ from signed readiness")
-    if signer._upstream_services_from_resolved_compose(effective) != (  # noqa: SLF001
+    verified_images = bundle_document.get("verified_images")
+    if not isinstance(verified_images, dict):
+        raise DeploymentWrapperError("bundle verified_images is not a mapping")
+    require_runtime_images_match_readiness(manifest, verified_images)
+    if signer._upstream_services_from_resolved_compose(  # noqa: SLF001
+        effective, application_services=_runtime_application_services(manifest)
+    ) != (
         manifest.upstream_image_digests
     ):
         raise DeploymentWrapperError("effective upstream images differ from signed readiness")
