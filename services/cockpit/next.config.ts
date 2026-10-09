@@ -27,7 +27,7 @@ function sourceSha(): string | null {
 const buildSha = sourceSha()
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  output: 'standalone',
+  ...(process.env.NEXUS_COCKPIT_BUILD_SHA?.trim() ? { output: 'standalone' as const } : {}),
   ...(buildSha === null ? {} : { generateBuildId: async () => buildSha }),
   turbopack: {
     root: cockpitRoot,

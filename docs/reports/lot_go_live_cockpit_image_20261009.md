@@ -5,7 +5,8 @@
 Ce lot prépare une image Docker **locale et non publiée** du Cockpit Next.js. Le
 Dockerfile installe les dépendances du `package-lock.json` avec `npm ci`, exécute
 les tests, le lint, le contrôle TypeScript et le contrôle du contrat JavaScript,
-puis construit un bundle `standalone`. Le conteneur final sert ce bundle avec
+puis construit un bundle `standalone` quand le SHA de build conteneur est fourni.
+Le build local conserve `next start` ; le conteneur final sert ce bundle avec
 l'utilisateur non privilégié `node`, sans dépôt monté. La base Node 22.22.0
 `bookworm-slim` est épinglée par digest ; le contexte Docker est réduit aux
 sources Cockpit et aux artefacts de contrat nécessaires au `main` actuel.
@@ -29,23 +30,29 @@ modification. La branche a ensuite intégré par merge normal le `main`
 ## Validation exécutée
 
 - TDD : quatre tests nouveaux ont échoué sur l'état initial, puis sont passés
-  après implémentation. Suite Cockpit finale : **184/184 tests** ; lint et
+  après implémentation. La correction du démarrage local a également suivi un
+  cycle rouge/vert. Suite Cockpit finale : **185/185 tests** ; lint et
   TypeScript : succès.
 - Contrat Python + JavaScript : `npm run contracts:check` avec un venv isolé
   contenant `nexus-contracts[dev]` ; build Next.js local : succès.
 - `docker buildx build --load --platform linux/amd64` : succès depuis le vrai
-  contexte du dépôt. Un `SOURCE_COMMIT_SHA=main` a été refusé avant le build.
+  contexte du dépôt. Un `SOURCE_COMMIT_SHA=main` a été refusé après `npm ci`
+  et la copie du contexte, avant les tests et la construction Next.js.
 - Après l'intégration de #306, le test `next.container-config.test.ts`, renommé,
   était absent de l'allowlist Docker. Une assertion de régression a d'abord
   échoué, puis a réussi après l'ajout de son chemin exact. Le journal d'un
   **nouveau build Docker** affiche explicitement
-  `next.container-config.test.ts (2 tests)`, puis `23` fichiers et `184` tests
+  `next.container-config.test.ts (3 tests)`, puis `23` fichiers et `185` tests
   réussis dans l'étape builder. Le build et son smoke ont été rejoués après
   cette correction : UID 1000, `/` HTTP 200, `/api/health` HTTP 503 attendu,
   `.next/BUILD_ID` égal au SHA sentinelle, zéro mount.
-- Sur cette branche intégrée : suite Cockpit `184/184`, lint, typecheck,
+- Sur cette branche intégrée : suite Cockpit `185/185`, lint, typecheck,
   `contracts:check` et build Next.js réussis. Le contrôle Python du contrat a
-  utilisé une installation **non éditable** dans un venv isolé.
+  utilisé une installation **non éditable** dans un venv isolé. `npm run start`
+  répond HTTP 200 après ce build local. Le `Dockerfile` ne copie que les
+  schémas et artefacts figés ; le contrôle Pydantic canonique
+  `export_schemas.py --check` est bloquant dans le context CI requis
+  `packages/contracts` avant la fusion et le build de release.
 - `npm audit --omit=dev --json` : exit 0, zéro vulnérabilité de production,
   dont zéro high et critical. `npm audit --json` : exit 1, sept high de
   développement seulement ; la politique exacte temporaire #284 accepte
@@ -56,10 +63,13 @@ modification. La branche a ensuite intégré par merge normal le `main`
   configuration dans cet essai isolé. Le conteneur et son image ont été
   supprimés après l'essai.
 
-La répétition locale a utilisé le SHA **sentinelle synthétique**
-`0000000000000000000000000000000000000000`, parce que le worktree contenait
-les changements non committés. L'ID d'image locale obtenu n'est **ni un
-digest de registre ni `COCKPIT_IMAGE_DIGEST` final**.
+La répétition locale finale a exécuté
+`docker buildx build --progress=plain --load --platform linux/amd64 --build-arg SOURCE_COMMIT_SHA=0000000000000000000000000000000000000000 -f services/cockpit/Dockerfile -t nexus-pr307-local:final-validation .`.
+Le SHA de build était une **sentinelle synthétique**, car le worktree contenait
+les changements non committés. L'image locale testée avait l'ID
+`sha256:90717fa1dd6edda6c08a282be3111fd16799c8751662ba607af832c27b04af22`.
+Cet ID **n'est ni un digest de registre ni `COCKPIT_IMAGE_DIGEST` final** ;
+l'image a été supprimée après le smoke.
 
 ## Intégration de release restant à faire
 
