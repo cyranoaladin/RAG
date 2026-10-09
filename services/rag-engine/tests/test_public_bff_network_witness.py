@@ -27,9 +27,43 @@ http.createServer((req,res) => {
 
 _DB = "require('node:net').createServer(s=>s.end('db')).listen(5432,'0.0.0.0')"
 
+_RAG_DB_PROBE = r"""
+const net = require('node:net');
+async function reachable() {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    const connected = await new Promise(resolve => {
+      const socket = net.connect({host:'pgvector',port:5432,timeout:1000});
+      socket.on('connect', () => { socket.destroy(); resolve(true); });
+      socket.on('error', () => resolve(false));
+      socket.on('timeout', () => { socket.destroy(); resolve(false); });
+    });
+    if (connected) return true;
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  return false;
+}
+reachable().then(connected => {
+  if (!connected) throw new Error('DB unavailable from rag network');
+  console.log(JSON.stringify({db_reachable:true}));
+}).catch(error => { console.error(error.message); process.exitCode=1; });
+"""
+
 _BFF = r"""
 const net = require('node:net');
 async function main() {
+  const deadline = Date.now() + 10000;
+  let healthy = false;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch('http://ingestor:8001/health', {
+        signal: AbortSignal.timeout(1000),
+      });
+      if (response.status === 200) { healthy = true; break; }
+    } catch (_) { /* Le serveur témoin peut encore démarrer. */ }
+    await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  if (!healthy) throw new Error('API unavailable from BFF network');
   for (const [method,path] of [
     ['GET','/health'],
     ['GET','/collections/readiness'],
@@ -108,6 +142,15 @@ def test_only_api_joins_bff_and_database_networks() -> None:
         database_ip = _docker(
             "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}", database
         ).split()[0]
+        rag_result = subprocess.run(
+            ["docker", "run", "--rm", "--network", rag_net, image, "node", "-e", _RAG_DB_PROBE],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+        assert rag_result.returncode == 0, rag_result.stderr[:500]
+        assert json.loads(rag_result.stdout) == {"db_reachable": True}
         result = subprocess.run(
             [
                 "docker",

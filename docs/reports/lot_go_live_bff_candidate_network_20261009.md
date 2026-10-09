@@ -43,9 +43,10 @@ couleurs conserve trois images par digest, aucun port DB et les seuls ports
 API/Prometheus sur loopback. `NEXUS_REQUIRE_DOCKER=1 pytest -q` sur les tests
 Compose, préflight, plan V2 signé et témoin réseau donne **43 succès**. Le
 témoin crée deux ponts temporaires et trois conteneurs Node éphémères, sans
-port publié ni bind ; un client sur `bff_net` obtient 200 sur les quatre
-routes API ci-dessus, tandis que la DB témoin sur `rag_net` est inaccessible
-par DNS et par IP privée. Le nettoyage laisse zéro conteneur et zéro réseau
+port publié ni bind ; après une attente API bornée, un client sur `bff_net`
+obtient 200 sur les quatre routes API ci-dessus. La DB témoin est d'abord
+prouvée joignable sur `rag_net` après attente bornée, puis inaccessible depuis
+`bff_net` par DNS et par IP privée. Le nettoyage laisse zéro conteneur et zéro réseau
 `nexus-bff-witness-*`. Cette preuve est une **segmentation réseau locale** :
 elle n'est pas un E2E du vrai Cockpit et ne valide aucun élève public.
 
