@@ -184,8 +184,10 @@ class ReleaseVerificationError(RuntimeError):
     déploiement."""
 
 
-def require_private_work_dir(work_dir: Path) -> None:
-    """Exige un scratch 0700, sous des ancêtres fiables sans symlink."""
+def require_private_work_dir(work_dir: Path) -> Path:
+    """Retourne un chemin absolu privé 0700, sans alias ni ancêtre symlink."""
+    if not work_dir.is_absolute() or ".." in work_dir.parts:
+        raise ReleaseVerificationError("private work directory path must be absolute without traversal")
     absolute = Path(os.path.abspath(work_dir))
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     descriptor = os.open(absolute.anchor, flags)
@@ -212,6 +214,7 @@ def require_private_work_dir(work_dir: Path) -> None:
         metadata = os.fstat(descriptor)
         if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
             raise ReleaseVerificationError("private work directory must be owned by the caller and mode 0700")
+        return absolute
     except OSError as exc:
         raise ReleaseVerificationError("private work directory cannot be opened safely") from exc
     finally:
@@ -285,7 +288,7 @@ def run_docker_compose_config_via_subprocess(
             "(see docs/runbooks/go_live.md §3)"
         )
     env_file = env_file.resolve()
-    require_private_work_dir(work_dir)
+    work_dir = require_private_work_dir(work_dir)
     with tempfile.TemporaryDirectory(prefix="compose-", dir=work_dir) as temporary:
         scratch = Path(temporary)
         for name in compose_files:
@@ -385,7 +388,7 @@ def verify_release_images(
     # du chemin d'origine, est ce qui sert à la fois à la résolution
     # Compose ci-dessous et à tout appelant en aval qui matérialise un
     # bundle depuis le résultat retourné.
-    require_private_work_dir(work_dir)
+    work_dir = require_private_work_dir(work_dir)
     env_bytes = env_file.read_bytes()
 
     compose_source_bytes = {

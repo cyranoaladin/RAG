@@ -306,6 +306,24 @@ class TestVerifyReleaseImagesEndToEnd:
             vri.require_private_work_dir(repeated)
         assert not (tmp_path / "scratch").exists()
 
+    def test_symlink_dotdot_alias_is_refused_before_any_creation(self, tmp_path: Path) -> None:
+        safe = tmp_path / "safe"
+        safe.mkdir(mode=0o700)
+        escaped = tmp_path / "escaped"
+        escaped.mkdir(mode=0o700)
+        deep = escaped / "deep"
+        deep.mkdir(mode=0o700)
+        (safe / "link").symlink_to(deep, target_is_directory=True)
+        alias = safe / "link" / ".." / "checked"
+        previous = os.umask(0o000)
+        try:
+            with pytest.raises(vri.ReleaseVerificationError, match="private work directory"):
+                vri.require_private_work_dir(alias)
+        finally:
+            os.umask(previous)
+        assert not (safe / "checked").exists()
+        assert not (escaped / "checked").exists()
+
     def test_existing_snapshot_symlink_or_hardlink_cannot_be_reused(self, tmp_path: Path) -> None:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
