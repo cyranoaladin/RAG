@@ -79,14 +79,25 @@ production et ne démarre ni API, ni worker.
 
 ```bash
 set -euo pipefail
-cd services/rag-engine/infra
-
-# Valeurs explicites : jamais le projet production, jamais le projet infra.
-RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dt%H%M%Sz)"
 : "${RESTORE_BACKUP_FILE:?exporter le chemin exact publié par BACKUP_COMPLETE}"
 : "${RESTORE_ENV_FILE:?chemin du fichier de secrets existant, sans afficher les valeurs}"
 : "${RESTORE_SOURCE_CONTAINER:?conteneur PostgreSQL source à lire seulement}"
 : "${RESTORE_SOURCE_DB:?base source du dump à lire seulement}"
+normalize_restore_paths() {
+  RESTORE_BACKUP_FILE="$(realpath -e -- "$RESTORE_BACKUP_FILE")"
+  RESTORE_ENV_FILE="$(realpath -e -- "$RESTORE_ENV_FILE")"
+}
+normalize_restore_paths
+cd services/rag-engine/infra
+
+# Les mêmes noms de base/rôle doivent servir à Compose et à pg_restore.
+# Les variables exportées priment sur un éventuel PGVECTOR_DB dans --env-file.
+PGVECTOR_DB="${PGVECTOR_DB:-ragdb}"
+PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
+export PGVECTOR_DB PGVECTOR_USER
+
+# Valeurs explicites : jamais le projet production, jamais le projet infra.
+RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dt%H%M%Sz)"
 umask 077
 RESTORE_FIXTURE_DIR="$(mktemp -d)"
 RESTORE_COMPOSE="$RESTORE_FIXTURE_DIR/compose.yml"
@@ -196,19 +207,42 @@ assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"
   --username="${PGVECTOR_USER:-raguser}" \
   --dbname="${PGVECTOR_DB:-ragdb}" /restore/source.dump
 
-# `--no-privileges` est volontaire : réimposer ensuite les rôles et ACL runtime
-# depuis leur source canonique. Cette étape reste obligatoire même si le registre
-# restauré est déjà au head 005, cas où le runner de migrations n'a rien à jouer.
-"${restore_compose[@]}" run --rm --no-deps \
-  --volume "$RUNTIME_ROLE_PROVISIONING:/opt/nexus/provision_runtime_roles.sh:ro" \
-  --entrypoint bash restore-migrator \
-  /opt/nexus/provision_runtime_roles.sh
-
 # Aucun service applicatif ne doit exister dans le projet de rehearsal.
 test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
 
-# Comparer les identités métier et la colonne lexicale générée. Un dump ancien
-# ou une source modifiée depuis sa capture échoue au lieu de simuler un vert.
+# Un dump historique sans schéma de contrôle prouve seulement sa lisibilité.
+# Le contrôle complet est réservé à une base restaurée au head final 005/020.
+classify_restore_schema_heads() {
+  if [[ "$1" == '5|20' ]]; then
+    printf 'FINAL_SCHEMA_VERIFIED\n'
+  else
+    printf 'FINAL_SCHEMA_UNVERIFIED\n'
+  fi
+}
+SCHEMA_TABLES_SQL="SELECT CASE WHEN to_regclass('public.rag_schema_migrations') IS NOT NULL AND to_regclass('ingestion_control.schema_migrations') IS NOT NULL AND to_regclass('public.rag_artifacts') IS NOT NULL AND to_regclass('public.rag_artifact_placements') IS NOT NULL AND to_regclass('public.rag_chunks') IS NOT NULL THEN 'present' ELSE 'missing' END"
+RESTORE_SCHEMA_TABLES="$("${restore_compose[@]}" exec -T \
+  -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+  sh "$SCHEMA_TABLES_SQL")"
+RESTORE_SCHEMA_HEADS=''
+if [[ "$RESTORE_SCHEMA_TABLES" == present ]]; then
+  SCHEMA_HEADS_SQL="SELECT (SELECT max(version)::text FROM public.rag_schema_migrations)||'|'||(SELECT max(version)::text FROM ingestion_control.schema_migrations)"
+  RESTORE_SCHEMA_HEADS="$("${restore_compose[@]}" exec -T \
+    -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+    'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+    sh "$SCHEMA_HEADS_SQL")"
+fi
+RESTORE_SCHEMA_VERDICT="$(classify_restore_schema_heads "$RESTORE_SCHEMA_HEADS")"
+if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_VERIFIED ]]; then
+  # `--no-privileges` exige de réimposer les ACL runtime sur le schéma final.
+  # Une base historique sans ces tables reste uniquement lisible en isolation.
+  "${restore_compose[@]}" run --rm --no-deps \
+    --volume "$RUNTIME_ROLE_PROVISIONING:/opt/nexus/provision_runtime_roles.sh:ro" \
+    --entrypoint bash restore-migrator \
+    /opt/nexus/provision_runtime_roles.sh
+
+  # Comparer les identités métier et la colonne lexicale générée. Une source
+  # modifiée depuis sa capture échoue au lieu de simuler un vert.
 cat >"$RESTORE_FINGERPRINT_SQL" <<'SQL'
 SELECT 'product_head|'||max(version)::text FROM public.rag_schema_migrations;
 SELECT 'control_head|'||max(version)::text FROM ingestion_control.schema_migrations;
@@ -228,6 +262,10 @@ RESTORE_FINGERPRINT="$("${restore_compose[@]}" exec -T \
   'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
   <"$RESTORE_FINGERPRINT_SQL")"
 test "$SOURCE_FINGERPRINT" = "$RESTORE_FINGERPRINT"
+  printf 'FINAL_SCHEMA_VERIFIED=true\n'
+else
+  printf 'FINAL_SCHEMA_UNVERIFIED=true (restauration historique lisible, pas une preuve de release finale)\n'
+fi
 
 # Après validation du schéma restauré, détruire la seule fixture isolée.
 "${restore_compose[@]}" down -v
@@ -238,6 +276,11 @@ reste un human gate distinct : backup frais, arrêt contrôlé des writers,
 validation de l'identité de la cible, restauration, migrations via le seul
 migrateur, reprovisionnement explicite des rôles runtime, contrôles de schéma,
 puis seulement redémarrage des runtimes.
+
+`FINAL_SCHEMA_UNVERIFIED=true` accepte uniquement la lisibilité isolée d'un
+ancien dump. Ce verdict ne démontre ni les migrations 005/020, ni le contenu
+publié ; il ne peut pas servir de preuve de readiness ou de rollback de la
+release finale.
 
 Le dump de la production **avant** le go-live peut encore être une base
 historique sans schéma `ingestion_control` ; sa restauration réussie prouve

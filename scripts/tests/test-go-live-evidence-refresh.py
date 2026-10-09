@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 import unittest
 
 
@@ -538,6 +539,56 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode == 0, accepted, result.stderr)
 
+    def test_restore_paths_are_resolved_before_changing_directory(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        normalizer = re.search(r"(?ms)^normalize_restore_paths\(\) \{\n.*?^\}", rollback)
+        self.assertIsNotNone(normalizer)
+        assert normalizer is not None
+        self.assertIn("normalize_restore_paths\ncd services/rag-engine/infra", rollback)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "backup.dump").touch()
+            (root / "credentials.env").touch()
+            script = (
+                normalizer.group(0)
+                + '\nRESTORE_BACKUP_FILE=backup.dump\nRESTORE_ENV_FILE=credentials.env\n'
+                + 'normalize_restore_paths\nprintf "%s\\n%s\\n" "$RESTORE_BACKUP_FILE" "$RESTORE_ENV_FILE"\n'
+            )
+            result = subprocess.run(
+                ["bash", "-c", script],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual(
+                result.stdout.splitlines(),
+                [str(root / "backup.dump"), str(root / "credentials.env")],
+            )
+
+    def test_historical_restore_is_readability_only(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        classifier = re.search(r"(?ms)^classify_restore_schema_heads\(\) \{\n.*?^\}", rollback)
+        self.assertIsNotNone(classifier)
+        assert classifier is not None
+        final_branch = rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_VERIFIED ]]; then')
+        self.assertLess(final_branch, rollback.index('cat >"$RESTORE_FINGERPRINT_SQL"', final_branch))
+        self.assertIn("FINAL_SCHEMA_UNVERIFIED=true", rollback[final_branch:])
+        for heads, expected in (
+            ("5|20", "FINAL_SCHEMA_VERIFIED"),
+            ("", "FINAL_SCHEMA_UNVERIFIED"),
+            ("5|19", "FINAL_SCHEMA_UNVERIFIED"),
+        ):
+            with self.subTest(heads=heads):
+                script = classifier.group(0) + '\nclassify_restore_schema_heads "$1"\n'
+                result = subprocess.run(
+                    ["bash", "-c", script, "restore-heads", heads],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.assertEqual(result.stdout.strip(), expected)
+
     def test_restore_project_name_is_accepted_by_compose(self) -> None:
         rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
         assignment = re.search(r'^RESTORE_PROJECT=".*"$', rollback, re.MULTILINE)
@@ -551,11 +602,22 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         )
         self.assertRegex(result.stdout, r"^nexus-pg-restore-rehearsal-[a-z0-9-]+$")
 
+    def test_restore_target_database_matches_compose_interpolation(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        self.assertIn('PGVECTOR_DB="${PGVECTOR_DB:-ragdb}"', rollback)
+        self.assertIn('PGVECTOR_USER="${PGVECTOR_USER:-raguser}"', rollback)
+        self.assertIn("export PGVECTOR_DB PGVECTOR_USER", rollback)
+        self.assertLess(
+            rollback.index("export PGVECTOR_DB PGVECTOR_USER"),
+            rollback.index('restore_compose=('),
+        )
+
     def test_restore_guard_precedes_mutation_and_compares_generated_tsv(self) -> None:
         rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
         self.assertIn('POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"', rollback)
         self.assertIn("pg_encoding_to_char(encoding)", rollback)
         self.assertIn("text_tsv::text", rollback)
+        self.assertIn('test "$SOURCE_FINGERPRINT" = "$RESTORE_FINGERPRINT"', rollback)
         self.assertIn('assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"', rollback)
         self.assertLess(
             rollback.index('assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"'),
@@ -577,6 +639,10 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         restore = rollback.index("--no-privileges")
         reprovision = rollback.index("provision_runtime_roles.sh", restore)
         self.assertLess(restore, reprovision)
+        self.assertLess(
+            rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_VERIFIED ]]; then'),
+            reprovision,
+        )
         migrator = rollback.index("  restore-migrator:")
         migrator_environment = rollback[migrator : rollback.index("    networks:", migrator)]
         for variable in (
