@@ -11,9 +11,13 @@ Même défaut trouvé et corrigé dans `promote.yml` (PR #110) ; corrigé ici
 """
 from __future__ import annotations
 
+import json
+import os
 import re
+import subprocess
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 import yaml
 
@@ -71,6 +75,65 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
         for m in re.finditer(r"uses:\s*(actions/[a-z0-9-]+@[^\s]+)", self.source):
             with self.subTest(action=m.group(1)):
                 self.assertRegex(m.group(1), PINNED_ACTION)
+
+    def test_public_candidate_is_an_explicit_opt_in(self) -> None:
+        event = self.workflow[True]["workflow_dispatch"]
+        self.assertEqual(event["inputs"]["public_candidate"]["type"], "boolean")
+        self.assertIs(event["inputs"]["public_candidate"]["default"], False)
+        steps = self.workflow["jobs"]["build-and-push"]["steps"]
+        cockpit = next(step for step in steps if step["name"] == "Build and push cockpit")
+        self.assertEqual(cockpit["if"], "inputs.public_candidate == true")
+        self.assertEqual(cockpit["with"]["build-args"], "SOURCE_COMMIT_SHA=${{ steps.source.outputs.commit_sha }}")
+        self.assertEqual(cockpit["with"]["file"], "services/cockpit/Dockerfile")
+        self.assertIs(cockpit["with"]["push"], True)
+
+    def test_assembler_emits_unchanged_v1_or_exact_four_service_v2(self) -> None:
+        steps = self.workflow["jobs"]["build-and-push"]["steps"]
+        assemble = next(step for step in steps if step.get("id") == "inventory")
+        env = {
+            "REPOSITORY": "cyranoaladin/RAG",
+            "SOURCE_COMMIT_SHA": "a" * 40,
+            "SOURCE_TREE_SHA": "b" * 40,
+            "WORKFLOW_RUN_ID": "42",
+            "WORKFLOW_RUN_ATTEMPT": "1",
+            "INGESTOR_DIGEST": "sha256:" + "1" * 64,
+            "INGESTOR_DOCKERFILE_SHA256": "2" * 64,
+            "WORKER_DIGEST": "sha256:" + "3" * 64,
+            "WORKER_DOCKERFILE_SHA256": "4" * 64,
+            "COCKPIT_DIGEST": "sha256:" + "5" * 64,
+            "COCKPIT_DOCKERFILE_SHA256": "6" * 64,
+            "IMAGE_NAMESPACE": "ghcr.io/cyranoaladin",
+        }
+        for enabled, protocol, names, filename in (
+            (False, "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", 3, "nexus-deployment-image-inventory.json"),
+            (True, "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2", 4, "nexus-public-deployment-image-inventory-v2.json"),
+        ):
+            with self.subTest(public_candidate=enabled):
+                with TemporaryDirectory() as directory:
+                    output = Path(directory) / "github-output"
+                    result = subprocess.run(
+                        ["bash", "-e", "-c", assemble["run"]],
+                        cwd=directory,
+                        env={
+                            **os.environ,
+                            **env,
+                            "PUBLIC_CANDIDATE": str(enabled).lower(),
+                            "COCKPIT_DIGEST": env["COCKPIT_DIGEST"] if enabled else "",
+                            "COCKPIT_DOCKERFILE_SHA256": env["COCKPIT_DOCKERFILE_SHA256"] if enabled else "",
+                            "GITHUB_OUTPUT": str(output),
+                        },
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    document = json.loads((Path(directory) / filename).read_text())
+                    self.assertEqual(document["protocol_version"], protocol)
+                    self.assertEqual(len(document["services"]), names)
+                    self.assertEqual("cockpit" in document["services"], enabled)
+                    if enabled:
+                        self.assertEqual(document["services"]["cockpit"]["dockerfile"], "services/cockpit/Dockerfile")
+                    self.assertIn("inventory_file=" + filename, output.read_text())
 
 
 if __name__ == "__main__":
