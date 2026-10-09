@@ -530,11 +530,16 @@ def _create_private_bundle_dir(bundle_dir: Path) -> None:
             os.mkdir(bundle_dir.name, 0o700, dir_fd=parent_fd)
         except FileExistsError as exc:
             raise DeploymentWrapperError("bundle directory already exists") from exc
-        bundle_fd = os.open(
-            bundle_dir.name,
-            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
-            dir_fd=parent_fd,
-        )
+        except OSError as exc:
+            raise DeploymentWrapperError(f"bundle directory cannot be created safely: {exc}") from exc
+        try:
+            bundle_fd = os.open(
+                bundle_dir.name,
+                os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+                dir_fd=parent_fd,
+            )
+        except OSError as exc:
+            raise DeploymentWrapperError(f"bundle directory cannot be opened safely: {exc}") from exc
         try:
             os.fchmod(bundle_fd, 0o700)
         finally:

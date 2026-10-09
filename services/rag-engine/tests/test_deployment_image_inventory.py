@@ -17,6 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import deployment_image_inventory as dii  # noqa: E402
+import nexus_contracts.production_readiness as readiness_contract  # noqa: E402
 
 REPOSITORY = "cyranoaladin/RAG"
 RUN_ID = 555
@@ -201,6 +202,13 @@ def test_public_inventory_requires_explicit_v2_and_four_bound_images(tmp_path: P
     assert fakes.download_calls == [(RUN_ID, PUBLIC_ARTIFACT, tmp_path)]
     with pytest.raises(dii.DeploymentImageInventoryError, match="protocol_version"):
         _verify(fakes, tmp_path)
+
+
+def test_public_image_repositories_match_the_signed_contract() -> None:
+    producer_repositories = {
+        name: repository for name, (_dockerfile, repository) in dii._PUBLIC_SERVICE_SOURCES.items()
+    }
+    assert producer_repositories == readiness_contract.PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
 
 
 def test_public_inventory_exposes_one_verified_document_for_signed_digest(tmp_path: Path) -> None:

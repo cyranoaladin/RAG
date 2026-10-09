@@ -309,7 +309,9 @@ def _run_docker_compose_config(
     (Section 11 : un fichier Compose source unique ne peut pas représenter
     la topologie de production résolue ; ``docker-compose.v2.yml`` +
     ``docker-compose.production-workers.yml`` + ``docker-compose.
-    production-release.yml``, résolus ensemble, le peuvent)."""
+    production-release.yml``, résolus ensemble, le peuvent). En mode public,
+    les deux fichiers Compose blue-green du lot 309 sont résolus depuis le
+    même commit attesté."""
     try:
         return cast(
             dict[str, Any],
@@ -327,9 +329,10 @@ def _canonical_compose_bytes(resolved_config: dict[str, Any]) -> bytes:
     """Le contrat (``nexus_contracts.production_readiness.require_
     manifest_matches_release``, voir sa docstring : « le fichier compose
     résolu ») documente ``compose_digest`` comme portant sur le Compose
-    RÉSOLU — un futur vérificateur hôte (Lot C) doit pouvoir reproduire
-    indépendamment le même digest en résolvant à nouveau les mêmes trois
-    fichiers avec le même ``.env``, jamais en hachant un fichier source
+    RÉSOLU — trois fichiers historiques ou deux fichiers du candidat public,
+    selon le protocole sélectionné. Un futur vérificateur hôte (Lot C) doit
+    pouvoir reproduire indépendamment le même digest en résolvant à nouveau
+    ces mêmes fichiers avec le même ``.env``, jamais en hachant un fichier source
     arbitraire. Sérialisation canonique (clés triées, séparateurs
     compacts, ``ensure_ascii=False``) : la sortie JSON de ``docker
     compose config`` n'est pas elle-même garantie stable octet pour
@@ -351,11 +354,11 @@ def _upstream_services_from_resolved_compose(
     *,
     application_services: frozenset[str] = dii._EXPECTED_APPLICATION_SERVICES,
 ) -> dict[str, str]:
-    """Tout service du Compose résolu qui n'est pas l'un des trois services
-    applicatifs connus (``deployment_image_inventory._EXPECTED_
-    APPLICATION_SERVICES``, dérivés d'une provenance vérifiée séparément —
-    voir ``_verify_image_bindings``) et qui déclare une image épinglée par
-    digest. Un service à ``build:`` inconnu (hors des trois attendus) ou
+    """Tout service du Compose résolu qui n'est pas dans
+    ``application_services`` (trois services historiques ou deux services
+    runtime publics, dérivés d'une provenance vérifiée séparément — voir
+    ``_verify_image_bindings``) et qui déclare une image épinglée par digest.
+    Un service à ``build:`` inconnu (hors du périmètre attendu) ou
     une image non épinglée par digest est refusé, jamais silencieusement
     ignoré : la résolution Compose complète ne devrait plus jamais laisser
     passer l'un ou l'autre dans une release de production réelle."""
@@ -416,7 +419,7 @@ def _verify_image_bindings(
     services = resolved_config.get("services")
     if expected_application_services == dii._PUBLIC_RUNTIME_APPLICATION_SERVICES and (
         not isinstance(services, dict)
-        or set(services) != {"pgvector", "ingestor", "prometheus", "session-redis", "cockpit"}
+        or set(services) != vri._PUBLIC_CANDIDATE_SERVICES
     ):
         raise SigningToolError(
             "public candidate compose must name exactly five read-only services"

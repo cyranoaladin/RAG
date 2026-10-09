@@ -375,6 +375,21 @@ def test_bundle_requires_prepared_private_parent_without_symlinks(tmp_path: Path
     assert not (target / "bundle").exists()
 
 
+def test_bundle_open_failure_is_a_wrapped_refusal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    original_open = os.open
+
+    def fake_open(path: str | bytes | os.PathLike[str], *args: object, **kwargs: object) -> int:
+        if path == "bundle" and "dir_fd" in kwargs:
+            raise OSError("simulated bundle open failure")
+        return original_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(dep.os, "open", fake_open)
+    with pytest.raises(dep.DeploymentWrapperError, match="bundle directory cannot be opened safely"):
+        dep._create_private_bundle_dir(tmp_path / "bundle")
+
+
 def test_public_cli_json_never_suggests_mutation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

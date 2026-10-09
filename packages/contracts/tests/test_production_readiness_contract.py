@@ -46,6 +46,12 @@ LEGACY_V1_FIXTURE = (
 LEGACY_V1_FIXTURE_SHA256 = (
     "b709335c20f949b2e9b08ed2610e921d5684f5602e1ef5ce38355d4fa51a8009"
 )
+LEGACY_V2_MANIFEST_FIXTURE = (
+    Path(__file__).parent / "fixtures/legacy_v2/production_readiness_manifest_v2.json"
+)
+LEGACY_V2_MANIFEST_FIXTURE_SHA256 = (
+    "3d239870851d42458a937c871ada1db49e48c99bd34f043ab39e54cb875f8b9b"
+)
 FROZEN_READINESS_PUBLIC_KEY = (
     "d04ab232742bb4ab3a1368bd4615e4e6d0224ab71a016baf8520a332c9778737"
 )
@@ -140,6 +146,9 @@ def _v2_manifest(
 class TestProductionReadinessV2:
     def test_public_candidate_inventory_is_signed_without_changing_legacy_v2_bytes(self) -> None:
         legacy = _v2_manifest()
+        frozen = LEGACY_V2_MANIFEST_FIXTURE.read_bytes()
+        assert hashlib.sha256(frozen).hexdigest() == LEGACY_V2_MANIFEST_FIXTURE_SHA256
+        assert legacy.canonical_bytes() == frozen
         assert "public_candidate_inventory_digest" not in legacy.canonical_document()
         assert "public_candidate_provenance_run_id" not in legacy.canonical_document()
 
@@ -215,20 +224,23 @@ class TestProductionReadinessV2:
         check = readiness_contract.require_public_candidate_inventory_matches_readiness
         check(manifest, inventory_digest="a" * 64, provenance_run_id=789,
               provenance_run_attempt=2, application_image_digests=images)
-        for changed in (
-            {"inventory_digest": "b" * 64},
-            {"provenance_run_id": 790},
-            {"provenance_run_attempt": 3},
-            {"application_image_digests": {**images, "cockpit": images["ingestor"]}},
+        for changed, cause in (
+            ({"inventory_digest": "b" * 64}, "inventory digest"),
+            ({"provenance_run_id": 790}, "provenance run id"),
+            ({"provenance_run_attempt": 3}, "provenance run attempt"),
+            ({"application_image_digests": {**images, "cockpit": images["ingestor"]}}, "application image map"),
         ):
             facts = dict(inventory_digest="a" * 64, provenance_run_id=789,
                          provenance_run_attempt=2, application_image_digests=images)
             facts.update(changed)
-            with pytest.raises(ProductionReadinessError, match="public candidate inventory"):
+            with pytest.raises(ProductionReadinessError, match=cause):
                 check(manifest, **facts)
-        with pytest.raises(ProductionReadinessError, match="public candidate inventory"):
+        with pytest.raises(ProductionReadinessError, match="inventory digest"):
             check(_v2_manifest(), inventory_digest="a" * 64, provenance_run_id=789,
                   provenance_run_attempt=2, application_image_digests=images)
+        with pytest.raises(ProductionReadinessError, match="manifest type"):
+            check(_manifest(), inventory_digest="a" * 64, provenance_run_id=789,
+                  provenance_run_attempt=2, application_image_digests=images)  # type: ignore[arg-type]
 
     def test_v2_replaces_singular_authority_digests_with_the_set_digest(self) -> None:
         manifest = _v2_manifest()

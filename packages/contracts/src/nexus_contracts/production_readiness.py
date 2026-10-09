@@ -63,6 +63,15 @@ from nexus_contracts.document import StrictBaseModel
 PRODUCTION_READINESS_PROTOCOL_VERSION = "NEXUS-PRODUCTION-READINESS-V1"
 PRODUCTION_READINESS_V2_PROTOCOL_VERSION = "NEXUS-PRODUCTION-READINESS-V2"
 
+#: Dépôts signables du candidat public. Le producteur de provenance vérifie
+#: la même carte dans son test d'intégration inter-paquets.
+PUBLIC_CANDIDATE_IMAGE_REPOSITORIES = {
+    "ingestor": "ghcr.io/cyranoaladin/rag-ingestor",
+    "multilevel-worker-a-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "cockpit": "ghcr.io/cyranoaladin/rag-cockpit",
+}
+
 #: Le manifeste n'existe que pour la production. Un mode répétition ne
 #: réutilise pas ce protocole en l'affaiblissant : il utilise ses propres
 #: fixtures et sa propre ancre (cf. ADR-0036 § rehearsal).
@@ -328,12 +337,7 @@ class ProductionReadinessManifestV2(StrictBaseModel):
         ):
             raise ValueError("public candidate inventory digest and run identity must be complete")
         if all(value is not None for value in public_fields):
-            expected_repositories = {
-                "ingestor": "ghcr.io/cyranoaladin/rag-ingestor",
-                "multilevel-worker-a-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
-                "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
-                "cockpit": "ghcr.io/cyranoaladin/rag-cockpit",
-            }
+            expected_repositories = PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
             if set(self.application_image_digests) != set(expected_repositories):
                 raise ValueError("public candidate inventory requires exactly four application images")
             for service, repository in expected_repositories.items():
@@ -823,19 +827,20 @@ def require_public_candidate_inventory_matches_readiness(
     Le téléchargeur/vérificateur de provenance reste la frontière d'autorité.
     Cette fonction lie son résultat au manifeste sans refaire d'appel réseau.
     """
-    if not isinstance(manifest, ProductionReadinessManifestV2) or (
-        manifest.public_candidate_inventory_digest is None
-        or manifest.public_candidate_inventory_digest != inventory_digest
-        or manifest.public_candidate_provenance_run_id != provenance_run_id
-        or manifest.public_candidate_provenance_run_attempt != provenance_run_attempt
-        or manifest.application_image_digests != application_image_digests
-    ):
-        raise ProductionReadinessError(
-            "public candidate inventory does not match signed readiness"
-        )
+    if not isinstance(manifest, ProductionReadinessManifestV2):
+        raise ProductionReadinessError("public candidate manifest type differs from signed readiness")
+    if manifest.public_candidate_inventory_digest != inventory_digest:
+        raise ProductionReadinessError("public candidate inventory digest differs from signed readiness")
+    if manifest.public_candidate_provenance_run_id != provenance_run_id:
+        raise ProductionReadinessError("public candidate provenance run id differs from signed readiness")
+    if manifest.public_candidate_provenance_run_attempt != provenance_run_attempt:
+        raise ProductionReadinessError("public candidate provenance run attempt differs from signed readiness")
+    if manifest.application_image_digests != application_image_digests:
+        raise ProductionReadinessError("public candidate application image map differs from signed readiness")
 
 
 __all__ = [
+    "PUBLIC_CANDIDATE_IMAGE_REPOSITORIES",
     "PRODUCTION_ENVIRONMENT",
     "PRODUCTION_READINESS_PROTOCOL_VERSION",
     "PRODUCTION_READINESS_V2_PROTOCOL_VERSION",

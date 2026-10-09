@@ -450,13 +450,14 @@ def test_8quinquies_une_image_non_epinglee_ne_peut_pas_etre_declaree() -> None:
 #: empreinte ne dépend d'aucun état de dépôt, et dit la même chose en plus
 #: fort — un octet change, le test échoue.
 #:
-#: Ces valeurs sont celles de ``main`` au moment du lot CQ. Les modifier est
-#: un acte délibéré, visible dans une revue : c'est exactement l'intention.
+#: Le lot 310 (ADR-0066) a étendu intentionnellement le seul contrat de
+#: readiness V2 public. Son empreinte est donc actualisée explicitement ;
+#: le gate runtime et l'ancre de production conservent leurs octets du lot CQ.
 CHAINE_DE_PRODUCTION_INTACTE = {
     "services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py":
         "a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28",
     "packages/contracts/src/nexus_contracts/production_readiness.py":
-        "2e3398903b9a46fca1cbc7dfd923bb67cdb25e44b249ed2915ec3635ad430245",
+        "0d03daa7a21e10f0ed0c25d2c6fffc648cd0b97b01e02404a40ab40478e54dae",
     "governance/trust-anchors/production-readiness-v1.json":
         "f123e9f35a9430d02092df675e5ed657fbccf8fb10af90fe03416335e7d1d238",
 }
