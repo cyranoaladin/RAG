@@ -11,6 +11,7 @@ export interface SessionBackend {
   get(key: string): Promise<string | null>
   set(key: string, value: string, options: SetOptions): Promise<string | null>
   clearForTests?(): void
+  closeForTests?(): void
 }
 
 interface MemoryEntry {
@@ -127,6 +128,10 @@ export class SharedSessionSecurityStore {
   clearForTests(): void {
     this.backend.clearForTests?.()
   }
+
+  closeForTests(): void {
+    this.backend.closeForTests?.()
+  }
 }
 
 class RedisSessionBackend implements SessionBackend {
@@ -151,6 +156,10 @@ class RedisSessionBackend implements SessionBackend {
 
   async set(key: string, value: string, options: SetOptions): Promise<string | null> {
     return this.client.set(key, value, options)
+  }
+
+  closeForTests(): void {
+    this.client.destroy()
   }
 }
 
@@ -220,4 +229,10 @@ export async function clearRevocationStoreForTests(): Promise<void> {
 
 export function resetSessionStoreForTests(): void {
   storePromise = null
+}
+
+export async function closeSessionStoreForTests(): Promise<void> {
+  const pending = storePromise
+  storePromise = null
+  await pending?.then((store) => store.closeForTests(), () => undefined)
 }

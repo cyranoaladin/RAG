@@ -7,7 +7,7 @@ import { createConnection, createServer } from 'node:net'
 
 import { afterEach, expect, it } from 'vitest'
 
-import { isRevoked, resetSessionStoreForTests, revokeSession } from './revocation-store'
+import { closeSessionStoreForTests, isRevoked, resetSessionStoreForTests, revokeSession } from './revocation-store'
 
 async function freeLoopbackPort(): Promise<number> {
   const server = createServer()
@@ -88,6 +88,7 @@ liveRedisIt('échoue fermé puis reprend GET/SET après restart Redis sans resta
     await revokeSession('after-restart', 'psn_reconnect', 'libre_terminale')
     await expect(isRevoked('after-restart', 'psn_reconnect', 'libre_terminale')).resolves.toBe(true)
   } finally {
+    await closeSessionStoreForTests()
     await stop(server)
     await rm(root, { recursive: true, force: true })
   }
