@@ -82,6 +82,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import deployment_image_inventory as dii  # noqa: E402
+import public_blue_green_preflight as public_preflight  # noqa: E402
 import sign_production_readiness_manifest_cli as signer  # noqa: E402
 import verify_release_image_provenance_cli as vri  # noqa: E402
 from nexus_contracts.authorization_loader import (  # noqa: E402
@@ -329,6 +330,91 @@ def verify_readiness_manifest_v2_with_material(
     ):
         raise DeploymentWrapperError("readiness V2 authorization window is not active")
     return manifest
+
+
+def plan_signed_public_candidate(
+    *,
+    resolved_compose: dict[str, Any],
+    source_sha: str,
+    source_tree_sha: str,
+    color: str,
+    material_root: Path,
+    secrets_root: Path,
+    repo_root: Path,
+    provenance_run_id: int,
+    provenance_run_attempt: int,
+    github_api_get: dii.GitHubApiGet,
+    download_artifact: dii.DownloadArtifact,
+    work_dir: Path,
+    readiness_manifest_raw: bytes,
+    trust_anchor_raw: bytes,
+    release_material: signer.V2ReleaseMaterial,
+) -> dict[str, Any]:
+    """Relie le préflight public à la readiness V2, sans chemin de mutation.
+
+    La source Compose n'est pas encore matérialisée depuis l'objet Git dans
+    un bundle public durable. Ce verdict est donc uniquement un plan : même
+    une signature et un préflight valides n'autorisent pas ``compose up``.
+    """
+    if not readiness_manifest_raw or not trust_anchor_raw:
+        raise DeploymentWrapperError("public candidate requires signed V2 readiness and trust anchor")
+    compose_digest = _sha256_bytes(vri.canonical_resolved_compose_bytes(resolved_compose))
+    manifest = verify_readiness_manifest_v2_with_material(
+        readiness_manifest_raw=readiness_manifest_raw,
+        trust_anchor_raw=trust_anchor_raw,
+        material=release_material,
+        environment="production",
+        merge_sha=source_sha,
+        resolved_compose_digest=compose_digest,
+    )
+    if manifest.merge_tree_sha != source_tree_sha:
+        raise DeploymentWrapperError("public candidate source tree differs from signed readiness")
+    try:
+        promotion = signer.verify_v2_release_material(release_material).promotion
+    except signer.SigningToolError as exc:
+        raise DeploymentWrapperError(f"public candidate release material rejected: {exc}") from exc
+    if (
+        promotion.image_provenance_run_id != provenance_run_id
+        or promotion.image_provenance_run_attempt != provenance_run_attempt
+    ):
+        raise DeploymentWrapperError("public candidate provenance run differs from signed promotion")
+    try:
+        evidence = public_preflight.require_candidate_with_live_provenance(
+            resolved_compose=resolved_compose,
+            source_sha=source_sha,
+            source_tree_sha=source_tree_sha,
+            color=color,
+            material_root=material_root,
+            secrets_root=secrets_root,
+            repo_root=repo_root,
+            provenance_run_id=provenance_run_id,
+            provenance_run_attempt=provenance_run_attempt,
+            github_api_get=github_api_get,
+            download_artifact=download_artifact,
+            work_dir=work_dir,
+        )
+        upstream = signer._upstream_services_from_resolved_compose(resolved_compose)  # noqa: SLF001
+    except (public_preflight.PublicCandidateError, signer.SigningToolError) as exc:
+        raise DeploymentWrapperError(f"public candidate preflight rejected: {exc}") from exc
+    if manifest.application_image_digests != {"ingestor": evidence["api_image"]}:
+        raise DeploymentWrapperError("public candidate API image differs from signed readiness")
+    if manifest.upstream_image_digests != upstream:
+        raise DeploymentWrapperError("public candidate upstream images differ from signed readiness")
+    return {
+        **evidence,
+        "signed_readiness_valid": True,
+        "production_ready": False,
+        "go_live_ready": False,
+        "mutation_allowed": False,
+        "missing_cutover_preconditions": [
+            "compose_source_snapshot_unverified",
+            "durable_material_snapshot_unverified",
+            "cockpit_bff_digest_and_e2e_unverified",
+            "public_edge_ingest_denial_unverified",
+            "candidate_rollback_unverified",
+            "final_cutover_go_missing",
+        ],
+    }
 
 
 def materialize_verified_bundle(
