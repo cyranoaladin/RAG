@@ -184,7 +184,10 @@ def require_public_candidate(
     _require(resolved_compose.get("name") == project, "isolated Compose project differs")
     _require(
         resolved_compose.get("networks")
-        == {"rag_net": {"name": f"{project}_rag_net", "driver": "bridge", "ipam": {}}},
+        == {
+            "rag_net": {"name": f"{project}_rag_net", "driver": "bridge", "ipam": {}},
+            "bff_net": {"name": f"{project}_bff_net", "driver": "bridge", "ipam": {}},
+        },
         "candidate network must be project-scoped and non-external",
     )
     _require(
@@ -256,7 +259,11 @@ def require_public_candidate(
              "material manifest digest is not bound to resolved Compose")
     for name, service in services.items():
         _require(isinstance(service, dict) and "build" not in service, f"build refused: {name}")
-        _require(service.get("networks") == {"rag_net": None} and
+        expected_networks = (
+            {"rag_net": None, "bff_net": None}
+            if name == "ingestor" else {"rag_net": None}
+        )
+        _require(service.get("networks") == expected_networks and
                  "network_mode" not in service,
                  f"candidate service network differs: {name}")
         ref = service.get("image")

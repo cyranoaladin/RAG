@@ -87,7 +87,10 @@ def _fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
     }
     config = {
         "name": "nexus-rag-blue",
-        "networks": {"rag_net": {"name": "nexus-rag-blue_rag_net", "driver": "bridge", "ipam": {}}},
+        "networks": {
+            "rag_net": {"name": "nexus-rag-blue_rag_net", "driver": "bridge", "ipam": {}},
+            "bff_net": {"name": "nexus-rag-blue_bff_net", "driver": "bridge", "ipam": {}},
+        },
         "volumes": {
             "rag_pgvector_data": {"name": "nexus-rag-blue_rag_pgvector_data"},
             "rag_prometheus_data": {"name": "nexus-rag-blue_rag_prometheus_data"},
@@ -106,7 +109,7 @@ def _fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
                     "PG_RAG_DSN": "postgresql://rag_reader:dummy@pgvector:5432/ragdb",
                     "PG_REVIEW_DSN": "postgresql://rag_reviewer:dummy@pgvector:5432/ragdb",
                 },
-                "networks": {"rag_net": None},
+                "networks": {"rag_net": None, "bff_net": None},
                 "volumes": volumes["ingestor"],
                 "ports": [{"host_ip": "127.0.0.1", "published": "18101", "target": 8001}],
                 "labels": {"nexus.release-material.sha256": digest},
@@ -231,7 +234,7 @@ def test_refuses_unreadable_material_subdirectory(tmp_path: Path) -> None:
         hidden.chmod(0o700)
 
 
-@pytest.mark.parametrize("mutation", ["wrong_project", "wrong_image", "writer", "publisher_dsn", "publisher_secret", "public_db", "external_db", "query_override", "external_network", "foreign_volume_definition", "checkout_bind", "writable_bind", "wrong_label", "missing_label", "changed_file", "extra_file", "symlink", "missing_bind", "unlisted_target", "foreign_volume", "missing_volume"])
+@pytest.mark.parametrize("mutation", ["wrong_project", "wrong_image", "writer", "publisher_dsn", "publisher_secret", "public_db", "external_db", "query_override", "external_network", "external_bff_network", "db_on_bff", "prom_on_bff", "api_without_db_network", "api_without_bff_network", "foreign_volume_definition", "checkout_bind", "writable_bind", "wrong_label", "missing_label", "changed_file", "extra_file", "symlink", "missing_bind", "unlisted_target", "foreign_volume", "missing_volume"])
 def test_refuses_unsealed_or_unsafe_candidate(tmp_path: Path, mutation: str) -> None:
     config, root, secrets, repo = _fixture(tmp_path)
     services = config["services"]
@@ -253,6 +256,16 @@ def test_refuses_unsealed_or_unsafe_candidate(tmp_path: Path, mutation: str) -> 
         services["ingestor"]["environment"]["PG_RAG_DSN"] += "?host=historic-db"
     elif mutation == "external_network":
         config["networks"]["rag_net"]["external"] = True
+    elif mutation == "external_bff_network":
+        config["networks"]["bff_net"]["external"] = True
+    elif mutation == "db_on_bff":
+        services["pgvector"]["networks"]["bff_net"] = None
+    elif mutation == "prom_on_bff":
+        services["prometheus"]["networks"]["bff_net"] = None
+    elif mutation == "api_without_db_network":
+        services["ingestor"]["networks"].pop("rag_net")
+    elif mutation == "api_without_bff_network":
+        services["ingestor"]["networks"].pop("bff_net")
     elif mutation == "foreign_volume_definition":
         config["volumes"]["rag_pgvector_data"]["driver_opts"] = {"device": "/srv/historic/pgdata"}
     elif mutation == "checkout_bind":

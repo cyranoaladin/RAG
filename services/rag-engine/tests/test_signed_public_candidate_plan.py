@@ -92,6 +92,8 @@ def _plan(
     )
     if mutation == "compose":
         config["services"]["ingestor"]["ports"][0]["published"] = "18102"
+    elif mutation == "network":
+        config["services"]["pgvector"]["networks"]["bff_net"] = None
     elif mutation == "image":
         config["services"]["ingestor"]["image"] = "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "0" * 64
     elif mutation == "material":
@@ -129,7 +131,7 @@ def test_signed_public_candidate_is_only_a_plan(tmp_path: Path, monkeypatch: pyt
     assert "public_edge_ingest_denial_unverified" in result["missing_cutover_preconditions"]
 
 
-@pytest.mark.parametrize("mutation", ["compose", "image", "material", "signature"])
+@pytest.mark.parametrize("mutation", ["compose", "network", "image", "material", "signature"])
 def test_plan_refuses_unsigned_or_divergent_candidate(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mutation: str
 ) -> None:
