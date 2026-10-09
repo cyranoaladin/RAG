@@ -53,6 +53,7 @@ import json
 import re
 from datetime import UTC, datetime
 from hashlib import sha256
+from types import MappingProxyType
 from typing import Any, Literal
 
 from pydantic import AwareDatetime, Field, StrictInt, StrictStr, field_validator, model_validator
@@ -65,12 +66,12 @@ PRODUCTION_READINESS_V2_PROTOCOL_VERSION = "NEXUS-PRODUCTION-READINESS-V2"
 
 #: Dépôts signables du candidat public. Le producteur de provenance vérifie
 #: la même carte dans son test d'intégration inter-paquets.
-PUBLIC_CANDIDATE_IMAGE_REPOSITORIES = {
+PUBLIC_CANDIDATE_IMAGE_REPOSITORIES = MappingProxyType({
     "ingestor": "ghcr.io/cyranoaladin/rag-ingestor",
     "multilevel-worker-a-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
     "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
     "cockpit": "ghcr.io/cyranoaladin/rag-cockpit",
-}
+})
 
 #: Le manifeste n'existe que pour la production. Un mode répétition ne
 #: réutilise pas ce protocole en l'affaiblissant : il utilise ses propres

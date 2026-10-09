@@ -14,6 +14,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
+from types import MappingProxyType
 
 import pytest
 import nexus_contracts
@@ -144,6 +145,12 @@ def _v2_manifest(
 
 
 class TestProductionReadinessV2:
+    def test_public_candidate_repository_map_is_immutable(self) -> None:
+        repositories = readiness_contract.PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
+        assert isinstance(repositories, MappingProxyType)
+        with pytest.raises(TypeError):
+            repositories["ingestor"] = "ghcr.io/untrusted/image"  # type: ignore[index]
+
     def test_public_candidate_inventory_is_signed_without_changing_legacy_v2_bytes(self) -> None:
         legacy = _v2_manifest()
         frozen = LEGACY_V2_MANIFEST_FIXTURE.read_bytes()
