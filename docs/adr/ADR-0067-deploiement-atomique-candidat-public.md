@@ -28,15 +28,25 @@ hors Git, les montages en lecture seule, le projet/couleur
 projet. Le projet renvoyé par le préflight est confronté à la couleur choisie.
 Après `pull`, signature, bundle, matériaux, readiness et inventaire du projet
 sont revérifiés avant `up -d --no-build --pull never --wait --wait-timeout 300`
-sur les cinq services explicites. Aucun worker, writer ou endpoint d'ingestion
-n'est ajouté. `--remove-orphans` et le projet historique `infra` sont absents.
+sur les cinq services explicites. Le service Prometheus de ce Compose n'a pas
+de healthcheck : après `up`, une sonde sur son port local exige `/-/ready` et
+le chargement des quatre alertes du groupe `retrieval-v2`. Le succès de
+`compose --wait` seul ne suffit donc pas au verdict de santé. Aucun worker,
+writer ou endpoint d'ingestion n'est ajouté. `--remove-orphans` et le projet
+historique `infra` sont absents.
 
-Si `up` échoue ou expire, le wrapper lance `down --timeout 10` uniquement pour
-la couleur candidate et signale séparément un éventuel échec de rollback. Un
-mode rollback explicite relit le bundle et le Compose avant ce même `down`,
-sans effacer les volumes. Ce rollback reste accessible même si le garde
-readiness devient rouge après le lancement. Aucun routage Nginx ni ancien
-projet n'est changé par ce lot : le switch et son rollback sont une opération
-de cutover distincte, après preuve de santé et GO final.
+Un verrou exclusif non bloquant par couleur, dans le répertoire d'état privé
+host-local, couvre le premier inventaire puis tout `pull`, `up` et éventuel
+`down`. Après succès, un état 0600 fixe digest du bundle, chemin du bundle,
+SHA source et identifiants des cinq conteneurs. Le rollback explicite refuse
+un ancien bundle ou des conteneurs dont les IDs ou les labels Compose ne
+correspondent plus à cette génération. Si `up` échoue, expire, ou si la sonde
+Prometheus échoue, le wrapper n'exécute `down --timeout 10` que lorsque les
+conteneurs présents portent tous les labels exacts du bundle courant ; une
+identité absente ou ambiguë impose un refus sans `down`. Aucun volume n'est
+supprimé. Le rollback reste accessible même si le garde readiness devient
+rouge après le lancement. Aucun routage Nginx ni ancien projet n'est changé
+par ce lot : le switch et son rollback sont une opération de cutover distincte,
+après preuve de santé et GO final.
 
 La voie V1, ses commandes et son protocole restent inchangés.

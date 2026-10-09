@@ -53,9 +53,12 @@ def test_public_atomic_docker_candidate_refusals_rollback_and_foreign_witness(
         "services: {}\n", encoding="utf-8"
     )
     verified = dep._VerifiedDeployInputs(
-        bundle_document={"public_candidate": True, "verified_images": {}},
+        bundle_document={"public_candidate": True, "verified_images": {},
+                         "bundle_digest": "b" * 64},
         explicit_services=services,
-        effective_compose_bytes=json.dumps({"name": project, "services": {}}).encode(),
+        effective_compose_bytes=json.dumps({"name": project, "services": {
+            "prometheus": {"ports": [{"published": "19090"}]}
+        }}).encode(),
     )
     monkeypatch.setattr(dep, "_verify_deploy_inputs", lambda **_kw: verified)
     monkeypatch.setattr(dep, "_public_preflight_from_bundle", lambda **_kw: project)
@@ -89,6 +92,9 @@ def test_public_atomic_docker_candidate_refusals_rollback_and_foreign_witness(
         "public_repo_root": tmp_path,
         "public_final_cutover_go": True,
         "project_inventory": dep._default_project_inventory,
+        "project_containers": dep._default_project_containers,
+        "deployment_state_root": tmp_path / "state",
+        "prometheus_probe": lambda _port: True,
     }
     try:
         with pytest.raises(dep.DeploymentWrapperError, match="assert-ready"):

@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import json
 import subprocess
 import sys
+import threading
 from argparse import Namespace
 from pathlib import Path
 
@@ -34,13 +36,26 @@ def _inputs(tmp_path: Path) -> tuple[Path, bytes, dict, dict]:
         "public_repo_root": tmp_path / "checkout",
         "public_final_cutover_go": True,
         "assert_readiness": lambda: True,
+        "deployment_state_root": tmp_path / "state",
+        "prometheus_probe": lambda _port: True,
         "project_inventory": lambda _project: {"containers": [], "networks": [], "volumes": []},
+        "project_containers": lambda _project: _owned_containers(bundle),
     }
     return bundle, anchor, config, options
 
 
 def _ok(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.CompletedProcess(args, 0, "", "")
+
+
+def _owned_containers(bundle: Path) -> list[dict]:
+    files = ",".join(str(bundle / name) for name in dep.vri._PUBLIC_CANDIDATE_COMPOSE_FILES)
+    return [{"Id": f"container-{name}", "Labels": {
+        "com.docker.compose.project": "nexus-rag-blue",
+        "com.docker.compose.service": name,
+        "com.docker.compose.project.working_dir": str(bundle),
+        "com.docker.compose.project.config_files": files,
+    }} for name in sorted(dep.vri._PUBLIC_CANDIDATE_SERVICES)]
 
 
 def test_public_execute_requires_final_go_before_docker(tmp_path: Path) -> None:
@@ -151,6 +166,7 @@ def test_failed_public_up_rolls_back_only_candidate_project(tmp_path: Path) -> N
         return subprocess.CompletedProcess(args, 1 if "up" in args else 0, "", "failed")
 
     options["run_subprocess"] = run
+    options["project_containers"] = lambda _project: _owned_containers(bundle)
     with pytest.raises(dep.DeploymentWrapperError, match="up failed.*rollback"):
         dep.deploy_from_bundle(**options)
     assert [word for call in calls for word in call if word in {"pull", "up", "down"}] == [
@@ -161,7 +177,7 @@ def test_failed_public_up_rolls_back_only_candidate_project(tmp_path: Path) -> N
 
 
 def test_timed_out_public_up_still_rolls_back_candidate(tmp_path: Path) -> None:
-    _, _, _, options = _inputs(tmp_path)
+    bundle, _, _, options = _inputs(tmp_path)
     calls: list[list[str]] = []
 
     def run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -171,6 +187,7 @@ def test_timed_out_public_up_still_rolls_back_candidate(tmp_path: Path) -> None:
         return _ok(args, cwd)
 
     options["run_subprocess"] = run
+    options["project_containers"] = lambda _project: _owned_containers(bundle)
     with pytest.raises(dep.DeploymentWrapperError, match="up failed.*rollback passed"):
         dep.deploy_from_bundle(**options)
     assert [word for call in calls for word in call if word in {"pull", "up", "down"}] == [
@@ -188,16 +205,124 @@ def test_explicit_public_rollback_uses_only_candidate_bundle(tmp_path: Path) -> 
         return _ok(args, cwd)
 
     options["run_subprocess"] = run
+    dep.deploy_from_bundle(**options)
+    calls.clear()
     dep.rollback_public_candidate_from_bundle(
         bundle_dir=bundle,
         merge_sha=SHA,
         public_color="blue",
         run_bundle_compose_config=options["run_bundle_compose_config"],
         run_subprocess=run,
+        deployment_state_root=options["deployment_state_root"],
+        project_containers=lambda _project: _owned_containers(bundle),
     )
     assert len(calls) == 1
     assert calls[0][-3:] == ["down", "--timeout", "10"]
     assert calls[0][calls[0].index("--project-name") + 1] == "nexus-rag-blue"
+
+
+def test_old_bundle_cannot_rollback_new_generation(tmp_path: Path) -> None:
+    old_root, new_root = tmp_path / "old", tmp_path / "new"
+    old_root.mkdir(mode=0o700)
+    new_root.mkdir(mode=0o700)
+    old_bundle, _, _, old = _inputs(old_root)
+    new_bundle, _, _, new = _inputs(new_root)
+    new["deployment_state_root"] = tmp_path / "shared-state"
+    new["project_containers"] = lambda _project: _owned_containers(new_bundle)
+    new["run_subprocess"] = _ok
+    dep.deploy_from_bundle(**new)
+    with pytest.raises(dep.DeploymentWrapperError, match="generation|bundle"):
+        dep.rollback_public_candidate_from_bundle(
+            bundle_dir=old_bundle, merge_sha=SHA, public_color="blue",
+            run_bundle_compose_config=old["run_bundle_compose_config"],
+            run_subprocess=lambda *_: pytest.fail("down from old bundle"),
+            deployment_state_root=new["deployment_state_root"],
+            project_containers=lambda _project: _owned_containers(new_bundle),
+        )
+
+
+def test_failed_up_refuses_down_when_container_identity_is_ambiguous(tmp_path: Path) -> None:
+    _, _, _, options = _inputs(tmp_path)
+    calls: list[list[str]] = []
+    options["project_containers"] = lambda _project: [{"Id": "foreign", "Labels": {}}]
+
+    def run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return subprocess.CompletedProcess(args, 1 if "up" in args else 0, "", "")
+
+    options["run_subprocess"] = run
+    with pytest.raises(dep.DeploymentWrapperError, match="identity|ownership"):
+        dep.deploy_from_bundle(**options)
+    assert not any("down" in call for call in calls)
+
+
+def test_concurrent_candidate_deploy_refused_before_second_inventory(tmp_path: Path) -> None:
+    _, _, _, options = _inputs(tmp_path)
+    pulling = threading.Event()
+    release = threading.Event()
+    result: list[BaseException] = []
+
+    def run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+        if "pull" in args:
+            pulling.set()
+            assert release.wait(10)
+        return _ok(args, cwd)
+
+    options["run_subprocess"] = run
+
+    def first() -> None:
+        try:
+            dep.deploy_from_bundle(**options)
+        except BaseException as exc:
+            result.append(exc)
+
+    worker = threading.Thread(target=first)
+    worker.start()
+    assert pulling.wait(10)
+    try:
+        second = dict(options)
+        second["project_inventory"] = lambda _project: pytest.fail("second inventory")
+        with pytest.raises(dep.DeploymentWrapperError, match="lock|busy"):
+            dep.deploy_from_bundle(**second)
+    finally:
+        release.set()
+        worker.join(10)
+    assert not result
+
+
+def test_prometheus_rules_probe_failure_refuses_success_and_rolls_back(tmp_path: Path) -> None:
+    _, _, _, options = _inputs(tmp_path)
+    calls: list[list[str]] = []
+
+    def run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return _ok(args, cwd)
+
+    options["run_subprocess"] = run
+    options["prometheus_probe"] = lambda _port: False
+    with pytest.raises(dep.DeploymentWrapperError, match="Prometheus|prometheus"):
+        dep.deploy_from_bundle(**options)
+    assert [word for call in calls for word in call if word in {"pull", "up", "down"}] == [
+        "pull", "up", "down"
+    ]
+
+
+def test_real_prometheus_probe_requires_loaded_retrieval_alerts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response(io.BytesIO):
+        status = 200
+
+    def urlopen(url: str, **_kwargs: object) -> Response:
+        if url.endswith("/-/ready"):
+            return Response(b"ready")
+        return Response(b'{"status":"success","data":{"groups":[]}}')
+
+    ticks = iter([0, 0, 31])
+    monkeypatch.setattr(dep.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(dep.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(dep.time, "sleep", lambda _seconds: None)
+    assert dep._default_public_prometheus_probe(19090) is False
 
 
 def test_public_cli_execute_requires_explicit_final_go_before_materialization(
