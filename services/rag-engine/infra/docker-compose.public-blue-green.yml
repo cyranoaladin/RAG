@@ -8,6 +8,11 @@ x-immutable-bind: &immutable-bind
   bind:
     create_host_path: false
 
+networks:
+  # Interface du BFF de la même couleur. Aucun service DB/Prometheus ici.
+  bff_net:
+    driver: bridge
+
 services:
   pgvector:
     volumes: !override
@@ -49,6 +54,7 @@ services:
     ports: !override []
 
   ingestor:
+    networks: !override [rag_net, bff_net]
     build: !reset null
     # Le dépôt de l'image est fixe : la variable ne peut plus devenir un tag.
     # Le wrapper signé devra encore lier ce digest à la provenance du SHA final.
