@@ -300,6 +300,8 @@ def test_public_bundle_is_signed_plan_only_with_two_runtime_images(tmp_path: Pat
     assert set(json.loads((bundle / dep._IMAGE_PROVENANCE_BUNDLE_NAME).read_bytes())["services"]) == {
         "ingestor", "cockpit", "multilevel-worker-a-production", "multilevel-worker-b-production"
     }
+    raw_inventory = (bundle / dep._IMAGE_PROVENANCE_BUNDLE_NAME).read_bytes()
+    assert raw_inventory == dii.public_candidate_inventory_bytes(json.loads(raw_inventory))
     seen: list[tuple[str, ...]] = []
 
     def resolve(_bundle: Path, _env: Path, files: tuple[str, ...]) -> dict:
@@ -370,6 +372,27 @@ def test_public_bundle_rechecks_effective_compose_and_bundle_mode(tmp_path: Path
     document["bundle_digest"] = hashlib.sha256(dep._canonical_json_bytes(document)).hexdigest()
     path.write_bytes(dep._canonical_json_bytes(document))
     with pytest.raises(dep.DeploymentWrapperError, match="Compose files differ"):
+        dep.deploy_from_bundle(
+            bundle_dir=bundle, merge_sha=SHA, execute=False,
+            trusted_readiness_anchor_raw=anchor,
+            run_bundle_compose_config=lambda *_: config,
+        )
+
+
+def test_public_bundle_refuses_reformatted_inventory_even_with_rehashed_bundle(
+    tmp_path: Path,
+) -> None:
+    bundle, anchor, config = _signed_public_bundle(tmp_path)
+    inventory_path = bundle / dep._IMAGE_PROVENANCE_BUNDLE_NAME
+    compact = dep._canonical_json_bytes(json.loads(inventory_path.read_bytes()))
+    inventory_path.write_bytes(compact)
+    bundle_path = bundle / dep._BUNDLE_MANIFEST_NAME
+    document = json.loads(bundle_path.read_bytes())
+    document.pop("bundle_digest")
+    document["files"][dep._IMAGE_PROVENANCE_BUNDLE_NAME] = hashlib.sha256(compact).hexdigest()
+    document["bundle_digest"] = hashlib.sha256(dep._canonical_json_bytes(document)).hexdigest()
+    bundle_path.write_bytes(dep._canonical_json_bytes(document))
+    with pytest.raises(dep.DeploymentWrapperError, match="inventory.*not canonical"):
         dep.deploy_from_bundle(
             bundle_dir=bundle, merge_sha=SHA, execute=False,
             trusted_readiness_anchor_raw=anchor,

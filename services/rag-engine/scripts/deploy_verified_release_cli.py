@@ -665,7 +665,10 @@ def materialize_verified_bundle(
 
     write_bundle_file(_RESOLVED_COMPOSE_BUNDLE_NAME, resolved_compose_bytes)
 
-    image_provenance_bytes = _canonical_json_bytes(materialization.image_provenance_document)
+    image_provenance_bytes = (
+        dii.public_candidate_inventory_bytes(materialization.image_provenance_document)
+        if public_candidate else _canonical_json_bytes(materialization.image_provenance_document)
+    )
     write_bundle_file(_IMAGE_PROVENANCE_BUNDLE_NAME, image_provenance_bytes)
 
     if readiness_manifest_raw is not None:
@@ -1927,18 +1930,19 @@ def _verify_deploy_inputs(
             raise DeploymentWrapperError("public candidate bundle and signed inventory mode differ")
         if manifest_v2.public_candidate_inventory_digest is not None:
             try:
-                inventory_document = json.loads(
-                    signer._read_bytes_no_follow(  # noqa: SLF001 - octets du bundle gelé
-                        bundle_dir / _IMAGE_PROVENANCE_BUNDLE_NAME,
-                        label="bundle:image_provenance",
-                    )
+                inventory_raw = signer._read_bytes_no_follow(  # noqa: SLF001 - octets du bundle gelé
+                    bundle_dir / _IMAGE_PROVENANCE_BUNDLE_NAME,
+                    label="bundle:image_provenance",
                 )
-            except (json.JSONDecodeError, signer.SigningToolError) as exc:
+                inventory_document = json.loads(inventory_raw)
+            except (UnicodeDecodeError, json.JSONDecodeError, signer.SigningToolError) as exc:
                 raise DeploymentWrapperError(
                     f"public candidate inventory bundle cannot be read: {exc}"
                 ) from exc
             if not isinstance(inventory_document, dict):
                 raise DeploymentWrapperError("public candidate inventory bundle is not an object")
+            if inventory_raw != dii.public_candidate_inventory_bytes(inventory_document):
+                raise DeploymentWrapperError("public candidate inventory bundle is not canonical")
             require_public_candidate_inventory_binding(manifest_v2, inventory_document)
     else:  # pragma: no cover - exhaustivité imposée par _signed_readiness_protocol
         raise DeploymentWrapperError(f"unsupported signed readiness protocol {actual_protocol!r}")

@@ -33,7 +33,8 @@ de l'inventaire public ni la tentative de run qui les a publiés.
 4. Le checker confronte l'inventaire vérifié au manifeste signé : protocole,
    dépôt, commit, arbre, run, tentative, digest canonique et carte des quatre
    images. La même confrontation est répétée sur l'inventaire matérialisé dans
-   le bundle. Le mode public matérialise les deux fichiers Compose de la pile
+   le bundle, qui conserve les octets canoniques exacts de l'artefact V2.
+   Le mode public matérialise les deux fichiers Compose de la pile
    blue-green depuis les objets Git du commit attesté et revérifie leur
    résolution contre le digest signé. Il ne produit qu'un plan : `--execute`
    est refusé même si toutes les preuves passent.

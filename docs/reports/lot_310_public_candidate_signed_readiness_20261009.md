@@ -59,7 +59,7 @@ le rebase et les vérifications seront rejoués après la fusion de #309.
 - Le vérificateur prend l'inventaire V2 canonique des quatre images, impose
   exactement les cinq services publics et confronte seulement les deux images
   exécutées (`ingestor`, `cockpit`) au Compose. Le wrapper matérialise ces
-  deux sources et les octets de l'inventaire, puis relit le Compose effectif
+  deux sources et les octets canoniques exacts de l'inventaire V2, puis relit le Compose effectif
   avant de rendre un plan. Un manifeste V2 historique sans digest public est
   refusé dans le plan public et avant écriture du bundle.
 - Le bundle public porte explicitement son mode et sa liste exacte de deux
@@ -72,13 +72,14 @@ le rebase et les vérifications seront rejoués après la fusion de #309.
 
 - 2026-10-09 : `pytest -q` sur le contrat readiness et les six suites
   `rag-engine` ciblées (inventaire, vérificateur, signer, wrapper,
-  préflight public, plan signé) : **406 passed** après les négatifs finaux.
+  préflight public, plan signé) : **407 passed** après les négatifs finaux.
   `ruff check` sur les cinq fichiers Python modifiés et `git diff --check` :
   **0 erreur**. Aucun test n'a interrogé staging ou production.
 - Tests unitaires et intégration synthétique : signature V2, provenance V2
   canonique à quatre images, bundle et relecture à deux fichiers, plan-only,
-  refus `execute=True`, ancien V2, divergence du Compose effectif et du mode
-  de bundle. Les chemins V1 restent couverts par leurs tests existants.
+  refus `execute=True`, ancien V2, divergence du Compose effectif, du mode de
+  bundle et des octets de l'inventaire même si le bundle est rehashé. Les
+  chemins V1 restent couverts par leurs tests existants.
 - `docker compose config` réel (Compose 5.6.0) depuis les objets Git du commit
   d'intégration `d4bba88ad22e6a87ce767f8ee04352a576c4ac52`, avec variables
   et matériaux fictifs isolés : cinq services exacts, aucun `build` pour
