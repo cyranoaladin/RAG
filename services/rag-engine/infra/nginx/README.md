@@ -8,6 +8,13 @@ Ces fichiers sont des **templates** de vhosts Nginx (hôte) :
   vers HTTPS. Les en-têtes `Forwarded`, `X-Forwarded-*` usuels et `X-Real-IP`
   fournis par le client ne sont pas transmis à l'API. Le scrape et les sondes
   utilisent le port loopback directement.
+- `rag-cockpit.public-search.conf.template` pour le **Cockpit étudiant candidat** :
+  page `/`, ressources `/_next/static/`, chemins Auth.js nécessaires au SSO,
+  `GET /api/collections` et `POST /api/search` uniquement. Les routes chat,
+  revue, ingestion, métriques et santé ne sont pas proxifiées. Il cible le
+  `NEXUS_COCKPIT_PORT` loopback de la même couleur blue-green ; Nginx remplace
+  les en-têtes de proxy et retire les en-têtes d'identité interne fournis par
+  le navigateur. Son activation est réservée au cutover signé.
 - `rag-v2.conf` est l'alternative TLS déjà matérialisée ; elle doit être rendue
   avec `RAG_API_EXTERNAL_DOMAIN` et `NGINX_API_PORT` et cible le même port
   loopback.
@@ -18,6 +25,9 @@ Le template public V1 est distinct des vhosts historiques. Le rendre avec
 atomique dans Nginx appartient au cutover signé : ce dépôt ne prouve ni la
 connexion interne Cockpit BFF → API du réseau blue-green, ni l'activation du
 vhost en production. Ne jamais activer deux vhosts pour le même domaine API.
+Le vhost Cockpit se rend séparément avec
+`envsubst '${RAG_COCKPIT_EXTERNAL_DOMAIN} ${NGINX_COCKPIT_PORT}'` et ne doit
+pas coexister avec un autre vhost pour le domaine Cockpit.
 
 ## Rendu des vhosts via `envsubst`
 
