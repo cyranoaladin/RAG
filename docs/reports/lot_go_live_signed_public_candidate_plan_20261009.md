@@ -23,7 +23,11 @@ d'image, n'exécute aucune commande Docker mutante et n'est pas exposé comme
 un nouveau `--execute` public dans le CLI. Les anciens parcours du wrapper
 restent inchangés. Les tests synthétiques démontrent notamment le refus d'une
 signature altérée, d'un Compose modifié après signature, d'une image API
-divergente et d'un fichier de release modifié.
+divergente, d'un digest amont divergent et d'un fichier de release modifié.
+Les deux tests de claims d'images conservent le Compose signé intact et
+atteignent les comparaisons applicative/amont. Le vérificateur du matériau
+V2 n'est appelé qu'une fois dans ce parcours ; le contrat de retour du
+vérificateur public existant est conservé.
 
 ## Préconditions de cutover encore manquantes
 
@@ -47,7 +51,10 @@ reverse proxy/public edge et rester sans writer. Le résultat de la fonction
 
 ## Vérifications
 
-- `python -m pytest -q services/rag-engine/tests/test_signed_public_candidate_plan.py services/rag-engine/tests/test_public_blue_green_preflight.py services/rag-engine/tests/test_public_blue_green_compose.py services/rag-engine/tests/test_deploy_verified_release_cli.py` : 90 tests réussis.
+- Exécution sur le commit de code `f0789eec482f41ffd37708e58d82487efb8d5583`
+  (arbre `761c203f9e220421ecf0787057c39397cfa7fae7`) ; ce rapport est le
+  seul fichier modifié dans le commit suivant.
+- `python -m pytest -q services/rag-engine/tests/test_signed_public_candidate_plan.py services/rag-engine/tests/test_public_blue_green_preflight.py services/rag-engine/tests/test_public_blue_green_compose.py services/rag-engine/tests/test_deploy_verified_release_cli.py` : 92 tests réussis, 0 ignoré. Docker Compose v5.6.0 et Git étaient disponibles pour les tests conditionnels.
 - `ruff check` sur les deux fichiers Python du lot et `git diff --check` : verts.
 - Cycle TDD : le premier test du plan a échoué sur l'absence de
   `plan_signed_public_candidate` avant l'implémentation.
