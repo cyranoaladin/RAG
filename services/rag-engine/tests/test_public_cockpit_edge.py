@@ -25,7 +25,7 @@ TEMPLATE = Path(__file__).resolve().parents[1] / "infra/nginx/rag-cockpit.public
     reason="Nginx et OpenSSL nécessaires",
 )
 def test_public_cockpit_vhost_only_forwards_student_search_routes(tmp_path: Path) -> None:
-    calls: list[tuple[str, str, str | None, str | None, str | None]] = []
+    calls: list[tuple[str, str, str | None, str | None, str | None, str | None, str | None]] = []
 
     class Backend(BaseHTTPRequestHandler):
         def do_GET(self) -> None:  # noqa: N802
@@ -37,7 +37,9 @@ def test_public_cockpit_vhost_only_forwards_student_search_routes(tmp_path: Path
         def respond(self) -> None:
             calls.append((self.command, self.path, self.headers.get("Host"),
                           self.headers.get("X-Forwarded-Proto"),
-                          self.headers.get("X-Nexus-Identity")))
+                          self.headers.get("X-Nexus-Identity"),
+                          self.headers.get("Authorization"),
+                          self.headers.get("X-RAG-API-Key")))
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"{}")
@@ -92,7 +94,8 @@ def test_public_cockpit_vhost_only_forwards_student_search_routes(tmp_path: Path
                 data=b"{}" if method == "POST" else None,
                 method=method,
                 headers={"Host": "cockpit.example.test", "X-Forwarded-Proto": "http",
-                         "X-Nexus-Identity": "forged"},
+                         "X-Nexus-Identity": "forged", "Authorization": "forged",
+                         "X-RAG-API-Key": "forged"},
             )
             try:
                 with opener.open(request, timeout=2) as response:
@@ -124,8 +127,9 @@ def test_public_cockpit_vhost_only_forwards_student_search_routes(tmp_path: Path
         for method, path in allowed:
             assert status(path, method) == 200, (method, path)
         assert [(method, path) for method, path, *_ in calls] == list(allowed)
-        assert all(host == "cockpit.example.test" and proto == "https" and identity is None
-                   for _, _, host, proto, identity in calls)
+        assert all(host == "cockpit.example.test" and proto == "https" and
+                   identity is None and authorization is None and api_key is None
+                   for _, _, host, proto, identity, authorization, api_key in calls)
         for method, path in (
             ("GET", "/api/search"), ("POST", "/api/collections"),
             ("POST", "/api/chat"), ("GET", "/api/review/queue"),

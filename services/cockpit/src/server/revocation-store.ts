@@ -135,9 +135,9 @@ class RedisSessionBackend implements SessionBackend {
   static async connect(url: string): Promise<RedisSessionBackend> {
     const client = createClient({
       url,
+      disableOfflineQueue: true,
       socket: {
         connectTimeout: 1000,
-        reconnectStrategy: false,
       },
     })
     client.on('error', () => undefined)

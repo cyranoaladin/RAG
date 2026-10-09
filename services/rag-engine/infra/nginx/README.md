@@ -13,9 +13,11 @@ Ces fichiers sont des **templates** de vhosts Nginx (hôte) :
   `GET /api/health`, `GET /api/collections` et `POST /api/search` uniquement.
   Les routes chat, revue, ingestion, métriques et les autres routes santé ne
   sont pas proxifiées. Il cible le
-  `NEXUS_COCKPIT_PORT` loopback de la même couleur blue-green ; Nginx remplace
-  les en-têtes de proxy et retire les en-têtes d'identité interne fournis par
-  le navigateur. Son activation est réservée au cutover signé.
+  `NEXUS_COCKPIT_PORT` loopback de la même couleur blue-green ; Nginx fixe
+  explicitement les en-têtes `Host`, `Forwarded`, `X-Forwarded-*` listés dans
+  le template et `X-Real-IP`, puis retire `X-Nexus-Identity`, `X-RAG-API-Key`
+  et `Authorization` fournis par le navigateur. Son activation est réservée
+  au cutover signé.
 - `rag-v2.conf` est l'alternative TLS déjà matérialisée ; elle doit être rendue
   avec `RAG_API_EXTERNAL_DOMAIN` et `NGINX_API_PORT` et cible le même port
   loopback.

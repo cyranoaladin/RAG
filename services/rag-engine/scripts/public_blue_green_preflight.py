@@ -444,6 +444,8 @@ def require_public_candidate(
     published_ports: set[int] = set()
     for name, service in services.items():
         _require(isinstance(service, dict) and "build" not in service, f"build refused: {name}")
+        _require(service.get("security_opt") == ["no-new-privileges:true"],
+                 f"security options differ: {name}")
         _require(not any(key in service for key in (
             "extra_hosts", "links", "external_links", "volumes_from", "devices",
             "cap_add", "pid", "ipc", "userns_mode",

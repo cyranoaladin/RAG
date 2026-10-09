@@ -139,6 +139,7 @@ def _cockpit_fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
         "services": {
             "pgvector": {
                 "image": "pgvector/pgvector@sha256:" + "c" * 64,
+                "security_opt": ["no-new-privileges:true"],
                 "environment": {"POSTGRES_DB": "ragdb"},
                 "networks": {"rag_net": None},
                 "volumes": [*volumes["pgvector"], {"type": "volume", "source": "rag_pgvector_data", "target": "/var/lib/postgresql/data"}],
@@ -146,6 +147,7 @@ def _cockpit_fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
             },
             "ingestor": {
                 "image": IMAGE,
+                "security_opt": ["no-new-privileges:true"],
                 "environment": {
                     "PG_RAG_DSN": "postgresql://rag_reader:dummy@pgvector:5432/ragdb",
                     "PG_REVIEW_DSN": "postgresql://rag_reviewer:dummy@pgvector:5432/ragdb",
@@ -164,12 +166,14 @@ def _cockpit_fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
             },
             "prometheus": {
                 "image": "prom/prometheus@sha256:" + "d" * 64,
+                "security_opt": ["no-new-privileges:true"],
                 "networks": {"rag_net": None},
                 "volumes": [*volumes["prometheus"], {"type": "volume", "source": "rag_prometheus_data", "target": "/prometheus"}],
                 "ports": [{"host_ip": "127.0.0.1", "published": "19101", "target": 9090}],
             },
             "cockpit": {
                 "image": COCKPIT_IMAGE,
+                "security_opt": ["no-new-privileges:true"],
                 "environment": {"NODE_ENV": "production", **cockpit_env},
                 "networks": {"bff_net": None},
                 "volumes": [],
@@ -178,6 +182,7 @@ def _cockpit_fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
             },
             "session-redis": {
                 "image": REDIS_IMAGE,
+                "security_opt": ["no-new-privileges:true"],
                 "networks": {"bff_net": None},
                 "volumes": [
                     {"type": "volume", "source": "session_redis_data", "target": "/data"},
@@ -212,6 +217,17 @@ def _check(config: dict, root: Path, secrets: Path, repo: Path) -> dict:
     )
 
 
+def _compose_available() -> bool:
+    if shutil.which("docker") is None:
+        return False
+    try:
+        return subprocess.run(
+            ["docker", "compose", "version"], capture_output=True, check=False, timeout=5
+        ).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def test_accepts_exact_public_candidate_material(tmp_path: Path) -> None:
     config, root, secrets, repo = _cockpit_fixture(tmp_path)
     evidence = _check(config, root, secrets, repo)
@@ -224,7 +240,24 @@ def test_accepts_exact_public_candidate_material(tmp_path: Path) -> None:
     assert evidence["material_manifest_digest"] == config["services"]["ingestor"]["labels"]["nexus.release-material.sha256"]
 
 
-@pytest.mark.skipif(shutil.which("docker") is None, reason="Docker Compose indisponible")
+def test_legacy_three_service_plan_stays_plan_only(tmp_path: Path) -> None:
+    config, root, secrets, repo = _fixture(tmp_path)
+    evidence = preflight.require_public_candidate(
+        resolved_compose=config,
+        source_sha=SHA,
+        color="blue",
+        material_root=root,
+        secrets_root=secrets,
+        repo_root=repo,
+        verified_application_images={"ingestor": IMAGE},
+    )
+    assert set(config["services"]) == {"pgvector", "ingestor", "prometheus"}
+    assert evidence["api_image"] == IMAGE
+    assert "cockpit_image" not in evidence
+    assert evidence["mutation_allowed"] is False
+
+
+@pytest.mark.skipif(not _compose_available(), reason="Docker Compose indisponible")
 def test_accepts_actual_resolved_five_service_compose(tmp_path: Path) -> None:
     expected, root, secrets, repo = _cockpit_fixture(tmp_path)
     infra = Path(__file__).resolve().parents[1] / "infra"
@@ -278,6 +311,7 @@ def test_accepts_actual_resolved_five_service_compose(tmp_path: Path) -> None:
     "api_registry_read_source_scope", "api_registry_inline_override",
     "redis_acl_unreadable_by_image_user", "secret_root_not_private",
     "school_year_gap", "public_origin_missing_host", "public_origin_userinfo",
+    "cockpit_unconfined_seccomp", "redis_unconfined_seccomp",
 ])
 def test_refuses_unsafe_cockpit_or_redis(tmp_path: Path, mutation: str) -> None:
     config, root, secrets, repo = _cockpit_fixture(tmp_path)
@@ -362,6 +396,10 @@ def test_refuses_unsafe_cockpit_or_redis(tmp_path: Path, mutation: str) -> None:
         (secrets / "session-redis.acl").chmod(0o600)
     elif mutation == "secret_root_not_private":
         secrets.chmod(0o755)
+    elif mutation == "cockpit_unconfined_seccomp":
+        cockpit["security_opt"].append("seccomp:unconfined")
+    elif mutation == "redis_unconfined_seccomp":
+        redis["security_opt"].append("seccomp:unconfined")
     elif mutation in {"school_year_gap", "public_origin_missing_host", "public_origin_userinfo"}:
         replacement = {
             "school_year_gap": ("NEXUS_RELEASE_SCHOOL_YEAR", "2026-2028"),

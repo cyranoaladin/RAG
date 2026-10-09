@@ -54,6 +54,8 @@ describe('raccord Redis du store de session', () => {
     expect(redisMock.createClient).toHaveBeenCalledTimes(2)
     expect(redisMock.createClient).toHaveBeenNthCalledWith(1, expect.objectContaining({
       url: 'redis://session-store.test:6379/5',
+      disableOfflineQueue: true,
+      socket: { connectTimeout: 1000 },
     }))
   })
 
