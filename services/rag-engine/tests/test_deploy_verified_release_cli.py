@@ -306,6 +306,9 @@ class TestMaterializeVerifiedBundleHappyPath:
         finally:
             os.umask(previous)
         assert stat.S_IMODE(bundle_dir.stat().st_mode) == 0o700
+        work_dir = tmp_path / "work"
+        assert stat.S_IMODE(work_dir.stat().st_mode) == 0o700
+        assert list(work_dir.iterdir()) == []
         for path in bundle_dir.rglob("*"):
             assert stat.S_IMODE(path.stat().st_mode) == (0o700 if path.is_dir() else 0o600)
 

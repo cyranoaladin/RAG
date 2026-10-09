@@ -71,6 +71,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import stat
 import subprocess
 import sys
 import tempfile
@@ -182,6 +184,51 @@ class ReleaseVerificationError(RuntimeError):
     déploiement."""
 
 
+def require_private_work_dir(work_dir: Path) -> None:
+    """Exige un scratch 0700, sous des ancêtres fiables sans symlink."""
+    absolute = Path(os.path.abspath(work_dir))
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(absolute.anchor, flags)
+    try:
+        for part in absolute.parts[1:]:
+            parent = os.fstat(descriptor)
+            trusted_owner = parent.st_uid in {0, os.geteuid()}
+            writable = bool(parent.st_mode & (stat.S_IWGRP | stat.S_IWOTH))
+            sticky = bool(parent.st_mode & stat.S_ISVTX)
+            if not trusted_owner:
+                raise ReleaseVerificationError("private work directory has an untrusted owner")
+            if writable and not sticky:
+                raise ReleaseVerificationError("private work directory has a group/world-writable ancestor")
+            try:
+                child = os.open(part, flags, dir_fd=descriptor)
+            except FileNotFoundError:
+                if part != absolute.name:
+                    raise ReleaseVerificationError("private work directory parent is missing") from None
+                os.mkdir(part, 0o700, dir_fd=descriptor)
+                child = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        metadata = os.fstat(descriptor)
+        if metadata.st_uid != os.geteuid() or stat.S_IMODE(metadata.st_mode) != 0o700:
+            raise ReleaseVerificationError("private work directory must be owned by the caller and mode 0700")
+    except OSError as exc:
+        raise ReleaseVerificationError("private work directory cannot be opened safely") from exc
+    finally:
+        os.close(descriptor)
+
+
+def _write_private_scratch_file(path: Path, raw: bytes) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags, 0o600)
+        with os.fdopen(descriptor, "wb") as stream:
+            stream.write(raw)
+            stream.flush()
+            os.fsync(stream.fileno())
+    except OSError as exc:
+        raise ReleaseVerificationError("private scratch file cannot be written safely") from exc
+
+
 def _git_show_bytes(repo_root: Path, commit_sha: str, relative_path: str) -> bytes:
     """Lit le contenu d'un fichier tel qu'il existe DANS l'objet git
     ``commit_sha`` — jamais tel qu'il existe sur disque, qui pourrait
@@ -237,23 +284,24 @@ def run_docker_compose_config_via_subprocess(
             "(see docs/runbooks/go_live.md §3)"
         )
     env_file = env_file.resolve()
-    scratch = work_dir / "compose"
-    scratch.mkdir(parents=True, exist_ok=True)
-    for name in compose_files:
-        relative_path = f"{_INFRA_RELATIVE_PATH}/{name}"
-        content = _git_show_bytes(repo_root, source_commit_sha, relative_path)
-        (scratch / name).write_bytes(content)
+    require_private_work_dir(work_dir)
+    with tempfile.TemporaryDirectory(prefix="compose-", dir=work_dir) as temporary:
+        scratch = Path(temporary)
+        for name in compose_files:
+            relative_path = f"{_INFRA_RELATIVE_PATH}/{name}"
+            content = _git_show_bytes(repo_root, source_commit_sha, relative_path)
+            _write_private_scratch_file(scratch / name, content)
 
-    args = ["docker", "compose", "--env-file", str(env_file)]
-    for name in compose_files:
-        args += ["-f", name]
-    args += ["config", "--format", "json"]
-    try:
-        completed = subprocess.run(
-            args, cwd=scratch, capture_output=True, text=True, timeout=60, check=False
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise ReleaseVerificationError(f"docker compose config failed: {exc}") from exc
+        args = ["docker", "compose", "--env-file", str(env_file)]
+        for name in compose_files:
+            args += ["-f", name]
+        args += ["config", "--format", "json"]
+        try:
+            completed = subprocess.run(
+                args, cwd=scratch, capture_output=True, text=True, timeout=60, check=False
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise ReleaseVerificationError(f"docker compose config failed: {exc}") from exc
     if completed.returncode != 0:
         raise ReleaseVerificationError(
             "docker compose config failed (exit "
@@ -336,19 +384,20 @@ def verify_release_images(
     # du chemin d'origine, est ce qui sert à la fois à la résolution
     # Compose ci-dessous et à tout appelant en aval qui matérialise un
     # bundle depuis le résultat retourné.
+    require_private_work_dir(work_dir)
     env_bytes = env_file.read_bytes()
-    env_snapshot_path = work_dir / "env-snapshot" / ".env"
-    env_snapshot_path.parent.mkdir(parents=True, exist_ok=True)
-    env_snapshot_path.write_bytes(env_bytes)
 
     compose_source_bytes = {
         name: git_show_bytes(repo_root, source_commit_sha, f"{_INFRA_RELATIVE_PATH}/{name}")
         for name in compose_files
     }
 
-    resolved_config = run_docker_compose_config(
-        repo_root, source_commit_sha, compose_files, work_dir, env_snapshot_path
-    )
+    with tempfile.TemporaryDirectory(prefix="env-snapshot-", dir=work_dir) as temporary:
+        env_snapshot_path = Path(temporary) / ".env"
+        _write_private_scratch_file(env_snapshot_path, env_bytes)
+        resolved_config = run_docker_compose_config(
+            repo_root, source_commit_sha, compose_files, work_dir, env_snapshot_path
+        )
     services = resolved_config.get("services")
     if public_candidate and (
         not isinstance(services, dict) or set(services) != _PUBLIC_CANDIDATE_SERVICES
@@ -365,29 +414,31 @@ def verify_release_images(
     except dii.DeploymentImageInventoryError as exc:
         raise ReleaseVerificationError(str(exc)) from exc
     try:
-        image_provenance_document = (
-            dii.fetch_and_verify_public_candidate_image_provenance_document(
-                repository=_CANONICAL_REPOSITORY,
-                source_commit_sha=source_commit_sha,
-                source_tree_sha=source_tree_sha,
-                provenance_run_id=provenance_run_id,
-                provenance_run_attempt=provenance_run_attempt,
-                github_api_get=github_api_get,
-                download_artifact=download_artifact,
-                work_dir=work_dir,
+        with tempfile.TemporaryDirectory(prefix="image-provenance-", dir=work_dir) as temporary:
+            provenance_dir = Path(temporary)
+            image_provenance_document = (
+                dii.fetch_and_verify_public_candidate_image_provenance_document(
+                    repository=_CANONICAL_REPOSITORY,
+                    source_commit_sha=source_commit_sha,
+                    source_tree_sha=source_tree_sha,
+                    provenance_run_id=provenance_run_id,
+                    provenance_run_attempt=provenance_run_attempt,
+                    github_api_get=github_api_get,
+                    download_artifact=download_artifact,
+                    work_dir=provenance_dir,
+                )
+                if public_candidate
+                else dii.fetch_and_verify_image_provenance_document(
+                    repository=_CANONICAL_REPOSITORY,
+                    source_commit_sha=source_commit_sha,
+                    source_tree_sha=source_tree_sha,
+                    provenance_run_id=provenance_run_id,
+                    provenance_run_attempt=provenance_run_attempt,
+                    github_api_get=github_api_get,
+                    download_artifact=download_artifact,
+                    work_dir=provenance_dir,
+                )
             )
-            if public_candidate
-            else dii.fetch_and_verify_image_provenance_document(
-                repository=_CANONICAL_REPOSITORY,
-                source_commit_sha=source_commit_sha,
-                source_tree_sha=source_tree_sha,
-                provenance_run_id=provenance_run_id,
-                provenance_run_attempt=provenance_run_attempt,
-                github_api_get=github_api_get,
-                download_artifact=download_artifact,
-                work_dir=work_dir,
-            )
-        )
     except dii.DeploymentImageInventoryError as exc:
         raise ReleaseVerificationError(str(exc)) from exc
     provenance_images = {

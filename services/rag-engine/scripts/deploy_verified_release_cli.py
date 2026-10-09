@@ -612,7 +612,10 @@ def materialize_verified_bundle(
     compose_files = (
         vri._PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else _CANONICAL_COMPOSE_FILES
     )
-    work_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        vri.require_private_work_dir(work_dir)
+    except vri.ReleaseVerificationError as exc:
+        raise DeploymentWrapperError(str(exc)) from exc
     materialization = vri.verify_release_images(
         source_commit_sha=merge_sha,
         source_tree_sha=merge_tree_sha,

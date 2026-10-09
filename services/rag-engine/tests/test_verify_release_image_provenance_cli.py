@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -191,6 +192,7 @@ class _Fakes:
         self.resolved_compose = resolved_compose
         self.attempt_exists = attempt_exists
         self.compose_calls: list[tuple[Path, str, tuple[str, ...], Path]] = []
+        self.compose_snapshots: list[bytes] = []
 
     def github_api_get(self, path: str) -> dict[str, Any]:
         run_path = f"repos/{REPOSITORY}/actions/runs/{RUN_ID}"
@@ -219,6 +221,7 @@ class _Fakes:
         env_file: Path,
     ) -> dict[str, Any]:
         self.compose_calls.append((repo_root, source_commit_sha, compose_files, work_dir, env_file))
+        self.compose_snapshots.append(env_file.read_bytes())
         return self.resolved_compose
 
     def git_show_bytes(self, repo_root: Path, commit_sha: str, relative_path: str) -> bytes:
@@ -250,6 +253,68 @@ def _verify(
 
 
 class TestVerifyReleaseImagesEndToEnd:
+    def test_env_snapshot_is_private_and_removed_with_umask_zero(
+        self, tmp_path: Path
+    ) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        env_file = tmp_path / "private.env"
+        env_file.write_bytes(b"NEXUS_INTERNAL_TOKEN_SECRET=synthetic\n")
+        observed: list[tuple[int, int, bytes, Path]] = []
+        original = fakes.run_docker_compose_config
+
+        def capture(*args: Any) -> dict[str, Any]:
+            snapshot = args[4]
+            observed.append((
+                stat.S_IMODE(snapshot.parent.stat().st_mode),
+                stat.S_IMODE(snapshot.stat().st_mode),
+                snapshot.read_bytes(),
+                snapshot,
+            ))
+            return original(*args)
+
+        fakes.run_docker_compose_config = capture  # type: ignore[method-assign]
+        previous = os.umask(0o000)
+        try:
+            _verify(fakes, tmp_path, env_file=env_file)
+        finally:
+            os.umask(previous)
+        assert observed[0][:3] == (0o700, 0o600, env_file.read_bytes())
+        assert not observed[0][3].exists()
+
+    def test_unsafe_or_symlink_workdir_is_refused_before_snapshot(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        unsafe = tmp_path / "unsafe"
+        unsafe.mkdir()
+        unsafe.chmod(0o777)
+        with pytest.raises(vri.ReleaseVerificationError, match="private work directory"):
+            _verify(fakes, tmp_path, work_dir=unsafe)
+        private = tmp_path / "private"
+        private.mkdir(mode=0o700)
+        alias = tmp_path / "alias"
+        alias.symlink_to(private, target_is_directory=True)
+        with pytest.raises(vri.ReleaseVerificationError, match="private work directory"):
+            _verify(fakes, tmp_path, work_dir=alias)
+        assert fakes.compose_calls == []
+
+    def test_existing_snapshot_symlink_or_hardlink_cannot_be_reused(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        marker = tmp_path / "marker"
+        marker.write_bytes(b"unchanged")
+        stale = tmp_path / "env-snapshot"
+        stale.mkdir(mode=0o700)
+        (stale / ".env").symlink_to(marker)
+        os.link(marker, stale / "hardlink.env")
+        _verify(fakes, tmp_path)
+        assert marker.read_bytes() == b"unchanged"
+        assert fakes.compose_calls[0][4].parent != stale
+        assert not fakes.compose_calls[0][4].exists()
+
     def test_public_candidate_uses_two_runtime_images_and_four_image_inventory(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -307,8 +372,10 @@ class TestVerifyReleaseImagesEndToEnd:
         # une seule fois par verify_release_images (fix TOCTOU résiduel,
         # PR #107 round 2), pour qu'aucun appelant en aval n'ait besoin de
         # relire ce fichier mutable une seconde fois.
-        assert env_snapshot == tmp_path / "env-snapshot" / ".env"
-        assert env_snapshot.read_bytes() == (tmp_path / "dummy.env").read_bytes()
+        assert env_snapshot.parent.parent == tmp_path
+        assert env_snapshot.parent.name.startswith("env-snapshot-")
+        assert fakes.compose_snapshots == [(tmp_path / "dummy.env").read_bytes()]
+        assert not env_snapshot.exists()
 
     def test_provenance_is_always_anchored_on_the_canonical_repository(self, tmp_path: Path) -> None:
         # Codex P1 (PR #105): the caller can no longer supply an arbitrary
@@ -373,6 +440,51 @@ class TestVerifyReleaseImagesEndToEnd:
 
 
 class TestMain:
+    def test_cli_snapshot_stays_private_with_umask_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        secret = "SYNTHETIC-SECRET-FOR-PERMISSION-TEST"
+        env_path = tmp_path / vri._ENV_FILE_RELATIVE_PATH
+        env_path.parent.mkdir(parents=True, exist_ok=True)
+        env_path.write_text(f"TOKEN={secret}\n", encoding="utf-8")
+        monkeypatch.setattr(vri.dii, "gh_api_get", fakes.github_api_get)
+        monkeypatch.setattr(vri.dii, "make_download_artifact_via_gh", lambda *, repository: fakes.download_artifact)
+        monkeypatch.setattr(vri, "_git_show_bytes", fakes.git_show_bytes)
+        observed: list[tuple[int, int, int, bytes, Path]] = []
+
+        def inspect(
+            repo_root: Path, commit_sha: str, files: tuple[str, ...], work: Path, snapshot: Path
+        ) -> dict[str, Any]:
+            observed.append((
+                stat.S_IMODE(work.stat().st_mode),
+                stat.S_IMODE(snapshot.parent.stat().st_mode),
+                stat.S_IMODE(snapshot.stat().st_mode),
+                snapshot.read_bytes(),
+                snapshot,
+            ))
+            return fakes.run_docker_compose_config(repo_root, commit_sha, files, work, snapshot)
+
+        monkeypatch.setattr(vri, "run_docker_compose_config_via_subprocess", inspect)
+        previous = os.umask(0o000)
+        try:
+            code = vri.main([
+                "--source-commit-sha", SOURCE_COMMIT_SHA,
+                "--source-tree-sha", SOURCE_TREE_SHA,
+                "--provenance-run-id", str(RUN_ID),
+                "--provenance-run-attempt", str(RUN_ATTEMPT),
+                "--repo-root", str(tmp_path),
+            ])
+        finally:
+            os.umask(previous)
+        captured = capsys.readouterr()
+        assert code == 0
+        assert observed[0][:4] == (0o700, 0o700, 0o600, env_path.read_bytes())
+        assert not observed[0][4].exists()
+        assert secret not in captured.out + captured.err
+
     def test_successful_run_prints_verified_digests_and_returns_0(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ) -> None:
@@ -447,6 +559,34 @@ class TestRunDockerComposeConfigViaSubprocess:
         shutil.which("docker") is None, reason="Docker not available"
     )
     requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not available")
+
+    def test_compose_scratch_is_private_and_removed_with_umask_zero(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        env = tmp_path / "dummy.env"
+        env.write_bytes(b"TOKEN=synthetic\n")
+        observed: list[tuple[int, tuple[int, ...], Path]] = []
+        monkeypatch.setattr(vri, "_git_show_bytes", lambda *_: b"services: {}\n")
+
+        def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+            scratch = kwargs["cwd"]
+            observed.append((
+                stat.S_IMODE(scratch.stat().st_mode),
+                tuple(stat.S_IMODE((scratch / name).stat().st_mode) for name in vri._CANONICAL_COMPOSE_FILES),
+                scratch,
+            ))
+            return subprocess.CompletedProcess(args, 0, stdout="{}", stderr="")
+
+        monkeypatch.setattr(vri.subprocess, "run", fake_run)
+        previous = os.umask(0o000)
+        try:
+            vri.run_docker_compose_config_via_subprocess(
+                tmp_path, SOURCE_COMMIT_SHA, vri._CANONICAL_COMPOSE_FILES, tmp_path, env
+            )
+        finally:
+            os.umask(previous)
+        assert observed[0][:2] == (0o700, (0o600,) * 3)
+        assert not observed[0][2].exists()
 
     @requires_docker
     @requires_git
@@ -543,7 +683,7 @@ class TestRunDockerComposeConfigViaSubprocess:
         ).stdout.strip()
 
         work_dir = tmp_path / "work"
-        work_dir.mkdir()
+        work_dir.mkdir(mode=0o700)
         env_dir = tmp_path / "operator-cwd"
         env_dir.mkdir()
         (env_dir / "dummy.env").write_text(
