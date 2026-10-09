@@ -28,6 +28,9 @@ _PROTOCOL_VERSION = "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1"
 _CANONICAL_WORKFLOW_PATH = ".github/workflows/production-image-provenance.yml"
 _ARTIFACT_NAME = "nexus-deployment-image-inventory"
 _ARTIFACT_FILENAME = "nexus-deployment-image-inventory.json"
+_PUBLIC_PROTOCOL_VERSION = "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2"
+_PUBLIC_ARTIFACT_NAME = "nexus-public-deployment-image-inventory-v2"
+_PUBLIC_ARTIFACT_FILENAME = "nexus-public-deployment-image-inventory-v2.json"
 _SUPPORTED_PLATFORM = "linux/amd64"
 
 #: Le set exact des services applicatifs de production, dérivé de
@@ -39,6 +42,13 @@ _SUPPORTED_PLATFORM = "linux/amd64"
 _EXPECTED_APPLICATION_SERVICES = frozenset(
     {"ingestor", "multilevel-worker-a-production", "multilevel-worker-b-production"}
 )
+_PUBLIC_APPLICATION_SERVICES = _EXPECTED_APPLICATION_SERVICES | {"cockpit"}
+_PUBLIC_SERVICE_SOURCES = {
+    "ingestor": ("services/rag-engine/infra/Dockerfile.ingestor-v2", "ghcr.io/cyranoaladin/rag-ingestor"),
+    "multilevel-worker-a-production": ("services/rag-engine/infra/Dockerfile.multilevel-worker-production", "ghcr.io/cyranoaladin/rag-multilevel-worker-production"),
+    "multilevel-worker-b-production": ("services/rag-engine/infra/Dockerfile.multilevel-worker-production", "ghcr.io/cyranoaladin/rag-multilevel-worker-production"),
+    "cockpit": ("services/cockpit/Dockerfile", "ghcr.io/cyranoaladin/rag-cockpit"),
+}
 
 #: Toujours main : cet outil ne vérifie jamais une provenance construite
 #: depuis autre chose que la branche protégée (le workflow lui-même refuse
@@ -125,7 +135,8 @@ def gh_api_get(path: str) -> dict[str, Any]:
 
 
 def _download_artifact_via_gh(
-    run_id: int, artifact_name: str, dest_dir: Path, *, repository: str | None = None
+    run_id: int, artifact_name: str, dest_dir: Path, *, repository: str | None = None,
+    artifact_filename: str = _ARTIFACT_FILENAME,
 ) -> Path:
     command = ["gh", "run", "download", str(run_id), "-n", artifact_name, "-D", str(dest_dir)]
     if repository is not None:
@@ -145,10 +156,10 @@ def _download_artifact_via_gh(
             f"gh run download failed (exit {completed.returncode}): "
             f"{completed.stderr.strip()[:500]}"
         )
-    candidate = dest_dir / _ARTIFACT_FILENAME
+    candidate = dest_dir / artifact_filename
     if not candidate.is_file():
         raise DeploymentImageInventoryError(
-            f"downloaded artifact {artifact_name!r} does not contain {_ARTIFACT_FILENAME}"
+            f"downloaded artifact {artifact_name!r} does not contain {artifact_filename}"
         )
     return candidate
 
@@ -175,6 +186,17 @@ def make_download_artifact_via_gh(*, repository: str) -> DownloadArtifact:
 
     def _download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
         return _download_artifact_via_gh(run_id, artifact_name, dest_dir, repository=repository)
+
+    return _download
+
+
+def make_public_candidate_download_artifact_via_gh(*, repository: str) -> DownloadArtifact:
+    """Télécharge l'artefact V2, sans changer le chemin historique V1."""
+    def _download(run_id: int, artifact_name: str, dest_dir: Path) -> Path:
+        return _download_artifact_via_gh(
+            run_id, artifact_name, dest_dir, repository=repository,
+            artifact_filename=_PUBLIC_ARTIFACT_FILENAME,
+        )
 
     return _download
 
@@ -225,7 +247,7 @@ def _verify_service_entry(name: str, service: Any) -> tuple[str, str]:
     return name, f"{repository}@{digest}"
 
 
-def fetch_and_verify_image_provenance_document(
+def _fetch_and_verify_image_provenance_document(
     *,
     repository: str,
     source_commit_sha: str,
@@ -233,6 +255,9 @@ def fetch_and_verify_image_provenance_document(
     provenance_run_id: int,
     provenance_run_attempt: int,
     expected_workflow_path: str = _CANONICAL_WORKFLOW_PATH,
+    expected_protocol: str = _PROTOCOL_VERSION,
+    expected_artifact_name: str = _ARTIFACT_NAME,
+    expected_services: frozenset[str] = _EXPECTED_APPLICATION_SERVICES,
     github_api_get: GitHubApiGet,
     download_artifact: DownloadArtifact,
     work_dir: Path,
@@ -296,7 +321,7 @@ def fetch_and_verify_image_provenance_document(
     # (sign_production_readiness_manifest_cli._verify_git_and_workflow_facts).
     github_api_get(f"repos/{repository}/actions/runs/{provenance_run_id}/attempts/{provenance_run_attempt}")
 
-    artifact_path = download_artifact(provenance_run_id, _ARTIFACT_NAME, work_dir)
+    artifact_path = download_artifact(provenance_run_id, expected_artifact_name, work_dir)
     document = _parse_inventory_document(artifact_path.read_bytes())
 
     _require(
@@ -306,9 +331,9 @@ def fetch_and_verify_image_provenance_document(
         "top-level field is never silently accepted",
     )
     _require(
-        document.get("protocol_version") == _PROTOCOL_VERSION,
+        document.get("protocol_version") == expected_protocol,
         f"image inventory declares protocol_version {document.get('protocol_version')!r}, "
-        f"expected {_PROTOCOL_VERSION!r}",
+        f"expected {expected_protocol!r}",
     )
     _require(
         document.get("repository") == repository,
@@ -362,17 +387,71 @@ def fetch_and_verify_image_provenance_document(
     services = document.get("services")
     if not isinstance(services, dict) or not services:
         raise DeploymentImageInventoryError("image inventory declares no services")
-    if set(services) != _EXPECTED_APPLICATION_SERVICES:
+    if set(services) != expected_services:
         raise DeploymentImageInventoryError(
             "image inventory does not name exactly the production application "
             f"services (declared={sorted(services)}, "
-            f"expected={sorted(_EXPECTED_APPLICATION_SERVICES)}) — an omitted or "
+            f"expected={sorted(expected_services)}) — an omitted or "
             "invented service is never silently accepted"
         )
 
     for name, service in services.items():
         _verify_service_entry(name, service)
     return document
+
+
+def fetch_and_verify_image_provenance_document(
+    *, repository: str, source_commit_sha: str, source_tree_sha: str,
+    provenance_run_id: int, provenance_run_attempt: int,
+    expected_workflow_path: str = _CANONICAL_WORKFLOW_PATH,
+    github_api_get: GitHubApiGet, download_artifact: DownloadArtifact, work_dir: Path,
+) -> dict[str, Any]:
+    """V1 historique : protocole, artefact et trois services restent fixes."""
+    return _fetch_and_verify_image_provenance_document(
+        repository=repository, source_commit_sha=source_commit_sha,
+        source_tree_sha=source_tree_sha, provenance_run_id=provenance_run_id,
+        provenance_run_attempt=provenance_run_attempt,
+        expected_workflow_path=expected_workflow_path,
+        github_api_get=github_api_get, download_artifact=download_artifact,
+        work_dir=work_dir,
+    )
+
+
+def verify_public_candidate_image_provenance(
+    *, repository: str, source_commit_sha: str, source_tree_sha: str,
+    provenance_run_id: int, provenance_run_attempt: int,
+    github_api_get: GitHubApiGet, download_artifact: DownloadArtifact, work_dir: Path,
+) -> dict[str, str]:
+    """V2 opt-in : quatre images applicatives de la même source `main`."""
+    _require(repository == "cyranoaladin/RAG", "public image inventory requires canonical repository")
+    document = _fetch_and_verify_image_provenance_document(
+        repository=repository, source_commit_sha=source_commit_sha,
+        source_tree_sha=source_tree_sha, provenance_run_id=provenance_run_id,
+        provenance_run_attempt=provenance_run_attempt,
+        expected_protocol=_PUBLIC_PROTOCOL_VERSION,
+        expected_artifact_name=_PUBLIC_ARTIFACT_NAME,
+        expected_services=frozenset(_PUBLIC_APPLICATION_SERVICES),
+        github_api_get=github_api_get, download_artifact=download_artifact,
+        work_dir=work_dir,
+    )
+    digests: dict[str, str] = {}
+    for name, service in document["services"].items():
+        dockerfile, image_repository = _PUBLIC_SERVICE_SOURCES[name]
+        _require(
+            service["build_context"] == "."
+            and service["dockerfile"] == dockerfile
+            and service["image_repository"] == image_repository,
+            f"public image source identity differs for {name}",
+        )
+        _, digests[name] = _verify_service_entry(name, service)
+    a = document["services"]["multilevel-worker-a-production"]
+    b = document["services"]["multilevel-worker-b-production"]
+    _require(
+        a["image_digest"] == b["image_digest"]
+        and a["dockerfile_sha256"] == b["dockerfile_sha256"],
+        "two worker services must reference one identical image build",
+    )
+    return digests
 
 
 def verify_application_image_provenance(
