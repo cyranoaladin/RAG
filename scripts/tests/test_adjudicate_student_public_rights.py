@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import copy
 import hashlib
 import sys
@@ -22,6 +23,20 @@ from adjudicate_student_public_rights import (  # noqa: E402
     render_decision_sheet,
     source_population_refs,
 )
+
+
+def test_cli_entrypoint_is_after_all_function_definitions() -> None:
+    path = Path(__file__).resolve().parents[1] / "go_live/adjudicate_student_public_rights.py"
+    module = ast.parse(path.read_text())
+    entrypoints = [
+        node for node in module.body
+        if isinstance(node, ast.If)
+        and isinstance(node.test, ast.Compare)
+        and isinstance(node.test.left, ast.Name)
+        and node.test.left.id == "__name__"
+    ]
+    assert len(entrypoints) == 1
+    assert module.body[-1] is entrypoints[0]
 
 
 def test_copy_cas_receipt_verifies_digest_and_layout(tmp_path: Path) -> None:
@@ -211,9 +226,9 @@ def test_record_without_positive_rights_is_excluded_without_human_claim():
          "reason_codes": ["SOURCE_HTTP_403"]},
         {"reviewer_a": reviewer, "reviewer_b": {**reviewer, "identity": "agent-b",
          "context_sha256": "e" * 64}, "restriction_signals": [],
-         "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V3",
+         "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5",
          "text_assembly": [{"page_number": 1,
-                            "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V3"}]},
+                            "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"}]},
         strict_policy(), {"inventory_sha256": "1" * 64},
         decided_at_utc="2026-10-09T20:00:00Z",
     )
@@ -224,7 +239,7 @@ def test_record_without_positive_rights_is_excluded_without_human_claim():
     assert record["checks"]["explicit_rights_basis_present"] is False
     assert record["reason_codes"]
     assert record["page_scans"][0]["page_number"] == 1
-    assert record["assembly_protocol"] == "NEXUS_REVIEW_TEXT_ASSEMBLY_V3"
+    assert record["assembly_protocol"] == "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
     assert record["text_assembly"][0]["page_number"] == 1
 
 
@@ -306,9 +321,24 @@ def test_pack_index_binds_actual_inventory_and_zero_approval_population():
 
 def test_draft_mandate_cannot_materialize_final_sheet(tmp_path: Path):
     root = Path(__file__).resolve().parents[2]
+    paths = (
+        "docs/reports/go_live/student_public_rights_individual_review_packet_20261009.json",
+        "governance/student_public_rights/delegated_review_policy_v1.yml",
+        "governance/student_public_rights/delegation_abenrhouma_20261009.yml",
+        "governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json",
+        "scripts/go_live/student_rights_pdf_scan.py",
+    )
+    for relative in paths:
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((root / relative).read_bytes())
+    mandate = tmp_path / paths[2]
+    mandate.write_text(mandate.read_text().replace(
+        "status: SEALED_PENDING_FINAL_APPROVAL", "status: DRAFT_UNSEALED", 1,
+    ))
     with pytest.raises(ValueError, match="POLICY_OR_MANDATE_NOT_SEALED"):
         materialize_pack(
-            root, scan_checkpoints=tmp_path, source_checkpoints=tmp_path,
+            tmp_path, scan_checkpoints=tmp_path, source_checkpoints=tmp_path,
             review_checkpoints=tmp_path, decided_at_utc="2026-10-09T21:00:00Z",
         )
 

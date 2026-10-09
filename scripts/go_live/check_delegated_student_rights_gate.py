@@ -15,6 +15,7 @@ import csv
 import hashlib
 import io
 import json
+import math
 import re
 import subprocess
 import sys
@@ -36,10 +37,11 @@ SHA_RE = re.compile(r"^[0-9a-f]{64}$")
 GIT_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 REVIEW_MAX_CHARS_PER_SEGMENT = 4000
 REVIEW_VISION_RENDER_SCALE = 0.5
+REVIEW_VISION_MAX_PIXELS = 150_000
 REVIEW_VISION_MODELS = frozenset({
     "qwen3-vl:2b", "qwen2.5vl:3b", "moondream:latest", "granite3.2-vision:2b",
 })
-REVIEW_ASSEMBLY_PROTOCOL = "NEXUS_REVIEW_TEXT_ASSEMBLY_V3"
+REVIEW_ASSEMBLY_PROTOCOL = "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
 SOURCE_LEGAL_URI = "https://eduscol.education.gouv.fr/4656/mentions-legales"
 SOURCE_LICENSE_URI = "https://www.data.gouv.fr/pages/legal/licences/etalab-2.0"
 TRUE_CHECKS = (
@@ -392,7 +394,7 @@ def _reconstruct_review_requests(
 ) -> tuple[dict[tuple[str, int], dict[str, Any]], list[str]]:
     """Recompose les requêtes sans importer le reviewer ni persister le PDF.
 
-    Ce protocole V3 fige segments de 4 000 caractères et rendu vision 0,5.
+    Ce protocole V5 fige segments de 4 000 caractères et rendu vision borné.
     Une évolution du producteur nécessite une version explicite du protocole.
     """
     try:
@@ -444,16 +446,27 @@ def _reconstruct_review_requests(
                 graphic = bool(page.get_image_info()) or bool(page.get_drawings()) or bool(annotations)
                 ocr = ""
                 vision_sha = None
+                vision_png = None
                 if graphic:
                     png, _ = _render_png(page, fitz)
                     ocr = _ocr_text(png)
-                    vision_pixmap = page.get_pixmap(
-                        matrix=fitz.Matrix(REVIEW_VISION_RENDER_SCALE,
-                                           REVIEW_VISION_RENDER_SCALE), alpha=False,
-                    )
-                    if vision_pixmap.width * vision_pixmap.height > 4_000_000:
+                    area = page.rect.width * page.rect.height
+                    if area <= 0:
                         return {}, ["REVIEW_REQUEST_VISION_RENDER_INVALID"]
-                    vision_sha = _sha256(vision_pixmap.tobytes("png"))
+                    scale = min(REVIEW_VISION_RENDER_SCALE,
+                                math.sqrt(REVIEW_VISION_MAX_PIXELS / area))
+                    for _ in range(8):
+                        vision_pixmap = page.get_pixmap(
+                            matrix=fitz.Matrix(scale, scale), alpha=False,
+                        )
+                        if (vision_pixmap.width * vision_pixmap.height
+                                <= REVIEW_VISION_MAX_PIXELS):
+                            vision_png = vision_pixmap.tobytes("png")
+                            break
+                        scale *= 0.995
+                    if vision_png is None:
+                        return {}, ["REVIEW_REQUEST_VISION_RENDER_INVALID"]
+                    vision_sha = _sha256(vision_png)
                 residual_ocr, removed_ocr_lines = _review_residual_ocr(extracted, ocr)
                 combined = metadata + extracted + annotation_text + (
                     "\n[OCR_RESIDUAL]\n" + residual_ocr if residual_ocr else ""
@@ -465,8 +478,8 @@ def _reconstruct_review_requests(
                 if graphic:
                     segments.insert(0, f"[PDF_PAGE_RENDER_SHA256:{vision_sha}]\n")
                     visual_indices.add(1)
-                    if vision_sha is not None:
-                        segment_images[1] = vision_pixmap.tobytes("png")
+                    if vision_png is not None:
+                        segment_images[1] = vision_png
                 for embedded_image in page_xmp_images:
                     image_sha = _sha256(embedded_image)
                     segments.append(f"[XMP_EMBEDDED_IMAGE_SHA256:{image_sha}]\n")

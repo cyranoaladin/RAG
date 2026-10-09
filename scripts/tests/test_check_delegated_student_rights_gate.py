@@ -46,11 +46,11 @@ def _record(sha: str = SHA) -> dict:
         "byte_size": 100,
         "scan_complete": True,
         "images_and_annexes_checked": True,
-        "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V3",
+        "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5",
         "text_assembly": [
             {
                 "page_number": n,
-                "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V3",
+                "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5",
                 "extracted_text_sha256": H("1"), "ocr_full_sha256": H("2"),
                 "ocr_residual_sha256": H("3"),
                 "ocr_exact_duplicate_lines_removed": 0,
@@ -443,7 +443,7 @@ def test_real_pdf_request_hashes_reconstruct_and_resealed_receipt_tamper_fails(t
     )
 
 
-def test_v3_xmp_image_and_residual_ocr_requests_reconstruct(
+def test_v5_xmp_image_and_residual_ocr_requests_reconstruct(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ):
     import base64
@@ -503,7 +503,7 @@ def test_v3_xmp_image_and_residual_ocr_requests_reconstruct(
         receipt_dir=tmp_path / "evidence" / "receipts",
     )
     facts = reviewed["text_assembly"][0]
-    assert facts["assembly_protocol"] == "NEXUS_REVIEW_TEXT_ASSEMBLY_V3"
+    assert facts["assembly_protocol"] == "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
     assert facts["xmp_duplicate_value_count"] == 1
     assert facts["xmp_embedded_image_count"] == 1
     assert facts["ocr_exact_duplicate_lines_removed"] == 1
@@ -566,6 +566,99 @@ def test_v3_xmp_image_and_residual_ocr_requests_reconstruct(
     record["text_assembly"][0]["ocr_residual_sha256"] = H("f")
     _, errors = _reconstruct_review_requests(record, packet, tmp_path)
     assert errors == ["REVIEW_TEXT_ASSEMBLY_MISMATCH"]
+
+
+def test_v5_page_render_pixel_cap_reconstructs_image_hashes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+):
+    import math
+
+    fitz = pytest.importorskip("fitz")
+    import student_rights_pdf_scan as scanner
+    import student_rights_reviewers as reviewers
+
+    pdf = tmp_path / "pdf" / "large-page.pdf"
+    pdf.parent.mkdir()
+    document = fitz.open()
+    page = document.new_page(width=1040, height=1090)
+    page.insert_text((50, 50), "Document témoin graphique.")
+    page.draw_rect(fitz.Rect(50, 70, 100, 100))
+    pdf.write_bytes(document.tobytes())
+    document.close()
+    sha = hashlib.sha256(pdf.read_bytes()).hexdigest()
+    monkeypatch.setattr(scanner, "_ocr_text", lambda _png: "")
+    monkeypatch.setattr(reviewers, "_ocr_text", lambda _png: "")
+    images: list[bytes] = []
+
+    def transport(_model_id, _system_prompt, payload, _parameters, image_png):
+        if image_png is not None:
+            images.append(image_png)
+        return {
+            "page_number": payload["page_number"],
+            "segment_index": payload["segment_index"],
+            "segment_count": payload["segment_count"],
+            "verdict": "PASS", "confidence": "HIGH", "reason_codes": [],
+            "evidence_pages": [payload["page_number"]],
+            "visual_examined": image_png is not None,
+            **({"positive_rights_notice_present": True}
+               if payload["review_domain"] == "reviewer_a" else {}),
+        }
+
+    transport.supports_vision = True
+    reviewed = reviewers.review_document(
+        pdf, sha, transport=transport, model_id="granite3.2-vision:2b",
+        model_version="sha256:test", parameters={"temperature": 0, "seed": 17},
+        rights_evidence_positive=True, vision_enabled=True,
+        receipt_dir=tmp_path / "evidence" / "receipts",
+    )
+    assert reviewed["assembly_protocol"] == "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
+    assert images
+    rendered = fitz.Pixmap(images[0])
+    assert rendered.width * rendered.height <= 150_000
+    assert 520 * 545 > 150_000
+    record = {
+        "content_sha256": sha, "page_count": 1,
+        "assembly_protocol": reviewed["assembly_protocol"],
+        "text_assembly": reviewed["text_assembly"],
+        "reviewer_a": reviewed["reviewer_a"], "reviewer_b": reviewed["reviewer_b"],
+    }
+    packet = {"source_path": "pdf/large-page.pdf", "content_sha256": sha,
+              "page_count": 1}
+    proofs, errors = _reconstruct_review_requests(record, packet, tmp_path)
+    assert errors == []
+    assert _verify_review_receipts(record, tmp_path / "evidence", proofs) == []
+    with fitz.open(pdf) as original:
+        original_page = original[0]
+        scale = min(0.5, math.sqrt(
+            200_000 / (original_page.rect.width * original_page.rect.height)
+        ))
+        for _ in range(8):
+            old_pixmap = original_page.get_pixmap(
+                matrix=fitz.Matrix(scale, scale), alpha=False,
+            )
+            if old_pixmap.width * old_pixmap.height <= 200_000:
+                break
+            scale *= 0.995
+        else:
+            pytest.fail("Le rendu V4 témoin n'atteint pas son plafond")
+        assert old_pixmap.width * old_pixmap.height > 150_000
+        old_image_sha = hashlib.sha256(old_pixmap.tobytes("png")).hexdigest()
+    assert old_image_sha != hashlib.sha256(images[0]).hexdigest()
+    ref = record["reviewer_a"]["evidence_refs"][0]
+    digest = ref.split(":", 1)[1]
+    receipt_path = tmp_path / "evidence" / "receipts" / digest[:2] / f"{digest}.json"
+    receipt = json.loads(receipt_path.read_bytes())
+    receipt["image_sha256"] = old_image_sha
+    forged = _receipt_bytes(receipt)
+    forged_digest = hashlib.sha256(forged).hexdigest()
+    forged_path = (tmp_path / "evidence" / "receipts" / forged_digest[:2]
+                   / f"{forged_digest}.json")
+    forged_path.parent.mkdir(parents=True, exist_ok=True)
+    forged_path.write_bytes(forged)
+    record["reviewer_a"]["evidence_refs"][0] = f"sha256:{forged_digest}"
+    assert "REVIEWER_A_RECEIPT_REQUEST_MISMATCH" in _verify_review_receipts(
+        record, tmp_path / "evidence", proofs
+    )
 
 
 def test_gate_requires_source_mirror_even_for_otherwise_sealed_pack(sealed_pack):
@@ -765,7 +858,7 @@ def sealed_pack(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[Path, 
                         observation["positive_rights_notice_present"] = True
                     receipt = {
                         "kind": "NEXUS-STUDENT-REVIEW-SEGMENT-RECEIPT-V1",
-                        "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V3",
+                        "assembly_protocol": "NEXUS_REVIEW_TEXT_ASSEMBLY_V5",
                         "content_sha256": record["content_sha256"],
                         "reviewer_identity": reviewer["identity"], "page_number": page,
                         "segment_index": 1, "segment_count": 1, "run_nonce": nonce,

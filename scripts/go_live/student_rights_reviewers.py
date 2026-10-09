@@ -11,6 +11,7 @@ import base64
 import binascii
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
@@ -30,7 +31,8 @@ VISION_MODELS = frozenset({
 })
 MAX_CHARS_PER_SEGMENT = 4000
 VISION_RENDER_SCALE = 0.5
-TEXT_ASSEMBLY_PROTOCOL = "NEXUS_REVIEW_TEXT_ASSEMBLY_V3"
+MAX_VISION_PIXELS = 150_000
+TEXT_ASSEMBLY_PROTOCOL = "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
 REASON_CODE = re.compile(r"[A-Z][A-Z0-9_]*\Z")
 ALLOWED_REASON_CODES = frozenset({
     "RIGHTS_NOTICE_ABSENT", "RESTRICTIVE_NOTICE", "THIRD_PARTY_UNLICENSED",
@@ -177,6 +179,20 @@ def _validate_observation(
 
 def _segments(text: str, max_chars: int) -> list[str]:
     return [text[start:start + max_chars] for start in range(0, len(text), max_chars)] or [""]
+
+
+def _vision_render_png(page, fitz, max_scale: float) -> bytes:
+    """Rendu visuel borné ; OCR et empreinte scanner restent à leur résolution."""
+    area = page.rect.width * page.rect.height
+    if area <= 0:
+        raise ReviewError("VISION_RENDER_SIZE_EXCEEDED")
+    scale = min(max_scale, math.sqrt(MAX_VISION_PIXELS / area))
+    for _ in range(8):
+        pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
+        if pixmap.width * pixmap.height <= MAX_VISION_PIXELS:
+            return pixmap.tobytes("png")
+        scale *= 0.995
+    raise ReviewError("VISION_RENDER_SIZE_EXCEEDED")
 
 
 def _residual_ocr(extracted: str, ocr: str) -> tuple[str, int]:
@@ -491,13 +507,7 @@ def review_document(
             if graphic:
                 png, _ = _render_png(page, fitz)
                 ocr = _ocr_text(png)
-                vision_pixmap = page.get_pixmap(
-                    matrix=fitz.Matrix(vision_render_scale, vision_render_scale),
-                    alpha=False,
-                )
-                if vision_pixmap.width * vision_pixmap.height > 4_000_000:
-                    raise ReviewError("VISION_RENDER_SIZE_EXCEEDED")
-                vision_png = vision_pixmap.tobytes("png")
+                vision_png = _vision_render_png(page, fitz, vision_render_scale)
             residual_ocr, discarded_ocr_lines = _residual_ocr(extracted, ocr)
             combined = metadata + extracted + annotations_text + (
                 "\n[OCR_RESIDUAL]\n" + residual_ocr if residual_ocr else ""

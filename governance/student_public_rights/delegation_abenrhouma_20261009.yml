@@ -1,6 +1,6 @@
 mandate_kind: NEXUS_DELEGATED_STUDENT_PUBLIC_RIGHTS_MANDATE_V1
 delegation_id: nexus-student-public-rights-abenrhouma-20261009-v1
-status: DRAFT_UNSEALED
+status: SEALED_PENDING_FINAL_APPROVAL
 effective_authority: false
 delegating_authority: abenrhouma
 final_approving_authority: abenrhouma
@@ -23,19 +23,19 @@ source_binding:
   inventory_count: 315
   inventory_identity_rule: sorted_lowercase_sha256_plus_newline
   policy_path: governance/student_public_rights/delegated_review_policy_v1.yml
-  policy_sha256: null
+  policy_sha256: dc978e171af49f39e87c1380f959b19d65cf76cdf80d3605e467c4cdd7f8ec01
   schema_path: governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json
-  schema_sha256: null
+  schema_sha256: 083787deeee4dbd62003e791e88c03846a4790b401d1310f8f6a9b9c3609f374
   engine_path: scripts/go_live/adjudicate_student_public_rights.py
-  engine_code_sha256: null
+  engine_code_sha256: 9a77564dddfedb1eaae501808b011771d256845cf4f6d766075fec4b4ff1e50a
   scanner_path: scripts/go_live/student_rights_pdf_scan.py
-  scanner_code_sha256: null
+  scanner_code_sha256: 2b69a7e10504ea2463af49e2bc1ebe6fc19b638d920dcb904eb262386d7025bb
   source_checker_path: scripts/go_live/student_rights_source_check.py
-  source_checker_code_sha256: null
+  source_checker_code_sha256: c4918eb4e85ebe0bbb2c96f52168e795e6615fc9d37bb5911641fb09f2597d9f
   reviewer_path: scripts/go_live/student_rights_reviewers.py
-  reviewer_code_sha256: null
+  reviewer_code_sha256: 8aa3f1fba52882b26151bad2c9cefbdcebd1be50a118e9d5ca32566019d1ebc9
   independent_verifier_path: scripts/go_live/check_delegated_student_rights_gate.py
-  independent_verifier_code_sha256: null
+  independent_verifier_code_sha256: 8423d57b4d7d8aee1292390f13007c86135f17859624133355a91bc98ff63a87
   final_pr_base_sha: null
   final_pr_head_sha: null
   final_pr_tree_sha: null
@@ -43,20 +43,20 @@ source_binding:
 automated_reviewers:
   reviewer_a:
     role: rights_license_restrictions_third_party_currentness_revocation
-    agent_identity: null
-    model_id: null
-    model_version: null
-    prompt_path: null
-    prompt_sha256: null
-    deterministic_parameters: null
+    agent_identity: nexus-reviewer-a-automated-v1
+    model_id: granite3.2-vision:2b
+    model_version: sha256:3be41a661804ad72cd08269816c5a145f1df6479ad07e2b3a7e29dba575d2669
+    prompt_path: governance/student_public_rights/prompts/reviewer_a_v1.txt
+    prompt_sha256: 0fb7775b5abb89a03ab66c71c4e6a111b21d2c3f5c73cce4873d65fac202557b
+    deterministic_parameters: {temperature: 0, seed: 17, num_ctx: 4096, num_predict: 320}
   reviewer_b:
     role: student_suitability_pii_images_annexes_teacher_only_answer_keys
-    agent_identity: null
-    model_id: null
-    model_version: null
-    prompt_path: null
-    prompt_sha256: null
-    deterministic_parameters: null
+    agent_identity: nexus-reviewer-b-automated-v1
+    model_id: granite3.2-vision:2b
+    model_version: sha256:3be41a661804ad72cd08269816c5a145f1df6479ad07e2b3a7e29dba575d2669
+    prompt_path: governance/student_public_rights/prompts/reviewer_b_v1.txt
+    prompt_sha256: 52fa6e184d13a6791cb1a9ed9005bc4b7ba4a9a6bc2426e85b6b58115353611a
+    deterministic_parameters: {temperature: 0, seed: 17, num_ctx: 4096, num_predict: 320}
   independent_contexts_required: true
   candidate_approval_classification_runs: 2
   any_divergence_disposition: EXCLUDE
@@ -99,9 +99,9 @@ final_activation_conditions:
   - trusted_human_review_head_pinned_success
   - successor_public_release_separately_scoped_and_authorized
 non_authorizing_draft_note: >-
-  Les valeurs null signalent des empreintes et identités non encore scellées.
-  Ce fichier en état DRAFT_UNSEALED n'accorde aucun droit d'accès étudiant et
-  ne peut être interprété comme une revue humaine des 315 PDF. L'instruction
-  explicite de l'autorité autorise la préparation et l'exécution restrictive
-  de l'adjudication, mais l'autorité de publication n'existe qu'après le gate
-  terminal exact-HEAD et les nouvelles releases gouvernées.
+  Le mandat scellé lie les codes, prompts, modèle et politique, mais sa valeur
+  effective_authority reste false jusqu'à l'approbation terminale exact-HEAD.
+  Les SHA de PR restent null ici pour éviter une auto-référence du commit ; le
+  challenge du vérificateur les lie au pack final. Ce mandat n'accorde aucun
+  droit d'accès étudiant et ne peut être interprété comme une revue humaine
+  des 315 PDF. La publication exige ensuite une release successeur gouvernée.

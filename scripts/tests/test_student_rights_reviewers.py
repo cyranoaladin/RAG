@@ -464,6 +464,37 @@ def test_vision_render_can_be_bounded_to_half_scale_without_changing_pdf_scan(
     assert result["reviewer_a"]["complete"] is True
 
 
+def test_large_graphic_page_render_is_capped_without_losing_text_or_vision(
+    tmp_path: Path, monkeypatch
+) -> None:
+    path = tmp_path / "large-graphic.pdf"
+    document = fitz.open()
+    page = document.new_page(width=1040, height=1090)
+    page.insert_text((20, 40), "PRIVATE_LARGE_PAGE_CANARY")
+    page.draw_rect(fitz.Rect(100, 100, 500, 500), color=(1, 0, 0))
+    document.save(path)
+    document.close()
+    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    import student_rights_reviewers as reviewers
+
+    monkeypatch.setattr(reviewers, "_ocr_text", lambda _png: "")
+    model = FakeModel()
+    result = _run(path, sha, model, vision_enabled=True)
+
+    a_calls = [call for call in model.calls if call["payload"]["review_domain"] == "reviewer_a"]
+    width, height = a_calls[0]["image_size"]
+    assert (width, height) == (377, 395)
+    assert width * height <= 150_000
+    assert a_calls[0]["payload"]["page_text_segment"].startswith(
+        "[PDF_PAGE_RENDER_SHA256:"
+    )
+    assert a_calls[1]["image_seen"] is False
+    assert "PRIVATE_LARGE_PAGE_CANARY" in a_calls[1]["payload"]["page_text_segment"]
+    assert result["reviewer_a"]["complete"] is True
+    assert result["reviewer_b"]["complete"] is True
+    assert "PRIVATE_LARGE_PAGE_CANARY" not in json.dumps(result)
+
+
 def test_batch_reviews_selected_sha_with_checkpointed_private_summary_and_receipts(
     tmp_path: Path,
 ) -> None:

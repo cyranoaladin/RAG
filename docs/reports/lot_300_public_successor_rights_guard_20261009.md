@@ -37,22 +37,43 @@ propre au HEAD SHA-1 exact (40 hex) et relit tous les reçus CAS A/B de chaque
 page et segment, avec leurs hachages, leur couverture et l'agrégat des
 observations. Il reconstruit indépendamment `request_sha256` et
 `context_sha256` depuis les octets du PDF, le texte, les rendus et l'OCR.
-Le protocole d'assemblage V3 projette les valeurs XMP uniques et vérifie les
+Le protocole d'assemblage V5 projette les valeurs XMP uniques et vérifie les
 images incorporées séparément, retire seulement les lignes OCR identiques au
 texte extrait, puis lie chaque page au record par `text_assembly`. Une page
 graphique commence par un segment visuel court portant le SHA du rendu ; les
-segments textuels suivent, bornés à 4 000 caractères, avec rendu vision à 0,5.
+segments textuels suivent, bornés à 4 000 caractères. Le rendu vision est
+plafonné à 150 000 pixels par une échelle déterministe au plus égale à 0,5 ;
+l'OCR/scanner reste à sa résolution distincte.
 Les deux classifications d'un candidat positif portent des nonces 0 et 1,
 des reçus CAS distincts et des agrégats d'observation concordants. Son succès n'est pas
 l'approbation terminale exacte de l'autorité, ni une autorisation de déployer.
 
-Validation V3 : la suite combinée du lot (moteur, scanner, revues, sources,
-vérificateur, porte et producteur) compte 176 tests verts, dont le test
-d'intégration du `main` réel prouvant le refus avant écriture. Les 45 tests
-du vérificateur couvrent notamment le segment visuel court et les sabotages
-XMP/OCR, ainsi que le refus d'un reçu textuel revendiquant une inspection
-visuelle sans image. `ruff`, `mypy`, la validité du schéma JSON et `git diff --check` sont
-verts. Un smoke V3 strict sur un PDF CAS exact
+Validation V5 : la suite combinée du lot (moteur, scanner, revues, sources,
+vérificateur, porte et producteur) compte 179 tests verts, dont le test
+d'intégration du `main` réel prouvant le refus avant écriture. Les 46 tests
+du vérificateur couvrent le segment visuel court, les sabotages XMP/OCR, le
+refus d'un reçu textuel revendiquant une inspection visuelle sans image, le
+rendu borné d'une page dépassant 150 000 pixels et le refus d'un reçu modifié
+et rehaché portant le rendu V4 de 200 000 pixels. `ruff`, `mypy`, la validité
+du schéma JSON et `git diff --check` sont verts.
+Le smoke modèle V4 sur le PDF CAS
+`85319cb509247343b082abed6012c50ebd157134fd6ce84150cf852ae4f870fb`
+est rouge : le rendu de 435 × 456 pixels (198 360 pixels) provoque
+`MODEL_HTTP_400`, la requête comptant 4 269 tokens pour un contexte disponible
+de 4 096. Seuls 2 reçus sur 3 existent pour chacun des reviewers A et B.
+Ce protocole n'est donc pas qualifié sur la page témoin. Une sonde directe à
+150 000 pixels sur ce même PDF a reçu HTTP 200 et un JSON complet de neuf clés,
+avec `visual_examined=true`. Le smoke CLI V5 frais a ensuite terminé sans
+erreur de transport : A/B complets, trois segments et trois reçus chacun. Son
+résumé structuré a pour SHA256
+`af90418016a48195f901c4868e3ae9a7108182bd7e90b582afddce427379a491`.
+Le gate a relu les octets du PDF exact et reconstruit le rendu 377 × 395 pixels
+(148 915 pixels, deux essais), puis les six empreintes de requête/image et les
+six reçus CAS : zéro divergence. Les deux observations avec image indiquent
+`visual_examined=true`, les quatre sans image `false`. Les deux verdicts restent
+`FAIL` avec confiance basse : ce résultat valide la concordance technique V5
+sur un document, sans autoriser sa publication ni qualifier les 315 PDF.
+Un smoke V3 strict historique sur un PDF CAS exact
 `8eb23c91b035d968bb90019912190bb09b165dbe5ee7573d39217b142047d084`
 a produit 7 segments par reviewer et 14 reçus CAS valides, sans erreur de
 transport. Son résumé structuré a pour SHA256
@@ -61,8 +82,8 @@ Sur ce PDF réel, le vérificateur a reconstruit indépendamment les 14 empreint
 de requête et d'image : aucune divergence ; 4 reçus avec image revendiquent une
 inspection visuelle et les 10 reçus sans image déclarent correctement
 `visual_examined=false`. Les deux reviewers ont rendu `FAIL`. Ce smoke démontre
-la concordance du protocole pour un PDF ; il ne prouve ni la véracité des
-observations du modèle ni 315 revues complètes.
+la concordance du protocole V3 pour un PDF ; il n'est pas une preuve du V4 et
+ne prouve ni la véracité des observations du modèle ni 315 revues complètes.
 Les 72 tests existants du producteur sont verts dans un venv temporaire avec
 `pypdf==6.14.2`, version déclarée par le producteur. Le Python système porte
 `pypdf==6.16.1` et fait échouer uniquement le contrôle de runtime canonique ;

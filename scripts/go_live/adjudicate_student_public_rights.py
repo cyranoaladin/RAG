@@ -50,7 +50,7 @@ SUPPORTED_RIGHTS_BASES = frozenset(
 )
 DECISION_EXECUTOR = "nexus-delegated-student-rights-adjudicator-v1"
 DELEGATION_ID = "nexus-student-public-rights-abenrhouma-20261009-v1"
-TEXT_ASSEMBLY_PROTOCOL = "NEXUS_REVIEW_TEXT_ASSEMBLY_V3"
+TEXT_ASSEMBLY_PROTOCOL = "NEXUS_REVIEW_TEXT_ASSEMBLY_V5"
 SHEET_COLUMNS = (
     "content_sha256", "source_release", "collections", "source_path",
     "source_listing_url", "page_count", "source_pii_status",
@@ -452,10 +452,6 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    sys.exit(main())
-
-
 def render_decision_sheet(items: list[tuple[dict, dict, str]]) -> bytes:
     """Génère la feuille #300 uniquement à partir des décisions scellées."""
     output = io.StringIO(newline="")
@@ -846,3 +842,7 @@ def adjudicate_artifact(
     ):
         reasons.append("CANDIDATE_REPLAY_DIVERGENCE")
     return _result(reasons)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

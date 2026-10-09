@@ -1,6 +1,6 @@
 policy_kind: DELEGATED_AUTOMATED_STUDENT_PUBLIC_RIGHTS_ADJUDICATION_V1
 policy_version: '1.0.0'
-status: PROPOSED_NOT_ACTIVE
+status: SEALED_PENDING_FINAL_APPROVAL
 adr: docs/adr/ADR-0068-delegation-agentique-droits-etudiants.md
 delegating_authority: abenrhouma
 decision_authority_basis: VERSIONED_DELEGATION_EXACT_HEAD_APPROVAL
