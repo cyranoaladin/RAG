@@ -39,6 +39,7 @@ def _inputs(tmp_path: Path) -> tuple[Path, bytes, dict, dict]:
         "assert_readiness": lambda: True,
         "deployment_state_root": tmp_path / "state",
         "prometheus_probe": lambda _port: True,
+        "host_local_guard": lambda: True,
         "project_inventory": lambda _project: {"containers": [], "networks": [], "volumes": []},
         "project_containers": lambda _project: _owned_containers(bundle),
     }
@@ -216,6 +217,7 @@ def test_explicit_public_rollback_uses_only_candidate_bundle(tmp_path: Path) -> 
         run_subprocess=run,
         deployment_state_root=options["deployment_state_root"],
         project_containers=lambda _project: _owned_containers(bundle),
+        host_local_guard=lambda: True,
     )
     assert len(calls) == 1
     assert calls[0][-3:] == ["down", "--timeout", "10"]
@@ -239,6 +241,7 @@ def test_old_bundle_cannot_rollback_new_generation(tmp_path: Path) -> None:
             run_subprocess=lambda *_: pytest.fail("down from old bundle"),
             deployment_state_root=new["deployment_state_root"],
             project_containers=lambda _project: _owned_containers(new_bundle),
+            host_local_guard=lambda: True,
         )
 
 
@@ -282,6 +285,7 @@ def test_concurrent_candidate_deploy_refused_before_second_inventory(tmp_path: P
     assert pulling.wait(10)
     try:
         second = dict(options)
+        second["deployment_state_root"] = tmp_path / "different-state-root"
         second["project_inventory"] = lambda _project: pytest.fail("second inventory")
         with pytest.raises(dep.DeploymentWrapperError, match="lock|busy"):
             dep.deploy_from_bundle(**second)
@@ -358,6 +362,13 @@ def test_real_prometheus_probe_requires_loaded_retrieval_alerts(
     assert dep._default_public_prometheus_probe(19090) is False
 
 
+def test_public_host_guard_refuses_remote_docker_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DOCKER_HOST", "tcp://remote.example:2376")
+    assert dep._require_host_local_docker_daemon() is False
+
+
 def test_public_cli_execute_requires_explicit_final_go_before_materialization(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -374,6 +385,20 @@ def test_public_cli_execute_requires_explicit_final_go_before_materialization(
     assert "final cutover GO" in capsys.readouterr().err
 
 
+def test_public_cli_execute_requires_stable_state_root_before_materialization(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    result = dep.main([
+        "--merge-sha", SHA, "--merge-tree-sha", "b" * 40,
+        "--provenance-run-id", "777", "--provenance-run-attempt", "1",
+        "--bundle-dir", str(tmp_path / "absent"),
+        "--readiness-protocol", "NEXUS-PRODUCTION-READINESS-V2",
+        "--public-candidate", "--execute", "--final-cutover-go",
+    ])
+    assert result == 1
+    assert "deployment-state-root" in capsys.readouterr().err
+
+
 def test_public_cli_forwards_final_go_and_returns_candidate_status(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -385,7 +410,7 @@ def test_public_cli_forwards_final_go_and_returns_candidate_status(
         merge_sha=SHA, merge_tree_sha="b" * 40,
         provenance_run_id=777, provenance_run_attempt=1,
         environment="production", bundle_dir=tmp_path / "bundle",
-        deployment_state_root=None, json_output=True,
+        deployment_state_root=tmp_path / "state", json_output=True,
         public_color="blue", public_material_root=tmp_path / "release-x",
         public_secrets_root=tmp_path / "secrets",
     )
@@ -441,6 +466,7 @@ def test_public_cli_rollback_uses_existing_bundle_without_rematerialization(
         "--provenance-run-id", "777",
         "--provenance-run-attempt", "1",
         "--bundle-dir", str(tmp_path / "candidate-bundle"),
+        "--deployment-state-root", str(tmp_path / "state"),
         "--public-candidate", "--public-color", "blue",
         "--rollback-public-candidate", "--json-output",
     ]) == 0

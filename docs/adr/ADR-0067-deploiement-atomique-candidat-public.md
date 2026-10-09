@@ -35,9 +35,17 @@ le chargement des quatre alertes du groupe `retrieval-v2`. Le succès de
 writer ou endpoint d'ingestion n'est ajouté. `--remove-orphans` et le projet
 historique `infra` sont absents.
 
-Un verrou exclusif non bloquant par couleur, dans le répertoire d'état privé
-host-local, couvre le premier inventaire puis tout `pull`, `up` et éventuel
-`down`. Après succès, un état 0600 fixe digest du bundle, chemin du bundle,
+Un verrou exclusif non bloquant par couleur dans l'espace réseau du daemon
+Docker local couvre le premier inventaire puis tout `pull`, `up` et éventuel
+`down`, même si deux processus reçoivent des répertoires d'état distincts.
+Avant ce verrou, le CLI exige l'endpoint Unix Docker local, vérifie son pair
+`SO_PEERCRED` (daemon direct ou activation par `docker.socket` de systemd) et
+refuse un namespace réseau différent de celui du daemon. La voie publique
+exige en outre `--deployment-state-root` explicite, privé et durable ; le même
+chemin doit être repris pour son rollback. Cette exclusion est limitée aux
+invocations host-local de ce wrapper ; un acteur Docker extérieur à ce
+protocole n'acquiert pas son verrou. Après succès, un état 0600 fixe digest du
+bundle, chemin du bundle,
 SHA source et identifiants des cinq conteneurs. Le rollback explicite refuse
 un ancien bundle ou des conteneurs dont les IDs ou les labels Compose ne
 correspondent plus à cette génération. Si `up` échoue, expire, ou si la sonde

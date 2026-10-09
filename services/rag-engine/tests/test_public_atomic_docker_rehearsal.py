@@ -95,6 +95,7 @@ def test_public_atomic_docker_candidate_refusals_rollback_and_foreign_witness(
         "project_containers": dep._default_project_containers,
         "deployment_state_root": tmp_path / "state",
         "prometheus_probe": lambda _port: True,
+        "host_local_guard": dep._require_host_local_docker_daemon,
     }
     try:
         with pytest.raises(dep.DeploymentWrapperError, match="assert-ready"):

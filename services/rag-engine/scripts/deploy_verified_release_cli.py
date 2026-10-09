@@ -72,7 +72,9 @@ import hashlib
 import json
 import os
 import secrets
+import socket
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
@@ -159,6 +161,7 @@ ProjectInventory = Callable[[str], dict[str, list[str]]]
 ReadinessAssert = Callable[[], bool]
 ProjectContainers = Callable[[str], list[dict[str, Any]]]
 PrometheusProbe = Callable[[int], bool]
+HostLocalGuard = Callable[[], bool]
 
 
 class DeploymentWrapperError(RuntimeError):
@@ -2153,15 +2156,87 @@ def _require_empty_public_project(project: str, inventory: ProjectInventory) -> 
         raise DeploymentWrapperError("pre-existing resources in candidate project")
 
 
+def _require_host_local_docker_daemon() -> bool:
+    """Refuse un proxy/daemon distant ou un namespace distinct du daemon local."""
+    if os.environ.get("DOCKER_HOST") or os.environ.get("DOCKER_CONTEXT"):
+        return False
+    try:
+        context = subprocess.run(
+            ["docker", "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        endpoint = json.loads(context.stdout) if context.returncode == 0 else None
+        if endpoint not in {"unix:///var/run/docker.sock", "unix:///run/docker.sock"}:
+            return False
+        socket_path = endpoint.removeprefix("unix://")
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer_socket:
+            peer_socket.settimeout(2)
+            peer_socket.connect(socket_path)
+            peer_pid, _uid, _gid = struct.unpack(
+                "3i", peer_socket.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+            )
+        peer_comm = (Path("/proc") / str(peer_pid) / "comm").read_text(
+            encoding="ascii"
+        ).strip()
+        daemon_pid = peer_pid
+        if peer_comm == "systemd" and peer_pid == 1:
+            unit = subprocess.run(
+                ["systemctl", "show", "docker.socket", "-p", "ActiveState",
+                 "-p", "Listen", "-p", "Triggers", "--no-pager"],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            fields = dict(line.split("=", 1) for line in unit.stdout.splitlines() if "=" in line)
+            if (unit.returncode != 0 or fields.get("ActiveState") != "active"
+                    or fields.get("Triggers") != "docker.service"
+                    or str(Path(socket_path).resolve()) not in fields.get("Listen", "")):
+                return False
+            service = subprocess.run(
+                ["systemctl", "show", "docker.service", "-p", "MainPID",
+                 "-p", "ActiveState", "--no-pager"],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            fields = dict(line.split("=", 1) for line in service.stdout.splitlines() if "=" in line)
+            if (service.returncode != 0 or fields.get("ActiveState") != "active"
+                    or not fields.get("MainPID", "").isdecimal()):
+                return False
+            daemon_pid = int(fields["MainPID"])
+        elif peer_comm != "dockerd":
+            return False
+        if daemon_pid < 2 or (Path("/proc") / str(daemon_pid) / "comm").read_text(
+            encoding="ascii"
+        ).strip() != "dockerd":
+            return False
+        own_net = os.stat("/proc/self/net/dev")
+        daemon_net = os.stat(f"/proc/{daemon_pid}/net/dev")
+        return (own_net.st_dev, own_net.st_ino) == (daemon_net.st_dev, daemon_net.st_ino)
+    except (OSError, UnicodeError, subprocess.SubprocessError, json.JSONDecodeError,
+            ValueError, struct.error):
+        return False
+
+
 @contextlib.contextmanager
-def _public_color_lock(state_root: Path | None, color: str) -> Iterator[int]:
-    """Sérialise les mutations d'une couleur sur cet hôte avant tout inventaire."""
+def _public_color_lock(
+    state_root: Path | None, color: str, host_local_guard: HostLocalGuard,
+) -> Iterator[int]:
+    """Verrou canonique de couleur dans le namespace réseau du daemon local."""
     if state_root is None or color not in {"blue", "green"}:
         raise DeploymentWrapperError("public candidate requires a stable deployment state root")
+    if host_local_guard() is not True:
+        raise DeploymentWrapperError("public candidate requires host-local Docker namespace")
     absolute = Path(os.path.abspath(state_root))
     if absolute == Path(absolute.anchor):
         raise DeploymentWrapperError("deployment state root cannot be filesystem root")
-    parent = _open_directory_no_follow(absolute.parent)
+    global_lock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        global_lock.bind(f"\0nexus-rag-public-{color}-deployment-v1")
+    except OSError as exc:
+        global_lock.close()
+        raise DeploymentWrapperError("public candidate color lock is busy or unavailable") from exc
+    try:
+        parent = _open_directory_no_follow(absolute.parent)
+    except OSError as exc:
+        global_lock.close()
+        raise DeploymentWrapperError("deployment state parent cannot be opened safely") from exc
     root = lock = -1
     try:
         root, _ = _open_or_create_private_child(
@@ -2188,6 +2263,7 @@ def _public_color_lock(state_root: Path | None, color: str) -> Iterator[int]:
         if root >= 0:
             os.close(root)
         os.close(parent)
+        global_lock.close()
 
 
 def _public_state_name(color: str) -> str:
@@ -2366,6 +2442,7 @@ def rollback_public_candidate_from_bundle(
     run_subprocess: RunSubprocess = _default_run_subprocess,
     deployment_state_root: Path | None = None,
     project_containers: ProjectContainers = _default_project_containers,
+    host_local_guard: HostLocalGuard = _require_host_local_docker_daemon,
 ) -> None:
     """Arrête seulement la couleur candidate, sans supprimer ses volumes."""
     document = _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha)
@@ -2383,7 +2460,7 @@ def rollback_public_candidate_from_bundle(
         vri._PUBLIC_CANDIDATE_SERVICES
     ):
         raise DeploymentWrapperError("rollback project or services differ from candidate bundle")
-    with _public_color_lock(deployment_state_root, public_color) as state_root:
+    with _public_color_lock(deployment_state_root, public_color, host_local_guard) as state_root:
         if _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha) != document:
             raise DeploymentWrapperError("public rollback bundle changed before mutation")
         current_effective = run_bundle_compose_config(
@@ -2433,6 +2510,7 @@ def _deploy_public_candidate_from_bundle(
     deployment_state_root: Path | None,
     project_containers: ProjectContainers,
     prometheus_probe: PrometheusProbe | None,
+    host_local_guard: HostLocalGuard,
 ) -> list[str]:
     if public_final_cutover_go is not True:
         raise DeploymentWrapperError("public candidate remains plan-only until final cutover GO")
@@ -2450,7 +2528,7 @@ def _deploy_public_candidate_from_bundle(
         repo_root=public_repo_root,
     )
     assert public_color is not None
-    with _public_color_lock(deployment_state_root, public_color) as state_root:
+    with _public_color_lock(deployment_state_root, public_color, host_local_guard) as state_root:
         if _read_public_state(state_root, public_color) is not None:
             raise DeploymentWrapperError("public candidate color has an active generation")
         _require_empty_public_project(project, project_inventory)
@@ -2560,6 +2638,7 @@ def deploy_from_bundle(
     project_inventory: ProjectInventory = _default_project_inventory,
     project_containers: ProjectContainers = _default_project_containers,
     prometheus_probe: PrometheusProbe | None = None,
+    host_local_guard: HostLocalGuard = _require_host_local_docker_daemon,
 ) -> list[str]:
     """Phase 3 (déployer) — toujours et uniquement depuis ``bundle_dir``,
     contre une liste explicite de services.
@@ -2611,6 +2690,7 @@ def deploy_from_bundle(
                 deployment_state_root=deployment_state_root,
                 project_containers=project_containers,
                 prometheus_probe=prometheus_probe,
+                host_local_guard=host_local_guard,
             )
         return [
             "PUBLIC_CANDIDATE_VERIFIED=true",
@@ -2865,8 +2945,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--deployment-state-root",
         type=Path,
         default=None,
-        help="Répertoire privé durable des générations de bind V2; par défaut, "
-        "un état frère du bundle de release.",
+        help="Répertoire privé durable des générations V2 ; obligatoire pour "
+        "déployer ou annuler une couleur publique, identique entre opérations.",
     )
     p.add_argument(
         "--execute",
@@ -2890,6 +2970,9 @@ def main(argv: list[str] | None = None) -> int:
             args, "public_color", None
         ) not in {"blue", "green"}:
             print("REFUSED: public candidate rollback requires a color and forbids execute/GO", file=sys.stderr)
+            return 1
+        if args.deployment_state_root is None:
+            print("REFUSED: public rollback requires --deployment-state-root", file=sys.stderr)
             return 1
         try:
             rollback_public_candidate_from_bundle(
@@ -2915,6 +2998,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     if final_cutover_go and not (args.public_candidate and args.execute):
         print("REFUSED: final cutover GO requires public candidate execution", file=sys.stderr)
+        return 1
+    if args.public_candidate and args.execute and args.deployment_state_root is None:
+        print("REFUSED: public execution requires --deployment-state-root", file=sys.stderr)
         return 1
     if args.execute and (args.readiness_manifest_file is None or args.trust_anchor_file is None):
         print(
