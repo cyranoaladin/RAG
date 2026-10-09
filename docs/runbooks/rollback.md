@@ -78,19 +78,56 @@ toute mutation. L'exercice ci-dessous est isolé ; il ne touche pas la stack de
 production et ne démarre ni API, ni worker.
 
 ```bash
+set -euo pipefail
+: "${RESTORE_BACKUP_FILE:?exporter le chemin exact publié par BACKUP_COMPLETE}"
+: "${RESTORE_ENV_FILE:?chemin du fichier de secrets existant, sans afficher les valeurs}"
+: "${RESTORE_SOURCE_CONTAINER:?conteneur PostgreSQL source à lire seulement}"
+: "${RESTORE_SOURCE_DB:?base source du dump à lire seulement}"
+normalize_restore_paths() {
+  RESTORE_BACKUP_FILE="$(realpath -e -- "$RESTORE_BACKUP_FILE")"
+  RESTORE_ENV_FILE="$(realpath -e -- "$RESTORE_ENV_FILE")"
+}
+normalize_restore_paths
 cd services/rag-engine/infra
 
+# Les mêmes noms de base/rôle doivent servir à Compose et à pg_restore.
+# Les variables exportées priment sur un éventuel PGVECTOR_DB dans --env-file.
+PGVECTOR_DB="${PGVECTOR_DB:-ragdb}"
+PGVECTOR_USER="${PGVECTOR_USER:-raguser}"
+export PGVECTOR_DB PGVECTOR_USER
+
 # Valeurs explicites : jamais le projet production, jamais le projet infra.
-RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dT%H%M%SZ)"
-: "${RESTORE_BACKUP_FILE:?exporter le chemin exact publié par BACKUP_COMPLETE}"
+RESTORE_PROJECT="nexus-pg-restore-rehearsal-$(date -u +%Y%m%dt%H%M%Sz)"
 umask 077
 RESTORE_FIXTURE_DIR="$(mktemp -d)"
 RESTORE_COMPOSE="$RESTORE_FIXTURE_DIR/compose.yml"
+RESTORE_FINGERPRINT_SQL="$RESTORE_FIXTURE_DIR/fingerprint.sql"
 RUNTIME_ROLE_PROVISIONING="$PWD/postgres/provision_runtime_roles.sh"
+MIGRATION_STATE_LIB="$PWD/scripts/lib/pgvector_migration_state.sh"
 test -f "$RESTORE_BACKUP_FILE"
+test -f "$RESTORE_ENV_FILE"
 test -f "$RUNTIME_ROLE_PROVISIONING"
+test -f "$MIGRATION_STATE_LIB"
 test "$RESTORE_PROJECT" != infra
 test "$RESTORE_PROJECT" != production
+# Bibliothèque canonique de validation des registres, sans application de DDL.
+source "$MIGRATION_STATE_LIB"
+
+# Le dump custom ne crée pas la base cible. Sans encodage/locale identiques,
+# PostgreSQL recalcule text_tsv différemment pendant la restauration.
+DB_IDENTITY_SQL="SELECT pg_encoding_to_char(encoding)||'|'||datcollate||'|'||datctype FROM pg_database WHERE datname=current_database()"
+SOURCE_DB_IDENTITY="$(docker exec -e PGOPTIONS='-c default_transaction_read_only=on' \
+  "$RESTORE_SOURCE_CONTAINER" sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1" -c "$2"' \
+  sh "$RESTORE_SOURCE_DB" "$DB_IDENTITY_SQL")"
+
+assert_restore_compatible_identity() {
+  local source_identity="$1" target_identity="$2"
+  if [[ "$source_identity" != 'UTF8|C|C' || "$target_identity" != "$source_identity" ]]; then
+    printf 'Refus de restauration : identité PostgreSQL encodage/locale différente de UTF8|C|C.\n' >&2
+    return 1
+  fi
+}
 
 # Fixture autonome : seulement la base isolée et un client de restauration.
 # Les placeholders restent littéraux dans ce fichier privé ; Compose les résout
@@ -104,6 +141,7 @@ services:
       POSTGRES_DB: ${PGVECTOR_DB:-ragdb}
       POSTGRES_USER: ${PGVECTOR_USER:-raguser}
       POSTGRES_PASSWORD: ${PGVECTOR_PASSWORD:?PGVECTOR_PASSWORD requis}
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
     volumes: [restore_pgvector_data:/var/lib/postgresql/data]
     networks: [restore_net]
     healthcheck:
@@ -136,13 +174,13 @@ volumes:
 YAML
 
 restore_compose=(
-  docker compose -p "$RESTORE_PROJECT" --env-file .env
+  docker compose -p "$RESTORE_PROJECT" --env-file "$RESTORE_ENV_FILE"
   -f "$RESTORE_COMPOSE"
 )
 
 cleanup_restore_fixture() {
   "${restore_compose[@]}" down -v >/dev/null 2>&1 || true
-  rm -f -- "$RESTORE_COMPOSE"
+  rm -f -- "$RESTORE_COMPOSE" "$RESTORE_FINGERPRINT_SQL"
   rmdir -- "$RESTORE_FIXTURE_DIR" 2>/dev/null || true
 }
 trap cleanup_restore_fixture EXIT
@@ -159,6 +197,12 @@ test "$("${restore_compose[@]}" config --services | sort)" = \
 
 # Démarrer uniquement PostgreSQL, puis restaurer avec le client migrateur.
 "${restore_compose[@]}" up -d --wait pgvector
+RESTORE_DB_IDENTITY="$("${restore_compose[@]}" exec -T \
+  -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+  sh "$DB_IDENTITY_SQL")"
+assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"
+
 "${restore_compose[@]}" run --rm --no-deps \
   --volume "$RESTORE_BACKUP_FILE:/restore/source.dump:ro" \
   restore-migrator \
@@ -167,16 +211,110 @@ test "$("${restore_compose[@]}" config --services | sort)" = \
   --username="${PGVECTOR_USER:-raguser}" \
   --dbname="${PGVECTOR_DB:-ragdb}" /restore/source.dump
 
-# `--no-privileges` est volontaire : réimposer ensuite les rôles et ACL runtime
-# depuis leur source canonique. Cette étape reste obligatoire même si le registre
-# restauré est déjà au head 005, cas où le runner de migrations n'a rien à jouer.
-"${restore_compose[@]}" run --rm --no-deps \
-  --volume "$RUNTIME_ROLE_PROVISIONING:/opt/nexus/provision_runtime_roles.sh:ro" \
-  --entrypoint bash restore-migrator \
-  /opt/nexus/provision_runtime_roles.sh
-
 # Aucun service applicatif ne doit exister dans le projet de rehearsal.
 test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
+
+# Un dump historique sans schéma de contrôle prouve seulement sa lisibilité.
+# Le contrôle complet est réservé à une base restaurée au head final 005/020.
+classify_restore_schema_heads() {
+  if [[ "$1" == '5|20' ]]; then
+    printf 'FINAL_SCHEMA_CANDIDATE\n'
+  else
+    printf 'FINAL_SCHEMA_UNVERIFIED\n'
+  fi
+}
+assert_canonical_registry_rows() {
+  local rows="$1" migration_dir="$2" expected_head="$3"
+  local version file_name sha256 extra
+  discover_manifest "$migration_dir" "$migration_dir/HEAD"
+  test "${#MIGRATION_VERSIONS[@]}" -eq "$expected_head"
+  APPLIED_VERSIONS=()
+  APPLIED_NAMES=()
+  APPLIED_SHA256=()
+  while IFS='|' read -r version file_name sha256 extra; do
+    [[ "$version" =~ ^[1-9][0-9]*$ && -n "$file_name" \
+       && "$sha256" =~ ^[0-9a-f]{64}$ && -z "$extra" ]] || return 1
+    APPLIED_VERSIONS+=("$version")
+    APPLIED_NAMES+=("$file_name")
+    APPLIED_SHA256+=("$sha256")
+  done <<< "$rows"
+  validate_registry_state 1
+  test "$EFFECTIVE_HEAD" -eq "$expected_head"
+}
+SCHEMA_TABLES_SQL="SELECT CASE WHEN to_regclass('public.rag_schema_migrations') IS NOT NULL AND to_regclass('ingestion_control.schema_migrations') IS NOT NULL AND to_regclass('public.rag_artifacts') IS NOT NULL AND to_regclass('public.rag_artifact_placements') IS NOT NULL AND to_regclass('public.rag_chunks') IS NOT NULL THEN 'present' ELSE 'missing' END"
+RESTORE_SCHEMA_TABLES="$("${restore_compose[@]}" exec -T \
+  -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+  sh "$SCHEMA_TABLES_SQL")"
+RESTORE_SCHEMA_HEADS=''
+if [[ "$RESTORE_SCHEMA_TABLES" == present ]]; then
+  SCHEMA_HEADS_SQL="SELECT (SELECT max(version)::text FROM public.rag_schema_migrations)||'|'||(SELECT max(version)::text FROM ingestion_control.schema_migrations)"
+  RESTORE_SCHEMA_HEADS="$("${restore_compose[@]}" exec -T \
+    -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+    'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+    sh "$SCHEMA_HEADS_SQL")"
+fi
+RESTORE_SCHEMA_VERDICT="$(classify_restore_schema_heads "$RESTORE_SCHEMA_HEADS")"
+if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_CANDIDATE ]]; then
+  # Vérifier la suite entière, les noms et SHA-256 contre les fichiers
+  # canoniques, sur la source comme sur la cible restaurée, sans DDL.
+  PRODUCT_REGISTRY_SQL="SELECT version||'|'||file_name||'|'||sha256 FROM public.rag_schema_migrations ORDER BY version"
+  CONTROL_REGISTRY_SQL="SELECT version||'|'||file_name||'|'||sha256 FROM ingestion_control.schema_migrations ORDER BY version"
+  read_source_registry() {
+    docker exec -e PGOPTIONS='-c default_transaction_read_only=on' \
+      "$RESTORE_SOURCE_CONTAINER" sh -c \
+      'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1" -c "$2"' \
+      sh "$RESTORE_SOURCE_DB" "$1"
+  }
+  read_restored_registry() {
+    "${restore_compose[@]}" exec -T \
+      -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+      'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "$1"' \
+      sh "$1"
+  }
+  SOURCE_PRODUCT_REGISTRY="$(read_source_registry "$PRODUCT_REGISTRY_SQL")"
+  RESTORE_PRODUCT_REGISTRY="$(read_restored_registry "$PRODUCT_REGISTRY_SQL")"
+  SOURCE_CONTROL_REGISTRY="$(read_source_registry "$CONTROL_REGISTRY_SQL")"
+  RESTORE_CONTROL_REGISTRY="$(read_restored_registry "$CONTROL_REGISTRY_SQL")"
+  test "$SOURCE_PRODUCT_REGISTRY" = "$RESTORE_PRODUCT_REGISTRY"
+  test "$SOURCE_CONTROL_REGISTRY" = "$RESTORE_CONTROL_REGISTRY"
+  assert_canonical_registry_rows "$RESTORE_PRODUCT_REGISTRY" "$PWD/postgres/migrations" 5
+  assert_canonical_registry_rows "$RESTORE_CONTROL_REGISTRY" \
+    "$PWD/postgres/ingestion_control/migrations" 20
+
+  # `--no-privileges` exige de réimposer les ACL runtime sur le schéma final.
+  # Une base historique sans ces tables reste uniquement lisible en isolation.
+  "${restore_compose[@]}" run --rm --no-deps \
+    --volume "$RUNTIME_ROLE_PROVISIONING:/opt/nexus/provision_runtime_roles.sh:ro" \
+    --entrypoint bash restore-migrator \
+    /opt/nexus/provision_runtime_roles.sh
+
+  # Comparer les identités métier et la colonne lexicale générée. Une source
+  # modifiée depuis sa capture échoue au lieu de simuler un vert.
+cat >"$RESTORE_FINGERPRINT_SQL" <<'SQL'
+SELECT 'product_head|'||max(version)::text FROM public.rag_schema_migrations;
+SELECT 'control_head|'||max(version)::text FROM ingestion_control.schema_migrations;
+SELECT 'collections|'||count(DISTINCT collection)::text FROM public.rag_artifact_placements;
+SELECT 'artifacts|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(to_jsonb(t)::text),'|' ORDER BY artifact_id),'')) FROM public.rag_artifacts t;
+SELECT 'placements|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(to_jsonb(t)::text),'|' ORDER BY placement_id),'')) FROM public.rag_artifact_placements t;
+SELECT 'chunks|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(to_jsonb(t)::text),'|' ORDER BY chunk_id),'')) FROM public.rag_chunks t;
+SELECT 'text_tsv|'||count(*)::text||'|'||md5(coalesce(string_agg(md5(chunk_id||':'||text_tsv::text),'|' ORDER BY chunk_id),'')) FROM public.rag_chunks;
+SQL
+SOURCE_FINGERPRINT="$(docker exec -i \
+  -e PGOPTIONS='-c default_transaction_read_only=on' \
+  "$RESTORE_SOURCE_CONTAINER" sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$1"' \
+  sh "$RESTORE_SOURCE_DB" <"$RESTORE_FINGERPRINT_SQL")"
+RESTORE_FINGERPRINT="$("${restore_compose[@]}" exec -T \
+  -e PGOPTIONS='-c default_transaction_read_only=on' pgvector sh -c \
+  'psql -X -Atq -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  <"$RESTORE_FINGERPRINT_SQL")"
+test "$SOURCE_FINGERPRINT" = "$RESTORE_FINGERPRINT"
+  RESTORE_SCHEMA_VERDICT=FINAL_SCHEMA_VERIFIED
+  printf 'FINAL_SCHEMA_VERIFIED=true\n'
+else
+  printf 'FINAL_SCHEMA_UNVERIFIED=true (restauration historique lisible, pas une preuve de release finale)\n'
+fi
 
 # Après validation du schéma restauré, détruire la seule fixture isolée.
 "${restore_compose[@]}" down -v
@@ -187,6 +325,11 @@ reste un human gate distinct : backup frais, arrêt contrôlé des writers,
 validation de l'identité de la cible, restauration, migrations via le seul
 migrateur, reprovisionnement explicite des rôles runtime, contrôles de schéma,
 puis seulement redémarrage des runtimes.
+
+`FINAL_SCHEMA_UNVERIFIED=true` accepte uniquement la lisibilité isolée d'un
+ancien dump. Ce verdict ne démontre ni les migrations 005/020, ni le contenu
+publié ; il ne peut pas servir de preuve de readiness ou de rollback de la
+release finale.
 
 Le dump de la production **avant** le go-live peut encore être une base
 historique sans schéma `ingestion_control` ; sa restauration réussie prouve

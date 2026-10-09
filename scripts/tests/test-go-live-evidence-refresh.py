@@ -6,7 +6,9 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import re
 import subprocess
+import tempfile
 import unittest
 
 
@@ -512,6 +514,164 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             rollback,
         )
 
+    def test_restore_identity_guard_rejects_encoding_and_locale_drift(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        guard = re.search(
+            r"(?ms)^assert_restore_compatible_identity\(\) \{\n.*?^\}", rollback
+        )
+        self.assertIsNotNone(guard, "garde exécutable absent du runbook")
+        assert guard is not None
+        script = guard.group(0) + '\nassert_restore_compatible_identity "$1" "$2"\n'
+
+        for source, restored, accepted in (
+            ("UTF8|C|C", "UTF8|C|C", True),
+            ("UTF8|C|C", "SQL_ASCII|C|C", False),
+            ("UTF8|C|C", "UTF8|en_US.utf8|en_US.utf8", False),
+            ("SQL_ASCII|C|C", "SQL_ASCII|C|C", False),
+            ("UTF8|C|C", "", False),
+        ):
+            with self.subTest(source=source, restored=restored):
+                result = subprocess.run(
+                    ["bash", "-c", script, "restore-guard", source, restored],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode == 0, accepted, result.stderr)
+
+    def test_restore_paths_are_resolved_before_changing_directory(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        normalizer = re.search(r"(?ms)^normalize_restore_paths\(\) \{\n.*?^\}", rollback)
+        self.assertIsNotNone(normalizer)
+        assert normalizer is not None
+        self.assertIn("normalize_restore_paths\ncd services/rag-engine/infra", rollback)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "backup.dump").touch()
+            (root / "credentials.env").touch()
+            script = (
+                normalizer.group(0)
+                + '\nRESTORE_BACKUP_FILE=backup.dump\nRESTORE_ENV_FILE=credentials.env\n'
+                + 'normalize_restore_paths\nprintf "%s\\n%s\\n" "$RESTORE_BACKUP_FILE" "$RESTORE_ENV_FILE"\n'
+            )
+            result = subprocess.run(
+                ["bash", "-c", script],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            self.assertEqual(
+                result.stdout.splitlines(),
+                [str(root / "backup.dump"), str(root / "credentials.env")],
+            )
+
+    def test_historical_restore_is_readability_only(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        classifier = re.search(r"(?ms)^classify_restore_schema_heads\(\) \{\n.*?^\}", rollback)
+        self.assertIsNotNone(classifier)
+        assert classifier is not None
+        final_branch = rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_CANDIDATE ]]; then')
+        self.assertLess(final_branch, rollback.index('cat >"$RESTORE_FINGERPRINT_SQL"', final_branch))
+        self.assertIn("FINAL_SCHEMA_UNVERIFIED=true", rollback[final_branch:])
+        for heads, expected in (
+            ("5|20", "FINAL_SCHEMA_CANDIDATE"),
+            ("", "FINAL_SCHEMA_UNVERIFIED"),
+            ("5|19", "FINAL_SCHEMA_UNVERIFIED"),
+        ):
+            with self.subTest(heads=heads):
+                script = classifier.group(0) + '\nclassify_restore_schema_heads "$1"\n'
+                result = subprocess.run(
+                    ["bash", "-c", script, "restore-heads", heads],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                self.assertEqual(result.stdout.strip(), expected)
+
+    def test_final_restore_validates_complete_canonical_migration_registries(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        helper = re.search(r"(?ms)^assert_canonical_registry_rows\(\) \{\n.*?^\}", rollback)
+        self.assertIsNotNone(helper)
+        assert helper is not None
+        self.assertIn('source "$MIGRATION_STATE_LIB"', rollback)
+        self.assertIn('test "$SOURCE_PRODUCT_REGISTRY" = "$RESTORE_PRODUCT_REGISTRY"', rollback)
+        self.assertIn('test "$SOURCE_CONTROL_REGISTRY" = "$RESTORE_CONTROL_REGISTRY"', rollback)
+        product_validation = rollback.index('assert_canonical_registry_rows "$RESTORE_PRODUCT_REGISTRY"')
+        control_validation = rollback.index('assert_canonical_registry_rows "$RESTORE_CONTROL_REGISTRY"')
+        verified = rollback.index("RESTORE_SCHEMA_VERDICT=FINAL_SCHEMA_VERIFIED")
+        self.assertLess(product_validation, verified)
+        self.assertLess(control_validation, verified)
+        for directory, head in (
+            (REPO_ROOT / "services/rag-engine/infra/postgres/migrations", 5),
+            (REPO_ROOT / "services/rag-engine/infra/postgres/ingestion_control/migrations", 20),
+        ):
+            rows = [
+                f"{int(path.name[:3])}|{path.name}|{hashlib.sha256(path.read_bytes()).hexdigest()}"
+                for path in sorted(directory.glob("*.sql"))
+            ]
+            valid = "\n".join(rows)
+            cases = (
+                (valid, True),
+                ("\n".join(rows[:1] + rows[2:]), False),
+                (valid.replace(rows[1], rows[1].replace(".sql", "_changed.sql")), False),
+                (valid.replace(rows[1], rows[1][:-1] + ("0" if rows[1][-1] != "0" else "1")), False),
+                (valid + "\n" + rows[-1], False),
+            )
+            for registry, accepted in cases:
+                with self.subTest(directory=directory.name, accepted=accepted, rows=registry.count("\n")):
+                    script = (
+                        'set -euo pipefail\nsource "$1"\n'
+                        + helper.group(0)
+                        + '\nassert_canonical_registry_rows "$2" "$3" "$4"\n'
+                    )
+                    result = subprocess.run(
+                        [
+                            "bash", "-c", script, "registry-guard",
+                            str(REPO_ROOT / "services/rag-engine/infra/scripts/lib/pgvector_migration_state.sh"),
+                            registry, str(directory), str(head),
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
+
+    def test_restore_project_name_is_accepted_by_compose(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        assignment = re.search(r'^RESTORE_PROJECT=".*"$', rollback, re.MULTILINE)
+        self.assertIsNotNone(assignment)
+        assert assignment is not None
+        result = subprocess.run(
+            ["bash", "-c", assignment.group(0) + '\nprintf "%s" "$RESTORE_PROJECT"\n'],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertRegex(result.stdout, r"^nexus-pg-restore-rehearsal-[a-z0-9-]+$")
+
+    def test_restore_target_database_matches_compose_interpolation(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        self.assertIn('PGVECTOR_DB="${PGVECTOR_DB:-ragdb}"', rollback)
+        self.assertIn('PGVECTOR_USER="${PGVECTOR_USER:-raguser}"', rollback)
+        self.assertIn("export PGVECTOR_DB PGVECTOR_USER", rollback)
+        self.assertLess(
+            rollback.index("export PGVECTOR_DB PGVECTOR_USER"),
+            rollback.index('restore_compose=('),
+        )
+
+    def test_restore_guard_precedes_mutation_and_compares_generated_tsv(self) -> None:
+        rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        self.assertIn('POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"', rollback)
+        self.assertIn("pg_encoding_to_char(encoding)", rollback)
+        self.assertIn("text_tsv::text", rollback)
+        self.assertIn('test "$SOURCE_FINGERPRINT" = "$RESTORE_FINGERPRINT"', rollback)
+        self.assertIn('assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"', rollback)
+        self.assertLess(
+            rollback.index('assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"'),
+            rollback.index("--exit-on-error --clean --if-exists"),
+        )
+
     def test_restore_requires_the_real_backup_path_without_overwriting_it(self) -> None:
         rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
 
@@ -527,6 +687,13 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         restore = rollback.index("--no-privileges")
         reprovision = rollback.index("provision_runtime_roles.sh", restore)
         self.assertLess(restore, reprovision)
+        self.assertLess(
+            rollback.index('if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_CANDIDATE ]]; then'),
+            reprovision,
+        )
+        self.assertLess(reprovision, rollback.index("\nelse\n  printf 'FINAL_SCHEMA_UNVERIFIED=true", reprovision))
+        migrator = rollback.index("  restore-migrator:")
+        migrator_environment = rollback[migrator : rollback.index("    networks:", migrator)]
         for variable in (
             "PGVECTOR_RETRIEVAL_USER",
             "PGVECTOR_RETRIEVAL_PASSWORD",
@@ -536,7 +703,7 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             "PGVECTOR_PUBLISHER_PASSWORD",
         ):
             with self.subTest(variable=variable):
-                self.assertIn(variable, rollback[reprovision - 2500 :])
+                self.assertIn(variable, migrator_environment)
 
 
 if __name__ == "__main__":
