@@ -30,7 +30,10 @@ son digest devront provenir du workflow canonique du SHA final et être liés
 ni service Cockpit, ni digest fictif : ce travail est porté séparément.
 
 Le protocole BFF utilisera une session signée **mono-matière** sélectionnant
-un scope V2 gouverné parmi les onze collections V4/V5. Il transmet les trois
+exclusivement un scope V2 de la release publique successeur finale, après
+validation des droits et de la visibilité, revue humaine et scellement des
+onze collections. Les scopes V4/V5 du rehearsal restent hors du chemin public.
+Il transmet les trois
 credentials distincts prévus par le contrat (`Authorization` service,
 `X-RAG-API-Key` client et `X-Nexus-Identity` utilisateur) directement à l'API
 sur `bff_net`. L'empreinte du client Cockpit dans `api-clients.json` doit
