@@ -33,7 +33,8 @@ def test_public_atomic_docker_candidate_refusals_rollback_and_foreign_witness(
 ) -> None:
     if _docker("info", "--format", "{{.ServerVersion}}").returncode:
         pytest.skip("Docker daemon inaccessible")
-    project = "nexus-rag-blue"
+    project = "nexus-rag-rehearsal-" + uuid.uuid4().hex[:12]
+    assert project.startswith("nexus-rag-rehearsal-")
     if any(dep._default_project_inventory(project).values()):
         pytest.skip("La couleur candidate locale possède déjà des ressources")
     image = "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"

@@ -2488,8 +2488,11 @@ def rollback_public_candidate_from_bundle(
             raise DeploymentWrapperError("public candidate rollback failed") from exc
         if result.returncode != 0:
             raise DeploymentWrapperError("public candidate rollback failed")
-        os.unlink(_public_state_name(public_color), dir_fd=state_root)
-        os.fsync(state_root)
+        try:
+            os.unlink(_public_state_name(public_color), dir_fd=state_root)
+            os.fsync(state_root)
+        except OSError as exc:
+            raise DeploymentWrapperError("public rollback state cleanup failed") from exc
 
 
 def _deploy_public_candidate_from_bundle(
@@ -2614,8 +2617,13 @@ def _deploy_public_candidate_from_bundle(
                 raise DeploymentWrapperError(
                     f"{failure}; rollback passed but generation state is ambiguous"
                 )
-            os.unlink(_public_state_name(public_color), dir_fd=state_root)
-            os.fsync(state_root)
+            try:
+                os.unlink(_public_state_name(public_color), dir_fd=state_root)
+                os.fsync(state_root)
+            except OSError as exc:
+                raise DeploymentWrapperError(
+                    f"{failure}; rollback passed but state cleanup failed"
+                ) from exc
         raise DeploymentWrapperError(f"{failure}; rollback passed")
 
 
@@ -3002,6 +3010,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.public_candidate and args.execute and args.deployment_state_root is None:
         print("REFUSED: public execution requires --deployment-state-root", file=sys.stderr)
         return 1
+    if args.public_candidate and args.execute:
+        for value, flag in (
+            (getattr(args, "public_color", None), "--public-color"),
+            (getattr(args, "public_material_root", None), "--public-material-root"),
+            (getattr(args, "public_secrets_root", None), "--public-secrets-root"),
+        ):
+            if value is None:
+                print(f"REFUSED: public execution requires {flag}", file=sys.stderr)
+                return 1
     if args.execute and (args.readiness_manifest_file is None or args.trust_anchor_file is None):
         print(
             "REFUSED: --execute requires both --readiness-manifest-file and "

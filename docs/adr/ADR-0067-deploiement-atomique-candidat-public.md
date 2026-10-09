@@ -60,4 +60,19 @@ rouge après le lancement. Aucun routage Nginx ni ancien projet n'est changé
 par ce lot : le switch et son rollback sont une opération de cutover distincte,
 après preuve de santé et GO final.
 
+Les volumes nommés PostgreSQL, Prometheus et Redis restent présents après
+`down` sans `-v`. C'est un refus volontaire de réutiliser implicitement des
+données d'une génération ou d'une initialisation partielle : le prochain
+déploiement de la même couleur est bloqué par l'inventaire non vide. Une remise
+à zéro, hors wrapper et après sauvegarde/autorisation opérateur, exige zéro
+conteneur et réseau du projet, l'inspection des **seuls** volumes
+`<projet>_rag_pgvector_data`, `<projet>_rag_prometheus_data` et
+`<projet>_session_redis_data`, et leurs labels Compose exacts
+`com.docker.compose.project=<projet>` et `com.docker.compose.volume` égal au
+nom logique attendu. Les IDs de volumes inspectés sont figés avant retrait
+ciblé, puis un nouvel inventaire doit être entièrement vide. Si un nom, un
+label, un ID ou un autre service est ambigu, aucune suppression n'est permise.
+Ce lot ne fournit pas de purge automatique et ne promet pas que la couleur
+est immédiatement redéployable après rollback.
+
 La voie V1, ses commandes et son protocole restent inchangés.
