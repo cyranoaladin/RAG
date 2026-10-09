@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import subprocess
 import sys
 import threading
@@ -302,6 +303,38 @@ def test_prometheus_rules_probe_failure_refuses_success_and_rolls_back(tmp_path:
     options["prometheus_probe"] = lambda _port: False
     with pytest.raises(dep.DeploymentWrapperError, match="Prometheus|prometheus"):
         dep.deploy_from_bundle(**options)
+    assert [word for call in calls for word in call if word in {"pull", "up", "down"}] == [
+        "pull", "up", "down"
+    ]
+
+
+def test_state_publish_fsync_failure_rolls_back_without_stale_generation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _, _, _, options = _inputs(tmp_path)
+    calls: list[list[str]] = []
+    state_file = options["deployment_state_root"] / "public-blue.json"
+    real_fsync = os.fsync
+    failed = False
+
+    def fsync(fd: int) -> None:
+        nonlocal failed
+        if state_file.exists() and not failed:
+            failed = True
+            raise OSError("injected state fsync failure after link")
+        real_fsync(fd)
+
+    monkeypatch.setattr(dep.os, "fsync", fsync)
+
+    def run(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+        calls.append(args)
+        return _ok(args, cwd)
+
+    options["run_subprocess"] = run
+    with pytest.raises(dep.DeploymentWrapperError, match="rollback passed"):
+        dep.deploy_from_bundle(**options)
+    assert failed
+    assert not state_file.exists()
     assert [word for call in calls for word in call if word in {"pull", "up", "down"}] == [
         "pull", "up", "down"
     ]

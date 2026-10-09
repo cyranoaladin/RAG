@@ -2510,7 +2510,7 @@ def _deploy_public_candidate_from_bundle(
                 failure = f"public candidate identity/readiness failed: {exc}"
         # La même serrure couvre la vérification des labels puis `down`.
         try:
-            _owned_public_container_ids(
+            rollback_ids = _owned_public_container_ids(
                 project=project, bundle_dir=bundle_dir,
                 containers=project_containers, require_all_services=False,
             )
@@ -2525,6 +2525,19 @@ def _deploy_public_candidate_from_bundle(
             rollback_passed = False
         if not rollback_passed:
             raise DeploymentWrapperError(f"{failure}; rollback failed")
+        state = _read_public_state(state_root, public_color)
+        if state is not None:
+            if state != {
+                "bundle_digest": verified.bundle_document["bundle_digest"],
+                "bundle_dir": str(bundle_dir),
+                "merge_sha": merge_sha,
+                "container_ids": rollback_ids,
+            }:
+                raise DeploymentWrapperError(
+                    f"{failure}; rollback passed but generation state is ambiguous"
+                )
+            os.unlink(_public_state_name(public_color), dir_fd=state_root)
+            os.fsync(state_root)
         raise DeploymentWrapperError(f"{failure}; rollback passed")
 
 

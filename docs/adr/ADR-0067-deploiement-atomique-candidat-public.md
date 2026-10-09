@@ -44,7 +44,10 @@ correspondent plus à cette génération. Si `up` échoue, expire, ou si la sond
 Prometheus échoue, le wrapper n'exécute `down --timeout 10` que lorsque les
 conteneurs présents portent tous les labels exacts du bundle courant ; une
 identité absente ou ambiguë impose un refus sans `down`. Aucun volume n'est
-supprimé. Le rollback reste accessible même si le garde readiness devient
+supprimé. Si une panne survient après publication de l'état, le rollback réussi
+ne retire cet état que si ses quatre identités concordent encore avec la
+génération visée ; sinon l'état reste en place pour diagnostic. Le rollback
+reste accessible même si le garde readiness devient
 rouge après le lancement. Aucun routage Nginx ni ancien projet n'est changé
 par ce lot : le switch et son rollback sont une opération de cutover distincte,
 après preuve de santé et GO final.
