@@ -10,8 +10,9 @@ Ces fichiers sont des **templates** de vhosts Nginx (hôte) :
   utilisent le port loopback directement.
 - `rag-cockpit.public-search.conf.template` pour le **Cockpit étudiant candidat** :
   page `/`, ressources `/_next/static/`, chemins Auth.js nécessaires au SSO,
-  `GET /api/collections` et `POST /api/search` uniquement. Les routes chat,
-  revue, ingestion, métriques et santé ne sont pas proxifiées. Il cible le
+  `GET /api/health`, `GET /api/collections` et `POST /api/search` uniquement.
+  Les routes chat, revue, ingestion, métriques et les autres routes santé ne
+  sont pas proxifiées. Il cible le
   `NEXUS_COCKPIT_PORT` loopback de la même couleur blue-green ; Nginx remplace
   les en-têtes de proxy et retire les en-têtes d'identité interne fournis par
   le navigateur. Son activation est réservée au cutover signé.
