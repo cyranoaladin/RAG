@@ -70,14 +70,14 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
 
 ## Qualification locale sur la base fusionnée
 
-- **SEALED** sur le HEAD de code candidat `94215e090ddba6398c2fd3087d5e77fa717b5b77`,
-  arbre `c2f25577b3edd91fc459571e8295172cec971a98` :
+- **SEALED** sur le HEAD de code candidat `a59b8a7603233aa1ffc0f27e912059c8b4eb7f82`,
+  arbre `42b20683f3eaffcd4e1021627771e4f46522cd78` :
   `pytest -q` sur le contrat readiness et les six suites
   `rag-engine` ciblées (inventaire, vérificateur, signer, wrapper,
   préflight public, plan signé), l'export de schéma et la suite
-  `test_public_blue_green_compose.py` contre le vrai moteur Docker Compose :
-  **428 passed**.
-- `ruff check` sur les treize fichiers Python modifiés par le lot : **0 erreur** ;
+  `test_public_blue_green_compose.py` contre le vrai moteur Docker Compose,
+  ainsi que les tests de l'ancre staging : **506 passed**.
+- `ruff check` sur les quinze fichiers Python modifiés par le lot : **0 erreur** ;
   `git diff --check` : **0 erreur**.
 - La recette officielle `make typecheck` (sans réinstallation, via
   `make -o install-dev typecheck`) : **5 erreurs identiques sur 149 fichiers**
@@ -95,8 +95,16 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
   destination symlink, parent dangereux, impossibilité
   de réutiliser un ancien snapshot symlink/hardlink et disparition des copies
   éphémères. Les chemins V1 restent couverts par leurs tests existants.
+- La compatibilité V2 historique est figée par une fixture de **1802 octets**
+  générée depuis le module du `main` de base, dont le SHA-256 est
+  `3d239870851d42458a937c871ada1db49e48c99bd34f043ab39e54cb875f8b9b` ;
+  `legacy.canonical_bytes()` est comparé à ces octets complets. Les refus de
+  liaison publique identifient désormais le fait divergent sans imprimer les
+  digests ; un test inter-paquets confronte la carte des dépôts signables au
+  producteur de provenance. L'échec d'ouverture du bundle est traduit en
+  `DeploymentWrapperError` et testé.
 - `docker compose config` réel (Compose 5.6.0) depuis les objets Git du HEAD
-  candidat `94215e090ddba6398c2fd3087d5e77fa717b5b77`, avec variables
+  candidat `a59b8a7603233aa1ffc0f27e912059c8b4eb7f82`, avec variables
   et matériaux fictifs isolés : cinq services exacts, aucun `build` pour
   l'API ou le Cockpit. Aucun conteneur n'a été démarré.
 - La CI de qualification a révélé le pin à l'octet du lot d'ancrage #239.
@@ -104,9 +112,10 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
   `production_readiness.py` de
   `2e3398903b9a46fca1cbc7dfd923bb67cdb25e44b249ed2915ec3635ad430245`
   sur la base fusionnée à
-  `4217f09b121bc0f131ee7e0895a4376034bacf16029278d3d0446d0f020d0948`
-  sur ce lot. Le test de qualification conserve l'assertion de hash sur les
-  trois membres de la chaîne ; seule la valeur du contrat est mise à jour.
+  `0d03daa7a21e10f0ed0c25d2c6fffc648cd0b97b01e02404a40ab40478e54dae`
+  sur ce lot. Les tests de qualification et du gate staging conservent
+  l'assertion de hash sur les trois membres de la chaîne ; seule la valeur du
+  contrat est mise à jour.
   Le gate runtime reste à
   `a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28`
   et l'ancre de production à
