@@ -1,0 +1,44 @@
+# Candidat public V1 : recherche seulement. Ne pas activer avant cutover signé.
+limit_req_zone $binary_remote_addr zone=public_search_v1:10m rate=20r/s;
+
+server {
+  listen 80;
+  server_name ${RAG_API_EXTERNAL_DOMAIN};
+
+  location ^~ /.well-known/acme-challenge/ {
+    root /var/www/certbot;
+  }
+  location / {
+    return 308 https://${RAG_API_EXTERNAL_DOMAIN}$request_uri;
+  }
+}
+
+server {
+  listen 443 ssl http2;
+  server_name ${RAG_API_EXTERNAL_DOMAIN};
+
+  ssl_certificate /etc/letsencrypt/live/${RAG_API_EXTERNAL_DOMAIN}/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/${RAG_API_EXTERNAL_DOMAIN}/privkey.pem;
+  ssl_protocols TLSv1.2 TLSv1.3;
+  ssl_ciphers HIGH:!aNULL:!MD5;
+
+  add_header X-Content-Type-Options "nosniff" always;
+  add_header Referrer-Policy "no-referrer" always;
+  add_header X-Frame-Options "DENY" always;
+  add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+  add_header Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none';" always;
+
+  location = /search/v2 {
+    limit_except POST {
+      deny all;
+    }
+    limit_req zone=public_search_v1 burst=40 nodelay;
+    proxy_pass http://127.0.0.1:${NGINX_API_PORT}/search/v2;
+    proxy_http_version 1.1;
+    proxy_read_timeout 60s;
+  }
+
+  location / {
+    return 404;
+  }
+}

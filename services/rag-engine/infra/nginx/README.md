@@ -1,9 +1,21 @@
 Ces fichiers sont des **templates** de vhosts Nginx (hôte) :
 - `rag-ui.conf.template` pour l’UI Streamlit (reverse proxy vers 127.0.0.1:8501, Basic Auth requise)
 - `rag-api.conf.template` pour l’API Ingestor (reverse proxy vers 127.0.0.1:${NGINX_API_PORT}, `/metrics` restreint à 127.0.0.1)
+- `rag-api.public-search.conf.template` pour le **candidat public V1** : seul
+  `POST /search/v2` est transmis au port loopback du candidat blue-green.
+  Les routes de writer, revue, ingestion, métriques, catalogue et readiness
+  reçoivent 404 au proxy public ; le scrape et les sondes utilisent le port
+  loopback directement.
 - `rag-v2.conf` est l'alternative TLS déjà matérialisée ; elle doit être rendue
   avec `RAG_API_EXTERNAL_DOMAIN` et `NGINX_API_PORT` et cible le même port
   loopback.
+
+Le template public V1 est distinct des vhosts historiques. Le rendre avec
+`envsubst '${RAG_API_EXTERNAL_DOMAIN} ${NGINX_API_PORT}'`, en fixant
+`NGINX_API_PORT` au `NEXUS_SEARCH_PORT` du candidat scellé. Sa pose/remplacement
+atomique dans Nginx appartient au cutover signé : ce dépôt ne prouve ni la
+connexion interne Cockpit BFF → API du réseau blue-green, ni l'activation du
+vhost en production. Ne jamais activer deux vhosts pour le même domaine API.
 
 ## Rendu des vhosts via `envsubst`
 
