@@ -193,16 +193,27 @@ def test_public_inventory_requires_explicit_v2_and_four_bound_images(tmp_path: P
         "cockpit": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "5" * 64,
     }
     assert fakes.download_calls == [(RUN_ID, PUBLIC_ARTIFACT, tmp_path)]
-    with pytest.raises(dii.DeploymentImageInventoryError):
+    with pytest.raises(dii.DeploymentImageInventoryError, match="protocol_version"):
         _verify(fakes, tmp_path)
 
 
 @pytest.mark.parametrize(
-    "change",
-    ["v1", "missing_cockpit", "extra_service", "wrong_context", "wrong_dockerfile", "wrong_repository", "wrong_worker_digest", "mutable_digest", "wrong_source_tree", "wrong_run_attempt"],
+    "change, message",
+    [
+        ("v1", "protocol_version"),
+        ("missing_cockpit", "does not name exactly"),
+        ("extra_service", "does not name exactly"),
+        ("wrong_context", "public image source identity differs"),
+        ("wrong_dockerfile", "public image source identity differs"),
+        ("wrong_repository", "public image source identity differs"),
+        ("wrong_worker_digest", "two worker services must reference"),
+        ("mutable_digest", "digest"),
+        ("wrong_source_tree", "source_tree_sha"),
+        ("wrong_run_attempt", "workflow_run_attempt"),
+    ],
 )
 def test_public_inventory_refuses_unbound_or_incomplete_image(
-    tmp_path: Path, change: str
+    tmp_path: Path, change: str, message: str
 ) -> None:
     document = _public_inventory()
     services = document["services"]
@@ -224,15 +235,28 @@ def test_public_inventory_refuses_unbound_or_incomplete_image(
         services["cockpit"]["image_digest"] = "latest"
     elif change == "wrong_source_tree":
         document["source_tree_sha"] = "f" * 40
-    else:
+    elif change == "wrong_run_attempt":
         document["workflow_run_attempt"] = 2
+    else:
+        raise AssertionError(f"unknown test change: {change}")
     fakes = _Fakes(run=_run_document(), inventory=document)
-    with pytest.raises(dii.DeploymentImageInventoryError):
+    with pytest.raises(dii.DeploymentImageInventoryError, match=message):
         _verify_public(fakes, tmp_path)
 
 
-@pytest.mark.parametrize("change", ["wrong_workflow", "wrong_commit", "failed_run", "rerun", "missing_artifact"])
-def test_public_inventory_refuses_untrusted_run_or_artifact(tmp_path: Path, change: str) -> None:
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ("wrong_workflow", "workflow path"),
+        ("wrong_commit", "not the commit being signed"),
+        ("failed_run", "not a successfully completed run"),
+        ("rerun", "current attempt"),
+        ("missing_artifact", "artifact not found"),
+    ],
+)
+def test_public_inventory_refuses_untrusted_run_or_artifact(
+    tmp_path: Path, change: str, message: str
+) -> None:
     run = _run_document()
     inventory = _public_inventory()
     if change == "wrong_workflow":
@@ -243,9 +267,11 @@ def test_public_inventory_refuses_untrusted_run_or_artifact(tmp_path: Path, chan
         run["conclusion"] = "failure"
     elif change == "rerun":
         run["run_attempt"] = 2
-    else:
+    elif change == "missing_artifact":
         inventory = None
-    with pytest.raises(dii.DeploymentImageInventoryError):
+    else:
+        raise AssertionError(f"unknown test change: {change}")
+    with pytest.raises(dii.DeploymentImageInventoryError, match=message):
         _verify_public(_Fakes(run=run, inventory=inventory), tmp_path)
 
 

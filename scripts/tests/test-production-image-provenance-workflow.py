@@ -16,6 +16,7 @@ import os
 import re
 import subprocess
 import unittest
+from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -87,7 +88,9 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
         self.assertEqual(cockpit["with"]["file"], "services/cockpit/Dockerfile")
         self.assertIs(cockpit["with"]["push"], True)
 
-    def test_assembler_emits_unchanged_v1_or_exact_four_service_v2(self) -> None:
+    def _run_assembler(
+        self, directory: str, *, public_candidate: str, cockpit_digest: str
+    ) -> subprocess.CompletedProcess[str]:
         steps = self.workflow["jobs"]["build-and-push"]["steps"]
         assemble = next(step for step in steps if step.get("id") == "inventory")
         env = {
@@ -100,40 +103,102 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
             "INGESTOR_DOCKERFILE_SHA256": "2" * 64,
             "WORKER_DIGEST": "sha256:" + "3" * 64,
             "WORKER_DOCKERFILE_SHA256": "4" * 64,
-            "COCKPIT_DIGEST": "sha256:" + "5" * 64,
+            "COCKPIT_DIGEST": cockpit_digest,
             "COCKPIT_DOCKERFILE_SHA256": "6" * 64,
             "IMAGE_NAMESPACE": "ghcr.io/cyranoaladin",
         }
-        for enabled, protocol, names, filename in (
-            (False, "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", 3, "nexus-deployment-image-inventory.json"),
-            (True, "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2", 4, "nexus-public-deployment-image-inventory-v2.json"),
+        return subprocess.run(
+            ["bash", "-e", "-c", assemble["run"]],
+            cwd=directory,
+            env={
+                **os.environ,
+                **env,
+                "PUBLIC_CANDIDATE": public_candidate,
+                "GITHUB_OUTPUT": str(Path(directory) / "github-output"),
+            },
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_assembler_emits_golden_v1_or_exact_four_service_v2(self) -> None:
+        for enabled, protocol, filename in (
+            (False, "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1", "nexus-deployment-image-inventory.json"),
+            (True, "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2", "nexus-public-deployment-image-inventory-v2.json"),
         ):
             with self.subTest(public_candidate=enabled):
                 with TemporaryDirectory() as directory:
                     output = Path(directory) / "github-output"
-                    result = subprocess.run(
-                        ["bash", "-e", "-c", assemble["run"]],
-                        cwd=directory,
-                        env={
-                            **os.environ,
-                            **env,
-                            "PUBLIC_CANDIDATE": str(enabled).lower(),
-                            "COCKPIT_DIGEST": env["COCKPIT_DIGEST"] if enabled else "",
-                            "COCKPIT_DOCKERFILE_SHA256": env["COCKPIT_DOCKERFILE_SHA256"] if enabled else "",
-                            "GITHUB_OUTPUT": str(output),
-                        },
-                        capture_output=True,
-                        text=True,
-                        check=False,
+                    result = self._run_assembler(
+                        directory,
+                        public_candidate=str(enabled).lower(),
+                        cockpit_digest="sha256:" + "5" * 64 if enabled else "",
                     )
                     self.assertEqual(result.returncode, 0, result.stderr)
                     document = json.loads((Path(directory) / filename).read_text())
                     self.assertEqual(document["protocol_version"], protocol)
-                    self.assertEqual(len(document["services"]), names)
-                    self.assertEqual("cockpit" in document["services"], enabled)
+                    required_services = {
+                        "ingestor", "multilevel-worker-a-production",
+                        "multilevel-worker-b-production",
+                    }
+                    self.assertEqual(
+                        set(document["services"]),
+                        required_services | ({"cockpit"} if enabled else set()),
+                    )
                     if enabled:
                         self.assertEqual(document["services"]["cockpit"]["dockerfile"], "services/cockpit/Dockerfile")
+                    else:
+                        datetime.fromisoformat(document["built_at"].replace("Z", "+00:00"))
+                        without_timestamp = {key: value for key, value in document.items() if key != "built_at"}
+                        self.assertEqual(without_timestamp, {
+                            "protocol_version": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
+                            "repository": "cyranoaladin/RAG",
+                            "source_commit_sha": "a" * 40,
+                            "source_tree_sha": "b" * 40,
+                            "platform": "linux/amd64",
+                            "workflow_path": ".github/workflows/production-image-provenance.yml",
+                            "workflow_run_id": 42,
+                            "workflow_run_attempt": 1,
+                            "workflow_ref": "refs/heads/main",
+                            "services": {
+                                "ingestor": {
+                                    "source_kind": "build", "build_context": ".",
+                                    "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+                                    "dockerfile_sha256": "2" * 64,
+                                    "image_repository": "ghcr.io/cyranoaladin/rag-ingestor",
+                                    "image_digest": "sha256:" + "1" * 64,
+                                },
+                                "multilevel-worker-a-production": {
+                                    "source_kind": "build", "build_context": ".",
+                                    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                                    "dockerfile_sha256": "4" * 64,
+                                    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+                                    "image_digest": "sha256:" + "3" * 64,
+                                },
+                                "multilevel-worker-b-production": {
+                                    "source_kind": "build", "build_context": ".",
+                                    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                                    "dockerfile_sha256": "4" * 64,
+                                    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+                                    "image_digest": "sha256:" + "3" * 64,
+                                },
+                            },
+                        })
                     self.assertIn("inventory_file=" + filename, output.read_text())
+
+    def test_assembler_refuses_invalid_mode_and_missing_cockpit_digest(self) -> None:
+        for mode, digest, expected_error in (
+            ("not-a-boolean", "sha256:" + "5" * 64, "explicit boolean"),
+            ("true", "", "produced no digest"),
+        ):
+            with self.subTest(mode=mode, digest=digest):
+                with TemporaryDirectory() as directory:
+                    result = self._run_assembler(
+                        directory, public_candidate=mode, cockpit_digest=digest
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(expected_error, result.stderr)
+                    self.assertEqual(list(Path(directory).glob("*.json")), [])
 
 
 if __name__ == "__main__":
