@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BFF_ERROR_CODE,
   getApiHealth,
+  getCollections,
   search,
 } from './bff-client'
 
@@ -165,5 +166,18 @@ describe('frontière BFF du cockpit', () => {
       '/api/health',
       expect.objectContaining({ signal: expect.any(AbortSignal) }),
     )
+  })
+
+  it('rend la recherche ouvrable lorsque santé et catalogue publics répondent', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response('{"status":"ok"}', { status: 200 }))
+      .mockResolvedValueOnce(Response.json({
+        items: [], live: true, launchReady: true,
+        totalCollections: 11, readyCollections: 11, blockers: [],
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(getCollections()).resolves.toMatchObject({ live: true, launchReady: true })
+    expect(fetchMock.mock.calls.map(([path]) => path)).toEqual(['/api/health', '/api/collections'])
   })
 })

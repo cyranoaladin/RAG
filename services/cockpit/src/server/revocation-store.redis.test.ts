@@ -5,6 +5,7 @@ const redisMock = vi.hoisted(() => {
   const connectAttempts: Array<Promise<void>> = []
   const createClient = vi.fn(() => ({
     connect: vi.fn(() => connectAttempts.shift() ?? Promise.resolve()),
+    destroy: vi.fn(),
     get: vi.fn(async (key: string) => state.get(key) ?? null),
     on: vi.fn(),
     set: vi.fn(async (
@@ -24,6 +25,7 @@ const redisMock = vi.hoisted(() => {
 vi.mock('redis', () => ({ createClient: redisMock.createClient }))
 
 import {
+  closeSessionStoreForTests,
   isRevoked,
   resetSessionStoreForTests,
   revokeSession,
@@ -54,7 +56,18 @@ describe('raccord Redis du store de session', () => {
     expect(redisMock.createClient).toHaveBeenCalledTimes(2)
     expect(redisMock.createClient).toHaveBeenNthCalledWith(1, expect.objectContaining({
       url: 'redis://session-store.test:6379/5',
+      disableOfflineQueue: true,
+      socket: { connectTimeout: 1000 },
     }))
+  })
+
+  it('ferme explicitement le client Redis après un test', async () => {
+    process.env.NEXUS_SESSION_REDIS_URL = 'redis://session-store.test:6379/5'
+    await isRevoked('jti-a', 'psn-a', 'libre_terminale')
+
+    await closeSessionStoreForTests()
+
+    expect(redisMock.createClient.mock.results[0]?.value.destroy).toHaveBeenCalledOnce()
   })
 
   it('partage un rejet de connexion puis réessaie avec un nouveau client', async () => {

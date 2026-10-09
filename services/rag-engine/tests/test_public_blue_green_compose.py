@@ -49,6 +49,12 @@ def _overlay_document() -> dict:
 def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path, color: str) -> None:
     material = tmp_path / "release-material"
     secrets = tmp_path / "runtime-secrets"
+    secrets.mkdir()
+    (secrets / "cockpit.env").write_text(
+        "RAG_ENGINE_INTERNAL_URL=http://ingestor:8001\n"
+        "NEXUS_SESSION_REDIS_URL=redis://default:synthetic@session-redis:6379/0\n",
+        encoding="utf-8",
+    )
     names = set(
         re.findall(
             r"\$\{([A-Z][A-Z0-9_]+):\?",
@@ -68,9 +74,12 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path, col
         NEXUS_RELEASE_MATERIAL_ROOT=str(material),
         NEXUS_RUNTIME_SECRETS_ROOT=str(secrets),
         NEXUS_INGESTOR_IMAGE_SHA256="a" * 64,
+        NEXUS_COCKPIT_IMAGE_SHA256="b" * 64,
+        NEXUS_REDIS_IMAGE_SHA256="c" * 64,
         NEXUS_RELEASE_MATERIAL_MANIFEST_SHA256="e" * 64,
         NEXUS_SEARCH_PORT="18101" if color == "blue" else "18102",
         NEXUS_PROM_PORT="19101" if color == "blue" else "19102",
+        NEXUS_COCKPIT_PORT="13101" if color == "blue" else "13102",
         PG_RAG_DSN="postgresql://rag_reader:synthetic@pgvector:5432/ragdb",
         PG_REVIEW_DSN="postgresql://rag_reviewer:synthetic@pgvector:5432/ragdb",
     )
@@ -98,22 +107,32 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path, col
     assert resolved["volumes"] == {
         "rag_pgvector_data": {"name": f"nexus-rag-{color}_rag_pgvector_data"},
         "rag_prometheus_data": {"name": f"nexus-rag-{color}_rag_prometheus_data"},
+        "session_redis_data": {"name": f"nexus-rag-{color}_session_redis_data"},
     }
     assert resolved["services"]["ingestor"]["networks"] == {"rag_net": None, "bff_net": None}
     assert resolved["services"]["pgvector"]["networks"] == {"rag_net": None}
     assert resolved["services"]["prometheus"]["networks"] == {"rag_net": None}
-    assert set(resolved["services"]) == {"pgvector", "ingestor", "prometheus"}
+    assert resolved["services"]["cockpit"]["networks"] == {"bff_net": None}
+    assert resolved["services"]["session-redis"]["networks"] == {"bff_net": None}
+    assert set(resolved["services"]) == {"pgvector", "ingestor", "prometheus", "cockpit", "session-redis"}
     assert resolved["services"]["ingestor"]["image"] == (
         "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "a" * 64
     )
     assert resolved["services"]["ingestor"]["labels"]["nexus.release-material.sha256"] == "e" * 64
+    assert resolved["services"]["cockpit"]["image"] == (
+        "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "b" * 64
+    )
+    assert resolved["services"]["session-redis"]["image"] == (
+        "docker.io/library/redis@sha256:" + "c" * 64
+    )
     base_command = ["docker", "compose", "-f", str(BASE), "config", "--format", "json"]
     base_completed = subprocess.run(
         base_command, env=env, text=True, capture_output=True, check=False
     )
     assert base_completed.returncode == 0, base_completed.stderr
     base_resolved = json.loads(base_completed.stdout)
-    for name, service in resolved["services"].items():
+    for name in ("pgvector", "ingestor", "prometheus"):
+        service = resolved["services"][name]
         base_targets = {mount["target"] for mount in base_resolved["services"][name]["volumes"]}
         candidate_targets = {mount["target"] for mount in service["volumes"]}
         assert candidate_targets == base_targets
@@ -146,9 +165,9 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path, col
     )
     assert client_spec["bind"]["create_host_path"] is False
     for service in _overlay_document()["services"].values():
-        for mount in service["volumes"]:
+        for mount in service.get("volumes", []):
             if isinstance(mount, str):
-                assert mount.startswith(("rag_pgvector_data:", "rag_prometheus_data:"))
+                assert mount.startswith(("rag_pgvector_data:", "rag_prometheus_data:", "session_redis_data:"))
             else:
                 assert mount["type"] == "bind"
                 assert mount["read_only"] is True
@@ -163,11 +182,18 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path, col
         "pgvector": [],
         "ingestor": [("127.0.0.1", "18101" if color == "blue" else "18102", 8001)],
         "prometheus": [("127.0.0.1", "19101" if color == "blue" else "19102", 9090)],
+        "cockpit": [("127.0.0.1", "13101" if color == "blue" else "13102", 3000)],
+        "session-redis": [],
     }
     prometheus_targets = {
         mount["target"] for mount in resolved["services"]["prometheus"]["volumes"]
     }
     assert {"/etc/prometheus/prometheus.yml", "/etc/prometheus/rules"} <= prometheus_targets
+    assert {mount["target"] for mount in resolved["services"]["session-redis"]["volumes"]} == {
+        "/data", "/run/secrets/session-redis.acl"
+    }
+    assert not resolved["services"]["cockpit"].get("volumes")
+    assert resolved["services"]["cockpit"]["environment"]["RAG_ENGINE_INTERNAL_URL"] == "http://ingestor:8001"
 
 
 def test_candidate_variables_are_documented_in_example_env() -> None:
@@ -176,8 +202,11 @@ def test_candidate_variables_are_documented_in_example_env() -> None:
         "NEXUS_RELEASE_MATERIAL_ROOT",
         "NEXUS_RUNTIME_SECRETS_ROOT",
         "NEXUS_INGESTOR_IMAGE_SHA256",
+        "NEXUS_COCKPIT_IMAGE_SHA256",
+        "NEXUS_REDIS_IMAGE_SHA256",
         "NEXUS_RELEASE_MATERIAL_MANIFEST_SHA256",
         "NEXUS_SEARCH_PORT",
         "NEXUS_PROM_PORT",
+        "NEXUS_COCKPIT_PORT",
     ):
         assert re.search(rf"^{name}=", example, re.MULTILINE), name
