@@ -42,7 +42,11 @@ de l'inventaire public ni la tentative de run qui les a publiés.
    Le bundle, en V1 comme en V2 public, est créé dans un répertoire privé
    `0700` sous un parent de confiance déjà préparé ; chaque fichier est
    écrit atomiquement à `0600`, car `.env` et le Compose résolu peuvent
-   contenir des secrets runtime.
+   contenir des secrets runtime. Le répertoire de travail de vérification est
+   lui aussi privé (`0700`, chemin absolu sans `..`, sans symlink ni ancêtre insûr) ; le snapshot `.env`
+   et les fichiers Compose sont écrits à `0600` dans des sous-répertoires
+   temporaires `0700`, puis supprimés après vérification. Un scratch existant
+   non privé est refusé avant toute copie de secret.
 5. Les octets canoniques des manifests V2 existants, sans ces champs,
    restent identiques ; la voie V1 garde son protocole et ses trois services.
    Aucun nouveau type de clé ni aucune signature automatique n'est ajouté.

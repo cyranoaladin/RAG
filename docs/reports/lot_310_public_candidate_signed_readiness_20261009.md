@@ -6,8 +6,9 @@
 - **LIVE** au fetch du 2026-10-09 : `origin/main`
   `59da01c9821cbbff8b12194394d232dc33ecf149`, arbre
   `5579d74cb69831bf660fd8ef99a0909b2e5d57d5` ; #309 y est fusionnée.
-- **SEALED** : les trois commits du lot ont été rejoués sans conflit dans un
-  nouveau worktree propre depuis cette base. Venv Python 3.12 neuf ;
+- **SEALED** : le lot préparatoire et son raccord au Compose public ont été
+  rejoués sans conflit dans un nouveau worktree propre depuis cette base ; les
+  correctifs de sécurité ont ensuite été commis sur cette branche. Venv Python 3.12 neuf ;
   `nexus-contracts` installé depuis ce checkout en mode non éditable
   (`.venv/site-packages`).
 - Aucun accès en écriture à staging/production ; aucune clé opérateur utilisée,
@@ -57,14 +58,26 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
   écriture groupe/monde est refusé avant écriture ; l'opérateur doit préparer
   le parent privé. Les copies `.env` et `resolved-compose.json` peuvent
   contenir des secrets de session et d'identité.
+- Le répertoire de travail de vérification doit être `0700` et appartenir à
+  l'opérateur, avec un chemin absolu sans `..` et sous des ancêtres de confiance
+  sans symlink. La voie API le crée
+  à `0700` si seule sa feuille manque ; elle refuse un scratch préexistant
+  trop ouvert. Le snapshot `.env` est créé à `0600` dans un répertoire
+  temporaire `0700`, utilisé pendant `docker compose config`, puis supprimé.
+  Les sources Compose sont également écrites à `0600` dans un scratch privé et
+  éphémère ; la provenance téléchargée est confinée à un répertoire temporaire
+  privé. La protection vaut pour V1 et V2 sans modifier les octets signés.
 
 ## Qualification locale sur la base fusionnée
 
-- **SEALED** sur le HEAD de code candidat `e92065ad2601ebaa5e1669520fba022b9acb1a57` :
+- **SEALED** sur le HEAD de code candidat `94215e090ddba6398c2fd3087d5e77fa717b5b77`,
+  arbre `c2f25577b3edd91fc459571e8295172cec971a98` :
   `pytest -q` sur le contrat readiness et les six suites
   `rag-engine` ciblées (inventaire, vérificateur, signer, wrapper,
-  préflight public, plan signé) et l'export de schéma : **418 passed**.
-- `ruff check` sur les douze fichiers Python touchés : **0 erreur** ;
+  préflight public, plan signé), l'export de schéma et la suite
+  `test_public_blue_green_compose.py` contre le vrai moteur Docker Compose :
+  **428 passed**.
+- `ruff check` sur les treize fichiers Python modifiés par le lot : **0 erreur** ;
   `git diff --check` : **0 erreur**.
 - La recette officielle `make typecheck` (sans réinstallation, via
   `make -o install-dev typecheck`) : **5 erreurs identiques sur 149 fichiers**
@@ -77,10 +90,13 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
   canonique à quatre images, bundle et relecture à deux fichiers, plan-only,
   refus `execute=True`, ancien V2, divergence du Compose effectif, du mode de
   bundle et des octets de l'inventaire même si le bundle est rehashé ; tests
-  de permissions sous umask `000`, destination symlink et parent dangereux. Les
-  chemins V1 restent couverts par leurs tests existants.
+  de permissions sous umask `000` pour l'API injectable et le CLI, refus du
+  workdir unsafe/symlink/`..`, ancêtre manquant portant le nom de la feuille,
+  destination symlink, parent dangereux, impossibilité
+  de réutiliser un ancien snapshot symlink/hardlink et disparition des copies
+  éphémères. Les chemins V1 restent couverts par leurs tests existants.
 - `docker compose config` réel (Compose 5.6.0) depuis les objets Git du HEAD
-  candidat `e92065ad2601ebaa5e1669520fba022b9acb1a57`, avec variables
+  candidat `94215e090ddba6398c2fd3087d5e77fa717b5b77`, avec variables
   et matériaux fictifs isolés : cinq services exacts, aucun `build` pour
   l'API ou le Cockpit. Aucun conteneur n'a été démarré.
 - Les tests du préflight public #309 contre le Compose réel sont passés dans
