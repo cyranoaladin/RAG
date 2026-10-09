@@ -137,7 +137,12 @@ def _material_inventory(root: Path, source_sha: str) -> tuple[str, int]:
                  f"invalid material file entry: {relative}")
         listed[relative] = expected
     seen: set[str] = set()
-    for directory, directories, filenames in os.walk(root, followlinks=False):
+    def fail_walk(exc: OSError) -> None:
+        raise PublicCandidateError(f"cannot inventory material tree: {exc}") from exc
+
+    for directory, directories, filenames in os.walk(
+        root, followlinks=False, onerror=fail_walk
+    ):
         for name in directories + filenames:
             path = Path(directory) / name
             _no_symlink_components(path)
@@ -177,6 +182,19 @@ def require_public_candidate(
     _require(color in {"blue", "green"}, "unknown candidate color")
     project = f"nexus-rag-{color}"
     _require(resolved_compose.get("name") == project, "isolated Compose project differs")
+    _require(
+        resolved_compose.get("networks")
+        == {"rag_net": {"name": f"{project}_rag_net", "driver": "bridge", "ipam": {}}},
+        "candidate network must be project-scoped and non-external",
+    )
+    _require(
+        resolved_compose.get("volumes")
+        == {
+            "rag_pgvector_data": {"name": f"{project}_rag_pgvector_data"},
+            "rag_prometheus_data": {"name": f"{project}_rag_prometheus_data"},
+        },
+        "candidate volumes must be project-scoped local volumes without driver options",
+    )
     services = resolved_compose.get("services")
     _require(isinstance(services, dict) and set(services) == _SERVICES,
              "public candidate must have exactly three read-only services")
@@ -201,6 +219,16 @@ def require_public_candidate(
     database_name = database_env.get("POSTGRES_DB")
     _require(isinstance(database_name, str) and bool(database_name),
              "candidate database name is missing")
+    _require(
+        all(
+            isinstance(key, str)
+            and "PUBLISHER" not in key.upper()
+            and "WRITER" not in key.upper()
+            and not key.upper().startswith(("PGVECTOR_", "POSTGRES_"))
+            for key in api_env
+        ),
+        "API must not receive publisher or writer credentials",
+    )
     for variable, username in (("PG_RAG_DSN", "rag_reader"), ("PG_REVIEW_DSN", "rag_reviewer")):
         value = api_env.get(variable)
         _require(isinstance(value, str), f"candidate {variable} is missing")
@@ -228,6 +256,9 @@ def require_public_candidate(
              "material manifest digest is not bound to resolved Compose")
     for name, service in services.items():
         _require(isinstance(service, dict) and "build" not in service, f"build refused: {name}")
+        _require(service.get("networks") == {"rag_net": None} and
+                 "network_mode" not in service,
+                 f"candidate service network differs: {name}")
         ref = service.get("image")
         _require(isinstance(ref, str) and _IMAGE.fullmatch(ref) is not None,
                  f"unpinned image: {name}")

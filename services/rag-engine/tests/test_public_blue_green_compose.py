@@ -90,6 +90,14 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> 
     assert completed.returncode == 0, completed.stderr
     resolved = json.loads(completed.stdout)
     assert resolved["name"] == "nexus-rag-blue"
+    assert resolved["networks"] == {
+        "rag_net": {"name": "nexus-rag-blue_rag_net", "driver": "bridge", "ipam": {}}
+    }
+    assert resolved["volumes"] == {
+        "rag_pgvector_data": {"name": "nexus-rag-blue_rag_pgvector_data"},
+        "rag_prometheus_data": {"name": "nexus-rag-blue_rag_prometheus_data"},
+    }
+    assert all(service["networks"] == {"rag_net": None} for service in resolved["services"].values())
     assert set(resolved["services"]) == {"pgvector", "ingestor", "prometheus"}
     assert resolved["services"]["ingestor"]["image"] == (
         "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "a" * 64

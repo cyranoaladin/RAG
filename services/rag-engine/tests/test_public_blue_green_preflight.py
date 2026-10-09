@@ -87,10 +87,16 @@ def _fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
     }
     config = {
         "name": "nexus-rag-blue",
+        "networks": {"rag_net": {"name": "nexus-rag-blue_rag_net", "driver": "bridge", "ipam": {}}},
+        "volumes": {
+            "rag_pgvector_data": {"name": "nexus-rag-blue_rag_pgvector_data"},
+            "rag_prometheus_data": {"name": "nexus-rag-blue_rag_prometheus_data"},
+        },
         "services": {
             "pgvector": {
                 "image": "pgvector/pgvector@sha256:" + "c" * 64,
                 "environment": {"POSTGRES_DB": "ragdb"},
+                "networks": {"rag_net": None},
                 "volumes": [*volumes["pgvector"], {"type": "volume", "source": "nexus-rag-blue_rag_pgvector_data", "target": "/var/lib/postgresql/data"}],
                 "ports": [],
             },
@@ -100,12 +106,14 @@ def _fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
                     "PG_RAG_DSN": "postgresql://rag_reader:dummy@pgvector:5432/ragdb",
                     "PG_REVIEW_DSN": "postgresql://rag_reviewer:dummy@pgvector:5432/ragdb",
                 },
+                "networks": {"rag_net": None},
                 "volumes": volumes["ingestor"],
                 "ports": [{"host_ip": "127.0.0.1", "published": "18101", "target": 8001}],
                 "labels": {"nexus.release-material.sha256": digest},
             },
             "prometheus": {
                 "image": "prom/prometheus@sha256:" + "d" * 64,
+                "networks": {"rag_net": None},
                 "volumes": [*volumes["prometheus"], {"type": "volume", "source": "nexus-rag-blue_rag_prometheus_data", "target": "/prometheus"}],
                 "ports": [{"host_ip": "127.0.0.1", "published": "19101", "target": 9090}],
             },
@@ -132,6 +140,7 @@ def test_accepts_exact_public_candidate_material(tmp_path: Path) -> None:
     assert evidence["project"] == "nexus-rag-blue"
     assert evidence["material_files"] == 18
     assert evidence["api_image"] == IMAGE
+    assert evidence["mutation_allowed"] is False
     assert evidence["material_manifest_digest"] == config["services"]["ingestor"]["labels"]["nexus.release-material.sha256"]
 
 
@@ -209,7 +218,20 @@ def test_refuses_release_material_under_a_different_git_worktree(tmp_path: Path)
         _check(config, moved, secrets, repo)
 
 
-@pytest.mark.parametrize("mutation", ["wrong_project", "wrong_image", "writer", "public_db", "external_db", "query_override", "checkout_bind", "writable_bind", "wrong_label", "missing_label", "changed_file", "extra_file", "symlink", "missing_bind", "unlisted_target", "foreign_volume", "missing_volume"])
+def test_refuses_unreadable_material_subdirectory(tmp_path: Path) -> None:
+    config, root, secrets, repo = _fixture(tmp_path)
+    hidden = root / "configs" / "unreadable"
+    hidden.mkdir()
+    (hidden / "unlisted.txt").write_text("secret", encoding="utf-8")
+    hidden.chmod(0)
+    try:
+        with pytest.raises(preflight.PublicCandidateError, match="inventory"):
+            _check(config, root, secrets, repo)
+    finally:
+        hidden.chmod(0o700)
+
+
+@pytest.mark.parametrize("mutation", ["wrong_project", "wrong_image", "writer", "publisher_dsn", "publisher_secret", "public_db", "external_db", "query_override", "external_network", "foreign_volume_definition", "checkout_bind", "writable_bind", "wrong_label", "missing_label", "changed_file", "extra_file", "symlink", "missing_bind", "unlisted_target", "foreign_volume", "missing_volume"])
 def test_refuses_unsealed_or_unsafe_candidate(tmp_path: Path, mutation: str) -> None:
     config, root, secrets, repo = _fixture(tmp_path)
     services = config["services"]
@@ -219,12 +241,20 @@ def test_refuses_unsealed_or_unsafe_candidate(tmp_path: Path, mutation: str) -> 
         services["ingestor"]["image"] = "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "e" * 64
     elif mutation == "writer":
         services["worker"] = {"image": IMAGE}
+    elif mutation == "publisher_dsn":
+        services["ingestor"]["environment"]["PG_PUBLISHER_DSN"] = "postgresql://rag_publisher:dummy@pgvector:5432/ragdb"
+    elif mutation == "publisher_secret":
+        services["ingestor"]["environment"]["PGVECTOR_PUBLISHER_PASSWORD"] = "dummy"
     elif mutation == "public_db":
         services["pgvector"]["ports"] = [{"host_ip": "0.0.0.0", "published": "5436", "target": 5432}]
     elif mutation == "external_db":
         services["ingestor"]["environment"]["PG_RAG_DSN"] = "postgresql://rag_reader:dummy@historic-db:5432/ragdb"
     elif mutation == "query_override":
         services["ingestor"]["environment"]["PG_RAG_DSN"] += "?host=historic-db"
+    elif mutation == "external_network":
+        config["networks"]["rag_net"]["external"] = True
+    elif mutation == "foreign_volume_definition":
+        config["volumes"]["rag_pgvector_data"]["driver_opts"] = {"device": "/srv/historic/pgdata"}
     elif mutation == "checkout_bind":
         services["ingestor"]["volumes"][0]["source"] = str(repo)
     elif mutation == "writable_bind":

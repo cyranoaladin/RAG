@@ -16,10 +16,12 @@ run GitHub Actions vérifié, au SHA et à l'arbre exacts ; il refuse un digest
 API opérateur divergent.
 
 Le préflight exige exactement les trois services `pgvector`, `ingestor`,
-`prometheus`, le projet `nexus-rag-blue` ou `nexus-rag-green`, les deux volumes
-nommés propres à ce projet, aucun build, aucune publication du port DB, un
+`prometheus`, le projet `nexus-rag-blue` ou `nexus-rag-green`, le réseau bridge
+et les deux volumes locaux propres à ce projet sans option de pilote ou source
+externe, aucun build, aucune publication du port DB, un
 unique port loopback pour API et Prometheus, les deux DSN API vers le
-`pgvector` du même projet et tous les binds attendus en lecture seule. Il
+`pgvector` du même projet, aucune variable publisher/writer dans l'API et tous
+les binds attendus en lecture seule. Il
 refuse un chemin dans n'importe quel checkout Git (y compris un worktree
 frère signalé par un fichier `.git`), un lien symbolique, un hardlink de
 fichier inventorié, un fichier manquant ou supplémentaire et toute empreinte
@@ -55,7 +57,7 @@ une signature de release finale.
 
 - Cycle TDD : refus observés avant le code pour les binds omis ou ajoutés,
   volumes d'un autre projet et DSN pointant une base externe.
-- `python -m pytest -q services/rag-engine/tests/test_public_blue_green_compose.py services/rag-engine/tests/test_public_blue_green_preflight.py` : 23 tests réussis, y compris fusion Docker Compose réelle et fixtures synthétiques.
+- `python -m pytest -q services/rag-engine/tests/test_public_blue_green_compose.py services/rag-engine/tests/test_public_blue_green_preflight.py` : 28 tests réussis, y compris fusion Docker Compose réelle et fixtures synthétiques.
 - `ruff check` sur les trois fichiers Python touchés : aucun diagnostic.
 
 **Ce préflight n'est pas encore invoqué par
