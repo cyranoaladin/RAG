@@ -119,6 +119,14 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path) -> 
         if isinstance(mount, dict) and mount.get("target") == "/app/api-clients/api-clients.json"
     )
     assert client_spec["bind"]["create_host_path"] is False
+    for service in _overlay_document()["services"].values():
+        for mount in service["volumes"]:
+            if isinstance(mount, str):
+                assert mount.startswith(("rag_pgvector_data:", "rag_prometheus_data:"))
+            else:
+                assert mount["type"] == "bind"
+                assert mount["read_only"] is True
+                assert mount["bind"]["create_host_path"] is False
     ports = {
         service: [
             (port["host_ip"], port["published"], port["target"]) for port in spec.get("ports", [])
