@@ -145,45 +145,54 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
                         set(document["services"]),
                         required_services | ({"cockpit"} if enabled else set()),
                     )
-                    if enabled:
-                        self.assertEqual(document["services"]["cockpit"]["dockerfile"], "services/cockpit/Dockerfile")
-                    else:
-                        datetime.fromisoformat(document["built_at"].replace("Z", "+00:00"))
-                        without_timestamp = {key: value for key, value in document.items() if key != "built_at"}
-                        self.assertEqual(without_timestamp, {
-                            "protocol_version": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
-                            "repository": "cyranoaladin/RAG",
-                            "source_commit_sha": "a" * 40,
-                            "source_tree_sha": "b" * 40,
-                            "platform": "linux/amd64",
-                            "workflow_path": ".github/workflows/production-image-provenance.yml",
-                            "workflow_run_id": 42,
-                            "workflow_run_attempt": 1,
-                            "workflow_ref": "refs/heads/main",
-                            "services": {
-                                "ingestor": {
-                                    "source_kind": "build", "build_context": ".",
-                                    "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
-                                    "dockerfile_sha256": "2" * 64,
-                                    "image_repository": "ghcr.io/cyranoaladin/rag-ingestor",
-                                    "image_digest": "sha256:" + "1" * 64,
-                                },
-                                "multilevel-worker-a-production": {
-                                    "source_kind": "build", "build_context": ".",
-                                    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
-                                    "dockerfile_sha256": "4" * 64,
-                                    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
-                                    "image_digest": "sha256:" + "3" * 64,
-                                },
-                                "multilevel-worker-b-production": {
-                                    "source_kind": "build", "build_context": ".",
-                                    "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
-                                    "dockerfile_sha256": "4" * 64,
-                                    "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
-                                    "image_digest": "sha256:" + "3" * 64,
-                                },
+                    self.assertTrue(document["built_at"].endswith("Z"))
+                    timestamp = datetime.fromisoformat(document["built_at"].replace("Z", "+00:00"))
+                    self.assertEqual(timestamp.utcoffset().total_seconds(), 0)
+                    without_timestamp = {key: value for key, value in document.items() if key != "built_at"}
+                    expected = {
+                        "protocol_version": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1",
+                        "repository": "cyranoaladin/RAG",
+                        "source_commit_sha": "a" * 40,
+                        "source_tree_sha": "b" * 40,
+                        "platform": "linux/amd64",
+                        "workflow_path": ".github/workflows/production-image-provenance.yml",
+                        "workflow_run_id": 42,
+                        "workflow_run_attempt": 1,
+                        "workflow_ref": "refs/heads/main",
+                        "services": {
+                            "ingestor": {
+                                "source_kind": "build", "build_context": ".",
+                                "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2",
+                                "dockerfile_sha256": "2" * 64,
+                                "image_repository": "ghcr.io/cyranoaladin/rag-ingestor",
+                                "image_digest": "sha256:" + "1" * 64,
                             },
-                        })
+                            "multilevel-worker-a-production": {
+                                "source_kind": "build", "build_context": ".",
+                                "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                                "dockerfile_sha256": "4" * 64,
+                                "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+                                "image_digest": "sha256:" + "3" * 64,
+                            },
+                            "multilevel-worker-b-production": {
+                                "source_kind": "build", "build_context": ".",
+                                "dockerfile": "services/rag-engine/infra/Dockerfile.multilevel-worker-production",
+                                "dockerfile_sha256": "4" * 64,
+                                "image_repository": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+                                "image_digest": "sha256:" + "3" * 64,
+                            },
+                        },
+                    }
+                    if enabled:
+                        expected["protocol_version"] = "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2"
+                        expected["services"]["cockpit"] = {
+                            "source_kind": "build", "build_context": ".",
+                            "dockerfile": "services/cockpit/Dockerfile",
+                            "dockerfile_sha256": "6" * 64,
+                            "image_repository": "ghcr.io/cyranoaladin/rag-cockpit",
+                            "image_digest": "sha256:" + "5" * 64,
+                        }
+                    self.assertEqual(without_timestamp, expected)
                     self.assertIn("inventory_file=" + filename, output.read_text())
 
     def test_assembler_refuses_invalid_mode_and_missing_cockpit_digest(self) -> None:
