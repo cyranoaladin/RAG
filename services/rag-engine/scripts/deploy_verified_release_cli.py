@@ -59,21 +59,28 @@ la seule preuve de provenance d'image ne suffit jamais à autoriser une
 mutation réelle (par défaut : verdict + bundle matérialisé + plan
 imprimé, aucune commande Docker mutante lancée —
 `LIVE_MUTATIONS_ALLOWED=false` par défaut). Il ne recalcule aucun verdict
-de gouvernance pédagogique (ADR-0001). Il n'arrête ni ne supprime jamais
-aucun conteneur lui-même."""
+de gouvernance pédagogique (ADR-0001). La voie historique n'arrête aucun
+conteneur ; la voie publique peut retirer uniquement la couleur candidate
+après un échec de démarrage ou sur rollback explicite."""
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
+import fcntl
 import hashlib
 import json
 import os
 import secrets
+import socket
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
-from collections.abc import Callable
+import time
+import urllib.request
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
@@ -150,6 +157,11 @@ class RunningContainerInfo:
 
 
 ListRunningContainers = Callable[[], list[RunningContainerInfo]]
+ProjectInventory = Callable[[str], dict[str, list[str]]]
+ReadinessAssert = Callable[[], bool]
+ProjectContainers = Callable[[str], list[dict[str, Any]]]
+PrometheusProbe = Callable[[int], bool]
+HostLocalGuard = Callable[[], bool]
 
 
 class DeploymentWrapperError(RuntimeError):
@@ -825,6 +837,79 @@ def materialize_verified_bundle(
 
 def _default_run_subprocess(args: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True, timeout=600, check=False)
+
+
+def _default_project_inventory(project: str) -> dict[str, list[str]]:
+    """Inventorie aussi les conteneurs arrêtés et volumes d'une couleur."""
+    commands = {
+        "containers": [
+            "docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={project}"
+        ],
+        "networks": ["docker", "network", "ls", "--format", "{{.Name}}"],
+        "volumes": ["docker", "volume", "ls", "--format", "{{.Name}}"],
+    }
+    inventory: dict[str, list[str]] = {}
+    for kind, command in commands.items():
+        try:
+            completed = subprocess.run(
+                command, capture_output=True, text=True, timeout=30, check=False
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise DeploymentWrapperError(f"Docker {kind} inventory failed") from exc
+        if completed.returncode != 0:
+            raise DeploymentWrapperError(f"Docker {kind} inventory failed")
+        names = completed.stdout.splitlines()
+        inventory[kind] = (
+            names if kind == "containers" else
+            [name for name in names if name.startswith(project + "_")]
+        )
+    return inventory
+
+
+def _default_project_containers(project: str) -> list[dict[str, Any]]:
+    """Inspecte les labels complets, aussi pour les conteneurs arrêtés."""
+    inventory = _default_project_inventory(project)
+    ids = inventory["containers"]
+    if not ids:
+        return []
+    try:
+        inspected = subprocess.run(
+            ["docker", "inspect", *ids], capture_output=True, text=True,
+            timeout=30, check=False,
+        )
+        rows = json.loads(inspected.stdout) if inspected.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError, json.JSONDecodeError) as exc:
+        raise DeploymentWrapperError("Docker project identity inspection failed") from exc
+    if not isinstance(rows, list) or len(rows) != len(ids):
+        raise DeploymentWrapperError("Docker project identity inspection failed")
+    return [
+        {"Id": row.get("Id"), "Labels": row.get("Config", {}).get("Labels")}
+        if isinstance(row, dict) and isinstance(row.get("Config"), dict) else {}
+        for row in rows
+    ]
+
+
+def _assert_go_live_ready(repo_root: Path, merge_sha: str) -> bool:
+    """Relit le garde canonique sur le checkout exact, jamais son snapshot."""
+    head = subprocess.run(
+        ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if head.returncode != 0 or head.stdout.strip() != merge_sha:
+        return False
+    status = subprocess.run(
+        ["git", "-C", str(repo_root), "status", "--porcelain", "--untracked-files=all"],
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if status.returncode != 0 or status.stdout.strip():
+        return False
+    checker = subprocess.run(
+        [sys.executable, str(repo_root / "scripts/go_live/check_go_live_readiness.py"),
+         "--assert-ready"],
+        cwd=repo_root, capture_output=True, text=True, timeout=300, check=False,
+        env={**os.environ, "NEXUS_REPO_ROOT": str(repo_root)},
+    )
+    return checker.returncode == 0 and "GO_LIVE_READY=true" in checker.stdout.splitlines()
 
 
 def _default_list_running_containers() -> list[RunningContainerInfo]:
@@ -2050,6 +2135,498 @@ def _verify_deploy_inputs(
     )
 
 
+def _public_compose_args(bundle_dir: Path, project: str) -> list[str]:
+    command = [
+        "docker", "compose", "--project-name", project,
+        "--project-directory", str(bundle_dir),
+        "--env-file", str(bundle_dir / _ENV_BUNDLE_NAME),
+    ]
+    for name in vri._PUBLIC_CANDIDATE_COMPOSE_FILES:
+        command.extend(("-f", str(bundle_dir / name)))
+    return command
+
+
+def _require_empty_public_project(project: str, inventory: ProjectInventory) -> None:
+    observed = inventory(project)
+    if set(observed) != {"containers", "networks", "volumes"} or any(
+        not isinstance(observed[kind], list) for kind in observed
+    ):
+        raise DeploymentWrapperError("public candidate project inventory is incomplete")
+    if any(observed.values()):
+        raise DeploymentWrapperError("pre-existing resources in candidate project")
+
+
+def _require_host_local_docker_daemon() -> bool:
+    """Refuse un proxy/daemon distant ou un namespace distinct du daemon local."""
+    if os.environ.get("DOCKER_HOST") or os.environ.get("DOCKER_CONTEXT"):
+        return False
+    try:
+        context = subprocess.run(
+            ["docker", "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}"],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        endpoint = json.loads(context.stdout) if context.returncode == 0 else None
+        if endpoint not in {"unix:///var/run/docker.sock", "unix:///run/docker.sock"}:
+            return False
+        socket_path = endpoint.removeprefix("unix://")
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as peer_socket:
+            peer_socket.settimeout(2)
+            peer_socket.connect(socket_path)
+            peer_pid, _uid, _gid = struct.unpack(
+                "3i", peer_socket.getsockopt(socket.SOL_SOCKET, socket.SO_PEERCRED, 12)
+            )
+        peer_comm = (Path("/proc") / str(peer_pid) / "comm").read_text(
+            encoding="ascii"
+        ).strip()
+        daemon_pid = peer_pid
+        if peer_comm == "systemd" and peer_pid == 1:
+            unit = subprocess.run(
+                ["systemctl", "show", "docker.socket", "-p", "ActiveState",
+                 "-p", "Listen", "-p", "Triggers", "--no-pager"],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            fields = dict(line.split("=", 1) for line in unit.stdout.splitlines() if "=" in line)
+            if (unit.returncode != 0 or fields.get("ActiveState") != "active"
+                    or fields.get("Triggers") != "docker.service"
+                    or str(Path(socket_path).resolve()) not in fields.get("Listen", "")):
+                return False
+            service = subprocess.run(
+                ["systemctl", "show", "docker.service", "-p", "MainPID",
+                 "-p", "ActiveState", "--no-pager"],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            fields = dict(line.split("=", 1) for line in service.stdout.splitlines() if "=" in line)
+            if (service.returncode != 0 or fields.get("ActiveState") != "active"
+                    or not fields.get("MainPID", "").isdecimal()):
+                return False
+            daemon_pid = int(fields["MainPID"])
+        elif peer_comm != "dockerd":
+            return False
+        if daemon_pid < 2 or (Path("/proc") / str(daemon_pid) / "comm").read_text(
+            encoding="ascii"
+        ).strip() != "dockerd":
+            return False
+        own_net = os.stat("/proc/self/net/dev")
+        daemon_net = os.stat(f"/proc/{daemon_pid}/net/dev")
+        return (own_net.st_dev, own_net.st_ino) == (daemon_net.st_dev, daemon_net.st_ino)
+    except (OSError, UnicodeError, subprocess.SubprocessError, json.JSONDecodeError,
+            ValueError, struct.error):
+        return False
+
+
+@contextlib.contextmanager
+def _public_color_lock(
+    state_root: Path | None, color: str, host_local_guard: HostLocalGuard,
+) -> Iterator[int]:
+    """Verrou canonique de couleur dans le namespace réseau du daemon local."""
+    if state_root is None or color not in {"blue", "green"}:
+        raise DeploymentWrapperError("public candidate requires a stable deployment state root")
+    if host_local_guard() is not True:
+        raise DeploymentWrapperError("public candidate requires host-local Docker namespace")
+    absolute = Path(os.path.abspath(state_root))
+    if absolute == Path(absolute.anchor):
+        raise DeploymentWrapperError("deployment state root cannot be filesystem root")
+    global_lock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    try:
+        global_lock.bind(f"\0nexus-rag-public-{color}-deployment-v1")
+    except OSError as exc:
+        global_lock.close()
+        raise DeploymentWrapperError("public candidate color lock is busy or unavailable") from exc
+    try:
+        parent = _open_directory_no_follow(absolute.parent)
+    except OSError as exc:
+        global_lock.close()
+        raise DeploymentWrapperError("deployment state parent cannot be opened safely") from exc
+    root = lock = -1
+    try:
+        root, _ = _open_or_create_private_child(
+            parent, absolute.name, label="deployment state root"
+        )
+        lock = os.open(
+            f"public-{color}.lock",
+            os.O_RDWR | os.O_CREAT | getattr(os, "O_CLOEXEC", 0)
+            | getattr(os, "O_NOFOLLOW", 0),
+            0o600, dir_fd=root,
+        )
+        metadata = os.fstat(lock)
+        if (not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600
+                or metadata.st_uid != os.geteuid() or metadata.st_nlink != 1):
+            raise DeploymentWrapperError("public candidate lock identity is unsafe")
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise DeploymentWrapperError("public candidate color lock is busy") from exc
+        yield root
+    finally:
+        if lock >= 0:
+            os.close(lock)
+        if root >= 0:
+            os.close(root)
+        os.close(parent)
+        global_lock.close()
+
+
+def _public_state_name(color: str) -> str:
+    return f"public-{color}.json"
+
+
+def _read_public_state(root: int, color: str) -> dict[str, Any] | None:
+    try:
+        fd = os.open(
+            _public_state_name(color),
+            os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=root,
+        )
+    except FileNotFoundError:
+        return None
+    try:
+        metadata = os.fstat(fd)
+        if (not stat.S_ISREG(metadata.st_mode) or stat.S_IMODE(metadata.st_mode) != 0o600
+                or metadata.st_uid != os.geteuid() or metadata.st_nlink != 1
+                or metadata.st_size > 16384):
+            raise DeploymentWrapperError("public generation state identity is unsafe")
+        raw = os.read(fd, 16385)
+        document = json.loads(raw)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise DeploymentWrapperError("public generation state cannot be read") from exc
+    finally:
+        os.close(fd)
+    if not isinstance(document, dict):
+        raise DeploymentWrapperError("public generation state is invalid")
+    return document
+
+
+def _write_public_state(root: int, color: str, document: dict[str, Any]) -> None:
+    if _read_public_state(root, color) is not None:
+        raise DeploymentWrapperError("public generation state already exists")
+    raw = _canonical_json_bytes(document)
+    temp = f".public-{color}.{secrets.token_hex(16)}"
+    fd = os.open(
+        temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0),
+        0o600, dir_fd=root,
+    )
+    try:
+        remaining = memoryview(raw)
+        while remaining:
+            written = os.write(fd, remaining)
+            if written == 0:
+                raise DeploymentWrapperError("public generation state write made no progress")
+            remaining = remaining[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    try:
+        os.link(temp, _public_state_name(color), src_dir_fd=root, dst_dir_fd=root,
+                follow_symlinks=False)
+        os.fsync(root)
+    finally:
+        os.unlink(temp, dir_fd=root)
+
+
+def _owned_public_container_ids(
+    *, project: str, bundle_dir: Path, containers: ProjectContainers,
+    require_all_services: bool,
+) -> list[str]:
+    rows = containers(project)
+    if not isinstance(rows, list) or not rows:
+        raise DeploymentWrapperError("public candidate container ownership is ambiguous")
+    expected_files = {
+        str(bundle_dir / name) for name in vri._PUBLIC_CANDIDATE_COMPOSE_FILES
+    }
+    ids: list[str] = []
+    services: set[str] = set()
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("Labels"), dict):
+            raise DeploymentWrapperError("public candidate container identity is ambiguous")
+        labels = row["Labels"]
+        service = labels.get("com.docker.compose.service")
+        container_id = row.get("Id")
+        files = labels.get("com.docker.compose.project.config_files")
+        if (not isinstance(container_id, str) or not container_id
+                or labels.get("com.docker.compose.project") != project
+                or service not in vri._PUBLIC_CANDIDATE_SERVICES
+                or service in services
+                or labels.get("com.docker.compose.project.working_dir") != str(bundle_dir)
+                or not isinstance(files, str)
+                or set(files.split(",")) != expected_files):
+            raise DeploymentWrapperError("public candidate container ownership is ambiguous")
+        ids.append(container_id)
+        services.add(service)
+    if require_all_services and services != vri._PUBLIC_CANDIDATE_SERVICES:
+        raise DeploymentWrapperError("public candidate five-service identity is incomplete")
+    return sorted(ids)
+
+
+def _prometheus_port(verified: _VerifiedDeployInputs) -> int:
+    try:
+        effective = json.loads(verified.effective_compose_bytes)
+        port = int(effective["services"]["prometheus"]["ports"][0]["published"])
+    except (ValueError, KeyError, IndexError, TypeError, json.JSONDecodeError) as exc:
+        raise DeploymentWrapperError("public Prometheus port is unavailable") from exc
+    if not 1 <= port <= 65535:
+        raise DeploymentWrapperError("public Prometheus port is invalid")
+    return port
+
+
+def _default_public_prometheus_probe(port: int) -> bool:
+    """Exige readiness et les quatre règles réellement chargées par Prometheus."""
+    base = f"http://127.0.0.1:{port}"
+    deadline = time.monotonic() + 30
+    expected = {
+        "RAGRetrievalMetricsScrapeFailed", "RAGRetrievalUnavailable",
+        "RAGRetrievalTieOverflow", "RAGRetrievalP95High",
+    }
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(base + "/-/ready", timeout=2) as response:
+                if response.status != 200:
+                    raise ValueError("Prometheus is not ready")
+            with urllib.request.urlopen(base + "/api/v1/rules", timeout=2) as response:
+                rules = json.load(response)
+            names = {
+                rule.get("name")
+                for group in rules.get("data", {}).get("groups", [])
+                if group.get("name") == "retrieval-v2"
+                for rule in group.get("rules", [])
+                if rule.get("type") == "alerting"
+            }
+            if rules.get("status") == "success" and expected <= names:
+                return True
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+        time.sleep(1)
+    return False
+
+
+def _public_preflight_from_bundle(
+    *,
+    verified: _VerifiedDeployInputs,
+    merge_sha: str,
+    color: str | None,
+    material_root: Path | None,
+    secrets_root: Path | None,
+    repo_root: Path | None,
+) -> str:
+    if color not in {"blue", "green"} or any(
+        value is None for value in (material_root, secrets_root, repo_root)
+    ):
+        raise DeploymentWrapperError("public candidate color and material roots are required")
+    assert color is not None and material_root is not None
+    assert secrets_root is not None and repo_root is not None
+    try:
+        effective = json.loads(verified.effective_compose_bytes)
+        evidence = public_preflight.require_public_candidate(
+            resolved_compose=effective,
+            source_sha=merge_sha,
+            color=color,
+            material_root=material_root,
+            secrets_root=secrets_root,
+            repo_root=repo_root,
+            verified_application_images=verified.bundle_document["verified_images"],
+        )
+    except (json.JSONDecodeError, public_preflight.PublicCandidateError) as exc:
+        raise DeploymentWrapperError(f"public candidate preflight refused: {exc}") from exc
+    project = evidence.get("project")
+    if not isinstance(project, str) or project != f"nexus-rag-{color}":
+        raise DeploymentWrapperError("public candidate project differs from selected color")
+    return project
+
+
+def rollback_public_candidate_from_bundle(
+    *,
+    bundle_dir: Path,
+    merge_sha: str,
+    public_color: str,
+    run_bundle_compose_config: RunBundleComposeConfig = _run_bundle_compose_config,
+    run_subprocess: RunSubprocess = _default_run_subprocess,
+    deployment_state_root: Path | None = None,
+    project_containers: ProjectContainers = _default_project_containers,
+    host_local_guard: HostLocalGuard = _require_host_local_docker_daemon,
+) -> None:
+    """Arrête seulement la couleur candidate, sans supprimer ses volumes."""
+    document = _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha)
+    if document.get("public_candidate") is not True or public_color not in {"blue", "green"}:
+        raise DeploymentWrapperError("rollback requires a public candidate bundle and color")
+    effective = run_bundle_compose_config(
+        bundle_dir, bundle_dir / _ENV_BUNDLE_NAME, vri._PUBLIC_CANDIDATE_COMPOSE_FILES
+    )
+    if vri.canonical_resolved_compose_bytes(effective) != signer._read_bytes_no_follow(  # noqa: SLF001
+        bundle_dir / _RESOLVED_COMPOSE_BUNDLE_NAME, label="resolved_compose"
+    ):
+        raise DeploymentWrapperError("rollback effective Compose differs from candidate bundle")
+    project = f"nexus-rag-{public_color}"
+    if effective.get("name") != project or set(effective.get("services", {})) != (
+        vri._PUBLIC_CANDIDATE_SERVICES
+    ):
+        raise DeploymentWrapperError("rollback project or services differ from candidate bundle")
+    with _public_color_lock(deployment_state_root, public_color, host_local_guard) as state_root:
+        if _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha) != document:
+            raise DeploymentWrapperError("public rollback bundle changed before mutation")
+        current_effective = run_bundle_compose_config(
+            bundle_dir, bundle_dir / _ENV_BUNDLE_NAME, vri._PUBLIC_CANDIDATE_COMPOSE_FILES
+        )
+        if vri.canonical_resolved_compose_bytes(current_effective) != (
+            vri.canonical_resolved_compose_bytes(effective)
+        ):
+            raise DeploymentWrapperError("public rollback Compose changed before mutation")
+        state = _read_public_state(state_root, public_color)
+        if (state is None or state.get("bundle_digest") != document["bundle_digest"]
+                or state.get("bundle_dir") != str(bundle_dir)
+                or state.get("merge_sha") != merge_sha):
+            raise DeploymentWrapperError("public rollback bundle is not the active generation")
+        ids = _owned_public_container_ids(
+            project=project, bundle_dir=bundle_dir,
+            containers=project_containers, require_all_services=True,
+        )
+        if ids != state.get("container_ids"):
+            raise DeploymentWrapperError("public rollback generation container identity changed")
+        command = _public_compose_args(bundle_dir, project) + ["down", "--timeout", "10"]
+        try:
+            result = run_subprocess(command, bundle_dir)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise DeploymentWrapperError("public candidate rollback failed") from exc
+        if result.returncode != 0:
+            raise DeploymentWrapperError("public candidate rollback failed")
+        try:
+            os.unlink(_public_state_name(public_color), dir_fd=state_root)
+            os.fsync(state_root)
+        except OSError as exc:
+            raise DeploymentWrapperError("public rollback state cleanup failed") from exc
+
+
+def _deploy_public_candidate_from_bundle(
+    *,
+    bundle_dir: Path,
+    merge_sha: str,
+    verified: _VerifiedDeployInputs,
+    trusted_readiness_anchor_raw: bytes | None,
+    run_bundle_compose_config: RunBundleComposeConfig,
+    run_subprocess: RunSubprocess,
+    public_color: str | None,
+    public_material_root: Path | None,
+    public_secrets_root: Path | None,
+    public_repo_root: Path | None,
+    public_final_cutover_go: bool,
+    assert_readiness: ReadinessAssert | None,
+    project_inventory: ProjectInventory,
+    deployment_state_root: Path | None,
+    project_containers: ProjectContainers,
+    prometheus_probe: PrometheusProbe | None,
+    host_local_guard: HostLocalGuard,
+) -> list[str]:
+    if public_final_cutover_go is not True:
+        raise DeploymentWrapperError("public candidate remains plan-only until final cutover GO")
+    if public_repo_root is None:
+        raise DeploymentWrapperError("public candidate requires final repository checkout")
+    ready = assert_readiness or (lambda: _assert_go_live_ready(public_repo_root, merge_sha))
+    try:
+        if ready() is not True:
+            raise DeploymentWrapperError("canonical --assert-ready did not pass")
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise DeploymentWrapperError("canonical --assert-ready could not run") from exc
+    project = _public_preflight_from_bundle(
+        verified=verified, merge_sha=merge_sha, color=public_color,
+        material_root=public_material_root, secrets_root=public_secrets_root,
+        repo_root=public_repo_root,
+    )
+    assert public_color is not None
+    with _public_color_lock(deployment_state_root, public_color, host_local_guard) as state_root:
+        if _read_public_state(state_root, public_color) is not None:
+            raise DeploymentWrapperError("public candidate color has an active generation")
+        _require_empty_public_project(project, project_inventory)
+        command = _public_compose_args(bundle_dir, project)
+        services = verified.explicit_services
+        try:
+            pull = run_subprocess(command + ["pull", *services], bundle_dir)
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise DeploymentWrapperError("public candidate pull failed") from exc
+        if pull.returncode != 0:
+            raise DeploymentWrapperError("public candidate pull failed")
+        reverified = _verify_deploy_inputs(
+            bundle_dir=bundle_dir, merge_sha=merge_sha, execute=True,
+            trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
+            run_bundle_compose_config=run_bundle_compose_config,
+        )
+        if reverified != verified:
+            raise DeploymentWrapperError("public candidate bundle changed after pull")
+        _public_preflight_from_bundle(
+            verified=reverified, merge_sha=merge_sha, color=public_color,
+            material_root=public_material_root, secrets_root=public_secrets_root,
+            repo_root=public_repo_root,
+        )
+        try:
+            if ready() is not True:
+                raise DeploymentWrapperError("canonical --assert-ready changed after pull")
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise DeploymentWrapperError("canonical --assert-ready could not run after pull") from exc
+        _require_empty_public_project(project, project_inventory)
+        try:
+            up = run_subprocess(
+                command + ["up", "-d", "--no-build", "--pull", "never", "--wait",
+                           "--wait-timeout", "300", *services], bundle_dir,
+            )
+            up_failed = up.returncode != 0
+        except (OSError, subprocess.SubprocessError):
+            up_failed = True
+        failure = "public candidate up failed" if up_failed else ""
+        if not up_failed:
+            try:
+                ids = _owned_public_container_ids(
+                    project=project, bundle_dir=bundle_dir,
+                    containers=project_containers, require_all_services=True,
+                )
+                probe = prometheus_probe or _default_public_prometheus_probe
+                if probe(_prometheus_port(verified)) is not True:
+                    failure = "public Prometheus rules readiness failed"
+                else:
+                    _write_public_state(state_root, public_color, {
+                        "bundle_digest": verified.bundle_document["bundle_digest"],
+                        "bundle_dir": str(bundle_dir),
+                        "merge_sha": merge_sha,
+                        "container_ids": ids,
+                    })
+                    return ["PUBLIC_CANDIDATE_DEPLOYED=true", "EDGE_SWITCHED=false"]
+            except (DeploymentWrapperError, OSError) as exc:
+                failure = f"public candidate identity/readiness failed: {exc}"
+        # La même serrure couvre la vérification des labels puis `down`.
+        try:
+            rollback_ids = _owned_public_container_ids(
+                project=project, bundle_dir=bundle_dir,
+                containers=project_containers, require_all_services=False,
+            )
+        except DeploymentWrapperError as exc:
+            raise DeploymentWrapperError(
+                f"{failure}; rollback refused: container ownership ambiguous"
+            ) from exc
+        try:
+            rollback = run_subprocess(command + ["down", "--timeout", "10"], bundle_dir)
+            rollback_passed = rollback.returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            rollback_passed = False
+        if not rollback_passed:
+            raise DeploymentWrapperError(f"{failure}; rollback failed")
+        state = _read_public_state(state_root, public_color)
+        if state is not None:
+            if state != {
+                "bundle_digest": verified.bundle_document["bundle_digest"],
+                "bundle_dir": str(bundle_dir),
+                "merge_sha": merge_sha,
+                "container_ids": rollback_ids,
+            }:
+                raise DeploymentWrapperError(
+                    f"{failure}; rollback passed but generation state is ambiguous"
+                )
+            try:
+                os.unlink(_public_state_name(public_color), dir_fd=state_root)
+                os.fsync(state_root)
+            except OSError as exc:
+                raise DeploymentWrapperError(
+                    f"{failure}; rollback passed but state cleanup failed"
+                ) from exc
+        raise DeploymentWrapperError(f"{failure}; rollback passed")
+
+
 def deploy_from_bundle(
     *,
     bundle_dir: Path,
@@ -2060,6 +2637,16 @@ def deploy_from_bundle(
     trusted_readiness_anchor_raw: bytes | None = None,
     run_bundle_compose_config: RunBundleComposeConfig = _run_bundle_compose_config,
     deployment_state_root: Path | None = None,
+    public_color: str | None = None,
+    public_material_root: Path | None = None,
+    public_secrets_root: Path | None = None,
+    public_repo_root: Path | None = None,
+    public_final_cutover_go: bool = False,
+    assert_readiness: ReadinessAssert | None = None,
+    project_inventory: ProjectInventory = _default_project_inventory,
+    project_containers: ProjectContainers = _default_project_containers,
+    prometheus_probe: PrometheusProbe | None = None,
+    host_local_guard: HostLocalGuard = _require_host_local_docker_daemon,
 ) -> list[str]:
     """Phase 3 (déployer) — toujours et uniquement depuis ``bundle_dir``,
     contre une liste explicite de services.
@@ -2071,7 +2658,9 @@ def deploy_from_bundle(
     la suivante ne soit lancée — un `pull` en échec n'est jamais suivi
     d'un `up`. Jamais d'option de nettoyage des conteneurs orphelins :
     le projet Compose de production est partagé avec une stack non-RAG
-    sur l'hôte cible.
+    sur l'hôte cible. La voie publique V2 est distincte : elle exige le GO
+    explicite, le garde canonique frais, un projet/couleur vide, puis attend
+    la santé de ses cinq services ; elle ne change pas le routage public.
 
     En V2, la source de bind de l'AuthorizationSet et l'allowlist exacte des
     fichiers relus par le readiness gate vivent dans une génération durable
@@ -2092,9 +2681,25 @@ def deploy_from_bundle(
     )
     explicit_services = verified.explicit_services
     public_candidate = verified.bundle_document.get("public_candidate") is True
-    if public_candidate and execute:
-        raise DeploymentWrapperError("public candidate bundle is plan-only; cutover requires a separate gate")
     if public_candidate:
+        if execute:
+            return _deploy_public_candidate_from_bundle(
+                bundle_dir=bundle_dir, merge_sha=merge_sha, verified=verified,
+                trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
+                run_bundle_compose_config=run_bundle_compose_config,
+                run_subprocess=run_subprocess,
+                public_color=public_color,
+                public_material_root=public_material_root,
+                public_secrets_root=public_secrets_root,
+                public_repo_root=public_repo_root,
+                public_final_cutover_go=public_final_cutover_go,
+                assert_readiness=assert_readiness,
+                project_inventory=project_inventory,
+                deployment_state_root=deployment_state_root,
+                project_containers=project_containers,
+                prometheus_probe=prometheus_probe,
+                host_local_guard=host_local_guard,
+            )
         return [
             "PUBLIC_CANDIDATE_VERIFIED=true",
             "MUTATION_ALLOWED=false",
@@ -2329,14 +2934,27 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--public-candidate", action="store_true", default=False,
-        help="Matérialise le candidat public V2 avec ses deux fichiers Compose; plan-only.",
+        help="Matérialise le candidat public V2 avec ses deux fichiers Compose.",
+    )
+    p.add_argument("--public-color", choices=("blue", "green"), default=None)
+    p.add_argument("--public-material-root", type=Path, default=None)
+    p.add_argument("--public-secrets-root", type=Path, default=None)
+    p.add_argument(
+        "--final-cutover-go", action="store_true", default=False,
+        help="Autorisation humaine explicite du cutover final ; l'exécution exige aussi "
+        "le garde canonique --assert-ready frais et le bundle public signé.",
+    )
+    p.add_argument(
+        "--rollback-public-candidate", action="store_true", default=False,
+        help="Arrête uniquement la couleur candidate issue du bundle existant ; "
+        "conserve ses volumes et ne rematérialise rien.",
     )
     p.add_argument(
         "--deployment-state-root",
         type=Path,
         default=None,
-        help="Répertoire privé durable des générations de bind V2; par défaut, "
-        "un état frère du bundle de release.",
+        help="Répertoire privé durable des générations V2 ; obligatoire pour "
+        "déployer ou annuler une couleur publique, identique entre opérations.",
     )
     p.add_argument(
         "--execute",
@@ -2354,11 +2972,53 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
-    if args.public_candidate and (
-        args.execute or args.readiness_protocol != "NEXUS-PRODUCTION-READINESS-V2"
-    ):
-        print("REFUSED: --public-candidate requires V2 and forbids --execute", file=sys.stderr)
+    final_cutover_go = getattr(args, "final_cutover_go", False)
+    if getattr(args, "rollback_public_candidate", False):
+        if not args.public_candidate or args.execute or final_cutover_go or getattr(
+            args, "public_color", None
+        ) not in {"blue", "green"}:
+            print("REFUSED: public candidate rollback requires a color and forbids execute/GO", file=sys.stderr)
+            return 1
+        if args.deployment_state_root is None:
+            print("REFUSED: public rollback requires --deployment-state-root", file=sys.stderr)
+            return 1
+        try:
+            rollback_public_candidate_from_bundle(
+                bundle_dir=args.bundle_dir,
+                merge_sha=args.merge_sha,
+                public_color=args.public_color,
+                deployment_state_root=args.deployment_state_root,
+            )
+        except DeploymentWrapperError as exc:
+            print(f"REFUSED: {exc}", file=sys.stderr)
+            return 1
+        if args.json_output:
+            print('{"edge_switched":false,"rolled_back":true}')
+        else:
+            print("PUBLIC_CANDIDATE_ROLLBACK_PASS=true")
+            print("EDGE_SWITCHED=false")
+        return 0
+    if args.public_candidate and args.readiness_protocol != "NEXUS-PRODUCTION-READINESS-V2":
+        print("REFUSED: --public-candidate requires signed readiness V2", file=sys.stderr)
         return 1
+    if args.public_candidate and args.execute and not final_cutover_go:
+        print("REFUSED: public candidate execution requires final cutover GO", file=sys.stderr)
+        return 1
+    if final_cutover_go and not (args.public_candidate and args.execute):
+        print("REFUSED: final cutover GO requires public candidate execution", file=sys.stderr)
+        return 1
+    if args.public_candidate and args.execute and args.deployment_state_root is None:
+        print("REFUSED: public execution requires --deployment-state-root", file=sys.stderr)
+        return 1
+    if args.public_candidate and args.execute:
+        for value, flag in (
+            (getattr(args, "public_color", None), "--public-color"),
+            (getattr(args, "public_material_root", None), "--public-material-root"),
+            (getattr(args, "public_secrets_root", None), "--public-secrets-root"),
+        ):
+            if value is None:
+                print(f"REFUSED: public execution requires {flag}", file=sys.stderr)
+                return 1
     if args.execute and (args.readiness_manifest_file is None or args.trust_anchor_file is None):
         print(
             "REFUSED: --execute requires both --readiness-manifest-file and "
@@ -2450,6 +3110,11 @@ def main(argv: list[str] | None = None) -> int:
             execute=args.execute,
             trusted_readiness_anchor_raw=trusted_anchor_raw,
             deployment_state_root=args.deployment_state_root,
+            public_color=getattr(args, "public_color", None),
+            public_material_root=getattr(args, "public_material_root", None),
+            public_secrets_root=getattr(args, "public_secrets_root", None),
+            public_repo_root=args.repo_root,
+            public_final_cutover_go=final_cutover_go,
         )
     except (DeploymentWrapperError, vri.ReleaseVerificationError) as exc:
         print(f"REFUSED: {exc}", file=sys.stderr)
@@ -2463,8 +3128,9 @@ def main(argv: list[str] | None = None) -> int:
             "verified_images": bundle_document["verified_images"],
         }
         if args.public_candidate:
-            output["mutation_allowed"] = False
-            output["cutover_gate_required"] = True
+            output["mutation_allowed"] = bool(args.execute)
+            output["cutover_gate_required"] = not args.execute
+            output["edge_switched"] = False
         print(
             json.dumps(
                 output,
