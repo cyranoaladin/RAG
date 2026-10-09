@@ -32,9 +32,9 @@ rien et ne déploie rien.
   `verify_public_candidate_image_provenance` ; après implémentation, **300/300**
   tests de provenance V1/V2, signataire, wrapper, préflight et plan signé
   réussissent dans un venv neuf avec paquets locaux installés sans mode
-  éditable. Le contrôle a été rejoué le 2026-10-09T16:46:30Z sur le commit
-  de code et de tests `102d48d340a6e8652f375657f975a3d2953bafbf`, arbre
-  `4afd0126b07241953f40eaa2ca480faf3619f2c7`, worktree propre. Commande
+  éditable. Le contrôle a été rejoué le 2026-10-09T16:58:59Z sur le commit
+  de code et de tests `3df9952c3781d4a9575d8596e7bb29278e1df2b5`, arbre
+  `d4f5b216c84ece9ae5f244bf12473b5dfeac7d8f`, worktree propre. Commande
   depuis la racine, avec le Python du venv isolé :
 
   ```bash
@@ -44,7 +44,9 @@ rien et ne déploie rien.
   L'assembleur Python réel extrait du YAML a été
   exécuté en deux modes : V1 émet toujours exactement trois services et son
   document entier est comparé à un oracle figé hors horodatage ; V2 émet
-  exactement les quatre services attendus avec Cockpit et un fichier
+  exactement les quatre services attendus avec Cockpit et son document entier
+  est comparé à un autre oracle figé hors horodatage. Les deux dates sont
+  contrôlées en ISO UTC. V2 utilise un fichier
   distinct. Les modes invalides et digests Cockpit absents, ainsi que les cas
   de run, SHA, arbre, protocole, source et digest divergents sont refusés.
 - Ruff avec la configuration `rag-engine` : succès. `git diff --check` :
