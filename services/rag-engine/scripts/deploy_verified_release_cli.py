@@ -515,6 +515,68 @@ def plan_signed_public_candidate(
     }
 
 
+def _create_private_bundle_dir(bundle_dir: Path) -> None:
+    """Crée le bundle à 0700 sous un parent sans lien ni écriture étrangère."""
+    if bundle_dir.exists() or bundle_dir.is_symlink():
+        raise DeploymentWrapperError(
+            f"bundle directory {bundle_dir} already exists — a bundle is never overwritten"
+        )
+    try:
+        parent_fd, _identities = _open_directory_chain_no_follow(bundle_dir.parent)
+    except OSError as exc:
+        raise DeploymentWrapperError(f"bundle directory parent cannot be opened safely: {exc}") from exc
+    try:
+        try:
+            os.mkdir(bundle_dir.name, 0o700, dir_fd=parent_fd)
+        except FileExistsError as exc:
+            raise DeploymentWrapperError("bundle directory already exists") from exc
+        bundle_fd = os.open(
+            bundle_dir.name,
+            os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0),
+            dir_fd=parent_fd,
+        )
+        try:
+            os.fchmod(bundle_fd, 0o700)
+        finally:
+            os.close(bundle_fd)
+    finally:
+        os.close(parent_fd)
+
+
+def _write_private_bundle_file(bundle_dir: Path, name: str, raw: bytes) -> None:
+    """Écrit atomiquement à 0600 sous des sous-répertoires privés."""
+    relative = PurePosixPath(name)
+    if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+        raise DeploymentWrapperError(f"unsafe bundle file path {name!r}")
+    parent = bundle_dir
+    for part in relative.parts[:-1]:
+        parent /= part
+        try:
+            parent.mkdir(mode=0o700)
+        except FileExistsError:
+            metadata = parent.lstat()
+            if (
+                not stat.S_ISDIR(metadata.st_mode)
+                or stat.S_IMODE(metadata.st_mode) != 0o700
+                or metadata.st_uid != os.geteuid()
+            ):
+                raise DeploymentWrapperError("bundle subdirectory is not private") from None
+    path = bundle_dir / name
+    if path.exists() or path.is_symlink():
+        raise DeploymentWrapperError(f"bundle file {name!r} already exists")
+    try:
+        signer._atomic_private_write(path, raw)  # noqa: SLF001 - même écriture 0600 atomique
+    except signer.SigningToolError as exc:
+        raise DeploymentWrapperError(f"bundle file {name!r} cannot be written privately: {exc}") from exc
+    metadata = path.lstat()
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or stat.S_IMODE(metadata.st_mode) != 0o600
+        or metadata.st_nlink != 1
+    ):
+        raise DeploymentWrapperError(f"bundle file {name!r} is not a private regular file")
+
+
 def materialize_verified_bundle(
     *,
     merge_sha: str,
@@ -642,19 +704,12 @@ def materialize_verified_bundle(
     else:
         raise DeploymentWrapperError(f"unsupported readiness protocol {readiness_protocol!r}")
 
-    if bundle_dir.exists():
-        raise DeploymentWrapperError(
-            f"bundle directory {bundle_dir} already exists — a bundle is never "
-            "overwritten silently (rename or remove it first)"
-        )
-    bundle_dir.mkdir(parents=True)
+    _create_private_bundle_dir(bundle_dir)
 
     file_digests: dict[str, str] = {}
 
     def write_bundle_file(name: str, raw: bytes) -> None:
-        path = bundle_dir / name
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(raw)
+        _write_private_bundle_file(bundle_dir, name, raw)
         file_digests[name] = _sha256_bytes(raw)
 
     for name in compose_files:
@@ -756,7 +811,7 @@ def materialize_verified_bundle(
         bundle_document["compose_files"] = list(compose_files)
     bundle_bytes = _canonical_json_bytes(bundle_document)
     bundle_document["bundle_digest"] = _sha256_bytes(bundle_bytes)
-    (bundle_dir / _BUNDLE_MANIFEST_NAME).write_bytes(_canonical_json_bytes(bundle_document))
+    _write_private_bundle_file(bundle_dir, _BUNDLE_MANIFEST_NAME, _canonical_json_bytes(bundle_document))
     return bundle_document
 
 
@@ -2031,6 +2086,12 @@ def deploy_from_bundle(
     public_candidate = verified.bundle_document.get("public_candidate") is True
     if public_candidate and execute:
         raise DeploymentWrapperError("public candidate bundle is plan-only; cutover requires a separate gate")
+    if public_candidate:
+        return [
+            "PUBLIC_CANDIDATE_VERIFIED=true",
+            "MUTATION_ALLOWED=false",
+            "CUTOVER_GATE_REQUIRED=true",
+        ]
     compose_files = (
         vri._PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else _CANONICAL_COMPOSE_FILES
     )
@@ -2253,7 +2314,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     ):
         p.add_argument(f"--{flag}", default=None)
     p.add_argument("--environment", default="production")
-    p.add_argument("--bundle-dir", type=Path, required=True)
+    p.add_argument(
+        "--bundle-dir", type=Path, required=True,
+        help="Destination neuve sous un parent existant, de confiance et sans symlink ; "
+        "le bundle est créé à 0700 et ses fichiers à 0600.",
+    )
     p.add_argument(
         "--public-candidate", action="store_true", default=False,
         help="Matérialise le candidat public V2 avec ses deux fichiers Compose; plan-only.",
@@ -2383,14 +2448,18 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     if args.json_output:
+        output = {
+            "bundle_digest": bundle_document["bundle_digest"],
+            "deployed": args.execute,
+            "readiness_protocol": bundle_document["readiness_protocol"],
+            "verified_images": bundle_document["verified_images"],
+        }
+        if args.public_candidate:
+            output["mutation_allowed"] = False
+            output["cutover_gate_required"] = True
         print(
             json.dumps(
-                {
-                    "bundle_digest": bundle_document["bundle_digest"],
-                    "deployed": args.execute,
-                    "readiness_protocol": bundle_document["readiness_protocol"],
-                    "verified_images": bundle_document["verified_images"],
-                },
+                output,
                 ensure_ascii=False,
                 separators=(",", ":"),
                 sort_keys=True,
@@ -2404,6 +2473,10 @@ def main(argv: list[str] | None = None) -> int:
         print("SIGNED_COMPOSE_DIGEST_MATCH=true")
     if args.execute:
         print("DEPLOYED=true")
+    elif args.public_candidate:
+        print("DEPLOYED=false")
+        print("MUTATION_ALLOWED=false")
+        print("CUTOVER_GATE_REQUIRED=true")
     else:
         print("DEPLOYED=false (dry run — pass --execute to run the plan below)")
         for step in plan:

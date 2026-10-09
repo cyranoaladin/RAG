@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import stat
 import sys
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
@@ -247,7 +250,10 @@ def _signed_public_bundle(
     anchor_file = tmp_path / "anchor.json"
     anchor_file.write_bytes(anchor_raw)
     env_file = tmp_path / "public.env"
-    env_file.write_bytes(b"COMPOSE_PROJECT_NAME=nexus-rag-blue\n")
+    env_file.write_bytes(
+        b"COMPOSE_PROJECT_NAME=nexus-rag-blue\n"
+        b"NEXUS_INTERNAL_TOKEN_SECRET=synthetic-secret\n"
+    )
     calls: list[tuple[str, ...]] = []
 
     def download(_run: int, _name: str, where: Path) -> Path:
@@ -313,8 +319,7 @@ def test_public_bundle_is_signed_plan_only_with_two_runtime_images(tmp_path: Pat
         trusted_readiness_anchor_raw=anchor, run_bundle_compose_config=resolve,
     )
     assert seen == [public.vri._PUBLIC_CANDIDATE_COMPOSE_FILES]
-    assert all("docker-compose.public-blue-green.yml" in command for command in plan)
-    assert all("docker-compose.production-release.yml" not in command for command in plan)
+    assert plan == ["PUBLIC_CANDIDATE_VERIFIED=true", "MUTATION_ALLOWED=false", "CUTOVER_GATE_REQUIRED=true"]
     with pytest.raises(dep.DeploymentWrapperError, match="plan-only"):
         dep.deploy_from_bundle(
             bundle_dir=bundle, merge_sha=SHA, execute=True,
@@ -326,6 +331,95 @@ def test_public_bundle_refuses_legacy_v2_before_materialization(tmp_path: Path) 
     with pytest.raises(dep.DeploymentWrapperError, match="public candidate inventory"):
         _signed_public_bundle(tmp_path, legacy=True)
     assert not (tmp_path / "bundle").exists()
+
+
+def test_public_bundle_is_private_with_permissive_umask(tmp_path: Path) -> None:
+    previous = os.umask(0o000)
+    try:
+        bundle, _anchor, _config = _signed_public_bundle(tmp_path)
+    finally:
+        os.umask(previous)
+    assert stat.S_IMODE(bundle.stat().st_mode) == 0o700
+    assert b"synthetic-secret" in (bundle / ".env").read_bytes()
+    assert b"bff-service-secret" in (bundle / "resolved-compose.json").read_bytes()
+    for path in bundle.rglob("*"):
+        expected = 0o700 if path.is_dir() else 0o600
+        assert stat.S_IMODE(path.stat().st_mode) == expected, path.relative_to(bundle)
+
+
+def test_public_bundle_refuses_dangling_symlink_destination(tmp_path: Path) -> None:
+    (tmp_path / "bundle").symlink_to(tmp_path / "missing", target_is_directory=True)
+    with pytest.raises(dep.DeploymentWrapperError, match="bundle directory"):
+        _signed_public_bundle(tmp_path)
+
+
+def test_public_bundle_refuses_group_writable_parent(tmp_path: Path) -> None:
+    previous_mode = stat.S_IMODE(tmp_path.stat().st_mode)
+    tmp_path.chmod(0o777)
+    try:
+        with pytest.raises(dep.DeploymentWrapperError, match="group/world-writable ancestor"):
+            _signed_public_bundle(tmp_path)
+    finally:
+        tmp_path.chmod(previous_mode)
+    assert not (tmp_path / "bundle").exists()
+
+
+def test_bundle_requires_prepared_private_parent_without_symlinks(tmp_path: Path) -> None:
+    with pytest.raises(dep.DeploymentWrapperError, match="parent cannot be opened safely"):
+        dep._create_private_bundle_dir(tmp_path / "missing" / "bundle")
+    target = tmp_path / "target"
+    target.mkdir()
+    (tmp_path / "alias").symlink_to(target, target_is_directory=True)
+    with pytest.raises(dep.DeploymentWrapperError, match="parent cannot be opened safely"):
+        dep._create_private_bundle_dir(tmp_path / "alias" / "bundle")
+    assert not (target / "bundle").exists()
+
+
+def test_public_cli_json_never_suggests_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    anchor = tmp_path / "anchor.json"
+    anchor.write_bytes(b"synthetic-anchor")
+    args = Namespace(
+        public_candidate=True, execute=False,
+        readiness_protocol="NEXUS-PRODUCTION-READINESS-V2",
+        readiness_manifest_file=tmp_path / "readiness.json",
+        trust_anchor_file=anchor, env_file=None, repo_root=tmp_path,
+        merge_sha=SHA, merge_tree_sha=TREE_SHA,
+        provenance_run_id=777, provenance_run_attempt=1,
+        environment="production", bundle_dir=tmp_path / "bundle",
+        deployment_state_root=None, json_output=True,
+    )
+    for name in (
+        "authorization_set_file", "governed_root", "review_binding_trust_anchor_file",
+        "trusted_reviewers_file", "revocation_registry_file", "release_scope_placement_file",
+        "verified_profiles_file", "profile_manifest_file", "authority_required_file",
+        "h2b_report_file", "h2_evidence_bundle_file", "promotion_evidence_file",
+        "catalog_file", "sealed_manifest_file", "routing_file", "rights_file",
+        "pii_file", "golden_file", "currentness_file", "profile_proposal_matrix_path",
+        "accepted_placements_path", "release_registry_path", "expected_contents_path",
+        "verified_profiles_path", "profile_manifest_path",
+    ):
+        setattr(args, name, tmp_path / name)
+    monkeypatch.setattr(dep, "_build_arg_parser", lambda: Namespace(parse_args=lambda _argv: args))
+    monkeypatch.setattr(dep.signer, "_load_v2_release_material", lambda *_args, **_kwargs: _v2_material())
+    monkeypatch.setattr(
+        dep, "materialize_verified_bundle",
+        lambda **_kwargs: {
+            "bundle_digest": "a" * 64,
+            "readiness_protocol": "NEXUS-PRODUCTION-READINESS-V2",
+            "verified_images": {"ingestor": IMAGE, "cockpit": COCKPIT_IMAGE},
+        },
+    )
+    monkeypatch.setattr(dep, "deploy_from_bundle", lambda **_kwargs: ["docker compose up"])
+    assert dep.main([]) == 0
+    output = capsys.readouterr().out
+    document = json.loads(output)
+    assert document["deployed"] is False
+    assert document["mutation_allowed"] is False
+    assert document["cutover_gate_required"] is True
+    assert "docker compose" not in output
+    assert "--execute" not in output
 
 
 @pytest.mark.parametrize("artifact_mutation", ["wrong_run", "wrong_cockpit_digest", "missing_cockpit"])

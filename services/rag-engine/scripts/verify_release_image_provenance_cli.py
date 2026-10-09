@@ -365,19 +365,28 @@ def verify_release_images(
     except dii.DeploymentImageInventoryError as exc:
         raise ReleaseVerificationError(str(exc)) from exc
     try:
-        fetch_inventory = (
-            dii.fetch_and_verify_public_candidate_image_provenance_document
-            if public_candidate else dii.fetch_and_verify_image_provenance_document
-        )
-        image_provenance_document = fetch_inventory(
-            repository=_CANONICAL_REPOSITORY,
-            source_commit_sha=source_commit_sha,
-            source_tree_sha=source_tree_sha,
-            provenance_run_id=provenance_run_id,
-            provenance_run_attempt=provenance_run_attempt,
-            github_api_get=github_api_get,
-            download_artifact=download_artifact,
-            work_dir=work_dir,
+        image_provenance_document = (
+            dii.fetch_and_verify_public_candidate_image_provenance_document(
+                repository=_CANONICAL_REPOSITORY,
+                source_commit_sha=source_commit_sha,
+                source_tree_sha=source_tree_sha,
+                provenance_run_id=provenance_run_id,
+                provenance_run_attempt=provenance_run_attempt,
+                github_api_get=github_api_get,
+                download_artifact=download_artifact,
+                work_dir=work_dir,
+            )
+            if public_candidate
+            else dii.fetch_and_verify_image_provenance_document(
+                repository=_CANONICAL_REPOSITORY,
+                source_commit_sha=source_commit_sha,
+                source_tree_sha=source_tree_sha,
+                provenance_run_id=provenance_run_id,
+                provenance_run_attempt=provenance_run_attempt,
+                github_api_get=github_api_get,
+                download_artifact=download_artifact,
+                work_dir=work_dir,
+            )
         )
     except dii.DeploymentImageInventoryError as exc:
         raise ReleaseVerificationError(str(exc)) from exc

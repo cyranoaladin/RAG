@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import stat
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -293,6 +295,20 @@ def _materialize(
 
 
 class TestMaterializeVerifiedBundleHappyPath:
+    def test_v1_bundle_is_private_under_permissive_umask(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        previous = os.umask(0o000)
+        try:
+            bundle_dir = tmp_path / "bundle"
+            _materialize(fakes, tmp_path, bundle_dir=bundle_dir)
+        finally:
+            os.umask(previous)
+        assert stat.S_IMODE(bundle_dir.stat().st_mode) == 0o700
+        for path in bundle_dir.rglob("*"):
+            assert stat.S_IMODE(path.stat().st_mode) == (0o700 if path.is_dir() else 0o600)
+
     def test_bundle_contains_every_compose_file_byte_identical(self, tmp_path: Path) -> None:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
