@@ -99,6 +99,20 @@ public matérialise uniquement un plan ; `--execute` y est refusé.
   candidat `94215e090ddba6398c2fd3087d5e77fa717b5b77`, avec variables
   et matériaux fictifs isolés : cinq services exacts, aucun `build` pour
   l'API ou le Cockpit. Aucun conteneur n'a été démarré.
+- La CI de qualification a révélé le pin à l'octet du lot d'ancrage #239.
+  L'extension intentionnelle du contrat V2 fait passer
+  `production_readiness.py` de
+  `2e3398903b9a46fca1cbc7dfd923bb67cdb25e44b249ed2915ec3635ad430245`
+  sur la base fusionnée à
+  `4217f09b121bc0f131ee7e0895a4376034bacf16029278d3d0446d0f020d0948`
+  sur ce lot. Le test de qualification conserve l'assertion de hash sur les
+  trois membres de la chaîne ; seule la valeur du contrat est mise à jour.
+  Le gate runtime reste à
+  `a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28`
+  et l'ancre de production à
+  `f123e9f35a9430d02092df675e5ed657fbccf8fb10af90fe03416335e7d1d238`.
+  `pytest -q scripts/qualification/tests` : **1071 passed, 8 skipped** sur
+  le checkout du lot après cette mise à jour ; aucun test de chaîne supprimé.
 - Les tests du préflight public #309 contre le Compose réel sont passés dans
   la suite ciblée. Les preuves ci-dessus ne décrivent ni le staging final,
   ni la cible production, ni une signature opérateur.
