@@ -5,7 +5,9 @@ Ces fichiers sont des **templates** de vhosts Nginx (hôte) :
   `POST /search/v2` est transmis au port loopback du candidat blue-green.
   Les routes de writer, revue, ingestion, métriques, catalogue et readiness
   reçoivent 404 sur HTTP et HTTPS ; seule `/search/v2` est redirigée de HTTP
-  vers HTTPS. Le scrape et les sondes utilisent le port loopback directement.
+  vers HTTPS. Les en-têtes `Forwarded`, `X-Forwarded-*` usuels et `X-Real-IP`
+  fournis par le client ne sont pas transmis à l'API. Le scrape et les sondes
+  utilisent le port loopback directement.
 - `rag-v2.conf` est l'alternative TLS déjà matérialisée ; elle doit être rendue
   avec `RAG_API_EXTERNAL_DOMAIN` et `NGINX_API_PORT` et cible le même port
   loopback.
@@ -65,3 +67,8 @@ Ajoutez `add_header Strict-Transport-Security "max-age=63072000" always;` dans l
   exactes retrieval, catalogue, readiness et revue. Les chemins `/ingest*` ne
   sont jamais transmis.
 - Ajustez ces valeurs si nécessaire en éditant `infra/nginx/rag-api.conf.template` avant rendu.
+- Le candidat public V1 fixe `public_search_v1` à **20 requêtes POST/s par IP**, avec
+  `burst=40`. Une clé vide pour les autres méthodes empêche les GET refusés de
+  consommer ce quota. Toute modification éventuelle doit être évaluée contre
+  les budgets C0 figés avant de rendre le template public ; elle ne constitue
+  pas une méthode pour faire passer un test de charge rouge.
