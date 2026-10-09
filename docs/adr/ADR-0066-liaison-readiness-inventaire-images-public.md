@@ -33,16 +33,19 @@ de l'inventaire public ni la tentative de run qui les a publiés.
 4. Le checker confronte l'inventaire vérifié au manifeste signé : protocole,
    dépôt, commit, arbre, run, tentative, digest canonique et carte des quatre
    images. La même confrontation est répétée sur l'inventaire matérialisé dans
-   le bundle avant toute mutation. Une différence refuse le déploiement.
+   le bundle. Le mode public matérialise les deux fichiers Compose de la pile
+   blue-green depuis les objets Git du commit attesté et revérifie leur
+   résolution contre le digest signé. Il ne produit qu'un plan : `--execute`
+   est refusé même si toutes les preuves passent.
 5. Les octets canoniques des manifests V2 existants, sans ces champs,
    restent identiques ; la voie V1 garde son protocole et ses trois services.
    Aucun nouveau type de clé ni aucune signature automatique n'est ajouté.
 
 ## Limite et dépendance
 
-Le lot 309 doit fournir et faire vérifier le Compose public résolu qui nomme
-le Cockpit et sa session Redis. Tant que le wrapper matérialise le Compose
-historique à trois images, le candidat public est refusé. Cette décision ne
-constitue ni un build d'image, ni une preuve de staging, ni une autorisation de
-production. Les workers peuvent être attestés par le même inventaire sans être
-nécessairement démarrés dans la pile de recherche publique.
+La pile publique du lot 309 est requise au commit signé ; un commit sans ses
+deux fichiers Compose ne peut pas être matérialisé. Cette décision ne constitue
+ni un build d'image, ni une preuve de staging, ni une autorisation de production.
+Le cutover blue-green suit un protocole et un gate distincts. Les workers
+peuvent être attestés par le même inventaire sans être démarrés dans la pile
+de recherche publique.

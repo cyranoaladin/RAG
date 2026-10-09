@@ -296,7 +296,8 @@ def _image_digest_pairs(raw_pairs: list[str], *, label: str) -> dict[str, str]:
 
 
 def _run_docker_compose_config(
-    repo_root: Path, merge_sha: str, work_dir: Path, env_file: Path
+    repo_root: Path, merge_sha: str, work_dir: Path, env_file: Path,
+    *, public_candidate: bool = False,
 ) -> dict[str, Any]:
     """Frontière process, isolée pour être substituée par un double dans les
     tests (jamais un vrai ``docker``/``git`` en suite de tests) — même
@@ -313,7 +314,9 @@ def _run_docker_compose_config(
         return cast(
             dict[str, Any],
             vri.run_docker_compose_config_via_subprocess(
-                repo_root, merge_sha, vri._CANONICAL_COMPOSE_FILES, work_dir, env_file
+                repo_root, merge_sha,
+                vri._PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else vri._CANONICAL_COMPOSE_FILES,
+                work_dir, env_file,
             ),
         )
     except vri.ReleaseVerificationError as exc:
@@ -1583,9 +1586,15 @@ def _main_v2(argv: list[str]) -> int:
         )
         _verify_promotion_artifact_matches_run(args, material)
         with tempfile.TemporaryDirectory() as compose_tmp:
-            resolved_compose = _run_docker_compose_config(
-                args.repo_root, merge_sha, Path(compose_tmp), args.env_file
-            )
+            if args.public_candidate:
+                resolved_compose = _run_docker_compose_config(
+                    args.repo_root, merge_sha, Path(compose_tmp), args.env_file,
+                    public_candidate=True,
+                )
+            else:
+                resolved_compose = _run_docker_compose_config(
+                    args.repo_root, merge_sha, Path(compose_tmp), args.env_file
+                )
         compose_digest = hashlib.sha256(_canonical_compose_bytes(resolved_compose)).hexdigest()
         public_inventory_digest = None
         if args.public_candidate:

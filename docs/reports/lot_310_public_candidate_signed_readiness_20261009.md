@@ -46,9 +46,47 @@ sont passés.
   de `V2ReleaseMaterial` et deux contrôles du wrapper ; aucune nouvelle
   erreur de typage n'a été introduite. Ce contrôle n'est pas déclaré vert.
 
-## Dépendance restante
+## Raccord local avec le lot 309
 
-Le Compose public résolu du lot 309 doit être branché au signer et au wrapper
-pour que le chemin `--public-candidate` puisse aboutir. À cette base, le
-Compose historique ne contient pas Cockpit : le refus du candidat public est
-attendu. Aucun verdict `GO_LIVE_READY` ni digest final n'est produit ici.
+Le raccord a été préparé dans un worktree d'intégration isolé depuis le HEAD
+`737ea9d252cce5d8542870a3223f3a3397a1fc5b` de #309, suivi du commit
+local initial de ce lot. Ce n'est pas encore la base fusionnée sur `main` ;
+le rebase et les vérifications seront rejoués après la fusion de #309.
+
+- `--public-candidate` du signer résout exclusivement
+  `docker-compose.v2.yml` avec `docker-compose.public-blue-green.yml` depuis
+  les objets Git du commit attesté. La voie V1 conserve ses trois fichiers.
+- Le vérificateur prend l'inventaire V2 canonique des quatre images, impose
+  exactement les cinq services publics et confronte seulement les deux images
+  exécutées (`ingestor`, `cockpit`) au Compose. Le wrapper matérialise ces
+  deux sources et les octets de l'inventaire, puis relit le Compose effectif
+  avant de rendre un plan. Un manifeste V2 historique sans digest public est
+  refusé dans le plan public et avant écriture du bundle.
+- Le bundle public porte explicitement son mode et sa liste exacte de deux
+  fichiers ; l'exécution est toujours refusée. Aucun `pull`, `up` ou accès
+  à la production n'a été lancé. Le préflight public du lot 309 reste la
+  preuve de topologie, de matériaux et de secrets host-local ; ce lot lie
+  la signature, la provenance et le bundle.
+
+### Rehearsal local
+
+- 2026-10-09 : `pytest -q` sur le contrat readiness et les six suites
+  `rag-engine` ciblées (inventaire, vérificateur, signer, wrapper,
+  préflight public, plan signé) : **406 passed** après les négatifs finaux.
+  `ruff check` sur les cinq fichiers Python modifiés et `git diff --check` :
+  **0 erreur**. Aucun test n'a interrogé staging ou production.
+- Tests unitaires et intégration synthétique : signature V2, provenance V2
+  canonique à quatre images, bundle et relecture à deux fichiers, plan-only,
+  refus `execute=True`, ancien V2, divergence du Compose effectif et du mode
+  de bundle. Les chemins V1 restent couverts par leurs tests existants.
+- `docker compose config` réel (Compose 5.6.0) depuis les objets Git du commit
+  d'intégration `d4bba88ad22e6a87ce767f8ee04352a576c4ac52`, avec variables
+  et matériaux fictifs isolés : cinq services exacts, aucun `build` pour
+  l'API ou le Cockpit. Aucun conteneur n'a été démarré.
+- Les tests du préflight public #309 contre le Compose réel sont passés dans
+  la suite ciblée. Les preuves ci-dessus ne décrivent ni le staging final,
+  ni la cible production, ni une signature opérateur.
+
+La qualification finale devra être rejouée sur le SHA fusionné de `main` et
+sur l'inventaire V2 réellement publié pour ce SHA. Aucun verdict
+`GO_LIVE_READY` ni digest final n'est produit ici.

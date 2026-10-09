@@ -94,6 +94,13 @@ _CANONICAL_COMPOSE_FILES: tuple[str, ...] = (
     "docker-compose.production-workers.yml",
     "docker-compose.production-release.yml",
 )
+_PUBLIC_CANDIDATE_COMPOSE_FILES: tuple[str, ...] = (
+    "docker-compose.v2.yml",
+    "docker-compose.public-blue-green.yml",
+)
+_PUBLIC_CANDIDATE_SERVICES = frozenset(
+    {"pgvector", "ingestor", "prometheus", "session-redis", "cockpit"}
+)
 
 #: Chemin, relatif à la racine du dépôt, où vivent ces trois fichiers —
 #: utilisé pour les lire depuis l'objet git du commit vérifié
@@ -304,6 +311,7 @@ def verify_release_images(
     run_docker_compose_config: RunDockerComposeConfig,
     work_dir: Path,
     git_show_bytes: GitShowBytes = _git_show_bytes,
+    public_candidate: bool = False,
 ) -> VerifiedReleaseMaterialization:
     """Vérifie une fois, matérialise les octets exacts vérifiés — jamais
     une seconde lecture de ``.env`` ni une seconde résolution Compose
@@ -315,6 +323,9 @@ def verify_release_images(
     exposer dans le résultat est un fait supplémentaire distinct de leur
     résolution — jamais un vrai ``git show`` exercé dans les tests
     unitaires de ce module."""
+    expected_files = _PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else _CANONICAL_COMPOSE_FILES
+    if compose_files != expected_files:
+        raise ReleaseVerificationError("compose files differ from the selected release protocol")
     if not env_file.is_file():
         raise ReleaseVerificationError(
             f"env file not found: {env_file} — the production Compose files require "
@@ -338,12 +349,27 @@ def verify_release_images(
     resolved_config = run_docker_compose_config(
         repo_root, source_commit_sha, compose_files, work_dir, env_snapshot_path
     )
+    services = resolved_config.get("services")
+    if public_candidate and (
+        not isinstance(services, dict) or set(services) != _PUBLIC_CANDIDATE_SERVICES
+    ):
+        raise ReleaseVerificationError("public candidate Compose service inventory differs")
     try:
-        pinned_images = dii.require_resolved_compose_images_are_pinned(resolved_config)
+        pinned_images = dii.require_resolved_compose_images_are_pinned(
+            resolved_config,
+            expected_services=(
+                dii._PUBLIC_RUNTIME_APPLICATION_SERVICES
+                if public_candidate else dii._EXPECTED_APPLICATION_SERVICES
+            ),
+        )
     except dii.DeploymentImageInventoryError as exc:
         raise ReleaseVerificationError(str(exc)) from exc
     try:
-        image_provenance_document = dii.fetch_and_verify_image_provenance_document(
+        fetch_inventory = (
+            dii.fetch_and_verify_public_candidate_image_provenance_document
+            if public_candidate else dii.fetch_and_verify_image_provenance_document
+        )
+        image_provenance_document = fetch_inventory(
             repository=_CANONICAL_REPOSITORY,
             source_commit_sha=source_commit_sha,
             source_tree_sha=source_tree_sha,
@@ -358,6 +384,7 @@ def verify_release_images(
     provenance_images = {
         name: f"{service['image_repository']}@{service['image_digest']}"
         for name, service in image_provenance_document["services"].items()
+        if not public_candidate or name in dii._PUBLIC_RUNTIME_APPLICATION_SERVICES
     }
     verified_images = require_pinned_images_match_verified_provenance(
         pinned_images=pinned_images, provenance_images=provenance_images

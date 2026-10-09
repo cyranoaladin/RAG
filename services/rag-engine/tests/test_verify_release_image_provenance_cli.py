@@ -250,6 +250,35 @@ def _verify(
 
 
 class TestVerifyReleaseImagesEndToEnd:
+    def test_public_candidate_uses_two_runtime_images_and_four_image_inventory(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from tests.test_deployment_image_inventory import _public_inventory
+
+        inventory = _public_inventory(
+            source_commit_sha=SOURCE_COMMIT_SHA, source_tree_sha=SOURCE_TREE_SHA
+        )
+        images = {
+            name: f"{item['image_repository']}@{item['image_digest']}"
+            for name, item in inventory["services"].items()
+        }
+        resolved = {"services": {
+            "pgvector": {"image": "pgvector/pgvector@sha256:" + "9" * 64},
+            "prometheus": {"image": "prom/prometheus@sha256:" + "8" * 64},
+            "session-redis": {"image": "redis@sha256:" + "7" * 64},
+            "ingestor": {"image": images["ingestor"]},
+            "cockpit": {"image": images["cockpit"]},
+        }}
+        fakes = _Fakes(run=_run_document(), inventory=inventory, resolved_compose=resolved)
+        monkeypatch.setattr(dii, "fetch_and_verify_public_candidate_image_provenance_document", lambda **_: inventory)
+        result = _verify(
+            fakes, tmp_path, public_candidate=True,
+            compose_files=vri._PUBLIC_CANDIDATE_COMPOSE_FILES,
+        )
+        assert result.pinned_images == {name: images[name] for name in ("ingestor", "cockpit")}
+        assert set(result.image_provenance_document["services"]) == set(images)
+        assert fakes.compose_calls[0][2] == vri._PUBLIC_CANDIDATE_COMPOSE_FILES
+
     def test_matching_compose_and_provenance_is_accepted(self, tmp_path: Path) -> None:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()

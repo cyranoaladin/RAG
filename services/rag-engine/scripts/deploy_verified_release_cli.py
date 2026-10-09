@@ -452,6 +452,8 @@ def plan_signed_public_candidate(
     )
     if manifest.merge_tree_sha != source_tree_sha:
         raise DeploymentWrapperError("public candidate source tree differs from signed readiness")
+    if manifest.public_candidate_inventory_digest is None:
+        raise DeploymentWrapperError("public candidate inventory is absent from signed readiness")
     promotion = verified.promotion
     if (
         promotion.image_provenance_run_id != provenance_run_id
@@ -459,24 +461,40 @@ def plan_signed_public_candidate(
     ):
         raise DeploymentWrapperError("public candidate provenance run differs from signed promotion")
     try:
-        evidence = public_preflight.require_candidate_with_live_provenance(
-            resolved_compose=resolved_compose,
-            source_sha=source_sha,
+        inventory = dii.fetch_and_verify_public_candidate_image_provenance_document(
+            repository=_CANONICAL_REPOSITORY,
+            source_commit_sha=source_sha,
             source_tree_sha=source_tree_sha,
-            color=color,
-            material_root=material_root,
-            secrets_root=secrets_root,
-            repo_root=repo_root,
             provenance_run_id=provenance_run_id,
             provenance_run_attempt=provenance_run_attempt,
             github_api_get=github_api_get,
             download_artifact=download_artifact,
             work_dir=work_dir,
         )
-        upstream = signer._upstream_services_from_resolved_compose(resolved_compose)  # noqa: SLF001
-    except (public_preflight.PublicCandidateError, signer.SigningToolError) as exc:
+        require_public_candidate_inventory_binding(manifest, inventory)
+        verified_images = {
+            name: f"{item['image_repository']}@{item['image_digest']}"
+            for name, item in inventory["services"].items()
+        }
+        evidence = public_preflight.require_public_candidate(
+            resolved_compose=resolved_compose,
+            source_sha=source_sha,
+            color=color,
+            material_root=material_root,
+            secrets_root=secrets_root,
+            repo_root=repo_root,
+            verified_application_images=verified_images,
+        )
+        upstream = signer._upstream_services_from_resolved_compose(  # noqa: SLF001
+            resolved_compose, application_services=dii._PUBLIC_RUNTIME_APPLICATION_SERVICES
+        )
+    except (
+        public_preflight.PublicCandidateError,
+        signer.SigningToolError,
+        dii.DeploymentImageInventoryError,
+    ) as exc:
         raise DeploymentWrapperError(f"public candidate preflight rejected: {exc}") from exc
-    if manifest.application_image_digests != {"ingestor": evidence["api_image"]}:
+    if manifest.application_image_digests["ingestor"] != evidence["api_image"]:
         raise DeploymentWrapperError("public candidate API image differs from signed readiness")
     if manifest.upstream_image_digests != upstream:
         raise DeploymentWrapperError("public candidate upstream images differ from signed readiness")
@@ -517,6 +535,7 @@ def materialize_verified_bundle(
     readiness_protocol: str = "NEXUS-PRODUCTION-READINESS-V1",
     v2_release_material: signer.V2ReleaseMaterial | None = None,
     frozen_trust_anchor_raw: bytes | None = None,
+    public_candidate: bool = False,
 ) -> dict[str, Any]:
     """Phase 1 (vérifier, une seule fois) + phase 2 (matérialiser) —
     jamais l'inverse, et jamais une seconde résolution/lecture d'une
@@ -526,6 +545,11 @@ def materialize_verified_bundle(
     provenance des images (et, si fourni, du manifeste de readiness)
     n'ait réussi : un bundle partiellement matérialisé pour une release
     refusée n'existe jamais."""
+    if public_candidate and readiness_protocol != "NEXUS-PRODUCTION-READINESS-V2":
+        raise DeploymentWrapperError("public candidate requires signed readiness V2")
+    compose_files = (
+        vri._PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else _CANONICAL_COMPOSE_FILES
+    )
     work_dir.mkdir(parents=True, exist_ok=True)
     materialization = vri.verify_release_images(
         source_commit_sha=merge_sha,
@@ -533,13 +557,14 @@ def materialize_verified_bundle(
         provenance_run_id=provenance_run_id,
         provenance_run_attempt=provenance_run_attempt,
         repo_root=repo_root,
-        compose_files=_CANONICAL_COMPOSE_FILES,
+        compose_files=compose_files,
         env_file=env_file,
         github_api_get=github_api_get,
         download_artifact=download_artifact,
         run_docker_compose_config=run_docker_compose_config,
         work_dir=work_dir,
         git_show_bytes=git_show_bytes,
+        public_candidate=public_candidate,
     )
 
     resolved_compose_bytes = vri.canonical_resolved_compose_bytes(materialization.resolved_compose)
@@ -599,6 +624,10 @@ def materialize_verified_bundle(
             merge_sha=merge_sha,
             resolved_compose_digest=resolved_compose_digest,
         )
+        if public_candidate and readiness_v2.public_candidate_inventory_digest is None:
+            raise DeploymentWrapperError("public candidate inventory is absent from signed readiness")
+        if not public_candidate and readiness_v2.public_candidate_inventory_digest is not None:
+            raise DeploymentWrapperError("public readiness requires the public candidate Compose protocol")
         require_runtime_images_match_readiness(readiness_v2, materialization.pinned_images)
         if readiness_v2.upstream_image_digests != signer._upstream_services_from_resolved_compose(  # noqa: SLF001
             materialization.resolved_compose,
@@ -628,7 +657,7 @@ def materialize_verified_bundle(
         path.write_bytes(raw)
         file_digests[name] = _sha256_bytes(raw)
 
-    for name in _CANONICAL_COMPOSE_FILES:
+    for name in compose_files:
         content = materialization.compose_source_bytes[name]
         write_bundle_file(name, content)
 
@@ -719,6 +748,9 @@ def materialize_verified_bundle(
             else {}
         ),
     }
+    if public_candidate:
+        bundle_document["public_candidate"] = True
+        bundle_document["compose_files"] = list(compose_files)
     bundle_bytes = _canonical_json_bytes(bundle_document)
     bundle_document["bundle_digest"] = _sha256_bytes(bundle_bytes)
     (bundle_dir / _BUNDLE_MANIFEST_NAME).write_bytes(_canonical_json_bytes(bundle_document))
@@ -871,6 +903,13 @@ def _load_and_verify_bundle_manifest(bundle_dir: Path, *, merge_sha: str) -> dic
             f"bundle was materialized for merge_sha {bundle_document.get('merge_sha')!r}, "
             f"not the commit currently being deployed ({merge_sha!r})"
         )
+    if bundle_document.get("public_candidate") is True:
+        if bundle_document.get("compose_files") != list(vri._PUBLIC_CANDIDATE_COMPOSE_FILES):
+            raise DeploymentWrapperError("public candidate bundle Compose files differ")
+        if bundle_document.get("readiness_protocol") != "NEXUS-PRODUCTION-READINESS-V2":
+            raise DeploymentWrapperError("public candidate bundle requires readiness V2")
+    elif "public_candidate" in bundle_document or "compose_files" in bundle_document:
+        raise DeploymentWrapperError("bundle Compose mode is ambiguous")
     _require_bundle_files_match_manifest(bundle_dir, bundle_document)
     return bundle_document
 
@@ -1817,6 +1856,10 @@ def _verify_deploy_inputs(
     run_bundle_compose_config: RunBundleComposeConfig,
 ) -> _VerifiedDeployInputs:
     bundle_document = _load_and_verify_bundle_manifest(bundle_dir, merge_sha=merge_sha)
+    public_candidate = bundle_document.get("public_candidate") is True
+    compose_files = (
+        vri._PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else _CANONICAL_COMPOSE_FILES
+    )
     readiness_path = bundle_dir / _READINESS_MANIFEST_BUNDLE_NAME
     readiness_raw = (
         signer._read_bytes_no_follow(readiness_path, label="readiness_manifest")  # noqa: SLF001
@@ -1824,6 +1867,8 @@ def _verify_deploy_inputs(
         else None
     )
     if readiness_raw is None:
+        if public_candidate:
+            raise DeploymentWrapperError("public candidate requires signed readiness V2")
         if execute:
             raise DeploymentWrapperError("a signed readiness manifest is required before mutation")
         explicit = bundle_document.get("explicit_services")
@@ -1843,7 +1888,7 @@ def _verify_deploy_inputs(
         )
 
     effective = run_bundle_compose_config(
-        bundle_dir, bundle_dir / _ENV_BUNDLE_NAME, _CANONICAL_COMPOSE_FILES
+        bundle_dir, bundle_dir / _ENV_BUNDLE_NAME, compose_files
     )
     effective_bytes = vri.canonical_resolved_compose_bytes(effective)
     stored_bytes = signer._read_bytes_no_follow(  # noqa: SLF001
@@ -1856,6 +1901,8 @@ def _verify_deploy_inputs(
     compose_digest = _sha256_bytes(effective_bytes)
     manifest: ProductionReadinessManifestV1 | ProductionReadinessManifestV2
     if actual_protocol == "NEXUS-PRODUCTION-READINESS-V1":
+        if public_candidate:
+            raise DeploymentWrapperError("public candidate requires signed readiness V2")
         manifest_v1 = verify_readiness_manifest_if_supplied(
             readiness_manifest_raw=readiness_raw,
             trust_anchor_raw=trusted_readiness_anchor_raw,
@@ -1876,6 +1923,8 @@ def _verify_deploy_inputs(
             resolved_compose_digest=compose_digest,
         )
         manifest = manifest_v2
+        if public_candidate != (manifest_v2.public_candidate_inventory_digest is not None):
+            raise DeploymentWrapperError("public candidate bundle and signed inventory mode differ")
         if manifest_v2.public_candidate_inventory_digest is not None:
             try:
                 inventory_document = json.loads(
@@ -1903,6 +1952,8 @@ def _verify_deploy_inputs(
     if not isinstance(services, dict) or not services:
         raise DeploymentWrapperError("effective compose has no services")
     explicit_services = sorted(services)
+    if public_candidate and set(explicit_services) != vri._PUBLIC_CANDIDATE_SERVICES:
+        raise DeploymentWrapperError("public candidate effective Compose services differ")
     if bundle_document.get("explicit_services") != explicit_services:
         raise DeploymentWrapperError("bundle explicit_services differ from effective compose")
     verified_images = bundle_document.get("verified_images")
@@ -1917,7 +1968,7 @@ def _verify_deploy_inputs(
         raise DeploymentWrapperError("effective upstream images differ from signed readiness")
     authorization_source = None
     authorization_digest = None
-    if isinstance(manifest, ProductionReadinessManifestV2):
+    if isinstance(manifest, ProductionReadinessManifestV2) and not public_candidate:
         authorization_digest = manifest.authorization_set_digest
         authorization_source = require_effective_authorization_set_bind(
             effective_compose=effective,
@@ -1973,9 +2024,15 @@ def deploy_from_bundle(
         run_bundle_compose_config=run_bundle_compose_config,
     )
     explicit_services = verified.explicit_services
+    public_candidate = verified.bundle_document.get("public_candidate") is True
+    if public_candidate and execute:
+        raise DeploymentWrapperError("public candidate bundle is plan-only; cutover requires a separate gate")
+    compose_files = (
+        vri._PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else _CANONICAL_COMPOSE_FILES
+    )
 
     compose_args = ["docker", "compose", "--env-file", str(bundle_dir / _ENV_BUNDLE_NAME)]
-    for name in _CANONICAL_COMPOSE_FILES:
+    for name in compose_files:
         compose_args += ["-f", str(bundle_dir / name)]
 
     plan = [
@@ -2194,6 +2251,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--environment", default="production")
     p.add_argument("--bundle-dir", type=Path, required=True)
     p.add_argument(
+        "--public-candidate", action="store_true", default=False,
+        help="Matérialise le candidat public V2 avec ses deux fichiers Compose; plan-only.",
+    )
+    p.add_argument(
         "--deployment-state-root",
         type=Path,
         default=None,
@@ -2216,6 +2277,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
+    if args.public_candidate and (
+        args.execute or args.readiness_protocol != "NEXUS-PRODUCTION-READINESS-V2"
+    ):
+        print("REFUSED: --public-candidate requires V2 and forbids --execute", file=sys.stderr)
+        return 1
     if args.execute and (args.readiness_manifest_file is None or args.trust_anchor_file is None):
         print(
             "REFUSED: --execute requires both --readiness-manifest-file and "
@@ -2287,7 +2353,11 @@ def main(argv: list[str] | None = None) -> int:
                 trust_anchor_file=args.trust_anchor_file,
                 environment=args.environment,
                 github_api_get=dii.gh_api_get,
-                download_artifact=dii.make_download_artifact_via_gh(repository=_CANONICAL_REPOSITORY),
+                download_artifact=(
+                    dii.make_public_candidate_download_artifact_via_gh(repository=_CANONICAL_REPOSITORY)
+                    if args.public_candidate else
+                    dii.make_download_artifact_via_gh(repository=_CANONICAL_REPOSITORY)
+                ),
                 run_docker_compose_config=vri.run_docker_compose_config_via_subprocess,
                 work_dir=Path(tmp),
                 bundle_dir=args.bundle_dir,
@@ -2295,6 +2365,7 @@ def main(argv: list[str] | None = None) -> int:
                 readiness_protocol=args.readiness_protocol,
                 v2_release_material=v2_material,
                 frozen_trust_anchor_raw=trusted_anchor_raw,
+                public_candidate=args.public_candidate,
             )
         plan = deploy_from_bundle(
             bundle_dir=args.bundle_dir,
