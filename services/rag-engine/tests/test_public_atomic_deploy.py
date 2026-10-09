@@ -125,7 +125,7 @@ def test_public_execute_refuses_rehashed_bad_readiness_before_docker(tmp_path: P
     outer["bundle_digest"] = hashlib.sha256(dep._canonical_json_bytes(outer)).hexdigest()
     manifest.write_bytes(dep._canonical_json_bytes(outer))
     options["run_subprocess"] = lambda *_: pytest.fail("Docker mutation called")
-    with pytest.raises(dep.DeploymentWrapperError):
+    with pytest.raises(dep.DeploymentWrapperError, match="readiness|signature"):
         dep.deploy_from_bundle(**options)
 
 
