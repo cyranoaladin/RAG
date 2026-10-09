@@ -51,8 +51,14 @@ def _cockpit_fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
     root = tmp_path / "release-x"
     secret_root = tmp_path / "secrets"
     secret_root.mkdir()
+    secret_root.chmod(0o700)
     secret = secret_root / "api-clients.json"
-    secret.write_text("{}", encoding="utf-8")
+    secret.write_text(json.dumps([{
+        "client_id": "cockpit-search",
+        "token_sha256": hashlib.sha256(b"cockpit-search-key").hexdigest(),
+        "scopes": ["rag:search"],
+    }]), encoding="utf-8")
+    secret.chmod(0o600)
     cockpit_env = {
         "RAG_ENGINE_INTERNAL_URL": "http://ingestor:8001",
         "RAG_ENGINE_INTERNAL_TOKEN": "bff-service-secret",
@@ -78,7 +84,7 @@ def _cockpit_fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
         + " ~nexus:session:v1:* +@connection +get +set\n",
         encoding="utf-8",
     )
-    (secret_root / "session-redis.acl").chmod(0o600)
+    (secret_root / "session-redis.acl").chmod(0o644)
     files: dict[str, str] = {}
     for relative in set(TARGETS.values()):
         path = root / relative
@@ -144,6 +150,7 @@ def _cockpit_fixture(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
                     "PG_RAG_DSN": "postgresql://rag_reader:dummy@pgvector:5432/ragdb",
                     "PG_REVIEW_DSN": "postgresql://rag_reviewer:dummy@pgvector:5432/ragdb",
                     "RAG_BFF_SERVICE_TOKEN": "bff-service-secret",
+                    "RAG_API_CLIENTS_FILE": "/app/api-clients/api-clients.json",
                     "NEXUS_INTERNAL_TOKEN_SECRET": "internal-signature-secret-long-enough",
                     "NEXUS_INTERNAL_TOKEN_ISSUER": "nexus-cockpit",
                     "NEXUS_INTERNAL_TOKEN_AUDIENCE": "nexus-rag-engine",
@@ -267,6 +274,9 @@ def test_accepts_actual_resolved_five_service_compose(tmp_path: Path) -> None:
     "redis_extra_hosts", "duplicate_loopback_port",
     "redis_tag", "redis_foreign_volume", "redis_acl_missing", "redis_acl_symlink",
     "redis_acl_writable", "redis_acl_mismatch", "redis_no_appendonly",
+    "api_registry_unknown_key", "api_registry_ingest_scope", "api_registry_admin_scope",
+    "api_registry_read_source_scope", "api_registry_inline_override",
+    "redis_acl_unreadable_by_image_user", "secret_root_not_private",
 ])
 def test_refuses_unsafe_cockpit_or_redis(tmp_path: Path, mutation: str) -> None:
     config, root, secrets, repo = _cockpit_fixture(tmp_path)
@@ -333,6 +343,24 @@ def test_refuses_unsafe_cockpit_or_redis(tmp_path: Path, mutation: str) -> None:
         )
     elif mutation == "redis_no_appendonly":
         redis["command"] = ["redis-server", "--aclfile", "/run/secrets/session-redis.acl"]
+    elif mutation == "api_registry_unknown_key":
+        registry = json.loads((secrets / "api-clients.json").read_text())
+        registry[0]["token_sha256"] = hashlib.sha256(b"another-key").hexdigest()
+        (secrets / "api-clients.json").write_text(json.dumps(registry))
+    elif mutation in {"api_registry_ingest_scope", "api_registry_admin_scope", "api_registry_read_source_scope"}:
+        registry = json.loads((secrets / "api-clients.json").read_text())
+        registry[0]["scopes"].append({
+            "api_registry_ingest_scope": "rag:ingest",
+            "api_registry_admin_scope": "rag:admin",
+            "api_registry_read_source_scope": "rag:read-source",
+        }[mutation])
+        (secrets / "api-clients.json").write_text(json.dumps(registry))
+    elif mutation == "api_registry_inline_override":
+        config["services"]["ingestor"]["environment"]["RAG_API_CLIENTS"] = "[]"
+    elif mutation == "redis_acl_unreadable_by_image_user":
+        (secrets / "session-redis.acl").chmod(0o600)
+    elif mutation == "secret_root_not_private":
+        secrets.chmod(0o755)
     with pytest.raises(preflight.PublicCandidateError):
         _check(config, root, secrets, repo)
 

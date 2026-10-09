@@ -27,6 +27,7 @@ import verify_release_image_provenance_cli as vri  # noqa: E402
 
 _HEX40 = re.compile(r"[0-9a-f]{40}\Z")
 _HEX64 = re.compile(r"[0-9a-f]{64}\Z")
+_CLIENT_ID = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}\Z")
 _IMAGE = re.compile(r"[a-z0-9][a-z0-9._/-]*(?::[a-zA-Z0-9._-]+)?@sha256:[0-9a-f]{64}\Z")
 _API_REPO = "ghcr.io/cyranoaladin/rag-ingestor"
 _COCKPIT_REPO = "ghcr.io/cyranoaladin/rag-cockpit"
@@ -182,6 +183,50 @@ def _cockpit_environment(secret_root: Path, api_env: dict[str, Any]) -> dict[str
     return values
 
 
+def _validate_cockpit_api_registry(
+    secret_root: Path, api_env: dict[str, Any], cockpit_key: str
+) -> None:
+    _require(api_env.get("RAG_API_CLIENTS_FILE") == _SECRET_BIND and
+             not api_env.get("RAG_API_CLIENTS"),
+             "API client registry source must be the mounted secret")
+    registry_path = secret_root / "api-clients.json"
+    _no_symlink_components(registry_path)
+    _require(registry_path.stat().st_size <= 256 * 1024,
+             "API client registry is too large")
+    raw = _read_secret_file(registry_path, private=False)
+    try:
+        clients = json.loads(raw)
+    except ValueError as exc:
+        raise PublicCandidateError("API client registry is invalid") from exc
+    _require(isinstance(clients, list) and bool(clients),
+             "API client registry must be a non-empty list")
+    seen_ids: set[str] = set()
+    seen_digests: set[str] = set()
+    matched_scopes: set[str] | None = None
+    cockpit_digest = hashlib.sha256(cockpit_key.encode()).hexdigest()
+    valid_scopes = {"rag:search", "rag:read-source", "rag:ingest", "rag:admin"}
+    for client in clients:
+        _require(isinstance(client, dict) and
+                 set(client) == {"client_id", "token_sha256", "scopes"},
+                 "API client registry entry differs")
+        client_id = client["client_id"]
+        digest = client["token_sha256"]
+        scopes = client["scopes"]
+        _require(isinstance(client_id, str) and _CLIENT_ID.fullmatch(client_id) is not None
+                 and client_id not in seen_ids and
+                 isinstance(digest, str) and _HEX64.fullmatch(digest) is not None
+                 and digest not in seen_digests and
+                 isinstance(scopes, list) and bool(scopes) and
+                 all(isinstance(scope, str) and scope in valid_scopes for scope in scopes),
+                 "API client registry entry differs")
+        seen_ids.add(client_id)
+        seen_digests.add(digest)
+        if hmac.compare_digest(digest, cockpit_digest):
+            matched_scopes = set(scopes)
+    _require(matched_scopes == {"rag:search"},
+             "Cockpit API credential must have only rag:search scope")
+
+
 def _validate_redis_secret(secret_root: Path, redis_url: str) -> None:
     try:
         parsed = urlsplit(redis_url)
@@ -194,7 +239,14 @@ def _validate_redis_secret(secret_root: Path, redis_url: str) -> None:
     _require(valid, "Cockpit Redis URL must target its private session service")
     password = unquote(parsed.password or "")
     _require(len(password) >= 24, "Cockpit Redis credential is too short")
+    # L'image Redis officielle abandonne root avant de lire --aclfile. Le
+    # montage du seul fichier est lisible par cet UID, tandis que le répertoire
+    # de secrets hôte reste privé et n'est pas monté dans le conteneur.
+    _require(secret_root.stat().st_mode & 0o077 == 0,
+             "runtime secret directory must be private")
     acl = _read_secret_file(secret_root / "session-redis.acl", private=False).strip()
+    _require((secret_root / "session-redis.acl").stat().st_mode & 0o004 != 0,
+             "Redis ACL must be readable by the image user")
     expected = (
         "user default on #" + hashlib.sha256(password.encode()).hexdigest()
         + " ~nexus:session:v1:* +@connection +get +set"
@@ -375,6 +427,8 @@ def require_public_candidate(
         required_env = _cockpit_environment(secret_root, api_env)
         _require(cockpit_env == {"NODE_ENV": "production", **required_env},
                  "Cockpit environment differs from private secret file")
+        _validate_cockpit_api_registry(secret_root, api_env,
+                                       required_env["RAG_ENGINE_API_KEY"])
         _validate_redis_secret(secret_root, required_env["NEXUS_SESSION_REDIS_URL"])
     labels = ingestor.get("labels")
     _require(isinstance(labels, dict) and labels.get(_MATERIAL_LABEL) == manifest_digest,
