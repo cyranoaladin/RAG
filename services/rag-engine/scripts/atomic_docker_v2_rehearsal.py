@@ -435,9 +435,8 @@ def _resolve_compose_sources(
     work_dir: Path,
     env_file: Path,
 ) -> dict[str, Any]:
-    release_images.require_private_work_dir(work_dir)
     scratch = work_dir / "compose-fixture"
-    scratch.mkdir(mode=0o700, exist_ok=True)
+    scratch.mkdir(parents=True, exist_ok=True)
     for name in compose_files:
         (scratch / name).write_bytes(sources[name])
     args = ["docker", "compose", "--env-file", str(env_file)]
