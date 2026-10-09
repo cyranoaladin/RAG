@@ -1,0 +1,41 @@
+# ADR-0068 — Adjudication agentique déléguée des droits étudiants publics
+
+- **Statut** : proposé ; la délégation scellée et le jeu de décisions ne prennent effet qu'après approbation de l'autorité au HEAD exact.
+- **Date** : 2026-10-09.
+- **Autorité délégante et finale** : `abenrhouma`.
+- **Exécutant documentaire** : agent automatisé identifié, distinct de l'autorité délégante.
+- **S'appuie sur** : ADR-0033, ADR-0035, ADR-0045, ADR-0050, ADR-0058, ADR-0064 et la décision d'autorité du 2026-10-09.
+- **Contrat** : aucun changement de `nexus-contracts` ni des visibilités existantes.
+
+## Problème
+
+Le paquet de la PR #300 inventorie 315 identités PDF issues des releases V4 hors HGGSP et HGGSP V5. Son contrôle antérieur vérifiait les octets, le texte et les pages, sans établir les droits de réutilisation publique ni l'aptitude élève de chaque contenu. Il demandait une lecture humaine individuelle des 315 PDF. L'autorité `abenrhouma` a expressément remplacé ce mode opératoire par une adjudication automatisée déléguée, traçable et restrictive. Cette délégation n'approuve aucun PDF par présomption et ne transforme pas une revue GitHub en 315 lectures humaines.
+
+Le produit autorisable reste la **recherche pédagogique gouvernée avec passages cités**. Une disposition `APPROVE_PUBLIC` autorise seulement l'indexation gouvernée et la présentation de courts passages aux élèves, avec source, libellé, page et date de mise à jour vérifiable. Elle n'autorise ni redistribution publique du PDF complet, ni génération de réponse, ni endpoint d'ingestion ou writer public.
+
+## Décision
+
+1. La politique `governance/student_public_rights/delegated_review_policy_v1.yml`, le mandat `delegation_abenrhouma_20261009.yml`, le schéma `automated_artifact_review_v1.schema.json`, le code du moteur et les preuves forment une autorité **versionnée et scellée par empreintes**. Le mandat désigne séparément `delegating_authority=abenrhouma`, `decision_executor` automatisé et `decision_authority_basis` déléguée. Un mandat `DRAFT_UNSEALED` ou une empreinte absente ne peut servir d'autorisation de publication.
+2. Pour chacun des **315 `content_sha256` exacts**, le scanner vérifie les octets, la taille et les pages puis inspecte le texte, les métadonnées, les images, les pages non textuelles et les annexes. Son résultat structurel complet, lié à l'empreinte du code scanner, est intégré à la preuve par artefact ; le vérificateur confronte la taille, les pages, les empreintes de texte/rendu/OCR, les annotations et les projections du record à ce résultat. Aucune donnée personnelle brute ni chaîne de pensée n'est conservée.
+3. Deux revues indépendantes, chacune avec son contexte, produisent des observations structurées : A pour droits, licences, tiers, actualité et révocation ; B pour aptitude élève, PII, images, annexes, consignes enseignants et corrigés. Les modèles, paramètres et prompts sont figés et identifiés. Leurs verdicts ne sont **pas** des décisions de publication. Les candidats à l'approbation sont classifiés deux fois ; toute divergence, omission ou faible confiance entraîne `EXCLUDE`.
+4. Un moteur déterministe n'émet que `APPROVE_PUBLIC`, `EXCLUDE` ou `REPLACE_WITH_NEW_CONTENT`. `APPROVE_PUBLIC` demande simultanément la concordance des octets, la revue complète de toutes les pages et annexes, une base de droits positive applicable à cet artefact, la portée explicite de l'usage étudiant, l'absence de restriction ou de tiers non licencié, les contrôles PII/actualité/révocation/aptitude, les deux verdicts `PASS` et toutes les règles déterministes `PASS`. Tout élément absent, ambigu ou contradictoire donne `EXCLUDE`. Aucun état `PENDING` ne survit dans la feuille finale.
+5. `REPLACE_WITH_NEW_CONTENT` n'est possible qu'avec un substitut **déjà identifié et doté d'une preuve de droits**, dont le nouvel identifiant et le nouveau SHA repassent l'intégralité du pipeline. Modifier le PDF ancien ne modifie jamais son ancien `content_sha256` ni sa disposition. Sans substitut qualifié, décider `EXCLUDE`.
+6. Le SHA `3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6` (SVT première, CFTR) est obligatoirement `EXCLUDE`, avec `student_suitability=FAIL`, motif `TEACHER_NON_DISCLOSURE_INSTRUCTION` et preuve page 3. Cette décision pédagogique a été rendue explicitement par l'autorité ; elle ne doit pas être redemandée ni contournée par un extrait de page différent.
+
+## Fondement positif des droits et limites
+
+Les [mentions légales d'Éduscol](https://eduscol.education.gouv.fr/4656/mentions-legales), consultées le 2026-10-09, placent les pages et documents proposés en téléchargement sous Licence Ouverte Etalab 2.0. Elles **excluent** les éléments textuels, illustratifs ou sonores de tiers, y compris les fragments, logos, pictogrammes, infographies, photographies et extraits de textes. La [Licence Ouverte 2.0](https://www.data.gouv.fr/pages/legal/licences/etalab-2.0) permet reproduction et extraction de l'information licenciée, sous attribution de la source et de sa date de dernière mise à jour. Elle ne vaut que pour l'information réellement incluse dans son périmètre. Le [CRPA L321-2](https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000033218992/) exclut les droits de propriété intellectuelle de tiers du régime des informations publiques ; son [article L322-1](https://www.legifrance.gouv.fr/codes/section_lc/LEGITEXT000031366350/LEGISCTA000032255218/) impose aussi de ne pas altérer ou dénaturer l'information.
+
+L'URL de page thématique ne démontre pas que les octets locaux proviennent d'un PDF téléchargeable couvert par cette licence : 302 des 315 `source_listing_url` du paquet #300 ne sont pas des URL PDF directes. Le vérificateur doit retrouver le PDF exact ou une identité documentaire vérifiable, comparer les octets quand la source le permet et enregistrer les conditions applicables, leur empreinte et l'heure UTC. Une source ou une condition non vérifiable donne `EXCLUDE`. L'accès libre, le domaine officiel, `officiel_public`, la présence antérieure dans le corpus et l'absence de plainte ne sont jamais des preuves positives. L'exception de courte citation n'est pas un raccourci pour autoriser l'indexation et un service public de retrieval de ces PDF.
+
+Les bases acceptables sont définies en liste fermée par la politique : propriété Nexus établie par registre, licence ouverte explicite avec notice exacte, conditions explicites couvrant l'usage autorisé, domaine public avec fondement vérifiable, ou base supplémentaire pré-énumérée avec preuve équivalente. La catégorie `OTHER_EXPLICITLY_VERIFIED_BASIS` ne peut servir de fourre-tout libre.
+
+## Preuve, vérification et approbation
+
+Chaque preuve par artefact est validée par le schéma et liée au SHA du PDF, de l'inventaire, de la politique, du mandat, du code, des prompts et des modèles. Les observations A/B, pages et signaux sont stockés en CAS. La feuille TSV est **générée** à partir de ces preuves ; une modification manuelle est rejetée. Un vérificateur indépendant recalcule le jeu des 315 SHA, les dispositions, les digests et les comptes de la release. Ses tests de sabotage couvrent notamment `PENDING`, licence absente, page manquante, SHA altéré, CFTR approuvé, reviewer absent, feuille modifiée, URL discordante, `officiel_public` seul et annexe omise.
+
+L'unique intervention humaine terminale approuve le mandat, la politique et le jeu de décisions **après** preuve complète, sur le HEAD exact de la PR #300. Le challenge lie base, HEAD, tree, inventaire, politique, mandat, feuille, preuves, comptes et identité du moteur. Son texte précise que `abenrhouma` n'atteste **pas** une lecture humaine individuelle des PDF. Une review générale de PR sans ce challenge ne remplace pas cette autorité finale.
+
+## Effets et frontières
+
+Cette ADR et la fusion éventuelle de #300 n'écrivent dans aucune base et ne publient aucun contenu. La release publique successeur exclura physiquement les artefacts `EXCLUDE`, recalculera les comptes réels puis rescèllera ses manifests, autorisations, scopes et registre. Les releases V4/V5 de répétition restent immuables ; `student` reste limité à `public`, et les anciennes colonnes `rag_chunks.visibility` ne sont pas maquillées. Aucun staging ni production n'est déployé par ce lot.

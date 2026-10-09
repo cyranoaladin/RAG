@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections import Counter, defaultdict
 from collections.abc import Mapping, Sequence
@@ -4877,6 +4878,10 @@ def main(argv: list[str] | None = None) -> int:
         help="Simule la génération en mémoire sans écrire aucun fichier sur disque.",
     )
     parser.add_argument("--verify-official-downloads", action="store_true")
+    parser.add_argument(
+        "--student-public-rights-expected-head", default=None,
+        help="HEAD exact du pack de droits délégués, exigé pour toute release avec placements public.",
+    )
     # ── L'AUTORITÉ DE REVUE PII S'INJECTE ───────────────────────────────
     #
     # Ni identifiant de campagne, ni chemin de gouvernance en dur : faire
@@ -4968,6 +4973,22 @@ def main(argv: list[str] | None = None) -> int:
         subject_mapping_path=args.subject_mapping_path,
         subject_mapping_sha256=args.subject_mapping_sha256,
     )
+
+    # Les releases V4/V5 internes restent rejouables. Une nouvelle candidate
+    # portant des placements publics franchit ici la porte documentaire AVANT
+    # toute écriture, y compris en dry-run. `officiel_public` ne suffit jamais.
+    sys.path.insert(0, str(REPOSITORY_ROOT / "scripts/go_live"))
+    from public_rights_release_guard import require_public_release_rights
+
+    public_rights = require_public_release_rights(
+        documents,
+        repository_root=REPOSITORY_ROOT,
+        source_mirror_root=args.pdf_root,
+        expected_head=args.student_public_rights_expected_head,
+    )
+    if public_rights.get("PUBLIC_RIGHTS_GATE_APPLICABLE"):
+        print("PUBLIC_RIGHTS_GATE_PASS=true")
+        print(f"PUBLIC_RIGHTS_EVIDENCE_PACK_SHA256={public_rights['EVIDENCE_PACK_SHA256']}")
 
     if args.dry_run:
         manifest_bytes = documents.get(RELEASE_ROOT / "production-profile-gate.release.json")
