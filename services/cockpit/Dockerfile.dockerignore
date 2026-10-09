@@ -16,6 +16,7 @@
 !services/cockpit/scripts
 !services/cockpit/scripts/**
 !services/cockpit/next.config.test.ts
+!services/cockpit/next.container-config.test.ts
 !packages
 !packages/contracts
 !packages/contracts/schema

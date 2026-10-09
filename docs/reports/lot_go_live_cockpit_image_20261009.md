@@ -21,7 +21,10 @@ source ; ce lot ne prétend pas établir une provenance de release.
 
 Base du travail : `origin/main=14cb787310d1ffda1e8c6f215cfb1435e80573fb`,
 arbre `2b1ae0edb923b0ca91291a3dab08fe1e4129ed6d`, worktree propre avant
-modification. Aucune mutation staging ou production ; aucune image poussée.
+modification. La branche a ensuite intégré par merge normal le `main`
+`49f6d2dc8e57125d0b7fb9638e36842420678b97` (arbre
+`fb18ab69be7f4f091b94bd3cd793b9d140cb8aac`), après fusion des PR
+#305 et #306. Aucune mutation staging ou production ; aucune image poussée.
 
 ## Validation exécutée
 
@@ -32,6 +35,21 @@ modification. Aucune mutation staging ou production ; aucune image poussée.
   contenant `nexus-contracts[dev]` ; build Next.js local : succès.
 - `docker buildx build --load --platform linux/amd64` : succès depuis le vrai
   contexte du dépôt. Un `SOURCE_COMMIT_SHA=main` a été refusé avant le build.
+- Après l'intégration de #306, le test `next.container-config.test.ts`, renommé,
+  était absent de l'allowlist Docker. Une assertion de régression a d'abord
+  échoué, puis a réussi après l'ajout de son chemin exact. Le journal d'un
+  **nouveau build Docker** affiche explicitement
+  `next.container-config.test.ts (2 tests)`, puis `23` fichiers et `184` tests
+  réussis dans l'étape builder. Le build et son smoke ont été rejoués après
+  cette correction : UID 1000, `/` HTTP 200, `/api/health` HTTP 503 attendu,
+  `.next/BUILD_ID` égal au SHA sentinelle, zéro mount.
+- Sur cette branche intégrée : suite Cockpit `184/184`, lint, typecheck,
+  `contracts:check` et build Next.js réussis. Le contrôle Python du contrat a
+  utilisé une installation **non éditable** dans un venv isolé.
+- `npm audit --omit=dev --json` : exit 0, zéro vulnérabilité de production,
+  dont zéro high et critical. `npm audit --json` : exit 1, sept high de
+  développement seulement ; la politique exacte temporaire #284 accepte
+  uniquement `braces` / GHSA-vfj7-8cjw-p6xm jusqu'au 17 octobre 2026.
 - Conteneur local éphémère en lecture seule : `/` répond HTTP 200 ; utilisateur
   effectif UID 1000 ; aucun dépôt présent dans l'image. `/api/health` répond
   HTTP 503 `unavailable`, attendu en l'absence de moteur RAG et de sa

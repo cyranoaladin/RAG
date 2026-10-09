@@ -25,6 +25,7 @@ describe('image Cockpit de production', () => {
 
     expect(source).toMatch(/^\*\*$/m)
     expect(source).toContain('!services/cockpit/src/**')
+    expect(source).toContain('!services/cockpit/next.container-config.test.ts')
     expect(source).toContain('!packages/contracts/schema/**')
     expect(source).toContain('services/cockpit/.env*')
     expect(source).toContain('services/cockpit/node_modules')
