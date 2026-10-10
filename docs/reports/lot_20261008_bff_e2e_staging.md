@@ -1,8 +1,8 @@
 # Lot #293 — harnais HTTP du BFF pour le successeur public
 
 Actualisation UTC : 2026-10-10. Base relue avant intégration :
-`origin/main=744764c7dbc15143f88fd410d534d0a4c956e329`, arbre
-`161eaf51bd54cc4fe4830c0d3715cb7f33162c82`. La branche #293 a
+`origin/main=18af99119269a20a6651ca784d8f7022219c0cc8` après #323,
+arbre `4188b6ccdac11aa8604c3325481b72ba7c9afe97`. La branche #293 a
 fusionné cette base sans réécrire son historique. Aucun staging ou production
 n'a été modifié, et aucune réussite E2E live n'est revendiquée.
 
@@ -64,6 +64,10 @@ des placements, ni la politique de droits du runtime.
   reste `candidate/NOT_PROMOTABLE/PRE_REVIEW`; ses scopes sont `NOT_ISSUED`.
   Ces valeurs ne sont pas codées en dur dans le harnais et ne prouvent aucune
   donnée servie sur staging.
+  Le manifest intégré par #323 a été relu dans ce checkout : son digest est
+  bien `b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78`,
+  son état demeure `candidate/NOT_PROMOTABLE/PRE_REVIEW` et il interdit
+  l'activation production. Cette lecture est locale, pas un E2E.
 - #294 est une proposition d'autorité, non l'émission des onze scopes V3.
   Elle borne `target_policy.roles` à `student`. Le harnais ne revendique donc
   aucune preuve positive `teacher` pour cette proposition. La preuve
@@ -120,3 +124,8 @@ hors du scope signé, et de scopes étudiant contenant des droits non publics.
 Le parcours `student` seul et le parcours `teacher`
 explicitement autorisé restent couverts ;
 `ruff check` des deux fichiers Python : vert ; `git diff --check` : vert.
+Après intégration de #323 : 40 tests du harnais verts et 61 tests ciblés
+supplémentaires verts sur le transfert public, l'inventaire et les contrats
+de droits, citations et scopes V3. Ces suites ont tourné dans le venv propre
+du worktree, avec `nexus-contracts` installé en éditable depuis ce **même**
+worktree ; aucune dépendance éditable d'un autre checkout n'a été utilisée.
