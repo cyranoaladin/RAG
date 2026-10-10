@@ -286,7 +286,10 @@ def _basis(plan_raw: bytes, receipt_v1_raw: bytes, target_pin_raw: bytes, *,
     if not (_utc(pin["pinned_at_utc"], "date du pin")
             < now_utc < _utc(pin["expires_at_utc"], "expiration du pin")):
         raise TransferRefused("pin absent avant observation ou expiré")
-    if _utc(receipt["observed_at_utc"], "observation V1") > now_utc:
+    receipt_observed_at = _utc(receipt["observed_at_utc"], "observation V1")
+    if receipt_observed_at <= _utc(pin["pinned_at_utc"], "date du pin"):
+        raise TransferRefused("reçu V1 antérieur au pin indépendant")
+    if receipt_observed_at > now_utc:
         raise TransferRefused("observation V1 future")
     hostname, machine_id_sha256 = observed_host_identity()
     db_system_id, db_name = postgres_database_identity(database_dsn)
