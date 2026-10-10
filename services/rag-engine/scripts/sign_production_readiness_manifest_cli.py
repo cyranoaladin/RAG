@@ -895,6 +895,8 @@ def _build_v2_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--public-successor-private-cas-root", type=Path)
     p.add_argument("--public-successor-target-root", type=Path)
     p.add_argument("--public-successor-target-pin-path", type=Path)
+    p.add_argument("--public-successor-target-pin-receipt-path", type=Path)
+    p.add_argument("--public-successor-target-pin-pull-request", type=int)
     p.add_argument("--public-successor-observed-v1-receipt-path", type=Path)
     p.add_argument("--public-successor-database-dsn-file", type=Path)
     p.add_argument("--workflow-path", default=None)
@@ -1676,6 +1678,7 @@ def _main_v2(argv: list[str]) -> int:
             ),
         )
         public_publication = None
+        publication_inputs = None
         public_inputs = (
             args.public_successor_bundle_root,
             args.public_successor_content_anchor_path,
@@ -1683,6 +1686,8 @@ def _main_v2(argv: list[str]) -> int:
             args.public_successor_private_cas_root,
             args.public_successor_target_root,
             args.public_successor_target_pin_path,
+            args.public_successor_target_pin_receipt_path,
+            args.public_successor_target_pin_pull_request,
             args.public_successor_observed_v1_receipt_path,
             args.public_successor_database_dsn_file,
         )
@@ -1724,8 +1729,7 @@ def _main_v2(argv: list[str]) -> int:
                     args.public_successor_content_anchor_path,
                     label="public_successor_content_anchor",
                 ))
-                public_publication = replay_public_successor_publication(
-                    PublicationSigningInputs(
+                publication_inputs = PublicationSigningInputs(
                         bundle_root=args.public_successor_bundle_root,
                         repository_root=args.repo_root,
                         content_anchor_path=args.public_successor_content_anchor_path,
@@ -1733,9 +1737,13 @@ def _main_v2(argv: list[str]) -> int:
                         private_cas_root=args.public_successor_private_cas_root,
                         target_root=args.public_successor_target_root,
                         target_pin_path=args.public_successor_target_pin_path,
+                        target_pin_receipt_path=args.public_successor_target_pin_receipt_path,
+                        target_pin_pull_request=args.public_successor_target_pin_pull_request,
                         observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
                         database_dsn=database_dsn,
-                    ),
+                    )
+                public_publication = replay_public_successor_publication(
+                    publication_inputs,
                     expected_release_id=content_anchor["content_release_id"],
                     expected_manifest_sha256=hashlib.sha256(
                         cast(Any, material).sealed_manifest_raw
@@ -1764,6 +1772,31 @@ def _main_v2(argv: list[str]) -> int:
         )
         _require_live_main_head(merge_sha)
         _require_public_publication_fresh_at_key(public_publication, datetime.now(UTC))
+        if public_publication is not None:
+            from public_successor_signing_replay import (  # noqa: PLC0415
+                recheck_publication_pin_before_key,
+            )
+
+            if publication_inputs is None:
+                raise SigningToolError("public successor pin replay inputs absent")
+            try:
+                recheck_publication_pin_before_key(
+                    dataclasses.replace(
+                        publication_inputs,
+                        database_dsn=_read_bytes_no_follow(
+                            args.public_successor_database_dsn_file,
+                            label="public_successor_database_dsn",
+                        ).decode("utf-8").strip(),
+                    ),
+                    expected_content_anchor_sha256=(
+                        public_publication.activation.content_anchor_sha256
+                    ),
+                    expected_pin_sha256=public_publication.target_pin_sha256,
+                    evidence_expires_at_utc=public_publication.expires_at_utc,
+                    now_utc=datetime.now(UTC),
+                )
+            except Exception as error:  # noqa: BLE001 - frontière de signature
+                raise SigningToolError("public successor target pin changed before key") from error
         private_key_hex = _read_bytes_no_follow(
             args.private_key_file, label="private_key"
         ).decode("ascii").strip()

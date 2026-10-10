@@ -17,6 +17,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "services/rag-engine/scripts"))
 
+import historical_staging_target_pin_receipt as historical  # noqa: E402
 import public_successor_signing_replay as replay  # noqa: E402
 import sign_production_readiness_manifest_cli as production  # noqa: E402
 import sign_staging_readiness_manifest_cli as staging  # noqa: E402
@@ -148,6 +149,113 @@ def test_production_v2_parser_requires_explicit_successor_bundle() -> None:
     assert "--public-successor-bundle-root" in options
     assert "--public-successor-private-cas-root" in options
     assert "--public-successor-target-root" in options
+    assert "--public-successor-target-pin-receipt-path" in options
+    assert "--public-successor-target-pin-pull-request" in options
+
+
+def test_verified_target_pin_uses_historical_authority_and_exact_bytes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sys.path.insert(0, str(ROOT / "scripts/tests"))
+    from test_historical_staging_target_pin_receipt import fixture  # noqa: PLC0415
+
+    evidence = fixture(tmp_path)
+    repository = tmp_path / "repo"
+    pin_relative = Path(evidence["expected_pin_path"])
+    pin_path = repository / pin_relative
+    pin_path.parent.mkdir(parents=True)
+    pin_path.write_bytes(evidence["pin_raw"])
+    receipt_path = tmp_path / "historical-receipt.json"
+    receipt_path.write_bytes(historical.canonical_receipt(evidence["receipt"]))
+    called: list[tuple[Path, Path, Path, int, str, Path, str]] = []
+
+    def check(*args: object) -> dict[str, object]:
+        called.append(args)
+        return historical.validate_historical_pin_receipt(**evidence)
+
+    monkeypatch.setattr(historical, "check_historical_pin_receipt", check)
+    digest, expiry = replay._verified_external_target_pin_sha256(
+        repository_root=repository, target_pin_receipt_path=receipt_path,
+        target_pin_path=pin_path, target_pin_pull_request=999,
+        content_anchor_sha256=evidence["expected_content_anchor_sha256"],
+        target_root=evidence["destination_root"], database_dsn="unused-secret",
+        now_utc=evidence["now"],
+    )
+    assert digest == evidence["receipt"]["target_pin_sha256"]
+    assert expiry > evidence["now"]
+    assert called == [(
+        repository, receipt_path, pin_relative, 999,
+        evidence["expected_content_anchor_sha256"], evidence["destination_root"],
+        "unused-secret",
+    )]
+    inputs = replay.PublicationSigningInputs(
+        bundle_root=tmp_path / "bundle", repository_root=repository,
+        content_anchor_path=tmp_path / "A.json",
+        preissuance_receipt_path=tmp_path / "preissuance.json",
+        private_cas_root=tmp_path / "cas", target_root=evidence["destination_root"],
+        target_pin_path=pin_path, target_pin_receipt_path=receipt_path,
+        target_pin_pull_request=999,
+        observed_v1_receipt_path=tmp_path / "observed.json",
+        database_dsn="unused-secret",
+    )
+    replay.recheck_publication_pin_before_key(
+        inputs, expected_content_anchor_sha256=evidence["expected_content_anchor_sha256"],
+        expected_pin_sha256=digest, evidence_expires_at_utc=expiry,
+        now_utc=evidence["now"],
+    )
+    pin_path.write_bytes(b"substituted after first replay")
+    with pytest.raises(replay.PublicationSigningReplayRefused):
+        replay.recheck_publication_pin_before_key(
+            inputs, expected_content_anchor_sha256=evidence["expected_content_anchor_sha256"],
+            expected_pin_sha256=digest, evidence_expires_at_utc=expiry,
+            now_utc=evidence["now"],
+        )
+
+
+@pytest.mark.parametrize("sabotage", [
+    "pin_changed", "receipt_missing", "wrong_review", "wrong_base",
+    "expired", "wrong_socket", "wrong_device_inode",
+])
+def test_verified_target_pin_rejects_historical_sabotage(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sabotage: str,
+) -> None:
+    sys.path.insert(0, str(ROOT / "scripts/tests"))
+    from test_historical_staging_target_pin_receipt import fixture  # noqa: PLC0415
+
+    evidence = fixture(tmp_path)
+    repository = tmp_path / "repo"
+    pin_path = repository / evidence["expected_pin_path"]
+    pin_path.parent.mkdir(parents=True)
+    pin_path.write_bytes(evidence["pin_raw"])
+    receipt_path = tmp_path / "historical-receipt.json"
+    receipt_path.write_bytes(historical.canonical_receipt(evidence["receipt"]))
+    if sabotage == "pin_changed":
+        pin_path.write_bytes(b"substituted")
+    elif sabotage == "receipt_missing":
+        receipt_path.unlink()
+    elif sabotage == "wrong_review":
+        evidence["review_decision"]["approved"] = False
+    elif sabotage == "wrong_base":
+        evidence["merge_parent_sha"] = "0" * 40
+    elif sabotage == "expired":
+        evidence["now"] = evidence["now"] + timedelta(hours=3)
+    elif sabotage == "wrong_socket":
+        evidence["observation"] = replace(evidence["observation"], database_name="other_db")
+    elif sabotage == "wrong_device_inode":
+        evidence["observation"] = replace(evidence["observation"], destination_inode=1)
+
+    monkeypatch.setattr(
+        historical, "check_historical_pin_receipt",
+        lambda *_: historical.validate_historical_pin_receipt(**evidence),
+    )
+    with pytest.raises(ValueError):
+        replay._verified_external_target_pin_sha256(
+            repository_root=repository, target_pin_receipt_path=receipt_path,
+            target_pin_path=pin_path, target_pin_pull_request=999,
+            content_anchor_sha256=evidence["expected_content_anchor_sha256"],
+            target_root=evidence["destination_root"], database_dsn="unused-secret",
+            now_utc=evidence["now"],
+        )
 
 
 def test_staging_signer_refuses_output_alias_to_private_key(tmp_path: Path) -> None:
@@ -188,6 +296,8 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
 ) -> None:
     release = tmp_path / "release.json"
     release.write_text("{}\n")
+    dsn_file = tmp_path / "database.dsn"
+    dsn_file.write_text("postgresql://example.invalid/unused")
     calls: list[str] = []
     monkeypatch.setattr(
         staging, "_require_public_checkout_matches_merge",
@@ -197,9 +307,13 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
         staging, "_verify_public_successor_publication_replay",
         lambda *_: ("a" * 64, "b" * 64, SHA, datetime.now(UTC) + timedelta(days=1)),
     )
+    monkeypatch.setattr(
+        replay, "recheck_publication_pin_before_key",
+        lambda *_a, **_k: calls.append("pin"),
+    )
 
     def key(*_args: object) -> str:
-        assert calls == ["main", "main"]
+        assert calls == ["main", "main", "pin"]
         raise staging.SigningRefused("test stopped at key boundary")
 
     monkeypatch.setattr(staging, "_read_private_key", key)
@@ -214,6 +328,7 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
         "--trust-anchor-file", str(tmp_path / "anchor.json"),
         "--output", str(tmp_path / "readiness.json"),
         "--public-successor-phase", "PUBLICATION",
+        "--public-successor-database-dsn-file", str(dsn_file),
     ])
     assert result == 1
 
@@ -223,12 +338,15 @@ def test_staging_publication_manifest_receives_verified_pin_digest(
 ) -> None:
     release = tmp_path / "release.json"
     release.write_text("{}\n")
+    dsn_file = tmp_path / "database.dsn"
+    dsn_file.write_text("postgresql://example.invalid/unused")
     monkeypatch.setattr(staging, "_require_public_checkout_matches_merge", lambda *_: None)
     monkeypatch.setattr(
         staging, "_verify_public_successor_publication_replay",
         lambda *_: ("a" * 64, "b" * 64, SHA, datetime.now(UTC) + timedelta(days=1)),
     )
     monkeypatch.setattr(staging, "_read_private_key", lambda *_: "dummy")
+    monkeypatch.setattr(replay, "recheck_publication_pin_before_key", lambda *_a, **_k: None)
 
     seen: list[str] = []
 
@@ -249,6 +367,7 @@ def test_staging_publication_manifest_receives_verified_pin_digest(
         "--trust-anchor-file", str(tmp_path / "anchor.json"),
         "--output", str(tmp_path / "readiness.json"),
         "--public-successor-phase", "PUBLICATION",
+        "--public-successor-database-dsn-file", str(dsn_file),
     ])
     assert result == 1
     assert seen == ["manifest"]
@@ -309,11 +428,13 @@ def test_publication_replay_keeps_real_c_red_before_any_live_authority(
         preissuance_receipt_path=tmp_path / "absent-preissuance.json",
         private_cas_root=tmp_path / "cas",
         target_root=tmp_path,
-        target_pin_path=tmp_path / "absent-pin.json",
+        target_pin_path=Path("governance/staging_target_pins/absent-pin.json"),
+        target_pin_receipt_path=tmp_path / "absent-pin-receipt.json",
+        target_pin_pull_request=999,
         observed_v1_receipt_path=tmp_path / "absent-observed.json",
         database_dsn="postgresql://example.invalid/unused",
     )
-    with pytest.raises(ValueError, match="independent target pin authority"):
+    with pytest.raises(ValueError, match="publication evidence absent"):
         replay.replay_public_successor_publication(
             inputs,
             expected_release_id="student-public-successor-20261010-fcc84331e7700042",
@@ -333,7 +454,10 @@ def test_publication_c_replay_receives_only_independently_verified_pin(
         json.dumps({"authorities": {"public_scope_authority_sha256": SHA}}),
         encoding="utf-8",
     )
-    monkeypatch.setattr(replay, "_verified_external_target_pin_sha256", lambda: SHA)
+    monkeypatch.setattr(
+        replay, "_verified_external_target_pin_sha256",
+        lambda **_: (SHA, datetime.now(UTC) + timedelta(days=1)),
+    )
     seen: list[str] = []
 
     def c_refuses(*_args: object, **kwargs: object) -> object:
@@ -346,6 +470,8 @@ def test_publication_c_replay_receives_only_independently_verified_pin(
         preissuance_receipt_path=tmp_path / "receipt.json",
         private_cas_root=tmp_path / "cas", target_root=tmp_path,
         target_pin_path=tmp_path / "pin.json",
+        target_pin_receipt_path=tmp_path / "pin-receipt.json",
+        target_pin_pull_request=999,
         observed_v1_receipt_path=tmp_path / "observed.json",
         database_dsn="postgresql://example.invalid/unused",
     )
@@ -402,11 +528,14 @@ def test_publication_refuses_self_declared_target_pin_before_v2(
     inputs = replay.PublicationSigningInputs(
         bundle_root=bundle, repository_root=ROOT, content_anchor_path=SOURCE_ANCHOR,
         preissuance_receipt_path=receipt, private_cas_root=tmp_path / "cas",
-        target_root=tmp_path, target_pin_path=tmp_path / "pin.json",
+        target_root=tmp_path,
+        target_pin_path=Path("governance/staging_target_pins/absent-pin.json"),
+        target_pin_receipt_path=tmp_path / "pin-receipt.json",
+        target_pin_pull_request=999,
         observed_v1_receipt_path=tmp_path / "observed.json",
         database_dsn="postgresql://example.invalid/unused",
     )
-    with pytest.raises(ValueError, match="independent target pin authority"):
+    with pytest.raises(ValueError, match="publication evidence absent"):
         replay.replay_public_successor_publication(
             inputs, expected_release_id=verdict.release_id,
             expected_manifest_sha256=verdict.content_manifest_sha256,

@@ -10,8 +10,9 @@ from __future__ import annotations
 import hashlib
 import importlib
 import json
+import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
@@ -41,8 +42,10 @@ class PublicationSigningInputs:
     private_cas_root: Path
     target_root: Path
     target_pin_path: Path
+    target_pin_receipt_path: Path
+    target_pin_pull_request: int
     observed_v1_receipt_path: Path
-    database_dsn: str
+    database_dsn: str = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -74,15 +77,79 @@ def _checkout_module(name: str) -> ModuleType:
     return module
 
 
-def _verified_external_target_pin_sha256() -> str:
-    """Aucun digest fourni par le bundle C ou par un flag libre ne vaut pin.
+def _verified_external_target_pin_sha256(
+    *, repository_root: Path, target_pin_receipt_path: Path,
+    target_pin_path: Path, target_pin_pull_request: int,
+    content_anchor_sha256: str, target_root: Path, database_dsn: str,
+    now_utc: datetime,
+) -> tuple[str, datetime]:
+    """Rejouer la review historique et la cible live avant de lire le pin.
 
-    Le protocole externe signé de qualification de cible n'existe pas encore.
-    Garder ce refus explicite jusqu'à l'intégration de son vérificateur.
+    Le reçu est un pointeur : seul le vérificateur canonique produit le digest
+    opposable. Le digest de C, de V2 et des options CLI n'est jamais accepté.
     """
-    raise PublicationSigningReplayRefused(
-        "independent target pin authority unavailable"
+    if (type(target_pin_pull_request) is not int or target_pin_pull_request <= 0
+            or now_utc.tzinfo != UTC or not database_dsn):
+        raise PublicationSigningReplayRefused("independent target pin inputs incomplete")
+    try:
+        relative = (target_pin_path.relative_to(repository_root)
+                    if target_pin_path.is_absolute() else target_pin_path)
+    except ValueError as error:
+        raise PublicationSigningReplayRefused("target pin outside signer checkout") from error
+    if (relative.is_absolute() or ".." in relative.parts
+            or relative.parent != Path("governance/staging_target_pins")
+            or relative.suffix != ".json"):
+        raise PublicationSigningReplayRefused("target pin outside governed directory")
+    pin_raw = _bytes(repository_root / relative)
+    _bytes(target_pin_receipt_path)
+    checker = _checkout_module("historical_staging_target_pin_receipt")
+    try:
+        observed = checker.check_historical_pin_receipt(
+            repository_root, target_pin_receipt_path, relative,
+            target_pin_pull_request, content_anchor_sha256, target_root,
+            database_dsn,
+        )
+    except Exception as error:  # noqa: BLE001 - frontière de droits fail-closed
+        raise PublicationSigningReplayRefused("historical target pin verification failed") from error
+    if not isinstance(observed, dict):
+        raise PublicationSigningReplayRefused("historical pin verdict malformed")
+    digest = observed.get("EXPECTED_TARGET_PIN_SHA256")
+    if (observed.get("HISTORICAL_STAGING_TARGET_PIN_PASS") is not True
+            or observed.get("PUBLICATION_AUTHORIZED") is not False
+            or observed.get("CONTENT_ANCHOR_SHA256") != content_anchor_sha256
+            or observed.get("PR_NUMBER") != target_pin_pull_request
+            or not isinstance(digest, str)
+            or re.fullmatch(r"[0-9a-f]{64}", digest) is None
+            or digest != _sha(pin_raw)):
+        raise PublicationSigningReplayRefused("historical pin differs from exact bytes or A")
+    try:
+        expires = datetime.fromisoformat(json.loads(pin_raw)["expires_at_utc"])
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+        raise PublicationSigningReplayRefused("target pin expiry absent") from error
+    if expires.tzinfo != UTC or now_utc >= expires:
+        raise PublicationSigningReplayRefused("target pin expired")
+    return digest, expires
+
+
+def recheck_publication_pin_before_key(
+    inputs: PublicationSigningInputs, *, expected_content_anchor_sha256: str,
+    expected_pin_sha256: str, evidence_expires_at_utc: datetime,
+    now_utc: datetime,
+) -> None:
+    """Relire review, cible et expiration du pin immédiatement avant la clé."""
+    digest, expiry = _verified_external_target_pin_sha256(
+        repository_root=inputs.repository_root,
+        target_pin_receipt_path=inputs.target_pin_receipt_path,
+        target_pin_path=inputs.target_pin_path,
+        target_pin_pull_request=inputs.target_pin_pull_request,
+        content_anchor_sha256=expected_content_anchor_sha256,
+        target_root=inputs.target_root,
+        database_dsn=inputs.database_dsn,
+        now_utc=now_utc,
     )
+    if (digest != expected_pin_sha256
+            or now_utc >= min(expiry, evidence_expires_at_utc)):
+        raise PublicationSigningReplayRefused("target pin changed before key access")
 
 
 def replay_public_successor_publication(
@@ -118,7 +185,16 @@ def replay_public_successor_publication(
     scope_sha = authorities.get("public_scope_authority_sha256")
     if not isinstance(scope_sha, str):
         raise PublicationSigningReplayRefused("C scope authority absent")
-    approved_pin_sha = _verified_external_target_pin_sha256()
+    approved_pin_sha, pin_expires_at = _verified_external_target_pin_sha256(
+        repository_root=inputs.repository_root,
+        target_pin_receipt_path=inputs.target_pin_receipt_path,
+        target_pin_path=inputs.target_pin_path,
+        target_pin_pull_request=inputs.target_pin_pull_request,
+        content_anchor_sha256=anchor_sha,
+        target_root=inputs.target_root,
+        database_dsn=inputs.database_dsn,
+        now_utc=now_utc,
+    )
     verdict = verify_public_successor_activation(
         root,
         expected_content_anchor_sha256=anchor_sha,
@@ -170,7 +246,10 @@ def replay_public_successor_publication(
     plan_path = root / "authorities/artifact_transfer_manifest_sha256.bin"
     attestation_raw = _bytes(attestation_path)
     plan_raw = _bytes(plan_path)
-    pin_raw = _bytes(inputs.target_pin_path)
+    pin_raw = _bytes(
+        inputs.target_pin_path if inputs.target_pin_path.is_absolute()
+        else inputs.repository_root / inputs.target_pin_path
+    )
     candidate_raw = _bytes(root / "release/profile_gate/candidate_inventory.json")
     allowlist_raw = _bytes(root / "release/profile_gate/private_transfer_allowlist.json")
     transfer_doc = json.loads(attestation_raw)
@@ -225,7 +304,7 @@ def replay_public_successor_publication(
         )
     if datetime.now(UTC) >= min(
         verdict.expires_at_utc, target_verdict.expires_at_utc,
-        preissuance_result.expires_at_utc,
+        preissuance_result.expires_at_utc, pin_expires_at,
     ):
         raise PublicationSigningReplayRefused("public authority expired during replay")
     return PublicationSigningReplayVerdict(
@@ -233,6 +312,6 @@ def replay_public_successor_publication(
         target_pin_sha256=approved_pin_sha,
         expires_at_utc=min(
             verdict.expires_at_utc, target_verdict.expires_at_utc,
-            preissuance_result.expires_at_utc,
+            preissuance_result.expires_at_utc, pin_expires_at,
         ),
     )

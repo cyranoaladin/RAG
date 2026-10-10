@@ -207,6 +207,8 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--public-successor-bundle-root", type=Path)
     parser.add_argument("--public-successor-target-root", type=Path)
     parser.add_argument("--public-successor-target-pin-path", type=Path)
+    parser.add_argument("--public-successor-target-pin-receipt-path", type=Path)
+    parser.add_argument("--public-successor-target-pin-pull-request", type=int)
     parser.add_argument("--public-successor-observed-v1-receipt-path", type=Path)
     parser.add_argument("--public-successor-database-dsn-file", type=Path)
     parser.add_argument(
@@ -279,6 +281,8 @@ def _verify_public_successor_publication_replay(
         args.public_successor_repository_root,
         args.public_successor_target_root,
         args.public_successor_target_pin_path,
+        args.public_successor_target_pin_receipt_path,
+        args.public_successor_target_pin_pull_request,
         args.public_successor_observed_v1_receipt_path,
         args.public_successor_database_dsn_file,
     )
@@ -302,6 +306,8 @@ def _verify_public_successor_publication_replay(
                 private_cas_root=args.public_successor_private_cas_root,
                 target_root=args.public_successor_target_root,
                 target_pin_path=args.public_successor_target_pin_path,
+                target_pin_receipt_path=args.public_successor_target_pin_receipt_path,
+                target_pin_pull_request=args.public_successor_target_pin_pull_request,
                 observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
                 database_dsn=dsn_file.read_text(encoding="utf-8").strip(),
             ),
@@ -378,6 +384,8 @@ def main(argv: list[str] | None = None) -> int:
             args.public_successor_bundle_root,
             args.public_successor_target_root,
             args.public_successor_target_pin_path,
+            args.public_successor_target_pin_receipt_path,
+            args.public_successor_target_pin_pull_request,
             args.public_successor_observed_v1_receipt_path,
             args.public_successor_database_dsn_file,
         )
@@ -427,6 +435,39 @@ def main(argv: list[str] | None = None) -> int:
             _require_public_checkout_matches_merge(args.merge_sha)
             _require(datetime.now(UTC) < expires_at,
                      "public successor authority expired before key access")
+        if phase == "PUBLICATION":
+            if anchor_sha is None or target_pin_sha is None:
+                raise SigningRefused("public successor A or target pin absent before key")
+            from public_successor_signing_replay import (  # noqa: PLC0415
+                PublicationSigningInputs,
+                recheck_publication_pin_before_key,
+            )
+
+            dsn_file = args.public_successor_database_dsn_file
+            _require(isinstance(dsn_file, Path) and not dsn_file.is_symlink() and dsn_file.is_file(),
+                     "public successor DB target file unavailable before key")
+            try:
+                recheck_publication_pin_before_key(
+                    PublicationSigningInputs(
+                        bundle_root=args.public_successor_bundle_root,
+                        repository_root=args.public_successor_repository_root,
+                        content_anchor_path=args.public_successor_content_anchor_path,
+                        preissuance_receipt_path=args.public_successor_preissuance_receipt_path,
+                        private_cas_root=args.public_successor_private_cas_root,
+                        target_root=args.public_successor_target_root,
+                        target_pin_path=args.public_successor_target_pin_path,
+                        target_pin_receipt_path=args.public_successor_target_pin_receipt_path,
+                        target_pin_pull_request=args.public_successor_target_pin_pull_request,
+                        observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
+                        database_dsn=dsn_file.read_text(encoding="utf-8").strip(),
+                    ),
+                    expected_content_anchor_sha256=anchor_sha,
+                    expected_pin_sha256=target_pin_sha,
+                    evidence_expires_at_utc=expires_at,
+                    now_utc=datetime.now(UTC),
+                )
+            except Exception as error:  # noqa: BLE001 - frontière de signature
+                raise SigningRefused("public successor target pin changed before key") from error
         seed = _read_private_key(args.private_key_file)
         signed = sign_staging_readiness_manifest(
             manifest, private_key_hex=seed, key_id=args.key_id
