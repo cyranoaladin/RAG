@@ -44,7 +44,7 @@ import hashlib
 import json
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -55,6 +55,7 @@ from nexus_contracts.ingestion import CollectionProfile, ResourceScope
 from nexus_contracts.resource_state import ResourceState
 
 from ingestor.ingestion_control.artifact_attribution import (
+    ArtifactAttribution,
     derive_sealed_release_artifact_attribution,
     persist_artifact_attribution,
 )
@@ -198,10 +199,16 @@ class SealedReleaseFacts:
     _artifact_media_types: Mapping[str, str] = field(default_factory=dict)
     _artifact_source_pdf_sha256: Mapping[str, str] = field(default_factory=dict)
     _artifact_receipt_sha256: Mapping[str, str] = field(default_factory=dict)
+    _artifact_source_labels: Mapping[str, str] = field(default_factory=dict)
+    _artifact_transfer_filenames: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def artifact_media_types(self) -> Mapping[str, str]:
         return self._artifact_media_types
+
+    @property
+    def artifact_source_labels(self) -> Mapping[str, str]:
+        return self._artifact_source_labels
 
 
 @dataclass
@@ -348,7 +355,7 @@ def load_sealed_release(
         f"manifeste de transfert : release_id {transfer.get('release_id')!r} "
         f"≠ {manifest['release_id']!r}",
     )
-    transferred = _transferred_artifact_ids(transfer, artifact_media_types)
+    transferred = _transferred_artifact_files(transfer, artifact_media_types)
 
     collections: list[str] = []
     profile_versions: dict[str, str] = {}
@@ -387,7 +394,7 @@ def load_sealed_release(
         collections=tuple(sorted(collections)),
         profile_versions=profile_versions,
         artifact_ids=frozenset(artifacts),
-        transferred_artifact_ids=transferred,
+        transferred_artifact_ids=frozenset(transferred),
         placements=tuple(placements),
         release_mode=manifest.get("release_mode"),
         public_successor_release=(
@@ -411,6 +418,12 @@ def load_sealed_release(
             for artifact_id, entry in artifacts.items()
             if artifact_media_types[artifact_id] == TEXT_MIME
         },
+        _artifact_source_labels={
+            artifact_id: str(entry["title"])
+            for artifact_id, entry in artifacts.items()
+            if artifact_media_types[artifact_id] == TEXT_MIME
+        },
+        _artifact_transfer_filenames=transferred,
     )
 
 
@@ -426,6 +439,11 @@ def _artifact_media_types(
             f"{artifact_id} : type de media non pris en charge {declared!r}",
         )
         if declared == TEXT_MIME:
+            _require(
+                isinstance(entry.get("title"), str)
+                and bool(entry["title"].strip()),
+                f"{artifact_id} : titre source du derive absent",
+            )
             source_sha = entry.get("source_pdf_sha256")
             _require(
                 isinstance(source_sha, str) and _SHA256.fullmatch(source_sha) is not None,
@@ -490,9 +508,9 @@ def _index_inventory_placements(
     return index
 
 
-def _transferred_artifact_ids(
+def _transferred_artifact_files(
     transfer: Mapping[str, Any], artifact_media_types: Mapping[str, str]
-) -> frozenset[str]:
+) -> dict[str, str]:
     """Les artefacts que le transfert déclare avoir posés ET vérifiés.
 
     Un fichier dont le digest observé diffère de l'attendu n'est pas
@@ -504,7 +522,7 @@ def _transferred_artifact_ids(
         f"({transfer.get('digest_missing')!r}) ou divergents "
         f"({transfer.get('digest_mismatches')!r})",
     )
-    identifiers: set[str] = set()
+    filenames: dict[str, str] = {}
     for entry in transfer.get("files", []):
         expected = str(entry["sha256_expected"])
         observed = str(entry["sha256_observed"])
@@ -516,18 +534,27 @@ def _transferred_artifact_ids(
         _require(expected in artifact_media_types,
                  f"manifeste de transfert : artefact hors release {expected}")
         suffix = ".txt" if artifact_media_types[expected] == TEXT_MIME else ".pdf"
+        filename = entry.get("file")
+        correct_name = (
+            filename == f"{expected}.txt"
+            if suffix == ".txt"
+            else isinstance(filename, str)
+            and filename.startswith(f"{expected}.")
+            and filename.rsplit(".", 1)[-1].lower() == "pdf"
+        )
         _require(
-            entry.get("file") == f"{expected}{suffix}",
+            correct_name and expected not in filenames,
             f"manifeste de transfert : {entry.get('file')!r} ne correspond "
             f"pas au type declare de {expected} ({suffix})",
         )
-        identifiers.add(expected)
+        assert isinstance(filename, str)  # noqa: S101 - correct_name l'établit
+        filenames[expected] = filename
     _require(
-        len(identifiers) == int(transfer.get("file_count", -1)),
+        len(filenames) == int(transfer.get("file_count", -1)),
         f"manifeste de transfert : file_count={transfer.get('file_count')!r} "
-        f"mais {len(identifiers)} digests distincts",
+        f"mais {len(filenames)} digests distincts",
     )
-    return frozenset(identifiers)
+    return filenames
 
 
 def _placements_of_subject(
@@ -650,8 +677,10 @@ def require_artifact_store_is_complete(
         media_type = facts.artifact_media_types.get(artifact_id, PDF_MIME)
         _require(media_type in (PDF_MIME, TEXT_MIME),
                  f"{artifact_id} : type de media non pris en charge")
-        suffix = ".txt" if media_type == TEXT_MIME else ".pdf"
-        path = artifact_store_dir / f"{artifact_id}{suffix}"
+        filename = facts._artifact_transfer_filenames.get(artifact_id)
+        _require(bool(filename), f"{artifact_id} : nom de transfert absent")
+        assert filename is not None  # noqa: S101 - _require ci-dessus
+        path = artifact_store_dir / filename
         if not path.is_file():
             missing.append(artifact_id)
             continue
@@ -945,6 +974,34 @@ def sealed_placement_evidence(
     return evidence
 
 
+def derive_placement_attribution(
+    *,
+    facts: SealedReleaseFacts,
+    artifact_id: str,
+    ingestion_artifact_id: UUID,
+    type_doc: str,
+    source_url: str,
+    profile: CollectionProfile,
+) -> ArtifactAttribution:
+    """Lier le titre du dérivé au catalogue scellé sans relâcher la source.
+
+    La dérivation historique continue de vérifier le type et le domaine.
+    Seul le label des dérivés texte vient du titre scellé : c'est aussi la
+    valeur portée par leur citation, contrôlée lors du chargement.
+    """
+    attribution = derive_sealed_release_artifact_attribution(
+        ingestion_artifact_id=ingestion_artifact_id,
+        catalog_entry={"type_doc": type_doc, "source_url": source_url},
+        profile=profile,
+    )
+    if facts.artifact_media_types.get(artifact_id) != TEXT_MIME:
+        return attribution
+    label = facts.artifact_source_labels.get(artifact_id)
+    _require(bool(label), f"{artifact_id} : titre scellé du dérivé absent")
+    assert label is not None  # noqa: S101 - _require ci-dessus
+    return replace(attribution, source_label=label)
+
+
 def _ingest_placement(
     conn: psycopg.Connection,
     *,
@@ -1003,12 +1060,12 @@ def _ingest_placement(
     # perimetre du profil approuve.
     persist_artifact_attribution(
         conn,
-        attribution=derive_sealed_release_artifact_attribution(
+        attribution=derive_placement_attribution(
+            facts=facts,
+            artifact_id=placement.artifact_id,
             ingestion_artifact_id=artifact_id,
-            catalog_entry={
-                "type_doc": placement.type_doc,
-                "source_url": placement.provenance_url,
-            },
+            type_doc=placement.type_doc,
+            source_url=placement.provenance_url,
             profile=profile,
         ),
         run_id=run_id,

@@ -728,6 +728,7 @@ validate_004_sql() {
 DO $nexus$
 DECLARE
     invalid_count integer;
+    expected_artifact_columns integer;
 BEGIN
     IF to_regclass('public.rag_artifacts') IS NULL
        OR to_regclass('public.rag_artifact_placements') IS NULL THEN
@@ -750,7 +751,16 @@ BEGIN
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND table_name = 'rag_artifacts';
-    IF invalid_count <> 10 THEN
+    -- La migration 006 ajoute exactement cinq champs à cette table. Le
+    -- validateur 004 est réexécuté sur chaque head ultérieur : il doit
+    -- reconnaître les deux formes, sans accepter cinq colonnes arbitraires
+    -- sur un schéma 005 (le marqueur 006 est ensuite vérifié en propre).
+    SELECT CASE WHEN EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'rag_artifacts'
+          AND column_name = 'is_text_derivative'
+    ) THEN 15 ELSE 10 END INTO expected_artifact_columns;
+    IF invalid_count <> expected_artifact_columns THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_artifacts column count';
     END IF;
 
@@ -792,7 +802,8 @@ BEGIN
     SELECT count(*) INTO invalid_count
     FROM pg_constraint
     WHERE conrelid = 'public.rag_artifacts'::regclass;
-    IF invalid_count <> 9 THEN
+    -- 006 ajoute une unique contrainte, liée au marqueur compté plus haut.
+    IF invalid_count <> 9 + (expected_artifact_columns - 10) / 5 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_004_INVALID: rag_artifacts constraints';
     END IF;
 
@@ -1018,7 +1029,8 @@ BEGIN
     FROM pg_constraint
     WHERE conrelid = 'public.rag_artifacts'::regclass
       AND conname = 'rag_artifacts_public_attribution_complete_check'
-      AND contype = 'c' AND convalidated;
+      AND contype = 'c' AND convalidated
+      AND md5(pg_get_constraintdef(oid, true)) = 'f5a3f298847d410d3e82164082654700';
     IF invalid_count <> 1 THEN
         RAISE EXCEPTION 'SCHEMA_HEAD_006_INVALID: attribution constraint';
     END IF;

@@ -672,6 +672,30 @@ def select_publication_chunks(
     return nettoyes
 
 
+def require_existing_sealed_chunk_set(
+    rows: Sequence[tuple[int, str, str]],
+    *,
+    artifact_id: str,
+    sealed_chunk_sha256: Sequence[str],
+    sealed_chunk_ids: Sequence[str] | None,
+) -> None:
+    """Une republication doit retrouver exactement le jeu scellé en base."""
+    expected_ids = tuple(
+        hashlib.sha256(f"{artifact_id}:{index}:{digest}".encode()).hexdigest()
+        for index, digest in enumerate(sealed_chunk_sha256)
+    )
+    if sealed_chunk_ids is not None and tuple(sealed_chunk_ids) != expected_ids:
+        raise GovernedPublicationError("sealed chunk IDs are inconsistent")
+    expected = tuple(
+        (index, expected_ids[index], digest)
+        for index, digest in enumerate(sealed_chunk_sha256)
+    )
+    if not expected or tuple(rows) != expected:
+        raise GovernedPublicationError(
+            "existing chunks differ from the sealed release"
+        )
+
+
 def _vectors(
     chunks: Sequence[PublicationChunk],
     embedding_provider: EmbeddingProvider,
@@ -963,15 +987,29 @@ def _publish_under_governance_fence(
                 )
                 embedded = True
             else:
-                cursor.execute(
-                    "SELECT COUNT(*) FROM public.rag_chunks WHERE artifact_id = %s",
-                    (artifact.artifact_id,),
-                )
-                row = cursor.fetchone()
-                if row is None or not isinstance(row[0], int) or row[0] <= 0:
-                    raise GovernedPublicationError(
-                        "existing artifact has no atomic chunk set"
+                if artifact.sealed_chunk_sha256 is not None:
+                    cursor.execute(
+                        "SELECT chunk_index, chunk_id, chunk_sha256 "
+                        "FROM public.rag_chunks WHERE artifact_id = %s "
+                        "ORDER BY chunk_index",
+                        (artifact.artifact_id,),
                     )
+                    require_existing_sealed_chunk_set(
+                        cursor.fetchall(),
+                        artifact_id=artifact.artifact_id,
+                        sealed_chunk_sha256=artifact.sealed_chunk_sha256,
+                        sealed_chunk_ids=artifact.sealed_chunk_ids,
+                    )
+                else:
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM public.rag_chunks WHERE artifact_id = %s",
+                        (artifact.artifact_id,),
+                    )
+                    row = cursor.fetchone()
+                    if row is None or not isinstance(row[0], int) or row[0] <= 0:
+                        raise GovernedPublicationError(
+                            "existing artifact has no atomic chunk set"
+                        )
 
             # La vérification précédente protège toute entrée dans le writer.
             # Celle-ci ferme la fenêtre extraction/embedding : aucune autorité

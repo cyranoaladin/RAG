@@ -167,7 +167,9 @@ def _candidate_registries(
             raise PublicRightsReleaseError("PUBLIC_PROFILE_REGISTRY_INVALID")
         scope = row.get("scope")
         profile = subject.get("profile")
-        if (not isinstance(scope, dict) or scope.get("collection") != collection
+        if (set(row) != {"collection", "scope", "profile_fingerprint",
+                         "source_subject_sha256", "source_profile_fingerprint"}
+                or not isinstance(scope, dict) or scope.get("collection") != collection
                 or scope.get("visibility") != "public"
                 or scope.get("audience") != ["libre", "aefe"]
                 or not isinstance(profile, dict)
@@ -196,9 +198,16 @@ def _candidate_registries(
     pii = registries["public_pii_registry.json"]
     if pii.get("evidence_pack_sha256") != evidence_sha:
         raise PublicRightsReleaseError("PUBLIC_PII_REGISTRY_INVALID")
+    entry_fields = {
+        "RIGHTS": {"content_sha256", "source_pdf_sha256",
+                   "derivative_receipt_sha256", "citation_sha256"},
+        "PII": {"content_sha256", "source_pdf_sha256",
+                "derivative_receipt_sha256", "pii_gate_status"},
+    }
     for name, entries in (("RIGHTS", rights.get("entries")), ("PII", pii.get("entries"))):
         if (not isinstance(entries, list) or len(entries) != 253
-                or not all(isinstance(row, dict) for row in entries)):
+                or not all(isinstance(row, dict) and set(row) == entry_fields[name]
+                           for row in entries)):
             raise PublicRightsReleaseError(f"PUBLIC_{name}_REGISTRY_INVALID")
         by_sha = {row.get("content_sha256"): row for row in entries}
         if len(by_sha) != 253 or set(by_sha) != set(artifacts_by_sha):

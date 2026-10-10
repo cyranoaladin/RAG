@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "go_live"))
 from pr300_authority_receipt import (  # noqa: E402
     AuthorityReceiptError,
     PACK_FILES,
+    _select_trusted_status_at_merge,
+    _validate_trusted_workflow_run,
     validate_pr300_authority_receipt,
 )
 
@@ -62,6 +64,32 @@ def test_approved_exact_head_and_pack_pass(tmp_path: Path):
         trusted_status=status, head_tree_sha=tree,
     )
     assert result["PR300_AUTHORITY_APPROVAL_PASS"] is True
+    assert result["MERGE_COMMIT_SHA"] == receipt["merge_commit_sha"]
+
+
+def test_trusted_status_selection_ignores_post_merge_rerun() -> None:
+    before = {"context": "trusted-human-review/head-pinned", "state": "success",
+              "created_at": "2026-10-10T07:08:51Z",
+              "target_url": "https://github.com/cyranoaladin/RAG/actions/runs/123"}
+    after = {**before, "state": "failure", "created_at": "2026-10-10T07:12:00Z"}
+    assert _select_trusted_status_at_merge(
+        [after, before], "2026-10-10T07:09:11Z",
+    ) == before
+
+
+def test_trusted_status_requires_successful_pinned_workflow_run() -> None:
+    status = {"context": "trusted-human-review/head-pinned", "state": "success",
+              "created_at": "2026-10-10T07:08:51Z",
+              "target_url": "https://github.com/cyranoaladin/RAG/actions/runs/123"}
+    run = {"id": 123, "name": "Trusted human review",
+           "path": ".github/workflows/trusted-human-review.yml",
+           "event": "issue_comment", "status": "completed", "conclusion": "success",
+           "created_at": "2026-10-10T07:08:35Z"}
+    _validate_trusted_workflow_run(status, run)
+    with pytest.raises(AuthorityReceiptError, match="WORKFLOW"):
+        _validate_trusted_workflow_run(status, {**run, "path": ".github/workflows/other.yml"})
+    with pytest.raises(AuthorityReceiptError, match="WORKFLOW"):
+        _validate_trusted_workflow_run({**status, "target_url": "https://example.invalid"}, run)
 
 
 @pytest.mark.parametrize("mutation", [

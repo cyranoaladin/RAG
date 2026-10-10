@@ -502,11 +502,13 @@ def _require_authority_chain(
     field: str,
     *,
     review_chain_allowed: bool,
+    public_successor_allowed: bool = False,
 ) -> None:
     """Vérifie une chaîne d'autorité, agrégat comme sujet.
 
     L'ensemble fermé peut s'étendre des quatre empreintes de la revue humaine
-    PII, et de l'autorité d'exclusion d'actualité (ADR-0055), et d'elles seules.
+    PII et de l'autorité d'exclusion d'actualité (ADR-0055). L'autorité du
+    successeur public est réservée au mode candidate explicitement validé.
     Elles sont optionnelles — une release sans contenu détecté ou sans exclusions
     n'a pas de décisions à joindre — mais indivisibles.
 
@@ -520,7 +522,7 @@ def _require_authority_chain(
     Écrit une fois, appelé aux trois endroits : les laisser diverger ferait
     accepter dans l'agrégat ce que le sujet refuse."""
     declared = set(authorities)
-    if review_chain_allowed and declared == _PUBLIC_SUCCESSOR_AUTHORITY_FIELDS:
+    if public_successor_allowed and declared == _PUBLIC_SUCCESSOR_AUTHORITY_FIELDS:
         for name in sorted(_PUBLIC_SUCCESSOR_AUTHORITY_FIELDS):
             _require_sha256(authorities.get(name), f"{field}.{name}")
         return
@@ -891,13 +893,15 @@ def _parse_v2_artifact_registry(
                 lineage.get("kind") != "NEXUS_STUDENT_DERIVATIVE_CHUNK_LINEAGE_V1"
                 or lineage.get("private_relpath") != f"chunk_lineage/{artifact_id}.json"
                 or lineage.get("source_receipt_sha256") != receipt_sha
-                or lineage.get("chunk_count") != len(chunks)
+                or type(lineage.get("chunk_count")) is not int
+                or lineage["chunk_count"] != len(chunks)
                 or type(lineage.get("approved_native_group_count")) is not int
                 or lineage["approved_native_group_count"] < 1
                 or lineage.get("embedding_model_id") != embedding_model
                 or lineage.get("embedding_model_revision")
                 != "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"
-                or lineage.get("target_tokens") != 384
+                or type(lineage.get("target_tokens")) is not int
+                or lineage["target_tokens"] != 384
             ):
                 raise ReleaseReadinessError(f"{artifact_field}.chunk_lineage mismatch")
             _require_sha256(lineage.get("sha256"), f"{artifact_field}.chunk_lineage.sha256")
@@ -1002,6 +1006,7 @@ def _parse_subject_v2(
         _MULTILEVEL_AUTHORITY_FIELDS,
         f"{field}.authorities",
         review_chain_allowed=True,
+        public_successor_allowed=aggregate.get("release_mode") == "candidate",
     )
     if authorities != aggregate.get("authorities"):
         raise ReleaseReadinessError(f"{field}.authorities mismatch")
@@ -1167,7 +1172,8 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
     school_year = _require_nonblank(aggregate.get("school_year"), "school_year")
     aggregate_authorities = _require_mapping(aggregate.get("authorities"), "authorities")
     _require_authority_chain(
-        aggregate_authorities, authority_fields, "authorities", review_chain_allowed=is_v2
+        aggregate_authorities, authority_fields, "authorities", review_chain_allowed=is_v2,
+        public_successor_allowed=is_v2 and release_mode == "candidate",
     )
     aggregate_models = _require_mapping(aggregate.get("models"), "models")
     if set(aggregate_models) != {"embedding", "reranker"}:

@@ -105,5 +105,8 @@ describe('SearchSection', () => {
     expect(screen.getByText(/2026-09-12/)).toBeTruthy()
     expect(screen.getByText(/Extrait textuel dérivé/)).toBeTruthy()
     expect(screen.getByText(/page 3/)).toBeTruthy()
+    expect(screen.getByText('officiel_public')).toBeTruthy()
+    const sourceLink = screen.getByRole('link', { name: /Programme NSI/ })
+    expect(sourceLink.getAttribute('href')).toBe('https://eduscol.education.gouv.fr/document.pdf')
   })
 })

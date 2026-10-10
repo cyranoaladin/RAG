@@ -21,6 +21,7 @@ from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
 import yaml
@@ -618,6 +619,24 @@ def test_4ter_un_store_complet_et_exact_est_accepte(synthetic: dict[str, Any]) -
     assert set(resolus) == set(facts.artifact_ids)
 
 
+def test_pdf_majuscule_transfere_est_relu_aux_octets_exactes(
+    synthetic: dict[str, Any],
+) -> None:
+    identifier = synthetic["identifiers"]["a"]
+    transfer_path = synthetic["transfer_path"]
+    transfer = json.loads(transfer_path.read_text("utf-8"))
+    for row in transfer["files"]:
+        if row["sha256_expected"] == identifier:
+            row["file"] = f"{identifier}.PDF"
+    transfer_path.write_text(json.dumps(transfer), encoding="utf-8")
+    (synthetic["store"] / f"{identifier}.pdf").rename(
+        synthetic["store"] / f"{identifier}.PDF"
+    )
+    facts = _load_synthetic(synthetic)
+    paths = sri.require_artifact_store_is_complete(facts, synthetic["store"])
+    assert paths[identifier].name == f"{identifier}.PDF"
+
+
 def test_le_store_texte_scelle_est_accepte_avec_declaration_et_sha_exacts(
     synthetic_text: dict[str, Any],
 ) -> None:
@@ -626,6 +645,26 @@ def test_le_store_texte_scelle_est_accepte_avec_declaration_et_sha_exacts(
     assert len(paths) == 2
     assert all(path.suffix == ".txt" for path in paths.values())
     assert set(facts.artifact_media_types.values()) == {"text/plain; charset=utf-8"}
+
+
+def test_titre_scelle_alimente_l_attribution_durable_du_derive(
+    synthetic_text: dict[str, Any],
+) -> None:
+    facts = _load_synthetic(synthetic_text)
+    identifier = synthetic_text["identifiers"]["a"]
+    assert facts.artifact_source_labels[identifier] == "Artefact a"
+    profile = load_profile_registry(synthetic_text["profiles_dir"])[
+        (SYNTHETIC_COLLECTIONS[0], "profile-gate-v2")
+    ]
+    attribution = sri.derive_placement_attribution(
+        facts=facts,
+        artifact_id=identifier,
+        ingestion_artifact_id=uuid4(),
+        type_doc="ressource_officielle",
+        source_url="https://eduscol.education.gouv.fr/fichier-a.pdf",
+        profile=profile,
+    )
+    assert attribution.source_label == "Artefact a"
 
 
 def test_le_store_texte_refuse_un_objet_absent(synthetic_text: dict[str, Any]) -> None:

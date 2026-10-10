@@ -60,6 +60,11 @@ def candidate(**overrides: object) -> RetrievalCandidate:
     return RetrievalCandidate(**values)  # type: ignore[arg-type]
 
 
+def test_legacy_candidate_refuses_partial_derivative_attribution() -> None:
+    with pytest.raises(RetrievalPipelineError, match="derivative attribution"):
+        candidate(licensor="Éduscol", is_text_derivative=False)
+
+
 def named_candidate(chunk_id: str, **overrides: object) -> RetrievalCandidate:
     values: dict[str, object] = {
         "chunk_id": chunk_id,

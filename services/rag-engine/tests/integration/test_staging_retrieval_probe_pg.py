@@ -133,7 +133,10 @@ def test_derivative_marker_and_attribution_survive_real_retrieval(
     candidates = store.lexical(raw_query="littérature philosophie", collection=A, limit=5)
     assert len(candidates) == 1
     assert candidates[0].is_text_derivative is True
+    assert candidates[0].licensor == "MEN"
     assert candidates[0].licence_id == "ETALAB-2.0"
+    assert candidates[0].source_updated_at == "2026-10-10"
+    assert candidates[0].derivative_notice == "Extrait dérivé"
     assert candidates[0].page_start == 1
     with pytest.raises(psycopg.errors.CheckViolation):
         base.execute(

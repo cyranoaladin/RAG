@@ -213,7 +213,12 @@ def _establish_media_type(
     if extensions != {"pdf"}:
         return "", f"non etabli : extensions heterogenes {sorted(extensions)}"
     if any(
-        f"{sha}.pdf" not in names or entry.get("media_type", PDF_MEDIA_TYPE) != PDF_MEDIA_TYPE
+        not any(
+            name.rsplit(".", 1)[0] == sha
+            and name.rsplit(".", 1)[-1].lower() == "pdf"
+            for name in names
+        )
+        or entry.get("media_type", PDF_MEDIA_TYPE) != PDF_MEDIA_TYPE
         for sha, entry in artifacts.items()
     ):
         return "", "non etabli : PDF mal nomme ou type de media contradictoire"

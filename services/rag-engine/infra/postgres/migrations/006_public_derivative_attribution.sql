@@ -16,9 +16,9 @@ ALTER TABLE public.rag_artifacts
                 AND source_updated_at IS NULL AND derivative_notice IS NULL
             )
             OR (
-                is_text_derivative AND licensor IS NOT NULL AND btrim(licensor) <> ''
-                AND licence_id IS NOT NULL AND btrim(licence_id) <> ''
-                AND source_updated_at IS NOT NULL AND btrim(source_updated_at) <> ''
-                AND derivative_notice IS NOT NULL AND btrim(derivative_notice) <> ''
+                is_text_derivative AND licensor IS NOT NULL AND licensor ~ '[^[:space:]]'
+                AND licence_id IS NOT NULL AND licence_id ~ '[^[:space:]]'
+                AND source_updated_at IS NOT NULL AND source_updated_at ~ '[^[:space:]]'
+                AND derivative_notice IS NOT NULL AND derivative_notice ~ '[^[:space:]]'
             )
         );

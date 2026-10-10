@@ -376,7 +376,7 @@ def test_health_is_ready_only_for_schema_006_and_canonical_embedding(
     assert response.status_code == 200
     assert response.json() == {
         "status": "healthy",
-        "schema_head": "005_official_snapshot_currentness",
+        "schema_head": "006_public_derivative_attribution",
         "embedding_model": "intfloat/multilingual-e5-large",
         "embedding_dim_declared": 1024,
         "pgvector_dim": 1024,

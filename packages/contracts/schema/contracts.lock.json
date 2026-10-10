@@ -16,7 +16,7 @@
     },
     "chat-response.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/chat-response.json",
-      "sha256": "866e74e53518f82fe5849737eed55cac14a523bccc1b365a87a4b1e4fd1aec83"
+      "sha256": "6bdbd64f46d7c3978ae8424d7493934654ea55035bae88fedcc3807cd2d59d28"
     },
     "internal-identity-envelope.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity-envelope.json",
@@ -56,7 +56,7 @@
     },
     "retrieval-response.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-response.json",
-      "sha256": "8ca59673debe2e0e16c232ada3e0d64dc4676a3c33ec55058ef4b9c615feb16f"
+      "sha256": "e71919e39acf099ec4b687e8ff09b536a0d49a9f57df4d0ed2808dc006ecc460"
     },
     "retrieval-scope-artifact-v2.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v2.json",

@@ -289,8 +289,7 @@
         "type": "object"
       },
       "Citation": {
-        "additionalProperties": true,
-        "type": "object"
+        "$ref": "#/components/schemas/SerializedCitation"
       },
       "CorpusChunkBinding": {
         "additionalProperties": false,
@@ -1202,6 +1201,221 @@
         ],
         "title": "Rights",
         "type": "string"
+      },
+      "SerializedCitation": {
+        "additionalProperties": false,
+        "dependentSchemas": {
+          "derivative_notice": {
+            "if": {
+              "properties": {
+                "derivative_notice": {
+                  "type": "string"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "derivative_notice": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licence_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licensor": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "page": {
+                  "minimum": 1.0,
+                  "type": "integer"
+                },
+                "source_updated_at": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "licensor",
+                "licence_id",
+                "source_updated_at",
+                "derivative_notice",
+                "page"
+              ]
+            }
+          },
+          "licence_id": {
+            "if": {
+              "properties": {
+                "licence_id": {
+                  "type": "string"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "derivative_notice": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licence_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licensor": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "page": {
+                  "minimum": 1.0,
+                  "type": "integer"
+                },
+                "source_updated_at": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "licensor",
+                "licence_id",
+                "source_updated_at",
+                "derivative_notice",
+                "page"
+              ]
+            }
+          },
+          "licensor": {
+            "if": {
+              "properties": {
+                "licensor": {
+                  "type": "string"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "derivative_notice": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licence_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licensor": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "page": {
+                  "minimum": 1.0,
+                  "type": "integer"
+                },
+                "source_updated_at": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "licensor",
+                "licence_id",
+                "source_updated_at",
+                "derivative_notice",
+                "page"
+              ]
+            }
+          },
+          "source_updated_at": {
+            "if": {
+              "properties": {
+                "source_updated_at": {
+                  "type": "string"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "derivative_notice": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licence_id": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "licensor": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "page": {
+                  "minimum": 1.0,
+                  "type": "integer"
+                },
+                "source_updated_at": {
+                  "minLength": 1,
+                  "type": "string"
+                }
+              },
+              "required": [
+                "licensor",
+                "licence_id",
+                "source_updated_at",
+                "derivative_notice",
+                "page"
+              ]
+            }
+          }
+        },
+        "description": "Shape emitted by Citation.model_dump, including historical citations.",
+        "properties": {
+          "derivative_notice": {
+            "title": "Derivative Notice",
+            "type": "string"
+          },
+          "licence_id": {
+            "title": "Licence Id",
+            "type": "string"
+          },
+          "licensor": {
+            "title": "Licensor",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "rights": {
+            "title": "Rights",
+            "type": "string"
+          },
+          "source_label": {
+            "title": "Source Label",
+            "type": "string"
+          },
+          "source_updated_at": {
+            "title": "Source Updated At",
+            "type": "string"
+          },
+          "source_uri": {
+            "title": "Source Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_label",
+          "page",
+          "source_uri",
+          "rights"
+        ],
+        "title": "SerializedCitation",
+        "type": "object"
       },
       "ServableCorpus": {
         "additionalProperties": false,

@@ -61,7 +61,7 @@ def test_main_refuses_public_release_without_sealed_rights_pack_before_write(
         "release publique écrite avant le gate de droits"
     ))
     output_dir = tmp_path / "never-written"
-    with pytest.raises(ValueError, match="SOURCE_MIRROR_AND_HEAD_REQUIRED"):
+    with pytest.raises(ValueError, match="PRIVATE_CANDIDATE_ROOT_REQUIRED"):
         builder.main([
             "--release-mode", "rehearsal", "--output-dir", str(output_dir),
             "--servability-matrix", str(tmp_path / "matrix.json"),

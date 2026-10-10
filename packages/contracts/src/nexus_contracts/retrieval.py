@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from datetime import date, datetime
+from typing import Any, Literal, cast
 from uuid import UUID
+
+from typing_extensions import NotRequired, TypedDict
 
 from pydantic import (
     BaseModel,
@@ -107,43 +110,51 @@ class RetrievalRequest(BaseModel):
         }
 
 
+_ATTRIBUTION_FIELDS = (
+    "licensor", "licence_id", "source_updated_at", "derivative_notice"
+)
+_ATTRIBUTION_SCHEMA = {
+    "dependentSchemas": {
+        name: {
+            "if": {
+                "properties": {name: {"type": "string"}},
+            },
+            "then": {
+                "required": [*_ATTRIBUTION_FIELDS, "page"],
+                "properties": {
+                    **{field: {"type": "string", "minLength": 1} for field in _ATTRIBUTION_FIELDS},
+                    "page": {"type": "integer", "minimum": 1},
+                },
+            },
+        }
+        for name in _ATTRIBUTION_FIELDS
+    }
+}
+
+
+class SerializedCitation(TypedDict):
+    """Shape emitted by Citation.model_dump, including historical citations."""
+
+    source_label: str
+    page: int | None
+    source_uri: str
+    rights: str
+    licensor: NotRequired[str]
+    licence_id: NotRequired[str]
+    source_updated_at: NotRequired[str]
+    derivative_notice: NotRequired[str]
+
+
+setattr(
+    SerializedCitation,
+    "__pydantic_config__",
+    ConfigDict(extra="forbid", json_schema_extra=cast(Any, _ATTRIBUTION_SCHEMA)),
+)
+
+
 class Citation(BaseModel):
     model_config = ConfigDict(
-        extra="forbid",
-        json_schema_extra={
-            "dependentRequired": {
-                name: [
-                    "licensor",
-                    "licence_id",
-                    "source_updated_at",
-                    "derivative_notice",
-                    "page",
-                ]
-                for name in (
-                    "licensor",
-                    "licence_id",
-                    "source_updated_at",
-                    "derivative_notice",
-                )
-            },
-            "dependentSchemas": {
-                name: {
-                    "properties": {
-                        "licensor": {"type": "string"},
-                        "licence_id": {"type": "string"},
-                        "source_updated_at": {"type": "string"},
-                        "derivative_notice": {"type": "string"},
-                        "page": {"type": "integer", "minimum": 1},
-                    }
-                }
-                for name in (
-                    "licensor",
-                    "licence_id",
-                    "source_updated_at",
-                    "derivative_notice",
-                )
-            },
-        },
+        extra="forbid", json_schema_extra=cast(Any, _ATTRIBUTION_SCHEMA)
     )
 
     source_label: str = Field(min_length=1)
@@ -157,18 +168,35 @@ class Citation(BaseModel):
     source_updated_at: str | None = Field(
         default=None,
         pattern=r"^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$",
+        json_schema_extra={
+            "oneOf": [
+                {"type": "string", "format": "date"},
+                {"type": "string", "format": "date-time"},
+                {"type": "null"},
+            ]
+        },
     )
     derivative_notice: str | None = Field(default=None, min_length=1)
 
-    @model_serializer(mode="wrap")
+    @field_validator("source_updated_at")
+    @classmethod
+    def validate_source_date(cls, value: str | None) -> str | None:
+        if value is not None:
+            if "T" in value:
+                datetime.fromisoformat(value.replace("Z", "+00:00"))
+            else:
+                date.fromisoformat(value)
+        return value
+
+    @model_serializer(mode="wrap", return_type=SerializedCitation)
     def serialize_without_absent_attribution(
         self, handler: SerializerFunctionWrapHandler
-    ) -> dict[str, Any]:
+    ) -> SerializedCitation:
         payload: dict[str, Any] = handler(self)
-        for name in ("licensor", "licence_id", "source_updated_at", "derivative_notice"):
+        for name in _ATTRIBUTION_FIELDS:
             if payload.get(name) is None:
                 payload.pop(name, None)
-        return payload
+        return cast(SerializedCitation, payload)
 
     @model_validator(mode="after")
     def validate_public_derivative_attribution(self) -> "Citation":

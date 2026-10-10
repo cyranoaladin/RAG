@@ -92,6 +92,7 @@ def current_checkout_sha(repository_root: Path) -> str:
 def run_approved_source_gate(
     *, authority_root: Path, source_mirror_root: Path,
     private_candidate_root: Path, gate_runner: Callable[..., dict],
+    expected_source_head: str,
 ) -> tuple[str, dict]:
     """Rejouer #300 dans son checkout immuable, avant toute projection."""
     status = subprocess.run(
@@ -102,6 +103,8 @@ def run_approved_source_gate(
     if status.stdout:
         raise ValueError("authority checkout is not clean")
     source_head = current_checkout_sha(authority_root)
+    if source_head != expected_source_head:
+        raise ValueError("authority checkout HEAD differs from approved #300 merge")
     gate = gate_runner(
         root=authority_root, expected_head=source_head,
         source_mirror_root=source_mirror_root,
@@ -810,6 +813,13 @@ def write_successor_documents(
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(raw)
             target.chmod(0o600)
+        for target in staged_release.rglob("*"):
+            target.chmod(0o755 if target.is_dir() else 0o644)
+        staged_release.chmod(0o755)
+        for target in staged_private.rglob("*"):
+            if target.is_dir():
+                target.chmod(0o700)
+        staged_private.chmod(0o700)
         if release_root.exists() or private_root.exists() or registry_path.exists():
             raise FileExistsError("successor release output appeared during staging")
         staged_private.rename(private_root)
@@ -819,6 +829,7 @@ def write_successor_documents(
         descriptor = os.open(registry_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
         created_registry = True
         with os.fdopen(descriptor, "wb") as handle:
+            os.fchmod(handle.fileno(), 0o644)
             handle.write(documents[registry_path])
             handle.flush()
             os.fsync(handle.fileno())
@@ -853,11 +864,18 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     root = args.repository_root.resolve()
     authority_root = args.authority_root.resolve()
+    sys.path.insert(0, str(root / "scripts/go_live"))
+    from pr300_authority_receipt import check_pr300_authority
+
+    # GitHub relie le HEAD approuvé de #300 à ce commit de merge précis.
+    # Cette identité indépendante est exigée avant le rescan coûteux.
+    authority = check_pr300_authority(root)
     authority_module_root = str(authority_root / "scripts/go_live")
     sys.path.insert(0, authority_module_root)
     from check_delegated_student_rights_gate import check_gate
     source_head, gate = run_approved_source_gate(
         authority_root=authority_root,
+        expected_source_head=authority["MERGE_COMMIT_SHA"],
         gate_runner=check_gate,
         source_mirror_root=args.source_mirror_root.resolve(),
         private_candidate_root=args.private_candidate_root.resolve(),
@@ -866,13 +884,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"SOURCE_FULL_DOCUMENT_SCAN_COUNT={gate['FULL_DOCUMENT_SCAN_COUNT']}", flush=True)
     print(f"SOURCE_EVIDENCE_PACK_SHA256={gate['EVIDENCE_PACK_SHA256']}", flush=True)
     sys.path.remove(authority_module_root)
-    sys.path.insert(0, str(root / "scripts/go_live"))
-    from pr300_authority_receipt import check_pr300_authority
     from public_rights_release_guard import require_public_release_rights
 
     # L'autorité documentaire est relue sur le HEAD source propre. Le
     # constructeur, lui, peut être dans le worktree de la future PR.
-    authority = check_pr300_authority(root)
     token_counter = PinnedE5TokenCounter(args.embedding_snapshot.resolve())
     documents, private_documents = build_successor_documents(
         repository_root=root,

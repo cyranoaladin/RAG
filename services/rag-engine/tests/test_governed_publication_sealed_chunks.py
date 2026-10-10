@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ingestor.governed_publisher_v2 import (  # noqa: E402
     GovernedPublicationError,
+    require_existing_sealed_chunk_set,
     select_publication_chunks,
 )
 from ingestor.publication_chunking import PublicationChunk  # noqa: E402
@@ -65,3 +66,29 @@ def test_un_ordre_different_refuse_la_publication_scellee() -> None:
 def test_une_liste_scellee_vide_est_refusee() -> None:
     with pytest.raises(GovernedPublicationError):
         select_publication_chunks([_chunk(TEXTE)], sealed_chunk_sha256=())
+
+
+def test_republication_refuse_des_chunks_existants_differents_du_scellement() -> None:
+    artifact_id = "a" * 64
+    digest = _sha(TEXTE)
+    chunk_id = hashlib.sha256(f"{artifact_id}:0:{digest}".encode()).hexdigest()
+    require_existing_sealed_chunk_set(
+        [(0, chunk_id, digest)],
+        artifact_id=artifact_id,
+        sealed_chunk_sha256=(digest,),
+        sealed_chunk_ids=(chunk_id,),
+    )
+    with pytest.raises(GovernedPublicationError, match="sealed"):
+        require_existing_sealed_chunk_set(
+            [(0, chunk_id, "b" * 64)],
+            artifact_id=artifact_id,
+            sealed_chunk_sha256=(digest,),
+            sealed_chunk_ids=(chunk_id,),
+        )
+    with pytest.raises(GovernedPublicationError, match="sealed"):
+        require_existing_sealed_chunk_set(
+            [(1, chunk_id, digest)],
+            artifact_id=artifact_id,
+            sealed_chunk_sha256=(digest,),
+            sealed_chunk_ids=(chunk_id,),
+        )

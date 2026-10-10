@@ -141,7 +141,7 @@ class RetrievalCandidate:
         if self.is_text_derivative != all(
             isinstance(value, str) and bool(value.strip())
             for value in attribution
-        ):
+        ) or (not self.is_text_derivative and any(value is not None for value in attribution)):
             raise RetrievalPipelineError("incomplete derivative attribution")
         if self.page_start is not None:
             if (

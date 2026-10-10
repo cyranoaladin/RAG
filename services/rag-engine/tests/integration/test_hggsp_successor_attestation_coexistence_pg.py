@@ -368,7 +368,7 @@ def test_successor_v2_creates_distinct_control_resources_without_touching_v4(
 ) -> None:
     """Une vraie acquisition V4 active précède l'adoption V2 dans PostgreSQL."""
     transfer_v4 = transfert_nomme(tmp_path, V4_ID)
-    transfer_v5 = transfert_nomme(tmp_path, V5_ID)
+    transfer_v5 = transfert_nomme(tmp_path, V5_ID, release_dir=V5_DIR)
     v4 = _facts(V4_DIR, transfer_v4)
     old_auth, new_auth, docs = _r4_documents()
     github = LocalGitHub()
@@ -549,7 +549,7 @@ def test_hggsp_old_adoption_hits_active_v4_attestation_conflict(
     devra utiliser des resource_id V5 distincts.
     """
     transfer_v4 = transfert_nomme(tmp_path, V4_ID)
-    transfer_v5 = transfert_nomme(tmp_path, V5_ID)
+    transfer_v5 = transfert_nomme(tmp_path, V5_ID, release_dir=V5_DIR)
     v4 = _facts(V4_DIR, transfer_v4)
     v5 = _facts(V5_DIR, transfer_v5)
     assert len([p for p in v4.placements if p.collection in COLLECTIONS]) == 74
@@ -643,7 +643,7 @@ def test_v2_row_74_failure_rolls_back_and_concurrent_replay_is_unique(
 ) -> None:
     """Une erreur à la 74e ligne ne laisse aucun contrôle V5 partiel."""
     transfer_v4 = transfert_nomme(tmp_path, V4_ID)
-    transfer_v5 = transfert_nomme(tmp_path, V5_ID)
+    transfer_v5 = transfert_nomme(tmp_path, V5_ID, release_dir=V5_DIR)
     v4 = _facts(V4_DIR, transfer_v4)
     old_auth, _, docs = _r4_documents()
     github = LocalGitHub()

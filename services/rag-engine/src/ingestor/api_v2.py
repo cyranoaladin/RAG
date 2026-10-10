@@ -645,7 +645,7 @@ def health_check() -> dict[str, str | int]:
         raise HTTPException(status_code=503, detail="service unavailable")
     return {
         "status": "healthy",
-        "schema_head": "005_official_snapshot_currentness",
+        "schema_head": "006_public_derivative_attribution",
         "embedding_model": model,
         "embedding_dim_declared": declared_dim,
         "pgvector_dim": database_dim,

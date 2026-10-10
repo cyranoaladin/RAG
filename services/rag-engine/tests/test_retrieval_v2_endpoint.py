@@ -639,6 +639,16 @@ class TestResponseFormat:
             )
         assert refused.value.status_code == 503
 
+        malformed_date = hit.model_copy(update={"source_updated_at": "2026-10-10T99:99:99Z"})
+        with pytest.raises(HTTPException) as refused:
+            _to_retrieval_result(malformed_date, "rag_nexus_nsi_terminale_specialite")
+        assert refused.value.status_code == 503
+
+        partial_legacy = legacy.model_copy(update={"licensor": "Éduscol"})
+        with pytest.raises(HTTPException) as refused:
+            _to_retrieval_result(partial_legacy, "rag_nexus_nsi_terminale_specialite")
+        assert refused.value.status_code == 503
+
     def test_hit_exposes_review_status(self) -> None:
         """SCALE-04: review_status in each hit for agent layer."""
         from ingestor.retrieval_v2_endpoint import SearchV2Hit

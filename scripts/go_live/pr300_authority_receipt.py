@@ -20,6 +20,7 @@ REPOSITORY = "cyranoaladin/RAG"
 PR_NUMBER = 300
 REVIEWER = "abenrhouma"
 STATUS_CONTEXT = "trusted-human-review/head-pinned"
+TRUSTED_WORKFLOW_PATH = ".github/workflows/trusted-human-review.yml"
 RECEIPT_RELATIVE_PATH = Path(
     "docs/reports/go_live/student_rights_evidence/pr300_final_authority_approval.json"
 )
@@ -120,6 +121,7 @@ def validate_pr300_authority_receipt(
         "PR300_AUTHORITY_APPROVAL_PASS": True,
         "PR_NUMBER": PR_NUMBER,
         "HEAD_SHA": r["head_sha"],
+        "MERGE_COMMIT_SHA": r["merge_commit_sha"],
         "REVIEW_ID": r["review_id"],
         "EVIDENCE_PACK_SHA256": r["sha256"]["evidence_index"],
         "CANDIDATE_MANIFEST_SHA256": r["sha256"]["candidate_manifest"],
@@ -147,6 +149,47 @@ def _git(root: Path, *args: str) -> str:
     if result.returncode != 0:
         raise AuthorityReceiptError("AUTHORITY_GIT_BINDING_INVALID")
     return result.stdout.strip()
+
+
+def _select_trusted_status_at_merge(
+    statuses: list[Any], merged_at: str,
+) -> Mapping[str, Any]:
+    """Lire le dernier verdict connu lors de la fusion, pas un rerun ultérieur."""
+    merge_time = _utc(merged_at)
+    eligible = [
+        status for status in statuses
+        if isinstance(status, Mapping)
+        and status.get("context") == STATUS_CONTEXT
+        and _utc(status.get("created_at")) <= merge_time
+    ]
+    if not eligible:
+        raise AuthorityReceiptError("AUTHORITY_STATUS_UNAVAILABLE")
+    return max(eligible, key=lambda status: _utc(status["created_at"]))
+
+
+def _validate_trusted_workflow_run(
+    status: Mapping[str, Any], run: Mapping[str, Any],
+    *, expected_base_sha: str | None = None,
+) -> None:
+    """L'API Status peut masquer `creator`; le run officiel reste vérifiable."""
+    target = status.get("target_url")
+    if not isinstance(target, str):
+        raise AuthorityReceiptError("AUTHORITY_WORKFLOW_PROVENANCE_MISSING")
+    match = re.fullmatch(
+        rf"https://github\.com/{re.escape(REPOSITORY)}/actions/runs/([1-9][0-9]*)",
+        target,
+    )
+    if (match is None or run.get("id") != int(match.group(1))
+            or run.get("name") != "Trusted human review"
+            or run.get("path") != TRUSTED_WORKFLOW_PATH
+            or run.get("event") != "issue_comment"
+            or run.get("status") != "completed"
+            or run.get("conclusion") != "success"
+            or (expected_base_sha is not None
+                and run.get("head_sha") != expected_base_sha)):
+        raise AuthorityReceiptError("AUTHORITY_WORKFLOW_PROVENANCE_INVALID")
+    if _utc(run.get("created_at")) > _utc(status.get("created_at")):
+        raise AuthorityReceiptError("AUTHORITY_WORKFLOW_PROVENANCE_INVALID")
 
 
 def check_pr300_authority(root: Path) -> dict[str, Any]:
@@ -190,18 +233,25 @@ def check_pr300_authority(root: Path) -> dict[str, Any]:
     statuses = _mapping(_read_gh(f"repos/{REPOSITORY}/commits/{head}/status")).get("statuses")
     if not isinstance(statuses, list):
         raise AuthorityReceiptError("AUTHORITY_STATUS_UNAVAILABLE")
-    trusted = next((s for s in statuses if isinstance(s, dict)
-                    and s.get("context") == STATUS_CONTEXT), None)
-    if trusted is None:
-        raise AuthorityReceiptError("AUTHORITY_STATUS_UNAVAILABLE")
-    head_tree = _git(root, "rev-parse", f"{head}^{{tree}}")
+    trusted = _select_trusted_status_at_merge(statuses, str(pr.get("merged_at")))
+    target = trusted.get("target_url")
+    match = re.fullmatch(
+        rf"https://github\.com/{re.escape(REPOSITORY)}/actions/runs/([1-9][0-9]*)",
+        target if isinstance(target, str) else "",
+    )
+    if match is None:
+        raise AuthorityReceiptError("AUTHORITY_WORKFLOW_PROVENANCE_MISSING")
+    run = _mapping(_read_gh(f"repos/{REPOSITORY}/actions/runs/{match.group(1)}"))
+    _validate_trusted_workflow_run(
+        trusted, run, expected_base_sha=str(r.get("base_sha")),
+    )
     merge_tree = _git(root, "rev-parse", f"{r.get('merge_commit_sha')}^{{tree}}")
-    if head_tree != merge_tree:
+    if merge_tree != r.get("head_tree_sha"):
         raise AuthorityReceiptError("AUTHORITY_MERGE_TREE_MISMATCH")
     _git(root, "merge-base", "--is-ancestor", str(r.get("merge_commit_sha")), "HEAD")
     return validate_pr300_authority_receipt(
         root, r, pull_request=_mapping(pr), review_decision=asdict(result.decision),
-        trusted_status=_mapping(trusted), head_tree_sha=head_tree,
+        trusted_status=_mapping(trusted), head_tree_sha=merge_tree,
     )
 
 

@@ -93,6 +93,9 @@ def _fingerprints(path: Path) -> dict[str, str]:
 
 def test_manifest_keeps_the_official_snapshot_migration_beneath_current_head() -> None:
     assert _read(MIGRATIONS / "HEAD") == "006_public_derivative_attribution\n"
+    assert sorted(path.name for path in MIGRATIONS.glob("[0-9][0-9][0-9]_*.sql"))[-1] == (
+        "006_public_derivative_attribution.sql"
+    )
     assert MIGRATION_005.is_file()
     assert ROLLBACK_005.is_file()
     assert (MIGRATIONS / "006_public_derivative_attribution.sql").is_file()

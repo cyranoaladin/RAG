@@ -56,6 +56,24 @@ def test_sealed_text_reader_ne_replie_pas_sur_un_pdf(tmp_path: Path) -> None:
         reader(content_sha256=sha)
 
 
+def test_sealed_pdf_reader_accepts_historical_uppercase_suffix(tmp_path: Path) -> None:
+    payload = b"%PDF-1.4 source historique\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.PDF").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(tmp_path)
+    assert reader(content_sha256=sha) == payload
+
+
+def test_sealed_pdf_reader_refuses_ambiguous_case_variants(tmp_path: Path) -> None:
+    payload = b"%PDF-1.4 source historique\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.pdf").write_bytes(payload)
+    (tmp_path / f"{sha}.PDF").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(tmp_path)
+    with pytest.raises(SealedArtifactDigestError, match="ambiguous"):
+        reader(content_sha256=sha)
+
+
 class TestFilesystemArtifactStoreAndReader:
     def test_round_trip_store_then_read(self, tmp_path: Path) -> None:
         base_dir = tmp_path / "artifacts"

@@ -172,6 +172,20 @@ def test_l_invariant_est_etabli_quand_le_transfert_couvre_le_catalogue(
     assert "aucune lecture des octets" in catalogue.media_type_basis
 
 
+def test_pdf_majuscule_historique_conserve_l_invariant(
+    tmp_path: Path,
+) -> None:
+    repertoire, sha = _release(tmp_path)
+    chemin, tsha = _transfert(tmp_path, [f"{SHA_A}.PDF"])
+    catalogue = load_sealed_release_catalog(
+        repertoire,
+        expected_release_manifest_sha256=sha,
+        transfer_manifest_path=chemin,
+        expected_transfer_manifest_sha256=tsha,
+    )
+    assert catalogue.media_type_invariant == "application/pdf"
+
+
 def test_un_transfert_qui_ne_couvre_pas_le_catalogue_n_etablit_rien(
     tmp_path: Path,
 ) -> None:

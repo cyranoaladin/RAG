@@ -28,6 +28,23 @@ describe('contrat BFF des citations dérivées publiques', () => {
     expect(validateRetrievalResponse(responseWithCitation(legacyCitation))).toBe(true)
   })
 
+  it('accepte un champ d’attribution nul comme absent', () => {
+    expect(validateRetrievalResponse(responseWithCitation({
+      ...legacyCitation,
+      licensor: null,
+    }))).toBe(true)
+  })
+
+  it('refuse une date civile impossible', () => {
+    expect(validateRetrievalResponse(responseWithCitation({
+      ...legacyCitation,
+      licensor: 'Ministère de l’Éducation nationale – Dgesco / Éduscol',
+      licence_id: 'ETALAB-2.0',
+      source_updated_at: '2026-02-30',
+      derivative_notice: 'Extrait textuel dérivé.',
+    }))).toBe(false)
+  })
+
   it('accepte une attribution publique complète liée à la page source', () => {
     expect(validateRetrievalResponse(responseWithCitation({
       ...legacyCitation,

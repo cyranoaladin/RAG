@@ -63,8 +63,9 @@ def _derivative(**overrides: object) -> GovernedArtifact:
 
 def test_public_derivative_requires_complete_attribution() -> None:
     assert _derivative().source_updated_at == ATTRIBUTION["source_updated_at"]
-    with pytest.raises(ValueError, match="attribution"):
-        _derivative(licence_id=None)
+    for field in ATTRIBUTION:
+        with pytest.raises(ValueError, match="attribution"):
+            _derivative(**{field: None})
     with pytest.raises(ValueError, match="receipt"):
         _derivative(sealed_derivative_receipt=None)
 
@@ -146,6 +147,7 @@ def test_product_migration_006_is_additive_and_nullable_for_legacy_pdfs() -> Non
     sql = (migrations / "006_public_derivative_attribution.sql").read_text()
     for field in ATTRIBUTION:
         assert f"{field} TEXT" in sql
+        assert f"{field} ~ '[^[:space:]]'" in sql
     assert "is_text_derivative BOOLEAN NOT NULL DEFAULT false" in sql
     assert "is_text_derivative AND" in sql
     assert "UPDATE public.rag_artifacts" not in sql

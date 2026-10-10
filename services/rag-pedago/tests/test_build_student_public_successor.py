@@ -301,6 +301,9 @@ def test_write_successor_documents_refuses_any_existing_output(tmp_path: Path) -
     write_successor_documents(documents, private, release_root, private_root)
     assert (release_root / "manifest.json").read_bytes() == b"new\n"
     assert (private_root / "a.txt").read_bytes() == b"native text\n"
+    assert release_root.stat().st_mode & 0o777 == 0o755
+    assert (release_root / "manifest.json").stat().st_mode & 0o777 == 0o644
+    assert private_root.stat().st_mode & 0o777 == 0o700
     assert (private_root / "a.txt").stat().st_mode & 0o777 == 0o600
     with pytest.raises(FileExistsError):
         write_successor_documents(documents, private, release_root, private_root)
@@ -399,6 +402,7 @@ def test_source_gate_uses_a_separate_clean_authority_checkout(tmp_path: Path) ->
 
     head, verdict = run_approved_source_gate(
         authority_root=authority_root,
+        expected_source_head=current_checkout_sha(authority_root),
         source_mirror_root=mirror_root,
         private_candidate_root=candidate_root,
         gate_runner=gate_runner,
@@ -421,6 +425,23 @@ def test_source_gate_refuses_dirty_authority_before_rescan(tmp_path: Path) -> No
     with pytest.raises(ValueError, match="authority checkout is not clean"):
         run_approved_source_gate(
             authority_root=authority_root,
+            expected_source_head=current_checkout_sha(authority_root),
+            source_mirror_root=tmp_path / "mirror",
+            private_candidate_root=tmp_path / "candidate",
+            gate_runner=should_not_run,
+        )
+
+
+def test_source_gate_refuses_head_different_from_pr300_merge_receipt(tmp_path: Path) -> None:
+    authority_root = _clean_authority_repo(tmp_path / "authority")
+
+    def should_not_run(**kwargs: object) -> dict:
+        raise AssertionError("the expensive PDF rescan must not begin")
+
+    with pytest.raises(ValueError, match="authority checkout HEAD differs"):
+        run_approved_source_gate(
+            authority_root=authority_root,
+            expected_source_head="f" * 40,
             source_mirror_root=tmp_path / "mirror",
             private_candidate_root=tmp_path / "candidate",
             gate_runner=should_not_run,

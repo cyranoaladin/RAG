@@ -54,7 +54,7 @@ from nexus_release_chain.release_readiness import (
     validate_release_collection_readiness,
     validate_release_registry_readiness,
 )
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, computed_field, model_validator
 
 
 def _missing_sibling(exc: ImportError) -> bool:
@@ -1613,7 +1613,9 @@ def _to_retrieval_result(
     )
     if hit.is_text_derivative != complete_attribution or (
         hit.is_text_derivative and hit.page is None
-    ):
+    ) or (not hit.is_text_derivative and any(
+        value is not None for value in derivative_attribution
+    )):
         raise HTTPException(status_code=503, detail="retrieval evidence unavailable")
     if hit.is_text_derivative:
         if not include_citation:
@@ -1641,13 +1643,8 @@ def _to_retrieval_result(
                 "placement_source_path": hit.placement_source_path,
             }
         )
-    return RetrievalResult(
-        chunk_id=hit.chunk_id,
-        doc_id=hit.doc_id,
-        score=hit.score_final,
-        title=hit.source_label,
-        excerpt=hit.preview,
-        citation=(
+    try:
+        citation = (
             Citation(
                 source_label=hit.source_label,
                 page=hit.page,
@@ -1658,9 +1655,17 @@ def _to_retrieval_result(
                 source_updated_at=hit.source_updated_at,
                 derivative_notice=hit.derivative_notice,
             )
-            if include_citation
-            else None
-        ),
+            if include_citation else None
+        )
+    except ValidationError as exc:
+        raise HTTPException(status_code=503, detail="retrieval evidence unavailable") from exc
+    return RetrievalResult(
+        chunk_id=hit.chunk_id,
+        doc_id=hit.doc_id,
+        score=hit.score_final,
+        title=hit.source_label,
+        excerpt=hit.preview,
+        citation=citation,
         metadata=metadata,
     )
 

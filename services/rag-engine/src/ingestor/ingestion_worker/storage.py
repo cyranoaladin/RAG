@@ -188,14 +188,32 @@ def make_sealed_release_artifact_reader(
     def read_sealed_artifact(*, content_sha256: str) -> bytes:
         if _SHA256.fullmatch(content_sha256) is None:
             raise SealedArtifactDigestError("sealed artifact identifier is not SHA-256")
+        selected_suffix = suffix
+        if media_type == "application/pdf":
+            # Les transferts historiques acceptent l'extension PDF avec une
+            # casse variable. Vérifier chaque nom exact, sans suivre de lien
+            # symbolique, puis relire par l'adaptateur O_NOFOLLOW existant.
+            variants = tuple(
+                f".{p}{d}{f}"
+                for p in "pP" for d in "dD" for f in "fF"
+                if os.path.lexists(
+                    resolved_base_dir / f"{content_sha256}.{p}{d}{f}"
+                )
+            )
+            if len(variants) > 1:
+                raise SealedArtifactDigestError(
+                    f"ambiguous PDF case variants for {content_sha256}"
+                )
+            if variants:
+                selected_suffix = variants[0]
         content: bytes = read_artifact(
-            extracted_text_ref=str(resolved_base_dir / f"{content_sha256}{suffix}")
+            extracted_text_ref=str(resolved_base_dir / f"{content_sha256}{selected_suffix}")
         )
         measured = hashlib.sha256(content).hexdigest()
         if measured != content_sha256:
             raise SealedArtifactDigestError(
                 f"the artifact store holds bytes hashing to {measured} under the "
-                f"name {content_sha256}{suffix} — refusing to publish content the "
+                f"name {content_sha256}{selected_suffix} — refusing to publish content the "
                 "attestation does not name"
             )
         if media_type == "text/plain; charset=utf-8":

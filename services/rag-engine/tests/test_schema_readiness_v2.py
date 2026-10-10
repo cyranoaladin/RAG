@@ -258,7 +258,7 @@ def test_expected_migration_records_hash_the_canonical_files() -> None:
         (
             6,
             "006_public_derivative_attribution.sql",
-            "ff7f31e9994da0009ea8842d500f2d7642782527377ca15caa75d4019a2e7da8",
+            "6fed3e1f61309893af1db19733fecce65e4bb8df57d481f7d4eb974877f5917a",
         ),
     )
 
