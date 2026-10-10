@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import os
 import re
 import subprocess
 import sys
@@ -32,6 +33,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "packages/contracts/src"))
+sys.path.insert(0, str(REPO_ROOT / "packages/release-chain/src"))
 
 from nexus_contracts.staging_readiness import (  # noqa: E402
     STAGING_READINESS_PROTOCOL,
@@ -107,6 +109,23 @@ def _require_public_checkout_matches_merge(merge_sha: str) -> None:
     )
 
 
+def _reject_output_aliasing_inputs(args: Any) -> None:
+    """La readiness ne peut écraser ni clé ni preuve, même via hard link."""
+    output = args.output
+    _require(not output.is_symlink(), "output aliases a symlink")
+    resolved = output.resolve(strict=False)
+    for name, candidate in vars(args).items():
+        if name == "output" or not isinstance(candidate, Path):
+            continue
+        target = candidate.resolve(strict=False)
+        if candidate.is_dir() and resolved.is_relative_to(target):
+            raise SigningRefused(f"output aliases input directory --{name.replace('_', '-')}")
+        if resolved == target or (
+            output.exists() and candidate.exists() and os.path.samefile(output, candidate)
+        ):
+            raise SigningRefused(f"output aliases --{name.replace('_', '-')}")
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Signe un manifeste de readiness de répétition (staging)"
@@ -149,6 +168,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--public-successor-preissuance-receipt-path", type=Path)
     parser.add_argument("--public-successor-private-cas-root", type=Path)
     parser.add_argument("--public-successor-repository-root", type=Path)
+    parser.add_argument("--public-successor-bundle-root", type=Path)
+    parser.add_argument("--public-successor-target-root", type=Path)
+    parser.add_argument("--public-successor-target-pin-path", type=Path)
+    parser.add_argument("--public-successor-observed-v1-receipt-path", type=Path)
+    parser.add_argument("--public-successor-database-dsn-file", type=Path)
     parser.add_argument(
         "--show-public-key",
         type=Path,
@@ -207,6 +231,57 @@ def _verify_public_successor_ingestion_replay(
     return anchor_sha, receipt_sha, verdict.expires_at_utc
 
 
+def _verify_public_successor_publication_replay(
+    args: Any, release_digest: str, issued_at: datetime,
+) -> tuple[str, str, datetime]:
+    """Rejouer C et les preuves live avant la lecture de la clé staging."""
+    required = (
+        args.public_successor_bundle_root,
+        args.public_successor_content_anchor_path,
+        args.public_successor_preissuance_receipt_path,
+        args.public_successor_private_cas_root,
+        args.public_successor_repository_root,
+        args.public_successor_target_root,
+        args.public_successor_target_pin_path,
+        args.public_successor_observed_v1_receipt_path,
+        args.public_successor_database_dsn_file,
+    )
+    _require(all(value is not None for value in required),
+             "public successor PUBLICATION replay inputs incomplete")
+    try:
+        from public_successor_signing_replay import (  # noqa: PLC0415
+            PublicationSigningInputs,
+            replay_public_successor_publication,
+        )
+
+        dsn_file = args.public_successor_database_dsn_file
+        _require(not dsn_file.is_symlink() and dsn_file.is_file(),
+                 "public successor DB target file unavailable")
+        verdict = replay_public_successor_publication(
+            PublicationSigningInputs(
+                bundle_root=args.public_successor_bundle_root,
+                repository_root=args.public_successor_repository_root,
+                content_anchor_path=args.public_successor_content_anchor_path,
+                preissuance_receipt_path=args.public_successor_preissuance_receipt_path,
+                private_cas_root=args.public_successor_private_cas_root,
+                target_root=args.public_successor_target_root,
+                target_pin_path=args.public_successor_target_pin_path,
+                observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
+                database_dsn=dsn_file.read_text(encoding="utf-8").strip(),
+            ),
+            expected_release_id=args.allowed_release_id,
+            expected_manifest_sha256=release_digest,
+            now_utc=issued_at,
+        )
+    except Exception as error:  # noqa: BLE001 - frontière de signature fail-closed
+        raise SigningRefused("public successor PUBLICATION authority replay failed") from error
+    return (
+        verdict.content_anchor_sha256,
+        verdict.authority_envelope_sha256,
+        verdict.expires_at_utc,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_arg_parser().parse_args(argv)
 
@@ -238,6 +313,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     try:
+        _reject_output_aliasing_inputs(args)
         _require(
             _IMAGE_REF.fullmatch(args.worker_image) is not None,
             f"worker image {args.worker_image!r} must be pinned as "
@@ -262,6 +338,11 @@ def main(argv: list[str] | None = None) -> int:
             args.public_successor_preissuance_receipt_path,
             args.public_successor_private_cas_root,
             args.public_successor_repository_root,
+            args.public_successor_bundle_root,
+            args.public_successor_target_root,
+            args.public_successor_target_pin_path,
+            args.public_successor_observed_v1_receipt_path,
+            args.public_successor_database_dsn_file,
         )
         if phase is None:
             _require(all(value is None for value in public_options),
@@ -269,6 +350,8 @@ def main(argv: list[str] | None = None) -> int:
             anchor_sha = phase_authority_sha = None
             expires_at = issued_at + timedelta(days=args.valid_days)
         elif phase == "INGESTION":
+            _require(all(value is None for value in public_options[4:]),
+                     "PUBLICATION replay inputs are not INGESTION inputs")
             _require_public_checkout_matches_merge(args.merge_sha)
             anchor_sha, phase_authority_sha, evidence_expiry = (
                 _verify_public_successor_ingestion_replay(
@@ -277,9 +360,13 @@ def main(argv: list[str] | None = None) -> int:
             )
             expires_at = min(issued_at + timedelta(days=args.valid_days), evidence_expiry)
         else:
-            raise SigningRefused(
-                "public successor PUBLICATION signing requires semantic C and LOT42"
+            _require_public_checkout_matches_merge(args.merge_sha)
+            anchor_sha, phase_authority_sha, evidence_expiry = (
+                _verify_public_successor_publication_replay(
+                    args, release_digest, issued_at,
+                )
             )
+            expires_at = min(issued_at + timedelta(days=args.valid_days), evidence_expiry)
         manifest = StagingReadinessManifestV1(
             protocol_version=STAGING_READINESS_PROTOCOL,
             environment="rehearsal",
