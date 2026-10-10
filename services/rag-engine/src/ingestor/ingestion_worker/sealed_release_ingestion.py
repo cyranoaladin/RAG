@@ -74,6 +74,10 @@ from ingestor.ingestion_control.scope_authority import (
 from ingestor.ingestion_control.sealed_release_catalog import TEXT_MEDIA_TYPE
 from ingestor.ingestion_control.transitions import cas_transition
 from ingestor.ingestion_profiles.registry import ProfileRegistry
+from ingestor.ingestion_profiles.staging_readiness_gate import (
+    StagingReadinessGateError,
+    enforce_staging_readiness_gate,
+)
 from ingestor.multilevel_evidence import (
     INVENTORY_KIND,
     STUDENT_PUBLIC_INVENTORY_KIND,
@@ -1140,6 +1144,10 @@ def ingest_sealed_release(
     expected_collections: Iterable[str] | None = None,
     verifier: ScopeAuthorizationVerifier = verify_scope_authorization,
     public_successor_ingestion_content: PublicSuccessorContentVerdict | None = None,
+    public_successor_release_dir: Path | None = None,
+    public_successor_anchor_path: Path | None = None,
+    public_successor_preissuance_receipt_path: Path | None = None,
+    public_successor_preissuance_receipt_sha256: str | None = None,
 ) -> IngestionReport:
     """Créer les lignes de contrôle jusqu'à ``NEEDS_REVIEW``, et rien au-delà.
 
@@ -1149,6 +1157,39 @@ def ingest_sealed_release(
 
     Ne committe pas : la transaction appartient à l'appelant, comme pour
     toutes les primitives ``ingestion_control``."""
+    if facts.release_mode == "candidate":
+        if (
+            public_successor_ingestion_content is None
+            or public_successor_release_dir is None
+            or public_successor_anchor_path is None
+            or public_successor_preissuance_receipt_path is None
+            or public_successor_preissuance_receipt_sha256 is None
+        ):
+            raise SealedReleaseIngestionError(
+                "public candidate requires signed INGESTION authority, not a bare A verdict"
+            )
+        try:
+            # Aucune preuve produite par l'appelant n'est ici une capacité :
+            # l'autorité signée est relue indépendamment, même hors du CLI.
+            signed = enforce_staging_readiness_gate()
+            from .sealed_release_ingestion_cli import (  # noqa: PLC0415
+                _require_public_candidate_ingestion_authority,
+            )
+
+            rechecked = _require_public_candidate_ingestion_authority(
+                signed, public_successor_release_dir,
+                public_successor_anchor_path,
+                public_successor_preissuance_receipt_path,
+                public_successor_preissuance_receipt_sha256,
+            )
+        except StagingReadinessGateError as error:
+            raise SealedReleaseIngestionError(
+                "public candidate signed INGESTION authority unavailable"
+            ) from error
+        if rechecked != public_successor_ingestion_content:
+            raise SealedReleaseIngestionError(
+                "public candidate bare or divergent A verdict refused"
+            )
     require_expected_counts(facts)
     if expected_collections is not None:
         require_collections_match(facts, expected_collections)

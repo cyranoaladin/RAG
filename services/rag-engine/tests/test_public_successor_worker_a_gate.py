@@ -15,6 +15,7 @@ sys.path.insert(0, str(ROOT / "services/rag-engine/src"))
 
 from ingestor.ingestion_worker import sealed_release_ingestion_cli as cli  # noqa: E402
 from ingestor.ingestion_worker.sealed_release_ingestion import (  # noqa: E402
+    IngestionReport,
     SealedReleaseIngestionError,
 )
 
@@ -106,3 +107,98 @@ def test_worker_a_accepts_a_for_ingestion_only_with_exact_signed_inputs(tmp_path
         "unique_chunks": 3975,
     }
     assert content.activation_allowed is False
+
+
+def _cli_args(receipt: Path, digest: str) -> list[str]:
+    return [
+        "--release-dir", str(RELEASE / "profile_gate"),
+        "--release-manifest-sha256", "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78",
+        "--artifacts-release-sha256", "8901ef32245dd9301eda3debc29cb1974341761a73a72dd3f2ec134e00b274ce",
+        "--candidate-inventory-sha256", "b35bfcd3ce97daf025cb78455191fff2a639468f144495d96fb1ccef0be85f91",
+        "--artifact-transfer-manifest-path", str(receipt),
+        "--artifact-transfer-manifest-sha256", digest,
+        "--artifact-store-dir", str(RELEASE),
+        "--profiles-dir", str(RELEASE / "profile_gate/profiles"),
+        "--owner", "operateur",
+        "--expected-role", "ingestion_control_app",
+        "--scope-authorization", "rag_nexus_maths_premiere_gen_specialite=lot41a-test",
+        "--public-successor-content-anchor-path", str(ANCHOR),
+        "--public-successor-preissuance-receipt-path", str(receipt),
+        "--public-successor-preissuance-receipt-sha256", digest,
+    ]
+
+
+@pytest.mark.parametrize("sabotage", ["wrong_phase", "changed_receipt", "missing_anchor"])
+def test_worker_a_cli_refuses_bad_authority_before_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sabotage: str,
+) -> None:
+    receipt, digest = _receipt(tmp_path)
+    monkeypatch.setattr(cli, "enforce_staging_readiness_gate", lambda: SimpleNamespace(
+        environment="rehearsal",
+        manifest=_readiness(
+            digest, phase="PUBLICATION" if sabotage == "wrong_phase" else "INGESTION"
+        ).manifest,
+    ))
+    monkeypatch.setattr(cli, "require_running_image_matches_manifest", lambda _: "image@sha256:" + "a" * 64)
+    monkeypatch.setattr(cli, "require_control_dsn_differs_from_product", lambda **_: None)
+    monkeypatch.setattr(cli, "get_ingestion_control_dsn", lambda: "postgresql://isolated")
+    monkeypatch.setattr(
+        cli.psycopg, "connect",
+        lambda *_: pytest.fail("bad phase reached the database"),
+    )
+    args = _cli_args(receipt, "a" * 64 if sabotage == "changed_receipt" else digest)
+    if sabotage == "missing_anchor":
+        offset = args.index("--public-successor-content-anchor-path")
+        del args[offset:offset + 2]
+    assert cli.main(args) == 1
+
+
+def test_worker_a_cli_synthetic_ingestion_stops_at_needs_review(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    receipt, digest = _receipt(tmp_path)
+    readiness = SimpleNamespace(
+        environment="rehearsal", manifest=_readiness(digest).manifest,
+        manifest_sha256="f" * 64,
+    )
+    readiness.manifest.key_id = "test-staging-key"
+    monkeypatch.setattr(cli, "enforce_staging_readiness_gate", lambda: readiness)
+    monkeypatch.setattr(cli, "verify_content_currentness", lambda *_: None)
+    monkeypatch.setattr(cli, "require_running_image_matches_manifest", lambda _: "image@sha256:" + "a" * 64)
+    monkeypatch.setattr(cli, "require_control_dsn_differs_from_product", lambda **_: None)
+    monkeypatch.setattr(cli, "get_ingestion_control_dsn", lambda: "postgresql://isolated")
+    monkeypatch.setattr(cli, "load_profile_registry", lambda *_: {})
+    facts = SimpleNamespace(
+        release_id=readiness.manifest.allowed_release_id,
+        release_manifest_sha256=readiness.manifest.allowed_release_manifest_sha256,
+        collections=("rag_nexus_maths_premiere_gen_specialite",),
+        artifact_ids=frozenset({"a"}), placements=("p",), unique_chunk_count=1,
+    )
+    monkeypatch.setattr(cli, "load_sealed_release", lambda *_a, **_k: facts)
+    monkeypatch.setattr(cli, "attest_runtime_role", lambda *_a, **_k: SimpleNamespace(current_user="ingestion_control_app"))
+    seen: list[object] = []
+
+    def ingest(*_args: object, **kwargs: object) -> IngestionReport:
+        seen.append(kwargs["public_successor_ingestion_content"])
+        return IngestionReport(release_id=facts.release_id)
+
+    monkeypatch.setattr(cli, "ingest_sealed_release", ingest)
+
+    class _Connection:
+        def __enter__(self) -> _Connection:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def commit(self) -> None:
+            return None
+
+    monkeypatch.setattr(cli.psycopg, "connect", lambda *_: _Connection())
+    report = tmp_path / "report.json"
+    assert cli.main([*_cli_args(receipt, digest), "--report-path", str(report)]) == 0
+    assert len(seen) == 1
+    assert seen[0].activation_allowed is False  # type: ignore[attr-defined]
+    payload = json.loads(report.read_bytes())
+    assert payload["terminal_state"] == "NEEDS_REVIEW"
+    assert payload["published_rows"] == payload["attestations"] == 0

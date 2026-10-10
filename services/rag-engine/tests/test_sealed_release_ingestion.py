@@ -70,6 +70,32 @@ def test_public_candidate_release_is_refused_before_authorization_or_write(
         )
 
 
+def test_direct_worker_a_cannot_write_candidate_with_bare_content_verdict(
+    synthetic: dict[str, Any], monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    facts = replace(
+        _load_synthetic(synthetic), release_mode="candidate",
+        promotion_status="NOT_PROMOTABLE", review_status="PRE_REVIEW",
+        activation_status="NO_PRODUCTION_ACTIVATION",
+    )
+    monkeypatch.setattr(sri, "require_artifact_store_is_complete", lambda *_: {})
+    monkeypatch.setattr(sri, "resolve_scopes", lambda *_: {})
+    monkeypatch.setattr(
+        sri, "require_scope_authorizations",
+        lambda *_a, **_k: pytest.fail("bare content reached LOT41A/database"),
+    )
+    with pytest.raises(sri.SealedReleaseIngestionError, match="signed INGESTION"):
+        sri.ingest_sealed_release(
+            None,  # type: ignore[arg-type]
+            facts=facts, artifact_store_dir=synthetic["store"],
+            profile_registry={},  # type: ignore[arg-type]
+            scope_authorization_ids={}, owner="test",
+            public_successor_ingestion_content=SimpleNamespace(
+                content_manifest_sha256=facts.release_manifest_sha256,
+            ),  # type: ignore[arg-type]
+        )
+
+
 def test_internal_rehearsal_remains_eligible_for_existing_authority_checks(
     synthetic: dict[str, Any]
 ) -> None:
