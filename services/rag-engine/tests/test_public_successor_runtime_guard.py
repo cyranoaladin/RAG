@@ -272,6 +272,21 @@ def test_signed_c_cache_lifetime_is_bounded(
     assert len(calls) == 2
 
 
+def test_signed_c_cache_monotonic_ttl_replays_after_wall_clock_stalls(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(monkeypatch, _VerifiedC())
+    monotonic_seconds = [100.0]
+    monkeypatch.setattr(endpoint.time, "monotonic", lambda: monotonic_seconds[0])
+    endpoint._verify_public_successor_candidate(registry)
+    monotonic_seconds[0] = 103.0
+    endpoint._verify_public_successor_candidate(registry)
+    assert len(calls) == 2
+
+
 def test_signed_c_cache_refuses_symlink_added_after_valid_replay(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

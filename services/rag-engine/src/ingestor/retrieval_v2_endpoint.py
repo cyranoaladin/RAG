@@ -605,7 +605,7 @@ _ALLOWED_NEXUS_ENVIRONMENTS = frozenset({"production", "rehearsal"})
 _PUBLIC_READINESS_ANCHOR = Path(__file__).resolve().parent / "production-readiness-v1.json"
 _PUBLIC_C_CACHE_MAX_AGE = timedelta(seconds=2)
 _public_c_cache_lock = threading.Lock()
-_public_c_cache: tuple[tuple[str, ...], datetime, Any] | None = None
+_public_c_cache: tuple[tuple[str, ...], datetime, float, Any] | None = None
 
 
 def _public_bundle_identity(root: Path) -> str:
@@ -667,8 +667,12 @@ def _cached_public_successor_verdict(
     with _public_c_cache_lock:
         now = datetime.now(UTC)
         if _public_c_cache is not None:
-            cached_key, valid_until, cached_verdict = _public_c_cache
-            if cached_key == full_key and now < valid_until:
+            cached_key, expires_at, monotonic_until, cached_verdict = _public_c_cache
+            if (
+                cached_key == full_key
+                and now < expires_at
+                and time.monotonic() < monotonic_until
+            ):
                 return cached_verdict
         verdict = verify()
         expires = getattr(verdict, "expires_at_utc", None)
@@ -686,7 +690,8 @@ def _cached_public_successor_verdict(
             raise RuntimeError("public successor C validity expired during replay")
         _public_c_cache = (
             full_key,
-            min(replay_completed_at + _PUBLIC_C_CACHE_MAX_AGE, expires),
+            expires,
+            time.monotonic() + max(0.0, _PUBLIC_C_CACHE_MAX_AGE.total_seconds()),
             verdict,
         )
         return verdict
