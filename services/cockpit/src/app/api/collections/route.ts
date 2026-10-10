@@ -21,6 +21,7 @@ function fallback() {
     totalCollections: 0,
     readyCollections: 0,
     blockers: ['validation de lancement indisponible'],
+    multiCollectionAllowed: false,
   }
 }
 
@@ -91,6 +92,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       items: items.filter((item) => allowedCollections.has(item.name)),
       live: true,
+      multiCollectionAllowed: authContext.identity.role !== 'student',
       ...readiness,
     })
   } catch {

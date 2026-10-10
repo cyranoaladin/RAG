@@ -14,7 +14,7 @@ const request = new Request('http://cockpit.test/api/collections')
 const authContext = {
   identityToken: 'signed-identity-token',
   allowedCollections: ['pilot-collection'],
-  identity: { sub: 'psn_1234567890abcdef' },
+  identity: { sub: 'psn_1234567890abcdef', role: 'student' },
 } as never
 
 describe('GET /api/collections', () => {
@@ -61,12 +61,31 @@ describe('GET /api/collections', () => {
     const response = await GET(request)
 
     expect(response.status).toBe(200)
+    expect((await response.json()).multiCollectionAllowed).toBe(false)
     expect(mockedFetchEngine).toHaveBeenNthCalledWith(1, '/collections/v2', {
       identityToken: 'signed-identity-token',
     })
     expect(mockedFetchEngine).toHaveBeenNthCalledWith(2, '/collections/readiness', {
       identityToken: 'signed-identity-token',
     })
+  })
+
+  it('autorise le sélecteur multiple à partir du rôle enseignant signé', async () => {
+    mockedRequireBffAuth.mockResolvedValue({
+      identityToken: 'signed-identity-token',
+      allowedCollections: ['pilot-collection'],
+      identity: { sub: 'psn_1234567890abcdef', role: 'teacher' },
+    } as never)
+    mockedFetchEngine
+      .mockResolvedValueOnce({ status: 200, payload: { collections: [] } })
+      .mockResolvedValueOnce({ status: 200, payload: {
+        launch_ready: true, total_collections: 0, ready_collections: 0, blockers: [],
+      } })
+
+    const response = await GET(request)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).multiCollectionAllowed).toBe(true)
   })
 
   it('ne divulgue aucun catalogue statique lorsque le moteur est indisponible', async () => {

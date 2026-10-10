@@ -16,6 +16,7 @@ type SearchSectionProps = Readonly<{
   collections: RagCollection[]
   launchReady: boolean
   blockers: string[]
+  multiCollectionAllowed?: boolean
 }>
 
 function sourceHost(sourceUri: string): string {
@@ -30,15 +31,19 @@ export default function SearchSection({
   collections,
   launchReady,
   blockers,
+  multiCollectionAllowed = false,
 }: SearchSectionProps) {
   const [query, setQuery] = useState('')
-  const [selectedCollection, setSelectedCollection] = useState('')
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([])
   const [results, setResults] = useState<RetrievalResult[]>([])
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canSubmit = launchReady && Boolean(query.trim()) && Boolean(selectedCollection) && !loading
+  const collectionsToSearch = multiCollectionAllowed
+    ? selectedCollections
+    : selectedCollections.slice(0, 1)
+  const canSubmit = launchReady && Boolean(query.trim()) && collectionsToSearch.length > 0 && !loading
 
   async function runRetrieval() {
     if (!canSubmit) return
@@ -46,7 +51,7 @@ export default function SearchSection({
     setSearched(true)
     setError(null)
     try {
-      const response = await search(query, [selectedCollection], 8)
+      const response = await search(query, collectionsToSearch, 8)
       setResults(response.items)
     } catch {
       setResults([])
@@ -62,7 +67,7 @@ export default function SearchSection({
         <CardHeader>
           <CardTitle className="text-base">Recherche pédagogique avec passages cités</CardTitle>
           <p className="text-sm text-slate-500">
-            Sélectionnez une collection pour retrouver des passages validés et leurs sources.
+            Sélectionnez {multiCollectionAllowed ? 'une ou plusieurs collections' : 'une collection'} pour retrouver des passages validés et leurs sources.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -83,17 +88,21 @@ export default function SearchSection({
             disabled={!launchReady}
           />
           <label className="block text-sm font-medium text-slate-700" htmlFor="collection-picker">
-            Collection à interroger
+            {multiCollectionAllowed ? 'Collections à interroger' : 'Collection à interroger'}
           </label>
           <select
             id="collection-picker"
-            aria-label="Collection à interroger"
-            className="h-10 w-full rounded-md border border-slate-200 bg-white p-2 text-sm"
-            value={selectedCollection}
+            multiple={multiCollectionAllowed}
+            aria-label={multiCollectionAllowed ? 'Collections à interroger' : 'Collection à interroger'}
+            className={`${multiCollectionAllowed ? 'min-h-40' : 'h-10'} w-full rounded-md border border-slate-200 bg-white p-2 text-sm`}
+            value={multiCollectionAllowed ? selectedCollections : selectedCollections[0] ?? ''}
             disabled={!launchReady}
-            onChange={(event) => setSelectedCollection(event.currentTarget.value)}
+            onChange={(event) => setSelectedCollections(multiCollectionAllowed
+              ? Array.from(event.currentTarget.selectedOptions, (option) => option.value)
+              : event.currentTarget.value ? [event.currentTarget.value] : [],
+            )}
           >
-            <option value="">Choisissez une collection</option>
+            {!multiCollectionAllowed && <option value="">Choisissez une collection</option>}
             {collections.map((collection) => (
               <option key={collection.name} value={collection.name}>
                 {[collection.matiere, collection.niveau, collection.statut]
@@ -102,6 +111,9 @@ export default function SearchSection({
               </option>
             ))}
           </select>
+          {multiCollectionAllowed && (
+            <p className="text-xs text-slate-500">Utilisez Ctrl/Cmd pour sélectionner plusieurs collections.</p>
+          )}
           <div className="flex flex-wrap gap-2">
             <Button onClick={runRetrieval} disabled={!canSubmit} className="bg-blue-700 hover:bg-blue-800">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}

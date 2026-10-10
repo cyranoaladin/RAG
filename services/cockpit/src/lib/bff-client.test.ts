@@ -173,7 +173,7 @@ describe('frontière BFF du cockpit', () => {
       .mockResolvedValueOnce(new Response('{"status":"ok"}', { status: 200 }))
       .mockResolvedValueOnce(Response.json({
         items: [], live: true, launchReady: true,
-        totalCollections: 11, readyCollections: 11, blockers: [],
+        totalCollections: 11, readyCollections: 11, blockers: [], multiCollectionAllowed: false,
       }))
     vi.stubGlobal('fetch', fetchMock)
 

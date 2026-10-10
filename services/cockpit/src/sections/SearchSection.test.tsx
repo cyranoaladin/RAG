@@ -75,6 +75,38 @@ describe('SearchSection', () => {
     expect(screen.queryByRole('button', { name: 'Répondre avec sources' })).toBeNull()
   })
 
+  it('conserve la recherche multi-collections pour un rôle non étudiant vérifié par le BFF', async () => {
+    const teacherCollections = [
+      collections[0],
+      { ...collections[0], name: 'rag_nexus_ses_terminale_specialite', matiere: 'ses' },
+    ]
+    searchMock.mockResolvedValue({ demo: false, items: [] })
+    render(
+      <SearchSection
+        collections={teacherCollections}
+        launchReady
+        blockers={[]}
+        multiCollectionAllowed
+      />,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('Ex. : parcours de graphes, loi binomiale, convexité…'), {
+      target: { value: 'notions communes' },
+    })
+    const picker = screen.getByLabelText('Collections à interroger') as HTMLSelectElement
+    expect(picker.multiple).toBe(true)
+    picker.options[0].selected = true
+    picker.options[1].selected = true
+    fireEvent.change(picker)
+    fireEvent.click(screen.getByRole('button', { name: 'Rechercher les sources' }))
+
+    await waitFor(() => expect(searchMock).toHaveBeenCalledWith(
+      'notions communes',
+      teacherCollections.map((collection) => collection.name),
+      8,
+    ))
+  })
+
   it('affiche l’attribution complète des passages textuels dérivés', async () => {
     searchMock.mockResolvedValue({
       demo: false,
