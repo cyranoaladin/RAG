@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -135,3 +137,20 @@ def test_meme_artefact_duplique_dans_une_collection_est_refuse(tmp_path: Path) -
     listed["candidate_inventory_sha256"] = sha(canonical(document))
     with pytest.raises(TransferRefused):
         plan_text_transfer(canonical(document), canonical(listed), source)
+
+
+def test_cli_horodate_l_observation_lui_meme(tmp_path: Path) -> None:
+    inventory, allowlist, source, destination, _ = fixture(tmp_path)
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_bytes(canonical(plan_text_transfer(inventory, allowlist, source)))
+    receipt_path = tmp_path / "receipt.json"
+    before = datetime.now(UTC)
+    result = subprocess.run([
+        sys.executable, str(Path(__file__).resolve().parents[1] / "go_live" / "public_text_transfer.py"),
+        "--observe", "--manifest", str(manifest_path), "--destination-root", str(destination),
+        "--target-identity", "staging-final-isole", "--output", str(receipt_path),
+    ], capture_output=True, text=True, check=False)
+    after = datetime.now(UTC)
+    assert result.returncode == 0, result.stderr
+    observed = datetime.fromisoformat(json.loads(receipt_path.read_bytes())["observed_at_utc"])
+    assert before <= observed <= after

@@ -12,7 +12,7 @@ import argparse
 import hashlib
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -259,7 +259,6 @@ def main() -> int:
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--destination-root", type=Path)
     parser.add_argument("--target-identity")
-    parser.add_argument("--observed-at-utc")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
@@ -270,11 +269,11 @@ def main() -> int:
                                         args.source_root)
             args.output.write_bytes(canonical(result))
         elif args.observe:
-            if not all((args.manifest, args.destination_root, args.target_identity,
-                        args.observed_at_utc, args.output)):
-                parser.error("--observe exige manifeste, destination, identité, heure et sortie")
+            if not all((args.manifest, args.destination_root, args.target_identity, args.output)):
+                parser.error("--observe exige manifeste, destination, identité et sortie")
+            observed_at_utc = datetime.now(UTC).isoformat().replace("+00:00", "Z")
             result = observe_destination(args.manifest.read_bytes(), args.destination_root,
-                                         args.target_identity, args.observed_at_utc)
+                                         args.target_identity, observed_at_utc)
             args.output.write_bytes(canonical(result))
         else:
             if not all((args.manifest, args.receipt, args.destination_root, args.target_identity)):
