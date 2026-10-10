@@ -94,6 +94,11 @@
 !packages/release-chain/
 !packages/release-chain/**
 
+# Runtime validation of the signed production readiness manifest.
+!governance/
+!governance/trust-anchors/
+!governance/trust-anchors/production-readiness-v1.json
+
 # Required for the UI image dependency smoke.
 !scripts/
 !scripts/e2e/
