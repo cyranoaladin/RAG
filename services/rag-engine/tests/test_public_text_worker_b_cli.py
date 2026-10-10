@@ -1,0 +1,173 @@
+"""Le Worker B public ne réclame aucun job sous une autorité C absente."""
+
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+from nexus_contracts.staging_readiness import STAGING_READINESS_PROTOCOL
+
+from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
+
+SHA = "a" * 64
+
+
+def _public_args() -> list[str]:
+    return [
+        "--public-successor-bundle-root", "/bundle",
+        "--artifact-store-dir", "/artifacts",
+        "--owner", "worker-b-public",
+        "--expected-role", "ingestion_control_app",
+        "--embedding-artifact-root", "/models/e5",
+        "--embedding-inventory-sha256", SHA,
+        "--collection", "rag_nexus_dgemc_terminale_option",
+        "--once",
+    ]
+
+
+def test_public_worker_refuses_missing_C_before_any_database_connection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    monkeypatch.setenv("NEXUS_EXPECTED_READINESS_PROTOCOL", STAGING_READINESS_PROTOCOL)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", SHA)
+    monkeypatch.setenv("NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256", SHA)
+    monkeypatch.setattr(
+        public_cli, "enforce_staging_readiness_gate",
+        lambda: SimpleNamespace(
+            environment="rehearsal",
+            manifest=SimpleNamespace(
+                public_successor_phase="PUBLICATION",
+                public_successor_content_anchor_digest=SHA,
+                public_successor_phase_authority_digest=SHA,
+                allowed_release_id="student-public-successor-test",
+                allowed_release_manifest_sha256=SHA,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        public_cli, "verify_public_successor_activation",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("C unavailable")),
+    )
+    opened: list[object] = []
+    monkeypatch.setattr(cli.psycopg, "connect", lambda *_args, **_kwargs: opened.append(1))
+
+    assert cli.main(_public_args()) == 1
+    assert opened == []
+
+
+def test_public_loop_rechecks_authority_before_lease_reap() -> None:
+    class Connection:
+        def commit(self) -> None:
+            raise AssertionError("no transaction may start after C expired")
+
+    with pytest.raises(RuntimeError, match="expired C"):
+        cli._run_worker_loop(
+            Connection(),
+            deps=SimpleNamespace(claim_release_id="public", claim_release_manifest_sha256=SHA),
+            args=SimpleNamespace(min_job_interval_s=0.0),
+            max_iterations=1,
+            pre_iteration=lambda: (_ for _ in ()).throw(RuntimeError("expired C")),
+        )
+
+
+def test_production_public_readiness_derives_release_id_from_pinned_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pathlib import Path
+
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    monkeypatch.delenv("NEXUS_EXPECTED_READINESS_PROTOCOL", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", SHA)
+    monkeypatch.setattr(
+        public_cli, "enforce_readiness_gate",
+        lambda: SimpleNamespace(
+            environment="production",
+            manifest=SimpleNamespace(
+                sealed_manifest_digest=SHA,
+                public_successor_content_manifest_digest=SHA,
+                public_successor_content_anchor_digest=SHA,
+                public_successor_authority_envelope_digest=SHA,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        public_cli,
+        "load_release_registry_file",
+        lambda *_args: SimpleNamespace(
+            manifests=[
+                SimpleNamespace(
+                    expected_sha256=SHA,
+                    expectation=SimpleNamespace(release_id="student-public-successor-test"),
+                )
+            ]
+        ),
+    )
+
+    signed = public_cli._signed_publication(Path("/bundle"))
+
+    assert signed.environment == "production"
+    assert signed.release_id == "student-public-successor-test"
+
+
+def test_lot42_live_preflight_rejects_missing_attestation_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from uuid import UUID
+
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    resource = UUID(int=1)
+    fake_facts = SimpleNamespace(
+        release_manifest_sha256=SHA,
+        candidate_inventory_sha256=SHA,
+        artifact_transfer_manifest_sha256=SHA,
+        subjects=1,
+        placements=1,
+        unique_artifacts=1,
+        unique_chunks=1,
+        collections=("public_collection",),
+        par_ressource={resource: (UUID(int=2), "b" * 64, "public_collection", "scope")},
+    )
+    monkeypatch.setattr(public_cli, "measure_release_batch_facts", lambda *_a, **_k: fake_facts)
+    monkeypatch.setattr(public_cli, "require_facts_match_catalog", lambda *_a: None)
+
+    class Connection:
+        def cursor(self):
+            class Cursor:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_args):
+                    return None
+
+                def execute(self, *_args):
+                    return None
+
+                def fetchall(self):
+                    return []
+
+            return Cursor()
+
+        def commit(self):
+            raise AssertionError("preflight failure must not commit")
+
+    with pytest.raises(ValueError, match="coverage incomplete"):
+        public_cli.require_public_lot42_db(
+            Connection(),
+            activation=SimpleNamespace(
+                release_id="public-release",
+                content_manifest_sha256=SHA,
+                counts={"subjects": 1, "placements": 1, "unique_artifacts": 1, "unique_chunks": 1},
+            ),
+            authorities=SimpleNamespace(
+                sealed_release_catalog=object(),
+                placement_resolver=SimpleNamespace(
+                    _candidate_inventory_sha256=SHA,
+                    collections=frozenset({"public_collection"}),
+                ),
+            ),
+            transfer_sha256=SHA,
+        )
