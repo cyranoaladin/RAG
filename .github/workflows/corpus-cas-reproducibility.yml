@@ -49,7 +49,10 @@ name: Corpus CAS reproducibility (C1)
       - "scripts/go_live/staging_hggsp_complementary.py"
       # La garde des droits étudiants décide si le nouveau registre public
       # peut être matérialisé ; son évolution change le périmètre servable.
-      - "scripts/go_live/public_rights_release_guard.py"
+      # Les outils de go-live lient désormais aussi les registres candidats
+      # aux HEAD approuvés et aux inventaires ; couvrir le répertoire entier
+      # évite qu'un nouveau producteur échappe au rejeu C1 après fusion.
+      - "scripts/go_live/**"
       # Le plan de contrôle produit et rescelle les registres et leurs
       # autorités : sa gouvernance et ses scripts décident de ce qui devient
       # servable.

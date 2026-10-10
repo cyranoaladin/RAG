@@ -73,6 +73,13 @@ from ingestor.ingestion_control.scope_authority import (
 from ingestor.ingestion_control.sealed_release_catalog import TEXT_MEDIA_TYPE
 from ingestor.ingestion_control.transitions import cas_transition
 from ingestor.ingestion_profiles.registry import ProfileRegistry
+from ingestor.multilevel_evidence import (
+    INVENTORY_KIND,
+    STUDENT_PUBLIC_INVENTORY_KIND,
+    MultilevelEvidenceError,
+    StudentPublicCandidateInventory,
+    load_student_public_candidate_inventory,
+)
 
 #: Le protocole sous lequel ces lignes sont écrites (ADR-0056). Il figure
 #: dans chaque ``payload`` : une ligne dit d'elle-même sous quel régime elle
@@ -336,13 +343,44 @@ def load_sealed_release(
     }
     artifact_media_types = _artifact_media_types(artifacts)
 
-    inventory_raw = _read_with_digest(
-        release_dir / "candidate_inventory.json",
-        candidate_inventory_sha256,
+    inventory_kind = json.loads(_read_with_digest(
+        release_dir / "candidate_inventory.json", candidate_inventory_sha256,
         "inventaire de candidats",
+    )).get("inventory_kind")
+    only_media_type = next(iter(artifact_media_types.values()))
+    if only_media_type == TEXT_MIME:
+        _require(
+            inventory_kind == STUDENT_PUBLIC_INVENTORY_KIND,
+            "text inventory kind must be student public derivative inventory",
+        )
+    else:
+        _require(
+            inventory_kind == INVENTORY_KIND,
+            "PDF inventory kind must be historical V1",
+        )
+    if manifest.get("release_mode") == "public_successor":
+        _require(only_media_type == TEXT_MIME, "public successor requires text artifacts")
+    discovery = _load_candidate_discovery(
+        release_dir / "candidate_inventory.json", expected_sha256=candidate_inventory_sha256,
     )
-    inventory = json.loads(inventory_raw.decode("utf-8"))
-    discovery = _index_inventory_placements(inventory)
+    if inventory_kind == STUDENT_PUBLIC_INVENTORY_KIND:
+        try:
+            text_inventory = load_student_public_candidate_inventory(
+                release_dir / "candidate_inventory.json",
+                expected_sha256=candidate_inventory_sha256,
+            )
+        except MultilevelEvidenceError as exc:
+            raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
+        _require_student_public_inventory_binding(
+            text_inventory, manifest=manifest,
+            artifact_registry_sha256=artifacts_release_sha256,
+            release_dir=release_dir,
+            artifacts=artifacts,
+        )
+    if manifest.get("release_mode") == "public_successor":
+        raise SealedReleaseIngestionError(
+            "public successor external authority gate unavailable before Worker A writes"
+        )
 
     transfer_raw = _read_with_digest(
         artifact_transfer_manifest_path,
@@ -397,9 +435,7 @@ def load_sealed_release(
         transferred_artifact_ids=frozenset(transferred),
         placements=tuple(placements),
         release_mode=manifest.get("release_mode"),
-        public_successor_release=(
-            "public_profile_registry_sha256" in authorities
-        ),
+        public_successor_release=manifest.get("release_mode") == "public_successor",
         promotion_status=manifest.get("promotion_status"),
         review_status=manifest.get("review_status"),
         activation_status=manifest.get("activation_status"),
@@ -508,6 +544,146 @@ def _index_inventory_placements(
     return index
 
 
+def _load_candidate_discovery(
+    path: Path, *, expected_sha256: str
+) -> Mapping[tuple[str, str], Mapping[str, Any]]:
+    """Préserver V1 ; pour les textes, exiger le lecteur canonique dédié."""
+    raw = _read_with_digest(path, expected_sha256, "inventaire de candidats")
+    document = json.loads(raw.decode("utf-8"))
+    kind = document.get("inventory_kind")
+    if kind == INVENTORY_KIND:
+        return _index_inventory_placements(document)
+    if kind != STUDENT_PUBLIC_INVENTORY_KIND:
+        raise SealedReleaseIngestionError(f"inventory kind inconnu: {kind!r}")
+    try:
+        inventory = load_student_public_candidate_inventory(
+            path, expected_sha256=expected_sha256,
+        )
+    except MultilevelEvidenceError as exc:
+        raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
+    return {
+        (placement.content_sha256, placement.source_placement_id): {
+            "collection": placement.collection,
+            "source_url": placement.source_url,
+            "title": placement.title,
+            "external_document_type": placement.external_document_type,
+        }
+        for placement in inventory.placements
+    }
+
+
+def _require_student_public_inventory_binding(
+    inventory: StudentPublicCandidateInventory, *, manifest: Mapping[str, Any],
+    artifact_registry_sha256: str, release_dir: Path,
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Lier le texte au paquet préparatoire exact, sans cycle avec le final."""
+    _require(
+        inventory.release_id == manifest.get("release_id"),
+        "student public inventory release_id differs",
+    )
+    _require(
+        inventory.artifact_registry_sha256 == artifact_registry_sha256,
+        "student public inventory artifact registry differs",
+    )
+    authorities = manifest.get("authorities")
+    if not isinstance(authorities, Mapping):
+        raise SealedReleaseIngestionError("public successor authorities absent")
+    _require(
+        manifest.get("release_mode") == "public_successor",
+        "student public inventory requires final public_successor release",
+    )
+    preparation_sha = authorities.get("source_preparation_release_manifest_sha256")
+    index_sha = authorities.get("source_preparation_index_sha256")
+    if not isinstance(preparation_sha, str) or _SHA256.fullmatch(preparation_sha) is None:
+        raise SealedReleaseIngestionError(
+            "source preparation release manifest authority absent"
+        )
+    if not isinstance(index_sha, str) or _SHA256.fullmatch(index_sha) is None:
+        raise SealedReleaseIngestionError("source preparation index authority absent")
+    sidecar = release_dir / "source_preparation"
+    preparation = json.loads(_read_with_digest(
+        sidecar / "production-profile-gate.release.json", preparation_sha,
+        "source preparation release manifest",
+    ))
+    index = json.loads(_read_with_digest(
+        sidecar / "preparation-index.json", index_sha,
+        "source preparation index",
+    ))
+    source_inventory_sha = index.get("candidate_inventory_sha256")
+    _require(
+        isinstance(source_inventory_sha, str)
+        and _SHA256.fullmatch(source_inventory_sha) is not None,
+        "source preparation inventory authority absent",
+    )
+    try:
+        source_inventory = load_student_public_candidate_inventory(
+            sidecar / "candidate_inventory.json", expected_sha256=source_inventory_sha,
+        )
+    except MultilevelEvidenceError as exc:
+        raise SealedReleaseIngestionError(
+            f"source preparation inventory refused: {exc}"
+        ) from exc
+    preparation_authorities = preparation.get("authorities", {})
+    preparation_registry = preparation.get("artifact_registry", {})
+    _require(
+        index.get("kind") == "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V2"
+        and index.get("status") == "PREPARATION_ONLY_NOT_ACTIVABLE"
+        and index.get("transfer_status") == "NOT_TRANSFERRED"
+        and index.get("release_id") == preparation.get("release_id")
+        and index.get("release_manifest_sha256") == preparation_sha
+        and index.get("artifact_registry_sha256") == preparation_registry.get("sha256")
+        and index.get("source_candidate_manifest_sha256")
+            == authorities.get("source_candidate_release_manifest_sha256")
+        and preparation.get("release_mode") == "candidate"
+        and preparation.get("promotion_status") == "NOT_PROMOTABLE"
+        and preparation.get("activation_status") == "NO_PRODUCTION_ACTIVATION"
+        and preparation.get("review_status") == "PRE_REVIEW"
+        and source_inventory.release_id == preparation.get("release_id")
+        and source_inventory.release_manifest_sha256 == preparation_sha
+        and source_inventory.artifact_registry_sha256 == preparation_registry.get("sha256")
+        and source_inventory.candidate_manifest_sha256
+            == preparation_authorities.get("candidate_manifest_sha256"),
+        "source preparation authority chain differs",
+    )
+    _require(
+        inventory.release_manifest_sha256 == preparation_sha,
+        "student public inventory source preparation manifest differs",
+    )
+    _require(
+        inventory.candidate_manifest_sha256 == source_inventory.candidate_manifest_sha256,
+        "student public inventory candidate manifest differs",
+    )
+    _require(
+        inventory.source_candidate_inventory_sha256
+        == source_inventory.source_candidate_inventory_sha256,
+        "student public inventory source inventory differs",
+    )
+    _require(
+        set(inventory.placements) <= set(source_inventory.placements),
+        "student public inventory collection or placement differs from preparation",
+    )
+    _require(
+        set(inventory.derivative_identities) == inventory.unique_content_sha256
+        and set(artifacts) == inventory.unique_content_sha256,
+        "student public derivative or artifact registry population differs",
+    )
+    for derivative_sha, (source_sha, receipt_sha) in inventory.derivative_identities.items():
+        prepared = source_inventory.derivative_identities.get(derivative_sha)
+        artifact = artifacts[derivative_sha]
+        _require(
+            prepared is not None and prepared[0] == source_sha
+            and artifact.get("content_sha256") == derivative_sha
+            and artifact.get("source_pdf_sha256") == source_sha,
+            f"student public source PDF identity differs: {derivative_sha}",
+        )
+        _require(
+            prepared[1] == receipt_sha
+            and artifact.get("derivative_receipt_sha256") == receipt_sha,
+            f"student public derivative receipt identity differs: {derivative_sha}",
+        )
+
+
 def _transferred_artifact_files(
     transfer: Mapping[str, Any], artifact_media_types: Mapping[str, str]
 ) -> dict[str, str]:
@@ -580,6 +756,11 @@ def _placements_of_subject(
             f"{key!r} — aucune provenance n'est inventée",
         )
         inventory_placement = discovery[key]
+        _require(
+            "collection" not in inventory_placement
+            or inventory_placement["collection"] == collection,
+            f"{collection} : inventory placement collection differs",
+        )
         artifact = artifacts[artifact_id]
         discovery_url = str(inventory_placement["source_url"])
         provenance_url = str(artifact["source_url"])
@@ -810,6 +991,10 @@ def require_public_release_activation(
     l'autorisation de scope nommée et vérifiée ensuite. Les anciennes releases
     internes restent sous leur protocole historique.
     """
+    if facts.release_mode == "public_successor":
+        raise SealedReleaseIngestionError(
+            "public successor external authority gate unavailable before Worker A writes"
+        )
     if not facts.public_successor_release and facts.release_mode != "candidate":
         return
     if not any(
