@@ -39,6 +39,7 @@ class PublicSuccessorContentVerdict:
     content_anchor_sha256: str
     content_manifest_sha256: str
     preparation_index_sha256: str
+    candidate_inventory_sha256: str
     currentness_registry_sha256: str
     artifact_registry_sha256: str
     release_registry_sha256: str
@@ -215,6 +216,7 @@ def verify_content_anchor(
         content_anchor_sha256=expected_anchor_sha256,
         content_manifest_sha256=anchor["content_manifest_sha256"],
         preparation_index_sha256=anchor["preparation_index_sha256"],
+        candidate_inventory_sha256=anchor["candidate_inventory_sha256"],
         currentness_registry_sha256=anchor["preparation_sidecars"][
             "public_currentness_registry.json"
         ],

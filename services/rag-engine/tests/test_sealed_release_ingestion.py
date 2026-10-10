@@ -31,6 +31,10 @@ REPO_ROOT = ENGINE_ROOT.parents[1]
 sys.path.insert(0, str(ENGINE_ROOT / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from nexus_release_chain.public_successor_activation import (  # noqa: E402
+    verify_content_anchor,
+)
+
 from ingestor.ingestion_control import provisioning  # noqa: E402
 from ingestor.ingestion_profiles.registry import load_profile_registry  # noqa: E402
 from ingestor.ingestion_worker import sealed_release_ingestion as sri  # noqa: E402
@@ -91,6 +95,58 @@ def test_candidate_release_mode_is_refused_even_without_successor_authority(
     path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     with pytest.raises(sri.SealedReleaseIngestionError, match="public candidate"):
         _load_synthetic(synthetic)
+
+
+def test_real_public_content_a_can_be_read_only_with_its_exact_anchor(
+    tmp_path: Path,
+) -> None:
+    release_root = (
+        REPO_ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027"
+        / "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
+    )
+    anchor_path = (
+        REPO_ROOT / "docs/reports/go_live"
+        / "student_public_successor_content_anchor_20261010.json"
+    )
+    content = verify_content_anchor(
+        anchor_path,
+        "159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0",
+        release_root,
+    )
+    registry = json.loads((release_root / "profile_gate/artifacts.release.json").read_bytes())
+    transfer = {
+        "release_id": content.release_id,
+        "digest_missing": 0,
+        "digest_mismatches": 0,
+        "file_count": len(registry["artifacts"]),
+        "files": [{
+            "file": f"{row['content_sha256']}.txt",
+            "sha256_expected": row["content_sha256"],
+            "sha256_observed": row["content_sha256"],
+        } for row in registry["artifacts"]],
+    }
+    transfer_path = tmp_path / "transfer.json"
+    raw = json.dumps(transfer, sort_keys=True).encode()
+    transfer_path.write_bytes(raw)
+    kwargs = {
+        "release_manifest_sha256": content.content_manifest_sha256,
+        "artifacts_release_sha256": content.artifact_registry_sha256,
+        "candidate_inventory_sha256": hashlib.sha256(
+            (release_root / "profile_gate/candidate_inventory.json").read_bytes()
+        ).hexdigest(),
+        "artifact_transfer_manifest_path": transfer_path,
+        "artifact_transfer_manifest_sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    with pytest.raises(sri.SealedReleaseIngestionError, match="public candidate"):
+        sri.load_sealed_release(release_root / "profile_gate", **kwargs)
+    facts = sri.load_sealed_release(
+        release_root / "profile_gate", public_successor_content=content, **kwargs,
+    )
+    assert (len(facts.collections), len(facts.artifact_ids), len(facts.placements),
+            facts.unique_chunk_count) == (11, 253, 377, 3975)
+    assert facts.release_mode == "candidate"
+    with pytest.raises(sri.SealedReleaseIngestionError, match="public candidate"):
+        sri.require_public_release_activation(facts, {})
 
 REAL_RELEASE_DIR = (
     REPO_ROOT
