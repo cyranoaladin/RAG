@@ -12,11 +12,15 @@ import hashlib
 import importlib.util
 import re
 import socket
+import stat
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from public_text_transfer import (
+    ALLOWLIST_KIND,
+    INVENTORY_KIND,
+    TEXT_MIME,
     TransferRefused,
     _document,
     _manifest,
@@ -60,6 +64,7 @@ class QualifiedTransferVerdict:
     destination_realpath: str
     file_count: int
     expires_at_utc: datetime
+    publication_authority: bool = False
 
 
 def utc_now() -> datetime:
@@ -104,6 +109,116 @@ def _pin(raw: bytes, expected_sha256: str, expected_anchor_sha256: str,
     return pin
 
 
+def _destination_chain(root: Path) -> tuple[tuple[str, int, int], ...]:
+    """Refuser les symlinks de tous les parents et mémoriser leurs inodes."""
+    if not root.is_absolute() or ".." in root.parts:
+        raise TransferRefused("chemin de destination non absolu ou non normalisé")
+    walked = Path(root.anchor)
+    result = []
+    try:
+        for part in root.parts[1:]:
+            walked /= part
+            metadata = walked.lstat()
+            if not stat.S_ISDIR(metadata.st_mode):
+                raise TransferRefused("composant de destination symbolique ou non répertoire")
+            result.append((str(walked), metadata.st_dev, metadata.st_ino))
+    except OSError as error:
+        raise TransferRefused("composant de destination indisponible") from error
+    return tuple(result)
+
+
+def _require_still_valid(pin: dict[str, object]) -> None:
+    now = utc_now()
+    if now.tzinfo != UTC or now >= _utc(pin["expires_at_utc"], "expiration du pin"):
+        raise TransferRefused("pin expiré avant émission du verdict")
+
+
+def _verify_content_population(
+    plan: dict[str, object], *, candidate_inventory_raw: bytes,
+    expected_candidate_inventory_sha256: str, allowlist_raw: bytes,
+    expected_allowlist_sha256: str, expected_release_id: str,
+) -> None:
+    """Lier le plan à la population exacte de l'inventaire A vérifié par l'appelant."""
+    if (not _sha(expected_candidate_inventory_sha256)
+            or digest(candidate_inventory_raw) != expected_candidate_inventory_sha256
+            or plan["inventory_sha256"] != expected_candidate_inventory_sha256
+            or not _sha(expected_allowlist_sha256)
+            or digest(allowlist_raw) != expected_allowlist_sha256
+            or plan["allowlist_sha256"] != expected_allowlist_sha256):
+        raise TransferRefused("inventaire A ou allowlist attendus non liés au plan")
+    inventory = _document(candidate_inventory_raw, "inventaire A")
+    allowlist = _document(allowlist_raw, "allowlist A")
+    if (inventory.get("inventory_kind") != INVENTORY_KIND
+            or inventory.get("release_id") != expected_release_id
+            or plan["release_id"] != expected_release_id
+            or allowlist.get("kind") != ALLOWLIST_KIND
+            or allowlist.get("release_id") != expected_release_id
+            or allowlist.get("candidate_inventory_sha256")
+                != expected_candidate_inventory_sha256
+            or allowlist.get("transfer_status") != "NOT_TRANSFERRED"):
+        raise TransferRefused("identité de A/allowlist divergente")
+    collections = inventory.get("collections")
+    counts = inventory.get("counts")
+    if not isinstance(collections, list) or not collections or not isinstance(counts, dict):
+        raise TransferRefused("population A absente")
+    selected: dict[str, str] = {}
+    names: set[str] = set()
+    placement_count = 0
+    for collection in collections:
+        if not isinstance(collection, dict) or set(collection) != {"collection", "candidates"}:
+            raise TransferRefused("collection A malformée")
+        name, candidates = collection["collection"], collection["candidates"]
+        if (not isinstance(name, str) or not name or name in names
+                or not isinstance(candidates, list) or not candidates):
+            raise TransferRefused("collection A vide ou dupliquée")
+        names.add(name)
+        local: set[str] = set()
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                raise TransferRefused("candidat A malformé")
+            sha = candidate.get("content_sha256")
+            receipt_sha = candidate.get("derivative_receipt_sha256")
+            placements = candidate.get("placements")
+            if (not _sha(sha) or not _sha(receipt_sha)
+                    or candidate.get("physical_path") != f"{sha}.txt"
+                    or candidate.get("media_type") != TEXT_MIME
+                    or not isinstance(placements, list) or not placements
+                    or sha in local):
+                raise TransferRefused("candidat A hors population textuelle")
+            local.add(sha)
+            if sha in selected and selected[sha] != receipt_sha:
+                raise TransferRefused("reçu CAS contradictoire pour le même dérivé")
+            selected[sha] = receipt_sha
+            placement_count += len(placements)
+    if (counts.get("collections") != len(names)
+            or counts.get("unique_artifacts") != len(selected)
+            or counts.get("placements") != placement_count
+            or plan["placement_count"] != placement_count):
+        raise TransferRefused("comptes A divergents")
+    expected_files = {(f"{sha}.txt", sha, TEXT_MIME) for sha in selected}
+    expected_receipts = {
+        (f"derivative_receipts/{receipt_sha}.json", receipt_sha)
+        for receipt_sha in selected.values()
+    }
+    if ({(row["file"], row["sha256_expected"], row["media_type"])
+         for row in plan["files"]} != expected_files
+            or {(row["file"], row["sha256_expected"])
+                for row in plan["derivative_receipts"]} != expected_receipts):
+        raise TransferRefused("fichiers et reçus du plan différents de A")
+    allowed = allowlist.get("expected_files")
+    if not isinstance(allowed, list) or allowlist.get("allowed_file_count") != len(allowed):
+        raise TransferRefused("allowlist A malformée")
+    allowed_rows = set()
+    for row in allowed:
+        if (not isinstance(row, dict)
+                or set(row) != {"file", "media_type", "sha256_expected", "source_private_relpath"}
+                or row.get("source_private_relpath") != f"candidates/{row.get('file')}"):
+            raise TransferRefused("entrée allowlist A invalide")
+        allowed_rows.add((row["file"], row["sha256_expected"], row["media_type"]))
+    if len(allowed_rows) != len(allowed) or allowed_rows != expected_files:
+        raise TransferRefused("allowlist A différente du corpus transféré")
+
+
 def observed_host_identity() -> tuple[str, str]:
     """Observer l'hôte d'exécution ; ne jamais accepter un nom seul."""
     machine_id = Path("/etc/machine-id")
@@ -140,19 +255,31 @@ def postgres_database_identity(dsn: str) -> tuple[str, str]:
 
 def _basis(plan_raw: bytes, receipt_v1_raw: bytes, target_pin_raw: bytes, *,
            expected_target_pin_sha256: str, expected_content_anchor_sha256: str,
+           candidate_inventory_raw: bytes, expected_candidate_inventory_sha256: str,
+           allowlist_raw: bytes, expected_allowlist_sha256: str,
+           expected_release_id: str,
            destination_root: Path, database_dsn: str,
            now_utc: datetime) -> tuple[dict[str, object], dict[str, object], dict[str, object]]:
     if not database_dsn or now_utc.tzinfo != UTC:
         raise TransferRefused("DSN read-only ou temps UTC absent")
+    destination_before = _destination_chain(destination_root)
     pin = _pin(target_pin_raw, expected_target_pin_sha256,
                expected_content_anchor_sha256, destination_root)
     plan = _manifest(plan_raw)
+    _verify_content_population(
+        plan, candidate_inventory_raw=candidate_inventory_raw,
+        expected_candidate_inventory_sha256=expected_candidate_inventory_sha256,
+        allowlist_raw=allowlist_raw,
+        expected_allowlist_sha256=expected_allowlist_sha256,
+        expected_release_id=expected_release_id,
+    )
     receipt = _document(receipt_v1_raw, "reçu V1", canonical_required=True)
     if (plan["release_id"] != pin["release_id"]
             or receipt.get("kind") != "NEXUS_STUDENT_PUBLIC_TEXT_OBSERVED_TRANSFER_V1"
             or receipt.get("status") != "OBSERVED_NOT_PUBLICATION_AUTHORITY"
             or receipt.get("target_identity_status") != "CLAIMED_UNQUALIFIED"
             or receipt.get("target_identity") != pin["target_identity"]
+            or receipt.get("destination_realpath") != pin["destination_realpath"]
             or receipt.get("transfer_manifest_sha256") != digest(plan_raw)
             or receipt.get("release_id") != plan["release_id"]):
         raise TransferRefused("reçu V1 non lié ou prétendument qualifié")
@@ -169,6 +296,13 @@ def _basis(plan_raw: bytes, receipt_v1_raw: bytes, target_pin_raw: bytes, *,
         raise TransferRefused("cible hôte/PostgreSQL différente du pin")
     verify_observed_destination(plan_raw, receipt_v1_raw, destination_root,
                                 str(pin["target_identity"]))
+    if (_destination_chain(destination_root) != destination_before
+            or str(destination_root.resolve(strict=True)) != pin["destination_realpath"]):
+        raise TransferRefused("chemin ou inode de destination modifié pendant la relecture")
+    finished_at = utc_now()
+    if (finished_at.tzinfo != UTC
+            or finished_at >= _utc(pin["expires_at_utc"], "expiration du pin")):
+        raise TransferRefused("pin expiré pendant la relecture")
     return pin, plan, receipt
 
 
@@ -176,6 +310,11 @@ def attest_qualified_transfer_target(*, plan_raw: bytes, receipt_v1_raw: bytes,
                                      target_pin_raw: bytes,
                                      expected_target_pin_sha256: str,
                                      expected_content_anchor_sha256: str,
+                                     candidate_inventory_raw: bytes,
+                                     expected_candidate_inventory_sha256: str,
+                                     allowlist_raw: bytes,
+                                     expected_allowlist_sha256: str,
+                                     expected_release_id: str,
                                      destination_root: Path,
                                      database_dsn: str) -> dict[str, object]:
     """Créer V2 depuis la cible *et la DB* vivantes, jamais depuis un checkout seul."""
@@ -187,9 +326,14 @@ def attest_qualified_transfer_target(*, plan_raw: bytes, receipt_v1_raw: bytes,
         plan_raw, receipt_v1_raw, target_pin_raw,
         expected_target_pin_sha256=expected_target_pin_sha256,
         expected_content_anchor_sha256=expected_content_anchor_sha256,
+        candidate_inventory_raw=candidate_inventory_raw,
+        expected_candidate_inventory_sha256=expected_candidate_inventory_sha256,
+        allowlist_raw=allowlist_raw,
+        expected_allowlist_sha256=expected_allowlist_sha256,
+        expected_release_id=expected_release_id,
         destination_root=destination_root, database_dsn=database_dsn, now_utc=now,
     )
-    return {
+    attestation = {
         "kind": ATTESTATION_KIND,
         "status": ATTESTATION_STATUS,
         "content_anchor_sha256": expected_content_anchor_sha256,
@@ -209,6 +353,8 @@ def attest_qualified_transfer_target(*, plan_raw: bytes, receipt_v1_raw: bytes,
         "derivative_receipt_count": receipt["derivative_receipt_count"],
         "total_bytes": receipt["total_bytes"],
     }
+    _require_still_valid(pin)
+    return attestation
 
 
 def verify_qualified_transfer_target(*, attestation_raw: bytes,
@@ -217,6 +363,11 @@ def verify_qualified_transfer_target(*, attestation_raw: bytes,
                                      target_pin_raw: bytes,
                                      expected_target_pin_sha256: str,
                                      expected_content_anchor_sha256: str,
+                                     candidate_inventory_raw: bytes,
+                                     expected_candidate_inventory_sha256: str,
+                                     allowlist_raw: bytes,
+                                     expected_allowlist_sha256: str,
+                                     expected_release_id: str,
                                      destination_root: Path,
                                      database_dsn: str) -> QualifiedTransferVerdict:
     """Rejouer V2 en direct avant la signature C ; un digest seul ne suffit pas."""
@@ -237,6 +388,11 @@ def verify_qualified_transfer_target(*, attestation_raw: bytes,
         plan_raw, receipt_v1_raw, target_pin_raw,
         expected_target_pin_sha256=expected_target_pin_sha256,
         expected_content_anchor_sha256=expected_content_anchor_sha256,
+        candidate_inventory_raw=candidate_inventory_raw,
+        expected_candidate_inventory_sha256=expected_candidate_inventory_sha256,
+        allowlist_raw=allowlist_raw,
+        expected_allowlist_sha256=expected_allowlist_sha256,
+        expected_release_id=expected_release_id,
         destination_root=destination_root, database_dsn=database_dsn, now_utc=now_utc,
     )
     if observed_at < _utc(pin["pinned_at_utc"], "date du pin"):
@@ -265,7 +421,7 @@ def verify_qualified_transfer_target(*, attestation_raw: bytes,
     }
     if attestation != expected:
         raise TransferRefused("attestation V2 non concordante avec les preuves et la cible")
-    return QualifiedTransferVerdict(
+    verdict = QualifiedTransferVerdict(
         attestation_sha256=expected_attestation_sha256,
         content_anchor_sha256=expected_content_anchor_sha256,
         plan_sha256=digest(plan_raw), receipt_v1_sha256=digest(receipt_v1_raw),
@@ -279,3 +435,5 @@ def verify_qualified_transfer_target(*, attestation_raw: bytes,
         file_count=int(receipt["file_count"]),
         expires_at_utc=_utc(pin["expires_at_utc"], "expiration du pin"),
     )
+    _require_still_valid(pin)
+    return verdict
