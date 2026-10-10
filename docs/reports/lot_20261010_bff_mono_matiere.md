@@ -22,4 +22,6 @@ La PR #293 est un harnais E2E pour le BFF signé. Elle reste **OPEN** : son exé
 - `npm run lint`, `npm run typecheck`, `npm run contracts:check`, `npm run build` : exit 0.
 - `npm audit --omit=dev --json` : high=0, critical=0, moderate=0, exit 0 au moment du contrôle.
 
+La première CI du HEAD `0677a19d9e33b4b1921ce7a356908a1bd39d392c` a échoué dans `scripts/tests` : 1 échec, 990 succès et 47 tests ignorés. L'échec est préexistant à ce lot (fixture introduit par le commit `2b1f3b04`) et indépendant du BFF : deux reçus de SHA distincts ont partagé le même préfixe CAS à deux caractères, puis le test a tenté `mkdir` une seconde fois sans `exist_ok`. Une exécution avec horloge figée au `2026-10-10T15:00:12Z` a reproduit exactement `FileExistsError` avant le correctif et a réussi après. Le seul correctif est `exist_ok=True` sur ce dossier de fixture ; le moteur de droits reste inchangé. Dans le venv Python propre avec racine privée volontairement absente comme en CI, `pytest -q scripts/tests/` donne 992 succès, 46 ignorés. La CI du nouveau HEAD reste la preuve distante à obtenir.
+
 Aucun staging ni production n'a été muté. La preuve HTTP Cockpit → API v2 avec scope public final n'est pas produite dans ce lot ; le verdict `STUDENT_E2E_PASS` reste `false` jusqu'au staging final.
