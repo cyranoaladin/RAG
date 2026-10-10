@@ -30,14 +30,13 @@ EXPECTED_POPULATION = {
     "segments": 2504,
 }
 THRESHOLDS = {
-    "teacher_positive_nonempty": 33,
     "student_positive_nonempty": 33,
-    "teacher_expected_source_hits_min": 26,
     "student_expected_source_hits_min": 26,
-    "expected_source_hits_per_collection_per_role_min": 2,
-    "zero_result_pass": 22,
-    "boundary_scope_pass": 22,
-    "scope_mismatch_refusals": 22,
+    "expected_source_hits_per_collection_min": 2,
+    "teacher_refusals": 11,
+    "zero_result_pass": 11,
+    "boundary_scope_pass": 11,
+    "scope_mismatch_refusals": 11,
     "out_of_scope_results": 0,
     "missing_citations": 0,
     "dense_misses": 0,
@@ -159,7 +158,7 @@ def validate_draft_suite(root: Path, suite: dict[str, Any]) -> None:
             or {case.get("id") for case in positive}
             != {"factual", "no_accent", "notion"}
             or spec.get("student_expected_http") != 200
-            or spec.get("teacher_expected_http") != 200
+            or spec.get("teacher_expected_http") != 403
             or spec.get("scope_mismatch_expected_http") != 403
             or spec.get("boundary_expected_scope") != "same_collection_only"
             or not isinstance(spec.get("boundary_query"), str)

@@ -33,7 +33,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_hggsp_premiere_specialite": {
@@ -67,7 +67,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_hggsp_terminale_specialite": {
@@ -101,7 +101,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_hlp_premiere_specialite": {
@@ -135,7 +135,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_hlp_terminale_specialite": {
@@ -169,7 +169,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_nsi_premiere_specialite": {
@@ -203,7 +203,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_nsi_terminale_specialite": {
@@ -237,7 +237,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_ses_premiere_specialite": {
@@ -271,7 +271,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_ses_terminale_specialite": {
@@ -305,7 +305,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_svt_premiere_specialite": {
@@ -339,7 +339,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     },
     "rag_nexus_svt_terminale_specialite": {
@@ -373,7 +373,7 @@
       ],
       "scope_mismatch_expected_http": 403,
       "student_expected_http": 200,
-      "teacher_expected_http": 200,
+      "teacher_expected_http": 403,
       "zero_result_query": "Référence du filtre à huile moteur John Deere 6130R RE504836, couple de serrage du carter ?"
     }
   },
@@ -391,17 +391,16 @@
   "schema_version": 1,
   "status": "PREPARED_UNBOUND",
   "thresholds": {
-    "boundary_scope_pass": 22,
+    "boundary_scope_pass": 11,
     "dense_misses": 0,
     "dense_tie_overflow_evidence_per_collection": 11,
-    "expected_source_hits_per_collection_per_role_min": 2,
+    "expected_source_hits_per_collection_min": 2,
     "missing_citations": 0,
     "out_of_scope_results": 0,
-    "scope_mismatch_refusals": 22,
+    "scope_mismatch_refusals": 11,
     "student_expected_source_hits_min": 26,
     "student_positive_nonempty": 33,
-    "teacher_expected_source_hits_min": 26,
-    "teacher_positive_nonempty": 33,
-    "zero_result_pass": 22
+    "teacher_refusals": 11,
+    "zero_result_pass": 11
   }
 }

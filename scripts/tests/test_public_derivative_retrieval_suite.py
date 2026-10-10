@@ -29,8 +29,8 @@ def test_draft_covers_exact_candidate_and_fixed_cases() -> None:
     assert suite["status"] == "PREPARED_UNBOUND"
     assert len(suite["collections"]) == 11
     assert sum(len(row["positive"]) for row in suite["collections"].values()) == 33
-    assert suite["thresholds"]["teacher_positive_nonempty"] == 33
     assert suite["thresholds"]["student_positive_nonempty"] == 33
+    assert suite["thresholds"]["teacher_refusals"] == 11
     assert suite["thresholds"]["dense_misses"] == 0
 
 
@@ -56,6 +56,10 @@ def test_final_quality_cannot_pass_without_successor_manifest_and_scope_registry
             "expected_citation"
         ),
         lambda s: s["thresholds"].update(student_positive_nonempty=0),
+        lambda s: s["thresholds"].update(teacher_refusals=0),
+        lambda s: s["collections"][next(iter(s["collections"]))].update(
+            teacher_expected_http=200
+        ),
         lambda s: s["thresholds"].update(dense_misses=1),
         lambda s: s.update(candidate_manifest_sha256="0" * 64),
     ],
