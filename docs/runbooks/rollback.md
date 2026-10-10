@@ -215,9 +215,9 @@ assert_restore_compatible_identity "$SOURCE_DB_IDENTITY" "$RESTORE_DB_IDENTITY"
 test "$("${restore_compose[@]}" ps --services --status running)" = pgvector
 
 # Un dump historique sans schéma de contrôle prouve seulement sa lisibilité.
-# Le contrôle complet est réservé à une base restaurée au head final 005/020.
+# Le contrôle complet est réservé à une base restaurée au head final 006/020.
 classify_restore_schema_heads() {
-  if [[ "$1" == '5|20' ]]; then
+  if [[ "$1" == '6|20' ]]; then
     printf 'FINAL_SCHEMA_CANDIDATE\n'
   else
     printf 'FINAL_SCHEMA_UNVERIFIED\n'
@@ -278,7 +278,7 @@ if [[ "$RESTORE_SCHEMA_VERDICT" == FINAL_SCHEMA_CANDIDATE ]]; then
   RESTORE_CONTROL_REGISTRY="$(read_restored_registry "$CONTROL_REGISTRY_SQL")"
   test "$SOURCE_PRODUCT_REGISTRY" = "$RESTORE_PRODUCT_REGISTRY"
   test "$SOURCE_CONTROL_REGISTRY" = "$RESTORE_CONTROL_REGISTRY"
-  assert_canonical_registry_rows "$RESTORE_PRODUCT_REGISTRY" "$PWD/postgres/migrations" 5
+  assert_canonical_registry_rows "$RESTORE_PRODUCT_REGISTRY" "$PWD/postgres/migrations" 6
   assert_canonical_registry_rows "$RESTORE_CONTROL_REGISTRY" \
     "$PWD/postgres/ingestion_control/migrations" 20
 
@@ -327,7 +327,7 @@ migrateur, reprovisionnement explicite des rôles runtime, contrôles de schéma
 puis seulement redémarrage des runtimes.
 
 `FINAL_SCHEMA_UNVERIFIED=true` accepte uniquement la lisibilité isolée d'un
-ancien dump. Ce verdict ne démontre ni les migrations 005/020, ni le contenu
+ancien dump. Ce verdict ne démontre ni les migrations 006/020, ni le contenu
 publié ; il ne peut pas servir de preuve de readiness ou de rollback de la
 release finale.
 
@@ -338,7 +338,7 @@ final, ni les placements et chunks à publier. La sauvegarde prise après
 cutover doit associer le dump `ragdb` et le volume d'artefacts au même
 instant, puis être restaurée sur une cible isolée et contrôlée avant de
 servir la release. Pour cette release, comparer les registres restaurés aux
-fichiers canoniques : head produit `005_official_snapshot_currentness` et
+fichiers canoniques : head produit `006_public_derivative_attribution` et
 head d'ingestion déclaré dans `migrations/HEAD` (actuellement
 `020_successor_control_resource_identity`, avec `019` et `020` appliquées et
 leurs SHA-256 vérifiés). Si le snapshot est antérieur à ce head, ne pas
