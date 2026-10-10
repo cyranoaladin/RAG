@@ -1,0 +1,245 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "7424ba89ed391de6.extracted.txt",
+  "extracted_text_sha256": "841fba715ce59a6ada676d7b4d6748a012e32980df1ac7b74d35b805897d5b8d",
+  "final_url": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "7424ba89ed391de6.normalized.html",
+  "normalized_html_sha256": "2121e0cce9960e025e6fb033c2976c26cc292dfaeba5554094489bfb002e10b7",
+  "observed_at_utc": "2026-10-10T06:03:40.400Z",
+  "pdf_link_count": 45,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe638annexe1063053pdf-82749.pdf",
+      "label": "Enseignement commun de SES de seconde générale et technologique (BO spécial n° 1 du 22 janvier 2019) PDF - 166.29 Ko",
+      "occurrence_index": 0
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe639annexe1063544pdf-82752.pdf",
+      "label": "Spécialité SES de première générale (BO spécial n° 1 du 22 janvier 2019) PDF - 174.71 Ko",
+      "occurrence_index": 1
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe253annexe1158821pdf-82755.pdf",
+      "label": "Spécialité SES de terminale générale (BO spécial n° 8 du 25 juillet 2019) PDF - 193.63 Ko",
+      "occurrence_index": 2
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt2comsesintroduction1311917pdf-82758.pdf",
+      "label": "Comment les économistes, les sociologues et les politistes raisonnent-ils et travaillent-ils ? PDF - 155.64 Ko",
+      "occurrence_index": 3
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegtcomses2nderichesseseconde1176301pdf-82761.pdf",
+      "label": "Comment crée-t-on des richesses et comment les mesure-t-on ? PDF - 679.21 Ko",
+      "occurrence_index": 4
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegtcomses2ndeprixmarche1172953pdf-82764.pdf",
+      "label": "Comment se forment les prix sur un marché ? PDF - 640.32 Ko",
+      "occurrence_index": 5
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegtcomses2ndeacteurssociaux1195011pdf-82767.pdf",
+      "label": "Comment devenons-nous des acteurs sociaux ? PDF - 204.08 Ko",
+      "occurrence_index": 6
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegtcomses2ndeorganisationviepolitique1172951pdf-82770.pdf",
+      "label": "Comment s'organise la vie politique ? PDF - 303.85 Ko",
+      "occurrence_index": 7
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt2sesdiplomeemploisalaireregardscroises1242022pdf-82773.pdf",
+      "label": "Quelles relations entre le diplôme, l'emploi et le salaire ? PDF - 299.92 Ko",
+      "occurrence_index": 8
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1eremarcheconcurrentiel1166055pdf-82776.pdf",
+      "label": "Comment un marché concurrentiel fonctionne-t-il ? PDF - 1.23 Mo",
+      "occurrence_index": 9
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1ereimperfectionsmarche1173047pdf-82779.pdf",
+      "label": "Comment les marchés imparfaitement concurrentiels fonctionnent-ils ? PDF - 362.94 Ko",
+      "occurrence_index": 10
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1eredefaillancesmarche1172933pdf-82782.pdf",
+      "label": "Quelles sont les principales défaillances du marché ? PDF - 300.96 Ko",
+      "occurrence_index": 11
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1erefinancement1172935pdf-82785.pdf",
+      "label": "Comment les agents économiques se financent-ils ? PDF - 357.14 Ko",
+      "occurrence_index": 12
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1eremonnaie-ses1172965pdf-82788.pdf",
+      "label": "Qu'est-ce que la monnaie et comment est-elle créée ? PDF - 531.52 Ko",
+      "occurrence_index": 13
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceeg1sessocialisationdifferencescomportementindividuspdf-82791.pdf",
+      "label": "Comment la socialisation contribue-t-elle à expliquer les différences de comportement des individus ? PDF - 219.09 Ko",
+      "occurrence_index": 14
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceeg1sescommentconstruisentevoluentlienssociauxpdf-82794.pdf",
+      "label": "Comment se construisent et évoluent les liens sociaux ? PDF - 635.95 Ko",
+      "occurrence_index": 15
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1eredeviance1225911pdf-82797.pdf",
+      "label": "Quels sont les processus sociaux qui contribuent à la déviance ? PDF - 225.83 Ko",
+      "occurrence_index": 16
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1ereopinionpublique1172949pdf-82800.pdf",
+      "label": "Comment se forme et s'exprime l'opinion publique ? PDF - 267.5 Ko",
+      "occurrence_index": 17
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceeg1sesvoteraffaireindividuellecollectivepdf-82803.pdf",
+      "label": "Voter : une affaire individuelle ou collective ? PDF - 186.62 Ko",
+      "occurrence_index": 18
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegspeses1ereassurancesprotectionsociale1225909pdf-82806.pdf",
+      "label": "Comment l'assurance et la protection sociale contribuent-elles à la gestion des risques dans les sociétés développées ? PDF - 222.61 Ko",
+      "occurrence_index": 19
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1spesesentreprises1311919pdf-82809.pdf",
+      "label": "Comment les entreprises sont-elles organisées et gouvernées ? PDF - 176.44 Ko",
+      "occurrence_index": 20
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegtsessourcesdefiscroissanceeconomiquepdf-82812.pdf",
+      "label": "Quels sont les sources et les défis de la croissance économique ? PDF - 353.97 Ko",
+      "occurrence_index": 21
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesfondements-commerce-international-internationalisation-70155.pdf",
+      "label": "Quels sont les fondements du commerce international et de l'internationalisation de la production ? PDF - 443.17 Ko",
+      "occurrence_index": 22
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtseslutter-contre-chomage-70158.pdf",
+      "label": "Comment lutter contre le chômage ? PDF - 617.31 Ko",
+      "occurrence_index": 23
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesexpliquer-crises-financieres-reguler-systeme-70161.pdf",
+      "label": "Comment expliquer les crises financières et réguler le système financier ? PDF - 495.65 Ko",
+      "occurrence_index": 24
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtspesesquellespolitiques1318048pdf-82815.pdf",
+      "label": "Quelles politiques économiques dans le cadre européen ? PDF - 198.32 Ko",
+      "occurrence_index": 25
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegtsesstructuresocietefrancaiseactuellepdf-82818.pdf",
+      "label": "Comment est structurée la société française actuelle ? PDF - 352.91 Ko",
+      "occurrence_index": 26
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesdestinsindividuels-70152.pdf",
+      "label": "Quelle est l'action de l'École sur les destins individuels et sur l'évolution de la société ? PDF - 210.05 Ko",
+      "occurrence_index": 27
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegtsescaracteristiquescontemporainesfacteursmobilitesocialepdf-82821.pdf",
+      "label": "Quels sont les caractéristiques contemporaines et les facteurs de la mobilité sociale ? PDF - 988.81 Ko",
+      "occurrence_index": 28
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesmutations-travail-emploi1343961pdf-82824.pdf",
+      "label": "Quelles mutations du travail et de l'emploi ? PDF - 584.78 Ko",
+      "occurrence_index": 29
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesengagement-politique1343963pdf-82827.pdf",
+      "label": "Comment expliquer l'engagement politique dans les sociétés démocratiques ? PDF - 175 Ko",
+      "occurrence_index": 30
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtspesesjusticesociale1318046pdf-82830.pdf",
+      "label": "Quelles inégalités sont compatibles avec les différentes conceptions de la justice sociale ? PDF - 1.62 Mo",
+      "occurrence_index": 31
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsesaction-publique-environnement1343971pdf-82833.pdf",
+      "label": "Quelle action publique pour l'environnement ? PDF - 415.01 Ko",
+      "occurrence_index": 32
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt2sesparcours1lienformationconnaissancespdf-100638.pdf",
+      "label": "Seconde : Quel est le lien entre le niveau de formation et les connaissances financières ? PDF - 508.95 Ko",
+      "occurrence_index": 33
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceeg1sesparcours1lienfragilitefinancieresurendettementexclusionpdf-100614.pdf",
+      "label": "Première : Quel est le lien entre la fragilité financière, le surendettement et le risque d’exclusion sociale ? PDF - 532.99 Ko",
+      "occurrence_index": 34
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegtsesparcours1politiquespubliquessurendettementpdf-100626.pdf",
+      "label": "Terminale : Quelles politiques publiques face au surendettement, à la fragilité financière et aux inégalités de patrimoine ? PDF - 1.53 Mo",
+      "occurrence_index": 35
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt2sesparcours2liencroissanceemissiongespdf-100641.pdf",
+      "label": "Seconde : Quel est le lien entre le niveau de croissance et les émissions de GES ? PDF - 862.82 Ko",
+      "occurrence_index": 36
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceeg1sesparcours2degradationenvironnementsolutionspdf-100617.pdf",
+      "label": "Première : Comment expliquer la dégradation de l’environnement et quelles sont les solutions envisageables ? PDF - 493.71 Ko",
+      "occurrence_index": 37
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegtsesparcours2politiquemonetaireeconomiepdf-100629.pdf",
+      "label": "Terminale : La politique monétaire peut-elle contribuer à verdir l’économie ? PDF - 802.49 Ko",
+      "occurrence_index": 38
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt2sesparcours3lienrevenuepargnepdf-100644.pdf",
+      "label": "Seconde : Quel lien existe-t-il entre le niveau de revenu et le niveau d’épargne ? PDF - 357 Ko",
+      "occurrence_index": 39
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceeg1sesparcours3financementagentsperiodecrisepdf-100620.pdf",
+      "label": "Première : Quel financement des agents économiques en période de crise ? PDF - 1.46 Mo",
+      "occurrence_index": 40
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegtsesparcours3politiquemonetairecovidpdf-100632.pdf",
+      "label": "Terminale : Quelle politique monétaire après la crise sanitaire de la Covid-19 ? PDF - 826.94 Ko",
+      "occurrence_index": 41
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt2sesparcours4creerentrepriseviablepdf-100647.pdf",
+      "label": "Seconde : Comment créer une entreprise viable sur un territoire donné ? PDF - 590.5 Ko",
+      "occurrence_index": 42
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceeg1sesparcours4survieentreprisepdf-100623.pdf",
+      "label": "Première : Quelles entreprises survivent ? PDF - 832.45 Ko",
+      "occurrence_index": 43
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegtsesparcours4relocaliseractiviteseconomiquespdf-100635.pdf",
+      "label": "Terminale : Faut-il relocaliser les activités économiques ? PDF - 757.82 Ko",
+      "occurrence_index": 44
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/5838/programmes-et-ressources-en-sciences-economiques-et-sociales-voie-gt",
+  "screenshot_file": "7424ba89ed391de6.png",
+  "screenshot_sha256": "cd7865a68bc6356149ea5f2c324175ce8b3686f9e5abefc44bc8c76a7d77ce80"
+}

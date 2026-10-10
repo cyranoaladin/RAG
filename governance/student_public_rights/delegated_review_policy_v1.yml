@@ -1,0 +1,168 @@
+policy_kind: DELEGATED_AUTOMATED_STUDENT_PUBLIC_RIGHTS_ADJUDICATION_V1
+policy_version: '1.1.0'
+status: SEALED_PENDING_FINAL_APPROVAL
+adr: docs/adr/ADR-0068-delegation-agentique-droits-etudiants.md
+delegating_authority: abenrhouma
+decision_authority_basis: VERSIONED_DELEGATION_EXACT_HEAD_APPROVAL
+review_mode: automated_targeted_segment_dual_review
+adjudication_mode: deterministic_fail_closed
+authorized_use: student_retrieval_excerpt_only
+full_pdf_redistribution_allowed: false
+answer_generation_allowed: false
+public_ingest_endpoint_allowed: false
+public_writer_allowed: false
+student_internal_visibility_allowed: false
+
+inventory:
+  source_packet: docs/reports/go_live/student_public_rights_individual_review_packet_20261009.json
+  source_packet_sha256: 4bee52a4d853aee23c86428585ebf28fa5afd3ecb82e1b3b90e1f84ed8667679
+  artifact_count: 315
+  content_sha256_set_digest: 04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12
+  content_set_canonicalization: sorted_lowercase_sha256_plus_newline
+  source_releases: [v4_non_hggsp, v5_hggsp]
+  historical_releases_mutable: false
+
+rights_authorities:
+  accepted_proof_kinds: [INDIVIDUAL_EXPLICIT_LICENCE, SITEWIDE_DOWNLOAD_AUTHORITY]
+  sitewide:
+    authority_id: EDUSCOL_ETALAB_2_0_SITEWIDE
+    path: governance/student_public_rights/authorities/eduscol_etalab_2_0_sitewide_20261010.yml
+    licence_id: ETALAB-2.0
+    official_legal_notice_url: https://eduscol.education.gouv.fr/4656/mentions-legales
+    canonical_licence_url: https://www.data.gouv.fr/pages/legal/licences/etalab-2.0
+    capture_http_status_required: 200
+    proof_of_resource_link_to_eduscol_required: true
+    third_party_components_excluded: true
+    attribution_source_and_date_required: true
+  individual_explicit_licence_requires_exact_content_and_notice: true
+  insufficient_signals:
+    - PUBLICLY_ACCESSIBLE
+    - OFFICIAL_DOMAIN
+    - EDUSCOL_SOURCE_ONLY
+    - LEGACY_OFFICIEL_PUBLIC
+    - ALREADY_IN_CORPUS
+    - ALREADY_INDEXED
+    - NO_COMPLAINT
+    - LOW_RISK_ESTIMATE
+    - PROBABLE_LICENSE
+    - SHORT_QUOTATION_EXCEPTION_ALONE
+    - RAW_HTTP_403
+  raw_http_403_is_transport_failure_not_rights_verdict: true
+  missing_positive_proof_disposition: EXCLUDE
+
+source_provenance:
+  statuses: [EXACT_CURRENT_SOURCE, REPLACED_BY_CURRENT_SOURCE, HISTORICAL_OFFICIAL_SNAPSHOT, SOURCE_UNPROVEN]
+  exact_current_requires: [captured_official_listing_link, final_pdf_url, http_200, downloaded_pdf_sha256_equals_source_sha256]
+  replacement_requires: [captured_official_listing_link, new_pdf_sha256, new_artifact_identity, full_new_pipeline]
+  replacement_alone_authorizes_old_sha: false
+  historical_snapshot_requires: [dated_official_acquisition_receipt, exact_pdf_sha256, official_download_uri, snapshot_date]
+  source_unproven_disposition: EXCLUDE
+  title_or_official_domain_alone_sufficient: false
+  redirects_and_final_urls_recorded: true
+  old_and_current_different_sha_must_not_be_conflated: true
+  source_currentness_and_revocation_evidence_required: true
+  source_date_required_for_public_derivative_separately: true
+
+full_document_scan:
+  exact_bytes_match_required: true
+  size_match_required: true
+  page_count_match_required: true
+  all_pages_text_extracted: true
+  all_graphic_pages_rendered: true
+  page_text_and_render_sha256_required: true
+  scanner_code_sha256_binding_required: true
+  covers: [cover, body, footer, images, metadata, attachments, annexes]
+  source_scan_count_required: 315
+  raw_pii_in_evidence_allowed: false
+  chain_of_thought_in_evidence_allowed: false
+
+text_derivative:
+  distinct_artifact_sha256_required: true
+  media_type: text/plain
+  original_pdf_public_allowed: false
+  original_pdf_download_allowed: false
+  page_render_public_allowed: false
+  public_image_allowed: false
+  public_graphic_ocr_allowed: false
+  native_text_blocks_only: true
+  positive_ministry_author_or_publisher_proof_required: true
+  first_page_ministry_mention_alone_sufficient: false
+  accepted_publisher_proof_kinds: [OFFICIAL_PDF_AUTHOR_METADATA, EXPLICIT_DOCUMENT_IMPRINT, OFFICIAL_CAPTURED_DOWNLOAD_PUBLISHER]
+  captured_download_publisher_requires: [official_listing_http_200, exact_pdf_anchor, exact_download_sha256, sealed_sitewide_authority, independent_gate_reconstruction]
+  captured_download_publisher_does_not_clear_third_party_segments: true
+  block_map_and_excluded_component_map_required: true
+  extraction_policy_digest_required: true
+  source_pdf_sha256_binding_required: true
+  source_uri_title_page_date_required: true
+  no_empty_public_derivative: true
+  block_classes: [SAFE_TEXT_CANDIDATE, EXCLUDED_NON_TEXT, THIRD_PARTY_TEXT_SUSPECT, TEACHER_ONLY, PII_OR_UNCERTAIN]
+  included_class: SAFE_TEXT_CANDIDATE
+  excluded_classes: [EXCLUDED_NON_TEXT, THIRD_PARTY_TEXT_SUSPECT, TEACHER_ONLY, PII_OR_UNCERTAIN]
+  native_text_separable_from_logo_may_be_retained: true
+  ocr_only_page_disposition: EXCLUDE_PAGE
+  uncertain_text_image_separation_disposition: EXCLUDE_PAGE
+  changed_bytes_require_new_content_sha256: true
+
+reviewers:
+  independent_contexts_required: true
+  review_scope: [THIRD_PARTY_TEXT_SUSPECT, PII_OR_UNCERTAIN]
+  excluded_suspect_segments_reintegrated_in_this_lot: false
+  dual_review_required_only_if_reintegration_proposed: true
+  routine_safe_text_full_document_model_review_required: false
+  identities_models_prompts_and_parameters_pinned: true
+  zero_temperature_when_supported: true
+  candidate_approval_repetitions: 2
+  disagreement_or_low_confidence_disposition: EXCLUDE
+  missing_reviewer_or_segment_disposition: EXCLUDE
+  free_text_model_decision_authoritative: false
+  checkpoint_by_artifact: true
+  preserve_preexisting_receipts: true
+
+attribution:
+  licensor_display: Direction générale de l'enseignement scolaire
+  source_display: 'Source : Ministère de l’Éducation nationale – Dgesco / Éduscol'
+  required_fields: [source_uri, source_label, source_page, source_updated_at, licensor, licence_id, derivative_notice]
+  accepted_date_evidence_kinds: [PDF_EXPLICIT_UPDATE_DATE, OFFICIAL_RESOURCE_UPDATE_DATE, DATED_OFFICIAL_SNAPSHOT]
+  dated_official_snapshot_requires: [captured_official_listing_link, exact_pdf_sha256, successful_download_utc]
+  snapshot_must_be_labelled_as_snapshot_not_editorial_update: true
+  generic_listing_date_sufficient: false
+  http_last_modified_alone_sufficient: false
+  licence_display: Licence Ouverte Etalab 2.0
+  derivative_notice_required: true
+  official_endorsement_claim_allowed: false
+  missing_defensible_date_disposition: EXCLUDE
+
+adjudication:
+  allowed_source_dispositions: [REPLACE_WITH_NEW_CONTENT, EXCLUDE]
+  allowed_derivative_dispositions: [APPROVE_PUBLIC, EXCLUDE]
+  pending_allowed: false
+  default_source_disposition: EXCLUDE
+  default_derivative_disposition: EXCLUDE
+  final_disposition_is_alias_of_source_disposition: true
+  all_315_source_sha_decisions_required: true
+  no_unproven_public_derivative: true
+  no_unlicensed_third_party_public_segment: true
+  no_teacher_only_public_segment: true
+  no_pii_public_segment: true
+  cftr:
+    content_sha256: 3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6
+    source_disposition: EXCLUDE
+    derivative_public_allowed: false
+    student_suitability: FAIL
+    reason_code: TEACHER_NON_DISCLOSURE_INSTRUCTION
+    evidence_page: 3
+
+release_and_gate:
+  public_candidate_manifest_media_type: text/plain
+  public_candidate_manifest_pdf_allowed: false
+  approved_derivatives_only_in_new_public_successor_release: true
+  source_pdf_visibility: internal
+  historical_counts_must_not_be_preserved_artificially: true
+  public_collections_required: 11
+  empty_collection_servability_claim_allowed: false
+  per_artifact_evidence_schema: governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json
+  decision_sheet_must_be_generated: true
+  independent_verifier_required: true
+  sabotage_tests_required: true
+  exact_head_final_authority_approval_required: true
+  no_staging_or_production_mutation_in_this_lot: true

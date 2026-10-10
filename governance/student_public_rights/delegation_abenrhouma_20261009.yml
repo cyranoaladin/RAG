@@ -1,0 +1,122 @@
+mandate_kind: NEXUS_DELEGATED_STUDENT_PUBLIC_RIGHTS_MANDATE_V1
+delegation_id: nexus-student-public-rights-abenrhouma-20261009-v1
+status: SEALED_PENDING_FINAL_APPROVAL
+effective_authority: false
+delegating_authority: abenrhouma
+final_approving_authority: abenrhouma
+decision_executor: nexus-delegated-student-rights-adjudicator-v1
+decision_authority_basis: EXPLICIT_AUTHORITY_INSTRUCTION_2026-10-09_PLUS_FINAL_EXACT_HEAD_APPROVAL
+review_mode: automated_targeted_segment_dual_review
+adjudication_mode: deterministic_fail_closed
+created_at_utc: '2026-10-09T20:52:26Z'
+authority_instruction_date_utc: '2026-10-09'
+expires_at_utc: '2026-11-09T00:00:00Z'
+
+source_binding:
+  # HEAD final de la PR #300 : lié par le challenge terminal, pas ici, afin
+  # d'éviter une auto-référence du commit contenant ce mandat.
+  source_main_commit_sha: 9ed9770c0eba7aeb430a34903063e2c4aa4418db
+  source_main_tree_sha: f91799480265faf23a59e2d0f73e9de1680fb8ee
+  inventory_path: docs/reports/go_live/student_public_rights_individual_review_packet_20261009.json
+  inventory_file_sha256: 4bee52a4d853aee23c86428585ebf28fa5afd3ecb82e1b3b90e1f84ed8667679
+  inventory_content_sha256_set_digest: 04b731e20a9ebd9dcd08f00fe516489191690f67ec18e4ba4996a8612961bd12
+  inventory_count: 315
+  inventory_identity_rule: sorted_lowercase_sha256_plus_newline
+  policy_path: governance/student_public_rights/delegated_review_policy_v1.yml
+  policy_sha256: b3e47310712b2a93fe8ddb458eda4a61beae88198274b2deee0113da37cd63d1
+  sitewide_authority_path: governance/student_public_rights/authorities/eduscol_etalab_2_0_sitewide_20261010.yml
+  rights_authority_sha256: 013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1
+  extraction_policy_path: governance/student_public_rights/text_derivative_extraction_policy_v1.yml
+  text_derivative_extraction_policy_sha256: 6055813ee697c8b0386ebe266df5b85a744908c5deeaa2daff41afcc1aba7edf
+  schema_path: governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json
+  schema_sha256: d49b326dc350ebc5c7d0c7ad42c59dfd84dcd3b8f6168fc8e87310fc8627c143
+  engine_path: scripts/go_live/adjudicate_student_public_rights.py
+  engine_code_sha256: f62c431b486334d14cdd52305f10229a1578f3f605f37aed6e0ee0a1cb34db52
+  derivative_generator_path: scripts/go_live/student_rights_text_derivative.py
+  derivative_builder_code_sha256: 812e1f456cbabf912f20299e34ed9699d025032822c15fe04a976e88451e6e7b
+  scanner_path: scripts/go_live/student_rights_pdf_scan.py
+  scanner_code_sha256: 2b69a7e10504ea2463af49e2bc1ebe6fc19b638d920dcb904eb262386d7025bb
+  source_checker_path: scripts/go_live/student_rights_source_provenance.py
+  source_checker_code_sha256: f1fcc92d081f564ebf5e4392bef61f35f032e292b9bad225afb8a224190853fd
+  reviewer_path: scripts/go_live/student_rights_reviewers.py
+  reviewer_code_sha256: 8aa3f1fba52882b26151bad2c9cefbdcebd1be50a118e9d5ca32566019d1ebc9
+  independent_verifier_path: scripts/go_live/check_delegated_student_rights_gate.py
+  independent_verifier_code_sha256: 4b3dcc600a6af40501d38bf6978568296acee4eca7459c41dc9133debdef105c
+  final_pr_base_sha: null
+  final_pr_head_sha: null
+  final_pr_tree_sha: null
+
+automated_reviewers:
+  reviewer_a:
+    role: targeted_third_party_text_and_uncertain_segment_review
+    agent_identity: nexus-reviewer-a-automated-v1
+    model_id: granite3.2-vision:2b
+    model_version: sha256:3be41a661804ad72cd08269816c5a145f1df6479ad07e2b3a7e29dba575d2669
+    prompt_path: governance/student_public_rights/prompts/reviewer_a_v1.txt
+    prompt_sha256: 0fb7775b5abb89a03ab66c71c4e6a111b21d2c3f5c73cce4873d65fac202557b
+    deterministic_parameters: {temperature: 0, seed: 17, num_ctx: 4096, num_predict: 320}
+  reviewer_b:
+    role: targeted_pii_and_uncertain_segment_review
+    agent_identity: nexus-reviewer-b-automated-v1
+    model_id: granite3.2-vision:2b
+    model_version: sha256:3be41a661804ad72cd08269816c5a145f1df6479ad07e2b3a7e29dba575d2669
+    prompt_path: governance/student_public_rights/prompts/reviewer_b_v1.txt
+    prompt_sha256: 52fa6e184d13a6791cb1a9ed9005bc4b7ba4a9a6bc2426e85b6b58115353611a
+    deterministic_parameters: {temperature: 0, seed: 17, num_ctx: 4096, num_predict: 320}
+  independent_contexts_required: true
+  candidate_approval_classification_runs: 2
+  any_divergence_disposition: EXCLUDE
+
+authorized_use: student_retrieval_excerpt_only
+permitted_operations: [governed_indexing, student_search, limited_passage_display, source_citation]
+expressly_forbidden_operations:
+  - full_pdf_public_redistribution
+  - answer_generation
+  - public_ingest_endpoint
+  - public_writer
+  - student_access_to_internal_visibility
+  - historical_v4_v5_rehearsal_mutation
+  - staging_deployment_in_this_lot
+  - production_deployment_in_this_lot
+full_pdf_redistribution_allowed: false
+answer_generation_allowed: false
+public_ingest_endpoint_allowed: false
+public_writer_allowed: false
+
+decision_contract:
+  allowed_dispositions: [APPROVE_PUBLIC, EXCLUDE, REPLACE_WITH_NEW_CONTENT]
+  pending_allowed: false
+  default_disposition: EXCLUDE
+  decisions_required: 315
+  accepted_rights_proof_kinds: [INDIVIDUAL_EXPLICIT_LICENCE, SITEWIDE_DOWNLOAD_AUTHORITY]
+  exact_pdf_bytes_and_full_document_scan_required: true
+  original_pdf_public_allowed: false
+  derivative_text_sha_distinct_required: true
+  suspect_segments_excluded_without_reintegration_in_this_lot: true
+  targeted_independent_dual_review_required_if_reintegration_proposed: true
+  source_disposition_values: [REPLACE_WITH_NEW_CONTENT, EXCLUDE]
+  derivative_disposition_values: [APPROVE_PUBLIC, EXCLUDE]
+  source_sha_never_approve_public: true
+  attribution_and_date_required_per_passage: true
+  missing_or_uncertain_evidence_disposition: EXCLUDE
+  no_human_individual_pdf_review_claim: true
+  output_sheet_generated_from_structured_evidence_only: true
+  independent_verification_required: true
+
+final_activation_conditions:
+  - all_315_source_scans_and_provenance_records_complete_and_verified
+  - all_public_derivative_evidence_records_complete_and_verified
+  - eleven_public_collections_nonempty
+  - zero_pending_decisions
+  - all_required_digests_sealed
+  - independent_sabotage_tests_green
+  - exact_head_authority_challenge_approved_by_abenrhouma
+  - trusted_human_review_head_pinned_success
+  - successor_public_release_separately_scoped_and_authorized
+non_authorizing_draft_note: >-
+  Le mandat lie les codes, la politique, l'autorité et l'extraction par leurs
+  empreintes exactes, mais effective_authority reste false jusqu'à la review
+  finale de l'autorité au HEAD exact de #300. Les SHA de PR restent null pour
+  éviter une auto-référence du commit : le challenge exact-HEAD les liera au
+  pack final. Aucune revue humaine individuelle des 315 PDF n'est revendiquée ;
+  la release publique successeur reste une étape distincte.

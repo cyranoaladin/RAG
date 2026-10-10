@@ -1,0 +1,222 @@
+Contenu
+Menu
+Rechercher
+Pied de page
+
+MINISTÈRE
+DE L'ÉDUCATION
+NATIONALE
+
+Se connecter
+Rechercher
+Rechercher
+Enseignement et formation
+Scolarité de l'élève et diplômes
+Vie des écoles et des établissements
+Accueil  Enseignement et formation  Pratique enseignante  Enseigner avec le numérique  Les intelligences artificielles et leurs usages en éducation
+Les intelligences artificielles et leurs usages en éducation
+
+Le développement rapide des IA, en particulier des IA génératives depuis 2022, a déjà un large impact en éducation.
+
+Ces technologies transforment l’apprentissage, la création de cours et l’évaluation, et peuvent remettre en question certains principes fondamentaux de l’École. Leur utilisation s'appuie sur un « cadre d'usage » éthique et juridique, garantissant la protection des données et un usage responsable.
+
+juillet 2026
+Ajouter aux favoris
+SOMMAIRE
+À retenir
+Quelle place tient l’IA aujourd’hui dans le domaine de l’éducation ?
+Quels risques et préoccupations l'IA soulève-t-elle en éducation ?
+Quel cadre d’usage de l’IA en éducation ?
+Les grands principes de son utilisation
+Des usages avec les élèves adaptés en fonction du niveau
+Les formations pour les professeurs et les autres personnels
+Autres formations
+Former les élèves à la compréhension et au fonctionnement des IA
+Les scénarios Édubase
+Les scénarios Primabord
+Le parcours Pix sur l'intelligence artificielle
+Des ressources de Lumni enseignement
+À retenir
+
+L’intelligence artificielle est définie comme tout service numérique fondé sur des algorithmes probabilistes, s’appuyant sur le traitement statistique de vastes ensembles de données sur lesquels ils sont entraînés et capables de produire des résultats comparables à ceux obtenus par une activité cognitive humaine.
+
+Quelle place tient l’IA aujourd’hui dans le domaine de l’éducation ?
+
+Les technologies d’intelligence artificielle sont déjà largement utilisées en éducation, qu'elles soient adaptatives ou génératives de contenus :
+
+d’abord par les élèves, notamment les lycéens voire les collégiens : comme outil pour réviser, s’entraîner, approfondir ses connaissances, mais aussi pour faire les devoirs sans toujours vérifier la pertinence des productions générées ;
+également par les enseignants : pour préparer les cours, concevoir des évaluations, voire comme aide à la correction ;
+enfin par les cadres et personnels administratifs : comme assistance à la rédaction de notes, de courriers, de comptes rendus, de synthèses, à la transcription de réunions, à la traduction, ou à l'automatisation de tâches…
+
+L’IA est aussi un sujet d’étude et de connaissance, qu'il est nécessaire d’appréhender à la fois pour développer sa culture numérique, construire un esprit critique adapté aux usages actuels du numérique et pour permettre d’aider les élèves à s'orienter vers les nombreux métiers du numérique, en particulier autour de l’IA, des données et des questions de sécurité et de cybersécurité.
+
+Enfin, les usages adaptatifs de l’IA présentent un réel intérêt en éducation, notamment pour personnaliser les contenus et aider les élèves à apprendre à leur rythme en adaptant la difficulté aux besoins identifiés.
+
+Quels risques et préoccupations l'IA soulève-t-elle en éducation ?
+La prise en compte dans l’évaluation des élèves : l’utilisation de l'IA pour accomplir des travaux scolaires, interroge l’authenticité des productions et par suite la validité des évaluations et le rapport de l’élève à la connaissance.
+Les biais et discriminations : les algorithmes d'IA peuvent reproduire ou amplifier des biais existants, notamment en matière de genre, d'origine ou de statut social.
+La protection des données personnelles : l’IA collecte et analyse d'énormes quantités de données, souvent sensibles, sur ses utilisateurs, élèves ou adultes. En l'absence de garanties solides concernant la confidentialité, cela pose des questions sur la gestion et la protection des données personnelles dans les environnements scolaires.
+L'impact environnemental : le développement de l'IA, et en particulier des IA génératives, nécessite d’énormes ressources matérielles et énergétiques. L’impact environnemental de cette technologie est un facteur à prendre en compte dans sa généralisation ou dans ses usages particuliers.
+Quel cadre d’usage de l’IA en éducation ?
+
+À destination de l’ensemble des personnels et de la communauté éducative, le cadre d’usage englobe à la fois les usages administratifs et les usages pédagogiques.
+
+Les grands principes de son utilisation
+
+Le cadre d'usage repose sur des principes généraux et donne les lignes directrices des usages qui peuvent être faits de cette technologie.
+
+Les usages de l’IA doivent se faire dans le respect des valeurs et principes de l’École de la République, des engagements et objectifs du service public d’éducation, et du principe de liberté pédagogique.
+L'utilisation de l’IA doit se faire de manière responsable et réflexive, en s’appuyant sur l’expertise professionnelle des personnels qu’elle peut assister, mais jamais remplacer.
+Pour limiter l’impact environnemental, l’usage frugal de l’IA est à privilégier, avec une sensibilisation à ces enjeux dans le contexte de l’éducation au développement durable (EDD) et de la stratégie nationale bas-carbone. En particulier, l’IA ne doit être utilisée que si aucune autre solution moins coûteuse écologiquement ne répond de façon satisfaisante au besoin.
+L’utilisation des solutions libres doit être privilégiée.
+Des usages avec les élèves adaptés en fonction du niveau
+Dès le premier degré, les élèves sont sensibilisés aux connaissances de base de l’IA, sans manipuler directement des IA génératives.
+L'utilisation pédagogique en classe des IA génératives par les élèves, limitée, encadrée, expliquée et accompagnée par l’enseignant, est autorisée en classe à partir de la 4e dans le respect des données personnelles.
+Au lycée, les élèves peuvent utiliser les IA génératives de manière autonome dans un cadre d’apprentissage et de formation explicitement défini par l’enseignant.
+Télécharger le cadre d'usage
+
+EDUCATION.GOUV.FR
+
+Affiche Cadre d'usage de l'IA en éducation
+
+PDF - 87.5 KO
+
+Ajouter aux favoris
+Les formations pour les professeurs et les autres personnels
+La communauté numérique « CREIA »
+
+La communauté numérique « CREIA » est une communauté apprenante entre pairs qui place l’intelligence artificielle au cœur des réflexions et des pratiques éducatives. Accessible sur Magistère, elle propose d'accompagner les transformations numériques du système éducatif depuis la disponibilité au grand public des IA génératives. 
+
+Son approche repose sur trois axes principaux :
+
+recenser et mutualiser les idées, avec un échange collectif via les forums et les webinaires ;
+travailler en réseau, où les idées partagées via les forums sont exploitées pour co-construire des projets avec l'ensemble de la communauté ; 
+accompagner, en mettant à disposition l'ensemble du réseau de formateurs de la CREIA pour soutenir les acteurs de l'éducation. 
+
+L'espace Magistere de la CREIA, ouvert en auto-inscription à tous, est organisé en deux niveaux : un espace d'accueil principal qui mène aux sous-niveaux dans lesquels on retrouve les actualités, les échanges, les ressources et les formations, ainsi qu'un agenda partagé dans lequel les formateurs peuvent inscrire des événements tels que des webinaires.
+
+Accéder à la Communauté de Réflexion en Éducation sur l’Intelligence Artificielle (CREIA)
+Autres formations
+
+Le parcours apprenant Magistère « Utiliser l’IA générative en éducation de façon éclairée et responsable » propose des repères pour comprendre le fonctionnement des IA génératives, en identifier les opportunités et les limites, et les mobiliser dans le respect du cadre d’usage de l’IA en éducation. 
+
+Un module d'initiation aux IA génératives d'une durée d'une heure est disponible en ligne sur la plateforme Mentor : Découvrir les IA génératives.
+
+Le projet européen «AI4T» initié par le ministère chargé de l'éducation nationale et coordonné par France Éducation International, permet de construire une formation et de participer à une expérimentation sur les apports de l’intelligence artificielle (IA) en éducation dans cinq pays de l’Union européenne.
+
+La lettre Intelligence artificielle et éducation : apports de la recherche et enjeux pour les politiques publiques : édition trilingue 2025 – Éducation, numérique et recherche constitue une référence pour se documenter sur le sujet.
+
+À consulter : Rapport IGÉSR. (2025, mai). L’intelligence artificielle dans les établissements scolaires. 
+
+Former les élèves à la compréhension et au fonctionnement des IA
+Les scénarios Édubase
+
+Pour le second degré, des scénarios pédagogiques issus de la plateforme Édubase proposent une variété d'activités possibles dans différentes disciplines. Ils sont complétés par des ressources académiques pour l'enseignement des langues vivantes.
+
+Arts plastiques
+Biotechnologies et ST2S
+Documentation
+Éducation musicale
+EMI
+Français, langues et culture de l'Antiquité
+Histoire des arts
+Histoire-géographie-EMC
+Langues vivantes
+Mathématiques
+Philosophie
+Physique-chimie
+Sciences de la vie et de la Terre
+Technologie
+Les scénarios Primabord
+
+Pour le premier degré, des scénarios sont proposés sur la plateforme Primabord.
+
+Deux scénarios pour aborder la thématique de l'intelligence artificielle à l'école élémentaire proposent des activités débranchées qui encouragent la réflexion critique des élèves et leur permettent de mieux comprendre les enjeux de l’intelligence artificielle.
+
+Le parcours Pix sur l'intelligence artificielle
+
+le parcours de formation et de sensibilisation "Pix IA" est obligatoire à compter de la rentrée scolaire 2026 pour tous les élèves de 4e, de 2nde générale et 1re année de CAP. Il est déjà accessible à tous les collégiens et lycéens volontaires.
+
+Ce parcours permet aux élèves de :
+
+comprendre le fonctionnement des IA génératives,
+apprendre à formuler des requêtes pertinentes (prompting),
+maîtriser la gestion de leurs données personnelles et développer un regard critique sur ces outils.
+Des ressources de Lumni enseignement
+
+La plateforme Lumni Enseignement propose une sélection de ressources qui interrogent sur l'information à l'heure de l'IA.
+
+Faut-il avoir peur des IA ?
+Faut-il craindre l’intelligence artificielle ?
+Qu'est-ce que l'intelligence artificielle générative peut apporter aux médias ?
+L’IA, un problème démocratique mondial ?
+Intelligence artificielle : une menace pour l'humanité ?
+
+enseigner avec le numérique
+
+Partager la page
+
+Partager via Facebook
+Partager via X
+Partager via Bluesky
+Partager via LinkedIn
+Partager par email
+Copier le lien
+Sur le même thème
+Observatoire national des pratiques pédagogiques avec l'intelligence artificielle
+
+Pour répondre aux besoins d’accompagnement des équipes éducatives et garantir une mise en œuvre cohérente et responsable, le ministère de l’Éducation…
+
+L’intelligence artificielle pour accompagner les apprentissages des fondamentaux au cycle 2
+
+Des services numériques s'appuyant sur l'intelligence artificielle sont disponibles pour les enseignants du cycle 2 afin de mieux accompagner les…
+
+L’intelligence artificielle au service des apprentissages du français, des mathématiques et des langues vivantes au cycle 3
+
+À la rentrée 2025, le ministère chargé de l’éducation nationale lance le Partenariat d’innovation en intelligence artificielle (P2IA) pour les…
+
+Haut de page
+Suivez nous sur les réseaux sociaux
+Facebook
+X (ex-Twitter)
+Sites Éducation
+France Éducation International
+education.gouv.fr
+Devenir Enseignant
+Institut des hautes études de l'éducation et de la formation
+Enseignement supérieur, Recherche et Innovation
+Onisep
+Cned
+Réseau Canopé
+CLEMI
+Sites académiques
+Sites de formation et thématiques
+CultureSciences-Chimie
+La Clé des langues
+Culture sciences de l'ingénieur
+Planet-Terre
+CultureSciences-physique
+Planet-Vie
+Encyclopédie d'histoire numérique de l'Europe
+Sciences économiques et sociales
+Géoconfluences
+Odysseum
+Sites publics
+Élysée.fr
+Data.gouv.fr
+Gouvernement.fr
+Legifrance.gouv.fr
+Service-public.gouv.fr
+Jeunes.gouv.fr
+Sports.gouv.fr
+
+MINISTÈRE
+DE L'ÉDUCATION
+NATIONALE
+
+data.gouv.fr 
+legifrance.gouv.fr 
+service-public.gouv.fr 
+Mentions légales  Données personnelles et cookies  Gestion des cookies  Accessibilité : partiellement conforme  Contact  Plan du site  DE  EN  ES  Comprendre l'espace personnel éduscol
+
+Sauf cas particuliers indiqués dans les mentions légales, les contenus de ce site sont sous licence etalab-2.0.
