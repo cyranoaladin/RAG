@@ -1065,7 +1065,7 @@ def test_retrievable_gate_blocks_only_a_governed_unready_collection(
     monkeypatch.setattr(
         endpoint,
         "_release_evidence_for_collection",
-        lambda collection: events.append(collection) or False,
+        lambda collection, **_kwargs: events.append(collection) or False,
     )
 
     cfg = copy.deepcopy(FULL_CFG)
