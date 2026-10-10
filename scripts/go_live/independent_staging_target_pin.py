@@ -12,6 +12,7 @@ import argparse
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -40,7 +41,8 @@ PIN_FIELDS = frozenset({
 })
 IDENTITY_SQL = (
     "SELECT system_identifier::pg_catalog.text, "
-    "pg_catalog.current_database(), pg_catalog.inet_server_addr()::pg_catalog.text "
+    "pg_catalog.current_database(), pg_catalog.inet_server_addr()::pg_catalog.text, "
+    "pg_catalog.inet_server_port() "
     "FROM pg_catalog.pg_control_system()"
 )
 
@@ -197,20 +199,81 @@ def approved_pin_sha256(
     return hashlib.sha256(raw).hexdigest()
 
 
-def verify_docker_postgres_binding(container: Mapping[str, object],
-                                   container_id: str, server_ip: str | None) -> None:
-    """Le serveur SQL atteint doit être l'adresse du conteneur épinglé."""
+def parse_qualified_dsn_endpoint(dsn: str) -> tuple[str, int]:
+    """N'admettre qu'un unique port TCP loopback explicite publié par Docker."""
     try:
-        networks = container["NetworkSettings"]["Networks"]
+        from psycopg.conninfo import conninfo_to_dict  # noqa: PLC0415
+
+        params = conninfo_to_dict(dsn)
+    except Exception as error:
+        raise PinRefused("DSN PostgreSQL illisible") from error
+    if not isinstance(params, dict) or params.get("service") or params.get("hostaddr"):
+        raise PinRefused("DSN PostgreSQL redirigé ou implicite")
+    host, port_raw = params.get("host"), params.get("port")
+    if host not in {"127.0.0.1", "::1"} or not isinstance(port_raw, str):
+        raise PinRefused("DSN PostgreSQL sans TCP loopback unique")
+    if not port_raw.isdecimal() or not 1 <= int(port_raw) <= 65535:
+        raise PinRefused("port PostgreSQL invalide")
+    return host, int(port_raw)
+
+
+def observed_peer_endpoint(connection: object) -> tuple[str, int]:
+    """Lire le pair TCP du socket libpq réellement connecté, pas le seul DSN."""
+    try:
+        file_descriptor = connection.pgconn.socket
+        if type(file_descriptor) is not int or file_descriptor < 0:
+            raise OSError("libpq socket absent")
+        with socket.socket(fileno=os.dup(file_descriptor)) as peer_socket:
+            if peer_socket.family not in {socket.AF_INET, socket.AF_INET6}:
+                raise OSError("socket non TCP")
+            peer = peer_socket.getpeername()
+        host = str(ipaddress.ip_address(peer[0]))
+        port = peer[1]
+        if type(port) is not int or not 1 <= port <= 65535:
+            raise OSError("port pair invalide")
+        return host, port
+    except (OSError, AttributeError, TypeError, ValueError) as error:
+        raise PinRefused("socket PostgreSQL non qualifié") from error
+
+
+def verify_docker_postgres_binding(
+    container: Mapping[str, object], container_id: str, server_ip: str | None,
+    server_port: int, peer_host: str, peer_port: int,
+) -> None:
+    """Lier le socket connecté au port publié de l'ID Docker, pas à une IP clonable."""
+    try:
+        network_settings = container["NetworkSettings"]
+        networks = network_settings["Networks"]
         ips = {value[key] for value in networks.values()
                for key in ("IPAddress", "GlobalIPv6Address") if value.get(key)}
         running = container["State"]["Running"] is True
+        sandbox = network_settings["SandboxKey"]
+        network_mode = container["HostConfig"]["NetworkMode"]
+        ports = network_settings["Ports"]
     except (KeyError, TypeError, AttributeError) as error:
         raise PinRefused("preuve réseau Docker malformée") from error
-    if container.get("Id") != container_id or not running or not ips:
+    if (container.get("Id") != container_id or not running or not ips
+            or not isinstance(sandbox, str) or not sandbox
+            or not isinstance(network_mode, str) or network_mode in {"host", "none"}
+            or network_mode.startswith("container:")
+            or not isinstance(ports, Mapping)):
         raise PinRefused("conteneur PostgreSQL absent, arrêté ou sans réseau")
-    if server_ip is None or server_ip not in ips:
+    if (server_ip is None or server_ip not in ips
+            or type(server_port) is not int or not 1 <= server_port <= 65535
+            or peer_host not in {"127.0.0.1", "::1"}
+            or type(peer_port) is not int or not 1 <= peer_port <= 65535):
         raise PinRefused("PostgreSQL connecté hors du conteneur épinglé")
+    bindings = ports.get(f"{server_port}/tcp")
+    if not isinstance(bindings, list):
+        raise PinRefused("port PostgreSQL non publié par le conteneur épinglé")
+    matched = [
+        binding for binding in bindings
+        if isinstance(binding, Mapping)
+        and binding.get("HostIp") == peer_host
+        and binding.get("HostPort") == str(peer_port)
+    ]
+    if len(matched) != 1:
+        raise PinRefused("pair TCP absent ou ambigu parmi les ports Docker publiés")
 
 
 def observe_live_target(*, container_id: str, destination_root: Path,
@@ -218,6 +281,7 @@ def observe_live_target(*, container_id: str, destination_root: Path,
     """Sondes locales lecture seule; PostgreSQL natif et socket sont refusés."""
     if not re.fullmatch(r"[0-9a-f]{64}", container_id) or not database_dsn:
         raise PinRefused("cible conteneur ou DSN de lecture absent")
+    expected_host, expected_port = parse_qualified_dsn_endpoint(database_dsn)
     before = _directory_snapshot(destination_root)
     try:
         inspection = subprocess.run(
@@ -245,15 +309,52 @@ def observe_live_target(*, container_id: str, destination_root: Path,
             options=("-c default_transaction_read_only=on -c statement_timeout=3000 "
                      "-c search_path=pg_catalog"),
         ) as connection:
+            peer_host, peer_port = observed_peer_endpoint(connection)
+            if (peer_host, peer_port) != (expected_host, expected_port):
+                raise PinRefused("socket PostgreSQL différent du DSN qualifié")
             with connection.cursor() as cursor:
                 cursor.execute(IDENTITY_SQL)
                 row = cursor.fetchone()
     except Exception as error:
         raise PinRefused("identité PostgreSQL en lecture seule indisponible") from error
-    if (not isinstance(row, tuple) or len(row) != 3
+    if (not isinstance(row, tuple) or len(row) != 4
             or not isinstance(row[0], str) or not isinstance(row[1], str)):
         raise PinRefused("identité PostgreSQL malformée")
-    verify_docker_postgres_binding(container, container_id, row[2])
+    verify_docker_postgres_binding(
+        container, container_id, row[2], row[3], peer_host, peer_port,
+    )
+    try:
+        reinspection = subprocess.run(
+            ["docker", "inspect", "--type", "container", container_id],
+            check=True, capture_output=True, timeout=10,
+        )
+        after_containers = json.loads(reinspection.stdout)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            json.JSONDecodeError) as error:
+        raise PinRefused("réinspection Docker indisponible") from error
+    if not isinstance(after_containers, list) or len(after_containers) != 1:
+        raise PinRefused("conteneur changé pendant la sonde")
+    after_container = after_containers[0]
+    try:
+        before_identity = (
+            container["Id"], container["State"]["Running"], container["State"]["Pid"],
+            container["State"]["StartedAt"], container["HostConfig"]["NetworkMode"],
+            container["NetworkSettings"]["SandboxKey"],
+            container["NetworkSettings"]["Networks"],
+            container["NetworkSettings"]["Ports"],
+        )
+        after_identity = (
+            after_container["Id"], after_container["State"]["Running"],
+            after_container["State"]["Pid"], after_container["State"]["StartedAt"],
+            after_container["HostConfig"]["NetworkMode"],
+            after_container["NetworkSettings"]["SandboxKey"],
+            after_container["NetworkSettings"]["Networks"],
+            after_container["NetworkSettings"]["Ports"],
+        )
+    except (KeyError, TypeError) as error:
+        raise PinRefused("réinspection Docker malformée") from error
+    if after_identity != before_identity:
+        raise PinRefused("namespace ou ports Docker changés pendant la sonde")
     after = _directory_snapshot(destination_root)
     if after != before:
         raise PinRefused("destination modifiée pendant l'observation")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import socket
 import subprocess
 import sys
 import types
@@ -21,6 +22,8 @@ from independent_staging_target_pin import (  # noqa: E402
     approved_pin_sha256,
     canonical,
     main,
+    observed_peer_endpoint,
+    parse_qualified_dsn_endpoint,
     verify_docker_postgres_binding,
     verify_target_pin,
 )
@@ -155,17 +158,102 @@ def test_native_or_different_postgres_refused_even_when_dsn_connects() -> None:
     inspected = {
         "Id": CONTAINER, "State": {"Running": True},
         "NetworkSettings": {"Networks": {"rag": {"IPAddress": "172.19.0.4"}}},
+        "HostConfig": {"NetworkMode": "rag"},
     }
-    verify_docker_postgres_binding(inspected, CONTAINER, "172.19.0.4")
+    inspected["NetworkSettings"]["SandboxKey"] = "/var/run/docker/netns/rag-pin"
+    inspected["NetworkSettings"]["Ports"] = {
+        "5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "15432"}],
+    }
+    verify_docker_postgres_binding(
+        inspected, CONTAINER, "172.19.0.4", 5432, "127.0.0.1", 15432,
+    )
     for server_ip in (None, "127.0.0.1", "172.19.0.5"):
         with pytest.raises(PinRefused):
-            verify_docker_postgres_binding(inspected, CONTAINER, server_ip)
-    with pytest.raises(PinRefused):
-        verify_docker_postgres_binding(inspected, "f" * 64, "172.19.0.4")
+            verify_docker_postgres_binding(
+                inspected, CONTAINER, server_ip, 5432, "127.0.0.1", 15432,
+            )
     with pytest.raises(PinRefused):
         verify_docker_postgres_binding(
-            {**inspected, "State": {"Running": False}}, CONTAINER, "172.19.0.4"
+            inspected, "f" * 64, "172.19.0.4", 5432, "127.0.0.1", 15432,
         )
+    with pytest.raises(PinRefused):
+        verify_docker_postgres_binding(
+            {**inspected, "State": {"Running": False}}, CONTAINER,
+            "172.19.0.4", 5432, "127.0.0.1", 15432,
+        )
+
+
+def test_duplicate_bridge_ip_cannot_borrow_foreign_containers_port() -> None:
+    pinned = {
+        "Id": CONTAINER, "State": {"Running": True},
+        "HostConfig": {"NetworkMode": "network_a"},
+        "NetworkSettings": {
+            "SandboxKey": "/var/run/docker/netns/network_a",
+            "Networks": {"network_a": {"IPAddress": "172.19.0.4"}},
+            "Ports": {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "15432"}]},
+        },
+    }
+    foreign = {
+        "Id": "f" * 64, "State": {"Running": True},
+        "HostConfig": {"NetworkMode": "network_b"},
+        "NetworkSettings": {
+            "SandboxKey": "/var/run/docker/netns/network_b",
+            "Networks": {"network_b": {"IPAddress": "172.19.0.4"}},
+            "Ports": {"5432/tcp": [{"HostIp": "127.0.0.1", "HostPort": "15433"}]},
+        },
+    }
+    assert foreign["NetworkSettings"]["Networks"]["network_b"]["IPAddress"] == (
+        pinned["NetworkSettings"]["Networks"]["network_a"]["IPAddress"]
+    )
+    with pytest.raises(PinRefused):
+        verify_docker_postgres_binding(
+            pinned, CONTAINER, "172.19.0.4", 5432, "127.0.0.1", 15433,
+        )
+    verify_docker_postgres_binding(
+        pinned, CONTAINER, "172.19.0.4", 5432, "127.0.0.1", 15432,
+    )
+    with pytest.raises(PinRefused):
+        verify_docker_postgres_binding(
+            {**pinned, "NetworkSettings": {**pinned["NetworkSettings"], "Ports": {}}},
+            CONTAINER, "172.19.0.4", 5432, "127.0.0.1", 15432,
+        )
+    with pytest.raises(PinRefused):
+        verify_docker_postgres_binding(
+            {**pinned, "NetworkSettings": {
+                **pinned["NetworkSettings"],
+                "Ports": {"5432/tcp": [{"HostIp": "0.0.0.0", "HostPort": "15432"}]},
+            }},
+            CONTAINER, "172.19.0.4", 5432, "127.0.0.1", 15432,
+        )
+    with pytest.raises(PinRefused):
+        verify_docker_postgres_binding(
+            {**pinned, "HostConfig": {"NetworkMode": f"container:{foreign['Id']}"}},
+            CONTAINER, "172.19.0.4", 5432, "127.0.0.1", 15432,
+        )
+
+
+@pytest.mark.parametrize("dsn", [
+    "host=172.19.0.4 port=5432 dbname=nexus_rag",
+    "host=localhost port=15432 dbname=nexus_rag",
+    "host=127.0.0.1,127.0.0.2 port=15432 dbname=nexus_rag",
+    "host=/var/run/postgresql port=15432 dbname=nexus_rag",
+    "host=127.0.0.1 hostaddr=172.19.0.4 port=15432 dbname=nexus_rag",
+    "host=127.0.0.1 service=foreign port=15432 dbname=nexus_rag",
+])
+def test_ambiguous_or_foreign_dsn_refused(dsn: str) -> None:
+    with pytest.raises(PinRefused):
+        parse_qualified_dsn_endpoint(dsn)
+
+
+def test_tcp_peer_endpoint_is_observed_from_real_socket() -> None:
+    with socket.create_server(("127.0.0.1", 0)) as server:
+        with socket.create_connection(server.getsockname()) as client:
+            accepted, _ = server.accept()
+            with accepted:
+                connection = types.SimpleNamespace(
+                    pgconn=types.SimpleNamespace(socket=client.fileno())
+                )
+                assert observed_peer_endpoint(connection) == server.getsockname()
 
 
 @pytest.mark.parametrize("decision_mutation", [
