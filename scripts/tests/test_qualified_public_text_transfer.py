@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -49,6 +50,8 @@ def evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "pinned_at_utc": "2026-10-10T16:00:00Z",
         "expires_at_utc": "2026-10-11T12:00:00Z",
     })
+    (tmp_path / "candidate_inventory.json").write_bytes(inventory)
+    (tmp_path / "private_transfer_allowlist.json").write_bytes(allowlist)
     import qualified_public_text_transfer as qualified
     monkeypatch.setattr(qualified, "observed_host_identity",
                         lambda: ("staging-example", HOST_ID))
@@ -58,12 +61,25 @@ def evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     return plan_raw, receipt_raw, pin_raw, destination, digests
 
 
+def expected_a(destination: Path) -> dict[str, object]:
+    inventory = (destination.parent / "candidate_inventory.json").read_bytes()
+    allowlist = (destination.parent / "private_transfer_allowlist.json").read_bytes()
+    return {
+        "expected_release_id": "student-public-successor-test",
+        "candidate_inventory_raw": inventory,
+        "expected_candidate_inventory_sha256": digest(inventory),
+        "allowlist_raw": allowlist,
+        "expected_allowlist_sha256": digest(allowlist),
+    }
+
+
 def attest(plan_raw: bytes, receipt_raw: bytes, pin_raw: bytes,
            destination: Path) -> bytes:
     return canonical(attest_qualified_transfer_target(
         plan_raw=plan_raw, receipt_v1_raw=receipt_raw,
         target_pin_raw=pin_raw, expected_target_pin_sha256=digest(pin_raw),
         expected_content_anchor_sha256=ANCHOR,
+        **expected_a(destination),
         destination_root=destination, database_dsn="postgresql://read-only",
     ))
 
@@ -76,6 +92,7 @@ def verify(attestation_raw: bytes, plan_raw: bytes, receipt_raw: bytes,
         plan_raw=plan_raw, receipt_v1_raw=receipt_raw,
         target_pin_raw=pin_raw, expected_target_pin_sha256=digest(pin_raw),
         expected_content_anchor_sha256=ANCHOR,
+        **expected_a(destination),
         destination_root=destination, database_dsn="postgresql://read-only",
     )
 
@@ -175,6 +192,7 @@ def test_attestation_expiree_refusee(tmp_path: Path, monkeypatch: pytest.MonkeyP
             plan_raw=plan, receipt_v1_raw=receipt, target_pin_raw=pin,
             expected_target_pin_sha256=digest(pin),
             expected_content_anchor_sha256=ANCHOR, destination_root=destination,
+            **expected_a(destination),
             database_dsn="postgresql://read-only",
         )
 
@@ -200,6 +218,7 @@ def test_digest_attestation_ou_pin_non_epingle_refuse(
             plan_raw=plan, receipt_v1_raw=receipt, target_pin_raw=pin,
             expected_target_pin_sha256=digest(pin),
             expected_content_anchor_sha256=ANCHOR,
+            **expected_a(destination),
             destination_root=destination, database_dsn="postgresql://read-only",
         )
     with pytest.raises(TransferRefused):
@@ -207,6 +226,7 @@ def test_digest_attestation_ou_pin_non_epingle_refuse(
             plan_raw=plan, receipt_v1_raw=receipt, target_pin_raw=pin,
             expected_target_pin_sha256="f" * 64,
             expected_content_anchor_sha256=ANCHOR,
+            **expected_a(destination),
             destination_root=destination, database_dsn="postgresql://read-only",
         )
 
@@ -220,3 +240,99 @@ def test_aucune_attestation_sans_identite_db_lue_en_direct(
                         lambda dsn: (_ for _ in ()).throw(TransferRefused("DB inaccessible")))
     with pytest.raises(TransferRefused, match="DB inaccessible"):
         attest(plan, receipt, pin, destination)
+
+
+def test_plan_et_allowlist_doivent_couvrir_la_population_exacte_de_a(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, _, pin, destination, digests = evidence(tmp_path, monkeypatch)
+    changed = json.loads(plan)
+    changed["inventory_sha256"] = "f" * 64
+    receipt = canonical(observe_destination(
+        canonical(changed), destination, "staging-final", "2026-10-10T17:00:00Z",
+    ))
+    with pytest.raises(TransferRefused):
+        attest(canonical(changed), receipt, pin, destination)
+    changed = json.loads(plan)
+    changed["allowlist_sha256"] = "f" * 64
+    receipt = canonical(observe_destination(
+        canonical(changed), destination, "staging-final", "2026-10-10T17:00:00Z",
+    ))
+    with pytest.raises(TransferRefused):
+        attest(canonical(changed), receipt, pin, destination)
+    changed = json.loads(plan)
+    changed["files"] = [row for row in changed["files"] if row["sha256_expected"] != digests[0]]
+    changed["file_count"] = 1
+    (destination / f"{digests[0]}.txt").unlink()
+    receipt = canonical(observe_destination(
+        canonical(changed), destination, "staging-final", "2026-10-10T17:00:00Z",
+    ))
+    with pytest.raises(TransferRefused):
+        attest(canonical(changed), receipt, pin, destination)
+
+
+def test_parent_symbolique_interdit_meme_si_destination_resout_au_bon_chemin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, receipt, pin, destination, _ = evidence(tmp_path, monkeypatch)
+    alias = tmp_path / "alias"
+    alias.symlink_to(tmp_path, target_is_directory=True)
+    with pytest.raises(TransferRefused):
+        attest(plan, receipt, pin, alias / destination.name)
+
+
+def test_bascule_parent_pendant_rehash_refusee(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, _, pin, original, _ = evidence(tmp_path, monkeypatch)
+    mount = tmp_path / "mount"
+    mount.mkdir()
+    destination = mount / "store"
+    shutil.copytree(original, destination)
+    shutil.copy2(tmp_path / "candidate_inventory.json", mount)
+    shutil.copy2(tmp_path / "private_transfer_allowlist.json", mount)
+    receipt = canonical(observe_destination(
+        plan, destination, "staging-final", "2026-10-10T17:00:00Z",
+    ))
+    pin_doc = json.loads(pin)
+    pin_doc["destination_realpath"] = str(destination.resolve())
+    pin = canonical(pin_doc)
+    raw = attest(plan, receipt, pin, destination)
+    other = tmp_path / "other"
+    other.mkdir()
+    shutil.copytree(original, other / "store")
+    import qualified_public_text_transfer as qualified
+    original_verify = qualified.verify_observed_destination
+
+    def switch_after_hash(*args: object) -> None:
+        original_verify(*args)
+        mount.rename(tmp_path / "mount-old")
+        mount.symlink_to(other, target_is_directory=True)
+
+    monkeypatch.setattr(qualified, "verify_observed_destination", switch_after_hash)
+    with pytest.raises(TransferRefused):
+        verify(raw, plan, receipt, pin, destination)
+
+
+def test_expiration_pendant_rehash_refusee(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, receipt, pin, destination, _ = evidence(tmp_path, monkeypatch)
+    raw = attest(plan, receipt, pin, destination)
+    import qualified_public_text_transfer as qualified
+    times = iter((NOW, datetime(2026, 10, 12, tzinfo=UTC)))
+    monkeypatch.setattr(qualified, "utc_now", lambda: next(times))
+    with pytest.raises(TransferRefused):
+        verify(raw, plan, receipt, pin, destination)
+
+
+def test_expiration_apres_rehash_avant_verdict_refusee(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, receipt, pin, destination, _ = evidence(tmp_path, monkeypatch)
+    raw = attest(plan, receipt, pin, destination)
+    import qualified_public_text_transfer as qualified
+    times = iter((NOW, NOW, datetime(2026, 10, 12, tzinfo=UTC)))
+    monkeypatch.setattr(qualified, "utc_now", lambda: next(times))
+    with pytest.raises(TransferRefused):
+        verify(raw, plan, receipt, pin, destination)
