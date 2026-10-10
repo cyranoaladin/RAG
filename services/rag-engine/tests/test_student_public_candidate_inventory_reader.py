@@ -23,10 +23,16 @@ V4 = ROOT / (
     "services/rag-pedago/data/releases/prerentree_2026_2027/"
     "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/candidate_inventory.json"
 )
-PREPARATION = ROOT / (
+PREPARATION_ROOT = ROOT / (
     "services/rag-pedago/data/releases/prerentree_2026_2027/"
-    "profile_gate_student_public_successor_v1/release-d5f2bcf9e44c2a79"
+    "profile_gate_student_public_successor_v1"
 )
+
+
+def _preparation() -> Path:
+    releases = sorted(PREPARATION_ROOT.glob("release-*/preparation-index.json"))
+    assert len(releases) == 1, "expected one current prepared successor"
+    return releases[0].parent
 
 
 def _sha(value: str) -> str:
@@ -133,12 +139,13 @@ def test_worker_subject_join_rejects_resealed_inventory_collection(tmp_path):
 
 
 def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
-    gate = PREPARATION / "profile_gate"
+    preparation = _preparation()
+    gate = preparation / "profile_gate"
     inventory_path = gate / "candidate_inventory.json"
     inventory = load_student_public_candidate_inventory(
         inventory_path, expected_sha256=hashlib.sha256(inventory_path.read_bytes()).hexdigest()
     )
-    index_path = PREPARATION / "preparation-index.json"
+    index_path = preparation / "preparation-index.json"
     index = json.loads(index_path.read_bytes())
     sidecar = tmp_path / "source_preparation"
     sidecar.mkdir()
@@ -207,7 +214,7 @@ def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
 
 
 def test_sealed_loader_refuses_text_without_dereferenceable_preparation(tmp_path):
-    gate = PREPARATION / "profile_gate"
+    gate = _preparation() / "profile_gate"
     final = tmp_path / "final"
     shutil.copytree(gate, final)
     manifest_path = final / "production-profile-gate.release.json"
