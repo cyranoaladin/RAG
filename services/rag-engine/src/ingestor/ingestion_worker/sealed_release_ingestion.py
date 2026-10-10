@@ -51,6 +51,9 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import psycopg
+from nexus_contracts.ingestion import CollectionProfile, ResourceScope
+from nexus_contracts.resource_state import ResourceState
+
 from ingestor.ingestion_control.artifact_attribution import (
     ArtifactAttribution,
     derive_sealed_release_artifact_attribution,
@@ -77,8 +80,6 @@ from ingestor.multilevel_evidence import (
     StudentPublicCandidateInventory,
     load_student_public_candidate_inventory,
 )
-from nexus_contracts.ingestion import CollectionProfile, ResourceScope
-from nexus_contracts.resource_state import ResourceState
 
 #: Le protocole sous lequel ces lignes sont écrites (ADR-0056). Il figure
 #: dans chaque ``payload`` : une ligne dit d'elle-même sous quel régime elle

@@ -10,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
+
 from ingestor.ingestion_worker import sealed_release_ingestion as worker
 from ingestor.multilevel_evidence import (
     MultilevelEvidenceError,
