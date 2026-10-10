@@ -6,6 +6,7 @@ import json
 import os
 import shutil
 import sys
+import time
 from contextlib import nullcontext
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -232,6 +233,30 @@ def test_signed_c_cache_never_accepts_expired_verdict(
     with pytest.raises(RuntimeError, match="public successor"):
         endpoint._verify_public_successor_candidate(registry)
     assert len(calls) == 1
+
+
+def test_signed_c_cache_refuses_expiry_during_bundle_rescan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    _install_verifier(
+        monkeypatch, _VerifiedC(expires_at_utc=datetime.now(UTC) + timedelta(milliseconds=40)),
+    )
+    identity = endpoint._public_bundle_identity
+    scans = 0
+
+    def delayed_second_scan(root: Path) -> str:
+        nonlocal scans
+        scans += 1
+        if scans == 2:
+            time.sleep(0.08)
+        return identity(root)
+
+    monkeypatch.setattr(endpoint, "_public_bundle_identity", delayed_second_scan)
+    with pytest.raises(RuntimeError, match="public successor"):
+        endpoint._verify_public_successor_candidate(registry)
 
 
 def test_signed_c_cache_lifetime_is_bounded(
