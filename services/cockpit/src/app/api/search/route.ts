@@ -13,7 +13,7 @@ import {
 } from '@/generated/validators'
 import { requireBffAuth } from '@/server/bff-auth'
 import type { BffAuthContext } from '@/server/bff-auth'
-import { PILOT_RETRIEVAL_SCOPE } from '@/server/pilot-scope'
+import { resolveConfiguredScope } from '@/server/scope-selection'
 import { SEARCH_ROUTE_BUDGET_MS } from '@/lib/request-deadlines'
 
 import { fetchEngine, isPublicLaunchReady } from '../_engine'
@@ -25,10 +25,8 @@ function buildRetrievalRequest(
   payload: SearchPayload,
   collection: string,
 ): RetrievalRequest | null {
-  const subject = PILOT_RETRIEVAL_SCOPE.subjects.find(
-    (candidate) => candidate.collection === collection,
-  )
-  if (!subject || !auth.identity.pedagogical_profile.matieres.includes(subject.matiere)) {
+  const matiere = resolveConfiguredScope(auth.identity).subjectForCollection(collection)
+  if (!matiere || !auth.identity.pedagogical_profile.matieres.includes(matiere)) {
     return null
   }
   const profile = auth.identity.pedagogical_profile
@@ -36,7 +34,7 @@ function buildRetrievalRequest(
     student_profile: {
       niveau: auth.identity.niveau,
       voie: profile.voie,
-      matieres: [subject.matiere],
+      matieres: [matiere],
       statut_enseignement: profile.statut_enseignement,
       candidat: profile.candidat,
       school_year: auth.identity.school_year,
