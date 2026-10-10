@@ -468,6 +468,9 @@ def main(argv: list[str] | None = None) -> int:
                 )
             except Exception as error:  # noqa: BLE001 - frontière de signature
                 raise SigningRefused("public successor target pin changed before key") from error
+            _require_public_checkout_matches_merge(args.merge_sha)
+            _require(datetime.now(UTC) < expires_at,
+                     "public successor authority expired after pin recheck")
         seed = _read_private_key(args.private_key_file)
         signed = sign_staging_readiness_manifest(
             manifest, private_key_hex=seed, key_id=args.key_id

@@ -148,7 +148,7 @@ def recheck_publication_pin_before_key(
         now_utc=now_utc,
     )
     if (digest != expected_pin_sha256
-            or now_utc >= min(expiry, evidence_expires_at_utc)):
+            or datetime.now(UTC) >= min(expiry, evidence_expires_at_utc)):
         raise PublicationSigningReplayRefused("target pin changed before key access")
 
 
