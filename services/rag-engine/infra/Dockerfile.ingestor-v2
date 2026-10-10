@@ -55,6 +55,7 @@ COPY services/rag-engine/src/ingestor/retrieval_pg_v2.py /app/retrieval_pg_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_readiness_v2.py /app/retrieval_readiness_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_scope_v2.py /app/retrieval_scope_v2.py
 COPY services/rag-engine/src/ingestor/retrieval_v2_endpoint.py /app/retrieval_v2_endpoint.py
+COPY governance/trust-anchors/production-readiness-v1.json /app/production-readiness-v1.json
 COPY services/rag-engine/src/ingestor/review_v2_endpoint.py /app/review_v2_endpoint.py
 COPY services/rag-engine/src/ingestor/review_readiness_v2.py /app/review_readiness_v2.py
 COPY services/rag-engine/src/ingestor/reranker_contract.py /app/reranker_contract.py
