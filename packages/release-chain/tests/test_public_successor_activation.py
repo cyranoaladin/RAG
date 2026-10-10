@@ -30,6 +30,7 @@ from nexus_release_chain.public_successor_activation import (
     verify_public_lot41a_authorization_set,
     verify_public_scope_registry,
     verify_public_successor_activation,
+    verify_public_transfer_offline,
     verify_publication_batch_review,
 )
 
@@ -126,6 +127,140 @@ def test_public_lot41a_refuses_equal_count_wrong_content_binding() -> None:
         verify_public_lot41a_authorization_set(
             changed.canonical_bytes(), RELEASE, content,
             datetime(2026, 10, 10, 21, tzinfo=UTC),
+        )
+
+
+def _compact(value: object) -> bytes:
+    return (json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode()
+
+
+def _transfer_offline_fixture() -> tuple[bytes, bytes, bytes, bytes, str]:
+    plan = json.loads((ROOT / "docs/reports/go_live/student_public_successor_v2_transfer_plan_20261010.json").read_bytes())
+    plan_raw = _compact(plan)
+    receipt = {
+        "kind": "NEXUS_STUDENT_PUBLIC_TEXT_OBSERVED_TRANSFER_V1",
+        "status": "OBSERVED_NOT_PUBLICATION_AUTHORITY",
+        "release_id": plan["release_id"],
+        "transfer_manifest_sha256": hashlib.sha256(plan_raw).hexdigest(),
+        "target_identity": "staging-qualified-test",
+        "target_identity_status": "CLAIMED_UNQUALIFIED",
+        "observed_host": "staging-test",
+        "destination_realpath": "/isolated/staging-test",
+        "observed_at_utc": "2026-10-10T20:00:00Z",
+        "file_count": plan["file_count"],
+        "derivative_receipt_count": plan["derivative_receipt_count"],
+        "total_bytes": 506,
+        "files": [{"file": row["file"], "sha256_observed": row["sha256_expected"], "size_bytes": 1}
+                  for row in plan["files"]],
+        "derivative_receipts": [{"file": row["file"], "sha256_observed": row["sha256_expected"],
+                                 "size_bytes": 1} for row in plan["derivative_receipts"]],
+    }
+    receipt_raw = _compact(receipt)
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    pin = {
+        "kind": "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1",
+        "content_anchor_sha256": content.content_anchor_sha256,
+        "release_id": content.release_id,
+        "target_identity": receipt["target_identity"],
+        "hostname": receipt["observed_host"],
+        "host_machine_id_sha256": "a" * 64,
+        "postgres_system_identifier": "1234567890",
+        "database_name": "rag_staging",
+        "destination_realpath": receipt["destination_realpath"],
+        "pinned_at_utc": "2026-10-10T19:00:00Z",
+        "expires_at_utc": "2026-10-11T12:00:00Z",
+    }
+    pin_raw = _compact(pin)
+    pin_sha = hashlib.sha256(pin_raw).hexdigest()
+    attestation = {
+        "kind": "NEXUS_STUDENT_PUBLIC_QUALIFIED_TRANSFER_TARGET_ATTESTATION_V2",
+        "status": "QUALIFIED_OBSERVED_NOT_PUBLICATION_AUTHORITY",
+        "content_anchor_sha256": content.content_anchor_sha256,
+        "release_id": content.release_id,
+        "transfer_manifest_sha256": hashlib.sha256(plan_raw).hexdigest(),
+        "observed_v1_receipt_sha256": hashlib.sha256(receipt_raw).hexdigest(),
+        "target_pin_sha256": pin_sha,
+        "target_identity": pin["target_identity"],
+        "hostname": pin["hostname"],
+        "host_machine_id_sha256": pin["host_machine_id_sha256"],
+        "postgres_system_identifier": pin["postgres_system_identifier"],
+        "database_name": pin["database_name"],
+        "destination_realpath": pin["destination_realpath"],
+        "observed_at_utc": "2026-10-10T20:30:00Z",
+        "expires_at_utc": pin["expires_at_utc"],
+        "file_count": receipt["file_count"],
+        "derivative_receipt_count": receipt["derivative_receipt_count"],
+        "total_bytes": receipt["total_bytes"],
+    }
+    return plan_raw, receipt_raw, pin_raw, _compact(attestation), pin_sha
+
+
+def test_public_transfer_offline_links_v2_to_exact_a_and_v1() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    plan, receipt, pin, attestation, pin_sha = _transfer_offline_fixture()
+    now = datetime(2026, 10, 10, 21, tzinfo=UTC)
+    assert verify_public_transfer_offline(
+        plan, receipt, pin, attestation, RELEASE, content,
+        expected_target_pin_sha256=pin_sha, now_utc=now,
+    ) == hashlib.sha256(plan).hexdigest()
+    changed = json.loads(attestation)
+    changed["target_pin_sha256"] = "f" * 64
+    with pytest.raises(PublicSuccessorActivationError, match="transfer"):
+        verify_public_transfer_offline(
+            plan, receipt, pin, _compact(changed), RELEASE, content,
+            expected_target_pin_sha256=pin_sha, now_utc=now,
+        )
+
+
+@pytest.mark.parametrize("mutation", ["v1_unqualified", "expired_pin", "missing_v1_row"])
+def test_public_transfer_offline_refuses_invalid_evidence(mutation: str) -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    plan, receipt, pin, attestation, pin_sha = _transfer_offline_fixture()
+    if mutation == "v1_unqualified":
+        row = json.loads(receipt)
+        row["target_identity_status"] = "QUALIFIED"
+        receipt = _compact(row)
+    elif mutation == "expired_pin":
+        row = json.loads(pin)
+        row["expires_at_utc"] = "2026-10-10T20:45:00Z"
+        pin = _compact(row)
+        pin_sha = hashlib.sha256(pin).hexdigest()
+    else:
+        row = json.loads(receipt)
+        row["files"].pop()
+        receipt = _compact(row)
+    with pytest.raises(PublicSuccessorActivationError, match="transfer"):
+        verify_public_transfer_offline(
+            plan, receipt, pin, attestation, RELEASE, content,
+            expected_target_pin_sha256=pin_sha,
+            now_utc=datetime(2026, 10, 10, 21, tzinfo=UTC),
+        )
+
+
+def test_public_transfer_offline_refuses_resealed_wrong_content_same_count() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    plan_raw, receipt_raw, pin, attestation_raw, pin_sha = _transfer_offline_fixture()
+    plan, receipt, attestation = map(json.loads, (plan_raw, receipt_raw, attestation_raw))
+    old = plan["files"][0]
+    forged = "f" * 64
+    old_file = old["file"]
+    old["file"] = f"{forged}.txt"
+    old["sha256_expected"] = forged
+    plan["files"].sort(key=lambda row: row["sha256_expected"])
+    plan_raw = _compact(plan)
+    for row in receipt["files"]:
+        if row["file"] == old_file:
+            row["file"] = f"{forged}.txt"
+            row["sha256_observed"] = forged
+    receipt["transfer_manifest_sha256"] = hashlib.sha256(plan_raw).hexdigest()
+    receipt_raw = _compact(receipt)
+    attestation["transfer_manifest_sha256"] = hashlib.sha256(plan_raw).hexdigest()
+    attestation["observed_v1_receipt_sha256"] = hashlib.sha256(receipt_raw).hexdigest()
+    with pytest.raises(PublicSuccessorActivationError, match="transfer plan"):
+        verify_public_transfer_offline(
+            plan_raw, receipt_raw, pin, _compact(attestation), RELEASE, content,
+            expected_target_pin_sha256=pin_sha,
+            now_utc=datetime(2026, 10, 10, 21, tzinfo=UTC),
         )
 
 
