@@ -301,6 +301,7 @@ def test_candidate_request_refuses_foreign_v3_with_same_subject_and_collection(
         endpoint, "validate_release_collection_readiness",
         lambda *_: SimpleNamespace(ready=True),
     )
+    monkeypatch.setattr(endpoint, "require_public_successor_live_controls", lambda *_: None)
     expected = _scope()
     foreign = expected.model_dump(mode="json")
     foreign["target_policy"]["audiences"] = ["libre", "aefe"]
@@ -309,6 +310,38 @@ def test_candidate_request_refuses_foreign_v3_with_same_subject_and_collection(
     assert foreign_scope.sha256_digest() != expected.sha256_digest()
     assert endpoint._release_evidence_for_v2_artifact(expected) is True
     assert endpoint._release_evidence_for_v2_artifact(foreign_scope) is False
+
+
+def test_candidate_request_refuses_live_review_revocation_after_startup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry()
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+    monkeypatch.setattr(endpoint, "_validate_unpromoted_release_guard", lambda _: _VerifiedC())
+    monkeypatch.setattr(endpoint.PoolSettings, "from_env", lambda: object())
+    monkeypatch.setattr(endpoint, "runtime_database_budget", nullcontext)
+    monkeypatch.setattr(endpoint, "pool_connection", lambda _: nullcontext(object()))
+    monkeypatch.setattr(endpoint, "validate_release_collection_readiness", lambda *_: SimpleNamespace(ready=True))
+    monkeypatch.setattr(endpoint, "require_public_successor_live_controls", lambda *_: (_ for _ in ()).throw(RuntimeError("review revoked")))
+    assert endpoint._release_evidence_for_v2_artifact(_scope()) is False
+
+
+def test_candidate_startup_requires_full_lot42_before_traffic(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    registry = _registry()
+    calls: list[str] = []
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+    monkeypatch.setattr(endpoint, "_validate_unpromoted_release_guard", lambda _: _VerifiedC())
+    monkeypatch.setattr(endpoint.PoolSettings, "from_env", lambda: object())
+    monkeypatch.setattr(endpoint, "runtime_database_budget", nullcontext)
+    monkeypatch.setattr(endpoint, "pool_connection", lambda _: nullcontext(object()))
+    monkeypatch.setattr(endpoint, "validate_release_registry_readiness", lambda *_: {COLLECTION: SimpleNamespace(ready=True)})
+    monkeypatch.setattr(endpoint, "require_public_successor_startup_lot42", lambda *_: calls.append("LOT42"))
+    monkeypatch.setattr(endpoint, "require_public_successor_live_controls", lambda *_: None)
+    monkeypatch.setenv("NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT", str(tmp_path))
+    endpoint.validate_configured_release_database()
+    assert calls == ["LOT42"]
 
 
 def _wrapper_inputs(

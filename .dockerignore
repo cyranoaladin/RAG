@@ -33,6 +33,7 @@
 !services/rag-engine/src/ingestor/metrics.py
 !services/rag-engine/src/ingestor/model_artifact.py
 !services/rag-engine/src/ingestor/pg_pool.py
+!services/rag-engine/src/ingestor/public_successor_db_guard.py
 !services/rag-engine/src/ingestor/readiness_db.py
 !services/rag-engine/src/ingestor/release_readiness.py
 !services/rag-engine/src/ingestor/retrieval_contract_adapter.py
