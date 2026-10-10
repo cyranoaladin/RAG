@@ -27,8 +27,8 @@ from nexus_release_chain.public_successor_activation import (
     verify_content_anchor,
     verify_content_authority_bindings,
     verify_content_currentness,
-    verify_public_lot41a_authorization_set,
     verify_public_authorization_revocations,
+    verify_public_lot41a_authorization_set,
     verify_public_scope_registry,
     verify_public_successor_activation,
     verify_public_transfer_offline,
@@ -185,7 +185,7 @@ def _transfer_offline_fixture() -> tuple[bytes, bytes, bytes, bytes, str]:
         "status": "OBSERVED_NOT_PUBLICATION_AUTHORITY",
         "release_id": plan["release_id"],
         "transfer_manifest_sha256": hashlib.sha256(plan_raw).hexdigest(),
-        "target_identity": "staging-qualified-test",
+        "target_identity": "docker:" + "c" * 64,
         "target_identity_status": "CLAIMED_UNQUALIFIED",
         "observed_host": "staging-test",
         "destination_realpath": "/isolated/staging-test",
@@ -254,6 +254,25 @@ def test_public_transfer_offline_links_v2_to_exact_a_and_v1() -> None:
         verify_public_transfer_offline(
             plan, receipt, pin, _compact(changed), RELEASE, content,
             expected_target_pin_sha256=pin_sha, now_utc=now,
+        )
+
+
+def test_public_transfer_offline_refuses_arbitrary_target_identity_even_when_resealed() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    plan, receipt_raw, pin_raw, attestation_raw, _ = _transfer_offline_fixture()
+    receipt = json.loads(receipt_raw)
+    pin = json.loads(pin_raw)
+    attestation = json.loads(attestation_raw)
+    receipt["target_identity"] = pin["target_identity"] = attestation["target_identity"] = "staging-final"
+    changed_receipt = _compact(receipt)
+    attestation["observed_v1_receipt_sha256"] = hashlib.sha256(changed_receipt).hexdigest()
+    changed_pin = _compact(pin)
+    attestation["target_pin_sha256"] = hashlib.sha256(changed_pin).hexdigest()
+    with pytest.raises(PublicSuccessorActivationError, match="target pin"):
+        verify_public_transfer_offline(
+            plan, changed_receipt, changed_pin, _compact(attestation), RELEASE, content,
+            expected_target_pin_sha256=hashlib.sha256(changed_pin).hexdigest(),
+            now_utc=datetime(2026, 10, 10, 21, tzinfo=UTC),
         )
 
 

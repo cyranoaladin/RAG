@@ -33,6 +33,7 @@ PIN_KIND = "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1"
 ATTESTATION_KIND = "NEXUS_STUDENT_PUBLIC_QUALIFIED_TRANSFER_TARGET_ATTESTATION_V2"
 ATTESTATION_STATUS = "QUALIFIED_OBSERVED_NOT_PUBLICATION_AUTHORITY"
 _SYSTEM_ID = re.compile(r"[0-9]{1,20}\Z")
+_CONTAINER_IDENTITY = re.compile(r"docker:[0-9a-f]{64}\Z")
 _PIN_FIELDS = frozenset({
     "kind", "content_anchor_sha256", "release_id", "target_identity",
     "hostname", "host_machine_id_sha256", "postgres_system_identifier",
@@ -95,7 +96,7 @@ def _pin(raw: bytes, expected_sha256: str, expected_anchor_sha256: str,
             or not isinstance(pin.get("release_id"), str)
             or not pin["release_id"].startswith("student-public-")
             or not isinstance(pin.get("target_identity"), str)
-            or not pin["target_identity"].strip()
+            or _CONTAINER_IDENTITY.fullmatch(pin["target_identity"]) is None
             or not isinstance(pin.get("hostname"), str) or not pin["hostname"].strip()
             or not _sha(pin.get("host_machine_id_sha256"))
             or not isinstance(pin.get("postgres_system_identifier"), str)

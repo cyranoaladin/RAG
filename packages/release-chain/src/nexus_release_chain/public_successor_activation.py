@@ -17,8 +17,8 @@ from typing import Any
 import yaml
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
-    ReleaseBatchReviewMismatch,
     ReleaseBatchPublicationReviewArtifact,
+    ReleaseBatchReviewMismatch,
     parse_release_batch_publication_review_artifact,
     require_release_batch_review_matches_release,
 )
@@ -977,6 +977,8 @@ def verify_public_transfer_offline(
         or pin.get("kind") != "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1"
         or pin.get("content_anchor_sha256") != content.content_anchor_sha256
         or pin.get("release_id") != content.release_id
+        or not isinstance(pin.get("target_identity"), str)
+        or re.fullmatch(r"docker:[0-9a-f]{64}", pin["target_identity"]) is None
         or pin.get("target_identity") != receipt.get("target_identity")
         or pin.get("destination_realpath") != receipt.get("destination_realpath")
         or pin.get("hostname") != receipt.get("observed_host")

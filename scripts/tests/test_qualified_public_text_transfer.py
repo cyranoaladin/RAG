@@ -26,6 +26,7 @@ from test_public_text_transfer import fixture
 
 ANCHOR = "a" * 64
 HOST_ID = "b" * 64
+TARGET_ID = "docker:" + "c" * 64
 SYSTEM_ID = "7549392456182038712"
 NOW = datetime(2026, 10, 10, 18, 0, tzinfo=UTC)
 
@@ -34,13 +35,13 @@ def evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     inventory, allowlist, source, destination, digests = fixture(tmp_path)
     plan_raw = canonical(plan_text_transfer(inventory, allowlist, source))
     receipt_raw = canonical(observe_destination(
-        plan_raw, destination, "staging-final", "2026-10-10T17:00:00Z",
+        plan_raw, destination, TARGET_ID, "2026-10-10T17:00:00Z",
     ))
     pin_raw = canonical({
         "kind": "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1",
         "content_anchor_sha256": ANCHOR,
         "release_id": "student-public-successor-test",
-        "target_identity": "staging-final",
+        "target_identity": TARGET_ID,
         "hostname": "staging-example",
         "host_machine_id_sha256": HOST_ID,
         "postgres_system_identifier": SYSTEM_ID,
@@ -112,9 +113,22 @@ def test_attestation_v2_lie_a_plan_recu_v1_cible_et_relecture(
     assert verdict.plan_sha256 == digest(plan)
     assert verdict.receipt_v1_sha256 == digest(receipt)
     assert verdict.content_anchor_sha256 == ANCHOR
-    assert verdict.target_identity == "staging-final"
+    assert verdict.target_identity == TARGET_ID
     assert verdict.file_count == 2
     assert verdict.expires_at_utc > NOW
+
+
+def test_pin_refuse_identite_de_cible_arbitraire_meme_avec_recu_coherent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, _, pin, destination, _ = evidence(tmp_path, monkeypatch)
+    forged = json.loads(pin)
+    forged["target_identity"] = "staging-final"
+    receipt = canonical(observe_destination(
+        plan, destination, "staging-final", "2026-10-10T17:00:00Z",
+    ))
+    with pytest.raises(TransferRefused, match="pin"):
+        attest(plan, receipt, canonical(forged), destination)
 
 
 def test_pin_refuse_un_autre_inode_au_meme_chemin(
@@ -270,14 +284,14 @@ def test_plan_et_allowlist_doivent_couvrir_la_population_exacte_de_a(
     changed = json.loads(plan)
     changed["inventory_sha256"] = "f" * 64
     receipt = canonical(observe_destination(
-        canonical(changed), destination, "staging-final", "2026-10-10T17:00:00Z",
+        canonical(changed), destination, TARGET_ID, "2026-10-10T17:00:00Z",
     ))
     with pytest.raises(TransferRefused):
         attest(canonical(changed), receipt, pin, destination)
     changed = json.loads(plan)
     changed["allowlist_sha256"] = "f" * 64
     receipt = canonical(observe_destination(
-        canonical(changed), destination, "staging-final", "2026-10-10T17:00:00Z",
+        canonical(changed), destination, TARGET_ID, "2026-10-10T17:00:00Z",
     ))
     with pytest.raises(TransferRefused):
         attest(canonical(changed), receipt, pin, destination)
@@ -286,7 +300,7 @@ def test_plan_et_allowlist_doivent_couvrir_la_population_exacte_de_a(
     changed["file_count"] = 1
     (destination / f"{digests[0]}.txt").unlink()
     receipt = canonical(observe_destination(
-        canonical(changed), destination, "staging-final", "2026-10-10T17:00:00Z",
+        canonical(changed), destination, TARGET_ID, "2026-10-10T17:00:00Z",
     ))
     with pytest.raises(TransferRefused):
         attest(canonical(changed), receipt, pin, destination)
@@ -313,7 +327,7 @@ def test_bascule_parent_pendant_rehash_refusee(
     shutil.copy2(tmp_path / "candidate_inventory.json", mount)
     shutil.copy2(tmp_path / "private_transfer_allowlist.json", mount)
     receipt = canonical(observe_destination(
-        plan, destination, "staging-final", "2026-10-10T17:00:00Z",
+        plan, destination, TARGET_ID, "2026-10-10T17:00:00Z",
     ))
     pin_doc = json.loads(pin)
     pin_doc["destination_realpath"] = str(destination.resolve())
