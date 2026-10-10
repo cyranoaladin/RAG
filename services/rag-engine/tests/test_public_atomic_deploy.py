@@ -23,6 +23,16 @@ from tests.test_sign_production_readiness_manifest_cli import _v2_material  # no
 from tests.test_signed_public_candidate_plan import _signed_public_bundle  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _isolate_docker_mechanics_from_public_successor_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """This suite exercises Docker mechanics; the real A/C gate has its own tests."""
+    monkeypatch.setattr(
+        dep, "require_public_successor_bundle_for_deploy", lambda **_kwargs: None
+    )
+
+
 def _inputs(tmp_path: Path) -> tuple[Path, bytes, dict, dict]:
     bundle, anchor, config = _signed_public_bundle(tmp_path)
     options = {

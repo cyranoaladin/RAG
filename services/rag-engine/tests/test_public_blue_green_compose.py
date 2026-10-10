@@ -119,6 +119,10 @@ def test_public_blue_green_compose_declares_isolated_sources(tmp_path: Path, col
         "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "a" * 64
     )
     assert resolved["services"]["ingestor"]["labels"]["nexus.release-material.sha256"] == "e" * 64
+    api_env = resolved["services"]["ingestor"]["environment"]
+    assert api_env["NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT"] == "/app/release"
+    assert api_env["NEXUS_READINESS_MANIFEST_PATH"] == "/app/release/readiness-manifest.json"
+    assert api_env["RAG_RELEASE_REGISTRY_PATH"] == "/app/release/release/release-registry.json"
     assert resolved["services"]["cockpit"]["image"] == (
         "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "b" * 64
     )
@@ -205,6 +209,8 @@ def test_candidate_variables_are_documented_in_example_env() -> None:
         "NEXUS_COCKPIT_IMAGE_SHA256",
         "NEXUS_REDIS_IMAGE_SHA256",
         "NEXUS_RELEASE_MATERIAL_MANIFEST_SHA256",
+        "NEXUS_RELEASE_SHA",
+        "NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256",
         "NEXUS_SEARCH_PORT",
         "NEXUS_PROM_PORT",
         "NEXUS_COCKPIT_PORT",
