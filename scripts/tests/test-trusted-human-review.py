@@ -271,6 +271,11 @@ class TrustedReviewDecisionTests(unittest.TestCase):
         self.assertFalse(decision.approved)
         self.assertEqual(decision.reason, "current_head_approval_missing")
 
+        decision = self.evaluate(reviews=[approved_review(), pending])
+
+        self.assertTrue(decision.approved)
+        self.assertEqual(decision.review_id, 1001)
+
     def test_submitted_approval_without_timestamp_is_malformed(self) -> None:
         approval = approved_review()
         approval["submitted_at"] = None
