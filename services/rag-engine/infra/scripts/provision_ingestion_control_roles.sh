@@ -61,12 +61,18 @@ APP_ROLE="${INGESTION_CONTROL_APP_ROLE:-ingestion_control_app}"
 AUTHORITY_ROLE="${INGESTION_CONTROL_AUTHORITY_ROLE:-ingestion_control_authority}"
 ATTESTOR_ROLE="${INGESTION_CONTROL_ATTESTOR_ROLE:-ingestion_control_attestor}"
 ADOPTER_ROLE="${INGESTION_CONTROL_ADOPTER_ROLE:-ingestion_control_adopter}"
+PUBLIC_READER_ROLE="${INGESTION_CONTROL_PUBLIC_READER_ROLE:-}"
 ADOPTER_ENABLED=0
 if [[ -n "${INGESTION_CONTROL_ADOPTER_PASSWORD:-}" ]]; then
     ADOPTER_ENABLED=1
     export INGESTION_CONTROL_ADOPTER_PASSWORD
 fi
+PUBLIC_READER_ENABLED=0
+if [[ -n "${INGESTION_CONTROL_PUBLIC_READER_ROLE:-}" ]]; then
+    PUBLIC_READER_ENABLED=1
+fi
 export MIGRATOR_ROLE APP_ROLE AUTHORITY_ROLE ATTESTOR_ROLE ADOPTER_ROLE ADOPTER_ENABLED
+export PUBLIC_READER_ROLE PUBLIC_READER_ENABLED
 
 # Remédiation revue PR#90 : un rôle mal formé (guillemet, espace) échoue
 # maintenant explicitement avant tout accès base, jamais interpolé tel quel.
@@ -76,6 +82,10 @@ for role in "$MIGRATOR_ROLE" "$APP_ROLE" "$AUTHORITY_ROLE" "$ATTESTOR_ROLE" "$AD
         exit 1
     fi
 done
+if [[ "$PUBLIC_READER_ENABLED" == 1 && ! "$PUBLIC_READER_ROLE" =~ ^[a-z_][a-z0-9_]{0,62}$ ]]; then
+    printf 'ERROR: invalid public retrieval reader role.\n' >&2
+    exit 1
+fi
 # Remédiation revue PR#90 (Cubic P1) : INGESTION_CONTROL_APP_ROLE identique
 # à INGESTION_CONTROL_MIGRATOR_ROLE donnerait au rôle runtime la propriété
 # du schéma (ALTER SCHEMA ... OWNER TO ci-dessous) et annulerait la
@@ -90,6 +100,10 @@ all_role_names=(MIGRATOR_ROLE APP_ROLE AUTHORITY_ROLE ATTESTOR_ROLE)
 if [[ "$ADOPTER_ENABLED" == 1 ]]; then
     all_roles+=("$ADOPTER_ROLE")
     all_role_names+=(ADOPTER_ROLE)
+fi
+if [[ "$PUBLIC_READER_ENABLED" == 1 ]]; then
+    all_roles+=("$PUBLIC_READER_ROLE")
+    all_role_names+=(PUBLIC_READER_ROLE)
 fi
 for ((i = 0; i < ${#all_roles[@]}; i++)); do
     for ((j = i + 1; j < ${#all_roles[@]}; j++)); do
@@ -124,6 +138,8 @@ psql -X -q --single-transaction -v ON_ERROR_STOP=1 <<'SQL'
 \getenv attestor_role ATTESTOR_ROLE
 \getenv adopter_enabled ADOPTER_ENABLED
 \getenv adopter_role ADOPTER_ROLE
+\getenv public_reader_enabled PUBLIC_READER_ENABLED
+\getenv public_reader_role PUBLIC_READER_ROLE
 \getenv migrator_password INGESTION_CONTROL_MIGRATOR_PASSWORD
 \getenv app_password INGESTION_CONTROL_APP_PASSWORD
 \getenv authority_password INGESTION_CONTROL_AUTHORITY_PASSWORD
@@ -449,6 +465,24 @@ GRANT EXECUTE ON FUNCTION ingestion_control.artifact_attribution_digest(
     uuid, text, boolean, text, text) TO :"adopter_role" ;
 REVOKE UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA ingestion_control FROM :"adopter_role" ;
 REVOKE ALL PRIVILEGES ON SCHEMA public FROM :"adopter_role" ;
+\endif
+
+-- Public successor API reader: rôle de recherche existant, sans secret ni
+-- rôle writer supplémentaire. Activation explicite uniquement quand le
+-- contrôle et pgvector résident dans la même base qualifiée. Le provisioning
+-- historique sans INGESTION_CONTROL_PUBLIC_READER_ROLE garde ses privilèges.
+\if :public_reader_enabled
+SELECT format('GRANT CONNECT ON DATABASE %I TO %I', current_database(), :'public_reader_role')
+\gexec
+REVOKE ALL PRIVILEGES ON SCHEMA ingestion_control FROM :"public_reader_role" ;
+REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA ingestion_control FROM :"public_reader_role" ;
+GRANT USAGE ON SCHEMA ingestion_control TO :"public_reader_role" ;
+GRANT SELECT ON ingestion_control.resources TO :"public_reader_role" ;
+GRANT SELECT ON ingestion_control.artifacts TO :"public_reader_role" ;
+GRANT SELECT ON ingestion_control.sealed_release_adoptions TO :"public_reader_role" ;
+GRANT SELECT ON ingestion_control.scope_authorizations TO :"public_reader_role" ;
+GRANT SELECT ON ingestion_control.publication_attestations TO :"public_reader_role" ;
+GRANT SELECT ON ingestion_control.revoked_review_evidence TO :"public_reader_role" ;
 \endif
 SQL
 

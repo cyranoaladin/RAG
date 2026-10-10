@@ -47,3 +47,16 @@ La preuve de transfert V2 ne peut utiliser le reçu V1 local historique. Une nou
 `nexus-contracts` 0.26.0 ajoute ce SHA de pin à la readiness déjà signée. En staging, `public_successor_target_pin_digest` est obligatoire seulement pour la phase `PUBLICATION`, interdit pour `INGESTION` ; en production V2, il est indivisible des trois digests A/C. Les octets historiques restent identiques lorsque le champ est absent. Le signataire obtient le SHA d'un contrôle de pin exact-head indépendant, jamais des octets V2/C qu'il s'apprête à signer. Worker B, l'API et le déploiement transmettent ce SHA signé au vérificateur portable de C. Le bundle contient la preuve V2 sous l'un des 21 champs existants `observed_transfer_receipt_sha256` et deux sidecars liés : `authorities/observed-transfer-v1.json` et `authorities/target-pin.json`. C compare leurs SHA, la population complète de A et l'ordre temporel pin → V1 → V2 ; le signataire doit en plus relire la cible réelle.
 
 C vérifie aussi le jeu LOT41A V2 contre les 377 liaisons dérivées de A, puis l'artefact de revue LOT42 canonique contre ce même A, les onze identifiants d'autorisation et le SHA du plan de transfert. Cette vérification portable ne prouve pas à elle seule les signatures et révocations LOT41A, la revue GitHub LOT42 ni les 377 attestations actives mesurées dans la base : le signataire doit les rejouer en direct avant signature. Le refus terminal de C reste en place tant que ce pont et la preuve indépendante de cible ne sont pas complets.
+
+## Lecture des révocations au runtime
+
+Le lecteur public utilise son rôle pgvector `rag_reader` déjà limité à
+`SELECT`. Lorsque la base qualifiée contient aussi le schéma
+`ingestion_control`, le provisioning accorde explicitement à ce même rôle
+`USAGE` du schéma et `SELECT` sur les seules tables nécessaires au contrôle
+LOT42 et aux révocations. Aucun DSN de writer du plan de contrôle n'entre
+dans l'API. Le bloc est opt-in pour conserver les installations historiques.
+Avant l'activation, le préflight vérifie l'identité de la DB et l'absence de
+privilège INSERT/UPDATE/DELETE du rôle servi. C relit le registre de
+révocations scellé ; l'API vérifie les révocations de preuve en base à chaque
+recherche. Une perte d'accès ou une panne DB refuse la requête.
