@@ -1,0 +1,271 @@
+# Proposition non activable. Aucun scope V3 n’est émis avant les nouveaux subject SHA et la review exacte.
+authority_kind: NEXUS_STUDENT_PUBLIC_DERIVATIVE_SCOPE_POLICY_PROPOSAL_V1
+status: PENDING_EXACT_HEAD_AUTHORITY_REVIEW
+adr: ADR-0064
+adr_sha256: 659ca866e55509742e9a38799af032e166ccb58098859c69429d97b105c023f0
+candidate_release_id: student-public-20261010-v1-eb39f6cd0423e184
+candidate_release_manifest_sha256: 28bd14dd114d8369e8c6520774bfbd1e8ba966b85aeaaf2d58e27b2c23d9fcfc
+candidate_profiles_sha256: 5af870bd23ca1ff072e27262cab8c4255ad5f2b482deed33925d22c7a8017098
+candidate_rights_registry_sha256: 5cd517b831f95c889f5487a81ce576f736a39cbf0de14d63a23fd16771a819ad
+candidate_derivative_manifest_sha256: eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17
+rights_authority_id: EDUSCOL_ETALAB_2_0_SITEWIDE
+rights_authority_sha256: 013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1
+student_visibility:
+- public
+publication_authorized: false
+full_pdf_redistribution_allowed: false
+answer_generation_allowed: false
+bindings:
+- collection: rag_nexus_dgemc_terminale_option
+  candidate_subject_sha256: 45c87dd7d2df22861f2759b2956f542530d182694aa6913d4a1740ed9274578e
+  candidate_profile_fingerprint: 5aa62d9b655d50fd7449223d904a0e37cf7c9cb502bd7e19d9e2f73b2077bfce
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: dgemc
+    statut_enseignement: option
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_hggsp_premiere_specialite
+  candidate_subject_sha256: c3633e7c4b2038a665ad71f4a12d8e8ba6da6d33bc67934acf26423a20b3ac13
+  candidate_profile_fingerprint: 558df51ef8720ddf2992e06fed40e0006b61880644a12da97f37d48337ec2801
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: hggsp
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_hggsp_terminale_specialite
+  candidate_subject_sha256: 401467e98ca2d6d1213458a9b39b380a285a8271507bb714417d35d4b640eece
+  candidate_profile_fingerprint: 36f283ce5d668517ca9200e05fdfd637d47d6c9d632fa92d7931832da0f37289
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: hggsp
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_hlp_premiere_specialite
+  candidate_subject_sha256: 36f9a0367087adcc9272aba93b04405e1994c655bfd725240f51f9e872a45ba1
+  candidate_profile_fingerprint: 2b4b4f5796b5d51d0b4bdddf7886f77a1609f43ed886c6dcc2cf4c33c657eb8f
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: hlp
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_hlp_terminale_specialite
+  candidate_subject_sha256: 2ea5b52fc0750915b4728a44f4e0260d47237da9eeb0c6408beccf7416dc2e9e
+  candidate_profile_fingerprint: e5e56fa8f049cd5c122ff1e7af108ae0e0e552568a3ea5184cfb8c84f961ab70
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: hlp
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_nsi_premiere_specialite
+  candidate_subject_sha256: e8f463281ec12afb1e99d2cb211e89f8a2e9281eef2da48bd5af04c920825a9b
+  candidate_profile_fingerprint: 5ef2b6a6e6e2c345b4b716cffd3cb3ddbd06d0c5591e6405b737d6c0d421527b
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: nsi
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_nsi_terminale_specialite
+  candidate_subject_sha256: 4c20ee77bb67d7f9822db1f9698890d2d3bddb29bcaceade91ce8fc2778e39ef
+  candidate_profile_fingerprint: 1b52a71083bd20c43e21057c7b940e8cd616eb3f6b273a35ed2cc754d6ccce68
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: nsi
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_ses_premiere_specialite
+  candidate_subject_sha256: f3714579478ca3df9c100a33b97b43cf543cc6ae7ed4f5a091275da03b4a4de5
+  candidate_profile_fingerprint: 8255e174f22b6d25d697b9d0bd05435e77f09ee1dee2c9a152ba6a0598b7bb58
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: ses
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_ses_terminale_specialite
+  candidate_subject_sha256: ebb71cc5031c99debdd15b7db7ea2caa01b0ab082726dbcf34e0ba6f7ce60702
+  candidate_profile_fingerprint: 3b0227c5e0d7180659f350fe30cc1f1483d2c4fadb80c6e3a5823ee5260d901d
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: ses
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_svt_premiere_specialite
+  candidate_subject_sha256: e10f30a881da333966b834e85135ff129c33686d227a150f259c0b4e10cc4dc6
+  candidate_profile_fingerprint: 3116e953cb8089fa42b86054c9e07c69bc407e426ce928f9262a65b48e1a01de
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_premiere
+    niveau: premiere
+    voie: generale
+    matiere: svt
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
+- collection: rag_nexus_svt_terminale_specialite
+  candidate_subject_sha256: 558affdb164ccda78d96a148c76c6c9649bc6a923c0c016687b287646fdfb2ce
+  candidate_profile_fingerprint: dd88fb4f3259fe1a6e088d31a1b60a451d8fe5febd0cefff5ad79864c2f3a317
+  evidence_visibility: public
+  policy_visibility: public
+  rights_basis: EDUSCOL_ETALAB_2_0_SITEWIDE
+  rights:
+  - public_allowed
+  material_kind: text_derivative
+  target_policy:
+    tenant: libre_terminale
+    niveau: terminale
+    voie: generale
+    matiere: svt
+    statut_enseignement: specialite
+    audiences:
+    - libre
+    candidates:
+    - libre
+    roles:
+    - student
+  final_subject_sha256: null
+  scope_id: null
