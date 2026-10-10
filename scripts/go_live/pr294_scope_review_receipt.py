@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
+from nexus_contracts import RetrievalScopeArtifactV3
 from pr300_authority_receipt import (
     AuthorityReceiptError,
     _git,
@@ -88,7 +89,7 @@ def _object(raw: bytes, label: str) -> dict[str, Any]:
 
 def _registry_population(
     raw: bytes, *, anchor: dict[str, Any], names: Mapping[str, str],
-    receipt: Mapping[str, Any],
+    receipt: Mapping[str, Any], policy: Mapping[str, Any], bundle_root: Path,
 ) -> dict[str, str]:
     registry = _object(raw, "scope registry")
     if raw != canonical_bytes(registry):
@@ -98,7 +99,19 @@ def _registry_population(
         raise ScopeReviewReceiptError("A subject population invalid")
     expected = {row.get("collection"): row.get("subject_sha256")
                 for row in subjects if isinstance(row, dict)}
-    if len(expected) != 11 or set(expected) != set(names):
+    policy_rows = policy.get("collections")
+    if not isinstance(policy_rows, list):
+        raise ScopeReviewReceiptError("reviewed scope policy population missing")
+    policies = {row.get("collection"): row for row in policy_rows
+                if isinstance(row, dict)}
+    if (
+        len(expected) != 11 or set(expected) != set(names)
+        or len(policy_rows) != 11 or len(policies) != 11
+        or set(policies) != set(expected)
+        or policy.get("registry_kind") != "NEXUS_RETRIEVAL_SCOPE_POLICY_REGISTRY_V1"
+        or policy.get("release_manifest_sha256") != receipt["content_manifest_sha256"]
+        or policy.get("school_year") != "2026-2027"
+    ):
         raise ScopeReviewReceiptError("A subject/naming population differs")
     if (
         set(registry) != {
@@ -143,6 +156,62 @@ def _registry_population(
             raise ScopeReviewReceiptError("scope registry row differs from A/naming")
         collections.add(collection)
         observed[scope_id] = row["sha256"]
+        entry = policies[collection]
+        if (
+            entry.get("decision_status") != "GOVERNED_BY_HUMAN_DECISION"
+            or entry.get("authority_source") != "NEXUS_HUMAN_DECISION_ADR_0064"
+            or entry.get("policy_source_scope_id") is not None
+            or entry.get("subject_manifest_sha256") != expected[collection]
+            or entry.get("rights") != ["public_allowed"]
+            or entry.get("audiences") != ["libre", "aefe"]
+            or entry.get("policy_visibility") != "public"
+            or entry.get("evidence_visibility") != "public"
+            or entry.get("target_audience") != "libre"
+            or entry.get("target_candidates") != ["libre"]
+        ):
+            raise ScopeReviewReceiptError("reviewed ADR-0064 policy is not student public")
+        scope_dir = bundle_root / "scopes"
+        path = bundle_root / row["resource"]
+        if (
+            scope_dir.is_symlink() or path.is_symlink()
+            or not path.resolve().is_relative_to(bundle_root.resolve())
+            or not path.is_file()
+        ):
+            raise ScopeReviewReceiptError("V3 scope file missing or linked")
+        try:
+            scope_bytes = path.read_bytes()
+            artifact = RetrievalScopeArtifactV3.model_validate_json(scope_bytes)
+            expected_artifact = RetrievalScopeArtifactV3.model_validate({
+                "artifact_version": "3", "scope_id": scope_id,
+                "status": "eligible_for_promotion",
+                "source_sha256": expected[collection],
+                "target_policy": {
+                    key: entry[key] for key in (
+                        "tenant", "niveau", "voie", "matiere", "statut_enseignement",
+                    )
+                } | {
+                    "audiences": [entry["target_audience"]],
+                    "candidates": entry["target_candidates"], "roles": ["student"],
+                },
+                "evidence_subject": {
+                    key: entry[key] for key in (
+                        "collection", "tenant", "niveau", "voie", "matiere",
+                        "statut_enseignement", "candidat", "audiences", "rights",
+                        "programme_version",
+                    )
+                } | {
+                    "visibility": entry["policy_visibility"],
+                    "school_year": policy["school_year"],
+                },
+            })
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            raise ScopeReviewReceiptError("V3 scope or policy invalid") from error
+        if (
+            _digest(scope_bytes) != row["sha256"]
+            or artifact.canonical_bytes() != scope_bytes
+            or artifact.canonical_bytes() != expected_artifact.canonical_bytes()
+        ):
+            raise ScopeReviewReceiptError("V3 scope bytes or student policy differ")
     if collections != set(expected) or observed != receipt.get("scope_sha256_by_id"):
         raise ScopeReviewReceiptError("reviewed scope digest population differs")
     return observed
@@ -150,7 +219,7 @@ def _registry_population(
 
 def validate_pr294_scope_receipt(
     receipt: Mapping[str, Any], scope_registry_bytes: bytes,
-    reviewed_files: Mapping[str, bytes], *,
+    reviewed_files: Mapping[str, bytes], scope_bundle_root: Path, *,
     pull_request: Mapping[str, Any], review_decision: Mapping[str, Any],
     trusted_status: Mapping[str, Any], workflow_run: Mapping[str, Any],
     head_tree_sha: str,
@@ -198,8 +267,11 @@ def validate_pr294_scope_receipt(
             raise ScopeReviewReceiptError(f"reviewed {label} bytes differ")
     anchor = _object(reviewed_files["anchor"], "content anchor")
     names_doc = yaml.safe_load(reviewed_files["names"])
+    policy_doc = yaml.safe_load(reviewed_files["policy"])
     if not isinstance(names_doc, dict) or not isinstance(names_doc.get("bindings"), list):
         raise ScopeReviewReceiptError("scope naming authority invalid")
+    if not isinstance(policy_doc, dict):
+        raise ScopeReviewReceiptError("scope policy invalid")
     names = {row.get("collection"): row.get("scope_id")
              for row in names_doc["bindings"] if isinstance(row, dict)}
     if (
@@ -210,6 +282,7 @@ def validate_pr294_scope_receipt(
         raise ScopeReviewReceiptError("A/index digest or naming population differs")
     observed = _registry_population(
         scope_registry_bytes, anchor=anchor, names=names, receipt=r,
+        policy=policy_doc, bundle_root=scope_bundle_root,
     )
     pr = pull_request
     if (
@@ -335,7 +408,9 @@ def _read_registry(path: Path) -> bytes:
     return path.read_bytes()
 
 
-def build_pr294_scope_receipt(root: Path, scope_registry_path: Path) -> dict[str, Any]:
+def build_pr294_scope_receipt(
+    root: Path, scope_registry_path: Path, scope_bundle_root: Path,
+) -> dict[str, Any]:
     """Construire seulement après fusion et rejeu live de GitHub/git."""
     pr, decision, trusted, run, tree = _live_evidence(root)
     head = pr["head"]["sha"]
@@ -366,7 +441,7 @@ def build_pr294_scope_receipt(root: Path, scope_registry_path: Path) -> dict[str
         "scope_sha256_by_id": {row.get("scope_id"): row.get("sha256") for row in rows},
     }
     validate_pr294_scope_receipt(
-        receipt, registry_raw, files, pull_request=pr,
+        receipt, registry_raw, files, scope_bundle_root, pull_request=pr,
         review_decision=decision, trusted_status=trusted,
         workflow_run=run, head_tree_sha=tree,
     )
@@ -375,6 +450,7 @@ def build_pr294_scope_receipt(root: Path, scope_registry_path: Path) -> dict[str
 
 def check_pr294_scope_review_receipt(
     root: Path, receipt_path: Path, scope_registry_path: Path,
+    scope_bundle_root: Path,
 ) -> dict[str, Any]:
     """Rejouer GitHub live avant qu'un signer C accepte le reçu scellé."""
     receipt_raw = _read_registry(receipt_path)
@@ -384,7 +460,7 @@ def check_pr294_scope_review_receipt(
     pr, decision, trusted, run, tree = _live_evidence(root)
     files = _read_reviewed_files(root, pr["head"]["sha"])
     return validate_pr294_scope_receipt(
-        receipt, _read_registry(scope_registry_path), files,
+        receipt, _read_registry(scope_registry_path), files, scope_bundle_root,
         pull_request=pr, review_decision=decision,
         trusted_status=trusted, workflow_run=run, head_tree_sha=tree,
     )
@@ -394,23 +470,28 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--scope-registry", type=Path, required=True)
+    parser.add_argument("--scope-bundle-root", type=Path, required=True)
     operation = parser.add_mutually_exclusive_group(required=True)
     operation.add_argument("--write-receipt", type=Path)
     operation.add_argument("--check-receipt", type=Path)
     args = parser.parse_args()
     try:
         if args.write_receipt:
-            receipt = build_pr294_scope_receipt(args.repo_root, args.scope_registry)
+            receipt = build_pr294_scope_receipt(
+                args.repo_root, args.scope_registry, args.scope_bundle_root,
+            )
             if args.write_receipt.exists() or args.write_receipt.is_symlink():
                 raise ScopeReviewReceiptError("receipt target already exists")
             args.write_receipt.parent.mkdir(parents=True, exist_ok=True)
             args.write_receipt.write_bytes(canonical_bytes(receipt))
             verdict = check_pr294_scope_review_receipt(
                 args.repo_root, args.write_receipt, args.scope_registry,
+                args.scope_bundle_root,
             )
         else:
             verdict = check_pr294_scope_review_receipt(
                 args.repo_root, args.check_receipt, args.scope_registry,
+                args.scope_bundle_root,
             )
     except (ScopeReviewReceiptError, AuthorityReceiptError, OSError, KeyError,
             TypeError, ValueError) as error:

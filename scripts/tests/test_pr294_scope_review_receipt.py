@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 import yaml
+from nexus_contracts import RetrievalScopeArtifactV3
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/go_live"))
@@ -38,19 +39,46 @@ def _canonical(document: dict) -> bytes:
     return (json.dumps(document, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
 
 
-def _fixture() -> tuple[dict, bytes, dict, dict, dict, dict, dict[str, bytes]]:
+def _fixture(tmp_path: Path) -> tuple[dict, bytes, dict, dict, dict, dict, dict[str, bytes], Path]:
     anchor = json.loads(ANCHOR.read_bytes())
+    policy = yaml.safe_load(POLICY.read_bytes())
+    policies = {row["collection"]: row for row in policy["collections"]}
     names = {row["collection"]: row["scope_id"]
              for row in yaml.safe_load(NAMES.read_bytes())["bindings"]}
-    rows = [
-        {
-            "collection": row["collection"], "scope_id": names[row["collection"]],
-            "resource": f"scopes/{names[row['collection']]}.json",
-            "sha256": _sha(names[row["collection"]].encode()),
-            "source_sha256": row["subject_sha256"], "artifact_version": "3",
-        }
-        for row in anchor["subjects"]
-    ]
+    scope_dir = tmp_path / "scopes"
+    scope_dir.mkdir()
+    rows = []
+    for subject in anchor["subjects"]:
+        collection = subject["collection"]
+        entry = policies[collection]
+        artifact = RetrievalScopeArtifactV3.model_validate({
+            "artifact_version": "3", "scope_id": names[collection],
+            "status": "eligible_for_promotion",
+            "source_sha256": subject["subject_sha256"],
+            "target_policy": {
+                key: entry[key] for key in (
+                    "tenant", "niveau", "voie", "matiere", "statut_enseignement",
+                )
+            } | {
+                "audiences": [entry["target_audience"]],
+                "candidates": entry["target_candidates"], "roles": ["student"],
+            },
+            "evidence_subject": {
+                key: entry[key] for key in (
+                    "collection", "tenant", "niveau", "voie", "matiere",
+                    "statut_enseignement", "candidat", "audiences", "rights",
+                    "programme_version",
+                )
+            } | {"visibility": entry["policy_visibility"], "school_year": policy["school_year"]},
+        })
+        raw = artifact.canonical_bytes()
+        (scope_dir / f"{names[collection]}.json").write_bytes(raw)
+        rows.append({
+            "collection": collection, "scope_id": names[collection],
+            "resource": f"scopes/{names[collection]}.json",
+            "sha256": _sha(raw), "source_sha256": subject["subject_sha256"],
+            "artifact_version": "3",
+        })
     registry = {
         "kind": "NEXUS_STUDENT_PUBLIC_SCOPE_REGISTRY_V1",
         "status": "SCOPES_ISSUED_NOT_PUBLICATION_AUTHORITY",
@@ -114,29 +142,29 @@ def _fixture() -> tuple[dict, bytes, dict, dict, dict, dict, dict[str, bytes]]:
     return receipt, registry_raw, pr, decision, trusted, run, {
         "anchor": ANCHOR.read_bytes(), "policy": POLICY.read_bytes(),
         "names": NAMES.read_bytes(),
-    }
+    }, tmp_path
 
 
 def _validate(fixture: tuple) -> dict:
-    receipt, registry_raw, pr, decision, trusted, run, files = fixture
+    receipt, registry_raw, pr, decision, trusted, run, files, bundle_root = fixture
     return validate_pr294_scope_receipt(
-        receipt, registry_raw, files,
+        receipt, registry_raw, files, bundle_root,
         pull_request=pr, review_decision=decision,
         trusted_status=trusted, workflow_run=run,
         head_tree_sha=receipt["head_tree_sha"],
     )
 
 
-def test_exact_review_of_eleven_v3_is_bound_but_not_publication_authority() -> None:
-    result = _validate(_fixture())
+def test_exact_review_of_eleven_v3_is_bound_but_not_publication_authority(tmp_path: Path) -> None:
+    result = _validate(_fixture(tmp_path))
     assert result["PR294_SCOPE_REVIEW_PASS"] is True
     assert result["PUBLICATION_AUTHORIZED"] is False
     assert result["SCOPE_COUNT"] == 11
 
 
 @pytest.mark.parametrize("sabotage", ["head", "challenge", "policy", "scope"])
-def test_receipt_sabotage_fails_closed(sabotage: str) -> None:
-    parts = list(deepcopy(_fixture()))
+def test_receipt_sabotage_fails_closed(tmp_path: Path, sabotage: str) -> None:
+    parts = list(deepcopy(_fixture(tmp_path)))
     receipt = parts[0]
     if sabotage == "head":
         receipt["head_sha"] = "f" * 40
@@ -152,8 +180,10 @@ def test_receipt_sabotage_fails_closed(sabotage: str) -> None:
 
 
 @pytest.mark.parametrize("sabotage", ["not_merged", "status", "run", "tree", "index"])
-def test_post_merge_or_external_proof_sabotage_fails_closed(sabotage: str) -> None:
-    parts = list(deepcopy(_fixture()))
+def test_post_merge_or_external_proof_sabotage_fails_closed(
+    tmp_path: Path, sabotage: str,
+) -> None:
+    parts = list(deepcopy(_fixture(tmp_path)))
     if sabotage == "not_merged":
         parts[2]["merged"] = False
     elif sabotage == "status":
@@ -168,7 +198,7 @@ def test_post_merge_or_external_proof_sabotage_fails_closed(sabotage: str) -> No
         parts[1] = _canonical(registry)
     with pytest.raises(ScopeReviewReceiptError):
         validate_pr294_scope_receipt(
-            parts[0], parts[1], parts[6], pull_request=parts[2],
+            parts[0], parts[1], parts[6], parts[7], pull_request=parts[2],
             review_decision=parts[3], trusted_status=parts[4],
             workflow_run=parts[5], head_tree_sha="c" * 40,
         )
@@ -177,7 +207,7 @@ def test_post_merge_or_external_proof_sabotage_fails_closed(sabotage: str) -> No
 def test_post_merge_builder_and_checker_replay_live_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    receipt, registry_raw, pr, decision, trusted, run, files = _fixture()
+    receipt, registry_raw, pr, decision, trusted, run, files, _bundle_root = _fixture(tmp_path)
     registry_path = tmp_path / "index.json"
     registry_path.write_bytes(registry_raw)
     receipt_path = tmp_path / "receipt.json"
@@ -193,13 +223,44 @@ def test_post_merge_builder_and_checker_replay_live_evidence(
 
     monkeypatch.setattr(checker, "_live_evidence", live)
     monkeypatch.setattr(checker, "_read_reviewed_files", reviewed)
-    built = build_pr294_scope_receipt(tmp_path, registry_path)
+    built = build_pr294_scope_receipt(tmp_path, registry_path, tmp_path)
     assert built == receipt
     receipt_path.write_bytes(canonical_bytes(built))
     assert check_pr294_scope_review_receipt(
-        tmp_path, receipt_path, registry_path,
+        tmp_path, receipt_path, registry_path, tmp_path,
     )["PR294_SCOPE_REVIEW_PASS"] is True
     assert calls == ["github_git", "approved_tree", "github_git", "approved_tree"]
     trusted["state"] = "failure"
     with pytest.raises(ScopeReviewReceiptError):
-        check_pr294_scope_review_receipt(tmp_path, receipt_path, registry_path)
+        check_pr294_scope_review_receipt(tmp_path, receipt_path, registry_path, tmp_path)
+
+
+@pytest.mark.parametrize("sabotage", ["missing", "altered", "aefe", "teacher", "tenant"])
+def test_actual_v3_scope_file_or_student_policy_sabotage_fails_closed(
+    tmp_path: Path, sabotage: str,
+) -> None:
+    parts = list(_fixture(tmp_path))
+    registry = json.loads(parts[1])
+    row = registry["scopes"][0]
+    scope_path = tmp_path / row["resource"]
+    if sabotage == "missing":
+        scope_path.unlink()
+    elif sabotage == "altered":
+        scope_path.write_bytes(scope_path.read_bytes() + b"\n")
+    else:
+        artifact = RetrievalScopeArtifactV3.model_validate_json(scope_path.read_bytes())
+        changed = artifact.model_dump(mode="json")
+        if sabotage == "aefe":
+            changed["target_policy"]["audiences"] = ["aefe"]
+        elif sabotage == "teacher":
+            changed["target_policy"]["roles"] = ["teacher"]
+        else:
+            changed["target_policy"]["tenant"] = "aefe_terminale"
+        raw = RetrievalScopeArtifactV3.model_validate(changed).canonical_bytes()
+        scope_path.write_bytes(raw)
+        row["sha256"] = _sha(raw)
+        parts[1] = _canonical(registry)
+        parts[0]["public_scope_authority_sha256"] = _sha(parts[1])
+        parts[0]["scope_sha256_by_id"][row["scope_id"]] = row["sha256"]
+    with pytest.raises(ScopeReviewReceiptError):
+        _validate(tuple(parts))
