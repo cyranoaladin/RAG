@@ -16,7 +16,7 @@ export async function GET() {
       publicIndexDigest = publicScopeIndexDigest()
     }
     const buildSha = process.env.NEXUS_COCKPIT_BUILD_SHA?.trim()
-    if (buildSha && !/^[0-9a-f]{40}$/.test(buildSha)) {
+    if ((mode === 'public_v3' && !buildSha) || (buildSha && !/^[0-9a-f]{40}$/.test(buildSha))) {
       return NextResponse.json({ status: 'unavailable' }, { status: 503 })
     }
     const upstream = await fetchEngine('/health')
