@@ -78,20 +78,6 @@ def _digest(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
-def _relative_path(root: Path, value: Any) -> Path:
-    if (
-        not isinstance(value, str)
-        or not value
-        or Path(value).is_absolute()
-        or ".." in Path(value).parts
-    ):
-        raise SuiteFailure("unsafe relative path")
-    path = (root / value).resolve()
-    if not path.is_relative_to(root.resolve()):
-        raise SuiteFailure("path escaped repository")
-    return path
-
-
 def validate_draft_suite(root: Path, suite: dict[str, Any]) -> None:
     """Check all planned cases against the exact #312 derivative identities."""
     if (
@@ -295,115 +281,18 @@ def check_dense_tie_probe(
     return overflow_total
 
 
-def require_final_binding(root: Path, suite: dict[str, Any]) -> dict[str, Any]:
-    """Refuse the prepared candidate until a distinct governed release is sealed."""
+def require_final_binding(root: Path, suite: dict[str, Any]) -> None:
+    """Never turn draft structural checks into an authoritative release verdict.
+
+    The current canonical release verifier accepts the #312 candidate only in
+    candidate mode. It has no promoted public successor authority, and this
+    module has no exact scope/review/checkout or live HTTP/DB proof. Declared
+    hashes and status strings cannot substitute for those proofs.
+    """
     if suite.get("status") != "BOUND" or any(not suite.get(key) for key in FINAL_KEYS):
         raise SuiteFailure("final successor binding missing")
     validate_draft_suite(root, suite)
-    manifest_path = _relative_path(root, suite["final_release_manifest_path"])
-    scope_path = _relative_path(root, suite["final_scope_registry_path"])
-    if (
-        _sha(manifest_path) != suite["final_release_manifest_sha256"]
-        or _sha(scope_path) != suite["final_scope_registry_sha256"]
-        or not re.fullmatch(r"[0-9a-f]{40}", suite["final_checkout_sha"])
-    ):
-        raise SuiteFailure("final manifest, scope registry or checkout digest differs")
-    manifest = _json(manifest_path)
-    if (
-        manifest.get("release_mode") != "production"
-        or manifest.get("promotion_status") != "PROMOTABLE"
-        or manifest.get("activation_status") != "PRODUCTION_ACTIVATION_ALLOWED"
-        or manifest.get("review_status") != "REVIEWED"
-        or manifest.get("expected_counts", {}).get("subjects") != 11
-        or manifest.get("expected_counts", {}).get("unique_artifacts") != 253
-        or manifest.get("expected_counts", {}).get("placements") != 377
-    ):
-        raise SuiteFailure("final successor release is not promoted and sealed")
-    candidate = _json(root / CANDIDATE)
-    derivative_entries = {
-        entry["derivative_content_sha256"]: entry for entry in candidate["entries"]
-    }
-    registry_ref = manifest.get("artifact_registry")
-    if not isinstance(registry_ref, dict) or not _digest(registry_ref.get("sha256")):
-        raise SuiteFailure("final artifact registry reference missing")
-    registry_path = _relative_path(manifest_path.parent, registry_ref.get("path"))
-    if _sha(registry_path) != registry_ref["sha256"]:
-        raise SuiteFailure("final artifact registry digest differs")
-    registry = _json(registry_path)
-    artifacts = registry.get("artifacts")
-    if not isinstance(artifacts, list) or len(artifacts) != 253:
-        raise SuiteFailure("final artifact population differs")
-    artifact_ids: set[str] = set()
-    chunk_ids: set[str] = set()
-    for artifact in artifacts:
-        sha = artifact.get("content_sha256")
-        entry = derivative_entries.get(sha)
-        if (
-            entry is None
-            or sha in artifact_ids
-            or artifact.get("artifact_id") != sha
-            or artifact.get("source_pdf_sha256") != entry["source_content_sha256"]
-            or not isinstance(artifact.get("chunks"), list)
-            or not artifact["chunks"]
-        ):
-            raise SuiteFailure("final artifact identity or lineage differs")
-        citation = artifact.get("citation")
-        if not isinstance(citation, dict) or any(
-            citation.get(key) != value for key, value in entry["citation"].items()
-        ):
-            raise SuiteFailure("final artifact citation differs")
-        artifact_ids.add(sha)
-        for chunk in artifact["chunks"]:
-            chunk_id = chunk.get("chunk_id")
-            if (
-                not _digest(chunk_id)
-                or chunk_id in chunk_ids
-                or not isinstance(chunk.get("page_start"), int)
-            ):
-                raise SuiteFailure("final artifact chunk identity differs")
-            chunk_ids.add(chunk_id)
-    if artifact_ids != set(derivative_entries) or manifest["expected_counts"].get(
-        "unique_chunks"
-    ) != len(chunk_ids):
-        raise SuiteFailure("final artifact or chunk set differs")
-    subjects = manifest.get("subjects")
-    if (
-        not isinstance(subjects, list)
-        or len(subjects) != 11
-        or {ref.get("collection") for ref in subjects} != set(suite["collections"])
-    ):
-        raise SuiteFailure("final subject set differs")
-    placement_ids: set[str] = set()
-    for ref in subjects:
-        if not _digest(ref.get("sha256")):
-            raise SuiteFailure("final subject digest missing")
-        subject_path = _relative_path(manifest_path.parent, ref.get("path"))
-        if _sha(subject_path) != ref["sha256"]:
-            raise SuiteFailure("final subject digest differs")
-        subject = _json(subject_path)
-        placements = subject.get("placements")
-        if (
-            subject.get("collection") != ref["collection"]
-            or not isinstance(placements, list)
-            or not placements
-        ):
-            raise SuiteFailure("final subject collection empty or divergent")
-        for placement in placements:
-            placement_id = placement.get("placement_id")
-            if (
-                not _digest(placement_id)
-                or placement_id in placement_ids
-                or placement.get("collection") != ref["collection"]
-                or placement.get("artifact_id") not in artifact_ids
-                or placement.get("visibility") != "public"
-                or placement.get("placement_status") != "active"
-                or placement.get("review_status") != "reviewed"
-            ):
-                raise SuiteFailure("final subject placement identity or policy differs")
-            placement_ids.add(placement_id)
-    if len(placement_ids) != 377:
-        raise SuiteFailure("final placement population differs")
-    return manifest
+    raise SuiteFailure("canonical release verifier required before final binding")
 
 
 def main() -> int:

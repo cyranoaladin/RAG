@@ -121,7 +121,121 @@ def test_promoted_manifest_cannot_substitute_its_artifact_set(tmp_path: Path) ->
         final_scope_registry_sha256=hashlib.sha256(scopes.read_bytes()).hexdigest(),
         final_checkout_sha="a" * 40,
     )
-    with pytest.raises(SuiteFailure, match="artifact"):
+    with pytest.raises(SuiteFailure, match="canonical release verifier required"):
+        require_final_binding(tmp_path, suite)
+
+
+def _write_json(path: Path, value: object) -> str:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(value, sort_keys=True))
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+@pytest.mark.parametrize(
+    "sabotage", ["empty_scopes", "cross_collection", "forged_checkout"]
+)
+def test_declarative_final_bindings_never_pass_without_canonical_evidence(
+    tmp_path: Path,
+    sabotage: str,
+) -> None:
+    suite = copy.deepcopy(load_draft_suite(ROOT))
+    candidate_path = tmp_path / suite["candidate_manifest_path"]
+    candidate_path.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / suite["candidate_manifest_path"], candidate_path)
+    candidate = json.loads(candidate_path.read_text())
+    artifacts = []
+    placements: dict[str, list[dict]] = {name: [] for name in suite["collections"]}
+    for entry in candidate["entries"]:
+        sha = entry["derivative_content_sha256"]
+        artifacts.append(
+            {
+                "artifact_id": sha,
+                "content_sha256": sha,
+                "source_pdf_sha256": entry["source_content_sha256"],
+                "citation": entry["citation"],
+                "chunks": [
+                    {
+                        "chunk_id": hashlib.sha256(sha.encode()).hexdigest(),
+                        "page_start": 1,
+                    }
+                ],
+            }
+        )
+        for collection in entry["collections"]:
+            placements[collection].append(
+                {
+                    "placement_id": hashlib.sha256(
+                        f"{collection}:{sha}".encode()
+                    ).hexdigest(),
+                    "artifact_id": sha,
+                    "collection": collection,
+                    "visibility": "public",
+                    "placement_status": "active",
+                    "review_status": "reviewed",
+                }
+            )
+    assert sum(map(len, placements.values())) == 377
+    if sabotage == "cross_collection":
+        target = "rag_nexus_dgemc_terminale_option"
+        foreign = next(
+            entry["derivative_content_sha256"]
+            for entry in candidate["entries"]
+            if target not in entry["collections"]
+        )
+        placements[target][0]["artifact_id"] = foreign
+    release = tmp_path / "release"
+    registry_sha = _write_json(
+        release / "artifacts.release.json", {"artifacts": artifacts}
+    )
+    refs = []
+    for collection, rows in placements.items():
+        relative = f"subjects/{collection}.json"
+        sha = _write_json(
+            release / relative, {"collection": collection, "placements": rows}
+        )
+        refs.append({"collection": collection, "path": relative, "sha256": sha})
+    manifest_sha = _write_json(
+        release / "promoted.json",
+        {
+            "release_mode": "production",
+            "promotion_status": "PROMOTABLE",
+            "activation_status": "PRODUCTION_ACTIVATION_ALLOWED",
+            "review_status": "REVIEWED",
+            "expected_counts": {
+                "subjects": 11,
+                "unique_artifacts": 253,
+                "placements": 377,
+                "unique_chunks": 253,
+            },
+            "artifact_registry": {
+                "path": "artifacts.release.json",
+                "sha256": registry_sha,
+            },
+            "subjects": refs,
+        },
+    )
+    scopes = (
+        {}
+        if sabotage == "empty_scopes"
+        else {
+            "entries": [
+                {"collection": name, "scope_id": f"public_{name}", "roles": ["student"]}
+                for name in suite["collections"]
+            ]
+        }
+    )
+    scope_sha = _write_json(release / "scopes.json", scopes)
+    suite.update(
+        status="BOUND",
+        final_release_manifest_path="release/promoted.json",
+        final_release_manifest_sha256=manifest_sha,
+        final_scope_registry_path="release/scopes.json",
+        final_scope_registry_sha256=scope_sha,
+        final_checkout_sha="f" * 40,
+    )
+    # The manifest is self-consistent enough to fool the former structural
+    # checker, but none of these declarations is an authority receipt.
+    with pytest.raises(SuiteFailure, match="canonical release verifier required"):
         require_final_binding(tmp_path, suite)
 
 
