@@ -180,6 +180,16 @@ def test_pin_non_preexistant_ou_recu_v1_non_qualifie_refuse(
         attest(plan, canonical(receipt_doc), pin, destination)
 
 
+def test_recu_v1_anterieur_au_pin_refuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, receipt, pin, destination, _ = evidence(tmp_path, monkeypatch)
+    prior_receipt = json.loads(receipt)
+    prior_receipt["observed_at_utc"] = "2026-10-10T15:00:00Z"
+    with pytest.raises(TransferRefused, match="antérieur au pin"):
+        attest(plan, canonical(prior_receipt), pin, destination)
+
+
 def test_attestation_expiree_refusee(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     plan, receipt, pin, destination, _ = evidence(tmp_path, monkeypatch)
     raw = attest(plan, receipt, pin, destination)
