@@ -16,6 +16,10 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "services/rag-engine/scripts"))
+sys.path.insert(0, str(ROOT / "scripts/go_live"))
+sys.path.insert(0, str(ROOT / "packages/release-chain/src"))
+sys.path.insert(0, str(ROOT / "packages/contracts/src"))
+sys.path.insert(0, str(ROOT / "services/rag-engine/src"))
 
 import historical_staging_target_pin_receipt as historical  # noqa: E402
 import public_successor_signing_replay as replay  # noqa: E402
