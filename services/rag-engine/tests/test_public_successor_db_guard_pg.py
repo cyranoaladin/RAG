@@ -58,7 +58,10 @@ REVIEW_DIGEST = "b" * 64
 REVIEW_ID = "public-schema-fixture"
 SOURCE_PLACEMENT = "3" * 64
 PLACEMENT = "2" * 64
-REVIEW_BINDING = ("c" * 40, "d" * 40, "8" * 40, 17, f"NEXUS-TRUSTED-REVIEW-V1:{SHA}")
+REVIEW_BINDING = (
+    "c" * 40, "d" * 40, "8" * 40, 17,
+    f"NEXUS-TRUSTED-REVIEW-V1:{SHA}", "reviewer-fixture",
+)
 
 
 def _verdict() -> SimpleNamespace:
@@ -159,7 +162,7 @@ def test_public_lot42_real_schema_and_post_startup_invalidation(
             "human_review_base_sha": REVIEW_BINDING[0],
             "human_review_head_sha": REVIEW_BINDING[1],
             "human_review_review_id": REVIEW_BINDING[3],
-            "human_review_reviewer": "abenrhouma",
+            "human_review_reviewer": REVIEW_BINDING[5],
             "human_review_submitted_at": now,
             "human_review_challenge": REVIEW_BINDING[4],
             "protocol_version": "LOT42-RELEASE-BATCH-V1",
