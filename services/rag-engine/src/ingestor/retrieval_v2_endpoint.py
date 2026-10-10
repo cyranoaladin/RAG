@@ -716,7 +716,7 @@ def _validate_unpromoted_release_guard(registry: ReleaseRegistryExpectation) -> 
     env = _resolve_nexus_environment()
     candidates = [
         manifest for manifest in registry.manifests
-        if manifest.expectation.release_mode == "candidate"
+        if getattr(manifest.expectation, "release_mode", None) == "candidate"
     ]
     if candidates:
         if len(candidates) != len(registry.manifests):
@@ -790,7 +790,7 @@ def validate_release_startup_configuration(
         if len(matches) != 1:
             raise RuntimeError("scope source SHA is ambiguous for subject release")
         manifest = registry.manifest_for_collection(collection)
-        if manifest is not None and manifest.expectation.release_mode == "candidate":
+        if manifest is not None and getattr(manifest.expectation, "release_mode", None) == "candidate":
             public_scope = matches[0]
             if (
                 not isinstance(public_scope, RetrievalScopeArtifactV3)
