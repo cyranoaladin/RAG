@@ -101,7 +101,158 @@
     },
     "Citation": {
       "additionalProperties": false,
+      "dependentRequired": {
+        "derivative_notice": [
+          "licensor",
+          "licence_id",
+          "source_updated_at",
+          "derivative_notice",
+          "page"
+        ],
+        "licence_id": [
+          "licensor",
+          "licence_id",
+          "source_updated_at",
+          "derivative_notice",
+          "page"
+        ],
+        "licensor": [
+          "licensor",
+          "licence_id",
+          "source_updated_at",
+          "derivative_notice",
+          "page"
+        ],
+        "source_updated_at": [
+          "licensor",
+          "licence_id",
+          "source_updated_at",
+          "derivative_notice",
+          "page"
+        ]
+      },
+      "dependentSchemas": {
+        "derivative_notice": {
+          "properties": {
+            "derivative_notice": {
+              "type": "string"
+            },
+            "licence_id": {
+              "type": "string"
+            },
+            "licensor": {
+              "type": "string"
+            },
+            "page": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "source_updated_at": {
+              "type": "string"
+            }
+          }
+        },
+        "licence_id": {
+          "properties": {
+            "derivative_notice": {
+              "type": "string"
+            },
+            "licence_id": {
+              "type": "string"
+            },
+            "licensor": {
+              "type": "string"
+            },
+            "page": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "source_updated_at": {
+              "type": "string"
+            }
+          }
+        },
+        "licensor": {
+          "properties": {
+            "derivative_notice": {
+              "type": "string"
+            },
+            "licence_id": {
+              "type": "string"
+            },
+            "licensor": {
+              "type": "string"
+            },
+            "page": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "source_updated_at": {
+              "type": "string"
+            }
+          }
+        },
+        "source_updated_at": {
+          "properties": {
+            "derivative_notice": {
+              "type": "string"
+            },
+            "licence_id": {
+              "type": "string"
+            },
+            "licensor": {
+              "type": "string"
+            },
+            "page": {
+              "minimum": 1,
+              "type": "integer"
+            },
+            "source_updated_at": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "properties": {
+        "derivative_notice": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derivative Notice"
+        },
+        "licence_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Licence Id"
+        },
+        "licensor": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Licensor"
+        },
         "page": {
           "anyOf": [
             {
@@ -124,6 +275,19 @@
           "minLength": 1,
           "title": "Source Label",
           "type": "string"
+        },
+        "source_updated_at": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z)?$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Updated At"
         },
         "source_uri": {
           "minLength": 1,

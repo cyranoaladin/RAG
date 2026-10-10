@@ -35,6 +35,16 @@ UPGRADE_REVIEW_PASSWORD="upgrade-review-$LOT40_OWNER_TOKEN"
 UPGRADE_PUBLISHER_PASSWORD="upgrade-publisher-$LOT40_OWNER_TOKEN"
 RUN_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/lot40-hybrid.XXXXXX")"
 BACKUP_ROOT="$RUN_ROOT/backups"
+# Ce cycle historique prouve 001..005 et les rollbacks 005..001. La release
+# courante ajoute 006 ; figer ici une copie 005 évite de réinterpréter les
+# assertions anciennes comme une preuve 006. La migration 006 est testée
+# séparément avec le contrat de readiness courant.
+mkdir -p "$RUN_ROOT/head-005-compat"
+cp -a -- "$INFRA_DIR" "$RUN_ROOT/head-005-compat/infra"
+rm -f -- "$RUN_ROOT/head-005-compat/infra/postgres/migrations/006_public_derivative_attribution.sql"
+printf '%s\n' '005_official_snapshot_currentness' \
+    > "$RUN_ROOT/head-005-compat/infra/postgres/migrations/HEAD"
+INFRA_DIR="$RUN_ROOT/head-005-compat/infra"
 container_cleanup_armed=0
 volume_cleanup_armed=0
 PGVECTOR_CONTAINER_ID=""

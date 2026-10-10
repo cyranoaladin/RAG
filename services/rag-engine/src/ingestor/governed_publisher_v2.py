@@ -13,7 +13,7 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -27,6 +27,7 @@ from nexus_contracts.authority_artifacts import (
 from nexus_contracts.embedding_utils import format_passage
 from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.resource_state import ResourceState
+from nexus_release_chain.publication_chunking import chunk_verified_derivative
 from psycopg.pq import TransactionStatus
 
 try:
@@ -103,6 +104,12 @@ class GovernedArtifact:
     #: déclare pour ce contenu. Présentes, elles remplacent le filtre du chemin
     #: unitaire : le jeu publié doit être exactement le jeu scellé.
     sealed_chunk_sha256: tuple[str, ...] | None = None
+    sealed_chunk_ids: tuple[str, ...] | None = None
+    licensor: str | None = None
+    licence_id: str | None = None
+    source_updated_at: str | None = None
+    derivative_notice: str | None = None
+    sealed_derivative_receipt: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.content, bytes) or not self.content:
@@ -121,6 +128,33 @@ class GovernedArtifact:
             _nonblank(getattr(self, field), field=field)
         if not isinstance(self.official, bool):
             raise ValueError("official must be boolean")
+        attribution = (
+            self.licensor, self.licence_id, self.source_updated_at,
+            self.derivative_notice,
+        )
+        if any(value is not None for value in attribution):
+            if any(not isinstance(value, str) or not value.strip()
+                   for value in attribution):
+                raise ValueError("derivative attribution must be complete")
+        if (self.sealed_chunk_sha256 is not None
+                and self.mime_detected == "text/plain; charset=utf-8"
+                and any(value is None for value in attribution)):
+            raise ValueError("sealed text derivative attribution is required")
+        if (self.sealed_chunk_sha256 is not None
+                and self.mime_detected == "text/plain; charset=utf-8"
+                and not isinstance(self.sealed_derivative_receipt, Mapping)):
+            raise ValueError("sealed text derivative receipt is required")
+        if self.mime_detected == "text/plain; charset=utf-8":
+            if self.sealed_chunk_sha256 is None or self.sealed_chunk_ids is None:
+                raise ValueError("sealed text derivative chunk_id set is required")
+            expected_ids = tuple(
+                hashlib.sha256(
+                    f"{self.content_sha256}:{index}:{chunk_sha}".encode()
+                ).hexdigest()
+                for index, chunk_sha in enumerate(self.sealed_chunk_sha256)
+            )
+            if self.sealed_chunk_ids != expected_ids:
+                raise ValueError("sealed text derivative chunk_id mismatch")
 
     @property
     def artifact_id(self) -> str:
@@ -195,6 +229,41 @@ def _extracted_text_for_chunking(
     if artifact.mime_detected == PDF_MIME_TYPE:
         return ""
     return extract_text(artifact.content)
+
+
+def _publication_chunks(
+    artifact: GovernedArtifact,
+    *,
+    extract_text: ExtractText,
+    token_counter: EmbeddingProvider,
+) -> tuple[PublicationChunk, ...]:
+    if artifact.mime_detected == "text/plain; charset=utf-8":
+        if artifact.sealed_chunk_sha256 is None or (
+            artifact.sealed_derivative_receipt is None
+        ):
+            raise GovernedPublicationError(
+                "text derivative requires sealed chunks and receipt"
+            )
+        verified = chunk_verified_derivative(
+            content=artifact.content,
+            receipt=artifact.sealed_derivative_receipt,
+            token_counter=token_counter,
+        )
+        raw_chunks = tuple(
+            PublicationChunk(chunk.text, chunk.page_start, chunk.page_end)
+            for chunk in verified
+        )
+    else:
+        raw_chunks = chunk_publication(
+            content=artifact.content,
+            mime_detected=artifact.mime_detected,
+            extracted_text=_extracted_text_for_chunking(artifact, extract_text),
+            token_counter=token_counter,
+        )
+    return select_publication_chunks(
+        raw_chunks,
+        sealed_chunk_sha256=artifact.sealed_chunk_sha256,
+    )
 
 
 def _canonical_audience(scope: ResourceScope) -> list[str]:
@@ -638,7 +707,9 @@ def _lock_artifact(cursor: Any, artifact_id: str) -> None:
 def _artifact_row(cursor: Any, artifact_id: str) -> tuple[object, ...] | None:
     cursor.execute(
         """
-        SELECT content_sha256, rights, official, source_kind, type_doc
+        SELECT content_sha256, rights, official, source_kind, type_doc,
+               is_text_derivative, licensor, licence_id, source_updated_at,
+               derivative_notice
         FROM public.rag_artifacts
         WHERE artifact_id = %s
         """,
@@ -830,8 +901,10 @@ def _publish_under_governance_fence(
                     INSERT INTO public.rag_artifacts (
                         artifact_id, content_sha256, source_label, source_uri,
                         rights, official, source_kind, type_doc,
-                        ingestion_artifact_id
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ingestion_artifact_id, is_text_derivative, licensor, licence_id,
+                        source_updated_at, derivative_notice
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s,
+                              %s, %s, %s, %s, %s)
                     """,
                     (
                         artifact.artifact_id,
@@ -843,6 +916,11 @@ def _publish_under_governance_fence(
                         artifact.source_kind,
                         artifact.type_doc,
                         first_attestation.artifact_id,
+                        artifact.mime_detected == "text/plain; charset=utf-8",
+                        artifact.licensor,
+                        artifact.licence_id,
+                        artifact.source_updated_at,
+                        artifact.derivative_notice,
                     ),
                 )
             elif existing != (
@@ -851,6 +929,11 @@ def _publish_under_governance_fence(
                 artifact.official,
                 artifact.source_kind,
                 artifact.type_doc,
+                artifact.mime_detected == "text/plain; charset=utf-8",
+                artifact.licensor,
+                artifact.licence_id,
+                artifact.source_updated_at,
+                artifact.derivative_notice,
             ):
                 raise GovernedPublicationError(
                     "existing artifact differs from content-bound publication"
@@ -864,15 +947,10 @@ def _publish_under_governance_fence(
                 )
 
             if artifact_created:
-                extracted = _extracted_text_for_chunking(artifact, extract_text)
-                chunks = select_publication_chunks(
-                    chunk_publication(
-                        content=artifact.content,
-                        mime_detected=artifact.mime_detected,
-                        extracted_text=extracted,
-                        token_counter=embedding_provider,
-                    ),
-                    sealed_chunk_sha256=artifact.sealed_chunk_sha256,
+                chunks = _publication_chunks(
+                    artifact,
+                    extract_text=extract_text,
+                    token_counter=embedding_provider,
                 )
                 vectors = _vectors(chunks, embedding_provider)
                 _insert_chunks(

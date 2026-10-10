@@ -707,6 +707,11 @@ class SearchV2Hit(BaseModel):
     source_label: str = Field(min_length=1, pattern=r".*\S.*")
     source_uri: str = Field(min_length=1, pattern=r".*\S.*")
     rights: str = Field(min_length=1, pattern=r".*\S.*")
+    licensor: str | None = None
+    licence_id: str | None = None
+    source_updated_at: str | None = None
+    derivative_notice: str | None = None
+    is_text_derivative: bool = False
     type_doc: str
     review_status: Literal["reviewed"]  # SCALE-04: reviewed only
     artifact_id: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
@@ -1569,6 +1574,11 @@ def _to_search_hit(hit: HybridHit, *, query: str | None = None) -> SearchV2Hit:
         source_label=candidate.source_label,
         source_uri=candidate.source_uri,
         rights=candidate.rights,
+        licensor=candidate.licensor,
+        licence_id=candidate.licence_id,
+        source_updated_at=candidate.source_updated_at,
+        derivative_notice=candidate.derivative_notice,
+        is_text_derivative=candidate.is_text_derivative,
         type_doc=candidate.type_doc,
         review_status=candidate.review_status,
         artifact_id=candidate.artifact_id,
@@ -1594,6 +1604,20 @@ def _to_retrieval_result(
     *,
     include_citation: bool = True,
 ) -> RetrievalResult:
+    derivative_attribution = (
+        hit.licensor, hit.licence_id, hit.source_updated_at, hit.derivative_notice,
+    )
+    complete_attribution = all(
+        isinstance(value, str) and bool(value.strip())
+        for value in derivative_attribution
+    )
+    if hit.is_text_derivative != complete_attribution or (
+        hit.is_text_derivative and hit.page is None
+    ):
+        raise HTTPException(status_code=503, detail="retrieval evidence unavailable")
+    if hit.is_text_derivative:
+        if not include_citation:
+            raise HTTPException(status_code=422, detail="Public derivative citations are required")
     metadata: dict[str, object] = {
         "collection": collection,
         "type_doc": hit.type_doc,
@@ -1629,6 +1653,10 @@ def _to_retrieval_result(
                 page=hit.page,
                 source_uri=hit.source_uri,
                 rights=hit.rights,
+                licensor=hit.licensor,
+                licence_id=hit.licence_id,
+                source_updated_at=hit.source_updated_at,
+                derivative_notice=hit.derivative_notice,
             )
             if include_citation
             else None

@@ -91,13 +91,11 @@ def _fingerprints(path: Path) -> dict[str, str]:
     return dict(line.split("=", 1) for line in _read(path).splitlines())
 
 
-def test_manifest_declares_the_official_snapshot_head() -> None:
-    assert _read(MIGRATIONS / "HEAD") == "005_official_snapshot_currentness\n"
+def test_manifest_keeps_the_official_snapshot_migration_beneath_current_head() -> None:
+    assert _read(MIGRATIONS / "HEAD") == "006_public_derivative_attribution\n"
     assert MIGRATION_005.is_file()
     assert ROLLBACK_005.is_file()
-    assert sorted(path.name for path in MIGRATIONS.glob("*.sql"))[-1] == (
-        MIGRATION_005.name
-    )
+    assert (MIGRATIONS / "006_public_derivative_attribution.sql").is_file()
 
 
 def test_migration_005_only_widens_currentness_and_the_served_index() -> None:
@@ -237,7 +235,7 @@ def test_upgrade_runner_and_rollbacks_know_head_005() -> None:
     assert "validate_005_absent_sql" in rollback_004
 
 
-def test_fresh_volume_bootstraps_and_registers_head_005() -> None:
+def test_fresh_volume_bootstraps_and_registers_head_006() -> None:
     compose = _read(INFRA / "docker-compose.v2.yml")
     registration = _read(POSTGRES / "register_bootstrap_migrations.sh")
     healthcheck = _read(POSTGRES / "healthcheck.sh")
@@ -248,27 +246,30 @@ def test_fresh_volume_bootstraps_and_registers_head_005() -> None:
         "01_003_profile_filtering.sql",
         "02_004_artifact_placements.sql",
         "03_005_official_snapshot_currentness.sql",
-        "04_register_bootstrap_migrations.sh",
-        "05_provision_runtime_roles.sh",
+        "04_006_public_derivative_attribution.sql",
+        "05_register_bootstrap_migrations.sh",
+        "06_provision_runtime_roles.sh",
     ]
     assert (
         "./postgres/migrations/005_official_snapshot_currentness.sql:"
         "/docker-entrypoint-initdb.d/03_005_official_snapshot_currentness.sql:ro"
     ) in compose
     assert "005_official_snapshot_currentness.sql" in registration
-    assert "(5, :'migration_005_file', :'migration_005_sha')" in registration
-    assert '"$MIGRATION_DECLARED_HEAD" != "005_official_snapshot_currentness"' in healthcheck
+    assert "(5, :'migration_005_file', :'migration_005_sha')," in registration
+    assert "(6, :'migration_006_file', :'migration_006_sha')" in registration
+    assert '"$MIGRATION_DECLARED_HEAD" != "006_public_derivative_attribution"' in healthcheck
     assert "validate_005_sql" in healthcheck
-    assert "validate_registry_sql 5" in healthcheck
+    assert "validate_006_sql" in healthcheck
+    assert "validate_registry_sql 6" in healthcheck
 
 
-def test_head_005_contract_files_are_shipped_everywhere_they_are_read() -> None:
+def test_current_head_contract_files_are_shipped_everywhere_they_are_read() -> None:
     compose = _read(INFRA / "docker-compose.v2.yml")
     dockerfile = _read(INFRA / "Dockerfile.ingestor-v2")
     dockerignore = _read(REPO_ROOT / ".dockerignore")
     healthcheck = _read(POSTGRES / "healthcheck.sh")
 
-    for name in ("schema_head_005_fingerprints.env", "schema_head_005_columns.tsv"):
+    for name in ("schema_head_006_fingerprints.env", "schema_head_006_columns.tsv"):
         assert (POSTGRES / name).is_file()
         assert f"!services/rag-engine/infra/postgres/{name}" in dockerignore
         assert f"infra/postgres/{name} /app/{name}" in dockerfile

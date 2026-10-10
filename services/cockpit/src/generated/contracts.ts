@@ -123,9 +123,13 @@ export type TeacherConfirmed = boolean;
 export type Warnings = string[];
 export type Zone = string;
 export type ChunkId = string;
+export type DerivativeNotice = string | null;
+export type LicenceId = string | null;
+export type Licensor = string | null;
 export type Page = number | null;
 export type Rights = string;
 export type SourceLabel = string;
+export type SourceUpdatedAt = string | null;
 export type SourceUri = string;
 export type ContentSha256 = string | null;
 export type CorpusId1 = string | null;
@@ -1070,9 +1074,13 @@ export interface RetrievalResult {
   title?: Title;
 }
 export interface Citation {
+  derivative_notice?: DerivativeNotice;
+  licence_id?: LicenceId;
+  licensor?: Licensor;
   page?: Page;
   rights: Rights;
   source_label: SourceLabel;
+  source_updated_at?: SourceUpdatedAt;
   source_uri: SourceUri;
 }
 export interface ChunkLocator {

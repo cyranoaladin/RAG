@@ -289,42 +289,7 @@
         "type": "object"
       },
       "Citation": {
-        "additionalProperties": false,
-        "properties": {
-          "page": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Page"
-          },
-          "rights": {
-            "minLength": 1,
-            "title": "Rights",
-            "type": "string"
-          },
-          "source_label": {
-            "minLength": 1,
-            "title": "Source Label",
-            "type": "string"
-          },
-          "source_uri": {
-            "minLength": 1,
-            "title": "Source Uri",
-            "type": "string"
-          }
-        },
-        "required": [
-          "source_label",
-          "source_uri",
-          "rights"
-        ],
-        "title": "Citation",
+        "additionalProperties": true,
         "type": "object"
       },
       "CorpusChunkBinding": {

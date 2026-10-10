@@ -991,6 +991,62 @@ $nexus$;
 SQL
 }
 
+validate_006_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_006
+DO $nexus$
+DECLARE invalid_count integer;
+BEGIN
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rag_artifacts'
+      AND column_name IN (
+          'licensor', 'licence_id', 'source_updated_at', 'derivative_notice'
+      ) AND data_type = 'text' AND is_nullable = 'YES';
+    IF invalid_count <> 4 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_006_INVALID: attribution columns';
+    END IF;
+    SELECT count(*) INTO invalid_count
+    FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'rag_artifacts'
+      AND column_name = 'is_text_derivative' AND data_type = 'boolean'
+      AND is_nullable = 'NO' AND column_default = 'false';
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_006_INVALID: derivative marker';
+    END IF;
+    SELECT count(*) INTO invalid_count
+    FROM pg_constraint
+    WHERE conrelid = 'public.rag_artifacts'::regclass
+      AND conname = 'rag_artifacts_public_attribution_complete_check'
+      AND contype = 'c' AND convalidated;
+    IF invalid_count <> 1 THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_006_INVALID: attribution constraint';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
+validate_006_absent_sql() {
+    cat <<'SQL'
+-- NEXUS_VALIDATE_SCHEMA_006_ABSENT
+DO $nexus$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'rag_artifacts'
+          AND column_name IN (
+              'is_text_derivative', 'licensor', 'licence_id',
+              'source_updated_at', 'derivative_notice'
+          )
+    ) THEN
+        RAISE EXCEPTION 'SCHEMA_HEAD_005_INVALID: attribution columns already present';
+    END IF;
+END
+$nexus$;
+SQL
+}
+
 validate_registry_sql() {
     local expected_head="$1"
     local expected_json="["

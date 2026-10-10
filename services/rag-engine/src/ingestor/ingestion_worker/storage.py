@@ -10,7 +10,10 @@ ni un fingerprint de production — un simple adaptateur de fichiers.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import re
+from collections.abc import Mapping
 from pathlib import Path
 from uuid import UUID
 
@@ -34,6 +37,10 @@ class SealedArtifactDigestError(ValueError):
     fichier remplacé sous le bon nom traverserait toute la chaîne, et
     l'attestation qui nomme ce digest couvrirait d'autres octets qu'elle.
     """
+
+
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_TEXT_DERIVATIVE_MAGIC = b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\n"
 
 
 def make_filesystem_artifact_store(base_dir: Path):
@@ -150,15 +157,17 @@ def make_filesystem_artifact_reader(base_dir: Path):
     return read_artifact
 
 
-def make_sealed_release_artifact_reader(base_dir: Path):
+def make_sealed_release_artifact_reader(
+    base_dir: Path, *, media_type: str = "application/pdf"
+):
     """Relit un artefact de release SCELLÉE par son empreinte.
 
     Une release scellée ne porte aucune référence de fichier : elle n'a
     jamais été téléchargée, et ``SealedReleaseArtifactRecord`` n'a donc ni
     ``extracted_text_ref`` ni ``mime_detected``. Le magasin transféré nomme
-    chaque objet par son digest (``<sha256>.pdf``) — c'est ce que
-    l'ingestion scellée exige déjà à l'entrée, et c'est la seule référence
-    qui existe.
+    chaque objet par son digest et l'extension établie par le catalogue
+    vérifié. L'ancien PDF conserve son chemin par défaut ; le texte exige
+    que le CLI transmette explicitement le type scellé.
 
     Les octets sont relus sous la même protection que le chemin unitaire
     (ouverture composant par composant, ``O_NOFOLLOW``, confinement sous
@@ -166,23 +175,69 @@ def make_sealed_release_artifact_reader(base_dir: Path):
     publication ne lit donc jamais des octets dont elle n'a pas vérifié
     qu'ils sont ceux que l'attestation nomme.
     """
+    extensions = {
+        "application/pdf": ".pdf",
+        "text/plain; charset=utf-8": ".txt",
+    }
+    if media_type not in extensions:
+        raise ValueError(f"unsupported sealed media type {media_type!r}")
+    suffix = extensions[media_type]
     resolved_base_dir = base_dir.resolve()
     read_artifact = make_filesystem_artifact_reader(base_dir)
 
     def read_sealed_artifact(*, content_sha256: str) -> bytes:
+        if _SHA256.fullmatch(content_sha256) is None:
+            raise SealedArtifactDigestError("sealed artifact identifier is not SHA-256")
         content: bytes = read_artifact(
-            extracted_text_ref=str(resolved_base_dir / f"{content_sha256}.pdf")
+            extracted_text_ref=str(resolved_base_dir / f"{content_sha256}{suffix}")
         )
         measured = hashlib.sha256(content).hexdigest()
         if measured != content_sha256:
             raise SealedArtifactDigestError(
                 f"the artifact store holds bytes hashing to {measured} under the "
-                f"name {content_sha256}.pdf — refusing to publish content the "
+                f"name {content_sha256}{suffix} — refusing to publish content the "
                 "attestation does not name"
             )
+        if media_type == "text/plain; charset=utf-8":
+            if not content.startswith(_TEXT_DERIVATIVE_MAGIC):
+                raise SealedArtifactDigestError(
+                    "sealed text artifact does not carry the derivative serialization marker"
+                )
+            try:
+                content.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise SealedArtifactDigestError(
+                    "sealed text artifact is not UTF-8"
+                ) from exc
         return content
 
     return read_sealed_artifact
+
+
+def make_sealed_derivative_receipt_reader(base_dir: Path):
+    """Relire le reçu CAS d'un dérivé sous le magasin, sans symlink ni repli."""
+    resolved_base = base_dir.resolve()
+    read_artifact = make_filesystem_artifact_reader(base_dir)
+
+    def read_receipt(*, receipt_path: str, receipt_sha256: str) -> Mapping[str, object]:
+        if _SHA256.fullmatch(receipt_sha256) is None or (
+            receipt_path != f"derivative_receipts/{receipt_sha256}.json"
+        ):
+            raise SealedArtifactDigestError("derivative receipt path or digest invalid")
+        raw: bytes = read_artifact(
+            extracted_text_ref=str(resolved_base / receipt_path)
+        )
+        if hashlib.sha256(raw).hexdigest() != receipt_sha256:
+            raise SealedArtifactDigestError("derivative receipt digest mismatch")
+        try:
+            receipt = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SealedArtifactDigestError("derivative receipt JSON invalid") from exc
+        if not isinstance(receipt, dict):
+            raise SealedArtifactDigestError("derivative receipt mapping invalid")
+        return receipt
+
+    return read_receipt
 
 
 __all__ = [
@@ -190,5 +245,6 @@ __all__ = [
     "SealedArtifactDigestError",
     "make_filesystem_artifact_reader",
     "make_sealed_release_artifact_reader",
+    "make_sealed_derivative_receipt_reader",
     "make_filesystem_artifact_store",
 ]

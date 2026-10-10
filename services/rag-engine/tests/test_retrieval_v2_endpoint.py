@@ -576,6 +576,69 @@ class TestResponseFormat:
         resp = RetrievalResponse(results=[], warnings=[], filters_applied={})
         assert "answer" not in resp.model_dump()
 
+    def test_public_derivative_hit_projects_complete_attribution_to_citation(self) -> None:
+        from ingestor.retrieval_v2_endpoint import SearchV2Hit, _to_retrieval_result
+
+        hit = SearchV2Hit(
+            chunk_id="c-public",
+            doc_id="d-public",
+            source_label="Programme NSI",
+            source_uri="https://eduscol.education.gouv.fr/document.pdf",
+            rights="officiel_public",
+            type_doc="programme",
+            review_status="reviewed",
+            page=3,
+            preview="Un extrait vérifié.",
+            dense_score=0.9,
+            lexical_score=None,
+            rrf_score=0.01,
+            rerank_score=3.0,
+            mmr_score=0.5,
+            score_final=0.8,
+            licensor="Ministère de l’Éducation nationale – Dgesco / Éduscol",
+            licence_id="ETALAB-2.0",
+            source_updated_at="2026-09-12",
+            derivative_notice="Extrait textuel dérivé ; PDF original non redistribué.",
+            is_text_derivative=True,
+        )
+
+        result = _to_retrieval_result(hit, "rag_nexus_nsi_terminale_specialite")
+
+        assert result.citation is not None
+        assert result.citation.model_dump()["licensor"] == hit.licensor
+        assert result.citation.model_dump()["licence_id"] == hit.licence_id
+        assert result.citation.model_dump()["source_updated_at"] == hit.source_updated_at
+        assert result.citation.model_dump()["derivative_notice"] == hit.derivative_notice
+
+        with pytest.raises(HTTPException) as refused:
+            _to_retrieval_result(
+                hit, "rag_nexus_nsi_terminale_specialite", include_citation=False,
+            )
+        assert refused.value.status_code == 422
+
+        legacy = hit.model_copy(update={
+            "licensor": None, "licence_id": None,
+            "source_updated_at": None, "derivative_notice": None,
+            "is_text_derivative": False,
+        })
+        assert _to_retrieval_result(
+            legacy, "rag_nexus_nsi_terminale_specialite", include_citation=False,
+        ).citation is None
+
+        lost_attribution = hit.model_copy(update={
+            "licensor": None, "licence_id": None,
+            "source_updated_at": None, "derivative_notice": None,
+        })
+        with pytest.raises(HTTPException) as refused:
+            _to_retrieval_result(lost_attribution, "rag_nexus_nsi_terminale_specialite")
+        assert refused.value.status_code == 503
+        with pytest.raises(HTTPException) as refused:
+            _to_retrieval_result(
+                lost_attribution, "rag_nexus_nsi_terminale_specialite",
+                include_citation=False,
+            )
+        assert refused.value.status_code == 503
+
     def test_hit_exposes_review_status(self) -> None:
         """SCALE-04: review_status in each hit for agent layer."""
         from ingestor.retrieval_v2_endpoint import SearchV2Hit
@@ -666,6 +729,11 @@ class TestResponseFormat:
             placement_source_scope="01_EDUSCOL_OFFICIEL/terminale/philosophie",
             placement_source_id="eduscol:5793:terminale:philosophie",
             placement_source_path="01_EDUSCOL_OFFICIEL/philosophie/source.pdf",
+            licensor="Ministère de l’Éducation nationale – Dgesco / Éduscol",
+            licence_id="ETALAB-2.0",
+            source_updated_at="2026-10-10T06:04:23.168Z",
+            derivative_notice="Extrait textuel dérivé.",
+            is_text_derivative=True,
             dense_score=None,
             lexical_score=0.42,
         )
@@ -697,6 +765,10 @@ class TestResponseFormat:
             "page": 11,
             "source_uri": "https://example.edu/nsi",
             "rights": "official_public_administrative",
+            "licensor": "Ministère de l’Éducation nationale – Dgesco / Éduscol",
+            "licence_id": "ETALAB-2.0",
+            "source_updated_at": "2026-10-10T06:04:23.168Z",
+            "derivative_notice": "Extrait textuel dérivé.",
         }
         assert result.metadata == {
             "collection": "rag_nexus_nsi_terminale_specialite",

@@ -1,9 +1,17 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from nexus_contracts.document import Niveau, StatutEnseignement, TypeDoc, Voie
 from nexus_contracts.identity import BoundedIdentifier, BoundedSlug, Sha256Digest
@@ -100,12 +108,83 @@ class RetrievalRequest(BaseModel):
 
 
 class Citation(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "dependentRequired": {
+                name: [
+                    "licensor",
+                    "licence_id",
+                    "source_updated_at",
+                    "derivative_notice",
+                    "page",
+                ]
+                for name in (
+                    "licensor",
+                    "licence_id",
+                    "source_updated_at",
+                    "derivative_notice",
+                )
+            },
+            "dependentSchemas": {
+                name: {
+                    "properties": {
+                        "licensor": {"type": "string"},
+                        "licence_id": {"type": "string"},
+                        "source_updated_at": {"type": "string"},
+                        "derivative_notice": {"type": "string"},
+                        "page": {"type": "integer", "minimum": 1},
+                    }
+                }
+                for name in (
+                    "licensor",
+                    "licence_id",
+                    "source_updated_at",
+                    "derivative_notice",
+                )
+            },
+        },
+    )
 
     source_label: str = Field(min_length=1)
     page: int | None = Field(default=None, ge=1)
     source_uri: str = Field(min_length=1)
     rights: str = Field(min_length=1)
+    # Les citations historiques restent inchangées ; les dérivés publics
+    # portent les quatre éléments d'attribution comme un bloc indivisible.
+    licensor: str | None = Field(default=None, min_length=1)
+    licence_id: str | None = Field(default=None, min_length=1)
+    source_updated_at: str | None = Field(
+        default=None,
+        pattern=r"^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$",
+    )
+    derivative_notice: str | None = Field(default=None, min_length=1)
+
+    @model_serializer(mode="wrap")
+    def serialize_without_absent_attribution(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = handler(self)
+        for name in ("licensor", "licence_id", "source_updated_at", "derivative_notice"):
+            if payload.get(name) is None:
+                payload.pop(name, None)
+        return payload
+
+    @model_validator(mode="after")
+    def validate_public_derivative_attribution(self) -> "Citation":
+        attribution = (
+            self.licensor,
+            self.licence_id,
+            self.source_updated_at,
+            self.derivative_notice,
+        )
+        if any(value is not None for value in attribution) and any(
+            value is None for value in attribution
+        ):
+            raise ValueError("public derivative attribution must be complete")
+        if all(value is not None for value in attribution) and self.page is None:
+            raise ValueError("public derivative attribution requires page")
+        return self
 
 
 class RetrievalResult(BaseModel):

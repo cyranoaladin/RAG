@@ -201,6 +201,11 @@ export default function SearchSection({
                     <ExternalLink className="h-3 w-3" />
                   </a>
                   <Badge variant="outline" className="border-emerald-300 text-emerald-700">{result.citation.rights}</Badge>
+                  {result.citation.licensor && result.citation.licence_id && result.citation.source_updated_at && result.citation.derivative_notice && (
+                    <span className="basis-full text-slate-600">
+                      Source : {result.citation.licensor} · {result.citation.source_label} · page {result.citation.page ?? 'non précisée'} · date de référence {result.citation.source_updated_at} · {result.citation.licence_id === 'ETALAB-2.0' ? 'Licence Ouverte Etalab 2.0' : result.citation.licence_id} · {result.citation.derivative_notice}
+                    </span>
+                  )}
                 </div>
               )}
             </CardContent>

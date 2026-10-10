@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Mapping, Protocol
 
 from .pdf_extractor import PDF_MIME_TYPE, extract_pdf_pages
 from .pedagogical_chunker import _flatten_section, parse_sections
+from .text_derivative_parser import parse_verified_derivative_pages
 
 DEFAULT_TARGET_TOKENS = 384
 _SPACE = re.compile(r"\s+")
@@ -191,10 +192,35 @@ def chunk_publication(
     return tuple(chunks)
 
 
+def chunk_verified_derivative(
+    *,
+    content: bytes,
+    receipt: Mapping[str, Any],
+    token_counter: PassageTokenCounter,
+    target_tokens: int = DEFAULT_TARGET_TOKENS,
+) -> tuple[PublicationChunk, ...]:
+    """Chunk only verified native text, with original PDF page citations."""
+    if target_tokens <= 0 or target_tokens > token_counter.max_sequence_length:
+        raise ValueError("target token budget exceeds the provider sequence limit")
+    pages = parse_verified_derivative_pages(content, receipt)
+    chunks = tuple(
+        PublicationChunk(text, page.page_number, page.page_number)
+        for page in pages
+        for group in page.groups
+        for text in _bounded_text(
+            group, token_counter=token_counter, budget=target_tokens,
+        )
+    )
+    if not chunks:
+        raise ValueError("derivative contains no public native text")
+    return chunks
+
+
 __all__ = [
     "DEFAULT_TARGET_TOKENS",
     "PDF_MIME_TYPE",
     "PassageTokenCounter",
     "PublicationChunk",
     "chunk_publication",
+    "chunk_verified_derivative",
 ]

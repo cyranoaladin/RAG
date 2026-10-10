@@ -590,6 +590,11 @@ def test_external_authority_pin_commits_before_fenced_product_commit(
             artifact.official,
             artifact.source_kind,
             artifact.type_doc,
+                False,
+            artifact.licensor,
+            artifact.licence_id,
+            artifact.source_updated_at,
+            artifact.derivative_notice,
         ),
     )
     monkeypatch.setattr(publisher_module, "_insert_placement", lambda *_args, **_kwargs: None)

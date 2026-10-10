@@ -53,6 +53,7 @@ from .publication_resume import (
 from .runtime_authority import RuntimeAuthorityStartupError
 from .storage import (
     make_filesystem_artifact_reader,
+    make_sealed_derivative_receipt_reader,
     make_sealed_release_artifact_reader,
 )
 
@@ -379,7 +380,15 @@ def main(argv: list[str] | None = None) -> int:
         # leur empreinte. Le lecteur les relit sous la meme protection
         # et re-mesure leur digest avant toute publication.
         sealed_artifact_reader=make_sealed_release_artifact_reader(
-            args.artifact_store_dir
+            args.artifact_store_dir,
+            media_type=(
+                authorities.sealed_release_catalog.media_type_invariant
+                if authorities.sealed_release_catalog is not None
+                else "application/pdf"
+            ),
+        ),
+        sealed_derivative_receipt_reader=make_sealed_derivative_receipt_reader(
+            args.artifact_store_dir,
         ),
         extract_text=_extract_non_pdf_text,
         embedding_provider=provider,

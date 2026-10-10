@@ -26,6 +26,7 @@ from check_delegated_student_rights_gate import (  # noqa: E402
     _verify_sitewide_authority,
     _verify_text_derivative,
     _verify_candidate_manifest,
+    _candidate_derivative_bindings,
     _verify_source_provenance,
     _verify_derivative_receipt_cas,
     _rescan_pdf,
@@ -208,6 +209,8 @@ def test_public_candidate_manifest_rejects_empty_and_pdf_surface():
         {"rag_nexus_test"}, required_collections=1,
     )
     assert "PUBLIC_RELEASE_EMPTY_COLLECTION" in errors
+
+
     derivative_sha = H("4")
     manifest = copy.deepcopy(template)
     manifest["entries"] = [{
@@ -239,6 +242,25 @@ def test_public_candidate_manifest_rejects_empty_and_pdf_surface():
         {"rag_nexus_test"}, required_collections=1,
     )
     assert "PUBLIC_MANIFEST_PDF_EXPOSED" in errors
+
+
+def test_candidate_bindings_preserve_placement_multiplicity_and_receipt():
+    derivative_sha = H("4")
+    manifest = {"entries": [{
+        "source_content_sha256": SHA,
+        "derivative_content_sha256": derivative_sha,
+        "derivative_receipt_sha256": H("5"),
+    }]}
+    packets = {SHA: {"placements": [
+        {"collection": "rag_nexus_test"},
+        {"collection": "rag_nexus_test"},
+        {"collection": "rag_nexus_other"},
+    ]}}
+    placements, receipts = _candidate_derivative_bindings(manifest, packets)
+    assert placements == {derivative_sha: {
+        "rag_nexus_other": 1, "rag_nexus_test": 2,
+    }}
+    assert receipts == {derivative_sha: H("5")}
 
 
 def test_public_candidate_manifest_rejects_omitted_approved_derivative():

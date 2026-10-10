@@ -204,6 +204,11 @@ def test_hybrid_types_have_the_exact_frozen_field_contract() -> None:
         "placement_source_scope",
         "placement_source_id",
         "placement_source_path",
+        "is_text_derivative",
+        "licensor",
+        "licence_id",
+        "source_updated_at",
+        "derivative_notice",
         "dense_score",
         "lexical_score",
     ]

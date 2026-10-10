@@ -768,6 +768,37 @@ def _verify_candidate_manifest(
     return sorted(set(errors)), population
 
 
+def _candidate_derivative_bindings(
+    manifest: dict, packets: dict[str, dict],
+) -> tuple[dict[str, dict[str, int]], dict[str, str]]:
+    """Projette la topologie exacte validée par le gate sur les nouveaux SHA.
+
+    La multiplicité est conservée : un même artefact peut occuper plusieurs
+    placements d'une collection. Ces liaisons ne sont émises qu'après la
+    validation complète du manifeste candidat.
+    """
+    placements: dict[str, dict[str, int]] = {}
+    receipts: dict[str, str] = {}
+    for entry in manifest["entries"]:
+        source_sha = entry["source_content_sha256"]
+        derivative_sha = entry["derivative_content_sha256"]
+        receipt_sha = entry["derivative_receipt_sha256"]
+        if (not _is_sha(derivative_sha) or derivative_sha in placements
+                or not _is_sha(receipt_sha) or source_sha not in packets):
+            raise ValueError("invalid candidate derivative binding")
+        counts: Counter[str] = Counter()
+        for placement in packets[source_sha]["placements"]:
+            collection = placement["collection"]
+            if not isinstance(collection, str) or not collection:
+                raise ValueError("invalid candidate collection")
+            counts[collection] += 1
+        if not counts:
+            raise ValueError("candidate derivative has no placement")
+        placements[derivative_sha] = dict(sorted(counts.items()))
+        receipts[derivative_sha] = receipt_sha
+    return dict(sorted(placements.items())), dict(sorted(receipts.items()))
+
+
 def _official_listing_url(value: Any) -> bool:
     if not isinstance(value, str):
         return False
@@ -2393,6 +2424,8 @@ def _check_gate(
     if any(r.get("record_kind") != "NEXUS_AUTOMATED_ARTIFACT_REVIEW_V2" for r, _, _ in items):
         errors.append("RECORD_VERSION_STALE")
     records_by_sha = {r["content_sha256"]: r for r, _, _ in items}
+    approved_placements: dict[str, dict[str, int]] = {}
+    approved_receipts: dict[str, str] = {}
     try:
         manifest, manifest_raw = _read_json(paths["candidate_manifest"])
         if (manifest_raw != canonical_json_bytes(manifest)
@@ -2405,6 +2438,10 @@ def _check_gate(
             all_collections,
         )
         errors.extend(manifest_errors)
+        if not manifest_errors:
+            approved_placements, approved_receipts = _candidate_derivative_bindings(
+                manifest, by_sha,
+            )
     except (OSError, ValueError, json.JSONDecodeError):
         errors.append("PUBLIC_MANIFEST_MISSING")
         derived_population = {}
@@ -2426,6 +2463,8 @@ def _check_gate(
         "EVIDENCE_PACK_SHA256": _sha256(index_bytes),
         "APPROVED_CONTENT_SHA256": all_approved,
         "APPROVED_DERIVATIVE_CONTENT_SHA256": all_approved,
+        "APPROVED_DERIVATIVE_PLACEMENTS": approved_placements,
+        "APPROVED_DERIVATIVE_RECEIPT_SHA256": approved_receipts,
         "FINAL_POPULATION": derived_population,
         "POLICY_FAIL_CLOSED": not errors,
         "MANUAL_PER_FILE_REVIEW_REQUIRED": False,
