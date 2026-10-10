@@ -89,8 +89,9 @@ def _hash_text_file(path: Path) -> tuple[str, int]:
 
 
 def verify_successor_inventory(root: Path, private_cas_root: Path,
-                               inventory_raw: bytes, allowlist_raw: bytes) -> None:
-    """Rejouer le builder #313 et comparer tout son paquet immuable au dépôt."""
+                               inventory_raw: bytes, allowlist_raw: bytes, *,
+                               complete_profile_binding: bool = False) -> None:
+    """Rejouer #313 ou sa nouvelle identité v2 et comparer le paquet immuable."""
     from build_student_public_successor_release import build_documents, load_sources
     from check_student_public_derivative_inclusions import verify_private_cas_evidence
 
@@ -98,7 +99,10 @@ def verify_successor_inventory(root: Path, private_cas_root: Path,
     try:
         source = load_sources(root)
         inclusion = verify_private_cas_evidence(source, private_cas_root)
-        documents = build_documents(source, inclusion=inclusion, legacy_profile_binding=True)
+        documents = build_documents(
+            source, inclusion=inclusion,
+            legacy_profile_binding=not complete_profile_binding,
+        )
         inventory_matches = [raw == inventory_raw for path, raw in documents.items()
                              if path.name == "candidate_inventory.json"]
         allowlist_matches = [raw == allowlist_raw for path, raw in documents.items()
@@ -384,6 +388,8 @@ def main() -> int:
     parser.add_argument("--evidence-root", type=Path)
     parser.add_argument("--repository-root", type=Path)
     parser.add_argument("--private-cas-root", type=Path)
+    parser.add_argument("--complete-profile-binding", action="store_true",
+                        help="rejouer le successeur v2 lié aux profils YAML complets")
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--destination-root", type=Path)
@@ -398,8 +404,11 @@ def main() -> int:
                 parser.error("--plan exige inventaire, allowlist, source, preuves, CAS, dépôt et sortie")
             inventory_raw = args.inventory.read_bytes()
             allowlist_raw = args.allowlist.read_bytes()
-            verify_successor_inventory(args.repository_root, args.private_cas_root,
-                                       inventory_raw, allowlist_raw)
+            verify_successor_inventory(
+                args.repository_root, args.private_cas_root,
+                inventory_raw, allowlist_raw,
+                complete_profile_binding=args.complete_profile_binding,
+            )
             result = plan_text_transfer(inventory_raw, allowlist_raw,
                                         args.source_root, args.evidence_root)
             args.output.write_bytes(canonical(result))
