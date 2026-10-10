@@ -77,6 +77,7 @@ from ingestor.multilevel_evidence import (
     INVENTORY_KIND,
     STUDENT_PUBLIC_INVENTORY_KIND,
     MultilevelEvidenceError,
+    StudentPublicCandidateInventory,
     load_student_public_candidate_inventory,
 )
 
@@ -345,6 +346,23 @@ def load_sealed_release(
     discovery = _load_candidate_discovery(
         release_dir / "candidate_inventory.json", expected_sha256=candidate_inventory_sha256,
     )
+    inventory_kind = json.loads(_read_with_digest(
+        release_dir / "candidate_inventory.json", candidate_inventory_sha256,
+        "inventaire de candidats",
+    )).get("inventory_kind")
+    if inventory_kind == STUDENT_PUBLIC_INVENTORY_KIND:
+        try:
+            text_inventory = load_student_public_candidate_inventory(
+                release_dir / "candidate_inventory.json",
+                expected_sha256=candidate_inventory_sha256,
+            )
+        except MultilevelEvidenceError as exc:
+            raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
+        _require_student_public_inventory_binding(
+            text_inventory, manifest=manifest,
+            artifact_registry_sha256=artifacts_release_sha256,
+            release_dir=release_dir,
+        )
 
     transfer_raw = _read_with_digest(
         artifact_transfer_manifest_path,
@@ -529,12 +547,106 @@ def _load_candidate_discovery(
         raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
     return {
         (placement.content_sha256, placement.source_placement_id): {
+            "collection": placement.collection,
             "source_url": placement.source_url,
             "title": placement.title,
             "external_document_type": placement.external_document_type,
         }
         for placement in inventory.placements
     }
+
+
+def _require_student_public_inventory_binding(
+    inventory: StudentPublicCandidateInventory, *, manifest: Mapping[str, Any],
+    artifact_registry_sha256: str, release_dir: Path,
+) -> None:
+    """Lier le texte au paquet préparatoire exact, sans cycle avec le final."""
+    _require(
+        inventory.release_id == manifest.get("release_id"),
+        "student public inventory release_id differs",
+    )
+    _require(
+        inventory.artifact_registry_sha256 == artifact_registry_sha256,
+        "student public inventory artifact registry differs",
+    )
+    authorities = manifest.get("authorities")
+    _require(isinstance(authorities, Mapping), "public successor authorities absent")
+    _require(
+        manifest.get("release_mode") == "public_successor",
+        "student public inventory requires final public_successor release",
+    )
+    preparation_sha = authorities.get("source_preparation_release_manifest_sha256")
+    index_sha = authorities.get("source_preparation_index_sha256")
+    _require(
+        isinstance(preparation_sha, str) and _SHA256.fullmatch(preparation_sha) is not None,
+        "source preparation release manifest authority absent",
+    )
+    _require(
+        isinstance(index_sha, str) and _SHA256.fullmatch(index_sha) is not None,
+        "source preparation index authority absent",
+    )
+    sidecar = release_dir / "source_preparation"
+    preparation = json.loads(_read_with_digest(
+        sidecar / "production-profile-gate.release.json", preparation_sha,
+        "source preparation release manifest",
+    ))
+    index = json.loads(_read_with_digest(
+        sidecar / "preparation-index.json", index_sha,
+        "source preparation index",
+    ))
+    source_inventory_sha = index.get("candidate_inventory_sha256")
+    _require(
+        isinstance(source_inventory_sha, str)
+        and _SHA256.fullmatch(source_inventory_sha) is not None,
+        "source preparation inventory authority absent",
+    )
+    try:
+        source_inventory = load_student_public_candidate_inventory(
+            sidecar / "candidate_inventory.json", expected_sha256=source_inventory_sha,
+        )
+    except MultilevelEvidenceError as exc:
+        raise SealedReleaseIngestionError(
+            f"source preparation inventory refused: {exc}"
+        ) from exc
+    preparation_authorities = preparation.get("authorities", {})
+    preparation_registry = preparation.get("artifact_registry", {})
+    _require(
+        index.get("kind") == "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V2"
+        and index.get("status") == "PREPARATION_ONLY_NOT_ACTIVABLE"
+        and index.get("transfer_status") == "NOT_TRANSFERRED"
+        and index.get("release_id") == preparation.get("release_id")
+        and index.get("release_manifest_sha256") == preparation_sha
+        and index.get("artifact_registry_sha256") == preparation_registry.get("sha256")
+        and index.get("source_candidate_manifest_sha256")
+            == authorities.get("source_candidate_release_manifest_sha256")
+        and preparation.get("release_mode") == "candidate"
+        and preparation.get("promotion_status") == "NOT_PROMOTABLE"
+        and preparation.get("activation_status") == "NO_PRODUCTION_ACTIVATION"
+        and preparation.get("review_status") == "PRE_REVIEW"
+        and source_inventory.release_id == preparation.get("release_id")
+        and source_inventory.release_manifest_sha256 == preparation_sha
+        and source_inventory.artifact_registry_sha256 == preparation_registry.get("sha256")
+        and source_inventory.candidate_manifest_sha256
+            == preparation_authorities.get("candidate_manifest_sha256"),
+        "source preparation authority chain differs",
+    )
+    _require(
+        inventory.release_manifest_sha256 == preparation_sha,
+        "student public inventory source preparation manifest differs",
+    )
+    _require(
+        inventory.candidate_manifest_sha256 == source_inventory.candidate_manifest_sha256,
+        "student public inventory candidate manifest differs",
+    )
+    _require(
+        inventory.source_candidate_inventory_sha256
+        == source_inventory.source_candidate_inventory_sha256,
+        "student public inventory source inventory differs",
+    )
+    _require(
+        set(inventory.placements) <= set(source_inventory.placements),
+        "student public inventory collection or placement differs from preparation",
+    )
 
 
 def _transferred_artifact_files(
@@ -609,6 +721,11 @@ def _placements_of_subject(
             f"{key!r} — aucune provenance n'est inventée",
         )
         inventory_placement = discovery[key]
+        _require(
+            "collection" not in inventory_placement
+            or inventory_placement["collection"] == collection,
+            f"{collection} : inventory placement collection differs",
+        )
         artifact = artifacts[artifact_id]
         discovery_url = str(inventory_placement["source_url"])
         provenance_url = str(artifact["source_url"])

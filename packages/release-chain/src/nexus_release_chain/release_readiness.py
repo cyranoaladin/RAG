@@ -117,6 +117,8 @@ _PUBLIC_SUCCESSOR_AUTHORITY_FIELDS = frozenset(
 _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS = frozenset(
     {
         "source_candidate_release_manifest_sha256",
+        "source_preparation_release_manifest_sha256",
+        "source_preparation_index_sha256",
         "candidate_inventory_sha256",
         "inclusion_attestation_sha256",
         "derivative_pii_evidence_sha256",
@@ -1383,7 +1385,7 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         if release_mode == "public_successor":
             if any(item.payload.get("visibility") != "public" for item in placements):
                 raise ReleaseReadinessError("public successor placement visibility differs")
-            # Les 19 SHA ci-dessus sont des DECLARATIONS. Ce lecteur ne possède
+            # Les 21 SHA ci-dessus sont des DECLARATIONS. Ce lecteur ne possède
             # pas les validateurs de revue GitHub, LOT41A/LOT42, currentness
             # dérivé ni le reçu des octets transférés. Les accepter comme
             # autorité de promotion serait une usurpation de ces contrôles.
