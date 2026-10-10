@@ -116,4 +116,3 @@ def test_pattern_screen_receipt_must_match_fresh_replay_except_timestamp() -> No
     import pytest  # noqa: PLC0415
     with pytest.raises(ValueError, match="PATTERN_SCREEN_REPLAY_MISMATCH"):
         require_matching_screen(fresh, sealed)
-
