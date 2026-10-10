@@ -147,6 +147,17 @@ def test_real_public_content_a_can_be_read_only_with_its_exact_anchor(
     assert facts.release_mode == "candidate"
     with pytest.raises(sri.SealedReleaseIngestionError, match="public candidate"):
         sri.require_public_release_activation(facts, {})
+    public_scopes = {
+        name: SimpleNamespace(visibility="public") for name in facts.collections
+    }
+    sri.require_public_release_activation(
+        facts, public_scopes, public_successor_ingestion_content=content,
+    )
+    with pytest.raises(sri.SealedReleaseIngestionError, match="digest"):
+        sri.require_public_release_activation(
+            replace(facts, release_manifest_sha256="a" * 64), public_scopes,
+            public_successor_ingestion_content=content,
+        )
 
 REAL_RELEASE_DIR = (
     REPO_ROOT

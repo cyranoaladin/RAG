@@ -1046,6 +1046,8 @@ def require_scope_authorizations(
 def require_public_release_activation(
     facts: SealedReleaseFacts,
     scopes: Mapping[str, ResourceScope],
+    *,
+    public_successor_ingestion_content: PublicSuccessorContentVerdict | None = None,
 ) -> None:
     """Refuser une candidate publique avant la première écriture de Worker A.
 
@@ -1058,9 +1060,31 @@ def require_public_release_activation(
             "public successor external authority gate unavailable before Worker A writes"
         )
     if facts.release_mode == "candidate":
-        raise SealedReleaseIngestionError(
-            "public candidate A has no signed ingestion authority before Worker A writes"
+        content = public_successor_ingestion_content
+        if content is None:
+            raise SealedReleaseIngestionError(
+                "public candidate A has no signed ingestion authority before Worker A writes"
+            )
+        _require(
+            facts.release_id == content.release_id
+            and facts.release_manifest_sha256 == content.content_manifest_sha256
+            and facts.artifacts_release_sha256 == content.artifact_registry_sha256
+            and facts.candidate_inventory_sha256 == content.candidate_inventory_sha256,
+            "public candidate A release digest differs from signed INGESTION content",
         )
+        _require(
+            facts.expected_counts == content.expected_counts
+            and set(facts.collections) == set(content.subject_sha256_by_collection)
+            and set(scopes) == set(facts.collections)
+            and all(_dimension_value(scope.visibility) == "public" for scope in scopes.values())
+            and all(value == TEXT_MEDIA_TYPE for value in facts.artifact_media_types.values())
+            and facts.promotion_status == "NOT_PROMOTABLE"
+            and facts.review_status == "PRE_REVIEW"
+            and facts.activation_status == "NO_PRODUCTION_ACTIVATION"
+            and content.activation_allowed is False,
+            "public candidate A ingestion dimensions or status differ",
+        )
+        return
     if not facts.public_successor_release and facts.release_mode != "candidate":
         return
     if not any(
@@ -1115,6 +1139,7 @@ def ingest_sealed_release(
     owner: str,
     expected_collections: Iterable[str] | None = None,
     verifier: ScopeAuthorizationVerifier = verify_scope_authorization,
+    public_successor_ingestion_content: PublicSuccessorContentVerdict | None = None,
 ) -> IngestionReport:
     """Créer les lignes de contrôle jusqu'à ``NEEDS_REVIEW``, et rien au-delà.
 
@@ -1129,7 +1154,10 @@ def ingest_sealed_release(
         require_collections_match(facts, expected_collections)
     paths = require_artifact_store_is_complete(facts, artifact_store_dir)
     scopes = resolve_scopes(facts, profile_registry)
-    require_public_release_activation(facts, scopes)
+    require_public_release_activation(
+        facts, scopes,
+        public_successor_ingestion_content=public_successor_ingestion_content,
+    )
     authorizations = require_scope_authorizations(
         conn,
         facts=facts,

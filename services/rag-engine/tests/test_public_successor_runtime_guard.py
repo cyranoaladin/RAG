@@ -48,6 +48,10 @@ class _VerifiedC:
     counts: tuple[int, int, int, int] = (1, 1, 1, 1)
     expires_at_utc: str = "2026-10-11T00:00:00Z"
 
+    @property
+    def scope_sha256_by_id(self) -> tuple[tuple[str, str], ...]:
+        return (("student_public_maths_premiere", _scope().sha256_digest()),)
+
 
 def _registry(*, subject_sha: str = SUBJECT_SHA) -> SimpleNamespace:
     expectation = SimpleNamespace(
@@ -147,7 +151,19 @@ def _install_verifier(monkeypatch: pytest.MonkeyPatch, verdict: _VerifiedC) -> l
 
     module.verify_public_successor_activation = verify  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, module.__name__, module)
+    monkeypatch.setattr(
+        endpoint, "load_retrieval_scope_registry",
+        lambda: {"student_public_maths_premiere": _scope()},
+    )
     return calls
+
+
+def _install_selection(monkeypatch: pytest.MonkeyPatch, registry: object) -> None:
+    monkeypatch.setattr(
+        endpoint, "select_release_authority",
+        lambda: SimpleNamespace(mechanism="REGISTRY_FILE", bindings=((Path("/app/release/release/release-registry.json"), REGISTRY_SHA),)),
+    )
+    monkeypatch.setattr(endpoint, "load_selected_release_registry", lambda _: registry)
 
 
 @pytest.mark.parametrize("environment", ["production", "rehearsal"])
@@ -166,7 +182,9 @@ def test_signed_readiness_and_exact_c_can_authorize_a_without_rewriting_it(
     _signed_readiness(tmp_path, monkeypatch)
     monkeypatch.setenv("NEXUS_ENVIRONMENT", "production")
     calls = _install_verifier(monkeypatch, _VerifiedC())
-    endpoint._validate_unpromoted_release_guard(_registry())
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    endpoint._validate_unpromoted_release_guard(registry)
     assert len(calls) == 1
     assert calls[0]["expected_content_anchor_sha256"] == ANCHOR_SHA
     assert calls[0]["expected_authority_envelope_sha256"] == ENVELOPE_SHA
@@ -188,8 +206,26 @@ def test_signed_c_cannot_authorize_different_content_or_scope(
     }
     verdict = _VerifiedC(**{**_VerifiedC().__dict__, **changes[tamper]})
     _install_verifier(monkeypatch, verdict)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
     with pytest.raises(RuntimeError, match="public successor"):
-        endpoint._validate_unpromoted_release_guard(_registry())
+        endpoint._validate_unpromoted_release_guard(registry)
+
+
+def test_signed_c_refuses_scope_bytes_not_packaged_in_runtime(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    _install_verifier(monkeypatch, _VerifiedC())
+    different = _scope().model_copy(update={"scope_id": "student_public_maths_other"})
+    monkeypatch.setattr(
+        endpoint, "load_retrieval_scope_registry",
+        lambda: {"student_public_maths_other": different},
+    )
+    with pytest.raises(RuntimeError, match="public successor"):
+        endpoint._validate_unpromoted_release_guard(registry)
 
 
 def test_v3_scope_requires_release_and_exact_public_policy(

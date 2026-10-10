@@ -1,12 +1,11 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import subprocess
 import sys
 import tomllib
-import hashlib
-import json
 from pathlib import Path
-
 
 REVIEW_SCHEMAS = {
     "review-decision-payload.json": "ReviewDecisionPayload",
@@ -17,8 +16,10 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_24_0() -> None:
-    """0.24.0 ajoute l'attribution des dérivés textuels publics (ADR-0069).
+def test_package_version_is_0_25_0() -> None:
+    """0.25.0 lie A/C à la readiness V2 et les phases staging (ADR-0072).
+
+    0.24.0 ajoute l'attribution des dérivés textuels publics (ADR-0069).
 
     Mineure : les quatre champs Citation sont optionnels en bloc, et les
     sérialisations historiques restent identiques.
@@ -63,7 +64,7 @@ def test_package_version_is_0_24_0() -> None:
     """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.24.0"
+    assert pyproject["project"]["version"] == "0.25.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -112,7 +113,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first_lock = json.loads((first / "contracts.lock.json").read_text())
     second_lock = json.loads((second / "contracts.lock.json").read_text())
     assert first_lock == second_lock
-    assert first_lock["packageVersion"] == "0.24.0"
+    assert first_lock["packageVersion"] == "0.25.0"
     assert set(first_lock["schemas"]) == expected
     fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
     assert first_lock["fixtures"] == {
