@@ -16,6 +16,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from nexus_contracts import RetrievalResponse
+
 ROOT = Path(__file__).resolve().parents[2]
 SUITE = Path(
     "services/rag-engine/tests/fixtures/public_derivative_acceptance_prepared_20261010.json"
@@ -214,6 +216,125 @@ def load_draft_suite(root: Path) -> dict[str, Any]:
     suite = _json(root / SUITE)
     validate_draft_suite(root, suite)
     return suite
+
+
+def check_public_positive(
+    case: dict[str, str], spec: dict[str, Any], response: RetrievalResponse,
+    verified_index: dict[str, dict[str, dict[str, Any]]],
+) -> tuple[bool, list[dict[str, Any]]]:
+    """Check every HTTP hit against an independently verified final index.
+
+    This pure check does not establish the provenance of ``verified_index``;
+    ``require_final_binding`` must still refuse live qualification until the
+    external release authority has verified that index and the target.
+    """
+    collection = case["collection"]
+    expected = case["expected_content_sha256"]
+    if not response.results:
+        raise SuiteFailure(f"HTTP empty positive result: {collection}")
+    selected = verified_index.get(collection, {})
+    if expected not in selected:
+        raise SuiteFailure(f"HTTP expected derivative outside verified index: {collection}")
+    expected_artifact = selected[expected]
+    oracle_citation = spec.get("expected_citation")
+    index_citation = expected_artifact.get("citation")
+    if (
+        not isinstance(oracle_citation, dict)
+        or not isinstance(index_citation, dict)
+        or any(
+            index_citation.get(key) != oracle_citation.get(key)
+            for key in CITATION_KEYS
+        )
+        or expected_artifact.get("source_pdf_sha256")
+        != spec.get("expected_source_pdf_sha256")
+    ):
+        raise SuiteFailure(f"HTTP prepared oracle differs from verified index: {collection}")
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for result in response.results:
+        metadata = result.metadata
+        content = metadata.get("content_sha256")
+        artifact = selected.get(str(content))
+        if (
+            metadata.get("collection") != collection
+            or artifact is None
+            or not _digest(content)
+            or artifact.get("content_sha256") != content
+            or not _digest(artifact.get("source_pdf_sha256"))
+            or artifact.get("source_pdf_sha256") == content
+            or artifact.get("media_type") != "text/plain; charset=utf-8"
+            or result.doc_id != content
+            or metadata.get("artifact_id") != content
+            or metadata.get("placement_id") not in artifact.get("placements", ())
+            or metadata.get("review_status") != "reviewed"
+        ):
+            raise SuiteFailure(f"HTTP derivative identity or scope differs: {collection}")
+        locator = artifact.get("chunks", {}).get(result.chunk_id)
+        if (
+            not isinstance(locator, dict)
+            or type(locator.get("page_start")) is not int
+            or type(locator.get("page_end")) is not int
+            or not 1 <= locator["page_start"] <= locator["page_end"]
+        ):
+            raise SuiteFailure(f"HTTP derivative chunk/page differs: {collection}")
+        citation = result.citation
+        expected_citation = artifact.get("citation")
+        if (
+            citation is None
+            or not isinstance(expected_citation, dict)
+            or any(
+                not isinstance(expected_citation.get(key), str)
+                or not expected_citation[key].strip()
+                or getattr(citation, key) != expected_citation[key]
+                for key in CITATION_KEYS
+            )
+            or citation.page != locator["page_start"]
+            or citation.rights != "officiel_public"
+            or result.title != citation.source_label
+        ):
+            raise SuiteFailure(f"HTTP derivative citation differs: {collection}")
+        records.append({
+            "collection": collection,
+            "content_sha256": content,
+            "chunk_id": result.chunk_id,
+            "placement_id": metadata["placement_id"],
+            "page_start": locator["page_start"],
+            "page_end": locator["page_end"],
+            "rights": citation.rights,
+            **{key: getattr(citation, key) for key in CITATION_KEYS},
+        })
+        seen.add(content)
+    return expected in seen, records
+
+
+def reconcile_public_db_rows(
+    http_records: list[dict[str, Any]], db_rows: list[dict[str, Any]],
+) -> int:
+    """Compare HTTP projections with read-only DB rows; this does no I/O."""
+    if not http_records or len(db_rows) != len(http_records):
+        raise SuiteFailure("DB derivative result population differs")
+    by_pair: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in db_rows:
+        pair = (row.get("chunk_id"), row.get("placement_id"))
+        if pair in by_pair:
+            raise SuiteFailure("DB duplicate chunk/placement pair")
+        by_pair[pair] = row
+    for result in http_records:
+        pair = (result["chunk_id"], result["placement_id"])
+        row = by_pair.pop(pair, None)
+        if (
+            row is None
+            or any(row.get(key) != value for key, value in result.items())
+            or row.get("placement_status") != "active"
+            or row.get("review_status") != "reviewed"
+            or row.get("currentness") not in {"current", "official_snapshot"}
+            or row.get("visibility") != "public"
+            or row.get("is_text_derivative") is not True
+        ):
+            raise SuiteFailure("DB derivative identity, scope or attribution differs")
+    if by_pair:
+        raise SuiteFailure("DB unexpected derivative rows")
+    return len(http_records)
 
 
 def check_dense_tie_probe(

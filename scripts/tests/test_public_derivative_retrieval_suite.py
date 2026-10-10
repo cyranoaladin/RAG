@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+from nexus_contracts import Citation, RetrievalResponse, RetrievalResult
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts" / "go_live"))
@@ -18,10 +19,127 @@ sys.path.insert(0, str(ROOT / "scripts" / "go_live"))
 from public_derivative_retrieval_suite import (  # noqa: E402
     SuiteFailure,
     check_dense_tie_probe,
+    check_public_positive,
     load_draft_suite,
+    reconcile_public_db_rows,
     require_final_binding,
     validate_draft_suite,
 )
+
+
+def _public_hit():
+    sha = "a" * 64
+    citation = {
+        "source_uri": "https://eduscol.education.gouv.fr/example.pdf",
+        "source_label": "Ressource officielle",
+        "source_updated_at": "2026-10-10",
+        "licensor": "Direction générale de l'enseignement scolaire",
+        "licence_id": "ETALAB-2.0",
+        "derivative_notice": "Extrait textuel dérivé ; PDF non redistribué.",
+    }
+    collection = "rag_nexus_nsi_terminale_specialite"
+    index = {collection: {sha: {
+        "content_sha256": sha,
+        "source_pdf_sha256": "b" * 64,
+        "media_type": "text/plain; charset=utf-8",
+        "placements": {"placement-public"},
+        "chunks": {"chunk-public": {"page_start": 3, "page_end": 3}},
+        "citation": citation,
+    }}}
+    response = RetrievalResponse(results=[RetrievalResult(
+        chunk_id="chunk-public", doc_id=sha, title=citation["source_label"],
+        excerpt="Un passage officiel.", score=0.8,
+        metadata={"collection": collection, "artifact_id": sha,
+                  "content_sha256": sha, "placement_id": "placement-public",
+                  "review_status": "reviewed"},
+        citation=Citation(**citation, page=3, rights="officiel_public"),
+    )])
+    case = {"collection": collection, "expected_content_sha256": sha}
+    spec = {"expected_citation": citation, "expected_source_pdf_sha256": "b" * 64}
+    return case, spec, response, index, citation
+
+
+def test_public_positive_checks_actual_derivative_and_complete_citation() -> None:
+    case, spec, response, index, citation = _public_hit()
+    hit, records = check_public_positive(case, spec, response, index)
+    assert hit is True
+    assert records == [{
+        "collection": case["collection"], "content_sha256": case["expected_content_sha256"],
+        "chunk_id": "chunk-public", "placement_id": "placement-public",
+        "page_start": 3, "page_end": 3, "rights": "officiel_public", **citation,
+    }]
+
+
+@pytest.mark.parametrize("sabotage", [
+    "empty", "foreign_scope", "pdf_identity", "foreign_chunk", "missing_attribution",
+    "wrong_attribution", "unreviewed", "non_text", "oracle_citation",
+    "oracle_pdf_identity", "invalid_index_citation",
+])
+def test_public_positive_refuses_unbound_or_invalid_http_hit(sabotage: str) -> None:
+    case, spec, response, index, _ = _public_hit()
+    hit = response.results[0]
+    if sabotage == "empty":
+        response.results.clear()
+    elif sabotage == "foreign_scope":
+        hit.metadata["collection"] = "rag_nexus_svt_terminale_specialite"
+    elif sabotage == "pdf_identity":
+        index[case["collection"]][case["expected_content_sha256"]]["source_pdf_sha256"] = case["expected_content_sha256"]
+    elif sabotage == "foreign_chunk":
+        hit.chunk_id = "unlisted-chunk"
+    elif sabotage == "missing_attribution":
+        hit.citation = None
+    elif sabotage == "wrong_attribution":
+        hit.citation = hit.citation.model_copy(update={"source_updated_at": "2025-01-01"})
+    elif sabotage == "unreviewed":
+        hit.metadata["review_status"] = "pending"
+    elif sabotage == "non_text":
+        index[case["collection"]][case["expected_content_sha256"]]["media_type"] = "application/pdf"
+    elif sabotage == "oracle_citation":
+        spec["expected_citation"]["source_uri"] = "https://example.com/forged.pdf"
+    elif sabotage == "oracle_pdf_identity":
+        spec["expected_source_pdf_sha256"] = "c" * 64
+    elif sabotage == "invalid_index_citation":
+        index[case["collection"]][case["expected_content_sha256"]]["citation"] = None
+    with pytest.raises(SuiteFailure):
+        check_public_positive(case, spec, response, index)
+
+
+def test_public_positive_checks_pdf_lineage_of_every_result() -> None:
+    case, spec, response, index, _ = _public_hit()
+    collection = case["collection"]
+    second_sha = "c" * 64
+    second_artifact = copy.deepcopy(index[collection][case["expected_content_sha256"]])
+    second_artifact["content_sha256"] = second_sha
+    second_artifact["source_pdf_sha256"] = None
+    index[collection][second_sha] = second_artifact
+    second = response.results[0].model_copy(deep=True)
+    second.doc_id = second_sha
+    second.metadata["content_sha256"] = second_sha
+    second.metadata["artifact_id"] = second_sha
+    response.results.append(second)
+    with pytest.raises(SuiteFailure, match="identity"):
+        check_public_positive(case, spec, response, index)
+
+
+def test_public_db_reconciliation_checks_visibility_page_and_attribution() -> None:
+    case, spec, response, index, citation = _public_hit()
+    _, records = check_public_positive(case, spec, response, index)
+    row = {
+        **records[0], "placement_status": "active", "review_status": "reviewed",
+        "currentness": "official_snapshot", "visibility": "public",
+        "is_text_derivative": True,
+    }
+    assert reconcile_public_db_rows(records, [row]) == 1
+    for key, value in (("visibility", "internal"), ("page_end", 4),
+                       ("licence_id", "NONE"), ("is_text_derivative", False),
+                       ("source_uri", "https://example.com/other.pdf")):
+        bad = {**row, key: value}
+        with pytest.raises(SuiteFailure, match="DB"):
+            reconcile_public_db_rows(records, [bad])
+    with pytest.raises(SuiteFailure, match="DB"):
+        reconcile_public_db_rows(records, [])
+    with pytest.raises(SuiteFailure, match="DB"):
+        reconcile_public_db_rows(records, [row, row])
 
 
 def test_draft_covers_exact_candidate_and_fixed_cases() -> None:
