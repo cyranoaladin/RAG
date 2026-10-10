@@ -128,6 +128,15 @@ class StagingReadinessManifestV1(StrictBaseModel):
     # — Le corpus que cette autorisation couvre, et lui seul —
     allowed_release_id: StrictStr = Field(pattern=_RELEASE_ID)
     allowed_release_manifest_sha256: StrictStr = Field(pattern=_HEX64)
+    # Extension additive : V1 historique garde les mêmes octets si absente.
+    # Une répétition du successeur public lie A et l'autorité de sa phase.
+    public_successor_phase: Literal["INGESTION", "PUBLICATION"] | None = None
+    public_successor_content_anchor_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
+    public_successor_phase_authority_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
 
     # — L'invariant de cloisonnement, déclaré et vérifié à l'exécution —
     control_dsn_differs_from_product: Literal[True]
@@ -151,10 +160,19 @@ class StagingReadinessManifestV1(StrictBaseModel):
                 "expires_at must be strictly after issued_at — an authorisation "
                 "that expires before it is issued authorises nothing"
             )
+        successor_fields = (
+            self.public_successor_phase,
+            self.public_successor_content_anchor_digest,
+            self.public_successor_phase_authority_digest,
+        )
+        if any(value is not None for value in successor_fields) != all(
+            value is not None for value in successor_fields
+        ):
+            raise ValueError("public successor phase and A/authority digests must be complete")
         return self
 
     def canonical_document(self) -> dict[str, Any]:
-        return {
+        document = {
             "allowed_release_id": self.allowed_release_id,
             "allowed_release_manifest_sha256": self.allowed_release_manifest_sha256,
             "control_dsn_differs_from_product": self.control_dsn_differs_from_product,
@@ -167,6 +185,15 @@ class StagingReadinessManifestV1(StrictBaseModel):
             "repository": self.repository,
             "worker_image": self.worker_image,
         }
+        if self.public_successor_phase is not None:
+            document["public_successor_phase"] = self.public_successor_phase
+            document["public_successor_content_anchor_digest"] = (
+                self.public_successor_content_anchor_digest
+            )
+            document["public_successor_phase_authority_digest"] = (
+                self.public_successor_phase_authority_digest
+            )
+        return document
 
     def canonical_bytes(self) -> bytes:
         return _canonical_bytes(self.canonical_document())
