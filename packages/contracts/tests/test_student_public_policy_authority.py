@@ -12,6 +12,7 @@ from pathlib import Path
 import sys
 
 import pytest
+import yaml
 from nexus_contracts import InternalIdentityEnvelope, RetrievalScopeArtifactV3
 from nexus_contracts.hggsp_successor_scopes import load_retrieval_scope_artifact
 import nexus_contracts.hggsp_successor_scopes as scope_module
@@ -143,6 +144,65 @@ def test_candidate_successor_cannot_emit_student_scopes(
             subject_release_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),
             policy_registry=tmp_path / "unused-policy",
             policy_registry_sha256="a" * 64,
+            successor_authority=tmp_path / "unused-names",
+            successor_authority_sha256="b" * 64,
+            artifacts_dir=output, repo_root=root,
+        )
+    assert not output.exists()
+
+
+def test_adr_0053_cannot_emit_v2_under_student_public_ids_on_real_candidate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = Path(__file__).resolve().parents[3]
+    candidate = root / (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_student_public_successor_v1/release-fcc84331e7700042/"
+        "profile_gate/production-profile-gate.release.json"
+    )
+    manifest = json.loads(candidate.read_bytes())
+    refs = {row["collection"]: row["sha256"] for row in manifest["subjects"]}
+    proposal = yaml.safe_load((root / (
+        "governance/student_public_rights/"
+        "public_successor_scope_proposal_20261010.yml"
+    )).read_text())
+    entries = {}
+    named = {}
+    for row in proposal["bindings"]:
+        target = row["target_policy"]
+        collection = row["collection"]
+        named[collection] = row["proposed_scope_id"]
+        entries[collection] = emitter.PolicyRegistryEntry(
+            collection=collection, decision_status="GOVERNED_BY_HUMAN_DECISION",
+            authority_source="NEXUS_HUMAN_DECISION_ADR_0053",
+            policy_source_scope_id=None, subject_manifest_sha256=refs[collection],
+            tenant=target["tenant"], niveau=target["niveau"], voie=target["voie"],
+            matiere=target["matiere"],
+            statut_enseignement=target["statut_enseignement"], candidat="libre",
+            audiences=tuple(row["evidence_audiences"]), rights=tuple(row["rights"]),
+            policy_visibility="public", evidence_visibility="public",
+            programme_version=row["programme_version"], target_audience="libre",
+            target_candidates=("libre",),
+        )
+    programme = (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/programme_registry.json"
+    )
+    registry = emitter.PolicyRegistry(
+        entries=entries,
+        visibility_restriction_order=("public", "internal", "restricted", "private"),
+        school_year="2026-2027", programme_authority_path=programme,
+        programme_authority_sha256=hashlib.sha256((root / programme).read_bytes()).hexdigest(),
+        release_manifest_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),
+    )
+    monkeypatch.setattr(emitter, "load_policy_registry", lambda *_: registry)
+    monkeypatch.setattr(emitter, "load_successor_authority", lambda *_: named)
+    output = tmp_path / "scopes"
+    with pytest.raises(emitter.ScopeEmissionError, match="student_public"):
+        emitter.emit_from_policy_registry(
+            subject_release=candidate,
+            subject_release_sha256=registry.release_manifest_sha256,
+            policy_registry=tmp_path / "unused-policy", policy_registry_sha256="a" * 64,
             successor_authority=tmp_path / "unused-names",
             successor_authority_sha256="b" * 64,
             artifacts_dir=output, repo_root=root,

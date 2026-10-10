@@ -1251,6 +1251,28 @@ def _require_final_public_successor_for_student_scopes(
     )
 
 
+def _require_student_public_namespace(
+    registry: PolicyRegistry, named: Mapping[str, str],
+) -> None:
+    """Réserver les IDs étudiants à ADR-0064, avant toute lecture de subject.
+
+    ADR-0053 reste valable pour ses scopes V2 historiques, mais ne peut pas
+    emprunter un nom étudiant et contourner la garde de release finale.
+    """
+    for collection, scope_id in named.items():
+        entry = registry.entries.get(collection)
+        student_id = scope_id.startswith("student_public_")
+        student_authority = (
+            entry is not None
+            and entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064"
+        )
+        _require(
+            student_id == student_authority
+            and (not student_id or entry.decision_status == _BY_HUMAN_DECISION),
+            f"{collection} : student_public namespace requires ADR-0064 decision",
+        )
+
+
 def emit_from_policy_registry(
     *,
     subject_release: Path,
@@ -1265,10 +1287,11 @@ def emit_from_policy_registry(
 ) -> EmissionResult:
     """Émettre un scope par collection de la release, et refuser tout le reste."""
     registry = load_policy_registry(policy_registry, policy_registry_sha256)
+    named = load_successor_authority(successor_authority, successor_authority_sha256)
+    _require_student_public_namespace(registry, named)
     _require_final_public_successor_for_student_scopes(
         subject_release, subject_release_sha256, registry,
     )
-    named = load_successor_authority(successor_authority, successor_authority_sha256)
     subjects = load_profile_subject_release(
         subject_release, subject_release_sha256
     )
