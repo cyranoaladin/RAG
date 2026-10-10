@@ -103,6 +103,20 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
         self.assertIs(cuda["with"]["provenance"], True)
         self.assertIs(cuda["with"]["sbom"], True)
 
+    def test_cuda_public_guard_runs_before_every_image_build(self) -> None:
+        steps = self.workflow["jobs"]["build-and-push"]["steps"]
+        guard = next(step for step in steps if step.get("name") == "Refuse CUDA outside the public candidate")
+        self.assertEqual(
+            guard["if"], "inputs.cuda_ingestor == true && inputs.public_candidate != true"
+        )
+        self.assertIn("exit 1", guard["run"])
+        build_positions = [
+            index for index, step in enumerate(steps)
+            if step.get("id", "").startswith("build_")
+        ]
+        self.assertEqual(len(build_positions), 4)
+        self.assertLess(steps.index(guard), min(build_positions))
+
     def _run_assembler(
         self, directory: str, *, public_candidate: str, cockpit_digest: str,
         cuda_ingestor: str = "false",
