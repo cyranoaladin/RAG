@@ -24,6 +24,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
@@ -1675,6 +1676,37 @@ def _rescan_pdf(record: dict, packet_artifact: dict, mirror_root: Path) -> list[
     return []
 
 
+def _rescan_all_pdfs(
+    items: list[tuple[dict, dict, str]], mirror_root: Path,
+) -> tuple[int, list[str]]:
+    """Rejoue tous les scans complets, en isolant les PDF dans six processus.
+
+    Chaque résultat reste associé au SHA source ; une panne d'un processus
+    échoue fermée sans masquer les autres rescans.
+    """
+    if not items:
+        return 0, []
+    passed = 0
+    errors: list[str] = []
+    with ProcessPoolExecutor(max_workers=min(6, len(items))) as pool:
+        futures = [
+            (packet_artifact["content_sha256"], pool.submit(
+                _rescan_pdf, record, packet_artifact, mirror_root,
+            ))
+            for record, packet_artifact, _ in items
+        ]
+        for sha, future in futures:
+            try:
+                rescan_errors = future.result()
+            except Exception:  # noqa: BLE001 - worker mort : refus de cette source
+                rescan_errors = ["PDF_RESCAN_WORKER_FAILED"]
+            if rescan_errors:
+                errors.extend(f"{code}:{sha[:12]}" for code in rescan_errors)
+            else:
+                passed += 1
+    return passed, errors
+
+
 def _check_v2_disposition(record: dict, packet_artifact: dict) -> list[str]:
     """Le PDF source reste privé ; seul un nouvel SHA textuel peut être candidat."""
     errors: list[str] = []
@@ -2223,7 +2255,6 @@ def _check_gate(
     items: list[tuple[dict, dict, str]] = []
     dispositions: Counter[str] = Counter()
     derivative_receipts: dict[str, dict] = {}
-    pdf_rescans_passed = 0
     for sha, packet_artifact in sorted(by_sha.items()):
         ref = refs.get(sha)
         if not isinstance(ref, dict) or ref.get("path") != f"{sha}.json":
@@ -2337,11 +2368,6 @@ def _check_gate(
                 ))
             else:
                 errors.append(f"APPROVAL_REPLAY_RECEIPTS_MISSING:{sha[:12]}")
-        rescan_errors = _rescan_pdf(record, packet_artifact, source_mirror_root)
-        if rescan_errors:
-            errors.extend(f"{code}:{sha[:12]}" for code in rescan_errors)
-        else:
-            pdf_rescans_passed += 1
         for label in (() if is_v2 else ("a", "b")):
             reviewer = _mapping(record.get(f"reviewer_{label}"))
             pinned = _mapping(index.get(f"reviewer_{label}"))
@@ -2352,6 +2378,8 @@ def _check_gate(
                 errors.append(f"REVIEWER_{label.upper()}_RECORD_PIN:{sha[:12]}")
         dispositions[record.get("source_disposition" if is_v2 else "final_disposition", "MISSING")] += 1
         items.append((record, packet_artifact, record_hash))
+    pdf_rescans_passed, rescan_errors = _rescan_all_pdfs(items, source_mirror_root)
+    errors.extend(rescan_errors)
     if len(items) != expected_count:
         errors.append("FINAL_DECISIONS_COUNT")
     sheet = render_decision_sheet(items)

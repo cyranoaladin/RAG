@@ -41,7 +41,7 @@ source_binding:
   reviewer_path: scripts/go_live/student_rights_reviewers.py
   reviewer_code_sha256: 8aa3f1fba52882b26151bad2c9cefbdcebd1be50a118e9d5ca32566019d1ebc9
   independent_verifier_path: scripts/go_live/check_delegated_student_rights_gate.py
-  independent_verifier_code_sha256: 180e89c9fbaef07c6f7fdd5e4d212978b63bacd04c16dfb2e593800ee9cc428b
+  independent_verifier_code_sha256: 4b3dcc600a6af40501d38bf6978568296acee4eca7459c41dc9133debdef105c
   final_pr_base_sha: null
   final_pr_head_sha: null
   final_pr_tree_sha: null

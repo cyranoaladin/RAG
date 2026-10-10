@@ -15,6 +15,7 @@ import pytest
 import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "go_live"))
+import check_delegated_student_rights_gate as gate  # noqa: E402
 
 from check_delegated_student_rights_gate import (  # noqa: E402
     DEFAULTS,
@@ -812,6 +813,32 @@ def test_pdf_rescan_rejects_fabricated_evidence(tmp_path: Path):
     packet = {"content_sha256": sha, "page_count": 1, "source_path": "pdf/document.pdf"}
     record = _record(sha)
     assert _rescan_pdf(record, packet, tmp_path) == ["PDF_RESCAN_MISMATCH"]
+
+
+def test_parallel_rescans_check_every_pdf_and_preserve_failure_identity(tmp_path: Path):
+    fitz = pytest.importorskip("fitz")
+    from student_rights_pdf_scan import scan_pdf
+
+    items = []
+    for index in range(2):
+        document = fitz.open()
+        document.new_page().insert_text((50, 50), f"Document témoin {index}")
+        data = document.tobytes()
+        document.close()
+        sha = hashlib.sha256(data).hexdigest()
+        relpath = f"pdf/document-{index}.pdf"
+        path = tmp_path / relpath
+        path.parent.mkdir(exist_ok=True)
+        path.write_bytes(data)
+        packet = {"content_sha256": sha, "page_count": 1, "source_path": relpath}
+        record = {"pdf_scan_evidence": scan_pdf(path, sha, 1)}
+        if index == 1:
+            record["pdf_scan_evidence"]["pages"][0]["text_sha256"] = H("0")
+        items.append((record, packet, H("1")))
+
+    passed, errors = gate._rescan_all_pdfs(items, tmp_path)
+    assert passed == 1
+    assert errors == [f"PDF_RESCAN_MISMATCH:{items[1][1]['content_sha256'][:12]}"]
 
 
 def test_source_receipt_and_matching_live_bytes_still_cannot_forge_currentness(
