@@ -32,7 +32,10 @@ SOURCE_PLACEMENT = "3" * 64
 PLACEMENT = "4" * 64
 REVIEW_ID = "public-batch-review"
 REVIEW_DIGEST = "5" * 64
-REVIEW_BINDING = ("6" * 40, "7" * 40, "8" * 40, 123, "NEXUS-TRUSTED-REVIEW-V1:test")
+REVIEW_BINDING = (
+    "6" * 40, "7" * 40, "8" * 40, 123,
+    "NEXUS-TRUSTED-REVIEW-V1:test", "reviewer-fixture",
+)
 
 
 class _Cursor:
@@ -112,7 +115,7 @@ class _Database:
             FINGERPRINT, "public_allowed", datetime.now(UTC), True, "9" * 64,
             datetime.now(UTC), True, datetime.now(UTC), ["event"],
             "cyranoaladin/RAG", REVIEW_BINDING[0], REVIEW_BINDING[1],
-            REVIEW_BINDING[3], "abenrhouma", REVIEW_BINDING[4],
+            REVIEW_BINDING[3], REVIEW_BINDING[5], REVIEW_BINDING[4],
             None, "attestation", REVIEW_DIGEST,
         )]
 
@@ -180,6 +183,33 @@ def test_startup_replays_full_lot42_and_matches_expected_authorizations(
     require_public_successor_startup_lot42(database, verdict, tmp_path)
     assert calls == ["A"]
     assert len(database.queries) == 3
+
+
+def test_startup_refuses_lot42_reviewer_different_from_c(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor import public_successor_db_guard as guard
+
+    monkeypatch.setattr(guard, "_expected_lot42_population", lambda *_: (
+        {(COLLECTION, CONTENT_SHA, SOURCE_PLACEMENT): (
+            PLACEMENT, "official_snapshot", FINGERPRINT, "https://example.test/source", 1,
+        )}, INVENTORY_SHA,
+    ))
+    database = _Database()
+    row = list(database.attestations[0])
+    row[27] = "foreign-reviewer"
+    database.attestations = [tuple(row)]
+    with pytest.raises(PublicSuccessorDBRefused, match="LOT42 attestation differs"):
+        require_public_successor_startup_lot42(database, _verdict(), tmp_path)
+
+
+def test_startup_refuses_lot42_binding_without_reviewer(tmp_path: Path) -> None:
+    verdict = _verdict()
+    verdict.publication_batch_review_binding = (*REVIEW_BINDING[:5], "")
+    database = _Database()
+    with pytest.raises(PublicSuccessorDBRefused, match="signed review expectations"):
+        require_public_successor_startup_lot42(database, verdict, tmp_path)
+    assert database.queries == []
 
 
 def test_startup_refuses_expired_c_before_query(tmp_path: Path) -> None:

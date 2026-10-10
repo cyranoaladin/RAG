@@ -88,7 +88,8 @@ class PublicSuccessorActivationVerdict:
     transfer_manifest_sha256: str | None = None
     publication_batch_review_id: str | None = None
     publication_batch_review_digest: str | None = None
-    publication_batch_review_binding: tuple[str, str, str, int, str] | None = None
+    # Base/head/blob/review ID/challenge/reviewer vérifiés par la review LOT42.
+    publication_batch_review_binding: tuple[str, str, str, int, str, str] | None = None
 
 
 def _read(root: Path, relative: str, expected: str, *, json_required: bool = True) -> Any:

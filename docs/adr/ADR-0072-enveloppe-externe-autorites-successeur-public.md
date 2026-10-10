@@ -48,6 +48,8 @@ La preuve de transfert V2 ne peut utiliser le reçu V1 local historique. Une nou
 
 C vérifie aussi le jeu LOT41A V2 contre les 377 liaisons dérivées de A, puis l'artefact de revue LOT42 canonique contre ce même A, les onze identifiants d'autorisation et le SHA du plan de transfert. Cette vérification portable ne prouve pas à elle seule les signatures et révocations LOT41A, la revue GitHub LOT42 ni les 377 attestations actives mesurées dans la base : le signataire doit les rejouer en direct avant signature. Le refus terminal de C reste en place tant que ce pont et la preuve indépendante de cible ne sont pas complets.
 
+Le verdict C destiné au lecteur LOT42 doit porter aussi le **login du reviewer** établi par la revue GitHub exacte, en plus des SHA base/head/blob, du review ID et du challenge. Le lecteur compare chaque attestation DB à cette identité issue de l'autorité ; il ne peut coder en dur un compte humain dans le service. Si le reçu exact-head ne donne pas cette identité vérifiée, le verdict reste incomplet et le démarrage est refusé.
+
 ## Lecture des révocations au runtime
 
 Le lecteur public utilise son rôle pgvector `rag_reader` déjà limité à

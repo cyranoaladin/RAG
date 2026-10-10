@@ -135,11 +135,12 @@ def require_public_successor_startup_lot42(
         not isinstance(transfer_sha, str) or _SHA256.fullmatch(transfer_sha) is None
         or not isinstance(review_id, str) or _AUTH_ID.fullmatch(review_id) is None
         or not isinstance(review_digest, str) or _SHA256.fullmatch(review_digest) is None
-        or not isinstance(review_binding, tuple) or len(review_binding) != 5
+        or not isinstance(review_binding, tuple) or len(review_binding) != 6
         or any(not isinstance(value, str) or _SHA1.fullmatch(value) is None
                for value in review_binding[:3])
         or type(review_binding[3]) is not int or review_binding[3] <= 0
         or not isinstance(review_binding[4], str) or not review_binding[4]
+        or not isinstance(review_binding[5], str) or not review_binding[5].strip()
     ):
         raise PublicSuccessorDBRefused("C lacks exact LOT42 signed review expectations")
     expected, inventory_sha = _expected_lot42_population(verdict, bundle_root)
@@ -243,7 +244,7 @@ def require_public_successor_startup_lot42(
             not isinstance(event_ids, list | tuple) or not event_ids,
             review_repo != "cyranoaladin/RAG",
             review_base != review_binding[0], review_head != review_binding[1],
-            github_review_id != review_binding[3], reviewer != "abenrhouma",
+            github_review_id != review_binding[3], reviewer != review_binding[5],
             challenge != review_binding[4],
             invalidated is not None, attestation_id is None,
             attestation_digest != review_digest,
