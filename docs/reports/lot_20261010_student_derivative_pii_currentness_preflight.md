@@ -41,3 +41,29 @@ python scripts/go_live/student_derivative_pii_currentness_gate.py \
 ## Suite conditionnelle
 
 Pour lever ce blocage, produire un contrôle PII indépendant sur les **253 textes exacts** et une attestation d'actualité/révocation de qualification qui relie chaque `source_pdf_sha256`, `derivative_content_sha256`, reçu de dérivation et les deux SHA de checkpoint. Toute modification d'octets exige un nouvel artefact, un nouveau SHA et une nouvelle qualification. Les preuves devront ensuite être scellées et soumises à l'autorité de publication successeur ; ce lot ne les invente pas. Aucun statut `PRODUCTION_READY` ou `GO_LIVE_READY` n'est établi ici.
+
+## Écran PII déterministe et projection d'exclusion
+
+**LOCAL READ-ONLY, 2026-10-10 13:36 UTC.** Le reçu [student_derivative_pii_pattern_screen_20261010.json](go_live/student_derivative_pii_pattern_screen_20261010.json) et son fichier `.sha256` scellent 253 textes exacts, soit 21 468 584 octets, avec la politique `pii_gate_policy.yml` SHA-256 `d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484`. Le SHA-256 du reçu JSON est `7f5aeb26ee25d48e1d0abbdec2d3aeb2cc2ae6b975099177ea5d10ba1a18a40a`. Le reçu lie aussi le code du producteur et du scanner, le manifeste #300 et le registre #312. Aucun match ni contexte brut n'y figure.
+
+Les 253 PDF du miroir privé ont été relus par SHA. Les 19 388 blocs textuels natifs retenus ont été comparés aux blocs exacts des PDF ; leurs octets et empreintes concordent avec les reçus #300. Les preuves #300 de scan complet du PDF et de ses annexes portent les mêmes SHA de source. Le scanner applique les **sept motifs** de la politique à tout le texte dérivé, y compris les métadonnées, sans allowlist générique. Il a trouvé 677 occurrences `phone_french` dans 12 artefacts ; chacune se situe intégralement dans la valeur `source_pdf_sha256` d'un en-tête ou d'une citation canoniques. Aucune occurrence n'est dans un bloc pédagogique natif ; aucun autre motif n'est déclenché. Ces 677 alertes sont donc des sous-chaînes numériques d'empreintes cryptographiques, pas des numéros de téléphone issus des passages. Les 12 artefacts ne sont pas exclus sur cette seule base.
+
+Pour les 241 artefacts sans signal initial et les 12 dont tous les signaux sont structurellement expliqués, le reçu atteste uniquement `PATTERN_SCREEN_CLEAR_ONLY`. Il ne prouve pas qu'aucune donnée personnelle non couverte par ces regex n'existe, ni que la révocation est encore absente au moment d'une future publication. Le gate PII indépendant et l'attestation de révocation successeur restent donc **bloquants sur 253/253**. Le reçu ne porte aucun `pii_status=PASS`.
+
+Si, par hypothèse prudente, les 12 artefacts initialement signalés étaient exclus sans tenir compte de la preuve structurelle, les comptes réels de cette projection seraient 11 collections non vides, 241 artefacts, 360 placements et 3 870 chunks ; elle n'a pas été appliquée. Le nombre d'artefacts signalés par collection égale ici le nombre de placements retirés dans cette collection ; un artefact peut contribuer à deux collections, de sorte que la somme de la colonne dépasse 12. La répartition serait :
+
+| Collection | Placements retirés | Placements restants |
+| --- | ---: | ---: |
+| DGEMC terminale option | 0 | 6 |
+| HGGSP première spécialité | 1 | 31 |
+| HGGSP terminale spécialité | 1 | 27 |
+| HLP première spécialité | 4 | 94 |
+| HLP terminale spécialité | 3 | 70 |
+| NSI première spécialité | 0 | 20 |
+| NSI terminale spécialité | 2 | 32 |
+| SES première spécialité | 2 | 24 |
+| SES terminale spécialité | 2 | 23 |
+| SVT première spécialité | 2 | 8 |
+| SVT terminale spécialité | 0 | 25 |
+
+Le producteur rejette un match hors des plages SHA canoniques, une citation altérée, un PDF ou bloc source divergent. Son test ciblé couvre aussi un numéro placé dans un passage natif ou hors citation : ces cas restent non résolus. `pytest -q scripts/tests/test_scan_student_derivative_pii.py` : 6 réussis ; Ruff passe. Le rejeu des 253 PDF réels avec PyMuPDF 1.27.2.3 est sorti avec code 0, sans écrire dans le miroir.
