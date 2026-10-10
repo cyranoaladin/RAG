@@ -45,6 +45,15 @@ class PublicationSigningInputs:
     database_dsn: str
 
 
+@dataclass(frozen=True)
+class PublicationSigningReplayVerdict:
+    """Résultat typé du rejeu externe; le digest du pin ne vient jamais de C."""
+
+    activation: PublicSuccessorActivationVerdict
+    target_pin_sha256: str
+    expires_at_utc: datetime
+
+
 def _bytes(path: Path) -> bytes:
     if path.is_symlink() or not path.is_file():
         raise PublicationSigningReplayRefused("publication evidence absent or symlink")
@@ -79,7 +88,7 @@ def _verified_external_target_pin_sha256() -> str:
 def replay_public_successor_publication(
     inputs: PublicationSigningInputs, *, expected_release_id: str,
     expected_manifest_sha256: str, now_utc: datetime,
-) -> PublicSuccessorActivationVerdict:
+) -> PublicationSigningReplayVerdict:
     """C, #294, CAS, cible V2 et LOT42 DB sont relus dans cet ordre.
 
     ``database_dsn`` n'est jamais écrit dans un rapport ou une exception.
@@ -109,6 +118,7 @@ def replay_public_successor_publication(
     scope_sha = authorities.get("public_scope_authority_sha256")
     if not isinstance(scope_sha, str):
         raise PublicationSigningReplayRefused("C scope authority absent")
+    approved_pin_sha = _verified_external_target_pin_sha256()
     verdict = verify_public_successor_activation(
         root,
         expected_content_anchor_sha256=anchor_sha,
@@ -116,6 +126,7 @@ def replay_public_successor_publication(
         expected_release_id=expected_release_id,
         expected_registry_sha256=content.release_registry_sha256,
         expected_scope_authority_sha256=scope_sha,
+        expected_target_pin_sha256=approved_pin_sha,
         now_utc=now_utc,
     )
     if not isinstance(verdict, PublicSuccessorActivationVerdict) or (
@@ -154,7 +165,6 @@ def replay_public_successor_publication(
             or preissuance_result.content_anchor_sha256 != anchor_sha):
         raise PublicationSigningReplayRefused("CAS and currentness replay incomplete")
 
-    approved_pin_sha = _verified_external_target_pin_sha256()
     qualified = _checkout_module("qualified_public_text_transfer")
     attestation_path = root / "authorities/observed_transfer_receipt_sha256.bin"
     plan_path = root / "authorities/artifact_transfer_manifest_sha256.bin"
@@ -218,4 +228,11 @@ def replay_public_successor_publication(
         preissuance_result.expires_at_utc,
     ):
         raise PublicationSigningReplayRefused("public authority expired during replay")
-    return verdict
+    return PublicationSigningReplayVerdict(
+        activation=verdict,
+        target_pin_sha256=approved_pin_sha,
+        expires_at_utc=min(
+            verdict.expires_at_utc, target_verdict.expires_at_utc,
+            preissuance_result.expires_at_utc,
+        ),
+    )

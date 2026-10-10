@@ -36,7 +36,6 @@ sys.path.insert(0, str(REPO_ROOT / "packages/contracts/src"))
 sys.path.insert(0, str(REPO_ROOT / "packages/release-chain/src"))
 
 from nexus_contracts.staging_readiness import (  # noqa: E402
-    STAGING_READINESS_PROTOCOL,
     StagingReadinessError,
     StagingReadinessManifestV1,
     parse_staging_readiness_trust_anchor,
@@ -270,7 +269,7 @@ def _verify_public_successor_ingestion_replay(
 
 def _verify_public_successor_publication_replay(
     args: Any, release_digest: str, issued_at: datetime,
-) -> tuple[str, str, datetime]:
+) -> tuple[str, str, str, datetime]:
     """Rejouer C et les preuves live avant la lecture de la clé staging."""
     required = (
         args.public_successor_bundle_root,
@@ -313,8 +312,9 @@ def _verify_public_successor_publication_replay(
     except Exception as error:  # noqa: BLE001 - frontière de signature fail-closed
         raise SigningRefused("public successor PUBLICATION authority replay failed") from error
     return (
-        verdict.content_anchor_sha256,
-        verdict.authority_envelope_sha256,
+        verdict.activation.content_anchor_sha256,
+        verdict.activation.authority_envelope_sha256,
+        verdict.target_pin_sha256,
         verdict.expires_at_utc,
     )
 
@@ -384,7 +384,7 @@ def main(argv: list[str] | None = None) -> int:
         if phase is None:
             _require(all(value is None for value in public_options),
                      "public successor inputs require an explicit phase")
-            anchor_sha = phase_authority_sha = None
+            anchor_sha = phase_authority_sha = target_pin_sha = None
             expires_at = issued_at + timedelta(days=args.valid_days)
         elif phase == "INGESTION":
             _require(all(value is None for value in public_options[4:]),
@@ -395,17 +395,18 @@ def main(argv: list[str] | None = None) -> int:
                     args, release_digest, issued_at,
                 )
             )
+            target_pin_sha = None
             expires_at = min(issued_at + timedelta(days=args.valid_days), evidence_expiry)
         else:
             _require_public_checkout_matches_merge(args.merge_sha)
-            anchor_sha, phase_authority_sha, evidence_expiry = (
+            anchor_sha, phase_authority_sha, target_pin_sha, evidence_expiry = (
                 _verify_public_successor_publication_replay(
                     args, release_digest, issued_at,
                 )
             )
             expires_at = min(issued_at + timedelta(days=args.valid_days), evidence_expiry)
         manifest = StagingReadinessManifestV1(
-            protocol_version=STAGING_READINESS_PROTOCOL,
+            protocol_version="NEXUS-STAGING-READINESS-V1",
             environment="rehearsal",
             repository=args.repository,
             merge_sha=args.merge_sha,
@@ -419,6 +420,7 @@ def main(argv: list[str] | None = None) -> int:
             public_successor_phase=phase,
             public_successor_content_anchor_digest=anchor_sha,
             public_successor_phase_authority_digest=phase_authority_sha,
+            public_successor_target_pin_digest=target_pin_sha,
         )
 
         if phase is not None:
