@@ -492,22 +492,30 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     runtime_build_sha = assess_runtime_identity(health_status, health_body, head)
     release_placements = load_release_evidence(args.registry, args.registry_sha256, args.collection)
     contents = {placement["content_sha256"] for placement in release_placements.values()}
-    teacher_session, _ = _mint_session(root, "teacher", scope)
     student_session, _ = _mint_session(root, "student", scope)
+    teacher_allowed = "teacher" in scope["target_policy"]["roles"]
+    teacher_session: str | None = None
+    if teacher_allowed:
+        teacher_session, _ = _mint_session(root, "teacher", scope)
     unauth_status, unauth_body = _post_search(cockpit_url, None, args.query, args.collection)
     if unauth_status != 401 or _object(unauth_body, "unauth").get("error") != "unauthorized":
         raise ValueError("BFF sans session non refusé")
     cross_status, cross_body = _post_search(
         cockpit_url,
-        teacher_session,
+        teacher_session if teacher_allowed else student_session,
         args.query,
         next(collection for collection in sorted(registry_collections) if collection != args.collection),
     )
     assess_cross_scope(cross_status, cross_body)
-    teacher_status, teacher_body = _post_search(
-        cockpit_url, teacher_session, args.query, args.collection
-    )
-    teacher = assess_positive(teacher_status, teacher_body, args.collection, contents, release_placements)
+    teacher_status: int | None = None
+    teacher: dict[str, Any] = {"status": "NOT_RUN_SCOPE_ROLE_NOT_ISSUED"}
+    if teacher_allowed:
+        teacher_status, teacher_body = _post_search(
+            cockpit_url, teacher_session, args.query, args.collection
+        )
+        teacher = assess_positive(
+            teacher_status, teacher_body, args.collection, contents, release_placements
+        )
     student_status, student_body = _post_search(
         cockpit_url, student_session, args.query, args.collection
     )
@@ -548,7 +556,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "population": "BFF signed final scope: one of 11 collections; direct API acceptance covers all 11",
         "unauthenticated_status": unauth_status,
         "cross_scope_status": cross_status,
+        "cross_scope_role": "teacher" if teacher_allowed else "student",
         "teacher_status": teacher_status,
+        "teacher_e2e_verified": teacher_allowed,
         "teacher": teacher,
         "student_status": student_status,
         "student_mode": args.student_mode,

@@ -17,7 +17,12 @@ explicitement par `--scope-index`, doit être dans le checkout final, et doit
 correspondre aux onze artefacts gouvernés de `packages/contracts`. Chaque
 scope est public et lie `source_sha256` aux octets du subject final scellé.
 Le rôle de test doit être autorisé dans `target_policy.roles` ; aucune
-autorisation enseignant n'est déduite d'un scope étudiant.
+autorisation enseignant n'est déduite d'un scope étudiant. Sur un scope
+`roles: [student]`, le harnais ne tente jamais de signer `teacher` : il teste
+le 403 hors collection avec la session `student` et inscrit
+`teacher_e2e_verified=false`, `teacher_status=null` et
+`NOT_RUN_SCOPE_ROLE_NOT_ISSUED`. Le chemin enseignant positif n'est exécuté
+que lorsque ce rôle figure explicitement dans le scope final émis.
 
 Après ces préconditions, le harnais compare le SHA du build exposé par
 `/api/health` au SHA exact du checkout propre et du `main` distant. Il signe
@@ -41,8 +46,8 @@ l'acceptance directe API v2 distincte.
   Ces valeurs ne sont pas codées en dur dans le harnais et ne prouvent aucune
   donnée servie sur staging.
 - #294 est une proposition d'autorité, non l'émission des onze scopes V3.
-  Elle borne `target_policy.roles` à `student`. Une recherche positive
-  `teacher` sur le même scope serait donc refusée par le harnais. La preuve
+  Elle borne `target_policy.roles` à `student`. Le harnais ne revendique donc
+  aucune preuve positive `teacher` pour cette proposition. La preuve
   enseignant exige une autorité de scope distincte ou une politique finale
   explicitement approuvée couvrant ce rôle.
 - Le Cockpit de `main` signe et valide encore le pilote
@@ -82,5 +87,7 @@ release, les droits, les scopes, le build et les résultats HTTP doivent tous
 être vérifiés à la cible finale.
 
 Vérification locale dans `/tmp/rag-pr293-main744-venv`, créé pour ce worktree :
-`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 25 tests verts ;
+`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 27 tests verts,
+dont un RED→GREEN du parcours `student` seul et la conservation du parcours
+`teacher` lorsque son rôle est autorisé ;
 `ruff check` des deux fichiers Python : vert ; `git diff --check` : vert.

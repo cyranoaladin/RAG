@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from argparse import Namespace
 from pathlib import Path
 
 import pytest
@@ -183,6 +184,64 @@ def test_unissued_teacher_role_is_refused_by_final_scope_policy():
     }
     with pytest.raises(ValueError, match="role"):
         harness.identity_for_scope(scope, "teacher")
+
+
+@pytest.mark.parametrize("roles", [["student"], ["student", "teacher"]])
+def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles):
+    harness = load_harness()
+    root = tmp_path
+    registry = root / "release-registry.json"
+    manifest = root / "release.json"
+    scope_index = root / "scopes.json"
+    collections = [f"rag_nexus_nsi_collection_{index}" for index in range(11)]
+    selected = collections[0]
+    release = {"release_id": "student-public-successor-final", "release_mode": "production", "promotion_status": "PROMOTABLE", "activation_status": "PRODUCTION_ACTIVATION_ALLOWED", "review_status": "APPROVED", "subjects": [{"collection": collection, "sha256": "c" * 64} for collection in collections]}
+    registry.write_text(json.dumps({"releases": [{"collections": collections, "manifest_path": "release.json", "expected_manifest_sha256": "a" * 64}]}))
+    manifest.write_text(json.dumps(release))
+    scope_index.write_text("[]")
+    scopes = {collection: {"scope_id": f"prod_nsi_collection_{index}_v4", "source_sha256": "c" * 64, "target_policy": {"roles": roles}, "evidence_subject": {"collection": collection}} for index, collection in enumerate(collections)}
+    head = "d" * 40
+    def fake_git(_root, *args):
+        if args == ("status", "--porcelain"):
+            return ""
+        if args == ("rev-parse", "HEAD^{tree}"):
+            return "e" * 40
+        return head
+    monkeypatch.setattr(harness, "_git", fake_git)
+    monkeypatch.setattr(harness, "_live_main_sha", lambda _root: head)
+    monkeypatch.setattr(harness, "_sha256", lambda _path: "a" * 64)
+    monkeypatch.setattr(harness, "load_final_scopes", lambda *_args: scopes)
+    monkeypatch.setattr(harness, "_get_health", lambda _url: (200, {"status": "ok", "build_sha": head}))
+    monkeypatch.setattr(harness, "load_release_evidence", lambda *_args: {"placement": {"content_sha256": "b" * 64}})
+    minted = []
+    def mint(_root, role, _scope):
+        minted.append(role)
+        if role == "teacher" and "teacher" not in roles:
+            raise AssertionError("teacher ne doit pas être signé sur un scope student-only")
+        return f"{role}-session", {}
+    monkeypatch.setattr(harness, "_mint_session", mint)
+    calls = []
+    def post(_url, session, _query, collection):
+        calls.append((session, collection))
+        if session is None:
+            return 401, {"error": "unauthorized"}
+        if collection != selected:
+            return 403, {"error": "forbidden_collection"}
+        return 200, {"results": [{"citation": {"source_uri": "https://eduscol.education.gouv.fr"}}]}
+    monkeypatch.setattr(harness, "_post_search", post)
+    monkeypatch.setattr(harness, "assess_positive", lambda *_args, **_kwargs: {"results": 1, "citation_count": 1})
+    args = Namespace(repository_root=root, operator_id="test", cockpit_url="http://127.0.0.1:18004", expected_sha=head, scope_index=scope_index, registry=registry, registry_sha256="a" * 64, collection=selected, query="test", student_mode="public")
+    report = harness.run(args)
+    assert minted == (["student", "teacher"] if "teacher" in roles else ["student"])
+    if "teacher" in roles:
+        assert calls == [(None, selected), ("teacher-session", collections[1]), ("teacher-session", selected), ("student-session", selected)]
+    else:
+        assert calls == [(None, selected), ("student-session", collections[1]), ("student-session", selected)]
+    assert report["student"]["results"] == 1
+    assert report["teacher_status"] == (200 if "teacher" in roles else None)
+    assert report["teacher_e2e_verified"] is ("teacher" in roles)
+    assert report["teacher"] == ({"results": 1, "citation_count": 1} if "teacher" in roles else {"status": "NOT_RUN_SCOPE_ROLE_NOT_ISSUED"})
+    assert report["cross_scope_role"] == ("teacher" if "teacher" in roles else "student")
 
 
 def test_rehearsal_and_candidate_releases_cannot_qualify_final_bff():
