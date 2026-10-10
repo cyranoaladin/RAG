@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -50,9 +51,34 @@ def test_public_worker_refuses_missing_C_before_any_database_connection(
         public_cli, "verify_public_successor_activation",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("C unavailable")),
     )
+    monkeypatch.setattr(public_cli, "require_running_image_matches_manifest", lambda *_args: "sha256:image")
     opened: list[object] = []
     monkeypatch.setattr(cli.psycopg, "connect", lambda *_args, **_kwargs: opened.append(1))
 
+    assert cli.main(_public_args()) == 1
+    assert opened == []
+
+
+def test_public_worker_refuses_staging_image_mismatch_before_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    monkeypatch.setenv("NEXUS_EXPECTED_READINESS_PROTOCOL", STAGING_READINESS_PROTOCOL)
+    monkeypatch.setattr(public_cli, "enforce_staging_readiness_gate", lambda: SimpleNamespace(
+        environment="rehearsal",
+        manifest=SimpleNamespace(public_successor_phase="PUBLICATION"),
+    ))
+    monkeypatch.setattr(
+        public_cli, "require_running_image_matches_manifest",
+        lambda *_args: (_ for _ in ()).throw(ValueError("running image differs")),
+        raising=False,
+    )
+    opened: list[object] = []
+    monkeypatch.setattr(cli.psycopg, "connect", lambda *_args, **_kwargs: opened.append(1))
+
+    with pytest.raises(ValueError, match="running image differs"):
+        public_cli._signed_publication(Path("/bundle"))
     assert cli.main(_public_args()) == 1
     assert opened == []
 

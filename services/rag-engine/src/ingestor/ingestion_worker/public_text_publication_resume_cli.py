@@ -34,6 +34,7 @@ from ingestor.ingestion_profiles.readiness_gate import enforce_readiness_gate
 from ingestor.ingestion_profiles.staging_readiness_gate import (
     EXPECTED_PROTOCOL_ENV,
     enforce_staging_readiness_gate,
+    require_running_image_matches_manifest,
 )
 
 from .multilevel_publication_resume_cli import (
@@ -70,6 +71,7 @@ def _signed_publication(root: Path) -> _SignedPublication:
         manifest = verified.manifest
         if manifest.public_successor_phase != "PUBLICATION":
             raise ValueError("signed staging readiness is not PUBLICATION")
+        require_running_image_matches_manifest(manifest)
         return _SignedPublication(
             environment="rehearsal",
             release_id=manifest.allowed_release_id,

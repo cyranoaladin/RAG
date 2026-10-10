@@ -13,6 +13,7 @@ import pytest
 from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationError,
     verify_content_anchor,
+    verify_content_authority_bindings,
     verify_content_currentness,
     verify_public_scope_registry,
     verify_public_successor_activation,
@@ -57,6 +58,33 @@ def test_content_currentness_expires_at_the_sealed_limit() -> None:
     assert expiry.isoformat() == "2026-10-11T13:39:22.520000+00:00"
     with pytest.raises(PublicSuccessorActivationError, match="currentness expired"):
         verify_content_currentness(RELEASE, content, expiry)
+
+
+def test_c_content_authorities_must_restate_exact_a_bindings() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    index = json.loads((RELEASE / "preparation-index.json").read_bytes())
+    manifest = json.loads((RELEASE / "profile_gate/production-profile-gate.release.json").read_bytes())
+    anchor = json.loads(ANCHOR.read_bytes())
+    authorities = {
+        "source_candidate_release_manifest_sha256": index["source_candidate_manifest_sha256"],
+        "source_preparation_release_manifest_sha256": content.content_manifest_sha256,
+        "source_preparation_index_sha256": content.preparation_index_sha256,
+        "candidate_inventory_sha256": content.candidate_inventory_sha256,
+        "inclusion_attestation_sha256": anchor["preparation_sidecars"]["inclusion_attestation.json"],
+        "derivative_pii_evidence_sha256": index["pii_adjudication_report_sha256"],
+        "derivative_currentness_evidence_sha256": index["source_currentness_attestation_sha256"],
+        "public_profile_manifest_sha256": anchor["preparation_sidecars"]["public_profiles.json"],
+        "public_rights_registry_sha256": anchor["preparation_sidecars"]["public_rights_registry.json"],
+        "public_pii_registry_sha256": anchor["preparation_sidecars"]["public_pii_registry.json"],
+        "rights_authority_sha256": manifest["authorities"]["rights_authority_sha256"],
+        "delegated_evidence_pack_sha256": manifest["authorities"]["delegated_evidence_pack_sha256"],
+        "pr300_final_authority_receipt_sha256": manifest["authorities"]["pr300_final_authority_receipt_sha256"],
+    }
+    verify_content_authority_bindings(RELEASE, content, authorities)
+    for field in authorities:
+        changed = {**authorities, field: "f" * 64}
+        with pytest.raises(PublicSuccessorActivationError, match=field):
+            verify_content_authority_bindings(RELEASE, content, changed)
 
 
 @pytest.mark.parametrize(
