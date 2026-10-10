@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Validate the public text-derivative acceptance oracle before live measurement.
 
-The prepared suite is a question/source plan, not a quality verdict. It cannot
-be bound to the V4/V5 PDF rehearsal or to the unpromotable #312 candidate.
+The prepared suite is a question/source plan bound to the immutable #323 V2
+preparation package, not a live quality verdict or a promoted release.
 """
 
 from __future__ import annotations
@@ -25,6 +25,25 @@ SUITE = Path(
 CANDIDATE = Path(
     "docs/reports/go_live/student_rights_evidence/public_derivative_candidate_manifest_20261010.json"
 )
+PREPARATION_ROOT = Path(
+    "services/rag-pedago/data/releases/prerentree_2026_2027/"
+    "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
+)
+PREPARATION_INDEX = PREPARATION_ROOT / "preparation-index.json"
+PREPARATION_MANIFEST = PREPARATION_ROOT / "profile_gate/production-profile-gate.release.json"
+PREPARATION_INDEX_SHA256 = (
+    "bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4"
+)
+PREPARATION_MANIFEST_SHA256 = (
+    "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78"
+)
+PREPARATION_RELEASE_ID = "student-public-successor-20261010-fcc84331e7700042"
+PREPARATION_COUNTS = {
+    "subjects": 11,
+    "unique_artifacts": 253,
+    "placements": 377,
+    "unique_chunks": 3975,
+}
 EXPECTED_POPULATION = {
     "collections": 11,
     "artifacts": 253,
@@ -80,8 +99,109 @@ def _digest(value: Any) -> bool:
     return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
 
 
+def _validate_preparation_v2(
+    root: Path, suite: dict[str, Any], cases: dict[str, Any]
+) -> None:
+    """Bind every prepared oracle to the immutable, unpromoted #323 package."""
+    if (
+        suite.get("preparation_index_path") != str(PREPARATION_INDEX)
+        or suite.get("preparation_index_sha256") != PREPARATION_INDEX_SHA256
+        or suite.get("preparation_manifest_path") != str(PREPARATION_MANIFEST)
+        or suite.get("preparation_manifest_sha256") != PREPARATION_MANIFEST_SHA256
+        or suite.get("expected_preparation_population") != PREPARATION_COUNTS
+        or _sha(root / PREPARATION_INDEX) != PREPARATION_INDEX_SHA256
+        or _sha(root / PREPARATION_MANIFEST) != PREPARATION_MANIFEST_SHA256
+    ):
+        raise SuiteFailure("#323 preparation identity or population differs")
+    index = _json(root / PREPARATION_INDEX)
+    manifest = _json(root / PREPARATION_MANIFEST)
+    if (
+        index.get("kind") != "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V2"
+        or index.get("status") != "PREPARATION_ONLY_NOT_ACTIVABLE"
+        or index.get("release_id") != PREPARATION_RELEASE_ID
+        or index.get("release_manifest_sha256") != PREPARATION_MANIFEST_SHA256
+        or index.get("expected_counts") != PREPARATION_COUNTS
+        or index.get("complete_profile_count") != 11
+        or manifest.get("release_id") != PREPARATION_RELEASE_ID
+        or manifest.get("expected_counts") != PREPARATION_COUNTS
+        or manifest.get("release_mode") != "candidate"
+        or manifest.get("promotion_status") != "NOT_PROMOTABLE"
+        or manifest.get("activation_status") != "NO_PRODUCTION_ACTIVATION"
+        or manifest.get("review_status") != "PRE_REVIEW"
+    ):
+        raise SuiteFailure("#323 package is not the sealed preparation-only successor")
+    profiles = index.get("complete_profiles")
+    if not isinstance(profiles, list) or {p.get("collection") for p in profiles} != set(cases):
+        raise SuiteFailure("#323 complete profile coverage differs")
+    for profile in profiles:
+        if _sha(root / PREPARATION_ROOT / profile["path"]) != profile["sha256"]:
+            raise SuiteFailure("#323 complete profile SHA differs")
+    scopes = index.get("proposed_scopes")
+    if (
+        not isinstance(scopes, list)
+        or {s.get("collection") for s in scopes} != set(cases)
+        or any(s.get("status") != "NOT_ISSUED" for s in scopes)
+    ):
+        raise SuiteFailure("#323 scopes are not the unissued proposals")
+    manifest_dir = root / PREPARATION_MANIFEST.parent
+    registry_ref = manifest.get("artifact_registry")
+    if not isinstance(registry_ref, dict):
+        raise SuiteFailure("#323 artifact registry reference absent")
+    registry_path = manifest_dir / registry_ref["path"]
+    if _sha(registry_path) != registry_ref.get("sha256"):
+        raise SuiteFailure("#323 artifact registry SHA differs")
+    registry = _json(registry_path)
+    artifacts = registry.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != 253:
+        raise SuiteFailure("#323 artifact count differs")
+    by_sha = {a.get("content_sha256"): a for a in artifacts}
+    if (
+        len(by_sha) != 253
+        or registry.get("expected_counts") != {
+            "unique_artifacts": 253, "unique_chunks": 3975
+        }
+        or sum(len(a.get("chunks", [])) for a in artifacts) != 3975
+    ):
+        raise SuiteFailure("#323 artifact identities or chunks differ")
+    refs = manifest.get("subjects")
+    if not isinstance(refs, list) or {r.get("collection") for r in refs} != set(cases):
+        raise SuiteFailure("#323 subject coverage differs")
+    placements_count = 0
+    for ref in refs:
+        collection = ref["collection"]
+        subject_path = manifest_dir / ref["path"]
+        if _sha(subject_path) != ref.get("sha256"):
+            raise SuiteFailure(f"#323 subject SHA differs: {collection}")
+        subject = _json(subject_path)
+        placements = subject.get("placements")
+        if subject.get("collection") != collection or not isinstance(placements, list):
+            raise SuiteFailure(f"#323 subject placements absent: {collection}")
+        placed = {p.get("artifact_id") for p in placements}
+        if len(placed) != len(placements) or not placed <= by_sha.keys():
+            raise SuiteFailure(f"#323 subject placement identities differ: {collection}")
+        placements_count += len(placements)
+        spec = cases[collection]
+        for case in spec["positive"]:
+            sha = case["expected_content_sha256"]
+            artifact = by_sha.get(sha)
+            if (
+                sha not in placed
+                or not isinstance(artifact, dict)
+                or artifact.get("source_pdf_sha256") != spec["expected_source_pdf_sha256"]
+                or artifact.get("media_type") != "text/plain; charset=utf-8"
+                or not artifact.get("chunks")
+                or any(
+                    artifact.get("citation", {}).get(key) != value
+                    for key, value in spec["expected_citation"].items()
+                )
+            ):
+                raise SuiteFailure(f"oracle differs from #323 V2 placement: {collection}")
+    if placements_count != 377:
+        raise SuiteFailure("#323 placement count differs")
+
+
 def validate_draft_suite(root: Path, suite: dict[str, Any]) -> None:
-    """Check all planned cases against the exact #312 derivative identities."""
+    """Check all planned cases against #312 identities and the #323 V2 package."""
     if (
         suite.get("schema_version") != 1
         or suite.get("status") not in {"PREPARED_UNBOUND", "BOUND"}
@@ -210,6 +330,7 @@ def validate_draft_suite(root: Path, suite: dict[str, Any]) -> None:
             raise SuiteFailure(
                 f"boundary query is not a neighbouring scope: {collection}"
             )
+    _validate_preparation_v2(root, suite, cases)
 
 
 def load_draft_suite(root: Path) -> dict[str, Any]:
@@ -405,14 +526,13 @@ def check_dense_tie_probe(
 def require_final_binding(root: Path, suite: dict[str, Any]) -> None:
     """Never turn draft structural checks into an authoritative release verdict.
 
-    The current canonical release verifier accepts the #312 candidate only in
-    candidate mode. It has no promoted public successor authority, and this
+    The #323 package remains preparation-only. It has no promoted public
+    successor authority, and this
     module has no exact scope/review/checkout or live HTTP/DB proof. Declared
     hashes and status strings cannot substitute for those proofs.
     """
     if suite.get("status") != "BOUND" or any(not suite.get(key) for key in FINAL_KEYS):
         raise SuiteFailure("final successor binding missing")
-    validate_draft_suite(root, suite)
     raise SuiteFailure("canonical release verifier required before final binding")
 
 

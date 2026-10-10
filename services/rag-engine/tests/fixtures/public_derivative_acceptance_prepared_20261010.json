@@ -383,11 +383,21 @@
     "placements": 377,
     "segments": 2504
   },
+  "expected_preparation_population": {
+    "placements": 377,
+    "subjects": 11,
+    "unique_artifacts": 253,
+    "unique_chunks": 3975
+  },
   "final_checkout_sha": null,
   "final_release_manifest_path": null,
   "final_release_manifest_sha256": null,
   "final_scope_registry_path": null,
   "final_scope_registry_sha256": null,
+  "preparation_index_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042/preparation-index.json",
+  "preparation_index_sha256": "bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4",
+  "preparation_manifest_path": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042/profile_gate/production-profile-gate.release.json",
+  "preparation_manifest_sha256": "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78",
   "schema_version": 1,
   "status": "PREPARED_UNBOUND",
   "thresholds": {

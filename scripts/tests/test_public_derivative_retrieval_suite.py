@@ -150,6 +150,67 @@ def test_draft_covers_exact_candidate_and_fixed_cases() -> None:
     assert suite["thresholds"]["student_positive_nonempty"] == 33
     assert suite["thresholds"]["teacher_refusals"] == 11
     assert suite["thresholds"]["dense_misses"] == 0
+    assert suite["preparation_manifest_sha256"] == (
+        "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78"
+    )
+    assert suite["preparation_index_sha256"] == (
+        "bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4"
+    )
+    assert suite["expected_preparation_population"] == {
+        "subjects": 11, "unique_artifacts": 253,
+        "placements": 377, "unique_chunks": 3975,
+    }
+
+
+@pytest.mark.parametrize("sabotage", [
+    "old_preparation", "index_digest", "manifest_digest", "chunk_budget",
+    "foreign_collection_artifact",
+])
+def test_preparation_v2_binding_sabotage_rejected(sabotage: str) -> None:
+    suite = copy.deepcopy(load_draft_suite(ROOT))
+    if sabotage == "old_preparation":
+        suite["preparation_manifest_path"] = (
+            "services/rag-pedago/data/releases/prerentree_2026_2027/"
+            "profile_gate_student_public_candidate_v1/production-profile-gate.release.json"
+        )
+    elif sabotage == "index_digest":
+        suite["preparation_index_sha256"] = "0" * 64
+    elif sabotage == "manifest_digest":
+        suite["preparation_manifest_sha256"] = "0" * 64
+    elif sabotage == "chunk_budget":
+        suite["expected_preparation_population"]["unique_chunks"] = 2504
+    else:
+        dgemc = suite["collections"]["rag_nexus_dgemc_terminale_option"]
+        hggsp = suite["collections"]["rag_nexus_hggsp_premiere_specialite"]
+        dgemc["positive"][0]["expected_content_sha256"] = hggsp["positive"][0][
+            "expected_content_sha256"
+        ]
+    with pytest.raises(SuiteFailure):
+        validate_draft_suite(ROOT, suite)
+
+
+@pytest.mark.parametrize("sabotage", ["index", "registry", "subject", "profile"])
+def test_preparation_v2_file_sabotage_rejected(
+    tmp_path: Path, sabotage: str
+) -> None:
+    suite = load_draft_suite(ROOT)
+    candidate = tmp_path / suite["candidate_manifest_path"]
+    candidate.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / suite["candidate_manifest_path"], candidate)
+    package = Path(suite["preparation_index_path"]).parent
+    shutil.copytree(ROOT / package, tmp_path / package)
+    if sabotage == "index":
+        target = tmp_path / suite["preparation_index_path"]
+    elif sabotage == "registry":
+        target = package / "profile_gate/artifacts.release.json"
+        target = tmp_path / target
+    elif sabotage == "subject":
+        target = tmp_path / package / "profile_gate/subjects/rag_nexus_dgemc_terminale_option.release.json"
+    else:
+        target = tmp_path / package / "profile_gate/profiles/rag_nexus_dgemc_terminale_option.yml"
+    target.write_bytes(target.read_bytes() + b"\n# tampered\n")
+    with pytest.raises(SuiteFailure):
+        validate_draft_suite(tmp_path, suite)
 
 
 def test_final_quality_cannot_pass_without_successor_manifest_and_scope_registry() -> (
