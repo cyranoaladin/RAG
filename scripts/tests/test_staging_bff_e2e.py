@@ -130,11 +130,11 @@ def test_final_scope_index_matches_all_sealed_collections_and_governed_artifacts
     assert result["rag_nexus_nsi_terminale_specialite"]["scope_id"] == "prod_nsi_terminale_specialite_v3"
     with pytest.raises(ValueError, match="scope.*release"):
         harness.load_final_scopes(generated, artifacts, {"rag_nexus_nsi_terminale_specialite"})
-    scopes[0]["scope_id"] = "prod_nsi_terminale_specialite_v4"
+    scopes[0]["target_policy"]["tenant"] = "libre_autre"
     generated.write_text(json.dumps(scopes))
     with pytest.raises(ValueError, match="gouverné"):
         harness.load_final_scopes(generated, artifacts, collections)
-    scopes[0]["scope_id"] = "prod_nsi_terminale_specialite_v3"
+    scopes[0]["target_policy"]["tenant"] = "libre_terminale"
     scopes[0]["artifact_version"] = "2"
     generated.write_text(json.dumps(scopes))
     (artifacts / "retrieval-scope-prod-nsi-terminale-specialite-v3.json").write_text(json.dumps(scopes[0]))
