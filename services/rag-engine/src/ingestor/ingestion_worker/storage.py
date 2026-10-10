@@ -191,21 +191,22 @@ def make_sealed_release_artifact_reader(
         selected_suffix = suffix
         if media_type == "application/pdf":
             # Les transferts historiques acceptent l'extension PDF avec une
-            # casse variable. Vérifier chaque nom exact, sans suivre de lien
-            # symbolique, puis relire par l'adaptateur O_NOFOLLOW existant.
-            variants = tuple(
-                f".{p}{d}{f}"
-                for p in "pP" for d in "dD" for f in "fF"
-                if os.path.lexists(
-                    resolved_base_dir / f"{content_sha256}.{p}{d}{f}"
+            # casse variable. Énumérer les noms réellement inscrits : sur
+            # un FS insensible à la casse, les huit lexists seraient vrais
+            # pour un seul fichier. La lecture reste protégée par O_NOFOLLOW.
+            with os.scandir(resolved_base_dir) as entries:
+                variants = tuple(
+                    entry.name
+                    for entry in entries
+                    if entry.name.rsplit(".", 1)[0] == content_sha256
+                    and entry.name.rsplit(".", 1)[-1].lower() == "pdf"
                 )
-            )
             if len(variants) > 1:
                 raise SealedArtifactDigestError(
                     f"ambiguous PDF case variants for {content_sha256}"
                 )
             if variants:
-                selected_suffix = variants[0]
+                selected_suffix = variants[0][len(content_sha256):]
         content: bytes = read_artifact(
             extracted_text_ref=str(resolved_base_dir / f"{content_sha256}{selected_suffix}")
         )

@@ -84,12 +84,18 @@ def test_trusted_status_requires_successful_pinned_workflow_run() -> None:
     run = {"id": 123, "name": "Trusted human review",
            "path": ".github/workflows/trusted-human-review.yml",
            "event": "issue_comment", "status": "completed", "conclusion": "success",
+           "head_sha": "b" * 40,
            "created_at": "2026-10-10T07:08:35Z"}
-    _validate_trusted_workflow_run(status, run)
+    _validate_trusted_workflow_run(status, run, expected_base_sha="b" * 40)
     with pytest.raises(AuthorityReceiptError, match="WORKFLOW"):
-        _validate_trusted_workflow_run(status, {**run, "path": ".github/workflows/other.yml"})
+        _validate_trusted_workflow_run(status, {**run, "path": ".github/workflows/other.yml"},
+                                       expected_base_sha="b" * 40)
     with pytest.raises(AuthorityReceiptError, match="WORKFLOW"):
-        _validate_trusted_workflow_run({**status, "target_url": "https://example.invalid"}, run)
+        _validate_trusted_workflow_run({**status, "target_url": "https://example.invalid"}, run,
+                                       expected_base_sha="b" * 40)
+    with pytest.raises(AuthorityReceiptError, match="WORKFLOW"):
+        _validate_trusted_workflow_run(status, {**run, "head_sha": "f" * 40},
+                                       expected_base_sha="b" * 40)
 
 
 @pytest.mark.parametrize("mutation", [

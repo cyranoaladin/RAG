@@ -169,9 +169,13 @@ class Citation(BaseModel):
         default=None,
         pattern=r"^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$",
         json_schema_extra={
-            "oneOf": [
-                {"type": "string", "format": "date"},
-                {"type": "string", "format": "date-time"},
+            "anyOf": [
+                {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"},
+                {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$",
+                },
                 {"type": "null"},
             ]
         },

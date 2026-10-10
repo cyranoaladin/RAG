@@ -381,7 +381,13 @@
         "source_updated_at": {
           "anyOf": [
             {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}(?:T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z)?$",
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
               "type": "string"
             },
             {
@@ -389,19 +395,6 @@
             }
           ],
           "default": null,
-          "oneOf": [
-            {
-              "format": "date",
-              "type": "string"
-            },
-            {
-              "format": "date-time",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
           "title": "Source Updated At"
         },
         "source_uri": {

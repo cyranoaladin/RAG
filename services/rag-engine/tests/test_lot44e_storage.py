@@ -15,6 +15,7 @@ from uuid import uuid4
 
 import pytest
 
+import ingestor.ingestion_worker.storage as storage_module
 from ingestor.ingestion_worker.storage import (
     ArtifactPathEscapeError,
     SealedArtifactDigestError,
@@ -61,6 +62,18 @@ def test_sealed_pdf_reader_accepts_historical_uppercase_suffix(tmp_path: Path) -
     sha = hashlib.sha256(payload).hexdigest()
     (tmp_path / f"{sha}.PDF").write_bytes(payload)
     reader = make_sealed_release_artifact_reader(tmp_path)
+    assert reader(content_sha256=sha) == payload
+
+
+def test_pdf_reader_counts_real_directory_entries_not_casefolded_lookups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Un FS insensible à la casse résout huit graphies vers un seul inode."""
+    payload = b"%PDF-1.4 source historique\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.PDF").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(tmp_path)
+    monkeypatch.setattr(storage_module.os.path, "lexists", lambda _path: True)
     assert reader(content_sha256=sha) == payload
 
 

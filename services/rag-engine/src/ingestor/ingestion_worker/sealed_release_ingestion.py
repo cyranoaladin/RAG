@@ -539,8 +539,8 @@ def _transferred_artifact_files(
             filename == f"{expected}.txt"
             if suffix == ".txt"
             else isinstance(filename, str)
-            and filename.startswith(f"{expected}.")
-            and filename.rsplit(".", 1)[-1].lower() == "pdf"
+            and filename == f"{expected}.{filename[-3:]}"
+            and filename[-3:].lower() == "pdf"
         )
         _require(
             correct_name and expected not in filenames,

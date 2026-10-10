@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
+import Ajv2020 from 'ajv/dist/2020.js'
 
+import ChatResponseSchema from '@/generated/schema/chat-response.json'
+import RetrievalResponseSchema from '@/generated/schema/retrieval-response.json'
 import { validateRetrievalResponse } from '@/generated/validators'
 
 const legacyCitation = {
@@ -43,6 +46,28 @@ describe('contrat BFF des citations dérivées publiques', () => {
       source_updated_at: '2026-02-30',
       derivative_notice: 'Extrait textuel dérivé.',
     }))).toBe(false)
+  })
+
+  it('accepte les dates ISO sans plugin de validation de format dans les deux schémas', () => {
+    for (const schema of [RetrievalResponseSchema, ChatResponseSchema]) {
+      const validator = new Ajv2020({ strict: false, logger: false }).compile(schema.$defs.Citation)
+      for (const source_updated_at of ['2026-09-12', '2026-10-10T06:04:23.168Z']) {
+        expect(validator({
+          ...legacyCitation,
+          licensor: 'Ministère de l’Éducation nationale – Dgesco / Éduscol',
+          licence_id: 'ETALAB-2.0',
+          source_updated_at,
+          derivative_notice: 'Extrait textuel dérivé.',
+        })).toBe(true)
+      }
+      expect(validator({
+        ...legacyCitation,
+        licensor: 'Ministère de l’Éducation nationale – Dgesco / Éduscol',
+        licence_id: 'ETALAB-2.0',
+        source_updated_at: 'date-inconnue',
+        derivative_notice: 'Extrait textuel dérivé.',
+      })).toBe(false)
+    }
   })
 
   it('accepte une attribution publique complète liée à la page source', () => {

@@ -637,6 +637,25 @@ def test_pdf_majuscule_transfere_est_relu_aux_octets_exactes(
     assert paths[identifier].name == f"{identifier}.PDF"
 
 
+@pytest.mark.parametrize("poisoned_name", [
+    "{sha}.pdf/../../outside.pdf",
+    "{sha}.PDF/../outside.pdf",
+    "{sha}.pdf\\..\\outside.pdf",
+])
+def test_manifeste_pdf_refuse_un_chemin_traversant_malgre_suffixe_valide(
+    synthetic: dict[str, Any], poisoned_name: str,
+) -> None:
+    identifier = synthetic["identifiers"]["a"]
+    transfer_path = synthetic["transfer_path"]
+    transfer = json.loads(transfer_path.read_text("utf-8"))
+    for row in transfer["files"]:
+        if row["sha256_expected"] == identifier:
+            row["file"] = poisoned_name.format(sha=identifier)
+    transfer_path.write_text(json.dumps(transfer), encoding="utf-8")
+    with pytest.raises(sri.SealedReleaseIngestionError, match="ne correspond"):
+        _load_synthetic(synthetic)
+
+
 def test_le_store_texte_scelle_est_accepte_avec_declaration_et_sha_exacts(
     synthetic_text: dict[str, Any],
 ) -> None:
