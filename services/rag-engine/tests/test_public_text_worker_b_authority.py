@@ -42,6 +42,7 @@ def _activation(*, expires_at: datetime | None = None) -> PublicSuccessorActivat
         release_registry_sha256=content.release_registry_sha256,
         scope_authority_sha256="b" * 64,
         subject_sha256_by_collection=content.subject_sha256_by_collection,
+        scope_sha256_by_id={},
         counts=content.expected_counts,
         expires_at_utc=expires_at or datetime.now(UTC) + timedelta(minutes=5),
     )
