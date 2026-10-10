@@ -262,30 +262,93 @@ def test_final_scope_index_matches_all_sealed_collections_and_governed_artifacts
     for subject, collection in (("nsi", "rag_nexus_nsi_terminale_specialite"), ("hggsp", "rag_nexus_hggsp_terminale_specialite")):
         scope = {
             "artifact_version": "3",
-            "scope_id": f"prod_{subject}_terminale_specialite_v3",
+            "scope_id": f"student_public_{subject}_terminale_specialite_v1",
             "status": "eligible_for_promotion",
-            "target_policy": {"tenant": "libre_terminale", "niveau": "terminale", "voie": "generale", "matiere": subject, "statut_enseignement": "specialite", "audiences": ["libre"], "candidates": ["libre"], "roles": ["student", "teacher"]},
+            "target_policy": {"tenant": "libre_terminale", "niveau": "terminale", "voie": "generale", "matiere": subject, "statut_enseignement": "specialite", "audiences": ["libre"], "candidates": ["libre"], "roles": ["student"]},
             "evidence_subject": {"collection": collection, "school_year": "2026-2027", "visibility": "public", "rights": ["public_allowed"]},
         }
-        (artifacts / f"retrieval-scope-prod-{subject}-terminale-specialite-v3.json").write_text(json.dumps(scope))
+        (artifacts / f"retrieval-scope-student-public-{subject}-terminale-specialite-v1.json").write_text(json.dumps(scope))
         scopes.append(scope)
     generated = tmp_path / "final.json"
     generated.write_text(json.dumps(scopes))
-    result = harness.load_final_scopes(generated, artifacts, collections)
+    expected_ids = {scope["evidence_subject"]["collection"]: scope["scope_id"] for scope in scopes}
+    result = harness.load_final_scopes(generated, artifacts, collections, expected_ids)
     assert set(result) == collections
-    assert result["rag_nexus_nsi_terminale_specialite"]["scope_id"] == "prod_nsi_terminale_specialite_v3"
+    assert result["rag_nexus_nsi_terminale_specialite"]["scope_id"] == "student_public_nsi_terminale_specialite_v1"
     with pytest.raises(ValueError, match="scope.*release"):
-        harness.load_final_scopes(generated, artifacts, {"rag_nexus_nsi_terminale_specialite"})
+        harness.load_final_scopes(generated, artifacts, {"rag_nexus_nsi_terminale_specialite"}, expected_ids)
     scopes[0]["target_policy"]["tenant"] = "libre_autre"
     generated.write_text(json.dumps(scopes))
     with pytest.raises(ValueError, match="gouverné"):
-        harness.load_final_scopes(generated, artifacts, collections)
+        harness.load_final_scopes(generated, artifacts, collections, expected_ids)
     scopes[0]["target_policy"]["tenant"] = "libre_terminale"
     scopes[0]["artifact_version"] = "2"
     generated.write_text(json.dumps(scopes))
-    (artifacts / "retrieval-scope-prod-nsi-terminale-specialite-v3.json").write_text(json.dumps(scopes[0]))
+    (artifacts / "retrieval-scope-student-public-nsi-terminale-specialite-v1.json").write_text(json.dumps(scopes[0]))
     with pytest.raises(ValueError, match="V3|public"):
-        harness.load_final_scopes(generated, artifacts, collections)
+        harness.load_final_scopes(generated, artifacts, collections, expected_ids)
+
+
+def test_prepared_successor_binds_exact_eleven_student_public_scope_ids():
+    harness = load_harness()
+    index = ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042/preparation-index.json"
+    digest = hashlib.sha256(index.read_bytes()).hexdigest()
+    expected = {row["collection"] for row in json.loads(index.read_text())["proposed_scopes"]}
+    ids = harness.load_prepared_scope_ids(index, digest, expected)
+    assert len(ids) == 11
+    assert ids["rag_nexus_nsi_terminale_specialite"] == "student_public_nsi_terminale_specialite_v1"
+    assert all(scope_id.startswith("student_public_") and scope_id.endswith("_v1") for scope_id in ids.values())
+
+
+@pytest.mark.parametrize("sabotage", ["duplicate_id", "issued", "subject_drift", "manifest_drift"])
+def test_prepared_scope_lineage_refuses_false_issuance_or_identity_drift(tmp_path, sabotage):
+    harness = load_harness()
+    source = ROOT / "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_student_public_successor_v1/release-fcc84331e7700042"
+    index = json.loads((source / "preparation-index.json").read_text())
+    manifest = source / "profile_gate/production-profile-gate.release.json"
+    target_manifest = tmp_path / "profile_gate/production-profile-gate.release.json"
+    target_manifest.parent.mkdir()
+    target_manifest.write_bytes(manifest.read_bytes())
+    if sabotage == "duplicate_id":
+        index["proposed_scopes"][1]["proposed_scope_id"] = index["proposed_scopes"][0]["proposed_scope_id"]
+    elif sabotage == "issued":
+        index["proposed_scopes"][0]["status"] = "ISSUED"
+    elif sabotage == "subject_drift":
+        index["proposed_scopes"][0]["final_subject_sha256"] = "0" * 64
+    else:
+        index["release_manifest_sha256"] = "0" * 64
+    index_path = tmp_path / "preparation-index.json"
+    index_path.write_text(json.dumps(index))
+    collections = {row["collection"] for row in index["proposed_scopes"]}
+    with pytest.raises(ValueError, match="preparation|préparatoire|scope"):
+        harness.load_prepared_scope_ids(index_path, hashlib.sha256(index_path.read_bytes()).hexdigest(), collections)
+
+
+@pytest.mark.parametrize("field", ["roles", "rights", "scope_id"])
+def test_final_scope_rejects_teacher_rights_drift_or_unissued_id(tmp_path, field):
+    harness = load_harness()
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    collection = "rag_nexus_nsi_terminale_specialite"
+    scope_id = "student_public_nsi_terminale_specialite_v1"
+    scope = {
+        "artifact_version": "3", "scope_id": scope_id,
+        "status": "eligible_for_promotion", "source_sha256": "a" * 64,
+        "target_policy": {"roles": ["student"]},
+        "evidence_subject": {"collection": collection, "visibility": "public", "rights": ["public_allowed"]},
+    }
+    if field == "roles":
+        scope["target_policy"]["roles"] = ["student", "teacher"]
+    elif field == "rights":
+        scope["evidence_subject"]["rights"] = ["officiel_public"]
+    else:
+        scope["scope_id"] = "prod_nsi_terminale_specialite_v3"
+    generated = tmp_path / "final.json"
+    generated.write_text(json.dumps([scope]))
+    resource = artifact_dir / f"retrieval-scope-{scope['scope_id'].replace('_', '-')}.json"
+    resource.write_text(json.dumps(scope))
+    with pytest.raises(ValueError, match="V3|public|scope"):
+        harness.load_final_scopes(generated, artifact_dir, {collection}, {collection: scope_id})
 
 
 def test_signed_claims_match_selected_final_scope_and_digest():
@@ -355,6 +418,7 @@ def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles, stude
     monkeypatch.setattr(harness, "_git", fake_git)
     monkeypatch.setattr(harness, "_live_main_sha", lambda _root: head)
     monkeypatch.setattr(harness, "_sha256", lambda _path: "a" * 64)
+    monkeypatch.setattr(harness, "load_prepared_scope_ids", lambda *_args: {collection: scope["scope_id"] for collection, scope in scopes.items()})
     monkeypatch.setattr(harness, "load_final_scopes", lambda *_args: scopes)
     monkeypatch.setattr(harness, "_get_health", lambda _url: (200, {"status": "ok", "build_sha": head}))
     monkeypatch.setattr(harness, "load_release_evidence", lambda *_args, **_kwargs: {"placement": {"content_sha256": "b" * 64}})
@@ -377,7 +441,7 @@ def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles, stude
         return 200, {"results": [{"citation": {"source_uri": "https://eduscol.education.gouv.fr"}}]}
     monkeypatch.setattr(harness, "_post_search", post)
     monkeypatch.setattr(harness, "assess_positive", lambda *_args, **_kwargs: {"results": 1, "citation_count": 1})
-    args = Namespace(repository_root=root, operator_id="test", cockpit_url="http://127.0.0.1:18004", expected_sha=head, scope_index=scope_index, registry=registry, registry_sha256="a" * 64, collection=selected, query="test", student_mode=student_mode)
+    args = Namespace(repository_root=root, operator_id="test", cockpit_url="http://127.0.0.1:18004", expected_sha=head, scope_index=scope_index, preparation_index=scope_index, preparation_index_sha256="a" * 64, registry=registry, registry_sha256="a" * 64, collection=selected, query="test", student_mode=student_mode)
     report = harness.run(args)
     assert minted == (["student", "teacher"] if "teacher" in roles else ["student"])
     if "teacher" in roles:

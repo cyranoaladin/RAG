@@ -1,8 +1,8 @@
 # Lot #293 — harnais HTTP du BFF pour le successeur public
 
 Actualisation UTC : 2026-10-10. Base relue avant intégration :
-`origin/main=18af99119269a20a6651ca784d8f7022219c0cc8` après #323,
-arbre `4188b6ccdac11aa8604c3325481b72ba7c9afe97`. La branche #293 a
+`origin/main=b08c4def985af1a5d471402f80537387a661106d` après #323 et #319,
+arbre `cdfa4f3dbebfb42196558ff49ac57276a8680fbe`. La branche #293 a
 fusionné cette base sans réécrire son historique. Aucun staging ou production
 n'a été modifié, et aucune réussite E2E live n'est revendiquée.
 
@@ -16,6 +16,12 @@ Il refuse donc les manifests V4/V5 `rehearsal` et les paquets successeurs
 explicitement par `--scope-index`, doit être dans le checkout final, et doit
 correspondre aux onze artefacts gouvernés de `packages/contracts`. Chaque
 scope est public et lie `source_sha256` aux octets du subject final scellé.
+Les onze IDs `student_public_*_v1` viennent de l'index préparatoire #323,
+fourni avec `--preparation-index` et son SHA-256 recalculé. Le harnais vérifie
+son manifest, les collections, les IDs et les digests de subjects ; son statut
+`NOT_ISSUED` ne vaut pas autorisation de servir. Chaque artefact V3 final
+doit ensuite porter le même ID, `roles: [student]` et
+`rights: [public_allowed]`, conformément à la proposition #294 encore draft.
 Le rôle de test doit être autorisé dans `target_policy.roles` ; aucune
 autorisation enseignant n'est déduite d'un scope étudiant. Sur un scope
 `roles: [student]`, le harnais ne tente jamais de signer `teacher` : il teste
@@ -24,8 +30,10 @@ le 403 hors collection avec la session `student` et inscrit
 `NOT_RUN_SCOPE_ROLE_NOT_ISSUED`. Son `verification_status` est alors
 `STUDENT_ONLY_VERIFIED`, la sortie `BFF_E2E_PASS=false` et
 `STUDENT_PUBLIC_BFF_E2E_PASS=true` en mode public. Le statut global `VERIFIED`
-et `BFF_E2E_PASS=true` exigent aussi le parcours positif `teacher`, exécuté
-seulement si ce rôle figure explicitement dans le scope final émis. Le mode
+et `BFF_E2E_PASS=true` exigent aussi le parcours positif `teacher`. Avec les
+scopes student-only de #294, la preuve reste `STUDENT_ONLY_VERIFIED` et le
+statut global reste rouge ; un scope enseignant distinct serait nécessaire
+si le contrat go-live exige ce parcours. Le mode
 historique `internal`, même si son refus étudiant est vérifié, porte
 `INTERNAL_STUDENT_REFUSAL_VERIFIED` et ne peut pas satisfaire ce statut global.
 
@@ -69,7 +77,8 @@ des placements, ni la politique de droits du runtime.
   son état demeure `candidate/NOT_PROMOTABLE/PRE_REVIEW` et il interdit
   l'activation production. Cette lecture est locale, pas un E2E.
 - #294 est une proposition d'autorité, non l'émission des onze scopes V3.
-  Elle borne `target_policy.roles` à `student`. Le harnais ne revendique donc
+  Elle borne `target_policy.roles` à `student` et les droits à `public_allowed`.
+  Le harnais ne revendique donc
   aucune preuve positive `teacher` pour cette proposition. La preuve
   enseignant exige une autorité de scope distincte ou une politique finale
   explicitement approuvée couvrant ce rôle.
@@ -92,8 +101,9 @@ des placements, ni la politique de droits du runtime.
   parcours enseignant ; `STUDENT_ONLY_VERIFIED` ne ferme pas ce gate.
 
 Après émission des scopes, approbation de la release et déploiement de la
-cible finale, l'invocation doit fournir les chemins et empreintes **recalculés
-depuis la release finale**, et non ceux du paquet préparatoire :
+cible finale, l'invocation doit fournir le registre et les scopes de la
+**release finale**, ainsi que l'index préparatoire #323 et son empreinte
+recalculée depuis le checkout qualifié :
 
 ```bash
 python3 scripts/go_live/staging_bff_e2e.py \
@@ -102,6 +112,8 @@ python3 scripts/go_live/staging_bff_e2e.py \
   --registry "$FINAL_REGISTRY_PATH" \
   --registry-sha256 "$FINAL_REGISTRY_SHA256" \
   --scope-index "$FINAL_SCOPE_INDEX_PATH" \
+  --preparation-index "$SUCCESSOR_PREPARATION_INDEX_PATH" \
+  --preparation-index-sha256 "$SUCCESSOR_PREPARATION_INDEX_SHA256" \
   --expected-sha "$(git rev-parse origin/main)" \
   --operator-id "$USER" \
   --collection rag_nexus_nsi_terminale_specialite \
@@ -116,16 +128,21 @@ release, les droits, les scopes, le build et les résultats HTTP doivent tous
 être vérifiés à la cible finale.
 
 Vérification locale dans `/tmp/rag-pr293-main744-venv`, créé pour ce worktree :
-`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 40 tests verts,
+`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 48 tests verts,
 dont les sabotages RED→GREEN d'un second placement révoqué, en revue pendante,
 obsolète ou interne, d'un placement révoqué dans une autre collection du
 manifest, de citations aux droits `unknown`, `usage_interne` ou publics
 hors du scope signé, et de scopes étudiant contenant des droits non publics.
+Les cas RED→GREEN supplémentaires refusent un ancien ID `prod_*`, une fausse
+émission, un subject ou manifest divergent, un rôle `teacher` ou des droits
+historiques dans le scope étudiant final.
 Le parcours `student` seul et le parcours `teacher`
 explicitement autorisé restent couverts ;
 `ruff check` des deux fichiers Python : vert ; `git diff --check` : vert.
-Après intégration de #323 : 40 tests du harnais verts et 61 tests ciblés
-supplémentaires verts sur le transfert public, l'inventaire et les contrats
-de droits, citations et scopes V3. Ces suites ont tourné dans le venv propre
+Après intégration de #323 et #319 : 48 tests du harnais verts et 98 tests ciblés
+supplémentaires verts sur le transfert public, l'inventaire, le vérificateur
+externe #319 et les contrats de droits, citations et scopes V3. Ces suites
+ont tourné dans le venv propre
 du worktree, avec `nexus-contracts` installé en éditable depuis ce **même**
-worktree ; aucune dépendance éditable d'un autre checkout n'a été utilisée.
+worktree, ainsi que `nexus-release-chain` depuis ce même checkout ; aucune
+dépendance éditable d'un autre checkout n'a été utilisée.

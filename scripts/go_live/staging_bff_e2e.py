@@ -73,8 +73,56 @@ def canonical_scope_digest(scope: dict[str, Any]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def load_prepared_scope_ids(
+    index_path: Path, expected_digest: str, registry_collections: set[str]
+) -> dict[str, str]:
+    """Lier les IDs proposés par #323 sans prendre NOT_ISSUED pour une émission."""
+    if not SHA256.fullmatch(expected_digest) or _sha256(index_path) != expected_digest:
+        raise ValueError("preparation index digest invalide")
+    index = _object(json.loads(index_path.read_text(encoding="utf-8")), "preparation index")
+    manifest_path = index_path.parent / "profile_gate/production-profile-gate.release.json"
+    manifest_digest = index.get("release_manifest_sha256")
+    if not isinstance(manifest_digest, str) or not SHA256.fullmatch(manifest_digest) or _sha256(manifest_path) != manifest_digest:
+        raise ValueError("preparation manifest digest invalide")
+    manifest = _object(json.loads(manifest_path.read_text(encoding="utf-8")), "preparation manifest")
+    if (
+        index.get("kind") != "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V2"
+        or index.get("status") != "PREPARATION_ONLY_NOT_ACTIVABLE"
+        or index.get("release_id") != manifest.get("release_id")
+        or manifest.get("release_mode") != "candidate"
+        or manifest.get("promotion_status") != "NOT_PROMOTABLE"
+        or manifest.get("activation_status") != "NO_PRODUCTION_ACTIVATION"
+        or manifest.get("review_status") != "PRE_REVIEW"
+    ):
+        raise ValueError("index préparatoire #323 invalide")
+    refs = {ref["collection"]: ref["sha256"] for ref in manifest["subjects"]}
+    rows = index.get("proposed_scopes")
+    if not isinstance(rows, list) or len(rows) != 11 or set(refs) != registry_collections:
+        raise ValueError("scopes préparatoires incomplets")
+    scope_ids: dict[str, str] = {}
+    for raw in rows:
+        row = _object(raw, "scope préparatoire")
+        collection = row.get("collection")
+        scope_id = row.get("proposed_scope_id")
+        if (
+            not isinstance(collection, str)
+            or collection not in registry_collections
+            or collection in scope_ids
+            or not isinstance(scope_id, str)
+            or not re.fullmatch(r"student_public_[a-z0-9_]+_v1", scope_id)
+            or scope_id in scope_ids.values()
+            or row.get("status") != "NOT_ISSUED"
+            or row.get("final_subject_sha256") != refs[collection]
+        ):
+            raise ValueError("scope préparatoire #323 non concordant")
+        scope_ids[collection] = scope_id
+    assert_scope_registry_parity(set(scope_ids), registry_collections)
+    return scope_ids
+
+
 def load_final_scopes(
-    generated_path: Path, artifact_dir: Path, registry_collections: set[str]
+    generated_path: Path, artifact_dir: Path, registry_collections: set[str],
+    expected_scope_ids: dict[str, str],
 ) -> dict[str, dict[str, Any]]:
     """Lier la projection BFF aux onze artefacts gouvernés et au registre final."""
     generated = json.loads(generated_path.read_text(encoding="utf-8"))
@@ -90,16 +138,17 @@ def load_final_scopes(
         target = scope.get("target_policy")
         if (
             not isinstance(scope_id, str)
-            or not re.fullmatch(r"prod_[a-z0-9_]+_v[0-9]+", scope_id)
+            or not re.fullmatch(r"student_public_[a-z0-9_]+_v1", scope_id)
             or not isinstance(collection, str)
             or scope_id in scope_ids
             or collection in scopes
+            or expected_scope_ids.get(collection) != scope_id
             or scope.get("artifact_version") != "3"
             or scope.get("status") != "eligible_for_promotion"
             or subject.get("visibility") != "public"
+            or subject.get("rights") != ["public_allowed"]
             or not isinstance(target, dict)
-            or not isinstance(target.get("roles"), list)
-            or "student" not in target["roles"]
+            or target.get("roles") != ["student"]
         ):
             raise ValueError("index de scopes V3 publics ambigu ou invalide")
         canonical = artifact_dir / f"retrieval-scope-{scope_id.replace('_', '-')}.json"
@@ -108,6 +157,7 @@ def load_final_scopes(
         scopes[collection] = scope
         scope_ids.add(scope_id)
     assert_scope_registry_parity(set(scopes), registry_collections)
+    assert_scope_registry_parity(set(expected_scope_ids), registry_collections)
     return scopes
 
 
@@ -498,6 +548,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     scope_path = args.scope_index.resolve()
     if not scope_path.is_relative_to(root):
         raise ValueError("index de scopes hors checkout")
+    preparation_path = args.preparation_index.resolve()
+    if not preparation_path.is_relative_to(root):
+        raise ValueError("index préparatoire hors checkout")
     if _sha256(args.registry) != args.registry_sha256:
         raise ValueError("release registry digest invalide")
     registry = _object(json.loads(args.registry.read_text(encoding="utf-8")), "registry")
@@ -514,10 +567,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         raise ValueError("release manifest digest invalide")
     manifest = _object(json.loads(manifest_path.read_text(encoding="utf-8")), "manifest")
     assert_final_successor_release(manifest)
+    expected_scope_ids = load_prepared_scope_ids(
+        preparation_path, args.preparation_index_sha256, registry_collections,
+    )
     scopes = load_final_scopes(
         scope_path,
         root / "packages/contracts/src/nexus_contracts/artifacts",
         registry_collections,
+        expected_scope_ids,
     )
     subject_refs = manifest.get("subjects")
     if not isinstance(subject_refs, list) or len(subject_refs) != 11:
@@ -585,6 +642,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "cockpit_runtime_build_sha": runtime_build_sha,
         "checkout_tree": _git(root, "rev-parse", "HEAD^{tree}"),
         "release_registry_sha256": args.registry_sha256,
+        "preparation_index_sha256": args.preparation_index_sha256,
         "final_scope_index_sha256": _sha256(scope_path),
         "selected_scope_digest": canonical_scope_digest(scope),
         "cockpit_url": cockpit_url,
@@ -596,6 +654,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "registry": str(args.registry.resolve().relative_to(root)),
             "registry_sha256": args.registry_sha256,
             "scope_index": str(scope_path.relative_to(root)),
+            "preparation_index": str(preparation_path.relative_to(root)),
             "expected_sha": args.expected_sha,
             "collection": args.collection,
             "query": args.query,
@@ -628,6 +687,8 @@ def main() -> int:
     parser.add_argument("--registry", type=Path, required=True)
     parser.add_argument("--registry-sha256", required=True)
     parser.add_argument("--scope-index", type=Path, required=True)
+    parser.add_argument("--preparation-index", type=Path, required=True)
+    parser.add_argument("--preparation-index-sha256", required=True)
     parser.add_argument("--expected-sha", required=True)
     parser.add_argument("--collection", default=NSI_COLLECTION)
     parser.add_argument("--query", default="Quel est le programme de spécialité NSI en terminale ?")
