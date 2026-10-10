@@ -11,7 +11,7 @@ Cette preuve concerne **seulement le dump 005/020** et le corpus interne 11 coll
 | Élément | Observation |
 |---|---|
 | Checkout source | `origin/main` `84c05e0041b17e59f2b0f99a69193352a8d9dab0`, tree `070bd8f8a5f875df16d2db487833538c3e505d98` |
-| Sauvegarde | `/srv/nexus-staging/backups/go-live-v4-v5-20261009T071730Z/ragdb_profile_gate_v4.dump`, 49 061 488 octets, format `pg_dump -Fc` validé par `pg_restore --list` |
+| Sauvegarde | identifiant relatif sous la racine des sauvegardes staging : `go-live-v4-v5-20261009T071730Z/ragdb_profile_gate_v4.dump` ; 49 061 488 octets, format `pg_dump -Fc` validé par `pg_restore --list` |
 | SHA-256 sauvegarde | `b63671f3cc63135685f7a241fdb1369aebc08f672e5b0a69fc2910eab3967f83` ; `sha256sum -c` réussi avant restauration et empreinte inchangée après |
 | Source | conteneur `nexus-staging-pgvector-1`, base `ragdb_profile_gate_v4`, lectures SQL seules |
 | Cible | conteneur temporaire `nexus-restore-84c-*`, volume nommé neuf `nexus-restore-84c-data-*`, `--network none`, zéro port publié, mémoire limitée à 4 Gio et CPU à 2, sans API ni worker |
