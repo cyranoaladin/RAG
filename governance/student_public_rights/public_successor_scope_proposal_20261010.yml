@@ -1,4 +1,3 @@
-# Proposition #323 seulement : aucun scope émis, aucune activation.
 authority_kind: NEXUS_STUDENT_PUBLIC_SUCCESSOR_SCOPE_PROPOSAL_V1
 status: PENDING_EXACT_HEAD_AUTHORITY_REVIEW
 source_pr: 323
@@ -42,6 +41,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: 75836923108abb72a729e2d521a3613fa69c0a117b8cc01816cfacf910a78bfe
   complete_profile_sha256: a62fe4c4a8f118b3185778d50395d31851b5d6aec4c19d961d827b44d7a45038
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A
 - collection: rag_nexus_hggsp_premiere_specialite
   prepared_subject_sha256: 993d6a4c4a294a5b5fcdef60c9d738a57bc1e520b36cb9918c596779e5f0d06e
   final_subject_sha256: null
@@ -65,6 +70,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: 06828b93f9fcd726214da93291eed3cc2e210ceccef0adb1cb4ab6583416dcec
   complete_profile_sha256: 5fad15a3b326a1a156e4a6572bd730339c139549acc8875ade7f28d621df2df4
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_hggsp_terminale_specialite
   prepared_subject_sha256: 7df591d677da24eb7165d17a56280120085207edd85061ddbd43d933ae017b31
   final_subject_sha256: null
@@ -88,6 +99,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: e0802049dce01783193bd6e38cb8fd9436baf47eec0ecc94cb96692d1329ad8a
   complete_profile_sha256: 569798d30b62940a5835d59e371336ca01dfd20ffe4fb18a5154be413b1a479d
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_hlp_premiere_specialite
   prepared_subject_sha256: bc35a10a00aa41f9a297f6a0e8a8367c67468d8ba25c4e3b2a2d1c5e40f752c5
   final_subject_sha256: null
@@ -111,6 +128,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: be9af3159426ab3d2b85fa3318cffc02607e158de126ca6f07b945f62e6c81a6
   complete_profile_sha256: 3c818f3190f2c57841a133e20f1af838810fb08099e4faf36dfc672246fd3e77
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_hlp_terminale_specialite
   prepared_subject_sha256: 8c5c0c1c5bfcf50ccb3f99cd65336ff180935e523f04655d0d3ccf8f7abdf2e2
   final_subject_sha256: null
@@ -134,6 +157,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: cb0511b458c9e38bc66beb980b7e42db7590916dd6429bbdda58f6868a094f27
   complete_profile_sha256: 8ddf0396046af742b025bb338be8a0ba5dc7a2d5afcdf265cc91d957be979c47
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_nsi_premiere_specialite
   prepared_subject_sha256: 7061eb991a46ea457058b3c8f5a70eeae10f96330db19db56379f053d5a5494b
   final_subject_sha256: null
@@ -157,6 +186,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: 6b3b78313785bcd10b60af22833cc64a613d12b78952f5d0eace6984299b79ac
   complete_profile_sha256: 82978996fe1c01c74cb0c3b76e6246a75bd9926cc69abc22de6e053623c9f650
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_nsi_terminale_specialite
   prepared_subject_sha256: cd8dbebfedcab3179fc70a3ec8051e9fb794826d45f786302f61106184f57513
   final_subject_sha256: null
@@ -180,6 +215,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: 3f2a5d2c3a8eb17752706f0d6646f4cf78988d7da303864846119fe02fe482b6
   complete_profile_sha256: c74d40a6cb56c3e20d038bd39c1ebd0a7156aea43e8d7211ebe437c1c2edcdc2
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_ses_premiere_specialite
   prepared_subject_sha256: 0b92c5894bc028f2a0c14a0d6c8f56256a78764f59420599ad451bfad4a66a17
   final_subject_sha256: null
@@ -203,6 +244,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: 5fb32a332350a96aef025f4ff27ff9a6031f9ec492db76324b67102b7c819a10
   complete_profile_sha256: 1ab9a2230487a7eaaa91dc9851086ca901a5a70f5b872bcd95e801d4290c5dea
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_ses_terminale_specialite
   prepared_subject_sha256: 128dd506a6f2ff4c2c55302976a33c6406c542791ec64c91a415a89a73fc165e
   final_subject_sha256: null
@@ -226,6 +273,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: 800a23e5d82b002bb834073a60fa2f1ff37c5888041b1e88454b76db36828c4c
   complete_profile_sha256: b9c7f1764874db3f798483ce22c35753c0b06939e294594f2315a0a7a446c6de
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_8_2019-07-25
 - collection: rag_nexus_svt_premiere_specialite
   prepared_subject_sha256: e631069e547a93603cd3e85a6e26cb8f790d7ee2ea4f709af7752ed8cbb29dd4
   final_subject_sha256: null
@@ -249,6 +302,12 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: 9f9445434ab0d6c2a9cc8a3e8957dface26e36ca0e88eb268510076be811d4f2
   complete_profile_sha256: 902e68f10c6b93f7c5b61ecf2a793cc14f013434a19ded8838c5ea30f7a9e435
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_1_2019-01-22
 - collection: rag_nexus_svt_terminale_specialite
   prepared_subject_sha256: 63f92ba389fdc7f5f2cfd59a03d41da62115dc5eda1884f453e982f3dfdde034
   final_subject_sha256: null
@@ -272,3 +331,10 @@ bindings:
   complete_profile_version: student-public-derivative-v1
   complete_profile_fingerprint: effbbb44be1756b4088409e00f704893c43a370e9a3c920f3707c0e030052b45
   complete_profile_sha256: 78913d91cf546195adc80304622512c7275e2a38ddfe0d71cfa95b9ce4eae11e
+  rights:
+  - public_allowed
+  evidence_audiences:
+  - libre
+  - aefe
+  programme_version: BOEN_special_8_2019-07-25
+programme_registry_sha256: 67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97

@@ -85,6 +85,28 @@ def test_scope_proposal_names_complete_profile_identity() -> None:
                for row in bindings)
     assert all(len(row["complete_profile_fingerprint"]) == 64 for row in bindings)
     assert all(len(row["complete_profile_sha256"]) == 64 for row in bindings)
+    assert all(row["rights"] == ["public_allowed"] for row in bindings)
+    assert all(row["evidence_audiences"] == ["libre", "aefe"] for row in bindings)
+    assert all(row["programme_version"] for row in bindings)
+
+
+@pytest.mark.parametrize("sabotage", [
+    "legacy_rights", "wrong_audiences", "wrong_programme",
+    "wrong_programme_authority",
+])
+def test_successor_proposal_refuses_unproven_policy_dimensions(sabotage: str) -> None:
+    proposal = copy.deepcopy(_proposal())
+    row = proposal["bindings"][0]
+    if sabotage == "legacy_rights":
+        row["rights"] = ["officiel_public"]
+    elif sabotage == "wrong_audiences":
+        row["evidence_audiences"] = ["libre", "tous"]
+    elif sabotage == "wrong_programme":
+        row["programme_version"] = "BOEN_FAUX"
+    else:
+        proposal["programme_registry_sha256"] = "0" * 64
+    with pytest.raises(PublicScopePolicyError):
+        check_public_successor_scope_proposal(ROOT, proposal)
 
 
 def test_successor_proposal_requires_exact_rights_authority_bytes(tmp_path: Path) -> None:
@@ -99,6 +121,20 @@ def test_successor_proposal_requires_exact_rights_authority_bytes(tmp_path: Path
     authority.parent.mkdir(parents=True)
     authority.write_bytes((ROOT / relative).read_bytes() + b"\n# altered\n")
     with pytest.raises(PublicScopePolicyError, match="RIGHTS"):
+        check_public_successor_scope_proposal(tmp_path, _proposal())
+
+
+def test_successor_proposal_requires_exact_programme_authority_bytes(tmp_path: Path) -> None:
+    release = tmp_path / SUCCESSOR_DIR
+    release.parent.mkdir(parents=True)
+    release.symlink_to(ROOT / SUCCESSOR_DIR, target_is_directory=True)
+    rights = tmp_path / scope_gate.SUCCESSOR_RIGHTS_AUTHORITY
+    rights.parent.mkdir(parents=True)
+    rights.write_bytes((ROOT / scope_gate.SUCCESSOR_RIGHTS_AUTHORITY).read_bytes())
+    programme = tmp_path / scope_gate.SUCCESSOR_PROGRAMME_REGISTRY
+    programme.parent.mkdir(parents=True)
+    programme.write_bytes((ROOT / scope_gate.SUCCESSOR_PROGRAMME_REGISTRY).read_bytes() + b" ")
+    with pytest.raises(PublicScopePolicyError, match="PROGRAMME_AUTHORITY_DIVERGENT"):
         check_public_successor_scope_proposal(tmp_path, _proposal())
 
 

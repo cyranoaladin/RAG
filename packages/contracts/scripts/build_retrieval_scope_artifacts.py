@@ -1135,8 +1135,10 @@ def _require_human_decision_is_declared_as_such(entry: PolicyRegistryEntry) -> N
         "matiere": target.matiere,
         "statut_enseignement": target.statut_enseignement,
         "candidat": evidence.candidat.value,
-        "audiences": tuple(evidence.audiences),
-        "rights": ("officiel_public",),
+        # ADR-0064 addendum: the sealed public derivative profiles, not the
+        # internal PDF predecessor, define the served evidence population.
+        "audiences": ("libre", "aefe"),
+        "rights": ("public_allowed",),
         "policy_visibility": "public",
         "evidence_visibility": "public",
         "programme_version": evidence.programme_version,

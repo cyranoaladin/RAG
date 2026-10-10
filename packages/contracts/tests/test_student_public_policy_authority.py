@@ -48,8 +48,8 @@ def _proposal(**overrides: object) -> emitter.PolicyRegistryEntry:
         matiere="dgemc",
         statut_enseignement="option",
         candidat="libre",
-        audiences=("libre", "tous"),
-        rights=("officiel_public",),
+        audiences=("libre", "aefe"),
+        rights=("public_allowed",),
         policy_visibility="public",
         evidence_visibility="public",
         programme_version="BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
@@ -77,7 +77,7 @@ def test_adr_0064_is_limited_to_the_eleven_existing_policies(
         matiere=target.matiere,
         statut_enseignement=target.statut_enseignement,
         candidat=evidence.candidat.value,
-        audiences=tuple(evidence.audiences),
+        audiences=("libre", "aefe"),
         programme_version=evidence.programme_version,
     )
     emitter._require_human_decision_is_declared_as_such(entry)
@@ -88,6 +88,7 @@ def test_adr_0064_is_limited_to_the_eleven_existing_policies(
     [
         ("collection", "rag_nexus_anglais_terminale"),
         ("rights", ("usage_interne",)),
+        ("rights", ("officiel_public",)),
         ("rights", ("officiel_public", "nexus_proprietaire")),
         ("policy_visibility", "internal"),
         ("evidence_visibility", "internal"),

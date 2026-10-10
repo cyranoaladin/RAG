@@ -40,11 +40,19 @@ SUCCESSOR_RIGHTS_AUTHORITY = Path(
     "governance/student_public_rights/authorities/"
     "eduscol_etalab_2_0_sitewide_20261010.yml"
 )
+SUCCESSOR_PROGRAMME_REGISTRY = Path(
+    "services/rag-pedago/data/releases/prerentree_2026_2027/"
+    "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/programme_registry.json"
+)
+SUCCESSOR_PROGRAMME_REGISTRY_SHA256 = (
+    "67c91d6b0840864bf4750ef236a0c2f8cfb11804022fcf0ee70cbfd58320ee97"
+)
 SUCCESSOR_BINDING_KEYS = {
     "collection", "prepared_subject_sha256", "final_subject_sha256",
     "profile_fingerprint", "complete_profile_version",
     "complete_profile_fingerprint", "complete_profile_sha256",
-    "proposed_scope_id", "status", "visibility", "rights_basis", "target_policy",
+    "proposed_scope_id", "status", "visibility", "rights_basis", "rights",
+    "evidence_audiences", "programme_version", "target_policy",
 }
 
 
@@ -62,6 +70,7 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         "authority_kind", "status", "source_pr", "successor_release_id",
         "successor_release_manifest_sha256", "preparation_index_sha256",
         "public_profile_registry_sha256", "rights_authority_sha256",
+        "programme_registry_sha256",
         "expected_population", "scope_issuance_authorized",
         "publication_authorized", "full_pdf_redistribution_allowed",
         "answer_generation_allowed", "exact_head_authority_reviewer",
@@ -77,6 +86,7 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         or proposal.get("successor_release_id") != SUCCESSOR_RELEASE_ID
         or proposal.get("successor_release_manifest_sha256") != SUCCESSOR_MANIFEST_SHA256
         or proposal.get("preparation_index_sha256") != SUCCESSOR_INDEX_SHA256
+        or proposal.get("programme_registry_sha256") != SUCCESSOR_PROGRAMME_REGISTRY_SHA256
         or proposal.get("expected_population") != counts
         or proposal.get("scope_issuance_authorized") is not False
         or proposal.get("publication_authorized") is not False
@@ -120,6 +130,17 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         raise PublicScopePolicyError("SUCCESSOR_RELEASE_BINDING_INVALID")
     if _sha((root / SUCCESSOR_RIGHTS_AUTHORITY).read_bytes()) != proposal["rights_authority_sha256"]:
         raise PublicScopePolicyError("SUCCESSOR_RIGHTS_AUTHORITY_DIVERGENT")
+    programme_raw = (root / SUCCESSOR_PROGRAMME_REGISTRY).read_bytes()
+    if _sha(programme_raw) != SUCCESSOR_PROGRAMME_REGISTRY_SHA256:
+        raise PublicScopePolicyError("SUCCESSOR_PROGRAMME_AUTHORITY_DIVERGENT")
+    programme = _json(programme_raw, "SUCCESSOR_PROGRAMME_AUTHORITY_INVALID")
+    if (programme.get("registry_kind") != "NEXUS_PROGRAMME_INDEX_REGISTRY_V3"
+            or programme.get("school_year") != "2026-2027"):
+        raise PublicScopePolicyError("SUCCESSOR_PROGRAMME_AUTHORITY_INVALID")
+    taxonomies = _unique(
+        _rows(programme.get("taxonomies"), "SUCCESSOR_PROGRAMME_AUTHORITY_INVALID"),
+        "collection", "SUCCESSOR_PROGRAMME_AUTHORITY_INVALID",
+    )
     profile_path = release_dir / "profile_gate/public_profiles.json"
     if _sha(profile_path.read_bytes()) != proposal["public_profile_registry_sha256"]:
         raise PublicScopePolicyError("SUCCESSOR_PROFILE_DIGEST_DIVERGENT")
@@ -146,7 +167,7 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
     )
     collections = set(release.collections)
     if not (set(by_profile) == set(scope_rows) == set(bindings) == set(refs)
-            == set(complete_profiles) == collections):
+            == set(complete_profiles) == set(taxonomies) == collections):
         raise PublicScopePolicyError("SUCCESSOR_SCOPE_COLLECTIONS_DIVERGENT")
     if len({row.get("proposed_scope_id") for row in bindings.values()}) != 11:
         raise PublicScopePolicyError("SUCCESSOR_SCOPE_IDS_DUPLICATED")
@@ -157,6 +178,7 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         ref = refs[collection]
         prepared = scope_rows[collection]
         complete = complete_profiles[collection]
+        taxonomy = taxonomies[collection]
         target = binding.get("target_policy")
         expected_profile_path = f"profile_gate/profiles/{collection}.yml"
         if complete.get("path") != expected_profile_path:
@@ -183,6 +205,12 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
             }
         ):
             raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID")
+        taxonomy_path = taxonomy.get("path")
+        if (not isinstance(taxonomy_path, str)
+                or not taxonomy_path.startswith("services/rag-pedago/taxonomy/")
+                or ".." in Path(taxonomy_path).parts
+                or _sha((root / taxonomy_path).read_bytes()) != taxonomy.get("sha256")):
+            raise PublicScopePolicyError("SUCCESSOR_PROGRAMME_AUTHORITY_DIVERGENT")
         if (
             set(binding) != SUCCESSOR_BINDING_KEYS
             or binding.get("prepared_subject_sha256") != ref.get("sha256")
@@ -198,8 +226,18 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
             or binding.get("complete_profile_sha256") != complete.get("sha256")
             or binding.get("visibility") != "public"
             or binding.get("rights_basis") != AUTHORITY_ID
+            or binding.get("rights") != ["public_allowed"]
+            or binding.get("evidence_audiences") != ["libre", "aefe"]
+            or binding.get("programme_version") != taxonomy.get("programme_version")
             or not isinstance(scope, dict)
             or scope.get("visibility") != "public"
+            or scope.get("audience") != binding.get("evidence_audiences")
+            or scope.get("programme_version") != binding.get("programme_version")
+            or complete_profile.scope.audience != binding.get("evidence_audiences")
+            or complete_profile.scope.programme_version != binding.get("programme_version")
+            or any(scope.get(key) != taxonomy.get(key) for key in (
+                "niveau", "voie", "matiere", "statut_enseignement"
+            ))
             or not isinstance(target, dict)
         ):
             raise PublicScopePolicyError("SUCCESSOR_SCOPE_BINDING_INVALID")
