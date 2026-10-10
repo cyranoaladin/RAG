@@ -2373,7 +2373,9 @@ def _prometheus_port(verified: _VerifiedDeployInputs) -> int:
 def _default_public_prometheus_probe(port: int) -> bool:
     """Exige readiness, alertes chargées et collecte effective de l'API."""
     base = f"http://127.0.0.1:{port}"
-    deadline = time.monotonic() + 30
+    # Trois intervalles de collecte de 30 s : un premier scrape peut arriver
+    # juste après le délai de 30 s sans signaler de panne de l'API.
+    deadline = time.monotonic() + 90
     expected = {
         "RAGRetrievalMetricsScrapeFailed", "RAGRetrievalUnavailable",
         "RAGRetrievalTieOverflow", "RAGRetrievalP95High",

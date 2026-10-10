@@ -401,7 +401,7 @@ def test_real_prometheus_probe_requires_loaded_retrieval_alerts(
             return Response(b"ready")
         return Response(b'{"status":"success","data":{"groups":[]}}')
 
-    ticks = iter([0, 0, 31])
+    ticks = iter([0, 0, 91])
     monkeypatch.setattr(dep.urllib.request, "urlopen", urlopen)
     monkeypatch.setattr(dep.time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(dep.time, "sleep", lambda _seconds: None)
@@ -441,7 +441,7 @@ def test_real_prometheus_probe_refuses_uncollected_api_target(
             }}).encode())
         pytest.fail(f"unexpected Prometheus URL: {url}")
 
-    ticks = iter([0, 0, 31])
+    ticks = iter([0, 0, 91])
     monkeypatch.setattr(dep.urllib.request, "urlopen", urlopen)
     monkeypatch.setattr(dep.time, "monotonic", lambda: next(ticks))
     monkeypatch.setattr(dep.time, "sleep", lambda _seconds: None)
@@ -483,6 +483,47 @@ def test_real_prometheus_probe_accepts_loaded_alerts_and_collected_api(
     assert dep._default_public_prometheus_probe(19090) is True
     assert len(queried) == 1
     assert "up%7Bjob%3D%22rag-engine-v2%22%7D" in queried[0]
+
+
+def test_real_prometheus_probe_waits_for_first_scrape_after_thirty_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Response(io.BytesIO):
+        status = 200
+
+    alerts = [
+        {"type": "alerting", "name": name}
+        for name in (
+            "RAGRetrievalMetricsScrapeFailed", "RAGRetrievalUnavailable",
+            "RAGRetrievalTieOverflow", "RAGRetrievalP95High",
+        )
+    ]
+    queries = 0
+
+    def urlopen(url: str, **_kwargs: object) -> Response:
+        nonlocal queries
+        if url.endswith("/-/ready"):
+            return Response(b"ready")
+        if url.endswith("/api/v1/rules"):
+            return Response(json.dumps({"status": "success", "data": {"groups": [
+                {"name": "retrieval-v2", "rules": alerts}
+            ]}}).encode())
+        if "/api/v1/query?" in url:
+            queries += 1
+            targets = [] if queries == 1 else [
+                {"metric": {"job": "rag-engine-v2"}, "value": [31, "1"]}
+            ]
+            return Response(json.dumps({"status": "success", "data": {
+                "resultType": "vector", "result": targets,
+            }}).encode())
+        pytest.fail(f"unexpected Prometheus URL: {url}")
+
+    ticks = iter([0, 0, 31])
+    monkeypatch.setattr(dep.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(dep.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(dep.time, "sleep", lambda _seconds: None)
+    assert dep._default_public_prometheus_probe(19090) is True
+    assert queries == 2
 
 
 def test_public_host_guard_refuses_remote_docker_context(
