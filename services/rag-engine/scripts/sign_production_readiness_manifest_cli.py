@@ -1797,6 +1797,8 @@ def _main_v2(argv: list[str]) -> int:
                 )
             except Exception as error:  # noqa: BLE001 - frontière de signature
                 raise SigningToolError("public successor target pin changed before key") from error
+            _require_live_main_head(merge_sha)
+            _require_public_publication_fresh_at_key(public_publication, datetime.now(UTC))
         private_key_hex = _read_bytes_no_follow(
             args.private_key_file, label="private_key"
         ).decode("ascii").strip()

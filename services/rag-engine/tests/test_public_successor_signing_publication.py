@@ -202,11 +202,31 @@ def test_verified_target_pin_uses_historical_authority_and_exact_bytes(
         observed_v1_receipt_path=tmp_path / "observed.json",
         database_dsn="unused-secret",
     )
+    clock = {"now": evidence["now"]}
+
+    class Clock:
+        @staticmethod
+        def now(_: object) -> datetime:
+            return clock["now"]
+
+        @staticmethod
+        def fromisoformat(value: str) -> datetime:
+            return datetime.fromisoformat(value)
+
+    monkeypatch.setattr(replay, "datetime", Clock)
     replay.recheck_publication_pin_before_key(
         inputs, expected_content_anchor_sha256=evidence["expected_content_anchor_sha256"],
         expected_pin_sha256=digest, evidence_expires_at_utc=expiry,
         now_utc=evidence["now"],
     )
+    clock["now"] = expiry
+    with pytest.raises(replay.PublicationSigningReplayRefused):
+        replay.recheck_publication_pin_before_key(
+            inputs, expected_content_anchor_sha256=evidence["expected_content_anchor_sha256"],
+            expected_pin_sha256=digest, evidence_expires_at_utc=expiry,
+            now_utc=evidence["now"],
+        )
+    clock["now"] = evidence["now"]
     pin_path.write_bytes(b"substituted after first replay")
     with pytest.raises(replay.PublicationSigningReplayRefused):
         replay.recheck_publication_pin_before_key(
@@ -317,7 +337,7 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
     )
 
     def key(*_args: object) -> str:
-        assert calls == ["main", "main", "pin"]
+        assert calls == ["main", "main", "pin", "main"]
         raise staging.SigningRefused("test stopped at key boundary")
 
     monkeypatch.setattr(staging, "_read_private_key", key)
@@ -335,6 +355,71 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
         "--public-successor-database-dsn-file", str(dsn_file),
     ])
     assert result == 1
+
+
+@pytest.mark.parametrize("sabotage", ["main_advanced", "clock_expired"])
+def test_staging_refuses_change_during_pin_recheck_before_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sabotage: str,
+) -> None:
+    release = tmp_path / "release.json"
+    release.write_text("{}\n")
+    dsn_file = tmp_path / "database.dsn"
+    dsn_file.write_text("postgresql://example.invalid/unused")
+    base = datetime(2026, 10, 11, 12, tzinfo=UTC)
+    deadline = base + timedelta(minutes=30)
+    state = {"pin_rechecked": False, "clock_reads": 0, "key_reads": 0}
+
+    class Clock:
+        @staticmethod
+        def now(_: object) -> datetime:
+            state["clock_reads"] += 1
+            if sabotage == "clock_expired" and state["pin_rechecked"]:
+                return deadline
+            return base
+
+    def main_guard(*_args: object) -> None:
+        if sabotage == "main_advanced" and state["pin_rechecked"]:
+            raise staging.SigningRefused("main advanced during pin replay")
+
+    def pin_recheck(*_args: object, **_kwargs: object) -> None:
+        state["pin_rechecked"] = True
+
+    def key(*_args: object) -> str:
+        state["key_reads"] += 1
+        raise staging.SigningRefused("key was reached")
+
+    monkeypatch.setattr(staging, "datetime", Clock)
+    monkeypatch.setattr(staging, "_require_public_checkout_matches_merge", main_guard)
+    monkeypatch.setattr(staging, "_verify_public_successor_publication_replay",
+                        lambda *_: ("a" * 64, "b" * 64, SHA, deadline))
+    monkeypatch.setattr(replay, "recheck_publication_pin_before_key", pin_recheck)
+    monkeypatch.setattr(staging, "_read_private_key", key)
+    result = staging.main([
+        "--merge-sha", subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+        ).strip(),
+        "--worker-image", f"example/worker@sha256:{SHA}",
+        "--allowed-release-id", "student-public-successor-test",
+        "--release-manifest-file", str(release),
+        "--key-id", "test", "--private-key-file", str(tmp_path / "absent.key"),
+        "--trust-anchor-file", str(tmp_path / "anchor.json"),
+        "--output", str(tmp_path / "readiness.json"),
+        "--public-successor-phase", "PUBLICATION",
+        "--public-successor-database-dsn-file", str(dsn_file),
+    ])
+    assert result == 1
+    assert state["pin_rechecked"] is True
+    assert state["key_reads"] == 0
+
+
+def test_production_public_final_guard_follows_pin_recheck_before_key() -> None:
+    source = Path(production.__file__).read_text(encoding="utf-8")
+    main_v2 = source[source.index("def _main_v2("):source.index("def main(", source.index("def _main_v2("))]
+    pin = main_v2.index("recheck_publication_pin_before_key(")
+    final_main = main_v2.rfind("_require_live_main_head(merge_sha)")
+    final_clock = main_v2.rfind("_require_public_publication_fresh_at_key(")
+    key = main_v2.index("args.private_key_file", pin)
+    assert pin < final_main < final_clock < key
 
 
 def test_staging_publication_manifest_receives_verified_pin_digest(
