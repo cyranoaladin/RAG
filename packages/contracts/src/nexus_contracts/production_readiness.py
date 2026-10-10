@@ -56,7 +56,14 @@ from hashlib import sha256
 from types import MappingProxyType
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, Field, StrictInt, StrictStr, field_validator, model_validator
+from pydantic import (
+    AwareDatetime,
+    Field,
+    StrictInt,
+    StrictStr,
+    field_validator,
+    model_validator,
+)
 
 from nexus_contracts.document import StrictBaseModel
 
@@ -277,6 +284,20 @@ class ProductionReadinessManifestV2(StrictBaseModel):
     public_candidate_inventory_digest: StrictStr | None = Field(default=None, pattern=_HEX64)
     public_candidate_provenance_run_id: StrictInt | None = Field(default=None, gt=0)
     public_candidate_provenance_run_attempt: StrictInt | None = Field(default=None, gt=0)
+    # Extension additive : le successeur public garde A immuable et place ses
+    # autorités finales dans C. Une signature doit couvrir les deux identités.
+    public_successor_content_manifest_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
+    public_successor_content_anchor_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
+    public_successor_authority_envelope_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
+    public_successor_target_pin_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
 
     workflow_path: StrictStr = Field(pattern=_WORKFLOW_PATH)
     workflow_ref: StrictStr = Field(min_length=1, max_length=255)
@@ -351,6 +372,21 @@ class ProductionReadinessManifestV2(StrictBaseModel):
                 raise ValueError("public candidate worker images must be identical")
         elif "cockpit" in self.application_image_digests:
             raise ValueError("public candidate inventory is required when cockpit is signed")
+        successor_fields = (
+            self.public_successor_content_manifest_digest,
+            self.public_successor_content_anchor_digest,
+            self.public_successor_authority_envelope_digest,
+            self.public_successor_target_pin_digest,
+        )
+        if any(value is not None for value in successor_fields) != all(
+            value is not None for value in successor_fields
+        ):
+            raise ValueError("public successor A/C and independent target pin digests must be complete")
+        if (
+            self.public_successor_content_manifest_digest is not None
+            and self.public_successor_content_manifest_digest != self.sealed_manifest_digest
+        ):
+            raise ValueError("public successor content digest differs from sealed_manifest_digest")
         return self
 
     def canonical_document(self) -> dict[str, Any]:
@@ -390,6 +426,19 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             document["public_candidate_provenance_run_id"] = self.public_candidate_provenance_run_id
             document["public_candidate_provenance_run_attempt"] = (
                 self.public_candidate_provenance_run_attempt
+            )
+        if self.public_successor_content_manifest_digest is not None:
+            document["public_successor_content_manifest_digest"] = (
+                self.public_successor_content_manifest_digest
+            )
+            document["public_successor_content_anchor_digest"] = (
+                self.public_successor_content_anchor_digest
+            )
+            document["public_successor_authority_envelope_digest"] = (
+                self.public_successor_authority_envelope_digest
+            )
+            document["public_successor_target_pin_digest"] = (
+                self.public_successor_target_pin_digest
             )
         return document
 

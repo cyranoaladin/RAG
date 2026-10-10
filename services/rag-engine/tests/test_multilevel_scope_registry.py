@@ -262,7 +262,7 @@ def test_collections_picker_returns_only_the_signed_collection(
     config = _all_multilevel_instantiated()
     monkeypatch.setattr(endpoint, "_require_retrieval_identity", lambda *_args, **_kwargs: verified)
     monkeypatch.setattr(endpoint, "load_collection_config", lambda: config)
-    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name: True)
+    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name, **_kwargs: True)
     request = Request({"type": "http", "method": "GET", "path": "/collections/v2"})
 
     response = endpoint.list_retrievable_collections(request)
@@ -314,7 +314,7 @@ def test_v2_retrieval_requires_release_readiness_exactly_true(
     monkeypatch.setattr(
         endpoint,
         "_release_evidence_for_collection",
-        lambda _collection: release_state,
+        lambda _collection, **_kwargs: release_state,
     )
 
     with pytest.raises(HTTPException) as exc_info:
@@ -333,7 +333,7 @@ def test_v2_retrieval_accepts_exact_release_readiness_true(
     monkeypatch.setattr(
         endpoint,
         "_release_evidence_for_collection",
-        lambda _collection: True,
+        lambda _collection, **_kwargs: True,
     )
 
     definition = endpoint._check_retrievable(
@@ -362,7 +362,7 @@ def test_v2_picker_hides_collection_when_release_manifest_is_absent(
     monkeypatch.setattr(
         endpoint,
         "_release_evidence_for_collection",
-        lambda _collection: None,
+        lambda _collection, **_kwargs: None,
     )
 
     response = endpoint.list_retrievable_collections(
@@ -547,7 +547,7 @@ def test_request_gate_rejects_multilevel_scope_source_sha_drift(
     monkeypatch.setattr(
         endpoint,
         "_release_evidence_for_collection",
-        lambda _collection: True,
+        lambda _collection, **_kwargs: True,
     )
 
     assert endpoint._release_evidence_for_v2_artifact(drifted) is False
@@ -560,7 +560,7 @@ def test_request_gate_accepts_v2_subject_manifest_source_sha_match(
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     collection = str(artifact.evidence_subject.collection)
     registry = _multilevel_v2_release_registry((collection, artifact.source_sha256))
-    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name: True)
+    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name, **_kwargs: True)
     monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
 
     assert endpoint._release_evidence_for_v2_artifact(artifact) is True
@@ -573,7 +573,7 @@ def test_request_gate_rejects_v2_subject_manifest_source_sha_drift(
     assert isinstance(artifact, RetrievalScopeArtifactV2)
     collection = str(artifact.evidence_subject.collection)
     registry = _multilevel_v2_release_registry((collection, "0" * 64))
-    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name: True)
+    monkeypatch.setattr(endpoint, "_release_evidence_for_collection", lambda _name, **_kwargs: True)
     monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
 
     assert endpoint._release_evidence_for_v2_artifact(artifact) is False

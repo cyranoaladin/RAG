@@ -16,10 +16,12 @@ import hashlib
 import logging
 import os
 import re
+import stat
 import threading
 import time
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -40,12 +42,18 @@ from nexus_contracts import (
     load_retrieval_scope_registry,
 )
 from nexus_contracts.canonical_json import canonical_model_bytes
+from nexus_contracts.production_readiness import (
+    ProductionReadinessManifestV2,
+    parse_production_readiness_trust_anchor,
+    verify_production_readiness_manifest_v2,
+)
 
 # L'autorité de release vient du PAQUET, pas d'un module voisin : son import
 # ne dépend donc PAS du montage de l'image, contrairement aux modules que le
 # repli à plat ci-dessous renomme. La placer dans les deux branches créait une
 # redéfinition et laissait croire l'inverse.
 from nexus_release_chain.release_readiness import (
+    RELEASE_AUTHORITY_REGISTRY_FILE,
     DeploymentBindingError,
     ReleaseReadinessError,
     ReleaseRegistryExpectation,
@@ -108,6 +116,10 @@ try:
         remaining_database_budget_ms,
         runtime_database_budget,
         runtime_request_budget,
+    )
+    from .public_successor_db_guard import (
+        require_public_successor_live_controls,
+        require_public_successor_startup_lot42,
     )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
@@ -190,6 +202,10 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         remaining_database_budget_ms,
         runtime_database_budget,
         runtime_request_budget,
+    )
+    from public_successor_db_guard import (  # type: ignore[no-redef]
+        require_public_successor_live_controls,
+        require_public_successor_startup_lot42,
     )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]
@@ -486,7 +502,11 @@ def configured_release_model_contract() -> tuple[str, str, int, str, str] | None
     return registry.model_contract
 
 
-def _release_evidence_for_collection(collection: str) -> bool | None:
+def _release_evidence_for_collection(
+    collection: str,
+    *,
+    artifact: RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3 | None = None,
+) -> bool | None:
     """Retourner None hors release configurée, sinon l'état exact de la release."""
     try:
         registry = _configured_release_registry()
@@ -497,9 +517,24 @@ def _release_evidence_for_collection(collection: str) -> bool | None:
     if collection not in registry.collections:
         return None
     try:
+        public_verdict = _validate_unpromoted_release_guard(registry)
+        if any(
+            getattr(binding.expectation, "release_mode", None) == "candidate"
+            for binding in registry.manifests
+        ) and artifact is not None:
+            if (
+                not isinstance(artifact, RetrievalScopeArtifactV3)
+                or public_verdict is None
+                or dict(public_verdict.scope_sha256_by_id).get(artifact.scope_id)
+                    != artifact.sha256_digest()
+                or str(artifact.evidence_subject.collection) != collection
+            ):
+                return False
         settings = PoolSettings.from_env()
         with runtime_database_budget():
             with pool_connection(settings) as connection:
+                if public_verdict is not None:
+                    require_public_successor_live_controls(connection, public_verdict)
                 return validate_release_collection_readiness(
                     registry,
                     collection,
@@ -511,11 +546,11 @@ def _release_evidence_for_collection(collection: str) -> bool | None:
 
 
 def _release_evidence_for_v2_artifact(
-    artifact: RetrievalScopeArtifactV2,
+    artifact: RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3,
 ) -> bool | None:
     """Lier les nouveaux scopes au subject release exact, en gardant Wave 0."""
     collection = str(artifact.evidence_subject.collection)
-    state = _release_evidence_for_collection(collection)
+    state = _release_evidence_for_collection(collection, artifact=artifact)
     if state is not True:
         return state
     try:
@@ -547,7 +582,7 @@ def _v2_evidence_collections(
     return frozenset(
         str(artifact.evidence_subject.collection)
         for artifact in registry.values()
-        if isinstance(artifact, RetrievalScopeArtifactV2)
+        if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3)
     )
 
 
@@ -567,6 +602,99 @@ def _instanciated_v2_collections(
 
 
 _ALLOWED_NEXUS_ENVIRONMENTS = frozenset({"production", "rehearsal"})
+_PUBLIC_READINESS_ANCHOR = Path(__file__).resolve().parent / "production-readiness-v1.json"
+_PUBLIC_C_CACHE_MAX_AGE = timedelta(seconds=2)
+_public_c_cache_lock = threading.Lock()
+_public_c_cache: tuple[tuple[str, ...], datetime, float, Any] | None = None
+
+
+def _public_bundle_identity(root: Path) -> str:
+    """Détecter tout remplacement de fichier du bundle entre deux replays C.
+
+    Le bundle est monté en lecture seule dans le conteneur. L'empreinte des
+    inodes, tailles et temps de modification/changement capte aussi une
+    réécriture de même taille avec mtime restauré sur l'hôte.
+    """
+    absolute = root.absolute()
+    walked = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        walked /= part
+        if walked.is_symlink():
+            raise RuntimeError("public successor bundle path is a symlink")
+    digest = hashlib.sha256()
+    stack = [(absolute, ".")]
+    while stack:
+        directory, relative = stack.pop()
+        before = directory.stat(follow_symlinks=False)
+        if not stat.S_ISDIR(before.st_mode):
+            raise RuntimeError("public successor bundle directory absent")
+        digest.update(
+            f"{relative}\0{before.st_dev}:{before.st_ino}:{before.st_mode}:"
+            f"{before.st_mtime_ns}:{before.st_ctime_ns}\0".encode()
+        )
+        children = sorted(os.scandir(directory), key=lambda entry: entry.name)
+        for child in children:
+            child_relative = f"{relative}/{child.name}"
+            info = child.stat(follow_symlinks=False)
+            if stat.S_ISLNK(info.st_mode):
+                raise RuntimeError("public successor bundle contains a symlink")
+            if stat.S_ISDIR(info.st_mode):
+                stack.append((Path(child.path), child_relative))
+            elif stat.S_ISREG(info.st_mode):
+                digest.update(
+                    f"{child_relative}\0{info.st_dev}:{info.st_ino}:{info.st_mode}:"
+                    f"{info.st_size}:{info.st_mtime_ns}:{info.st_ctime_ns}\0".encode()
+                )
+            else:
+                raise RuntimeError("public successor bundle contains a special file")
+        after = directory.stat(follow_symlinks=False)
+        if (
+            before.st_ino, before.st_mtime_ns, before.st_ctime_ns
+        ) != (
+            after.st_ino, after.st_mtime_ns, after.st_ctime_ns
+        ):
+            raise RuntimeError("public successor bundle changed during identity scan")
+    return digest.hexdigest()
+
+
+def _cached_public_successor_verdict(
+    root: Path, key: tuple[str, ...], verify: Callable[[], Any],
+) -> Any:
+    """Amortir C sans amortir les contrôles DB revocation/LOT42 par requête."""
+    global _public_c_cache
+    identity = _public_bundle_identity(root)
+    full_key = (*key, identity)
+    with _public_c_cache_lock:
+        now = datetime.now(UTC)
+        if _public_c_cache is not None:
+            cached_key, expires_at, monotonic_until, cached_verdict = _public_c_cache
+            if (
+                cached_key == full_key
+                and now < expires_at
+                and time.monotonic() < monotonic_until
+            ):
+                return cached_verdict
+        verdict = verify()
+        expires = getattr(verdict, "expires_at_utc", None)
+        if (
+            not isinstance(expires, datetime)
+            or expires.tzinfo is None
+            or expires.utcoffset() != timedelta(0)
+            or datetime.now(UTC) >= expires
+        ):
+            raise RuntimeError("public successor C validity has expired")
+        if _public_bundle_identity(root) != identity:
+            raise RuntimeError("public successor bundle changed during C replay")
+        replay_completed_at = datetime.now(UTC)
+        if replay_completed_at >= expires:
+            raise RuntimeError("public successor C validity expired during replay")
+        _public_c_cache = (
+            full_key,
+            expires,
+            time.monotonic() + max(0.0, _PUBLIC_C_CACHE_MAX_AGE.total_seconds()),
+            verdict,
+        )
+        return verdict
 
 
 def _resolve_nexus_environment() -> str:
@@ -587,9 +715,143 @@ def _resolve_nexus_environment() -> str:
     return normalized
 
 
-def _validate_unpromoted_release_guard(registry: ReleaseRegistryExpectation) -> None:
-    """Reject rehearsal or unpromoted releases when running in production."""
+def _read_public_authority_file(path: Path) -> bytes:
+    """Read a pinned local authority without following a symlink or mutable file."""
+    absolute = path.absolute()
+    walked = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        walked /= part
+        if walked.is_symlink():
+            raise RuntimeError("public successor authority path is a symlink")
+    try:
+        descriptor = os.open(absolute, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+        with os.fdopen(descriptor, "rb") as stream:
+            before = os.fstat(stream.fileno())
+            if not stat.S_ISREG(before.st_mode) or before.st_mode & 0o022:
+                raise RuntimeError("public successor authority file is mutable or not regular")
+            raw = stream.read(2_000_001)
+            after = os.fstat(stream.fileno())
+            if len(raw) > 2_000_000 or (
+                before.st_size, before.st_mtime_ns
+            ) != (after.st_size, after.st_mtime_ns):
+                raise RuntimeError("public successor authority file changed while reading")
+            return raw
+    except OSError as exc:
+        raise RuntimeError("public successor authority file unavailable") from exc
+
+
+def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
+    """Bind immutable A to signed readiness and the semantic, expiring C gate."""
+    try:
+        from nexus_release_chain.public_successor_activation import (
+            PublicSuccessorActivationVerdict,
+            verify_public_successor_activation,
+        )
+
+        if len(registry.manifests) != 1:
+            raise ValueError("public successor requires one exclusive release")
+        binding = registry.manifests[0]
+        expected = binding.expectation
+        root_raw = os.environ.get("NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT", "").strip()
+        selection = select_release_authority()
+        if (
+            selection is None
+            or selection.mechanism != RELEASE_AUTHORITY_REGISTRY_FILE
+            or len(selection.bindings) != 1
+            or load_selected_release_registry(selection) != registry
+        ):
+            raise ValueError("public successor release registry selection differs")
+        registry_sha = selection.bindings[0][1]
+        scope_sha = os.environ.get("NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256", "").strip()
+        release_sha = os.environ.get("NEXUS_RELEASE_SHA", "").strip()
+        manifest_path_raw = os.environ.get("NEXUS_READINESS_MANIFEST_PATH", "").strip()
+        if not all((root_raw, registry_sha, scope_sha, release_sha, manifest_path_raw)):
+            raise ValueError("public successor signed authority configuration incomplete")
+        root = Path(root_raw)
+        manifest_path = Path(manifest_path_raw)
+        if not root.is_absolute() or manifest_path != root / "readiness-manifest.json":
+            raise ValueError("public successor readiness manifest path differs from bundle")
+        signed_raw = _read_public_authority_file(manifest_path)
+        anchor_raw = _read_public_authority_file(_PUBLIC_READINESS_ANCHOR)
+        anchor = parse_production_readiness_trust_anchor(anchor_raw)
+        readiness = verify_production_readiness_manifest_v2(
+            signed_raw, trust_anchor=anchor, environment="production"
+        )
+        if not isinstance(readiness, ProductionReadinessManifestV2):
+            raise ValueError("public successor requires signed readiness V2")
+        if (
+            readiness.merge_sha != release_sha
+            or readiness.sealed_manifest_digest != binding.expected_sha256
+            or readiness.public_successor_content_manifest_digest != binding.expected_sha256
+            or readiness.public_successor_content_anchor_digest is None
+            or readiness.public_successor_authority_envelope_digest is None
+            or readiness.public_successor_target_pin_digest is None
+        ):
+            raise ValueError("public successor signed A/C binding differs")
+        verdict = _cached_public_successor_verdict(
+            root,
+            (
+                str(root.absolute()), hashlib.sha256(signed_raw).hexdigest(),
+                hashlib.sha256(anchor_raw).hexdigest(), registry_sha, scope_sha,
+                release_sha, binding.expected_sha256, expected.release_id,
+            ),
+            lambda: verify_public_successor_activation(
+                root,
+                expected_content_anchor_sha256=readiness.public_successor_content_anchor_digest,
+                expected_authority_envelope_sha256=(
+                    readiness.public_successor_authority_envelope_digest
+                ),
+                expected_release_id=expected.release_id,
+                expected_registry_sha256=registry_sha,
+                expected_scope_authority_sha256=scope_sha,
+                expected_target_pin_sha256=readiness.public_successor_target_pin_digest,
+            ),
+        )
+        if not isinstance(verdict, PublicSuccessorActivationVerdict):
+            raise ValueError("public successor verifier did not return a typed verdict")
+        if (
+            verdict.release_id != expected.release_id
+            or verdict.content_anchor_sha256 != readiness.public_successor_content_anchor_digest
+            or verdict.content_manifest_sha256 != binding.expected_sha256
+            or verdict.authority_envelope_sha256
+            != readiness.public_successor_authority_envelope_digest
+            or verdict.release_registry_sha256 != registry_sha
+            or verdict.scope_authority_sha256 != scope_sha
+            or dict(verdict.subject_sha256_by_collection)
+            != dict(expected.subject_manifest_sha256_by_collection)
+            or set(dict(verdict.subject_sha256_by_collection)) != set(registry.collections)
+        ):
+            raise ValueError("public successor semantic C differs from served A or scope")
+        packaged = load_retrieval_scope_registry()
+        served = [
+            (key, artifact)
+            for key, artifact in packaged.items()
+            if isinstance(artifact, RetrievalScopeArtifactV3)
+            and str(artifact.evidence_subject.collection) in registry.collections
+        ]
+        if (
+            len(served) != len(registry.collections)
+            or any(key != artifact.scope_id for key, artifact in served)
+            or {artifact.scope_id: artifact.sha256_digest() for _, artifact in served}
+            != dict(verdict.scope_sha256_by_id)
+        ):
+            raise ValueError("public successor packaged scope bytes differ from C")
+        return verdict
+    except Exception as exc:
+        raise RuntimeError("public successor activation authority unavailable") from exc
+
+
+def _validate_unpromoted_release_guard(registry: ReleaseRegistryExpectation):
+    """A public candidate needs C; historical rehearsal retains its existing policy."""
     env = _resolve_nexus_environment()
+    candidates = [
+        manifest for manifest in registry.manifests
+        if getattr(manifest.expectation, "release_mode", None) == "candidate"
+    ]
+    if candidates:
+        if len(candidates) != len(registry.manifests):
+            raise RuntimeError("public successor cannot share a release registry")
+        return _verify_public_successor_candidate(registry)
     if env == "production":
         for manifest in registry.manifests:
             exp = manifest.expectation
@@ -648,7 +910,7 @@ def validate_release_startup_configuration(
         matches = [
             artifact
             for artifact in artifacts.values()
-            if isinstance(artifact, RetrievalScopeArtifactV2)
+            if isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3)
             and artifact.evidence_subject.collection == collection
             and artifact.source_sha256 == source_sha256
         ]
@@ -656,6 +918,17 @@ def validate_release_startup_configuration(
             raise RuntimeError("scope source SHA differs from subject release")
         if len(matches) != 1:
             raise RuntimeError("scope source SHA is ambiguous for subject release")
+        manifest = registry.manifest_for_collection(collection)
+        if manifest is not None and getattr(manifest.expectation, "release_mode", None) == "candidate":
+            public_scope = matches[0]
+            if (
+                not isinstance(public_scope, RetrievalScopeArtifactV3)
+                or public_scope.target_policy.roles != ["student"]
+                or public_scope.evidence_subject.visibility != "public"
+                or [right.value for right in public_scope.evidence_subject.rights]
+                != ["public_allowed"]
+            ):
+                raise RuntimeError("public successor scope policy differs")
 
 
 def validate_configured_release_database() -> None:
@@ -663,13 +936,19 @@ def validate_configured_release_database() -> None:
     registry = _configured_release_registry()
     if registry is None:
         return
-    _validate_unpromoted_release_guard(registry)
+    public_verdict = _validate_unpromoted_release_guard(registry)
 
     settings = PoolSettings.from_env()
 
     with runtime_database_budget():
         with pool_connection(settings) as connection:
             reports = validate_release_registry_readiness(registry, connection)
+            if public_verdict is not None:
+                require_public_successor_startup_lot42(
+                    connection, public_verdict,
+                    Path(os.environ["NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT"]),
+                )
+                require_public_successor_live_controls(connection, public_verdict)
     if set(reports) != set(registry.collections) or any(
         not report.ready for report in reports.values()
     ):
@@ -687,7 +966,7 @@ def _require_release_ready_if_governed(
     if verified is None:
         return
     artifact = verified.artifact
-    if not isinstance(artifact, RetrievalScopeArtifactV2):
+    if not isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
         return
     if artifact.evidence_subject.collection != collection:
         return
@@ -1077,7 +1356,7 @@ def list_retrievable_collections(request: Request) -> dict[str, Any]:
         catalogue_by_name = {item["name"]: item for item in catalogue["collections"]}
         require_exact_release = isinstance(
             getattr(verified, "artifact", None),
-            RetrievalScopeArtifactV2,
+            RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3,
         )
         verified_artifact = getattr(verified, "artifact", None)
         scoped_items = [

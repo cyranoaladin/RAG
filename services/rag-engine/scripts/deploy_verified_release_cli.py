@@ -71,6 +71,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import secrets
 import socket
 import stat
@@ -106,6 +107,7 @@ from nexus_contracts.production_readiness import (  # noqa: E402
     verify_production_readiness_manifest,
     verify_production_readiness_manifest_v2,
 )
+from nexus_release_chain.release_readiness import load_release_registry_file  # noqa: E402
 
 #: Jamais une entrée opérateur — même constante que le vérificateur
 #: réutilisé (PR #105).
@@ -2416,12 +2418,14 @@ def _default_public_prometheus_probe(port: int) -> bool:
 
 def _public_preflight_from_bundle(
     *,
+    bundle_dir: Path,
     verified: _VerifiedDeployInputs,
     merge_sha: str,
     color: str | None,
     material_root: Path | None,
     secrets_root: Path | None,
     repo_root: Path | None,
+    trusted_readiness_anchor_raw: bytes | None,
 ) -> str:
     if color not in {"blue", "green"} or any(
         value is None for value in (material_root, secrets_root, repo_root)
@@ -2445,7 +2449,114 @@ def _public_preflight_from_bundle(
     project = evidence.get("project")
     if not isinstance(project, str) or project != f"nexus-rag-{color}":
         raise DeploymentWrapperError("public candidate project differs from selected color")
+    if trusted_readiness_anchor_raw is None:
+        raise DeploymentWrapperError("public successor readiness trust anchor is absent")
+    readiness_raw = signer._read_bytes_no_follow(  # noqa: SLF001
+        bundle_dir / _READINESS_MANIFEST_BUNDLE_NAME,
+        label="public successor readiness bundle",
+    )
+    require_public_successor_bundle_for_deploy(
+        material_root=material_root,
+        resolved_compose=effective,
+        readiness_manifest_raw=readiness_raw,
+        trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
+        merge_sha=merge_sha,
+    )
     return project
+
+
+def require_public_successor_bundle_for_deploy(
+    *,
+    material_root: Path,
+    resolved_compose: dict[str, Any],
+    readiness_manifest_raw: bytes,
+    trusted_readiness_anchor_raw: bytes,
+    merge_sha: str,
+) -> None:
+    """Recheck signed A/C and live C semantics before any public Docker mutation."""
+    try:
+        from nexus_release_chain.public_successor_activation import (
+            PublicSuccessorActivationVerdict,
+            verify_public_successor_activation,
+        )
+
+        root = material_root / "release"
+        material_readiness = signer._read_bytes_no_follow(  # noqa: SLF001
+            root / "readiness-manifest.json", label="public successor readiness"
+        )
+        if material_readiness != readiness_manifest_raw:
+            raise ValueError("public successor runtime readiness differs from signed bundle")
+        anchor = parse_production_readiness_trust_anchor(trusted_readiness_anchor_raw)
+        readiness = verify_production_readiness_manifest_v2(
+            readiness_manifest_raw, trust_anchor=anchor, environment="production"
+        )
+        if (
+            readiness.merge_sha != merge_sha
+            or readiness.public_successor_content_manifest_digest is None
+            or readiness.public_successor_content_anchor_digest is None
+            or readiness.public_successor_authority_envelope_digest is None
+            or readiness.public_successor_target_pin_digest is None
+        ):
+            raise ValueError("public successor signed A/C readiness is unavailable")
+        services = resolved_compose.get("services")
+        ingestor = services.get("ingestor") if isinstance(services, dict) else None
+        env = ingestor.get("environment") if isinstance(ingestor, dict) else None
+        if not isinstance(env, dict):
+            raise ValueError("public successor API environment is absent")
+        required = {
+            "NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT": "/app/release",
+            "NEXUS_READINESS_MANIFEST_PATH": "/app/release/readiness-manifest.json",
+            "NEXUS_RELEASE_SHA": merge_sha,
+            "RAG_RELEASE_REGISTRY_PATH": "/app/release/release/release-registry.json",
+        }
+        if any(env.get(name) != value for name, value in required.items()):
+            raise ValueError("public successor API bundle binding differs")
+        registry_sha = env.get("RAG_RELEASE_REGISTRY_SHA256")
+        scope_sha = env.get("NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256")
+        if any(
+            not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
+            for value in (registry_sha, scope_sha)
+        ):
+            raise ValueError("public successor registry or scope SHA is absent")
+        registry = load_release_registry_file(
+            root / "release" / "release-registry.json", registry_sha
+        )
+        if len(registry.manifests) != 1:
+            raise ValueError("public successor release registry must be exclusive")
+        binding = registry.manifests[0]
+        expected = binding.expectation
+        if (
+            expected.release_mode != "candidate"
+            or binding.expected_sha256 != readiness.public_successor_content_manifest_digest
+            or binding.expected_sha256 != readiness.sealed_manifest_digest
+        ):
+            raise ValueError("public successor immutable A differs from signed readiness")
+        verdict = verify_public_successor_activation(
+            root,
+            expected_content_anchor_sha256=readiness.public_successor_content_anchor_digest,
+            expected_authority_envelope_sha256=(
+                readiness.public_successor_authority_envelope_digest
+            ),
+            expected_release_id=expected.release_id,
+            expected_registry_sha256=registry_sha,
+            expected_scope_authority_sha256=scope_sha,
+            expected_target_pin_sha256=readiness.public_successor_target_pin_digest,
+        )
+        if not isinstance(verdict, PublicSuccessorActivationVerdict) or (
+            verdict.release_id != expected.release_id
+            or verdict.content_manifest_sha256 != binding.expected_sha256
+            or verdict.content_anchor_sha256 != readiness.public_successor_content_anchor_digest
+            or verdict.authority_envelope_sha256
+            != readiness.public_successor_authority_envelope_digest
+            or verdict.release_registry_sha256 != registry_sha
+            or verdict.scope_authority_sha256 != scope_sha
+            or dict(verdict.subject_sha256_by_collection)
+            != dict(expected.subject_manifest_sha256_by_collection)
+            or set(dict(verdict.subject_sha256_by_collection)) != set(registry.collections)
+        ):
+            raise ValueError("public successor C verdict differs from deployed A")
+    except Exception as exc:
+        raise DeploymentWrapperError("public successor activation authority unavailable") from exc
 
 
 def rollback_public_candidate_from_bundle(
@@ -2541,9 +2652,10 @@ def _deploy_public_candidate_from_bundle(
     except (OSError, subprocess.SubprocessError) as exc:
         raise DeploymentWrapperError("canonical --assert-ready could not run") from exc
     project = _public_preflight_from_bundle(
-        verified=verified, merge_sha=merge_sha, color=public_color,
+        bundle_dir=bundle_dir, verified=verified, merge_sha=merge_sha, color=public_color,
         material_root=public_material_root, secrets_root=public_secrets_root,
         repo_root=public_repo_root,
+        trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
     )
     assert public_color is not None
     with _public_color_lock(deployment_state_root, public_color, host_local_guard) as state_root:
@@ -2566,9 +2678,10 @@ def _deploy_public_candidate_from_bundle(
         if reverified != verified:
             raise DeploymentWrapperError("public candidate bundle changed after pull")
         _public_preflight_from_bundle(
-            verified=reverified, merge_sha=merge_sha, color=public_color,
+            bundle_dir=bundle_dir, verified=reverified, merge_sha=merge_sha, color=public_color,
             material_root=public_material_root, secrets_root=public_secrets_root,
             repo_root=public_repo_root,
+            trusted_readiness_anchor_raw=trusted_readiness_anchor_raw,
         )
         try:
             if ready() is not True:
