@@ -14,6 +14,46 @@ ROOT = Path(__file__).resolve().parents[1]
 INFRA = ROOT / "infra"
 
 
+class _ModelWeights:
+    def __init__(self, device: str) -> None:
+        self.device = device
+
+    def parameters(self):
+        yield SimpleNamespace(device=self.device)
+
+    def buffers(self):
+        return iter(())
+
+    def to(self, device: str) -> None:
+        self.device = str(device)
+
+
+def test_cross_encoder_weights_move_to_gpu_during_preload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RAG_REQUIRE_CUDA", "true")
+    monkeypatch.setattr(inference_runtime, "_cuda_is_available", lambda: True)
+    embedding = _ModelWeights("cuda:0")
+    reranker_weights = _ModelWeights("cpu")
+    reranker = SimpleNamespace(model=reranker_weights, _target_device="cuda:0")
+
+    inference_runtime.verify_required_inference_device(embedding, reranker)
+
+    assert reranker_weights.device == "cuda:0"
+
+
+def test_cuda_label_does_not_hide_cpu_weights(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("RAG_REQUIRE_CUDA", "true")
+    monkeypatch.setattr(inference_runtime, "_cuda_is_available", lambda: True)
+    embedding = _ModelWeights("cpu")
+    embedding.device = "cuda:0"
+    embedding.parameters = lambda: iter((SimpleNamespace(device="cpu"),))
+    reranker = _ModelWeights("cuda:0")
+
+    with pytest.raises(inference_runtime.InferenceRuntimeError, match="CUDA_INFERENCE_UNAVAILABLE"):
+        inference_runtime.verify_required_inference_device(embedding, reranker)
+
+
 @pytest.mark.parametrize(
     ("embedding_device", "reranker_device", "cuda_available"),
     [
@@ -33,8 +73,8 @@ def test_required_cuda_rejects_cpu_models_or_unavailable_device(
 
     with pytest.raises(inference_runtime.InferenceRuntimeError, match="CUDA_INFERENCE_UNAVAILABLE"):
         inference_runtime.verify_required_inference_device(
-            SimpleNamespace(device=embedding_device),
-            SimpleNamespace(device=reranker_device),
+            _ModelWeights(embedding_device),
+            _ModelWeights(reranker_device),
         )
 
 
@@ -43,8 +83,8 @@ def test_required_cuda_accepts_both_models_on_cuda(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(inference_runtime, "_cuda_is_available", lambda: True)
 
     inference_runtime.verify_required_inference_device(
-        SimpleNamespace(device="cuda:0"),
-        SimpleNamespace(model=SimpleNamespace(device="cuda:0")),
+        _ModelWeights("cuda:0"),
+        _ModelWeights("cuda:0"),
     )
 
 
