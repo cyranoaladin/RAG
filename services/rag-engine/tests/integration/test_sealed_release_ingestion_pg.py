@@ -347,7 +347,7 @@ def text_migrated() -> Iterator[dict[str, str]]:
         container.close()
 
 
-def test_derives_texte_ingestes_avec_mime_et_filiation_dans_base_jetable(
+def test_derives_texte_v1_public_refuses_avant_ecriture_dans_base_jetable(
     text_migrated: dict[str, str], tmp_path: Path,
 ) -> None:
     build = _build_release(tmp_path, text_derivatives=True)
@@ -355,47 +355,27 @@ def test_derives_texte_ingestes_avec_mime_et_filiation_dans_base_jetable(
     manifest = json.loads(
         (release_dir / "production-profile-gate.release.json").read_text("utf-8")
     )
-    facts = sri.load_sealed_release(
-        release_dir,
-        release_manifest_sha256=_digest_of(
-            release_dir / "production-profile-gate.release.json"
-        ),
-        artifacts_release_sha256=manifest["artifact_registry"]["sha256"],
-        candidate_inventory_sha256=manifest["authorities"]["candidate_inventory_sha256"],
-        artifact_transfer_manifest_path=build["transfer_path"],
-        artifact_transfer_manifest_sha256=_digest_of(build["transfer_path"]),
-    )
-    with psycopg.connect(superuser_dsn(text_migrated)) as conn:
-        report = sri.ingest_sealed_release(
-            conn,
-            facts=facts,
-            artifact_store_dir=build["store"],
-            profile_registry=load_profile_registry(build["profiles_dir"]),
-            scope_authorization_ids={
-                collection: f"lot41a-staging-v2-{collection}"
-                for collection in COLLECTIONS
-            },
-            owner="operateur-test",
-            expected_collections=COLLECTIONS,
-            verifier=lambda conn, *, authorization_id, scope: _Autorisation(
-                authorization_id
+    with pytest.raises(sri.SealedReleaseIngestionError, match="text inventory kind"):
+        sri.load_sealed_release(
+            release_dir,
+            release_manifest_sha256=_digest_of(
+                release_dir / "production-profile-gate.release.json"
             ),
+            artifacts_release_sha256=manifest["artifact_registry"]["sha256"],
+            candidate_inventory_sha256=manifest["authorities"]["candidate_inventory_sha256"],
+            artifact_transfer_manifest_path=build["transfer_path"],
+            artifact_transfer_manifest_sha256=_digest_of(build["transfer_path"]),
         )
-        conn.commit()
+    with psycopg.connect(superuser_dsn(text_migrated)) as conn:
         with conn.cursor() as cursor:
             cursor.execute(
-                "SELECT sha256, mime_declared, mime_detected, payload "
-                "FROM ingestion_control.artifacts"
+                "SELECT "
+                "(SELECT count(*) FROM ingestion_control.ingestion_runs), "
+                "(SELECT count(*) FROM ingestion_control.resources), "
+                "(SELECT count(*) FROM ingestion_control.artifacts)"
             )
-            rows = cursor.fetchall()
-    assert report.resources == 3
-    assert len(rows) == 3
-    assert all(row[1:3] == (sri.TEXT_MIME, sri.TEXT_MIME) for row in rows)
-    assert all(
-        row[3]["source_pdf_sha256"] != row[0]
-        and row[3]["media_type"] == sri.TEXT_MIME
-        for row in rows
-    )
+            counts = cursor.fetchone()
+    assert counts == (0, 0, 0)
 
 
 def test_les_lignes_de_controle_sont_creees(

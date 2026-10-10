@@ -1,0 +1,87 @@
+{
+  "candidate_manifest_sha256": "28bd14dd114d8369e8c6520774bfbd1e8ba966b85aeaaf2d58e27b2c23d9fcfc",
+  "candidate_profile_registry_sha256": "5af870bd23ca1ff072e27262cab8c4255ad5f2b482deed33925d22c7a8017098",
+  "candidate_release_id": "student-public-20261010-v1-eb39f6cd0423e184",
+  "entries": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "fingerprint": "75836923108abb72a729e2d521a3613fa69c0a117b8cc01816cfacf910a78bfe",
+      "path": "rag_nexus_dgemc_terminale_option.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "a62fe4c4a8f118b3185778d50395d31851b5d6aec4c19d961d827b44d7a45038"
+    },
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "fingerprint": "06828b93f9fcd726214da93291eed3cc2e210ceccef0adb1cb4ab6583416dcec",
+      "path": "rag_nexus_hggsp_premiere_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "5fad15a3b326a1a156e4a6572bd730339c139549acc8875ade7f28d621df2df4"
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "fingerprint": "e0802049dce01783193bd6e38cb8fd9436baf47eec0ecc94cb96692d1329ad8a",
+      "path": "rag_nexus_hggsp_terminale_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "569798d30b62940a5835d59e371336ca01dfd20ffe4fb18a5154be413b1a479d"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "fingerprint": "be9af3159426ab3d2b85fa3318cffc02607e158de126ca6f07b945f62e6c81a6",
+      "path": "rag_nexus_hlp_premiere_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "3c818f3190f2c57841a133e20f1af838810fb08099e4faf36dfc672246fd3e77"
+    },
+    {
+      "collection": "rag_nexus_hlp_terminale_specialite",
+      "fingerprint": "cb0511b458c9e38bc66beb980b7e42db7590916dd6429bbdda58f6868a094f27",
+      "path": "rag_nexus_hlp_terminale_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "8ddf0396046af742b025bb338be8a0ba5dc7a2d5afcdf265cc91d957be979c47"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "fingerprint": "6b3b78313785bcd10b60af22833cc64a613d12b78952f5d0eace6984299b79ac",
+      "path": "rag_nexus_nsi_premiere_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "82978996fe1c01c74cb0c3b76e6246a75bd9926cc69abc22de6e053623c9f650"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "fingerprint": "3f2a5d2c3a8eb17752706f0d6646f4cf78988d7da303864846119fe02fe482b6",
+      "path": "rag_nexus_nsi_terminale_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "c74d40a6cb56c3e20d038bd39c1ebd0a7156aea43e8d7211ebe437c1c2edcdc2"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "fingerprint": "5fb32a332350a96aef025f4ff27ff9a6031f9ec492db76324b67102b7c819a10",
+      "path": "rag_nexus_ses_premiere_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "1ab9a2230487a7eaaa91dc9851086ca901a5a70f5b872bcd95e801d4290c5dea"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "fingerprint": "800a23e5d82b002bb834073a60fa2f1ff37c5888041b1e88454b76db36828c4c",
+      "path": "rag_nexus_ses_terminale_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "b9c7f1764874db3f798483ce22c35753c0b06939e294594f2315a0a7a446c6de"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "fingerprint": "9f9445434ab0d6c2a9cc8a3e8957dface26e36ca0e88eb268510076be811d4f2",
+      "path": "rag_nexus_svt_premiere_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "902e68f10c6b93f7c5b61ecf2a793cc14f013434a19ded8838c5ea30f7a9e435"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "fingerprint": "effbbb44be1756b4088409e00f704893c43a370e9a3c920f3707c0e030052b45",
+      "path": "rag_nexus_svt_terminale_specialite.yml",
+      "profile_version": "student-public-derivative-v1",
+      "sha256": "78913d91cf546195adc80304622512c7275e2a38ddfe0d71cfa95b9ce4eae11e"
+    }
+  ],
+  "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_PROFILE_PROPOSAL_V1",
+  "profile_count": 11,
+  "status": "PENDING_EXACT_HEAD_AUTHORITY_REVIEW"
+}

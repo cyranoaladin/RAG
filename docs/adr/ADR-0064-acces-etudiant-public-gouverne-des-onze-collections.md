@@ -1,9 +1,15 @@
 # ADR-0064 — Accès étudiant public gouverné aux onze collections de recherche
 
-- **Statut** : proposition soumise à revue humaine ; aucune ouverture de droit avant une review `APPROVED` au HEAD exact.
+- **Statut** : décision de principe approuvée dans la PR #286 ; aucun scope public ni aucune publication n'en découle sans les autorités de release successeur approuvées au HEAD exact.
 - **Date** : 2026-10-08.
 - **Décideur** : `abenrhouma`, selon le protocole `NEXUS-TRUSTED-REVIEW-V1`.
 - **S'appuie sur** : ADR-0033, ADR-0035, ADR-0045, ADR-0050, ADR-0052, ADR-0053, ADR-0058, ADR-0059, ADR-0060, ADR-0061, ADR-0062 et ADR-0063.
+
+## Addendum d'exécution — 10 octobre 2026
+
+La décision documentaire déléguée de la PR #300 et le candidat scellé de la PR #312 remplacent le **matériau projeté** ci-dessous, pas le principe d'un accès étudiant gouverné. Les PDF V4/V5 restent internes ; il est interdit de promouvoir directement leurs releases rehearsal. Le seul matériau public envisageable pour ce lot est constitué de dérivés textuels à identité et attribution distinctes, après exclusion des composants tiers et de CFTR. La candidate #312 contient 11 collections, 253 dérivés, 377 placements et 3 975 chunks, sans activation ; ces chiffres ne décrivent pas encore une release finale ni une base servie.
+
+Les tableaux et digests V4/V5 de la section historique ci-dessous sont conservés pour expliquer la décision initiale du 8 octobre. **Ils ne sont plus des objectifs de cardinalité publique**, et les instructions qui demandent d'émettre deux successeurs PDF ou de servir 315/479/8268 sont supersédées. La mise en œuvre suit désormais [le plan de release publique](../runbooks/student_public_release_PLAN.md) : nouvelle release des dérivés, onze profils et scopes publics nouveaux, droits/PII/actualité vérifiés sur leurs SHA, autorisations et revue batch exact-HEAD, cible staging propre, puis gate final avant production. `_ROLE_VISIBILITIES['student']` reste limité à `public` et `answer_generation_allowed=false`.
 
 ## Problème et décision demandée
 
