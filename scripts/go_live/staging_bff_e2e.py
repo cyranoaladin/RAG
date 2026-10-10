@@ -563,7 +563,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "student_status": student_status,
         "student_mode": args.student_mode,
         "student": student,
-        "verification_status": "VERIFIED",
+        "verification_status": (
+            "INTERNAL_STUDENT_REFUSAL_VERIFIED"
+            if args.student_mode == "internal"
+            else "VERIFIED" if teacher_allowed else "STUDENT_ONLY_VERIFIED"
+        ),
     }
 
 
@@ -588,7 +592,10 @@ def main() -> int:
         with os.fdopen(fd, "w", encoding="utf-8") as output:
             json.dump(report, output, ensure_ascii=False, indent=2, sort_keys=True)
             output.write("\n")
-        print("BFF_E2E_PASS=true")
+        print(f"BFF_E2E_PASS={'true' if report['verification_status'] == 'VERIFIED' else 'false'}")
+        print(f"BFF_E2E_STATUS={report['verification_status']}")
+        print(f"STUDENT_PUBLIC_BFF_E2E_PASS={'true' if args.student_mode == 'public' else 'false'}")
+        print(f"TEACHER_E2E_VERIFIED={'true' if report['teacher_e2e_verified'] else 'false'}")
         print(f"BFF_COLLECTION={args.collection}")
         print(f"STUDENT_MODE={args.student_mode}")
         return 0

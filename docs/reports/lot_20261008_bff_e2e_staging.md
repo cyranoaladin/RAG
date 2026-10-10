@@ -21,8 +21,13 @@ autorisation enseignant n'est déduite d'un scope étudiant. Sur un scope
 `roles: [student]`, le harnais ne tente jamais de signer `teacher` : il teste
 le 403 hors collection avec la session `student` et inscrit
 `teacher_e2e_verified=false`, `teacher_status=null` et
-`NOT_RUN_SCOPE_ROLE_NOT_ISSUED`. Le chemin enseignant positif n'est exécuté
-que lorsque ce rôle figure explicitement dans le scope final émis.
+`NOT_RUN_SCOPE_ROLE_NOT_ISSUED`. Son `verification_status` est alors
+`STUDENT_ONLY_VERIFIED`, la sortie `BFF_E2E_PASS=false` et
+`STUDENT_PUBLIC_BFF_E2E_PASS=true` en mode public. Le statut global `VERIFIED`
+et `BFF_E2E_PASS=true` exigent aussi le parcours positif `teacher`, exécuté
+seulement si ce rôle figure explicitement dans le scope final émis. Le mode
+historique `internal`, même si son refus étudiant est vérifié, porte
+`INTERNAL_STUDENT_REFUSAL_VERIFIED` et ne peut pas satisfaire ce statut global.
 
 Après ces préconditions, le harnais compare le SHA du build exposé par
 `/api/health` au SHA exact du checkout propre et du `main` distant. Il signe
@@ -61,6 +66,12 @@ l'acceptance directe API v2 distincte.
   dans `/api/health`. Aucun bypass `student → internal` n'est permis.
 - Aucun BFF final ni release publique gouvernée n'est encore déployé sur une
   cible staging qualifiée. `BFF_E2E_LIVE_PASS=false`.
+- Aucun agrégateur de readiness du `main` courant, ni le vérificateur externe
+  préparatoire de #319, ne consomme encore le type
+  `NEXUS-FINAL-STAGING-BFF-E2E-V1`. L'ancien contrôleur Cockpit lit une autre
+  preuve historique. Avant de déclarer le produit global prêt, l'agrégateur
+  final devra exiger `teacher_e2e_verified=true` si son contrat requiert le
+  parcours enseignant ; `STUDENT_ONLY_VERIFIED` ne ferme pas ce gate.
 
 Après émission des scopes, approbation de la release et déploiement de la
 cible finale, l'invocation doit fournir les chemins et empreintes **recalculés
@@ -87,7 +98,7 @@ release, les droits, les scopes, le build et les résultats HTTP doivent tous
 être vérifiés à la cible finale.
 
 Vérification locale dans `/tmp/rag-pr293-main744-venv`, créé pour ce worktree :
-`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 27 tests verts,
+`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 28 tests verts,
 dont un RED→GREEN du parcours `student` seul et la conservation du parcours
 `teacher` lorsque son rôle est autorisé ;
 `ruff check` des deux fichiers Python : vert ; `git diff --check` : vert.

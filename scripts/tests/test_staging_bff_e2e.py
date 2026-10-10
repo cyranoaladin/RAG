@@ -186,8 +186,8 @@ def test_unissued_teacher_role_is_refused_by_final_scope_policy():
         harness.identity_for_scope(scope, "teacher")
 
 
-@pytest.mark.parametrize("roles", [["student"], ["student", "teacher"]])
-def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles):
+@pytest.mark.parametrize(("roles", "student_mode"), [(["student"], "public"), (["student", "teacher"], "public"), (["student", "teacher"], "internal")])
+def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles, student_mode):
     harness = load_harness()
     root = tmp_path
     registry = root / "release-registry.json"
@@ -227,21 +227,25 @@ def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles):
             return 401, {"error": "unauthorized"}
         if collection != selected:
             return 403, {"error": "forbidden_collection"}
+        if session == "student-session" and student_mode == "internal":
+            return 200, {"results": []}
         return 200, {"results": [{"citation": {"source_uri": "https://eduscol.education.gouv.fr"}}]}
     monkeypatch.setattr(harness, "_post_search", post)
     monkeypatch.setattr(harness, "assess_positive", lambda *_args, **_kwargs: {"results": 1, "citation_count": 1})
-    args = Namespace(repository_root=root, operator_id="test", cockpit_url="http://127.0.0.1:18004", expected_sha=head, scope_index=scope_index, registry=registry, registry_sha256="a" * 64, collection=selected, query="test", student_mode="public")
+    args = Namespace(repository_root=root, operator_id="test", cockpit_url="http://127.0.0.1:18004", expected_sha=head, scope_index=scope_index, registry=registry, registry_sha256="a" * 64, collection=selected, query="test", student_mode=student_mode)
     report = harness.run(args)
     assert minted == (["student", "teacher"] if "teacher" in roles else ["student"])
     if "teacher" in roles:
         assert calls == [(None, selected), ("teacher-session", collections[1]), ("teacher-session", selected), ("student-session", selected)]
     else:
         assert calls == [(None, selected), ("student-session", collections[1]), ("student-session", selected)]
-    assert report["student"]["results"] == 1
+    assert report["student"] == ({"results": 1, "citation_count": 1} if student_mode == "public" else {"refusal": "empty"})
     assert report["teacher_status"] == (200 if "teacher" in roles else None)
     assert report["teacher_e2e_verified"] is ("teacher" in roles)
     assert report["teacher"] == ({"results": 1, "citation_count": 1} if "teacher" in roles else {"status": "NOT_RUN_SCOPE_ROLE_NOT_ISSUED"})
     assert report["cross_scope_role"] == ("teacher" if "teacher" in roles else "student")
+    expected_status = "INTERNAL_STUDENT_REFUSAL_VERIFIED" if student_mode == "internal" else ("VERIFIED" if "teacher" in roles else "STUDENT_ONLY_VERIFIED")
+    assert report["verification_status"] == expected_status
 
 
 def test_rehearsal_and_candidate_releases_cannot_qualify_final_bff():
