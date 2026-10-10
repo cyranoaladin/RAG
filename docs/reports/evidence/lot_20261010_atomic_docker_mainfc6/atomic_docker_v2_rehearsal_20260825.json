@@ -1,0 +1,370 @@
+{
+  "authorization_set_protocol": "NEXUS-AUTHORIZATION-SET-V1",
+  "bundle_attestation": {
+    "bundle_digest": "ac2a62f69c6f5be9f30dbf5f69327be65469afa5f93d3b8c87441a7bc9685cbd",
+    "bundle_manifest_sha256": "f4e9e78a111348a67176a0dc39b3c8580aa5f2354e7f1f184fb8708c84812c85",
+    "member_sha256": [
+      {
+        "path": ".env",
+        "sha256": "7c6715c221faf86c7a9b47610d9e046d25c38a95c24f1afd11ae2848303bf49a"
+      },
+      {
+        "path": "authority-required.txt",
+        "sha256": "ebd4296e1b838fa9dcc7974ee43c737faf445a3351e2634ed1129d9d59723406"
+      },
+      {
+        "path": "authorization-revocations.json",
+        "sha256": "df7ab6676f7220f93c314e6b88a68382a578d9348a1999082633371b2874f9f4"
+      },
+      {
+        "path": "authorization-set.json",
+        "sha256": "1cf3424639c5b8be14c7a2e142fe17d0ec8d0711f6cca2371f999ebb303a778a"
+      },
+      {
+        "path": "docker-compose.production-release.yml",
+        "sha256": "fa6ccea1ca4e3a031d9e99f25cc05db803aa9bac642c000ddab14f6d9da54b52"
+      },
+      {
+        "path": "docker-compose.production-workers.yml",
+        "sha256": "d5590ab2e49b81e29a0516484e7c2d46fd609dc7b8cc553e04563a71dca6689f"
+      },
+      {
+        "path": "docker-compose.v2.yml",
+        "sha256": "36d7f589da5385a9d98f80f6ef894b1b3624031126bd87817d127379856431dc"
+      },
+      {
+        "path": "evidence/authority_revocations.bin",
+        "sha256": "df7ab6676f7220f93c314e6b88a68382a578d9348a1999082633371b2874f9f4"
+      },
+      {
+        "path": "evidence/authorization_set.bin",
+        "sha256": "1cf3424639c5b8be14c7a2e142fe17d0ec8d0711f6cca2371f999ebb303a778a"
+      },
+      {
+        "path": "evidence/catalog.bin",
+        "sha256": "b3f1a2f9f8f79e6013ba3fedddc5d58e4f1b89b15db2c1679655c18fe210b319"
+      },
+      {
+        "path": "evidence/currentness_verification.bin",
+        "sha256": "605da3ac9f040af9d9b9e08192e90518cb57b519297de5b6215c1bc21daabb7f"
+      },
+      {
+        "path": "evidence/golden.bin",
+        "sha256": "51e4167538273f3840db00fe79cbc3225146ebfed16fa4382166b7066537c9f1"
+      },
+      {
+        "path": "evidence/pii.bin",
+        "sha256": "47f5cb49a03d2bca502656b87da870e133fb643f5d11d493ecf18240715bc30b"
+      },
+      {
+        "path": "evidence/release_scope_placement.bin",
+        "sha256": "3935062feddda1d0c94b00949fe5221e0b2eef8c2f177096d1e5fc1b71d7ed0d"
+      },
+      {
+        "path": "evidence/review_binding_trust_anchor.bin",
+        "sha256": "1836419f7c5eefa67d2c8afa11b4cfbbb1046a20705bf6f41c56afdbdc3dda50"
+      },
+      {
+        "path": "evidence/rights.bin",
+        "sha256": "c61b0399a73e71d77c07a435001f24b8bd5396c341d87f159220e455d1c46d3c"
+      },
+      {
+        "path": "evidence/routing.bin",
+        "sha256": "e2a170755524c570e4f94f20bd1e7360bbec2aa82725e4c41f6ce94f8a4bd3ea"
+      },
+      {
+        "path": "evidence/trusted_reviewers.bin",
+        "sha256": "f37422f58fa5fd16a44a0d6e08cbe85c0ae68e5dc81157b9c1ab9ebe930d6204"
+      },
+      {
+        "path": "h2-coverage.json",
+        "sha256": "d553e0905576023e191d3aa3fa93d941f6a78b5b736a98a8063627b99dbfaf94"
+      },
+      {
+        "path": "h2-evidence.json",
+        "sha256": "c8dc451c93e2e51986205d5e39dac05b3f960d06aa2190bba89b0126cb7e2f51"
+      },
+      {
+        "path": "image-provenance-evidence.json",
+        "sha256": "749834b46de4b047ba8a522bf86fe652f820346685f6db0a5bf185e60ae3a3c8"
+      },
+      {
+        "path": "profile-manifest.yml",
+        "sha256": "a4b51fbadca2149513a2d1355dd3a40edeb145e7cfe09cf2745e495c43f0faff"
+      },
+      {
+        "path": "promotion-evidence.json",
+        "sha256": "dc50b6a791568552abb9e9526c88ea2175c059e67048aa6122c185d2948b29b5"
+      },
+      {
+        "path": "readiness-manifest.json",
+        "sha256": "853393834a87808f5e4c80144ab0ae51baa589a261f668cda8d964f10583fc70"
+      },
+      {
+        "path": "readiness-trust-anchor.json",
+        "sha256": "b5fb697cd037b075c065130ac719de44f1d22623ae3c381ccfc11a973dd00d50"
+      },
+      {
+        "path": "release-material/governance/authorizations/atomic-docker-v2-rehearsal-authz-v1.json",
+        "sha256": "13428224a7de84a4ad91137162f45c509d5080b9eb08490e59009f00f3611f2c"
+      },
+      {
+        "path": "release-material/governance/review-bindings/atomic-docker-v2-rehearsal-authz-v1.json",
+        "sha256": "30bd8aa7a292077bcc0840f5b8a05fe43c7afb92bd5a914f6f64b847221041fb"
+      },
+      {
+        "path": "release-scope-placement.jsonl",
+        "sha256": "3935062feddda1d0c94b00949fe5221e0b2eef8c2f177096d1e5fc1b71d7ed0d"
+      },
+      {
+        "path": "release-scope-sources/governance/expected-contents.txt",
+        "sha256": "ebd4296e1b838fa9dcc7974ee43c737faf445a3351e2634ed1129d9d59723406"
+      },
+      {
+        "path": "release-scope-sources/governance/placements.json",
+        "sha256": "c261689d87a551e72a1800cbfe4ca1cbd5758ad41f2e392e00b99721656c5034"
+      },
+      {
+        "path": "release-scope-sources/governance/profile-manifest.yml",
+        "sha256": "a4b51fbadca2149513a2d1355dd3a40edeb145e7cfe09cf2745e495c43f0faff"
+      },
+      {
+        "path": "release-scope-sources/governance/profile-matrix.json",
+        "sha256": "d70de10d11d015fc68382e911a0a61557f020d7ec0c4e64bfa130ca0bc636230"
+      },
+      {
+        "path": "release-scope-sources/governance/release-registry.json",
+        "sha256": "f9ed4d7efd1a56a4f0fea42d6a02c99e06c10819c126f9d924cd0f223e28c4e9"
+      },
+      {
+        "path": "release-scope-sources/governance/verified-profiles.json",
+        "sha256": "b797a5b60d74c81748b0516d3fd413d3cc735e1bcf56ecb95c17e22ab5c5a6b3"
+      },
+      {
+        "path": "release-scope-sources/profiles/nsi.yml",
+        "sha256": "34ad8360b19b61ef06394fd4188dbdf854968efed0097b976514140f7f37328c"
+      },
+      {
+        "path": "resolved-compose.json",
+        "sha256": "b3e60a979589d597583d25965605d98d5177ef8ba7146d22b5725e061457f62c"
+      },
+      {
+        "path": "sealed-manifest.txt",
+        "sha256": "e71f56b36c5f9f640c5ed46ddec0124c25e4a6b1306189e58c58d3a6ee5e9880"
+      },
+      {
+        "path": "verified-profiles.json",
+        "sha256": "2d3d454ca95132d1706d0e23285b29563cadc94e4b04f55fc661cbe6b384a5a9"
+      }
+    ]
+  },
+  "bundle_digest": "ac2a62f69c6f5be9f30dbf5f69327be65469afa5f93d3b8c87441a7bc9685cbd",
+  "docker": {
+    "compose_version": "5.6.0",
+    "engine_version": "29.1.3"
+  },
+  "evidence_class": "SYNTHETIC_V2_REPRODUCIBLE",
+  "fixture_builder_sha256": "48156d7257c87428cf4311a5936baed2585dbacac2d1c94a0b53da36ea9d4994",
+  "foreign_changes": [],
+  "generated_project_residue": {
+    "containers": [],
+    "networks": [],
+    "volumes": []
+  },
+  "git_commit": "fc6b7da6254eb67e7a2b26ec555b5edf17316a96",
+  "git_tree": "93e9f382fb12bd49ee3489056e0536f4d66c1976",
+  "harness": {
+    "path": "services/rag-engine/scripts/atomic_docker_v2_rehearsal.py",
+    "sha256": "af109874ba8c0740734a2446a8de8122e9ce156622a631b396f2242dfd72e2ae"
+  },
+  "health_observation": {
+    "fixture-upstream": {
+      "container_id": "224774c5503d6d0592add2b7c35a9ec3f818b637bd40fd78c86d0751469ff86c",
+      "health": "healthy",
+      "project": "nexus-go-live-rehearsal-v2-923f7097bf2d9408eeaa099c87c91cf3-main"
+    },
+    "ingestor": {
+      "container_id": "bb5040189f0c48c68396ccffaedb01189b00912683231011c4cbfc1d9bd310c5",
+      "health": "healthy",
+      "project": "nexus-go-live-rehearsal-v2-923f7097bf2d9408eeaa099c87c91cf3-main"
+    },
+    "multilevel-worker-a-production": {
+      "container_id": "bfcf346bdd1efb079576c8312151b18530f9e440fbf57bfa474a07bfaf224e38",
+      "health": "healthy",
+      "project": "nexus-go-live-rehearsal-v2-923f7097bf2d9408eeaa099c87c91cf3-main"
+    },
+    "multilevel-worker-b-production": {
+      "container_id": "bbdf51ad07947e93528cca22e9996ecf9751cb9003c70d1095bdad98d084b7bb",
+      "health": "healthy",
+      "project": "nexus-go-live-rehearsal-v2-923f7097bf2d9408eeaa099c87c91cf3-main"
+    }
+  },
+  "image": {
+    "build_invoked": false,
+    "compose_pull_invoked": true,
+    "local_id": "sha256:bf8527eb54c3680e728d5b4b383a8ba730d72dae7236fbc8dff97ed6b224a731",
+    "preexisting_before_harness": true,
+    "reference": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+  },
+  "isolation_preflight": {
+    "collision": {
+      "containers": [],
+      "networks": [],
+      "volumes": []
+    },
+    "main": {
+      "containers": [],
+      "networks": [],
+      "volumes": []
+    },
+    "witness": {
+      "containers": [],
+      "networks": [],
+      "volumes": []
+    }
+  },
+  "mutation_command_count": 9,
+  "observed_at": "2026-10-10T13:46:47.401408Z",
+  "production_ports_published": 0,
+  "production_project_name_used": false,
+  "project_names": {
+    "collision": "nexus-go-live-rehearsal-v2-923f7097bf2d9408eeaa099c87c91cf3-collision",
+    "main": "nexus-go-live-rehearsal-v2-923f7097bf2d9408eeaa099c87c91cf3-main",
+    "witness": "nexus-go-live-rehearsal-v2-923f7097bf2d9408eeaa099c87c91cf3-witness"
+  },
+  "protocol_version": "NEXUS-ATOMIC-DOCKER-V2-REHEARSAL-EVIDENCE-V1",
+  "readiness_protocol": "NEXUS-PRODUCTION-READINESS-V2",
+  "readiness_public_anchor_sha256": "b5fb697cd037b075c065130ac719de44f1d22623ae3c381ccfc11a973dd00d50",
+  "remove_orphans_used": false,
+  "review_binding_public_anchor_sha256": "1836419f7c5eefa67d2c8afa11b4cfbbb1046a20705bf6f41c56afdbdc3dda50",
+  "rollback": {
+    "exit_code": 0,
+    "project_inventory_after": {
+      "containers": [],
+      "networks": [],
+      "volumes": []
+    }
+  },
+  "scenarios": {
+    "bad_authorization_set": {
+      "docker_events": [],
+      "docker_inventory_after": {
+        "containers": [],
+        "networks": [],
+        "volumes": []
+      },
+      "docker_inventory_before": {
+        "containers": [],
+        "networks": [],
+        "volumes": []
+      },
+      "error_class": "DeploymentWrapperError",
+      "exit_code": 1,
+      "expected_refusal_layer": true,
+      "mutation_boundary_calls": 0,
+      "name": "bad_authorization_set",
+      "passed": true,
+      "refusal_reason_code": "BAD_AUTHORIZATION_SET",
+      "refused": true
+    },
+    "bad_digest": {
+      "docker_events": [],
+      "docker_inventory_after": {
+        "containers": [],
+        "networks": [],
+        "volumes": []
+      },
+      "docker_inventory_before": {
+        "containers": [],
+        "networks": [],
+        "volumes": []
+      },
+      "error_class": "DeploymentWrapperError",
+      "exit_code": 1,
+      "expected_refusal_layer": true,
+      "mutation_boundary_calls": 0,
+      "name": "bad_digest",
+      "passed": true,
+      "refusal_reason_code": "BAD_DIGEST",
+      "refused": true
+    },
+    "bad_readiness": {
+      "docker_events": [],
+      "docker_inventory_after": {
+        "containers": [],
+        "networks": [],
+        "volumes": []
+      },
+      "docker_inventory_before": {
+        "containers": [],
+        "networks": [],
+        "volumes": []
+      },
+      "error_class": "DeploymentWrapperError",
+      "exit_code": 1,
+      "expected_refusal_layer": true,
+      "mutation_boundary_calls": 0,
+      "name": "bad_readiness",
+      "passed": true,
+      "refusal_reason_code": "BAD_READINESS",
+      "refused": true
+    },
+    "foreign_collision": {
+      "docker_events": [],
+      "docker_inventory_after": {
+        "containers": [
+          "1d5b17a59b55",
+          "89f2a5a5b279"
+        ],
+        "networks": [
+          "d7fb237e9696",
+          "e1fb6b6b0817"
+        ],
+        "volumes": []
+      },
+      "docker_inventory_before": {
+        "containers": [
+          "1d5b17a59b55",
+          "89f2a5a5b279"
+        ],
+        "networks": [
+          "d7fb237e9696",
+          "e1fb6b6b0817"
+        ],
+        "volumes": []
+      },
+      "error_class": "DeploymentWrapperError",
+      "exit_code": 1,
+      "expected_refusal_layer": true,
+      "mutation_boundary_calls": 0,
+      "name": "foreign_collision",
+      "passed": true,
+      "refusal_reason_code": "FOREIGN_COLLISION",
+      "refused": true
+    },
+    "valid_bundle": {
+      "exit_code": 0,
+      "mutation_boundary_calls": 2,
+      "passed": true,
+      "pull_calls": 1,
+      "remove_orphans_used": false,
+      "up_calls": 1
+    }
+  },
+  "transcript_sha256": "684653d60f7a1187c916de1f47a3b8886fba5b2fd717c76eb6092d95a6a71793",
+  "verdicts": {
+    "ATOMIC_DOCKER_V2_REHEARSAL_PASS": true,
+    "BAD_AUTHORIZATION_SET_REFUSED": true,
+    "BAD_DIGEST_REFUSED": true,
+    "BAD_READINESS_REFUSED": true,
+    "FOREIGN_COLLISION_REFUSED": true,
+    "FOREIGN_SERVICES_TOUCHED": 0,
+    "ISOLATION_PREFLIGHT_PASS": true,
+    "PRODUCTION_PORTS_PUBLISHED": 0,
+    "PRODUCTION_PROJECT_NAME_USED": false,
+    "PROJECT_CONTAINERS_REMAINING": 0,
+    "REMOVE_ORPHANS_USED": false,
+    "ROLLBACK_REHEARSAL_PASS": true
+  },
+  "verification_status": "VERIFIED"
+}

@@ -481,6 +481,27 @@ def test_v2_public_successor_candidate_is_parseable_but_not_promoted(
     assert expectation.activation_status == "NO_PRODUCTION_ACTIVATION"
 
 
+def test_public_successor_promotion_requires_both_preparation_anchors() -> None:
+    required = readiness._PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS | {
+        "source_preparation_release_manifest_sha256",
+        "source_preparation_index_sha256",
+    }
+    authorities = {name: hashlib.sha256(name.encode()).hexdigest() for name in required}
+    readiness._require_authority_chain(
+        authorities, frozenset(), "authorities", review_chain_allowed=True,
+        public_successor_promotion_allowed=True,
+    )
+    for missing in (
+        "source_preparation_release_manifest_sha256", "source_preparation_index_sha256"
+    ):
+        with pytest.raises(ReleaseReadinessError, match="public successor authorities"):
+            readiness._require_authority_chain(
+                {name: sha for name, sha in authorities.items() if name != missing},
+                frozenset(), "authorities", review_chain_allowed=True,
+                public_successor_promotion_allowed=True,
+            )
+
+
 @pytest.mark.parametrize(
     "sabotage",
     ["missing_attribution", "pdf_sha_reused", "receipt_path", "lineage_count", "image_media"],
