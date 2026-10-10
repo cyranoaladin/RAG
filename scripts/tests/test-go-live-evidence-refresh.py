@@ -34,6 +34,7 @@ INGESTION_CONTROL_HEAD = (
     REPO_ROOT
     / "services/rag-engine/infra/postgres/ingestion_control/migrations/HEAD"
 )
+PRODUCT_HEAD = REPO_ROOT / "services/rag-engine/infra/postgres/migrations/HEAD"
 CI_LOCAL = REPO_ROOT / "scripts/ci-local.sh"
 DOCKER_V2_EVIDENCE = (
     REPO_ROOT / "docs/reports/evidence/atomic_docker_v2_rehearsal_20260825.json"
@@ -438,6 +439,7 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         runbook = RUNBOOK.read_text(encoding="utf-8")
         readme = README_PROD.read_text(encoding="utf-8")
         rollback = ROLLBACK_RUNBOOK.read_text(encoding="utf-8")
+        product_head = PRODUCT_HEAD.read_text(encoding="utf-8").strip()
         ingestion_control_head = INGESTION_CONTROL_HEAD.read_text(encoding="utf-8").strip()
         ingestion_control_version = ingestion_control_head.partition("_")[0]
         normalized_runbook = " ".join(runbook.split())
@@ -449,15 +451,16 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertNotIn("head `004_artifact_placements`", runbook)
         self.assertNotIn('"004_artifact_placements"', runbook)
         self.assertNotIn("head `004_artifact_placements`", readme)
-        self.assertIn("`005_official_snapshot_currentness`", readme)
+        self.assertIn(f"`{product_head}`", readme)
         self.assertIn("les 32 colonnes de `rag_chunks`", readme)
         self.assertIn("`rag_artifacts`", readme)
         self.assertIn("`rag_artifact_placements`", readme)
         for expected in (
             "004_artifact_placements",
             "005_official_snapshot_currentness",
+            product_head,
             "adopter le head structurel non enregistré `001`",
-            "appliquer `002`, `003`, `004`, puis `005`",
+            "appliquer `002`, `003`, `004`, `005`, puis `006`",
             "backup frais",
             f"`001` à `{ingestion_control_version}`",
             f"`{ingestion_control_head}`",
@@ -482,6 +485,7 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
             normalized_runbook,
         )
         self.assertIn(f"`SCHEMA_HEAD={int(ingestion_control_version)}`", normalized_runbook)
+        self.assertIn(f"`{product_head}`", rollback)
         self.assertIn(f"`{ingestion_control_head}`", rollback)
 
     def test_custom_dump_restore_is_isolated_and_migrator_only(self) -> None:
@@ -575,9 +579,10 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         self.assertLess(final_branch, rollback.index('cat >"$RESTORE_FINGERPRINT_SQL"', final_branch))
         self.assertIn("FINAL_SCHEMA_UNVERIFIED=true", rollback[final_branch:])
         for heads, expected in (
-            ("5|20", "FINAL_SCHEMA_CANDIDATE"),
+            ("6|20", "FINAL_SCHEMA_CANDIDATE"),
+            ("5|20", "FINAL_SCHEMA_UNVERIFIED"),
             ("", "FINAL_SCHEMA_UNVERIFIED"),
-            ("5|19", "FINAL_SCHEMA_UNVERIFIED"),
+            ("6|19", "FINAL_SCHEMA_UNVERIFIED"),
         ):
             with self.subTest(heads=heads):
                 script = classifier.group(0) + '\nclassify_restore_schema_heads "$1"\n'
@@ -602,8 +607,12 @@ class GoLiveEvidenceRefreshTests(unittest.TestCase):
         verified = rollback.index("RESTORE_SCHEMA_VERDICT=FINAL_SCHEMA_VERIFIED")
         self.assertLess(product_validation, verified)
         self.assertLess(control_validation, verified)
+        self.assertIn(
+            'assert_canonical_registry_rows "$RESTORE_PRODUCT_REGISTRY" "$PWD/postgres/migrations" 6',
+            rollback,
+        )
         for directory, head in (
-            (REPO_ROOT / "services/rag-engine/infra/postgres/migrations", 5),
+            (REPO_ROOT / "services/rag-engine/infra/postgres/migrations", 6),
             (REPO_ROOT / "services/rag-engine/infra/postgres/ingestion_control/migrations", 20),
         ):
             rows = [
