@@ -19,8 +19,9 @@ import re
 import stat
 import threading
 import time
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -602,6 +603,90 @@ def _instanciated_v2_collections(
 
 _ALLOWED_NEXUS_ENVIRONMENTS = frozenset({"production", "rehearsal"})
 _PUBLIC_READINESS_ANCHOR = Path(__file__).resolve().parent / "production-readiness-v1.json"
+_PUBLIC_C_CACHE_MAX_AGE = timedelta(seconds=2)
+_public_c_cache_lock = threading.Lock()
+_public_c_cache: tuple[tuple[str, ...], datetime, Any] | None = None
+
+
+def _public_bundle_identity(root: Path) -> str:
+    """Détecter tout remplacement de fichier du bundle entre deux replays C.
+
+    Le bundle est monté en lecture seule dans le conteneur. L'empreinte des
+    inodes, tailles et temps de modification/changement capte aussi une
+    réécriture de même taille avec mtime restauré sur l'hôte.
+    """
+    absolute = root.absolute()
+    walked = Path(absolute.anchor)
+    for part in absolute.parts[1:]:
+        walked /= part
+        if walked.is_symlink():
+            raise RuntimeError("public successor bundle path is a symlink")
+    digest = hashlib.sha256()
+    stack = [(absolute, ".")]
+    while stack:
+        directory, relative = stack.pop()
+        before = directory.stat(follow_symlinks=False)
+        if not stat.S_ISDIR(before.st_mode):
+            raise RuntimeError("public successor bundle directory absent")
+        digest.update(
+            f"{relative}\0{before.st_dev}:{before.st_ino}:{before.st_mode}:"
+            f"{before.st_mtime_ns}:{before.st_ctime_ns}\0".encode()
+        )
+        children = sorted(os.scandir(directory), key=lambda entry: entry.name)
+        for child in children:
+            child_relative = f"{relative}/{child.name}"
+            info = child.stat(follow_symlinks=False)
+            if stat.S_ISLNK(info.st_mode):
+                raise RuntimeError("public successor bundle contains a symlink")
+            if stat.S_ISDIR(info.st_mode):
+                stack.append((Path(child.path), child_relative))
+            elif stat.S_ISREG(info.st_mode):
+                digest.update(
+                    f"{child_relative}\0{info.st_dev}:{info.st_ino}:{info.st_mode}:"
+                    f"{info.st_size}:{info.st_mtime_ns}:{info.st_ctime_ns}\0".encode()
+                )
+            else:
+                raise RuntimeError("public successor bundle contains a special file")
+        after = directory.stat(follow_symlinks=False)
+        if (
+            before.st_ino, before.st_mtime_ns, before.st_ctime_ns
+        ) != (
+            after.st_ino, after.st_mtime_ns, after.st_ctime_ns
+        ):
+            raise RuntimeError("public successor bundle changed during identity scan")
+    return digest.hexdigest()
+
+
+def _cached_public_successor_verdict(
+    root: Path, key: tuple[str, ...], verify: Callable[[], Any],
+) -> Any:
+    """Amortir C sans amortir les contrôles DB revocation/LOT42 par requête."""
+    global _public_c_cache
+    identity = _public_bundle_identity(root)
+    full_key = (*key, identity)
+    with _public_c_cache_lock:
+        now = datetime.now(UTC)
+        if _public_c_cache is not None:
+            cached_key, valid_until, cached_verdict = _public_c_cache
+            if cached_key == full_key and now < valid_until:
+                return cached_verdict
+        verdict = verify()
+        expires = getattr(verdict, "expires_at_utc", None)
+        if (
+            not isinstance(expires, datetime)
+            or expires.tzinfo is None
+            or expires.utcoffset() != timedelta(0)
+            or datetime.now(UTC) >= expires
+        ):
+            raise RuntimeError("public successor C validity has expired")
+        if _public_bundle_identity(root) != identity:
+            raise RuntimeError("public successor bundle changed during C replay")
+        _public_c_cache = (
+            full_key,
+            min(datetime.now(UTC) + _PUBLIC_C_CACHE_MAX_AGE, expires),
+            verdict,
+        )
+        return verdict
 
 
 def _resolve_nexus_environment() -> str:
@@ -695,16 +780,24 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
             or readiness.public_successor_target_pin_digest is None
         ):
             raise ValueError("public successor signed A/C binding differs")
-        verdict = verify_public_successor_activation(
+        verdict = _cached_public_successor_verdict(
             root,
-            expected_content_anchor_sha256=readiness.public_successor_content_anchor_digest,
-            expected_authority_envelope_sha256=(
-                readiness.public_successor_authority_envelope_digest
+            (
+                str(root.absolute()), hashlib.sha256(signed_raw).hexdigest(),
+                hashlib.sha256(anchor_raw).hexdigest(), registry_sha, scope_sha,
+                release_sha, binding.expected_sha256, expected.release_id,
             ),
-            expected_release_id=expected.release_id,
-            expected_registry_sha256=registry_sha,
-            expected_scope_authority_sha256=scope_sha,
-            expected_target_pin_sha256=readiness.public_successor_target_pin_digest,
+            lambda: verify_public_successor_activation(
+                root,
+                expected_content_anchor_sha256=readiness.public_successor_content_anchor_digest,
+                expected_authority_envelope_sha256=(
+                    readiness.public_successor_authority_envelope_digest
+                ),
+                expected_release_id=expected.release_id,
+                expected_registry_sha256=registry_sha,
+                expected_scope_authority_sha256=scope_sha,
+                expected_target_pin_sha256=readiness.public_successor_target_pin_digest,
+            ),
         )
         if not isinstance(verdict, PublicSuccessorActivationVerdict):
             raise ValueError("public successor verifier did not return a typed verdict")
