@@ -27,6 +27,7 @@ export default function HomeClient() {
   const [apiLive, setApiLive] = useState(false)
   const [launchReady, setLaunchReady] = useState(false)
   const [blockers, setBlockers] = useState<string[]>([])
+  const [multiCollectionAllowed, setMultiCollectionAllowed] = useState(false)
 
   useEffect(() => {
     getCollections().then((res) => {
@@ -34,6 +35,7 @@ export default function HomeClient() {
       setApiLive(res.live)
       setLaunchReady(res.launchReady)
       setBlockers(res.blockers)
+      setMultiCollectionAllowed(res.multiCollectionAllowed)
     })
   }, [])
 
@@ -101,6 +103,7 @@ export default function HomeClient() {
               collections={collections}
               launchReady={launchReady && apiLive}
               blockers={blockers}
+              multiCollectionAllowed={multiCollectionAllowed}
             />
           )}
         </div>

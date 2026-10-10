@@ -926,7 +926,7 @@ def test_source_receipt_and_matching_live_bytes_still_cannot_forge_currentness(
     raw = canonical_json_bytes(receipt)
     digest = hashlib.sha256(raw).hexdigest()
     forged_path = evidence_root / "source_receipts" / digest[:2] / f"{digest}.json"
-    forged_path.parent.mkdir(parents=True)
+    forged_path.parent.mkdir(parents=True, exist_ok=True)
     forged_path.write_bytes(raw)
     record["source_receipt_sha256"] = digest
     assert _verify_approval_source_proof(record, {"content_sha256": sha,

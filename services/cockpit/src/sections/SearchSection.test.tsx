@@ -43,9 +43,9 @@ describe('SearchSection', () => {
       ),
       { target: { value: 'graphes' } },
     )
-    const picker = screen.getByLabelText('Collections à interroger') as HTMLSelectElement
-    picker.options[0].selected = true
-    fireEvent.change(picker)
+    fireEvent.change(screen.getByLabelText('Collection à interroger'), {
+      target: { value: collections[0].name },
+    })
     const submit = screen.getByRole('button', { name: 'Rechercher les sources' })
     fireEvent.click(submit)
 
@@ -66,6 +66,45 @@ describe('SearchSection', () => {
     expect(screen.getByRole('alert').textContent).toContain('L’ouverture est bloquée')
     expect((screen.getByRole('button', { name: 'Rechercher les sources' }) as HTMLButtonElement).disabled).toBe(true)
     expect(chatMock).not.toHaveBeenCalled()
+  })
+
+  it('ne propose ni sélection multi-collection ni génération de réponse', () => {
+    render(<SearchSection collections={collections} launchReady blockers={[]} />)
+
+    expect((screen.getByLabelText('Collection à interroger') as HTMLSelectElement).multiple).toBe(false)
+    expect(screen.queryByRole('button', { name: 'Répondre avec sources' })).toBeNull()
+  })
+
+  it('conserve la recherche multi-collections pour un rôle non étudiant vérifié par le BFF', async () => {
+    const teacherCollections = [
+      collections[0],
+      { ...collections[0], name: 'rag_nexus_ses_terminale_specialite', matiere: 'ses' },
+    ]
+    searchMock.mockResolvedValue({ demo: false, items: [] })
+    render(
+      <SearchSection
+        collections={teacherCollections}
+        launchReady
+        blockers={[]}
+        multiCollectionAllowed
+      />,
+    )
+
+    fireEvent.change(screen.getByPlaceholderText('Ex. : parcours de graphes, loi binomiale, convexité…'), {
+      target: { value: 'notions communes' },
+    })
+    const picker = screen.getByLabelText('Collections à interroger') as HTMLSelectElement
+    expect(picker.multiple).toBe(true)
+    picker.options[0].selected = true
+    picker.options[1].selected = true
+    fireEvent.change(picker)
+    fireEvent.click(screen.getByRole('button', { name: 'Rechercher les sources' }))
+
+    await waitFor(() => expect(searchMock).toHaveBeenCalledWith(
+      'notions communes',
+      teacherCollections.map((collection) => collection.name),
+      8,
+    ))
   })
 
   it('affiche l’attribution complète des passages textuels dérivés', async () => {
@@ -94,9 +133,9 @@ describe('SearchSection', () => {
     fireEvent.change(screen.getByPlaceholderText('Ex. : parcours de graphes, loi binomiale, convexité…'), {
       target: { value: 'graphes' },
     })
-    const picker = screen.getByLabelText('Collections à interroger') as HTMLSelectElement
-    picker.options[0].selected = true
-    fireEvent.change(picker)
+    fireEvent.change(screen.getByLabelText('Collection à interroger'), {
+      target: { value: collections[0].name },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Rechercher les sources' }))
 
     await waitFor(() => expect(screen.getByText('Un extrait vérifié.')).toBeTruthy())

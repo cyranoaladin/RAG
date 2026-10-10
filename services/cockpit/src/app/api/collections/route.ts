@@ -21,6 +21,7 @@ function fallback() {
     totalCollections: 0,
     readyCollections: 0,
     blockers: ['validation de lancement indisponible'],
+    multiCollectionAllowed: false,
   }
 }
 
@@ -87,7 +88,13 @@ export async function GET(request: Request) {
     if (!items || !readiness) {
       return NextResponse.json(fallback(), { status: 503 })
     }
-    return NextResponse.json({ items, live: true, ...readiness })
+    const allowedCollections = new Set(authContext.allowedCollections)
+    return NextResponse.json({
+      items: items.filter((item) => allowedCollections.has(item.name)),
+      live: true,
+      multiCollectionAllowed: authContext.identity.role !== 'student',
+      ...readiness,
+    })
   } catch {
     return NextResponse.json(fallback(), { status: 503 })
   }
