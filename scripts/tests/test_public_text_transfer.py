@@ -277,3 +277,47 @@ def test_rejeu_successeur_exige_tous_les_documents_immutables(
     (tmp_path / "release/preparation-index.json").unlink()
     with pytest.raises(TransferRefused, match="autorité successeur"):
         verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist)
+
+
+def test_rejeu_v2_exige_explicitement_les_subjects_aux_profils_complets(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import build_student_public_successor_release as builder
+    import check_student_public_derivative_inclusions as cas_checker
+
+    inventory = canonical({"release_id": "student-public-successor-v2"})
+    allowlist = canonical({"release_id": "student-public-successor-v2"})
+    legacy = {
+        Path("release-legacy/profile_gate/candidate_inventory.json"): inventory,
+        Path("release-legacy/profile_gate/private_transfer_allowlist.json"): allowlist,
+        Path("release-legacy/preparation-index.json"): canonical({"kind": "LEGACY"}),
+    }
+    complete = {
+        Path("release-v2/profile_gate/candidate_inventory.json"): inventory,
+        Path("release-v2/profile_gate/private_transfer_allowlist.json"): allowlist,
+        Path("release-v2/preparation-index.json"): canonical({"kind": "COMPLETE_PROFILE"}),
+    }
+    for path, raw in complete.items():
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
+    monkeypatch.setattr(builder, "load_sources", lambda root: {"root": root})
+    monkeypatch.setattr(cas_checker, "verify_private_cas_evidence",
+                        lambda source, private_root: {"source": source})
+    monkeypatch.setattr(builder, "build_documents",
+                        lambda source, inclusion, legacy_profile_binding: (
+                            legacy if legacy_profile_binding else complete
+                        ))
+
+    verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist,
+                               complete_profile_binding=True)
+    with pytest.raises(TransferRefused, match="autorité successeur"):
+        verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist)
+    (tmp_path / "release-v2/preparation-index.json").write_bytes(b"substitution")
+    with pytest.raises(TransferRefused, match="autorité successeur"):
+        verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist,
+                                   complete_profile_binding=True)
+    (tmp_path / "release-v2/preparation-index.json").unlink()
+    with pytest.raises(TransferRefused, match="autorité successeur"):
+        verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist,
+                                   complete_profile_binding=True)
