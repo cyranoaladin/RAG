@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import re
+import socket
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ ALLOWLIST_KIND = "NEXUS_STUDENT_PUBLIC_PRIVATE_TRANSFER_ALLOWLIST_V1"
 MANIFEST_KIND = "NEXUS_STUDENT_PUBLIC_TEXT_TRANSFER_MANIFEST_V1"
 RECEIPT_KIND = "NEXUS_STUDENT_PUBLIC_TEXT_OBSERVED_TRANSFER_V1"
 SHA = re.compile(r"[0-9a-f]{64}\Z")
+TEXT_MAGIC = b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\n"
 
 
 class TransferRefused(ValueError):
@@ -72,14 +74,28 @@ def _hash_file(path: Path) -> tuple[str, int]:
     return hasher.hexdigest(), size
 
 
+def _hash_text_file(path: Path) -> tuple[str, int]:
+    observed, size = _hash_file(path)
+    raw = path.read_bytes()
+    if not raw.startswith(TEXT_MAGIC):
+        raise TransferRefused(f"signature du dérivé texte absente: {path.name}")
+    try:
+        raw.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise TransferRefused(f"dérivé non UTF-8: {path.name}") from error
+    if digest(raw) != observed or len(raw) != size:
+        raise TransferRefused(f"octets du dérivé modifiés pendant le contrôle: {path.name}")
+    return observed, size
+
+
 def plan_text_transfer(inventory_raw: bytes, allowlist_raw: bytes,
-                       source_root: Path) -> dict[str, Any]:
+                       source_root: Path, evidence_root: Path | None = None) -> dict[str, Any]:
     """Lier le sous-ensemble final aux octets privés ; ne rien copier."""
     inventory = _document(inventory_raw, "inventaire")
     allowlist = _document(allowlist_raw, "allowlist")
     release_id = inventory.get("release_id")
     if (inventory.get("inventory_kind") != INVENTORY_KIND
-            or not isinstance(release_id, str) or not release_id.startswith("student-public-successor-")
+            or not isinstance(release_id, str) or not release_id.startswith("student-public-")
             or allowlist.get("kind") != ALLOWLIST_KIND
             or allowlist.get("release_id") != release_id
             or allowlist.get("candidate_inventory_sha256") != digest(inventory_raw)
@@ -138,18 +154,36 @@ def plan_text_transfer(inventory_raw: bytes, allowlist_raw: bytes,
             or counts.get("unique_artifacts") != len(selected)
             or counts.get("placements") != placement_count):
         raise TransferRefused("comptes inventaire divergents")
+    if set(allowed_by_sha) != set(selected):
+        raise TransferRefused("allowlist et inventaire de populations différentes")
     source_root = source_root.resolve()
+    evidence_root = (evidence_root or source_root).resolve()
     files = []
+    receipt_shas: set[str] = set()
     for sha in sorted(selected):
         row = allowed_by_sha[sha]
         source = source_root / row["source_private_relpath"]
         if not source.resolve().is_relative_to(source_root):
             raise TransferRefused("source hors magasin privé")
-        observed, _ = _hash_file(source)
+        observed, _ = _hash_text_file(source)
         if observed != sha:
             raise TransferRefused("octets source substitués")
+        receipt_sha = selected[sha].get("derivative_receipt_sha256")
+        if not _sha(receipt_sha):
+            raise TransferRefused("reçu CAS source absent")
+        receipt_shas.add(receipt_sha)
         files.append({"file": row["file"], "media_type": TEXT_MIME,
                       "sha256_expected": sha})
+    receipt_files = []
+    for receipt_sha in sorted(receipt_shas):
+        source = evidence_root / "derivative_receipts" / f"{receipt_sha}.json"
+        if not source.resolve().is_relative_to(evidence_root):
+            raise TransferRefused("reçu CAS hors magasin privé")
+        observed, _ = _hash_file(source)
+        if observed != receipt_sha:
+            raise TransferRefused("reçu CAS source substitué")
+        receipt_files.append({"file": f"derivative_receipts/{receipt_sha}.json",
+                              "sha256_expected": receipt_sha})
     return {
         "kind": MANIFEST_KIND,
         "status": "PLANNED_NOT_TRANSFERRED",
@@ -157,24 +191,30 @@ def plan_text_transfer(inventory_raw: bytes, allowlist_raw: bytes,
         "inventory_sha256": digest(inventory_raw),
         "allowlist_sha256": digest(allowlist_raw),
         "file_count": len(files),
+        "derivative_receipt_count": len(receipt_files),
         "placement_count": placement_count,
         "files": files,
+        "derivative_receipts": receipt_files,
     }
 
 
 def _manifest(raw: bytes) -> dict[str, Any]:
     manifest = _document(raw, "manifeste de transfert", canonical_required=True)
     files = manifest.get("files")
+    receipts = manifest.get("derivative_receipts")
     if (set(manifest) != {"kind", "status", "release_id", "inventory_sha256",
-                          "allowlist_sha256", "file_count", "placement_count", "files"}
+                          "allowlist_sha256", "file_count", "derivative_receipt_count",
+                          "placement_count", "files", "derivative_receipts"}
             or manifest.get("kind") != MANIFEST_KIND
             or manifest.get("status") != "PLANNED_NOT_TRANSFERRED"
             or not isinstance(manifest.get("release_id"), str)
-            or not manifest["release_id"].startswith("student-public-successor-")
+            or not manifest["release_id"].startswith("student-public-")
             or not _sha(manifest.get("inventory_sha256"))
             or not _sha(manifest.get("allowlist_sha256"))
             or not isinstance(files, list) or not files
             or manifest.get("file_count") != len(files)
+            or not isinstance(receipts, list) or not receipts
+            or manifest.get("derivative_receipt_count") != len(receipts)
             or not isinstance(manifest.get("placement_count"), int)
             or manifest["placement_count"] < len(files)):
         raise TransferRefused("manifeste non admissible")
@@ -188,6 +228,15 @@ def _manifest(raw: bytes) -> dict[str, Any]:
         shas.append(row["sha256_expected"])
     if shas != sorted(set(shas)):
         raise TransferRefused("population transfert non triée ou dupliquée")
+    receipt_shas = []
+    for row in receipts:
+        if (not isinstance(row, dict) or set(row) != {"file", "sha256_expected"}
+                or not _sha(row.get("sha256_expected"))
+                or row.get("file") != f"derivative_receipts/{row['sha256_expected']}.json"):
+            raise TransferRefused("reçu CAS déclaré invalide")
+        receipt_shas.append(row["sha256_expected"])
+    if receipt_shas != sorted(set(receipt_shas)):
+        raise TransferRefused("reçus CAS non triés ou dupliqués")
     return manifest
 
 
@@ -206,19 +255,33 @@ def observe_destination(manifest_raw: bytes, destination_root: Path,
     if destination_root.is_symlink() or not destination_root.is_dir():
         raise TransferRefused("répertoire de destination absent")
     children = list(destination_root.rglob("*"))
-    if any(path.is_symlink() or not path.is_file() for path in children):
-        raise TransferRefused("destination contient un lien ou sous-répertoire")
-    expected_names = {row["file"] for row in manifest["files"]}
-    if {path.name for path in children} != expected_names or len(children) != len(expected_names):
+    if any(path.is_symlink() for path in children):
+        raise TransferRefused("destination contient un lien symbolique")
+    dirs = {path.relative_to(destination_root).as_posix() for path in children if path.is_dir()}
+    if dirs != {"derivative_receipts"} or any(not path.is_file() and not path.is_dir()
+                                                for path in children):
+        raise TransferRefused("structure du store de destination inattendue")
+    expected_names = {row["file"] for row in manifest["files"] + manifest["derivative_receipts"]}
+    observed_names = {path.relative_to(destination_root).as_posix()
+                      for path in children if path.is_file()}
+    if observed_names != expected_names or len(children) != len(expected_names) + 1:
         raise TransferRefused("destination incomplète ou contient un intrus")
     observed_rows = []
     total_size = 0
     for row in manifest["files"]:
-        observed, size = _hash_file(destination_root / row["file"])
+        observed, size = _hash_text_file(destination_root / row["file"])
         if observed != row["sha256_expected"]:
             raise TransferRefused("octets destination divergents")
         observed_rows.append({"file": row["file"], "sha256_observed": observed,
                               "size_bytes": size})
+        total_size += size
+    observed_receipts = []
+    for row in manifest["derivative_receipts"]:
+        observed, size = _hash_file(destination_root / row["file"])
+        if observed != row["sha256_expected"]:
+            raise TransferRefused("reçu CAS destination divergent")
+        observed_receipts.append({"file": row["file"], "sha256_observed": observed,
+                                  "size_bytes": size})
         total_size += size
     return {
         "kind": RECEIPT_KIND,
@@ -226,10 +289,15 @@ def observe_destination(manifest_raw: bytes, destination_root: Path,
         "release_id": manifest["release_id"],
         "transfer_manifest_sha256": digest(manifest_raw),
         "target_identity": target_identity,
+        "target_identity_status": "CLAIMED_UNQUALIFIED",
+        "observed_host": socket.gethostname(),
+        "destination_realpath": str(destination_root.resolve(strict=True)),
         "observed_at_utc": observed_at_utc,
         "file_count": len(observed_rows),
+        "derivative_receipt_count": len(observed_receipts),
         "total_bytes": total_size,
         "files": observed_rows,
+        "derivative_receipts": observed_receipts,
     }
 
 
@@ -238,7 +306,10 @@ def verify_observed_destination(manifest_raw: bytes, receipt_raw: bytes,
     """Contrôle indépendant du reçu contre la cible encore accessible."""
     receipt = _document(receipt_raw, "reçu de transfert", canonical_required=True)
     if set(receipt) != {"kind", "status", "release_id", "transfer_manifest_sha256",
-                        "target_identity", "observed_at_utc", "file_count", "total_bytes", "files"}:
+                        "target_identity", "target_identity_status", "observed_host",
+                        "destination_realpath", "observed_at_utc", "file_count",
+                        "derivative_receipt_count", "total_bytes", "files",
+                        "derivative_receipts"}:
         raise TransferRefused("reçu de transfert malformé")
     observed = observe_destination(manifest_raw, destination_root,
                                    target_identity, receipt.get("observed_at_utc"))
@@ -259,9 +330,13 @@ def build_worker_transfer_manifest(plan_raw: bytes, receipt_raw: bytes,
         "release_id": plan["release_id"],
         "transfer_method": "octets textuels observes et re-haches sur la destination",
         "destination_target_identity": target_identity,
+        "destination_identity_status": "CLAIMED_UNQUALIFIED",
+        "observed_host": receipt["observed_host"],
+        "destination_realpath": receipt["destination_realpath"],
         "source_plan_sha256": digest(plan_raw),
         "observed_transfer_receipt_sha256": digest(receipt_raw),
         "file_count": plan["file_count"],
+        "derivative_receipt_count": plan["derivative_receipt_count"],
         "digest_missing": 0,
         "digest_mismatches": 0,
         "files": [
@@ -282,6 +357,8 @@ def main() -> int:
     parser.add_argument("--inventory", type=Path)
     parser.add_argument("--allowlist", type=Path)
     parser.add_argument("--source-root", type=Path)
+    parser.add_argument("--evidence-root", type=Path)
+    parser.add_argument("--repository-root", type=Path)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--destination-root", type=Path)
@@ -290,10 +367,19 @@ def main() -> int:
     args = parser.parse_args()
     try:
         if args.plan:
-            if not all((args.inventory, args.allowlist, args.source_root, args.output)):
-                parser.error("--plan exige inventaire, allowlist, source et sortie")
-            result = plan_text_transfer(args.inventory.read_bytes(), args.allowlist.read_bytes(),
-                                        args.source_root)
+            if not all((args.inventory, args.allowlist, args.source_root,
+                        args.evidence_root, args.repository_root, args.output)):
+                parser.error("--plan exige inventaire, allowlist, source, preuves, dépôt et sortie")
+            inventory_raw = args.inventory.read_bytes()
+            allowlist_raw = args.allowlist.read_bytes()
+            from check_student_public_candidate_inventory import verify_bundle
+            try:
+                verify_bundle(args.repository_root, _document(inventory_raw, "inventaire"),
+                              _document(allowlist_raw, "allowlist"))
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                raise TransferRefused("autorité scellée de l'inventaire non vérifiée") from error
+            result = plan_text_transfer(inventory_raw, allowlist_raw,
+                                        args.source_root, args.evidence_root)
             args.output.write_bytes(canonical(result))
         elif args.observe:
             if not all((args.manifest, args.destination_root, args.target_identity, args.output)):
