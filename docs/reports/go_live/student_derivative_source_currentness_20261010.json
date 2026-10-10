@@ -1,5 +1,5 @@
 {
-  "attested_at_utc": "2026-10-10T13:48:22Z",
+  "attested_at_utc": "2026-10-10T13:49:12Z",
   "candidate_manifest_sha256": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
   "decision_count": 253,
   "fresh_source_checked_at_utc": "2026-10-10T13:43:39.206Z",
@@ -7,7 +7,7 @@
   "fresh_source_index_logical_sha256": "878e7249984bfecd511deeb59fa0d42eea5b772cb9de46b9866e065c0745dfa9",
   "kind": "NEXUS_STUDENT_DERIVATIVE_SOURCE_CURRENTNESS_ATTESTATION_V1",
   "pr300_evidence_index_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
-  "producer_code_sha256": "7dda5912f6b3404af97de1d7ae5a1e8e4c65e93b123e032225911014e4b5fe27",
+  "producer_code_sha256": "516cbd4e79617a4ee8febaa66bcba90b0ff2dd351e8cf70905a4b79fe225389e",
   "rows": [
     {
       "currentness_observed_at_utc": "2026-10-10T13:41:08.253Z",

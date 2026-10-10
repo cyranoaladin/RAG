@@ -155,12 +155,13 @@ def attest_repository(
                 or not listing_relative.endswith(".receipt.json")
                 or Path(listing_relative).name != listing_relative.rsplit("/", 1)[-1]):
             raise ValueError("FRESH_SOURCE_LISTING_PATH_INVALID")
-        listing_path = fresh_root.parent / "listings" / Path(listing_relative).name
+        capture_root = fresh_root.parent.resolve()
+        listing_path = capture_root / "listings" / Path(listing_relative).name
         listing_raw = listing_path.read_bytes()
         listing_sha = _sha(listing_raw)
         if listing_sha not in listing_cache:
             listing_cache[listing_sha] = load_listing_capture(
-                root, listing_path,
+                capture_root, listing_path,
                 root / "scripts/go_live/capture_eduscol_source_listings.py",
             )["receipt"]
         listing = listing_cache[listing_sha]
