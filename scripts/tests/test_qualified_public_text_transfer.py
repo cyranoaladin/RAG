@@ -11,19 +11,18 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "go_live"))
-from public_text_transfer import (  # noqa: E402
+from public_text_transfer import (
     TransferRefused,
     canonical,
     digest,
     observe_destination,
     plan_text_transfer,
 )
-from qualified_public_text_transfer import (  # noqa: E402
+from qualified_public_text_transfer import (
     attest_qualified_transfer_target,
     verify_qualified_transfer_target,
 )
-from test_public_text_transfer import fixture  # noqa: E402
-
+from test_public_text_transfer import fixture
 
 ANCHOR = "a" * 64
 HOST_ID = "b" * 64
