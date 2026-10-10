@@ -191,6 +191,11 @@ def _row(
     placement_source_scope: object = None,
     placement_source_id: object = None,
     placement_source_path: object = None,
+    licensor: object = None,
+    licence_id: object = None,
+    source_updated_at: object = None,
+    derivative_notice: object = None,
+    is_text_derivative: object = False,
     score: object = 0.75,
 ) -> tuple[object, ...]:
     return (
@@ -221,6 +226,11 @@ def _row(
         placement_source_scope,
         placement_source_id,
         placement_source_path,
+        licensor,
+        licence_id,
+        source_updated_at,
+        derivative_notice,
+        is_text_derivative,
         score,
     )
 

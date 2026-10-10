@@ -101,19 +101,26 @@ def _profile_scope(collection: str) -> dict[str, Any]:
     return dict(document["scope"])
 
 
-def _build_release(root: Path) -> dict[str, Any]:
+def _build_release(root: Path, *, text_derivatives: bool = False) -> dict[str, Any]:
     release_dir = root / "release"
     (release_dir / "subjects").mkdir(parents=True)
     store = root / "store"
     store.mkdir()
 
-    contenus = {"a": b"%PDF-1.4 partage\n", "b": b"%PDF-1.4 propre\n"}
+    contenus = (
+        {
+            "a": b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\nTexte partage\n",
+            "b": b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\nTexte propre\n",
+        }
+        if text_derivatives else
+        {"a": b"%PDF-1.4 partage\n", "b": b"%PDF-1.4 propre\n"}
+    )
     identifiants: dict[str, str] = {}
     artefacts: dict[str, dict[str, Any]] = {}
     for cle, octets in contenus.items():
         identifiant = _sha256(octets)
         identifiants[cle] = identifiant
-        (store / f"{identifiant}.pdf").write_bytes(octets)
+        (store / f"{identifiant}.{'txt' if text_derivatives else 'pdf'}").write_bytes(octets)
         artefacts[identifiant] = {
             "artifact_id": identifiant,
             "content_sha256": identifiant,
@@ -127,6 +134,29 @@ def _build_release(root: Path) -> dict[str, Any]:
                 for i in range(CHUNKS[cle])
             ],
         }
+        if text_derivatives:
+            artefacts[identifiant]["media_type"] = sri.TEXT_MIME
+            artefacts[identifiant]["source_pdf_sha256"] = _sha256(
+                f"%PDF-1.4 source-{cle}".encode()
+            )
+            artefacts[identifiant]["citation"] = {
+                "source_pdf_sha256": artefacts[identifiant]["source_pdf_sha256"],
+                "source_uri": artefacts[identifiant]["source_url"],
+                "source_label": artefacts[identifiant]["title"],
+                "source_updated_at": "2026-10-10T06:04:23Z",
+                "licensor": "Direction générale de l'enseignement scolaire",
+                "licence_id": "ETALAB-2.0",
+                "derivative_notice": "Extrait textuel dérivé.",
+            }
+            receipt_raw = json.dumps({"synthetic": cle}, sort_keys=True).encode()
+            receipt_sha = _sha256(receipt_raw)
+            receipt_dir = store / "derivative_receipts"
+            receipt_dir.mkdir(exist_ok=True)
+            (receipt_dir / f"{receipt_sha}.json").write_bytes(receipt_raw)
+            artefacts[identifiant]["derivative_receipt_sha256"] = receipt_sha
+            artefacts[identifiant]["derivative_receipt_path"] = (
+                f"derivative_receipts/{receipt_sha}.json"
+            )
 
     subjects: list[dict[str, Any]] = []
     inventaire: list[dict[str, Any]] = []
@@ -223,7 +253,7 @@ def _build_release(root: Path) -> dict[str, Any]:
         "file_count": len(artefacts),
         "digest_missing": 0,
         "digest_mismatches": 0,
-        "files": [{"file": f"{i}.pdf", "sha256_expected": i, "sha256_observed": i}
+        "files": [{"file": f"{i}.{'txt' if text_derivatives else 'pdf'}", "sha256_expected": i, "sha256_observed": i}
                   for i in sorted(artefacts)],
     }
     chemin_transfert = root / "transfer_manifest.json"
@@ -291,6 +321,81 @@ def _scalaire(migrated: dict[str, str], sql: str) -> Any:
         ligne = cur.fetchone()
     assert ligne is not None
     return ligne[0]
+
+
+@pytest.fixture
+def text_migrated() -> Iterator[dict[str, str]]:
+    container = start_ingestion_control_postgres("sealed-release-text-derivative")
+    target = next(container)
+    try:
+        env = os.environ.copy()
+        env.update({
+            "PGHOST": target["host"],
+            "PGPORT": target["port"],
+            "PGUSER": PG_SUPERUSER,
+            "PGPASSWORD": PG_SUPERUSER_PASSWORD,
+            "PGDATABASE": target["dbname"],
+        })
+        result = subprocess.run(
+            [str(BOOTSTRAP_SCRIPT)], cwd=ENGINE_ROOT, env=env,
+            capture_output=True, text=True, check=False,
+        )
+        assert result.returncode == 0, result.stderr
+        assert "SCHEMA_VERIFICATION=OK" in result.stdout
+        yield target
+    finally:
+        container.close()
+
+
+def test_derives_texte_ingestes_avec_mime_et_filiation_dans_base_jetable(
+    text_migrated: dict[str, str], tmp_path: Path,
+) -> None:
+    build = _build_release(tmp_path, text_derivatives=True)
+    release_dir: Path = build["release_dir"]
+    manifest = json.loads(
+        (release_dir / "production-profile-gate.release.json").read_text("utf-8")
+    )
+    facts = sri.load_sealed_release(
+        release_dir,
+        release_manifest_sha256=_digest_of(
+            release_dir / "production-profile-gate.release.json"
+        ),
+        artifacts_release_sha256=manifest["artifact_registry"]["sha256"],
+        candidate_inventory_sha256=manifest["authorities"]["candidate_inventory_sha256"],
+        artifact_transfer_manifest_path=build["transfer_path"],
+        artifact_transfer_manifest_sha256=_digest_of(build["transfer_path"]),
+    )
+    with psycopg.connect(superuser_dsn(text_migrated)) as conn:
+        report = sri.ingest_sealed_release(
+            conn,
+            facts=facts,
+            artifact_store_dir=build["store"],
+            profile_registry=load_profile_registry(build["profiles_dir"]),
+            scope_authorization_ids={
+                collection: f"lot41a-staging-v2-{collection}"
+                for collection in COLLECTIONS
+            },
+            owner="operateur-test",
+            expected_collections=COLLECTIONS,
+            verifier=lambda conn, *, authorization_id, scope: _Autorisation(
+                authorization_id
+            ),
+        )
+        conn.commit()
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT sha256, mime_declared, mime_detected, payload "
+                "FROM ingestion_control.artifacts"
+            )
+            rows = cursor.fetchall()
+    assert report.resources == 3
+    assert len(rows) == 3
+    assert all(row[1:3] == (sri.TEXT_MIME, sri.TEXT_MIME) for row in rows)
+    assert all(
+        row[3]["source_pdf_sha256"] != row[0]
+        and row[3]["media_type"] == sri.TEXT_MIME
+        for row in rows
+    )
 
 
 def test_les_lignes_de_controle_sont_creees(

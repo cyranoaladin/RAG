@@ -60,6 +60,11 @@ def candidate(**overrides: object) -> RetrievalCandidate:
     return RetrievalCandidate(**values)  # type: ignore[arg-type]
 
 
+def test_legacy_candidate_refuses_partial_derivative_attribution() -> None:
+    with pytest.raises(RetrievalPipelineError, match="derivative attribution"):
+        candidate(licensor="Éduscol", is_text_derivative=False)
+
+
 def named_candidate(chunk_id: str, **overrides: object) -> RetrievalCandidate:
     values: dict[str, object] = {
         "chunk_id": chunk_id,
@@ -204,6 +209,11 @@ def test_hybrid_types_have_the_exact_frozen_field_contract() -> None:
         "placement_source_scope",
         "placement_source_id",
         "placement_source_path",
+        "is_text_derivative",
+        "licensor",
+        "licence_id",
+        "source_updated_at",
+        "derivative_notice",
         "dense_score",
         "lexical_score",
     ]

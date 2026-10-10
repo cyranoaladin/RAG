@@ -53,6 +53,7 @@ from .publication_resume import (
 from .runtime_authority import RuntimeAuthorityStartupError
 from .storage import (
     make_filesystem_artifact_reader,
+    make_sealed_derivative_receipt_reader,
     make_sealed_release_artifact_reader,
 )
 
@@ -65,6 +66,15 @@ DEFAULT_MAX_CONSECUTIVE_RATE_LIMITS = 3
 #: EX_TEMPFAIL : rien n'a échoué, rien n'a été publié à tort ; la file est
 #: intacte et le même lancement pourra reprendre plus tard.
 EXIT_RATE_LIMITED = 75
+
+
+def _reader_media_type(catalogue: object | None) -> str:
+    """Un invariant absent ne doit pas empêcher le worker de démarrer.
+
+    Le catalogue reste obligatoire pour lire une release scellée ; ce repli
+    ne donne que le format historique au lecteur créé pour le chemin unitaire.
+    """
+    return str(getattr(catalogue, "media_type_invariant", "") or "application/pdf")
 
 
 def _positive_int(raw: str) -> int:
@@ -379,7 +389,11 @@ def main(argv: list[str] | None = None) -> int:
         # leur empreinte. Le lecteur les relit sous la meme protection
         # et re-mesure leur digest avant toute publication.
         sealed_artifact_reader=make_sealed_release_artifact_reader(
-            args.artifact_store_dir
+            args.artifact_store_dir,
+            media_type=_reader_media_type(authorities.sealed_release_catalog),
+        ),
+        sealed_derivative_receipt_reader=make_sealed_derivative_receipt_reader(
+            args.artifact_store_dir,
         ),
         extract_text=_extract_non_pdf_text,
         embedding_provider=provider,

@@ -172,6 +172,20 @@ def test_l_invariant_est_etabli_quand_le_transfert_couvre_le_catalogue(
     assert "aucune lecture des octets" in catalogue.media_type_basis
 
 
+def test_pdf_majuscule_historique_conserve_l_invariant(
+    tmp_path: Path,
+) -> None:
+    repertoire, sha = _release(tmp_path)
+    chemin, tsha = _transfert(tmp_path, [f"{SHA_A}.PDF"])
+    catalogue = load_sealed_release_catalog(
+        repertoire,
+        expected_release_manifest_sha256=sha,
+        transfer_manifest_path=chemin,
+        expected_transfer_manifest_sha256=tsha,
+    )
+    assert catalogue.media_type_invariant == "application/pdf"
+
+
 def test_un_transfert_qui_ne_couvre_pas_le_catalogue_n_etablit_rien(
     tmp_path: Path,
 ) -> None:
@@ -232,3 +246,55 @@ def test_la_base_du_type_de_media_ne_pretend_pas_a_une_mesure(
     )
     assert "convention de nommage" in catalogue.media_type_basis
     assert "aucune lecture des octets" in catalogue.media_type_basis
+
+
+def test_texte_derive_explicitement_declare_et_transfere_est_reconnu(
+    tmp_path: Path,
+) -> None:
+    repertoire, sha = _release(tmp_path, artefacts=[{
+        "content_sha256": SHA_A,
+        "source_pdf_sha256": SHA_B,
+        "media_type": "text/plain; charset=utf-8",
+        "source_path": "derived/a.txt",
+    }])
+    chemin, tsha = _transfert(tmp_path, [f"{SHA_A}.txt"])
+    catalogue = load_sealed_release_catalog(
+        repertoire,
+        expected_release_manifest_sha256=sha,
+        transfer_manifest_path=chemin,
+        expected_transfer_manifest_sha256=tsha,
+    )
+    assert catalogue.media_type_invariant == "text/plain; charset=utf-8"
+
+
+def test_texte_sans_declaration_expresse_ne_devient_pas_public(
+    tmp_path: Path,
+) -> None:
+    repertoire, sha = _release(tmp_path)
+    chemin, tsha = _transfert(tmp_path, [f"{SHA_A}.txt"])
+    catalogue = load_sealed_release_catalog(
+        repertoire,
+        expected_release_manifest_sha256=sha,
+        transfer_manifest_path=chemin,
+        expected_transfer_manifest_sha256=tsha,
+    )
+    assert catalogue.media_type_invariant == ""
+
+
+def test_texte_dont_le_sha_source_pdf_est_identique_est_refuse(
+    tmp_path: Path,
+) -> None:
+    repertoire, sha = _release(tmp_path, artefacts=[{
+        "content_sha256": SHA_A,
+        "source_pdf_sha256": SHA_A,
+        "media_type": "text/plain; charset=utf-8",
+        "source_path": "derived/a.txt",
+    }])
+    chemin, tsha = _transfert(tmp_path, [f"{SHA_A}.txt"])
+    with pytest.raises(SealedReleaseCatalogError, match="source PDF"):
+        load_sealed_release_catalog(
+            repertoire,
+            expected_release_manifest_sha256=sha,
+            transfer_manifest_path=chemin,
+            expected_transfer_manifest_sha256=tsha,
+        )

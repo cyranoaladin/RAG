@@ -26,7 +26,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 from uuid import UUID
 
 import psycopg
@@ -128,6 +128,27 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
 #: Type de job consommé par ce worker, et par lui seul.
 PUBLICATION_RESUME_JOB_TYPE = "publication_resume"
 
+_DERIVATIVE_ATTRIBUTION_FIELDS = (
+    "licensor", "licence_id", "source_updated_at", "derivative_notice",
+)
+
+
+def _sealed_derivative_attribution(
+    entry: Mapping[str, Any], *, source_uri: str, source_label: str,
+) -> dict[str, str]:
+    """Project only citation facts bound to the verified sealed catalogue."""
+    citation = entry.get("citation")
+    if not isinstance(citation, Mapping) or (
+        citation.get("source_uri") != source_uri
+        or citation.get("source_label") != source_label
+        or citation.get("source_pdf_sha256") != entry.get("source_pdf_sha256")
+    ):
+        raise PublicationResumeError("sealed derivative attribution disagrees with source")
+    values = {name: citation.get(name) for name in _DERIVATIVE_ATTRIBUTION_FIELDS}
+    if any(not isinstance(value, str) or not value.strip() for value in values.values()):
+        raise PublicationResumeError("sealed derivative attribution is incomplete")
+    return values  # type: ignore[return-value]
+
 #: Champs que le job doit nommer. Un champ absent est un refus : le worker
 #: ne va pas chercher la valeur ailleurs.
 REQUIRED_PAYLOAD_FIELDS = (
@@ -198,6 +219,7 @@ class PublicationResumeDeps:
     #: donc rien lire pour elle. Absent, la branche scellée refuse ; elle ne
     #: devine pas un nom de fichier.
     sealed_artifact_reader: Any = None
+    sealed_derivative_receipt_reader: Any = None
     authorization_mapping: AuthorizationMapping | None = None
     authorization_context: AuthorizationContext | None = None
     #: Lot DI : liste d'autorisation des collections réclamables. ``None`` :
@@ -251,6 +273,30 @@ class PublicationResumeDeps:
             )
         octets: bytes = self.sealed_artifact_reader(content_sha256=content_sha256)
         return octets
+
+    def read_sealed_derivative_receipt(
+        self, *, entry: Mapping[str, Any], content_sha256: str,
+    ) -> Mapping[str, Any]:
+        if self.sealed_derivative_receipt_reader is None:
+            raise PublicationResumeError("sealed derivative receipt reader is missing")
+        digest = entry.get("derivative_receipt_sha256")
+        path = entry.get("derivative_receipt_path")
+        if not isinstance(digest, str) or not isinstance(path, str):
+            raise PublicationResumeError("sealed derivative receipt authority is missing")
+        receipt = self.sealed_derivative_receipt_reader(
+            receipt_path=path, receipt_sha256=digest,
+        )
+        citation = entry.get("citation")
+        if not isinstance(receipt, Mapping) or not isinstance(citation, Mapping) or (
+            receipt.get("derivative_content_sha256") != content_sha256
+            or receipt.get("source_content_sha256") != entry.get("source_pdf_sha256")
+            or receipt.get("source_attribution") != {
+                key: value for key, value in citation.items()
+                if key != "source_pdf_sha256"
+            }
+        ):
+            raise PublicationResumeError("sealed derivative receipt attribution mismatch")
+        return cast(Mapping[str, Any], receipt)
 
     def require_sealed_evidence(self) -> tuple[Any, Any]:
         if self.pii_evidence_registry is None or self.rights_evidence_registry is None:
@@ -710,12 +756,29 @@ def resume_publication(
             str(chunk["chunk_sha256"])
             for chunk in sorted(scelle.get("chunks") or [], key=lambda c: int(c["chunk_index"]))
         )
+        chunk_ids_scelles: tuple[str, ...] | None = (
+            tuple(
+                str(chunk["chunk_id"])
+                for chunk in sorted(
+                    scelle.get("chunks") or [], key=lambda c: int(c["chunk_index"])
+                )
+            )
+            if mime_detected == "text/plain; charset=utf-8" else None
+        )
+        derivative_receipt = (
+            deps.read_sealed_derivative_receipt(
+                entry=scelle, content_sha256=artifact_record.sha256,
+            )
+            if mime_detected == "text/plain; charset=utf-8" else None
+        )
     else:
         raw_bytes = deps.artifact_reader(
             extracted_text_ref=artifact_record.extracted_text_ref
         )
         mime_detected = artifact_record.mime_detected
         chunks_scelles = None
+        chunk_ids_scelles = None
+        derivative_receipt = None
 
     governed = GovernedArtifact(
         content=raw_bytes,
@@ -728,6 +791,17 @@ def resume_publication(
         type_doc=attribution.type_doc,
         mime_detected=mime_detected,
         sealed_chunk_sha256=chunks_scelles,
+        sealed_chunk_ids=chunk_ids_scelles,
+        sealed_derivative_receipt=derivative_receipt,
+        **(
+            _sealed_derivative_attribution(
+                scelle,
+                source_uri=governed_source_uri,
+                source_label=attribution.source_label,
+            )
+            if est_scelle and mime_detected == "text/plain; charset=utf-8"
+            else {}
+        ),
     )
 
     # Les lectures de préflight ci-dessus ouvrent une transaction psycopg.

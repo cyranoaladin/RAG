@@ -201,7 +201,7 @@ def search(
             if _reranker is None:
                 from sentence_transformers import CrossEncoder
                 _reranker = CrossEncoder(RERANKER_MODEL)
-            pairs = [(payload.q, doc) for doc in documents]
+            pairs = [[payload.q, doc] for doc in documents]
             raw_scores_any = _reranker.predict(pairs)
             tolist_method = getattr(raw_scores_any, "tolist", None)
             raw_values = tolist_method() if callable(tolist_method) else raw_scores_any

@@ -295,6 +295,17 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Ce cycle historique prouve 001..005 et les rollbacks 005..001. La release
+# courante ajoute 006 ; figer ici une copie 005 évite de réinterpréter les
+# assertions anciennes comme une preuve 006. La migration 006 est testée
+# séparément avec le contrat de readiness courant.
+mkdir -p "$RUN_ROOT/head-005-compat"
+cp -a -- "$INFRA_DIR" "$RUN_ROOT/head-005-compat/infra"
+rm -f -- "$RUN_ROOT/head-005-compat/infra/postgres/migrations/006_public_derivative_attribution.sql"
+printf '%s\n' '005_official_snapshot_currentness' \
+    > "$RUN_ROOT/head-005-compat/infra/postgres/migrations/HEAD"
+INFRA_DIR="$RUN_ROOT/head-005-compat/infra"
+
 ready_attempts="${LOT40_PG_READY_ATTEMPTS:-30}"
 ready_delay="${LOT40_PG_READY_DELAY_S:-1}"
 if [[ ! "$ready_attempts" =~ ^[0-9]+$ ]] \
@@ -674,6 +685,33 @@ END
 SQL
 }
 
+assert_state_006() {
+    local sha_006
+    sha_006="$(sha256sum "$SERVICE_ROOT/infra/postgres/migrations/006_public_derivative_attribution.sql" | awk '{print $1}')"
+    container_psql <<SQL
+DO \$\$
+BEGIN
+    IF (SELECT count(*) FROM rag_schema_migrations) <> 6
+       OR (SELECT max(version) FROM rag_schema_migrations) <> 6
+       OR NOT EXISTS (
+           SELECT 1 FROM rag_schema_migrations
+           WHERE version = 6
+             AND file_name = '006_public_derivative_attribution.sql'
+             AND sha256 = '$sha_006'
+       )
+       OR NOT EXISTS (
+           SELECT 1 FROM pg_constraint
+           WHERE conrelid = 'public.rag_artifacts'::regclass
+             AND conname = 'rag_artifacts_public_attribution_complete_check'
+             AND convalidated
+       ) THEN
+        RAISE EXCEPTION 'EXPECTED_HEAD_006';
+    END IF;
+END
+\$\$;
+SQL
+}
+
 # Définitions 004 relevées sur la base elle-même, montée à 004 par le
 # manifeste 004 livré (et non par le rollback 005) : c'est contre elles que
 # chaque retour à 004 est prouvé à l'identique.
@@ -1029,32 +1067,29 @@ if [[ ! -x "$PYTEST_BIN" ]]; then
     echo "LOT40_PYTEST_BIN_INVALID" >&2
     exit 1
 fi
-integration_tests=(
-    "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"
-)
-lot40_integration_executed=1
-if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]; then
-    if [[ -z "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
-        echo "H2C_REHEARSAL_ONLY_REQUIRES_REAL_INPUTS" >&2
-        exit 1
-    fi
-    integration_tests=()
-    lot40_integration_executed=0
+if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" && -z "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
+    echo "H2C_REHEARSAL_ONLY_REQUIRES_REAL_INPUTS" >&2
+    exit 1
 fi
+run_python_integration() {
+    LOT40_PG_DSN="$LOT40_PG_DSN" \
+    LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN" \
+    LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN" \
+    LOT42_PG_PUBLISHER_DSN="$LOT42_PG_PUBLISHER_DSN" \
+    DRIVE_SYNC_DB_PATH="$RUN_ROOT/drive_sync_state.db" \
+    PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "$@" -q -s
+}
 if [[ -n "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]; then
-    integration_tests+=(
+    run_python_integration \
         "$SERVICE_ROOT/tests/integration/test_h2c_governed_rehearsal.py"
-    )
+    assert_state_005
 fi
-LOT40_PG_DSN="$LOT40_PG_DSN" \
-LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN" \
-LOT41_PG_REVIEW_DSN="$LOT41_PG_REVIEW_DSN" \
-LOT42_PG_PUBLISHER_DSN="$LOT42_PG_PUBLISHER_DSN" \
-DRIVE_SYNC_DB_PATH="$RUN_ROOT/drive_sync_state.db" \
-PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "${integration_tests[@]}" -q -s
-
-assert_state_005
-if (( lot40_integration_executed == 1 )); then
+if [[ -z "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]; then
+    run_apply "$SERVICE_ROOT/infra"
+    assert_state_006
+    run_python_integration \
+        "$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"
+    assert_state_006
     echo "LOT40_HYBRID_INTEGRATION=PASS"
 else
     echo "H2E_V2_GOVERNED_REHEARSAL=PASS"

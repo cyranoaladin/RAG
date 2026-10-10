@@ -4,11 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "nexus-contracts"
-version = "0.23.0"
+version = "0.24.0"
 description = "Shared retrieval contract for the Nexus RAG platform"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic==2.13.4",
+    "typing_extensions==4.16.0",
     "PyYAML==6.0.3",
     # ADR-0035 : vérification hors ligne des reçus de liaison de revue
     # (Ed25519). Les surfaces globales d'autorisation l'importent désormais

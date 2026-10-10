@@ -28,13 +28,14 @@ TARGETS = {
     "/docker-entrypoint-initdb.d/01_003_profile_filtering.sql": "postgres/migrations/003_profile_filtering.sql",
     "/docker-entrypoint-initdb.d/02_004_artifact_placements.sql": "postgres/migrations/004_artifact_placements.sql",
     "/docker-entrypoint-initdb.d/03_005_official_snapshot_currentness.sql": "postgres/migrations/005_official_snapshot_currentness.sql",
-    "/docker-entrypoint-initdb.d/04_register_bootstrap_migrations.sh": "postgres/register_bootstrap_migrations.sh",
-    "/docker-entrypoint-initdb.d/05_provision_runtime_roles.sh": "postgres/provision_runtime_roles.sh",
+    "/docker-entrypoint-initdb.d/04_006_public_derivative_attribution.sql": "postgres/migrations/006_public_derivative_attribution.sql",
+    "/docker-entrypoint-initdb.d/05_register_bootstrap_migrations.sh": "postgres/register_bootstrap_migrations.sh",
+    "/docker-entrypoint-initdb.d/06_provision_runtime_roles.sh": "postgres/provision_runtime_roles.sh",
     "/docker-entrypoint-migrations": "postgres/migrations",
     "/docker-entrypoint-healthcheck.sh": "postgres/healthcheck.sh",
     "/pgvector-migration-state.sh": "scripts/lib/pgvector_migration_state.sh",
-    "/schema-head-005-fingerprints.env": "postgres/schema_head_005_fingerprints.env",
-    "/schema-head-005-columns.tsv": "postgres/schema_head_005_columns.tsv",
+    "/schema-head-006-fingerprints.env": "postgres/schema_head_006_fingerprints.env",
+    "/schema-head-006-columns.tsv": "postgres/schema_head_006_columns.tsv",
     "/app/configs": "configs",
     "/app/release": "release",
     "/app/servable-corpus": "servable-corpus",
@@ -232,7 +233,7 @@ def test_accepts_exact_public_candidate_material(tmp_path: Path) -> None:
     config, root, secrets, repo = _cockpit_fixture(tmp_path)
     evidence = _check(config, root, secrets, repo)
     assert evidence["project"] == "nexus-rag-blue"
-    assert evidence["material_files"] == 18
+    assert evidence["material_files"] == 19
     assert evidence["api_image"] == IMAGE
     assert evidence["cockpit_image"] == COCKPIT_IMAGE
     assert evidence["redis_image"] == REDIS_IMAGE

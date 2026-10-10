@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 from collections.abc import Callable
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 
 import pytest
 from nexus_release_chain.release_readiness import ReleaseReadinessError
@@ -19,6 +19,16 @@ from ingestor.ingestion_worker import (
 from ingestor.ingestion_worker.runtime_authority import RuntimeAuthorityStartupError
 
 SHA = "a" * 64
+
+
+def test_unestablished_sealed_catalog_keeps_legacy_pdf_reader() -> None:
+    assert multilevel_publication_resume_cli._reader_media_type(None) == "application/pdf"
+    assert multilevel_publication_resume_cli._reader_media_type(
+        SimpleNamespace(media_type_invariant="")
+    ) == "application/pdf"
+    assert multilevel_publication_resume_cli._reader_media_type(
+        SimpleNamespace(media_type_invariant="text/plain; charset=utf-8")
+    ) == "text/plain; charset=utf-8"
 
 
 def _authority_args() -> list[str]:

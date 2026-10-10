@@ -21,8 +21,8 @@ def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_manifest_keeps_artifact_placements_under_head_005() -> None:
-    assert _read(MIGRATIONS / "HEAD") == "005_official_snapshot_currentness\n"
+def test_manifest_keeps_artifact_placements_under_head_006() -> None:
+    assert _read(MIGRATIONS / "HEAD") == "006_public_derivative_attribution\n"
     assert (MIGRATIONS / "004_artifact_placements.sql").is_file()
     assert (ROLLBACKS / "004_artifact_placements.down.sql").is_file()
 

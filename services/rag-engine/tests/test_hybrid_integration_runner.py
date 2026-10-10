@@ -838,10 +838,11 @@ def test_runner_invokes_lot40_and_only_opts_into_the_real_h2c_rehearsal() -> Non
     content = RUNNER.read_text(encoding="utf-8")
     assert '"$SERVICE_ROOT/tests/integration/test_lot40_hybrid_pgvector.py"' in content
     assert 'if [[ -n "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]' in content
-    assert 'if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]' in content
-    assert 'integration_tests=()' in content
+    assert 'if [[ -n "${NEXUS_H2C_REHEARSAL_ONLY:-}" && -z "${NEXUS_H2C_REAL_REHEARSAL:-}" ]]' in content
     assert '"$SERVICE_ROOT/tests/integration/test_h2c_governed_rehearsal.py"' in content
-    assert '"${integration_tests[@]}" -q -s' in content
+    assert 'PYTHONPATH="$SERVICE_ROOT/src" "$PYTEST_BIN" "$@" -q -s' in content
+    assert 'run_apply "$SERVICE_ROOT/infra"' in content
+    assert 'assert_state_006' in content
     assert 'PYTEST_BIN="${NEXUS_RAG_ENGINE_PYTEST:-' in content
     assert 'LOT40_PG_DSN="$LOT40_PG_DSN"' in content
     assert 'LOT40_PG_ADMIN_DSN="$LOT40_PG_ADMIN_DSN"' in content
@@ -850,9 +851,10 @@ def test_runner_invokes_lot40_and_only_opts_into_the_real_h2c_rehearsal() -> Non
 
 def test_runner_reports_only_the_integration_suite_it_actually_executed() -> None:
     content = RUNNER.read_text(encoding="utf-8")
-    assert "lot40_integration_executed=1" in content
-    assert "lot40_integration_executed=0" in content
-    assert "if (( lot40_integration_executed == 1 )); then" in content
+    assert 'if [[ -z "${NEXUS_H2C_REHEARSAL_ONLY:-}" ]]; then' in content
+    assert content.index('"$SERVICE_ROOT/tests/integration/test_h2c_governed_rehearsal.py"') < (
+        content.index('run_apply "$SERVICE_ROOT/infra"')
+    )
     assert 'echo "LOT40_HYBRID_INTEGRATION=PASS"' in content
     assert 'echo "H2E_V2_GOVERNED_REHEARSAL=PASS"' in content
 

@@ -78,6 +78,6 @@ tqdm==4.68.3
 transformers==5.12.1
 triton==3.7.1
 typer==0.25.1
-typing_extensions==4.15.0
+typing_extensions==4.16.0
 typing-inspection==0.4.2
 urllib3==2.7.0

@@ -1,4 +1,4 @@
-"""Vérification read-only du contrat PostgreSQL produit au head 005.
+"""Vérification read-only du contrat PostgreSQL produit au head 006.
 
 Le head 005 est le modèle H2-C 004 dont `rag_artifact_placements.currentness`
 admet `official_snapshot` (ADR-0059 § 2). La sonde compare les trois relations produit, leurs colonnes, contraintes,
@@ -40,6 +40,7 @@ REQUIRED_MIGRATIONS: Final = (
     (3, "003_profile_filtering.sql"),
     (4, "004_artifact_placements.sql"),
     (5, "005_official_snapshot_currentness.sql"),
+    (6, "006_public_derivative_attribution.sql"),
 )
 REQUIRED_PRODUCT_TABLES: Final = (
     "rag_artifact_placements",
@@ -64,14 +65,14 @@ def _default_column_contract_path() -> Path:
     configured = os.environ.get("RAG_SCHEMA_HEAD_COLUMNS", "").strip()
     if configured:
         return Path(configured)
-    packaged = Path(__file__).resolve().with_name("schema_head_005_columns.tsv")
+    packaged = Path(__file__).resolve().with_name("schema_head_006_columns.tsv")
     if packaged.is_file():
         return packaged
     return (
         Path(__file__).resolve().parents[2]
         / "infra"
         / "postgres"
-        / "schema_head_005_columns.tsv"
+        / "schema_head_006_columns.tsv"
     )
 
 
@@ -114,7 +115,7 @@ def load_product_column_definitions(
         raise RuntimeError("SCHEMA_HEAD_005_COLUMNS_UNAVAILABLE") from exc
     expected_counts = {
         "rag_artifact_placements": 23,
-        "rag_artifacts": 10,
+        "rag_artifacts": 15,
         "rag_chunks": 32,
     }
     if {table: len(columns) for table, columns in definitions.items()} != expected_counts:
@@ -169,6 +170,9 @@ _CONSTRAINT_FINGERPRINT_KEYS: Final = {
     ),
     "RAG_ARTIFACTS_ARTIFACT_ID_CHECK_MD5": (
         "rag_artifacts", "rag_artifacts_artifact_id_sha256_check", "c"
+    ),
+    "RAG_ARTIFACTS_PUBLIC_ATTRIBUTION_CHECK_MD5": (
+        "rag_artifacts", "rag_artifacts_public_attribution_complete_check", "c"
     ),
     "RAG_ARTIFACTS_CONTENT_UNIQUE_MD5": (
         "rag_artifacts", "rag_artifacts_content_sha256_key", "u"
@@ -299,14 +303,14 @@ def _default_fingerprint_path() -> Path:
     configured = os.environ.get("RAG_SCHEMA_HEAD_FINGERPRINTS", "").strip()
     if configured:
         return Path(configured)
-    packaged = Path(__file__).resolve().with_name("schema_head_005_fingerprints.env")
+    packaged = Path(__file__).resolve().with_name("schema_head_006_fingerprints.env")
     if packaged.is_file():
         return packaged
     return (
         Path(__file__).resolve().parents[2]
         / "infra"
         / "postgres"
-        / "schema_head_005_fingerprints.env"
+        / "schema_head_006_fingerprints.env"
     )
 
 
@@ -556,8 +560,8 @@ def expected_migration_records(
     )
 
 
-def schema_head_005_ready(dsn: str) -> bool:
-    """Prouver en lecture seule le registre et la forme exacte du head 005."""
+def schema_head_006_ready(dsn: str) -> bool:
+    """Prouver en lecture seule le registre et la forme exacte du head 006."""
     with psycopg.connect(
         dsn,
         connect_timeout=readiness_connect_timeout_s(),
@@ -596,13 +600,18 @@ def schema_head_005_ready(dsn: str) -> bool:
     )
 
 
+def schema_head_005_ready(dsn: str) -> bool:
+    """Alias de compatibilité ; vérifie réellement le head 006."""
+    return schema_head_006_ready(dsn)
+
+
 def schema_head_004_ready(dsn: str) -> bool:
-    """Alias pour les appelants H2-C ; vérifie réellement le head 005."""
+    """Alias pour les appelants H2-C ; vérifie réellement le head 006."""
     return schema_head_005_ready(dsn)
 
 
 def schema_head_003_ready(dsn: str) -> bool:
-    """Alias temporaire pour les appelants LOT40 ; vérifie réellement 005."""
+    """Alias temporaire pour les appelants LOT40 ; vérifie réellement 006."""
     return schema_head_005_ready(dsn)
 
 
@@ -637,4 +646,5 @@ __all__ = [
     "schema_head_003_ready",
     "schema_head_004_ready",
     "schema_head_005_ready",
+    "schema_head_006_ready",
 ]

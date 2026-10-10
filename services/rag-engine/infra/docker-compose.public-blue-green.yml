@@ -33,11 +33,14 @@ services:
         source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/005_official_snapshot_currentness.sql
         target: /docker-entrypoint-initdb.d/03_005_official_snapshot_currentness.sql
       - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/006_public_derivative_attribution.sql
+        target: /docker-entrypoint-initdb.d/04_006_public_derivative_attribution.sql
+      - <<: *immutable-bind
         source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/register_bootstrap_migrations.sh
-        target: /docker-entrypoint-initdb.d/04_register_bootstrap_migrations.sh
+        target: /docker-entrypoint-initdb.d/05_register_bootstrap_migrations.sh
       - <<: *immutable-bind
         source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/provision_runtime_roles.sh
-        target: /docker-entrypoint-initdb.d/05_provision_runtime_roles.sh
+        target: /docker-entrypoint-initdb.d/06_provision_runtime_roles.sh
       - <<: *immutable-bind
         source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations
         target: /docker-entrypoint-migrations
@@ -48,11 +51,11 @@ services:
         source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/scripts/lib/pgvector_migration_state.sh
         target: /pgvector-migration-state.sh
       - <<: *immutable-bind
-        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_005_fingerprints.env
-        target: /schema-head-005-fingerprints.env
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_006_fingerprints.env
+        target: /schema-head-006-fingerprints.env
       - <<: *immutable-bind
-        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_005_columns.tsv
-        target: /schema-head-005-columns.tsv
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_006_columns.tsv
+        target: /schema-head-006-columns.tsv
     # Administration de la DB par `docker compose exec` dans ce seul projet.
     ports: !override []
 

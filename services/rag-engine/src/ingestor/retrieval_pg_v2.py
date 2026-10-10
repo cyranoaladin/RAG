@@ -215,6 +215,9 @@ _DENSE_SQL = f"""
                matched_placement.source_scope,
                matched_placement.source_placement_id,
                matched_placement.source_path,
+               artifact.licensor, artifact.licence_id,
+               artifact.source_updated_at, artifact.derivative_notice,
+               COALESCE(artifact.is_text_derivative, false) AS is_text_derivative,
                chunk.distance
         FROM exact_candidates AS chunk
         {_GOVERNED_SCOPE_JOINS_SQL}
@@ -232,7 +235,10 @@ _DENSE_SQL = f"""
                niveau, voie, matiere, statut_enseignement, candidat, audience,
                visibility, school_year, programme_version,
                artifact_id, content_sha256, placement_id, source_scope,
-               source_placement_id, source_path, distance,
+               source_placement_id, source_path,
+               licensor, licence_id, source_updated_at, derivative_notice,
+               is_text_derivative,
+               distance,
                row_number() OVER (ORDER BY distance ASC, chunk_id ASC) AS pool_rank
         FROM projected_candidates
     ),
@@ -253,6 +259,9 @@ _DENSE_SQL = f"""
            ranked_pool.content_sha256, ranked_pool.placement_id,
            ranked_pool.source_scope, ranked_pool.source_placement_id,
            ranked_pool.source_path,
+           ranked_pool.licensor, ranked_pool.licence_id,
+           ranked_pool.source_updated_at, ranked_pool.derivative_notice,
+           ranked_pool.is_text_derivative,
            1 - ranked_pool.distance AS dense_score,
            (
              pool_diagnostics.boundary_distance IS NOT NULL
@@ -300,6 +309,9 @@ _LEXICAL_SQL = f"""
            chunk.artifact_id, artifact.content_sha256,
            matched_placement.placement_id, matched_placement.source_scope,
            matched_placement.source_placement_id, matched_placement.source_path,
+           artifact.licensor, artifact.licence_id,
+           artifact.source_updated_at, artifact.derivative_notice,
+           COALESCE(artifact.is_text_derivative, false) AS is_text_derivative,
            ts_rank_cd(chunk.text_tsv, lexical_query.value, 32) AS lexical_score
     FROM public.rag_chunks AS chunk
     CROSS JOIN lexical_query
@@ -318,7 +330,7 @@ _LEXICAL_SQL = f"""
     LIMIT %s
 """
 
-_ROW_CARDINALITY = 28
+_ROW_CARDINALITY = 33
 _DENSE_ROW_CARDINALITY = _ROW_CARDINALITY + 1
 _SCORE_INDEX = _ROW_CARDINALITY - 1
 _ConnectionProvider = Callable[[], AbstractContextManager[Any]]
@@ -340,6 +352,12 @@ def _optional_string(value: object) -> str | None:
     if value is None:
         return None
     return _string(value)
+
+
+def _boolean(value: object) -> bool:
+    if type(value) is not bool:
+        raise RetrievalPipelineError("invalid database boolean")
+    return value
 
 
 def _limit(value: object) -> int:
@@ -531,6 +549,11 @@ def _map_row(
         placement_source_scope=_optional_string(row[24]),
         placement_source_id=_optional_string(row[25]),
         placement_source_path=_optional_string(row[26]),
+        licensor=_optional_string(row[27]),
+        licence_id=_optional_string(row[28]),
+        source_updated_at=_optional_string(row[29]),
+        derivative_notice=_optional_string(row[30]),
+        is_text_derivative=_boolean(row[31]),
         dense_score=score if channel == "dense" else None,
         lexical_score=score if channel == "lexical" else None,
     )
