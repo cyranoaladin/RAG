@@ -90,7 +90,8 @@ def validate_historical_pin_receipt(
     pull_request: Mapping[str, object], review_decision: Mapping[str, object],
     trusted_status: Mapping[str, object], workflow_run: Mapping[str, object],
     workflow_attempt: Mapping[str, object], head_tree_sha: str,
-    merge_tree_sha: str, reviewed_head_pin_blob: bytes, main_pin_blob: bytes,
+    merge_tree_sha: str, merge_parent_sha: str,
+    reviewed_head_pin_blob: bytes, main_pin_blob: bytes,
     checkout_head_sha: str, github_main_sha: str, merge_is_ancestor: bool,
 ) -> dict[str, object]:
     """Validation pure; chaque valeur externe est fournie par une lecture distincte."""
@@ -126,6 +127,7 @@ def validate_historical_pin_receipt(
             or reviewed_head_pin_blob != pin_raw or main_pin_blob != pin_raw
             or head_tree_sha != merge_tree_sha
             or head_tree_sha != r["head_tree_sha"]
+            or merge_parent_sha != r["base_sha"]
             or checkout_head_sha != github_main_sha
             or not _sha(checkout_head_sha, SHA40)
             or merge_is_ancestor is not True):
@@ -271,6 +273,7 @@ def _live_evidence(root: Path, pin_path: Path, pull_request: int,
         raise HistoricalPinRefused("commit de fusion invalide")
     head_tree = _git(root, "rev-parse", f"{head}^{{tree}}")
     merge_tree = _git(root, "rev-parse", f"{merge}^{{tree}}")
+    merge_parent = _git(root, "rev-parse", f"{merge}^")
     checkout_head = _git(root, "rev-parse", "HEAD")
     github_main = _read_gh(f"repos/{REPOSITORY}/branches/main")
     if not isinstance(github_main, dict) or not isinstance(github_main.get("commit"), dict):
@@ -291,7 +294,8 @@ def _live_evidence(root: Path, pin_path: Path, pull_request: int,
         observation=observation, now=datetime.now(UTC),
         pull_request=pr, review_decision=asdict(decision), trusted_status=trusted,
         workflow_run=run, workflow_attempt=attempt, head_tree_sha=head_tree,
-        merge_tree_sha=merge_tree, reviewed_head_pin_blob=head_blob,
+        merge_tree_sha=merge_tree, merge_parent_sha=merge_parent,
+        reviewed_head_pin_blob=head_blob,
         main_pin_blob=main_blob, checkout_head_sha=checkout_head,
         github_main_sha=main_sha, merge_is_ancestor=merged_ancestor,
     )
@@ -355,11 +359,29 @@ def check_historical_pin_receipt(
         raise HistoricalPinRefused("numéro de PR différent du reçu")
     evidence = _live_evidence(root, pin_path, pull_request,
                               destination_root, database_dsn)
-    return validate_historical_pin_receipt(
+    verdict = validate_historical_pin_receipt(
         receipt=receipt, expected_pin_path=pin_path.as_posix(),
         expected_content_anchor_sha256=expected_content_anchor_sha256,
         **evidence,
     )
+    pin = json.loads(evidence["pin_raw"])
+    match = CONTAINER_IDENTITY.fullmatch(str(pin["target_identity"]))
+    if match is None:
+        raise HistoricalPinRefused("pin final sans conteneur")
+    observed_final = observe_live_target(
+        container_id=match.group(1), destination_root=destination_root,
+        database_dsn=database_dsn,
+    )
+    try:
+        verify_target_pin(
+            evidence["pin_raw"], expected_sha256=str(receipt["target_pin_sha256"]),
+            expected_content_anchor_sha256=expected_content_anchor_sha256,
+            destination_root=destination_root, observation=observed_final,
+            now=datetime.now(UTC),
+        )
+    except PinRefused as error:
+        raise HistoricalPinRefused("pin expiré ou cible modifiée après rejeu") from error
+    return verdict
 
 
 def main(argv: list[str] | None = None) -> int:
