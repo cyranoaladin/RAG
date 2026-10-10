@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import importlib.util
 import hashlib
+import io
 import json
 import subprocess
 import sys
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 MODULE_PATH = (
     Path(__file__).resolve().parents[1] / "preflight_dedicated_inference_target.py"
@@ -32,6 +36,44 @@ def inventory() -> dict:
 
 
 class DedicatedInferencePreflightTests(unittest.TestCase):
+    def test_ssh_alias_is_after_option_terminator(self) -> None:
+        with patch.object(preflight.subprocess, "run") as runner, redirect_stdout(
+            io.StringIO()
+        ):
+            runner.return_value = SimpleNamespace(returncode=1, stdout="")
+            preflight.main(
+                [
+                    "--ssh-alias",
+                    "nexus-gpu",
+                    "--expected-hostname",
+                    "nexus-gpu-qualification",
+                    "--expected-machine-id-sha256",
+                    "a" * 64,
+                    "--production-hostname",
+                    "korrigo",
+                ]
+            )
+        argv = runner.call_args.args[0]
+        self.assertEqual(argv[argv.index("--") + 1], "nexus-gpu")
+
+    def test_ssh_alias_that_looks_like_an_option_is_refused(self) -> None:
+        with patch.object(preflight.subprocess, "run") as runner, redirect_stderr(
+            io.StringIO()
+        ):
+            with self.assertRaises(SystemExit):
+                preflight.main(
+                    [
+                        "--ssh-alias=-oProxyCommand=ignored",
+                        "--expected-hostname",
+                        "nexus-gpu-qualification",
+                        "--expected-machine-id-sha256",
+                        "a" * 64,
+                        "--production-hostname",
+                        "korrigo",
+                    ]
+                )
+        runner.assert_not_called()
+
     def test_probe_fingerprints_exact_machine_id_file_bytes(self) -> None:
         machine_id = Path("/etc/machine-id")
         if not machine_id.is_file():

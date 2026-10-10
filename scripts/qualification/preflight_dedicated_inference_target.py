@@ -126,6 +126,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--expected-machine-id-sha256", required=True)
     parser.add_argument("--production-hostname", required=True)
     args = parser.parse_args(argv)
+    if args.ssh_alias.startswith("-"):
+        parser.error("l'alias SSH ne peut pas commencer par '-'")
     try:
         result = subprocess.run(
             [
@@ -136,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
                 "StrictHostKeyChecking=yes",
                 "-o",
                 "ConnectTimeout=8",
+                "--",
                 args.ssh_alias,
                 "python3",
                 "-",

@@ -40,8 +40,10 @@ toujours `false` dans cette sonde.
   absent ; le sabotage `docker_runtimes=null` a ensuite reproduit un défaut
   de fermeture ; le test d'empreinte a reproduit la divergence entre le hash
   du fichier brut et celui du texte dépouillé. Les correctifs minimaux ont
-  suivi ces échecs.
-- Venv neuf local au worktree, sans installation éditable. Sept tests
+  suivi ces échecs. La revue de la PR a ensuite relevé l'alias SSH traité
+  comme option ; deux tests rouges ont précédé l'ajout du terminateur `--`
+  et du refus d'un alias commençant par `-`.
+- Venv neuf local au worktree, sans installation éditable. Neuf tests
   `unittest` passent, `ruff check` et `git diff --check` passent.
 - Probe live read-only le 2026-10-10T21:14:41Z via l'alias existant
   `nexus-prod-direct` : `hostname=korrigo`, 12 CPU, 65 752 848 KiB RAM,
