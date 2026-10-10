@@ -110,6 +110,7 @@ from typing import Any, cast
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(_REPO_ROOT / "packages" / "contracts" / "src"))
+sys.path.insert(0, str(_REPO_ROOT / "packages" / "release-chain" / "src"))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import deployment_image_inventory as dii  # noqa: E402
@@ -153,6 +154,9 @@ from nexus_contracts.review_binding import (  # noqa: E402
 )
 from nexus_contracts.review_binding import (  # noqa: E402
     parse_trust_anchor as parse_review_binding_trust_anchor,
+)
+from nexus_release_chain.public_successor_activation import (  # noqa: E402
+    PublicSuccessorActivationVerdict,
 )
 
 from ingestor.ingestion_profiles import release_verification_v2 as rv2  # noqa: E402
@@ -882,6 +886,14 @@ def _build_v2_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--provenance-run-id", type=int, required=True)
     p.add_argument("--provenance-run-attempt", type=int, required=True)
     p.add_argument("--public-candidate", action="store_true", help="Exiger l'inventaire V2 à quatre images, dont Cockpit")
+    p.add_argument("--public-successor-bundle-root", type=Path)
+    p.add_argument("--public-successor-content-anchor-path", type=Path)
+    p.add_argument("--public-successor-preissuance-receipt-path", type=Path)
+    p.add_argument("--public-successor-private-cas-root", type=Path)
+    p.add_argument("--public-successor-target-root", type=Path)
+    p.add_argument("--public-successor-target-pin-path", type=Path)
+    p.add_argument("--public-successor-observed-v1-receipt-path", type=Path)
+    p.add_argument("--public-successor-database-dsn-file", type=Path)
     p.add_argument("--workflow-path", default=None)
     p.add_argument("--workflow-ref", required=True)
     p.add_argument("--run-id", type=int, required=True)
@@ -1187,6 +1199,7 @@ def assemble_and_sign_v2(
     provenance_run_id: int | None = None,
     provenance_run_attempt: int | None = None,
     public_candidate_inventory_digest: str | None = None,
+    public_successor_activation: PublicSuccessorActivationVerdict | None = None,
 ) -> ProductionReadinessManifestV2:
     """Assemble V2 uniquement depuis le snapshot global revérifié."""
     verified = verify_v2_release_material(material)
@@ -1214,6 +1227,12 @@ def assemble_and_sign_v2(
             provenance_run_attempt,
             promotion.image_provenance_run_attempt,
         )
+    if public_successor_activation is not None:
+        if not isinstance(public_successor_activation, PublicSuccessorActivationVerdict):
+            raise SigningToolError("public successor C verdict must be typed")
+        if (public_successor_activation.content_manifest_sha256
+                != hashlib.sha256(cast(Any, material).sealed_manifest_raw).hexdigest()):
+            raise SigningToolError("public successor C differs from sealed manifest")
     try:
         return ProductionReadinessManifestV2(
             protocol_version="NEXUS-PRODUCTION-READINESS-V2",
@@ -1249,6 +1268,18 @@ def assemble_and_sign_v2(
             public_candidate_provenance_run_attempt=(
                 promotion.image_provenance_run_attempt
                 if public_candidate_inventory_digest is not None else None
+            ),
+            public_successor_content_manifest_digest=(
+                public_successor_activation.content_manifest_sha256
+                if public_successor_activation is not None else None
+            ),
+            public_successor_content_anchor_digest=(
+                public_successor_activation.content_anchor_sha256
+                if public_successor_activation is not None else None
+            ),
+            public_successor_authority_envelope_digest=(
+                public_successor_activation.authority_envelope_sha256
+                if public_successor_activation is not None else None
             ),
             workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH,
             workflow_ref=workflow_ref,
@@ -1620,6 +1651,75 @@ def _main_v2(argv: list[str]) -> int:
                 if args.public_candidate else dii._EXPECTED_APPLICATION_SERVICES
             ),
         )
+        public_activation = None
+        public_inputs = (
+            args.public_successor_bundle_root,
+            args.public_successor_content_anchor_path,
+            args.public_successor_preissuance_receipt_path,
+            args.public_successor_private_cas_root,
+            args.public_successor_target_root,
+            args.public_successor_target_pin_path,
+            args.public_successor_observed_v1_receipt_path,
+            args.public_successor_database_dsn_file,
+        )
+        if args.public_successor_bundle_root is None:
+            if any(value is not None for value in public_inputs):
+                raise SigningToolError("public successor requires an explicit C bundle")
+        else:
+            if not args.public_candidate or any(value is None for value in public_inputs):
+                raise SigningToolError("public successor V2 inputs or four-image inventory absent")
+            _require_live_main_head(merge_sha)
+            local_head = subprocess.run(
+                ["git", "-C", str(args.repo_root), "rev-parse", "HEAD"],
+                capture_output=True, text=True, check=False,
+            )
+            local_tree = subprocess.run(
+                ["git", "-C", str(args.repo_root), "rev-parse", "HEAD^{tree}"],
+                capture_output=True, text=True, check=False,
+            )
+            tracked = subprocess.run(
+                ["git", "-C", str(args.repo_root), "status", "--porcelain=v1",
+                 "--untracked-files=no"],
+                capture_output=True, text=True, check=False,
+            )
+            if (local_head.returncode != 0 or local_head.stdout.strip() != merge_sha
+                    or local_tree.returncode != 0
+                    or local_tree.stdout.strip() != merge_tree_sha
+                    or tracked.returncode != 0 or tracked.stdout.strip()):
+                raise SigningToolError("public successor signer checkout HEAD/tree differs")
+            from public_successor_signing_replay import (  # noqa: PLC0415
+                PublicationSigningInputs,
+                replay_public_successor_publication,
+            )
+
+            try:
+                database_dsn = _read_bytes_no_follow(
+                    args.public_successor_database_dsn_file, label="public_successor_database_dsn"
+                ).decode("utf-8").strip()
+                content_anchor = json.loads(_read_bytes_no_follow(
+                    args.public_successor_content_anchor_path,
+                    label="public_successor_content_anchor",
+                ))
+                public_activation = replay_public_successor_publication(
+                    PublicationSigningInputs(
+                        bundle_root=args.public_successor_bundle_root,
+                        repository_root=args.repo_root,
+                        content_anchor_path=args.public_successor_content_anchor_path,
+                        preissuance_receipt_path=args.public_successor_preissuance_receipt_path,
+                        private_cas_root=args.public_successor_private_cas_root,
+                        target_root=args.public_successor_target_root,
+                        target_pin_path=args.public_successor_target_pin_path,
+                        observed_v1_receipt_path=args.public_successor_observed_v1_receipt_path,
+                        database_dsn=database_dsn,
+                    ),
+                    expected_release_id=content_anchor["content_release_id"],
+                    expected_manifest_sha256=hashlib.sha256(
+                        cast(Any, material).sealed_manifest_raw
+                    ).hexdigest(),
+                    now_utc=datetime.now(UTC),
+                )
+            except Exception as error:  # noqa: BLE001 - frontière de signature fail-closed
+                raise SigningToolError("public successor C/live replay refused") from error
         manifest = assemble_and_sign_v2(
             material,
             repository=_TRUSTED_REPOSITORY,
@@ -1636,6 +1736,7 @@ def _main_v2(argv: list[str]) -> int:
             provenance_run_id=args.provenance_run_id,
             provenance_run_attempt=args.provenance_run_attempt,
             public_candidate_inventory_digest=public_inventory_digest,
+            public_successor_activation=public_activation,
         )
         _require_live_main_head(merge_sha)
         private_key_hex = _read_bytes_no_follow(
