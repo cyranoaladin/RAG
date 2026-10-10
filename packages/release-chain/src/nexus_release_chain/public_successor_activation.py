@@ -1048,6 +1048,22 @@ def verify_public_successor_activation(
         receipt_raw=scope_review_raw,
         expected_receipt_sha256=authorities["exact_head_scope_review_receipt_sha256"],
     )
+    authorization_raw = _read(
+        root, "authorities/authorization_set_sha256.bin",
+        authorities["authorization_set_sha256"], json_required=False,
+    )
+    authorization_set = verify_public_lot41a_authorization_set(
+        authorization_raw, root / "release", content, now,
+    )
+    batch_review_raw = _read(
+        root, "authorities/publication_batch_review_receipt_sha256.bin",
+        authorities["publication_batch_review_receipt_sha256"], json_required=False,
+    )
+    verify_publication_batch_review(
+        batch_review_raw, content, root / "release",
+        authorities["artifact_transfer_manifest_sha256"],
+        tuple(member.authorization_id for member in authorization_set.members), now,
+    )
     # Chaque pièce doit être comprise et confrontée à A, à la cible et à
     # l'heure, notamment LOT42 et les révocations. Ces vérificateurs sont
     # ajoutés avant toute levée du refus historique public_successor.
