@@ -108,11 +108,39 @@ def test_production_v2_binds_only_typed_public_activation() -> None:
         compose_digest=SHA,
         key_id=TEST_KEY_ID,
         workflow_ref=WORKFLOW_REF,
-        public_successor_activation=verdict,
+        public_successor_publication=replay.PublicationSigningReplayVerdict(
+            activation=verdict, target_pin_sha256=SHA,
+            expires_at_utc=datetime.now(UTC) + timedelta(hours=1),
+        ),
     )
     assert manifest.public_successor_content_manifest_digest == verdict.content_manifest_sha256
     assert manifest.public_successor_content_anchor_digest == verdict.content_anchor_sha256
     assert manifest.public_successor_authority_envelope_digest == verdict.authority_envelope_sha256
+    assert manifest.public_successor_target_pin_digest == SHA
+
+
+def test_production_v2_refuses_public_activation_without_independent_pin() -> None:
+    material = _v2_material()
+    with pytest.raises((TypeError, ValueError, production.SigningToolError)):
+        production.assemble_and_sign_v2(
+            material, repository=REPOSITORY, pr_number=PR_NUMBER,
+            pr_head_sha=PR_HEAD_SHA, pr_head_tree_sha=TREE_SHA,
+            application_image_digests=APPLICATION_IMAGE_DIGESTS,
+            upstream_image_digests={UPSTREAM_IMAGE_SERVICE: UPSTREAM_IMAGE_REF},
+            compose_digest=SHA, key_id=TEST_KEY_ID, workflow_ref=WORKFLOW_REF,
+            public_successor_activation=_activation(),
+        )
+
+
+def test_production_public_pin_expired_before_key_is_refused() -> None:
+    replay_verdict = replay.PublicationSigningReplayVerdict(
+        activation=_activation(), target_pin_sha256=SHA,
+        expires_at_utc=datetime(2026, 10, 10, 12, tzinfo=UTC),
+    )
+    with pytest.raises(production.SigningToolError, match="expired before key"):
+        production._require_public_publication_fresh_at_key(
+            replay_verdict, datetime(2026, 10, 10, 12, tzinfo=UTC),
+        )
 
 
 def test_production_v2_parser_requires_explicit_successor_bundle() -> None:
@@ -167,7 +195,7 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
     )
     monkeypatch.setattr(
         staging, "_verify_public_successor_publication_replay",
-        lambda *_: ("a" * 64, "b" * 64, datetime.now(UTC) + timedelta(days=1)),
+        lambda *_: ("a" * 64, "b" * 64, SHA, datetime.now(UTC) + timedelta(days=1)),
     )
 
     def key(*_args: object) -> str:
@@ -188,6 +216,42 @@ def test_staging_public_signer_rechecks_main_immediately_before_key(
         "--public-successor-phase", "PUBLICATION",
     ])
     assert result == 1
+
+
+def test_staging_publication_manifest_receives_verified_pin_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = tmp_path / "release.json"
+    release.write_text("{}\n")
+    monkeypatch.setattr(staging, "_require_public_checkout_matches_merge", lambda *_: None)
+    monkeypatch.setattr(
+        staging, "_verify_public_successor_publication_replay",
+        lambda *_: ("a" * 64, "b" * 64, SHA, datetime.now(UTC) + timedelta(days=1)),
+    )
+    monkeypatch.setattr(staging, "_read_private_key", lambda *_: "dummy")
+
+    seen: list[str] = []
+
+    def capture(manifest: object, **_kwargs: object) -> object:
+        seen.append("manifest")
+        assert manifest.public_successor_target_pin_digest == SHA
+        raise staging.SigningRefused("stopped after manifest assembly")
+
+    monkeypatch.setattr(staging, "sign_staging_readiness_manifest", capture)
+    result = staging.main([
+        "--merge-sha", subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+        ).strip(),
+        "--worker-image", f"example/worker@sha256:{SHA}",
+        "--allowed-release-id", "student-public-successor-test",
+        "--release-manifest-file", str(release),
+        "--key-id", "test", "--private-key-file", str(tmp_path / "absent.key"),
+        "--trust-anchor-file", str(tmp_path / "anchor.json"),
+        "--output", str(tmp_path / "readiness.json"),
+        "--public-successor-phase", "PUBLICATION",
+    ])
+    assert result == 1
+    assert seen == ["manifest"]
 
 
 def test_staging_atomic_write_preserves_external_hardlinked_evidence(
@@ -249,13 +313,49 @@ def test_publication_replay_keeps_real_c_red_before_any_live_authority(
         observed_v1_receipt_path=tmp_path / "absent-observed.json",
         database_dsn="postgresql://example.invalid/unused",
     )
-    with pytest.raises(ValueError, match="authority envelope"):
+    with pytest.raises(ValueError, match="independent target pin authority"):
         replay.replay_public_successor_publication(
             inputs,
             expected_release_id="student-public-successor-20261010-fcc84331e7700042",
             expected_manifest_sha256="b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78",
             now_utc=datetime(2026, 10, 10, 12, tzinfo=UTC),
         )
+
+
+def test_publication_c_replay_receives_only_independently_verified_pin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (bundle / "content-anchor.json").write_bytes(SOURCE_ANCHOR.read_bytes())
+    (bundle / "release").symlink_to(SOURCE_RELEASE, target_is_directory=True)
+    (bundle / "authority-envelope.json").write_text(
+        json.dumps({"authorities": {"public_scope_authority_sha256": SHA}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(replay, "_verified_external_target_pin_sha256", lambda: SHA)
+    seen: list[str] = []
+
+    def c_refuses(*_args: object, **kwargs: object) -> object:
+        seen.append(kwargs["expected_target_pin_sha256"])
+        raise replay.PublicationSigningReplayRefused("stopped at C")
+
+    monkeypatch.setattr(replay, "verify_public_successor_activation", c_refuses)
+    inputs = replay.PublicationSigningInputs(
+        bundle_root=bundle, repository_root=ROOT, content_anchor_path=SOURCE_ANCHOR,
+        preissuance_receipt_path=tmp_path / "receipt.json",
+        private_cas_root=tmp_path / "cas", target_root=tmp_path,
+        target_pin_path=tmp_path / "pin.json",
+        observed_v1_receipt_path=tmp_path / "observed.json",
+        database_dsn="postgresql://example.invalid/unused",
+    )
+    with pytest.raises(replay.PublicationSigningReplayRefused, match="stopped at C"):
+        replay.replay_public_successor_publication(
+            inputs, expected_release_id="student-public-successor-20261010-fcc84331e7700042",
+            expected_manifest_sha256="b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78",
+            now_utc=datetime(2026, 10, 10, 12, tzinfo=UTC),
+        )
+    assert seen == [SHA]
 
 
 def test_publication_refuses_self_declared_target_pin_before_v2(

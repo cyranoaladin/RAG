@@ -158,6 +158,9 @@ from nexus_contracts.review_binding import (  # noqa: E402
 from nexus_release_chain.public_successor_activation import (  # noqa: E402
     PublicSuccessorActivationVerdict,
 )
+from public_successor_signing_replay import (  # noqa: E402
+    PublicationSigningReplayVerdict,
+)
 
 from ingestor.ingestion_profiles import release_verification_v2 as rv2  # noqa: E402
 
@@ -1199,7 +1202,7 @@ def assemble_and_sign_v2(
     provenance_run_id: int | None = None,
     provenance_run_attempt: int | None = None,
     public_candidate_inventory_digest: str | None = None,
-    public_successor_activation: PublicSuccessorActivationVerdict | None = None,
+    public_successor_publication: PublicationSigningReplayVerdict | None = None,
 ) -> ProductionReadinessManifestV2:
     """Assemble V2 uniquement depuis le snapshot global revérifié."""
     verified = verify_v2_release_material(material)
@@ -1227,9 +1230,16 @@ def assemble_and_sign_v2(
             provenance_run_attempt,
             promotion.image_provenance_run_attempt,
         )
-    if public_successor_activation is not None:
-        if not isinstance(public_successor_activation, PublicSuccessorActivationVerdict):
-            raise SigningToolError("public successor C verdict must be typed")
+    public_successor_activation = (
+        public_successor_publication.activation
+        if isinstance(public_successor_publication, PublicationSigningReplayVerdict) else None
+    )
+    if public_successor_publication is not None:
+        if (public_successor_activation is None
+                or not isinstance(public_successor_activation, PublicSuccessorActivationVerdict)
+                or not re.fullmatch(r"[0-9a-f]{64}", public_successor_publication.target_pin_sha256)
+                or material.now >= public_successor_publication.expires_at_utc):
+            raise SigningToolError("public successor C and independent target pin must be typed and live")
         if (public_successor_activation.content_manifest_sha256
                 != hashlib.sha256(cast(Any, material).sealed_manifest_raw).hexdigest()):
             raise SigningToolError("public successor C differs from sealed manifest")
@@ -1281,6 +1291,10 @@ def assemble_and_sign_v2(
                 public_successor_activation.authority_envelope_sha256
                 if public_successor_activation is not None else None
             ),
+            public_successor_target_pin_digest=(
+                public_successor_publication.target_pin_sha256
+                if public_successor_publication is not None else None
+            ),
             workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH,
             workflow_ref=workflow_ref,
             run_id=promotion.promotion_run_id,
@@ -1290,6 +1304,14 @@ def assemble_and_sign_v2(
         )
     except Exception as exc:  # noqa: BLE001 - frontière CLI stricte
         raise SigningToolError(f"V2 readiness assembly refused: {exc}") from exc
+
+
+def _require_public_publication_fresh_at_key(
+    publication: PublicationSigningReplayVerdict | None, now: datetime,
+) -> None:
+    """Refuser une autorité publique expirée entre le rejeu et la lecture clé."""
+    if publication is not None and now >= publication.expires_at_utc:
+        raise SigningToolError("public successor authority expired before key access")
 
 
 def _parse_verified_profiles(raw: bytes) -> tuple[VerifiedProfileFactV1, ...]:
@@ -1653,7 +1675,7 @@ def _main_v2(argv: list[str]) -> int:
                 if args.public_candidate else dii._EXPECTED_APPLICATION_SERVICES
             ),
         )
-        public_activation = None
+        public_publication = None
         public_inputs = (
             args.public_successor_bundle_root,
             args.public_successor_content_anchor_path,
@@ -1702,7 +1724,7 @@ def _main_v2(argv: list[str]) -> int:
                     args.public_successor_content_anchor_path,
                     label="public_successor_content_anchor",
                 ))
-                public_activation = replay_public_successor_publication(
+                public_publication = replay_public_successor_publication(
                     PublicationSigningInputs(
                         bundle_root=args.public_successor_bundle_root,
                         repository_root=args.repo_root,
@@ -1738,9 +1760,10 @@ def _main_v2(argv: list[str]) -> int:
             provenance_run_id=args.provenance_run_id,
             provenance_run_attempt=args.provenance_run_attempt,
             public_candidate_inventory_digest=public_inventory_digest,
-            public_successor_activation=public_activation,
+            public_successor_publication=public_publication,
         )
         _require_live_main_head(merge_sha)
+        _require_public_publication_fresh_at_key(public_publication, datetime.now(UTC))
         private_key_hex = _read_bytes_no_follow(
             args.private_key_file, label="private_key"
         ).decode("ascii").strip()
