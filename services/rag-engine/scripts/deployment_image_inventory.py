@@ -51,6 +51,7 @@ _PUBLIC_SERVICE_SOURCES = {
     "multilevel-worker-b-production": ("services/rag-engine/infra/Dockerfile.multilevel-worker-production", "ghcr.io/cyranoaladin/rag-multilevel-worker-production"),
     "cockpit": ("services/cockpit/Dockerfile", "ghcr.io/cyranoaladin/rag-cockpit"),
 }
+_PUBLIC_CUDA_INGESTOR_DOCKERFILE = "services/rag-engine/infra/Dockerfile.ingestor-v2.cuda"
 
 #: Toujours main : cet outil ne vérifie jamais une provenance construite
 #: depuis autre chose que la branche protégée (le workflow lui-même refuse
@@ -463,9 +464,13 @@ def fetch_and_verify_public_candidate_image_provenance_document(
     )
     for name, service in document["services"].items():
         dockerfile, image_repository = _PUBLIC_SERVICE_SOURCES[name]
+        allowed_dockerfiles = (
+            {dockerfile, _PUBLIC_CUDA_INGESTOR_DOCKERFILE}
+            if name == "ingestor" else {dockerfile}
+        )
         _require(
             service["build_context"] == "."
-            and service["dockerfile"] == dockerfile
+            and service["dockerfile"] in allowed_dockerfiles
             and service["image_repository"] == image_repository,
             f"public image source identity differs for {name}",
         )
