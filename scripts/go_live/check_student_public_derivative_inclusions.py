@@ -17,9 +17,9 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-
 from build_student_public_successor_release import load_sources
 from prepare_student_public_candidate_inventory import canonical, digest
+from student_rights_source_provenance import build_listing_capture_receipt
 
 SHA = re.compile(r"[0-9a-f]{64}\Z")
 PII_KIND = "NEXUS_STUDENT_DERIVATIVE_PII_ADJUDICATION_V1"
@@ -40,6 +40,14 @@ LISTING_BODIES = (
     ("extracted_text", ".extracted.txt"),
     ("screenshot", ".png"),
 )
+CODE_AUTHORITIES = {
+    "pii_adjudicator": Path("scripts/go_live/adjudicate_student_derivative_pii.py"),
+    "currentness_attestor": Path(
+        "scripts/go_live/attest_student_derivative_source_currentness.py"
+    ),
+    "source_checker": Path("scripts/go_live/student_rights_source_provenance.py"),
+    "capture_script": Path("scripts/go_live/capture_eduscol_source_listings.py"),
+}
 
 
 def _json(raw: bytes, label: str) -> dict[str, Any]:
@@ -110,6 +118,51 @@ def listing_body_paths(
             raise ValueError(f"listing body digest differs: {name}")
         result[Path("fresh_listing_bodies") / receipt_sha / filename] = path
     return result
+
+
+def verify_listing_capture(
+    receipt: dict[str, Any], bodies: tuple[bytes, bytes, bytes],
+    *, expected_capture_script_sha256: str,
+) -> None:
+    """Recalculer les ancres HTML et l'identité officielle du reçu navigateur."""
+    if (not _sha_field(expected_capture_script_sha256)
+            or receipt.get("capture_script_sha256") != expected_capture_script_sha256):
+        raise ValueError("listing capture script authority differs")
+    try:
+        rebuilt = build_listing_capture_receipt(
+            requested_url=receipt["requested_url"], final_url=receipt["final_url"],
+            http_status=receipt["http_status"],
+            observed_at_utc=receipt["observed_at_utc"],
+            normalized_html=bodies[0], extracted_text=bodies[1], screenshot=bodies[2],
+            browser_version=receipt["browser_version"],
+            playwright_version=receipt["playwright_version"],
+            capture_script_sha256=receipt["capture_script_sha256"],
+            normalized_html_file=receipt["normalized_html_file"],
+            extracted_text_file=receipt["extracted_text_file"],
+            screenshot_file=receipt["screenshot_file"],
+        )
+    except (KeyError, TypeError, ValueError, IndexError) as error:
+        raise ValueError("listing capture evidence invalid") from error
+    if rebuilt != receipt:
+        raise ValueError("listing capture evidence differs from archived bodies")
+
+
+def verify_code_authorities(
+    pii: dict[str, Any], current: dict[str, Any], fresh_index: dict[str, Any],
+    code: dict[str, bytes],
+) -> None:
+    """Relier les scripts exacts du CAS aux quatre empreintes déclarées."""
+    expected = {
+        "pii_adjudicator": pii.get("producer_code_sha256"),
+        "currentness_attestor": current.get("producer_code_sha256"),
+        "source_checker": fresh_index.get("source_checker_code_sha256"),
+        "capture_script": fresh_index.get("capture_script_sha256"),
+    }
+    if set(code) != set(expected) or any(
+        not _sha_field(sha) or digest(code[name]) != sha
+        for name, sha in expected.items()
+    ):
+        raise ValueError("code authority differs from archived scripts")
 
 
 def _indexed(rows: object, key: str, expected: set[str], label: str) -> dict[str, dict]:
@@ -272,6 +325,8 @@ def _source_map(
             evidence / "public_derivative_candidate_manifest_20261010.json",
         Path("authority/fresh_source_index.json"): fresh_root / "index.json",
     }
+    fixed.update({Path("authority/code") / f"{name}.py": root / relative
+                  for name, relative in CODE_AUTHORITIES.items()})
     observed = {name: path.read_bytes() for name, path in fixed.items()}
     if (digest(observed[Path("reports/pattern_screen.json")])
             != pii.get("pattern_screen_sha256")
@@ -292,6 +347,11 @@ def _source_map(
     packet = json.loads(observed[Path("authority/source_packet.json")])
     fresh_index = json.loads(observed[Path("authority/fresh_source_index.json")])
     old_index = json.loads(observed[Path("authority/old_provenance_index.json")])
+    verify_code_authorities(
+        pii, current, fresh_index,
+        {name: observed[Path("authority/code") / f"{name}.py"]
+         for name in CODE_AUTHORITIES},
+    )
     if (fresh_index.get("kind") != "NEXUS-STUDENT-SOURCE-PROVENANCE-INDEX-V1"
             or fresh_index.get("index_sha256")
             != digest(_compact({k: v for k, v in fresh_index.items() if k != "index_sha256"}))
@@ -483,6 +543,12 @@ def verify_private_cas_evidence(
     pr300_index = json.loads(pr300_index_raw)
     old_index = json.loads(old_index_raw)
     fresh_index = json.loads(fresh_index_raw)
+    code = {name: read(f"authority/code/{name}.py") for name in CODE_AUTHORITIES}
+    verify_code_authorities(pii, current, fresh_index, code)
+    repository_root = Path(__file__).resolve().parents[2]
+    if any((repository_root / relative).read_bytes() != code[name]
+           for name, relative in CODE_AUTHORITIES.items()):
+        raise ValueError("code authority differs from current repository scripts")
     unsigned_index = {k: v for k, v in fresh_index.items() if k != "index_sha256"}
     if (pattern.get("kind") != "NEXUS_STUDENT_DERIVATIVE_PII_PATTERN_SCREEN_V1"
             or pattern.get("scope") != "PATTERN_SCREEN_ONLY_NOT_FULL_PII_ADJUDICATION"
@@ -624,12 +690,18 @@ def verify_private_cas_evidence(
         prefix = listing.get("normalized_html_file", "").removesuffix(".normalized.html")
         if not re.fullmatch(r"[0-9a-f]{16}", prefix):
             raise ValueError(f"fresh listing body identity differs: {sha}")
+        bodies = []
         for name, suffix in LISTING_BODIES:
             filename = f"{prefix}{suffix}"
+            body = read(f"fresh_listing_bodies/{listing_sha}/{filename}")
             if (listing.get(f"{name}_file") != filename
-                    or digest(read(f"fresh_listing_bodies/{listing_sha}/{filename}"))
-                    != listing.get(f"{name}_sha256")):
+                    or digest(body) != listing.get(f"{name}_sha256")):
                 raise ValueError(f"fresh listing body digest differs: {sha}")
+            bodies.append(body)
+        verify_listing_capture(
+            listing, (bodies[0], bodies[1], bodies[2]),
+            expected_capture_script_sha256=fresh_index["capture_script_sha256"],
+        )
         if (digest(listing_raw) != listing_sha
                 or listing.get("http_status") != 200
                 or not any(link.get("href") == uri for link in listing.get("pdf_links", []))

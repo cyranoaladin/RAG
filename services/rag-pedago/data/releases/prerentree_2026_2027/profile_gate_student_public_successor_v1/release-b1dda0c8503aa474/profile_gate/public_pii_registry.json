@@ -1,2038 +1,1780 @@
 {
-  "answer_generation_allowed": false,
-  "authorized_use": "student_retrieval_excerpt_only",
+  "adjudication_report_sha256": "7bf534b50a7eef90ca34d52daa22293a835273b0b2abf556d48e976721d05dd0",
   "entries": [
     {
-      "citation_sha256": "ec06a4cc18b1c2ad6c2f1cb8d8325ce9b224e880902466d17c857ee6085189d2",
       "content_sha256": "006325217e12996eeb315c4923ecec3db6658c1366e1034e3be26c2cf73f1a75",
-      "currentness_evidence_sha256": "a6b8b732d487da62bbf6d975cc550089dd3cc84727c7bdf5b2cc8928e7f41534",
       "derivative_receipt_sha256": "9bfcd9916b61e681bf4dffcc2d112c874bf9625ea090e11e7cb7780266cd4c2c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c923bea5f90949f2383d8875bf71d93e7f91989824ace360e2ef0a179bab1b9d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31"
     },
     {
-      "citation_sha256": "ba91ab96ccec9b187f40c5226365a97d447a7e2f3a767d4bced2c882ef469b34",
       "content_sha256": "019d27eba4fe9d342796a3432a7c293cd57bce282a576d2acf928cefeb3e0423",
-      "currentness_evidence_sha256": "391217fd99b5daf58c67c60ad4e6e4423276f68b5d90260715e0645d9063d9fe",
       "derivative_receipt_sha256": "0cf4f27a69d765958a8ad32e00f4a70639f13f8bfe6b6ac54009ac53de19239c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8fc2cc3f7218bc7a5507b7a9381e78e34d9d9f8e7b2af1640611ff84a6d9d48b",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "af3eaa9c37d902063bcdb6a35d1973307c78f1bbb58ee3aec0b6c56770b05ac8"
     },
     {
-      "citation_sha256": "11d3114a87257995ee1cb1460fe05463ad81289f5821a65e45287d2d6204eccf",
       "content_sha256": "0251e4ee6179995cdfb9aa571e283caf1dcc4401b59c6e187ee274e1b8c26382",
-      "currentness_evidence_sha256": "b26abb80c3ba56e20922917efa2398131152eba80a26459cbe111f3f49ffd953",
       "derivative_receipt_sha256": "7e6c6654eca711e30ae772497564de6988f4bebcb1635efb54b374e501b58b7a",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ac5e20a177cb467f7b50e9c819bec44e6f6a510f584dfdaabae4dac5aff34036",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e888540f4698020c2b324573101cff3573cbfb6cdd0eb59a71da5313a42acfc9"
     },
     {
-      "citation_sha256": "b40ef860c54dad41bef58c95c510b7a5bf87998d4f6cd01c54a5138c7704c227",
       "content_sha256": "053f09fecd53879288f88a44e2f63f4898d4ad8822f24ff239cc3dfcff440668",
-      "currentness_evidence_sha256": "f15bf828dfd808ff46bb77e9a76aaa06fa3b581c8e8c1c8ed6a4f218f747d4d4",
       "derivative_receipt_sha256": "4fd2c4c7f8912f95284e60635165c95608a4b036c149b2d65ac7a97f21e6c435",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "48d65fa500f4ecbd019ea000021347182d045f9039a5afbd6e4d7ad7ab8c135f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e6e79fca2c18efec668e5d89873fc8781ae85b31703d42e4a911cac46dc31917"
     },
     {
-      "citation_sha256": "d0125e7d983845cdfe9d47027b2396e83ae1066cd94f62da735bf3427fcbd387",
       "content_sha256": "057e847bdd44dd53cc01a9b5b9cde5abc41bb5a113162c147cf00c06201aaccb",
-      "currentness_evidence_sha256": "f32945326de54ba6e367b1a68ce4c7b30cde6e3f55e46aec781198229d1aaa0c",
       "derivative_receipt_sha256": "c7661945491264cb57c813bdcb373630c88d598cc03c3662c447cf45fe006c37",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "74bad62c0945738dafd97d2cfd2ee97663452c128da33f89d8801d20b0a1740e",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "475ff549a3299a76a57ade91f97245e157d00e67995a064dd16991639f747781"
     },
     {
-      "citation_sha256": "b7886efd62e6f89807953d7eeb6892ffa5d6090fbddd46b9a634c37ebd20ca5a",
       "content_sha256": "061c53942e88d46a270ef3133b8b686229891e369a989a2df48e535126cf7a46",
-      "currentness_evidence_sha256": "71c4d0f62028a579ff70bf2489e1081824a16273b062993ad68809375b5c1822",
       "derivative_receipt_sha256": "dd41f86c8f1a3be22b7021768b9bc70e6e4cb5c4db8d7a01ec6b556894bba9ed",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "cd2191d3f78d0d6c278dbb35d58ec0ec3da85280c39e5823bc3c8e0dcf6d6ff2",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "20bd269bc673c59669b0f1d49ba199d10664de13a7d51c2553379177f938db88"
     },
     {
-      "citation_sha256": "d0d0f9e56e309ea451afd52dd0b271624c098360ca32bb7063228cf15819cb0b",
       "content_sha256": "064bbc309e0c883056e4fe85ddb987abe983e8ec67967f212f2cce402b08d4cd",
-      "currentness_evidence_sha256": "a3ca3fe1d6c6062dc58eb1569ffb801efb2f4c124ed51c0e7d0192b7be1b0d96",
       "derivative_receipt_sha256": "1dcaa4f4a0b334f9880ebe7222aa62029f0e480cc92722a5a20528e8e1869b06",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2734ae1bd03710dd22a1dfa0e2d727e289df048a1992b117aec79bf428149235",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "44b912bc48b310539ac903be63e2afa51d33fe6d0c4b71167f83f518155a7eb3"
     },
     {
-      "citation_sha256": "7393a714bed1a34296ac2ad54332f3425bf9624171b1eeda3c39429a05f96932",
       "content_sha256": "088b74841762d24c8a4df1962c5284e141042124e0d04a9641efa03d21d2624a",
-      "currentness_evidence_sha256": "79003119ec05baacc83e0a78480cbc329c14ab2d3614580c714040917f19962f",
       "derivative_receipt_sha256": "a670e485ea6a7f169835c9e74247ece60b5cde99d92e319d089565d4817ee009",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6d78bbc89d5287a566df5c280d5c888af820bf1fd9a811e3d953571e992343b4",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "aaa6558cdb71efc9c4c7a7c089247c268d7c22b7fda42c0d54de85dfc1373dcf"
     },
     {
-      "citation_sha256": "02a8eeb955eeb64f427552c10c750f5c6bb882364a7bba861f5fccc951037d50",
       "content_sha256": "097db15dc3b6a8bc453d158e378faab1831d2be63c8c7d58ee896a6fe5be5afa",
-      "currentness_evidence_sha256": "8e99f196391dd6472511d7c0fddd9c9e6079be36b24338f42437e0737a927cdd",
       "derivative_receipt_sha256": "5f429d8b486bdf28cb016eac82ae0190409e7cc9217be0294e95a9ff2895ac43",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "4afcd4b9300b8f667eea1336c2bb6186aa8ac391a05e798e2b4fa3778e3bc543",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e351cede38793ec81892a2434fd6ba397c745a8dcc50bb56bcd9f86f2f89f6e9"
     },
     {
-      "citation_sha256": "b19a9c91bcf33e7ad0b647a9c225fbbca334eda3edaf445f8e2cf19f470f8fcf",
       "content_sha256": "09d18c07345f83d32b7a3f1d4273052b552364074dcf75186b6e1682abb7de91",
-      "currentness_evidence_sha256": "ccd6f08aaa351efb33a4c238b7265c89623dffc58e036ff018362ff7698fb4fe",
       "derivative_receipt_sha256": "219376825ea6a4a8f34a18ebd76da4ea711b6897dd9d77cf5aed722820027209",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c507f4e8463cfc90a67b707fb936cc4122c37445c9f69ebc4ebaf6a3a77a6515",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "40d6d047d507a306d9a3c814ffe01d0c9e4c7cb8ddf1f6be752e0fa9eec2b3c8"
     },
     {
-      "citation_sha256": "95b4ca9828fc095c832ab735b965f6c614b7ca0089f7c9d5bb192754bd6c6d5c",
       "content_sha256": "0a11a2f0a6100e2489976d02003345958da62efdd72da4c5b8f5875f0a167718",
-      "currentness_evidence_sha256": "05dff61acb20c87a5a5945694b243f1bd5cd21ef8474a903ec7d38e4a840df04",
       "derivative_receipt_sha256": "0f5dbdcecae935f30de68cdf1ce01e20cbfb642625a5896dd6d2cfac2fdc9466",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "072c9ecd3d74fa8dbec3ee6f4e8b44139840d7dcbc6d84601e410493f891c9fb",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f8f3beb077415749ccd22048b8dd4011a9bb7156c2f1818cb800056cf13ff606"
     },
     {
-      "citation_sha256": "86749d76bed96eaa5c13865dcdb1062ee9525134850274f6a976337c4c7f917c",
       "content_sha256": "0a3ce33608d960d25958d9cbf592f44eab5e3913d321d2468df8ab2016f20b19",
-      "currentness_evidence_sha256": "2a03e92bbad55d79dec8030216a49694fec7a79a64de55748967481c869368b3",
       "derivative_receipt_sha256": "46402ab23389ad097eab39b1cc530740214e95ab1ef1dcd3a820e32caadc9905",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "acbff56feaa415ff2e2fd5d907c76ca2f2c94dcd655473c39051823c66cd7225",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b51fdf6b1dede7bd216d553c8106827b3f9f5b4aab0280ecb2001550d81a19ee"
     },
     {
-      "citation_sha256": "fa16e3cf0a600ada08ae959dfd95617a1820a90335abd69fba03077ae894b3dc",
       "content_sha256": "0a3e59b0b3311fac0449f01cc619be86e425ec31fb4ad9ce878efb682366a6f7",
-      "currentness_evidence_sha256": "a451bea99b69c760799509fda778e7e2135df5283495bacd425f37041a81e5a9",
       "derivative_receipt_sha256": "a5a42fd2b5bba589d2d059d52cb5e792e34d83ba083d2bf7e540bfd622dba712",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "74afb219132f7669b8e96ec72f3390faba645d4e3b25984c2d7a92fb6b36bc32",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "55e2cb21981cddd91f90c04debfced7196ad8a1460d147d947fc8200b36f39ca"
     },
     {
-      "citation_sha256": "580ddaaec43071dab92e185470a40ba65c6ba2b8a59cd72b4e5b27dab3b58298",
       "content_sha256": "0bfe3571192b879d3e5811241e673b747188ae9ab51e5d80f3356d1cbe78c31e",
-      "currentness_evidence_sha256": "ebce6684db1282541629362d0e5199f6ade0a0242584864dbfddf64180f75930",
       "derivative_receipt_sha256": "fa4e38d5d4b222e26846a961f5bca907fc67d89e7698b92da442d0b8e3e54232",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6201252a08cfa2415a2732fa5d41fabc2f93e9a23a3786482861f1c194bb6fb9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ae5710d4a3594fc5af9c3b95140359747095487730438769483a1427dd30e6c5"
     },
     {
-      "citation_sha256": "d37de256f6bade049264111ecd4e5e0facf2fa8a25d9b24a4d1b1078c2b400cf",
       "content_sha256": "0c997af8cfaf8a33cc3891df67642c1162404838fb7de31a059d638748e75314",
-      "currentness_evidence_sha256": "5d124000266315b2c45511fafe236f5e2fbf4ae4667b0f25e85da228dacf7379",
       "derivative_receipt_sha256": "ffa674876fda20a10e66b3fcbb059695bcdee739048b4e91964cdd2a98c87d9f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "9555194c04e54990ab47909884630de18b1f029401283c15114b264c556185de",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e8eb4be88578d123c356c18cc6bc7f76fae5485a77a7807f9d9ec02db46b3b1c"
     },
     {
-      "citation_sha256": "0d1df28c0a82eba66baaf5b6f09f07db48ca800d8b996a8fd1a34f4389a76b4a",
       "content_sha256": "0e4ded1445e291bc8f3c7232789ee959b73031897fe0afa6a90a4ea56feb10f1",
-      "currentness_evidence_sha256": "255d7903ca5e7ffd3fbe58898c0f1d78dd1c6ce1c8abffc5b75800d1a8acef16",
       "derivative_receipt_sha256": "b9a6ba18a8a610425abad94f20d7ecccc0b1ba3d8e9ede3992b510646fb538a7",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "7f2f37558b64e91b073c531bea4d7d4ea30e0775d9900a12ea6ff34e3ed0a520",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a76478f060cb0b75d72a27b0f6da185bfcbeec20a49f5358a3661220705dd8f0"
     },
     {
-      "citation_sha256": "727b5f1b878d8dae6cc03f584637c5d9a120a643a0906f23fe975de6c42b2626",
       "content_sha256": "0e72da346d8cf39923b0ba7d9c4bb8130f063b220b55f1a76cbb5ad1dae0d7ff",
-      "currentness_evidence_sha256": "bc86708edbe051e14964cfcea60b1a9d79aa5998f7f3fb9d15e46b5797f56497",
       "derivative_receipt_sha256": "8acccb76f86ea2ca5d2d2cd4234c27b099a32513dad2f69c388fd14c52cf7ffe",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "90490fbf9a1867273bffa12fdf467a22b37fd96ffbc6e81153de0e57701849e1",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "c9c42a940d44eb01f132cc8533237c8aed877be94c05746b9bad7f7227de0cc5"
     },
     {
-      "citation_sha256": "79e6200353b959e2f0ce032b7260a8c563c9c9432eece74d9e27e4b5721c8904",
       "content_sha256": "105fa22c66235088e8307f6e8fb98f2774f3570451f6400a262730e1292a505c",
-      "currentness_evidence_sha256": "1634e23009951768888b2f723220a145613a67614b66bf36a7a02654431e321b",
       "derivative_receipt_sha256": "27139d7a5d9d4c9f41bf9443b1aa75f67a6dbd359ab08af7723dc4b6b6aff040",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "370dc344b9afb2de830182a49ccce1202ee811fd5dee28cd475fc7dded61190f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "40b483c559f70a18a290d74071b96112dbdbbea707e896918589d5f8e5f482b3"
     },
     {
-      "citation_sha256": "d6c3e03da9dfd975623be4d4403b0792526534b1a26fa5e14bff3a2bd493dc27",
       "content_sha256": "12641cafe9d546cc9ee63140e1e5a4bf09c5fe5af874a970a755f2995b19c6db",
-      "currentness_evidence_sha256": "aaa516f456e7bac877a9803c34a0df00065630b791dedaee8f892c1fe2c429a2",
       "derivative_receipt_sha256": "c41898bdf1a597a0ab2217a7637d7dacfa71a8a4f94708d7f44ded17d32ed378",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "69e3d0eeb7f1047126e1ed65e1f07257c6876b7398aa2dc3e7303a7c044ed70d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "17b5954cd90ce01de9ab8f392db9185ffa9ad358ccba68462f31b2221ee80123"
     },
     {
-      "citation_sha256": "67910c4b84e33e2bb82f804eddf57803ad91b534db179a89295629a1e00edda7",
       "content_sha256": "140adccb9702bdb2c84e89e3ce924b20b07be4efac0b73fe364ec47aa3be6087",
-      "currentness_evidence_sha256": "e0acb6531ae200c666dcb167e1a61d4120dae099e6cdfa48cf65b01068d92d44",
       "derivative_receipt_sha256": "8dbaf540a56abd1d614d2d9bfc22df15cde119435e7a5582d069668c83833e44",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a16b0d78d5ded4e97d7ed3dfa1eaa18de79beeff06329fed5a2ae5870cfc258c",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d69598e3c162b0fbd49ceae704dcca347d792f738d13eb2164454452888f3af6"
     },
     {
-      "citation_sha256": "a0b3731b969df366f92cce40f3fa0250a4e0c48524b707f17c187e91ebfefc54",
       "content_sha256": "144face05bc02874b37c48a841de7185f9ec56e14eb33c00ef8946d4cba54998",
-      "currentness_evidence_sha256": "e15991744089e7d8aa3d1933447647da74dfc2fd912a2cfcd2d5a2c959b31368",
       "derivative_receipt_sha256": "9de3989848a2f4c1b9230ef0ed42ae14d52a0a6bb8a66022f0831898577d8fc9",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1369e5e5fca91f7a8fa6783da9e4a6f1f138f225753b95218b4ff6dd2d1c2fdb",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "aa09447740e35e7ab6e2c9caf25c2786a8a0446ae7803b64d163f5b9000fd4f1"
     },
     {
-      "citation_sha256": "e0c2c435690aa55b9859a4014b28832f3b3bc441a47a64a8fa34f77629ac86f5",
       "content_sha256": "17233fcb54384279898965e27214f4a74bf50d786f2515bb045d858932d28a7e",
-      "currentness_evidence_sha256": "1f61dbcb95cb8bf88d110f19f11c4e0faffa3c5e2f4166cffc71f566b853d86f",
       "derivative_receipt_sha256": "61efb2924cd9431bd4af982ef8ebd168ff1c985fb371d8eccdcc81177940c404",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "3d52078694d84993b830b25a29f5265b550b4c607e27abe48613848142387ad1",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9b05a15d39750c3e0fe6150809418dcdf3d1df36862c56406b6c00ac8a9918d7"
     },
     {
-      "citation_sha256": "dabb4a9154c5897663c0268ec87b75d9cb099b3aa2b355c1c2d0955fbddca3be",
       "content_sha256": "18cb060783120aee661279803683b91bebf04dc5f40402f0f335719ad8a283ad",
-      "currentness_evidence_sha256": "b7110c81c7bea04c7218d91511a1b4eb7c3a2a4b85782a8ed8da5c15ecf95dcb",
       "derivative_receipt_sha256": "4576312281465a216f95282c806e9c756338d65b95a3e76aeff3a203087063ea",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a644d3d9e99fff2d8f2764fc3bd6587637b8a81e41037d6ded64d1b064750262",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9c18864bd78628d064c21e82db5857e0fbf8ec24faf415ab8aba95caf15baa67"
     },
     {
-      "citation_sha256": "0087648f38bd3d3b4221d04c77258e2b1cc3f4d3c72bf2b98761cff6ecdaded5",
       "content_sha256": "19512510e3aa8b0950cdd31e52d96c8207d26569ec3ca3414c97333e5eea38f1",
-      "currentness_evidence_sha256": "7b2ba05f258117f40ab8468261208ad54efcf5b2705fc9bd8045e4b2d5a3dd83",
       "derivative_receipt_sha256": "e12334b6bb4c6e779e71872597704395add51a6753c305c60aed4793159e0328",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "7ca8b1d8d1547c20d58684391e7261724101282b50f4f65c4f1022a97a6b76d4",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e34d4b98c7567622889ee50407e9042f12554b31d1c6f5ed413f4cfcf8d32b87"
     },
     {
-      "citation_sha256": "66c82dd4e870e8f7fd6170772b9dc2a7b0f51b969106d917bbbf1b697cdd828f",
       "content_sha256": "1adabf6629a4db83d36b25734d42c9a782a757f503140ad9fe74f95771defbf7",
-      "currentness_evidence_sha256": "a5165a33ec2eb5bde6812fe4db747a7e142fd4cc2385cbee16b4327bda1ac2e9",
       "derivative_receipt_sha256": "a900c6945dc44b86dce15356ac556200c0b62fb464000535084c7c965d384814",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c15aacda32f50b40a53e3e12e8e2ee2162e2ea595b1d5428e8e6114525de6d67",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e665756e63cd5c67b641e31d05c78a4ea74d399cfe1f766ea91a2b6665097f4a"
     },
     {
-      "citation_sha256": "ea5df000bfe2c89c9907e108e8595b4346ef3e2c32dd9039d837e6f9f311cf1e",
       "content_sha256": "1c0d67aa73848a0ff3a7168b5b893d09d13a9f3d445675bf9c01a140528000b6",
-      "currentness_evidence_sha256": "d5e9a0b2c32874a9a3eccd43e51404175fb5acb54d78634fbc70da3f3c009ece",
       "derivative_receipt_sha256": "2343b94fe73fffc18faa3b13438cba6e38e644b726884af3eeacb428ed288379",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "3a86af35be1ac400ce32c79cd7b10d5db0aa47eb9f0b8681ec2c324dd9a4cc11",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1d4d522350ee03ce4453ffe5766dedc0257a7faff317177cb4d34ca3c5213cd6"
     },
     {
-      "citation_sha256": "801e8b2e9f0cd9d8ac42ff4dda09e93c3181b6e809420e696e3676583dff8b17",
       "content_sha256": "1cdf8818adfca5d983722be598926201d8f90dfdf76c215a358260cffe0207b4",
-      "currentness_evidence_sha256": "f223b8cbce539e05e6576bc96e841554e2104aff2bd5685e71a91148cf1d8e9b",
       "derivative_receipt_sha256": "a6235bf450519c7581cac9b15001741030bbfb12763e85065466b4a8d57e8ff5",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "bfeeada06a31871223b1de363fada7a6295baa677b4d23ace6d139513d38783d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "6fe0291155b423f705d1e1278075046042b7ee1c5776e6c8b135cbb494bbf366"
     },
     {
-      "citation_sha256": "f2b9d26392192da3b5d8c6cfeaf74db74e091ca328d3a3ed954f334f415df4d3",
       "content_sha256": "1ce9135a2b442b79c19644652375757db1c32cd1cef39b36653070d4f9de99cc",
-      "currentness_evidence_sha256": "f9b8b1b7d8316f7b05cd81b7ed959e06b075c1d32f7d5078296f94a29fe5d913",
       "derivative_receipt_sha256": "0a7d00088cfbded58a42e9b2e5a62dd9150337b4fb410bbb6407e49ddb52a108",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e6365c03cec3e405e6d523a374b9cab9668efde11b6bd372e8a26c5adb961cdb",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "587ab86c478dc11edf4a16d847f92e29bb4f96ce26c8460195fd3b10f79e2425"
     },
     {
-      "citation_sha256": "0791d33613059eceb2772fcf887d1f056dc28ed59b9ff5b39ce57a3e904f9ea8",
       "content_sha256": "1ede07bdb1bab62f8e90d8923ca1ffb6cb92fe6c4bb160409cecfe9b961edbe4",
-      "currentness_evidence_sha256": "3a916ba1caf2f4b6761da6c5e92be7f3328a38782fe460ba1b73c30f39767f6d",
       "derivative_receipt_sha256": "0d04cf7c6461811da4161c62579af2e0bd0d978e1a8e8b125d2d46ea5704ffe0",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "d372a19328cf4a242cde4e387613798f479ea3cec422579412501950d0976544",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d9079f79992de3dbce0b238423d7f8a87273fcce74f8aa5bb17e25dc7dcd528a"
     },
     {
-      "citation_sha256": "354664821c7922b12333564876c205268173fbd8580ee79ea9a538952ed46ce3",
       "content_sha256": "1f05a8db0e101de25b60a5d45e3ed755aab8c26fe740d504c917abeae1c98f70",
-      "currentness_evidence_sha256": "c5cd159cf77095f4182a2b8c47ef99383d5d82cd926e73c9b03bdc57894969f9",
       "derivative_receipt_sha256": "f0f1471604ce4bf519abcfe80f4e98f1beba497e26cb5f40a2fc3f59d74dbbe9",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "86699589808ca1ccdfdf15a43371f6b5785a8260842ae3b6dd2950e7bf6e9c78",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e97609b9e1f294168390b949d1b37a862869a71b40d3be5ed1d24ecab8d1c8f1"
     },
     {
-      "citation_sha256": "f82cfa17950c8182e8288771c353edb7e668eebca5286bcd6bb4c16ae647f625",
       "content_sha256": "1f9b1c431f07f91f7f9de35647bbaff37233fea752e4008b64751801b78ae322",
-      "currentness_evidence_sha256": "1b2662d73f3a6b5197503b95ec8d760c6899ec53f2694ab338d3d3d2a6ab2c28",
       "derivative_receipt_sha256": "7704e7aedf239eeabd9dde101bc95ded40c5773c59e48c8f10763dc1302bd8d8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f3cca66c15cf486d170104338e4a7b466be07afbb5b25461cbe109742cc7a3aa",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ffc628e67b99bbcf4fd7a8cafc96619973e6e459ce263632d1cccd1be4ec2c91"
     },
     {
-      "citation_sha256": "ad20fbb03d4919e18e32eb67e3175c60d89cd0a6e748b0986477c50ee8da8639",
       "content_sha256": "1fd37bd4d2c2c79c4b25faa4cec83a44d077f1e526067f0848575f82a097dcfe",
-      "currentness_evidence_sha256": "0fe25ff3664bc9f119accc8c874c7cd07ff32bb88ae7a1a84b5a50e9851cd083",
       "derivative_receipt_sha256": "5c089c0302b93d8cd8feff7ae3efa255d4a9a6956afc5fa13664a16c7e28ebad",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ed35ac1f8641f5e43c8b4a02466f08fa8a5c06d658abf6a4aa3d7a7c332dc143",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "46c8cebda87cba6dd6a7d523289ad69282543a99cc15cd1940fde90bbc2d5714"
     },
     {
-      "citation_sha256": "7c9ddaa9f219789a141f87af64a548f9455ad7fc64ed6c3fffbb9d5b86646831",
       "content_sha256": "222a6261c2ab3b183ebcaaf542c742ad48cad1f4a540466cb83788397a0b8b95",
-      "currentness_evidence_sha256": "a6bfaaa8442792741a2b0415b4df52143ac2de37b5e967bec9c08bceb1a8fd59",
       "derivative_receipt_sha256": "db680b96372b6803e4a09843b93fa7dc0d9c97e86403c16f2c1a8532b62f707c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6b48cd7046b16aaf5e59da71f9eb291bc1aa10acfcbebdea212d9a396593d849",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14"
     },
     {
-      "citation_sha256": "9bbbd4cd6ae737f2e5823b2d07e444f44e797c4e18b7b77fc15a2e50ce93c7bb",
       "content_sha256": "23555a51674f80d18c1c54e7cdf63a6fd9fcdd39792dcbb7c37ecd901ce472a9",
-      "currentness_evidence_sha256": "9711d23163043798d2eab91930f4c26e676a023002d4c538de1eadfacd620ffe",
       "derivative_receipt_sha256": "08f538ad651cd64fb0b4ee512e7a8377e59d1bfe86fa33e311fc5bd3d929524b",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "78d6fc43712863ce29e8cf57370bfad438330f53c8f5dfa3f6fc630dd66726bc",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1812d129eeeceeae1a36a11bad8ae3bc8e8ecdcf589ddc200fc6d0f7ee662e3c"
     },
     {
-      "citation_sha256": "4b6df8b2fbdba4685ec472e85f6f3793812db5011df6b58da951d570953993a7",
       "content_sha256": "23813a5539585c555d7cc692b86ae1110a3f86b3a5fe6d53bb69b9df19368b64",
-      "currentness_evidence_sha256": "1c44d89af28c3b01432aedfdca0ffc3c76cd3f20b439d2f6cf554bfbca7b3c88",
       "derivative_receipt_sha256": "d4780db954c84c594fd5f86eda94389e1e648f3c724bdb0e47eb0f7f3a7d3209",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "21c881c3d6155d8b0a7590a7ae84fe88ff490ebcf873fb874e8bf8bfa401a13d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d604d6a97323968ad6efca34cc1debc4e857a5cc2ef916df7ce9e95df181feef"
     },
     {
-      "citation_sha256": "08c501553a412be36830c45c30c0cc40d70e5174044aa9197be1cd5c2ab1d1fe",
       "content_sha256": "23a5df7587ef66b6689f4973aec0f3e083cd8a08ec3df4193970eab81130e0e9",
-      "currentness_evidence_sha256": "228f22bea8c232c8a2b6d1f64ed73d37687d6df32692e84e3fcfa11b2e4bc60a",
       "derivative_receipt_sha256": "13f7aba7b182abf137d0b080f34bb003e19201cd7bfb4d4c8f4ff5b0e430b225",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "eb90be0d045964b874fcc16bfac3de5d8b7188d8dc57a7657a11ea196dbd21c7",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "acffa72d962f5acb2f53f4a28d0699c7cc365b3a054410ca99236cb68c5aefd7"
     },
     {
-      "citation_sha256": "bc9e852c582b43499f5738622f6eec78dff04c1ac7019ddce9e307fe51338d20",
       "content_sha256": "23c6cd4f806fb85fbec72f5cfa09507d20d3a530a21448ec134c3abf88390616",
-      "currentness_evidence_sha256": "cf04721bc0fb37d05b8dc42863abe06d495466a74ed3748cfe481a5ec4a26994",
       "derivative_receipt_sha256": "aec3e6e0cfc711ddd0e4f0ec0f27bcd49d7175e57ab408c312df9feb1d592e2e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "56e2e37164073a3d5527b9fb1b1ec0b1873dd6e728b559ef3b4b5e4d52fe8ff7",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "fe1d26535eedee3f1bc44920595faaf9a9b4aae732ebff3854d75d4177c2b202"
     },
     {
-      "citation_sha256": "7b9e7b11b01404b8f36fc36620a9a9bf3c16f89106786e4c9862f53861d22ff3",
       "content_sha256": "27f2d937d334b4df33a52aa5f4c034aa829a7733be4c412de43704615a628016",
-      "currentness_evidence_sha256": "2d796068dba95fe9f2d003466a5f5e3b514133978e01640a7d50d99ec0d79612",
       "derivative_receipt_sha256": "a7c73f5e31bc6c9ffc3553b8ff33f12ff842cde7ebc7ba5103c468f86039d2d8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "d1d38c50869a22910fa124afae209d261e504b7cc4f0c77e527bd57f1d0d06a7",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "12d639fab6e187109d2dfec37a31b12b85985e3aa6449ece2c70ea06a0578468"
     },
     {
-      "citation_sha256": "1a89254d9b0a5cf4b9f44ecafddf04fecc9f4a2583236d81fdb7cc48be13c53b",
       "content_sha256": "284b557bd599f5a30cc78923af4d63efa7c9aa5e34e31078532b1ada98d65164",
-      "currentness_evidence_sha256": "4d03b9170117e6581a674771c34a51ca20bc4ff49f94a975a61e36695b1f2bee",
       "derivative_receipt_sha256": "a85af2a6e12908b4e46352a7cf3501e11ef3d9e0959b8d83bf4a500bb4d23edf",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "61e1e16cfbfa382b97278622b4d55c341aba18ed053b0bfbc256931935247093",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ac4b61f423d2c8d05006a392423a5c4d0338647f3ad579015cd775af0b0295ad"
     },
     {
-      "citation_sha256": "197ad15f32a81e1667aefbca09fe58829af145f399fbe9d5d59483f63c358209",
       "content_sha256": "286d099f5fd1fefb07b891cc46a9caf388f24874de873b19b3e2f7b6281b9d66",
-      "currentness_evidence_sha256": "a5df8d1d65cdc15e34bba5329c5d864a1aa6a3fbb9a9af7574109f1910af6c23",
       "derivative_receipt_sha256": "d367768c2ef8278491b08cd6082c15b38a92d4025fdf852565508d08a5278533",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "15bc31499828b130908ec9856786a301d5e7e1b29d1b7be71fc49fe55028278e",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "fc7a8b53bc7bbcd95e213cfa41fcfa7477e581a7f0eef93891e6b4d4f6071776"
     },
     {
-      "citation_sha256": "2df81db8f3e6cf403e6ff7b5d34ec998edfe731a734e773d2f5feb517c872487",
       "content_sha256": "288b0ff4b1cbc4f349f13ed0df9578638a3d354de59b7e51cd1980a6ef5f69c0",
-      "currentness_evidence_sha256": "bef6425ea27d1d68cac190c055ee04636947ff005977360fb325577ece4c0408",
       "derivative_receipt_sha256": "16659616d8efa335a1e75c0a573e1a9dd8d576629be0387ac61078dcf9cb7840",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a5e24a3e55dc5c1932ed2909f748f84b4d00b9852207f188bf14842c6055cc3f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc"
     },
     {
-      "citation_sha256": "fd5143f615ecc86f71d375483860cbef0dcd1ae15b7d925df924345538617f85",
       "content_sha256": "290925916410f9705fed57102c53712c4638e3b73d9732936a4fea1f2d943c2f",
-      "currentness_evidence_sha256": "ff8f4991c5ee85358ba840ad3fe95182e749ef459891d88f7e3f43bcb9dae8c9",
       "derivative_receipt_sha256": "75bddc79a7e529dc2cfb91a50a59556ea480be62e2569e74fa8395e71a82bd60",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2297d6acee0d84d3345e4a123a2015196e044d6d8702f25a58e356c7a4c99c2a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "3e398830332c52981e2d811b699760834b7a2cc786345bdcd3eed2d8147d54b1"
     },
     {
-      "citation_sha256": "19d6146e4047ba8dd3f7a25eac28ce044c9d3d7837f7ca394f59e411f6f97c16",
       "content_sha256": "2bcd5302c21b02f2e1b51d45f8369315e473248353d2a8360d5240c80e85e394",
-      "currentness_evidence_sha256": "cdb57b6622b598526ea996685b99b81184ddfb23f504cd53161eeee4c29deb0c",
       "derivative_receipt_sha256": "9225ee2614308e3f307dbfb4514f9e6a8a285585e60fea0edf2c30f37eb7b843",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "53fc365f84b7a86f30a9dc88b74c33af864085486f9525f4f8b6336e6d97791d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2dc0676aef5fcfc259bd41f2d51818de052c4b03940a681213b15859f3eece8b"
     },
     {
-      "citation_sha256": "6d873cb35c0690b0a963b8c0390b96f753e638fe13306574183014081ce7cf82",
       "content_sha256": "2c56079fed059b4b5b0437cd4180ae1a20aafe674b2d79fb524a469a964328ba",
-      "currentness_evidence_sha256": "c095fa1f12f2ccf2854d727e43f9b036fe3d8dfca1d1a8d5b32f52aa249411a6",
       "derivative_receipt_sha256": "f824d743c696165d4cb67d71cf32cb8a98736a076456bc3d02bc8d9f0e1e93ba",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "cdb319f0cb6703b1a11fba9d5bb2fb36fbab739848e8c674ff66c68700ea2ac4",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "284637c904ad2fec3353f97768b87ce4582da19e5a51af1c2e69929307dbdf06"
     },
     {
-      "citation_sha256": "ce9359806f3264db262b8a0bce75aa05c8ca455c869c46358f257d54c13f72cd",
       "content_sha256": "2d4902d82a1c785e992a77fc78138c7b2a0e9ea694a0bf844f4f7f19e80ae730",
-      "currentness_evidence_sha256": "53f95040373ccdc176df07f8e8ec792490410d49eed6099096b3a43d1eab3bf9",
       "derivative_receipt_sha256": "49aaba02d96ccf17bbec5ebd47705c67f62971fb1f6dfaf81717fa505a42e381",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "3f536e981fdb8528a93c2ef944bf313abd43f4aee91920cdf8b01b4f643bf650",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d0ebbd83f4578c0e0f69c80128c1afd4cf0d93500d42f24ca3e7255d8b444679"
     },
     {
-      "citation_sha256": "c7fb38a16cc1967d71af5074a69851d63cf78e70a187686e1d5129b912f675b9",
       "content_sha256": "2dae31c2c0883dd9e2d7feae5bb0b7f1f11b4b07c0f032ee4ef0d30a9d7289c6",
-      "currentness_evidence_sha256": "b91ac1ef3fdee9737b23acb71f82db6f0317880fc1d26924454441023df03e2d",
       "derivative_receipt_sha256": "e0312c849d16becd7778e605285aeb2db6f104f46d327b8358cffcd701b2c631",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "54f07b54e3cbf1d68e30cdefe8f4d54ca0cab3b0317d275c6ec96678bd2efe59",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "84a4fae056f43805cbccd901f4adad163721723f717dc55a1ad3c05068913b72"
     },
     {
-      "citation_sha256": "e812672e2d848515cbccd66b3c832bcf83ce06eb48374d4c275cd737e95adc34",
       "content_sha256": "2eb8cbe6e674376dbb68d37458597274e3f3f26ac163c1559f186ecaff8e9603",
-      "currentness_evidence_sha256": "6319369fd7e234a43dff34608b6b2d032ee4807a391e4fa181ad6a14c3df4775",
       "derivative_receipt_sha256": "be45583943b432404b7f9e8a9c38176371f3dbc502a4027214145759f7b41eff",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "92ecc1ee9e40421129f8c2cb4ce047d01f7059462750cb52a478b457b6b0e35e",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "aaafaeacd849b4d5a68b0b277cea251aea0ca7cc22a40874118f66f836b00ff7"
     },
     {
-      "citation_sha256": "f53942507e157ec061377cd3759d866b564c094439b28f18a5a0d26ae57ce841",
       "content_sha256": "317974b21d1161e31f87fd218e3b437b464ad0f6f95403048121b48677e58f0c",
-      "currentness_evidence_sha256": "0ae6ba2bbafa280dfbd60f1d26b0d49be1fb26dcd0fc891785afe58fa0507da5",
       "derivative_receipt_sha256": "af055cfb076b49d70a00f4b43e170e304e0f6bd30c51b1d943b16dc8fad582d8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "820ecb5b7715780bc3e11ded7b65969b85b031ff1a0ccd71a3309171a410b243",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e20a163eb24d6a6d1b5e602887e8c6cd6c6f74e76f7b8ae1f798da6346100712"
     },
     {
-      "citation_sha256": "d3893ad08fe46aa38cf034780cb78a987646bce4098a8f10a0b74977fb3497f8",
       "content_sha256": "330ed5fab25bc757fee19efaaf5803199f764e40b0cb57ba41dc165659edc714",
-      "currentness_evidence_sha256": "96846dd1f22fe8c7733ccabdc587bdde452a50ba5109c861669a56e67b9f9895",
       "derivative_receipt_sha256": "c812b3dbdcb7140b927a2b6f7e5c05cdd16f515a3938168b6a3a8bab9a2b4a45",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "7deb1b3bdeebb2ad6259e0df3ae1c9ed7751a637a30b103bf189aee950113e1d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "75ce2c7e828bc604035ced94fcde0007807bb2367d54b2f8a934d67cd9c8d532"
     },
     {
-      "citation_sha256": "b5c6537b3b7fa221c37cb1348fc54db408733e54c1fe7ea1bdebee5ea5ab0e5d",
       "content_sha256": "342cc49b5d4eb19612eac59edb5d17f513f563a3cb882cede894b16e9ac67e47",
-      "currentness_evidence_sha256": "062b8530bb6729912c43275bb5b4c343b1a83905ac434a84eef0f2cbe018f26a",
       "derivative_receipt_sha256": "1b5d547211e524b15f53a1c02fdd30ddc1148cf6b27e5b220c1fc191d2972137",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ea302bd006d7597ae581c0d331ab9380250a925492e352cfeac56be9e350708f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "7787a7bcd532bdf81a3f4bfb1c76f7562af6296aa0c9a843c01eef0bfd994451"
     },
     {
-      "citation_sha256": "b6dacbf25ddc241bb930d5e7a21b434f89be10c248673a5f1205840bd68fba0d",
       "content_sha256": "3478365b138cc06d4f8e32abb4db2c1c9522472b31a890f2f42267d4d3652381",
-      "currentness_evidence_sha256": "734a3937fa7c76e72589bea5d3be2b56e6f65d7884b53acff46f83ae39c63570",
       "derivative_receipt_sha256": "32cdb8c500fbfbe5c11ae69f7f6ab8532c30b285b045fa43658eef2a05b6e169",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "661e25d5da69bc5ab7b9148a5805ef9ca94b8233ecfcb4d1b971ce92abd21688",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f1d361e561614a7f3e46ca4cd1c5435d45b02b3b7fd1040b29c1ebd463af259a"
     },
     {
-      "citation_sha256": "8a417b3495ca5c57489c1cb67a9eb595343f7632fd976e79d722ebabda3176f9",
       "content_sha256": "34cb51291e1e66cc4826a1b4b628223452a808ad95a4ee96d7ae429294146f0f",
-      "currentness_evidence_sha256": "3d8faf11b525680969587512735cebc08f88ff2a55d1b278510b234d37bcd210",
       "derivative_receipt_sha256": "6dc15520bdb480b1491116fa361052a4be1d1952db2bcff0a27f93b5170c2a09",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b4750070749e5c76837bfde25bf36a94b24f68c0fb5d9b434c2f00afe0f85cba",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "821da2c5bd0fbc66b0b32cb09140bd3a6dedd1d651e4761438b9972e91388adf"
     },
     {
-      "citation_sha256": "7c982006f7c77628151eac9ca1c5750e68c88cb550c6209a5e693c925e1f06c6",
       "content_sha256": "353c99d59954dbae61347fcef5e8747d86f8cffefbccfc726fc543a832e00799",
-      "currentness_evidence_sha256": "d83a54d132f288355e1048a66d8a5ff9f17a1223e820ab2e1f1d2a835b8ded89",
       "derivative_receipt_sha256": "17ce0a3e2c68e58cb9f137c9034ee27128d8f5066c83995cc7786f1f58e59b06",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a513e24b9839cdfa4ced0b2e46c15a6a5275fb5fd5775c88df33d052f07d7e6e",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "732bf55ee80af1b5c8a13243652a4784be134ce4b636ac8d9893f7377a28e7df"
     },
     {
-      "citation_sha256": "ed14638aaa80e61cde77e2904fba91f0b420ab2bdaaf571f33b375f041a5c125",
       "content_sha256": "354ec48b02f3c699fd08420daf6f8c32f9253ddbba6303375c372aa2f8e3dd62",
-      "currentness_evidence_sha256": "b6119caa10cfb2ed2f3c35d0ddfbecf7386c9a146f077339642e1fec9307c786",
       "derivative_receipt_sha256": "0c97a98494ac3882c6a1adccb83de4df9113e7ab31954fc4cc370f7d3569589d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8432655f07b5d19488036809b83cb71b25aedf6deebb3a20f8762c2326ca558d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e5076a88905521c6756a3cf943a7ac522e0f98f7c8a669f7301707e9bb4dc513"
     },
     {
-      "citation_sha256": "a33510a54b885b117e9bee87218e1b3149ba2adde33a4895012f508183371ff9",
       "content_sha256": "370250ae5629e0baac07f8e7259c7e6083aad1b9c3305777a989572617f55622",
-      "currentness_evidence_sha256": "620638aa0ab9d614e507cf3bc38cdb3bdf7917c010c53bbca3f60bc3a7d4939f",
       "derivative_receipt_sha256": "4e87170c5a4d6e1438ae671273351f6cf61ea3c9f009d0e777dcb23150d3c7ca",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "027d0b956c1165c7d9a661827ae4ebff8b01595741060aa22e2e17c71eff4c67",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e73a4c95064ead324a3f07a177169761e71ab1503c36d1e92b06fcbb5dec3966"
     },
     {
-      "citation_sha256": "12aa1cf2a1e6e3d47556721afdf1e6458a7c4506b4337fb3438ff56bcfa78746",
       "content_sha256": "38e15ac09cb7f0800b24a3e917ad69e98eba6c783e7028fc5dd216db7b8feb07",
-      "currentness_evidence_sha256": "e6a55e41f829cf5a0663146f39b359167c66b54e3485f134479a53edd806ac15",
       "derivative_receipt_sha256": "2e4b8133b04710fb87f6cdecb42fc6e4f5e584be96ec3d3f0902596eb9bffa0c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "35a933730d8bae507f59d716c66d9af08a898b2d03e137704d0ab82debee3083",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ab9b97062cc3e6965abe02c56cf5cfdda5e6bb549428fbd3a7a5a10b826255d7"
     },
     {
-      "citation_sha256": "e15e4f9fe25c383ec1fe0289084aa8249a27146314a8c570d803782318e2e6b0",
       "content_sha256": "3a2180279fa8cba8e293986713bfb68281df09efc50a5611c9f9043e27bbd490",
-      "currentness_evidence_sha256": "9706aac34810c7401c089b69dd1da36f8bcd73a7a8dc6e79ff4dd0b8e6100e35",
       "derivative_receipt_sha256": "2e1e3fe59052141db3a400ce903f394aed6962843ad33db5590135c54b61cd01",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "9ddbf94a33e1e1bb4b2cd0859fecef525d32b4df8041582feec04e91c09efe53",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "692c871ab2003438b1636e19f1e40de097833c39473aae700e8434bcba48a0c8"
     },
     {
-      "citation_sha256": "27e33a9173de6e20d8c0d56cbe248d8e12863a84e92d4ce72c74048028ff8b30",
       "content_sha256": "3a7fe16c7d753587ee3137529235ddf8171f67f0a8c6b828da01432260cc30ee",
-      "currentness_evidence_sha256": "fce7414c35f0f4a0317ec3ca31af2c05ca83b213f4df1fe31d9507dc2677c63f",
       "derivative_receipt_sha256": "e66ebe3ac13fab5ed9e2d7248e5f3f3244a6a468b3bea00dd616ada7b6c9af59",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b21d1e69d25290463f433d66718080971e2bc1663017581823dce0719a4311ea",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "3e338a19f4ec51657e9c20774d2d7753a2bb021d11f34f7ca49c2b13c4b328ea"
     },
     {
-      "citation_sha256": "5436c89888da57d697221e335985fe56fe14956125a6a03e40cd40b6687ee41d",
       "content_sha256": "3ace9507cce3c694cc782cacc820bf82c01fca5a1c770ba9454f26c543cb6a8f",
-      "currentness_evidence_sha256": "64acf4b513830d664f9e054a7db029844ac11b0fd121a6ec2b00efd9b6d15344",
       "derivative_receipt_sha256": "8a7dcd3172ce5ad3cad2185b42b5feb1fa2e86e92f91ffe145c7fed44fd6cb3f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "dbabe0f7f932bc6a968bb45417ee6e1397e5b24fa5ebf12714068f79dcca7461",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4b3f038c95da9d5e62ce66305062449a6c6ac81a307d885ebd8ca72f075c5909"
     },
     {
-      "citation_sha256": "191732c9658f4da44d44da5a73816c5cbc09ee14e1b68126dda871c02e3d97bd",
       "content_sha256": "3b519b9f43f9007f7a91d041b0d4cd6aefc0d25c7cffc74e44afa2a2bbcbbaaa",
-      "currentness_evidence_sha256": "1582a4572b03e634198ed99673b57a20692e92c5c48ef2a74ef965c0b952bafa",
       "derivative_receipt_sha256": "8e309c54aabcd6df20c4650d5a5d6f5eb4aaaef704d29c3de61d0fb253f85ff3",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "db13ee841967996e3bedc5a4afe98ff5fee841c8f6e29f41ac7be8ccf7f2ee92",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "09e3797e0caf2ea64920a516e11e85c204e12e6ce063db4adbe4307f90c1006a"
     },
     {
-      "citation_sha256": "0bfc4d24997584ef85b0ad989d18d6073492785f210b5ba0fde3ec9ee1935ace",
       "content_sha256": "3b93698643c497d64038be6954133853965c0ad6e7354b665a755589b1363c2d",
-      "currentness_evidence_sha256": "69768cd1ececd43bbac1810da4c06ec70d45e0b039ba5468d46def4d5588f4a9",
       "derivative_receipt_sha256": "8f191269616aed1ae3e97cd3d65467271895ca9d34b235fa28b7963d447ae2fa",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "44cd4ccb91d73e7c13d97ce0c9e7834b6aafcc4dea5c1d6984085b6ada8ad3f5",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "8dc03c641671d3a7b4d3e0bb0e8d18c3d3de30677ac78a4b3ae4c9cfee697003"
     },
     {
-      "citation_sha256": "d19f226f138fd06034b60fb5bd46172093bab6417fd98d452b334a8a8a489eda",
       "content_sha256": "3be7742d71b6857482cae539469617100b8b030a6454f13913c28be56dd63025",
-      "currentness_evidence_sha256": "7f11e0de3c93f1e0f2909fcd8e229c8351dc051d03d47245cfe23ad4d51a1782",
       "derivative_receipt_sha256": "035a9de49ffe349ea8cc94d123f048193d33a3e57c176a1395591a6ba7759b39",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "49b529954fedc31d016f7b88bacc696963d9db56813a327ec4dfefb228c83194",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "77533482cfda1b59a997868202489b71d53d3b7099d539025d57698e30a06998"
     },
     {
-      "citation_sha256": "2224b306d1af86a812c6f3ba6cb6da76873221310a116dca2c4fdd5137f64456",
       "content_sha256": "3c9e2d34564068ce91d83b99d9089fb1eb6d820e757b3a2685254a897a0d5bef",
-      "currentness_evidence_sha256": "922fce38f6b4a7f19c6396e89b5ebc4d20022a336f55bbc28e8ada9610698037",
       "derivative_receipt_sha256": "5a447151bc85472ad3ad3a1f6f6fa475a1cec513016ca05e4e668710e4dfef5f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "5c81870b06a90b15e2de1f82f2e3cf9984f0de3868966ac5a0d8b3113201af85",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "fb89457f3bb84300cee45d5ad833fb7d8f44dc1f5b43a7a760487faac3ddae00"
     },
     {
-      "citation_sha256": "8f443ba6a686008913f6b6bae5dbf4afeeab161cf25578415aced77db9aa83c1",
       "content_sha256": "3d556e6aab7681aa3ed3303c3548ffa267962cdbc0f0115ed017af33573381a6",
-      "currentness_evidence_sha256": "3371788ecfa812ce6fd21cfff851279a447e8fa212be6ad3b5a26abcbd60b68e",
       "derivative_receipt_sha256": "d5bee2723bb779efa638f0996fd1954ebcfd3a4cbe6c56b48e2a98dc543738b1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e4be54a4e2968d27c330f397cc90f060f62bf1df54f73f3697c1bd7d12ecf6b7",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "97df512350089a3fee8fee97c0b079bbc07b0c7862fa143fcb0d8996e4d4bf08"
     },
     {
-      "citation_sha256": "0ed08d43b61f09f833eff0cacd6a398072ad7395728ff3e82eb072f0afe9b835",
       "content_sha256": "3dfbb1023befb7f537c6d6394aaa24e0bb18b2dbe6875269f52bc00b3bc5977f",
-      "currentness_evidence_sha256": "066aa728e3b8ee82e1dca48563e9da2bd65b7bfa105b4232bbfb30376b4a5622",
       "derivative_receipt_sha256": "2413bd045436c61580969cfb5d205ffca3cb406a92e22c412cfacaab567bf68e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "655ce160ccdecd41ee2024408f0c11c2de51464cd7783800f3ce30d5723ca3e9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e2ccc24fdbb1ff2a4cdf2fb9545b636d0591e4d22027e29bd32e367370f14401"
     },
     {
-      "citation_sha256": "ec0dcc3046b6e0bbc200c47e92d6b289cbe9ca810a171867c5860e5f43ea8969",
       "content_sha256": "3f5dff88370943abf05d19460190c285e513684fbbc2b80e26e3dacfb81d8120",
-      "currentness_evidence_sha256": "2488a49a7da4937bbfb1aa186ab60f0bc4259c289634797b51ba0fda38cbdca8",
       "derivative_receipt_sha256": "8472eab3feaa4ae6929c949b867136bdabe4df4fa16e6fe6b78837d8d4c058a1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f4960476346dadeb6579639f77d43779e33adfc44188579dbe7d374fe898a974",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "34266a6070800766d64859ffbbd9443cf529c52b8d944426c07e4013f4c4f58b"
     },
     {
-      "citation_sha256": "41aaf59f2b4b854b3ea0e978d2854183db32e7885b142f7e3dc1d135595c205e",
       "content_sha256": "4065b9a57d22af2d0f75d56913856c3ae43b066bfe072a8e4d9473b17cba4231",
-      "currentness_evidence_sha256": "b11233907b259b53bf9135102487837bbc78dd40bdb06ffb64377f5ecca67bfc",
       "derivative_receipt_sha256": "ffeccc3be2702e81bb323c77f72fb7746f4afddaa2044e00b15bd5e3eed39397",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f082b616879a89b558376be23e46ac3bc506ec05d7cb385ac4c9cc21bda95433",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4b7f7204fd5ad677cd323579fcd1e220f3f843f966fa5ec00cd5c277e08f934d"
     },
     {
-      "citation_sha256": "db5fa5667f13ea3c82373f46012a2044c74db3103f0720b31b56befca37cfb29",
       "content_sha256": "40e52cdeb8f4c6c0296c76062bc30652f345b8be09305c310191292af46b2fe1",
-      "currentness_evidence_sha256": "8d632e82ed0dc524d5d0f9fc6424c46de3c90ec3bf93eddc5b5226442d2e6d9e",
       "derivative_receipt_sha256": "8886644ea73d21a70b26cb211dbcfdbd958238e9cbc2bd5e57186f032163718f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "276deb900df1ad1551b89c1cccbf743bb01cb0d665f5bf8c721dcdb7aa794693",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "31903807f1db276944ca63b4cd00011d3294e5f475374bb32490516ccbe69e7a"
     },
     {
-      "citation_sha256": "e810b3631d04ac1035f67bbc6ea64e5bfe95c7c79af4b1f8ca280efc43b49ebc",
       "content_sha256": "40f46e4c2fcda09902f7f2dbe3eca2bd100cef2c861e554fe20c951fff80794e",
-      "currentness_evidence_sha256": "b7848707534908083be3a896e18b0b0a65e9ca594403a5531641dfc16ec419cb",
       "derivative_receipt_sha256": "4c29df3033017db8e7d79c751dde96fe8d5e1ed2ae0f6b6d7b7151f1f7e79cea",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b30e38a0fb38ac35cb560b4911539c241eea2c22cd7fcb21d08a4ed6b7bb9e44",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "309a7d7bd6907d1d17b8690b5e68f46d719760efc118e65091a8204d12d98d82"
     },
     {
-      "citation_sha256": "975cff1e37ba59ba9a21e2cc1cea9097274cf0b8a9291967b0adf9fd9560397e",
       "content_sha256": "414789d0061adfec3a31fbefd3d61c5274c782bbda0e9255e3a8a074a1576b3a",
-      "currentness_evidence_sha256": "aede962c6e61169c8341f8f7e39dcdc73b76f220c3ccfb61c76c8d78a89b58dc",
       "derivative_receipt_sha256": "2ca0f567eee7ddb9581b7ef24c1632f964cb92822921b192fa461321859c28af",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "deabe70b809d80102de40890a97c60c86eda628eea49be0c2734d7b8c1db154f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2f9442c83e62e483c96a0150196132953665b0b892e7cb313b4526977d0a933c"
     },
     {
-      "citation_sha256": "767e51903f62b7149c7bd438e977e0d2e1a8c706b7dc11564a2cf57c3d78d18b",
       "content_sha256": "416fcbb30e1b999887f88055408a2145b92b7c72ebbfd2ba41ad6b61498e6e3b",
-      "currentness_evidence_sha256": "72f1bcc0bab0104bdc8413a58f9bb0e20515bc21e55c335ad30ee0b6470edab9",
       "derivative_receipt_sha256": "047a62265aaf0023ab468d10357082ac69c81c58381291f556a11a4a8b214ed6",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f9fa7ef9cddb287aeca8431f2768ad9355fa5a8c16a64b7c4eedb6d1a91b0ba3",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "79e04a388f5b822fad189644a838df7ece47d6e4c3498f256bfe68587ad8cc28"
     },
     {
-      "citation_sha256": "340e8b60375374f28d8fb1adfff7ffdd8f5c9633ef36cbf9375ef5a7a1d1fbdd",
       "content_sha256": "41db6652d852fb66031e89d27f077761b36d131cd93336cd0646424d9ed216d5",
-      "currentness_evidence_sha256": "5aa40d102d59a3fe6f0c884fdf7676bfdfe31e53c361044237fc1854c5765e96",
       "derivative_receipt_sha256": "3be02331785717b823f2fccb92b899312a23870edbea393635fe92307545038d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "828e28ffd312678170fb9b8482db48c40edea1c60daa3c54dd2402a353ed43fa",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf"
     },
     {
-      "citation_sha256": "b7966a1048566b0d0eaa11ed6284b345f881150c73d37757bbf360d44856f5ea",
       "content_sha256": "42863c838976da882d92857f6ca97c8dbe912944108023a4d228c6b74ccd55ff",
-      "currentness_evidence_sha256": "68bfcb667753f0f9df0ea461a49036921a5e1880d1c4bad8e4ab18c398db4911",
       "derivative_receipt_sha256": "8ebeb33345b242b45bfc5a6d497c40b4674af2dc03aa188601a6a61d28634ebb",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "7801dfc8ee78a1e1796f2f4258e6403a0443b3852c7de85d641eb2adeb4af2ca",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "cbc5415887bdad979236635b07645938e0792f0bc1bfad653e43de54830a51d0"
     },
     {
-      "citation_sha256": "c378e8637355c638ffdbd6e07558df2bf4c9ac82139087028f4c6b208a466d38",
       "content_sha256": "43a2abd62b362601da513754e75434065574ebff20722d52c134d26f74eff846",
-      "currentness_evidence_sha256": "311f986d2d530d91ca25e4e2903a7061038b9818c07c5a7853500d7560bc089c",
       "derivative_receipt_sha256": "14d3692ac6d5deecc014fc426ba32f4f7be2dfa28f18ab42ef63edfa96ba640c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2b5eec913ac8d14f12941ad288752a20fbeb5c8902929099b5005e04020588ff",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9643eb5b5854700c4ad70b2062efb27840d5f619e108c00bca6b6967dff29c8d"
     },
     {
-      "citation_sha256": "ebf16904ddc996c40aba461c18a4293637f4071304f6ef3c1d0ad87e6d5c37f7",
       "content_sha256": "446a6ffeea9b599d6cd9fb354d483363ac2e80c05e8f37b2ea67184169786eb5",
-      "currentness_evidence_sha256": "205b222c32087d3f5bf5739cbed5c0d13ca1829396bacd8a1637ba54c56c85e4",
       "derivative_receipt_sha256": "d8d129c6dcdf86dc1a0a658761f0c8f583ee2c3b3815200f9b0d4cf886686857",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e8492bd2495c9f2dc51e64d9f66fd7a910165d7d6dd9a0f41794b8d1c9f0d0df",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "7e488b99d2848aef582f1ac371dc0dc59ec5ff01647efa277e22f4c8d1ea6117"
     },
     {
-      "citation_sha256": "3aa54fcdb9e2858d102e92fe8d2bd5f66b2eba9cc946e8c3a6357c23d3bffcfb",
       "content_sha256": "45e0efaee325987977993dd4748084cf39232470a226a794d6a8869bb54d6f6f",
-      "currentness_evidence_sha256": "f324b289b0209e7e999d9730cdba1f5dc14ddd4c52d8d2f3f32ed9035d919254",
       "derivative_receipt_sha256": "d8e4f3ad07cb84257092d4f3a5ac4b765fa814907bf2b2806c0975e0622e4d48",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8db9d2814f683e954c2a9fff1af8ee4c3aa90514e0bc25440263af1e1274529a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "3b32b3d0317be88648fa0e8986302f2bba6fe301531d2e975ab671f7d60646f2"
     },
     {
-      "citation_sha256": "60aae06f5b940c38fb681d3f8d4f6f0f2bf7157f8b412631c0fa90319017fe7c",
       "content_sha256": "46257b929671fa1027b2198af49f78ca25eb3f489a3448d45744c7183807f81d",
-      "currentness_evidence_sha256": "ba64103fcfd7f4f182d3ad09aafe82adfcfeb4f86868a70c84f9fe88605ab567",
       "derivative_receipt_sha256": "a36790fc2d97c0663dc12912bbcccbbb6689f879616674b931a1d146b1f7e424",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "24ce0dc9c3a5113f64b0c2a19536f5d569c43cbddab6f8ffcfe9bc771ddd1b22",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e9eb05e1a4ca41be7a1b75ac8854eb82d7ac9b8d85d2c507da47e545b7f94c42"
     },
     {
-      "citation_sha256": "23ddadc4ef2d4ba989a6d60b0c76e86027d486defeede4898193ed68f079a6a3",
       "content_sha256": "46a8d5fe767f5aca53b22775f819e4162f433db45bad0bb100e660c5fb7e09d1",
-      "currentness_evidence_sha256": "c83f26cc11b8c88570a80211070fd91d081bfd67057cf119ce308d8b12b0eeba",
       "derivative_receipt_sha256": "a6d646849575ac7d08db21bcc39844812cd0444beb27c7e8eca17d5094e9e42c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "43284dd8f28e03a53e76936f23a8e24b38726fdec353c13972d435719210b32a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "475a1271dff8e64bd4a6433648d020c7e7672ea97cd71411ce155c93ff21b34a"
     },
     {
-      "citation_sha256": "dd9b92748ec62805dbd6464a4bf8f5c5413a417e73eef4b82241c4955586b9b0",
       "content_sha256": "481c571941c01ed06cf2f74615457876fe44aff7ef538dec4f1b9bfcc7011260",
-      "currentness_evidence_sha256": "4447a09466b8225a5800a9d6cd2a233299e9a4270d59a9701c2a58d7bea46648",
       "derivative_receipt_sha256": "80b02cf2f16156aa37d6f915966ec8c42ae7275e95a3e271b9cd62ec79333244",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6a6d82b2ba2cad972e5ebab02fe28a6af4114c27a554995b9ac1614625285972",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "5c74d0ca10472df241f1c42b5ea1f674b02c46c616ba245100116c2f04761f6c"
     },
     {
-      "citation_sha256": "e499c9a72fd738671c05d7ff0cb2acdd72d24cbb09f4c53c60803e23cf4ec4d6",
       "content_sha256": "48c9a7874e33a20574e75fbc9fbe4e66bb945f65777de7314a84957b8dc09e1b",
-      "currentness_evidence_sha256": "be41f420532e0b7be13dfe5f2c9adedb23ea42ac100af8f199c3d63710529984",
       "derivative_receipt_sha256": "81e11712c9ae870aade52cc4068c07ba6ec0d66223c30f903b45c97156d49f15",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "cd9083424e5914821fd8e840f621b2d93808821d65ee93304912229b516beac7",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "fdf819bda428b70a8e7409e0bb67d72dafad0aebace0c209dc1c05a2fabfa49f"
     },
     {
-      "citation_sha256": "7a310683d5b953f3a32948d7bf20107e2b6b4609d5c37085463a25244f0af10c",
       "content_sha256": "492a6e49a79b034f19cdd377ebe0c22229ae6a096ab87e085c7fcacb15306deb",
-      "currentness_evidence_sha256": "a9ca6db46ad6ac6ba8aeeb6f6aa8496e9df205425d688777d4b97c35aa3261f9",
       "derivative_receipt_sha256": "7ad1d664c9b982a382465b1a1ceb50cbfdc8c5f27cbdde7b20105e181c09b687",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a6f6dd9abbf6cd4a24378fd24a78fabe957e2104ad1e182ef7cc3dc7802d9cdb",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "829dd4543f545dff24cac277c0dd67256114731a018c32c6f76452120940904e"
     },
     {
-      "citation_sha256": "267b187187eb9437ba04c64e3744fffe6c5d243aa0c21909e5d489caa65f41c1",
       "content_sha256": "4976c10cde15b00b203f255b87722456a6fd64e2597cab6bed8cf67da7496859",
-      "currentness_evidence_sha256": "abeb3eaa1af882587b1b54c543bce2727b88211f3a905894524f4fc230c4e201",
       "derivative_receipt_sha256": "0db53637ca924fe0215d965b716449058fdcbe154f21be62a28de042a20d7a29",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b6fdc1d3b1e28935460c6b1d3ab27c49ba2f588c1d8f0e0ba7a2008169879906",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ebaf31091950beba0b6ae5302a2df27256fa793c65fcfdbebd53334ff199b87c"
     },
     {
-      "citation_sha256": "1cceae011bdf47f2e4556d25181f12fac36b7406c0a49619b1e1c8d4276ad24f",
       "content_sha256": "4d8a0e7c55282f0edba1c36871bca7f15c80e1dd391eb7b144d222c076fce1e4",
-      "currentness_evidence_sha256": "c0f652582c2fc91cd9ff80da583d91e1905d09df8d2504e38e39de5038fc1cc1",
       "derivative_receipt_sha256": "19cf02606874adf7a79a547aa4cda812628b67c8b76197c8880f46c2b76304cb",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "5e237aba7555eb6309cfe199e0b450e33d927e84f45d95f17820b3e0076b7552",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "af890443badd9932ad3cbb41ed408b11009425af9c85237c60202fe932e64add"
     },
     {
-      "citation_sha256": "88b5193693d983707c57eb7451c84c2d82312f9b86f99e4df18aba3825a96377",
       "content_sha256": "4fa7ea47f77523bf933c539559bea8f796e78094546c097f86c7324918809e00",
-      "currentness_evidence_sha256": "ba1b715c78f04558f84d70e251a519c5613f85a08112a7f864439fd84b2c153d",
       "derivative_receipt_sha256": "26a8f174e41873a28def45c1b5e63772a3c1c8df97852a25b154817102732cc6",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "46c82ebf43fe533f466d6d277f7dca43cc2690f6c698248f3196f99c84746269",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9a711d61afbe6488fb459f0cc66564de39a89a824bc63849706a21c098cbf1f3"
     },
     {
-      "citation_sha256": "66a89d11e11c5467645aa6e19afa77cf5a4d7a5caf8d18f7c30f8e2903f0441e",
       "content_sha256": "4fe965af98d6b4391ca041b3be7b9030861d18865584b92b78a4c2ccafa47a03",
-      "currentness_evidence_sha256": "447587a6206ed906f4cc37fdda496ec76cde67f931bc29d3c94fe9a196085d99",
       "derivative_receipt_sha256": "3ad30b2cbd780bf0db42dc79cbeecb1322bff58bbab2a628aa4a87f9af0097b3",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "bc3e60f2c10506bc1fa5755b15d55058abdd6d7c19d069956a3c75f1b03f5aed",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "274036eae4b75103d518d934d6650d46b32eb75635872f926b044370995ea379"
     },
     {
-      "citation_sha256": "124b4903b9d2ca5cc25db4cae355c41e8cb87a63fc9a834db9f9d0522bc5c424",
       "content_sha256": "500c513728c2d1857a27562ab99ef409de4683f5d7c30334123787c3eeed4367",
-      "currentness_evidence_sha256": "125d58d82921227456bd0355d27e5ed2890f43a6e9be1f562132f8c2f0145de8",
       "derivative_receipt_sha256": "040cc1c09ed5f555144606ad75cea5266c0935e573262e2d58b80e76bbdb83bb",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "db9f3d6c63602a4c6941302fc07c4bb3991d5e10ff6869741d04dba1ea09485f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "6ad593288de949b6d18a1254a9c406f627d76c9afbe15c50397eb6adc6806d25"
     },
     {
-      "citation_sha256": "2c03143d639044947b959a38b1c1db72d28fb3ab4ea26c64b9842bcbfccd3e50",
       "content_sha256": "52c673e23bc8b59d57588de35d4ab81a1c7c9e38e796c221414e53e5a64e1f7f",
-      "currentness_evidence_sha256": "687bfccc840e1d7c3305b34940e071712af3cd9d9bf8aaff16822f3b01bed8f7",
       "derivative_receipt_sha256": "476ac753640ff0febdc0b8f30890bba7dad31433039e2241ac0a36cb4c843a52",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c370b8e38378fc462265a71db323f59efdda2a62463360cc663ca8646604f0c9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "44351a24258f24ed9a83d27e6734d0e5fd03915e123a12fb0ab8347303a81627"
     },
     {
-      "citation_sha256": "6b9b511b2455f2e787202ba22216ea31daf263995bfe541027e9c744a656b873",
       "content_sha256": "52d0d02da793c910852ae3f793eaedadeb722da4cdc51bc37a5713d72389d0f9",
-      "currentness_evidence_sha256": "4fa39c6085b1017fb7b447be5b3c8cdf9f723d57b58cc7fabfdb8f3fd46c5e9e",
       "derivative_receipt_sha256": "89e449a3854ce6418a5d3e6089b589ba40445dd627390cc83b93405835f8c64d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "4fb20e4d165c94f33d2757c1367bffa9ecb822fa21a23ec3cc4b8c078c40dcc8",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ed41fbe5317c8a33bfd9349f55af1328eb81230150b081e4d51c2c9987e3adc4"
     },
     {
-      "citation_sha256": "7a8dba22987b192b4fbc0be300aa1ae92daa810ee14251984284f385feb5ff64",
       "content_sha256": "53fa26513b6cd04557e39c60ec236a31649d54223d7ffc95b560f1c953d32210",
-      "currentness_evidence_sha256": "b922cd961b728c83f80d4f2bf70dc668eebc32a3d7550fe98875d89723328613",
       "derivative_receipt_sha256": "e25ca9f7222adcfffb4a0fee0ba46ff9a7c83c3a343ce75d02fe4805f5dd99e7",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "32dfaae90c14a0713058018492963e534dd71f3c3752e3b9655e6bd6e3260c1b",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0b69bcd141b15512cb007c9ce13c82ac346094828174ac2806ae601a7c9d8d62"
     },
     {
-      "citation_sha256": "93fb6f727d8bc21bc45a934779156fb1bee67a71bee727a2d34a922a0f0a8316",
       "content_sha256": "545b496d7595ff1413a40f8f6b9b8aadd972b87b5f5c82aaceadf3b16641adb2",
-      "currentness_evidence_sha256": "df4d090032f2f8b849a2db646dea31881dfc5b56c96374d57f67cb4c4ea9639f",
       "derivative_receipt_sha256": "89d428c217b8c92091d290cd5c2bc2840f6f775dbf0a3f606cb335ab5ce3edb7",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1f9755458163b24274ad0b061beea952c0622f77797fc694829f632a55f17606",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "8d8d833b4051c7c709a90866263284f67e8246ff9ad6a8938d95bcf396e70ad5"
     },
     {
-      "citation_sha256": "338e3498a5fbb334356760a05fdc83af4dd7a67bdd213f6351aa30a4a365b3d0",
       "content_sha256": "55fd8bf574188b8c683fd0c557ba5904985ce5bf64ff4271100932ea07284ad4",
-      "currentness_evidence_sha256": "30f5882e1d99858f5d725c9c5096c86e1b38299f396a8b0cb09f616f4ed58915",
       "derivative_receipt_sha256": "84ea686b168601a77452dfbd4954ffdddba4afbaf91033317f910c08d6f5b1d1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a304d1794dcb3120ac14c2ada548aefda8ca5dcb426941b0ce314cbe4473dfa9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e"
     },
     {
-      "citation_sha256": "c7f6143e47c1a0bbac02d36c61e344fc8f0204c6c629b2e8bb5d27e8d0dc7c14",
       "content_sha256": "5741f1894468f64e7d3290f36ff6b2d93f7d717e4024e2e02109ccfcb308448c",
-      "currentness_evidence_sha256": "20e40c034e0ec2849f0bb663468cb1a161f93fd7933416fc83667a39e037d641",
       "derivative_receipt_sha256": "a0d08518ad12e58778e0f03f1ad578483522f2be4468712791b1d3e0c56a2919",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "edcf9995b7b8926df1b1c532ef06cdad7623391d1d15f09a96e7387301000f45",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "45acb12070f3ac0c4eec10be8bf0c3cb3adb1c433e08e14b8d718e093a18889f"
     },
     {
-      "citation_sha256": "97e3e4680c464b495ffdda88c7e21a0c93e31f5a914be24de9fd7d8db560435d",
       "content_sha256": "57d53290f78d8aa8918ca66e3b738c3fca779c26c68e1471abb136677ff66c08",
-      "currentness_evidence_sha256": "a0317fcbfd32ae22f0363f2d0d57de9c9c83f67573847c2b5d0017ca3b0694f5",
       "derivative_receipt_sha256": "183fcb3a5cd0c8e3a8556d75e5ac80b6b53357f6a9b7691cc59c8698f975d9dc",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "53dbfbf26877167b170faa76c2d5c6887fc7b71dc5587fa7c6c45455d9b0f018",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "30cfcc5c63f891eb098acd59858e00da2773597f6562f19508f6df9ee8c12de3"
     },
     {
-      "citation_sha256": "1f58c136b36b1d18671d4aeab0d9b9ce9661651d1a8e5d1f9944b8f46931aa5c",
       "content_sha256": "590469cca43eb64786476d928c56f30c4b24eeecc89445b41ff6e492b6a45d0b",
-      "currentness_evidence_sha256": "51675e4370388079f5dbd9d508f06f12c68276f09739359ba221d2df7b13954a",
       "derivative_receipt_sha256": "9d35d562d7a8f423699238d33c1bc3b787d2fb9815885aadcb8fb676fd9e6f82",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8087dd9d1a7919492528ddd7ea160bd2e2bb74fbe9a993eb9f5a8fd902a4af1a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "281bf4a693275c41b112213d5c1130f209e4c828448c61f459311af3e3bea956"
     },
     {
-      "citation_sha256": "8591561f33953c0a896968cd2b94b3b8b5d9aeecb9eb320c986baa4867440739",
       "content_sha256": "59dfc079b5008baa5cf60d6625c4b9420654027d5176fdd522af793bb849ab8f",
-      "currentness_evidence_sha256": "0a82a6bc6cb42c5878926cba0563c078d5b539ad52559e86319fc0bba5c5e77d",
       "derivative_receipt_sha256": "92c478d7bbcb3fe8385c8a53278a19bbf6b49e920124fc771e346ef93ac3d4ec",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1f7d61e5453fcc9bc80495961712d5cf95f2e203c5a3c8cf939dac7ceab1ee6f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
     },
     {
-      "citation_sha256": "aa606e61e3cf9dab3e719726ad91389b454bc3ed5c85943b1d9c37700d2977d8",
       "content_sha256": "5abb5124541ee95605539e92237db0f9dfbdd4657a58a5a6e58ac415587bfc99",
-      "currentness_evidence_sha256": "81428c8db0281201a440ba0404beb46cd8e5ad897da1479055f710ad8c38f9d6",
       "derivative_receipt_sha256": "03395d656de68247c54549498d2d225ec82a3ab371ba17822ea650622a75a855",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "fa6b582bff7c70afbbe94444306c53df1c5ff29722b48e1fb1433af184e2266f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0d580861899f1148132e595c19a53fa5d44b8c37e080fa9594a2064babc7333e"
     },
     {
-      "citation_sha256": "137e313f83db4ece8f8bb37725a29ff0490012795d10a01b6efbc580a903d57c",
       "content_sha256": "5c1a9ba357a94a3652cc7d0d81424b0ff4bfae61311a3b4bad63738475866d93",
-      "currentness_evidence_sha256": "c5f4055b53bbc07c3291ceed08fd4452fdec7fb28bcf19e07ffda42025ae9651",
       "derivative_receipt_sha256": "a480f3bd97f80f7f1e143626c42a9a4d30a4125006d9c3f83927432b7fce6155",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8cd6a907147daab67df68c430839d3582c5649d5da35ddaa0b3bd5fc830add50",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4f269c56dd94fac7612c4ad03a67b1868c65ba873127da03ef4b419cfe425146"
     },
     {
-      "citation_sha256": "84c77cfd0340d4f2160c1f903ee4680021d990162eb0d07a173480fd3366c10c",
       "content_sha256": "5c232731c132f5e28c6e50cd1c53e75d93159f94ff4a8c24c3e2d871e22ea36a",
-      "currentness_evidence_sha256": "b3bb764eb13207f2ac12e8e88af5376b44e7522d6c4488c431332a7906502a2a",
       "derivative_receipt_sha256": "7b8096d12699c2c0dc3c841c8d814f5f3427a4d7cf4e9f4bc6e81d2754baeab0",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f6155211d65b12afc6677f986b6a5fdaf047dd2dda511170c95e640e3745aa0f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1489040e7947c4ad734d2f194c95afbc7aaa2279f6e208c5877f3462899df2e3"
     },
     {
-      "citation_sha256": "1eca46a6c597187615ef959de87db912c03c34d2fa6f8598cd673a40047e6540",
       "content_sha256": "5d36c10864fd94abfb64f62951c84609bbf77d1b232b752666e5bb4655cfd12a",
-      "currentness_evidence_sha256": "5bb8169e6adf8e5f53ca50899b6238e9fa1a033815997ef3b86692c1ecddc25a",
       "derivative_receipt_sha256": "e84404730041c46932dd548ab13410b24c7e4850bb5dc1dc5843808273bbd530",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6a38aac670b5e4b57abc0f12b2ded9c5e0a25a771115491c0cf0a3264785a494",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "5d75dea456dbad02b918ef7dc6343cbefa68589d6f8be953933846ce196a5036"
     },
     {
-      "citation_sha256": "b09a0d9d47fbe9e6d7a0200c5b9f554551ef32cbe1ecc40a787e828060a77d19",
       "content_sha256": "5d9a3e8eaf8261e471a4a1478ae2889e66e5bfa20eb196eebe35f67acbb04666",
-      "currentness_evidence_sha256": "20db7d34ea3cd1f06f1dd5827b86ac6c960f9132c2d3e541f55b19d6b545aea7",
       "derivative_receipt_sha256": "1d68aa081bfe7e9bd3d6bc2bce9bc41116b61ae6fa7904f550c83521e0b67d8b",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8fcca67aa1663ff73bcc3e7983a290de70cd6e88ec796a302936cf6dea5784b9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1b4a7df46aa61784554aec44c22b2d39ef2a88f01e0d5cc96c3e78c1c1a12082"
     },
     {
-      "citation_sha256": "a56bcde048f51e027af1815d4eb7d7b78c2c84e81d07e278b8ea03da67a1cc59",
       "content_sha256": "5e3c088b2dc51c7ae3612c4b22d86a9d93c07f1de7b32fe3b3bc44232ec50abc",
-      "currentness_evidence_sha256": "97589d43876499e8d14f35709165cf5d03c60288f68962a9b01356ab31d8fd03",
       "derivative_receipt_sha256": "4ef26ff2039bbc6b7a9c3730d32bcd6eb2a1710cff42a875a6f549ac529e205f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1643833b6537b166cea9a151d3c274bf2343dc0731b662c8aa920c555251a5ab",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "76c7a23c97b7586b607a8e2661b6bdc30a7a9ec3244ba4eb4e335420d5179fe3"
     },
     {
-      "citation_sha256": "8a6729f4f7cfcf88695b8fcfbc2e27252f8bd28e9be1556c20bcc87cc41938c7",
       "content_sha256": "5f9aaa82ad029cffd8f7e37a998254a2093f1e453f07108edbcc6972f927fbed",
-      "currentness_evidence_sha256": "49b46aa6057c3d147f0e548c360ea7d1149acf116eb8e5c44aa4b437c47169e7",
       "derivative_receipt_sha256": "fca9c8c93fc1b61c2c68a687eed1c17d37a52c52e3f4b9bbbcd44b72eb2349c4",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "df472c2ac29dfa63c7ef0c5e88c76bfd4ba57cff3855207a695913ceb3475eab",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9584c59a1cacaabf1e8325de74904e3015168b2abee3f66a2635746ff7e5cbc6"
     },
     {
-      "citation_sha256": "ed25cfb77c61456a8e9e20c1d24026e1247632d88df16dc4eb56c1c27c4f2d37",
       "content_sha256": "5fe99823e3075a93eacfcace2142eab24458a0b097fccd158ede2062bc03a626",
-      "currentness_evidence_sha256": "103b24751d9ad6647cc914581d8ed554d68110509e2fddafa08cc6d03865ada8",
       "derivative_receipt_sha256": "7fd877f6a198b14156283615f50d86fd17a6c66199bc7c5286d40fd28ff4bc6e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a04088e795dacb847554279bc2273140332acc4600617df3ba97dd7598b68799",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "848db37c3957daef2f7f3982fd5338afc0eb90387f58c9395a66426007bde02a"
     },
     {
-      "citation_sha256": "6190de585c5a94a5e2fbf200b84a3eecb798cdeb0e28502ec0c279be47d2338b",
       "content_sha256": "60589f9dd614ecf23781c4602d938879026b2d823efbbc8add84d82b67fe352f",
-      "currentness_evidence_sha256": "ff46239af230a9becddfd7be75ad80157a86dbabd19a83c012925bc608475d85",
       "derivative_receipt_sha256": "4e28713bf656a206156295317cd575faac9fcf63faad8ec50bfbd5d024b89324",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "d34de6c0bdc83ec24974c9e076f69787b29c70384b1f81aad03059c4cb6d608f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2fb28b71adff69e6c022c3b77e05ecfcb646005b4d36ff44fd7f203026248295"
     },
     {
-      "citation_sha256": "e7312bdf4a5e851c70f4d929e6b0919f49e4eb7b94972a14cd5efdbd89ed1acd",
       "content_sha256": "61b918997662c80fc6ea3c588258636f3a156afe4b963c762aef3cc91e82bbab",
-      "currentness_evidence_sha256": "c269a2761e3c8054a755b03cf130a48c6ad9deda0ecfbc98170e83db57197964",
       "derivative_receipt_sha256": "a58323c8ef5588464da1670dc720ac7a5884cc5802f141673e2365a3e2443135",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ee15c5836b9396bf003d9467d5ee161b4f4a0ff89844333aebb3004b22495d60",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "852f56f2b7de9b0137db59de6ca646079958452f29f77c5d2d29b1670469b406"
     },
     {
-      "citation_sha256": "829621220478bcb2b2d663dac63a330b3f1ee775dda4b0ccf9a5b63a2057e2b5",
       "content_sha256": "61ef5adb7d747697de789d10fd31d138aee0a6cb4fbb5b30c3f6e088e8350b0b",
-      "currentness_evidence_sha256": "034c80324634b33bc954569c26842062c4574ec59b794b69f72620fa53f49067",
       "derivative_receipt_sha256": "717c77a7471813149296d3a7cc974ee542d2dd0f883a7d9161f86183284162f0",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b3ccebedd391ebaae29e024e96b9fc1bb5932c72db7849bcc1531225d33e39e0",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4ab07cbe613921e71af33496947d51e755451f6e0bceb7fe2c0f93dfc5f7c5ed"
     },
     {
-      "citation_sha256": "e6696c9696557fdf261ac0fadfed467031f058af12cb7d4a219d9d9332a94050",
       "content_sha256": "632600d0cd657614ee6735d33f48fe6546d85a0db5233451585ce932001f7dce",
-      "currentness_evidence_sha256": "26033c3f8805ff4a27ce35c3e0352f0adc82d7bcfcb5dc56022d53ac3512ecc9",
       "derivative_receipt_sha256": "eb6a4fbbff62bf840be848b252e4beb4727e62a53c99c68933a5d2a076f63eda",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "711a69adbff4d6c6dc8faa462e0315f43154fde3409674cfe8f9317c681c66fa",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "51dcaa5b42c2f2823f5784a583a54601f51ab756047eab385a9d8c257517d115"
     },
     {
-      "citation_sha256": "1d97578d798509b154ee27f0017146657b44d3ff30771c4263af2316a05e8b44",
       "content_sha256": "6354dd026ee4bb4e24d721007c4ac39e90994267cfe89d6810a3959ec96a33d7",
-      "currentness_evidence_sha256": "c6b914d9c2ff16eec27156b5eb1bbcdee238b3214d6da47085ad40755e762fb6",
       "derivative_receipt_sha256": "783e7e320e3f84a5691696ace48e4b884903dadddb846981a133b67cdcd2191d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "4bdf1df973273496f66fc9f05df639589e64355a228f1e6a38bdb301875c4974",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ed6ba52c8077488fbebec89ec460b7253bc69ea745516895d31f337b05e47eda"
     },
     {
-      "citation_sha256": "1d77d1cb348e614210f1153994931b5d150fcde66e6eef8b910e18b62f53720b",
       "content_sha256": "64f712acd4201370cac8c8feb1053869c43a1781a1904f3da3d635c124d72e00",
-      "currentness_evidence_sha256": "e432013680092840ff758f91b8cd4e51d0ebf3a568243238bf4fba8fbff1c0c2",
       "derivative_receipt_sha256": "6c913331d6f60944b9b27d890f126e9372f4417c65d42888670e3ae20da1d9a8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "013fc3f7333160fc848eb10c59f8302b8bcb242d35a6decc24fb33bab0f4d6fd",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "3bfbccd1c6879755968173ffbfb2fbac94d2f571c57d03838d036946ec2fc214"
     },
     {
-      "citation_sha256": "f14eb5e30e25de01e41df7388a204397b8df0e3ae33ee3f69a0bb3c331673fa1",
       "content_sha256": "6525ab20c29af00a1a8fc26b145b369b7989e50844ffcfb413bd4c7c4457a8f2",
-      "currentness_evidence_sha256": "bb75a870406b6a33a6c4a23e2ba48136e3b097fb68f27176c166f17bb9ec6c36",
       "derivative_receipt_sha256": "2d09b3d299466a92d1455973c5efbf9434e4ad5a13b78398ff0ba36163e6b3cf",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8d142a1081de27850c614fc901f1aa962fe76788fd823a23e4993fa935a66607",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a33a12a6c4f3206776c834a359a46962aa264f4364ca51e860e41afbe4292470"
     },
     {
-      "citation_sha256": "16f6fe5bd5589aa14ed54d7162818dba8d978caa875e881b3d667e85a74b3e7b",
       "content_sha256": "656806868cf606f26ca28d8ef6fc55942bd00195e66d52170069f08468889e7a",
-      "currentness_evidence_sha256": "b998bb23490084c76979fe46860baf3e894860d41c715bb00085b06294b86b56",
       "derivative_receipt_sha256": "0cbde310e8981862e5d7236e8efc0dbbab784e176ceabac1bc7f4b52bc13809f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2e50edb626421da65104be3ebcaeccdcfcbd4dde8914fb7191ac3d72354cd1e9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "76aa1a711ef085073ce9a5f2df8a1348b6042974e30612add8d4ba0c34e71795"
     },
     {
-      "citation_sha256": "464f7dc560baadb1bf7e8eac66e7c62a37cadf347560c576601115003809c7b5",
       "content_sha256": "6647135a5496f4b38ca5008546fd56e326c3f672cf48c5476203fda905b7cc32",
-      "currentness_evidence_sha256": "9a070730f852e643cf9985004d971675dcb6f29146c9b0a949033414d9551b17",
       "derivative_receipt_sha256": "c87d977cf199d6a55409ef2fa55cbda00636a1f1df2a0aa6d5a5b5e5a37f16ee",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "01a3da0e6e3bc3f02db889c524ba24e220f78cc79f4fb1f59abd8bdf4418b213",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "c6f6325b0fd1096e4d1980b49066fc04e46d45d7152ca97951a5d8ee308d9ba7"
     },
     {
-      "citation_sha256": "f20a35df50c41a8cc8beff433eb3e059ff4ec8f5e2573e1560d42e96f4f9b326",
       "content_sha256": "6676b8c886dc039546c2a861caca03bad52375ca8a816e9abcde6571d697ba50",
-      "currentness_evidence_sha256": "25d048cbb88e3a91a5c96575e8c0c296e477b5caa79241d963fdc4b778846dea",
       "derivative_receipt_sha256": "3ee3026acc9b1ab15305867c157f615c6e1529c5957e916bb015bcd7776e4059",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "000810ff161b163e74e3615ccdf050ffa806f004a8ff711350ee6295866770d3",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "827da417951f33d73c4180cc65cbb4d099cb3e72c913f5b55229a17008ebdab8"
     },
     {
-      "citation_sha256": "7bf852d611408de7bb4edb343b46cac9ab7ab3d0f741f54a096eefba6661fc8f",
       "content_sha256": "67dc05a6be0d650a708fc3412ddadb8599d667f96c48e3e033f9af2d3a95a0fa",
-      "currentness_evidence_sha256": "7fa805e80a74c36381771829536d78fc65e965e6c65f88fb866d649ae7756483",
       "derivative_receipt_sha256": "25b5af44e244bd1a0a33f224da444e6c6325e7864fd06c5e2a9ebd66f840a244",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f917d9bc95db85520fdee959c39f89bec54b0b7f8ec1e15d8b8ba87514a591ac",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "23d55b3b9a789a06b540fe09424719f03c712c1ebc1f13fe1eb22b094f499e08"
     },
     {
-      "citation_sha256": "82666eb0ef865ca8acf4beb67b68433f7f1bffc4dc328048f80f9e3c75ba31c3",
       "content_sha256": "687477724682f43c9e3e6972c25a9d0340a10030b6f112428fac770a184f2f0a",
-      "currentness_evidence_sha256": "bdd2cdbc59865d22099d160f3293fbcc12295a2b41a172c52c2ad979ba9085cf",
       "derivative_receipt_sha256": "f4a8e38fb56af5e522e8b2b5aea10a85d939c615748d9ff739c05792c411b3a9",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b11148773b68c22ac089d74641acc3b53b756c4b62d295c23ced733058507798",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "953f2fc352e9fba7bb58154d9fbf11631e4a62e07e14c7fed6fe7c65227bdc6c"
     },
     {
-      "citation_sha256": "d5808027bd0c9daa5bc83664fce4b9e2ce17612dff94886e470b30f09e679632",
       "content_sha256": "698773e11a57d9930d9a762d7901485349624f792df7069a509d9faeab570c91",
-      "currentness_evidence_sha256": "effcc637dde186ebc6b02bbe81bd2944e24e14d24471d872de8e826c43f5242d",
       "derivative_receipt_sha256": "11f9764b3d9198d00743130f622963b20c62c4fd91db56407ecd2fe441c3e710",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "68207fa59d5bec1feec8b0a15066e8021c6b5fa26dd40e888816bc2a0e0e7ed2",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1f0470afab27a1a68400ffaad404f5d298098194979c0e067d151d0afec75e63"
     },
     {
-      "citation_sha256": "8c0d0f86d4ba5b8eef8fdcc05ddc41d495c3b7345e926e1780dafcbf6ce8ccc4",
       "content_sha256": "69ed192b197bb3a69549b84e3b59f1954e55cd85a83b3219aa49ffc568276298",
-      "currentness_evidence_sha256": "2f3f46bf2ff5d2e0aa131b7ba33b7ffc8b4fdbe8f8b2fe500a687e2acc6d3050",
       "derivative_receipt_sha256": "12b4bc773986f6a82811560c89f14415aaa9a8e93056b331b46aee6fb4162f90",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "aac326477d79478a49f412254f46e59378b4ea0ed9733967ed9de72d456ac1dd",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "8ca2ae69cf68e738c73a347bac1315b6d8f32f142a7045b08ce14af0bc21468e"
     },
     {
-      "citation_sha256": "a9808e9a4b09c17aaa16ede02e1a9f7573a9f5f5d132d34667f04ec147ffd0a2",
       "content_sha256": "6a75000fe0ad0ddc2f9c5fe0bc2d582cdac340025a29af2b1a251820ee97da0e",
-      "currentness_evidence_sha256": "11cfac56a1a755210fc9656eb683ca7b2c68ae1c9653b57bb2fc6a95ae7058fc",
       "derivative_receipt_sha256": "0808a09a478818ef1280f780d7ab1daaec16f9bdf47adb6215d247b0549367cf",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "53f1abbb2402f4068cf4bf0de709df7598007d3550c0cdc08eab2c85a631ab4a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f3aeb9b1ccb699f5beba4b6d4aa08e3cce4dab5f21daae01e3ee0f30816d468b"
     },
     {
-      "citation_sha256": "a524ea28a0c726cb40d54db290be878adb57d6f9fe3df9b100c61c62eb15ab30",
       "content_sha256": "6a81fb35c2bb23e4db4f1daa9642115aa44f5837db6e6633d244c66b84c24d2b",
-      "currentness_evidence_sha256": "dff2f9382501c6fa54852cfbeab0e096d296bed56cd1cd2547f9b491f9e6ebe0",
       "derivative_receipt_sha256": "57442125eb1f31282a797aa1dd5c500f6687113b64cddcee9b86ea7257f779d1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "62fdec493e760276c5194159e676054570906fcb790b074e9bafeedfb3d3dd6a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a96e0f4b3b2d13528dc69f91ec01f26c81bfd17901306bd9bfa8841894233910"
     },
     {
-      "citation_sha256": "e3a7f1856c6d5792841da13d839c5a98cd4f00b311beda811d217524f37a2503",
       "content_sha256": "6b0ec5082ca6c9a9b8348df544720dced511e2bec891d073a9546ed7fb2d9cd1",
-      "currentness_evidence_sha256": "ebb2b0c3c8b7fa24dd6bab1fe29fc2a475b50c156afe09bba0cf23fc2a0cab20",
       "derivative_receipt_sha256": "d2422f7ad8c179f018bd3677b32c62c1fd12b6b5118414495f6dbdc67bbe618a",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b29b95a26b2671f6fc7ccd53c55e99361591e4ddd70dce13b8b0b3a231810cbc",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e80d76b74cbb5823d638ab67e56922c495d7282b983b33993e5664fc66bf61ff"
     },
     {
-      "citation_sha256": "e21ca78eebd4bf40046141ee0ff64fd6497002afd884264a172779f46b487c9b",
       "content_sha256": "6cf6ab26f2be8a92ad4ede8b0d488fa2c0a7dfa7c4bc4ed340533e9f62cb0530",
-      "currentness_evidence_sha256": "0e0696323a68d4dd90133dc3d59d2210838b5fc2997ed74122e84d8a0d160e59",
       "derivative_receipt_sha256": "f1a83c96c7df62e4e81c3d20e24ccfe75bab20845b93ba2755b139429627716c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "5130ff116baab32d7aefadbfb6c05c53a754e7d163c5e8482d5385da77ad11b8",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "873c1af6ad0c901a652869fdf1317540fad914331c003a3a949b2ca0cf7a2ef7"
     },
     {
-      "citation_sha256": "2c35401dab17522b955169b1b38c4abe6356e5a067cba6e325eb86dd2962da01",
       "content_sha256": "6f2c520425664711cf710a35f8ed56428b5a47ff63de14352d24be8842a01f4d",
-      "currentness_evidence_sha256": "bb220029ab0edd0fbcbf83209e12e786f5665f47179200fa17fb5e77828db840",
       "derivative_receipt_sha256": "868630d70456d76f21c3e0c5c5bfbba8aa7c6d663d12788a7620d50b17a68036",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b7ffa74367a139d8a6d31010d46ba10cc98a36c5f55c143d49e8b1da3e771336",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "54f94f3c3f1d93261e20a68050b2b38d0cc0d5a72c3d789c6653caf14e2d558b"
     },
     {
-      "citation_sha256": "ee64878be76e9e43e5ba4f316b86f8d9aac0457f24949a325b202cfde1d88790",
       "content_sha256": "6fb35c526049c6bfedf8ee247a381cdf43fc2974da83ed8da6e30b69e9f09c1d",
-      "currentness_evidence_sha256": "d236848c0593c7f81c8c1ea932d4229cee80b9494a2bddea92ced43b1e901207",
       "derivative_receipt_sha256": "3379d2b5df1af580ed375271e768d87c691e8e55788a88238ebb325e2650456e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "227b9926fced492bb8cfc6ad6a88f0dcf7daf2c0dfff9c53d3fba64da40456b8",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b826be9b151801ff936a29859b36b68cd2febca6870dca8e9dd842894f83dd80"
     },
     {
-      "citation_sha256": "d2f54324e88b5c20e10828ae8ba241d643d7848fa21dd1d79a96ced5b801aadf",
       "content_sha256": "70665724c4f3949a1639b6128b0e5c867dbc5debef51a43ba85725d146017f8c",
-      "currentness_evidence_sha256": "4256cf4c86273d3bcede9c5cfd2870dd957d9454c1d6952c077bf9a85bd2aaa1",
       "derivative_receipt_sha256": "6a0490067822e22552ebbc123beb8c77d49cb6a59c591dcbdb22baf25be92686",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b417c7c872cfff568b0649f29983352e743aa9c52fd523d9380f6682572ca9df",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "7642769489f202ae26e611f7aa6372ebfc030ebd21a29ccf3bb9a1cc24a8b8d0"
     },
     {
-      "citation_sha256": "7d999e2d386f3477f7d1f05ed7f2d802f371c7e5cbdb19c18f828d6fc6c5acd1",
       "content_sha256": "71dd7d109c9339bd03f7666b9af1518a6b64397af2dc719a9611482c95273769",
-      "currentness_evidence_sha256": "6c8ac251b5f74ea6d59feea0223005297b182c4f435b0bd03f347bb8cc921fad",
       "derivative_receipt_sha256": "6850a05bdda8079f6f3794006e61e043111eb1347d029b61712ca072afe80d24",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "4edb35bf2644b47bdf9c45443afcb853bcc9d16f174f7951c871f8f1762f2717",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0feffb0455ff40a4516cf8bee116e85e24a437e122314c3ececa6a683e7d853a"
     },
     {
-      "citation_sha256": "5b41c757ca84b43896e1a4698b35c52122907575df5abc992c83133a2790a843",
       "content_sha256": "73ba893b886233b5a15d04cb375e4a6588f7866f2c16bb4ebf072bb92155177d",
-      "currentness_evidence_sha256": "e6e73b7694139020ef440fbc9ec2e985c1a8a740991d8822d9efc9b26b49b3c8",
       "derivative_receipt_sha256": "ab44a6e29385aed7f05c492e66232d89e725f0d3615c68d4afe9edd52165fcc4",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c8cda295fc7b90ff1bb4f514ae9a0ebafc0900446194e32c506fc82abed03443",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "505f86ce513d830ea64b679b977036532fe8df68f340b48e09462de2db4c8d45"
     },
     {
-      "citation_sha256": "d9634288a406128ec542f7cdfee17d441a1f94d58ca0812bd61cd3b8dbdef847",
       "content_sha256": "74a7c8d37bb5dfc396525ad30942f562d9068962870bcfaf8a2f068d0648b4c4",
-      "currentness_evidence_sha256": "c5356b62f8bd7ed718dd3926a56d0f3c6dfc522bb0bdeb2c301f5669b5d376f6",
       "derivative_receipt_sha256": "3c7349e1a44ae716e34a56319db87fac0ed8347d15260e3015f5f91160802676",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "144c125fe94a579c64941afa52416977c29fdcfd9c3e56ee3e67f438bc276e19",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae"
     },
     {
-      "citation_sha256": "d3762b765cae755d9591b27c35efa9e579277e3bc320f9ebac615e7de768a08f",
       "content_sha256": "75fcb75b80ee10b70024697b6215ab96eb7b88e97767144df9ee62d58a371ac2",
-      "currentness_evidence_sha256": "bdf4a3bbfadafe828b05f3dc16ce1ad56e7dc5ba05669ee97228a2b137a01941",
       "derivative_receipt_sha256": "14d422124c75e7fffc246a513c462164debbcb3e914fc944bab5cc9388b62ff5",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "d4116bcf94d7b5bfa12ce422ad86de5d407ac874a43e6335c39e686ab32f9848",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "411adae292e6d734efc3b0b34ed26b07de755518e82e9d93ab8c25d2b8e155c4"
     },
     {
-      "citation_sha256": "3ead692466291c9c9b6b904de56df8c240ad4f903637cd7fa0ee6654a42575e6",
       "content_sha256": "767f40744569ea17f832ae137840b255dcd2be377ad7550982d57cd9931b5b30",
-      "currentness_evidence_sha256": "cc43260ce3eaf4ffcd35503a2c5d166beabf794ac5e820735a721687ff25ee19",
       "derivative_receipt_sha256": "1f50976f631a11f67046ebc9ff0d5e85f1e235873d5780b47e52ddfb3fd833b3",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "80d2ad9c20b4b0b507c88645dc2139057ac4edcc1656202faa6242864d14b899",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ba4338fc39ab0bcd81bd1c3870f9fece6493942900ae2153e03e7873df505fa5"
     },
     {
-      "citation_sha256": "f858c52147703dcaa4e06f233ce5923d946a693596e7b304c0fe2c908f4b346a",
       "content_sha256": "76aeb766c4920053b034a488e0b3174e9f6227ce86df91e27c4add762b7e25d3",
-      "currentness_evidence_sha256": "3dd3a740ff2bf9433d7fcbd51c5abc4ca5c694d24852afb0696620447671db65",
       "derivative_receipt_sha256": "9619e671fb9e0200a9c3d951bb7b9ad4fa1deab712944b2f2a8b1ca8a9a803f9",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "99eedac01e390894fbf33fe5c4707c2deea1963154946e79ee477c5ff856a5d4",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "fedb0951e4f1aa715ea1ca5b766da4467cc5c07733f448c1e972961a21f0c5c7"
     },
     {
-      "citation_sha256": "74076c72f7f045f3e3725a465e57b9ec18bb5611884d1ddebc3b17279bae3434",
       "content_sha256": "76ffc5ab30ec9f9521287500a93055fb480d64d2e61ca638e90896a4f9275af5",
-      "currentness_evidence_sha256": "c9b8b390432c3d534e1bf8c375dce890d3bfe2641c95fc6a2c0c4622cb9ba584",
       "derivative_receipt_sha256": "98500d515595a5929cf8ae6253a62a396cdc0fbd7b195382cb5686d5380c2df3",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a573b25c92e99b05e283b706f8e1c04d6cd8e3e575a93302f8b84d6580354837",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "71fee594e65c090d9255a784980aefff78acf350b1fd880b336df86217ccfc75"
     },
     {
-      "citation_sha256": "568f59676907276620cf3d2dc22fd98e9de033b5688cfa23bb028a303bfeacf3",
       "content_sha256": "7784d31416137b43076b0e91203fbd2acdc0ae37bf0e01bccbf842a33b8db903",
-      "currentness_evidence_sha256": "d780f6261d7ac490545ecf33ce4f3fa36f22a3bfbbfb89d7a1af71470e6fb7b2",
       "derivative_receipt_sha256": "a8232ba7c9bac22d7c787c0b0eed727ec0e1da155e2fb02358b491d6404fad38",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ca2cec8b8eccf1e8ef2ce637e29519157973e6110af50ed624f4e0d6eac58e57",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d22bdad4ec497c898a5ce3047e8150d3539505520c5852805ea73b50835bd860"
     },
     {
-      "citation_sha256": "e0d36294b42cd39291aed1acc436ec45076c7af7134e29f486449f1fc519218c",
       "content_sha256": "78480a623007423c215d096aa00d75d03a8517287637ccf828ae527ab347a774",
-      "currentness_evidence_sha256": "8193300f38e5f9d06cff510855e8ae32618004cda9e5ff8715fee52b85e3dab4",
       "derivative_receipt_sha256": "b36b113755e317f25c929a09eee95f76a25ebe4b7c189d91c8ee231fae575bb8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "08e2c5b50493b015934d1d34537d44bc5eac5db322466bb2f3867da234b44766",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "dbdf2a37a879c1c43b32fe27783d5f9932d1ff3095b2f9d88c9693610ef1b77e"
     },
     {
-      "citation_sha256": "2839f0dc9f88ae319a77407c8ac096642ba5015d6c8b85c33c8e49f1c2ceb16a",
       "content_sha256": "78b9175abf2e03527e8dcfd3e37d3c7421ef4cd7fe13c9379a1861dbddf68b6a",
-      "currentness_evidence_sha256": "9afd8229efbc27c5901a42fb7ddefbdb74ba8948e67bd8c354acd34fd992fbe2",
       "derivative_receipt_sha256": "449dd342b1dbc24879f1dfe537376a87314b8c9ec5cab96a68f5175108646ae0",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "432c14f79ee7ebcb1a17d614c8fc1efebd3ca7e7668712ef1660d5e8d93b7bdf",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "bcd367580db1b1a228d0655dee9c3d463680d9c9a5c5fcd400f283e3d0e79619"
     },
     {
-      "citation_sha256": "cb2168f8921c51395f19d397bcad36ba10784aafdf51b67df4610055b34b1fc8",
       "content_sha256": "79e88ba1adda05854ec400f2bea44076d4f9186c8fc53f0ac9eecc2239a053f1",
-      "currentness_evidence_sha256": "77e42035ac4f2153202fd88dce18aa3cfd102f1d1de51a54a4c4badb6f252c71",
       "derivative_receipt_sha256": "00efbdf68d396b24d045564f1f80b1e88be1036f91f0dda0b0d3b80cbf7dac23",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c8065ea95e427bb91d7caa97549b623de6f601e8215492c531758e3bb3f8a5cc",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "653ac482b2dd19aa3b592af368868e03ce23ea7196bb9ae4eb6214f9c16eac8c"
     },
     {
-      "citation_sha256": "a805106432bbf77b2b786058fef8e971a3997a14c097e00b031ce346e4bd9857",
       "content_sha256": "7ab872278429abedd5d1d8a64a9e965c65d30cca182aafa0c6a21c6ef4d6282b",
-      "currentness_evidence_sha256": "518807a85a400bf6973200da7809f0ad0c5bf0322a01fd47b192603ca046f30f",
       "derivative_receipt_sha256": "bca00ccb875f87a795c60f60a6ddeae14bbb904b915391d84110b072757f15e9",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "508f525360cd97d3e81427cbee2fb30e9c4f5126dd1feeafb5aed39dac24cf11",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134"
     },
     {
-      "citation_sha256": "19e4e5ca0ff45ad9d8470a9ab12b1eb2dcc385b71fd533de11426a56e8cb2644",
       "content_sha256": "7acb4371f5b04fd4602a0724231ce6db2e076910ff175ccda46457ba26b26f40",
-      "currentness_evidence_sha256": "aff602a098d4ab940ea9c530edb2ac830eeecd74eee863dc92fec50114459485",
       "derivative_receipt_sha256": "b286f02d702368a2b6ef2c2b82f89e68f2bb99a4a5de2db1a5270e4ed5df1efc",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "86dd8b79b9864f9ef736db265bbccfc60029b62996b665b80d98607d4f66f99d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e0c09c8e021de8b6932ab37be9519d5709c1068b86fe40f77da78d836ab909ef"
     },
     {
-      "citation_sha256": "002244c3eadb2627224e805c873d760e519767106ea056c21452c8541329dccf",
       "content_sha256": "7b84f01bad4cf050905a03b9a496f7547fa677779da6a3f8e41168f07efa8b79",
-      "currentness_evidence_sha256": "6faa60a5a401c3ddb8e4f75f0bfd3f391047a24fe9a05211822e226fc50124e5",
       "derivative_receipt_sha256": "eaeacc46f3b0f2ce16c4c1061480554cc6714b6c9f229a3254faa29cf5e9ddf7",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e671d1ffd89af9efff75a51034b06b17697e95a04361415632445f7196434fa4",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "00be5591656578cf94095266d34c778d14dd31c596e7045bafd1b3655babf475"
     },
     {
-      "citation_sha256": "44194ea25452f3c719d5d0319a786e983f2fe9209faa3ca9c351d2599c049808",
       "content_sha256": "7bfc7cc4081810970f3a75537e5956d41f10ab1df26c4949da545ae62a545e20",
-      "currentness_evidence_sha256": "00f4475a9decc9a8fc27828c5f796728b4c8ed9bbdabe4feb59f6d4108318cdf",
       "derivative_receipt_sha256": "e4685383831134f6ebe636d58a7b3b200c28b3341aced8076a3d67498dd5cd68",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "89f3a1e52495af944ed58d2637e89a02adaac0bc2ab6ad09ff8b78558af2abef",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a7aa8d3753d202f387d02cd22731f409962b536576b5da4b678d3eb904e67880"
     },
     {
-      "citation_sha256": "cd658de91fa6ea5a514c6068b6a2abc1459de3a3f78923d81e306cccf8cf5417",
       "content_sha256": "7d0a0c1acc4335caad10af260d64974b86932fa060824005f1340aef176c3bce",
-      "currentness_evidence_sha256": "f0cc69c0c84d701eaf245ff505adad011eec5c1b5d3e4a67cd1cb2c772a2db8a",
       "derivative_receipt_sha256": "b3c8f1a31b5d63c27c62ea70ae5c09a28b071a820c2ec49e8e108e4c4053e192",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2aabce42d7a92d890376f26cc94b5f5c6f3d218b6fee9eca677b54e92e7e8f8a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3"
     },
     {
-      "citation_sha256": "5951e22baad5099aa3c300cfa7d43dd78ede57705e427914177cd86ad4601c87",
       "content_sha256": "7d4936a14d63513440bf8773f29534dc6a3d3918b3ce984dff6595fb9b8be692",
-      "currentness_evidence_sha256": "c13c749b5f79c8b14ee0c9ff61ca133fdfdb190a682afcdde11c36352866a88a",
       "derivative_receipt_sha256": "3a1c43fe2fc0eb5b26122ef8a07539c17ff98d0af3e32fe600a08ffe01359ddb",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f554e5a0c834ad3e309d78bdbee994288049740b41b33151d8c20adafc0cec90",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "6736315bedfe88e536644e33c7471237b98e895182eb860d24da3bca044a217c"
     },
     {
-      "citation_sha256": "51ee56edc8c4220561deca462c9e1f1cd068b34fd32a91caaf04d25322548270",
       "content_sha256": "7dfb4b5fe0efb7727422604b3ae9a13fe467e53174e9a1f1360f5b8e79186812",
-      "currentness_evidence_sha256": "ec3bcca475e352d942fee3836f20bef7bf49c0a13fffb6ba5330a5603bbeba3f",
       "derivative_receipt_sha256": "2e259d71c0c654774a7d3ef8f657654d06f25b4566d519d1eb25b47df9aafb6c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c2271754c44e0a41a788e22ece6d0d089ce794aaf49e0273276769a579f3a5ba",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "c1e6b395b9dfebd81c5b9f7ffd77579a6f65a7b44e7208e054aea97ca6a603e7"
     },
     {
-      "citation_sha256": "e723ccad12f943651e3566146240b2362ff33b3d326b3f098985cd51a7d31dc4",
       "content_sha256": "8325a667a7b1133075d925aac0cdaad90ef2aee32fb338c7ba1659c8691e855d",
-      "currentness_evidence_sha256": "6ad288f1378c03015e7a12445c4d319676e3b83d2d7f43fbd1f759012dd4def7",
       "derivative_receipt_sha256": "595c7bb692296324328cd4a7082fc4d88a4810be86be171188220ae4c8aae8a1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "3a47fb4e80849b925a00631e855bbde94a3f8dad12fd0a58cc6ae6bcb12ba195",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a2984fd826a8e39bd58fcc6f585519c45a0b8061e0a187fc0024a1ce1673d888"
     },
     {
-      "citation_sha256": "aeb1128dd4e5a3fca96dc45873a1ca5c8f9482e13a3966c7a0fb6cd743c5396a",
       "content_sha256": "83bcf300beb397ca50565a3cdf30fc213071b7193ce47afd7073ecb8b4da18a8",
-      "currentness_evidence_sha256": "fb193143b9455e56e77480b3dbca7404a4e09df579be369eee53344bec557611",
       "derivative_receipt_sha256": "e659554f5d690c2c770eec83480779b8fd157960e47c63503f8a2a3dccf7c3cc",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e82d754c978a7c48e81e85918d0e9be31b5eea5ae9ffca04ad234fd403cc9487",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4c3d14c4e456602ce847aeabbf635d7e295eab6fe667eead7f6a487388833598"
     },
     {
-      "citation_sha256": "a0faf85e6a59ea51fd1d9161bbf36cf8ad927bbdfdf6ec767a6a762634ca8db8",
       "content_sha256": "86696f92c73d8063fa72892389c88204b750e755d059f0d7c1fdfd96433f0f2b",
-      "currentness_evidence_sha256": "fde76e03bf416c7cd604acb730bedf072fe9e614a247fb6c05234f9c0e86e18c",
       "derivative_receipt_sha256": "8704e53601a3395e41f9717a34da97663b04e865e7ea39ec9dc289bc97fa60e2",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "d08a432de719dbd7967c31851c193bcf0e9e5174922fbae1c92bb2d0fbef6301",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "23fb5bc77951dd4f06e04e229700edfe0dccfb2ee69cb8283c2348004d6728cd"
     },
     {
-      "citation_sha256": "bce1ddd1c34ea4138826434f24501e5701df18ebf9db4810c117ed1efa3d0fbd",
       "content_sha256": "871c54735e57fe429a57ee17f80deb5471cdcb905774e87d9b51649f871c3bb2",
-      "currentness_evidence_sha256": "1ddf4e7e2b060b136ff2de7de3366f02cae29156afab6063fa283e573595221c",
       "derivative_receipt_sha256": "a3269dc3d78b05e9d91424eb5ed480c4d54e63a44adc00e6694e17e49072a4e5",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e89f9c2dc91c52b99a4edc73eb3f589728b73942727869a8e1091662a60c0b1d",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "6af72612a595df043bbe4ba16b3214cf9dfe3008d912275773d557019839cca1"
     },
     {
-      "citation_sha256": "69a7ef2e5dc68b54de44adcf699c37a6acd6795641a7de5085d59393066f8220",
       "content_sha256": "8b3df4a809c2934bf206e3e71fc526fd76d56bcedacb3eceffd6ae95a423f5f4",
-      "currentness_evidence_sha256": "a5ef77b631a8104d31389c69787f5cd9d72896f09063512aca92219a6cb73365",
       "derivative_receipt_sha256": "a0f08ff30b91257353a1e6a1ae205157d0d69067479c9026605be74db6d42672",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e4dcefa284e67f21a65e74aa345fe121fb3ac22f107bf7ba58094972d7cda758",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376"
     },
     {
-      "citation_sha256": "b631d75e5eb3ee57dd026eef66156946f9b7ecae2ad3b684a1f921cd71e076ae",
       "content_sha256": "8c955cadcaa3a68e5fc52993029775ba2d1a0cc165f7f8e9af2e8a6e157f01a7",
-      "currentness_evidence_sha256": "8bc17c0ba6f47c849f5f58f837d97f75c692beb0750f1df02da7e32cd71c96ce",
       "derivative_receipt_sha256": "9a27af5fd2484bca947686d91994ab8b0b7d1b1940f9820622effae06c490a99",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2e6721b83e6834633d678bda4a6e980be3b7826d82ff7290e81c784943b15e8c",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2960fd0b0980ad3f6f51a739a34dd9f112c309693cff85c551b782de1917bd74"
     },
     {
-      "citation_sha256": "04a91586be308d20cd95da10fb5fa900ae9c34b176dbcc13ded005f445689d7a",
       "content_sha256": "8db2803875a07ea90e954b1b86fdc265cfc45709254f67ba44f0261827494831",
-      "currentness_evidence_sha256": "c7fbbf7246c94f62697fdfc39bf079b5c49cea58e12860baa5fd6199e9f4289f",
       "derivative_receipt_sha256": "769cc463ce7aeb423018fea4751b5c63e34a09fdc9e087a25ac4198b32c201aa",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f23a0ee99caed7ba76ec94b2e45c758dad7b39c3fa8bcb024d224b4938db1704",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e58d59edbfbe2a04f34a2c10a04151255931edbace1019cf0271942b1e30c33d"
     },
     {
-      "citation_sha256": "84b1b232a7ebaaddcb3f6f023e916a506af8fa78e11f012b184df1a5e9273028",
       "content_sha256": "90c52f722a3a641030506cf587adb1b8ca9638057d2db9672fab9ec9e058b8f8",
-      "currentness_evidence_sha256": "0c58a6929dd9f99675c69e928a06a96b636cf4e9fa3cd134aaabc5c4ee946e7a",
       "derivative_receipt_sha256": "fa541958566522d36f1eab8fbe0f5593cedd2edcc9b3e6686c86bcdd8f51dad8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "4c264f7e396ef2403f6e9a33605886cf6c783461eac8df46d68d14fc29999ece",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c"
     },
     {
-      "citation_sha256": "1a4afc0fb8e50205c100549cf3c4eb128163c067496220d58fc58ac0981e1bff",
       "content_sha256": "92a8cfc52e7b122e9c57a69636e0e4f1ad916e810b0fa8c2bc64d81ea0bec40b",
-      "currentness_evidence_sha256": "a699dbefe336afb02445cc6e4ee8d92d0f767f1a4f1fd7636fd490976913d4b2",
       "derivative_receipt_sha256": "a6fb24c5bd21aa2851cfd23704b4e0bbb042317cd47d3ae0dbbf79c0c13ad374",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f9b2a2cb0eb6c69090ff88bf3bee2455920af3e872ca160aa5f5ebdb92643f25",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "c457195d78009475a3a9d021a36c9f5fbbcda0b1390af79430a63ea07c259ffc"
     },
     {
-      "citation_sha256": "70cb4885548568759adf8f225180efc6da1c78e6c4afd56bb222d39d4a3aaac5",
       "content_sha256": "956ecff384ee76bb94a09aa8a617e3f588451deaa88c1d7d72f68b1fa836e16f",
-      "currentness_evidence_sha256": "6d399428bfb0056cd0ee6d8e297e31896b1892d0393eddf92784c467a2b87e29",
       "derivative_receipt_sha256": "de5fe7a08dcf1465ea77bae09919de99f29c15fbd16e0f1e3a94e8f1102248e1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "53713e3a167bdd88076027445ceecd397ff75b53860f4d3baad8614ccd9439d4",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0b9a40eb0706d976cabd3259f0f4f3bd87037ef41f3aebda4b67b1ae85b667f2"
     },
     {
-      "citation_sha256": "1bf2c182eea02f2ecae6c38c6ac44f2bcd3368ee766cbd3005ce1ef2159d5aad",
       "content_sha256": "97bd68981e3005adf6354c3c8b3afd01e0bee95ff3ece55aec0cb51cc6b7820a",
-      "currentness_evidence_sha256": "db5a91984e72be89db3e9e9b358f9e1f78abe7e69236721c8fbc22890d580e96",
       "derivative_receipt_sha256": "484bb0c2530d8ebdd6cd1a2f6435c280672c33eea041d930be6fe827679fd727",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "9f62dcce9468de2c9acc01debc3831a9b86944bb35f49bc65c1613250a9a6ede",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "926b1a971f4d00bbac2020486e6607f911d1bdb721c45546be10ac8fab043e1f"
     },
     {
-      "citation_sha256": "0635a2e1d95aa01c56c2a20649433aace0475054e0048c7057985e90cfc3b27d",
       "content_sha256": "994ba1425ec145d28978324cb766362f0ac57c436ebd1c1de3d4e4c8dc1216a2",
-      "currentness_evidence_sha256": "260f27e3a401808b8e56af75196d21c570e240ae99dd4cbfabb99455efff3ad0",
       "derivative_receipt_sha256": "547b4feb138d8353602468121c306c5af4dd1969edaea6bc709855b771a1bf7d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "d2fd41930912a8e337a55671cfef091f01b2b9fe6f1538c5e452fc7376f8c6ff",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "bb05c76e427d8404506ff8aa13c6cc4bb37ebe511beaa255c50e6670f8b8e67e"
     },
     {
-      "citation_sha256": "705ac1314f73d5f2db64800625819c12120c75d8286e7170250b3bfde6fb7345",
       "content_sha256": "9a9a47efa36a9bccaabeb24d32eec5541e546fb4c00f21dd3c2b0236868f08ff",
-      "currentness_evidence_sha256": "f79ce83f0bb5f63451c0e4ed07f3bc8f61334b4785a241addd94721b4e2a00e6",
       "derivative_receipt_sha256": "c2e4f69161c952c74c575221679506361e1ba1a4a47744f97e238391e11d714f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b9ea4dd3ded3666dfc93848cc52366936bf256ba23e22e26ce536836eb542862",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "6636473e5411b5393bceb7be19d65176230eb39736f36f7b9f498899f82989b8"
     },
     {
-      "citation_sha256": "c32c09decefbf429874cb2dbf67ef31e2cfb171215a89c5a9d5aa7a91e532240",
       "content_sha256": "9ab8dc85bb2b5ebd02ecd0c082bda047161a5e7589723780c5b612f18847559a",
-      "currentness_evidence_sha256": "94788e857e44dc229634cbb39334289e911d582cf570c6775b6c0526c2e0de96",
       "derivative_receipt_sha256": "fde9e6acdf63f8c1df6a571123a75021653ec48cde7b8610dcc0e86ed225d723",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ffb5674767b5dd0712c88999a62d707a29456776b62fb00c8e47f298537c5c74",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "3a25308fc4c7cf81df78d7bb91fe1d55db3ca4a2a4262f96bc3b44aec0d1dfde"
     },
     {
-      "citation_sha256": "0ec56b569871902088fe43e003462ae694208e6349faa9dce0cf854dd3ee90ad",
       "content_sha256": "9af04a274d739d75445ab32489eb652f07bb4349a73bcc397ec1c612d3f2b437",
-      "currentness_evidence_sha256": "8331a0cd9967fcd74e21fbadc5862dfd42f2a3cd8b9be059f246053d68884616",
       "derivative_receipt_sha256": "0e7dcc0b40a42d67995d2ac6f1be7d484604349090d83c99d20a1f852258cd42",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "7b030ffd5582b881d8cdbeb5d6bc7fd7dcaaaef5748231a04be0a1c61cca2ab0",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "7e4121f2eac0784e2cb5f5f75b5521ecdcb36044fc9adbc929614b686a71b07c"
     },
     {
-      "citation_sha256": "e0543fa4590a93e0cff54fd2b9e455c2e3a1be5efe334f8b6c344bede4dfb945",
       "content_sha256": "9b2fa54f987409e2a03aefefe4de2201ea891e11d32449983713ae1e512a23fc",
-      "currentness_evidence_sha256": "68b93a35f10ba4466c231303fb3a03a681e2b30b49855d8ca1ebde1c0fe35d83",
       "derivative_receipt_sha256": "292197e510bd8d51cd4016448f15153b95998134a233705a80782ce4390e5883",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "01fc8c16e520038939be9b8e07897cfe379d4e13cdc087d82db8d99fb9a6ba86",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1e8950bde2797f7762a8298616eb094c3c1b7844a0222a1177ef6a328e5a91f1"
     },
     {
-      "citation_sha256": "87daaf0de02f3a0b1f69cf3725101b756a315e520934879a8015747cc3ef6a3e",
       "content_sha256": "9b7af372759277071b1530621cdec5f15c21939106dcf50f00ae5d0f5bb5e662",
-      "currentness_evidence_sha256": "47243cc4e09d0b8754567cba4bff96e3c8cf8ddf017ca94b46493246e6832ca1",
       "derivative_receipt_sha256": "61cf1e3907b2cd564b36210ef0f1dfb29f453c6757d68c43e1d5cda225ea7e28",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "af33fe65a5cd988f00f2ef6d384c7e291ed19fd74af6f7cf9b11f83d126e2135",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "3f57dccde06007516113e9ffe29680d88516e8395a5021f4a19f9ead5d4c6583"
     },
     {
-      "citation_sha256": "7e125cb8c9d259e385fd8d80a9da644b37e8c5c9c89b2ecf4287d422cd06289d",
       "content_sha256": "9d379731aeb1b6032dad3ab1ea065e8697795f2da66eedff9a5cf409bc3a1eea",
-      "currentness_evidence_sha256": "5e9e80958c30c99745df887a7c6b5468fecc9ad189d8c225b4745d6cae29945e",
       "derivative_receipt_sha256": "fac7cb6edd5264e0848e39b27ce6e66a75039db88aef030ade1dc4921ad1169a",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "be55267f2e8904db6d76adbca2d098ef8489151c79e21608e8cb2bdf349f69d9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "95c3f17c29c4d9fe7f7a421579cae4222463dbe7b9fce2842aaa31524c70f49a"
     },
     {
-      "citation_sha256": "027ecd073d2a72d9332c4c8bfd59b44a2578ac700c27a7d0735fce9fa73feaf6",
       "content_sha256": "9eb98274e5444eaedc4404fee147386bfefbac92cbe377c871b6fa410c5f6bc7",
-      "currentness_evidence_sha256": "110e5dc72e5208e3dae63e4095d491c7b0369a0ec0051e8fd4fdff62bed7dd60",
       "derivative_receipt_sha256": "8e320b07f07075f1d514f7f7fb46c0501651e26420b37e36b0371f20782861f8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "faa8eaff1961d2e656cf5a5f9649c292ebb7933283bb16079f1c8dbcc5ff9536",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b8ff5e625242cf7c6062ca576ba30efe18471b272f68fe0023b90b0a9247435d"
     },
     {
-      "citation_sha256": "2caf084a1ff39c2bb4bbd1168134633df35fbebb28bbdc243e310f2b0e0ab551",
       "content_sha256": "9f4bd4ceb5ec6eb545bee43730dc13bf0202b4d311eeafa6cf13fef747e24986",
-      "currentness_evidence_sha256": "dc07f9590dfe53f1259b0c80a0c53387a84055076d9a2d4140205f2b431853b1",
       "derivative_receipt_sha256": "f9d088961bae1da23bb6b42adabce3f68b8733e0f0494cc18e3ca2db0556ce7c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "425173b1d5226d96f55a89834ede6f16cbab2e2e07601419d89c7ee15eea8bcb",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4b446a543058522389adc15110907c8454d168d6d1c4e4a67097af7df1abd38e"
     },
     {
-      "citation_sha256": "145b3bee43ebeb923c48129c31c82f5a186fe222fffdc95119e170c4b99092f1",
       "content_sha256": "9f784d01e600c5eb064f98ba954f973e817a6ed232af278dcb1971b502dfeb77",
-      "currentness_evidence_sha256": "f949edc4f78084ec093f57e19f8582fdbb3a680e4f136c50a154c102b14e3c31",
       "derivative_receipt_sha256": "a8c712f080e89db77f016800327ea01b5c9d224ba00e72dea0cbf3791695e569",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "aac66c17eac65ad845e5c50061cdbc4cc2f21bd082f1d3c085a33bdb9628f68c",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e404ff947c3454abba84df66a01f9e6f875cf83f03796acf4bd1d12e1876880d"
     },
     {
-      "citation_sha256": "aa971c708085e61a36ec1f7bcee5a8285715daa00019a7740980365a9be93f2e",
       "content_sha256": "a04095e9c674369f8d7757e74740b32810464dd91664178c2a4a5cb920edcb63",
-      "currentness_evidence_sha256": "0bb9103ec0548744f6e4499283b121448aa986f71642e40d6f7c1d46cb952b58",
       "derivative_receipt_sha256": "84270535afe245caf47f2ae4caa8b7c03a69aa5080cd08953111e6dab6e1b032",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "91721493af14ff6931dac51437eb0d5844829c89bd8f9386f81b8c336edfbacf",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ebbda34a1b2e05d979bbf81a28e0d95a457d2672bce1f5519dfbc741bbe3a441"
     },
     {
-      "citation_sha256": "5d13a050a16a769d8c674178fc1ba8fd3b50775421cdac85aada125777d64dea",
       "content_sha256": "a18d85e7c29b32c3b8bfdb420e285f33f2b8f0d103abf444b9e73a5e2703435d",
-      "currentness_evidence_sha256": "238123c7d14eb7592fcddb87df9cc6fe52a7b5ed3a5436b6a861c05d072551cd",
       "derivative_receipt_sha256": "fafecd00366d9c4abe34a2f03a229de20a9b09e1914659fc32a1b1aed329a042",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "47b03a66f5db092e31df868e3ae64ea1faf96bc1cb83947cb661bc143c8238a9",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d6a420b6eb491da8b167598f0926856bf3cb1f96f4a13d810cf818a88c31722a"
     },
     {
-      "citation_sha256": "bb9124303873cce97da4911ba8c5adda3bc951cfaae72b30aee0b64621028e1a",
       "content_sha256": "a2121db1f3fc8ee1f61a64f1c9ef90826213036cd9befc1fd99056e4fd5be550",
-      "currentness_evidence_sha256": "dd0b758be1efe7d8d03f481c4fc45c6b074ca809ba5c6d563ccb6e5d814e5b5a",
       "derivative_receipt_sha256": "ed133458705bfe540606cb74b5f2a5fe4f13105bf00eef143869b1d3863222d9",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1953453eeecb0613e3d73bab4166f933364a8f5e0eb694034bb01771a3c40801",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac"
     },
     {
-      "citation_sha256": "1db1741334ad40592da558192cf934c277fe1ba5e9f9fabee2cf0d7bfa7d7a9a",
       "content_sha256": "a2c2e09005edaaebb5e9b5551293aec78341e69c938e6892580f5493b7b2439c",
-      "currentness_evidence_sha256": "a4bff4af003e86936fcd43e57237ef3c032e162c128dc18a02e5c1e37179daa3",
       "derivative_receipt_sha256": "930f786c49f0c28db1a887a375898dd038e852adabc1d015fdb4c9e375989a23",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2dedc7d381e9eccfc79a221489c90bc1b3547cdf29744dd7cf418e5983112e36",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "eed43caa3dc449950ae18fc4ac95230a2125afcc0ae9387a88ada958a2367bc1"
     },
     {
-      "citation_sha256": "42bb151d606507ad65c46f9be75a2cbbac50580c8fc61bcd9a75aa8a9cf5640c",
       "content_sha256": "a3981e11ec541b5cca73cd9d0295c98ad82d8fa80517f2e37dfed4af2e9ee9de",
-      "currentness_evidence_sha256": "e599352be93fe1e7cf8860bc9ec1b3624bfb82f1513597b39c2b86a5ee3befa6",
       "derivative_receipt_sha256": "e7eb1bd9eef9f7fef58d60bb56ccb92f8ae4896776958904dc86609155373e56",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ebcc20ceb80225c3a57f086f39e1b6c2cc883d2308552a56cb395f67b48bbb59",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b01714547d98f31c594999fe6aaaf46f2299d7ea33a384d2d83becdb35a85cc2"
     },
     {
-      "citation_sha256": "73028bf0871701fac91ba109152a008504e6d8761cefa63d0fcd4fe86b114f86",
       "content_sha256": "a3f35c48e2a553d8aa7966d39b4a59d9e2a5d1ca72ac02840bac5b5a316319bd",
-      "currentness_evidence_sha256": "e4ec6514a091b25bf3a73755fcd017111d2dc360fb627aabc28f7c731a0886d8",
       "derivative_receipt_sha256": "28f688e063e57658680bb0081453f7362d6300f42e42106ad51462ef76c9f53e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8c962fdd85203c7817acc65f365a7740fff9bbb53391d5d4a59fe39eaccbf747",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "62c76756d1520375b2546ce3fad3a0a5d9ed8525163f0c30384d0c36e258022f"
     },
     {
-      "citation_sha256": "28ddf40ced7bcd1567911d4291b6b3cffd8a43437aae9d50ea1f5b1373c36b5c",
       "content_sha256": "a6e180571cbebb507bc99b6d22fc28f88bd52523b0eb8d84e5b007113af06868",
-      "currentness_evidence_sha256": "6769943a9974cca74277be3fd451659a483c785e8c5297aa58a198ea9962cce5",
       "derivative_receipt_sha256": "3c3e0a07489855f306f4933b6895c176a720196d0e00e441471e0e8b3eda1dc0",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "ab1ada8890bd8adf70b4e88e1db3eaa60ce7f53d995591cb1f04cf50f65f4bfc",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1b34f7fade7fbf3180d54cd650bd466f1e4f1d83e8940faac1ed40ab44d7b029"
     },
     {
-      "citation_sha256": "4e33265ef2592f5cd1a81bca136b31eb82f4f1791920dfd256b5ee39e898df81",
       "content_sha256": "a761107992a64c0be67e581a4cee9f8b9e4489951e886fd3a924d5ddddd62b0c",
-      "currentness_evidence_sha256": "26850584960e154a3edcfd37d647f90bb726ab220e11b106690cedec393b43a9",
       "derivative_receipt_sha256": "1f603294fd6999db11b7bfa152c1920a36355ceb0c740b5869defcad9074e5ac",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f68b5f95a9add434251ee6bd12b8bdce962ec8f5be153882fce338efd7dff978",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "724d0ecc7128f83f076bece2a1119a71c2e6672bb1a3e7cec680a48c719b6c81"
     },
     {
-      "citation_sha256": "8e5c568cf01200317754d1bf3f0942125cec644bb602aa97538254a2a72f868d",
       "content_sha256": "a78e497fcd053b404c1c52525ae3b953f1be1ecc73dbd59cf320aac34f601722",
-      "currentness_evidence_sha256": "f49d696f3da0291226a3cfe5158adad8c70e5201a0a7d1d4d1d532f3a61d1d23",
       "derivative_receipt_sha256": "a2571e581ffe27f2f07f5ad2bdb96fc521fff0630fddc41ecc1c5be26a9adddb",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "cbfd5eb7e07c9d537a6b0c8f77b6d53418a0741ec8a05cddcf01057c9d836c8e",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5"
     },
     {
-      "citation_sha256": "e9e3e4895b999740f9ea3aa39d5e198b4af75417fc658635df96035ced64f4af",
       "content_sha256": "a9032064e57c099fbb17fda2332c78dae9870f59d291e08b7062b5ca2c0087bc",
-      "currentness_evidence_sha256": "54822e34ca96ebf7649cd28245533e8e76304accb96ae3d876f9e2d05d2618e7",
       "derivative_receipt_sha256": "6086f4f8089422711b5c9110d37f29636cada603e56d488403bda8b31c996465",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c733e21cf34fe4aedad1cc7d365e0e79d915c8f34087453b2b3bcc461dabaa66",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d3d16eb28582b1fd999be4f290c0b2c32e8d26defdf83b4ba88dd079bc3f4dc9"
     },
     {
-      "citation_sha256": "3225a7cc74184404c595b60b9fe843e275d9b13ec945cf2dbefbbc9d06f90668",
       "content_sha256": "a9cfbc2170d85f78d09864ea5137e70292f9188176acecddc57b118e378f7949",
-      "currentness_evidence_sha256": "31f92e763e545584c02df571aa3bb39870a5c0129a778c333efec33db124cf1a",
       "derivative_receipt_sha256": "f3149cbb158a29075dbf9509004c9c2de6980f4cab7f0052e78c77b8f1d513c1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "32d7256990519c9115e57916e1fdf110eda5fcac872ca3b2ea2ae50620dcf9e3",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9b0f2814e2a6c21c9a4981b3734ad89ef8a32c2d25fe2fa9616a4f593b04538b"
     },
     {
-      "citation_sha256": "b149b40e2840849f1691464c35a637a57a3a6f51bb08c1d622dc109409730f43",
       "content_sha256": "ab6a2833de3b352dc508cea4a3e1406088e853aeb259097edac7ac534d9d5c1f",
-      "currentness_evidence_sha256": "456a8d1aac7df5ce768cb5394b2f5e48b1295076c28e8ef9b9c335a4f1ef54ff",
       "derivative_receipt_sha256": "20b60d1214d23c03a0e1f1e9047470cec4080ddd3524578d7b339dfffb36d13e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1d3bb89258b952c9063596d649b3f4cee8d2899da94ef018904748cfdbb25853",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a6b1b1887ae77dc8f0a0cfe8ad97c8577ac276093278ea9e8b1d87bc17d040ac"
     },
     {
-      "citation_sha256": "67128bb12984f7bae7aef6b5d874882d0e4a4694041b0a769051e072885c03b8",
       "content_sha256": "adae77e9ceb87355dd127df78369bf34c210afbe29132b0a9d9118af5ab31d05",
-      "currentness_evidence_sha256": "0de060605997d2153220c738405c38b0e18817d407b1ce4265d4d69d862f4ad1",
       "derivative_receipt_sha256": "acb943f9f7d0d19253eb78a9156c17d43dbb98f2236d15f74218471da759d718",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "472df0914fdab8a16173a96a96cf458c064c9c9b4429737765c558dd2597057f",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13"
     },
     {
-      "citation_sha256": "162c07a7d4f84be3269b183a23b3671b5eec2ff4f481e683c70ab81f5cad19bb",
       "content_sha256": "ae4124deabc33239644d24d9e72b9a4b0ec325d5512da8e05d6505c46c81b6b4",
-      "currentness_evidence_sha256": "7c06cb0a2ee465244dd198eb205360d6dbbcf4fd5e8599aced80fb44303be773",
       "derivative_receipt_sha256": "940e8a1d0a0d1cd5f8f721b8a81ed5591276d306abb56aa767af214210dc77ee",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "dbcc5b7e584b20217c8489bbb15cf3872cb89c123e283570075f90de8cf6a245",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92"
     },
     {
-      "citation_sha256": "c6a0919ffc14eb1e0ba2cbc7576bba67870a3b47db3c5a64604c2c388b385ef5",
       "content_sha256": "aec49d3afadac61cc6c6de362696c91ce89201cb69b84be82c5bb4f900f646e0",
-      "currentness_evidence_sha256": "d28edf2e62182cf009a4f3520b05962eb9830d5511ae4664a7d6863590e5717d",
       "derivative_receipt_sha256": "c1aa8ed247abc7cc46c44e6d30dc8ed476aff35e2155a4913bef3a9f0e2ce38f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1c53cc19504c174543c4dbae0113d680f5e32e928e3fc6e55ac61aad1cecd521",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "8577cf5a9b83352794f6dfba97b0c57b6db247921c867ecb46432cc4e7ed4283"
     },
     {
-      "citation_sha256": "a82aeddc9ce52aefe68c9f52cf454e11235021b610da2d991967181015ae4807",
       "content_sha256": "b147aeaedda46d21c238d39334e4396b92c4d28e0b90861ad1409762000d5a0c",
-      "currentness_evidence_sha256": "6cb74cf5638c37b35bb508b8c76732e78754c8b65b340245d185f3cd0de8634d",
       "derivative_receipt_sha256": "7db941bdffd26e753b6dc3d960f10a5d6a6097296061b6fab17ded99ec01ec00",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "63831875586f5e1c246107aba22c08f5c4a80b56f7cc1a694fa33a3a33bc7067",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "61f86921080169ae3e34930b455c5cc1a13fc1b3a12604fe654a2f7d871c4693"
     },
     {
-      "citation_sha256": "20f5284eb6af7de5e767fc4e2f8ca40937bb3c20512b3a00f1f4b7e656e2f2f5",
       "content_sha256": "b17b76bdfe9e729cd7af473b25d7bc3c95314b52a556fd33ea8208b7da4c14aa",
-      "currentness_evidence_sha256": "faf1d0d4e30835e253362668c8118142d80dcec3923d2ca570bdd34d6a08c9f0",
       "derivative_receipt_sha256": "fb16d2ae179093574014d88e5226d4a7d13d0f6f9dae96cdc502e4d5e07775ac",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "22b384bf76ee61439322abe23d2216c4fc66c611b9ccbfecd8b17cfc2b6e8799",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0c25d92cc36271cd404a4896b9998e6b5690261852682cc2a75944587a55dc80"
     },
     {
-      "citation_sha256": "15837fd4f4c8f2d502546611d65e9b2e87ef2561f7e77ed8c8147fdfb9e93322",
       "content_sha256": "b1bd8871d221457e9133cf5eb72700e2ef35e89b05f5ccdfcf2eff0fc2059514",
-      "currentness_evidence_sha256": "9bf71129ef652adcb66726dabe22bced2c466bc9c6d29cb21f6d9b16faf9e655",
       "derivative_receipt_sha256": "cb86cd42b66dd07ad1ec2d3e8ef131649cfdc2fd76f8374779285cc4b60b6d90",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1deb9cff1f257eca3eec80fb9e053be4f7f04215f744713b7bc61aef437d4d55",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5"
     },
     {
-      "citation_sha256": "693408e01746603f8b77995e7bcae9b4bf7e6fdd89e094d9241a8ec234bf1a51",
       "content_sha256": "b245d7a6938988be5d7c3a5ab994979f0ca476e036dbfd0f49d38d265c0a0180",
-      "currentness_evidence_sha256": "aee5f292995bbb834f8ba8ced7453b4498d4ded576759e75331f27ddeda76fd6",
       "derivative_receipt_sha256": "fab3e70dc018bfc7cc2e61fc993b5779b4fe3ff1c9f20961cd3fb6f207cfce01",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "65bf216e245ab3be08fbda0d658f7fc847f7f95d29f9903ed1083db3d271d027",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "faaad0c16d759083d672d420be7838ff68a2f7ba9232d28af53e9008a82d9459"
     },
     {
-      "citation_sha256": "f7f49783782bf1a8440d6752098f062bd80935ee96583d1de7f0b1fca543e114",
       "content_sha256": "b2726db00bfbfd2601c71034069478cfb184c5656a0d74fdfe80c5a6aaa09246",
-      "currentness_evidence_sha256": "0c0910d91eb5ba64cb7b514e98da29439c258b9e20d8f5f98da6db2241d69768",
       "derivative_receipt_sha256": "4a490fb394323db8b041ec9f78e2ca97f877fae2d1e361095dee39fc91a9f6c8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1ed85ed7935b2d55d7a44d30cc0a9bc57b2b68b45afec62865352331a5a13ade",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "7ad6ebd481cdde38f154dd3cef444209c8725d03229950244091052e9f16f295"
     },
     {
-      "citation_sha256": "4534eed800c0a82ebf2839acf0f6bb2dda729632f04dcc1acf482f2bffcc757e",
       "content_sha256": "b362a8abe50d239ca0bbfd5025c7827d3d6d36b5e0cf25ad1ed97eb9f34f1751",
-      "currentness_evidence_sha256": "78b3916e2264429d4fa83ffc0ff56de38d43b164eff785c76d14b76429f3f2f3",
       "derivative_receipt_sha256": "37aab4dcc38588b0dd23951bf2ffcf991d0613461b39c35c3fb0f9f5bc29736b",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a9c799b51fda23d5782c0baebf181ed3655585c76ec4fdb4fd885146482a1075",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b27cef1fec864ea8e6b9dc90210ba39c44be5de40f5db6fc663d84f6fba37d64"
     },
     {
-      "citation_sha256": "020704c75cfb2c6ce3017b92a1fba8c26df59a1a126d5c94a5208041d319945e",
       "content_sha256": "b4e469019761efda3eaa6a6ab20ddd29cee0e9547b0e89aff879fb7c14d04c1e",
-      "currentness_evidence_sha256": "090a509d1566db8d1eaa0ef4b85e6f73ffd5d309e20ad92317ed7f83b4a783dc",
       "derivative_receipt_sha256": "f871a54071e1797f1a34304274c64096f598aab5cf17ed95781ae1de94928519",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "91c661fb49ac4eb465fab1a9d81f92c8c35097c1b70baa33559497012e985ea1",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d056b7ce1d0151e0c18a94f55cedeaee00e1725876b179671a53dc1af71f4938"
     },
     {
-      "citation_sha256": "8f301641ca5700cc651779eece7a689f57b7b7a408e33162170ec0fa23d09c2b",
       "content_sha256": "b59a98a9a28ae7c42c2866872ec1da8356264d28a7e35acaf62bc28b615fa397",
-      "currentness_evidence_sha256": "deb516ef3f4efa068e8dc130e6ed7c78d625bcb6971fdc3683e7383c0795ad51",
       "derivative_receipt_sha256": "20fc65688d0d66b8c5efe8f9c7aa45026d0a5aa9606e5838978286d3b9ea09aa",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "128f4f1203aa614b6227e56ef4d711541e634bca622fc7949d76f9889026c163",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "7cbe29d1e52a6f19bf342c54f8b209c4815afed991175428c3a2f757c0212b1d"
     },
     {
-      "citation_sha256": "89659009126e698400c1650e9cc9210ece7c9e9a9b104cd7b398faacef4da4fb",
       "content_sha256": "b8e53fe1cf76cb8810d511bdcf065c8a5ab7b48a9637cf8a010bd060348f9f41",
-      "currentness_evidence_sha256": "3bbb095ab8affc7ff92347ef86a34e16897e66f92774c782d61009f11fbb397f",
       "derivative_receipt_sha256": "3f8ad8453316d5acc34e926fe9c48b71550b7af932676e2538d4cccf044e9566",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "de06f370ee10bf44120d557f64704ccfb874dff549faf8c50d809cb245a403ab",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55"
     },
     {
-      "citation_sha256": "05687932260bd8db5434e43e724138821c19558261e0b81cd274d7694fa63115",
       "content_sha256": "bb18cb49f6ef9afc88f7efde01eb4be9ef16811c773837203f87beb8d7475f3f",
-      "currentness_evidence_sha256": "f9768b4efb843167a13c4cc0a9360cd93f0501b5452cb82f4e27dfb236679265",
       "derivative_receipt_sha256": "d3d184e848389287a5ad5b8057b82b73b3f0ed2fc10ab515506045b836778c79",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e4dae37bb86aef0c795d365d367f0de04e4d94744740c4a2049f1d4da41fa1e5",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "afe6914e5fe541927ea47b2ddaa0d10e28ea0052c9f17da27d65e864d89f07b8"
     },
     {
-      "citation_sha256": "2b67210f358e2f5a955154913b0867baf94a85b112d1403f5135e8ef08fce9ba",
       "content_sha256": "bb5014444841d8f227cc696d2fa33ca2fb325be4bc55e59b6aa33b13a645eefb",
-      "currentness_evidence_sha256": "97e916c5b06192527fa0905c4ce087f7092941da611e16c1903df8b1fcd60765",
       "derivative_receipt_sha256": "f91077b3d951ec99539edcb90f9f54d52ee1b820367963572830943cb4f5bb68",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a1553aba05aa7f18afdd917e3ee2bd37e12dc0cfdcc9a25d2586291462e6f59a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "73d89f72bd522e7bbc4e7d77143dfba0ccb5a7e947b92c643fe9f0263a9d5060"
     },
     {
-      "citation_sha256": "ccfc60505271df87d7e7a171b02e83146ffa4b9e7d3d5f12029322761c090823",
       "content_sha256": "bf56720e3e46a0206c464870d94680eca8ee3a2b392030bfe78883b427fea8bf",
-      "currentness_evidence_sha256": "1407c7f559dcb255d54b498d6402f0bb405ce81f2c8f2c86af785623d407422d",
       "derivative_receipt_sha256": "0f4c4071da52422d364e96e9597596df09cf2e1685b10abaca0dbcfa3d3c29a1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "260ff5e5d326338775c4db3f3b130005370eb5c2a5238e2ee32761117b636e27",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d5333d2aa4c07c6d1d52c5b0b75eae03acd880b983a0fed74c23672b23328f06"
     },
     {
-      "citation_sha256": "f8941809d7209071633442f258fcd41fef4ff32f4f7ad4e03175b36f423df78a",
       "content_sha256": "c1bb45c45d420b17110194a7bb7432f31ab79921f4b8892dc7a8813e9c380741",
-      "currentness_evidence_sha256": "0d1016e98dbda6a4ba64872ef233f424d894cbe42c1df6d48903b96c536b6ffe",
       "derivative_receipt_sha256": "83df540722f253c917d432fbf66eebb562315a96a5a153e6c50037c18bfd5a23",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "fac508614884b7f945c4cae07c5873f81a0e0dadd67043f761ffc10f504491d8",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2252e83a8f1adc1030d9da2e363f7aa4a5acefe7b88a0f8b61e88cca39992277"
     },
     {
-      "citation_sha256": "f0f921f81d4ccd39c68fcf6ba3b069aedbe8a74baa5be4927a9f217cc376747e",
       "content_sha256": "c302081e9f2e19a2effa3c80bf99dcf82313bd06253dc580ece95daa4996c25c",
-      "currentness_evidence_sha256": "dc83b6cdc8ed50cb91cfba0df8780cd07c6bdccae1a4fccdfed532896dc4fefb",
       "derivative_receipt_sha256": "ad456ff15d68030f0b84061459663a3c6f3aba1a2ea4574dbbcda0bae49010ae",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "df553b01dc8d9fe3c6e4d9025811b31baabb82deb1bd8d981da1ef62720673bd",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "51114e9ffc8e01f632585701b7919fe5f3c8ac86a5f6252fe7fdf8dea6a28393"
     },
     {
-      "citation_sha256": "e0ffb1a26fbaf4a1115cb62be94976a2575aab1ed092be9e819fe39aa681982c",
       "content_sha256": "c7b4906daed48b5a66344ebd4e08ba21d1c9d28b784c0f39402a33a2b9ebafb5",
-      "currentness_evidence_sha256": "d49d81c08f100caff6e5738c2ef885adc93f984d4c9874fb7ec1bcb9aa7677d8",
       "derivative_receipt_sha256": "700e163d866cb43ceb4a626a75275a6fa77c968e079decb4f1064d07e28f86d7",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "7e6614d9c35d382c8cebd718bcdf601c0f31e09b662006cae6f4d9ee242bdf60",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d55e07e0278c717609a63bd968b63dcc8c16f6f0cc8426ba97e542a2d6ebe68a"
     },
     {
-      "citation_sha256": "3f38a5ff0558509ebcb36c2c5d5c427485613598e752fe644466da7295aeddc1",
       "content_sha256": "c8b387dedb7daffd59466ffd762235dc95ba92f5b7c9830676bb00c971388f1b",
-      "currentness_evidence_sha256": "0a5433d426f30b8137a08e3843da4f79a4fd6849f6e348b3fa751ddfd63cbff1",
       "derivative_receipt_sha256": "871dea971b286a814eb83814bac7014eb8aefc9865a49cf835c62f0e51c49b74",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "95719ce5e8e9bf65efd96039bf641870c7eedcc093f0ee0ead43addbb9592452",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "37d16d793489988e7394fe5d2005a877720ff75632e7f05d39fcf8274791b2f4"
     },
     {
-      "citation_sha256": "112bf9b50be49b8ed8a96b7c410dab8530e08b28fe4ccf7feb1ac546caf2d4f1",
       "content_sha256": "c9b67903012c9e18dcf42cfb35ab631b058ea2faf40b68c9b9ebf9abf3a5e478",
-      "currentness_evidence_sha256": "47c2d4c1550a2fad9b6859295235c5d5d7b846837773828fb6157279daddf4d8",
       "derivative_receipt_sha256": "602c8d102fcee41ee841b99592e4d2b84a19c460d99c4f285e84b3f4a0b0a6ab",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "41c4dbabd1ef763dd4d894949bd44ca27c7610e810fc8bfdefd62b412dcb01b6",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0591c1753929f39fc9c8e02bb0eb90fd656974a9cef0f737d0afe55c34322124"
     },
     {
-      "citation_sha256": "f0680c68163daa6dcc7c9c13e916f0425b1d86f69ba644f4b29ba331b7386eaa",
       "content_sha256": "ca0cf001cdd15cecd2dd6a94a77169ea73e24f988bc8bf87d135577f78c3c248",
-      "currentness_evidence_sha256": "597b1d4987ea233242432fb40eb7e54f142ec9b9421b94de051dcd8390a297ae",
       "derivative_receipt_sha256": "f1dc4e05d78e31d058a58478e5f0b300c350ee219dd9a2298467713152a5b180",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "76fb73a676656c8f62d534553971a43af9890151c89a96627b02a3c50a54d92a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d271b5ae5aa15bc0ef4c9e7da050d3b78b19ad079a259db4379247f674759c52"
     },
     {
-      "citation_sha256": "36aed9500085fa8a0e3b11f23bca42bc769f885984abc6d67ab792755cc2f9a9",
       "content_sha256": "caf590167094a429bff45d10d389f92c3d0c5d38f0c50cd2a33c98caa03ae8e7",
-      "currentness_evidence_sha256": "e88bc3dbc5963a6b1debf28935c8a52e39ecd4989656a5de3145df95afaa4d69",
       "derivative_receipt_sha256": "8ad32b5c4108100bf8fa8a778f3ec3281513f4d194bb7b3a1f0494670b8c72ed",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "e5c5fb213fff1f5e6ac37b928696829bcc8654f6b7ae1f61bc11e0856251d381",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f8a44427a5bd5fb0fb07af5cad59c41cd42d6fee936d7f1fac78d1abb9dc2b26"
     },
     {
-      "citation_sha256": "5b2e1fe81d288ad6fa748628e5bac0d18c5f7285f88f5824f0a5f27736210d3d",
       "content_sha256": "cbd8372e4618448358dc0562dcd0b7cbe2ab338eaf826464048f3c55a3718bb6",
-      "currentness_evidence_sha256": "b1eb0ce50d96e8068b6e513bb77f1034765353b0f5187fb4c77564109699aa08",
       "derivative_receipt_sha256": "041ab45ad0ae9be80a98e40df986790ed31034c30249b3798b5ff6f037bade93",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8dcc610e4033dbdb41619be8c9bf427cd6fb1e0ad8ec78c36f57da143043b08c",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ba9710a110b7c9f4ebed80bcd04ec8e388b7090a26e553b3b593acf1e1d67b63"
     },
     {
-      "citation_sha256": "eb3bfbb1b5d60c856042dfc1c2b24e2c4e7fa5b1774321536aee4d8ce6672f7f",
       "content_sha256": "cd32ce04282d66f0208dc7812b62401e223b3e3741ba1af4555f7873c88ac07a",
-      "currentness_evidence_sha256": "463379266f6ef175c8c903ac40867aedf2204d01c98dd0217296c1448350827b",
       "derivative_receipt_sha256": "99d2b32e098ce83a5537874ea78df503a57a6c1bfac1cf5076c81425910820b6",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "9903d0c3cfa66ce97d2ea447c77b7193d97435ce676ee6184ad9772728b6cb53",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "52104b2a60daeef500869952f5ffc84bb379f057bf47990a311bea94a62dae0e"
     },
     {
-      "citation_sha256": "e0c3b07792fed0353a9ad5cd2726ff0f1fa3ec29a684940850c907d43db493ae",
       "content_sha256": "cd48c37078c93be5e87bcffe760c235f1a2f32393e08c131fabb556897b69bb7",
-      "currentness_evidence_sha256": "123241e81b35ce99116493c9f7710e7fae99f3577416aeb305bd6b2a8760aed2",
       "derivative_receipt_sha256": "be20a6d1b3c243976331de5733aa9eaf63c038365ed4f3837a2a563c9a6db167",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "eecada997ff98af38e52d6f3aeb864a1ce4f6745c1cc2ad5221f0c23f118b800",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "fc4de5d107a8939d227fca9c718cfc6814db1fe936d98032d4269ce44fc2531d"
     },
     {
-      "citation_sha256": "dd1f7ef5a361d969cfea28e53223a3876639a5ea9a4c689e70ec85f4fe364424",
       "content_sha256": "d0a2acaf725c9ded1513addb67649bd40979410ecc0b8a5542811268d0b85296",
-      "currentness_evidence_sha256": "1031e384ba08c5fbf22139da4e3a8d6bc44bc566da2a79336163f848da92cb43",
       "derivative_receipt_sha256": "5325f09e178c09987b28a5f124dba30f5aab487cae40dfc4cf53e4e6272c5a4f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "070175e4c6c8ed2d80924ef8ed04533c8737260ecb431e2ae1232dc9c4a1c196",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f5516f1bbcaae63e9aeaa833299cf0318769bce2b0eee74007ec0dd72e2c16ca"
     },
     {
-      "citation_sha256": "3b9bfc93caf59519559711ca1b5c146b452bb6d9c0ff9269dffb1f98d0ea94c0",
       "content_sha256": "d0c14569225005edd48d8d3ab3e271b2580467685381e227e3a864c65592e20e",
-      "currentness_evidence_sha256": "125fb8c759862cd84b387b74b3c9d13b7128665845a73ee454e7e180fc0c0f47",
       "derivative_receipt_sha256": "e5efda6c133c4ec2beb0705042d10a2e0fdff44c17c8f2c58bb5c8b76853f9ca",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b25a921a3e0c2c4e4431cf96fc2a1b08242c6d71a1e0a075c21e3b71a95630f2",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "43d5497cf39ac1a0f0b02d1dd94f2699a5cb6239dc5e8de228b036c00e65d0fe"
     },
     {
-      "citation_sha256": "7957a94a7f5897b564f99df8e9cc3dc2d37f48ba16b26db0dfef16496498e1c2",
       "content_sha256": "d1caf3a6397ba7f4e91d19db775bad8fc6dc693239691a1ef184445e23a6cb25",
-      "currentness_evidence_sha256": "bf671a8e617414e1af880fdd217c4d8142e920bcdeaf5cb7a8020762987f45f3",
       "derivative_receipt_sha256": "80d306f66704d2a0be8daaab75aefc07aa2c74a2be55b168e8e02f98fd574c67",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "06ab22f4f621a59e7b210ce627761752894de7fdf6afb0704ad9b7d2db7b24b1",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "981c75ca4a8d90eae0fc87ece424a7e085bde81c0fe1a3649b2baf076318c222"
     },
     {
-      "citation_sha256": "96339979c652153db6ba0e1617ef76f3083b2adbf780eecbdc706c7d00621160",
       "content_sha256": "d3b122b0beb8e26938905a8c25a51b08b515b9aa4483058feb091e632c45187c",
-      "currentness_evidence_sha256": "e46bcd54efea7f95bb9f96974a0c81cfb0e0d117c2c88263f7e3bd99f9f576e5",
       "derivative_receipt_sha256": "aa3c4d1bb13b623691204f3331ec7899531df61571406f741c3cd1351cd7a31b",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "8066dcca67a97f76fa4bfbef96d16ddd22957b768a52a8babc615f2ee1cd70e2",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "5fca98b2d55c5d2dd450bdfc534e1e4858a9ad821272ddddb133332d4b7a4098"
     },
     {
-      "citation_sha256": "1511a6b58591efa1cc4e54cc2f1f1773d29ad609d3b8acb0ae1682e9cfe7e5a2",
       "content_sha256": "d3cb372e68bb1b00bab0053d8249803c58aa9d1ab5da86bc152e7eb9d157841e",
-      "currentness_evidence_sha256": "15a0587665fd86d6dc7cb779a5a55561937d8f8e9bac21afd4acecfbb548a2d9",
       "derivative_receipt_sha256": "3d31f995d2e96b7c60a1207fdda0f96e4cdda2c4d7981e49a0126917ea214b7c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "1f5ae3f87ebb1db5104ff28be64164d1b19deec778ec4ab70adb931c83e6a212",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1087fb5ab5aeaa4330187fd267bc3b210b6f4163725593291613ba8771e880d3"
     },
     {
-      "citation_sha256": "cbd0a650f714ab5e72b349f71dec0ea2266e84b68bb7c85858730500bcba1a73",
       "content_sha256": "d681640f506c2382d39e2a274416d4328f71ac699b696209295399a18712c8ff",
-      "currentness_evidence_sha256": "b356d07ae83e2bfa0a09e90917586d84f5feaa74ac4b84528303419f128f4641",
       "derivative_receipt_sha256": "ab8bf0a0605b06a055aeae5de2ea64a255add4fe6ddbead09cc948e86966cf47",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b7a4170d1f36cf6f19b60835d146558197c7a6a82f7c8ee58fb70968337ff28a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "366cfbfffc26b6400d06176d0fbcaf44ad887819a7e8cde352bd25aec11ffd14"
     },
     {
-      "citation_sha256": "75e29c96a8d68668a520e24ebde1f2045e1f290c1e1660fcad2099fca0131afe",
       "content_sha256": "d7d951968e5a61fcd883bac4965bf4149fa9e19984800733fba0cce2388f4cc1",
-      "currentness_evidence_sha256": "d68d9b48d4feb9e5a4f7615d78176188fe146d3c0210169f30579b210ae8e494",
       "derivative_receipt_sha256": "c8e5494afc5f85046ddbdae6badd3646e5c1943b14a0ad9cf2098d30cac4be1a",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "09ef6e9718e471ef2cbe37ad9c9bade976e8e2932a532db32628367daa6c9065",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e40ccdafb9623c4642249eb68cf5a83a24da0ed3c05a658efe6b846a780dfc23"
     },
     {
-      "citation_sha256": "43533bbe1b91adc04ee123d4bb27786a2a1025ddba5dcc291d90647507cf587c",
       "content_sha256": "d946d33672fd147f5a5e194589c16be68ef1ebbafb166a71be779501e824531d",
-      "currentness_evidence_sha256": "5aa3b80d1c5c0ef7314ad46b11e4d1cceab7cf50d4be92f40ece602a7b949437",
       "derivative_receipt_sha256": "22c17a70e1f99ee3eef65737cbb40c15df3cd2fca92659bcf51f7091e8a3ad62",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b4a4f0ce6bf8a2a329a190f9501139b9fe5c0899ee2d7587927c719f631cc778",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0acb85cddc0f0e2b436a574bd5d35cc6f3304270bf5e99dd1282c2344711526b"
     },
     {
-      "citation_sha256": "e266ed8d532abce2a19a350595d2c3b4bed17431c85b2d00198a46ad212654aa",
       "content_sha256": "da066e09c9b396064c56177267188e0c5264967d83e54df7ceeb0d7502a6c925",
-      "currentness_evidence_sha256": "200b2009dfc9e9b5c5279befe022d09bfe02e648d610d3439313429b3fd40bba",
       "derivative_receipt_sha256": "b786afc0083a93e220e913a5c0f7a896a27e33063bc0709b7cba311f50bfacbc",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6167614768f3d58d7a106762ed69040bbef09df278e9f9765810d2dc444832a1",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "217f6201bab340c601411fd9aac10805326d00708033efa0fe2d97411b035f44"
     },
     {
-      "citation_sha256": "7818eca3db8ce15defcf211d9ebc60cdb673f05bba14d8301a050987afbc9cf4",
       "content_sha256": "da82288ab6c743622b60142e42033773a1ba6b5b3fd4c24d3fd60b08c54bb1a1",
-      "currentness_evidence_sha256": "47f2aa2c6262df10d8cf7d18873a607e8046d90adf601366d5246058a777f8b2",
       "derivative_receipt_sha256": "5fbd5cacddd25aa86708835d3b3925db5514901aa1ae8f14692df18fdf3c7934",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "329cd945380d98144445fe39aebe6f8cf3897c1648abe7425c0f62b61a206c02",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "4e65046778399929df388031adbc3a5b1257e7bac2efc64791bbb8b5bf2efc6d"
     },
     {
-      "citation_sha256": "0621d7a2860e79333e67ab9181f16f17030fc274cff3867324d215d2d82640c6",
       "content_sha256": "db7ed9a3bc6675b5802cb21bc4fde883b3f0cb52e95a86e4cb364931b2ce53cf",
-      "currentness_evidence_sha256": "517dfa621f86a9ba6e3565a1ad88975b357e12ef73073f6dfd347759b68e3bf6",
       "derivative_receipt_sha256": "de846414be8735e83cd01f3339f5cc4b9a6590dad6078826e799fac5ab074bfb",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "cb9a7ef98f186d94d53a3c6965ec951b3a57078be877712e08a2267634b0cb71",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f88ee598aaa77e2aa0a9ae1d3f7bf88d73a38e6d3ed4a547c0fa7c801775166b"
     },
     {
-      "citation_sha256": "32885de70923b9cbf69e7a4c00a622cef285b354cd55223fc8b142e836d42cb4",
       "content_sha256": "dd7ba2862bda68417dfd0a7a7e2b7d0b3e32564b5841a2f0522ad55b1b7e69f2",
-      "currentness_evidence_sha256": "739814a77980f2fad1376ed77813df958e07b042a150bc5315b88852931b4931",
       "derivative_receipt_sha256": "d6f552fbf6979fcaa905fc6ec09de5ded598c130ff7fea1165a347e7bb1437e4",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "98949901315b4d9b63ce7f4d4cf6cb0f0f45048bf10b96027cee273494179763",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987"
     },
     {
-      "citation_sha256": "4eab3f943619c92810f2406f389dd599e026b6b3f4bfe60ad4602fa0bc0ea14a",
       "content_sha256": "de967cee60044ed7c7a6c321339a8eed972bff0dcda631e1a9379a805631980c",
-      "currentness_evidence_sha256": "2fdfdff5a7fcd4810522dde179355118f6a10a4774c54feea4fd3b7a3f3397b8",
       "derivative_receipt_sha256": "66885e855b876688b7d2be23e5cbe2dcdea0ed72612929c4d3fdedf3c34de41e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6e02d768765eaf175d46e13ad43fa23757e90119df7b0f81d0858fa2127b24bc",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "63695989b94627f3808bd2becacb4615295b78d1448fdfa1f76b6d4eed33095f"
     },
     {
-      "citation_sha256": "dcba164ec4be78d0645abe4bff95d79f68b38de4587d46f20649a097f8e3bffe",
       "content_sha256": "df7a48fd8dbf587fed32949362ed5fe17cb714089cda199fdaf58d043a230711",
-      "currentness_evidence_sha256": "7f75f4e35cefed8fc25ba89cde333cd40716f922b6134c9d91b61ec4f54cd82b",
       "derivative_receipt_sha256": "68ac6762bd5a0a8e21cfc890e11907bd6959a78301fb3f8eaa9adbf8d337697f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2e5966f4efc1ad0ebaf55b985c4a5863db70996cfa50b556dc1d0090e503feb7",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e89c1f14273c36a004ab6a563af26210400d5fb147f42a76da9f448375f80d6c"
     },
     {
-      "citation_sha256": "a8f568f60914b57733349de3870d77e3f168be5d6858319ff1fe2e12dccce06c",
       "content_sha256": "dfc019528044ce413c1527b17fc404bd274bba834894b70912187d4e08d5b56e",
-      "currentness_evidence_sha256": "241136e416a027fe9b52c7a51708e22efe052baa12fafb33e71ef9d2804234c3",
       "derivative_receipt_sha256": "6afab3dfb4bcda97ea038972249497be3478ce3e1479c357a7ed4f4b6bd81167",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "32140ad0cc71291bbc5187a503ce79b93dbafb308370b69d09be375471bace29",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ae43e89ffb0bfdf20cd222de4bd5b8098b77d766af47a590a0ce9d5d81b14fef"
     },
     {
-      "citation_sha256": "f9b6729d6fb121425c07cde23c06fa87faa7dc0fefae1cd1f721edda76332857",
       "content_sha256": "dff5f6e5ea73f698150b4e525b0a4c0183d6493586bb1170d9648a9fba66c31f",
-      "currentness_evidence_sha256": "fd61d60e3c3e978cc8a44b4629b486f46c2480eafa31cd68b9fdf956bc37bf87",
       "derivative_receipt_sha256": "7975f0d0ffdb5f0f0b0c5a774894a0e3c2b0237d1b3383cd017d19ff7a84eb8a",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "402a38d95512bdb778f423316309da244efaf2b66d22cc2bc57a4e053af1ff8a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "dfcc78f0d6a9d1122c839cc39e9e384bb71f49b42f05075f3534869b0a7bea6b"
     },
     {
-      "citation_sha256": "9f5994b11f231550b766158379ad0b5f6d5248544ae051999869303c7ae177d3",
       "content_sha256": "e0179c8d23f3826115d63c1fa20ed4cf16c7ae821fdec4d7f2e685ef95e1fc5d",
-      "currentness_evidence_sha256": "92af1338812dc68339b3078e38b0b3f1fe46bc53d5c411c38e881b9ca124f36f",
       "derivative_receipt_sha256": "edc37ebcb84591a4e989890120ad7c034b4d2e88574ddfb94666332c4a5c3cb5",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f50041ed27cea971d36942f858c0243ea144fcfa3b22ac1f8896ec74647cb86a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "6e6ad3884291ee472815b344afbde1abc7d1f997fa84bc1d047ee00ad02dc9a6"
     },
     {
-      "citation_sha256": "505527a1231db56d1e8415c439a7985d96bdb649360419ad25c872a6f03697e5",
       "content_sha256": "e1db721eaa5c88ea8280b32fb5f1c2174698445b43770d01328e1f23e723a134",
-      "currentness_evidence_sha256": "acb27f7111bcb34a41d8124221444fafce7c98df04ffd6917d81b60d016cf63a",
       "derivative_receipt_sha256": "53124166815c852e595d2c3a7e073e880ec636cfd183ccc1f3676be83c30c521",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "3705a145f931d95deca0714c3ccf6d1787dddd8203843919440ace91d51bfce3",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "31fd6353d42bac49e210537c82d9e1f7746bbdbf121d692801d6801320d130f1"
     },
     {
-      "citation_sha256": "40cea0b4798f0dc5911b3a818bcad8bd708c736d371c27cca6d2b6204e4f841b",
       "content_sha256": "e33e2e5f9a0834dcb43e962dd04d78fa3ca0e9e3561f10b8001175cd5809af5f",
-      "currentness_evidence_sha256": "38b67964a17bddaed170bab183d0635c5b9f99df266151c86dfd3a34c31858f5",
       "derivative_receipt_sha256": "ad84b316d0cbb6692ea7f8f740c86341e09be0c315af3788e0b1abfecc7a431e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "46d952ce24b69604d4d195843c345002885054618401b7f185f8418f406c4784",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0bee148f84433c74beaee17fb2b8d749cccb249f954ff0900444aada4605b050"
     },
     {
-      "citation_sha256": "2c4b0396de0e8be9ff581736da4235e003391fc29ee9fdb107b7eceff5e0b3f5",
       "content_sha256": "e4458d2f3369c924b8f6ba3ffecf124da16ad6ed1a5129a97f9b339a350329fb",
-      "currentness_evidence_sha256": "df3ff5fffe43226270942bd6c3fce5ccad8170bb28084a9e5e53b24a4f62783f",
       "derivative_receipt_sha256": "e5b027eef7d57fc8376944e4cd97ecc321330e85771b4f0340d950aafb45b87b",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "c53a7c550916ca5f858bc6e05c28b052188723a40de8d8754055eab8b14b2048",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d653aded882a487ae98c38d28ab15b59b3b66964b816efa2867bfb18f29e378a"
     },
     {
-      "citation_sha256": "8d913ff280f59e222b65265fab4ece9ad3d6a7251b10049f3f4fb03aa348856d",
       "content_sha256": "e510db2cd927b9ba3b518ca0c6d340481b4cedb6f905b618f079e9f2732aec77",
-      "currentness_evidence_sha256": "a4d1cbdf05f48703bdfc3f5bbec5200a682a7447b8a4f99da7d2a5623039d19c",
       "derivative_receipt_sha256": "95da2d55372c08203b8fbda44f93c73992556463ce86e2216802f88ee0561f41",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "d3b4a8a5fccd6c4fd78be968b279b8bfe6766977a8d4de7d7dc6bb5ecc7215bf",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "1ddb97cf73d859ba5aaf4510a2ede99952333fe007fa0a0860c17c8ea34b30a5"
     },
     {
-      "citation_sha256": "f011a9232ecd97453276fb807cfc12f5633bce43beee0ef054dd9774263b3483",
       "content_sha256": "e7142e171e21d54a1b91389cf79752bdf55eecf5bc735bc7f2bb5d2c47c16877",
-      "currentness_evidence_sha256": "2ffe13adc0ee938fe1f5b71db1afd0390e87b2d67fc6565ad442e4154436e0c2",
       "derivative_receipt_sha256": "71b5377a14d8718798cb545bfa313e3024e573ce22f518bf6293d6b1e7f8e570",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "bff6a7af6d8486dcbab2dead12582bcc938a225ac1d1d0a6a9799e44aaaf07d3",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "08e7f20dee8addee5de124cb1884e604c7d978930f619456b2ec000de98c938e"
     },
     {
-      "citation_sha256": "81a3bc693c44c3a5e3b7869da71bde875183b745db17beb283713b640708c32e",
       "content_sha256": "e75aee3a048956f9c998241f4bcc190e7f64ec2fb1cb449490777b4edba1497c",
-      "currentness_evidence_sha256": "4bd15c9f70a950286406009ed84ea02e4ea483737942f78aa304d2bc262cef87",
       "derivative_receipt_sha256": "7695907f2e41f7ce2ab692a3d68b00acabab43e2d7a5e3e7e1a0b5b029fdce63",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "9ae690781c3b3c4971818cd82e35ca1caf82c311058f8240da34c426c07ae217",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "d0b3f386a7cd65409702d0614bf7610c692c70aebfc1b022e0722aea0c068e74"
     },
     {
-      "citation_sha256": "486344b57ae6d60fe7cea84bec3596734e07695117599418646453e065484637",
       "content_sha256": "e964d0e98cafbc1f3d80cb65ae6b38bd3346d4d25f593dde8e54f905233c69a4",
-      "currentness_evidence_sha256": "b6cefe00a59b6d50e3bc3feedfd42a164ecc41c74a845c82a00120e442cb76d9",
       "derivative_receipt_sha256": "8cc2a1fe86ba7c0c2b308f23ac606204ced8998f7e8cc71b496058e69d4163c6",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "027906fea86dc3b02c15a59fcc9c389700ceba0fc5ceaea6325752577683baa5",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "5544f9721911aadfe811deca25b1af88a2b3328dcd330a65508692507f71e457"
     },
     {
-      "citation_sha256": "b122f0c276802776adad6c5e3b503724594782a0ba94fa1600620cc761a33590",
       "content_sha256": "e98e38ea949b98033d3a9d76bb06c8bc2d3b8f8794b1b377348d2f124ca13b19",
-      "currentness_evidence_sha256": "3953639bbc2466ba1607b1587ae8fc61ae8c720216358de1a2ebe06fd353a77e",
       "derivative_receipt_sha256": "ef98df74e487b145f7ddb65ba1c2d217168db0861d402210290b461a000b0dd2",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "296846c0f1ffe418b46a564b276f1af89498cb6c0fb634a245ce3d761750f436",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "91c5a3123a2c4df70fb0fb91e9cb481ce8834996a21548d52565be3d615a8c3c"
     },
     {
-      "citation_sha256": "577549938abd45a9696fbc280c4275eea8eb49218954ba9f3508469903e95b81",
       "content_sha256": "e9c077af3fd91f19d4c6cd71ee4916850a93ff7c2669af456784673572f09518",
-      "currentness_evidence_sha256": "b986a649ba84de79865d9bd5aa60750177cb293cdd67a30dbf900d385d2b5ae7",
       "derivative_receipt_sha256": "e5fcde5691d2f0cd9e3fef6528e0d972d76ef2059d24ce4cae41ecb5896d2b4b",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "0c130ab1b758f8ffe9b25254261233567c2a963be2c8a312b5e7101161b9d3a6",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b"
     },
     {
-      "citation_sha256": "7399b8f7ab6230177b8a58ef3bfca07f38e74df6d9d1d78fc295b16fd7e5d316",
       "content_sha256": "eb32372bcb4ded940107b6b3f850186a88292e29897f0a7c61be87b6084a0eec",
-      "currentness_evidence_sha256": "28012e14adb331b2fbbaddfea73ea85cc7de21569213c171c66743a3ca4e35e4",
       "derivative_receipt_sha256": "9d0dd305147b9e155f1e327060cdc52953d2109e8b697845cffcbb0eb66b35df",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b028038c62c6ebf9b14a02c313c44c03b28ccf3f501daf06e012ff49fa578236",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "8a9db0f95c2efb434b0e6c3335e9b9ffb5ddd3a370f2d6800ae28c30eaeb45f8"
     },
     {
-      "citation_sha256": "41dc3fabc5858f07c180d0b6e0078def14ff28e8715db94ee26568840a94508b",
       "content_sha256": "eb952d0e4220e999e87faf1a38efbfcd68dfbe0252da5457ef533615000724a3",
-      "currentness_evidence_sha256": "02ce89d592067d0537c18f37ff4ac38d8ad90801c998bd953ea0aa0ee8688881",
       "derivative_receipt_sha256": "cb559c99ec81ce03694ac9c107ff2cb66f1afef55459efc5cfbb9407e2eb183a",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "31cdabd17d45ede04a53e8cb7cc79970880c85478ebd442ec0f243e123f9d67a",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2a9e29b3874cc58bc1ccccad7267519bade0ad1b63fb90375eb16d9764705b35"
     },
     {
-      "citation_sha256": "b7af7975ea724476990f47b6a6542880b75625059159868f9f8a95eb7199f963",
       "content_sha256": "ec00fffff1dd7a0bb31488e20ebb47ccc45f2b1beec8a1e7706fadf020f832da",
-      "currentness_evidence_sha256": "ef9a860add4457fac52ce64b4bb92eee95c9376cb0fcec613298e8f1bf8bce1e",
       "derivative_receipt_sha256": "b523180ce1b21d9febc3d71baf03cfe9e87255154d114a8c44a410e7c038460d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "264042e960b97e65977fd19bd6e5055c7dad5ea5ac44b634d5315fdd3a337a30",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ca9fd35fd9b1691d381d9dc605865f7ea6533dd62366e2846f4f1d80fb0af2cb"
     },
     {
-      "citation_sha256": "e22608620ff28b63945df78aa1f1a81f7c9c03bcfc3e48df6d8841a4e9cc9375",
       "content_sha256": "ec5262719762b7c171fa9d433d9306f0c63eda72fb18255ebc0de04c094dc300",
-      "currentness_evidence_sha256": "6fb17bf669630b8313257ec6a88cf1d2813326a7c3fb1e2908a5ccc6a3588a7a",
       "derivative_receipt_sha256": "af26572ac78b3d205c6d1f159871b560f17a9ef1dfe71beb964042a92c304a18",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "23247d50f52e22f188ca5845294ed832963763b8d4a40b074caa66eec3582603",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "9e8479e7e6f1c49b9a147add91cc304e022b97d037fade641257352c9c44ed00"
     },
     {
-      "citation_sha256": "5275ea81298f1e6d2ec72f9c4b65e1816929ad24387c064520b32982b8377496",
       "content_sha256": "ecc35444e0362ae5021763473a914832b2ebe037d466ec20ba1f763181f75b7c",
-      "currentness_evidence_sha256": "e3a8f08f3897f02cb66cfe860faab645b8d723fd3d15fb9cddefb85ba1b1ce6f",
       "derivative_receipt_sha256": "303e2dc29723c532c3ce3875192c4815c7f269af0f7a6deb8eec26dc62b42419",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f022ad12b37d3d1a05c635b118238097d334ebbbd38ca5e5ab7649774b212fae",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e3d153b233903bc20751437c4fc76728c0b58107802f88b6b1755acac5c2a0a7"
     },
     {
-      "citation_sha256": "004a2f4588bad27f3e752eb7ccb6669cfe9e7c7cb2320e33ff5d9598272fe073",
       "content_sha256": "ecd824fddc514f888847c2733d5f7610a6bcb56d2b8fa30f61c8094850bd55f6",
-      "currentness_evidence_sha256": "2ef7fc0ea755750be4370c384a63255f0aab5d30e7359600a0c7b7a21ea3b75b",
       "derivative_receipt_sha256": "6dd9d1c37f64204c54ebcb80f37ef135add4db7413da329bc9dd3281e77cfa81",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f20db419eb348f7f7f313ba9b19e05a2d5f223137c5f32b4afed535dcca9a0bd",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "21d2c073b8bed2930b63f526dd11e99f71988e144ef83433ef135179a8e532be"
     },
     {
-      "citation_sha256": "da0f67c64cd3f0f92027b3a53eb1c9b6c9a8e4a1a3e8885a3dc7231844849742",
       "content_sha256": "ecec86c2d18473b002f8efce5019037a3e8286086f6ea768fbdf7db8c32c83b6",
-      "currentness_evidence_sha256": "d963edfff6b725f70a54422443be3e294aa24ec9ebe57ed989b37bb3396b9af6",
       "derivative_receipt_sha256": "7afbeb7b43fed5d47c01bd049fd0282581cdc429b241b59fcac43ee32e918318",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "b035d69c341530eb67211cae73157f1950f6ee09bb3a32149ae02663cf503e45",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "8a9e02081433118d43852c4631f1e388ddcc34412eab5886f6c4996160c35307"
     },
     {
-      "citation_sha256": "7681d9f11df4756176a4157525468bf108e0e28a5cb7ecad74c1e70c18982460",
       "content_sha256": "ed8b08acb03ea809d8979dc3cbe22c00a114d133fb66d4c781bc0aa321de07c8",
-      "currentness_evidence_sha256": "f3d30a2b3a72f43a5dc90667d2ca807c6917233e6ea714430c7ca9c0620af61e",
       "derivative_receipt_sha256": "ba350d98b42052c83d41959325c1a197b7d2d09e1a71e7c9665ede4bfe03c066",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a543f7c3e284ed5dabe53146729a884e2928518a7ee1e52788383888b51cfe0e",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "77abdd115f3954e2c0590d8094249969fa186454449e851c18cf533f514dc3ec"
     },
     {
-      "citation_sha256": "92865aa9b34ce165daf2bae68260bf06f403ae99ea23f096d74a8c24c2e229a0",
       "content_sha256": "edb43d71c177cdec9932a680b5a280e4dd4111e5af84c60a524a066ecc3f6d60",
-      "currentness_evidence_sha256": "99b4c631373bc4a4af007fc491c3ae72c0c7f228c61e3d9265cd0933d948a22e",
       "derivative_receipt_sha256": "425488c3d6c9f01e7e79a6d386adf15ff8b45be334f649be6ebe4f019ec7de7d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "61878f34b76457c3b24850e7b2181d70c18447e7210fa44cfcd83a4f5e64154b",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "09f76a653434eff06cf96f15dfecab74873049c9f30af02321df74c44717a09a"
     },
     {
-      "citation_sha256": "0fe0dffb15c0139fed8a5c20f69f0a3d5c6e9bf5c6adfabc62495fa8c2487649",
       "content_sha256": "ee5ae19e91615bdfd03fa17463fa5af31033e5b2ba481269c77c6b3e51164415",
-      "currentness_evidence_sha256": "f04b3460e7c1041a7572240da0a48c56a4ffdd3a38cd893147cf622e26d26c09",
       "derivative_receipt_sha256": "44317ab56f864363d1de69b989e4f80a4275ff675ad2e9c5bed3180beea614d1",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "a1c76fcceb646ffaba59dd8e4f53e256419bf416ccfc1bbce6861f5ded750118",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "0bce2a6a8dd3c28a4f73cab03469015fa8a03be2e1a12a070741f00b24d84785"
     },
     {
-      "citation_sha256": "c7bb309ade881c4f2c5e60e2635b4ff72e06c1b62aaacc13ea9bce12c096cc24",
       "content_sha256": "efefe7688836722e0ef0f2c97248d397400f1d0329eaa9607eafb74fbcd1379f",
-      "currentness_evidence_sha256": "f4de203e43609c9d78c2be8753a4b919bdd80cafeeaee58d774d3cd4bbbb04fd",
       "derivative_receipt_sha256": "1b22ea2a1b51d973515a48c5e58f757b8a9a7a7161bbeb463bb2e223d248fe16",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "90c19037e9a057b5d28b1a10550d52c4dd577600207e4edea28c12a46b3b12e3",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "3fa21b8c9d7affb74314a068e730223e25ab5e0cfd62715b88395ce136d5009c"
     },
     {
-      "citation_sha256": "1469a816a0207e60ff79f6daaadd0d54599703e33eed9d840a0d2cf09142d094",
       "content_sha256": "f067d2efa6ec383cc65417cf26aa52af46b4f16669c3a69e87cd3cc03470588d",
-      "currentness_evidence_sha256": "195de2bb7d0b75134c840d59b80c978f4323d89e518b8cc667c4f09bd8be4501",
       "derivative_receipt_sha256": "2e2c88d80644ca3496d00bad98d68bda4ef1d68d0adc8bff6a5a3f13d480988c",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "f7155748a0d7d0efe875036c78bb2f1a4b09c07fa967ebd16117a0804e4dddf8",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f2e7754ca576f4a9fe585cf7da0db0adbe1037ca1035fecfefe253c76b60eb7c"
     },
     {
-      "citation_sha256": "1052fa3131a2b7794088736dc95edb74ff1250842a6ef2d7b7f944661616ca64",
       "content_sha256": "f0831a449c98cd9aae065766fdeb2dd66433b7013e31dac0e1e01505135cdb67",
-      "currentness_evidence_sha256": "d0c40ee9cdc7860b0b930a0737a33d0b01e1a4aa92cd1388f7f2ea1f60c1e796",
       "derivative_receipt_sha256": "c34602765786fadd2ff678d069537b2882c2d42ac37ff52af6a0fe77499ff3f9",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6cd8040e12e263dad0724b8c4798b1ce4dcc327524738bd29df857272e5678d2",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "188c7b512edd4aecce488c3898820f1e69898585dbb557814e723de4b79f2630"
     },
     {
-      "citation_sha256": "91bd9496ffd64ea56c31192d9d5affaea765a065fd33a58dc4d04621498c0231",
       "content_sha256": "f1424440ad0dfe5615ed9f3dc71a6b560eddabda9e0539315327843394a49ce9",
-      "currentness_evidence_sha256": "62af8097d44844a6eee3149ae6591fe3428437ff298971906337e132058d6c01",
       "derivative_receipt_sha256": "62c9a50cd6f144c5ad56e5be0492241aa32f06a452805d67820cd737fcc0fc1f",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "50bd6bbf4ba5fb6c7aec8ed6ea3dd0377673131a0124ccd675d6d3d1438ff185",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "421550918e6c928f9c027bc84df8e51596e7cfdc9b067ac8e6a1bdcd7cb0b922"
     },
     {
-      "citation_sha256": "a548068ed691c0f19f750ab971a05b5169f3efc9b1267d99f684fc9556d06862",
       "content_sha256": "f1d74515c405a47df3d387de3fe1503c752c50e8f814b86128d139109769b87a",
-      "currentness_evidence_sha256": "8571062a1d5051023c4504ac47735178052f2718cc2331145a0cfd81cbd09253",
       "derivative_receipt_sha256": "9329779c5e86b7db966bc62a91abde6a6b1c4e0fada9efc395d44cf5b3727090",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "0ccd1638b327216274cc07d3185031ff4e67755d98567ebca9cff9fc6cc7570c",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "08c8baf8a6730c2d04b13ba569bfbdabe5acb94116fdfbd840ce662705bd196f"
     },
     {
-      "citation_sha256": "7a783e883e8a22517c2295a3efffc91b30a4ec0491fbcebeaa8f49da131fd8db",
       "content_sha256": "f2baa132a975abe6c6a5dabc9a8ebc3ae65cf8d72678ee86e77d34f192991280",
-      "currentness_evidence_sha256": "80b89d13a90d4252b2299e2eff8f9b57a9306f15daf7410b29db1f0b7ce5f4c5",
       "derivative_receipt_sha256": "79d0bc30e13c1f87b049d86ad39d73d396f037c0717c973488a165c2dbf2cb08",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "6093d905eac654bd846a342cba711712489a23b40acf4246f38fffc1c754d188",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "fecd8e381166f2f98f991c89b6674aa1ff1791c320675347ed07264623701090"
     },
     {
-      "citation_sha256": "f67b82c22e08c5754adf9b214236a5b1050993c3e57b7fca0e3565ccdeecd2e6",
       "content_sha256": "f7ccb86012391284fe5350f0f25e7232f45bad0f3fcd3b754b0db63aa7e4ec30",
-      "currentness_evidence_sha256": "61c65849ed08365784d0254d01a76285887b73c0d63cf1d27dbbf90965e29870",
       "derivative_receipt_sha256": "24918a68ff6601678d801c546c0f202aaf92dfbd82c3717ef274aa68f77c6ea2",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "9f1760a6373dc221ced5fdc6c7d72ed0ec37ab84a171ae71a3f25081f24dfb8b",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "5b2550f1376e26b866e48c487284a5ebbeb8c1233b6f2b6ea7b1ef6ff4102ced"
     },
     {
-      "citation_sha256": "7f918432ba7e2110e44dde95bf15f1399b969986443f609c86942edf4ca1fdd4",
       "content_sha256": "f8c760daf6619d09dbe774875c7e696e4cc770e61abcb9f5d512d54a54ebaed3",
-      "currentness_evidence_sha256": "77a1b8ea1e459d4a804481cc54195b99bb4620aa0fd7abea4a3a586a978e5e06",
       "derivative_receipt_sha256": "67c900a76454cf5f198214b1b65cd3a9f73bb96cd973f4e5b903d5f1de21bfd2",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "37edbe0d9e601bd53d6dc8a3f6a64fb8c97cdf76b6efff97f0082cd67ca5b626",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "15afffc70069f5af30759f76880761169644c45507ef7d18ee8b6eabcfc7a842"
     },
     {
-      "citation_sha256": "c7986a87fda02584a402ac5a6e0432edaa3603bc841c5f7a592eb194f5a573b4",
       "content_sha256": "f9193a8753ef2a45904cd6a94d5b30156d9b01ea2546a63a9f0cc3c5c012b9fb",
-      "currentness_evidence_sha256": "eb9c89aef237e2047e1cb7e06cbe8f4935736fe8eaa0a2feda573ebf2ea5fde5",
       "derivative_receipt_sha256": "87b88d8d227efb2b6dc155becb20893bc4f2b0aa008655cb0f4d9abbf05eadb7",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "76e983beebad876e1f62be725d5f825de73409ff65a08e81f5fbe7f182f68b6b",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "c5bac2ab5072178f7e76c0098cb22b8bb32dd78b8164f328fc9867ec5736d784"
     },
     {
-      "citation_sha256": "226475d5f7236a152aa9042d21ada83174a89b7cb67666fe978d03e819624dbc",
       "content_sha256": "f9ddb670c860516de2c2c4a226911dde26c62a1c0255aae2856e1ed2965c5c2b",
-      "currentness_evidence_sha256": "4f9b76978528c9191c1f4969558495eaa6b3e779ad5c30e0e412bf4446c31b02",
       "derivative_receipt_sha256": "a027c00598ed02422c7c48b4d08b5de7932ad40b2a2c8762828241b4f09bd52d",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "0aaa850185910629566f9683546282673321c6e5d00a7e64851f2cea141f754c",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "e93a6ce5299140c298d25a0563f81970183159d23fcca4612f15c7a5e837e3f9"
     },
     {
-      "citation_sha256": "acd3b511da3c948f0459de0c9df4615303b333dd70b602cddc801b158092ba43",
       "content_sha256": "fc27bbac90396a457c4c6a553fa78de179664bd390f5421ed89369a9b10bf2fc",
-      "currentness_evidence_sha256": "8a2d782d9588ba27fd7ab1eda07817eb2d52ce0cf1fb963cdd98a17b6d0f8b93",
       "derivative_receipt_sha256": "785148c2237147ea8669d914c4ca3de3108b00397144b01ea3d6421a7fd306c6",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "00f81f9b6aeac731741157beaca2395163ed06240dcb2afaa6f04ff6b7ff7477",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255"
     },
     {
-      "citation_sha256": "db78216cf8ec36ac5042a596c416e5dc12ac5190af42f26425b7823e2c8de6fd",
       "content_sha256": "fd5ec0274c1c8987e38d01516162137cc9406211cfb84be192f17579a099de8a",
-      "currentness_evidence_sha256": "cc7502b68e50734712cfb1259c7e3656bbb2113c4173d9b1243c6660e4730dbc",
       "derivative_receipt_sha256": "7d9fe5585e89c2d4d8648b9bf9e7d5e4a8d9e61b065a6467aa4be7b802f2f03e",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "2ad101a4b2849ccf511adb10c5ca48a0b3b7630025999fe36404ebff607bdfe0",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "b7f4b80a0b1518522a2168ba7725fe9935cebe8abc9581962a89ea4a4d213d6b"
     },
     {
-      "citation_sha256": "22cd7f82de9b73bd440f1198cdc8bd8e5e60d343002d81da4e3919a79fd5808e",
       "content_sha256": "fe07514d573395deb98380953558e506cbf404194bed91bc163b53a3b8169071",
-      "currentness_evidence_sha256": "fe747e64aaa7d2d6abe0fd4129004c8b4b8fdce762b74c9f1fbbfbeaa588c598",
       "derivative_receipt_sha256": "151bae1fc5e9ab36d072eab4bce0c57b7c2d3e92388120ed98eed8f86f966212",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "91397cd5c23520d35f82d3967b29fc9e153e5dffc6209332d2d8b086dced6120",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "2ef39773d21814ebda8f2e4e0b5d2970b5c81c5042285685cce28c263b2a562f"
     },
     {
-      "citation_sha256": "b8b46217f1a80c941133b48031384827cb33cbbbd8448ba606fde464b0c17a08",
       "content_sha256": "fe1cdc9a64c5565a56aec8d8384b16f516fb2b2b89067edccc4905dc7db3085b",
-      "currentness_evidence_sha256": "7b32bfd63d9d2cca69c15921e687243060d3068eeb77009138faecd0112e5b59",
       "derivative_receipt_sha256": "3f19be97e9488b3ce0fd7a407b2babea24b0136635817276c8fa727f8a3897a8",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "be4a5e1062d39174aad75835cabd765bd4b722fe6f01054f70043bf55a32a242",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "983cd4d898872f3f210da937560f934cd33cb3b6a3d17fe0b27bbafb5d7b91b2"
     },
     {
-      "citation_sha256": "f81247c521ebbe3e6a61aa77dfd998b08fdaceb31bb0b3d110306502cb59d5e7",
       "content_sha256": "fe8e750c24c5d01add3d682429c6fc75528717bfb7ccfb57fadd7e097739ed57",
-      "currentness_evidence_sha256": "af6625e55e0f36c0d61a3be7fadaffff7e3f3b2ab1bf062c0d560ddf13520eb6",
       "derivative_receipt_sha256": "a1beea66cf923324c979c145468542852dc08660e0f5977c068821791e3ad755",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "dd4a4022f15fac0b345647bd172f561cd2de4dcfb2b3a4e99724c958a565f96c",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "cef9d77b41dd2f384de04eeea7bbfb8c06d7a227edb0f266759c46fe1cef3139"
     },
     {
-      "citation_sha256": "1c7de3b5d73f842d80ef72b18d53d421009c2680a9c43f99ae018053ea5acca3",
       "content_sha256": "ff816cff4bdfae96e6c81745a8d11609e15ceee17a2e640529a003d5fa7b0f2f",
-      "currentness_evidence_sha256": "044cf22d6240a68e4cd0747a35409ffe96f5b13c7768403c5c1e0a05416803f1",
       "derivative_receipt_sha256": "92b5aac36c2cb26f7ed9a8950375379978616dd90347bb00e6d9d29222a62b29",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "10ad20fcfec82969c46bf9879ccdf568d1578102ae72db3ec17a838e45ac809e",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "f1adebff9abb216e601e1eeac23e9fba8c6fadf49d8eaa65401630baa1967948"
     },
     {
-      "citation_sha256": "e4c40e69ee3804760933bad63aa8b17840dfc181366df89eb7b5071732398710",
       "content_sha256": "ff88a2ca5eecfb79bf606c30e5dab7c2a90a8dbfc40e28f9727053f086229bd0",
-      "currentness_evidence_sha256": "747736aefe2502218c6cb6390321d37afe7e63386724abaf11bb56fe310dde67",
       "derivative_receipt_sha256": "30f793c41269fd884f2c692a359414e3b3c5656ee9ea4222415f267b34cfa5ec",
-      "rights_basis": "EDUSCOL_ETALAB_2_0_SITEWIDE",
+      "pii_evidence_sha256": "df5c90d08d0c4157f447d9a640a93f5e770392e0557db71034df0fdf7a44a510",
+      "pii_gate_status": "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION",
       "source_pdf_sha256": "197c2f5f1f674aecbebe12f416123cf60d960e1a6767118a42b43d517f9e6f51"
     }
   ],
   "evidence_pack_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
-  "full_pdf_redistribution_allowed": false,
-  "inclusion_attestation_sha256": "efd88ef80d63c6a4b999bfed2c7aab0eef52e6e0c22dc17a968cdc02a00cb899",
-  "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_RIGHTS_REGISTRY_V2",
-  "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79",
-  "rights_authority_sha256": "013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1",
-  "source_currentness_attestation_sha256": "4882c95b47e807f0efe55ee5768637b47907af4d5f91e331a0e273acf684e62d",
+  "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_PII_REGISTRY_V2",
+  "release_id": "student-public-successor-20261010-b1dda0c8503aa474",
   "status": "CANDIDATE_NOT_AUTHORIZED"
 }

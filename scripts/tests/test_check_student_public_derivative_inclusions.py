@@ -14,6 +14,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/go_live"))
 checker = importlib.import_module("check_student_public_derivative_inclusions")
+provenance = importlib.import_module("student_rights_source_provenance")
 
 
 def _sha(raw: bytes) -> str:
@@ -286,3 +287,59 @@ def test_listing_body_paths_require_all_three_exact_bodies(tmp_path):
     (tmp_path / (prefix + ".png")).write_bytes(b"tampered")
     with pytest.raises(ValueError, match="listing body"):
         checker.listing_body_paths(receipt, "a" * 64, tmp_path, prefix=prefix)
+
+
+def test_listing_receipt_is_rebuilt_from_html_and_official_urls():
+    uri = "https://eduscol.education.gouv.fr/example.pdf"
+    bodies = (
+        f'<a href="{uri}">Document</a>'.encode(), b"Document", b"PNG",
+    )
+    fields = {
+        "requested_url": "https://eduscol.education.gouv.fr/example",
+        "final_url": "https://eduscol.education.gouv.fr/example",
+        "http_status": 200, "observed_at_utc": "2026-10-10T13:40:00Z",
+        "browser_version": "Chromium", "playwright_version": "1.55.0",
+        "capture_script_sha256": "a" * 64,
+        "normalized_html_file": "a" * 16 + ".normalized.html",
+        "extracted_text_file": "a" * 16 + ".extracted.txt",
+        "screenshot_file": "a" * 16 + ".png",
+    }
+    receipt = provenance.build_listing_capture_receipt(
+        **fields, normalized_html=bodies[0], extracted_text=bodies[1], screenshot=bodies[2],
+    )
+    checker.verify_listing_capture(receipt, bodies, expected_capture_script_sha256="a" * 64)
+    for change in (
+        {"pdf_links": []},
+        {"requested_url": "https://example.org/example"},
+        {"final_url": "https://example.org/example"},
+        {"capture_script_sha256": "b" * 64},
+    ):
+        with pytest.raises(ValueError, match="listing capture"):
+            checker.verify_listing_capture(
+                {**receipt, **change}, bodies, expected_capture_script_sha256="a" * 64,
+            )
+
+
+def test_code_authorities_require_exact_producer_and_capture_bytes():
+    code = {
+        "pii_adjudicator": b"pii", "currentness_attestor": b"current",
+        "source_checker": b"source", "capture_script": b"capture",
+    }
+    pii = {"producer_code_sha256": _sha(code["pii_adjudicator"])}
+    current = {"producer_code_sha256": _sha(code["currentness_attestor"])}
+    index = {
+        "source_checker_code_sha256": _sha(code["source_checker"]),
+        "capture_script_sha256": _sha(code["capture_script"]),
+    }
+    checker.verify_code_authorities(pii, current, index, code)
+    for report, key in (
+        (pii, "producer_code_sha256"),
+        (current, "producer_code_sha256"),
+        (index, "source_checker_code_sha256"),
+        (index, "capture_script_sha256"),
+    ):
+        changed = {**report, key: "0" * 64}
+        args = (changed, current, index) if report is pii else (
+            pii, changed, index) if report is current else (pii, current, changed)
+        with pytest.raises(ValueError, match="code authority"):
+            checker.verify_code_authorities(*args, code)

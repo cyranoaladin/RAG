@@ -1,5 +1,5 @@
 {
-  "artifact_registry_sha256": "8fdc5106c2c582a6aa95c66ad98417ed6d8a6aec3fd6d7de5ab320321e2670c7",
+  "artifact_registry_sha256": "21bee83b27ac21aee4fa8ab335c94bc546d93a0c7f795fd2573b199bda69789f",
   "candidate_manifest_sha256": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
   "collections": [
     {
@@ -7981,8 +7981,8 @@
     "unique_artifacts": 253
   },
   "inventory_kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CANDIDATE_INVENTORY_V1",
-  "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79",
-  "release_manifest_sha256": "54b35f6187e0a4f5bec46ca70f1f0de34b13e5d403cfa36cb55bc3dd98b2a714",
+  "release_id": "student-public-successor-20261010-b1dda0c8503aa474",
+  "release_manifest_sha256": "abb563fbd2623bc8dc3c73597a68c313fa9dc0291bcc335b7d18ec06e133bd44",
   "source_candidate_inventory_sha256": {
     "v4": "1aeda3d22e0e9bd20ecf0d47b8516ae02ac39a646282841be62283a59a5d0d3f",
     "v5": "29e42e8390473e47d76dc25f9ebb033bbf1cf03efd5c012c4328d065be72a61a"

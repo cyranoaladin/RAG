@@ -1,15 +1,15 @@
 {
   "artifact_registry": {
     "path": "../artifacts.release.json",
-    "sha256": "8fdc5106c2c582a6aa95c66ad98417ed6d8a6aec3fd6d7de5ab320321e2670c7"
+    "sha256": "21bee83b27ac21aee4fa8ab335c94bc546d93a0c7f795fd2573b199bda69789f"
   },
   "authorities": {
     "candidate_manifest_sha256": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
     "delegated_evidence_pack_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
     "pr300_final_authority_receipt_sha256": "feb4928db20244c2c56a09a29f0718519d14ed903ba26feedb2b11ec0e605346",
-    "public_pii_registry_sha256": "bd66e3ce15e42a0d45ab3e49181bd5834e37141d9c0a3417e88b77b8f5a2bec8",
-    "public_profile_registry_sha256": "4cc3f12ea14b67dc8d7bcc540e8bb76d9556235e6283fbe64d3f3164d5370626",
-    "public_rights_registry_sha256": "03c7761b16840da036997b0c24878bcc4b08f11093e8e45eb7c58164c5812f3e",
+    "public_pii_registry_sha256": "5558cfae648107d201f3f2e27c3d0f8952b7c987b6e40f63227c1d61e5b62f6e",
+    "public_profile_registry_sha256": "e4c040e853422492678ca8f1631fe4a959890a1b77e6c239add207b4a4b2568a",
+    "public_rights_registry_sha256": "9129a6b1dabebb929506f3b44b989ee5ae3edcb9d5846d691a68ba680827ca89",
     "rights_authority_sha256": "013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1",
     "text_derivative_extraction_policy_sha256": "6055813ee697c8b0386ebe266df5b85a744908c5deeaa2daff41afcc1aba7edf"
   },
@@ -1420,11 +1420,11 @@
   ],
   "profile": {
     "fingerprint": "e5e56fa8f049cd5c122ff1e7af108ae0e0e552568a3ea5184cfb8c84f961ab70",
-    "manifest_digest": "4cc3f12ea14b67dc8d7bcc540e8bb76d9556235e6283fbe64d3f3164d5370626",
+    "manifest_digest": "e4c040e853422492678ca8f1631fe4a959890a1b77e6c239add207b4a4b2568a",
     "version": "student-public-v1"
   },
   "programme_version": "BOEN_special_8_2019-07-25",
-  "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79-rag_nexus_hlp_terminale_specialite",
+  "release_id": "student-public-successor-20261010-b1dda0c8503aa474-rag_nexus_hlp_terminale_specialite",
   "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V2",
   "school_year": "2026-2027"
 }
