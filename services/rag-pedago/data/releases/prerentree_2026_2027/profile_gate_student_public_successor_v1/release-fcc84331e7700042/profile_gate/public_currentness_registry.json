@@ -1,0 +1,2035 @@
+{
+  "entries": [
+    {
+      "content_sha256": "006325217e12996eeb315c4923ecec3db6658c1366e1034e3be26c2cf73f1a75",
+      "currentness_evidence_sha256": "a6b8b732d487da62bbf6d975cc550089dd3cc84727c7bdf5b2cc8928e7f41534",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1f264641c4f2fd691f1d9d56a653e0ef15d044d0ba81377f12bd6a1240f66420",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1ea3df5ec2e428b297007de865ac550f1cee14a5eccea2ec65b07841b0f35d31"
+    },
+    {
+      "content_sha256": "019d27eba4fe9d342796a3432a7c293cd57bce282a576d2acf928cefeb3e0423",
+      "currentness_evidence_sha256": "391217fd99b5daf58c67c60ad4e6e4423276f68b5d90260715e0645d9063d9fe",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5b1c9863c05d980cbf0ab67ba67b66bcc0048f6283b86ef63874102667e3af77",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "af3eaa9c37d902063bcdb6a35d1973307c78f1bbb58ee3aec0b6c56770b05ac8"
+    },
+    {
+      "content_sha256": "0251e4ee6179995cdfb9aa571e283caf1dcc4401b59c6e187ee274e1b8c26382",
+      "currentness_evidence_sha256": "b26abb80c3ba56e20922917efa2398131152eba80a26459cbe111f3f49ffd953",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4caa68214ed410697a09ab413eff1d0b904353aa8cdf92b34e1e74d2da353773",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e888540f4698020c2b324573101cff3573cbfb6cdd0eb59a71da5313a42acfc9"
+    },
+    {
+      "content_sha256": "053f09fecd53879288f88a44e2f63f4898d4ad8822f24ff239cc3dfcff440668",
+      "currentness_evidence_sha256": "f15bf828dfd808ff46bb77e9a76aaa06fa3b581c8e8c1c8ed6a4f218f747d4d4",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9417e095e8881f5a3bffe0e48ddd930b356014f3b9138c0b21be1953d39edc0d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e6e79fca2c18efec668e5d89873fc8781ae85b31703d42e4a911cac46dc31917"
+    },
+    {
+      "content_sha256": "057e847bdd44dd53cc01a9b5b9cde5abc41bb5a113162c147cf00c06201aaccb",
+      "currentness_evidence_sha256": "f32945326de54ba6e367b1a68ce4c7b30cde6e3f55e46aec781198229d1aaa0c",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "2fcedf2adc31dcdd3dcb15a54305a9f69429d60834d2c1c199396edd72786bf2",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "475ff549a3299a76a57ade91f97245e157d00e67995a064dd16991639f747781"
+    },
+    {
+      "content_sha256": "061c53942e88d46a270ef3133b8b686229891e369a989a2df48e535126cf7a46",
+      "currentness_evidence_sha256": "71c4d0f62028a579ff70bf2489e1081824a16273b062993ad68809375b5c1822",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5049e424bb48b3e68602ea76d84e0b37da2adc5f60b3f56e2f42cdb8f033f645",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "20bd269bc673c59669b0f1d49ba199d10664de13a7d51c2553379177f938db88"
+    },
+    {
+      "content_sha256": "064bbc309e0c883056e4fe85ddb987abe983e8ec67967f212f2cce402b08d4cd",
+      "currentness_evidence_sha256": "a3ca3fe1d6c6062dc58eb1569ffb801efb2f4c124ed51c0e7d0192b7be1b0d96",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a122cbb29d3d3ee18f80f8f9e21cb9836d4957974aa65e169d2607a6cd8ba878",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "44b912bc48b310539ac903be63e2afa51d33fe6d0c4b71167f83f518155a7eb3"
+    },
+    {
+      "content_sha256": "088b74841762d24c8a4df1962c5284e141042124e0d04a9641efa03d21d2624a",
+      "currentness_evidence_sha256": "79003119ec05baacc83e0a78480cbc329c14ab2d3614580c714040917f19962f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9a22b89562715bd489945e05f0d630f93df66bb9ddf7cd293c27176947d93ff2",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "aaa6558cdb71efc9c4c7a7c089247c268d7c22b7fda42c0d54de85dfc1373dcf"
+    },
+    {
+      "content_sha256": "097db15dc3b6a8bc453d158e378faab1831d2be63c8c7d58ee896a6fe5be5afa",
+      "currentness_evidence_sha256": "8e99f196391dd6472511d7c0fddd9c9e6079be36b24338f42437e0737a927cdd",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "94c61ddc0a3c7cec5d281da61e6df14d234d148c30a354ccf0cb9a9e3475b132",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e351cede38793ec81892a2434fd6ba397c745a8dcc50bb56bcd9f86f2f89f6e9"
+    },
+    {
+      "content_sha256": "09d18c07345f83d32b7a3f1d4273052b552364074dcf75186b6e1682abb7de91",
+      "currentness_evidence_sha256": "ccd6f08aaa351efb33a4c238b7265c89623dffc58e036ff018362ff7698fb4fe",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "7cd6a8ec1b90e6d4ad5c2087b0235ee9a9d2fd6f8714d33a0770563f2b49f913",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "40d6d047d507a306d9a3c814ffe01d0c9e4c7cb8ddf1f6be752e0fa9eec2b3c8"
+    },
+    {
+      "content_sha256": "0a11a2f0a6100e2489976d02003345958da62efdd72da4c5b8f5875f0a167718",
+      "currentness_evidence_sha256": "05dff61acb20c87a5a5945694b243f1bd5cd21ef8474a903ec7d38e4a840df04",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "fa1b5d7a6127fed4ebe11d23ca5096cecce2ebfd5a09c66a9de95a9623b238c8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f8f3beb077415749ccd22048b8dd4011a9bb7156c2f1818cb800056cf13ff606"
+    },
+    {
+      "content_sha256": "0a3ce33608d960d25958d9cbf592f44eab5e3913d321d2468df8ab2016f20b19",
+      "currentness_evidence_sha256": "2a03e92bbad55d79dec8030216a49694fec7a79a64de55748967481c869368b3",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ae7e5aa49ad4dee3794709014d1ed5eb56fc3a58c9e90e1d4f885780ad1022f8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b51fdf6b1dede7bd216d553c8106827b3f9f5b4aab0280ecb2001550d81a19ee"
+    },
+    {
+      "content_sha256": "0a3e59b0b3311fac0449f01cc619be86e425ec31fb4ad9ce878efb682366a6f7",
+      "currentness_evidence_sha256": "a451bea99b69c760799509fda778e7e2135df5283495bacd425f37041a81e5a9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "64edea4cc62329084262f5b93cf46d8ab7ea86e4668e71289b7174b5f02ab549",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "55e2cb21981cddd91f90c04debfced7196ad8a1460d147d947fc8200b36f39ca"
+    },
+    {
+      "content_sha256": "0bfe3571192b879d3e5811241e673b747188ae9ab51e5d80f3356d1cbe78c31e",
+      "currentness_evidence_sha256": "ebce6684db1282541629362d0e5199f6ade0a0242584864dbfddf64180f75930",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "45fa843591b37eaf15c97bd214eed5d55b951e48c180e902059adf5e444e02ab",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ae5710d4a3594fc5af9c3b95140359747095487730438769483a1427dd30e6c5"
+    },
+    {
+      "content_sha256": "0c997af8cfaf8a33cc3891df67642c1162404838fb7de31a059d638748e75314",
+      "currentness_evidence_sha256": "5d124000266315b2c45511fafe236f5e2fbf4ae4667b0f25e85da228dacf7379",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "463e533df0ccdc027b8856958290cf5de7a85363b3de2fd7bbc3241a1d0c7205",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e8eb4be88578d123c356c18cc6bc7f76fae5485a77a7807f9d9ec02db46b3b1c"
+    },
+    {
+      "content_sha256": "0e4ded1445e291bc8f3c7232789ee959b73031897fe0afa6a90a4ea56feb10f1",
+      "currentness_evidence_sha256": "255d7903ca5e7ffd3fbe58898c0f1d78dd1c6ce1c8abffc5b75800d1a8acef16",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "33bd55b0743250a8f35c334a2f65440e00ab2dcc0bfe031e1995e9a809bb4d09",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a76478f060cb0b75d72a27b0f6da185bfcbeec20a49f5358a3661220705dd8f0"
+    },
+    {
+      "content_sha256": "0e72da346d8cf39923b0ba7d9c4bb8130f063b220b55f1a76cbb5ad1dae0d7ff",
+      "currentness_evidence_sha256": "bc86708edbe051e14964cfcea60b1a9d79aa5998f7f3fb9d15e46b5797f56497",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "7c57baba95020e3023f0a849d14d741c62ade07ac3ddc91ec8f6b1e2147a5ac1",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "c9c42a940d44eb01f132cc8533237c8aed877be94c05746b9bad7f7227de0cc5"
+    },
+    {
+      "content_sha256": "105fa22c66235088e8307f6e8fb98f2774f3570451f6400a262730e1292a505c",
+      "currentness_evidence_sha256": "1634e23009951768888b2f723220a145613a67614b66bf36a7a02654431e321b",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "8354bfe55cf8b6caa40b9162ca7ef3e10d8f54b397a6fa9757f4dd6ac63d1667",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "40b483c559f70a18a290d74071b96112dbdbbea707e896918589d5f8e5f482b3"
+    },
+    {
+      "content_sha256": "12641cafe9d546cc9ee63140e1e5a4bf09c5fe5af874a970a755f2995b19c6db",
+      "currentness_evidence_sha256": "aaa516f456e7bac877a9803c34a0df00065630b791dedaee8f892c1fe2c429a2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4bc848f1bbca8c34a82db6509526bbc646acfd932ac240506821e9e553fc549b",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "17b5954cd90ce01de9ab8f392db9185ffa9ad358ccba68462f31b2221ee80123"
+    },
+    {
+      "content_sha256": "140adccb9702bdb2c84e89e3ce924b20b07be4efac0b73fe364ec47aa3be6087",
+      "currentness_evidence_sha256": "e0acb6531ae200c666dcb167e1a61d4120dae099e6cdfa48cf65b01068d92d44",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6b37aa0513186aee154033d3b89955af183f11679fb075fbcac76f39a060dc08",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d69598e3c162b0fbd49ceae704dcca347d792f738d13eb2164454452888f3af6"
+    },
+    {
+      "content_sha256": "144face05bc02874b37c48a841de7185f9ec56e14eb33c00ef8946d4cba54998",
+      "currentness_evidence_sha256": "e15991744089e7d8aa3d1933447647da74dfc2fd912a2cfcd2d5a2c959b31368",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5f3806a084ec5830043452fa0ca6f86e6f2711fa2704e00673ad52043d3d777c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "aa09447740e35e7ab6e2c9caf25c2786a8a0446ae7803b64d163f5b9000fd4f1"
+    },
+    {
+      "content_sha256": "17233fcb54384279898965e27214f4a74bf50d786f2515bb045d858932d28a7e",
+      "currentness_evidence_sha256": "1f61dbcb95cb8bf88d110f19f11c4e0faffa3c5e2f4166cffc71f566b853d86f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "12b1670cb347a824886246facdc4d991053d2e989e005c06c630759c64f70115",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9b05a15d39750c3e0fe6150809418dcdf3d1df36862c56406b6c00ac8a9918d7"
+    },
+    {
+      "content_sha256": "18cb060783120aee661279803683b91bebf04dc5f40402f0f335719ad8a283ad",
+      "currentness_evidence_sha256": "b7110c81c7bea04c7218d91511a1b4eb7c3a2a4b85782a8ed8da5c15ecf95dcb",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "66232be08dff6af8f5ecb7109b82e673859b6f799c0cfccd1e0424dec17e5705",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9c18864bd78628d064c21e82db5857e0fbf8ec24faf415ab8aba95caf15baa67"
+    },
+    {
+      "content_sha256": "19512510e3aa8b0950cdd31e52d96c8207d26569ec3ca3414c97333e5eea38f1",
+      "currentness_evidence_sha256": "7b2ba05f258117f40ab8468261208ad54efcf5b2705fc9bd8045e4b2d5a3dd83",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "746157d6b422f3e2384b21e9b1265948ab7c701527eb2615ecbaa51ab97868ef",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e34d4b98c7567622889ee50407e9042f12554b31d1c6f5ed413f4cfcf8d32b87"
+    },
+    {
+      "content_sha256": "1adabf6629a4db83d36b25734d42c9a782a757f503140ad9fe74f95771defbf7",
+      "currentness_evidence_sha256": "a5165a33ec2eb5bde6812fe4db747a7e142fd4cc2385cbee16b4327bda1ac2e9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "244ddcab0937d1a5011b1ae7621d6c60da55aa29451abcf5073e7493053591a5",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e665756e63cd5c67b641e31d05c78a4ea74d399cfe1f766ea91a2b6665097f4a"
+    },
+    {
+      "content_sha256": "1c0d67aa73848a0ff3a7168b5b893d09d13a9f3d445675bf9c01a140528000b6",
+      "currentness_evidence_sha256": "d5e9a0b2c32874a9a3eccd43e51404175fb5acb54d78634fbc70da3f3c009ece",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "f6b6b2828e5f6581edda1e51171e2f15ec033f2026cbc138f0b8709f0c968a8e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1d4d522350ee03ce4453ffe5766dedc0257a7faff317177cb4d34ca3c5213cd6"
+    },
+    {
+      "content_sha256": "1cdf8818adfca5d983722be598926201d8f90dfdf76c215a358260cffe0207b4",
+      "currentness_evidence_sha256": "f223b8cbce539e05e6576bc96e841554e2104aff2bd5685e71a91148cf1d8e9b",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "594ba02464512c4d1cc07e16932ec681f6ba99e8e5612936ac5d1bedaf7686d7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "6fe0291155b423f705d1e1278075046042b7ee1c5776e6c8b135cbb494bbf366"
+    },
+    {
+      "content_sha256": "1ce9135a2b442b79c19644652375757db1c32cd1cef39b36653070d4f9de99cc",
+      "currentness_evidence_sha256": "f9b8b1b7d8316f7b05cd81b7ed959e06b075c1d32f7d5078296f94a29fe5d913",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "561c6f5507bb60f6616353bede80fbe099383a7a766a10fce920214dbacf34ab",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "587ab86c478dc11edf4a16d847f92e29bb4f96ce26c8460195fd3b10f79e2425"
+    },
+    {
+      "content_sha256": "1ede07bdb1bab62f8e90d8923ca1ffb6cb92fe6c4bb160409cecfe9b961edbe4",
+      "currentness_evidence_sha256": "3a916ba1caf2f4b6761da6c5e92be7f3328a38782fe460ba1b73c30f39767f6d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c461bbae515b252cf03d4af8fba7e0d8c4a0f2dacfe941c55cdea59c575fcee4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d9079f79992de3dbce0b238423d7f8a87273fcce74f8aa5bb17e25dc7dcd528a"
+    },
+    {
+      "content_sha256": "1f05a8db0e101de25b60a5d45e3ed755aab8c26fe740d504c917abeae1c98f70",
+      "currentness_evidence_sha256": "c5cd159cf77095f4182a2b8c47ef99383d5d82cd926e73c9b03bdc57894969f9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6ebe42487b94cd318827bb624f4fc38d1c1caa4dcb1a08b8c83639f7d04a2666",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e97609b9e1f294168390b949d1b37a862869a71b40d3be5ed1d24ecab8d1c8f1"
+    },
+    {
+      "content_sha256": "1f9b1c431f07f91f7f9de35647bbaff37233fea752e4008b64751801b78ae322",
+      "currentness_evidence_sha256": "1b2662d73f3a6b5197503b95ec8d760c6899ec53f2694ab338d3d3d2a6ab2c28",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c065dce89ef9b95047589eb76f71f415d37434547f4f8b922428943499e59908",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ffc628e67b99bbcf4fd7a8cafc96619973e6e459ce263632d1cccd1be4ec2c91"
+    },
+    {
+      "content_sha256": "1fd37bd4d2c2c79c4b25faa4cec83a44d077f1e526067f0848575f82a097dcfe",
+      "currentness_evidence_sha256": "0fe25ff3664bc9f119accc8c874c7cd07ff32bb88ae7a1a84b5a50e9851cd083",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "abb8c3db8ae0a6ba6cbd2668a0691843c500948725b2cc1de3e498911dda9773",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "46c8cebda87cba6dd6a7d523289ad69282543a99cc15cd1940fde90bbc2d5714"
+    },
+    {
+      "content_sha256": "222a6261c2ab3b183ebcaaf542c742ad48cad1f4a540466cb83788397a0b8b95",
+      "currentness_evidence_sha256": "a6bfaaa8442792741a2b0415b4df52143ac2de37b5e967bec9c08bceb1a8fd59",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "792564965f4cef9a8ab60fe85908a12fdb9d37177446945bf17950b33ebdcbf5",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "202ef17f4c78e680b41ea2feda10cbb28e01b3f6f170d8c4e958bdb89708ef14"
+    },
+    {
+      "content_sha256": "23555a51674f80d18c1c54e7cdf63a6fd9fcdd39792dcbb7c37ecd901ce472a9",
+      "currentness_evidence_sha256": "9711d23163043798d2eab91930f4c26e676a023002d4c538de1eadfacd620ffe",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "0acd94d28b5f52b64ece9fffabe6e088cb09d52504256ce26f50796bab8f8388",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1812d129eeeceeae1a36a11bad8ae3bc8e8ecdcf589ddc200fc6d0f7ee662e3c"
+    },
+    {
+      "content_sha256": "23813a5539585c555d7cc692b86ae1110a3f86b3a5fe6d53bb69b9df19368b64",
+      "currentness_evidence_sha256": "1c44d89af28c3b01432aedfdca0ffc3c76cd3f20b439d2f6cf554bfbca7b3c88",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ef60e267005556a16e3aa28ffd159fb99f4be3b0f20df788897866922a1cd1db",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d604d6a97323968ad6efca34cc1debc4e857a5cc2ef916df7ce9e95df181feef"
+    },
+    {
+      "content_sha256": "23a5df7587ef66b6689f4973aec0f3e083cd8a08ec3df4193970eab81130e0e9",
+      "currentness_evidence_sha256": "228f22bea8c232c8a2b6d1f64ed73d37687d6df32692e84e3fcfa11b2e4bc60a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "86b000d0d839aef918760cd7a45e65d670d04bb02ee4eebfcd6a375dd7eb0480",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "acffa72d962f5acb2f53f4a28d0699c7cc365b3a054410ca99236cb68c5aefd7"
+    },
+    {
+      "content_sha256": "23c6cd4f806fb85fbec72f5cfa09507d20d3a530a21448ec134c3abf88390616",
+      "currentness_evidence_sha256": "cf04721bc0fb37d05b8dc42863abe06d495466a74ed3748cfe481a5ec4a26994",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1df94c21fdc8b586ca1cac5fa151178089ca6bc2dd28698113bf860c0e428fdf",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "fe1d26535eedee3f1bc44920595faaf9a9b4aae732ebff3854d75d4177c2b202"
+    },
+    {
+      "content_sha256": "27f2d937d334b4df33a52aa5f4c034aa829a7733be4c412de43704615a628016",
+      "currentness_evidence_sha256": "2d796068dba95fe9f2d003466a5f5e3b514133978e01640a7d50d99ec0d79612",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "bcef35d1bfe7c3d745215eeff322e4832b6f0990e61366d0fcd45e14bb4309d8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "12d639fab6e187109d2dfec37a31b12b85985e3aa6449ece2c70ea06a0578468"
+    },
+    {
+      "content_sha256": "284b557bd599f5a30cc78923af4d63efa7c9aa5e34e31078532b1ada98d65164",
+      "currentness_evidence_sha256": "4d03b9170117e6581a674771c34a51ca20bc4ff49f94a975a61e36695b1f2bee",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "88178ccd9b291c7e6cf972a827d348f5e83f112ca38f435316b9433f91956f4b",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ac4b61f423d2c8d05006a392423a5c4d0338647f3ad579015cd775af0b0295ad"
+    },
+    {
+      "content_sha256": "286d099f5fd1fefb07b891cc46a9caf388f24874de873b19b3e2f7b6281b9d66",
+      "currentness_evidence_sha256": "a5df8d1d65cdc15e34bba5329c5d864a1aa6a3fbb9a9af7574109f1910af6c23",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "dc489b2bf5aaf8a7e0fafa5872bd1895f7dd1d0fab45d012e06d116b86362917",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "fc7a8b53bc7bbcd95e213cfa41fcfa7477e581a7f0eef93891e6b4d4f6071776"
+    },
+    {
+      "content_sha256": "288b0ff4b1cbc4f349f13ed0df9578638a3d354de59b7e51cd1980a6ef5f69c0",
+      "currentness_evidence_sha256": "bef6425ea27d1d68cac190c055ee04636947ff005977360fb325577ece4c0408",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "cd21eb9f73c800e16d59b943044de64be76bbfdadccafe9e7562781f558c9615",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a4dc34896af5d27a62a2f580815084aaf978a9288e10a0c2307ec6b9a83166dc"
+    },
+    {
+      "content_sha256": "290925916410f9705fed57102c53712c4638e3b73d9732936a4fea1f2d943c2f",
+      "currentness_evidence_sha256": "ff8f4991c5ee85358ba840ad3fe95182e749ef459891d88f7e3f43bcb9dae8c9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "0760d8772be2d9316e0589741ea1cb132ea5920edf6cb5753402ee024390f31f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "3e398830332c52981e2d811b699760834b7a2cc786345bdcd3eed2d8147d54b1"
+    },
+    {
+      "content_sha256": "2bcd5302c21b02f2e1b51d45f8369315e473248353d2a8360d5240c80e85e394",
+      "currentness_evidence_sha256": "cdb57b6622b598526ea996685b99b81184ddfb23f504cd53161eeee4c29deb0c",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b2138f5e514ef4b16cef3a3b8d2be5c9bfb66866064f84442ca6a74f25d2a858",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2dc0676aef5fcfc259bd41f2d51818de052c4b03940a681213b15859f3eece8b"
+    },
+    {
+      "content_sha256": "2c56079fed059b4b5b0437cd4180ae1a20aafe674b2d79fb524a469a964328ba",
+      "currentness_evidence_sha256": "c095fa1f12f2ccf2854d727e43f9b036fe3d8dfca1d1a8d5b32f52aa249411a6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "8190a9fdaa05e70fd6dbd16369838e3b6cbcaf4c0c0b8ccd52e2d759ccc1dae8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "284637c904ad2fec3353f97768b87ce4582da19e5a51af1c2e69929307dbdf06"
+    },
+    {
+      "content_sha256": "2d4902d82a1c785e992a77fc78138c7b2a0e9ea694a0bf844f4f7f19e80ae730",
+      "currentness_evidence_sha256": "53f95040373ccdc176df07f8e8ec792490410d49eed6099096b3a43d1eab3bf9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "34fc84055ab337c462602ac028ab93ddc9bd8f6ae26a2311fd28ab3e02621856",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d0ebbd83f4578c0e0f69c80128c1afd4cf0d93500d42f24ca3e7255d8b444679"
+    },
+    {
+      "content_sha256": "2dae31c2c0883dd9e2d7feae5bb0b7f1f11b4b07c0f032ee4ef0d30a9d7289c6",
+      "currentness_evidence_sha256": "b91ac1ef3fdee9737b23acb71f82db6f0317880fc1d26924454441023df03e2d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e130c984640425c89e1f6fc6d3a7962f0a5487e2c5f3cdf0c809c5896c897062",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "84a4fae056f43805cbccd901f4adad163721723f717dc55a1ad3c05068913b72"
+    },
+    {
+      "content_sha256": "2eb8cbe6e674376dbb68d37458597274e3f3f26ac163c1559f186ecaff8e9603",
+      "currentness_evidence_sha256": "6319369fd7e234a43dff34608b6b2d032ee4807a391e4fa181ad6a14c3df4775",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "f7537c034c2e76956841f98b12fb4a9428ce78241905254c45aac6127376c1e9",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "aaafaeacd849b4d5a68b0b277cea251aea0ca7cc22a40874118f66f836b00ff7"
+    },
+    {
+      "content_sha256": "317974b21d1161e31f87fd218e3b437b464ad0f6f95403048121b48677e58f0c",
+      "currentness_evidence_sha256": "0ae6ba2bbafa280dfbd60f1d26b0d49be1fb26dcd0fc891785afe58fa0507da5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9032b859ab22f864bf550e358874cb824e683dd7dbed701899432d6f1678906e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e20a163eb24d6a6d1b5e602887e8c6cd6c6f74e76f7b8ae1f798da6346100712"
+    },
+    {
+      "content_sha256": "330ed5fab25bc757fee19efaaf5803199f764e40b0cb57ba41dc165659edc714",
+      "currentness_evidence_sha256": "96846dd1f22fe8c7733ccabdc587bdde452a50ba5109c861669a56e67b9f9895",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "82b228fe0421fc377737375290cd90395fa316ec2debf97eba65814d96c8d08e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "75ce2c7e828bc604035ced94fcde0007807bb2367d54b2f8a934d67cd9c8d532"
+    },
+    {
+      "content_sha256": "342cc49b5d4eb19612eac59edb5d17f513f563a3cb882cede894b16e9ac67e47",
+      "currentness_evidence_sha256": "062b8530bb6729912c43275bb5b4c343b1a83905ac434a84eef0f2cbe018f26a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "99c91bbe799d5b5548010c9f73de0eb2a42ccefbfcb7ecfc77868e033e3a5638",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "7787a7bcd532bdf81a3f4bfb1c76f7562af6296aa0c9a843c01eef0bfd994451"
+    },
+    {
+      "content_sha256": "3478365b138cc06d4f8e32abb4db2c1c9522472b31a890f2f42267d4d3652381",
+      "currentness_evidence_sha256": "734a3937fa7c76e72589bea5d3be2b56e6f65d7884b53acff46f83ae39c63570",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5ef67c149524a264a1ddf1e99f4ad2b76a09cc78146e9d5f1c1f9c50f3d49b6a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f1d361e561614a7f3e46ca4cd1c5435d45b02b3b7fd1040b29c1ebd463af259a"
+    },
+    {
+      "content_sha256": "34cb51291e1e66cc4826a1b4b628223452a808ad95a4ee96d7ae429294146f0f",
+      "currentness_evidence_sha256": "3d8faf11b525680969587512735cebc08f88ff2a55d1b278510b234d37bcd210",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "488f6a481986a6cf889a11d7ddf96b1532a970fb630c53967f08f35c0f48bc55",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "821da2c5bd0fbc66b0b32cb09140bd3a6dedd1d651e4761438b9972e91388adf"
+    },
+    {
+      "content_sha256": "353c99d59954dbae61347fcef5e8747d86f8cffefbccfc726fc543a832e00799",
+      "currentness_evidence_sha256": "d83a54d132f288355e1048a66d8a5ff9f17a1223e820ab2e1f1d2a835b8ded89",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a83d75dc48f949fc0dacc6fba50fde61af92db3b2331664f4cf94f159d99684c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "732bf55ee80af1b5c8a13243652a4784be134ce4b636ac8d9893f7377a28e7df"
+    },
+    {
+      "content_sha256": "354ec48b02f3c699fd08420daf6f8c32f9253ddbba6303375c372aa2f8e3dd62",
+      "currentness_evidence_sha256": "b6119caa10cfb2ed2f3c35d0ddfbecf7386c9a146f077339642e1fec9307c786",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "03e98c83921ad7804bd8cf4bce4318a477fa65b10fa01c889077fd4f5fb28676",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e5076a88905521c6756a3cf943a7ac522e0f98f7c8a669f7301707e9bb4dc513"
+    },
+    {
+      "content_sha256": "370250ae5629e0baac07f8e7259c7e6083aad1b9c3305777a989572617f55622",
+      "currentness_evidence_sha256": "620638aa0ab9d614e507cf3bc38cdb3bdf7917c010c53bbca3f60bc3a7d4939f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c96f5e548aa752321770b694cab312f94f890635159c07b94148146cfde97113",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e73a4c95064ead324a3f07a177169761e71ab1503c36d1e92b06fcbb5dec3966"
+    },
+    {
+      "content_sha256": "38e15ac09cb7f0800b24a3e917ad69e98eba6c783e7028fc5dd216db7b8feb07",
+      "currentness_evidence_sha256": "e6a55e41f829cf5a0663146f39b359167c66b54e3485f134479a53edd806ac15",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a81d3b3e8bdb6e2021dcc60dad73ea48b4218065df25649aca8288b7dcb4a19c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ab9b97062cc3e6965abe02c56cf5cfdda5e6bb549428fbd3a7a5a10b826255d7"
+    },
+    {
+      "content_sha256": "3a2180279fa8cba8e293986713bfb68281df09efc50a5611c9f9043e27bbd490",
+      "currentness_evidence_sha256": "9706aac34810c7401c089b69dd1da36f8bcd73a7a8dc6e79ff4dd0b8e6100e35",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1b75f64718c3bf74cf503a752c2d22a88da5395e8e89c21169b0a503b37bda1c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "692c871ab2003438b1636e19f1e40de097833c39473aae700e8434bcba48a0c8"
+    },
+    {
+      "content_sha256": "3a7fe16c7d753587ee3137529235ddf8171f67f0a8c6b828da01432260cc30ee",
+      "currentness_evidence_sha256": "fce7414c35f0f4a0317ec3ca31af2c05ca83b213f4df1fe31d9507dc2677c63f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "78137801a0b0088c91f540566403e03dd3b6e7850f4b8a3aaa71b0f1352547ec",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "3e338a19f4ec51657e9c20774d2d7753a2bb021d11f34f7ca49c2b13c4b328ea"
+    },
+    {
+      "content_sha256": "3ace9507cce3c694cc782cacc820bf82c01fca5a1c770ba9454f26c543cb6a8f",
+      "currentness_evidence_sha256": "64acf4b513830d664f9e054a7db029844ac11b0fd121a6ec2b00efd9b6d15344",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "dd17b41ecaf28be507f0159fdafd338cdf65a3935947a480e816ccf6c253d37d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4b3f038c95da9d5e62ce66305062449a6c6ac81a307d885ebd8ca72f075c5909"
+    },
+    {
+      "content_sha256": "3b519b9f43f9007f7a91d041b0d4cd6aefc0d25c7cffc74e44afa2a2bbcbbaaa",
+      "currentness_evidence_sha256": "1582a4572b03e634198ed99673b57a20692e92c5c48ef2a74ef965c0b952bafa",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "3bae55aae33bb2c4a5f438bce3f66ba1c1ecdcc811e3729c81464f5632ecd64a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "09e3797e0caf2ea64920a516e11e85c204e12e6ce063db4adbe4307f90c1006a"
+    },
+    {
+      "content_sha256": "3b93698643c497d64038be6954133853965c0ad6e7354b665a755589b1363c2d",
+      "currentness_evidence_sha256": "69768cd1ececd43bbac1810da4c06ec70d45e0b039ba5468d46def4d5588f4a9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "971b8318b45cadc8758816659b18e49c7b6670d6241102827bd40bf967a67172",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "8dc03c641671d3a7b4d3e0bb0e8d18c3d3de30677ac78a4b3ae4c9cfee697003"
+    },
+    {
+      "content_sha256": "3be7742d71b6857482cae539469617100b8b030a6454f13913c28be56dd63025",
+      "currentness_evidence_sha256": "7f11e0de3c93f1e0f2909fcd8e229c8351dc051d03d47245cfe23ad4d51a1782",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1770ea3ca1dcaa66c2043b018cdcb13adcba5bbfef9b67b913385136d8ebf12e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "77533482cfda1b59a997868202489b71d53d3b7099d539025d57698e30a06998"
+    },
+    {
+      "content_sha256": "3c9e2d34564068ce91d83b99d9089fb1eb6d820e757b3a2685254a897a0d5bef",
+      "currentness_evidence_sha256": "922fce38f6b4a7f19c6396e89b5ebc4d20022a336f55bbc28e8ada9610698037",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "fd9bf737ee65643382de05c38435466af060a5eefd1ebbf69ecbb565293d7ffe",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "fb89457f3bb84300cee45d5ad833fb7d8f44dc1f5b43a7a760487faac3ddae00"
+    },
+    {
+      "content_sha256": "3d556e6aab7681aa3ed3303c3548ffa267962cdbc0f0115ed017af33573381a6",
+      "currentness_evidence_sha256": "3371788ecfa812ce6fd21cfff851279a447e8fa212be6ad3b5a26abcbd60b68e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a681483f71be46305dc97d5b52464b2ccb1b97631435aa53f5ca91b2a02aa2f4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "97df512350089a3fee8fee97c0b079bbc07b0c7862fa143fcb0d8996e4d4bf08"
+    },
+    {
+      "content_sha256": "3dfbb1023befb7f537c6d6394aaa24e0bb18b2dbe6875269f52bc00b3bc5977f",
+      "currentness_evidence_sha256": "066aa728e3b8ee82e1dca48563e9da2bd65b7bfa105b4232bbfb30376b4a5622",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "adfdc24248897234d57309aa7016894c05f983e890f5c26445f3ab133922e30e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e2ccc24fdbb1ff2a4cdf2fb9545b636d0591e4d22027e29bd32e367370f14401"
+    },
+    {
+      "content_sha256": "3f5dff88370943abf05d19460190c285e513684fbbc2b80e26e3dacfb81d8120",
+      "currentness_evidence_sha256": "2488a49a7da4937bbfb1aa186ab60f0bc4259c289634797b51ba0fda38cbdca8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "2fe70859a2c10316bb38a873f38afaeed0aea32a8400bac63784cfde4f384c00",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "34266a6070800766d64859ffbbd9443cf529c52b8d944426c07e4013f4c4f58b"
+    },
+    {
+      "content_sha256": "4065b9a57d22af2d0f75d56913856c3ae43b066bfe072a8e4d9473b17cba4231",
+      "currentness_evidence_sha256": "b11233907b259b53bf9135102487837bbc78dd40bdb06ffb64377f5ecca67bfc",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6bdb81b755670c19ce1b5edb0be523662b6b1c230c334635387a3b7474c2f263",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4b7f7204fd5ad677cd323579fcd1e220f3f843f966fa5ec00cd5c277e08f934d"
+    },
+    {
+      "content_sha256": "40e52cdeb8f4c6c0296c76062bc30652f345b8be09305c310191292af46b2fe1",
+      "currentness_evidence_sha256": "8d632e82ed0dc524d5d0f9fc6424c46de3c90ec3bf93eddc5b5226442d2e6d9e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "2ec2d063fea425c96f4ad2301f4b96c7ac2749e6f0967000f7f235cd884b5383",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "31903807f1db276944ca63b4cd00011d3294e5f475374bb32490516ccbe69e7a"
+    },
+    {
+      "content_sha256": "40f46e4c2fcda09902f7f2dbe3eca2bd100cef2c861e554fe20c951fff80794e",
+      "currentness_evidence_sha256": "b7848707534908083be3a896e18b0b0a65e9ca594403a5531641dfc16ec419cb",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a4c6f61dedb8d753e3dab87c460a7417276ea9e85794ddb9fd3a2e7d48732ca8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "309a7d7bd6907d1d17b8690b5e68f46d719760efc118e65091a8204d12d98d82"
+    },
+    {
+      "content_sha256": "414789d0061adfec3a31fbefd3d61c5274c782bbda0e9255e3a8a074a1576b3a",
+      "currentness_evidence_sha256": "aede962c6e61169c8341f8f7e39dcdc73b76f220c3ccfb61c76c8d78a89b58dc",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "83e6384b7aca0c155b7bc247855453b7807b8c2bf0f8257edf7d9dbe75d29266",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2f9442c83e62e483c96a0150196132953665b0b892e7cb313b4526977d0a933c"
+    },
+    {
+      "content_sha256": "416fcbb30e1b999887f88055408a2145b92b7c72ebbfd2ba41ad6b61498e6e3b",
+      "currentness_evidence_sha256": "72f1bcc0bab0104bdc8413a58f9bb0e20515bc21e55c335ad30ee0b6470edab9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1a897463e6128cac1819a27fe629acb6a192d14938f9e1249eeedb206a16293c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "79e04a388f5b822fad189644a838df7ece47d6e4c3498f256bfe68587ad8cc28"
+    },
+    {
+      "content_sha256": "41db6652d852fb66031e89d27f077761b36d131cd93336cd0646424d9ed216d5",
+      "currentness_evidence_sha256": "5aa40d102d59a3fe6f0c884fdf7676bfdfe31e53c361044237fc1854c5765e96",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "54564527dadf0cb3367302cb905fa7947880d7ee31ebbc3ea38f83286c6f9c21",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "50cdfb015febbbc184334b3ff66162b3e2ca234c29d2d3bd9051fd16142a82bf"
+    },
+    {
+      "content_sha256": "42863c838976da882d92857f6ca97c8dbe912944108023a4d228c6b74ccd55ff",
+      "currentness_evidence_sha256": "68bfcb667753f0f9df0ea461a49036921a5e1880d1c4bad8e4ab18c398db4911",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "d192f6447bac3b94ea91269c66fe0143b842f6a299ca794889a30a0ddac00057",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "cbc5415887bdad979236635b07645938e0792f0bc1bfad653e43de54830a51d0"
+    },
+    {
+      "content_sha256": "43a2abd62b362601da513754e75434065574ebff20722d52c134d26f74eff846",
+      "currentness_evidence_sha256": "311f986d2d530d91ca25e4e2903a7061038b9818c07c5a7853500d7560bc089c",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b7498da5ba6c145b3e5d636c2a42e407274cc0e48202050d27c5fd1899e0f4ba",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9643eb5b5854700c4ad70b2062efb27840d5f619e108c00bca6b6967dff29c8d"
+    },
+    {
+      "content_sha256": "446a6ffeea9b599d6cd9fb354d483363ac2e80c05e8f37b2ea67184169786eb5",
+      "currentness_evidence_sha256": "205b222c32087d3f5bf5739cbed5c0d13ca1829396bacd8a1637ba54c56c85e4",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "0e231ae980e01c1931a43e54ae2ceb55e997d7a74f8951d4bca38089586d4197",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "7e488b99d2848aef582f1ac371dc0dc59ec5ff01647efa277e22f4c8d1ea6117"
+    },
+    {
+      "content_sha256": "45e0efaee325987977993dd4748084cf39232470a226a794d6a8869bb54d6f6f",
+      "currentness_evidence_sha256": "f324b289b0209e7e999d9730cdba1f5dc14ddd4c52d8d2f3f32ed9035d919254",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "f9f035c1be0438b9eed074fdd5b7fc0a43997cd75e75da26395ded74f110179e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "3b32b3d0317be88648fa0e8986302f2bba6fe301531d2e975ab671f7d60646f2"
+    },
+    {
+      "content_sha256": "46257b929671fa1027b2198af49f78ca25eb3f489a3448d45744c7183807f81d",
+      "currentness_evidence_sha256": "ba64103fcfd7f4f182d3ad09aafe82adfcfeb4f86868a70c84f9fe88605ab567",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "8854c5badd776f1ebea11b8217267f539bd7f8e518eba9e7329a20ca39239447",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e9eb05e1a4ca41be7a1b75ac8854eb82d7ac9b8d85d2c507da47e545b7f94c42"
+    },
+    {
+      "content_sha256": "46a8d5fe767f5aca53b22775f819e4162f433db45bad0bb100e660c5fb7e09d1",
+      "currentness_evidence_sha256": "c83f26cc11b8c88570a80211070fd91d081bfd67057cf119ce308d8b12b0eeba",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "90b12580110f213141cc15462a984a39864c5f298833e5186001e97c443555db",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "475a1271dff8e64bd4a6433648d020c7e7672ea97cd71411ce155c93ff21b34a"
+    },
+    {
+      "content_sha256": "481c571941c01ed06cf2f74615457876fe44aff7ef538dec4f1b9bfcc7011260",
+      "currentness_evidence_sha256": "4447a09466b8225a5800a9d6cd2a233299e9a4270d59a9701c2a58d7bea46648",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1d63c372da96ca3fa38e077a0dfcb0e017df2ff1ba9214aaf99f512845ee4222",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "5c74d0ca10472df241f1c42b5ea1f674b02c46c616ba245100116c2f04761f6c"
+    },
+    {
+      "content_sha256": "48c9a7874e33a20574e75fbc9fbe4e66bb945f65777de7314a84957b8dc09e1b",
+      "currentness_evidence_sha256": "be41f420532e0b7be13dfe5f2c9adedb23ea42ac100af8f199c3d63710529984",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "24f5762cb37b876f7da535f0089d067653d41211effc4dec2b79174bfe5ad7da",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "fdf819bda428b70a8e7409e0bb67d72dafad0aebace0c209dc1c05a2fabfa49f"
+    },
+    {
+      "content_sha256": "492a6e49a79b034f19cdd377ebe0c22229ae6a096ab87e085c7fcacb15306deb",
+      "currentness_evidence_sha256": "a9ca6db46ad6ac6ba8aeeb6f6aa8496e9df205425d688777d4b97c35aa3261f9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "50986efc87c7ff111c5d2ca4ef8cedd2bccf6207cf9d80e32882464e6a11dfb8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "829dd4543f545dff24cac277c0dd67256114731a018c32c6f76452120940904e"
+    },
+    {
+      "content_sha256": "4976c10cde15b00b203f255b87722456a6fd64e2597cab6bed8cf67da7496859",
+      "currentness_evidence_sha256": "abeb3eaa1af882587b1b54c543bce2727b88211f3a905894524f4fc230c4e201",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "677c2b79c2a8292a33a893e648786ddca051b6452d540d1ee1040e1d3dba2cfc",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ebaf31091950beba0b6ae5302a2df27256fa793c65fcfdbebd53334ff199b87c"
+    },
+    {
+      "content_sha256": "4d8a0e7c55282f0edba1c36871bca7f15c80e1dd391eb7b144d222c076fce1e4",
+      "currentness_evidence_sha256": "c0f652582c2fc91cd9ff80da583d91e1905d09df8d2504e38e39de5038fc1cc1",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "346794dfc8fbd2d67e4c162688c9dbffadc91081c9f34e2b6b2827e120d569d0",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "af890443badd9932ad3cbb41ed408b11009425af9c85237c60202fe932e64add"
+    },
+    {
+      "content_sha256": "4fa7ea47f77523bf933c539559bea8f796e78094546c097f86c7324918809e00",
+      "currentness_evidence_sha256": "ba1b715c78f04558f84d70e251a519c5613f85a08112a7f864439fd84b2c153d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4b155b70e70a61af6dc47b435ff2a0a766d40652841cf9f620ada7973c1157b3",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9a711d61afbe6488fb459f0cc66564de39a89a824bc63849706a21c098cbf1f3"
+    },
+    {
+      "content_sha256": "4fe965af98d6b4391ca041b3be7b9030861d18865584b92b78a4c2ccafa47a03",
+      "currentness_evidence_sha256": "447587a6206ed906f4cc37fdda496ec76cde67f931bc29d3c94fe9a196085d99",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "114e6879aee14dd884f66ac450440561cadf020616f148906925782feeff155d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "274036eae4b75103d518d934d6650d46b32eb75635872f926b044370995ea379"
+    },
+    {
+      "content_sha256": "500c513728c2d1857a27562ab99ef409de4683f5d7c30334123787c3eeed4367",
+      "currentness_evidence_sha256": "125d58d82921227456bd0355d27e5ed2890f43a6e9be1f562132f8c2f0145de8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "18ea06d5aa0041f816121ece7566480185d0d32ed2e30db3d58118bb435eb26f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "6ad593288de949b6d18a1254a9c406f627d76c9afbe15c50397eb6adc6806d25"
+    },
+    {
+      "content_sha256": "52c673e23bc8b59d57588de35d4ab81a1c7c9e38e796c221414e53e5a64e1f7f",
+      "currentness_evidence_sha256": "687bfccc840e1d7c3305b34940e071712af3cd9d9bf8aaff16822f3b01bed8f7",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c9d637014116501afaca845e5298d98a7dfc75bba5e738cc93d868642c8c5b42",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "44351a24258f24ed9a83d27e6734d0e5fd03915e123a12fb0ab8347303a81627"
+    },
+    {
+      "content_sha256": "52d0d02da793c910852ae3f793eaedadeb722da4cdc51bc37a5713d72389d0f9",
+      "currentness_evidence_sha256": "4fa39c6085b1017fb7b447be5b3c8cdf9f723d57b58cc7fabfdb8f3fd46c5e9e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "cd2de856b04b2a7c859ba21e250ce64826993d8f279dd7ae9d222cce9354a0e7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ed41fbe5317c8a33bfd9349f55af1328eb81230150b081e4d51c2c9987e3adc4"
+    },
+    {
+      "content_sha256": "53fa26513b6cd04557e39c60ec236a31649d54223d7ffc95b560f1c953d32210",
+      "currentness_evidence_sha256": "b922cd961b728c83f80d4f2bf70dc668eebc32a3d7550fe98875d89723328613",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "789b22b7fe70f1004a60c0a4d29c8809f92e15b421c6cee95e0bf4bc176097e9",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0b69bcd141b15512cb007c9ce13c82ac346094828174ac2806ae601a7c9d8d62"
+    },
+    {
+      "content_sha256": "545b496d7595ff1413a40f8f6b9b8aadd972b87b5f5c82aaceadf3b16641adb2",
+      "currentness_evidence_sha256": "df4d090032f2f8b849a2db646dea31881dfc5b56c96374d57f67cb4c4ea9639f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "0f30779791735bd3a9e8d3d10c6f5aa7083a56df392ffb1d882667db10ca4435",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "8d8d833b4051c7c709a90866263284f67e8246ff9ad6a8938d95bcf396e70ad5"
+    },
+    {
+      "content_sha256": "55fd8bf574188b8c683fd0c557ba5904985ce5bf64ff4271100932ea07284ad4",
+      "currentness_evidence_sha256": "30f5882e1d99858f5d725c9c5096c86e1b38299f396a8b0cb09f616f4ed58915",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "fba57fcec4d55c883c8328913b0476b0a1a49100ef8944febcf31774ebda9f7c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e772ccd8d680588dcd898c2e10fd7603fa540027b4140f3c4318fc5d90badf8e"
+    },
+    {
+      "content_sha256": "5741f1894468f64e7d3290f36ff6b2d93f7d717e4024e2e02109ccfcb308448c",
+      "currentness_evidence_sha256": "20e40c034e0ec2849f0bb663468cb1a161f93fd7933416fc83667a39e037d641",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "874204bc38b44795ad7201d67faf269e84c350bb53a95735ac4ea0621690b035",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "45acb12070f3ac0c4eec10be8bf0c3cb3adb1c433e08e14b8d718e093a18889f"
+    },
+    {
+      "content_sha256": "57d53290f78d8aa8918ca66e3b738c3fca779c26c68e1471abb136677ff66c08",
+      "currentness_evidence_sha256": "a0317fcbfd32ae22f0363f2d0d57de9c9c83f67573847c2b5d0017ca3b0694f5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e5e684f98f2a80f2d377fe27087ce0fe9a1397b44f2bf8191971129746a87c88",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "30cfcc5c63f891eb098acd59858e00da2773597f6562f19508f6df9ee8c12de3"
+    },
+    {
+      "content_sha256": "590469cca43eb64786476d928c56f30c4b24eeecc89445b41ff6e492b6a45d0b",
+      "currentness_evidence_sha256": "51675e4370388079f5dbd9d508f06f12c68276f09739359ba221d2df7b13954a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "95a2f48c69cf795c9a804624786651f0ae21f80fde7d7c1b5c3e5e0872049e49",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "281bf4a693275c41b112213d5c1130f209e4c828448c61f459311af3e3bea956"
+    },
+    {
+      "content_sha256": "59dfc079b5008baa5cf60d6625c4b9420654027d5176fdd522af793bb849ab8f",
+      "currentness_evidence_sha256": "0a82a6bc6cb42c5878926cba0563c078d5b539ad52559e86319fc0bba5c5e77d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4591206229ae1a56a0b9dc730255f7fbe084babdbadb70992dc7942392f039db",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9357dfdebca347264787dfebacb674666d87660b82f789657ddd230c7ff224aa"
+    },
+    {
+      "content_sha256": "5abb5124541ee95605539e92237db0f9dfbdd4657a58a5a6e58ac415587bfc99",
+      "currentness_evidence_sha256": "81428c8db0281201a440ba0404beb46cd8e5ad897da1479055f710ad8c38f9d6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "3aaa961b2917bd58ae4a03c97c245beb6edeb2cf48e47a0298f7c60db69c153c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0d580861899f1148132e595c19a53fa5d44b8c37e080fa9594a2064babc7333e"
+    },
+    {
+      "content_sha256": "5c1a9ba357a94a3652cc7d0d81424b0ff4bfae61311a3b4bad63738475866d93",
+      "currentness_evidence_sha256": "c5f4055b53bbc07c3291ceed08fd4452fdec7fb28bcf19e07ffda42025ae9651",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "deb9b40741f81dd1884a2ff814b3c9cc5a45326c9533c082027984699384819d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4f269c56dd94fac7612c4ad03a67b1868c65ba873127da03ef4b419cfe425146"
+    },
+    {
+      "content_sha256": "5c232731c132f5e28c6e50cd1c53e75d93159f94ff4a8c24c3e2d871e22ea36a",
+      "currentness_evidence_sha256": "b3bb764eb13207f2ac12e8e88af5376b44e7522d6c4488c431332a7906502a2a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9e628197d612b1d1bf5fe6adfa359b63a9f0aae6c95fc23075acf779b1cd4028",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1489040e7947c4ad734d2f194c95afbc7aaa2279f6e208c5877f3462899df2e3"
+    },
+    {
+      "content_sha256": "5d36c10864fd94abfb64f62951c84609bbf77d1b232b752666e5bb4655cfd12a",
+      "currentness_evidence_sha256": "5bb8169e6adf8e5f53ca50899b6238e9fa1a033815997ef3b86692c1ecddc25a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1b7b07d29f9aee247b658bccaf7f65fdaea4a5b00d4ea04f2d7d87f56d65d881",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "5d75dea456dbad02b918ef7dc6343cbefa68589d6f8be953933846ce196a5036"
+    },
+    {
+      "content_sha256": "5d9a3e8eaf8261e471a4a1478ae2889e66e5bfa20eb196eebe35f67acbb04666",
+      "currentness_evidence_sha256": "20db7d34ea3cd1f06f1dd5827b86ac6c960f9132c2d3e541f55b19d6b545aea7",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "82fa15ef5563a5b67889be54b29dc7b60097a9e4655d5fe5d309668264546eec",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1b4a7df46aa61784554aec44c22b2d39ef2a88f01e0d5cc96c3e78c1c1a12082"
+    },
+    {
+      "content_sha256": "5e3c088b2dc51c7ae3612c4b22d86a9d93c07f1de7b32fe3b3bc44232ec50abc",
+      "currentness_evidence_sha256": "97589d43876499e8d14f35709165cf5d03c60288f68962a9b01356ab31d8fd03",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "37817d4e5ffa4a374fb6b9ae0c57c512e5d897c575592eaf00ffa978e8e8e124",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "76c7a23c97b7586b607a8e2661b6bdc30a7a9ec3244ba4eb4e335420d5179fe3"
+    },
+    {
+      "content_sha256": "5f9aaa82ad029cffd8f7e37a998254a2093f1e453f07108edbcc6972f927fbed",
+      "currentness_evidence_sha256": "49b46aa6057c3d147f0e548c360ea7d1149acf116eb8e5c44aa4b437c47169e7",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9d48a623bcb4b0e617c74b6d3257906ff269dcfa5a1c6812bd61adafd6018179",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9584c59a1cacaabf1e8325de74904e3015168b2abee3f66a2635746ff7e5cbc6"
+    },
+    {
+      "content_sha256": "5fe99823e3075a93eacfcace2142eab24458a0b097fccd158ede2062bc03a626",
+      "currentness_evidence_sha256": "103b24751d9ad6647cc914581d8ed554d68110509e2fddafa08cc6d03865ada8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5eace39c390fc5b0e25230a7424ef9c88874a6bd7f6d5095b3306bfb31efa869",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "848db37c3957daef2f7f3982fd5338afc0eb90387f58c9395a66426007bde02a"
+    },
+    {
+      "content_sha256": "60589f9dd614ecf23781c4602d938879026b2d823efbbc8add84d82b67fe352f",
+      "currentness_evidence_sha256": "ff46239af230a9becddfd7be75ad80157a86dbabd19a83c012925bc608475d85",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5d0d6bc20a258aa6765a4889ee674606203e25200e3d60eace3eda3db1742596",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2fb28b71adff69e6c022c3b77e05ecfcb646005b4d36ff44fd7f203026248295"
+    },
+    {
+      "content_sha256": "61b918997662c80fc6ea3c588258636f3a156afe4b963c762aef3cc91e82bbab",
+      "currentness_evidence_sha256": "c269a2761e3c8054a755b03cf130a48c6ad9deda0ecfbc98170e83db57197964",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e582719913f437c83398656f448c8f4b6a6713e24fa332335d19ca8416e9f487",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "852f56f2b7de9b0137db59de6ca646079958452f29f77c5d2d29b1670469b406"
+    },
+    {
+      "content_sha256": "61ef5adb7d747697de789d10fd31d138aee0a6cb4fbb5b30c3f6e088e8350b0b",
+      "currentness_evidence_sha256": "034c80324634b33bc954569c26842062c4574ec59b794b69f72620fa53f49067",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4342cf8b11b86f377fad65278ee9e7a96cc1beb02584d0d17e66d20032041471",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4ab07cbe613921e71af33496947d51e755451f6e0bceb7fe2c0f93dfc5f7c5ed"
+    },
+    {
+      "content_sha256": "632600d0cd657614ee6735d33f48fe6546d85a0db5233451585ce932001f7dce",
+      "currentness_evidence_sha256": "26033c3f8805ff4a27ce35c3e0352f0adc82d7bcfcb5dc56022d53ac3512ecc9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "3a51c1bc4bb64e78bf9d82ffa7db3c35e9b8ba5f6ab9914bc6cf49534bf380cf",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "51dcaa5b42c2f2823f5784a583a54601f51ab756047eab385a9d8c257517d115"
+    },
+    {
+      "content_sha256": "6354dd026ee4bb4e24d721007c4ac39e90994267cfe89d6810a3959ec96a33d7",
+      "currentness_evidence_sha256": "c6b914d9c2ff16eec27156b5eb1bbcdee238b3214d6da47085ad40755e762fb6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "d27a961279b84c0149420ef3cdd04cc194d722d13502488ec317bab08ece9e6c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ed6ba52c8077488fbebec89ec460b7253bc69ea745516895d31f337b05e47eda"
+    },
+    {
+      "content_sha256": "64f712acd4201370cac8c8feb1053869c43a1781a1904f3da3d635c124d72e00",
+      "currentness_evidence_sha256": "e432013680092840ff758f91b8cd4e51d0ebf3a568243238bf4fba8fbff1c0c2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ada619f1647c52b8484aeb9b2a9e1ee464a6341a62d5ced2c09cfc22dc6674d6",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "3bfbccd1c6879755968173ffbfb2fbac94d2f571c57d03838d036946ec2fc214"
+    },
+    {
+      "content_sha256": "6525ab20c29af00a1a8fc26b145b369b7989e50844ffcfb413bd4c7c4457a8f2",
+      "currentness_evidence_sha256": "bb75a870406b6a33a6c4a23e2ba48136e3b097fb68f27176c166f17bb9ec6c36",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "3cd262c5f41f1d3bcdbaec30237a6ccc0f2629c5e88e99ab701bdef1f939398c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a33a12a6c4f3206776c834a359a46962aa264f4364ca51e860e41afbe4292470"
+    },
+    {
+      "content_sha256": "656806868cf606f26ca28d8ef6fc55942bd00195e66d52170069f08468889e7a",
+      "currentness_evidence_sha256": "b998bb23490084c76979fe46860baf3e894860d41c715bb00085b06294b86b56",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b4b91f59da7a9017ff820e54aae48182ece4a0ae6ea418480cea700b3d6617bd",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "76aa1a711ef085073ce9a5f2df8a1348b6042974e30612add8d4ba0c34e71795"
+    },
+    {
+      "content_sha256": "6647135a5496f4b38ca5008546fd56e326c3f672cf48c5476203fda905b7cc32",
+      "currentness_evidence_sha256": "9a070730f852e643cf9985004d971675dcb6f29146c9b0a949033414d9551b17",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "47428ed5fe8e26e1820d35ec7d1c55281ba3f10f6d9d17737a01853cad8eca1f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "c6f6325b0fd1096e4d1980b49066fc04e46d45d7152ca97951a5d8ee308d9ba7"
+    },
+    {
+      "content_sha256": "6676b8c886dc039546c2a861caca03bad52375ca8a816e9abcde6571d697ba50",
+      "currentness_evidence_sha256": "25d048cbb88e3a91a5c96575e8c0c296e477b5caa79241d963fdc4b778846dea",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c2b2a26813eb24b8cd6e4cbf5aabe5b7fa16f12a8e89bc3d41a1334e3df20197",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "827da417951f33d73c4180cc65cbb4d099cb3e72c913f5b55229a17008ebdab8"
+    },
+    {
+      "content_sha256": "67dc05a6be0d650a708fc3412ddadb8599d667f96c48e3e033f9af2d3a95a0fa",
+      "currentness_evidence_sha256": "7fa805e80a74c36381771829536d78fc65e965e6c65f88fb866d649ae7756483",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "69703ddaf2581c333336c8f400262adeb091398465c8ec7c2b8e823f695a6489",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "23d55b3b9a789a06b540fe09424719f03c712c1ebc1f13fe1eb22b094f499e08"
+    },
+    {
+      "content_sha256": "687477724682f43c9e3e6972c25a9d0340a10030b6f112428fac770a184f2f0a",
+      "currentness_evidence_sha256": "bdd2cdbc59865d22099d160f3293fbcc12295a2b41a172c52c2ad979ba9085cf",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b827df663d4896603480693a44f330ed1dc06be73c1281abdb836f01ad4c1fac",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "953f2fc352e9fba7bb58154d9fbf11631e4a62e07e14c7fed6fe7c65227bdc6c"
+    },
+    {
+      "content_sha256": "698773e11a57d9930d9a762d7901485349624f792df7069a509d9faeab570c91",
+      "currentness_evidence_sha256": "effcc637dde186ebc6b02bbe81bd2944e24e14d24471d872de8e826c43f5242d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "aeb32b2efbabb78672b71bfef4833d184082a46c573b53038637fcde7f2b0f23",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1f0470afab27a1a68400ffaad404f5d298098194979c0e067d151d0afec75e63"
+    },
+    {
+      "content_sha256": "69ed192b197bb3a69549b84e3b59f1954e55cd85a83b3219aa49ffc568276298",
+      "currentness_evidence_sha256": "2f3f46bf2ff5d2e0aa131b7ba33b7ffc8b4fdbe8f8b2fe500a687e2acc6d3050",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "049aa05c7de16a5ac0e2b565253b282071cf98dc0683be29fad6a52ce372c9ae",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "8ca2ae69cf68e738c73a347bac1315b6d8f32f142a7045b08ce14af0bc21468e"
+    },
+    {
+      "content_sha256": "6a75000fe0ad0ddc2f9c5fe0bc2d582cdac340025a29af2b1a251820ee97da0e",
+      "currentness_evidence_sha256": "11cfac56a1a755210fc9656eb683ca7b2c68ae1c9653b57bb2fc6a95ae7058fc",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "7804ea0bd47336ef2a8a4aeae7ab45be5f33e2004467e4491505542e87eda65a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f3aeb9b1ccb699f5beba4b6d4aa08e3cce4dab5f21daae01e3ee0f30816d468b"
+    },
+    {
+      "content_sha256": "6a81fb35c2bb23e4db4f1daa9642115aa44f5837db6e6633d244c66b84c24d2b",
+      "currentness_evidence_sha256": "dff2f9382501c6fa54852cfbeab0e096d296bed56cd1cd2547f9b491f9e6ebe0",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "bcebcf4a646155f1fec176e422e6cfdf03f5e6c026186535a1462cfb6c8b88e3",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a96e0f4b3b2d13528dc69f91ec01f26c81bfd17901306bd9bfa8841894233910"
+    },
+    {
+      "content_sha256": "6b0ec5082ca6c9a9b8348df544720dced511e2bec891d073a9546ed7fb2d9cd1",
+      "currentness_evidence_sha256": "ebb2b0c3c8b7fa24dd6bab1fe29fc2a475b50c156afe09bba0cf23fc2a0cab20",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "148c1b2d41bb8d36a351565b983466b52083b4f3e8d198a9e22a9949bde8b53d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e80d76b74cbb5823d638ab67e56922c495d7282b983b33993e5664fc66bf61ff"
+    },
+    {
+      "content_sha256": "6cf6ab26f2be8a92ad4ede8b0d488fa2c0a7dfa7c4bc4ed340533e9f62cb0530",
+      "currentness_evidence_sha256": "0e0696323a68d4dd90133dc3d59d2210838b5fc2997ed74122e84d8a0d160e59",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c2b732ecb86a67de8d28e2260f168801feba8a677c9f7ae78ab5c95cb2a3a478",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "873c1af6ad0c901a652869fdf1317540fad914331c003a3a949b2ca0cf7a2ef7"
+    },
+    {
+      "content_sha256": "6f2c520425664711cf710a35f8ed56428b5a47ff63de14352d24be8842a01f4d",
+      "currentness_evidence_sha256": "bb220029ab0edd0fbcbf83209e12e786f5665f47179200fa17fb5e77828db840",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ab5449fd99b18b0afce6db69def738fb0e841bfb5f9fce7a56d610d777914fb5",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "54f94f3c3f1d93261e20a68050b2b38d0cc0d5a72c3d789c6653caf14e2d558b"
+    },
+    {
+      "content_sha256": "6fb35c526049c6bfedf8ee247a381cdf43fc2974da83ed8da6e30b69e9f09c1d",
+      "currentness_evidence_sha256": "d236848c0593c7f81c8c1ea932d4229cee80b9494a2bddea92ced43b1e901207",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "29730cae2e1ab25d22cab64744be99f289b84552a1f59f8e6417cd5e903be06a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b826be9b151801ff936a29859b36b68cd2febca6870dca8e9dd842894f83dd80"
+    },
+    {
+      "content_sha256": "70665724c4f3949a1639b6128b0e5c867dbc5debef51a43ba85725d146017f8c",
+      "currentness_evidence_sha256": "4256cf4c86273d3bcede9c5cfd2870dd957d9454c1d6952c077bf9a85bd2aaa1",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "61cd832bc97a357156316b5835684a550bfbf876745518a0bf4edca62e481a2c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "7642769489f202ae26e611f7aa6372ebfc030ebd21a29ccf3bb9a1cc24a8b8d0"
+    },
+    {
+      "content_sha256": "71dd7d109c9339bd03f7666b9af1518a6b64397af2dc719a9611482c95273769",
+      "currentness_evidence_sha256": "6c8ac251b5f74ea6d59feea0223005297b182c4f435b0bd03f347bb8cc921fad",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "bce4a3ac14a78164f69349761770bb46148804823778c25583ebe1b5a33a9910",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0feffb0455ff40a4516cf8bee116e85e24a437e122314c3ececa6a683e7d853a"
+    },
+    {
+      "content_sha256": "73ba893b886233b5a15d04cb375e4a6588f7866f2c16bb4ebf072bb92155177d",
+      "currentness_evidence_sha256": "e6e73b7694139020ef440fbc9ec2e985c1a8a740991d8822d9efc9b26b49b3c8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "20b1bb99f9e77b2a34b289bdeee237eb8d25f088650fd4f707c7babd4cb83250",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "505f86ce513d830ea64b679b977036532fe8df68f340b48e09462de2db4c8d45"
+    },
+    {
+      "content_sha256": "74a7c8d37bb5dfc396525ad30942f562d9068962870bcfaf8a2f068d0648b4c4",
+      "currentness_evidence_sha256": "c5356b62f8bd7ed718dd3926a56d0f3c6dfc522bb0bdeb2c301f5669b5d376f6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e8832bd340a55997ba33ad622730d554a5079a0049952bac692e26ad1e6d10e0",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae"
+    },
+    {
+      "content_sha256": "75fcb75b80ee10b70024697b6215ab96eb7b88e97767144df9ee62d58a371ac2",
+      "currentness_evidence_sha256": "bdf4a3bbfadafe828b05f3dc16ce1ad56e7dc5ba05669ee97228a2b137a01941",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ebb02bb0a00f638c589eac16729e0376d2e17b30611a7f591a262269c82448af",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "411adae292e6d734efc3b0b34ed26b07de755518e82e9d93ab8c25d2b8e155c4"
+    },
+    {
+      "content_sha256": "767f40744569ea17f832ae137840b255dcd2be377ad7550982d57cd9931b5b30",
+      "currentness_evidence_sha256": "cc43260ce3eaf4ffcd35503a2c5d166beabf794ac5e820735a721687ff25ee19",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6168da80158a811bfc4510a4df3ffbca4b242606ccea0552ef35495133e43245",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ba4338fc39ab0bcd81bd1c3870f9fece6493942900ae2153e03e7873df505fa5"
+    },
+    {
+      "content_sha256": "76aeb766c4920053b034a488e0b3174e9f6227ce86df91e27c4add762b7e25d3",
+      "currentness_evidence_sha256": "3dd3a740ff2bf9433d7fcbd51c5abc4ca5c694d24852afb0696620447671db65",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1b14e27f7c84648a478b0a477a9128947e1d74009f32e7a08721f3b7d633b41a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "fedb0951e4f1aa715ea1ca5b766da4467cc5c07733f448c1e972961a21f0c5c7"
+    },
+    {
+      "content_sha256": "76ffc5ab30ec9f9521287500a93055fb480d64d2e61ca638e90896a4f9275af5",
+      "currentness_evidence_sha256": "c9b8b390432c3d534e1bf8c375dce890d3bfe2641c95fc6a2c0c4622cb9ba584",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "978c156bcff1767a985636ed068c8e261089a7e1d8763283ce08ebb5ae0e5427",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "71fee594e65c090d9255a784980aefff78acf350b1fd880b336df86217ccfc75"
+    },
+    {
+      "content_sha256": "7784d31416137b43076b0e91203fbd2acdc0ae37bf0e01bccbf842a33b8db903",
+      "currentness_evidence_sha256": "d780f6261d7ac490545ecf33ce4f3fa36f22a3bfbbfb89d7a1af71470e6fb7b2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "7a964c883514c9b2eede7c744ee160bbcd2ced71859609dcca70fd07a9cc6f60",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d22bdad4ec497c898a5ce3047e8150d3539505520c5852805ea73b50835bd860"
+    },
+    {
+      "content_sha256": "78480a623007423c215d096aa00d75d03a8517287637ccf828ae527ab347a774",
+      "currentness_evidence_sha256": "8193300f38e5f9d06cff510855e8ae32618004cda9e5ff8715fee52b85e3dab4",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4155e3723689753ee5654ae44cc77758ebe45986d093e170477dc52d7f02a275",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "dbdf2a37a879c1c43b32fe27783d5f9932d1ff3095b2f9d88c9693610ef1b77e"
+    },
+    {
+      "content_sha256": "78b9175abf2e03527e8dcfd3e37d3c7421ef4cd7fe13c9379a1861dbddf68b6a",
+      "currentness_evidence_sha256": "9afd8229efbc27c5901a42fb7ddefbdb74ba8948e67bd8c354acd34fd992fbe2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "be43be60e1ee2075a3b79b7716a97de3d25f6555dcf3cd000127c2e865450451",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "bcd367580db1b1a228d0655dee9c3d463680d9c9a5c5fcd400f283e3d0e79619"
+    },
+    {
+      "content_sha256": "79e88ba1adda05854ec400f2bea44076d4f9186c8fc53f0ac9eecc2239a053f1",
+      "currentness_evidence_sha256": "77e42035ac4f2153202fd88dce18aa3cfd102f1d1de51a54a4c4badb6f252c71",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b6ed17bfcf2814d3a5b631b69f36dab61699c0714565f97b92755efc7e17eb64",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "653ac482b2dd19aa3b592af368868e03ce23ea7196bb9ae4eb6214f9c16eac8c"
+    },
+    {
+      "content_sha256": "7ab872278429abedd5d1d8a64a9e965c65d30cca182aafa0c6a21c6ef4d6282b",
+      "currentness_evidence_sha256": "518807a85a400bf6973200da7809f0ad0c5bf0322a01fd47b192603ca046f30f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "be4c10acbfa33aa6e83c77714f14aaaf65a2e05a07154462387b81f6cb9802d9",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f0a7b8af3a16e9777d6f05bbc75a52db6cb1f1abd627b9590349cf9b238d4134"
+    },
+    {
+      "content_sha256": "7acb4371f5b04fd4602a0724231ce6db2e076910ff175ccda46457ba26b26f40",
+      "currentness_evidence_sha256": "aff602a098d4ab940ea9c530edb2ac830eeecd74eee863dc92fec50114459485",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "7620a79829669f21dbbd42968b1a79acf73b54660c95560a8bc4385d68c9eec4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e0c09c8e021de8b6932ab37be9519d5709c1068b86fe40f77da78d836ab909ef"
+    },
+    {
+      "content_sha256": "7b84f01bad4cf050905a03b9a496f7547fa677779da6a3f8e41168f07efa8b79",
+      "currentness_evidence_sha256": "6faa60a5a401c3ddb8e4f75f0bfd3f391047a24fe9a05211822e226fc50124e5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e6536768f65f2ea7976b72d1050047a193c14cbfc942868e11b1f69dc55240af",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "00be5591656578cf94095266d34c778d14dd31c596e7045bafd1b3655babf475"
+    },
+    {
+      "content_sha256": "7bfc7cc4081810970f3a75537e5956d41f10ab1df26c4949da545ae62a545e20",
+      "currentness_evidence_sha256": "00f4475a9decc9a8fc27828c5f796728b4c8ed9bbdabe4feb59f6d4108318cdf",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c74fe161228e2f8fde70cfc2767000909082b2e4b80a72d4589f21c3d99d66c6",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a7aa8d3753d202f387d02cd22731f409962b536576b5da4b678d3eb904e67880"
+    },
+    {
+      "content_sha256": "7d0a0c1acc4335caad10af260d64974b86932fa060824005f1340aef176c3bce",
+      "currentness_evidence_sha256": "f0cc69c0c84d701eaf245ff505adad011eec5c1b5d3e4a67cd1cb2c772a2db8a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "499806d35cc5b16a0461e63703db03996c2c9f4c9e6cd07ca41dfe12aaf90ab4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b22cb6812e2ee65e2fe6d040039a90972e3b39f076561ecda078192298d406f3"
+    },
+    {
+      "content_sha256": "7d4936a14d63513440bf8773f29534dc6a3d3918b3ce984dff6595fb9b8be692",
+      "currentness_evidence_sha256": "c13c749b5f79c8b14ee0c9ff61ca133fdfdb190a682afcdde11c36352866a88a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c0048a6c563243f5a235c56a017d776cac3a90e649f897615578ca3012358f85",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "6736315bedfe88e536644e33c7471237b98e895182eb860d24da3bca044a217c"
+    },
+    {
+      "content_sha256": "7dfb4b5fe0efb7727422604b3ae9a13fe467e53174e9a1f1360f5b8e79186812",
+      "currentness_evidence_sha256": "ec3bcca475e352d942fee3836f20bef7bf49c0a13fffb6ba5330a5603bbeba3f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e8921c61483d07b10e7d211dc286f00cebcca31bca49beffaeab828c4d1c6c17",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "c1e6b395b9dfebd81c5b9f7ffd77579a6f65a7b44e7208e054aea97ca6a603e7"
+    },
+    {
+      "content_sha256": "8325a667a7b1133075d925aac0cdaad90ef2aee32fb338c7ba1659c8691e855d",
+      "currentness_evidence_sha256": "6ad288f1378c03015e7a12445c4d319676e3b83d2d7f43fbd1f759012dd4def7",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1c6c49def96e274c8779bf4a9b240bfe4e317df2434d27619b7f664b12c99785",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a2984fd826a8e39bd58fcc6f585519c45a0b8061e0a187fc0024a1ce1673d888"
+    },
+    {
+      "content_sha256": "83bcf300beb397ca50565a3cdf30fc213071b7193ce47afd7073ecb8b4da18a8",
+      "currentness_evidence_sha256": "fb193143b9455e56e77480b3dbca7404a4e09df579be369eee53344bec557611",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "f99917157cf8434cc504ea00ac526fb4181638763f00f2259368d872e43b70ab",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4c3d14c4e456602ce847aeabbf635d7e295eab6fe667eead7f6a487388833598"
+    },
+    {
+      "content_sha256": "86696f92c73d8063fa72892389c88204b750e755d059f0d7c1fdfd96433f0f2b",
+      "currentness_evidence_sha256": "fde76e03bf416c7cd604acb730bedf072fe9e614a247fb6c05234f9c0e86e18c",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "47f30ab9c631bc30937a82e55e6fe4ef64d18ed466f13fa124e9f22ba354504f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "23fb5bc77951dd4f06e04e229700edfe0dccfb2ee69cb8283c2348004d6728cd"
+    },
+    {
+      "content_sha256": "871c54735e57fe429a57ee17f80deb5471cdcb905774e87d9b51649f871c3bb2",
+      "currentness_evidence_sha256": "1ddf4e7e2b060b136ff2de7de3366f02cae29156afab6063fa283e573595221c",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "484579a2ad865c6c9de4fe8625eb247242705090df7b12a94198b415cc3dadd6",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "6af72612a595df043bbe4ba16b3214cf9dfe3008d912275773d557019839cca1"
+    },
+    {
+      "content_sha256": "8b3df4a809c2934bf206e3e71fc526fd76d56bcedacb3eceffd6ae95a423f5f4",
+      "currentness_evidence_sha256": "a5ef77b631a8104d31389c69787f5cd9d72896f09063512aca92219a6cb73365",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b244f835e12127df158e03f2ed728a4b023a89c6ac4131982134fed842950d97",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b81201b857c67e4e928a079cfe9d5b9b402537d0101bfccc730465631d5e8376"
+    },
+    {
+      "content_sha256": "8c955cadcaa3a68e5fc52993029775ba2d1a0cc165f7f8e9af2e8a6e157f01a7",
+      "currentness_evidence_sha256": "8bc17c0ba6f47c849f5f58f837d97f75c692beb0750f1df02da7e32cd71c96ce",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "0023654ce94abaa5fab2761b5ad95380f97cde0a62db8d1f6d5a38ad6079c843",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2960fd0b0980ad3f6f51a739a34dd9f112c309693cff85c551b782de1917bd74"
+    },
+    {
+      "content_sha256": "8db2803875a07ea90e954b1b86fdc265cfc45709254f67ba44f0261827494831",
+      "currentness_evidence_sha256": "c7fbbf7246c94f62697fdfc39bf079b5c49cea58e12860baa5fd6199e9f4289f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6cc59a92eeab0924f1248b39019bb44f77a2207b1890a61e53e3b2e93f57830a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e58d59edbfbe2a04f34a2c10a04151255931edbace1019cf0271942b1e30c33d"
+    },
+    {
+      "content_sha256": "90c52f722a3a641030506cf587adb1b8ca9638057d2db9672fab9ec9e058b8f8",
+      "currentness_evidence_sha256": "0c58a6929dd9f99675c69e928a06a96b636cf4e9fa3cd134aaabc5c4ee946e7a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "77722aa2f1ce7e88db31ba35c18b8774753744a89722d1d5ee13c2a9ad98bd4f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "393d9d3a8fc76a33cdf57e3d6a4caa694253a7eccde84bf60bde44cb8acc191c"
+    },
+    {
+      "content_sha256": "92a8cfc52e7b122e9c57a69636e0e4f1ad916e810b0fa8c2bc64d81ea0bec40b",
+      "currentness_evidence_sha256": "a699dbefe336afb02445cc6e4ee8d92d0f767f1a4f1fd7636fd490976913d4b2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "eb8d7d13d6f895df978ec0541625305938d342cda89f9a785399120a044a2d65",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "c457195d78009475a3a9d021a36c9f5fbbcda0b1390af79430a63ea07c259ffc"
+    },
+    {
+      "content_sha256": "956ecff384ee76bb94a09aa8a617e3f588451deaa88c1d7d72f68b1fa836e16f",
+      "currentness_evidence_sha256": "6d399428bfb0056cd0ee6d8e297e31896b1892d0393eddf92784c467a2b87e29",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4666a2244133764e3be8547f2acd1b714ef94e7a436a4cd594a059e6136ff0d8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0b9a40eb0706d976cabd3259f0f4f3bd87037ef41f3aebda4b67b1ae85b667f2"
+    },
+    {
+      "content_sha256": "97bd68981e3005adf6354c3c8b3afd01e0bee95ff3ece55aec0cb51cc6b7820a",
+      "currentness_evidence_sha256": "db5a91984e72be89db3e9e9b358f9e1f78abe7e69236721c8fbc22890d580e96",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "4a57dbdf6a2b24f3935ae936b787e191dab0c3157eacc7ea4a60f8e0c3a934b6",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "926b1a971f4d00bbac2020486e6607f911d1bdb721c45546be10ac8fab043e1f"
+    },
+    {
+      "content_sha256": "994ba1425ec145d28978324cb766362f0ac57c436ebd1c1de3d4e4c8dc1216a2",
+      "currentness_evidence_sha256": "260f27e3a401808b8e56af75196d21c570e240ae99dd4cbfabb99455efff3ad0",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9ac2861c10aeb6b2c26bfc6b6f3e71a47f9df414ed4888da3461df67b3a52a2b",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "bb05c76e427d8404506ff8aa13c6cc4bb37ebe511beaa255c50e6670f8b8e67e"
+    },
+    {
+      "content_sha256": "9a9a47efa36a9bccaabeb24d32eec5541e546fb4c00f21dd3c2b0236868f08ff",
+      "currentness_evidence_sha256": "f79ce83f0bb5f63451c0e4ed07f3bc8f61334b4785a241addd94721b4e2a00e6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "836440383d9930adde76578c295443d19da9b0a88f288ef1d0f18f09b1694291",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "6636473e5411b5393bceb7be19d65176230eb39736f36f7b9f498899f82989b8"
+    },
+    {
+      "content_sha256": "9ab8dc85bb2b5ebd02ecd0c082bda047161a5e7589723780c5b612f18847559a",
+      "currentness_evidence_sha256": "94788e857e44dc229634cbb39334289e911d582cf570c6775b6c0526c2e0de96",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "45e2ae8db602c92e1547d61855ce1b6f81e281cac56041b490398acc8f6dbb5d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "3a25308fc4c7cf81df78d7bb91fe1d55db3ca4a2a4262f96bc3b44aec0d1dfde"
+    },
+    {
+      "content_sha256": "9af04a274d739d75445ab32489eb652f07bb4349a73bcc397ec1c612d3f2b437",
+      "currentness_evidence_sha256": "8331a0cd9967fcd74e21fbadc5862dfd42f2a3cd8b9be059f246053d68884616",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "79226bfbfa3bab55d0ddfe08cfe4438dd9f97b7f8f8d5e6322cde8addf623b5f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "7e4121f2eac0784e2cb5f5f75b5521ecdcb36044fc9adbc929614b686a71b07c"
+    },
+    {
+      "content_sha256": "9b2fa54f987409e2a03aefefe4de2201ea891e11d32449983713ae1e512a23fc",
+      "currentness_evidence_sha256": "68b93a35f10ba4466c231303fb3a03a681e2b30b49855d8ca1ebde1c0fe35d83",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "da1cb32fcb7d2ed321e3b93e69e8cd856271e11a30a8fe10f18acfcf82f3a8c6",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1e8950bde2797f7762a8298616eb094c3c1b7844a0222a1177ef6a328e5a91f1"
+    },
+    {
+      "content_sha256": "9b7af372759277071b1530621cdec5f15c21939106dcf50f00ae5d0f5bb5e662",
+      "currentness_evidence_sha256": "47243cc4e09d0b8754567cba4bff96e3c8cf8ddf017ca94b46493246e6832ca1",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "0248de54c96d29632c0dc3eeedd28c8bc2fe91dd2485a6cd9913c4517e28aafb",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "3f57dccde06007516113e9ffe29680d88516e8395a5021f4a19f9ead5d4c6583"
+    },
+    {
+      "content_sha256": "9d379731aeb1b6032dad3ab1ea065e8697795f2da66eedff9a5cf409bc3a1eea",
+      "currentness_evidence_sha256": "5e9e80958c30c99745df887a7c6b5468fecc9ad189d8c225b4745d6cae29945e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "3176895a4c727a58e945ebdacd0fd02bbebf431000c9953d47df8c2bd95ab641",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "95c3f17c29c4d9fe7f7a421579cae4222463dbe7b9fce2842aaa31524c70f49a"
+    },
+    {
+      "content_sha256": "9eb98274e5444eaedc4404fee147386bfefbac92cbe377c871b6fa410c5f6bc7",
+      "currentness_evidence_sha256": "110e5dc72e5208e3dae63e4095d491c7b0369a0ec0051e8fd4fdff62bed7dd60",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "63985c9c50750fd99d99b086ba10d28f7fbdb9b0aef82c87d9630109e222ca7f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b8ff5e625242cf7c6062ca576ba30efe18471b272f68fe0023b90b0a9247435d"
+    },
+    {
+      "content_sha256": "9f4bd4ceb5ec6eb545bee43730dc13bf0202b4d311eeafa6cf13fef747e24986",
+      "currentness_evidence_sha256": "dc07f9590dfe53f1259b0c80a0c53387a84055076d9a2d4140205f2b431853b1",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "46c2aea727d36ebdeb6cbc2c62453ec09ef6a0b1f8d8b9cefc84a97a5cedbadf",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4b446a543058522389adc15110907c8454d168d6d1c4e4a67097af7df1abd38e"
+    },
+    {
+      "content_sha256": "9f784d01e600c5eb064f98ba954f973e817a6ed232af278dcb1971b502dfeb77",
+      "currentness_evidence_sha256": "f949edc4f78084ec093f57e19f8582fdbb3a680e4f136c50a154c102b14e3c31",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9a96eed693d0429260c5ed31362392a51b9d58f65852e475977cb79c2819a2f0",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e404ff947c3454abba84df66a01f9e6f875cf83f03796acf4bd1d12e1876880d"
+    },
+    {
+      "content_sha256": "a04095e9c674369f8d7757e74740b32810464dd91664178c2a4a5cb920edcb63",
+      "currentness_evidence_sha256": "0bb9103ec0548744f6e4499283b121448aa986f71642e40d6f7c1d46cb952b58",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "aa57345378251f6d2bcec96f3a51244edef091d0ad2422872674685bfab79ac4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ebbda34a1b2e05d979bbf81a28e0d95a457d2672bce1f5519dfbc741bbe3a441"
+    },
+    {
+      "content_sha256": "a18d85e7c29b32c3b8bfdb420e285f33f2b8f0d103abf444b9e73a5e2703435d",
+      "currentness_evidence_sha256": "238123c7d14eb7592fcddb87df9cc6fe52a7b5ed3a5436b6a861c05d072551cd",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "d9c451471e2952f83a432e688f00ef0e888f9da146af159e787909f9c01561c5",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d6a420b6eb491da8b167598f0926856bf3cb1f96f4a13d810cf818a88c31722a"
+    },
+    {
+      "content_sha256": "a2121db1f3fc8ee1f61a64f1c9ef90826213036cd9befc1fd99056e4fd5be550",
+      "currentness_evidence_sha256": "dd0b758be1efe7d8d03f481c4fc45c6b074ca809ba5c6d563ccb6e5d814e5b5a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "29dd5be8bec3cca901945b8d8c417658fb9c0330daeb4b0db0149a8dbc758233",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "60eeb7dd1ee55d1ed2bb2c7671ecf3c971aeef6996db2bc7cd9c7919ae4b19ac"
+    },
+    {
+      "content_sha256": "a2c2e09005edaaebb5e9b5551293aec78341e69c938e6892580f5493b7b2439c",
+      "currentness_evidence_sha256": "a4bff4af003e86936fcd43e57237ef3c032e162c128dc18a02e5c1e37179daa3",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c66d7fed4f21d19a48f1ee5d9e34c9a1a58adb409673e7575503c70f704e7a11",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "eed43caa3dc449950ae18fc4ac95230a2125afcc0ae9387a88ada958a2367bc1"
+    },
+    {
+      "content_sha256": "a3981e11ec541b5cca73cd9d0295c98ad82d8fa80517f2e37dfed4af2e9ee9de",
+      "currentness_evidence_sha256": "e599352be93fe1e7cf8860bc9ec1b3624bfb82f1513597b39c2b86a5ee3befa6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6fbf1c49da0debf1d51b9e8d79399472f84d30524ef6fd5cbef514ad02b30915",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b01714547d98f31c594999fe6aaaf46f2299d7ea33a384d2d83becdb35a85cc2"
+    },
+    {
+      "content_sha256": "a3f35c48e2a553d8aa7966d39b4a59d9e2a5d1ca72ac02840bac5b5a316319bd",
+      "currentness_evidence_sha256": "e4ec6514a091b25bf3a73755fcd017111d2dc360fb627aabc28f7c731a0886d8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "27a58c597835a6f52773e77aee7407fe771860a529903e110203a862e2b091c4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "62c76756d1520375b2546ce3fad3a0a5d9ed8525163f0c30384d0c36e258022f"
+    },
+    {
+      "content_sha256": "a6e180571cbebb507bc99b6d22fc28f88bd52523b0eb8d84e5b007113af06868",
+      "currentness_evidence_sha256": "6769943a9974cca74277be3fd451659a483c785e8c5297aa58a198ea9962cce5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "00bf43b5b855d2b311f34350068b9e3b2383d3e97d28943942320447332ba00c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1b34f7fade7fbf3180d54cd650bd466f1e4f1d83e8940faac1ed40ab44d7b029"
+    },
+    {
+      "content_sha256": "a761107992a64c0be67e581a4cee9f8b9e4489951e886fd3a924d5ddddd62b0c",
+      "currentness_evidence_sha256": "26850584960e154a3edcfd37d647f90bb726ab220e11b106690cedec393b43a9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "3f2dace91b270d9895eed3f16c58d418d1254548ca38d573606056ae7a875e7c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "724d0ecc7128f83f076bece2a1119a71c2e6672bb1a3e7cec680a48c719b6c81"
+    },
+    {
+      "content_sha256": "a78e497fcd053b404c1c52525ae3b953f1be1ecc73dbd59cf320aac34f601722",
+      "currentness_evidence_sha256": "f49d696f3da0291226a3cfe5158adad8c70e5201a0a7d1d4d1d532f3a61d1d23",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9b4136d089571037738bc0e164ac42c19731f891acbd2d10c75f2ecf2a99cda9",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "5c9820d36c3be05208e2f435c96ed4035861f20362620e01a684714508892df5"
+    },
+    {
+      "content_sha256": "a9032064e57c099fbb17fda2332c78dae9870f59d291e08b7062b5ca2c0087bc",
+      "currentness_evidence_sha256": "54822e34ca96ebf7649cd28245533e8e76304accb96ae3d876f9e2d05d2618e7",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "51b35f955fc501e435e0be2b5568d72acabcfba512fd9d24c0fbd33d416dd4f8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d3d16eb28582b1fd999be4f290c0b2c32e8d26defdf83b4ba88dd079bc3f4dc9"
+    },
+    {
+      "content_sha256": "a9cfbc2170d85f78d09864ea5137e70292f9188176acecddc57b118e378f7949",
+      "currentness_evidence_sha256": "31f92e763e545584c02df571aa3bb39870a5c0129a778c333efec33db124cf1a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "03077e76ebcd405e380a491dd45e9ca0fd5da773cc14c853c85d5d9ddf47df6d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9b0f2814e2a6c21c9a4981b3734ad89ef8a32c2d25fe2fa9616a4f593b04538b"
+    },
+    {
+      "content_sha256": "ab6a2833de3b352dc508cea4a3e1406088e853aeb259097edac7ac534d9d5c1f",
+      "currentness_evidence_sha256": "456a8d1aac7df5ce768cb5394b2f5e48b1295076c28e8ef9b9c335a4f1ef54ff",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6d7c4589159854a04c89f7d943e9814ebc81434efc8ccbceee9de0e82db7dfe1",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a6b1b1887ae77dc8f0a0cfe8ad97c8577ac276093278ea9e8b1d87bc17d040ac"
+    },
+    {
+      "content_sha256": "adae77e9ceb87355dd127df78369bf34c210afbe29132b0a9d9118af5ab31d05",
+      "currentness_evidence_sha256": "0de060605997d2153220c738405c38b0e18817d407b1ce4265d4d69d862f4ad1",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "78326b2583efbca7d55a455bf3f7b84425ebd7bb74d8e5d861b51141acc8a69c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4433fee96b6e803c71edf2764d99bd269e649dcff646aee97327fdfeed143f13"
+    },
+    {
+      "content_sha256": "ae4124deabc33239644d24d9e72b9a4b0ec325d5512da8e05d6505c46c81b6b4",
+      "currentness_evidence_sha256": "7c06cb0a2ee465244dd198eb205360d6dbbcf4fd5e8599aced80fb44303be773",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "52e427d5fac43d97394ebc238bd87090c0ece0cfa2efcd61018a4562c4fc1e29",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "a2601ac6614c61b60d6ebaf6c7be0adf507ce479470c87475543ea44c4b42f92"
+    },
+    {
+      "content_sha256": "aec49d3afadac61cc6c6de362696c91ce89201cb69b84be82c5bb4f900f646e0",
+      "currentness_evidence_sha256": "d28edf2e62182cf009a4f3520b05962eb9830d5511ae4664a7d6863590e5717d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "934a959386b09cfd17a21d074c17e7b30873a03a11c9e540aa3670fdc88cb77d",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "8577cf5a9b83352794f6dfba97b0c57b6db247921c867ecb46432cc4e7ed4283"
+    },
+    {
+      "content_sha256": "b147aeaedda46d21c238d39334e4396b92c4d28e0b90861ad1409762000d5a0c",
+      "currentness_evidence_sha256": "6cb74cf5638c37b35bb508b8c76732e78754c8b65b340245d185f3cd0de8634d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "7f08f117e9f5f4fba90ce2cfab4d85f93df04f12524d452f0fe17ebab974b05b",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "61f86921080169ae3e34930b455c5cc1a13fc1b3a12604fe654a2f7d871c4693"
+    },
+    {
+      "content_sha256": "b17b76bdfe9e729cd7af473b25d7bc3c95314b52a556fd33ea8208b7da4c14aa",
+      "currentness_evidence_sha256": "faf1d0d4e30835e253362668c8118142d80dcec3923d2ca570bdd34d6a08c9f0",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e45e3b69e3aecbe41f7929159f536f76648fa2e7d1a2ebc5fc17c3c118d660b7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0c25d92cc36271cd404a4896b9998e6b5690261852682cc2a75944587a55dc80"
+    },
+    {
+      "content_sha256": "b1bd8871d221457e9133cf5eb72700e2ef35e89b05f5ccdfcf2eff0fc2059514",
+      "currentness_evidence_sha256": "9bf71129ef652adcb66726dabe22bced2c466bc9c6d29cb21f6d9b16faf9e655",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "10bc90c1473a4b6c34d5473f82b6ddc3aab3934884fa383b9ec3062b5ed70811",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "836ad638ffce8b84a6ba49037ce84cf10178d78821b3f3dc2493f4389e3714c5"
+    },
+    {
+      "content_sha256": "b245d7a6938988be5d7c3a5ab994979f0ca476e036dbfd0f49d38d265c0a0180",
+      "currentness_evidence_sha256": "aee5f292995bbb834f8ba8ced7453b4498d4ded576759e75331f27ddeda76fd6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "09a04923774a58fb30f04e0b7bc688e7b6122ddff20e2e848c892e031c21a226",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "faaad0c16d759083d672d420be7838ff68a2f7ba9232d28af53e9008a82d9459"
+    },
+    {
+      "content_sha256": "b2726db00bfbfd2601c71034069478cfb184c5656a0d74fdfe80c5a6aaa09246",
+      "currentness_evidence_sha256": "0c0910d91eb5ba64cb7b514e98da29439c258b9e20d8f5f98da6db2241d69768",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "08c8d15ee6f3012f2d8e689ed498de980d58f53d046251533bd58272c7cd8e35",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "7ad6ebd481cdde38f154dd3cef444209c8725d03229950244091052e9f16f295"
+    },
+    {
+      "content_sha256": "b362a8abe50d239ca0bbfd5025c7827d3d6d36b5e0cf25ad1ed97eb9f34f1751",
+      "currentness_evidence_sha256": "78b3916e2264429d4fa83ffc0ff56de38d43b164eff785c76d14b76429f3f2f3",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9728fc93d85f7502585c0ee4ad6ff8ff1271c1960889eed323f719b7006afdf7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b27cef1fec864ea8e6b9dc90210ba39c44be5de40f5db6fc663d84f6fba37d64"
+    },
+    {
+      "content_sha256": "b4e469019761efda3eaa6a6ab20ddd29cee0e9547b0e89aff879fb7c14d04c1e",
+      "currentness_evidence_sha256": "090a509d1566db8d1eaa0ef4b85e6f73ffd5d309e20ad92317ed7f83b4a783dc",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ddf9687f603065ee2470116fe6bd99c282348aa5021fc32fd0add43a37180565",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d056b7ce1d0151e0c18a94f55cedeaee00e1725876b179671a53dc1af71f4938"
+    },
+    {
+      "content_sha256": "b59a98a9a28ae7c42c2866872ec1da8356264d28a7e35acaf62bc28b615fa397",
+      "currentness_evidence_sha256": "deb516ef3f4efa068e8dc130e6ed7c78d625bcb6971fdc3683e7383c0795ad51",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a7bcda2863b273a017bb78479f89ad250841e7b48ee6f8ea799c3e79d527a61e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "7cbe29d1e52a6f19bf342c54f8b209c4815afed991175428c3a2f757c0212b1d"
+    },
+    {
+      "content_sha256": "b8e53fe1cf76cb8810d511bdcf065c8a5ab7b48a9637cf8a010bd060348f9f41",
+      "currentness_evidence_sha256": "3bbb095ab8affc7ff92347ef86a34e16897e66f92774c782d61009f11fbb397f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "100db23ca3773efdf0e14a0dcc8b4e7c1ac5bb63c9fd141d009dbe1a70f5e56e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "7e77ccf154dd5b3c50ddc9f76b8b52d4f7643c7e01ff5c71da96ce963f9afd55"
+    },
+    {
+      "content_sha256": "bb18cb49f6ef9afc88f7efde01eb4be9ef16811c773837203f87beb8d7475f3f",
+      "currentness_evidence_sha256": "f9768b4efb843167a13c4cc0a9360cd93f0501b5452cb82f4e27dfb236679265",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "bffe87b5fee775cc6ccaaaed5377483325e28288bfa319d51fc9143c5f73ca2f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "afe6914e5fe541927ea47b2ddaa0d10e28ea0052c9f17da27d65e864d89f07b8"
+    },
+    {
+      "content_sha256": "bb5014444841d8f227cc696d2fa33ca2fb325be4bc55e59b6aa33b13a645eefb",
+      "currentness_evidence_sha256": "97e916c5b06192527fa0905c4ce087f7092941da611e16c1903df8b1fcd60765",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "499301d25d1d51d89d34449f108f9acffdf69d1ae37001e7ea284ecb9a9d7254",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "73d89f72bd522e7bbc4e7d77143dfba0ccb5a7e947b92c643fe9f0263a9d5060"
+    },
+    {
+      "content_sha256": "bf56720e3e46a0206c464870d94680eca8ee3a2b392030bfe78883b427fea8bf",
+      "currentness_evidence_sha256": "1407c7f559dcb255d54b498d6402f0bb405ce81f2c8f2c86af785623d407422d",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5fbce8c186d0b0f95ebff30da6b4a1cbbe7c910655e677de4c22cda5e6ad1af1",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d5333d2aa4c07c6d1d52c5b0b75eae03acd880b983a0fed74c23672b23328f06"
+    },
+    {
+      "content_sha256": "c1bb45c45d420b17110194a7bb7432f31ab79921f4b8892dc7a8813e9c380741",
+      "currentness_evidence_sha256": "0d1016e98dbda6a4ba64872ef233f424d894cbe42c1df6d48903b96c536b6ffe",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "19333598c159541f420968b79522a62f2caaad9305fc681f3f3ff207a63824be",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2252e83a8f1adc1030d9da2e363f7aa4a5acefe7b88a0f8b61e88cca39992277"
+    },
+    {
+      "content_sha256": "c302081e9f2e19a2effa3c80bf99dcf82313bd06253dc580ece95daa4996c25c",
+      "currentness_evidence_sha256": "dc83b6cdc8ed50cb91cfba0df8780cd07c6bdccae1a4fccdfed532896dc4fefb",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "dcbdc8cdeb800d91643408289caa243dec2ff2406cb647c4e113d3b91d7e7428",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "51114e9ffc8e01f632585701b7919fe5f3c8ac86a5f6252fe7fdf8dea6a28393"
+    },
+    {
+      "content_sha256": "c7b4906daed48b5a66344ebd4e08ba21d1c9d28b784c0f39402a33a2b9ebafb5",
+      "currentness_evidence_sha256": "d49d81c08f100caff6e5738c2ef885adc93f984d4c9874fb7ec1bcb9aa7677d8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "509b23b49e3dab1a0ef75cdccad08b048edc67557e174ee68773effe541745f3",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d55e07e0278c717609a63bd968b63dcc8c16f6f0cc8426ba97e542a2d6ebe68a"
+    },
+    {
+      "content_sha256": "c8b387dedb7daffd59466ffd762235dc95ba92f5b7c9830676bb00c971388f1b",
+      "currentness_evidence_sha256": "0a5433d426f30b8137a08e3843da4f79a4fd6849f6e348b3fa751ddfd63cbff1",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a56aad568cc25abef65cf6cc37f4a07461ee031739ede8662c0323bc990afa9e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "37d16d793489988e7394fe5d2005a877720ff75632e7f05d39fcf8274791b2f4"
+    },
+    {
+      "content_sha256": "c9b67903012c9e18dcf42cfb35ab631b058ea2faf40b68c9b9ebf9abf3a5e478",
+      "currentness_evidence_sha256": "47c2d4c1550a2fad9b6859295235c5d5d7b846837773828fb6157279daddf4d8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "69fd46fded86f1308f1ba113a7712d15b8e6f329abb85c1fae5636fbe363fbc7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0591c1753929f39fc9c8e02bb0eb90fd656974a9cef0f737d0afe55c34322124"
+    },
+    {
+      "content_sha256": "ca0cf001cdd15cecd2dd6a94a77169ea73e24f988bc8bf87d135577f78c3c248",
+      "currentness_evidence_sha256": "597b1d4987ea233242432fb40eb7e54f142ec9b9421b94de051dcd8390a297ae",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "04f55ddcaa1eb46dc193780a0a6b71d5fb07996baad04701b738abc6ddf365c4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d271b5ae5aa15bc0ef4c9e7da050d3b78b19ad079a259db4379247f674759c52"
+    },
+    {
+      "content_sha256": "caf590167094a429bff45d10d389f92c3d0c5d38f0c50cd2a33c98caa03ae8e7",
+      "currentness_evidence_sha256": "e88bc3dbc5963a6b1debf28935c8a52e39ecd4989656a5de3145df95afaa4d69",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "cd47f444fdbef4f5a5c71afeb535f6c03872ca29f83d3887dd69d8ba1958319c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f8a44427a5bd5fb0fb07af5cad59c41cd42d6fee936d7f1fac78d1abb9dc2b26"
+    },
+    {
+      "content_sha256": "cbd8372e4618448358dc0562dcd0b7cbe2ab338eaf826464048f3c55a3718bb6",
+      "currentness_evidence_sha256": "b1eb0ce50d96e8068b6e513bb77f1034765353b0f5187fb4c77564109699aa08",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c7d6e8142a10afba259a380d81232d00decffa9567eb31dca11e64ae5403fdca",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ba9710a110b7c9f4ebed80bcd04ec8e388b7090a26e553b3b593acf1e1d67b63"
+    },
+    {
+      "content_sha256": "cd32ce04282d66f0208dc7812b62401e223b3e3741ba1af4555f7873c88ac07a",
+      "currentness_evidence_sha256": "463379266f6ef175c8c903ac40867aedf2204d01c98dd0217296c1448350827b",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "768bac1a256a9a6e497ca0ea5f9d904312c8de3bb6a069742903b4d6a39fc42a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "52104b2a60daeef500869952f5ffc84bb379f057bf47990a311bea94a62dae0e"
+    },
+    {
+      "content_sha256": "cd48c37078c93be5e87bcffe760c235f1a2f32393e08c131fabb556897b69bb7",
+      "currentness_evidence_sha256": "123241e81b35ce99116493c9f7710e7fae99f3577416aeb305bd6b2a8760aed2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "30493a9aa1056ce23e27e20a9b34c4d0ac33496fe10ab710ab3c195f9c7972ea",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "fc4de5d107a8939d227fca9c718cfc6814db1fe936d98032d4269ce44fc2531d"
+    },
+    {
+      "content_sha256": "d0a2acaf725c9ded1513addb67649bd40979410ecc0b8a5542811268d0b85296",
+      "currentness_evidence_sha256": "1031e384ba08c5fbf22139da4e3a8d6bc44bc566da2a79336163f848da92cb43",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "f8daaa0bee4338bafc8a922ddd140de943d4e54090fef1d4d0e23425b94832d9",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f5516f1bbcaae63e9aeaa833299cf0318769bce2b0eee74007ec0dd72e2c16ca"
+    },
+    {
+      "content_sha256": "d0c14569225005edd48d8d3ab3e271b2580467685381e227e3a864c65592e20e",
+      "currentness_evidence_sha256": "125fb8c759862cd84b387b74b3c9d13b7128665845a73ee454e7e180fc0c0f47",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "db3fdedd31426c42ce97ba657c6f6fd5facca07cb266014327d9c5229a6fbc82",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "43d5497cf39ac1a0f0b02d1dd94f2699a5cb6239dc5e8de228b036c00e65d0fe"
+    },
+    {
+      "content_sha256": "d1caf3a6397ba7f4e91d19db775bad8fc6dc693239691a1ef184445e23a6cb25",
+      "currentness_evidence_sha256": "bf671a8e617414e1af880fdd217c4d8142e920bcdeaf5cb7a8020762987f45f3",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1e54bf0fd405749bfb187d82a8713afc5b04e527427bc22fdc6d66427f8ca6d1",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "981c75ca4a8d90eae0fc87ece424a7e085bde81c0fe1a3649b2baf076318c222"
+    },
+    {
+      "content_sha256": "d3b122b0beb8e26938905a8c25a51b08b515b9aa4483058feb091e632c45187c",
+      "currentness_evidence_sha256": "e46bcd54efea7f95bb9f96974a0c81cfb0e0d117c2c88263f7e3bd99f9f576e5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ae92a49db0e96ccd1400ace11ab96ef7a96c991387c601cbeaf3ca4a24506923",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "5fca98b2d55c5d2dd450bdfc534e1e4858a9ad821272ddddb133332d4b7a4098"
+    },
+    {
+      "content_sha256": "d3cb372e68bb1b00bab0053d8249803c58aa9d1ab5da86bc152e7eb9d157841e",
+      "currentness_evidence_sha256": "15a0587665fd86d6dc7cb779a5a55561937d8f8e9bac21afd4acecfbb548a2d9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "2b4e040d38923af3341fe8de54bc830060b717edfc17fc7702d918572212c520",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1087fb5ab5aeaa4330187fd267bc3b210b6f4163725593291613ba8771e880d3"
+    },
+    {
+      "content_sha256": "d681640f506c2382d39e2a274416d4328f71ac699b696209295399a18712c8ff",
+      "currentness_evidence_sha256": "b356d07ae83e2bfa0a09e90917586d84f5feaa74ac4b84528303419f128f4641",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b97a552882b7aee899c505606d48061ba41bfab8d55da9852b9cf5dc858c9f49",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "366cfbfffc26b6400d06176d0fbcaf44ad887819a7e8cde352bd25aec11ffd14"
+    },
+    {
+      "content_sha256": "d7d951968e5a61fcd883bac4965bf4149fa9e19984800733fba0cce2388f4cc1",
+      "currentness_evidence_sha256": "d68d9b48d4feb9e5a4f7615d78176188fe146d3c0210169f30579b210ae8e494",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "bf9d750be26b942db56c329c601e342992990e448d4f22cef0a0c4ab191870fb",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e40ccdafb9623c4642249eb68cf5a83a24da0ed3c05a658efe6b846a780dfc23"
+    },
+    {
+      "content_sha256": "d946d33672fd147f5a5e194589c16be68ef1ebbafb166a71be779501e824531d",
+      "currentness_evidence_sha256": "5aa3b80d1c5c0ef7314ad46b11e4d1cceab7cf50d4be92f40ece602a7b949437",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c352771eaca8141793d73453c5e7bddb268a43583d5c2825aad0cc71c6739e37",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0acb85cddc0f0e2b436a574bd5d35cc6f3304270bf5e99dd1282c2344711526b"
+    },
+    {
+      "content_sha256": "da066e09c9b396064c56177267188e0c5264967d83e54df7ceeb0d7502a6c925",
+      "currentness_evidence_sha256": "200b2009dfc9e9b5c5279befe022d09bfe02e648d610d3439313429b3fd40bba",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "8a631b634870c34d2c71f70ad8ec2d1f93b84a2b31d81205568f1a59854934f4",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "217f6201bab340c601411fd9aac10805326d00708033efa0fe2d97411b035f44"
+    },
+    {
+      "content_sha256": "da82288ab6c743622b60142e42033773a1ba6b5b3fd4c24d3fd60b08c54bb1a1",
+      "currentness_evidence_sha256": "47f2aa2c6262df10d8cf7d18873a607e8046d90adf601366d5246058a777f8b2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "725ba0fcb51b6eec1800c8beeee334e6e05b36e0476fde64d8810776ca59faa7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "4e65046778399929df388031adbc3a5b1257e7bac2efc64791bbb8b5bf2efc6d"
+    },
+    {
+      "content_sha256": "db7ed9a3bc6675b5802cb21bc4fde883b3f0cb52e95a86e4cb364931b2ce53cf",
+      "currentness_evidence_sha256": "517dfa621f86a9ba6e3565a1ad88975b357e12ef73073f6dfd347759b68e3bf6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "48468c4ad83a36f1d80f9ed3d316200713f32b14f997e05f0f009744c0401f74",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f88ee598aaa77e2aa0a9ae1d3f7bf88d73a38e6d3ed4a547c0fa7c801775166b"
+    },
+    {
+      "content_sha256": "dd7ba2862bda68417dfd0a7a7e2b7d0b3e32564b5841a2f0522ad55b1b7e69f2",
+      "currentness_evidence_sha256": "739814a77980f2fad1376ed77813df958e07b042a150bc5315b88852931b4931",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6b8dece9413fe9f9b3630fb40174dfca9dede756f5dad30704474c461cae6ba0",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "64f5b3427dee3b23d421fe03cb2f3aac75e0e47cee31be91b197d4e09c012987"
+    },
+    {
+      "content_sha256": "de967cee60044ed7c7a6c321339a8eed972bff0dcda631e1a9379a805631980c",
+      "currentness_evidence_sha256": "2fdfdff5a7fcd4810522dde179355118f6a10a4774c54feea4fd3b7a3f3397b8",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b9b91afd27501b55380365d7cd429624bf63e79f8528f8a1a8cb4fcbb4a2bd8b",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "63695989b94627f3808bd2becacb4615295b78d1448fdfa1f76b6d4eed33095f"
+    },
+    {
+      "content_sha256": "df7a48fd8dbf587fed32949362ed5fe17cb714089cda199fdaf58d043a230711",
+      "currentness_evidence_sha256": "7f75f4e35cefed8fc25ba89cde333cd40716f922b6134c9d91b61ec4f54cd82b",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "9bc27520d0eed8ef50c7d59073f8c4d3285f8cf5e82bafd6f661e9e34a827b1e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e89c1f14273c36a004ab6a563af26210400d5fb147f42a76da9f448375f80d6c"
+    },
+    {
+      "content_sha256": "dfc019528044ce413c1527b17fc404bd274bba834894b70912187d4e08d5b56e",
+      "currentness_evidence_sha256": "241136e416a027fe9b52c7a51708e22efe052baa12fafb33e71ef9d2804234c3",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "8c9d62ad62c1dc93e84e0e9fc30502210ed6775f0952fdcca7ee7918f2348a88",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ae43e89ffb0bfdf20cd222de4bd5b8098b77d766af47a590a0ce9d5d81b14fef"
+    },
+    {
+      "content_sha256": "dff5f6e5ea73f698150b4e525b0a4c0183d6493586bb1170d9648a9fba66c31f",
+      "currentness_evidence_sha256": "fd61d60e3c3e978cc8a44b4629b486f46c2480eafa31cd68b9fdf956bc37bf87",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "423f2e0412ada4aad109999d94c82d7611df7f926c898e01b7eb169bed054ce6",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "dfcc78f0d6a9d1122c839cc39e9e384bb71f49b42f05075f3534869b0a7bea6b"
+    },
+    {
+      "content_sha256": "e0179c8d23f3826115d63c1fa20ed4cf16c7ae821fdec4d7f2e685ef95e1fc5d",
+      "currentness_evidence_sha256": "92af1338812dc68339b3078e38b0b3f1fe46bc53d5c411c38e881b9ca124f36f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b79dbe67210ce8e6786a619e3fe51a374276e9c258c797326b27e7e3087862d7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "6e6ad3884291ee472815b344afbde1abc7d1f997fa84bc1d047ee00ad02dc9a6"
+    },
+    {
+      "content_sha256": "e1db721eaa5c88ea8280b32fb5f1c2174698445b43770d01328e1f23e723a134",
+      "currentness_evidence_sha256": "acb27f7111bcb34a41d8124221444fafce7c98df04ffd6917d81b60d016cf63a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "8556b1d7a0d43fdbd71a3b381579ae909f21a806f30d9cbb991782d2d28eb242",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "31fd6353d42bac49e210537c82d9e1f7746bbdbf121d692801d6801320d130f1"
+    },
+    {
+      "content_sha256": "e33e2e5f9a0834dcb43e962dd04d78fa3ca0e9e3561f10b8001175cd5809af5f",
+      "currentness_evidence_sha256": "38b67964a17bddaed170bab183d0635c5b9f99df266151c86dfd3a34c31858f5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e95444997b604afbe1d84b107a6b98b1adf03d465917a9b649db4ac128bba1a8",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0bee148f84433c74beaee17fb2b8d749cccb249f954ff0900444aada4605b050"
+    },
+    {
+      "content_sha256": "e4458d2f3369c924b8f6ba3ffecf124da16ad6ed1a5129a97f9b339a350329fb",
+      "currentness_evidence_sha256": "df3ff5fffe43226270942bd6c3fce5ccad8170bb28084a9e5e53b24a4f62783f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c130d130c293c264ea7e414bae99c6cf8af2169a7270af9662a9ed9cfb2e263a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d653aded882a487ae98c38d28ab15b59b3b66964b816efa2867bfb18f29e378a"
+    },
+    {
+      "content_sha256": "e510db2cd927b9ba3b518ca0c6d340481b4cedb6f905b618f079e9f2732aec77",
+      "currentness_evidence_sha256": "a4d1cbdf05f48703bdfc3f5bbec5200a682a7447b8a4f99da7d2a5623039d19c",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "cd2ab2a2bc5c7a4eb5c2063622625ca32993044e0754a68bb3a62f2c01184ec3",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "1ddb97cf73d859ba5aaf4510a2ede99952333fe007fa0a0860c17c8ea34b30a5"
+    },
+    {
+      "content_sha256": "e7142e171e21d54a1b91389cf79752bdf55eecf5bc735bc7f2bb5d2c47c16877",
+      "currentness_evidence_sha256": "2ffe13adc0ee938fe1f5b71db1afd0390e87b2d67fc6565ad442e4154436e0c2",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1dce1f9b00a5c12a2e4b1325d473c9d5096dbabb7582accb9038c224748fd9d1",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "08e7f20dee8addee5de124cb1884e604c7d978930f619456b2ec000de98c938e"
+    },
+    {
+      "content_sha256": "e75aee3a048956f9c998241f4bcc190e7f64ec2fb1cb449490777b4edba1497c",
+      "currentness_evidence_sha256": "4bd15c9f70a950286406009ed84ea02e4ea483737942f78aa304d2bc262cef87",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "319f81b0aa7800d5dca4c2110d3ed2d9b915aa60eac8afae5e4aacb1e3992004",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "d0b3f386a7cd65409702d0614bf7610c692c70aebfc1b022e0722aea0c068e74"
+    },
+    {
+      "content_sha256": "e964d0e98cafbc1f3d80cb65ae6b38bd3346d4d25f593dde8e54f905233c69a4",
+      "currentness_evidence_sha256": "b6cefe00a59b6d50e3bc3feedfd42a164ecc41c74a845c82a00120e442cb76d9",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "347476693979a96020f0bcc6801eab78cbf8168e2cfd6fd00c18fcebf141d60c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "5544f9721911aadfe811deca25b1af88a2b3328dcd330a65508692507f71e457"
+    },
+    {
+      "content_sha256": "e98e38ea949b98033d3a9d76bb06c8bc2d3b8f8794b1b377348d2f124ca13b19",
+      "currentness_evidence_sha256": "3953639bbc2466ba1607b1587ae8fc61ae8c720216358de1a2ebe06fd353a77e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "83aff07df8728af52e9b0dc913ffe093f9e88a16d60a13bd3292ee817733c888",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "91c5a3123a2c4df70fb0fb91e9cb481ce8834996a21548d52565be3d615a8c3c"
+    },
+    {
+      "content_sha256": "e9c077af3fd91f19d4c6cd71ee4916850a93ff7c2669af456784673572f09518",
+      "currentness_evidence_sha256": "b986a649ba84de79865d9bd5aa60750177cb293cdd67a30dbf900d385d2b5ae7",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "03b581f1e47e60795273f73ffdbcc29c50e86ff318e39d8439e26f05d555004f",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2ef53e02a4e1aff55d251484af299dc9a68831fc008a5003b8773cf88dfd323b"
+    },
+    {
+      "content_sha256": "eb32372bcb4ded940107b6b3f850186a88292e29897f0a7c61be87b6084a0eec",
+      "currentness_evidence_sha256": "28012e14adb331b2fbbaddfea73ea85cc7de21569213c171c66743a3ca4e35e4",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "0eaf363fdc031d053740409cc4af1575bac0ffba950cc900072b5aa4a1d98934",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "8a9db0f95c2efb434b0e6c3335e9b9ffb5ddd3a370f2d6800ae28c30eaeb45f8"
+    },
+    {
+      "content_sha256": "eb952d0e4220e999e87faf1a38efbfcd68dfbe0252da5457ef533615000724a3",
+      "currentness_evidence_sha256": "02ce89d592067d0537c18f37ff4ac38d8ad90801c998bd953ea0aa0ee8688881",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1d84fa0b4a41126920d1e6a28e257659edfee351c28cd36d0a0bf39eac4750d5",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2a9e29b3874cc58bc1ccccad7267519bade0ad1b63fb90375eb16d9764705b35"
+    },
+    {
+      "content_sha256": "ec00fffff1dd7a0bb31488e20ebb47ccc45f2b1beec8a1e7706fadf020f832da",
+      "currentness_evidence_sha256": "ef9a860add4457fac52ce64b4bb92eee95c9376cb0fcec613298e8f1bf8bce1e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "f2f3e0a6a48e7d320fd69bef7a750a30a22ce09d7510f61c9fb3fc5b3fdb9130",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ca9fd35fd9b1691d381d9dc605865f7ea6533dd62366e2846f4f1d80fb0af2cb"
+    },
+    {
+      "content_sha256": "ec5262719762b7c171fa9d433d9306f0c63eda72fb18255ebc0de04c094dc300",
+      "currentness_evidence_sha256": "6fb17bf669630b8313257ec6a88cf1d2813326a7c3fb1e2908a5ccc6a3588a7a",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "d68a4633384a1a4b64300aa844c8a4e29183134a4d411aba6ad40d681125c370",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "9e8479e7e6f1c49b9a147add91cc304e022b97d037fade641257352c9c44ed00"
+    },
+    {
+      "content_sha256": "ecc35444e0362ae5021763473a914832b2ebe037d466ec20ba1f763181f75b7c",
+      "currentness_evidence_sha256": "e3a8f08f3897f02cb66cfe860faab645b8d723fd3d15fb9cddefb85ba1b1ce6f",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e5372b0634b7a5d0616c87657caa632d6422ef9f1aa8a521e7ea851f5c101db9",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e3d153b233903bc20751437c4fc76728c0b58107802f88b6b1755acac5c2a0a7"
+    },
+    {
+      "content_sha256": "ecd824fddc514f888847c2733d5f7610a6bcb56d2b8fa30f61c8094850bd55f6",
+      "currentness_evidence_sha256": "2ef7fc0ea755750be4370c384a63255f0aab5d30e7359600a0c7b7a21ea3b75b",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "a16f276b33c400783ee6e3df1657532a78b617851ab8ef813bb39a61857e622b",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "21d2c073b8bed2930b63f526dd11e99f71988e144ef83433ef135179a8e532be"
+    },
+    {
+      "content_sha256": "ecec86c2d18473b002f8efce5019037a3e8286086f6ea768fbdf7db8c32c83b6",
+      "currentness_evidence_sha256": "d963edfff6b725f70a54422443be3e294aa24ec9ebe57ed989b37bb3396b9af6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "3d55a56de20f2f69a16793d136f06cb7d7265efecca23d9438234b3424fcf1dd",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "8a9e02081433118d43852c4631f1e388ddcc34412eab5886f6c4996160c35307"
+    },
+    {
+      "content_sha256": "ed8b08acb03ea809d8979dc3cbe22c00a114d133fb66d4c781bc0aa321de07c8",
+      "currentness_evidence_sha256": "f3d30a2b3a72f43a5dc90667d2ca807c6917233e6ea714430c7ca9c0620af61e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "2b340119d40127cb0820c003767158760a2593fbedcc9dffcbae1173a727e61e",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "77abdd115f3954e2c0590d8094249969fa186454449e851c18cf533f514dc3ec"
+    },
+    {
+      "content_sha256": "edb43d71c177cdec9932a680b5a280e4dd4111e5af84c60a524a066ecc3f6d60",
+      "currentness_evidence_sha256": "99b4c631373bc4a4af007fc491c3ae72c0c7f228c61e3d9265cd0933d948a22e",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "380868944cd0233aa83629a9cb87d009b50de2677e187967a27831b49c636b34",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "09f76a653434eff06cf96f15dfecab74873049c9f30af02321df74c44717a09a"
+    },
+    {
+      "content_sha256": "ee5ae19e91615bdfd03fa17463fa5af31033e5b2ba481269c77c6b3e51164415",
+      "currentness_evidence_sha256": "f04b3460e7c1041a7572240da0a48c56a4ffdd3a38cd893147cf622e26d26c09",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "e84dcec20cdc6b926d8b3a48f84a92095821a6825c9ee49115d937fd2e1dcb95",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "0bce2a6a8dd3c28a4f73cab03469015fa8a03be2e1a12a070741f00b24d84785"
+    },
+    {
+      "content_sha256": "efefe7688836722e0ef0f2c97248d397400f1d0329eaa9607eafb74fbcd1379f",
+      "currentness_evidence_sha256": "f4de203e43609c9d78c2be8753a4b919bdd80cafeeaee58d774d3cd4bbbb04fd",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "1d4195b74c3fcba5ed7b19c6f37ed163f1ccaeeba7d58ef2250d2abc8fa4d5a1",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "3fa21b8c9d7affb74314a068e730223e25ab5e0cfd62715b88395ce136d5009c"
+    },
+    {
+      "content_sha256": "f067d2efa6ec383cc65417cf26aa52af46b4f16669c3a69e87cd3cc03470588d",
+      "currentness_evidence_sha256": "195de2bb7d0b75134c840d59b80c978f4323d89e518b8cc667c4f09bd8be4501",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5166080b7287838131fa32bc11dd29d92ca0580b1d85f7ad95e76e48c99007e6",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f2e7754ca576f4a9fe585cf7da0db0adbe1037ca1035fecfefe253c76b60eb7c"
+    },
+    {
+      "content_sha256": "f0831a449c98cd9aae065766fdeb2dd66433b7013e31dac0e1e01505135cdb67",
+      "currentness_evidence_sha256": "d0c40ee9cdc7860b0b930a0737a33d0b01e1a4aa92cd1388f7f2ea1f60c1e796",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "08037b2e49fedfa77fcbaeadd6079826f99190f702efce8f12847b832ca4f9c5",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "188c7b512edd4aecce488c3898820f1e69898585dbb557814e723de4b79f2630"
+    },
+    {
+      "content_sha256": "f1424440ad0dfe5615ed9f3dc71a6b560eddabda9e0539315327843394a49ce9",
+      "currentness_evidence_sha256": "62af8097d44844a6eee3149ae6591fe3428437ff298971906337e132058d6c01",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "827b979f36e926f0ac902ff6f54bdecc9504cf92ef96bef759599e59fc6139d7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "421550918e6c928f9c027bc84df8e51596e7cfdc9b067ac8e6a1bdcd7cb0b922"
+    },
+    {
+      "content_sha256": "f1d74515c405a47df3d387de3fe1503c752c50e8f814b86128d139109769b87a",
+      "currentness_evidence_sha256": "8571062a1d5051023c4504ac47735178052f2718cc2331145a0cfd81cbd09253",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "d2325257935091f2ec2f43bb3dc609b262b7f405c979d2e486293a2ebf0fe685",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "08c8baf8a6730c2d04b13ba569bfbdabe5acb94116fdfbd840ce662705bd196f"
+    },
+    {
+      "content_sha256": "f2baa132a975abe6c6a5dabc9a8ebc3ae65cf8d72678ee86e77d34f192991280",
+      "currentness_evidence_sha256": "80b89d13a90d4252b2299e2eff8f9b57a9306f15daf7410b29db1f0b7ce5f4c5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5ed8897749284ed7e32042a1981f70a05598df88d567e2f65d030fb3fcc19fce",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "fecd8e381166f2f98f991c89b6674aa1ff1791c320675347ed07264623701090"
+    },
+    {
+      "content_sha256": "f7ccb86012391284fe5350f0f25e7232f45bad0f3fcd3b754b0db63aa7e4ec30",
+      "currentness_evidence_sha256": "61c65849ed08365784d0254d01a76285887b73c0d63cf1d27dbbf90965e29870",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "2e38538be4815a04cc3f139a41d71d59f01a749097a09c756dc9fbfd234186f7",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "5b2550f1376e26b866e48c487284a5ebbeb8c1233b6f2b6ea7b1ef6ff4102ced"
+    },
+    {
+      "content_sha256": "f8c760daf6619d09dbe774875c7e696e4cc770e61abcb9f5d512d54a54ebaed3",
+      "currentness_evidence_sha256": "77a1b8ea1e459d4a804481cc54195b99bb4620aa0fd7abea4a3a586a978e5e06",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "91d1bba74ca8a72531c5c14c6d799a71a600244eb58c01cf562000a3d5bb132c",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "15afffc70069f5af30759f76880761169644c45507ef7d18ee8b6eabcfc7a842"
+    },
+    {
+      "content_sha256": "f9193a8753ef2a45904cd6a94d5b30156d9b01ea2546a63a9f0cc3c5c012b9fb",
+      "currentness_evidence_sha256": "eb9c89aef237e2047e1cb7e06cbe8f4935736fe8eaa0a2feda573ebf2ea5fde5",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "85a250f7a1ab7a1008de07e1a241dfe614243fa46a5613da4681c58ce37e5edc",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "c5bac2ab5072178f7e76c0098cb22b8bb32dd78b8164f328fc9867ec5736d784"
+    },
+    {
+      "content_sha256": "f9ddb670c860516de2c2c4a226911dde26c62a1c0255aae2856e1ed2965c5c2b",
+      "currentness_evidence_sha256": "4f9b76978528c9191c1f4969558495eaa6b3e779ad5c30e0e412bf4446c31b02",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "2963f6b12ee52057b540677110ae469c7e853ddfcbed5b3c2851d2c498a8ffe2",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "e93a6ce5299140c298d25a0563f81970183159d23fcca4612f15c7a5e837e3f9"
+    },
+    {
+      "content_sha256": "fc27bbac90396a457c4c6a553fa78de179664bd390f5421ed89369a9b10bf2fc",
+      "currentness_evidence_sha256": "8a2d782d9588ba27fd7ab1eda07817eb2d52ce0cf1fb963cdd98a17b6d0f8b93",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "ae8d0a0b364671e12a9d6833dfc399ff1b844072c8ebb53ffc4e96c5048a74ac",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "ce5d291cbba2dfe07911618a1fcacd58be8056a476a3aa659e115d2bd50e0255"
+    },
+    {
+      "content_sha256": "fd5ec0274c1c8987e38d01516162137cc9406211cfb84be192f17579a099de8a",
+      "currentness_evidence_sha256": "cc7502b68e50734712cfb1259c7e3656bbb2113c4173d9b1243c6660e4730dbc",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "b3f4d8aaec58d2f2bc501c29c9b45d9e8655e53e672ccc5df76affb0e600c3d3",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "b7f4b80a0b1518522a2168ba7725fe9935cebe8abc9581962a89ea4a4d213d6b"
+    },
+    {
+      "content_sha256": "fe07514d573395deb98380953558e506cbf404194bed91bc163b53a3b8169071",
+      "currentness_evidence_sha256": "fe747e64aaa7d2d6abe0fd4129004c8b4b8fdce762b74c9f1fbbfbeaa588c598",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "c32a92f4965ffcb0a5789957e0a56470088a9cbc25f1a0179149033b7b3e543a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "2ef39773d21814ebda8f2e4e0b5d2970b5c81c5042285685cce28c263b2a562f"
+    },
+    {
+      "content_sha256": "fe1cdc9a64c5565a56aec8d8384b16f516fb2b2b89067edccc4905dc7db3085b",
+      "currentness_evidence_sha256": "7b32bfd63d9d2cca69c15921e687243060d3068eeb77009138faecd0112e5b59",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "5a139ddd04a7e9358463616c9e090b8921f9eae18175721b4f0bdf1f07715e54",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "983cd4d898872f3f210da937560f934cd33cb3b6a3d17fe0b27bbafb5d7b91b2"
+    },
+    {
+      "content_sha256": "fe8e750c24c5d01add3d682429c6fc75528717bfb7ccfb57fadd7e097739ed57",
+      "currentness_evidence_sha256": "af6625e55e0f36c0d61a3be7fadaffff7e3f3b2ab1bf062c0d560ddf13520eb6",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "6778cd298378522173c51cc9701cc62e330cd87627073188112bb7c019e345b0",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "cef9d77b41dd2f384de04eeea7bbfb8c06d7a227edb0f266759c46fe1cef3139"
+    },
+    {
+      "content_sha256": "ff816cff4bdfae96e6c81745a8d11609e15ceee17a2e640529a003d5fa7b0f2f",
+      "currentness_evidence_sha256": "044cf22d6240a68e4cd0747a35409ffe96f5b13c7768403c5c1e0a05416803f1",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "cd7a3be5d05186d49bc1273dd19239b49d30e5fbc043210f37a002e96f3fb41a",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "f1adebff9abb216e601e1eeac23e9fba8c6fadf49d8eaa65401630baa1967948"
+    },
+    {
+      "content_sha256": "ff88a2ca5eecfb79bf606c30e5dab7c2a90a8dbfc40e28f9727053f086229bd0",
+      "currentness_evidence_sha256": "747736aefe2502218c6cb6390321d37afe7e63386724abaf11bb56fe310dde67",
+      "currentness_status": "PASS",
+      "fresh_source_checkpoint_file_sha256": "10f22503338f161c37338de6d36c529affd00a0ec7cd6eecad9be34260597fdf",
+      "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+      "source_pdf_sha256": "197c2f5f1f674aecbebe12f416123cf60d960e1a6767118a42b43d517f9e6f51"
+    }
+  ],
+  "fresh_source_index_file_sha256": "7482e8cfdeb2066f1c03f8c8b978fe751d5f20bfd168d9e94912e7c709755c8d",
+  "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CURRENTNESS_REGISTRY_V1",
+  "private_cas_manifest_sha256": "757f41e4aabceaed603196294b3a980c7ecd5d228de8a48b6fc0e3c60fc06d36",
+  "release_id": "student-public-successor-20261010-fcc84331e7700042",
+  "source_currentness_attestation_sha256": "4882c95b47e807f0efe55ee5768637b47907af4d5f91e331a0e273acf684e62d",
+  "status": "CANDIDATE_NOT_AUTHORIZED",
+  "valid_until_utc": "2026-10-11T13:39:22.520000Z"
+}
