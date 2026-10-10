@@ -32,6 +32,7 @@ def _proposal() -> dict:
 
 def test_prepared_successor_binds_eleven_unissued_student_scopes() -> None:
     proposal = _proposal()
+    assert proposal["scope_artifact_version"] == "3"
     assert proposal["successor_release_id"] == (
         "student-public-successor-20261010-fcc84331e7700042"
     )
@@ -92,7 +93,7 @@ def test_scope_proposal_names_complete_profile_identity() -> None:
 
 @pytest.mark.parametrize("sabotage", [
     "legacy_rights", "wrong_audiences", "wrong_programme",
-    "wrong_programme_authority",
+    "wrong_programme_authority", "legacy_scope_version",
 ])
 def test_successor_proposal_refuses_unproven_policy_dimensions(sabotage: str) -> None:
     proposal = copy.deepcopy(_proposal())
@@ -103,6 +104,8 @@ def test_successor_proposal_refuses_unproven_policy_dimensions(sabotage: str) ->
         row["evidence_audiences"] = ["libre", "tous"]
     elif sabotage == "wrong_programme":
         row["programme_version"] = "BOEN_FAUX"
+    elif sabotage == "legacy_scope_version":
+        proposal["scope_artifact_version"] = "2"
     else:
         proposal["programme_registry_sha256"] = "0" * 64
     with pytest.raises(PublicScopePolicyError):

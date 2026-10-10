@@ -1,6 +1,7 @@
 authority_kind: NEXUS_STUDENT_PUBLIC_SUCCESSOR_SCOPE_PROPOSAL_V1
 status: PENDING_EXACT_HEAD_AUTHORITY_REVIEW
 source_pr: 323
+scope_artifact_version: '3'
 successor_release_id: student-public-successor-20261010-fcc84331e7700042
 successor_release_manifest_sha256: b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78
 preparation_index_sha256: bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4

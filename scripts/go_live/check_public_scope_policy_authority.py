@@ -67,7 +67,8 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
     le lecteur canonique. Ce contrôle n'autorise ni release finale ni review.
     """
     expected_top = {
-        "authority_kind", "status", "source_pr", "successor_release_id",
+        "authority_kind", "status", "source_pr", "scope_artifact_version",
+        "successor_release_id",
         "successor_release_manifest_sha256", "preparation_index_sha256",
         "public_profile_registry_sha256", "rights_authority_sha256",
         "programme_registry_sha256",
@@ -83,6 +84,7 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         or proposal.get("authority_kind") != SUCCESSOR_PROPOSAL_KIND
         or proposal.get("status") != "PENDING_EXACT_HEAD_AUTHORITY_REVIEW"
         or proposal.get("source_pr") != 323
+        or proposal.get("scope_artifact_version") != "3"
         or proposal.get("successor_release_id") != SUCCESSOR_RELEASE_ID
         or proposal.get("successor_release_manifest_sha256") != SUCCESSOR_MANIFEST_SHA256
         or proposal.get("preparation_index_sha256") != SUCCESSOR_INDEX_SHA256

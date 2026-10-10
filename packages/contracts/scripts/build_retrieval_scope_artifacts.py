@@ -52,6 +52,7 @@ import yaml
 
 from nexus_contracts.scope import (
     RetrievalScopeArtifactV2,
+    RetrievalScopeArtifactV3,
     load_retrieval_scope_artifact,
 )
 from nexus_contracts.hggsp_successor_scopes import (
@@ -115,7 +116,7 @@ class EmittedScope:
     collection: str
     policy_source_scope_id: str
     resource_name: str
-    artifact: RetrievalScopeArtifactV2
+    artifact: RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3
     canonical_bytes: bytes
 
     @property
@@ -293,7 +294,7 @@ def _require_governed_successor(binding: PolicyBinding) -> None:
 
 def _require_registry_reuse_is_a_strict_reproduction(
     scope_id: str,
-    artifact: RetrievalScopeArtifactV2,
+    artifact: RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3,
 ) -> None:
     """Refuser de rebrancher un identifiant déjà épinglé sur un autre contenu.
 
@@ -401,7 +402,7 @@ def exact_existing_matches(
     for scope_id, artifact in load_scope_registry().items():
         if scope_id in excluded_scope_ids:
             continue
-        if not isinstance(artifact, RetrievalScopeArtifactV2):
+        if not isinstance(artifact, RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3):
             continue
         if (
             str(artifact.evidence_subject.collection) == collection
@@ -416,7 +417,7 @@ def resource_name_for(scope_id: str) -> str:
     return f"retrieval-scope-{scope_id.replace('_', '-')}.json"
 
 
-def _artifact_bytes(artifact: RetrievalScopeArtifactV2) -> bytes:
+def _artifact_bytes(artifact: RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3) -> bytes:
     """Rendre l'artefact lisible par un relecteur, et strictement déterministe."""
     payload = artifact.model_dump(mode="json")
     return (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
@@ -558,7 +559,7 @@ def registry_index_bytes(result: EmissionResult) -> bytes:
                 "scope_id": item.scope_id,
                 "resource": f"artifacts/{item.resource_name}",
                 "sha256": item.sha256,
-                "artifact_version": "2",
+                "artifact_version": item.artifact.artifact_version,
                 "collection": item.collection,
                 "policy_source_scope_id": item.policy_source_scope_id,
             }
@@ -1157,40 +1158,54 @@ def _build_artifact_from_registry(
     entry: PolicyRegistryEntry,
     subject: SubjectFacts,
     school_year: str,
-) -> RetrievalScopeArtifactV2:
+) -> RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3:
     """Composer le scope : la politique du registre, la source de la release.
 
     `source_sha256` est LA seule valeur venue de la release. Toutes les autres
     sont lues au registre gouverné, sans transformation ni valeur par défaut.
     """
+    evidence_subject = {
+        "collection": entry.collection,
+        "tenant": entry.tenant,
+        "niveau": entry.niveau,
+        "voie": entry.voie,
+        "matiere": entry.matiere,
+        "statut_enseignement": entry.statut_enseignement,
+        "candidat": entry.candidat,
+        "audiences": list(entry.audiences),
+        "visibility": entry.policy_visibility,
+        "rights": list(entry.rights),
+        "school_year": school_year,
+        "programme_version": entry.programme_version,
+    }
+    target = {
+        "tenant": entry.tenant,
+        "niveau": entry.niveau,
+        "voie": entry.voie,
+        "matiere": entry.matiere,
+        "statut_enseignement": entry.statut_enseignement,
+        "candidates": list(entry.target_candidates),
+    }
+    if entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064":
+        return RetrievalScopeArtifactV3(
+            artifact_version="3",
+            scope_id=scope_id,
+            status="eligible_for_promotion",
+            source_sha256=subject.sha256,
+            target_policy={
+                **target,
+                "audiences": [entry.target_audience],
+                "roles": ["student"],
+            },
+            evidence_subject=evidence_subject,
+        )
     return RetrievalScopeArtifactV2(
         artifact_version="2",
         scope_id=scope_id,
         status="eligible_for_promotion",
         source_sha256=subject.sha256,
-        target_identity={
-            "tenant": entry.tenant,
-            "niveau": entry.niveau,
-            "voie": entry.voie,
-            "matiere": entry.matiere,
-            "statut_enseignement": entry.statut_enseignement,
-            "audience": entry.target_audience,
-            "candidates": list(entry.target_candidates),
-        },
-        evidence_subject={
-            "collection": entry.collection,
-            "tenant": entry.tenant,
-            "niveau": entry.niveau,
-            "voie": entry.voie,
-            "matiere": entry.matiere,
-            "statut_enseignement": entry.statut_enseignement,
-            "candidat": entry.candidat,
-            "audiences": list(entry.audiences),
-            "visibility": entry.policy_visibility,
-            "rights": list(entry.rights),
-            "school_year": school_year,
-            "programme_version": entry.programme_version,
-        },
+        target_identity={**target, "audience": entry.target_audience},
+        evidence_subject=evidence_subject,
     )
 
 
@@ -1262,6 +1277,9 @@ def emit_from_policy_registry(
             entry, registry.visibility_restriction_order
         )
 
+        artifact = _build_artifact_from_registry(
+            scope_id, entry, subject, registry.school_year
+        )
         already = exact_existing_matches(
             collection, subject.sha256, excluded_scope_ids=reproduce_scope_ids
         )
@@ -1271,12 +1289,16 @@ def emit_from_policy_registry(
                 f"{collection} : {len(already)} scopes lient déjà ce sujet "
                 f"{sorted(already)} — ambiguïté refusée",
             )
+            if entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064":
+                pinned = load_scope_registry()[already[0]]
+                _require(
+                    already[0] == scope_id
+                    and isinstance(pinned, RetrievalScopeArtifactV3)
+                    and pinned.sha256_digest() == artifact.sha256_digest(),
+                    f"{collection} : scope étudiant déjà lié mais politique V3 divergente",
+                )
             reused.append(ReusedScope(scope_id=already[0], collection=collection))
             continue
-
-        artifact = _build_artifact_from_registry(
-            scope_id, entry, subject, registry.school_year
-        )
         _require_registry_reuse_is_a_strict_reproduction(scope_id, artifact)
         emitted.append(
             EmittedScope(

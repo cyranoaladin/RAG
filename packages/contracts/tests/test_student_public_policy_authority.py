@@ -5,12 +5,15 @@ Ce test ne vaut ni approbation humaine ni émission d'un scope actif.
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from pathlib import Path
 import sys
 
 import pytest
+from nexus_contracts import InternalIdentityEnvelope, RetrievalScopeArtifactV3
 from nexus_contracts.hggsp_successor_scopes import load_retrieval_scope_artifact
+import nexus_contracts.hggsp_successor_scopes as scope_module
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
@@ -33,6 +36,85 @@ EXPECTED_PREDECESSORS = {
 
 def test_adr_0064_allowlist_is_exactly_the_reviewed_eleven() -> None:
     assert dict(emitter.STUDENT_PUBLIC_PREDECESSORS) == EXPECTED_PREDECESSORS
+
+
+def test_public_successor_emission_uses_role_bound_v3() -> None:
+    subject = emitter.SubjectFacts(
+        collection="rag_nexus_dgemc_terminale_option", sha256="a" * 64,
+        dimensions={},
+    )
+    artifact = emitter._build_artifact_from_registry(
+        "student_public_dgemc_terminale_option_v1", _proposal(), subject,
+        "2026-2027",
+    )
+    assert isinstance(artifact, RetrievalScopeArtifactV3)
+    assert artifact.source_sha256 == subject.sha256
+    assert artifact.target_policy.roles == ["student"]
+    assert artifact.target_policy.audiences == ["libre"]
+    assert artifact.target_policy.candidates == ["libre"]
+    assert artifact.evidence_subject.rights == ["public_allowed"]
+    emitted = emitter.EmittedScope(
+        scope_id=artifact.scope_id, collection=subject.collection,
+        policy_source_scope_id="NEXUS_HUMAN_DECISION_ADR_0064",
+        resource_name=emitter.resource_name_for(artifact.scope_id),
+        artifact=artifact, canonical_bytes=emitter._artifact_bytes(artifact),
+    )
+    index = json.loads(emitter.registry_index_bytes(
+        emitter.EmissionResult(emitted=(emitted,), reused=())
+    ))
+    assert index["entries"][0]["artifact_version"] == "3"
+
+
+def test_public_successor_v3_refuses_teacher_identity() -> None:
+    artifact = emitter._build_artifact_from_registry(
+        "student_public_dgemc_terminale_option_v1", _proposal(),
+        emitter.SubjectFacts("rag_nexus_dgemc_terminale_option", "a" * 64, {}),
+        "2026-2027",
+    )
+    assert isinstance(artifact, RetrievalScopeArtifactV3)
+    identity = {
+        "aud": "nexus-rag-engine", "exp": 1_785_320_400,
+        "iss": "nexus-cockpit", "jti": "teacher-test-jti",
+        "tenant": "libre_terminale", "niveau": "terminale",
+        "role": "teacher", "school_year": "2026-2027",
+        "sub": "psn_1234567890abcdef",
+        "pedagogical_profile": {
+            "voie": "generale", "matieres": ["dgemc"],
+            "statut_enseignement": "option", "candidat": "libre",
+            "audience": "libre",
+        },
+    }
+    envelope = InternalIdentityEnvelope.model_validate({
+        "protocol_version": "1", "iss": "nexus-cockpit", "aud": "nexus-rag-engine",
+        "sub": identity["sub"], "jti": identity["jti"],
+        "iat": 1_785_320_370, "exp": 1_785_320_400,
+        "identity": identity, "scope_id": artifact.scope_id,
+        "scope_digest": artifact.sha256_digest(),
+        "request_sha256": "b" * 64, "manifest_sha256": "c" * 64,
+        "allowed_collections": [artifact.evidence_subject.collection],
+    })
+    with pytest.raises(ValueError, match="role"):
+        artifact.validate_envelope(envelope)
+
+
+def test_packaged_scope_reader_accepts_pinned_v3(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact = emitter._build_artifact_from_registry(
+        "student_public_dgemc_terminale_option_v1", _proposal(),
+        emitter.SubjectFacts("rag_nexus_dgemc_terminale_option", "a" * 64, {}),
+        "2026-2027",
+    )
+    assert isinstance(artifact, RetrievalScopeArtifactV3)
+    (tmp_path / "scope.json").write_bytes(emitter._artifact_bytes(artifact))
+    monkeypatch.setattr(scope_module, "files", lambda _: tmp_path)
+    monkeypatch.setattr(scope_module, "_STUDENT_PUBLIC_RESOURCES", {
+        artifact.scope_id: ("scope.json", artifact.sha256_digest()),
+    })
+    monkeypatch.setattr(scope_module, "_load_historical_registry", lambda: {})
+    monkeypatch.setattr(scope_module, "_HGGSP_SUCCESSOR_RESOURCES", {})
+    assert scope_module.load_retrieval_scope_artifact(artifact.scope_id) == artifact
+    assert scope_module.load_retrieval_scope_registry()[artifact.scope_id] == artifact
 
 
 def _proposal(**overrides: object) -> emitter.PolicyRegistryEntry:
