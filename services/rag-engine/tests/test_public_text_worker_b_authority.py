@@ -150,3 +150,37 @@ def test_worker_b_public_adapter_resolves_all_377_A_placements(tmp_path: Path) -
             assert resolved.source_path == candidate["physical_path"]
             tested += 1
     assert tested == 377
+
+
+def test_worker_b_public_rights_require_inclusion_and_pii_evidence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor.ingestion_worker import public_text_runtime_authority as runtime
+
+    original = runtime._read_json
+
+    def altered(path: Path, expected_sha256: str):
+        document = original(path, expected_sha256)
+        if path.name == "inclusion_attestation.json":
+            document["decisions"][0]["pii_evidence_sha256"] = "0" * 64
+        return document
+
+    monkeypatch.setattr(runtime, "_read_json", altered)
+    with pytest.raises(PublicTextRuntimeAuthorityError, match="evidence is misbound"):
+        _load(tmp_path, activation=_activation())
+
+
+def test_worker_b_public_rights_refuse_expiry_at_resolution(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    authorities = _load(tmp_path, activation=_activation())
+    registry = json.loads((RELEASE / "profile_gate/artifacts.release.json").read_text())
+    artifact = registry["artifacts"][0]
+    expired = replace(
+        authorities.rights_evidence_registry,
+        _expires_at_utc=datetime.now(UTC) - timedelta(seconds=1),
+    )
+    with pytest.raises(PublicTextRuntimeAuthorityError, match="expired"):
+        expired.resolve_rights(
+            content_sha256=artifact["content_sha256"], source_path=artifact["source_path"],
+        )

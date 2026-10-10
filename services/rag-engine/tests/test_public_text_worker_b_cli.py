@@ -81,6 +81,7 @@ def test_production_public_readiness_derives_release_id_from_pinned_registry(
 
     monkeypatch.delenv("NEXUS_EXPECTED_READINESS_PROTOCOL", raising=False)
     monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", SHA)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", "/bundle/release/release-registry.json")
     monkeypatch.setattr(
         public_cli, "enforce_readiness_gate",
         lambda: SimpleNamespace(
@@ -95,7 +96,7 @@ def test_production_public_readiness_derives_release_id_from_pinned_registry(
     )
     monkeypatch.setattr(
         public_cli,
-        "load_release_registry_file",
+        "load_selected_release_registry",
         lambda *_args: SimpleNamespace(
             manifests=[
                 SimpleNamespace(
@@ -110,6 +111,31 @@ def test_production_public_readiness_derives_release_id_from_pinned_registry(
 
     assert signed.environment == "production"
     assert signed.release_id == "student-public-successor-test"
+
+
+def test_production_public_readiness_rejects_ambiguous_release_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from pathlib import Path
+
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    monkeypatch.delenv("NEXUS_EXPECTED_READINESS_PROTOCOL", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", "/bundle/release/release-registry.json")
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", SHA)
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", "/other/manifest.json")
+    monkeypatch.setenv("RAG_RELEASE_MANIFEST_SHA256", SHA)
+    monkeypatch.setattr(public_cli, "enforce_readiness_gate", lambda: SimpleNamespace(
+        environment="production",
+        manifest=SimpleNamespace(
+            sealed_manifest_digest=SHA,
+            public_successor_content_manifest_digest=SHA,
+            public_successor_content_anchor_digest=SHA,
+            public_successor_authority_envelope_digest=SHA,
+        ),
+    ))
+    with pytest.raises(ValueError, match="ambiguous"):
+        public_cli._signed_publication(Path("/bundle"))
 
 
 def test_lot42_live_preflight_rejects_missing_attestation_coverage(
@@ -171,3 +197,86 @@ def test_lot42_live_preflight_rejects_missing_attestation_coverage(
             ),
             transfer_sha256=SHA,
         )
+
+
+def test_lot42_live_preflight_ends_read_only_transaction(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from uuid import UUID
+
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    resource = UUID(int=1)
+    facts = SimpleNamespace(
+        release_manifest_sha256=SHA,
+        candidate_inventory_sha256=SHA,
+        artifact_transfer_manifest_sha256=SHA,
+        subjects=1,
+        placements=1,
+        unique_artifacts=1,
+        unique_chunks=1,
+        collections=("public_collection",),
+        par_ressource={resource: (UUID(int=2), "b" * 64, "public_collection", "scope")},
+    )
+    monkeypatch.setattr(public_cli, "measure_release_batch_facts", lambda *_a, **_k: facts)
+    monkeypatch.setattr(public_cli, "require_facts_match_catalog", lambda *_a: None)
+
+    class Connection:
+        rolled_back = False
+
+        def cursor(self):
+            class Cursor:
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *_args):
+                    return None
+
+                def execute(self, *_args):
+                    return None
+
+                def fetchall(self):
+                    return [(resource, "b" * 64, "public_collection", UUID(int=3))]
+
+            return Cursor()
+
+        def commit(self):
+            raise AssertionError("read-only preflight must not commit")
+
+        def rollback(self):
+            self.rolled_back = True
+
+    conn = Connection()
+    public_cli.require_public_lot42_db(
+        conn,
+        activation=SimpleNamespace(
+            release_id="public-release",
+            content_manifest_sha256=SHA,
+            counts={"subjects": 1, "placements": 1, "unique_artifacts": 1, "unique_chunks": 1},
+        ),
+        authorities=SimpleNamespace(
+            sealed_release_catalog=object(),
+            placement_resolver=SimpleNamespace(
+                _candidate_inventory_sha256=SHA,
+                collections=frozenset({"public_collection"}),
+            ),
+        ),
+        transfer_sha256=SHA,
+    )
+    assert conn.rolled_back
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--max-iterations", "-1"],
+        ["--max-idle-polls", "0"],
+        ["--poll-interval-s", "nan"],
+        ["--min-job-interval-s", "-0.1"],
+    ],
+)
+def test_public_worker_rejects_invalid_loop_budgets(extra: list[str]) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    with pytest.raises(SystemExit):
+        public_cli._build_arg_parser().parse_args([*_public_args(), *extra])
