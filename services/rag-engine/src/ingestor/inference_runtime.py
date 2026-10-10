@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -30,6 +31,36 @@ _inference_capacity = threading.BoundedSemaphore(INFERENCE_MAX_CONCURRENCY)
 
 class InferenceRuntimeError(RuntimeError):
     """L'inférence ne peut pas finir dans la capacité et la deadline autorisées."""
+
+
+def _cuda_is_available() -> bool:
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def _model_device(model: Any) -> str:
+    device = getattr(model, "device", None)
+    if device is None:
+        device = getattr(getattr(model, "model", None), "device", None)
+    return str(device) if device is not None else ""
+
+
+def verify_required_inference_device(embedding_model: Any, reranker_model: Any) -> None:
+    """Refuser au démarrage un profil CUDA qui serait servi sur CPU."""
+    required = os.environ.get("RAG_REQUIRE_CUDA", "false").strip().lower()
+    if required not in {"true", "false"}:
+        raise InferenceRuntimeError("CUDA_REQUIREMENT_INVALID")
+    if required == "false":
+        return
+    if not _cuda_is_available() or any(
+        not _model_device(model).startswith("cuda:")
+        for model in (embedding_model, reranker_model)
+    ):
+        raise InferenceRuntimeError("CUDA_INFERENCE_UNAVAILABLE")
 
 
 def _remaining_timeout_s() -> float:
@@ -118,4 +149,5 @@ __all__ = [
     "INFERENCE_MAX_CONCURRENCY",
     "InferenceRuntimeError",
     "run_bounded_inference",
+    "verify_required_inference_device",
 ]
