@@ -26,15 +26,18 @@ def test_successor_requires_complete_a_and_c_binding() -> None:
     fields["public_successor_content_manifest_digest"] = fields["sealed_manifest_digest"]
     fields["public_successor_content_anchor_digest"] = "a" * 64
     fields["public_successor_authority_envelope_digest"] = "b" * 64
+    fields["public_successor_target_pin_digest"] = "c" * 64
     successor = ProductionReadinessManifestV2.model_validate(fields)
     document = successor.canonical_document()
     assert document["public_successor_content_manifest_digest"] == "6" * 64
     assert document["public_successor_content_anchor_digest"] == "a" * 64
     assert document["public_successor_authority_envelope_digest"] == "b" * 64
+    assert document["public_successor_target_pin_digest"] == "c" * 64
     for removed in (
         "public_successor_content_manifest_digest",
         "public_successor_content_anchor_digest",
         "public_successor_authority_envelope_digest",
+        "public_successor_target_pin_digest",
     ):
         incomplete = dict(fields)
         del incomplete[removed]
@@ -44,3 +47,10 @@ def test_successor_requires_complete_a_and_c_binding() -> None:
     mismatched["public_successor_content_manifest_digest"] = "c" * 64
     with pytest.raises(ValidationError, match="sealed_manifest_digest"):
         ProductionReadinessManifestV2.model_validate(mismatched)
+
+
+def test_target_pin_digest_alone_does_not_activate_successor() -> None:
+    fields = _fields()
+    fields["public_successor_target_pin_digest"] = "c" * 64
+    with pytest.raises(ValidationError, match="public successor"):
+        ProductionReadinessManifestV2.model_validate(fields)

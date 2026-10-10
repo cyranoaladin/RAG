@@ -17,8 +17,10 @@ from typing import Any
 import yaml
 from nexus_contracts.authority_artifacts import (
     CanonicalArtifactError,
+    ReleaseBatchReviewMismatch,
     ReleaseBatchPublicationReviewArtifact,
     parse_release_batch_publication_review_artifact,
+    require_release_batch_review_matches_release,
 )
 from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.authorization_set import (
@@ -445,6 +447,7 @@ def verify_reviewed_public_scope_policy(
             or entry.get("policy_source_scope_id") is not None
             or entry.get("subject_manifest_sha256")
                 != content.subject_sha256_by_collection[collection]
+            or entry.get("audiences") != ["libre", "aefe"]
             or entry.get("rights") != ["public_allowed"]
             or entry.get("policy_visibility") != "public"
             or entry.get("evidence_visibility") != "public"
@@ -511,6 +514,23 @@ def verify_content_currentness(
     if expiry.utcoffset() != UTC.utcoffset(expiry) or now_utc >= expiry:
         raise PublicSuccessorActivationError("currentness expired")
     entries = registry.get("entries")
+    artifact_registry = _read(
+        release_root / "profile_gate", "artifacts.release.json",
+        content.artifact_registry_sha256,
+    )
+    artifacts = artifact_registry.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != content.expected_counts["unique_artifacts"]:
+        raise PublicSuccessorActivationError("currentness A artifact population invalid")
+    artifact_pairs = {
+        row.get("content_sha256"): row.get("source_pdf_sha256")
+        for row in artifacts if isinstance(row, dict)
+    }
+    if len(artifact_pairs) != len(artifacts) or any(
+        not isinstance(sha, str) or _SHA256.fullmatch(sha) is None
+        or not isinstance(pdf, str) or _SHA256.fullmatch(pdf) is None
+        for sha, pdf in artifact_pairs.items()
+    ):
+        raise PublicSuccessorActivationError("currentness A artifact identity invalid")
     if not isinstance(entries, list) or len(entries) != content.expected_counts["unique_artifacts"] or any(
         not isinstance(row, dict)
         or row.get("currentness_status") != "PASS"
@@ -518,6 +538,15 @@ def verify_content_currentness(
         for row in entries
     ):
         raise PublicSuccessorActivationError("currentness or source revocation differs")
+    entry_pairs = {row.get("content_sha256"): row.get("source_pdf_sha256") for row in entries}
+    if (
+        registry.get("kind") != "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CURRENTNESS_REGISTRY_V1"
+        or registry.get("status") != "CANDIDATE_NOT_AUTHORIZED"
+        or registry.get("release_id") != content.release_id
+        or len(entry_pairs) != len(entries)
+        or entry_pairs != artifact_pairs
+    ):
+        raise PublicSuccessorActivationError("currentness identity population differs from A")
     return expiry
 
 
@@ -709,6 +738,64 @@ def _transfer_utc(value: Any, label: str) -> datetime:
     return instant
 
 
+def verify_public_transfer_placement_population(
+    inventory: dict[str, Any],
+    release_root: Path,
+    content: PublicSuccessorContentVerdict,
+) -> None:
+    """Confronter chaque liaison source de l'inventaire aux onze subjects A."""
+    collections = inventory.get("collections")
+    if not isinstance(collections, list) or len(collections) != len(content.subject_sha256_by_collection):
+        raise PublicSuccessorActivationError("transfer placement collections differ from A")
+    observed_collections: set[str] = set()
+    total_pairs = 0
+    for collection_row in collections:
+        if not isinstance(collection_row, dict):
+            raise PublicSuccessorActivationError("transfer placement collection malformed")
+        collection = collection_row.get("collection")
+        if collection not in content.subject_sha256_by_collection or collection in observed_collections:
+            raise PublicSuccessorActivationError("transfer placement collection unknown or duplicate")
+        observed_collections.add(collection)
+        candidates = collection_row.get("candidates")
+        if not isinstance(candidates, list) or not candidates:
+            raise PublicSuccessorActivationError("transfer placement candidates absent")
+        candidate_pairs: list[tuple[str, str]] = []
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                raise PublicSuccessorActivationError("transfer placement candidate malformed")
+            sha = candidate.get("content_sha256")
+            placements = candidate.get("placements")
+            if not isinstance(sha, str) or _SHA256.fullmatch(sha) is None or not isinstance(placements, list):
+                raise PublicSuccessorActivationError("transfer placement content identity invalid")
+            for placement in placements:
+                source_id = placement.get("source_placement_id") if isinstance(placement, dict) else None
+                if not isinstance(source_id, str) or _SHA256.fullmatch(source_id) is None:
+                    raise PublicSuccessorActivationError("transfer placement source identity invalid")
+                candidate_pairs.append((sha, source_id))
+        subject = _read(
+            release_root / "profile_gate", f"subjects/{collection}.release.json",
+            content.subject_sha256_by_collection[collection],
+        )
+        subject_rows = subject.get("placements")
+        if not isinstance(subject_rows, list):
+            raise PublicSuccessorActivationError("transfer placement subject absent")
+        subject_pairs = [
+            (row.get("artifact_id"), row.get("source_placement_id"))
+            for row in subject_rows if isinstance(row, dict)
+        ]
+        if (
+            len(candidate_pairs) != len(subject_pairs)
+            or len(set(candidate_pairs)) != len(candidate_pairs)
+            or len(subject_pairs) != len(subject_rows)
+            or len(set(subject_pairs)) != len(subject_pairs)
+            or set(candidate_pairs) != set(subject_pairs)
+        ):
+            raise PublicSuccessorActivationError("transfer placement pairs differ from A")
+        total_pairs += len(candidate_pairs)
+    if total_pairs != content.expected_counts["placements"]:
+        raise PublicSuccessorActivationError("transfer placement count differs from A")
+
+
 def verify_public_transfer_offline(
     plan_raw: bytes,
     receipt_v1_raw: bytes,
@@ -739,6 +826,7 @@ def verify_public_transfer_offline(
         release_root / "profile_gate", "candidate_inventory.json",
         content.candidate_inventory_sha256,
     )
+    verify_public_transfer_placement_population(inventory, release_root, content)
     allowed_candidates: dict[str, str] = {}
     collections = inventory.get("collections")
     if not isinstance(collections, list) or len(collections) != content.expected_counts["subjects"]:
@@ -933,21 +1021,35 @@ def verify_publication_batch_review(
     currentness_values = {row.payload.get("currentness") for row in release.placements}
     if len(currentness_values) != 1 or not currentness_values <= {"current", "official_snapshot"}:
         raise PublicSuccessorActivationError("LOT42 A currentness is not homogeneous")
-    if review.artifact_transfer_manifest_sha256 != transfer_manifest_sha256:
-        raise PublicSuccessorActivationError("LOT42 transfer manifest differs")
-    if (
-        review.release_id != content.release_id
-        or review.release_manifest_sha256 != content.content_manifest_sha256
-        or review.artifacts_release_sha256 != content.artifact_registry_sha256
-        or review.candidate_inventory_sha256 != content.candidate_inventory_sha256
-        or review.expected_counts.model_dump() != content.expected_counts
-        or set(review.collections) != set(content.subject_sha256_by_collection)
-        or review.scope_authorization_ids != scope_authorization_ids
-        or review.placement_evidence.placement_status != "active"
-        or review.placement_evidence.review_status != "reviewed"
-        or review.placement_evidence.currentness not in currentness_values
-    ):
-        raise PublicSuccessorActivationError("LOT42 facts differ from public A")
+    registry = _read(
+        release_root / "profile_gate", "artifacts.release.json",
+        content.artifact_registry_sha256,
+    )
+    artifacts = registry.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) != content.expected_counts["unique_artifacts"]:
+        raise PublicSuccessorActivationError("LOT42 A artifact population differs")
+    urls = [row.get("source_url") for row in artifacts if isinstance(row, dict)]
+    if len(urls) != len(artifacts) or any(not isinstance(url, str) or not url for url in urls):
+        raise PublicSuccessorActivationError("LOT42 A provenance URLs absent")
+    try:
+        require_release_batch_review_matches_release(
+            review,
+            observed_release_id=content.release_id,
+            observed_release_manifest_sha256=content.content_manifest_sha256,
+            observed_artifacts_release_sha256=content.artifact_registry_sha256,
+            observed_candidate_inventory_sha256=content.candidate_inventory_sha256,
+            observed_transfer_manifest_sha256=transfer_manifest_sha256,
+            observed_collections=content.subject_sha256_by_collection,
+            observed_counts=content.expected_counts,
+            observed_placement_states={field: tuple(
+                row.payload.get(field) for row in release.placements
+            ) for field in ("currentness", "placement_status", "review_status")},
+            observed_source_url_count=len(set(urls)),
+        )
+    except ReleaseBatchReviewMismatch as error:
+        raise PublicSuccessorActivationError(f"LOT42 {error}") from error
+    if review.scope_authorization_ids != scope_authorization_ids:
+        raise PublicSuccessorActivationError("LOT42 scope authorization IDs differ")
     if now_utc < review.valid_from or now_utc >= review.valid_until:
         raise PublicSuccessorActivationError("LOT42 review expired or not yet valid")
     return review
@@ -961,6 +1063,7 @@ def verify_public_successor_activation(
     expected_release_id: str,
     expected_registry_sha256: str,
     expected_scope_authority_sha256: str,
+    expected_target_pin_sha256: str,
     now_utc: datetime | None = None,
 ) -> PublicSuccessorActivationVerdict:
     """Refuser C tant que chaque autorité externe n'est pas vérifiée sémantiquement.
@@ -983,8 +1086,10 @@ def verify_public_successor_activation(
     if (
         content.release_id != expected_release_id
         or content.release_registry_sha256 != expected_registry_sha256
+        or not isinstance(expected_target_pin_sha256, str)
+        or _SHA256.fullmatch(expected_target_pin_sha256) is None
     ):
-        raise PublicSuccessorActivationError("signed release or registry binding differs")
+        raise PublicSuccessorActivationError("signed release, registry or target pin differs")
     verify_content_currentness(root / "release", content, now)
     try:
         envelope = _read(root, "authority-envelope.json", expected_authority_envelope_sha256)
@@ -1024,6 +1129,32 @@ def verify_public_successor_activation(
     ):
         raise PublicSuccessorActivationError("authority bytes differ from signed A or scopes")
     verify_content_authority_bindings(root / "release", content, authorities)
+    plan_raw = _read(
+        root, "authorities/artifact_transfer_manifest_sha256.bin",
+        authorities["artifact_transfer_manifest_sha256"], json_required=False,
+    )
+    transfer_v2_raw = _read(
+        root, "authorities/observed_transfer_receipt_sha256.bin",
+        authorities["observed_transfer_receipt_sha256"], json_required=False,
+    )
+    transfer_v2 = _compact_document(transfer_v2_raw, "transfer V2 attestation")
+    receipt_sha = transfer_v2.get("observed_v1_receipt_sha256")
+    if not isinstance(receipt_sha, str) or _SHA256.fullmatch(receipt_sha) is None:
+        raise PublicSuccessorActivationError("transfer V1 receipt reference absent")
+    receipt_v1_raw = _read(
+        root, "authorities/observed-transfer-v1.json", receipt_sha, json_required=False,
+    )
+    target_pin_raw = _read(
+        root, "authorities/target-pin.json", expected_target_pin_sha256,
+        json_required=False,
+    )
+    observed_plan_sha = verify_public_transfer_offline(
+        plan_raw, receipt_v1_raw, target_pin_raw, transfer_v2_raw,
+        root / "release", content,
+        expected_target_pin_sha256=expected_target_pin_sha256, now_utc=now,
+    )
+    if observed_plan_sha != authorities["artifact_transfer_manifest_sha256"]:
+        raise PublicSuccessorActivationError("transfer plan differs from C")
     scope_registry_path = root / "authorities/public_scope_authority_sha256.bin"
     scopes = verify_public_scope_registry(
         scope_registry_path,

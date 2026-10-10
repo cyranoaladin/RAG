@@ -43,6 +43,7 @@ def test_public_worker_refuses_missing_C_before_any_database_connection(
                 public_successor_phase="PUBLICATION",
                 public_successor_content_anchor_digest=SHA,
                 public_successor_phase_authority_digest=SHA,
+                public_successor_target_pin_digest=SHA,
                 allowed_release_id="student-public-successor-test",
                 allowed_release_manifest_sha256=SHA,
             ),
@@ -68,7 +69,10 @@ def test_public_worker_refuses_staging_image_mismatch_before_database(
     monkeypatch.setenv("NEXUS_EXPECTED_READINESS_PROTOCOL", STAGING_READINESS_PROTOCOL)
     monkeypatch.setattr(public_cli, "enforce_staging_readiness_gate", lambda: SimpleNamespace(
         environment="rehearsal",
-        manifest=SimpleNamespace(public_successor_phase="PUBLICATION"),
+            manifest=SimpleNamespace(
+                public_successor_phase="PUBLICATION",
+                public_successor_target_pin_digest=SHA,
+            ),
     ))
     monkeypatch.setattr(
         public_cli, "require_running_image_matches_manifest",
@@ -119,6 +123,7 @@ def test_production_public_readiness_derives_release_id_from_pinned_registry(
                 public_successor_content_manifest_digest=SHA,
                 public_successor_content_anchor_digest=SHA,
                 public_successor_authority_envelope_digest=SHA,
+                public_successor_target_pin_digest=SHA,
                 application_image_digests={"multilevel-worker-b-production": WORKER_IMAGE},
             ),
         ),
@@ -162,6 +167,7 @@ def test_production_public_readiness_rejects_ambiguous_release_authority(
             public_successor_content_manifest_digest=SHA,
             public_successor_content_anchor_digest=SHA,
             public_successor_authority_envelope_digest=SHA,
+            public_successor_target_pin_digest=SHA,
             application_image_digests={"multilevel-worker-b-production": WORKER_IMAGE},
         ),
     ))
@@ -183,6 +189,7 @@ def test_production_public_worker_requires_signed_running_image_before_database(
         public_successor_content_manifest_digest=SHA,
         public_successor_content_anchor_digest=SHA,
         public_successor_authority_envelope_digest=SHA,
+        public_successor_target_pin_digest=SHA,
         application_image_digests={
             "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "a" * 64,
         },

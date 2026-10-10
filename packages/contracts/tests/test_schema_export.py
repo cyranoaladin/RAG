@@ -16,8 +16,10 @@ REVIEW_SCHEMAS = {
 }
 
 
-def test_package_version_is_0_25_0() -> None:
-    """0.25.0 lie A/C à la readiness V2 et les phases staging (ADR-0072).
+def test_package_version_is_0_26_0() -> None:
+    """0.26.0 lie le pin indépendant à la readiness publique signée (ADR-0072).
+
+    0.25.0 lie A/C à la readiness V2 et les phases staging (ADR-0072).
 
     0.24.0 ajoute l'attribution des dérivés textuels publics (ADR-0069).
 
@@ -64,7 +66,7 @@ def test_package_version_is_0_25_0() -> None:
     """
     root = Path(__file__).resolve().parents[1]
     pyproject = tomllib.loads((root / "pyproject.toml").read_text())
-    assert pyproject["project"]["version"] == "0.25.0"
+    assert pyproject["project"]["version"] == "0.26.0"
 
 
 def test_schema_export_is_deterministic(tmp_path: Path) -> None:
@@ -113,7 +115,7 @@ def test_schema_export_is_deterministic(tmp_path: Path) -> None:
     first_lock = json.loads((first / "contracts.lock.json").read_text())
     second_lock = json.loads((second / "contracts.lock.json").read_text())
     assert first_lock == second_lock
-    assert first_lock["packageVersion"] == "0.25.0"
+    assert first_lock["packageVersion"] == "0.26.0"
     assert set(first_lock["schemas"]) == expected
     fixture = root / "fixtures" / "internal-identity-envelope-v1.json"
     assert first_lock["fixtures"] == {

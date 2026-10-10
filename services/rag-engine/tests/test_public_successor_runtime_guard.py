@@ -29,6 +29,7 @@ COLLECTION = "rag_nexus_maths_premiere_gen_specialite"
 MANIFEST_SHA = "6" * 64
 ANCHOR_SHA = "a" * 64
 ENVELOPE_SHA = "b" * 64
+TARGET_PIN_SHA = "f" * 64
 REGISTRY_SHA = "c" * 64
 SCOPE_AUTHORITY_SHA = "d" * 64
 SUBJECT_SHA = "e" * 64
@@ -109,6 +110,7 @@ def _signed_readiness(
         public_successor_content_manifest_digest=MANIFEST_SHA,
         public_successor_content_anchor_digest=ANCHOR_SHA,
         public_successor_authority_envelope_digest=ENVELOPE_SHA,
+        public_successor_target_pin_digest=TARGET_PIN_SHA,
     )
     manifest = ProductionReadinessManifestV2.model_validate(document)
     signed = sign_production_readiness_manifest_v2(
@@ -191,6 +193,7 @@ def test_signed_readiness_and_exact_c_can_authorize_a_without_rewriting_it(
     assert calls[0]["expected_authority_envelope_sha256"] == ENVELOPE_SHA
     assert calls[0]["expected_registry_sha256"] == REGISTRY_SHA
     assert calls[0]["expected_scope_authority_sha256"] == SCOPE_AUTHORITY_SHA
+    assert calls[0]["expected_target_pin_sha256"] == TARGET_PIN_SHA
 
 
 @pytest.mark.parametrize("tamper", ["manifest", "registry", "subject", "scope"])

@@ -31,6 +31,7 @@ from nexus_release_chain.public_successor_activation import (
     verify_public_scope_registry,
     verify_public_successor_activation,
     verify_public_transfer_offline,
+    verify_public_transfer_placement_population,
     verify_publication_batch_review,
     verify_reviewed_public_scope_policy,
 )
@@ -73,6 +74,27 @@ def test_public_lot41a_projection_covers_all_a_placements() -> None:
     assert len(projection.placements) == 377
     assert len({entry.content_sha256 for entry in projection.placements}) == 253
     assert len({scope_digest(entry.scope) for entry in projection.placements}) == 11
+
+
+@pytest.mark.parametrize("mutation", ["duplicate", "wrong_pdf", "wrong_release"])
+def test_currentness_registry_must_cover_exact_a_artifact_identities(
+    tmp_path: Path, mutation: str,
+) -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    copied = tmp_path / "release"
+    shutil.copytree(RELEASE, copied)
+    registry_path = copied / "profile_gate/public_currentness_registry.json"
+    registry = json.loads(registry_path.read_bytes())
+    if mutation == "duplicate":
+        registry["entries"][1] = dict(registry["entries"][0])
+    elif mutation == "wrong_pdf":
+        registry["entries"][0]["source_pdf_sha256"] = "f" * 64
+    else:
+        registry["release_id"] = "other-release"
+    registry_path.write_bytes((json.dumps(registry, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode())
+    changed = replace(content, currentness_registry_sha256=hashlib.sha256(registry_path.read_bytes()).hexdigest())
+    with pytest.raises(PublicSuccessorActivationError, match="currentness"):
+        verify_content_currentness(copied, changed, datetime(2026, 10, 10, 21, tzinfo=UTC))
 
 
 def test_public_lot41a_refuses_equal_count_wrong_content_binding() -> None:
@@ -213,6 +235,17 @@ def test_public_transfer_offline_links_v2_to_exact_a_and_v1() -> None:
         )
 
 
+def test_public_transfer_pairs_must_match_all_377_subject_placements() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    inventory = json.loads((RELEASE / "profile_gate/candidate_inventory.json").read_bytes())
+    verify_public_transfer_placement_population(inventory, RELEASE, content)
+    inventory["collections"][0]["candidates"][0]["placements"][0][
+        "source_placement_id"
+    ] = "f" * 64
+    with pytest.raises(PublicSuccessorActivationError, match="transfer.*placement"):
+        verify_public_transfer_placement_population(inventory, RELEASE, content)
+
+
 @pytest.mark.parametrize("mutation", ["v1_unqualified", "expired_pin", "missing_v1_row"])
 def test_public_transfer_offline_refuses_invalid_evidence(mutation: str) -> None:
     content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
@@ -304,6 +337,8 @@ def test_c_content_authorities_must_restate_exact_a_bindings() -> None:
 
 def _lot42_review() -> ReleaseBatchPublicationReviewArtifact:
     content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    artifacts = json.loads((RELEASE / "profile_gate/artifacts.release.json").read_bytes())["artifacts"]
+    source_url_count = len({item["source_url"] for item in artifacts})
     return ReleaseBatchPublicationReviewArtifact(
         protocol_version="LOT42-RELEASE-BATCH-V1",
         review_id="lot42-public-successor-test",
@@ -319,7 +354,7 @@ def _lot42_review() -> ReleaseBatchPublicationReviewArtifact:
             currentness="official_snapshot", placement_status="active", review_status="reviewed",
         ),
         scope_authorization_ids=tuple(f"lot41a-{n:02d}" for n in range(11)),
-        provenance_source_url_count=1,
+        provenance_source_url_count=source_url_count,
         provenance_note="Provenance du corpus textuel public testé.",
         valid_from=datetime(2026, 10, 10, 20, tzinfo=UTC),
         valid_until=datetime(2026, 10, 11, 12, tzinfo=UTC),
@@ -343,6 +378,12 @@ def test_lot42_public_review_is_bound_to_a_and_transfer() -> None:
         verify_publication_batch_review(
             review.canonical_bytes(), content, RELEASE, "a" * 64,
             review.scope_authorization_ids, review.valid_until,
+        )
+    wrong_source_count = review.model_copy(update={"provenance_source_url_count": 1})
+    with pytest.raises(PublicSuccessorActivationError, match="LOT42.*provenance"):
+        verify_publication_batch_review(
+            wrong_source_count.canonical_bytes(), content, RELEASE, "a" * 64,
+            review.scope_authorization_ids, now,
         )
 
 
@@ -378,6 +419,7 @@ def test_content_anchor_without_final_envelope_cannot_activate(tmp_path: Path) -
             expected_release_id="student-public-successor-20261010-fcc84331e7700042",
             expected_registry_sha256="3f34f56c18e514ba4b0e92698f4b9a15deaa425818a0513ab51d48877ea24028",
             expected_scope_authority_sha256="e" * 64,
+            expected_target_pin_sha256="d" * 64,
         )
 
 
@@ -550,6 +592,38 @@ def test_reviewed_scope_policy_refuses_resealed_audience_expansion(tmp_path: Pat
             path, widened_sha, content, scopes, policy_raw=policy, names_raw=names,
             receipt_raw=resealed_receipt,
             expected_receipt_sha256=hashlib.sha256(resealed_receipt).hexdigest(),
+        )
+
+
+def test_reviewed_scope_policy_refuses_changed_evidence_audience(tmp_path: Path) -> None:
+    path, _sha, content, policy, names, receipt = _reviewed_scope_policy_fixture(tmp_path)
+    import yaml
+    policy_doc = yaml.safe_load(policy)
+    policy_doc["collections"][0]["audiences"] = ["libre", "tous"]
+    changed_policy = yaml.safe_dump(policy_doc, sort_keys=True).encode()
+    registry = json.loads(path.read_bytes())
+    registry["policy_registry_sha256"] = hashlib.sha256(changed_policy).hexdigest()
+    row = registry["scopes"][0]
+    scope_path = tmp_path / row["resource"]
+    scope_doc = json.loads(scope_path.read_bytes())
+    scope_doc["evidence_subject"]["audiences"] = ["libre", "tous"]
+    from nexus_contracts.scope import RetrievalScopeArtifactV3
+    changed_scope = RetrievalScopeArtifactV3.model_validate(scope_doc)
+    scope_path.write_bytes(changed_scope.canonical_bytes())
+    row["sha256"] = changed_scope.sha256_digest()
+    path.write_bytes((json.dumps(registry, sort_keys=True, indent=2, ensure_ascii=False) + "\n").encode())
+    changed_registry_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    receipt_doc = json.loads(receipt)
+    receipt_doc["policy_registry_sha256"] = hashlib.sha256(changed_policy).hexdigest()
+    receipt_doc["public_scope_authority_sha256"] = changed_registry_sha
+    receipt_doc["scope_sha256_by_id"] = {changed_scope.scope_id: changed_scope.sha256_digest()}
+    changed_receipt = (json.dumps(receipt_doc, sort_keys=True, indent=2, ensure_ascii=False) + "\n").encode()
+    scopes = verify_public_scope_registry(path, changed_registry_sha, content, RELEASE)
+    with pytest.raises(PublicSuccessorActivationError, match="reviewed policy"):
+        verify_reviewed_public_scope_policy(
+            path, changed_registry_sha, content, scopes, policy_raw=changed_policy,
+            names_raw=names, receipt_raw=changed_receipt,
+            expected_receipt_sha256=hashlib.sha256(changed_receipt).hexdigest(),
         )
 
 

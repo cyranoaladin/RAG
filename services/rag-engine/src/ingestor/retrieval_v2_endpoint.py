@@ -682,6 +682,7 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
             or readiness.public_successor_content_manifest_digest != binding.expected_sha256
             or readiness.public_successor_content_anchor_digest is None
             or readiness.public_successor_authority_envelope_digest is None
+            or readiness.public_successor_target_pin_digest is None
         ):
             raise ValueError("public successor signed A/C binding differs")
         verdict = verify_public_successor_activation(
@@ -693,6 +694,7 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
             expected_release_id=expected.release_id,
             expected_registry_sha256=registry_sha,
             expected_scope_authority_sha256=scope_sha,
+            expected_target_pin_sha256=readiness.public_successor_target_pin_digest,
         )
         if not isinstance(verdict, PublicSuccessorActivationVerdict):
             raise ValueError("public successor verifier did not return a typed verdict")
