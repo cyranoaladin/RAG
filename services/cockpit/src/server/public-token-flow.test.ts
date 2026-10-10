@@ -7,7 +7,7 @@ const NOW = 1_800_000_000
 const subjects = ['nsi', 'hggsp', 'hlp', 'ses', 'svt', 'dgemc', 'maths', 'francais', 'philo', 'pc', 'snt']
 const scopes = subjects.map((matiere, index) => ({
   artifact_version: '3',
-  scope_id: `prod_${matiere}_terminale_specialite_v4`,
+  scope_id: `student_public_${matiere}_terminale_specialite_v1`,
   status: 'eligible_for_promotion',
   source_sha256: String(index).padStart(64, 'a'),
   target_policy: {
@@ -64,7 +64,7 @@ describe('transport signé d’un scope public V3', () => {
     const token = await mintInternalIdentityToken(identity)
     const claims = decodeJwt(token)
     expect(claims.allowed_collections).toEqual(['rag_nexus_nsi_terminale_specialite'])
-    expect(claims.scope_id).toBe('prod_nsi_terminale_specialite_v4')
+    expect(claims.scope_id).toBe('student_public_nsi_terminale_specialite_v1')
     await expect(verifyInternalIdentityToken(token)).resolves.toMatchObject({ identity })
     await expect(mintInternalIdentityToken({ ...identity, role: 'teacher' })).rejects.toThrow()
     await expect(mintInternalIdentityToken({ ...identity, pedagogical_profile: {

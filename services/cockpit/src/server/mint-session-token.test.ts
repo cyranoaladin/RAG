@@ -20,7 +20,7 @@ function mintWithRights(rights: string) {
       const matiere = `matiere${index}`
       return {
         artifact_version: '3',
-        scope_id: `prod_${matiere}_terminale_specialite_v4`,
+        scope_id: `student_public_${matiere}_terminale_specialite_v1`,
         status: 'eligible_for_promotion',
         source_sha256: String(index).padStart(64, 'a'),
         target_policy: {

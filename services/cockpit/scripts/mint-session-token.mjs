@@ -66,7 +66,7 @@ function selectedScope(identity) {
     if (
       scope?.artifact_version !== '3' ||
       scope.status !== 'eligible_for_promotion' ||
-      !/^prod_[a-z0-9_]+_v[0-9]+$/.test(scope.scope_id) ||
+      !/^student_public_[a-z0-9_]+_v[0-9]+$/.test(scope.scope_id) ||
       !/^[0-9a-f]{64}$/.test(scope.source_sha256) ||
       subject?.visibility !== 'public' ||
       !Array.isArray(subject.rights) || subject.rights.length !== 1 ||

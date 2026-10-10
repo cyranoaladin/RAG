@@ -9,7 +9,7 @@ import {
 
 const scope = {
   artifact_version: '3',
-  scope_id: 'prod_nsi_terminale_specialite_v4',
+  scope_id: 'student_public_nsi_terminale_specialite_v1',
   status: 'eligible_for_promotion',
   source_sha256: 'a'.repeat(64),
   target_policy: {
@@ -59,7 +59,7 @@ describe('index public V3', () => {
       ...scope.evidence_subject, rights: ['officiel_public'],
     } }])).toThrow()
     expect(() => assertPublicScopeIndex([scope, scope])).toThrow()
-    expect(() => assertPublicScopeIndex([{ ...scope, scope_id: 'student_public_nsi_v1' }])).toThrow()
+    expect(() => assertPublicScopeIndex([{ ...scope, scope_id: 'prod_nsi_terminale_specialite_v4' }])).toThrow()
     const index = assertPublicScopeIndex([scope])
     expect(findPublicScopeForIdentity({ ...identity, tenant: 'libre_premiere' }, index)).toBeNull()
   })
