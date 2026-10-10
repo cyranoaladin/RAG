@@ -18,6 +18,7 @@ from public_text_transfer import (
     observe_destination,
     plan_text_transfer,
     verify_observed_destination,
+    verify_successor_inventory,
 )
 
 
@@ -244,3 +245,35 @@ def test_plan_cli_refuse_un_bundle_non_scelle(tmp_path: Path) -> None:
     ], capture_output=True, text=True, check=False)
     assert result.returncode == 1
     assert "autorité successeur" in result.stderr
+
+
+def test_rejeu_successeur_exige_tous_les_documents_immutables(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import build_student_public_successor_release as builder
+    import check_student_public_derivative_inclusions as cas_checker
+
+    inventory = canonical({"release_id": "student-public-successor-test"})
+    allowlist = canonical({"release_id": "student-public-successor-test"})
+    documents = {
+        Path("release/profile_gate/candidate_inventory.json"): inventory,
+        Path("release/profile_gate/private_transfer_allowlist.json"): allowlist,
+        Path("release/preparation-index.json"): canonical({"kind": "PREPARATION"}),
+    }
+    for path, raw in documents.items():
+        target = tmp_path / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(raw)
+    monkeypatch.setattr(builder, "load_sources", lambda root: {"root": root})
+    monkeypatch.setattr(cas_checker, "verify_private_cas_evidence",
+                        lambda source, private_root: {"source": source})
+    monkeypatch.setattr(builder, "build_documents",
+                        lambda source, inclusion: documents)
+
+    verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist)
+    (tmp_path / "release/preparation-index.json").write_bytes(b"substitution")
+    with pytest.raises(TransferRefused, match="autorité successeur"):
+        verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist)
+    (tmp_path / "release/preparation-index.json").unlink()
+    with pytest.raises(TransferRefused, match="autorité successeur"):
+        verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist)
