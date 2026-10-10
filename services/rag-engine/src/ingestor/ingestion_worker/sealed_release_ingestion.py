@@ -51,9 +51,6 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 import psycopg
-from nexus_contracts.ingestion import CollectionProfile, ResourceScope
-from nexus_contracts.resource_state import ResourceState
-
 from ingestor.ingestion_control.artifact_attribution import (
     ArtifactAttribution,
     derive_sealed_release_artifact_attribution,
@@ -80,6 +77,8 @@ from ingestor.multilevel_evidence import (
     StudentPublicCandidateInventory,
     load_student_public_candidate_inventory,
 )
+from nexus_contracts.ingestion import CollectionProfile, ResourceScope
+from nexus_contracts.resource_state import ResourceState
 
 #: Le protocole sous lequel ces lignes sont écrites (ADR-0056). Il figure
 #: dans chaque ``payload`` : une ligne dit d'elle-même sous quel régime elle
@@ -343,13 +342,26 @@ def load_sealed_release(
     }
     artifact_media_types = _artifact_media_types(artifacts)
 
-    discovery = _load_candidate_discovery(
-        release_dir / "candidate_inventory.json", expected_sha256=candidate_inventory_sha256,
-    )
     inventory_kind = json.loads(_read_with_digest(
         release_dir / "candidate_inventory.json", candidate_inventory_sha256,
         "inventaire de candidats",
     )).get("inventory_kind")
+    only_media_type = next(iter(artifact_media_types.values()))
+    if only_media_type == TEXT_MIME:
+        _require(
+            inventory_kind == STUDENT_PUBLIC_INVENTORY_KIND,
+            "text inventory kind must be student public derivative inventory",
+        )
+    else:
+        _require(
+            inventory_kind == INVENTORY_KIND,
+            "PDF inventory kind must be historical V1",
+        )
+    if manifest.get("release_mode") == "public_successor":
+        _require(only_media_type == TEXT_MIME, "public successor requires text artifacts")
+    discovery = _load_candidate_discovery(
+        release_dir / "candidate_inventory.json", expected_sha256=candidate_inventory_sha256,
+    )
     if inventory_kind == STUDENT_PUBLIC_INVENTORY_KIND:
         try:
             text_inventory = load_student_public_candidate_inventory(
@@ -362,6 +374,11 @@ def load_sealed_release(
             text_inventory, manifest=manifest,
             artifact_registry_sha256=artifacts_release_sha256,
             release_dir=release_dir,
+            artifacts=artifacts,
+        )
+    if manifest.get("release_mode") == "public_successor":
+        raise SealedReleaseIngestionError(
+            "public successor external authority gate unavailable before Worker A writes"
         )
 
     transfer_raw = _read_with_digest(
@@ -417,9 +434,7 @@ def load_sealed_release(
         transferred_artifact_ids=frozenset(transferred),
         placements=tuple(placements),
         release_mode=manifest.get("release_mode"),
-        public_successor_release=(
-            "public_profile_registry_sha256" in authorities
-        ),
+        public_successor_release=manifest.get("release_mode") == "public_successor",
         promotion_status=manifest.get("promotion_status"),
         review_status=manifest.get("review_status"),
         activation_status=manifest.get("activation_status"),
@@ -559,6 +574,7 @@ def _load_candidate_discovery(
 def _require_student_public_inventory_binding(
     inventory: StudentPublicCandidateInventory, *, manifest: Mapping[str, Any],
     artifact_registry_sha256: str, release_dir: Path,
+    artifacts: Mapping[str, Mapping[str, Any]],
 ) -> None:
     """Lier le texte au paquet préparatoire exact, sans cycle avec le final."""
     _require(
@@ -647,6 +663,25 @@ def _require_student_public_inventory_binding(
         set(inventory.placements) <= set(source_inventory.placements),
         "student public inventory collection or placement differs from preparation",
     )
+    _require(
+        set(inventory.derivative_identities) == inventory.unique_content_sha256
+        and set(artifacts) == inventory.unique_content_sha256,
+        "student public derivative or artifact registry population differs",
+    )
+    for derivative_sha, (source_sha, receipt_sha) in inventory.derivative_identities.items():
+        prepared = source_inventory.derivative_identities.get(derivative_sha)
+        artifact = artifacts[derivative_sha]
+        _require(
+            prepared is not None and prepared[0] == source_sha
+            and artifact.get("content_sha256") == derivative_sha
+            and artifact.get("source_pdf_sha256") == source_sha,
+            f"student public source PDF identity differs: {derivative_sha}",
+        )
+        _require(
+            prepared[1] == receipt_sha
+            and artifact.get("derivative_receipt_sha256") == receipt_sha,
+            f"student public derivative receipt identity differs: {derivative_sha}",
+        )
 
 
 def _transferred_artifact_files(
@@ -956,6 +991,10 @@ def require_public_release_activation(
     l'autorisation de scope nommée et vérifiée ensuite. Les anciennes releases
     internes restent sous leur protocole historique.
     """
+    if facts.release_mode == "public_successor":
+        raise SealedReleaseIngestionError(
+            "public successor external authority gate unavailable before Worker A writes"
+        )
     if not facts.public_successor_release and facts.release_mode != "candidate":
         return
     if not any(

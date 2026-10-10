@@ -411,6 +411,52 @@ def _load_synthetic(build: dict[str, Any]) -> sri.SealedReleaseFacts:
     )
 
 
+def _text_unit_facts(build: dict[str, Any]) -> sri.SealedReleaseFacts:
+    """Données ciblées pour le store/attribution ; V1 texte est refusé par le loader."""
+    release_dir = build["release_dir"]
+    manifest_path = release_dir / "production-profile-gate.release.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    registry_path = release_dir / "artifacts.release.json"
+    artifacts = {
+        row["artifact_id"]: row
+        for row in json.loads(registry_path.read_bytes())["artifacts"]
+    }
+    inventory_path = release_dir / "candidate_inventory.json"
+    discovery = sri._load_candidate_discovery(
+        inventory_path, expected_sha256=_digest_of(inventory_path),
+    )
+    placements = tuple(
+        placement
+        for subject_ref in manifest["subjects"]
+        for placement in sri._placements_of_subject(
+            collection=subject_ref["collection"],
+            subject=json.loads((release_dir / subject_ref["path"]).read_bytes()),
+            artifacts=artifacts, discovery=discovery,
+        )
+    )
+    return sri.SealedReleaseFacts(
+        release_id=manifest["release_id"], release_kind=manifest["release_kind"],
+        release_manifest_sha256=_digest_of(manifest_path),
+        artifacts_release_sha256=_digest_of(registry_path),
+        candidate_inventory_sha256=_digest_of(inventory_path),
+        artifact_transfer_manifest_sha256=_digest_of(build["transfer_path"]),
+        expected_counts=manifest["expected_counts"],
+        collections=tuple(sorted(ref["collection"] for ref in manifest["subjects"])),
+        profile_versions={ref["collection"]: "profile-gate-v2"
+                          for ref in manifest["subjects"]},
+        artifact_ids=frozenset(artifacts), transferred_artifact_ids=frozenset(artifacts),
+        placements=placements, release_mode="rehearsal",
+        _artifact_chunk_counts={sha: len(row["chunks"]) for sha, row in artifacts.items()},
+        _artifact_media_types={sha: sri.TEXT_MIME for sha in artifacts},
+        _artifact_source_pdf_sha256={sha: row["source_pdf_sha256"]
+                                     for sha, row in artifacts.items()},
+        _artifact_receipt_sha256={sha: row["derivative_receipt_sha256"]
+                                  for sha, row in artifacts.items()},
+        _artifact_source_labels={sha: row["title"] for sha, row in artifacts.items()},
+        _artifact_transfer_filenames={sha: f"{sha}.txt" for sha in artifacts},
+    )
+
+
 @pytest.fixture
 def synthetic(tmp_path: Path) -> dict[str, Any]:
     return _build_synthetic_release(tmp_path)
@@ -656,20 +702,54 @@ def test_manifeste_pdf_refuse_un_chemin_traversant_malgre_suffixe_valide(
         _load_synthetic(synthetic)
 
 
-def test_le_store_texte_scelle_est_accepte_avec_declaration_et_sha_exacts(
+def test_le_store_texte_verifie_les_octets_et_sha_exacts(
     synthetic_text: dict[str, Any],
 ) -> None:
-    facts = _load_synthetic(synthetic_text)
+    facts = _text_unit_facts(synthetic_text)
     paths = sri.require_artifact_store_is_complete(facts, synthetic_text["store"])
     assert len(paths) == 2
     assert all(path.suffix == ".txt" for path in paths.values())
     assert set(facts.artifact_media_types.values()) == {"text/plain; charset=utf-8"}
 
 
+def test_full_loader_rejects_text_with_legacy_v1_inventory(
+    synthetic_text: dict[str, Any],
+) -> None:
+    with pytest.raises(sri.SealedReleaseIngestionError, match="text inventory kind"):
+        _load_synthetic(synthetic_text)
+
+
+def test_full_loader_refuses_public_successor_with_pdf_or_missing_external_gate(
+    synthetic: dict[str, Any], tmp_path: Path,
+) -> None:
+    _reseal(synthetic["release_dir"], lambda manifest: manifest.__setitem__(
+        "release_mode", "public_successor"
+    ))
+    with pytest.raises(sri.SealedReleaseIngestionError, match="public successor requires text"):
+        _load_synthetic(synthetic)
+    text_root = tmp_path / "text"
+    text_root.mkdir()
+    synthetic_text = _build_synthetic_release(text_root, text_derivatives=True)
+    _reseal(synthetic_text["release_dir"], lambda manifest: manifest.__setitem__(
+        "release_mode", "public_successor"
+    ))
+    with pytest.raises(sri.SealedReleaseIngestionError, match="text inventory kind"):
+        _load_synthetic(synthetic_text)
+
+
+def test_activation_refuses_public_successor_even_if_boolean_is_false(
+    synthetic: dict[str, Any],
+) -> None:
+    facts = replace(_load_synthetic(synthetic), release_mode="public_successor",
+                    public_successor_release=False)
+    with pytest.raises(sri.SealedReleaseIngestionError, match="external authority gate"):
+        sri.require_public_release_activation(facts, {})
+
+
 def test_titre_scelle_alimente_l_attribution_durable_du_derive(
     synthetic_text: dict[str, Any],
 ) -> None:
-    facts = _load_synthetic(synthetic_text)
+    facts = _text_unit_facts(synthetic_text)
     identifier = synthetic_text["identifiers"]["a"]
     assert facts.artifact_source_labels[identifier] == "Artefact a"
     profile = load_profile_registry(synthetic_text["profiles_dir"])[
@@ -687,7 +767,7 @@ def test_titre_scelle_alimente_l_attribution_durable_du_derive(
 
 
 def test_le_store_texte_refuse_un_objet_absent(synthetic_text: dict[str, Any]) -> None:
-    facts = _load_synthetic(synthetic_text)
+    facts = _text_unit_facts(synthetic_text)
     identifier = synthetic_text["identifiers"]["b"]
     (synthetic_text["store"] / f"{identifier}.txt").unlink()
     with pytest.raises(sri.SealedReleaseIngestionError, match="absent"):
@@ -697,7 +777,7 @@ def test_le_store_texte_refuse_un_objet_absent(synthetic_text: dict[str, Any]) -
 def test_le_store_texte_refuse_un_recu_cas_absent(
     synthetic_text: dict[str, Any],
 ) -> None:
-    facts = _load_synthetic(synthetic_text)
+    facts = _text_unit_facts(synthetic_text)
     receipt = next((synthetic_text["store"] / "derivative_receipts").glob("*.json"))
     receipt.unlink()
     with pytest.raises(sri.SealedReleaseIngestionError, match="recu"):
@@ -705,7 +785,7 @@ def test_le_store_texte_refuse_un_recu_cas_absent(
 
 
 def test_le_store_texte_refuse_des_octets_alteres(synthetic_text: dict[str, Any]) -> None:
-    facts = _load_synthetic(synthetic_text)
+    facts = _text_unit_facts(synthetic_text)
     identifier = synthetic_text["identifiers"]["b"]
     (synthetic_text["store"] / f"{identifier}.txt").write_bytes(b"altered")
     with pytest.raises(sri.SealedReleaseIngestionError, match="digest divergent"):
@@ -749,7 +829,7 @@ def test_le_catalogue_texte_sans_attribution_complete_est_refuse(
 def test_le_payload_scelle_conserve_le_type_et_l_identite_du_pdf_source(
     synthetic_text: dict[str, Any],
 ) -> None:
-    facts = _load_synthetic(synthetic_text)
+    facts = _text_unit_facts(synthetic_text)
     placement = facts.placements[0]
     evidence = sri.sealed_placement_evidence(placement, facts)
     assert evidence["media_type"] == "text/plain; charset=utf-8"

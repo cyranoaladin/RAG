@@ -125,6 +125,7 @@ class StudentPublicCandidateInventory:
     artifact_registry_sha256: str
     candidate_manifest_sha256: str
     source_candidate_inventory_sha256: Mapping[str, str]
+    derivative_identities: Mapping[str, tuple[str, str]]
     placements: tuple[MultilevelCandidatePlacement, ...]
 
     @property
@@ -644,6 +645,8 @@ def load_student_public_candidate_inventory(
         artifact_registry_sha256=artifact_registry_sha,
         candidate_manifest_sha256=candidate_manifest_sha,
         source_candidate_inventory_sha256=source_shas,
+        derivative_identities={sha: (source, receipt)
+                               for sha, (source, receipt, _) in identities.items()},
         placements=tuple(placements),
     )
 

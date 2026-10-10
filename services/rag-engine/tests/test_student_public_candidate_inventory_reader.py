@@ -10,7 +10,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import pytest
-
 from ingestor.ingestion_worker import sealed_release_ingestion as worker
 from ingestor.multilevel_evidence import (
     MultilevelEvidenceError,
@@ -106,6 +105,9 @@ def test_text_inventory_loads_exact_worker_join_without_pdf_path(tmp_path):
     assert len(inventory.placements_for(
         content_sha256=first, collection="rag_nexus_nsi_terminale_specialite"
     )) == 1
+    assert inventory.derivative_identities[first] == (
+        _sha("pdf-a"), _sha(f"receipt-{first}"),
+    )
     assert all(p.physical_path == f"{p.content_sha256}.txt" for p in inventory.placements)
     discovery = worker._load_candidate_discovery(path, expected_sha256=sha)
     assert len(discovery) == 3
@@ -145,6 +147,8 @@ def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
     inventory = load_student_public_candidate_inventory(
         inventory_path, expected_sha256=hashlib.sha256(inventory_path.read_bytes()).hexdigest()
     )
+    registry = json.loads((gate / "artifacts.release.json").read_bytes())
+    artifacts = {row["artifact_id"]: row for row in registry["artifacts"]}
     index_path = preparation / "preparation-index.json"
     index = json.loads(index_path.read_bytes())
     sidecar = tmp_path / "source_preparation"
@@ -167,7 +171,7 @@ def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
     worker._require_student_public_inventory_binding(
         inventory, manifest=manifest,
         artifact_registry_sha256=inventory.artifact_registry_sha256,
-        release_dir=tmp_path,
+        release_dir=tmp_path, artifacts=artifacts,
     )
     for change, reason in (
         ({"release_id": "other-release"}, "release_id"),
@@ -181,7 +185,7 @@ def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
             worker._require_student_public_inventory_binding(
                 replace(inventory, **change), manifest=manifest,
                 artifact_registry_sha256=inventory.artifact_registry_sha256,
-                release_dir=tmp_path,
+                release_dir=tmp_path, artifacts=artifacts,
             )
     with pytest.raises(worker.SealedReleaseIngestionError, match="collection"):
         worker._require_student_public_inventory_binding(
@@ -190,7 +194,7 @@ def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
                                            *inventory.placements[1:])),
             manifest=manifest,
             artifact_registry_sha256=inventory.artifact_registry_sha256,
-            release_dir=tmp_path,
+            release_dir=tmp_path, artifacts=artifacts,
         )
     swapped = json.loads(inventory_path.read_bytes())
     swapped["collections"][0]["collection"] += "X"
@@ -202,14 +206,36 @@ def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
         worker._require_student_public_inventory_binding(
             resealed, manifest=manifest,
             artifact_registry_sha256=inventory.artifact_registry_sha256,
-            release_dir=tmp_path,
+            release_dir=tmp_path, artifacts=artifacts,
         )
+    for field in ("source_pdf_sha256", "derivative_receipt_sha256"):
+        tampered = json.loads(inventory_path.read_bytes())
+        tampered["collections"][0]["candidates"][0][field] = "f" * 64
+        tampered_path, tampered_sha = _write(tmp_path, tampered)
+        resealed = load_student_public_candidate_inventory(
+            tampered_path, expected_sha256=tampered_sha,
+        )
+        with pytest.raises(worker.SealedReleaseIngestionError, match="source PDF|receipt"):
+            worker._require_student_public_inventory_binding(
+                resealed, manifest=manifest,
+                artifact_registry_sha256=inventory.artifact_registry_sha256,
+                release_dir=tmp_path, artifacts=artifacts,
+            )
+        altered_registry = copy.deepcopy(artifacts)
+        first = next(iter(altered_registry))
+        altered_registry[first][field] = "f" * 64
+        with pytest.raises(worker.SealedReleaseIngestionError, match="source PDF|receipt"):
+            worker._require_student_public_inventory_binding(
+                inventory, manifest=manifest,
+                artifact_registry_sha256=inventory.artifact_registry_sha256,
+                release_dir=tmp_path, artifacts=altered_registry,
+            )
     manifest["authorities"].pop("source_preparation_index_sha256")
     with pytest.raises(worker.SealedReleaseIngestionError, match="preparation index"):
         worker._require_student_public_inventory_binding(
             inventory, manifest=manifest,
             artifact_registry_sha256=inventory.artifact_registry_sha256,
-            release_dir=tmp_path,
+            release_dir=tmp_path, artifacts=artifacts,
         )
 
 
@@ -228,6 +254,79 @@ def test_sealed_loader_refuses_text_without_dereferenceable_preparation(tmp_path
     manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
     with pytest.raises(worker.SealedReleaseIngestionError,
                        match="source preparation release manifest authority absent"):
+        worker.load_sealed_release(
+            final,
+            release_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            artifacts_release_sha256=manifest["artifact_registry"]["sha256"],
+            candidate_inventory_sha256=inventory_sha,
+            artifact_transfer_manifest_path=tmp_path / "unused-transfer.json",
+            artifact_transfer_manifest_sha256="0" * 64,
+        )
+
+
+def test_full_loader_still_refuses_after_exact_preparation_chain(tmp_path):
+    preparation = _preparation()
+    final = tmp_path / "final"
+    shutil.copytree(preparation / "profile_gate", final)
+    sidecar = final / "source_preparation"
+    sidecar.mkdir()
+    for name, origin in (
+        ("production-profile-gate.release.json",
+         preparation / "profile_gate/production-profile-gate.release.json"),
+        ("preparation-index.json", preparation / "preparation-index.json"),
+        ("candidate_inventory.json", preparation / "profile_gate/candidate_inventory.json"),
+    ):
+        shutil.copy2(origin, sidecar / name)
+    manifest_path = final / "production-profile-gate.release.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest.update(release_mode="public_successor", promotion_status="PROMOTABLE",
+                    review_status="REVIEWED",
+                    activation_status="PRODUCTION_ACTIVATION_ALLOWED")
+    manifest["authorities"].update(
+        candidate_inventory_sha256=hashlib.sha256(
+            (final / "candidate_inventory.json").read_bytes()
+        ).hexdigest(),
+        source_candidate_release_manifest_sha256=json.loads(
+            (sidecar / "preparation-index.json").read_bytes()
+        )["source_candidate_manifest_sha256"],
+        source_preparation_release_manifest_sha256=hashlib.sha256(
+            (sidecar / "production-profile-gate.release.json").read_bytes()
+        ).hexdigest(),
+        source_preparation_index_sha256=hashlib.sha256(
+            (sidecar / "preparation-index.json").read_bytes()
+        ).hexdigest(),
+    )
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    with pytest.raises(worker.SealedReleaseIngestionError,
+                       match="external authority gate unavailable"):
+        worker.load_sealed_release(
+            final,
+            release_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+            artifacts_release_sha256=manifest["artifact_registry"]["sha256"],
+            candidate_inventory_sha256=manifest["authorities"]["candidate_inventory_sha256"],
+            artifact_transfer_manifest_path=tmp_path / "unused-transfer.json",
+            artifact_transfer_manifest_sha256="0" * 64,
+        )
+
+
+def test_full_loader_refuses_377_text_placements_relabelled_as_v1(tmp_path):
+    gate = _preparation() / "profile_gate"
+    final = tmp_path / "final"
+    shutil.copytree(gate, final)
+    inventory_path = final / "candidate_inventory.json"
+    inventory = json.loads(inventory_path.read_bytes())
+    assert inventory["counts"]["placements"] == 377
+    inventory["inventory_kind"] = "MULTILEVEL_CANDIDATE_INVENTORY_V1"
+    inventory_path.write_text(json.dumps(inventory, sort_keys=True), encoding="utf-8")
+    inventory_sha = hashlib.sha256(inventory_path.read_bytes()).hexdigest()
+    manifest_path = final / "production-profile-gate.release.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    manifest.update(release_mode="public_successor", promotion_status="PROMOTABLE",
+                    review_status="REVIEWED",
+                    activation_status="PRODUCTION_ACTIVATION_ALLOWED")
+    manifest["authorities"]["candidate_inventory_sha256"] = inventory_sha
+    manifest_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
+    with pytest.raises(worker.SealedReleaseIngestionError, match="text inventory kind"):
         worker.load_sealed_release(
             final,
             release_manifest_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
