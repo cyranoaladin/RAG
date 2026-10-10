@@ -381,6 +381,16 @@ def main(argv: list[str] | None = None) -> int:
                 owner=args.owner,
                 expected_collections=args.expected_collection,
                 public_successor_ingestion_content=public_content,
+                public_successor_release_dir=args.release_dir if public_content else None,
+                public_successor_anchor_path=(
+                    args.public_successor_content_anchor_path if public_content else None
+                ),
+                public_successor_preissuance_receipt_path=(
+                    args.public_successor_preissuance_receipt_path if public_content else None
+                ),
+                public_successor_preissuance_receipt_sha256=(
+                    args.public_successor_preissuance_receipt_sha256 if public_content else None
+                ),
             )
             conn.commit()
     except AttributionBackfillError as exc:
