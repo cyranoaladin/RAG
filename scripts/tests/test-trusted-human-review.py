@@ -252,6 +252,37 @@ class TrustedReviewDecisionTests(unittest.TestCase):
             trusted_review.build_challenge(valid_payload()),
         )
 
+    def test_unsubmitted_pending_review_does_not_block_submitted_approval(self) -> None:
+        pending = approved_review(state="PENDING", review_id=1000)
+        pending["submitted_at"] = None
+
+        decision = self.evaluate(reviews=[pending, approved_review()])
+
+        self.assertTrue(decision.approved)
+        self.assertEqual(decision.review_id, 1001)
+
+    def test_unsubmitted_pending_review_cannot_approve_or_revoke(self) -> None:
+        pending = approved_review(state="PENDING", review_id=1002)
+        pending["submitted_at"] = None
+        pending["body"] = trusted_review.build_challenge(valid_payload())
+
+        decision = self.evaluate(reviews=[pending])
+
+        self.assertFalse(decision.approved)
+        self.assertEqual(decision.reason, "current_head_approval_missing")
+
+        decision = self.evaluate(reviews=[approved_review(), pending])
+
+        self.assertTrue(decision.approved)
+        self.assertEqual(decision.review_id, 1001)
+
+    def test_submitted_approval_without_timestamp_is_malformed(self) -> None:
+        approval = approved_review()
+        approval["submitted_at"] = None
+
+        with self.assertRaisesRegex((TypeError, ValueError), "submitted_at"):
+            self.evaluate(reviews=[approval])
+
     def test_closed_draft_wrong_base_and_fork_are_rejected(self) -> None:
         cases: list[tuple[str, dict[str, object]]] = []
 

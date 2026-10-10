@@ -258,6 +258,10 @@ def _validated_reviews(value: object) -> list[dict[str, object]]:
         commit_id = _require_sha(
             review.get("commit_id"), f"reviews[{index}].commit_id"
         )
+        # GitHub exposes draft reviews with state=PENDING and no submission time.
+        # They have no approval or revocation effect until submitted.
+        if state == "PENDING" and review.get("submitted_at") is None:
+            continue
         submitted_at = _require_string(
             review.get("submitted_at"), f"reviews[{index}].submitted_at"
         )
