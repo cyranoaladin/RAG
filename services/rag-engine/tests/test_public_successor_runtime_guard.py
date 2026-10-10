@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from contextlib import nullcontext
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
@@ -48,7 +50,9 @@ class _VerifiedC:
     scope_authority_sha256: str = SCOPE_AUTHORITY_SHA
     subject_sha256_by_collection: tuple[tuple[str, str], ...] = ((COLLECTION, SUBJECT_SHA),)
     counts: tuple[int, int, int, int] = (1, 1, 1, 1)
-    expires_at_utc: str = "2026-10-11T00:00:00Z"
+    expires_at_utc: datetime = field(
+        default_factory=lambda: datetime.now(UTC) + timedelta(minutes=5)
+    )
 
     @property
     def scope_sha256_by_id(self) -> tuple[tuple[str, str], ...]:
@@ -194,6 +198,93 @@ def test_signed_readiness_and_exact_c_can_authorize_a_without_rewriting_it(
     assert calls[0]["expected_registry_sha256"] == REGISTRY_SHA
     assert calls[0]["expected_scope_authority_sha256"] == SCOPE_AUTHORITY_SHA
     assert calls[0]["expected_target_pin_sha256"] == TARGET_PIN_SHA
+
+
+def test_signed_c_cache_hit_and_bundle_mutation_replays_semantic_gate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    bundle = tmp_path / "bundle"
+    envelope = bundle / "authority-envelope.json"
+    envelope.write_bytes(b"first")
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(monkeypatch, _VerifiedC())
+    endpoint._verify_public_successor_candidate(registry)
+    endpoint._verify_public_successor_candidate(registry)
+    assert len(calls) == 1
+    before = envelope.stat()
+    envelope.write_bytes(b"other")  # même taille et mtime restitué
+    os.utime(envelope, ns=(before.st_atime_ns, before.st_mtime_ns))
+    endpoint._verify_public_successor_candidate(registry)
+    assert len(calls) == 2
+
+
+def test_signed_c_cache_never_accepts_expired_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(
+        monkeypatch, _VerifiedC(expires_at_utc=datetime.now(UTC) - timedelta(seconds=1)),
+    )
+    with pytest.raises(RuntimeError, match="public successor"):
+        endpoint._verify_public_successor_candidate(registry)
+    assert len(calls) == 1
+
+
+def test_signed_c_cache_lifetime_is_bounded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(monkeypatch, _VerifiedC())
+    monkeypatch.setattr(endpoint, "_PUBLIC_C_CACHE_MAX_AGE", timedelta(0))
+    endpoint._verify_public_successor_candidate(registry)
+    endpoint._verify_public_successor_candidate(registry)
+    assert len(calls) == 2
+
+
+def test_signed_c_cache_refuses_symlink_added_after_valid_replay(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(monkeypatch, _VerifiedC())
+    endpoint._verify_public_successor_candidate(registry)
+    (tmp_path / "bundle/foreign.json").symlink_to(tmp_path / "trust-anchor.json")
+    with pytest.raises(RuntimeError, match="public successor"):
+        endpoint._verify_public_successor_candidate(registry)
+    assert len(calls) == 1
+
+
+def test_cached_c_still_queries_live_db_on_each_request(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _signed_readiness(tmp_path, monkeypatch)
+    registry = _registry()
+    _install_selection(monkeypatch, registry)
+    calls = _install_verifier(monkeypatch, _VerifiedC())
+    live_calls: list[object] = []
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+    monkeypatch.setattr(endpoint.PoolSettings, "from_env", lambda: object())
+    monkeypatch.setattr(endpoint, "runtime_database_budget", nullcontext)
+    monkeypatch.setattr(endpoint, "pool_connection", lambda _: nullcontext(object()))
+    monkeypatch.setattr(
+        endpoint, "validate_release_collection_readiness",
+        lambda *_: SimpleNamespace(ready=True),
+    )
+    monkeypatch.setattr(
+        endpoint, "require_public_successor_live_controls",
+        lambda conn, _: live_calls.append(conn),
+    )
+    assert endpoint._release_evidence_for_v2_artifact(_scope()) is True
+    assert endpoint._release_evidence_for_v2_artifact(_scope()) is True
+    assert len(calls) == 1
+    assert len(live_calls) == 2
 
 
 @pytest.mark.parametrize("tamper", ["manifest", "registry", "subject", "scope"])
