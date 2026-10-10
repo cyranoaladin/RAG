@@ -211,6 +211,25 @@ def test_public_image_repositories_match_the_signed_contract() -> None:
     assert producer_repositories == readiness_contract.PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
 
 
+def test_public_inventory_accepts_exact_cuda_ingestor_source(tmp_path: Path) -> None:
+    inventory = _public_inventory()
+    inventory["services"]["ingestor"]["dockerfile"] = (
+        "services/rag-engine/infra/Dockerfile.ingestor-v2.cuda"
+    )
+    images = _verify_public(_Fakes(run=_run_document(), inventory=inventory), tmp_path)
+    assert images["ingestor"] == f"ghcr.io/cyranoaladin/rag-ingestor@{INGESTOR_DIGEST}"
+
+
+def test_public_inventory_rejects_cuda_source_in_other_repository(tmp_path: Path) -> None:
+    inventory = _public_inventory()
+    inventory["services"]["ingestor"].update({
+        "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2.cuda",
+        "image_repository": "ghcr.io/cyranoaladin/rag-ingestor-cuda",
+    })
+    with pytest.raises(dii.DeploymentImageInventoryError, match="public image source identity differs"):
+        _verify_public(_Fakes(run=_run_document(), inventory=inventory), tmp_path)
+
+
 def test_public_inventory_exposes_one_verified_document_for_signed_digest(tmp_path: Path) -> None:
     inventory = _public_inventory()
     fakes = _Fakes(run=_run_document(), inventory=inventory)
