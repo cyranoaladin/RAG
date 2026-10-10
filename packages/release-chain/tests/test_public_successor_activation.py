@@ -28,6 +28,7 @@ from nexus_release_chain.public_successor_activation import (
     verify_content_authority_bindings,
     verify_content_currentness,
     verify_public_lot41a_authorization_set,
+    verify_public_authorization_revocations,
     verify_public_scope_registry,
     verify_public_successor_activation,
     verify_public_transfer_offline,
@@ -150,6 +151,25 @@ def test_public_lot41a_refuses_equal_count_wrong_content_binding() -> None:
         verify_public_lot41a_authorization_set(
             changed.canonical_bytes(), RELEASE, content,
             datetime(2026, 10, 10, 21, tzinfo=UTC),
+        )
+
+
+def test_public_revocation_registry_refuses_revoked_lot41a_authorization() -> None:
+    assert verify_public_authorization_revocations(
+        b'{"protocol_version":"NEXUS-AUTHORIZATION-REVOCATIONS-V1",'
+        b'"revoked_authorization_ids":[]}',
+        authorization_ids=("lot41a-00", "lot41a-01"),
+    ) == frozenset()
+    with pytest.raises(PublicSuccessorActivationError, match="LOT41A.*revoked"):
+        verify_public_authorization_revocations(
+            b'{"protocol_version":"NEXUS-AUTHORIZATION-REVOCATIONS-V1",'
+            b'"revoked_authorization_ids":["lot41a-00"]}',
+            authorization_ids=("lot41a-00", "lot41a-01"),
+        )
+    with pytest.raises(PublicSuccessorActivationError, match="revocation"):
+        verify_public_authorization_revocations(
+            b'{"protocol_version":"UNKNOWN","revoked_authorization_ids":[]}',
+            authorization_ids=("lot41a-00",),
         )
 
 

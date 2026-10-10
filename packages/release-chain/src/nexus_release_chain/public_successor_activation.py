@@ -23,6 +23,10 @@ from nexus_contracts.authority_artifacts import (
     require_release_batch_review_matches_release,
 )
 from nexus_contracts.authorization_loader import load_authorization_set
+from nexus_contracts.authorization_revocations import (
+    AuthorizationRevocationsError,
+    parse_revoked_authorization_ids,
+)
 from nexus_contracts.authorization_set import (
     AuthorizationSetError,
     AuthorizationSetV2,
@@ -705,6 +709,23 @@ def verify_public_lot41a_authorization_set(
     return authorization_set
 
 
+def verify_public_authorization_revocations(
+    raw: bytes, *, authorization_ids: tuple[str, ...],
+) -> frozenset[str]:
+    """Relire le registre partagé existant et refuser une révocation LOT41A.
+
+    La présence du registre ne prouve pas sa fraîcheur future ni l'état de
+    `revoked_review_evidence` : le signataire et le runtime relisent la DB.
+    """
+    try:
+        revoked = parse_revoked_authorization_ids(raw, origin="public successor C")
+    except AuthorizationRevocationsError as error:
+        raise PublicSuccessorActivationError(f"revocation registry invalid: {error}") from error
+    if revoked.intersection(authorization_ids):
+        raise PublicSuccessorActivationError("LOT41A authorization revoked")
+    return revoked
+
+
 def _compact_document(raw: bytes, label: str) -> dict[str, Any]:
     """Parser les octets canoniques compacts du protocole de transfert."""
     def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -1185,6 +1206,14 @@ def verify_public_successor_activation(
     )
     authorization_set = verify_public_lot41a_authorization_set(
         authorization_raw, root / "release", content, now,
+    )
+    revocation_raw = _read(
+        root, "authorities/revocation_evidence_sha256.bin",
+        authorities["revocation_evidence_sha256"], json_required=False,
+    )
+    verify_public_authorization_revocations(
+        revocation_raw,
+        authorization_ids=tuple(member.authorization_id for member in authorization_set.members),
     )
     batch_review_raw = _read(
         root, "authorities/publication_batch_review_receipt_sha256.bin",
