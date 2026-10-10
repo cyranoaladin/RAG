@@ -288,6 +288,37 @@ def test_record_v2_keeps_pdf_source_private_and_binds_checkpoint_octets() -> Non
     assert record["derivative_disposition"] == "APPROVE_PUBLIC"
 
 
+def test_excluded_cftr_record_keeps_exact_pdf_url_binding() -> None:
+    packet, scan, provenance, derivative, policy = evidence()
+    cftr = "3f1ab328a0c11f40a0abf85dccdf29dc17d80159dc01bee189a10017d0fbd3e6"
+    packet.update(content_sha256=cftr,
+                  source_listing_url="https://eduscol.education.gouv.fr/5835/programmes")
+    scan.update(content_sha256=cftr, file_size_bytes=100,
+                images_and_annexes_checked=True, pages=[{
+                    "page_number": 1,
+                    "text_sha256": "d" * 64,
+                    "render_sha256": None,
+                    "ocr_sha256": None,
+                    "raster_image_count": 0,
+                    "vector_drawing_count": 0,
+                    "annotation_count": 0,
+                }])
+    provenance["content_sha256"] = cftr
+    provenance["source_provenance"]["pdf_fetch"]["content_sha256"] = cftr
+    derivative["source_attribution"] = {}
+
+    record = build_derivative_artifact_record(
+        packet, scan, provenance, derivative, policy,
+        source_checkpoint_sha256="e" * 64,
+        derivative_receipt_sha256="f" * 64,
+        authority_sha256=AUTHORITY_SHA,
+        bindings={"inventory_sha256": "1" * 64},
+        decided_at_utc="2026-10-10T06:00:00Z",
+    )
+    assert record["source_disposition"] == "EXCLUDE"
+    assert record["source_uri"] == SOURCE_URL
+
+
 def test_candidate_manifest_counts_only_text_derivatives_and_real_placements() -> None:
     packet, _scan, provenance, derivative, _policy = evidence()
     packet["placements"] = [{"collection": "nsi_premiere"},

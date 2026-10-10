@@ -31,7 +31,7 @@ source_binding:
   schema_path: governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json
   schema_sha256: d49b326dc350ebc5c7d0c7ad42c59dfd84dcd3b8f6168fc8e87310fc8627c143
   engine_path: scripts/go_live/adjudicate_student_public_rights.py
-  engine_code_sha256: f996ff33504c49f067733c79adcc97332798dbeb187cffca63f6874982d35f04
+  engine_code_sha256: f62c431b486334d14cdd52305f10229a1578f3f605f37aed6e0ee0a1cb34db52
   derivative_generator_path: scripts/go_live/student_rights_text_derivative.py
   derivative_builder_code_sha256: 812e1f456cbabf912f20299e34ed9699d025032822c15fe04a976e88451e6e7b
   scanner_path: scripts/go_live/student_rights_pdf_scan.py

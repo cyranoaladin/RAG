@@ -1007,11 +1007,17 @@ def build_derivative_artifact_record(
     rights_basis = provenance_checkpoint.get("rights_basis_kind")
     if rights_basis not in {"SITEWIDE_DOWNLOAD_AUTHORITY", "INDIVIDUAL_EXPLICIT_LICENCE"}:
         rights_basis = "NONE"
+    source_provenance = _mapping(provenance_checkpoint.get("source_provenance"))
+    source_uri = (
+        _mapping(source_provenance.get("pdf_fetch")).get("final_url")
+        if source_provenance.get("status") == "EXACT_CURRENT_SOURCE"
+        else attribution.get("source_uri") or packet_artifact.get("source_listing_url")
+    )
     return {
         "record_kind": "NEXUS_AUTOMATED_ARTIFACT_REVIEW_V2",
         "artifact_id": sha,
         "content_sha256": sha,
-        "source_uri": attribution.get("source_uri") or packet_artifact.get("source_listing_url"),
+        "source_uri": source_uri,
         "page_count": pdf_scan.get("page_count"),
         "byte_size": pdf_scan.get("file_size_bytes"),
         "scan_complete": pdf_scan.get("full_document_scan_complete") is True,
