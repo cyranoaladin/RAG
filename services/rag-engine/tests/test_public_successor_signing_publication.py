@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import sys
 from dataclasses import replace
@@ -127,6 +128,99 @@ def test_staging_signer_refuses_output_alias_to_private_key(tmp_path: Path) -> N
     args = SimpleNamespace(output=key, private_key_file=key)
     with pytest.raises(staging.SigningRefused, match="output aliases"):
         staging._reject_output_aliasing_inputs(args)
+
+
+def test_staging_public_signer_rejects_local_head_not_live_main(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def git(*args: str) -> str:
+        return subprocess.check_output(
+            ["git", "-C", str(tmp_path), *args], text=True,
+        ).strip()
+
+    git("init", "-q")
+    git("config", "user.email", "test@example.invalid")
+    git("config", "user.name", "Test")
+    (tmp_path / "tracked").write_text("a")
+    git("add", "tracked")
+    git("commit", "-qm", "a")
+    monkeypatch.setattr(staging, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        production, "_require_live_main_head",
+        lambda *_: (_ for _ in ()).throw(
+            production.SigningToolError("live main differs")
+        ),
+    )
+    with pytest.raises(staging.SigningRefused, match="live main"):
+        staging._require_public_checkout_matches_merge(git("rev-parse", "HEAD"))
+
+
+def test_staging_public_signer_rechecks_main_immediately_before_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    release = tmp_path / "release.json"
+    release.write_text("{}\n")
+    calls: list[str] = []
+    monkeypatch.setattr(
+        staging, "_require_public_checkout_matches_merge",
+        lambda *_: calls.append("main"),
+    )
+    monkeypatch.setattr(
+        staging, "_verify_public_successor_publication_replay",
+        lambda *_: ("a" * 64, "b" * 64, datetime.now(UTC) + timedelta(days=1)),
+    )
+
+    def key(*_args: object) -> str:
+        assert calls == ["main", "main"]
+        raise staging.SigningRefused("test stopped at key boundary")
+
+    monkeypatch.setattr(staging, "_read_private_key", key)
+    result = staging.main([
+        "--merge-sha", subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+        ).strip(),
+        "--worker-image", f"example/worker@sha256:{SHA}",
+        "--allowed-release-id", "student-public-successor-test",
+        "--release-manifest-file", str(release),
+        "--key-id", "test", "--private-key-file", str(tmp_path / "absent.key"),
+        "--trust-anchor-file", str(tmp_path / "anchor.json"),
+        "--output", str(tmp_path / "readiness.json"),
+        "--public-successor-phase", "PUBLICATION",
+    ])
+    assert result == 1
+
+
+def test_staging_atomic_write_preserves_external_hardlinked_evidence(
+    tmp_path: Path,
+) -> None:
+    evidence = tmp_path / "evidence.bin"
+    evidence.write_bytes(b"sealed evidence")
+    output = tmp_path / "readiness.json"
+    os.link(evidence, output)
+    staging._atomic_private_write(output, b"signed readiness")
+    assert evidence.read_bytes() == b"sealed evidence"
+    assert output.read_bytes() == b"signed readiness"
+    assert not os.path.samefile(evidence, output)
+    assert output.stat().st_mode & 0o777 == 0o600
+
+
+def test_public_candidate_v2_without_c_bundle_refused_before_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    args = SimpleNamespace(
+        public_candidate=True, public_successor_bundle_root=None,
+        pr_head_sha="1" * 40, merge_sha="2" * 40,
+    )
+    monkeypatch.setattr(
+        production, "_build_v2_arg_parser",
+        lambda: SimpleNamespace(parse_args=lambda *_: args),
+    )
+    monkeypatch.setattr(production, "_reject_v2_output_aliasing_an_input", lambda *_: None)
+    monkeypatch.setattr(
+        production, "_hex",
+        lambda *_: pytest.fail("production key path reached without C"),
+    )
+    assert production._main_v2([]) == 1
 
 
 def test_publication_replay_keeps_real_c_red_before_any_live_authority(
