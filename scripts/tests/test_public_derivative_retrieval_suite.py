@@ -52,7 +52,7 @@ def _public_hit():
         metadata={"collection": collection, "artifact_id": sha,
                   "content_sha256": sha, "placement_id": "placement-public",
                   "review_status": "reviewed"},
-        citation=Citation(**citation, page=3, rights="officiel_public"),
+        citation=Citation(**citation, page=3, rights="public_allowed"),
     )])
     case = {"collection": collection, "expected_content_sha256": sha}
     spec = {"expected_citation": citation, "expected_source_pdf_sha256": "b" * 64}
@@ -66,8 +66,18 @@ def test_public_positive_checks_actual_derivative_and_complete_citation() -> Non
     assert records == [{
         "collection": case["collection"], "content_sha256": case["expected_content_sha256"],
         "chunk_id": "chunk-public", "placement_id": "placement-public",
-        "page_start": 3, "page_end": 3, "rights": "officiel_public", **citation,
+        "page_start": 3, "page_end": 3, "rights": "public_allowed", **citation,
     }]
+
+
+@pytest.mark.parametrize("rights", ["officiel_public", "usage_interne", "unknown"])
+def test_public_positive_refuses_non_public_allowed_rights(rights: str) -> None:
+    case, spec, response, index, _ = _public_hit()
+    response.results[0].citation = response.results[0].citation.model_copy(
+        update={"rights": rights}
+    )
+    with pytest.raises(SuiteFailure, match="citation"):
+        check_public_positive(case, spec, response, index)
 
 
 @pytest.mark.parametrize("sabotage", [
@@ -160,6 +170,24 @@ def test_draft_covers_exact_candidate_and_fixed_cases() -> None:
         "subjects": 11, "unique_artifacts": 253,
         "placements": 377, "unique_chunks": 3975,
     }
+
+
+@pytest.mark.parametrize("sabotage", ["whitespace", "query"])
+def test_loaded_oracle_refuses_fixture_byte_changes(tmp_path: Path, sabotage: str) -> None:
+    fixture = tmp_path / "services/rag-engine/tests/fixtures/" / (
+        "public_derivative_acceptance_prepared_20261010.json"
+    )
+    fixture.parent.mkdir(parents=True)
+    original = (ROOT / "services/rag-engine/tests/fixtures/" / fixture.name).read_text()
+    if sabotage == "whitespace":
+        fixture.write_text(original + " ")
+    else:
+        fixture.write_text(original.replace(
+            "Quelle place l’Union européenne occupe-t-elle dans les programmes d’enseignement ?",
+            "Quelle place occupe l’Union européenne ?", 1,
+        ))
+    with pytest.raises(SuiteFailure, match="fixture SHA"):
+        load_draft_suite(tmp_path)
 
 
 @pytest.mark.parametrize("sabotage", [

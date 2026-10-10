@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SUITE = Path(
     "services/rag-engine/tests/fixtures/public_derivative_acceptance_prepared_20261010.json"
 )
+SUITE_SHA256 = "3d876dde1a14afd316131ad6de3fef22f3142d6f9b84061666f02ba8b8bd23df"
 CANDIDATE = Path(
     "docs/reports/go_live/student_rights_evidence/public_derivative_candidate_manifest_20261010.json"
 )
@@ -334,6 +335,8 @@ def validate_draft_suite(root: Path, suite: dict[str, Any]) -> None:
 
 
 def load_draft_suite(root: Path) -> dict[str, Any]:
+    if _sha(root / SUITE) != SUITE_SHA256:
+        raise SuiteFailure("prepared fixture SHA differs")
     suite = _json(root / SUITE)
     validate_draft_suite(root, suite)
     return suite
@@ -410,7 +413,7 @@ def check_public_positive(
                 for key in CITATION_KEYS
             )
             or citation.page != locator["page_start"]
-            or citation.rights != "officiel_public"
+            or citation.rights != "public_allowed"
             or result.title != citation.source_label
         ):
             raise SuiteFailure(f"HTTP derivative citation differs: {collection}")
