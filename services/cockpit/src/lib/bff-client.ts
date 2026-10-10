@@ -24,6 +24,7 @@ export interface BffCollectionsState {
   totalCollections: number
   readyCollections: number
   blockers: string[]
+  multiCollectionAllowed: boolean
 }
 
 function requestOptions(init?: RequestInit): RequestInit {
@@ -88,6 +89,7 @@ function assertCollectionsPayload(
     typeof body.totalCollections === 'number' &&
     typeof body.readyCollections === 'number' &&
     Array.isArray(body.blockers)
+    && typeof body.multiCollectionAllowed === 'boolean'
   )
 }
 
@@ -114,6 +116,7 @@ export async function getCollections(): Promise<BffCollectionsState> {
         totalCollections: 0,
         readyCollections: 0,
         blockers: ['endpoint collections indisponible'],
+        multiCollectionAllowed: false,
       }
     }
 
@@ -129,6 +132,7 @@ export async function getCollections(): Promise<BffCollectionsState> {
       totalCollections: 0,
       readyCollections: 0,
       blockers: ['catalogue BFF invalide'],
+      multiCollectionAllowed: false,
     }
   } catch {
     return {
@@ -138,6 +142,7 @@ export async function getCollections(): Promise<BffCollectionsState> {
       totalCollections: 0,
       readyCollections: 0,
       blockers: ['endpoint collections indisponible'],
+      multiCollectionAllowed: false,
     }
   }
 }
