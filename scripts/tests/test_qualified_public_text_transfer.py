@@ -46,6 +46,8 @@ def evidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         "postgres_system_identifier": SYSTEM_ID,
         "database_name": "nexus_staging",
         "destination_realpath": str(destination.resolve()),
+        "destination_device": destination.stat().st_dev,
+        "destination_inode": destination.stat().st_ino,
         "pinned_at_utc": "2026-10-10T16:00:00Z",
         "expires_at_utc": "2026-10-11T12:00:00Z",
     })
@@ -113,6 +115,16 @@ def test_attestation_v2_lie_a_plan_recu_v1_cible_et_relecture(
     assert verdict.target_identity == "staging-final"
     assert verdict.file_count == 2
     assert verdict.expires_at_utc > NOW
+
+
+def test_pin_refuse_un_autre_inode_au_meme_chemin(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, receipt, pin, destination, _ = evidence(tmp_path, monkeypatch)
+    document = json.loads(pin)
+    document["destination_inode"] += 1
+    with pytest.raises(TransferRefused, match="pin"):
+        attest(plan, receipt, canonical(document), destination)
 
 
 @pytest.mark.parametrize("mutation", ["homonym_host", "other_db", "other_cluster"])
@@ -305,6 +317,8 @@ def test_bascule_parent_pendant_rehash_refusee(
     ))
     pin_doc = json.loads(pin)
     pin_doc["destination_realpath"] = str(destination.resolve())
+    pin_doc["destination_device"] = destination.stat().st_dev
+    pin_doc["destination_inode"] = destination.stat().st_ino
     pin = canonical(pin_doc)
     raw = attest(plan, receipt, pin, destination)
     other = tmp_path / "other"

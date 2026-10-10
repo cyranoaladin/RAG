@@ -36,7 +36,8 @@ _SYSTEM_ID = re.compile(r"[0-9]{1,20}\Z")
 _PIN_FIELDS = frozenset({
     "kind", "content_anchor_sha256", "release_id", "target_identity",
     "hostname", "host_machine_id_sha256", "postgres_system_identifier",
-    "database_name", "destination_realpath", "pinned_at_utc", "expires_at_utc",
+    "database_name", "destination_realpath", "destination_device",
+    "destination_inode", "pinned_at_utc", "expires_at_utc",
 })
 _ATTESTATION_FIELDS = frozenset({
     "kind", "status", "content_anchor_sha256", "release_id",
@@ -102,11 +103,22 @@ def _pin(raw: bytes, expected_sha256: str, expected_anchor_sha256: str,
             or not isinstance(pin.get("database_name"), str)
             or not pin["database_name"].strip()
             or pin.get("destination_realpath") != str(destination_root.resolve(strict=True))
+            or type(pin.get("destination_device")) is not int
+            or pin["destination_device"] < 0
+            or type(pin.get("destination_inode")) is not int
+            or pin["destination_inode"] <= 0
             or not destination_root.is_absolute() or destination_root.is_symlink()):
         raise TransferRefused("pin de cible invalide ou ne désigne pas cette destination")
+    _require_pin_destination(pin, destination_root)
     if _utc(pin["pinned_at_utc"], "date du pin") >= _utc(pin["expires_at_utc"], "expiration du pin"):
         raise TransferRefused("validité du pin inversée")
     return pin
+
+
+def _require_pin_destination(pin: dict[str, object], destination_root: Path) -> None:
+    chain = _destination_chain(destination_root)
+    if not chain or (pin["destination_device"], pin["destination_inode"]) != chain[-1][1:]:
+        raise TransferRefused("pin de cible lié à un autre device/inode")
 
 
 def _destination_chain(root: Path) -> tuple[tuple[str, int, int], ...]:
@@ -302,6 +314,7 @@ def _basis(plan_raw: bytes, receipt_v1_raw: bytes, target_pin_raw: bytes, *,
     if (_destination_chain(destination_root) != destination_before
             or str(destination_root.resolve(strict=True)) != pin["destination_realpath"]):
         raise TransferRefused("chemin ou inode de destination modifié pendant la relecture")
+    _require_pin_destination(pin, destination_root)
     finished_at = utc_now()
     if (finished_at.tzinfo != UTC
             or finished_at >= _utc(pin["expires_at_utc"], "expiration du pin")):
@@ -357,6 +370,7 @@ def attest_qualified_transfer_target(*, plan_raw: bytes, receipt_v1_raw: bytes,
         "total_bytes": receipt["total_bytes"],
     }
     _require_still_valid(pin)
+    _require_pin_destination(pin, destination_root)
     return attestation
 
 
@@ -439,4 +453,5 @@ def verify_qualified_transfer_target(*, attestation_raw: bytes,
         expires_at_utc=_utc(pin["expires_at_utc"], "expiration du pin"),
     )
     _require_still_valid(pin)
+    _require_pin_destination(pin, destination_root)
     return verdict
