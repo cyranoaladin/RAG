@@ -971,7 +971,8 @@ def verify_public_transfer_offline(
         set(pin) != {
             "kind", "content_anchor_sha256", "release_id", "target_identity",
             "hostname", "host_machine_id_sha256", "postgres_system_identifier",
-            "database_name", "destination_realpath", "pinned_at_utc", "expires_at_utc",
+            "database_name", "destination_realpath", "destination_device",
+            "destination_inode", "pinned_at_utc", "expires_at_utc",
         }
         or pin.get("kind") != "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1"
         or pin.get("content_anchor_sha256") != content.content_anchor_sha256
@@ -982,6 +983,10 @@ def verify_public_transfer_offline(
         or _SHA256.fullmatch(pin.get("host_machine_id_sha256", "")) is None
         or not str(pin.get("postgres_system_identifier", "")).isdigit()
         or not pin.get("database_name")
+        or type(pin.get("destination_device")) is not int
+        or pin["destination_device"] < 0
+        or type(pin.get("destination_inode")) is not int
+        or pin["destination_inode"] <= 0
     ):
         raise PublicSuccessorActivationError("transfer target pin facts differ")
     pinned_at = _transfer_utc(pin.get("pinned_at_utc"), "pin date")

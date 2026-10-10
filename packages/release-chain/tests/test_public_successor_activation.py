@@ -210,6 +210,8 @@ def _transfer_offline_fixture() -> tuple[bytes, bytes, bytes, bytes, str]:
         "postgres_system_identifier": "1234567890",
         "database_name": "rag_staging",
         "destination_realpath": receipt["destination_realpath"],
+        "destination_device": 1,
+        "destination_inode": 2,
         "pinned_at_utc": "2026-10-10T19:00:00Z",
         "expires_at_utc": "2026-10-11T12:00:00Z",
     }
@@ -252,6 +254,23 @@ def test_public_transfer_offline_links_v2_to_exact_a_and_v1() -> None:
         verify_public_transfer_offline(
             plan, receipt, pin, _compact(changed), RELEASE, content,
             expected_target_pin_sha256=pin_sha, now_utc=now,
+        )
+
+
+def test_public_transfer_offline_requires_physical_target_pin() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    plan, receipt, pin_raw, attestation, _ = _transfer_offline_fixture()
+    pin = json.loads(pin_raw)
+    pin.pop("destination_inode")
+    pin.pop("destination_device")
+    changed = _compact(pin)
+    attestation_doc = json.loads(attestation)
+    attestation_doc["target_pin_sha256"] = hashlib.sha256(changed).hexdigest()
+    with pytest.raises(PublicSuccessorActivationError, match="target pin"):
+        verify_public_transfer_offline(
+            plan, receipt, changed, _compact(attestation_doc), RELEASE, content,
+            expected_target_pin_sha256=hashlib.sha256(changed).hexdigest(),
+            now_utc=datetime(2026, 10, 10, 21, tzinfo=UTC),
         )
 
 
