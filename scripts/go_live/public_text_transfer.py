@@ -88,6 +88,30 @@ def _hash_text_file(path: Path) -> tuple[str, int]:
     return observed, size
 
 
+def verify_successor_inventory(root: Path, private_cas_root: Path,
+                               inventory_raw: bytes, allowlist_raw: bytes) -> None:
+    """Rejouer le builder #313 et comparer tout son paquet immuable au dépôt."""
+    from build_student_public_successor_release import build_documents, load_sources
+    from check_student_public_derivative_inclusions import verify_private_cas_evidence
+
+    root = root.resolve()
+    try:
+        source = load_sources(root)
+        inclusion = verify_private_cas_evidence(source, private_cas_root)
+        documents = build_documents(source, inclusion=inclusion)
+        inventory_matches = [raw == inventory_raw for path, raw in documents.items()
+                             if path.name == "candidate_inventory.json"]
+        allowlist_matches = [raw == allowlist_raw for path, raw in documents.items()
+                             if path.name == "private_transfer_allowlist.json"]
+        if inventory_matches != [True] or allowlist_matches != [True]:
+            raise TransferRefused("inventaire et allowlist successeurs non concordants")
+        for path, raw in documents.items():
+            if (root / path).read_bytes() != raw:
+                raise TransferRefused(f"paquet successeur divergent: {path.name}")
+    except (OSError, ValueError, TypeError, KeyError, IndexError) as error:
+        raise TransferRefused("autorité successeur non vérifiée") from error
+
+
 def plan_text_transfer(inventory_raw: bytes, allowlist_raw: bytes,
                        source_root: Path, evidence_root: Path | None = None) -> dict[str, Any]:
     """Lier le sous-ensemble final aux octets privés ; ne rien copier."""
@@ -359,6 +383,7 @@ def main() -> int:
     parser.add_argument("--source-root", type=Path)
     parser.add_argument("--evidence-root", type=Path)
     parser.add_argument("--repository-root", type=Path)
+    parser.add_argument("--private-cas-root", type=Path)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--receipt", type=Path)
     parser.add_argument("--destination-root", type=Path)
@@ -368,16 +393,13 @@ def main() -> int:
     try:
         if args.plan:
             if not all((args.inventory, args.allowlist, args.source_root,
-                        args.evidence_root, args.repository_root, args.output)):
-                parser.error("--plan exige inventaire, allowlist, source, preuves, dépôt et sortie")
+                        args.evidence_root, args.repository_root,
+                        args.private_cas_root, args.output)):
+                parser.error("--plan exige inventaire, allowlist, source, preuves, CAS, dépôt et sortie")
             inventory_raw = args.inventory.read_bytes()
             allowlist_raw = args.allowlist.read_bytes()
-            from check_student_public_candidate_inventory import verify_bundle
-            try:
-                verify_bundle(args.repository_root, _document(inventory_raw, "inventaire"),
-                              _document(allowlist_raw, "allowlist"))
-            except (OSError, ValueError, TypeError, KeyError) as error:
-                raise TransferRefused("autorité scellée de l'inventaire non vérifiée") from error
+            verify_successor_inventory(args.repository_root, args.private_cas_root,
+                                       inventory_raw, allowlist_raw)
             result = plan_text_transfer(inventory_raw, allowlist_raw,
                                         args.source_root, args.evidence_root)
             args.output.write_bytes(canonical(result))

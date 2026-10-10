@@ -238,8 +238,9 @@ def test_plan_cli_refuse_un_bundle_non_scelle(tmp_path: Path) -> None:
         sys.executable, str(Path(__file__).resolve().parents[1] / "go_live" / "public_text_transfer.py"),
         "--plan", "--inventory", str(inventory_path), "--allowlist", str(allowlist_path),
         "--source-root", str(source), "--evidence-root", str(source),
+        "--private-cas-root", str(source),
         "--repository-root", str(Path(__file__).resolve().parents[2]),
         "--output", str(tmp_path / "plan.json"),
     ], capture_output=True, text=True, check=False)
     assert result.returncode == 1
-    assert "autorité scellée" in result.stderr
+    assert "autorité successeur" in result.stderr
