@@ -111,6 +111,32 @@ _PUBLIC_SUCCESSOR_AUTHORITY_FIELDS = frozenset(
         "public_pii_registry_sha256",
     }
 )
+# Le futur successeur public déclare une chaîne DISTINCTE du candidat #312.
+# Ces empreintes seules ne constituent pas des preuves vérifiées : le lecteur
+# refuse encore l'activation de ce mode en fin de parcours.
+_PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS = frozenset(
+    {
+        "source_candidate_release_manifest_sha256",
+        "candidate_inventory_sha256",
+        "inclusion_attestation_sha256",
+        "derivative_pii_evidence_sha256",
+        "derivative_currentness_evidence_sha256",
+        "public_profile_manifest_sha256",
+        "public_rights_registry_sha256",
+        "public_pii_registry_sha256",
+        "rights_authority_sha256",
+        "delegated_evidence_pack_sha256",
+        "pr300_final_authority_receipt_sha256",
+        "public_scope_authority_sha256",
+        "exact_head_scope_review_receipt_sha256",
+        "authorization_set_sha256",
+        "exact_head_authorization_review_receipt_sha256",
+        "publication_batch_review_receipt_sha256",
+        "artifact_transfer_manifest_sha256",
+        "observed_transfer_receipt_sha256",
+        "revocation_evidence_sha256",
+    }
+)
 _MULTILEVEL_V2_ARTIFACT_FIELDS = frozenset(
     {
         "artifact_id",
@@ -503,6 +529,7 @@ def _require_authority_chain(
     *,
     review_chain_allowed: bool,
     public_successor_allowed: bool = False,
+    public_successor_promotion_allowed: bool = False,
 ) -> None:
     """Vérifie une chaîne d'autorité, agrégat comme sujet.
 
@@ -524,6 +551,12 @@ def _require_authority_chain(
     declared = set(authorities)
     if public_successor_allowed and declared == _PUBLIC_SUCCESSOR_AUTHORITY_FIELDS:
         for name in sorted(_PUBLIC_SUCCESSOR_AUTHORITY_FIELDS):
+            _require_sha256(authorities.get(name), f"{field}.{name}")
+        return
+    if public_successor_promotion_allowed:
+        if declared != _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS:
+            raise ReleaseReadinessError(f"{field}: public successor authorities differ")
+        for name in sorted(_PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS):
             _require_sha256(authorities.get(name), f"{field}.{name}")
         return
     review_declared = (
@@ -1007,6 +1040,7 @@ def _parse_subject_v2(
         f"{field}.authorities",
         review_chain_allowed=True,
         public_successor_allowed=aggregate.get("release_mode") == "candidate",
+        public_successor_promotion_allowed=aggregate.get("release_mode") == "public_successor",
     )
     if authorities != aggregate.get("authorities"):
         raise ReleaseReadinessError(f"{field}.authorities mismatch")
@@ -1021,7 +1055,8 @@ def _parse_subject_v2(
         profile.get("manifest_digest"), f"{field}.profile.manifest_digest"
     )
     expected_profile_digest = authorities.get(
-        "public_profile_registry_sha256", authorities.get("profile_manifest_sha256")
+        "public_profile_manifest_sha256",
+        authorities.get("public_profile_registry_sha256", authorities.get("profile_manifest_sha256")),
     )
     if profile_manifest_digest != expected_profile_digest:
         raise ReleaseReadinessError(f"{field}.profile manifest digest differs from authority")
@@ -1139,7 +1174,7 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
             raise ReleaseReadinessError("release manifest fields mismatch")
         release_mode = aggregate.get("release_mode")
         if release_mode is not None and release_mode not in {
-            "production", "rehearsal", "candidate"
+            "production", "rehearsal", "candidate", "public_successor"
         }:
             raise ReleaseReadinessError("release manifest release_mode is unsupported")
         promotion_status = aggregate.get("promotion_status")
@@ -1162,6 +1197,12 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
             or review_status != "PRE_REVIEW"
         ):
             raise ReleaseReadinessError("public successor candidate status mismatch")
+        if release_mode == "public_successor" and (
+            promotion_status != "PROMOTABLE"
+            or activation_status != "PRODUCTION_ACTIVATION_ALLOWED"
+            or review_status != "REVIEWED"
+        ):
+            raise ReleaseReadinessError("public successor status mismatch")
     else:
         release_mode = None
         promotion_status = None
@@ -1169,11 +1210,16 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         review_status = None
 
     release_id = _require_nonblank(aggregate.get("release_id"), "release_id")
+    if release_mode == "public_successor" and not release_id.startswith(
+        "student-public-successor-"
+    ):
+        raise ReleaseReadinessError("public successor release_id must be new")
     school_year = _require_nonblank(aggregate.get("school_year"), "school_year")
     aggregate_authorities = _require_mapping(aggregate.get("authorities"), "authorities")
     _require_authority_chain(
         aggregate_authorities, authority_fields, "authorities", review_chain_allowed=is_v2,
         public_successor_allowed=is_v2 and release_mode == "candidate",
+        public_successor_promotion_allowed=is_v2 and release_mode == "public_successor",
     )
     aggregate_models = _require_mapping(aggregate.get("models"), "models")
     if set(aggregate_models) != {"embedding", "reranker"}:
@@ -1238,6 +1284,12 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
             artifact_registry_sha256,
             "artifact registry",
         )
+        if release_mode == "public_successor" and any(
+            not isinstance(item, Mapping)
+            or item.get("media_type") != _TEXT_DERIVATIVE_MEDIA_TYPE
+            for item in _require_list(artifact_registry.get("artifacts"), "artifact registry.artifacts")
+        ):
+            raise ReleaseReadinessError("public successor requires text derivatives only")
         artifacts.extend(
             _parse_v2_artifact_registry(
                 artifact_registry,
@@ -1328,6 +1380,16 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
             },
             "expected_counts",
         )
+        if release_mode == "public_successor":
+            if any(item.payload.get("visibility") != "public" for item in placements):
+                raise ReleaseReadinessError("public successor placement visibility differs")
+            # Les 19 SHA ci-dessus sont des DECLARATIONS. Ce lecteur ne possède
+            # pas les validateurs de revue GitHub, LOT41A/LOT42, currentness
+            # dérivé ni le reçu des octets transférés. Les accepter comme
+            # autorité de promotion serait une usurpation de ces contrôles.
+            raise ReleaseReadinessError(
+                "public successor external evidence verification unavailable"
+            )
     else:
         counts = _require_mapping(aggregate.get("expected_counts"), "expected_counts")
         aggregate_counts = {
