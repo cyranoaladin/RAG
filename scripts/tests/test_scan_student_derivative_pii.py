@@ -18,6 +18,7 @@ from scan_student_derivative_pii import (  # noqa: E402
     classify_pattern_matches,
     reverify_pdf_blocks,
     source_hash_metadata_ranges,
+    verify_derivative_layout,
 )
 
 
@@ -85,6 +86,14 @@ def test_changed_citation_is_rejected() -> None:
     modified = text.replace(source_sha.encode(), b"f" * 64, 1)
     with pytest.raises(ValueError, match="SOURCE_HASH_CITATION_MISMATCH"):
         source_hash_metadata_ranges(modified, receipt, source_sha)
+
+
+def test_every_non_native_byte_must_match_canonical_layout() -> None:
+    text, receipt, source_sha = _example(b"Texte")
+    assert verify_derivative_layout(text, receipt, source_sha) == 1
+    with pytest.raises(ValueError, match="DERIVATIVE_LAYOUT_MISMATCH"):
+        verify_derivative_layout(text.replace(b"[PAGE 1 BLOCK 0]",
+                                              b"[PAGE 1 BLOCK X]"), receipt, source_sha)
 
 
 def test_exact_native_block_is_reverified_against_pdf(tmp_path: Path) -> None:

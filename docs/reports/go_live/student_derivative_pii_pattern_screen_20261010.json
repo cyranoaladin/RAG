@@ -7,7 +7,7 @@
   "pattern_hit_count": 677,
   "policy_sha256": "d09cbfd23a4fcc3a744cdaeddf60a22863dfe64e0cc4c26e375309b21984e484",
   "pr300_evidence_index_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
-  "producer_code_sha256": "6927457a9f56043b8f33de66e1210f3eb5ee78b4a8b6565325260299c3b607ca",
+  "producer_code_sha256": "2377cb6b25ff851bb9e30d35c3099c0747174273dfe54433829601edd2f7efaa",
   "rows": [
     {
       "content_sha256": "006325217e12996eeb315c4923ecec3db6658c1366e1034e3be26c2cf73f1a75",
@@ -2564,7 +2564,7 @@
       "unresolved_hits": 0
     }
   ],
-  "scanned_at_utc": "2026-10-10T13:36:27Z",
+  "scanned_at_utc": "2026-10-10T13:42:36Z",
   "scanner_code_sha256": "388e3ed475625bc44b4fc74827b8950bc1932314f7b1468a27c491905fa54e94",
   "scope": "PATTERN_SCREEN_ONLY_NOT_FULL_PII_ADJUDICATION",
   "source_hash_metadata_hits": 677,

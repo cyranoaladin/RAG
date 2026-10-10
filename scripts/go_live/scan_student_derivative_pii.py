@@ -93,6 +93,64 @@ def source_hash_metadata_ranges(
     return ranges
 
 
+def verify_derivative_layout(
+    content: bytes, receipt: Mapping[str, Any], source_sha: str,
+) -> int:
+    """Vérifie aussi tous les octets générés entre les blocs natifs.
+
+    Un octet arbitraire hors d'un bloc exact du PDF ne doit pas être masqué par
+    la simple concordance de la taille et de l'empreinte finale du dérivé.
+    """
+    attribution = receipt.get("source_attribution")
+    pages = receipt.get("pages")
+    if not isinstance(attribution, dict) or not isinstance(pages, list):
+        raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+    expected = bytearray(
+        b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\n"
+        + _compact({"source_pdf_sha256": source_sha, **attribution}) + b"\n"
+    )
+    count = 0
+    for page in pages:
+        if not isinstance(page, dict) or page.get("byte_start") != len(expected):
+            raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+        selected = page.get("selected_block_indices")
+        blocks = page.get("all_blocks")
+        number = page.get("page_number")
+        if (not isinstance(selected, list) or not isinstance(blocks, list)
+                or type(number) is not int):
+            raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+        by_index = {block.get("block_index"): block for block in blocks
+                    if isinstance(block, dict)}
+        if len(by_index) != len(blocks):
+            raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+        for index in selected:
+            block = by_index.get(index)
+            if type(index) is not int or not isinstance(block, dict):
+                raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+            citation = block.get("citation")
+            start, end = block.get("byte_start"), block.get("byte_end")
+            if (not isinstance(citation, dict)
+                    or citation.get("source_pdf_sha256") != source_sha
+                    or citation.get("source_page") != number
+                    or type(start) is not int or type(end) is not int
+                    or start < 0 or end <= start or end > len(content)):
+                raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+            expected.extend(f"\n[PAGE {number} BLOCK {index}]\n".encode("ascii"))
+            expected.extend(_compact(citation) + b"\n")
+            if len(expected) != start:
+                raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+            expected.extend(content[start:end])
+            if len(expected) != end:
+                raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+            expected.extend(b"\n")
+            count += 1
+        if page.get("byte_end") != len(expected):
+            raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+    if bytes(expected) != content:
+        raise ValueError("DERIVATIVE_LAYOUT_MISMATCH")
+    return count
+
+
 def classify_pattern_matches(
     content: bytes, patterns: list[Any], source_sha_ranges: list[tuple[int, int]],
 ) -> dict[str, Any]:
@@ -197,6 +255,7 @@ def scan_repository(
         if _sha(receipt_raw) != receipt_sha:
             raise ValueError("DERIVATIVE_RECEIPT_SHA_MISMATCH")
         receipt = json.loads(receipt_raw)
+        layout_blocks = verify_derivative_layout(content, receipt, source_sha)
         ranges = source_hash_metadata_ranges(content, receipt, source_sha)
         findings = classify_pattern_matches(content, patterns, ranges)
         if source_pdf_root is not None:
@@ -213,7 +272,10 @@ def scan_repository(
                     or pdf_scan.get("full_document_scan_complete") is not True
                     or pdf_scan.get("annexes_scan_complete") is not True):
                 raise ValueError("PR300_FULL_SOURCE_SCAN_UNPROVEN")
-            verified_blocks += reverify_pdf_blocks(pdf_path, content, receipt, source_sha)
+            actual_blocks = reverify_pdf_blocks(pdf_path, content, receipt, source_sha)
+            if actual_blocks != layout_blocks:
+                raise ValueError("DERIVATIVE_LAYOUT_SOURCE_BLOCK_COUNT_MISMATCH")
+            verified_blocks += actual_blocks
             verified_pdfs += 1
         rows.append({
             "content_sha256": derivative_sha,
