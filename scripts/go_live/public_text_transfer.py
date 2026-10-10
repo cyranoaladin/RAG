@@ -246,12 +246,39 @@ def verify_observed_destination(manifest_raw: bytes, receipt_raw: bytes,
         raise TransferRefused("reçu non concordant avec les octets de destination")
 
 
+def build_worker_transfer_manifest(plan_raw: bytes, receipt_raw: bytes,
+                                   destination_root: Path,
+                                   target_identity: str) -> dict[str, Any]:
+    """Émettre le format lu par Worker A seulement après relecture du reçu."""
+    verify_observed_destination(plan_raw, receipt_raw, destination_root, target_identity)
+    plan = _manifest(plan_raw)
+    receipt = _document(receipt_raw, "reçu de transfert", canonical_required=True)
+    observed = {row["file"]: row["sha256_observed"] for row in receipt["files"]}
+    return {
+        "manifest_kind": "NEXUS-STAGING-ARTIFACT-TRANSFER-V1",
+        "release_id": plan["release_id"],
+        "transfer_method": "octets textuels observes et re-haches sur la destination",
+        "destination_target_identity": target_identity,
+        "source_plan_sha256": digest(plan_raw),
+        "observed_transfer_receipt_sha256": digest(receipt_raw),
+        "file_count": plan["file_count"],
+        "digest_missing": 0,
+        "digest_mismatches": 0,
+        "files": [
+            {"file": row["file"], "sha256_expected": row["sha256_expected"],
+             "sha256_observed": observed[row["file"]]}
+            for row in plan["files"]
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     modes = parser.add_mutually_exclusive_group(required=True)
     modes.add_argument("--plan", action="store_true")
     modes.add_argument("--observe", action="store_true")
     modes.add_argument("--verify", action="store_true")
+    modes.add_argument("--worker-manifest", action="store_true")
     parser.add_argument("--inventory", type=Path)
     parser.add_argument("--allowlist", type=Path)
     parser.add_argument("--source-root", type=Path)
@@ -275,12 +302,21 @@ def main() -> int:
             result = observe_destination(args.manifest.read_bytes(), args.destination_root,
                                          args.target_identity, observed_at_utc)
             args.output.write_bytes(canonical(result))
-        else:
+        elif args.verify:
             if not all((args.manifest, args.receipt, args.destination_root, args.target_identity)):
                 parser.error("--verify exige manifeste, reçu, destination et identité")
             verify_observed_destination(args.manifest.read_bytes(), args.receipt.read_bytes(),
                                         args.destination_root, args.target_identity)
             print("OBSERVED_TEXT_TRANSFER_VERIFIED=true")
+        else:
+            if not all((args.manifest, args.receipt, args.destination_root,
+                        args.target_identity, args.output)):
+                parser.error("--worker-manifest exige plan, reçu, destination, identité et sortie")
+            result = build_worker_transfer_manifest(
+                args.manifest.read_bytes(), args.receipt.read_bytes(),
+                args.destination_root, args.target_identity,
+            )
+            args.output.write_bytes(canonical(result))
     except (OSError, TransferRefused) as error:
         parser.exit(1, f"TRANSFERT_REFUSE={error}\n")
     return 0

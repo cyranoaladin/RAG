@@ -14,6 +14,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "go_live"))
 from public_text_transfer import (
     TransferRefused,
+    build_worker_transfer_manifest,
     observe_destination,
     plan_text_transfer,
     verify_observed_destination,
@@ -154,3 +155,20 @@ def test_cli_horodate_l_observation_lui_meme(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     observed = datetime.fromisoformat(json.loads(receipt_path.read_bytes())["observed_at_utc"])
     assert before <= observed <= after
+
+
+def test_manifeste_worker_a_exige_le_recu_et_les_octets_reobserves(tmp_path: Path) -> None:
+    inventory, allowlist, source, destination, digests = fixture(tmp_path)
+    plan_raw = canonical(plan_text_transfer(inventory, allowlist, source))
+    receipt_raw = canonical(observe_destination(plan_raw, destination,
+                                                "staging-final-isole", "2026-10-10T17:00:00Z"))
+    transfer = build_worker_transfer_manifest(plan_raw, receipt_raw, destination,
+                                               target_identity="staging-final-isole")
+    assert transfer["manifest_kind"] == "NEXUS-STAGING-ARTIFACT-TRANSFER-V1"
+    assert transfer["file_count"] == 2
+    assert transfer["digest_missing"] == transfer["digest_mismatches"] == 0
+    assert {row["sha256_observed"] for row in transfer["files"]} == set(digests)
+    (destination / f"{digests[0]}.txt").write_bytes(b"substitution")
+    with pytest.raises(TransferRefused):
+        build_worker_transfer_manifest(plan_raw, receipt_raw, destination,
+                                       target_identity="staging-final-isole")
