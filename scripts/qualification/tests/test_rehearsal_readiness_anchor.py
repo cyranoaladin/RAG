@@ -33,14 +33,15 @@ ANCRE_PRODUCTION = RACINE / "governance/trust-anchors/production-readiness-v1.js
 
 KEY_ID = "nexus-rehearsal-readiness-20260920-01"
 
-#: Baseline à l'octet de la chaîne de production. ADR-0072 ajoute au contrat
-#: V2 les digests A/C optionnels, sans changer les octets des manifests V2
-#: historiques. Le gate et l'ancre de production gardent leurs octets.
+#: Baseline à l'octet de la chaîne de production. ADR-0072 et le contrat 0.26
+#: lient A/C au pin de cible indépendant dans les nouveaux manifests V2,
+#: sans changer les octets des manifests V2 historiques. Le gate et l'ancre
+#: de production gardent leurs octets.
 CHAINE_DE_PRODUCTION_INTACTE = {
     "services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py":
         "a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28",
     "packages/contracts/src/nexus_contracts/production_readiness.py":
-        "d337a77ebf2658019e429ccded1ca732d4dfd44ba4b5c544224cde1a28adfa0a",
+        "5332e935813398af63c90b3d97677b3f809340c47a722a43e2406815e8e8de6a",
     "governance/trust-anchors/production-readiness-v1.json":
         "f123e9f35a9430d02092df675e5ed657fbccf8fb10af90fe03416335e7d1d238",
 }
