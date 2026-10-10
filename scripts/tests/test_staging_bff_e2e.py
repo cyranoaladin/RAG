@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
 from argparse import Namespace
@@ -30,7 +31,7 @@ def hit(collection: str) -> dict:
         "citation": {
             "source_uri": "https://eduscol.education.fr/document.pdf",
             "source_label": "Document officiel",
-            "rights": "official_public_administrative",
+            "rights": "officiel_public",
             "page": 3,
         },
         "metadata": {
@@ -40,6 +41,150 @@ def hit(collection: str) -> dict:
             "content_sha256": content,
         },
     }
+
+
+def sealed_release_fixture(tmp_path: Path) -> tuple[Path, str, str]:
+    """Une collection et deux placements : le second ne sera jamais un hit."""
+    collection = "rag_nexus_nsi_terminale_specialite"
+
+    def write(name: str, payload: dict) -> str:
+        path = tmp_path / name
+        path.write_text(json.dumps(payload), encoding="utf-8")
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    artifacts = {
+        "artifacts": [
+            {
+                "artifact_id": digit * 64,
+                "content_sha256": digit * 64,
+                "source_url": "https://eduscol.education.gouv.fr/source",
+                "title": "Source Éduscol",
+                "media_type": "text/plain; charset=utf-8",
+                "citation": {"licence_id": "ETALAB-2.0"},
+                "chunks": [{"chunk_id": f"chunk-{digit}", "page_start": 1, "page_end": 1}],
+            }
+            for digit in ("a", "b")
+        ]
+    }
+    artifact_sha = write("artifacts.json", artifacts)
+    subject = {
+        "collection": collection,
+        "placements": [
+            {
+                "placement_id": f"placement-{digit}",
+                "artifact_id": digit * 64,
+                "placement_status": "active",
+                "review_status": "reviewed",
+                "currentness": "official_snapshot",
+                "visibility": "public",
+            }
+            for digit in ("a", "b")
+        ],
+    }
+    subject_sha = write("subject.json", subject)
+    manifest_sha = write("manifest.json", {
+        "artifact_registry": {"path": "artifacts.json", "sha256": artifact_sha},
+        "subjects": [{"collection": collection, "path": "subject.json", "sha256": subject_sha}],
+    })
+    registry_sha = write("registry.json", {
+        "releases": [{"collections": [collection], "manifest_path": "manifest.json", "expected_manifest_sha256": manifest_sha}],
+    })
+    return tmp_path / "registry.json", registry_sha, collection
+
+
+@pytest.mark.parametrize(
+    ("field", "bad"),
+    [
+        ("placement_status", "revoked"),
+        ("review_status", "pending"),
+        ("currentness", "obsolete"),
+        ("visibility", "internal"),
+    ],
+)
+def test_every_final_public_placement_is_servable_even_when_not_returned(tmp_path, field, bad):
+    harness = load_harness()
+    registry, digest, collection = sealed_release_fixture(tmp_path)
+    assert len(harness.load_release_evidence(registry, digest, collection, require_public=True)) == 2
+    subject_path = tmp_path / "subject.json"
+    subject = json.loads(subject_path.read_text(encoding="utf-8"))
+    subject["placements"][1][field] = bad
+    subject_path.write_text(json.dumps(subject), encoding="utf-8")
+    manifest_path = tmp_path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["subjects"][0]["sha256"] = hashlib.sha256(subject_path.read_bytes()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    registry_payload = json.loads(registry.read_text(encoding="utf-8"))
+    registry_payload["releases"][0]["expected_manifest_sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    registry.write_text(json.dumps(registry_payload), encoding="utf-8")
+    with pytest.raises(ValueError, match=field):
+        harness.load_release_evidence(registry, hashlib.sha256(registry.read_bytes()).hexdigest(), collection, require_public=True)
+
+
+def test_final_manifest_rejects_invalid_placement_in_other_collection(tmp_path):
+    harness = load_harness()
+    registry, _, collection = sealed_release_fixture(tmp_path)
+    subject_path = tmp_path / "subject.json"
+    other = json.loads(subject_path.read_text(encoding="utf-8"))
+    other["collection"] = "rag_nexus_hggsp_terminale_specialite"
+    other["placements"][0]["collection"] = other["collection"]
+    other["placements"][0]["placement_status"] = "revoked"
+    other["placements"] = other["placements"][:1]
+    other_path = tmp_path / "other.json"
+    other_path.write_text(json.dumps(other), encoding="utf-8")
+    manifest_path = tmp_path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["subjects"].append({
+        "collection": other["collection"],
+        "path": "other.json",
+        "sha256": hashlib.sha256(other_path.read_bytes()).hexdigest(),
+    })
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    registry_payload = json.loads(registry.read_text(encoding="utf-8"))
+    registry_payload["releases"][0]["collections"].append(other["collection"])
+    registry_payload["releases"][0]["expected_manifest_sha256"] = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    registry.write_text(json.dumps(registry_payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="placement_status"):
+        harness.load_release_evidence(registry, hashlib.sha256(registry.read_bytes()).hexdigest(), collection, require_public=True)
+
+
+@pytest.mark.parametrize("rights", ["unknown", "usage_interne", "officiel_public"])
+def test_public_positive_rejects_citation_rights_outside_signed_scope(rights):
+    harness = load_harness()
+    collection = "rag_nexus_nsi_terminale_specialite"
+    candidate = hit(collection)
+    candidate["metadata"]["placement_id"] = "placement-1"
+    candidate["citation"].update({
+        "rights": rights,
+        "licensor": "Dgesco",
+        "licence_id": "ETALAB-2.0",
+        "source_updated_at": "2026-10-10",
+        "derivative_notice": "Extrait textuel dérivé",
+    })
+    sealed = {"placement-1": {
+        "artifact_id": "b" * 64,
+        "content_sha256": "b" * 64,
+        "placement_status": "active",
+        "review_status": "reviewed",
+        "currentness": "official_snapshot",
+        "visibility": "public",
+        "media_type": "text/plain; charset=utf-8",
+        "citation": {key: candidate["citation"][key] for key in ("source_uri", "source_label", "licensor", "licence_id", "source_updated_at", "derivative_notice")},
+        "source_uri": candidate["citation"]["source_uri"],
+        "source_label": candidate["citation"]["source_label"],
+        "chunks": {"chunk-1": (3, 3)},
+    }}
+    with pytest.raises(ValueError, match="rights|droits"):
+        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True, scope_rights={"public_allowed"})
+    candidate["citation"]["rights"] = "public_allowed"
+    assert harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True, scope_rights={"public_allowed"})["results"] == 1
+
+
+@pytest.mark.parametrize("rights", [[], ["unknown"], ["usage_interne"], ["public_allowed", "usage_interne"]])
+def test_final_student_scope_must_authorize_only_public_rights(rights):
+    harness = load_harness()
+    with pytest.raises(ValueError, match="droits publics"):
+        harness.scope_public_rights({"evidence_subject": {"rights": rights}})
+    assert harness.scope_public_rights({"evidence_subject": {"rights": ["officiel_public", "public_allowed"]}}) == {"officiel_public", "public_allowed"}
 
 
 def test_teacher_requires_real_cited_content_bound_to_final_manifest():
@@ -56,7 +201,7 @@ def test_teacher_requires_real_cited_content_bound_to_final_manifest():
     ("mutation", "reason"),
     [
         ({"citation": None}, "citation"),
-        ({"citation": {"source_uri": "https://eduscol.education.fr/document.pdf", "source_label": "Document officiel", "rights": "official_public_administrative", "page": None}}, "citation"),
+        ({"citation": {"source_uri": "https://eduscol.education.fr/document.pdf", "source_label": "Document officiel", "rights": "officiel_public", "page": None}}, "citation"),
         ({"metadata": {"collection": "rag_nexus_maths_terminale_gen_specialite", "review_status": "reviewed", "content_sha256": None}}, "content"),
         ({"metadata": {"collection": "rag_nexus_maths_terminale_gen_specialite", "review_status": "reviewed", "content_sha256": "c" * 64}}, "content"),
         ({"doc_id": "d" * 64}, "content"),
@@ -120,7 +265,7 @@ def test_final_scope_index_matches_all_sealed_collections_and_governed_artifacts
             "scope_id": f"prod_{subject}_terminale_specialite_v3",
             "status": "eligible_for_promotion",
             "target_policy": {"tenant": "libre_terminale", "niveau": "terminale", "voie": "generale", "matiere": subject, "statut_enseignement": "specialite", "audiences": ["libre"], "candidates": ["libre"], "roles": ["student", "teacher"]},
-            "evidence_subject": {"collection": collection, "school_year": "2026-2027", "visibility": "public"},
+            "evidence_subject": {"collection": collection, "school_year": "2026-2027", "visibility": "public", "rights": ["public_allowed"]},
         }
         (artifacts / f"retrieval-scope-prod-{subject}-terminale-specialite-v3.json").write_text(json.dumps(scope))
         scopes.append(scope)
@@ -199,7 +344,7 @@ def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles, stude
     registry.write_text(json.dumps({"releases": [{"collections": collections, "manifest_path": "release.json", "expected_manifest_sha256": "a" * 64}]}))
     manifest.write_text(json.dumps(release))
     scope_index.write_text("[]")
-    scopes = {collection: {"scope_id": f"prod_nsi_collection_{index}_v4", "source_sha256": "c" * 64, "target_policy": {"roles": roles}, "evidence_subject": {"collection": collection}} for index, collection in enumerate(collections)}
+    scopes = {collection: {"scope_id": f"prod_nsi_collection_{index}_v4", "source_sha256": "c" * 64, "target_policy": {"roles": roles}, "evidence_subject": {"collection": collection, "rights": ["public_allowed"]}} for index, collection in enumerate(collections)}
     head = "d" * 40
     def fake_git(_root, *args):
         if args == ("status", "--porcelain"):
@@ -212,7 +357,7 @@ def test_scope_roles_control_live_bff_probes(tmp_path, monkeypatch, roles, stude
     monkeypatch.setattr(harness, "_sha256", lambda _path: "a" * 64)
     monkeypatch.setattr(harness, "load_final_scopes", lambda *_args: scopes)
     monkeypatch.setattr(harness, "_get_health", lambda _url: (200, {"status": "ok", "build_sha": head}))
-    monkeypatch.setattr(harness, "load_release_evidence", lambda *_args: {"placement": {"content_sha256": "b" * 64}})
+    monkeypatch.setattr(harness, "load_release_evidence", lambda *_args, **_kwargs: {"placement": {"content_sha256": "b" * 64}})
     minted = []
     def mint(_root, role, _scope):
         minted.append(role)
@@ -278,6 +423,9 @@ def test_public_derivative_requires_exact_sealed_attribution_and_text_only():
             "artifact_id": "b" * 64,
             "content_sha256": "b" * 64,
             "visibility": "public",
+            "placement_status": "active",
+            "review_status": "reviewed",
+            "currentness": "official_snapshot",
             "media_type": "text/plain; charset=utf-8",
             "citation": sealed_citation,
             "source_uri": sealed_citation["source_uri"],
@@ -286,16 +434,16 @@ def test_public_derivative_requires_exact_sealed_attribution_and_text_only():
         }
     }
     with pytest.raises(ValueError, match="attribution"):
-        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)
+        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True, scope_rights={"officiel_public"})
     candidate["citation"].update({key: sealed_citation[key] for key in ("licensor", "licence_id", "source_updated_at", "derivative_notice")})
-    assert harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)["results"] == 1
+    assert harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True, scope_rights={"officiel_public"})["results"] == 1
     candidate["citation"]["source_updated_at"] = "2026-10-09"
     with pytest.raises(ValueError, match="attribution"):
-        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)
+        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True, scope_rights={"officiel_public"})
     candidate["citation"]["source_updated_at"] = sealed_citation["source_updated_at"]
     sealed["placement-1"]["media_type"] = "application/pdf"
     with pytest.raises(ValueError, match="textuel"):
-        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True)
+        harness.assess_positive(200, {"results": [candidate]}, collection, {"b" * 64}, sealed, require_public=True, scope_rights={"officiel_public"})
 
 
 def test_cockpit_url_accepts_only_local_origin_without_credentials_or_query():
@@ -377,18 +525,18 @@ def test_real_release_placement_and_citation_are_checked_together():
         "page": pages[0],
     })
     allowed = {item["content_sha256"] for item in evidence.values()}
-    assert harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence)["results"] == 1
+    assert harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence, scope_rights={"officiel_public"})["results"] == 1
     candidate["metadata"]["placement_id"] = "0" * 64
     with pytest.raises(ValueError, match="placement"):
-        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence)
+        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence, scope_rights={"officiel_public"})
     candidate["metadata"]["placement_id"] = placement_id
     with pytest.raises(ValueError, match="public"):
-        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence, require_public=True)
+        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence, require_public=True, scope_rights={"officiel_public"})
     candidate["metadata"]["content_sha256"] = "c" * 64
     candidate["metadata"]["artifact_id"] = "c" * 64
     candidate["doc_id"] = "c" * 64
     with pytest.raises(ValueError, match="content"):
-        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence)
+        harness.assess_positive(200, {"results": [candidate]}, collection, allowed, evidence, scope_rights={"officiel_public"})
 
 
 def test_final_release_does_not_contain_the_other_pilot_collection():

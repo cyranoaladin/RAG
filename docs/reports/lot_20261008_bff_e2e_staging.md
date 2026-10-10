@@ -41,6 +41,20 @@ est écrit en mode `0600` et ne contient aucun jeton. Une invocation couvre
 **une** collection ; la qualification complète exigera onze invocations et
 l'acceptance directe API v2 distincte.
 
+Le contrôle de release examine maintenant **tous les placements de tous les
+subjects du manifest lié au registre**, même si le BFF ne retourne qu'un
+passage d'une collection. Il exige `placement_status=active`,
+`review_status=reviewed` et `currentness` dans l'enum canonique
+`{current, official_snapshot}` ; en mode étudiant public, il exige également
+`visibility=public` sur chaque placement. Ces champs restent associés au
+placement lu afin qu'une réponse ne puisse pas effacer une révocation, une
+revue pendante ou une obsolescence. `citation.rights` doit correspondre à un
+droit présent dans `evidence_subject.rights` du scope V3 signé, limité aux
+valeurs autorisées en contexte public par `nexus_contracts.document` :
+`officiel_public` et `public_allowed`. Une chaîne non vide comme `unknown`
+ne suffit plus. Le contrôle ne change ni le rôle étudiant, ni la visibilité
+des placements, ni la politique de droits du runtime.
+
 ## Dépendances de câblage encore ouvertes
 
 - Le paquet préparatoire recalculé depuis ce `main` est
@@ -98,7 +112,11 @@ release, les droits, les scopes, le build et les résultats HTTP doivent tous
 être vérifiés à la cible finale.
 
 Vérification locale dans `/tmp/rag-pr293-main744-venv`, créé pour ce worktree :
-`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 28 tests verts,
-dont un RED→GREEN du parcours `student` seul et la conservation du parcours
-`teacher` lorsque son rôle est autorisé ;
+`python -m pytest -q scripts/tests/test_staging_bff_e2e.py` : 40 tests verts,
+dont les sabotages RED→GREEN d'un second placement révoqué, en revue pendante,
+obsolète ou interne, d'un placement révoqué dans une autre collection du
+manifest, de citations aux droits `unknown`, `usage_interne` ou publics
+hors du scope signé, et de scopes étudiant contenant des droits non publics.
+Le parcours `student` seul et le parcours `teacher`
+explicitement autorisé restent couverts ;
 `ruff check` des deux fichiers Python : vert ; `git diff --check` : vert.

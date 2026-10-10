@@ -24,6 +24,9 @@ from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 NSI_COLLECTION = "rag_nexus_nsi_terminale_specialite"
 SHA256 = re.compile(r"^[0-9a-f]{64}$")
+# Valeurs publiques de Rights/RIGHTS_ALLOWED_CONTEXTS dans nexus_contracts.document.
+PUBLIC_RETRIEVAL_RIGHTS = frozenset({"officiel_public", "public_allowed"})
+CURRENT_PLACEMENT_VALUES = frozenset({"current", "official_snapshot"})
 REQUIRED_ENV = (
     "NEXTAUTH_SECRET",
     "NEXUS_INTERNAL_TOKEN_SECRET",
@@ -147,6 +150,19 @@ def assert_scope_subject_binding(
         raise ValueError("scope V3 non lié au subject final")
 
 
+def scope_public_rights(scope: dict[str, Any]) -> set[str]:
+    """Ne retenir que des droits publics explicitement émis dans le scope V3."""
+    rights = _object(scope.get("evidence_subject"), "subject du scope").get("rights")
+    if (
+        not isinstance(rights, list)
+        or not rights
+        or any(not isinstance(right, str) for right in rights)
+        or not set(rights) <= PUBLIC_RETRIEVAL_RIGHTS
+    ):
+        raise ValueError("droits publics du scope V3 invalides")
+    return set(rights)
+
+
 def assess_positive(
     status: int,
     payload: Any,
@@ -155,6 +171,7 @@ def assess_positive(
     release_placements: dict[str, dict[str, Any]] | None = None,
     *,
     require_public: bool = False,
+    scope_rights: set[str] | None = None,
 ) -> dict[str, Any]:
     """Exiger un vrai passage cité, revu et lié au registre de release."""
     if status != 200:
@@ -162,6 +179,10 @@ def assess_positive(
     results = _object(payload, "response").get("results")
     if not isinstance(results, list) or not results:
         raise ValueError("positive results empty")
+    if release_placements is not None and (
+        not scope_rights or not scope_rights <= PUBLIC_RETRIEVAL_RIGHTS
+    ):
+        raise ValueError("droits du scope signé absents ou non publics")
     contents: set[str] = set()
     citations: list[dict[str, Any]] = []
     for result in results:
@@ -188,6 +209,8 @@ def assess_positive(
             for field in ("source_uri", "source_label", "rights")
         ):
             raise ValueError("citation incomplète")
+        if scope_rights is not None and citation["rights"] not in scope_rights:
+            raise ValueError("citation rights hors droits du scope signé")
         page = citation.get("page")
         if not isinstance(page, int) or isinstance(page, bool) or page < 1:
             raise ValueError("citation page invalide")
@@ -196,6 +219,12 @@ def assess_positive(
             sealed = release_placements.get(placement_id) if isinstance(placement_id, str) else None
             if sealed is None or sealed["artifact_id"] != metadata.get("artifact_id") or sealed["content_sha256"] != content:
                 raise ValueError("placement absent de la release scellée")
+            if (
+                sealed.get("placement_status") != "active"
+                or sealed.get("review_status") != "reviewed"
+                or sealed.get("currentness") not in CURRENT_PLACEMENT_VALUES
+            ):
+                raise ValueError("placement non actif, revu ou actuel")
             if require_public and sealed["visibility"] != "public":
                 raise ValueError("placement non public")
             if require_public:
@@ -272,12 +301,13 @@ def _sha256(path: Path) -> str:
 
 
 def load_release_evidence(
-    registry_path: Path, expected_digest: str, collection: str
+    registry_path: Path, expected_digest: str, collection: str, *, require_public: bool = False
 ) -> dict[str, dict[str, Any]]:
     if not SHA256.fullmatch(expected_digest) or _sha256(registry_path) != expected_digest:
         raise ValueError("release registry digest invalide")
     registry = _object(json.loads(registry_path.read_text(encoding="utf-8")), "registry")
     placements: dict[str, dict[str, Any]] = {}
+    seen_placement_ids: set[str] = set()
     for release in registry.get("releases", []):
         if collection not in release.get("collections", []):
             continue
@@ -296,30 +326,45 @@ def load_release_evidence(
         ]
         if len(subject_refs) != 1:
             raise ValueError("subject de collection absent ou ambigu")
-        subject_ref = subject_refs[0]
-        subject_path = manifest_path.parent / subject_ref["path"]
-        if _sha256(subject_path) != subject_ref["sha256"]:
-            raise ValueError("subject release digest invalide")
-        subject = _object(json.loads(subject_path.read_text(encoding="utf-8")), "subject")
-        if subject.get("collection") != collection:
-            raise ValueError("subject collection incohérente")
-        for placement in subject["placements"]:
-            artifact = artifact_index.get(placement["artifact_id"])
-            if artifact is None or placement["placement_id"] in placements:
-                raise ValueError("placement hors registre ou dupliqué")
-            placements[placement["placement_id"]] = {
-                "artifact_id": artifact["artifact_id"],
-                "content_sha256": artifact["content_sha256"],
-                "visibility": placement["visibility"],
-                "media_type": artifact.get("media_type"),
-                "citation": artifact.get("citation"),
-                "source_uri": artifact["source_url"],
-                "source_label": artifact["title"],
-                "chunks": {
-                    chunk["chunk_id"]: (chunk["page_start"], chunk["page_end"])
-                    for chunk in artifact["chunks"]
-                },
-            }
+        for subject_ref in manifest["subjects"]:
+            subject_path = manifest_path.parent / subject_ref["path"]
+            if _sha256(subject_path) != subject_ref["sha256"]:
+                raise ValueError("subject release digest invalide")
+            subject = _object(json.loads(subject_path.read_text(encoding="utf-8")), "subject")
+            if subject.get("collection") != subject_ref["collection"]:
+                raise ValueError("subject collection incohérente")
+            for placement in subject["placements"]:
+                if placement.get("placement_status") != "active":
+                    raise ValueError("placement_status invalide dans le subject scellé")
+                if placement.get("review_status") != "reviewed":
+                    raise ValueError("review_status invalide dans le subject scellé")
+                if placement.get("currentness") not in CURRENT_PLACEMENT_VALUES:
+                    raise ValueError("currentness invalide dans le subject scellé")
+                if require_public and placement.get("visibility") != "public":
+                    raise ValueError("visibility non public dans le subject scellé")
+                artifact = artifact_index.get(placement["artifact_id"])
+                placement_id = placement["placement_id"]
+                if artifact is None or placement_id in seen_placement_ids:
+                    raise ValueError("placement hors registre ou dupliqué")
+                seen_placement_ids.add(placement_id)
+                if subject_ref["collection"] != collection:
+                    continue
+                placements[placement_id] = {
+                    "artifact_id": artifact["artifact_id"],
+                    "content_sha256": artifact["content_sha256"],
+                    "visibility": placement["visibility"],
+                    "placement_status": placement["placement_status"],
+                    "review_status": placement["review_status"],
+                    "currentness": placement["currentness"],
+                    "media_type": artifact.get("media_type"),
+                    "citation": artifact.get("citation"),
+                    "source_uri": artifact["source_url"],
+                    "source_label": artifact["title"],
+                    "chunks": {
+                        chunk["chunk_id"]: (chunk["page_start"], chunk["page_end"])
+                        for chunk in artifact["chunks"]
+                    },
+                }
     if not placements:
         raise ValueError("collection absente des releases scellées")
     return placements
@@ -488,9 +533,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     scope = scopes.get(args.collection)
     if scope is None:
         raise ValueError("collection absente du scope BFF signé")
+    rights = scope_public_rights(scope)
     health_status, health_body = _get_health(cockpit_url)
     runtime_build_sha = assess_runtime_identity(health_status, health_body, head)
-    release_placements = load_release_evidence(args.registry, args.registry_sha256, args.collection)
+    release_placements = load_release_evidence(
+        args.registry, args.registry_sha256, args.collection,
+        require_public=args.student_mode == "public",
+    )
     contents = {placement["content_sha256"] for placement in release_placements.values()}
     student_session, _ = _mint_session(root, "student", scope)
     teacher_allowed = "teacher" in scope["target_policy"]["roles"]
@@ -514,7 +563,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             cockpit_url, teacher_session, args.query, args.collection
         )
         teacher = assess_positive(
-            teacher_status, teacher_body, args.collection, contents, release_placements
+            teacher_status, teacher_body, args.collection, contents, release_placements,
+            scope_rights=rights,
         )
     student_status, student_body = _post_search(
         cockpit_url, student_session, args.query, args.collection
@@ -523,7 +573,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     if args.student_mode == "public":
         student = assess_positive(
             student_status, student_body, args.collection, contents, release_placements,
-            require_public=True,
+            require_public=True, scope_rights=rights,
         )
     else:
         student = {"refusal": assess_internal_student(student_status, student_body)}
