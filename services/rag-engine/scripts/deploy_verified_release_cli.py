@@ -85,6 +85,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
+from urllib.parse import urlencode
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -2370,7 +2371,7 @@ def _prometheus_port(verified: _VerifiedDeployInputs) -> int:
 
 
 def _default_public_prometheus_probe(port: int) -> bool:
-    """Exige readiness et les quatre règles réellement chargées par Prometheus."""
+    """Exige readiness, alertes chargées et collecte effective de l'API."""
     base = f"http://127.0.0.1:{port}"
     deadline = time.monotonic() + 30
     expected = {
@@ -2392,7 +2393,19 @@ def _default_public_prometheus_probe(port: int) -> bool:
                 if rule.get("type") == "alerting"
             }
             if rules.get("status") == "success" and expected <= names:
-                return True
+                query = urlencode({"query": 'up{job="rag-engine-v2"}'})
+                with urllib.request.urlopen(base + "/api/v1/query?" + query, timeout=2) as response:
+                    scrape = json.load(response)
+                data = scrape.get("data", {})
+                targets = data.get("result") if isinstance(data, dict) else None
+                if (scrape.get("status") == "success" and data.get("resultType") == "vector"
+                        and isinstance(targets, list) and len(targets) == 1
+                        and isinstance(targets[0], dict)
+                        and targets[0].get("metric", {}).get("job") == "rag-engine-v2"
+                        and isinstance(targets[0].get("value"), list)
+                        and len(targets[0]["value"]) == 2
+                        and targets[0]["value"][1] == "1"):
+                    return True
         except (OSError, ValueError, TypeError, AttributeError):
             pass
         time.sleep(1)
