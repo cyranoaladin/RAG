@@ -82,6 +82,13 @@ class PublicSuccessorActivationVerdict:
     scope_sha256_by_id: dict[str, str]
     counts: dict[str, int]
     expires_at_utc: datetime
+    # Vérifiés par C depuis AuthorizationSetV2, bindings signés et preuves
+    # scellées ; jamais reconstruits à partir des lignes de la DB servie.
+    authorization_review_evidence_by_id: tuple[tuple[str, str, str, str], ...] = ()
+    transfer_manifest_sha256: str | None = None
+    publication_batch_review_id: str | None = None
+    publication_batch_review_digest: str | None = None
+    publication_batch_review_binding: tuple[str, str, str, int, str] | None = None
 
 
 def _read(root: Path, relative: str, expected: str, *, json_required: bool = True) -> Any:

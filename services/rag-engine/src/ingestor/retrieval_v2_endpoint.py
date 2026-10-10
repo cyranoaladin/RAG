@@ -116,6 +116,10 @@ try:
         runtime_database_budget,
         runtime_request_budget,
     )
+    from .public_successor_db_guard import (
+        require_public_successor_live_controls,
+        require_public_successor_startup_lot42,
+    )
     from .reranker_contract import load_reranker_model
     from .retrieval_contract_adapter import adapt_retrieval_request
     from .retrieval_hybrid_v2 import (
@@ -197,6 +201,10 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         remaining_database_budget_ms,
         runtime_database_budget,
         runtime_request_budget,
+    )
+    from public_successor_db_guard import (  # type: ignore[no-redef]
+        require_public_successor_live_controls,
+        require_public_successor_startup_lot42,
     )
     from reranker_contract import load_reranker_model  # type: ignore[no-redef]
     from retrieval_contract_adapter import (  # type: ignore[no-redef]
@@ -524,6 +532,8 @@ def _release_evidence_for_collection(
         settings = PoolSettings.from_env()
         with runtime_database_budget():
             with pool_connection(settings) as connection:
+                if public_verdict is not None:
+                    require_public_successor_live_controls(connection, public_verdict)
                 return validate_release_collection_readiness(
                     registry,
                     collection,
@@ -825,13 +835,19 @@ def validate_configured_release_database() -> None:
     registry = _configured_release_registry()
     if registry is None:
         return
-    _validate_unpromoted_release_guard(registry)
+    public_verdict = _validate_unpromoted_release_guard(registry)
 
     settings = PoolSettings.from_env()
 
     with runtime_database_budget():
         with pool_connection(settings) as connection:
             reports = validate_release_registry_readiness(registry, connection)
+            if public_verdict is not None:
+                require_public_successor_startup_lot42(
+                    connection, public_verdict,
+                    Path(os.environ["NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT"]),
+                )
+                require_public_successor_live_controls(connection, public_verdict)
     if set(reports) != set(registry.collections) or any(
         not report.ready for report in reports.values()
     ):

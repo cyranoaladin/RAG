@@ -46,6 +46,7 @@ COPY services/rag-engine/src/ingestor/inference_runtime.py /app/inference_runtim
 COPY services/rag-engine/src/ingestor/metrics.py /app/metrics.py
 COPY services/rag-engine/src/ingestor/model_artifact.py /app/model_artifact.py
 COPY services/rag-engine/src/ingestor/pg_pool.py /app/pg_pool.py
+COPY services/rag-engine/src/ingestor/public_successor_db_guard.py /app/public_successor_db_guard.py
 COPY services/rag-engine/src/ingestor/readiness_db.py /app/readiness_db.py
 COPY services/rag-engine/src/ingestor/retrieval_contract_adapter.py /app/retrieval_contract_adapter.py
 COPY services/rag-engine/src/ingestor/retrieval_hybrid_v2.py /app/retrieval_hybrid_v2.py
