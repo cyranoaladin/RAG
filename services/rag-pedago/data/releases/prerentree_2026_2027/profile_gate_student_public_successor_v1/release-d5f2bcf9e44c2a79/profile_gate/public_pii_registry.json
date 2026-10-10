@@ -1775,6 +1775,6 @@
   ],
   "evidence_pack_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
   "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_PII_REGISTRY_V2",
-  "release_id": "student-public-successor-20261010-8438d2d225eb9ea8",
+  "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79",
   "status": "CANDIDATE_NOT_AUTHORIZED"
 }

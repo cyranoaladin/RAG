@@ -2027,9 +2027,9 @@
   ],
   "fresh_source_index_file_sha256": "7482e8cfdeb2066f1c03f8c8b978fe751d5f20bfd168d9e94912e7c709755c8d",
   "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CURRENTNESS_REGISTRY_V1",
-  "private_cas_manifest_sha256": "859b8ef80be5554e0a8979eacb15a17dbf8ee1eeb697dbc4188e67c623a5d9e1",
-  "release_id": "student-public-successor-20261010-8438d2d225eb9ea8",
+  "private_cas_manifest_sha256": "09dc8eeaf5e853b3e793eca6b2ef339a5ad4366ed44a1f20d47140d31f8b69e6",
+  "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79",
   "source_currentness_attestation_sha256": "4882c95b47e807f0efe55ee5768637b47907af4d5f91e331a0e273acf684e62d",
   "status": "CANDIDATE_NOT_AUTHORIZED",
-  "valid_until_utc": "2026-10-11T13:43:39.206000Z"
+  "valid_until_utc": "2026-10-11T13:39:22.520000Z"
 }

@@ -1,6 +1,6 @@
 {
   "allowed_file_count": 253,
-  "candidate_inventory_sha256": "445f731fae57e906ff615be34ee411162ea0f71056fda6d750fdab9d6b78614a",
+  "candidate_inventory_sha256": "b0eca89dff0c3cea8c537f4f90b1e3481a913d44cfb6f57cba747416aa3ba81c",
   "expected_files": [
     {
       "file": "006325217e12996eeb315c4923ecec3db6658c1366e1034e3be26c2cf73f1a75.txt",
@@ -1522,6 +1522,6 @@
     }
   ],
   "kind": "NEXUS_STUDENT_PUBLIC_PRIVATE_TRANSFER_ALLOWLIST_V1",
-  "release_id": "student-public-successor-20261010-8438d2d225eb9ea8",
+  "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79",
   "transfer_status": "NOT_TRANSFERRED"
 }

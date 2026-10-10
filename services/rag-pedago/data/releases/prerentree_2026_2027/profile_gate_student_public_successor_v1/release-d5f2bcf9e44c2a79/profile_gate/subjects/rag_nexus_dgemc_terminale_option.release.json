@@ -1,15 +1,15 @@
 {
   "artifact_registry": {
     "path": "../artifacts.release.json",
-    "sha256": "d8f2fe39871995c7823e7bd82ea2f79dff6bd7ebb07a47fa7db76cba0338bcb5"
+    "sha256": "8fdc5106c2c582a6aa95c66ad98417ed6d8a6aec3fd6d7de5ab320321e2670c7"
   },
   "authorities": {
     "candidate_manifest_sha256": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
     "delegated_evidence_pack_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
     "pr300_final_authority_receipt_sha256": "feb4928db20244c2c56a09a29f0718519d14ed903ba26feedb2b11ec0e605346",
-    "public_pii_registry_sha256": "c977fbc3d2316dedb2d4c5cfad77fc09f90e681334eb37a04c0af4bfd06328a0",
-    "public_profile_registry_sha256": "5bc4fa240709d369d331344a35f08b29e6a5ab5f5575db56107231c9123ba1f2",
-    "public_rights_registry_sha256": "f935ab39a87790125641f1c5434a6a736f968be44ae370fe465cf60fe3bac0a2",
+    "public_pii_registry_sha256": "bd66e3ce15e42a0d45ab3e49181bd5834e37141d9c0a3417e88b77b8f5a2bec8",
+    "public_profile_registry_sha256": "4cc3f12ea14b67dc8d7bcc540e8bb76d9556235e6283fbe64d3f3164d5370626",
+    "public_rights_registry_sha256": "03c7761b16840da036997b0c24878bcc4b08f11093e8e45eb7c58164c5812f3e",
     "rights_authority_sha256": "013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1",
     "text_derivative_extraction_policy_sha256": "6055813ee697c8b0386ebe266df5b85a744908c5deeaa2daff41afcc1aba7edf"
   },
@@ -147,11 +147,11 @@
   ],
   "profile": {
     "fingerprint": "5aa62d9b655d50fd7449223d904a0e37cf7c9cb502bd7e19d9e2f73b2077bfce",
-    "manifest_digest": "5bc4fa240709d369d331344a35f08b29e6a5ab5f5575db56107231c9123ba1f2",
+    "manifest_digest": "4cc3f12ea14b67dc8d7bcc540e8bb76d9556235e6283fbe64d3f3164d5370626",
     "version": "student-public-v1"
   },
   "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
-  "release_id": "student-public-successor-20261010-8438d2d225eb9ea8-rag_nexus_dgemc_terminale_option",
+  "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79-rag_nexus_dgemc_terminale_option",
   "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V2",
   "school_year": "2026-2027"
 }

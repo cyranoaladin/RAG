@@ -34,6 +34,12 @@ RIGHTS_AUTHORITY = Path(
 )
 CAS_KIND = "NEXUS_STUDENT_DERIVATIVE_PRIVATE_EVIDENCE_CAS_V1"
 FRESHNESS_TTL = timedelta(hours=24)
+CAPTURE_WINDOW = timedelta(hours=1)
+LISTING_BODIES = (
+    ("normalized_html", ".normalized.html"),
+    ("extracted_text", ".extracted.txt"),
+    ("screenshot", ".png"),
+)
 
 
 def _json(raw: bytes, label: str) -> dict[str, Any]:
@@ -71,6 +77,39 @@ def _safe_join(root: Path, relative: str) -> Path:
 
 def _sha_field(value: object) -> bool:
     return isinstance(value, str) and SHA.fullmatch(value) is not None
+
+
+def check_capture_timing(
+    checked_at: datetime, listing_at: datetime, fetch_at: datetime,
+    current_at: datetime, revocation_at: datetime, *, as_of: datetime,
+) -> datetime:
+    """Borner chaque capture réelle, pas seulement l'heure d'un index réécrit."""
+    observations = (listing_at, fetch_at, current_at, revocation_at)
+    if (any(value.tzinfo is None for value in (checked_at, as_of, *observations))
+            or not checked_at <= as_of
+            or any(not checked_at - CAPTURE_WINDOW <= value <= checked_at
+                   or not as_of - value < FRESHNESS_TTL for value in observations)
+            or current_at != fetch_at or revocation_at != listing_at):
+        raise ValueError("source capture timing differs or expired")
+    return min(observations) + FRESHNESS_TTL
+
+
+def listing_body_paths(
+    receipt: dict[str, Any], receipt_sha: str, listing_root: Path, *, prefix: str,
+) -> dict[Path, Path]:
+    """Copier les trois corps exacts que le reçu Chromium référence."""
+    if not _sha_field(receipt_sha) or not re.fullmatch(r"[0-9a-f]{16}", prefix):
+        raise ValueError("listing body identity differs")
+    result: dict[Path, Path] = {}
+    for name, suffix in LISTING_BODIES:
+        filename = f"{prefix}{suffix}"
+        sha = receipt.get(f"{name}_sha256")
+        path = listing_root / filename
+        if (receipt.get(f"{name}_file") != filename or not _sha_field(sha)
+                or digest(path.read_bytes()) != sha):
+            raise ValueError(f"listing body digest differs: {name}")
+        result[Path("fresh_listing_bodies") / receipt_sha / filename] = path
+    return result
 
 
 def _indexed(rows: object, key: str, expected: set[str], label: str) -> dict[str, dict]:
@@ -166,14 +205,15 @@ def verify_report_pair(
 def make_inclusion(
     source: dict[str, Any], pii_raw: bytes, current_raw: bytes,
     rows: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]],
-    *, private_cas_manifest_sha256: str,
+    *, private_cas_manifest_sha256: str, source_currentness_valid_until: datetime,
 ) -> dict[str, Any]:
     """Sérialisation déterministe ; appeler seulement après preuves privées vérifiées."""
     _json(pii_raw, "PII adjudication")
     current = _json(current_raw, "source currentness")
     if len(rows) != len(source["inputs"]["artifacts"]["artifacts"]):
         raise ValueError("verified inclusion population differs")
-    if not _sha_field(private_cas_manifest_sha256):
+    if (not _sha_field(private_cas_manifest_sha256)
+            or source_currentness_valid_until.tzinfo is None):
         raise ValueError("private CAS manifest digest required")
     decisions = []
     for artifact, p, c in rows:
@@ -200,9 +240,8 @@ def make_inclusion(
         "source_currentness_attestation_sha256": digest(current_raw),
         "fresh_source_index_file_sha256": current["fresh_source_index_file_sha256"],
         "fresh_source_index_logical_sha256": current["fresh_source_index_logical_sha256"],
-        "source_currentness_valid_until_utc": (
-            _utc(current["fresh_source_checked_at_utc"]) + FRESHNESS_TTL
-        ).isoformat().replace("+00:00", "Z"),
+        "source_currentness_valid_until_utc": source_currentness_valid_until.isoformat(
+        ).replace("+00:00", "Z"),
         "private_cas_manifest_sha256": private_cas_manifest_sha256,
         "decision_count": len(decisions),
         "evidence_pack_sha256": digest(canonical(decisions)),
@@ -298,9 +337,16 @@ def _source_map(
                 or not listing_rel.endswith(".receipt.json")):
             raise ValueError("fresh listing receipt path differs")
         listing_sha = current_row["fresh_listing_receipt_sha256"]
-        fixed[Path("fresh_listings") / f"{listing_sha}.json"] = (
-            fresh_root.parent / "listings" / Path(listing_rel).name
-        )
+        listing_root = fresh_root.parent / "listings"
+        listing_path = listing_root / Path(listing_rel).name
+        listing_raw = listing_path.read_bytes()
+        if digest(listing_raw) != listing_sha:
+            raise ValueError("fresh listing receipt digest differs")
+        fixed[Path("fresh_listings") / f"{listing_sha}.json"] = listing_path
+        fixed.update(listing_body_paths(
+            json.loads(listing_raw), listing_sha, listing_root,
+            prefix=listing_path.name.removesuffix(".receipt.json"),
+        ))
         uri = current_row["source_uri"]
         fixed[Path("fresh_fetches") / f"{digest(uri.encode())}.json"] = (
             fresh_root / "pdf_fetches" / f"{digest(uri.encode())}.json"
@@ -442,9 +488,16 @@ def verify_private_cas_evidence(
             or pattern.get("scope") != "PATTERN_SCREEN_ONLY_NOT_FULL_PII_ADJUDICATION"
             or pattern.get("artifact_count") != len(pairs)
             or fresh_index.get("kind") != "NEXUS-STUDENT-SOURCE-PROVENANCE-INDEX-V1"
+            or fresh_index.get("checked_at_utc")
+            != current.get("fresh_source_checked_at_utc")
             or fresh_index.get("index_sha256") != digest(_compact(unsigned_index))
             or fresh_index["index_sha256"] != current["fresh_source_index_logical_sha256"]):
         raise ValueError("private source index or pattern scope differs")
+    checked_at = _utc(fresh_index["checked_at_utc"])
+    now = as_of or datetime.now(timezone.utc)
+    if checked_at is None:
+        raise ValueError("private source index timestamp invalid")
+    valid_until = checked_at + FRESHNESS_TTL
 
     def indexed(rows: list[dict], key: str) -> dict[str, dict]:
         result = {row[key]: row for row in rows}
@@ -515,7 +568,8 @@ def verify_private_cas_evidence(
                 != old_checkpoint["checkpoint_sha256"]
                 or checkpoint.get("checkpoint_sha256") != digest(_compact(unsigned))
                 or checkpoint["checkpoint_sha256"] != c["fresh_source_checkpoint_sha256"]
-                or checkpoint.get("content_sha256") != source_sha):
+                or checkpoint.get("content_sha256") != source_sha
+                or checkpoint.get("checked_at_utc") != fresh_index["checked_at_utc"]):
             raise ValueError(f"private lineage proof differs: {sha}")
         provenance = checkpoint.get("source_provenance")
         if not isinstance(provenance, dict):
@@ -558,6 +612,24 @@ def verify_private_cas_evidence(
         fetch_receipt = json.loads(fetch_raw)
         unsigned_fetch = {k: v for k, v in fetch_receipt.items()
                           if k != "receipt_sha256"}
+        listing_at = _utc(listing.get("observed_at_utc"))
+        get_at = _utc(fetch_receipt.get("fetch", {}).get("observed_at_utc"))
+        if (listing_at is None or get_at is None
+                or provenance.get("listing_observed_at_utc")
+                != listing.get("observed_at_utc")):
+            raise ValueError(f"fresh listing or PDF capture timestamp differs: {sha}")
+        valid_until = min(valid_until, check_capture_timing(
+            checked_at, listing_at, get_at, current_at, revocation_at, as_of=now,
+        ))
+        prefix = listing.get("normalized_html_file", "").removesuffix(".normalized.html")
+        if not re.fullmatch(r"[0-9a-f]{16}", prefix):
+            raise ValueError(f"fresh listing body identity differs: {sha}")
+        for name, suffix in LISTING_BODIES:
+            filename = f"{prefix}{suffix}"
+            if (listing.get(f"{name}_file") != filename
+                    or digest(read(f"fresh_listing_bodies/{listing_sha}/{filename}"))
+                    != listing.get(f"{name}_sha256")):
+                raise ValueError(f"fresh listing body digest differs: {sha}")
         if (digest(listing_raw) != listing_sha
                 or listing.get("http_status") != 200
                 or not any(link.get("href") == uri for link in listing.get("pdf_links", []))
@@ -572,6 +644,7 @@ def verify_private_cas_evidence(
     return make_inclusion(
         source, pii_raw, current_raw, pairs,
         private_cas_manifest_sha256=digest((cas_root / "index.json").read_bytes()),
+        source_currentness_valid_until=valid_until,
     )
 
 

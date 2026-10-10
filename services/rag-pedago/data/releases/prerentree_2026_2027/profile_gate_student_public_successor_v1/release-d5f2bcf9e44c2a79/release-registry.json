@@ -15,9 +15,9 @@
         "rag_nexus_svt_premiere_specialite",
         "rag_nexus_svt_terminale_specialite"
       ],
-      "expected_manifest_sha256": "636c2bba0273ac64c3f69ffc2fec4019756c7d9048849df00b7f3ee35def9e4d",
+      "expected_manifest_sha256": "54b35f6187e0a4f5bec46ca70f1f0de34b13e5d403cfa36cb55bc3dd98b2a714",
       "manifest_path": "profile_gate/production-profile-gate.release.json",
-      "release_id": "student-public-successor-20261010-8438d2d225eb9ea8",
+      "release_id": "student-public-successor-20261010-d5f2bcf9e44c2a79",
       "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2"
     }
   ],

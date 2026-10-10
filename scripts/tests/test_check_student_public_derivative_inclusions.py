@@ -133,6 +133,7 @@ def test_inclusion_is_deterministic_and_binds_both_reports():
     inclusion = checker.make_inclusion(
         source, pii_raw, current_raw, row_pair,
         private_cas_manifest_sha256="9" * 64,
+        source_currentness_valid_until=datetime(2026, 10, 11, 13, tzinfo=timezone.utc),
     )
     assert inclusion["kind"] == "NEXUS_STUDENT_PUBLIC_DERIVATIVE_INCLUSIONS_V2"
     assert inclusion["pii_adjudication_report_sha256"] == _sha(pii_raw)
@@ -144,6 +145,7 @@ def test_inclusion_is_deterministic_and_binds_both_reports():
     assert checker.make_inclusion(
         source, pii_raw, current_raw, row_pair,
         private_cas_manifest_sha256="9" * 64,
+        source_currentness_valid_until=datetime(2026, 10, 11, 13, tzinfo=timezone.utc),
     ) == inclusion
 
 
@@ -245,3 +247,42 @@ def test_builder_rejects_legacy_unverified_inclusion():
     }
     with pytest.raises(ValueError, match="verified inclusion"):
         validate_inclusions(source, old)
+
+
+def test_capture_timing_rejects_old_listings_and_gets_under_advanced_index():
+    observed = datetime(2026, 10, 10, 13, 40, tzinfo=timezone.utc)
+    checked = datetime(2026, 10, 10, 13, 44, tzinfo=timezone.utc)
+    checker.check_capture_timing(
+        checked, observed, observed, observed, observed,
+        as_of=datetime(2026, 10, 10, 14, tzinfo=timezone.utc),
+    )
+    with pytest.raises(ValueError, match="capture timing"):
+        checker.check_capture_timing(
+            datetime(2026, 10, 12, 13, 44, tzinfo=timezone.utc),
+            observed, observed, observed, observed,
+            as_of=datetime(2026, 10, 12, 14, tzinfo=timezone.utc),
+        )
+
+
+def test_listing_body_paths_require_all_three_exact_bodies(tmp_path):
+    prefix = "a" * 16
+    body_specs = (
+        ("normalized_html", ".normalized.html", b"<html>source</html>"),
+        ("extracted_text", ".extracted.txt", b"source text"),
+        ("screenshot", ".png", b"PNG bytes"),
+    )
+    receipt = {}
+    for name, suffix, raw in body_specs:
+        filename = prefix + suffix
+        (tmp_path / filename).write_bytes(raw)
+        receipt[name + "_file"] = filename
+        receipt[name + "_sha256"] = _sha(raw)
+    paths = checker.listing_body_paths(receipt, "a" * 64, tmp_path, prefix=prefix)
+    assert len(paths) == 3
+    assert all(path.exists() for path in paths.values())
+    (tmp_path / (prefix + ".png")).unlink()
+    with pytest.raises((FileNotFoundError, ValueError)):
+        checker.listing_body_paths(receipt, "a" * 64, tmp_path, prefix=prefix)
+    (tmp_path / (prefix + ".png")).write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="listing body"):
+        checker.listing_body_paths(receipt, "a" * 64, tmp_path, prefix=prefix)

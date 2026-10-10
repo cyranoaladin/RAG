@@ -2284,10 +2284,10 @@
   "fresh_source_index_logical_sha256": "878e7249984bfecd511deeb59fa0d42eea5b772cb9de46b9866e065c0745dfa9",
   "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_INCLUSIONS_V2",
   "pii_adjudication_report_sha256": "7bf534b50a7eef90ca34d52daa22293a835273b0b2abf556d48e976721d05dd0",
-  "private_cas_manifest_sha256": "859b8ef80be5554e0a8979eacb15a17dbf8ee1eeb697dbc4188e67c623a5d9e1",
+  "private_cas_manifest_sha256": "09dc8eeaf5e853b3e793eca6b2ef339a5ad4366ed44a1f20d47140d31f8b69e6",
   "rights_authority_sha256": "013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1",
   "source_candidate_inventory_sha256": "711379db9e8bc822a0295d17f77bced80a5cf1fbe527f30ac627fccdd59c139f",
   "source_candidate_manifest_sha256": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
   "source_currentness_attestation_sha256": "4882c95b47e807f0efe55ee5768637b47907af4d5f91e331a0e273acf684e62d",
-  "source_currentness_valid_until_utc": "2026-10-11T13:43:39.206000Z"
+  "source_currentness_valid_until_utc": "2026-10-11T13:39:22.520000Z"
 }
