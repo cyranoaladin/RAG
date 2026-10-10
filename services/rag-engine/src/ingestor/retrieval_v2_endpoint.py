@@ -681,9 +681,12 @@ def _cached_public_successor_verdict(
             raise RuntimeError("public successor C validity has expired")
         if _public_bundle_identity(root) != identity:
             raise RuntimeError("public successor bundle changed during C replay")
+        replay_completed_at = datetime.now(UTC)
+        if replay_completed_at >= expires:
+            raise RuntimeError("public successor C validity expired during replay")
         _public_c_cache = (
             full_key,
-            min(datetime.now(UTC) + _PUBLIC_C_CACHE_MAX_AGE, expires),
+            min(replay_completed_at + _PUBLIC_C_CACHE_MAX_AGE, expires),
             verdict,
         )
         return verdict
