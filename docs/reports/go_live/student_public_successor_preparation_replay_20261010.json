@@ -1,6 +1,6 @@
 {
-  "checked_at_utc": "2026-10-10T20:34:22.595591Z",
-  "content_anchor_sha256": "98e8640327b61da2b73690184937cbd4ca0477118d525ed8cf8aba17a6ed80d6",
+  "checked_at_utc": "2026-10-10T20:45:09.217752Z",
+  "content_anchor_sha256": "159e6e25fa493325304f8c790dd67113b4c6ced72a2fa696a60799a9fe7255a0",
   "kind": "NEXUS_PUBLIC_SUCCESSOR_PREPARATION_REPLAY_REPORT_V1",
   "private_cas_index_sha256": "757f41e4aabceaed603196294b3a980c7ecd5d228de8a48b6fc0e3c60fc06d36",
   "result": {

@@ -12,6 +12,13 @@
   },
   "kind": "NEXUS_PUBLIC_SUCCESSOR_CONTENT_ANCHOR_V1",
   "preparation_index_sha256": "bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4",
+  "preparation_sidecars": {
+    "inclusion_attestation.json": "76e54dd68025a730fb5c94cc2db9c7091d402d15a02f11c0e0e5ab1524f605ef",
+    "public_currentness_registry.json": "f8b178ec3a51714807829593ecf9ff03254b972fd5c9610298ea1297d46d615c",
+    "public_pii_registry.json": "393d5dd2bcd6896dd5063574cdfd08ad46d4d0612d0c31aea5d169d5117dce5b",
+    "public_profiles.json": "f165782c0404762e7869c1f7b2d17edc8d62087b124442f29ebe4243644f0d9b",
+    "public_rights_registry.json": "d474670d38e6d5a2645bf90b04b56e1ab3194ef2b5a13d3e11c69de7f259ca1f"
+  },
   "status": "CONTENT_ONLY_NOT_ACTIVABLE",
   "subjects": [
     {
