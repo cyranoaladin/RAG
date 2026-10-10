@@ -20,12 +20,12 @@ from nexus_contracts.authority_artifacts import (
     ReleaseBatchPublicationReviewArtifact,
     parse_release_batch_publication_review_artifact,
 )
+from nexus_contracts.authorization_loader import load_authorization_set
 from nexus_contracts.authorization_set import (
     AuthorizationSetError,
     AuthorizationSetV2,
     ReleaseScopePlacementEntryV1,
     ReleaseScopePlacementV2,
-    parse_authorization_set_v2,
     verify_authorization_binding_set_v2,
 )
 from nexus_contracts.ingestion import ResourceScope
@@ -518,7 +518,9 @@ def verify_public_lot41a_authorization_set(
     """
     projection = derive_public_release_scope_placement(release_root, content)
     try:
-        authorization_set = parse_authorization_set_v2(raw)
+        authorization_set = load_authorization_set(raw).require_v2(
+            because="public successor LOT41A",
+        )
         verify_authorization_binding_set_v2(
             authorization_set, release_scope_placement=projection,
         )
