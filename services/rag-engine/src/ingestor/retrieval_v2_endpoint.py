@@ -493,7 +493,11 @@ def configured_release_model_contract() -> tuple[str, str, int, str, str] | None
     return registry.model_contract
 
 
-def _release_evidence_for_collection(collection: str) -> bool | None:
+def _release_evidence_for_collection(
+    collection: str,
+    *,
+    artifact: RetrievalScopeArtifactV2 | RetrievalScopeArtifactV3 | None = None,
+) -> bool | None:
     """Retourner None hors release configurée, sinon l'état exact de la release."""
     try:
         registry = _configured_release_registry()
@@ -504,7 +508,19 @@ def _release_evidence_for_collection(collection: str) -> bool | None:
     if collection not in registry.collections:
         return None
     try:
-        _validate_unpromoted_release_guard(registry)
+        public_verdict = _validate_unpromoted_release_guard(registry)
+        if any(
+            getattr(binding.expectation, "release_mode", None) == "candidate"
+            for binding in registry.manifests
+        ) and artifact is not None:
+            if (
+                not isinstance(artifact, RetrievalScopeArtifactV3)
+                or public_verdict is None
+                or dict(public_verdict.scope_sha256_by_id).get(artifact.scope_id)
+                    != artifact.sha256_digest()
+                or str(artifact.evidence_subject.collection) != collection
+            ):
+                return False
         settings = PoolSettings.from_env()
         with runtime_database_budget():
             with pool_connection(settings) as connection:
@@ -523,7 +539,7 @@ def _release_evidence_for_v2_artifact(
 ) -> bool | None:
     """Lier les nouveaux scopes au subject release exact, en gardant Wave 0."""
     collection = str(artifact.evidence_subject.collection)
-    state = _release_evidence_for_collection(collection)
+    state = _release_evidence_for_collection(collection, artifact=artifact)
     if state is not True:
         return state
     try:
@@ -621,7 +637,7 @@ def _read_public_authority_file(path: Path) -> bytes:
         raise RuntimeError("public successor authority file unavailable") from exc
 
 
-def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation) -> None:
+def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation):
     """Bind immutable A to signed readiness and the semantic, expiring C gate."""
     try:
         from nexus_release_chain.public_successor_activation import (
@@ -707,11 +723,12 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation) -> 
             != dict(verdict.scope_sha256_by_id)
         ):
             raise ValueError("public successor packaged scope bytes differ from C")
+        return verdict
     except Exception as exc:
         raise RuntimeError("public successor activation authority unavailable") from exc
 
 
-def _validate_unpromoted_release_guard(registry: ReleaseRegistryExpectation) -> None:
+def _validate_unpromoted_release_guard(registry: ReleaseRegistryExpectation):
     """A public candidate needs C; historical rehearsal retains its existing policy."""
     env = _resolve_nexus_environment()
     candidates = [
@@ -721,8 +738,7 @@ def _validate_unpromoted_release_guard(registry: ReleaseRegistryExpectation) -> 
     if candidates:
         if len(candidates) != len(registry.manifests):
             raise RuntimeError("public successor cannot share a release registry")
-        _verify_public_successor_candidate(registry)
-        return
+        return _verify_public_successor_candidate(registry)
     if env == "production":
         for manifest in registry.manifests:
             exp = manifest.expectation

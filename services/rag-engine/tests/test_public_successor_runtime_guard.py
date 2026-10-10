@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
@@ -281,6 +282,30 @@ def test_candidate_v3_search_gate_refuses_missing_release_evidence(
             verified=verified,
         )
     assert refusal.value.status_code == 503
+
+
+def test_candidate_request_refuses_foreign_v3_with_same_subject_and_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Un manifest servable ne peut substituer son scope à celui de C."""
+    registry = _registry()
+    monkeypatch.setattr(endpoint, "_configured_release_registry", lambda: registry)
+    monkeypatch.setattr(endpoint, "_validate_unpromoted_release_guard", lambda _: _VerifiedC())
+    monkeypatch.setattr(endpoint.PoolSettings, "from_env", lambda: object())
+    monkeypatch.setattr(endpoint, "runtime_database_budget", nullcontext)
+    monkeypatch.setattr(endpoint, "pool_connection", lambda _: nullcontext(object()))
+    monkeypatch.setattr(
+        endpoint, "validate_release_collection_readiness",
+        lambda *_: SimpleNamespace(ready=True),
+    )
+    expected = _scope()
+    foreign = expected.model_dump(mode="json")
+    foreign["target_policy"]["audiences"] = ["libre", "aefe"]
+    foreign_scope = RetrievalScopeArtifactV3.model_validate(foreign)
+    assert foreign_scope.source_sha256 == expected.source_sha256
+    assert foreign_scope.sha256_digest() != expected.sha256_digest()
+    assert endpoint._release_evidence_for_v2_artifact(expected) is True
+    assert endpoint._release_evidence_for_v2_artifact(foreign_scope) is False
 
 
 def _wrapper_inputs(
