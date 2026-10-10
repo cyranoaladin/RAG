@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 
 import yaml
 from nexus_contracts import load_retrieval_scope_registry
+from nexus_contracts.ingestion import CollectionProfile, collection_profile_fingerprint
 from nexus_contracts.scope import RetrievalScopeTargetPolicy
 from nexus_release_chain.release_readiness import (
     ReleaseReadinessError,
@@ -29,11 +30,11 @@ BINDING_KEYS = {"collection", "candidate_subject_sha256", "candidate_profile_fin
                 "material_kind", "target_policy", "final_subject_sha256", "scope_id"}
 SUCCESSOR_DIR = Path(
     "services/rag-pedago/data/releases/prerentree_2026_2027/"
-    "profile_gate_student_public_successor_v1/release-b1dda0c8503aa474"
+    "profile_gate_student_public_successor_v1/release-fcc84331e7700042"
 )
-SUCCESSOR_INDEX_SHA256 = "34bbf66ef8f2196ad66a84a4bee6bdf43ec232cd6bddcc29c146b97cf536f9e9"
-SUCCESSOR_MANIFEST_SHA256 = "abb563fbd2623bc8dc3c73597a68c313fa9dc0291bcc335b7d18ec06e133bd44"
-SUCCESSOR_RELEASE_ID = "student-public-successor-20261010-b1dda0c8503aa474"
+SUCCESSOR_INDEX_SHA256 = "bd1f714594ca17dbbe7d3cfdf255c8c270003c63bd4d267971a17b2afdb08ca4"
+SUCCESSOR_MANIFEST_SHA256 = "b79246ff356b919aeb3dcb7f640a1a554e338899128a7c5acdcfaa9b7bcb1c78"
+SUCCESSOR_RELEASE_ID = "student-public-successor-20261010-fcc84331e7700042"
 SUCCESSOR_PROPOSAL_KIND = "NEXUS_STUDENT_PUBLIC_SUCCESSOR_SCOPE_PROPOSAL_V1"
 SUCCESSOR_RIGHTS_AUTHORITY = Path(
     "governance/student_public_rights/authorities/"
@@ -41,8 +42,9 @@ SUCCESSOR_RIGHTS_AUTHORITY = Path(
 )
 SUCCESSOR_BINDING_KEYS = {
     "collection", "prepared_subject_sha256", "final_subject_sha256",
-    "profile_fingerprint", "proposed_scope_id", "status", "visibility",
-    "rights_basis", "target_policy",
+    "profile_fingerprint", "complete_profile_version",
+    "complete_profile_fingerprint", "complete_profile_sha256",
+    "proposed_scope_id", "status", "visibility", "rights_basis", "target_policy",
 }
 
 
@@ -51,7 +53,7 @@ class PublicScopePolicyError(ValueError):
 
 
 def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any]) -> int:
-    """Vérifier onze scopes proposés #313 sans émettre d'artefact de scope.
+    """Vérifier onze scopes proposés #323 sans émettre d'artefact de scope.
 
     Les SHA du paquet préparatoire sont épinglés dans le code et vérifiés par
     le lecteur canonique. Ce contrôle n'autorise ni release finale ni review.
@@ -71,7 +73,7 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         set(proposal) != expected_top
         or proposal.get("authority_kind") != SUCCESSOR_PROPOSAL_KIND
         or proposal.get("status") != "PENDING_EXACT_HEAD_AUTHORITY_REVIEW"
-        or proposal.get("source_pr") != 313
+        or proposal.get("source_pr") != 323
         or proposal.get("successor_release_id") != SUCCESSOR_RELEASE_ID
         or proposal.get("successor_release_manifest_sha256") != SUCCESSOR_MANIFEST_SHA256
         or proposal.get("preparation_index_sha256") != SUCCESSOR_INDEX_SHA256
@@ -138,8 +140,13 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         _rows(manifest.get("subjects"), "SUCCESSOR_SUBJECTS_INVALID"),
         "collection", "SUCCESSOR_SUBJECTS_INVALID",
     )
+    complete_profiles = _unique(
+        _rows(index.get("complete_profiles"), "SUCCESSOR_COMPLETE_PROFILES_INVALID"),
+        "collection", "SUCCESSOR_COMPLETE_PROFILES_INVALID",
+    )
     collections = set(release.collections)
-    if not (set(by_profile) == set(scope_rows) == set(bindings) == set(refs) == collections):
+    if not (set(by_profile) == set(scope_rows) == set(bindings) == set(refs)
+            == set(complete_profiles) == collections):
         raise PublicScopePolicyError("SUCCESSOR_SCOPE_COLLECTIONS_DIVERGENT")
     if len({row.get("proposed_scope_id") for row in bindings.values()}) != 11:
         raise PublicScopePolicyError("SUCCESSOR_SCOPE_IDS_DUPLICATED")
@@ -149,7 +156,33 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
         scope = profile.get("scope")
         ref = refs[collection]
         prepared = scope_rows[collection]
+        complete = complete_profiles[collection]
         target = binding.get("target_policy")
+        expected_profile_path = f"profile_gate/profiles/{collection}.yml"
+        if complete.get("path") != expected_profile_path:
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID")
+        profile_raw = (release_dir / expected_profile_path).read_bytes()
+        if _sha(profile_raw) != complete.get("sha256"):
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID")
+        try:
+            complete_profile = CollectionProfile.model_validate(yaml.safe_load(profile_raw))
+        except (ValidationError, yaml.YAMLError) as error:
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID") from error
+        subject_path = release_dir / "profile_gate" / ref["path"]
+        subject = _json(subject_path.read_bytes(), "SUCCESSOR_SUBJECT_INVALID")
+        if (
+            _sha(subject_path.read_bytes()) != ref.get("sha256")
+            or complete_profile.scope.collection != collection
+            or complete_profile.scope.visibility != "public"
+            or complete_profile.profile_version != complete.get("profile_version")
+            or collection_profile_fingerprint(complete_profile) != complete.get("fingerprint")
+            or subject.get("profile") != {
+                "version": complete.get("profile_version"),
+                "fingerprint": complete.get("fingerprint"),
+                "manifest_digest": proposal.get("public_profile_registry_sha256"),
+            }
+        ):
+            raise PublicScopePolicyError("SUCCESSOR_PROFILE_BINDING_INVALID")
         if (
             set(binding) != SUCCESSOR_BINDING_KEYS
             or binding.get("prepared_subject_sha256") != ref.get("sha256")
@@ -160,6 +193,9 @@ def check_public_successor_scope_proposal(root: Path, proposal: Mapping[str, Any
             or binding.get("final_subject_sha256") is not None
             or binding.get("proposed_scope_id") in active
             or binding.get("profile_fingerprint") != profile.get("profile_fingerprint")
+            or binding.get("complete_profile_version") != complete.get("profile_version")
+            or binding.get("complete_profile_fingerprint") != complete.get("fingerprint")
+            or binding.get("complete_profile_sha256") != complete.get("sha256")
             or binding.get("visibility") != "public"
             or binding.get("rights_basis") != AUTHORITY_ID
             or not isinstance(scope, dict)

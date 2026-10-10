@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import sys
 from pathlib import Path
 
@@ -12,6 +14,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts/go_live"))
 
+import check_public_scope_policy_authority as scope_gate
 from check_public_scope_policy_authority import (
     SUCCESSOR_DIR,
     PublicScopePolicyError,
@@ -29,9 +32,59 @@ def _proposal() -> dict:
 
 def test_prepared_successor_binds_eleven_unissued_student_scopes() -> None:
     proposal = _proposal()
+    assert proposal["successor_release_id"] == (
+        "student-public-successor-20261010-fcc84331e7700042"
+    )
+    assert proposal["source_pr"] == 323
     assert check_public_successor_scope_proposal(ROOT, proposal) == 11
     assert all(row["status"] == "NOT_ISSUED" for row in proposal["bindings"])
     assert proposal["scope_issuance_authorized"] is False
+
+
+def test_legacy_successor_cannot_claim_complete_profile_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#313 cannot masquerade as #323: subjects carry only scope hashes."""
+    old_dir = SUCCESSOR_DIR.parent / "release-b1dda0c8503aa474"
+    old_index_raw = (ROOT / old_dir / "preparation-index.json").read_bytes()
+    old_manifest_raw = (
+        ROOT / old_dir / "profile_gate/production-profile-gate.release.json"
+    ).read_bytes()
+    old_profiles_raw = (ROOT / old_dir / "profile_gate/public_profiles.json").read_bytes()
+    old_index = json.loads(old_index_raw)
+    old_proposal = _proposal()
+    old_proposal.update(
+        source_pr=323,
+        successor_release_id=old_index["release_id"],
+        successor_release_manifest_sha256=hashlib.sha256(old_manifest_raw).hexdigest(),
+        preparation_index_sha256=hashlib.sha256(old_index_raw).hexdigest(),
+        public_profile_registry_sha256=hashlib.sha256(old_profiles_raw).hexdigest(),
+    )
+    old_scopes = {row["collection"]: row for row in old_index["proposed_scopes"]}
+    for binding in old_proposal["bindings"]:
+        binding["prepared_subject_sha256"] = old_scopes[
+            binding["collection"]
+        ]["final_subject_sha256"]
+    monkeypatch.setattr(scope_gate, "SUCCESSOR_DIR", old_dir)
+    monkeypatch.setattr(
+        scope_gate, "SUCCESSOR_INDEX_SHA256", old_proposal["preparation_index_sha256"]
+    )
+    monkeypatch.setattr(
+        scope_gate, "SUCCESSOR_MANIFEST_SHA256",
+        old_proposal["successor_release_manifest_sha256"],
+    )
+    monkeypatch.setattr(scope_gate, "SUCCESSOR_RELEASE_ID", old_index["release_id"])
+    with pytest.raises(PublicScopePolicyError, match="PROFILE_BINDING"):
+        check_public_successor_scope_proposal(ROOT, old_proposal)
+
+
+def test_scope_proposal_names_complete_profile_identity() -> None:
+    bindings = _proposal()["bindings"]
+    assert len(bindings) == 11
+    assert all(row["complete_profile_version"] == "student-public-derivative-v1"
+               for row in bindings)
+    assert all(len(row["complete_profile_fingerprint"]) == 64 for row in bindings)
+    assert all(len(row["complete_profile_sha256"]) == 64 for row in bindings)
 
 
 def test_successor_proposal_requires_exact_rights_authority_bytes(tmp_path: Path) -> None:
