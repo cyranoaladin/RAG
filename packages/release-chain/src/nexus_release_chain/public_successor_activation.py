@@ -538,6 +538,236 @@ def verify_public_lot41a_authorization_set(
     return authorization_set
 
 
+def _compact_document(raw: bytes, label: str) -> dict[str, Any]:
+    """Parser les octets canoniques compacts du protocole de transfert."""
+    def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise PublicSuccessorActivationError(f"{label}: duplicate JSON key")
+            result[key] = value
+        return result
+
+    try:
+        document = json.loads(raw, object_pairs_hook=unique)
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise PublicSuccessorActivationError(f"{label}: invalid JSON") from error
+    canonical = (json.dumps(document, ensure_ascii=False, sort_keys=True,
+                            separators=(",", ":")) + "\n").encode()
+    if not isinstance(document, dict) or canonical != raw:
+        raise PublicSuccessorActivationError(f"{label}: noncanonical JSON")
+    return document
+
+
+def _transfer_utc(value: Any, label: str) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise PublicSuccessorActivationError(f"transfer {label}: UTC absent")
+    try:
+        instant = datetime.fromisoformat(value)
+    except ValueError as error:
+        raise PublicSuccessorActivationError(f"transfer {label}: UTC invalid") from error
+    if instant.tzinfo != UTC:
+        raise PublicSuccessorActivationError(f"transfer {label}: UTC invalid")
+    return instant
+
+
+def verify_public_transfer_offline(
+    plan_raw: bytes,
+    receipt_v1_raw: bytes,
+    target_pin_raw: bytes,
+    attestation_v2_raw: bytes,
+    release_root: Path,
+    content: PublicSuccessorContentVerdict,
+    *,
+    expected_target_pin_sha256: str,
+    now_utc: datetime,
+) -> str:
+    """Relier V2, V1, pin et population exacte de A sans prétendre sonder la cible.
+
+    L'appelant de scellement doit *en plus* prouver le pin par une source
+    gouvernée indépendante et rejouer l'hôte, la DB et les 253 fichiers live.
+    """
+    if now_utc.tzinfo != UTC or _SHA256.fullmatch(expected_target_pin_sha256) is None:
+        raise PublicSuccessorActivationError("transfer clock or independent target pin absent")
+    plan = _compact_document(plan_raw, "transfer plan")
+    receipt = _compact_document(receipt_v1_raw, "transfer V1 receipt")
+    pin = _compact_document(target_pin_raw, "transfer target pin")
+    attestation = _compact_document(attestation_v2_raw, "transfer V2 attestation")
+    plan_sha = hashlib.sha256(plan_raw).hexdigest()
+    receipt_sha = hashlib.sha256(receipt_v1_raw).hexdigest()
+    if hashlib.sha256(target_pin_raw).hexdigest() != expected_target_pin_sha256:
+        raise PublicSuccessorActivationError("transfer target pin digest differs")
+    inventory = _read(
+        release_root / "profile_gate", "candidate_inventory.json",
+        content.candidate_inventory_sha256,
+    )
+    allowed_candidates: dict[str, str] = {}
+    collections = inventory.get("collections")
+    if not isinstance(collections, list) or len(collections) != content.expected_counts["subjects"]:
+        raise PublicSuccessorActivationError("transfer A collection population differs")
+    placements = 0
+    for collection in collections:
+        if not isinstance(collection, dict) or collection.get("collection") not in content.subject_sha256_by_collection:
+            raise PublicSuccessorActivationError("transfer A collection unknown")
+        candidates = collection.get("candidates")
+        if not isinstance(candidates, list) or not candidates:
+            raise PublicSuccessorActivationError("transfer A candidates absent")
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                raise PublicSuccessorActivationError("transfer A candidate malformed")
+            sha = candidate.get("content_sha256")
+            receipt_digest = candidate.get("derivative_receipt_sha256")
+            rows = candidate.get("placements")
+            if (
+                not isinstance(sha, str) or _SHA256.fullmatch(sha) is None
+                or not isinstance(receipt_digest, str) or _SHA256.fullmatch(receipt_digest) is None
+                or candidate.get("physical_path") != f"{sha}.txt"
+                or candidate.get("media_type") != _TEXT_MIME
+                or not isinstance(rows, list) or not rows
+                or (sha in allowed_candidates and allowed_candidates[sha] != receipt_digest)
+            ):
+                raise PublicSuccessorActivationError("transfer A candidate identity differs")
+            allowed_candidates[sha] = receipt_digest
+            placements += len(rows)
+    if (
+        len(allowed_candidates) != content.expected_counts["unique_artifacts"]
+        or placements != content.expected_counts["placements"]
+    ):
+        raise PublicSuccessorActivationError("transfer A counts differ")
+    expected_files = {(f"{sha}.txt", sha, _TEXT_MIME) for sha in allowed_candidates}
+    expected_receipts = {
+        (f"derivative_receipts/{sha}.json", sha) for sha in allowed_candidates.values()
+    }
+    files = plan.get("files")
+    receipts = plan.get("derivative_receipts")
+    if (
+        set(plan) != {
+            "kind", "status", "release_id", "inventory_sha256", "allowlist_sha256",
+            "file_count", "derivative_receipt_count", "placement_count", "files",
+            "derivative_receipts",
+        }
+        or plan["kind"] != "NEXUS_STUDENT_PUBLIC_TEXT_TRANSFER_MANIFEST_V1"
+        or plan["status"] != "PLANNED_NOT_TRANSFERRED"
+        or plan["release_id"] != content.release_id
+        or plan["inventory_sha256"] != content.candidate_inventory_sha256
+        or plan["placement_count"] != placements
+        or plan["file_count"] != len(expected_files)
+        or plan["derivative_receipt_count"] != len(expected_receipts)
+        or not isinstance(files, list) or not isinstance(receipts, list)
+        or len(files) != len(expected_files) or len(receipts) != len(expected_receipts)
+        or any(not isinstance(row, dict) for row in files + receipts)
+        or any(set(row) != {"file", "sha256_expected", "media_type"} for row in files)
+        or any(set(row) != {"file", "sha256_expected"} for row in receipts)
+        or [row["sha256_expected"] for row in files]
+            != sorted({sha for _, sha, _ in expected_files})
+        or [row["sha256_expected"] for row in receipts]
+            != sorted({sha for _, sha in expected_receipts})
+        or {(row.get("file"), row.get("sha256_expected"), row.get("media_type"))
+            for row in files} != expected_files
+        or {(row.get("file"), row.get("sha256_expected"))
+            for row in receipts} != expected_receipts
+    ):
+        raise PublicSuccessorActivationError("transfer plan differs from exact A population")
+    allowed = _read(
+        release_root / "profile_gate", "private_transfer_allowlist.json",
+        plan["allowlist_sha256"],
+    )
+    rows = allowed.get("expected_files")
+    if (
+        allowed.get("kind") != "NEXUS_STUDENT_PUBLIC_PRIVATE_TRANSFER_ALLOWLIST_V1"
+        or allowed.get("release_id") != content.release_id
+        or allowed.get("candidate_inventory_sha256") != content.candidate_inventory_sha256
+        or allowed.get("transfer_status") != "NOT_TRANSFERRED"
+        or not isinstance(rows, list) or allowed.get("allowed_file_count") != len(rows)
+        or len(rows) != len(expected_files)
+        or any(not isinstance(row, dict) for row in rows)
+        or any(set(row) != {"file", "sha256_expected", "media_type", "source_private_relpath"}
+               for row in rows)
+        or {(row.get("file"), row.get("sha256_expected"), row.get("media_type"))
+            for row in rows} != expected_files
+        or any(row.get("source_private_relpath") != f"candidates/{row.get('file')}"
+               for row in rows)
+    ):
+        raise PublicSuccessorActivationError("transfer allowlist differs from A")
+    if (
+        set(receipt) != {
+            "kind", "status", "release_id", "transfer_manifest_sha256",
+            "target_identity", "target_identity_status", "observed_host",
+            "destination_realpath", "observed_at_utc", "file_count",
+            "derivative_receipt_count", "total_bytes", "files", "derivative_receipts",
+        }
+        or receipt.get("kind") != "NEXUS_STUDENT_PUBLIC_TEXT_OBSERVED_TRANSFER_V1"
+        or receipt.get("status") != "OBSERVED_NOT_PUBLICATION_AUTHORITY"
+        or receipt.get("target_identity_status") != "CLAIMED_UNQUALIFIED"
+        or receipt.get("release_id") != content.release_id
+        or receipt.get("transfer_manifest_sha256") != plan_sha
+        or receipt.get("file_count") != len(expected_files)
+        or receipt.get("derivative_receipt_count") != len(expected_receipts)
+        or not isinstance(receipt.get("files"), list)
+        or not isinstance(receipt.get("derivative_receipts"), list)
+        or len(receipt["files"]) != len(expected_files)
+        or len(receipt["derivative_receipts"]) != len(expected_receipts)
+        or any(not isinstance(row, dict) for row in receipt["files"] + receipt["derivative_receipts"])
+        or any(set(row) != {"file", "sha256_observed", "size_bytes"}
+               for row in receipt["files"] + receipt["derivative_receipts"])
+        or any(type(row["size_bytes"]) is not int or row["size_bytes"] < 0
+               for row in receipt["files"] + receipt["derivative_receipts"])
+        or receipt.get("total_bytes") != sum(row["size_bytes"] for row in
+                                             receipt["files"] + receipt["derivative_receipts"])
+        or {(row.get("file"), row.get("sha256_observed")) for row in receipt["files"]}
+            != {(file, sha) for file, sha, _ in expected_files}
+        or {(row.get("file"), row.get("sha256_observed"))
+            for row in receipt["derivative_receipts"]} != expected_receipts
+    ):
+        raise PublicSuccessorActivationError("transfer V1 receipt differs from plan")
+    if (
+        set(pin) != {
+            "kind", "content_anchor_sha256", "release_id", "target_identity",
+            "hostname", "host_machine_id_sha256", "postgres_system_identifier",
+            "database_name", "destination_realpath", "pinned_at_utc", "expires_at_utc",
+        }
+        or pin.get("kind") != "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1"
+        or pin.get("content_anchor_sha256") != content.content_anchor_sha256
+        or pin.get("release_id") != content.release_id
+        or pin.get("target_identity") != receipt.get("target_identity")
+        or pin.get("destination_realpath") != receipt.get("destination_realpath")
+        or pin.get("hostname") != receipt.get("observed_host")
+        or _SHA256.fullmatch(pin.get("host_machine_id_sha256", "")) is None
+        or not str(pin.get("postgres_system_identifier", "")).isdigit()
+        or not pin.get("database_name")
+    ):
+        raise PublicSuccessorActivationError("transfer target pin facts differ")
+    pinned_at = _transfer_utc(pin.get("pinned_at_utc"), "pin date")
+    observed_v1 = _transfer_utc(receipt.get("observed_at_utc"), "V1 date")
+    observed_v2 = _transfer_utc(attestation.get("observed_at_utc"), "V2 date")
+    expires = _transfer_utc(pin.get("expires_at_utc"), "pin expiry")
+    if not (pinned_at < observed_v1 <= observed_v2 <= now_utc < expires):
+        raise PublicSuccessorActivationError("transfer evidence expired or out of order")
+    expected_v2 = {
+        "kind": "NEXUS_STUDENT_PUBLIC_QUALIFIED_TRANSFER_TARGET_ATTESTATION_V2",
+        "status": "QUALIFIED_OBSERVED_NOT_PUBLICATION_AUTHORITY",
+        "content_anchor_sha256": content.content_anchor_sha256,
+        "release_id": content.release_id,
+        "transfer_manifest_sha256": plan_sha,
+        "observed_v1_receipt_sha256": receipt_sha,
+        "target_pin_sha256": expected_target_pin_sha256,
+        "target_identity": pin["target_identity"],
+        "hostname": pin["hostname"],
+        "host_machine_id_sha256": pin["host_machine_id_sha256"],
+        "postgres_system_identifier": pin["postgres_system_identifier"],
+        "database_name": pin["database_name"],
+        "destination_realpath": pin["destination_realpath"],
+        "observed_at_utc": attestation["observed_at_utc"],
+        "expires_at_utc": pin["expires_at_utc"],
+        "file_count": receipt["file_count"],
+        "derivative_receipt_count": receipt["derivative_receipt_count"],
+        "total_bytes": receipt.get("total_bytes"),
+    }
+    if attestation != expected_v2:
+        raise PublicSuccessorActivationError("transfer V2 attestation differs")
+    return plan_sha
+
+
 def verify_publication_batch_review(
     raw: bytes,
     content: PublicSuccessorContentVerdict,
