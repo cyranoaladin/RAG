@@ -353,7 +353,7 @@ def verify_content_currentness(
     if not isinstance(expiry_raw, str) or registry.get("valid_until_utc") != expiry_raw:
         raise PublicSuccessorActivationError("currentness registry differs from A")
     try:
-        expiry = datetime.fromisoformat(expiry_raw.replace("Z", "+00:00"))
+        expiry = datetime.fromisoformat(expiry_raw)
     except ValueError as error:
         raise PublicSuccessorActivationError("currentness expiry invalid") from error
     if expiry.utcoffset() != UTC.utcoffset(expiry) or now_utc >= expiry:
@@ -367,6 +367,45 @@ def verify_content_currentness(
     ):
         raise PublicSuccessorActivationError("currentness or source revocation differs")
     return expiry
+
+
+def verify_content_authority_bindings(
+    release_root: Path,
+    content: PublicSuccessorContentVerdict,
+    authorities: dict[str, str],
+) -> None:
+    """Lier les treize preuves de préparation C aux digests déjà scellés dans A.
+
+    Ce contrôle ne valide pas, à lui seul, les droits ou les revues externes.
+    """
+    index = _read(release_root, "preparation-index.json", content.preparation_index_sha256)
+    manifest = _read(
+        release_root / "profile_gate", "production-profile-gate.release.json",
+        content.content_manifest_sha256,
+    )
+    prepared = manifest.get("authorities")
+    if not isinstance(prepared, dict):
+        raise PublicSuccessorActivationError("A prepared authorities absent")
+    expected = {
+        "source_candidate_release_manifest_sha256": index.get("source_candidate_manifest_sha256"),
+        "source_preparation_release_manifest_sha256": content.content_manifest_sha256,
+        "source_preparation_index_sha256": content.preparation_index_sha256,
+        "candidate_inventory_sha256": content.candidate_inventory_sha256,
+        "inclusion_attestation_sha256": index.get("inclusion_attestation_sha256"),
+        "derivative_pii_evidence_sha256": index.get("pii_adjudication_report_sha256"),
+        "derivative_currentness_evidence_sha256": index.get("source_currentness_attestation_sha256"),
+        "public_profile_manifest_sha256": prepared.get("public_profile_registry_sha256"),
+        "public_rights_registry_sha256": prepared.get("public_rights_registry_sha256"),
+        "public_pii_registry_sha256": prepared.get("public_pii_registry_sha256"),
+        "rights_authority_sha256": prepared.get("rights_authority_sha256"),
+        "delegated_evidence_pack_sha256": prepared.get("delegated_evidence_pack_sha256"),
+        "pr300_final_authority_receipt_sha256": prepared.get(
+            "pr300_final_authority_receipt_sha256"
+        ),
+    }
+    for field, digest in expected.items():
+        if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None or authorities.get(field) != digest:
+            raise PublicSuccessorActivationError(f"{field}: C differs from immutable A")
 
 
 def verify_public_successor_activation(
@@ -439,6 +478,7 @@ def verify_public_successor_activation(
             != expected_scope_authority_sha256
     ):
         raise PublicSuccessorActivationError("authority bytes differ from signed A or scopes")
+    verify_content_authority_bindings(root / "release", content, authorities)
     verify_public_scope_registry(
         root / "authorities/public_scope_authority_sha256.bin",
         authorities["public_scope_authority_sha256"], content,
