@@ -348,6 +348,144 @@ def verify_public_scope_registry(
     return tuple(observed[name] for name in sorted(observed))
 
 
+def verify_reviewed_public_scope_policy(
+    registry_path: Path,
+    expected_registry_sha256: str,
+    content: PublicSuccessorContentVerdict,
+    scopes: tuple[RetrievalScopeArtifactV3, ...],
+    *,
+    policy_raw: bytes,
+    names_raw: bytes,
+    receipt_raw: bytes,
+    expected_receipt_sha256: str,
+) -> dict[str, str]:
+    """Comparer B à la politique et au nommage de la revue exacte #294.
+
+    Le reçu est revérifié en ligne au scellement ; ce lecteur portable contrôle
+    ses liaisons et les octets de chaque V3 sans revendiquer un accès GitHub.
+    """
+    if (not isinstance(expected_receipt_sha256, str)
+            or _SHA256.fullmatch(expected_receipt_sha256) is None
+            or hashlib.sha256(receipt_raw).hexdigest() != expected_receipt_sha256):
+        raise PublicSuccessorActivationError("scope review receipt digest differs")
+    try:
+        receipt = json.loads(receipt_raw)
+        canonical = (json.dumps(receipt, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+        policy = yaml.safe_load(policy_raw)
+        names = yaml.safe_load(names_raw)
+    except (UnicodeDecodeError, ValueError, yaml.YAMLError) as error:
+        raise PublicSuccessorActivationError("reviewed scope authority invalid") from error
+    if (not isinstance(receipt, dict) or receipt_raw != canonical
+            or not isinstance(policy, dict) or not isinstance(names, dict)):
+        raise PublicSuccessorActivationError("reviewed scope authority malformed")
+    if (
+        receipt.get("kind") != "PR294_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1"
+        or receipt.get("status") != "REVIEWED_SCOPES_NOT_PUBLICATION_AUTHORITY"
+        or receipt.get("activation_allowed") is not False
+        or receipt.get("repository") != "cyranoaladin/RAG"
+        or receipt.get("pull_request") != 294
+        or receipt.get("reviewer") != "abenrhouma"
+        or any(not isinstance(receipt.get(field), str)
+               or re.fullmatch(r"[0-9a-f]{40}", receipt[field]) is None
+               for field in ("base_sha", "head_sha", "head_tree_sha", "merge_commit_sha"))
+        or not isinstance(receipt.get("review_id"), int)
+        or receipt["review_id"] <= 0
+        or receipt.get("trusted_status_context") != "trusted-human-review/head-pinned"
+        or not isinstance(receipt.get("workflow_run_id"), int)
+        or receipt["workflow_run_id"] <= 0
+        or not isinstance(receipt.get("challenge"), str)
+        or re.fullmatch(r"NEXUS-TRUSTED-REVIEW-V1:[0-9a-f]{64}", receipt["challenge"]) is None
+        or receipt.get("content_anchor_sha256") != content.content_anchor_sha256
+        or receipt.get("content_manifest_sha256") != content.content_manifest_sha256
+        or receipt.get("public_scope_authority_sha256") != expected_registry_sha256
+        or receipt.get("policy_registry_sha256") != hashlib.sha256(policy_raw).hexdigest()
+        or receipt.get("successor_authority_sha256") != hashlib.sha256(names_raw).hexdigest()
+        or policy.get("registry_kind") != "NEXUS_RETRIEVAL_SCOPE_POLICY_REGISTRY_V1"
+        or policy.get("release_id") != content.release_id
+        or policy.get("release_manifest_sha256") != content.content_manifest_sha256
+        or names.get("authority_id") != "PRODUCTION_PROFILE_SCOPE_SUCCESSORS_V1"
+        or names.get("release_id") != content.release_id
+    ):
+        raise PublicSuccessorActivationError("reviewed scope authority differs from A")
+    registry = _read(registry_path.parent, registry_path.name, expected_registry_sha256)
+    if (registry.get("policy_registry_sha256") != receipt["policy_registry_sha256"]
+            or registry.get("successor_authority_sha256") != receipt["successor_authority_sha256"]):
+        raise PublicSuccessorActivationError("scope registry differs from reviewed policy")
+    registry_rows = registry.get("scopes")
+    if not isinstance(registry_rows, list) or any(
+        not isinstance(row, dict)
+        or row.get("resource") != f"scopes/{row.get('scope_id')}.json"
+        for row in registry_rows
+    ):
+        raise PublicSuccessorActivationError("scope registry resource differs from reviewed naming")
+    rows = policy.get("collections")
+    bindings = names.get("bindings")
+    if not isinstance(rows, list) or not isinstance(bindings, list):
+        raise PublicSuccessorActivationError("reviewed policy population absent")
+    policies = {row.get("collection"): row for row in rows if isinstance(row, dict)}
+    named = {row.get("collection"): row.get("scope_id") for row in bindings
+             if isinstance(row, dict)}
+    scope_by_id = {scope.scope_id: scope for scope in scopes}
+    expected_collections = set(content.subject_sha256_by_collection)
+    if (len(rows) != len(policies) or len(bindings) != len(named)
+            or set(policies) != expected_collections or set(named) != expected_collections
+            or len(scope_by_id) != len(scopes) or len(scopes) != len(expected_collections)):
+        raise PublicSuccessorActivationError("reviewed policy population differs from A")
+    observed: dict[str, str] = {}
+    for collection in sorted(expected_collections):
+        entry = policies[collection]
+        scope_id = named[collection]
+        if not isinstance(scope_id, str) or not re.fullmatch(
+            r"student_public_[a-z0-9_]+_v1", scope_id
+        ) or scope_id not in scope_by_id:
+            raise PublicSuccessorActivationError("reviewed scope naming differs")
+        if (
+            entry.get("decision_status") != "GOVERNED_BY_HUMAN_DECISION"
+            or entry.get("authority_source") != "NEXUS_HUMAN_DECISION_ADR_0064"
+            or entry.get("policy_source_scope_id") is not None
+            or entry.get("subject_manifest_sha256")
+                != content.subject_sha256_by_collection[collection]
+            or entry.get("rights") != ["public_allowed"]
+            or entry.get("policy_visibility") != "public"
+            or entry.get("evidence_visibility") != "public"
+            or entry.get("target_audience") != "libre"
+            or entry.get("target_candidates") != ["libre"]
+        ):
+            raise PublicSuccessorActivationError("reviewed policy student decision differs")
+        try:
+            expected = RetrievalScopeArtifactV3.model_validate({
+                "artifact_version": "3", "scope_id": scope_id,
+                "status": "eligible_for_promotion",
+                "source_sha256": content.subject_sha256_by_collection[collection],
+                "target_policy": {
+                    key: entry[key] for key in (
+                        "tenant", "niveau", "voie", "matiere", "statut_enseignement",
+                    )
+                } | {
+                    "audiences": [entry["target_audience"]],
+                    "candidates": entry["target_candidates"], "roles": ["student"],
+                },
+                "evidence_subject": {
+                    key: entry[key] for key in (
+                        "collection", "tenant", "niveau", "voie", "matiere",
+                        "statut_enseignement", "candidat", "audiences", "rights",
+                        "programme_version",
+                    )
+                } | {
+                    "visibility": entry["evidence_visibility"],
+                    "school_year": policy["school_year"],
+                },
+            })
+        except (KeyError, TypeError, ValueError) as error:
+            raise PublicSuccessorActivationError("reviewed policy V3 invalid") from error
+        if expected.canonical_bytes() != scope_by_id[scope_id].canonical_bytes():
+            raise PublicSuccessorActivationError("scope V3 differs from reviewed policy")
+        observed[scope_id] = expected.sha256_digest()
+    if receipt.get("scope_sha256_by_id") != observed:
+        raise PublicSuccessorActivationError("reviewed scope digest population differs")
+    return observed
+
+
 def _enum_value(value: Any) -> str:
     return str(getattr(value, "value", value))
 
@@ -886,10 +1024,29 @@ def verify_public_successor_activation(
     ):
         raise PublicSuccessorActivationError("authority bytes differ from signed A or scopes")
     verify_content_authority_bindings(root / "release", content, authorities)
-    verify_public_scope_registry(
-        root / "authorities/public_scope_authority_sha256.bin",
+    scope_registry_path = root / "authorities/public_scope_authority_sha256.bin"
+    scopes = verify_public_scope_registry(
+        scope_registry_path,
         authorities["public_scope_authority_sha256"], content,
         root / "release", scope_root=root,
+    )
+    scope_review_raw = _read(
+        root, "authorities/exact_head_scope_review_receipt_sha256.bin",
+        authorities["exact_head_scope_review_receipt_sha256"], json_required=False,
+    )
+    try:
+        scope_review = json.loads(scope_review_raw)
+        policy_sha = scope_review["policy_registry_sha256"]
+        names_sha = scope_review["successor_authority_sha256"]
+    except (UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError) as error:
+        raise PublicSuccessorActivationError("scope review authority invalid") from error
+    policy_raw = _read(root, "authorities/scope-policy.yml", policy_sha, json_required=False)
+    names_raw = _read(root, "authorities/scope-names.yml", names_sha, json_required=False)
+    verify_reviewed_public_scope_policy(
+        scope_registry_path, authorities["public_scope_authority_sha256"],
+        content, scopes, policy_raw=policy_raw, names_raw=names_raw,
+        receipt_raw=scope_review_raw,
+        expected_receipt_sha256=authorities["exact_head_scope_review_receipt_sha256"],
     )
     # Chaque pièce doit être comprise et confrontée à A, à la cible et à
     # l'heure, notamment LOT42 et les révocations. Ces vérificateurs sont

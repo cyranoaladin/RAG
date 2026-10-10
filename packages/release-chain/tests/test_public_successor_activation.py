@@ -32,6 +32,7 @@ from nexus_release_chain.public_successor_activation import (
     verify_public_successor_activation,
     verify_public_transfer_offline,
     verify_publication_batch_review,
+    verify_reviewed_public_scope_policy,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -441,6 +442,115 @@ def test_scope_registry_binds_student_public_v3_to_a(tmp_path: Path) -> None:
     scopes = verify_public_scope_registry(path, digest, content, RELEASE)
     assert len(scopes) == 1
     assert scopes[0].target_policy.roles == ["student"]
+
+
+def _reviewed_scope_policy_fixture(tmp_path: Path):
+    path, _, content = _scope_fixture(tmp_path)
+    from nexus_contracts.scope import RetrievalScopeArtifactV3
+    original = json.loads((tmp_path / "scopes/hggsp.json").read_bytes())
+    original["scope_id"] = "student_public_hggsp_premiere_specialite_v1"
+    original["evidence_subject"]["audiences"] = ["libre", "aefe"]
+    scope = RetrievalScopeArtifactV3.model_validate(original)
+    scope_doc = json.loads(scope.canonical_bytes())
+    scope_path = tmp_path / f"scopes/{scope.scope_id}.json"
+    scope_path.write_bytes(scope.canonical_bytes())
+    (tmp_path / "scopes/hggsp.json").unlink()
+    collection = scope_doc["evidence_subject"]["collection"]
+    evidence = scope_doc["evidence_subject"]
+    target = scope_doc["target_policy"]
+    row = {
+        "collection": collection,
+        "decision_status": "GOVERNED_BY_HUMAN_DECISION",
+        "authority_source": "NEXUS_HUMAN_DECISION_ADR_0064",
+        "policy_source_scope_id": None,
+        "subject_manifest_sha256": content.subject_sha256_by_collection[collection],
+        **{key: evidence[key] for key in (
+            "tenant", "niveau", "voie", "matiere", "statut_enseignement",
+            "candidat", "audiences", "rights", "programme_version",
+        )},
+        "policy_visibility": "public",
+        "evidence_visibility": "public",
+        "target_audience": target["audiences"][0],
+        "target_candidates": target["candidates"],
+    }
+    policy = {
+        "registry_kind": "NEXUS_RETRIEVAL_SCOPE_POLICY_REGISTRY_V1",
+        "release_id": content.release_id,
+        "release_manifest_sha256": content.content_manifest_sha256,
+        "school_year": evidence["school_year"],
+        "collections": [row],
+    }
+    names = {"authority_id": "PRODUCTION_PROFILE_SCOPE_SUCCESSORS_V1",
+             "release_id": content.release_id, "bindings": [
+        {"collection": collection, "scope_id": scope.scope_id},
+    ]}
+    import yaml
+    policy_raw = yaml.safe_dump(policy, sort_keys=True).encode()
+    names_raw = yaml.safe_dump(names, sort_keys=True).encode()
+    registry = json.loads(path.read_bytes())
+    registry["policy_registry_sha256"] = hashlib.sha256(policy_raw).hexdigest()
+    registry["successor_authority_sha256"] = hashlib.sha256(names_raw).hexdigest()
+    registry["scopes"][0].update(
+        scope_id=scope.scope_id, resource=f"scopes/{scope.scope_id}.json",
+        sha256=scope.sha256_digest(),
+    )
+    path.write_bytes((json.dumps(registry, sort_keys=True, ensure_ascii=False, indent=2) + "\n").encode())
+    registry_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    receipt = {
+        "kind": "PR294_STUDENT_PUBLIC_SCOPE_REVIEW_RECEIPT_V1",
+        "status": "REVIEWED_SCOPES_NOT_PUBLICATION_AUTHORITY",
+        "activation_allowed": False,
+        "repository": "cyranoaladin/RAG", "pull_request": 294,
+        "reviewer": "abenrhouma",
+        "base_sha": "1" * 40, "head_sha": "2" * 40,
+        "head_tree_sha": "3" * 40, "merge_commit_sha": "4" * 40,
+        "review_id": 1, "workflow_run_id": 1,
+        "trusted_status_context": "trusted-human-review/head-pinned",
+        "challenge": "NEXUS-TRUSTED-REVIEW-V1:" + "5" * 64,
+        "content_anchor_sha256": content.content_anchor_sha256,
+        "content_manifest_sha256": content.content_manifest_sha256,
+        "policy_registry_sha256": hashlib.sha256(policy_raw).hexdigest(),
+        "successor_authority_sha256": hashlib.sha256(names_raw).hexdigest(),
+        "public_scope_authority_sha256": registry_sha,
+        "scope_sha256_by_id": {scope.scope_id: scope.sha256_digest()},
+    }
+    receipt_raw = (json.dumps(receipt, sort_keys=True, ensure_ascii=False, indent=2) + "\n").encode()
+    return path, registry_sha, content, policy_raw, names_raw, receipt_raw
+
+
+def test_reviewed_scope_policy_reconstructs_exact_v3(tmp_path: Path) -> None:
+    path, sha, content, policy, names, receipt = _reviewed_scope_policy_fixture(tmp_path)
+    scopes = verify_public_scope_registry(path, sha, content, RELEASE)
+    observed = verify_reviewed_public_scope_policy(
+        path, sha, content, scopes, policy_raw=policy, names_raw=names,
+        receipt_raw=receipt, expected_receipt_sha256=hashlib.sha256(receipt).hexdigest(),
+    )
+    assert observed == {scopes[0].scope_id: scopes[0].sha256_digest()}
+
+
+def test_reviewed_scope_policy_refuses_resealed_audience_expansion(tmp_path: Path) -> None:
+    path, _sha, content, policy, names, receipt = _reviewed_scope_policy_fixture(tmp_path)
+    registry = json.loads(path.read_bytes())
+    scope_path = tmp_path / registry["scopes"][0]["resource"]
+    scope_doc = json.loads(scope_path.read_bytes())
+    scope_doc["target_policy"]["audiences"] = ["libre", "aefe"]
+    from nexus_contracts.scope import RetrievalScopeArtifactV3
+    widened = RetrievalScopeArtifactV3.model_validate(scope_doc)
+    scope_path.write_bytes(widened.canonical_bytes())
+    registry["scopes"][0]["sha256"] = widened.sha256_digest()
+    path.write_bytes((json.dumps(registry, sort_keys=True, indent=2, ensure_ascii=False) + "\n").encode())
+    widened_sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    receipt_doc = json.loads(receipt)
+    receipt_doc["public_scope_authority_sha256"] = widened_sha
+    receipt_doc["scope_sha256_by_id"] = {widened.scope_id: widened.sha256_digest()}
+    resealed_receipt = (json.dumps(receipt_doc, sort_keys=True, indent=2, ensure_ascii=False) + "\n").encode()
+    scopes = verify_public_scope_registry(path, widened_sha, content, RELEASE)
+    with pytest.raises(PublicSuccessorActivationError, match="reviewed policy"):
+        verify_reviewed_public_scope_policy(
+            path, widened_sha, content, scopes, policy_raw=policy, names_raw=names,
+            receipt_raw=resealed_receipt,
+            expected_receipt_sha256=hashlib.sha256(resealed_receipt).hexdigest(),
+        )
 
 
 @pytest.mark.parametrize("change", ["source", "role", "visibility", "rights"])
