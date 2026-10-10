@@ -295,6 +295,9 @@ class ProductionReadinessManifestV2(StrictBaseModel):
     public_successor_authority_envelope_digest: StrictStr | None = Field(
         default=None, pattern=_HEX64
     )
+    public_successor_target_pin_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
 
     workflow_path: StrictStr = Field(pattern=_WORKFLOW_PATH)
     workflow_ref: StrictStr = Field(min_length=1, max_length=255)
@@ -373,11 +376,12 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             self.public_successor_content_manifest_digest,
             self.public_successor_content_anchor_digest,
             self.public_successor_authority_envelope_digest,
+            self.public_successor_target_pin_digest,
         )
         if any(value is not None for value in successor_fields) != all(
             value is not None for value in successor_fields
         ):
-            raise ValueError("public successor A/C digests must be complete")
+            raise ValueError("public successor A/C and independent target pin digests must be complete")
         if (
             self.public_successor_content_manifest_digest is not None
             and self.public_successor_content_manifest_digest != self.sealed_manifest_digest
@@ -432,6 +436,9 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             )
             document["public_successor_authority_envelope_digest"] = (
                 self.public_successor_authority_envelope_digest
+            )
+            document["public_successor_target_pin_digest"] = (
+                self.public_successor_target_pin_digest
             )
         return document
 

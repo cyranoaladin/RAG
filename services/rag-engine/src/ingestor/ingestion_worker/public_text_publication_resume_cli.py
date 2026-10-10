@@ -65,6 +65,7 @@ class _SignedPublication:
     anchor_sha256: str
     envelope_sha256: str
     registry_sha256: str
+    target_pin_sha256: str
 
 
 def _signed_publication(root: Path) -> _SignedPublication:
@@ -73,6 +74,8 @@ def _signed_publication(root: Path) -> _SignedPublication:
         manifest = verified.manifest
         if manifest.public_successor_phase != "PUBLICATION":
             raise ValueError("signed staging readiness is not PUBLICATION")
+        if manifest.public_successor_target_pin_digest is None:
+            raise ValueError("signed staging readiness lacks independent target pin")
         require_running_image_matches_manifest(manifest)
         registry_path = root / "release" / "release-registry.json"
         registry_sha256 = hashlib.sha256(registry_path.read_bytes()).hexdigest()
@@ -83,6 +86,7 @@ def _signed_publication(root: Path) -> _SignedPublication:
             anchor_sha256=manifest.public_successor_content_anchor_digest,
             envelope_sha256=manifest.public_successor_phase_authority_digest,
             registry_sha256=registry_sha256,
+            target_pin_sha256=manifest.public_successor_target_pin_digest,
         )
     verified = enforce_readiness_gate()
     manifest = verified.manifest
@@ -91,6 +95,7 @@ def _signed_publication(root: Path) -> _SignedPublication:
             "public_successor_content_manifest_digest",
             "public_successor_content_anchor_digest",
             "public_successor_authority_envelope_digest",
+            "public_successor_target_pin_digest",
         )
     ):
         raise ValueError("signed production readiness lacks public A/C")
@@ -123,6 +128,7 @@ def _signed_publication(root: Path) -> _SignedPublication:
         anchor_sha256=manifest.public_successor_content_anchor_digest,
         envelope_sha256=manifest.public_successor_authority_envelope_digest,
         registry_sha256=selection.bindings[0][1],
+        target_pin_sha256=manifest.public_successor_target_pin_digest,
     )
 
 
@@ -181,6 +187,7 @@ def _verified_runtime(
         expected_release_id=signed.release_id,
         expected_registry_sha256=registry_sha,
         expected_scope_authority_sha256=scope_sha,
+        expected_target_pin_sha256=signed.target_pin_sha256,
     )
     if not isinstance(verdict, PublicSuccessorActivationVerdict) or (
         verdict.release_id != signed.release_id

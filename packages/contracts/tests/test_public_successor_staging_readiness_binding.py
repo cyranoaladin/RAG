@@ -76,3 +76,34 @@ def test_signed_staging_phase_binds_a_and_b_or_c() -> None:
         del incomplete[missing]
         with pytest.raises(ValidationError, match="public successor"):
             StagingReadinessManifestV1.model_validate(incomplete)
+
+
+def test_publication_phase_requires_independent_target_pin_digest() -> None:
+    fields = _fields()
+    fields.update({
+        "public_successor_phase": "PUBLICATION",
+        "public_successor_content_anchor_digest": "c" * 64,
+        "public_successor_phase_authority_digest": "d" * 64,
+    })
+    with pytest.raises(ValidationError, match="target pin"):
+        StagingReadinessManifestV1.model_validate(fields)
+    fields["public_successor_target_pin_digest"] = "e" * 64
+    model = StagingReadinessManifestV1.model_validate(fields)
+    signed = sign_staging_readiness_manifest(model, private_key_hex=SEED, key_id=KEY_ID)
+    verified = verify_staging_readiness_manifest(
+        signed.canonical_bytes(), trust_anchor=_anchor(), now=NOW,
+    )
+    assert verified.public_successor_target_pin_digest == "e" * 64
+    assert verified.canonical_document()["public_successor_target_pin_digest"] == "e" * 64
+
+
+def test_ingestion_phase_refuses_publication_target_pin_digest() -> None:
+    fields = _fields()
+    fields.update({
+        "public_successor_phase": "INGESTION",
+        "public_successor_content_anchor_digest": "c" * 64,
+        "public_successor_phase_authority_digest": "d" * 64,
+        "public_successor_target_pin_digest": "e" * 64,
+    })
+    with pytest.raises(ValidationError, match="target pin"):
+        StagingReadinessManifestV1.model_validate(fields)

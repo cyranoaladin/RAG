@@ -137,6 +137,9 @@ class StagingReadinessManifestV1(StrictBaseModel):
     public_successor_phase_authority_digest: StrictStr | None = Field(
         default=None, pattern=_HEX64
     )
+    public_successor_target_pin_digest: StrictStr | None = Field(
+        default=None, pattern=_HEX64
+    )
 
     # — L'invariant de cloisonnement, déclaré et vérifié à l'exécution —
     control_dsn_differs_from_product: Literal[True]
@@ -169,6 +172,11 @@ class StagingReadinessManifestV1(StrictBaseModel):
             value is not None for value in successor_fields
         ):
             raise ValueError("public successor phase and A/authority digests must be complete")
+        if self.public_successor_phase == "PUBLICATION":
+            if self.public_successor_target_pin_digest is None:
+                raise ValueError("public successor PUBLICATION target pin digest required")
+        elif self.public_successor_target_pin_digest is not None:
+            raise ValueError("public successor target pin digest only valid for PUBLICATION")
         return self
 
     def canonical_document(self) -> dict[str, Any]:
@@ -193,6 +201,10 @@ class StagingReadinessManifestV1(StrictBaseModel):
             document["public_successor_phase_authority_digest"] = (
                 self.public_successor_phase_authority_digest
             )
+            if self.public_successor_target_pin_digest is not None:
+                document["public_successor_target_pin_digest"] = (
+                    self.public_successor_target_pin_digest
+                )
         return document
 
     def canonical_bytes(self) -> bytes:
