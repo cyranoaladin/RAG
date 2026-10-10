@@ -1,0 +1,21 @@
+# Profil de qualification isolé, à superposer à docker-compose.v2.yml.
+# Ne vaut ni provenance d'image finale ni preuve de charge C0.
+services:
+  ingestor:
+    build:
+      context: ../../..
+      dockerfile: services/rag-engine/infra/Dockerfile.ingestor-v2.cuda
+    environment:
+      RAG_REQUIRE_CUDA: "true"
+      NVIDIA_DRIVER_CAPABILITIES: "compute,utility"
+    command: uvicorn api_v2:app --host 0.0.0.0 --port 8001 --workers 1
+    deploy:
+      resources:
+        limits:
+          cpus: "${RAG_GPU_CPU_LIMIT:?quota CPU qualifiée sur la cible requise}"
+          memory: "${RAG_GPU_MEMORY_LIMIT:?quota RAM qualifiée sur la cible requise}"
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -198,6 +198,7 @@ def validate_inclusions(source: dict[str, Any], inclusion: object) -> frozenset[
 
 def build_documents(
     source: dict[str, Any], *, inclusion: dict[str, Any] | None = None,
+    legacy_profile_binding: bool = False,
 ) -> dict[Path, bytes]:
     """Réidentifier le candidat sous un nouvel ID ; conserver tous les verrous."""
     inputs = source["inputs"]
@@ -224,7 +225,9 @@ def build_documents(
     selection_sha = digest(canonical(inclusion))
     # L'identité dépend des preuves d'entrée, jamais d'une horloge ou d'un HEAD mobile.
     seed = canonical({
-        "kind": "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V1",
+        "kind": ("NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V1"
+                 if legacy_profile_binding else
+                 "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V2"),
         "candidate_manifest_sha256": inputs["release_sha256"],
         "candidate_inventory_sha256": digest(canonical(source["inventory"])),
         "complete_profile_proposal_sha256": source["profile_proposal_sha256"],
@@ -315,6 +318,10 @@ def build_documents(
         subject["artifact_registry"]["sha256"] = artifact_sha
         subject["authorities"] = copy.deepcopy(authorities)
         subject["profile"]["manifest_digest"] = authorities["public_profile_registry_sha256"]
+        if not legacy_profile_binding:
+            profile_ref = source["profile_refs"][collection]
+            subject["profile"]["version"] = profile_ref["profile_version"]
+            subject["profile"]["fingerprint"] = profile_ref["fingerprint"]
         placements = subject.get("placements")
         if (not isinstance(placements, list) or not placements
                 or any(row.get("visibility") != "public" for row in placements)):

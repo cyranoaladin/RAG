@@ -29,10 +29,16 @@ PREPARATION_ROOT = ROOT / (
 )
 
 
-def _preparation() -> Path:
-    releases = sorted(PREPARATION_ROOT.glob("release-*/preparation-index.json"))
-    assert len(releases) == 1, "expected one current prepared successor"
-    return releases[0].parent
+def _preparations() -> tuple[Path, ...]:
+    releases = tuple(sorted(PREPARATION_ROOT.glob("release-*/preparation-index.json")))
+    assert releases, "expected sealed prepared successors"
+    assert len({path.parent.name for path in releases}) == len(releases)
+    return tuple(path.parent for path in releases)
+
+
+def test_both_immutable_successor_generations_remain_available():
+    names = {path.name for path in _preparations()}
+    assert {"release-b1dda0c8503aa474", "release-fcc84331e7700042"} <= names
 
 
 def _sha(value: str) -> str:
@@ -141,8 +147,8 @@ def test_worker_subject_join_rejects_resealed_inventory_collection(tmp_path):
         )
 
 
-def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
-    preparation = _preparation()
+@pytest.mark.parametrize("preparation", _preparations(), ids=lambda path: path.name)
+def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path, preparation):
     gate = preparation / "profile_gate"
     inventory_path = gate / "candidate_inventory.json"
     inventory = load_student_public_candidate_inventory(
@@ -240,8 +246,9 @@ def test_worker_binds_text_inventory_to_exact_preparation_chain(tmp_path):
         )
 
 
-def test_sealed_loader_refuses_text_without_dereferenceable_preparation(tmp_path):
-    gate = _preparation() / "profile_gate"
+@pytest.mark.parametrize("preparation", _preparations(), ids=lambda path: path.name)
+def test_sealed_loader_refuses_text_without_dereferenceable_preparation(tmp_path, preparation):
+    gate = preparation / "profile_gate"
     final = tmp_path / "final"
     shutil.copytree(gate, final)
     manifest_path = final / "production-profile-gate.release.json"
@@ -265,8 +272,8 @@ def test_sealed_loader_refuses_text_without_dereferenceable_preparation(tmp_path
         )
 
 
-def test_full_loader_still_refuses_after_exact_preparation_chain(tmp_path):
-    preparation = _preparation()
+@pytest.mark.parametrize("preparation", _preparations(), ids=lambda path: path.name)
+def test_full_loader_still_refuses_after_exact_preparation_chain(tmp_path, preparation):
     final = tmp_path / "final"
     shutil.copytree(preparation / "profile_gate", final)
     sidecar = final / "source_preparation"
@@ -310,8 +317,9 @@ def test_full_loader_still_refuses_after_exact_preparation_chain(tmp_path):
         )
 
 
-def test_full_loader_refuses_377_text_placements_relabelled_as_v1(tmp_path):
-    gate = _preparation() / "profile_gate"
+@pytest.mark.parametrize("preparation", _preparations(), ids=lambda path: path.name)
+def test_full_loader_refuses_377_text_placements_relabelled_as_v1(tmp_path, preparation):
+    gate = preparation / "profile_gate"
     final = tmp_path / "final"
     shutil.copytree(gate, final)
     inventory_path = final / "candidate_inventory.json"

@@ -94,7 +94,11 @@ try:
         load_identity_verifier_config,
         require_internal_identity,
     )
-    from .inference_runtime import BoundedInferenceEmbedder, BoundedInferenceReranker
+    from .inference_runtime import (
+        BoundedInferenceEmbedder,
+        BoundedInferenceReranker,
+        verify_required_inference_device,
+    )
     from .pg_pool import (
         PoolConfigurationError,
         PoolSettings,
@@ -175,6 +179,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
     from inference_runtime import (  # type: ignore[no-redef]
         BoundedInferenceEmbedder,
         BoundedInferenceReranker,
+        verify_required_inference_device,
     )
     from pg_pool import (  # type: ignore[no-redef]
         PoolConfigurationError,
@@ -374,7 +379,8 @@ def preload_runtime_models() -> None:
     embed_model = _get_embed_model()
     if runtime_embedding_dimension(embed_model) != declared_embedding_dim():
         raise EmbeddingContractError("EMBEDDING_RUNTIME_DIMENSION_MISMATCH")
-    _get_reranker()
+    reranker = _get_reranker()
+    verify_required_inference_device(embed_model, reranker)
 
 
 def _get_embed_model():

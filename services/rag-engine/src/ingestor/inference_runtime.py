@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import os
 import threading
 from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from contextvars import copy_context
+from itertools import chain
 from typing import Any, Final, TypeVar
 
 try:
@@ -30,6 +32,55 @@ _inference_capacity = threading.BoundedSemaphore(INFERENCE_MAX_CONCURRENCY)
 
 class InferenceRuntimeError(RuntimeError):
     """L'inférence ne peut pas finir dans la capacité et la deadline autorisées."""
+
+
+def _cuda_is_available() -> bool:
+    try:
+        import torch
+
+        return bool(torch.cuda.is_available())
+    except Exception:
+        return False
+
+
+def _is_cuda_device(device: Any) -> bool:
+    value = str(device)
+    return value == "cuda" or value.startswith("cuda:")
+
+
+def _all_model_weights_on_cuda(model: Any) -> bool:
+    seen = False
+    for tensor in chain(model.parameters(), model.buffers()):
+        seen = True
+        if not _is_cuda_device(tensor.device):
+            return False
+    return seen
+
+
+def verify_required_inference_device(embedding_model: Any, reranker_model: Any) -> None:
+    """Refuser au démarrage un profil CUDA qui serait servi sur CPU."""
+    required = os.environ.get("RAG_REQUIRE_CUDA", "false").strip().lower()
+    if required not in {"true", "false"}:
+        raise InferenceRuntimeError("CUDA_REQUIREMENT_INVALID")
+    if required == "false":
+        return
+    if not _cuda_is_available():
+        raise InferenceRuntimeError("CUDA_INFERENCE_UNAVAILABLE")
+    try:
+        reranker_weights = getattr(reranker_model, "model", reranker_model)
+        # sentence-transformers 3.0.1 CrossEncoder ne déplace ses poids qu'au
+        # premier predict(). Le faire au préchargement prouve la capacité GPU.
+        target = getattr(reranker_model, "_target_device", None)
+        if target is not None:
+            if not _is_cuda_device(target):
+                raise InferenceRuntimeError("CUDA_INFERENCE_UNAVAILABLE")
+            reranker_weights.to(target)
+        if not _all_model_weights_on_cuda(embedding_model) or not _all_model_weights_on_cuda(
+            reranker_weights
+        ):
+            raise InferenceRuntimeError("CUDA_INFERENCE_UNAVAILABLE")
+    except Exception:
+        raise InferenceRuntimeError("CUDA_INFERENCE_UNAVAILABLE") from None
 
 
 def _remaining_timeout_s() -> float:
@@ -118,4 +169,5 @@ __all__ = [
     "INFERENCE_MAX_CONCURRENCY",
     "InferenceRuntimeError",
     "run_bounded_inference",
+    "verify_required_inference_device",
 ]
