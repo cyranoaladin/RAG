@@ -73,8 +73,11 @@ class PublicDerivativeRightsRegistry:
     registry_sha256: str
     _paths: dict[str, str]
     _decision_id: str
+    _expires_at_utc: datetime
 
     def resolve_rights(self, *, content_sha256: str, source_path: str) -> RightsClearance:
+        if datetime.now(UTC) >= self._expires_at_utc:
+            raise PublicTextRuntimeAuthorityError("public derivative rights authority expired")
         if self._paths.get(content_sha256) != source_path:
             raise PublicTextRuntimeAuthorityError("public derivative rights or path absent")
         return RightsClearance(
@@ -242,6 +245,9 @@ def load_public_text_runtime_authorities(
     currentness = _read_json(
         gate / "public_currentness_registry.json", content.currentness_registry_sha256,
     )
+    inclusion = _read_json(
+        gate / "inclusion_attestation.json", sidecars["inclusion_attestation.json"],
+    )
     profiles_registry = _read_json(
         gate / "public_profiles.json", sidecars["public_profiles.json"],
     )
@@ -257,6 +263,36 @@ def load_public_text_runtime_authorities(
     rights_by_sha = {row["content_sha256"]: row for row in rights["entries"]}
     pii_by_sha = {row["content_sha256"]: row for row in pii["entries"]}
     current_by_sha = {row["content_sha256"]: row for row in currentness["entries"]}
+    included_by_sha = {row["content_sha256"]: row for row in inclusion["decisions"]}
+    try:
+        currentness_expiry = datetime.fromisoformat(
+            currentness["valid_until_utc"].replace("Z", "+00:00")
+        )
+    except (KeyError, AttributeError, ValueError) as exc:
+        raise PublicTextRuntimeAuthorityError("public currentness expiry invalid") from exc
+    if (
+        currentness_expiry.tzinfo is None
+        or currentness_expiry.utcoffset() != UTC.utcoffset(now)
+        or now >= currentness_expiry
+        or rights.get("kind") != "NEXUS_STUDENT_PUBLIC_DERIVATIVE_RIGHTS_REGISTRY_V2"
+        or rights.get("status") != "CANDIDATE_NOT_AUTHORIZED"
+        or rights.get("release_id") != content.release_id
+        or rights.get("authorized_use") != "student_retrieval_excerpt_only"
+        or rights.get("full_pdf_redistribution_allowed") is not False
+        or rights.get("answer_generation_allowed") is not False
+        or rights.get("inclusion_attestation_sha256") != sidecars["inclusion_attestation.json"]
+        or rights.get("rights_authority_sha256") != inclusion.get("rights_authority_sha256")
+        or rights.get("evidence_pack_sha256") != pii.get("evidence_pack_sha256")
+        or rights.get("source_currentness_attestation_sha256")
+        != currentness.get("source_currentness_attestation_sha256")
+        or inclusion.get("source_currentness_attestation_sha256")
+        != currentness.get("source_currentness_attestation_sha256")
+        or inclusion.get("decision_count") != len(artifact_by_sha)
+        or len(included_by_sha) != len(artifact_by_sha)
+        or set(included_by_sha) != set(artifact_by_sha)
+        or any(row.get("disposition") != "INCLUDE" for row in included_by_sha.values())
+    ):
+        raise PublicTextRuntimeAuthorityError("public rights authority or inclusion differs")
     if any(
         len(registry["entries"]) != len(artifact_by_sha)
         for registry in (rights, pii, currentness)
@@ -282,6 +318,8 @@ def load_public_text_runtime_authorities(
         rights_row = rights_by_sha[sha]
         pii_row = pii_by_sha[sha]
         current_row = current_by_sha[sha]
+        included = included_by_sha[sha]
+        citation = artifact["citation"]
         if (
             rights_row.get("source_pdf_sha256") != artifact["source_pdf_sha256"]
             or rights_row.get("derivative_receipt_sha256")
@@ -293,6 +331,24 @@ def load_public_text_runtime_authorities(
             or current_row.get("source_pdf_sha256") != artifact["source_pdf_sha256"]
             or current_row.get("currentness_evidence_sha256")
             != rights_row.get("currentness_evidence_sha256")
+            or included.get("source_pdf_sha256") != artifact["source_pdf_sha256"]
+            or included.get("currentness_evidence_sha256")
+            != current_row.get("currentness_evidence_sha256")
+            or included.get("fresh_source_checkpoint_file_sha256")
+            != current_row.get("fresh_source_checkpoint_file_sha256")
+            or included.get("pii_evidence_sha256") != pii_row.get("pii_evidence_sha256")
+            or any(_SHA.fullmatch(str(row.get(field, ""))) is None for row, field in (
+                (included, "evidence_sha256"),
+                (pii_row, "pii_evidence_sha256"),
+                (current_row, "currentness_evidence_sha256"),
+            ))
+            or citation.get("licence_id") != "ETALAB-2.0"
+            or not citation.get("licensor")
+            or not citation.get("source_updated_at")
+            or not citation.get("source_label")
+            or not citation.get("derivative_notice")
+            or citation.get("source_uri") != artifact["source_url"]
+            or citation.get("source_pdf_sha256") != artifact["source_pdf_sha256"]
         ):
             raise PublicTextRuntimeAuthorityError("public derivative evidence is misbound")
     profiles = load_profile_registry(gate / "profiles")
@@ -411,7 +467,8 @@ def load_public_text_runtime_authorities(
         rights_evidence_registry=PublicDerivativeRightsRegistry(
             registry_sha256=sidecars["public_rights_registry.json"],
             _paths={sha: row["source_path"] for sha, row in artifact_by_sha.items()},
-            _decision_id=rights["rights_authority_sha256"],
+            _decision_id=activation.authority_envelope_sha256,
+            _expires_at_utc=min(activation.expires_at_utc, currentness_expiry),
         ),
         sealed_release_catalog=sealed_catalog,
     )

@@ -17,7 +17,11 @@ from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationVerdict,
     verify_public_successor_activation,
 )
-from nexus_release_chain.release_readiness import load_release_registry_file
+from nexus_release_chain.release_readiness import (
+    RELEASE_AUTHORITY_REGISTRY_FILE,
+    load_selected_release_registry,
+    select_release_authority,
+)
 
 from ingestor.embedding_provider import VerifiedE5EmbeddingProvider
 from ingestor.ingestion_control.attestation import attest_runtime_role
@@ -32,6 +36,11 @@ from ingestor.ingestion_profiles.staging_readiness_gate import (
     enforce_staging_readiness_gate,
 )
 
+from .multilevel_publication_resume_cli import (
+    _finite_non_negative_float,
+    _non_blank,
+    _positive_int,
+)
 from .public_text_runtime_authority import (
     PublicTextRuntimeAuthorities,
     load_public_text_runtime_authorities,
@@ -78,10 +87,17 @@ def _signed_publication(root: Path) -> _SignedPublication:
         )
     ):
         raise ValueError("signed production readiness lacks public A/C")
-    registry = load_release_registry_file(
-        root / "release" / "release-registry.json",
-        _required_sha_env("RAG_RELEASE_REGISTRY_SHA256"),
-    )
+    selection = select_release_authority()
+    expected_path = root / "release" / "release-registry.json"
+    if (
+        selection is None
+        or selection.mechanism != RELEASE_AUTHORITY_REGISTRY_FILE
+        or len(selection.bindings) != 1
+        or selection.bindings[0][0].resolve() != expected_path.resolve()
+        or selection.bindings[0][1] != _required_sha_env("RAG_RELEASE_REGISTRY_SHA256")
+    ):
+        raise ValueError("production public Worker B requires the selected A release registry")
+    registry = load_selected_release_registry(selection)
     if len(registry.manifests) != 1 or (
         registry.manifests[0].expected_sha256
         != manifest.public_successor_content_manifest_digest
@@ -109,19 +125,19 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Worker B des dérivés publics A/C")
     parser.add_argument("--public-successor-bundle-root", type=Path, required=True)
     parser.add_argument("--artifact-store-dir", type=Path, required=True)
-    parser.add_argument("--owner", required=True)
-    parser.add_argument("--expected-role", required=True)
-    parser.add_argument("--expected-product-role", default=None)
+    parser.add_argument("--owner", required=True, type=_non_blank)
+    parser.add_argument("--expected-role", required=True, type=_non_blank)
+    parser.add_argument("--expected-product-role", type=_non_blank, default=None)
     parser.add_argument("--embedding-artifact-root", type=Path, required=True)
-    parser.add_argument("--embedding-inventory-sha256", required=True)
-    parser.add_argument("--collection", action="append", required=True)
+    parser.add_argument("--embedding-inventory-sha256", required=True, type=_non_blank)
+    parser.add_argument("--collection", action="append", required=True, type=_non_blank)
     parser.add_argument("--once", action="store_true")
-    parser.add_argument("--max-iterations", type=int, default=None)
-    parser.add_argument("--poll-interval-s", type=float, default=5.0)
-    parser.add_argument("--min-job-interval-s", type=float, default=0.0)
-    parser.add_argument("--rate-limit-max-wait-s", type=float, default=900.0)
-    parser.add_argument("--max-consecutive-rate-limits", type=int, default=3)
-    parser.add_argument("--max-idle-polls", type=int, default=None)
+    parser.add_argument("--max-iterations", type=_positive_int, default=None)
+    parser.add_argument("--poll-interval-s", type=_finite_non_negative_float, default=5.0)
+    parser.add_argument("--min-job-interval-s", type=_finite_non_negative_float, default=0.0)
+    parser.add_argument("--rate-limit-max-wait-s", type=_finite_non_negative_float, default=900.0)
+    parser.add_argument("--max-consecutive-rate-limits", type=_positive_int, default=3)
+    parser.add_argument("--max-idle-polls", type=_positive_int, default=None)
     parser.add_argument("--heartbeat-file", type=Path, default=None)
     return parser
 
@@ -214,7 +230,9 @@ def require_public_lot42_db(
     actual = {(row[0], row[1], row[2]) for row in rows}
     if len(rows) != len(expected) or actual != expected or any(row[3] is None for row in rows):
         raise ValueError("live LOT42 publication attestation coverage incomplete")
-    conn.commit()
+    # Ces SELECT ne confèrent aucune autorité d'écriture : clore la transaction
+    # sans enregistrer d'effet potentiel sur la connexion réutilisée par Worker B.
+    conn.rollback()
 
 
 def main_public(argv: list[str]) -> int:
