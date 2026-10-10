@@ -21,7 +21,7 @@ const scope = {
     collection: 'rag_nexus_nsi_terminale_specialite',
     tenant: 'libre_terminale', niveau: 'terminale', voie: 'generale',
     matiere: 'nsi', statut_enseignement: 'specialite', candidat: 'libre',
-    audiences: ['libre'], visibility: 'public', rights: ['officiel_public'],
+    audiences: ['libre'], visibility: 'public', rights: ['public_allowed'],
     school_year: '2026-2027', programme_version: 'BOEN_2026',
   },
 }
@@ -54,6 +54,9 @@ describe('index public V3', () => {
     } }])).toThrow()
     expect(() => assertPublicScopeIndex([{ ...scope, evidence_subject: {
       ...scope.evidence_subject, rights: ['usage_interne'],
+    } }])).toThrow()
+    expect(() => assertPublicScopeIndex([{ ...scope, evidence_subject: {
+      ...scope.evidence_subject, rights: ['officiel_public'],
     } }])).toThrow()
     expect(() => assertPublicScopeIndex([scope, scope])).toThrow()
     expect(() => assertPublicScopeIndex([{ ...scope, scope_id: 'student_public_nsi_v1' }])).toThrow()

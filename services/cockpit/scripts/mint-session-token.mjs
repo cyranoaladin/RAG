@@ -70,7 +70,7 @@ function selectedScope(identity) {
       !/^[0-9a-f]{64}$/.test(scope.source_sha256) ||
       subject?.visibility !== 'public' ||
       !Array.isArray(subject.rights) || subject.rights.length !== 1 ||
-      subject.rights[0] !== 'officiel_public' ||
+      subject.rights[0] !== 'public_allowed' ||
       !Array.isArray(policy?.roles) || !policy.roles.includes('student') ||
       typeof subject.collection !== 'string' ||
       policy.tenant !== subject.tenant || policy.niveau !== subject.niveau ||

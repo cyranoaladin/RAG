@@ -52,7 +52,7 @@ export function assertPublicScopeIndex(value: unknown): readonly PublicScopeBind
     if (
       !/^prod_[a-z0-9_]+_v[0-9]+$/.test(artifact.scope_id) ||
       subject.visibility !== 'public' ||
-      subject.rights.length !== 1 || subject.rights[0] !== 'officiel_public' ||
+      subject.rights.length !== 1 || subject.rights[0] !== 'public_allowed' ||
       !policy.roles.includes('student') ||
       policy.tenant !== subject.tenant ||
       policy.niveau !== subject.niveau ||
