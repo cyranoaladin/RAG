@@ -11,6 +11,7 @@ from nexus_contracts.staging_readiness import STAGING_READINESS_PROTOCOL
 from ingestor.ingestion_worker import multilevel_publication_resume_cli as cli
 
 SHA = "a" * 64
+WORKER_IMAGE = "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + SHA
 
 
 def _public_args() -> list[str]:
@@ -108,6 +109,7 @@ def test_production_public_readiness_derives_release_id_from_pinned_registry(
     monkeypatch.delenv("NEXUS_EXPECTED_READINESS_PROTOCOL", raising=False)
     monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", SHA)
     monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", "/bundle/release/release-registry.json")
+    monkeypatch.setenv("NEXUS_ACTUAL_WORKER_IMAGE", WORKER_IMAGE)
     monkeypatch.setattr(
         public_cli, "enforce_readiness_gate",
         lambda: SimpleNamespace(
@@ -117,6 +119,7 @@ def test_production_public_readiness_derives_release_id_from_pinned_registry(
                 public_successor_content_manifest_digest=SHA,
                 public_successor_content_anchor_digest=SHA,
                 public_successor_authority_envelope_digest=SHA,
+                application_image_digests={"multilevel-worker-b-production": WORKER_IMAGE},
             ),
         ),
     )
@@ -151,6 +154,7 @@ def test_production_public_readiness_rejects_ambiguous_release_authority(
     monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", SHA)
     monkeypatch.setenv("RAG_RELEASE_MANIFEST_PATH", "/other/manifest.json")
     monkeypatch.setenv("RAG_RELEASE_MANIFEST_SHA256", SHA)
+    monkeypatch.setenv("NEXUS_ACTUAL_WORKER_IMAGE", WORKER_IMAGE)
     monkeypatch.setattr(public_cli, "enforce_readiness_gate", lambda: SimpleNamespace(
         environment="production",
         manifest=SimpleNamespace(
@@ -158,9 +162,39 @@ def test_production_public_readiness_rejects_ambiguous_release_authority(
             public_successor_content_manifest_digest=SHA,
             public_successor_content_anchor_digest=SHA,
             public_successor_authority_envelope_digest=SHA,
+            application_image_digests={"multilevel-worker-b-production": WORKER_IMAGE},
         ),
     ))
     with pytest.raises(ValueError, match="ambiguous"):
+        public_cli._signed_publication(Path("/bundle"))
+
+
+def test_production_public_worker_requires_signed_running_image_before_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from ingestor.ingestion_worker import public_text_publication_resume_cli as public_cli
+
+    monkeypatch.delenv("NEXUS_EXPECTED_READINESS_PROTOCOL", raising=False)
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_PATH", "/bundle/release/release-registry.json")
+    monkeypatch.setenv("RAG_RELEASE_REGISTRY_SHA256", SHA)
+    monkeypatch.setenv("NEXUS_ACTUAL_WORKER_IMAGE", "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "b" * 64)
+    manifest = SimpleNamespace(
+        sealed_manifest_digest=SHA,
+        public_successor_content_manifest_digest=SHA,
+        public_successor_content_anchor_digest=SHA,
+        public_successor_authority_envelope_digest=SHA,
+        application_image_digests={
+            "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production@sha256:" + "a" * 64,
+        },
+    )
+    monkeypatch.setattr(public_cli, "enforce_readiness_gate", lambda: SimpleNamespace(
+        environment="production", manifest=manifest,
+    ))
+    with pytest.raises(RuntimeError, match="running image"):
+        public_cli._signed_publication(Path("/bundle"))
+
+    manifest.application_image_digests = {"ingestor": "ghcr.io/cyranoaladin/rag-ingestor@sha256:" + "a" * 64}
+    with pytest.raises(ValueError, match="multilevel-worker-b-production"):
         public_cli._signed_publication(Path("/bundle"))
 
 

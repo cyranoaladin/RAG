@@ -126,6 +126,9 @@ AUTHORIZATION_LOADER	packages/contracts/src/nexus_contracts/authorization_loader
 RELEASE_SELECTION	packages/release-chain/src/nexus_release_chain/release_readiness.py
 RELEASE_SELECTION	packages/release-chain/src/nexus_release_chain/deployment_binding.py
 RELEASE_SELECTION	services/rag-engine/src/ingestor/retrieval_v2_endpoint.py
+# Worker B public consomme le meme selecteur contractuel et confronte son
+# binding unique au registre A du bundle ; aucune precedence locale.
+RELEASE_SELECTION	services/rag-engine/src/ingestor/ingestion_worker/public_text_publication_resume_cli.py
 RELEASE_SELECTION	scripts/qualification/compute_promoted_content_set.py
 # L evaluateur de readiness NOMME `select_release_authority` dans sa
 # documentation, pour dire a quelle autorite il delegue. Il ne selectionne
