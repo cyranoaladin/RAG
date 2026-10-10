@@ -20,6 +20,15 @@ from nexus_contracts.authority_artifacts import (
     ReleaseBatchPublicationReviewArtifact,
     parse_release_batch_publication_review_artifact,
 )
+from nexus_contracts.authorization_set import (
+    AuthorizationSetError,
+    AuthorizationSetV2,
+    ReleaseScopePlacementEntryV1,
+    ReleaseScopePlacementV2,
+    parse_authorization_set_v2,
+    verify_authorization_binding_set_v2,
+)
+from nexus_contracts.ingestion import ResourceScope
 from nexus_contracts.scope import RetrievalScopeArtifactV3
 
 from nexus_release_chain.release_readiness import (
@@ -411,6 +420,120 @@ def verify_content_authority_bindings(
     for field, digest in expected.items():
         if not isinstance(digest, str) or _SHA256.fullmatch(digest) is None or authorities.get(field) != digest:
             raise PublicSuccessorActivationError(f"{field}: C differs from immutable A")
+
+
+def derive_public_release_scope_placement(
+    release_root: Path,
+    content: PublicSuccessorContentVerdict,
+) -> ReleaseScopePlacementV2:
+    """Dériver les 377 liaisons LOT41A des subjects et profils immuables de A.
+
+    Le scope vient du profil scellé, audience comprise. Il n'est jamais
+    reconstruit à partir de la simple liste d'IDs d'une autorisation.
+    """
+    gate = release_root / "profile_gate"
+    registry = _read(gate, "artifacts.release.json", content.artifact_registry_sha256)
+    artifacts = registry.get("artifacts")
+    if not isinstance(artifacts, list):
+        raise PublicSuccessorActivationError("LOT41A A artifact registry malformed")
+    artifact_ids = {row.get("artifact_id") for row in artifacts if isinstance(row, dict)}
+    if len(artifact_ids) != content.expected_counts["unique_artifacts"]:
+        raise PublicSuccessorActivationError("LOT41A A artifact population differs")
+    entries: list[ReleaseScopePlacementEntryV1] = []
+    profile_digests: set[str] = set()
+    scope_digests: set[str] = set()
+    for collection, subject_sha in sorted(content.subject_sha256_by_collection.items()):
+        subject = _read(gate, f"subjects/{collection}.release.json", subject_sha)
+        profile = subject.get("profile")
+        if not isinstance(profile, dict) or set(profile) != {
+            "fingerprint", "manifest_digest", "version",
+        }:
+            raise PublicSuccessorActivationError("LOT41A A subject profile malformed")
+        profile_raw = _read(
+            gate, f"profiles/{collection}.yml",
+            content.profile_sha256_by_collection[collection], json_required=False,
+        )
+        try:
+            profile_document = yaml.safe_load(profile_raw)
+            scope = ResourceScope.model_validate(profile_document["scope"])
+        except (KeyError, TypeError, ValueError, yaml.YAMLError) as error:
+            raise PublicSuccessorActivationError("LOT41A A profile scope invalid") from error
+        if (
+            scope.collection != collection
+            or profile_document.get("profile_version") != profile["version"]
+        ):
+            raise PublicSuccessorActivationError("LOT41A A profile identity differs")
+        profile_digests.add(profile["manifest_digest"])
+        scope_digests.add(scope.model_dump_json())
+        placements = subject.get("placements")
+        if not isinstance(placements, list) or not placements:
+            raise PublicSuccessorActivationError("LOT41A A subject placements absent")
+        for placement in placements:
+            if not isinstance(placement, dict) or placement.get("artifact_id") not in artifact_ids:
+                raise PublicSuccessorActivationError("LOT41A A placement artifact unknown")
+            if any(
+                placement.get(field) != _enum_value(getattr(scope, field))
+                for field in (
+                    "tenant", "collection", "niveau", "voie", "matiere",
+                    "candidat", "visibility", "school_year", "programme_version",
+                )
+            ):
+                raise PublicSuccessorActivationError("LOT41A A placement scope differs")
+            try:
+                entries.append(ReleaseScopePlacementEntryV1.model_validate({
+                    "content_sha256": placement["artifact_id"],
+                    "profile_id": collection,
+                    "profile_version": profile["version"],
+                    "profile_fingerprint": profile["fingerprint"],
+                    "scope": scope,
+                }))
+            except ValueError as error:
+                raise PublicSuccessorActivationError("LOT41A A placement invalid") from error
+    if (
+        len(profile_digests) != 1
+        or len(scope_digests) != len(content.subject_sha256_by_collection)
+        or len(entries) != content.expected_counts["placements"]
+        or {entry.content_sha256 for entry in entries} != artifact_ids
+    ):
+        raise PublicSuccessorActivationError("LOT41A A binding population differs")
+    try:
+        return ReleaseScopePlacementV2.build(
+            placements=entries, profile_manifest_digest=profile_digests.pop(),
+        )
+    except AuthorizationSetError as error:
+        raise PublicSuccessorActivationError("LOT41A A binding projection invalid") from error
+
+
+def verify_public_lot41a_authorization_set(
+    raw: bytes,
+    release_root: Path,
+    content: PublicSuccessorContentVerdict,
+    now_utc: datetime,
+) -> AuthorizationSetV2:
+    """Vérifier forme, fenêtre et couverture exacte ; signatures séparées.
+
+    Ce résultat n'atteste pas les revues signées LOT41A. Le signataire doit
+    appeler le vérificateur complet du contrat avec trust anchor, fichiers de
+    revue et registre de révocations avant toute autorité PUBLICATION.
+    """
+    projection = derive_public_release_scope_placement(release_root, content)
+    try:
+        authorization_set = parse_authorization_set_v2(raw)
+        verify_authorization_binding_set_v2(
+            authorization_set, release_scope_placement=projection,
+        )
+    except (AuthorizationSetError, ValueError) as error:
+        raise PublicSuccessorActivationError("LOT41A binding set invalid") from error
+    if (
+        authorization_set.corpus_manifest_sha256 != content.content_manifest_sha256
+        or authorization_set.authorization_count != len(content.subject_sha256_by_collection)
+        or authorization_set.unique_content_count != content.expected_counts["unique_artifacts"]
+        or authorization_set.authorization_binding_count != content.expected_counts["placements"]
+        or not (authorization_set.authorizations_effective_valid_from <= now_utc
+                < authorization_set.authorizations_effective_valid_until)
+    ):
+        raise PublicSuccessorActivationError("LOT41A A identity, counts or validity differ")
+    return authorization_set
 
 
 def verify_publication_batch_review(

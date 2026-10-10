@@ -15,11 +15,19 @@ from nexus_contracts.authority_artifacts import (
     ReleaseBatchPlacementEvidence,
     ReleaseBatchPublicationReviewArtifact,
 )
+from nexus_contracts.authorization_set import (
+    AuthorizationSetMemberV1,
+    AuthorizationSetV2,
+    content_set_digest,
+    scope_digest,
+)
 from nexus_release_chain.public_successor_activation import (
     PublicSuccessorActivationError,
+    derive_public_release_scope_placement,
     verify_content_anchor,
     verify_content_authority_bindings,
     verify_content_currentness,
+    verify_public_lot41a_authorization_set,
     verify_public_scope_registry,
     verify_public_successor_activation,
     verify_publication_batch_review,
@@ -54,6 +62,71 @@ def test_real_content_anchor_is_replayed_without_activation() -> None:
         "unique_chunks": 3975,
     }
     assert observed.activation_allowed is False
+
+
+def test_public_lot41a_projection_covers_all_a_placements() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    projection = derive_public_release_scope_placement(RELEASE, content)
+    assert projection.profile_manifest_digest == "f165782c0404762e7869c1f7b2d17edc8d62087b124442f29ebe4243644f0d9b"
+    assert len(projection.placements) == 377
+    assert len({entry.content_sha256 for entry in projection.placements}) == 253
+    assert len({scope_digest(entry.scope) for entry in projection.placements}) == 11
+
+
+def test_public_lot41a_refuses_equal_count_wrong_content_binding() -> None:
+    content = verify_content_anchor(ANCHOR, ANCHOR_SHA, RELEASE)
+    projection = derive_public_release_scope_placement(RELEASE, content)
+    by_scope = {}
+    for entry in projection.placements:
+        by_scope.setdefault(scope_digest(entry.scope), (entry.scope, set()))[1].add(entry.content_sha256)
+    members = []
+    for n, (digest, (scope, values)) in enumerate(sorted(by_scope.items())):
+        contents = tuple(sorted(values))
+        members.append(AuthorizationSetMemberV1.model_validate({
+            "authorization_id": f"lot41a-{n:02d}",
+            "authorization_digest": hashlib.sha256(f"auth:{n}".encode()).hexdigest(),
+            "review_binding_digest": hashlib.sha256(f"review:{n}".encode()).hexdigest(),
+            "scope": scope,
+            "scope_digest": digest,
+            "allowed_content_sha256": contents,
+            "allowed_content_count": len(contents),
+            "allowed_content_set_sha256": content_set_digest(contents),
+            "valid_from": datetime(2026, 10, 10, tzinfo=UTC),
+            "valid_until": datetime(2026, 10, 11, tzinfo=UTC),
+        }))
+    valid = AuthorizationSetV2.build(
+        members=members,
+        corpus_manifest_sha256=content.content_manifest_sha256,
+        profile_manifest_digest=projection.profile_manifest_digest,
+        release_scope_placement_digest=projection.digest(),
+    )
+    assert verify_public_lot41a_authorization_set(
+        valid.canonical_bytes(), RELEASE, content,
+        datetime(2026, 10, 10, 21, tzinfo=UTC),
+    ).authorization_binding_count == 377
+    first = members[0]
+    replaced = tuple(sorted((*first.allowed_content_sha256[1:], "f" * 64)))
+    wrong_member = first.model_copy(update={
+        "allowed_content_sha256": replaced,
+        "allowed_content_set_sha256": content_set_digest(replaced),
+    })
+    wrong_binding = AuthorizationSetV2.build(
+        members=[wrong_member, *members[1:]],
+        corpus_manifest_sha256=content.content_manifest_sha256,
+        profile_manifest_digest=projection.profile_manifest_digest,
+        release_scope_placement_digest=projection.digest(),
+    )
+    with pytest.raises(PublicSuccessorActivationError, match="LOT41A binding"):
+        verify_public_lot41a_authorization_set(
+            wrong_binding.canonical_bytes(), RELEASE, content,
+            datetime(2026, 10, 10, 21, tzinfo=UTC),
+        )
+    changed = valid.model_copy(update={"corpus_manifest_sha256": "f" * 64})
+    with pytest.raises(PublicSuccessorActivationError, match="LOT41A"):
+        verify_public_lot41a_authorization_set(
+            changed.canonical_bytes(), RELEASE, content,
+            datetime(2026, 10, 10, 21, tzinfo=UTC),
+        )
 
 
 def test_content_currentness_expires_at_the_sealed_limit() -> None:
