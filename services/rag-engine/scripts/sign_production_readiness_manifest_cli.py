@@ -1607,6 +1607,8 @@ def _main_v2(argv: list[str]) -> int:
     args = _build_v2_arg_parser().parse_args(argv)
     try:
         _reject_v2_output_aliasing_an_input(args)
+        if args.public_candidate and args.public_successor_bundle_root is None:
+            raise SigningToolError("public candidate readiness requires a public successor C bundle")
         pr_head_sha = _hex(args.pr_head_sha, _HEX40, "pr_head_sha")
         merge_sha = _hex(args.merge_sha, _HEX40, "merge_sha")
         pr_head_tree_sha, merge_tree_sha = _verify_git_and_workflow_facts(args)

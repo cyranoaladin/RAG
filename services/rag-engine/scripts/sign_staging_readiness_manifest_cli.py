@@ -99,6 +99,19 @@ def _require_public_checkout_matches_merge(merge_sha: str) -> None:
         head.returncode == 0 and head.stdout.strip() == merge_sha,
         "public successor signer HEAD differs from signed merge_sha",
     )
+    tree = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD^{tree}"],
+        capture_output=True, text=True, check=False,
+    )
+    signed_tree = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", f"{merge_sha}^{{tree}}"],
+        capture_output=True, text=True, check=False,
+    )
+    _require(
+        tree.returncode == signed_tree.returncode == 0
+        and tree.stdout.strip() == signed_tree.stdout.strip(),
+        "public successor signer tree differs from signed merge_sha",
+    )
     tracked = subprocess.run(
         ["git", "-C", str(REPO_ROOT), "status", "--porcelain=v1", "--untracked-files=no"],
         capture_output=True, text=True, check=False,
@@ -107,6 +120,15 @@ def _require_public_checkout_matches_merge(merge_sha: str) -> None:
         tracked.returncode == 0 and not tracked.stdout.strip(),
         "public successor signer tracked tree is dirty",
     )
+    from sign_production_readiness_manifest_cli import (  # noqa: PLC0415
+        SigningToolError,
+        _require_live_main_head,
+    )
+
+    try:
+        _require_live_main_head(merge_sha)
+    except SigningToolError as error:
+        raise SigningRefused("public successor live main differs") from error
 
 
 def _reject_output_aliasing_inputs(args: Any) -> None:
@@ -124,6 +146,21 @@ def _reject_output_aliasing_inputs(args: Any) -> None:
             output.exists() and candidate.exists() and os.path.samefile(output, candidate)
         ):
             raise SigningRefused(f"output aliases --{name.replace('_', '-')}")
+
+
+def _atomic_private_write(path: Path, raw: bytes) -> None:
+    """Réutiliser l'écriture privée atomique du signer production."""
+    from sign_production_readiness_manifest_cli import (  # noqa: PLC0415
+        SigningToolError,
+    )
+    from sign_production_readiness_manifest_cli import (
+        _atomic_private_write as production_atomic_write,
+    )
+
+    try:
+        production_atomic_write(path, raw)
+    except SigningToolError as error:
+        raise SigningRefused("staging readiness atomic output refused") from error
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
@@ -384,6 +421,10 @@ def main(argv: list[str] | None = None) -> int:
             public_successor_phase_authority_digest=phase_authority_sha,
         )
 
+        if phase is not None:
+            _require_public_checkout_matches_merge(args.merge_sha)
+            _require(datetime.now(UTC) < expires_at,
+                     "public successor authority expired before key access")
         seed = _read_private_key(args.private_key_file)
         signed = sign_staging_readiness_manifest(
             manifest, private_key_hex=seed, key_id=args.key_id
@@ -397,11 +438,11 @@ def main(argv: list[str] | None = None) -> int:
         )
         raw = signed.canonical_bytes()
         verify_staging_readiness_manifest(raw, trust_anchor=anchor, now=issued_at)
-    except (SigningRefused, StagingReadinessError, ValueError) as exc:
+        _atomic_private_write(args.output, raw)
+    except (SigningRefused, StagingReadinessError, ValueError, OSError) as exc:
         print(f"STAGING_READINESS_SIGNING_REFUSED: {exc}", file=sys.stderr)
         return 1
 
-    args.output.write_bytes(raw)
     print(
         "STAGING_READINESS_SIGNED "
         f"output={args.output} "

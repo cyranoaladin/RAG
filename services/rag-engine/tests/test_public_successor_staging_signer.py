@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "services/rag-engine/scripts"))
 sys.path.insert(0, str(ROOT / "scripts/go_live"))
 
 import check_public_successor_preissuance as preissuance  # noqa: E402
+import sign_production_readiness_manifest_cli as production  # noqa: E402
 import sign_staging_readiness_manifest_cli as signer  # noqa: E402
 
 RELEASE = (
@@ -95,6 +96,7 @@ def test_public_ingestion_signer_requires_exact_clean_checkout(
     git("commit", "-qam", "b")
     current_sha = git("rev-parse", "HEAD")
     monkeypatch.setattr(signer, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(production, "_require_live_main_head", lambda *_: None)
 
     with pytest.raises(signer.SigningRefused, match="HEAD"):
         signer._require_public_checkout_matches_merge(old_sha)
