@@ -84,4 +84,32 @@ describe('GET /api/collections', () => {
       readyCollections: 0,
     })
   })
+
+  it('ne présente que les collections du scope signé même si le moteur retourne plus', async () => {
+    mockedFetchEngine
+      .mockResolvedValueOnce({
+        status: 200,
+        payload: {
+          collections: [
+            { name: 'pilot-collection', domain: 'education', instanciee: true },
+            { name: 'autre-collection', domain: 'education', instanciee: true },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        status: 200,
+        payload: {
+          launch_ready: true,
+          total_collections: 2,
+          ready_collections: 2,
+          blockers: [],
+        },
+      })
+
+    const response = await GET(request)
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.items.map((item: { name: string }) => item.name)).toEqual(['pilot-collection'])
+  })
 })

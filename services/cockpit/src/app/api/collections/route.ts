@@ -87,7 +87,12 @@ export async function GET(request: Request) {
     if (!items || !readiness) {
       return NextResponse.json(fallback(), { status: 503 })
     }
-    return NextResponse.json({ items, live: true, ...readiness })
+    const allowedCollections = new Set(authContext.allowedCollections)
+    return NextResponse.json({
+      items: items.filter((item) => allowedCollections.has(item.name)),
+      live: true,
+      ...readiness,
+    })
   } catch {
     return NextResponse.json(fallback(), { status: 503 })
   }

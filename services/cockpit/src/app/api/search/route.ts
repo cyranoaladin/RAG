@@ -114,6 +114,9 @@ export async function POST(request: Request) {
     if (!validateSearchPayload(body) || body.collections.length > MAX_COLLECTIONS_PER_REQUEST) {
       return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
     }
+    if (authContext.identity.role === 'student' && body.collections.length !== 1) {
+      return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
+    }
     payload = body
   } catch {
     return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
@@ -153,9 +156,14 @@ export async function POST(request: Request) {
     if (results.some((result) => !validateRetrievalResponse(result.payload))) {
       return NextResponse.json({ error: 'invalid_upstream_response' }, { status: 502 })
     }
-    const hitsByCollection = results.map(
-      (result) => (result.payload as RetrievalResponse).results ?? [],
+    const hitsByCollection = results.map((result) =>
+      (result.payload as RetrievalResponse).results ?? [],
     )
+    if (hitsByCollection.some((hits, index) =>
+      hits.some((hit) => hit.metadata?.collection !== payload.collections[index])
+    )) {
+      return NextResponse.json({ error: 'invalid_upstream_response' }, { status: 502 })
+    }
     const response: RetrievalResponse = {
       results: mergeCollectionHeads(hitsByCollection, payload.k ?? 8),
       warnings: results.flatMap(

@@ -1,12 +1,12 @@
 import { useState } from 'react'
-import { ExternalLink, Loader2, MessageSquareText, Search, ShieldAlert } from 'lucide-react'
+import { ExternalLink, Loader2, Search, ShieldAlert } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import type { ChatMessage, ChatResponse, RetrievalResult } from '@/generated/contracts'
-import { chat, search } from '@/lib/bff-client'
+import type { RetrievalResult } from '@/generated/contracts'
+import { search } from '@/lib/bff-client'
 import type { RagCollection } from '@/types/ui'
 
 const SEARCH_UNAVAILABLE_MESSAGE =
@@ -32,53 +32,24 @@ export default function SearchSection({
   blockers,
 }: SearchSectionProps) {
   const [query, setQuery] = useState('')
-  const [selectedCollections, setSelectedCollections] = useState<string[]>([])
+  const [selectedCollection, setSelectedCollection] = useState('')
   const [results, setResults] = useState<RetrievalResult[]>([])
-  const [conversation, setConversation] = useState<ChatMessage[]>([])
-  const [chatResponse, setChatResponse] = useState<ChatResponse | null>(null)
   const [loading, setLoading] = useState(false)
   const [searched, setSearched] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const canSubmit = launchReady && Boolean(query.trim()) && selectedCollections.length > 0 && !loading
-  const chatCitations = chatResponse?.citations ?? []
+  const canSubmit = launchReady && Boolean(query.trim()) && Boolean(selectedCollection) && !loading
 
   async function runRetrieval() {
     if (!canSubmit) return
     setLoading(true)
     setSearched(true)
     setError(null)
-    setChatResponse(null)
     try {
-      const response = await search(query, selectedCollections, 8)
+      const response = await search(query, [selectedCollection], 8)
       setResults(response.items)
     } catch {
       setResults([])
-      setError(SEARCH_UNAVAILABLE_MESSAGE)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  async function runChat() {
-    if (!canSubmit) return
-    setLoading(true)
-    setSearched(true)
-    setError(null)
-    setResults([])
-    try {
-      const response = await chat(query, selectedCollections, conversation, 5)
-      setChatResponse(response)
-      setConversation((current): ChatMessage[] => {
-        const nextConversation: ChatMessage[] = [
-          ...current,
-          { role: 'user', content: query },
-          { role: 'assistant', content: response.answer },
-        ]
-        return nextConversation.slice(-12)
-      })
-    } catch {
-      setChatResponse(null)
       setError(SEARCH_UNAVAILABLE_MESSAGE)
     } finally {
       setLoading(false)
@@ -89,10 +60,9 @@ export default function SearchSection({
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Recherche et réponses pédagogiques sourcées</CardTitle>
+          <CardTitle className="text-base">Recherche pédagogique avec passages cités</CardTitle>
           <p className="text-sm text-slate-500">
-            Sélectionnez une ou plusieurs collections. Les réponses conversationnelles sont
-            refusées si elles ne peuvent pas citer les extraits validés.
+            Sélectionnez une collection pour retrouver des passages validés et leurs sources.
           </p>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -113,19 +83,17 @@ export default function SearchSection({
             disabled={!launchReady}
           />
           <label className="block text-sm font-medium text-slate-700" htmlFor="collection-picker">
-            Collections à interroger
+            Collection à interroger
           </label>
           <select
             id="collection-picker"
-            multiple
-            aria-label="Collections à interroger"
-            className="min-h-40 w-full rounded-md border border-slate-200 bg-white p-2 text-sm"
-            value={selectedCollections}
+            aria-label="Collection à interroger"
+            className="h-10 w-full rounded-md border border-slate-200 bg-white p-2 text-sm"
+            value={selectedCollection}
             disabled={!launchReady}
-            onChange={(event) => setSelectedCollections(
-              Array.from(event.currentTarget.selectedOptions, (option) => option.value),
-            )}
+            onChange={(event) => setSelectedCollection(event.currentTarget.value)}
           >
+            <option value="">Choisissez une collection</option>
             {collections.map((collection) => (
               <option key={collection.name} value={collection.name}>
                 {[collection.matiere, collection.niveau, collection.statut]
@@ -134,50 +102,17 @@ export default function SearchSection({
               </option>
             ))}
           </select>
-          <p className="text-xs text-slate-500">Utilisez Ctrl/Cmd pour sélectionner plusieurs collections.</p>
           <div className="flex flex-wrap gap-2">
             <Button onClick={runRetrieval} disabled={!canSubmit} className="bg-blue-700 hover:bg-blue-800">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Search className="mr-2 h-4 w-4" />}
               Rechercher les sources
-            </Button>
-            <Button onClick={runChat} disabled={!canSubmit} variant="outline">
-              <MessageSquareText className="mr-2 h-4 w-4" />
-              Répondre avec sources
             </Button>
           </div>
           {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
         </CardContent>
       </Card>
 
-      {chatResponse && (
-        <Card>
-          <CardHeader><CardTitle className="text-base">Réponse citée</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">{chatResponse.answer}</p>
-            {chatResponse.grounded && chatCitations.length > 0 ? (
-              <div className="space-y-2 text-xs text-slate-600">
-                <p className="font-medium">Sources citées</p>
-                {chatCitations.map((citation) => (
-                  <a
-                    key={citation.chunk_id}
-                    href={citation.source_uri}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 text-blue-700 hover:underline"
-                  >
-                    {citation.source_label} · {sourceHost(citation.source_uri)}
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-amber-800">Réponse non fournie sans preuve suffisante.</p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {searched && !loading && !error && !chatResponse && results.length === 0 && (
+      {searched && !loading && !error && results.length === 0 && (
         <Card><CardContent className="py-10 text-center text-sm text-slate-500">
           Aucune source validée ne permet de répondre à cette requête.
         </CardContent></Card>
