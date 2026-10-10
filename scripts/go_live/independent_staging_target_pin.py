@@ -28,6 +28,11 @@ PIN_KIND = "NEXUS_STAGING_QUALIFIED_TARGET_PIN_V1"
 REPOSITORY = "cyranoaladin/RAG"
 REVIEWER = "abenrhouma"
 PIN_DIRECTORY = Path("governance/staging_target_pins")
+DOCKER_SOCKET = Path("/var/run/docker.sock")
+DOCKER_REDIRECT_ENV = frozenset({
+    "DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG",
+    "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH",
+})
 MAX_VALIDITY = timedelta(hours=24)
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 SHA40 = re.compile(r"[0-9a-f]{40}\Z")
@@ -276,6 +281,44 @@ def verify_docker_postgres_binding(
         raise PinRefused("pair TCP absent ou ambigu parmi les ports Docker publiés")
 
 
+def _local_docker_socket_identity() -> tuple[int, int]:
+    """Un vrai socket Unix local, jamais un lien vers un endpoint substitué."""
+    try:
+        metadata = DOCKER_SOCKET.lstat()
+    except OSError as error:
+        raise PinRefused("socket Docker local indisponible") from error
+    if not stat.S_ISSOCK(metadata.st_mode):
+        raise PinRefused("endpoint Docker local non socket ou symbolique")
+    return metadata.st_dev, metadata.st_ino
+
+
+def _inspect_local_docker_container(
+    container_id: str, *, expected_socket_identity: tuple[int, int] | None = None,
+) -> tuple[dict[str, object], tuple[int, int]]:
+    """Interroger toujours le même daemon local, indépendamment du contexte CLI."""
+    before = _local_docker_socket_identity()
+    if expected_socket_identity is not None and before != expected_socket_identity:
+        raise PinRefused("daemon Docker local remplacé")
+    environment = {key: value for key, value in os.environ.items()
+                   if key not in DOCKER_REDIRECT_ENV}
+    try:
+        inspection = subprocess.run(
+            ["docker", "--host", f"unix://{DOCKER_SOCKET}", "inspect",
+             "--type", "container", container_id],
+            check=True, capture_output=True, timeout=10, env=environment,
+        )
+        containers = json.loads(inspection.stdout)
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
+            json.JSONDecodeError) as error:
+        raise PinRefused("inspection Docker locale indisponible") from error
+    if _local_docker_socket_identity() != before:
+        raise PinRefused("daemon Docker local remplacé pendant l'inspection")
+    if (not isinstance(containers, list) or len(containers) != 1
+            or not isinstance(containers[0], dict)):
+        raise PinRefused("conteneur PostgreSQL ambigu")
+    return containers[0], before
+
+
 def observe_live_target(*, container_id: str, destination_root: Path,
                         database_dsn: str) -> LiveTargetObservation:
     """Sondes locales lecture seule; PostgreSQL natif et socket sont refusés."""
@@ -283,18 +326,7 @@ def observe_live_target(*, container_id: str, destination_root: Path,
         raise PinRefused("cible conteneur ou DSN de lecture absent")
     expected_host, expected_port = parse_qualified_dsn_endpoint(database_dsn)
     before = _directory_snapshot(destination_root)
-    try:
-        inspection = subprocess.run(
-            ["docker", "inspect", "--type", "container", container_id],
-            check=True, capture_output=True, timeout=10,
-        )
-        containers = json.loads(inspection.stdout)
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
-            json.JSONDecodeError) as error:
-        raise PinRefused("inspection Docker indisponible") from error
-    if not isinstance(containers, list) or len(containers) != 1:
-        raise PinRefused("conteneur PostgreSQL ambigu")
-    container = containers[0]
+    container, docker_socket_identity = _inspect_local_docker_container(container_id)
     machine_id_path = Path("/etc/machine-id")
     if machine_id_path.is_symlink() or not machine_id_path.is_file():
         raise PinRefused("machine-id de l'hôte indisponible")
@@ -323,18 +355,9 @@ def observe_live_target(*, container_id: str, destination_root: Path,
     verify_docker_postgres_binding(
         container, container_id, row[2], row[3], peer_host, peer_port,
     )
-    try:
-        reinspection = subprocess.run(
-            ["docker", "inspect", "--type", "container", container_id],
-            check=True, capture_output=True, timeout=10,
-        )
-        after_containers = json.loads(reinspection.stdout)
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired,
-            json.JSONDecodeError) as error:
-        raise PinRefused("réinspection Docker indisponible") from error
-    if not isinstance(after_containers, list) or len(after_containers) != 1:
-        raise PinRefused("conteneur changé pendant la sonde")
-    after_container = after_containers[0]
+    after_container, _ = _inspect_local_docker_container(
+        container_id, expected_socket_identity=docker_socket_identity,
+    )
     try:
         before_identity = (
             container["Id"], container["State"]["Running"], container["State"]["Pid"],

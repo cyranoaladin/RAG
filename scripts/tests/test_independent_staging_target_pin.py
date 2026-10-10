@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import socket
 import subprocess
 import sys
@@ -19,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "github"))
 from independent_staging_target_pin import (  # noqa: E402
     LiveTargetObservation,
     PinRefused,
+    _inspect_local_docker_container,
     approved_pin_sha256,
     canonical,
     main,
@@ -34,6 +36,109 @@ ANCHOR = "a" * 64
 CONTAINER = "b" * 64
 HEAD = "c" * 40
 BASE = "d" * 40
+
+
+def test_docker_inspection_ignores_remote_context_and_pins_local_socket(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+
+    docker_socket = tmp_path / "docker.sock"
+    with socket.socket(socket.AF_UNIX) as local:
+        local.bind(str(docker_socket))
+        local.listen()
+        monkeypatch.setattr(module, "DOCKER_SOCKET", docker_socket)
+        for name in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG",
+                     "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+            monkeypatch.setenv(name, "remote.invalid")
+
+        def inspect(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+            assert command == [
+                "docker", "--host", f"unix://{docker_socket}", "inspect",
+                "--type", "container", CONTAINER,
+            ]
+            environment = kwargs["env"]
+            for name in ("DOCKER_HOST", "DOCKER_CONTEXT", "DOCKER_CONFIG",
+                         "DOCKER_TLS_VERIFY", "DOCKER_CERT_PATH"):
+                assert name not in environment
+            return subprocess.CompletedProcess(
+                command, 0, stdout=json.dumps([{"Id": CONTAINER}]).encode(),
+            )
+
+        monkeypatch.setattr(module.subprocess, "run", inspect)
+        container, identity = _inspect_local_docker_container(CONTAINER)
+        assert container["Id"] == CONTAINER
+        assert identity == (docker_socket.lstat().st_dev, docker_socket.lstat().st_ino)
+        assert _inspect_local_docker_container(
+            CONTAINER, expected_socket_identity=identity,
+        )[1] == identity
+
+
+@pytest.mark.parametrize("kind", ["symlink", "regular"])
+def test_docker_inspection_refuses_non_socket_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, kind: str,
+) -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+
+    docker_socket = tmp_path / "docker.sock"
+    if kind == "symlink":
+        docker_socket.symlink_to(tmp_path / "missing.sock")
+    else:
+        docker_socket.write_text("not a socket")
+    monkeypatch.setattr(module, "DOCKER_SOCKET", docker_socket)
+    with pytest.raises(PinRefused):
+        _inspect_local_docker_container(CONTAINER)
+
+
+def test_docker_socket_replacement_between_inspections_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+
+    docker_socket = tmp_path / "docker.sock"
+    with socket.socket(socket.AF_UNIX) as first:
+        first.bind(str(docker_socket))
+        first.listen()
+        monkeypatch.setattr(module, "DOCKER_SOCKET", docker_socket)
+        monkeypatch.setattr(
+            module.subprocess, "run",
+            lambda command, **kwargs: subprocess.CompletedProcess(
+                command, 0, stdout=json.dumps([{"Id": CONTAINER}]).encode(),
+            ),
+        )
+        _, identity = _inspect_local_docker_container(CONTAINER)
+        os.unlink(docker_socket)
+        with socket.socket(socket.AF_UNIX) as second:
+            second.bind(str(docker_socket))
+            second.listen()
+            with pytest.raises(PinRefused):
+                _inspect_local_docker_container(
+                    CONTAINER, expected_socket_identity=identity,
+                )
+
+
+def test_docker_socket_replacement_during_inspection_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import independent_staging_target_pin as module  # noqa: PLC0415
+
+    docker_socket = tmp_path / "docker.sock"
+    with socket.socket(socket.AF_UNIX) as first:
+        first.bind(str(docker_socket))
+        first.listen()
+        monkeypatch.setattr(module, "DOCKER_SOCKET", docker_socket)
+        with socket.socket(socket.AF_UNIX) as second:
+            def replace(command: list[str], **kwargs: object) -> subprocess.CompletedProcess[bytes]:
+                os.unlink(docker_socket)
+                second.bind(str(docker_socket))
+                second.listen()
+                return subprocess.CompletedProcess(
+                    command, 0, stdout=json.dumps([{"Id": CONTAINER}]).encode(),
+                )
+
+            monkeypatch.setattr(module.subprocess, "run", replace)
+            with pytest.raises(PinRefused):
+                _inspect_local_docker_container(CONTAINER)
 
 
 def fixture(tmp_path: Path) -> tuple[bytes, Path, LiveTargetObservation]:

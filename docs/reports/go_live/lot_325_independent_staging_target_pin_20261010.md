@@ -13,6 +13,10 @@ réelle ni digest d'autorité n'a été émis.
    Le DSN doit viser un unique port TCP loopback explicitement publié par l'ID
    Docker épinglé ; le pair du socket libpq, le port interne PostgreSQL et le
    binding Docker sont comparés, avec réinspection du namespace et des ports.
+   Les deux inspections fixent le socket Unix Docker local
+   `/var/run/docker.sock` et vérifient son type et son inode avant et après.
+   Les variables redirigeant le CLI Docker vers un daemon distant sont retirées
+   de l'environnement des sous-processus.
    Une IP de bridge seule, même identique à celle d'un autre conteneur sur un
    réseau distinct, ne suffit pas. Une adresse PostgreSQL native
    de l'hôte, une socket ou un autre conteneur sont refusés. La capture produit
@@ -49,7 +53,7 @@ son device/inode sont relus enfin, y compris après les appels GitHub avant
 `pg_catalog` et la connexion force un search_path sûr.
 Le reçu seul reste explicitement hors autorité de publication.
 
-Vérification locale sur fixtures synthétiques : 108 tests ciblés passent,
+Vérification locale sur fixtures synthétiques : 113 tests ciblés passent,
 `ruff` passe.
 Les sabotages couvrent digest, ancre A, hôte, machine-id, conteneur, base,
 chemin, symlink, expiration, review/HEAD/base/challenge et blob substitué. Ce
@@ -62,6 +66,10 @@ répertoire au même realpath et symlink cassé sur la sortie.
 Un sabotage supplémentaire place deux conteneurs sur des réseaux distincts
 avec la même IP de bridge : seul le port loopback publié par l'ID épinglé est
 accepté. Une publication wildcard ou un namespace partagé est refusé.
+Un contexte Docker distant, un socket symbolique ou ordinaire et le
+remplacement du socket entre inspections sont également refusés. Un essai du
+CLI local avec `currentContext` distant et `--host unix:///var/run/docker.sock`
+résout bien le contexte `default`.
 
 Compatibilité à intégrer dans #325 avant usage : le pin V1 n'a jamais été émis,
 mais son schéma gagne `destination_device` et `destination_inode`. Le parseur
