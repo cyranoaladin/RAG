@@ -149,7 +149,7 @@ def test_schema_head_005_accepts_only_the_exact_contract(
 
 
 def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
-    contract = ENGINE_ROOT / "infra" / "postgres" / "schema_head_005_columns.tsv"
+    contract = ENGINE_ROOT / "infra" / "postgres" / "schema_head_006_columns.tsv"
 
     assert readiness.load_product_column_definitions(contract) == (
         readiness.REQUIRED_PRODUCT_COLUMN_DEFINITIONS
@@ -158,7 +158,7 @@ def test_schema_contract_is_loaded_from_the_shared_versioned_source() -> None:
     assert {
         table: len(columns)
         for table, columns in readiness.REQUIRED_PRODUCT_COLUMN_DEFINITIONS.items()
-    } == {"rag_artifact_placements": 23, "rag_artifacts": 10, "rag_chunks": 32}
+    } == {"rag_artifact_placements": 23, "rag_artifacts": 15, "rag_chunks": 32}
 
 
 @pytest.mark.parametrize(
@@ -254,6 +254,11 @@ def test_expected_migration_records_hash_the_canonical_files() -> None:
             5,
             "005_official_snapshot_currentness.sql",
             "1422e78c62ec71495bfb966a00bfec09dbac0401d7dd0fd79efd376cb2d3061b",
+        ),
+        (
+            6,
+            "006_public_derivative_attribution.sql",
+            "6fed3e1f61309893af1db19733fecce65e4bb8df57d481f7d4eb974877f5917a",
         ),
     )
 

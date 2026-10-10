@@ -12,6 +12,7 @@ import psycopg
 import pytest
 from nexus_contracts import Rights
 
+from ingestor.retrieval_pg_v2 import PgCandidateStore
 from ingestor.retrieval_scope_v2 import ServerRetrievalScope
 from tests.integration._pg_authority import requires_docker, start_rag_retrieval_postgres
 
@@ -115,6 +116,33 @@ def test_chunk_physique_a_et_placement_a_est_accepte(base: psycopg.Connection) -
     chunks, autorises = _jeu(base)
     assert set(chunks) == {CHUNK}
     probe.verifier_candidats_publies([_candidat()], autorises, collection=A, canal="dense")
+
+
+def test_derivative_marker_and_attribution_survive_real_retrieval(
+    base: psycopg.Connection, postgres: dict[str, str],
+) -> None:
+    base.execute(
+        "UPDATE public.rag_artifacts SET is_text_derivative = true, "
+        "licensor = 'MEN', licence_id = 'ETALAB-2.0', "
+        "source_updated_at = '2026-10-10', derivative_notice = 'Extrait dérivé'"
+    )
+    _chunk(base, collection=A)
+    base.execute("UPDATE public.rag_chunks SET page_start = 1, page_end = 1")
+    _placement(base, collection=A, placement_id=PLACEMENT_A)
+    store = PgCandidateStore(lambda: psycopg.connect(postgres["dsn"]), SCOPE_A)
+    candidates = store.lexical(raw_query="littérature philosophie", collection=A, limit=5)
+    assert len(candidates) == 1
+    assert candidates[0].is_text_derivative is True
+    assert candidates[0].licensor == "MEN"
+    assert candidates[0].licence_id == "ETALAB-2.0"
+    assert candidates[0].source_updated_at == "2026-10-10"
+    assert candidates[0].derivative_notice == "Extrait dérivé"
+    assert candidates[0].page_start == 1
+    with pytest.raises(psycopg.errors.CheckViolation):
+        base.execute(
+            "UPDATE public.rag_artifacts SET licensor = NULL, licence_id = NULL, "
+            "source_updated_at = NULL, derivative_notice = NULL"
+        )
 
 
 def test_chunk_physique_b_avec_placements_a_et_b_est_accepte_depuis_a(base: psycopg.Connection) -> None:

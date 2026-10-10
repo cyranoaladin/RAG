@@ -90,6 +90,11 @@ class RetrievalCandidate:
     placement_source_scope: str | None = None
     placement_source_id: str | None = None
     placement_source_path: str | None = None
+    is_text_derivative: bool = False
+    licensor: str | None = None
+    licence_id: str | None = None
+    source_updated_at: str | None = None
+    derivative_notice: str | None = None
     dense_score: float | None = None
     lexical_score: float | None = None
 
@@ -127,6 +132,17 @@ class RetrievalCandidate:
                 or _SHA256.fullmatch(self.placement_id or "") is None
             ):
                 raise RetrievalPipelineError("invalid governed traceability")
+        attribution = (
+            self.licensor, self.licence_id, self.source_updated_at,
+            self.derivative_notice,
+        )
+        if type(self.is_text_derivative) is not bool:
+            raise RetrievalPipelineError("invalid derivative marker")
+        if self.is_text_derivative != all(
+            isinstance(value, str) and bool(value.strip())
+            for value in attribution
+        ) or (not self.is_text_derivative and any(value is not None for value in attribution)):
+            raise RetrievalPipelineError("incomplete derivative attribution")
         if self.page_start is not None:
             if (
                 isinstance(self.page_start, bool)

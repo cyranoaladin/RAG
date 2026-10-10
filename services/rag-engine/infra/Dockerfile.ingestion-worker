@@ -26,6 +26,13 @@ RUN pip install --no-cache-dir --no-deps /tmp/nexus-pdf-page-policy \
  && python -m pip check \
  && rm -rf /tmp/nexus-pdf-page-policy
 
+# Le publisher et la reprise scellée consomment le découpage canonique des
+# dérivés texte depuis le paquet partagé, installé avant le démarrage CLI.
+COPY packages/release-chain /tmp/nexus-release-chain
+RUN pip install --no-cache-dir /tmp/nexus-release-chain \
+ && python -m pip check \
+ && rm -rf /tmp/nexus-release-chain
+
 # Allowlist applicative : préserve le paquet ``ingestor`` tout en répliquant
 # le principe de Dockerfile.ingestor-v2 (COPY nommé, jamais de COPY générique
 # du répertoire ingestor/ complet) — pour un périmètre de fichiers

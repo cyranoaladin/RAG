@@ -216,11 +216,13 @@ def test_la_creation_est_additive_et_refuse_une_base_existante():
         assert _autorise("database_creation", autre, _v4()), cle
 
 
-def test_les_migrations_partent_de_zero_jusqu_aux_tetes_du_depot():
+def test_les_migrations_v4_restent_figees_et_les_tetes_du_depot_sont_suivies():
     assert (_cible("product_migrations")["from_head"], _cible("product_migrations")["target_head"]) == ("000", "005")
     assert (_cible("control_migrations")["from_head"], _cible("control_migrations")["target_head"]) == ("000", "019")
+    # L'autorisation V4 reste à 005 ; la migration 006 de la nouvelle release
+    # publique ne doit jamais être ajoutée implicitement à ce protocole.
     for depot, tete in (
-        ("services/rag-engine/infra/postgres/migrations/HEAD", "005"),
+        ("services/rag-engine/infra/postgres/migrations/HEAD", "006"),
         ("services/rag-engine/infra/postgres/ingestion_control/migrations/HEAD", "020"),
     ):
         assert (RACINE / depot).read_text().strip().startswith(tete)

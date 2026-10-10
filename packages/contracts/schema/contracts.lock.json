@@ -4,7 +4,7 @@
       "sha256": "63d17d438a4999c794cf69ae761e149cbdb821a5558397b60c0cdf1a9e3596f9"
     }
   },
-  "packageVersion": "0.22.0",
+  "packageVersion": "0.24.0",
   "schemas": {
     "chat-payload.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/chat-payload.json",
@@ -16,7 +16,7 @@
     },
     "chat-response.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/chat-response.json",
-      "sha256": "7b70122c4c6aa591b3bf2d5ac7c561c19ed117dc594dbfcc46fa3a6eee594929"
+      "sha256": "553aebeee9719e590fb85e36b1afe96de811568c1146622f36a8b9ac813b875f"
     },
     "internal-identity-envelope.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/internal-identity-envelope.json",
@@ -56,7 +56,7 @@
     },
     "retrieval-response.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-response.json",
-      "sha256": "f731eb6e524699810d0cfee9803871fe52a441e897601b813067c25a334c35af"
+      "sha256": "d1aac17af11660cfd0522afeb623b4f496f9627ed4fc4b15db64fc9b4080aec6"
     },
     "retrieval-scope-artifact-v2.json": {
       "$id": "https://nexusreussite.academy/contracts/v0.5/retrieval-scope-artifact-v2.json",

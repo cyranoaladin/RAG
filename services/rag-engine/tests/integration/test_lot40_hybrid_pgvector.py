@@ -2185,12 +2185,19 @@ def test_schema_registry_fingerprints_and_real_migration_objects_are_exact() -> 
                 ).read_bytes()
             ).hexdigest(),
         ),
+        6: (
+            "006_public_derivative_attribution.sql",
+            hashlib.sha256(
+                (SERVICE_ROOT / "infra/postgres/migrations/006_public_derivative_attribution.sql")
+                .read_bytes()
+            ).hexdigest(),
+        ),
     }
     with psycopg.connect(ADMIN_DSN) as connection:
         rows = connection.execute(
             "SELECT version, file_name, sha256 FROM rag_schema_migrations ORDER BY version"
         ).fetchall()
-        assert rows == [(version, *expected[version]) for version in (1, 2, 3, 4, 5)]
+        assert rows == [(version, *expected[version]) for version in (1, 2, 3, 4, 5, 6)]
         objects = connection.execute(
             """
             SELECT

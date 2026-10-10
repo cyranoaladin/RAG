@@ -296,7 +296,8 @@ def _image_digest_pairs(raw_pairs: list[str], *, label: str) -> dict[str, str]:
 
 
 def _run_docker_compose_config(
-    repo_root: Path, merge_sha: str, work_dir: Path, env_file: Path
+    repo_root: Path, merge_sha: str, work_dir: Path, env_file: Path,
+    *, public_candidate: bool = False,
 ) -> dict[str, Any]:
     """Frontière process, isolée pour être substituée par un double dans les
     tests (jamais un vrai ``docker``/``git`` en suite de tests) — même
@@ -308,12 +309,16 @@ def _run_docker_compose_config(
     (Section 11 : un fichier Compose source unique ne peut pas représenter
     la topologie de production résolue ; ``docker-compose.v2.yml`` +
     ``docker-compose.production-workers.yml`` + ``docker-compose.
-    production-release.yml``, résolus ensemble, le peuvent)."""
+    production-release.yml``, résolus ensemble, le peuvent). En mode public,
+    les deux fichiers Compose blue-green du lot 309 sont résolus depuis le
+    même commit attesté."""
     try:
         return cast(
             dict[str, Any],
             vri.run_docker_compose_config_via_subprocess(
-                repo_root, merge_sha, vri._CANONICAL_COMPOSE_FILES, work_dir, env_file
+                repo_root, merge_sha,
+                vri._PUBLIC_CANDIDATE_COMPOSE_FILES if public_candidate else vri._CANONICAL_COMPOSE_FILES,
+                work_dir, env_file,
             ),
         )
     except vri.ReleaseVerificationError as exc:
@@ -324,9 +329,10 @@ def _canonical_compose_bytes(resolved_config: dict[str, Any]) -> bytes:
     """Le contrat (``nexus_contracts.production_readiness.require_
     manifest_matches_release``, voir sa docstring : « le fichier compose
     résolu ») documente ``compose_digest`` comme portant sur le Compose
-    RÉSOLU — un futur vérificateur hôte (Lot C) doit pouvoir reproduire
-    indépendamment le même digest en résolvant à nouveau les mêmes trois
-    fichiers avec le même ``.env``, jamais en hachant un fichier source
+    RÉSOLU — trois fichiers historiques ou deux fichiers du candidat public,
+    selon le protocole sélectionné. Un futur vérificateur hôte (Lot C) doit
+    pouvoir reproduire indépendamment le même digest en résolvant à nouveau
+    ces mêmes fichiers avec le même ``.env``, jamais en hachant un fichier source
     arbitraire. Sérialisation canonique (clés triées, séparateurs
     compacts, ``ensure_ascii=False``) : la sortie JSON de ``docker
     compose config`` n'est pas elle-même garantie stable octet pour
@@ -343,12 +349,16 @@ def _canonical_compose_bytes(resolved_config: dict[str, Any]) -> bytes:
     )
 
 
-def _upstream_services_from_resolved_compose(resolved_config: dict[str, Any]) -> dict[str, str]:
-    """Tout service du Compose résolu qui n'est pas l'un des trois services
-    applicatifs connus (``deployment_image_inventory._EXPECTED_
-    APPLICATION_SERVICES``, dérivés d'une provenance vérifiée séparément —
-    voir ``_verify_image_bindings``) et qui déclare une image épinglée par
-    digest. Un service à ``build:`` inconnu (hors des trois attendus) ou
+def _upstream_services_from_resolved_compose(
+    resolved_config: dict[str, Any],
+    *,
+    application_services: frozenset[str] = dii._EXPECTED_APPLICATION_SERVICES,
+) -> dict[str, str]:
+    """Tout service du Compose résolu qui n'est pas dans
+    ``application_services`` (trois services historiques ou deux services
+    runtime publics, dérivés d'une provenance vérifiée séparément — voir
+    ``_verify_image_bindings``) et qui déclare une image épinglée par digest.
+    Un service à ``build:`` inconnu (hors du périmètre attendu) ou
     une image non épinglée par digest est refusé, jamais silencieusement
     ignoré : la résolution Compose complète ne devrait plus jamais laisser
     passer l'un ou l'autre dans une release de production réelle."""
@@ -357,7 +367,7 @@ def _upstream_services_from_resolved_compose(resolved_config: dict[str, Any]) ->
         raise SigningToolError("resolved compose config has no 'services' mapping")
     upstream: dict[str, str] = {}
     for name, service in services.items():
-        if name in dii._EXPECTED_APPLICATION_SERVICES:
+        if name in application_services:
             continue
         if not isinstance(service, dict):
             raise SigningToolError(f"resolved compose service {name!r} is not a mapping")
@@ -387,6 +397,7 @@ def _verify_image_bindings(
     *,
     application_image_digests: dict[str, str],
     upstream_image_digests: dict[str, str],
+    expected_application_services: frozenset[str] = dii._EXPECTED_APPLICATION_SERVICES,
 ) -> None:
     """Confronte les images déclarées au Compose RÉSOLU réellement câblé
     dans ce manifeste — jamais deux sources indépendantes qui pourraient
@@ -400,18 +411,39 @@ def _verify_image_bindings(
     bon » (même défaut, même correctif que ``verify_release_image_
     provenance_cli.py``, PR #105 round 2 ; auparavant, ce fichier ne
     confrontait que les NOMS de service, jamais les digests eux-mêmes)."""
+    if expected_application_services not in (
+        dii._EXPECTED_APPLICATION_SERVICES,
+        dii._PUBLIC_RUNTIME_APPLICATION_SERVICES,
+    ):
+        raise SigningToolError("unknown application service set")
+    services = resolved_config.get("services")
+    if expected_application_services == dii._PUBLIC_RUNTIME_APPLICATION_SERVICES and (
+        not isinstance(services, dict)
+        or set(services) != vri._PUBLIC_CANDIDATE_SERVICES
+    ):
+        raise SigningToolError(
+            "public candidate compose must name exactly five read-only services"
+        )
     try:
-        pinned_application = dii.require_resolved_compose_images_are_pinned(resolved_config)
+        pinned_application = dii.require_resolved_compose_images_are_pinned(
+            resolved_config, expected_services=expected_application_services
+        )
     except dii.DeploymentImageInventoryError as exc:
         raise SigningToolError(str(exc)) from exc
     try:
         vri.require_pinned_images_match_verified_provenance(
-            pinned_images=pinned_application, provenance_images=application_image_digests
+            pinned_images=pinned_application,
+            provenance_images={
+                name: application_image_digests[name]
+                for name in expected_application_services
+            },
         )
-    except vri.ReleaseVerificationError as exc:
+    except (KeyError, vri.ReleaseVerificationError) as exc:
         raise SigningToolError(str(exc)) from exc
 
-    upstream_services = _upstream_services_from_resolved_compose(resolved_config)
+    upstream_services = _upstream_services_from_resolved_compose(
+        resolved_config, application_services=expected_application_services
+    )
     declared_upstream = set(upstream_image_digests)
     if declared_upstream != set(upstream_services):
         raise SigningToolError(
@@ -672,6 +704,33 @@ def _derive_application_image_digests(
             raise SigningToolError(f"application image provenance refused: {exc}") from exc
 
 
+def _derive_public_candidate_image_inventory(
+    args: argparse.Namespace, *, merge_sha: str, merge_tree_sha: str
+) -> tuple[dict[str, str], str]:
+    """V2 public : vérifie une fois les quatre images et digeste ce document."""
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            document = dii.fetch_and_verify_public_candidate_image_provenance_document(
+                repository=_TRUSTED_REPOSITORY,
+                source_commit_sha=merge_sha,
+                source_tree_sha=merge_tree_sha,
+                provenance_run_id=args.provenance_run_id,
+                provenance_run_attempt=args.provenance_run_attempt,
+                github_api_get=_github_api_get,
+                download_artifact=dii.make_public_candidate_download_artifact_via_gh(
+                    repository=_TRUSTED_REPOSITORY
+                ),
+                work_dir=Path(tmp),
+            )
+        except dii.DeploymentImageInventoryError as exc:
+            raise SigningToolError(f"public candidate image provenance refused: {exc}") from exc
+    images = {
+        name: f"{service['image_repository']}@{service['image_digest']}"
+        for name, service in document["services"].items()
+    }
+    return images, dii.public_candidate_inventory_digest(document)
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument(
@@ -822,6 +881,7 @@ def _build_v2_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--env-file", type=Path, required=True)
     p.add_argument("--provenance-run-id", type=int, required=True)
     p.add_argument("--provenance-run-attempt", type=int, required=True)
+    p.add_argument("--public-candidate", action="store_true", help="Exiger l'inventaire V2 à quatre images, dont Cockpit")
     p.add_argument("--workflow-path", default=None)
     p.add_argument("--workflow-ref", required=True)
     p.add_argument("--run-id", type=int, required=True)
@@ -1126,6 +1186,7 @@ def assemble_and_sign_v2(
     promotion_run_attempt: int | None = None,
     provenance_run_id: int | None = None,
     provenance_run_attempt: int | None = None,
+    public_candidate_inventory_digest: str | None = None,
 ) -> ProductionReadinessManifestV2:
     """Assemble V2 uniquement depuis le snapshot global revérifié."""
     verified = verify_v2_release_material(material)
@@ -1180,6 +1241,15 @@ def assemble_and_sign_v2(
             application_image_digests=dict(application_image_digests),
             upstream_image_digests=dict(upstream_image_digests),
             compose_digest=compose_digest,
+            public_candidate_inventory_digest=public_candidate_inventory_digest,
+            public_candidate_provenance_run_id=(
+                promotion.image_provenance_run_id
+                if public_candidate_inventory_digest is not None else None
+            ),
+            public_candidate_provenance_run_attempt=(
+                promotion.image_provenance_run_attempt
+                if public_candidate_inventory_digest is not None else None
+            ),
             workflow_path=_CANONICAL_PROMOTION_WORKFLOW_PATH,
             workflow_ref=workflow_ref,
             run_id=promotion.promotion_run_id,
@@ -1519,13 +1589,25 @@ def _main_v2(argv: list[str]) -> int:
         )
         _verify_promotion_artifact_matches_run(args, material)
         with tempfile.TemporaryDirectory() as compose_tmp:
-            resolved_compose = _run_docker_compose_config(
-                args.repo_root, merge_sha, Path(compose_tmp), args.env_file
-            )
+            if args.public_candidate:
+                resolved_compose = _run_docker_compose_config(
+                    args.repo_root, merge_sha, Path(compose_tmp), args.env_file,
+                    public_candidate=True,
+                )
+            else:
+                resolved_compose = _run_docker_compose_config(
+                    args.repo_root, merge_sha, Path(compose_tmp), args.env_file
+                )
         compose_digest = hashlib.sha256(_canonical_compose_bytes(resolved_compose)).hexdigest()
-        application_images = _derive_application_image_digests(
-            args, merge_sha=merge_sha, merge_tree_sha=merge_tree_sha
-        )
+        public_inventory_digest = None
+        if args.public_candidate:
+            application_images, public_inventory_digest = _derive_public_candidate_image_inventory(
+                args, merge_sha=merge_sha, merge_tree_sha=merge_tree_sha
+            )
+        else:
+            application_images = _derive_application_image_digests(
+                args, merge_sha=merge_sha, merge_tree_sha=merge_tree_sha
+            )
         upstream_images = _image_digest_pairs(
             args.upstream_image, label="--upstream-image"
         )
@@ -1533,6 +1615,10 @@ def _main_v2(argv: list[str]) -> int:
             resolved_compose,
             application_image_digests=application_images,
             upstream_image_digests=upstream_images,
+            expected_application_services=(
+                dii._PUBLIC_RUNTIME_APPLICATION_SERVICES
+                if args.public_candidate else dii._EXPECTED_APPLICATION_SERVICES
+            ),
         )
         manifest = assemble_and_sign_v2(
             material,
@@ -1549,6 +1635,7 @@ def _main_v2(argv: list[str]) -> int:
             promotion_run_attempt=args.run_attempt,
             provenance_run_id=args.provenance_run_id,
             provenance_run_attempt=args.provenance_run_attempt,
+            public_candidate_inventory_digest=public_inventory_digest,
         )
         _require_live_main_head(merge_sha)
         private_key_hex = _read_bytes_no_follow(

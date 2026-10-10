@@ -1,0 +1,66 @@
+{
+  "allowed_content_sha256": [
+    "10ce34666edd722a3d8d86642a9f1ac205c7a9d128d6142a17effcba2fb85e69",
+    "1b34f7fade7fbf3180d54cd650bd466f1e4f1d83e8940faac1ed40ab44d7b029",
+    "1b4a7df46aa61784554aec44c22b2d39ef2a88f01e0d5cc96c3e78c1c1a12082",
+    "1f0470afab27a1a68400ffaad404f5d298098194979c0e067d151d0afec75e63",
+    "23d55b3b9a789a06b540fe09424719f03c712c1ebc1f13fe1eb22b094f499e08",
+    "28c92cd742c6bc29890360b79d2518ae1960076b8512e5ccfe40fd0fe3572f32",
+    "366cfbfffc26b6400d06176d0fbcaf44ad887819a7e8cde352bd25aec11ffd14",
+    "3e338a19f4ec51657e9c20774d2d7753a2bb021d11f34f7ca49c2b13c4b328ea",
+    "447bdee89af9f0ab07460bd279f81647824c2d91ba7be1eff6daa133c5e8467d",
+    "461e89b1b1a24a83a1598fe3d55a1aa040d9e305f63b8348bc6042ce96d5687b",
+    "62c76756d1520375b2546ce3fad3a0a5d9ed8525163f0c30384d0c36e258022f",
+    "653ac482b2dd19aa3b592af368868e03ce23ea7196bb9ae4eb6214f9c16eac8c",
+    "732bf55ee80af1b5c8a13243652a4784be134ce4b636ac8d9893f7377a28e7df",
+    "75ce2c7e828bc604035ced94fcde0007807bb2367d54b2f8a934d67cd9c8d532",
+    "7ca9a32e1823be6c1120cb0417324c3cb01688d1d194c7614a88ea851ccc60b0",
+    "852f56f2b7de9b0137db59de6ca646079958452f29f77c5d2d29b1670469b406",
+    "93b7e446273c0d36863ab8f86a39fb91dccb920ebd00e5be020f559253f9a17d",
+    "981c75ca4a8d90eae0fc87ece424a7e085bde81c0fe1a3649b2baf076318c222",
+    "9b0f2814e2a6c21c9a4981b3734ad89ef8a32c2d25fe2fa9616a4f593b04538b",
+    "b27cef1fec864ea8e6b9dc90210ba39c44be5de40f5db6fc663d84f6fba37d64",
+    "b51fdf6b1dede7bd216d553c8106827b3f9f5b4aab0280ecb2001550d81a19ee",
+    "b7f4b80a0b1518522a2168ba7725fe9935cebe8abc9581962a89ea4a4d213d6b",
+    "b826be9b151801ff936a29859b36b68cd2febca6870dca8e9dd842894f83dd80",
+    "c6af1ff6a268086dd12262f93a6c5412dead79ba1b2d8ab2b74ffbffc0fb16ae",
+    "e20b73d10c46a2e681422756b7f981911d752fe8ae3721db4c0156a099070bdc",
+    "f21c80ab3aaa9084fe631f7c38d6ca1451f77c529f8ab2d62296817741bf8963",
+    "f5516f1bbcaae63e9aeaa833299cf0318769bce2b0eee74007ec0dd72e2c16ca",
+    "f636ef6038c2379502bae01d5fdf06556aea70500a42b7adf9bd9f3996fe1d13",
+    "fe1d26535eedee3f1bc44920595faaf9a9b4aae732ebff3854d75d4177c2b202"
+  ],
+  "allowed_domains": [
+    "eduscol.education.gouv.fr"
+  ],
+  "authorization_id": "lot41a-staging-v4-nsi-premiere-specialite-r4",
+  "decision": "AUTHORIZE_INGESTION_SCOPE",
+  "exclusions": [],
+  "manifest_digest": "763c2ad15b935a671725b1a3b829d3326ca65d016129e77cf5a71c5ebbc568b9",
+  "pii_absence_attested": true,
+  "pii_absence_evidence": "services/rag-pedago/data/releases/prerentree_2026_2027/profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/pii_evidence.json@sha256:33e3fbfb943ffded360d2db254061edebe8ccff9e08b7509ebcdf4cd305ca700",
+  "profile_fingerprint": "b473bfb2441904ecb61e99f7ee773669f20658fd75e5397257804430b00a47be",
+  "profile_id": "rag_nexus_nsi_premiere_specialite",
+  "profile_version": "profile-gate-v3",
+  "protocol_version": "LOT41A-V2",
+  "rights_categories": [
+    "officiel_public"
+  ],
+  "scope": {
+    "audience": [
+      "aefe",
+      "libre"
+    ],
+    "candidat": "libre",
+    "collection": "rag_nexus_nsi_premiere_specialite",
+    "matiere": "nsi",
+    "niveau": "premiere",
+    "programme_version": "BOEN_special_1_2019-01-22",
+    "school_year": "2026-2027",
+    "tenant": "libre_premiere",
+    "visibility": "internal",
+    "voie": "generale"
+  },
+  "valid_from": "2026-09-24T00:00:00.000000Z",
+  "valid_until": "2027-08-31T23:59:59.000000Z"
+}

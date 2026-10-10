@@ -1,9 +1,20 @@
 from __future__ import annotations
 
-from typing import Literal
+from datetime import date, datetime
+from typing import Any, Literal, cast
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from typing_extensions import NotRequired, TypedDict
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SerializerFunctionWrapHandler,
+    field_validator,
+    model_serializer,
+    model_validator,
+)
 
 from nexus_contracts.document import Niveau, StatutEnseignement, TypeDoc, Voie
 from nexus_contracts.identity import BoundedIdentifier, BoundedSlug, Sha256Digest
@@ -99,13 +110,113 @@ class RetrievalRequest(BaseModel):
         }
 
 
+_ATTRIBUTION_FIELDS = (
+    "licensor", "licence_id", "source_updated_at", "derivative_notice"
+)
+_ATTRIBUTION_SCHEMA = {
+    "dependentSchemas": {
+        name: {
+            "if": {
+                "properties": {name: {"type": "string"}},
+            },
+            "then": {
+                "required": [*_ATTRIBUTION_FIELDS, "page"],
+                "properties": {
+                    **{field: {"type": "string", "minLength": 1} for field in _ATTRIBUTION_FIELDS},
+                    "page": {"type": "integer", "minimum": 1},
+                },
+            },
+        }
+        for name in _ATTRIBUTION_FIELDS
+    }
+}
+
+
+class SerializedCitation(TypedDict):
+    """Shape emitted by Citation.model_dump, including historical citations."""
+
+    source_label: str
+    page: int | None
+    source_uri: str
+    rights: str
+    licensor: NotRequired[str]
+    licence_id: NotRequired[str]
+    source_updated_at: NotRequired[str]
+    derivative_notice: NotRequired[str]
+
+
+setattr(
+    SerializedCitation,
+    "__pydantic_config__",
+    ConfigDict(extra="forbid", json_schema_extra=cast(Any, _ATTRIBUTION_SCHEMA)),
+)
+
+
 class Citation(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid", json_schema_extra=cast(Any, _ATTRIBUTION_SCHEMA)
+    )
 
     source_label: str = Field(min_length=1)
     page: int | None = Field(default=None, ge=1)
     source_uri: str = Field(min_length=1)
     rights: str = Field(min_length=1)
+    # Les citations historiques restent inchangées ; les dérivés publics
+    # portent les quatre éléments d'attribution comme un bloc indivisible.
+    licensor: str | None = Field(default=None, min_length=1)
+    licence_id: str | None = Field(default=None, min_length=1)
+    source_updated_at: str | None = Field(
+        default=None,
+        pattern=r"^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z)?$",
+        json_schema_extra={
+            "anyOf": [
+                {"type": "string", "format": "date", "pattern": r"^\d{4}-\d{2}-\d{2}$"},
+                {
+                    "type": "string",
+                    "format": "date-time",
+                    "pattern": r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$",
+                },
+                {"type": "null"},
+            ]
+        },
+    )
+    derivative_notice: str | None = Field(default=None, min_length=1)
+
+    @field_validator("source_updated_at")
+    @classmethod
+    def validate_source_date(cls, value: str | None) -> str | None:
+        if value is not None:
+            if "T" in value:
+                datetime.fromisoformat(value.replace("Z", "+00:00"))
+            else:
+                date.fromisoformat(value)
+        return value
+
+    @model_serializer(mode="wrap", return_type=SerializedCitation)
+    def serialize_without_absent_attribution(
+        self, handler: SerializerFunctionWrapHandler
+    ) -> SerializedCitation:
+        payload: dict[str, Any] = handler(self)
+        for name in _ATTRIBUTION_FIELDS:
+            if payload.get(name) is None:
+                payload.pop(name, None)
+        return cast(SerializedCitation, payload)
+
+    @model_validator(mode="after")
+    def validate_public_derivative_attribution(self) -> "Citation":
+        attribution = (
+            self.licensor,
+            self.licence_id,
+            self.source_updated_at,
+            self.derivative_notice,
+        )
+        if any(value is not None for value in attribution) and any(
+            value is None for value in attribution
+        ):
+            raise ValueError("public derivative attribution must be complete")
+        if all(value is not None for value in attribution) and self.page is None:
+            raise ValueError("public derivative attribution requires page")
+        return self
 
 
 class RetrievalResult(BaseModel):

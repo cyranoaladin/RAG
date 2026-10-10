@@ -1,0 +1,30 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "df8ae246ddeebd68.extracted.txt",
+  "extracted_text_sha256": "001e827f587f21276f42c374aa3e307413332be8def5979f10c0ddd39f26725d",
+  "final_url": "https://eduscol.education.gouv.fr/5661/presentation-du-grand-oral",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "df8ae246ddeebd68.normalized.html",
+  "normalized_html_sha256": "5891545123189d28832dc592b86e32642c283aca91fba189de3c59e55f37fb57",
+  "observed_at_utc": "2026-10-10T06:03:28.139Z",
+  "pdf_link_count": 2,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/guide-grand-oral-et-enseignements-de-specialite-97575.pdf",
+      "label": "Guide Grand oral et enseignements de spécialité",
+      "occurrence_index": 0
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/faq-grand-oral-129790.pdf",
+      "label": "Foire aux questions - Grand oral",
+      "occurrence_index": 1
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/5661/presentation-du-grand-oral",
+  "screenshot_file": "df8ae246ddeebd68.png",
+  "screenshot_sha256": "60788c7af5d2b03770f1227a0b4f2c6321b04afd09923feb61c319dbcde30b80"
+}

@@ -421,6 +421,21 @@ def test_le_detecteur_laisse_passer_un_hote_d_exemple():
     )
 
 
+def _contient_chemin_de_poste(texte: str) -> bool:
+    # Les captures HTML scellées peuvent contenir des URL publiques dont le
+    # chemin commence par /home/ ; ce ne sont pas des chemins de poste.
+    sans_urls_http = re.sub(r"https?://[^\s\"'<>]+", "", texte)
+    return re.search(r"/home/[a-z0-9_-]+/", sans_urls_http) is not None
+
+
+def test_le_detecteur_distingue_url_publique_et_chemin_de_poste():
+    assert not _contient_chemin_de_poste(
+        'https://paris.europarl.europa.eu/home/pagecontent/grid-1'
+    )
+    assert _contient_chemin_de_poste('/home/alaeddine/Bureau/RAG')
+    assert _contient_chemin_de_poste('file:///home/alaeddine/Bureau/RAG')
+
+
 def test_aucun_chemin_de_poste_dans_les_rapports_go_live():
     """Une preuve qui nomme /home/<quelqu'un> n'est pas rejouable ailleurs."""
     coupables = []
@@ -431,7 +446,7 @@ def test_aucun_chemin_de_poste_dans_les_rapports_go_live():
             texte = chemin.read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
-        if re.search(r"/home/[a-z0-9_-]+/", texte):
+        if _contient_chemin_de_poste(texte):
             coupables.append(str(chemin.relative_to(RACINE)))
     assert not coupables, "chemins de poste versionnés : " + ", ".join(coupables)
 

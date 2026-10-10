@@ -1,0 +1,25 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "b02608a0d6735024.extracted.txt",
+  "extracted_text_sha256": "1a7bb5546af545b2375b70fff82c0b88a764b428d046b7e246532eb5881deea6",
+  "final_url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "b02608a0d6735024.normalized.html",
+  "normalized_html_sha256": "82747a6e39942b23e2160e81090b513ffe3b707d65474181c303cf0e5b2bdbe5",
+  "observed_at_utc": "2026-10-10T06:03:29.962Z",
+  "pdf_link_count": 1,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/annexeprogrammedgemcmodifiepdf-84138.pdf",
+      "label": "Téléchargez le programme de DGEMC en terminales générale et technologique PDF - 930.41 Ko",
+      "occurrence_index": 0
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/5781/programmes-et-ressources-en-droit-et-grands-enjeux-du-monde-contemporain-voie-gt",
+  "screenshot_file": "b02608a0d6735024.png",
+  "screenshot_sha256": "b702f127fac5f09c815eddd9e1e60290eea650332fd19009020aab1fe5d06cf2"
+}

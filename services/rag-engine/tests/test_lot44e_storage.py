@@ -7,6 +7,7 @@ lecture en dehors du magasin d'artefacts configuré).
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import threading
 from pathlib import Path
@@ -14,11 +15,76 @@ from uuid import uuid4
 
 import pytest
 
+import ingestor.ingestion_worker.storage as storage_module
 from ingestor.ingestion_worker.storage import (
     ArtifactPathEscapeError,
+    SealedArtifactDigestError,
     make_filesystem_artifact_reader,
     make_filesystem_artifact_store,
+    make_sealed_release_artifact_reader,
 )
+
+
+def test_sealed_text_reader_reads_exact_derivative_bytes(tmp_path: Path) -> None:
+    payload = b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\nTexte public\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.txt").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(
+        tmp_path, media_type="text/plain; charset=utf-8"
+    )
+    assert reader(content_sha256=sha) == payload
+
+
+def test_sealed_text_reader_refuses_altered_bytes(tmp_path: Path) -> None:
+    payload = b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\nTexte public\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.txt").write_bytes(payload + b"X")
+    reader = make_sealed_release_artifact_reader(
+        tmp_path, media_type="text/plain; charset=utf-8"
+    )
+    with pytest.raises(SealedArtifactDigestError):
+        reader(content_sha256=sha)
+
+
+def test_sealed_text_reader_ne_replie_pas_sur_un_pdf(tmp_path: Path) -> None:
+    payload = b"%PDF-1.4 source original\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.pdf").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(
+        tmp_path, media_type="text/plain; charset=utf-8"
+    )
+    with pytest.raises(ArtifactPathEscapeError):
+        reader(content_sha256=sha)
+
+
+def test_sealed_pdf_reader_accepts_historical_uppercase_suffix(tmp_path: Path) -> None:
+    payload = b"%PDF-1.4 source historique\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.PDF").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(tmp_path)
+    assert reader(content_sha256=sha) == payload
+
+
+def test_pdf_reader_counts_real_directory_entries_not_casefolded_lookups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Un FS insensible à la casse résout huit graphies vers un seul inode."""
+    payload = b"%PDF-1.4 source historique\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.PDF").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(tmp_path)
+    monkeypatch.setattr(storage_module.os.path, "lexists", lambda _path: True)
+    assert reader(content_sha256=sha) == payload
+
+
+def test_sealed_pdf_reader_refuses_ambiguous_case_variants(tmp_path: Path) -> None:
+    payload = b"%PDF-1.4 source historique\n"
+    sha = hashlib.sha256(payload).hexdigest()
+    (tmp_path / f"{sha}.pdf").write_bytes(payload)
+    (tmp_path / f"{sha}.PDF").write_bytes(payload)
+    reader = make_sealed_release_artifact_reader(tmp_path)
+    with pytest.raises(SealedArtifactDigestError, match="ambiguous"):
+        reader(content_sha256=sha)
 
 
 class TestFilesystemArtifactStoreAndReader:

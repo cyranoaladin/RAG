@@ -1,0 +1,34 @@
+{
+  "base_sha": "9ed9770c0eba7aeb430a34903063e2c4aa4418db",
+  "challenge": "NEXUS-TRUSTED-REVIEW-V1:45053c901cc65156ae94dbb8a715d596d49ed83833a2fb783ea81209c08c65af",
+  "files": {
+    "authority": "governance/student_public_rights/authorities/eduscol_etalab_2_0_sitewide_20261010.yml",
+    "candidate_manifest": "docs/reports/go_live/student_rights_evidence/public_derivative_candidate_manifest_20261010.json",
+    "decision_sheet": "docs/reports/go_live/student_public_rights_individual_review_sheet_20261009.tsv",
+    "delegated_policy": "governance/student_public_rights/delegated_review_policy_v1.yml",
+    "delegation_mandate": "governance/student_public_rights/delegation_abenrhouma_20261009.yml",
+    "evidence_index": "docs/reports/go_live/student_rights_evidence/index.json",
+    "extraction_policy": "governance/student_public_rights/text_derivative_extraction_policy_v1.yml",
+    "inventory_packet": "docs/reports/go_live/student_public_rights_individual_review_packet_20261009.json",
+    "review_schema": "governance/student_public_rights/schemas/automated_artifact_review_v1.schema.json"
+  },
+  "head_sha": "0c402e7d35f1f1efb7c9d252b35c642acc553d31",
+  "head_tree_sha": "06e11b6a686828ed3e6aa799815ec1415a930678",
+  "kind": "PR300_DELEGATED_STUDENT_RIGHTS_APPROVAL_V1",
+  "merge_commit_sha": "2b1f3b04cf84defc7f828da6f3362df7677e8ca3",
+  "pull_request": 300,
+  "repository": "cyranoaladin/RAG",
+  "review_id": 5478072772,
+  "reviewer": "abenrhouma",
+  "sha256": {
+    "authority": "013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1",
+    "candidate_manifest": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
+    "decision_sheet": "d9d37f3f1d78b269c011281fb1d671fe8ddb62184b3066c72fe675fa16970d12",
+    "delegated_policy": "b3e47310712b2a93fe8ddb458eda4a61beae88198274b2deee0113da37cd63d1",
+    "delegation_mandate": "f99ba2ecf66bd62b54cf50a8c81212bc0ef4d51d9c0e619448b98c413dff997f",
+    "evidence_index": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
+    "extraction_policy": "6055813ee697c8b0386ebe266df5b85a744908c5deeaa2daff41afcc1aba7edf",
+    "inventory_packet": "4bee52a4d853aee23c86428585ebf28fa5afd3ecb82e1b3b90e1f84ed8667679",
+    "review_schema": "d49b326dc350ebc5c7d0c7ad42c59dfd84dcd3b8f6168fc8e87310fc8627c143"
+  }
+}

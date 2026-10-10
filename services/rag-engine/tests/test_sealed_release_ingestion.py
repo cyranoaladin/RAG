@@ -17,8 +17,11 @@ import inspect
 import json
 import shutil
 import sys
+from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+from uuid import uuid4
 
 import pytest
 import yaml
@@ -32,6 +35,62 @@ from ingestor.ingestion_control import provisioning  # noqa: E402
 from ingestor.ingestion_profiles.registry import load_profile_registry  # noqa: E402
 from ingestor.ingestion_worker import sealed_release_ingestion as sri  # noqa: E402
 from ingestor.ingestion_worker import sealed_release_ingestion_cli as cli  # noqa: E402
+
+
+def test_public_candidate_release_is_refused_before_authorization_or_write(
+    synthetic: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    facts = replace(_load_synthetic(synthetic), public_successor_release=True)
+    assert facts.promotion_status == "NOT_PROMOTABLE"
+    assert facts.review_status == "PRE_REVIEW"
+    assert facts.activation_status == "NO_PRODUCTION_ACTIVATION"
+    monkeypatch.setattr(
+        sri,
+        "resolve_scopes",
+        lambda *_: {name: SimpleNamespace(visibility="public") for name in facts.collections},
+    )
+
+    def unexpectedly_reached(*_args: object, **_kwargs: object) -> None:
+        pytest.fail("candidate reached authorization or database write")
+
+    monkeypatch.setattr(sri, "require_scope_authorizations", unexpectedly_reached)
+    monkeypatch.setattr(sri, "create_ingestion_run", unexpectedly_reached)
+    with pytest.raises(sri.SealedReleaseIngestionError, match="public.*candidate"):
+        sri.ingest_sealed_release(
+            None,  # type: ignore[arg-type]
+            facts=facts,
+            artifact_store_dir=synthetic["store"],
+            profile_registry={},  # type: ignore[arg-type]
+            scope_authorization_ids={},
+            owner="test",
+        )
+
+
+def test_internal_rehearsal_remains_eligible_for_existing_authority_checks(
+    synthetic: dict[str, Any]
+) -> None:
+    facts = _load_synthetic(synthetic)
+    sri.require_public_release_activation(
+        facts,
+        {name: SimpleNamespace(visibility="internal") for name in facts.collections},
+    )
+    with pytest.raises(sri.SealedReleaseIngestionError, match="public.*candidate"):
+        sri.require_public_release_activation(
+            replace(facts, public_successor_release=True),
+            {name: SimpleNamespace(visibility="public") for name in facts.collections},
+        )
+
+
+def test_candidate_release_mode_is_refused_even_without_successor_authority(
+    synthetic: dict[str, Any]
+) -> None:
+    release_dir = synthetic["release_dir"]
+    path = release_dir / "production-profile-gate.release.json"
+    manifest = json.loads(path.read_text("utf-8"))
+    manifest["release_mode"] = "candidate"
+    path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+    with pytest.raises(sri.SealedReleaseIngestionError, match="public candidate"):
+        _load_synthetic(synthetic)
 
 REAL_RELEASE_DIR = (
     REPO_ROOT
@@ -103,7 +162,7 @@ def _profile_scope(collection: str) -> dict[str, Any]:
     return dict(document["scope"])
 
 
-def _build_synthetic_release(root: Path) -> dict[str, Any]:
+def _build_synthetic_release(root: Path, *, text_derivatives: bool = False) -> dict[str, Any]:
     """Écrit une release scellée complète et cohérente, PDF compris.
 
     Les scopes sont lus dans les VRAIS profils gouvernés : un fixture qui
@@ -117,16 +176,20 @@ def _build_synthetic_release(root: Path) -> dict[str, Any]:
     # Deux artefacts réels (octets écrits, digest recalculé), dont le premier
     # est placé dans les deux collections : 3 placements, 2 artefacts.
     artifacts: dict[str, dict[str, Any]] = {}
-    contents = {
-        "a": b"%PDF-1.4 hggsp+hlp partage\n",
-        "b": b"%PDF-1.4 hlp seul\n",
-    }
+    contents = (
+        {
+            "a": b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\nTexte HGGSP HLP\n",
+            "b": b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\nTexte HLP\n",
+        }
+        if text_derivatives else
+        {"a": b"%PDF-1.4 hggsp+hlp partage\n", "b": b"%PDF-1.4 hlp seul\n"}
+    )
     identifiers: dict[str, str] = {}
     chunk_counts = {"a": 2, "b": 3}
     for key, payload in contents.items():
         identifier = _sha256(payload)
         identifiers[key] = identifier
-        (store / f"{identifier}.pdf").write_bytes(payload)
+        (store / f"{identifier}.{'txt' if text_derivatives else 'pdf'}").write_bytes(payload)
         artifacts[identifier] = {
             "artifact_id": identifier,
             "content_sha256": identifier,
@@ -141,6 +204,29 @@ def _build_synthetic_release(root: Path) -> dict[str, Any]:
                 for index in range(chunk_counts[key])
             ],
         }
+        if text_derivatives:
+            artifacts[identifier]["media_type"] = "text/plain; charset=utf-8"
+            artifacts[identifier]["source_pdf_sha256"] = _sha256(
+                f"%PDF-1.4 original-{key}".encode()
+            )
+            artifacts[identifier]["citation"] = {
+                "source_pdf_sha256": artifacts[identifier]["source_pdf_sha256"],
+                "source_uri": artifacts[identifier]["source_url"],
+                "source_label": artifacts[identifier]["title"],
+                "licensor": "Direction générale de l'enseignement scolaire",
+                "licence_id": "ETALAB-2.0",
+                "source_updated_at": "2026-10-10T06:04:23.168Z",
+                "derivative_notice": "Extrait textuel dérivé.",
+            }
+            receipt_raw = json.dumps({"synthetic": key}, sort_keys=True).encode()
+            receipt_sha = _sha256(receipt_raw)
+            receipt_dir = store / "derivative_receipts"
+            receipt_dir.mkdir(exist_ok=True)
+            (receipt_dir / f"{receipt_sha}.json").write_bytes(receipt_raw)
+            artifacts[identifier]["derivative_receipt_sha256"] = receipt_sha
+            artifacts[identifier]["derivative_receipt_path"] = (
+                f"derivative_receipts/{receipt_sha}.json"
+            )
 
     placements = [
         (SYNTHETIC_COLLECTIONS[0], "a", "spid-a-hggsp"),
@@ -279,7 +365,7 @@ def _build_synthetic_release(root: Path) -> dict[str, Any]:
         "digest_mismatches": 0,
         "files": [
             {
-                "file": f"{identifier}.pdf",
+                "file": f"{identifier}.{'txt' if text_derivatives else 'pdf'}",
                 "sha256_expected": identifier,
                 "sha256_observed": identifier,
             }
@@ -325,9 +411,60 @@ def _load_synthetic(build: dict[str, Any]) -> sri.SealedReleaseFacts:
     )
 
 
+def _text_unit_facts(build: dict[str, Any]) -> sri.SealedReleaseFacts:
+    """Données ciblées pour le store/attribution ; V1 texte est refusé par le loader."""
+    release_dir = build["release_dir"]
+    manifest_path = release_dir / "production-profile-gate.release.json"
+    manifest = json.loads(manifest_path.read_bytes())
+    registry_path = release_dir / "artifacts.release.json"
+    artifacts = {
+        row["artifact_id"]: row
+        for row in json.loads(registry_path.read_bytes())["artifacts"]
+    }
+    inventory_path = release_dir / "candidate_inventory.json"
+    discovery = sri._load_candidate_discovery(
+        inventory_path, expected_sha256=_digest_of(inventory_path),
+    )
+    placements = tuple(
+        placement
+        for subject_ref in manifest["subjects"]
+        for placement in sri._placements_of_subject(
+            collection=subject_ref["collection"],
+            subject=json.loads((release_dir / subject_ref["path"]).read_bytes()),
+            artifacts=artifacts, discovery=discovery,
+        )
+    )
+    return sri.SealedReleaseFacts(
+        release_id=manifest["release_id"], release_kind=manifest["release_kind"],
+        release_manifest_sha256=_digest_of(manifest_path),
+        artifacts_release_sha256=_digest_of(registry_path),
+        candidate_inventory_sha256=_digest_of(inventory_path),
+        artifact_transfer_manifest_sha256=_digest_of(build["transfer_path"]),
+        expected_counts=manifest["expected_counts"],
+        collections=tuple(sorted(ref["collection"] for ref in manifest["subjects"])),
+        profile_versions={ref["collection"]: "profile-gate-v2"
+                          for ref in manifest["subjects"]},
+        artifact_ids=frozenset(artifacts), transferred_artifact_ids=frozenset(artifacts),
+        placements=placements, release_mode="rehearsal",
+        _artifact_chunk_counts={sha: len(row["chunks"]) for sha, row in artifacts.items()},
+        _artifact_media_types={sha: sri.TEXT_MIME for sha in artifacts},
+        _artifact_source_pdf_sha256={sha: row["source_pdf_sha256"]
+                                     for sha, row in artifacts.items()},
+        _artifact_receipt_sha256={sha: row["derivative_receipt_sha256"]
+                                  for sha, row in artifacts.items()},
+        _artifact_source_labels={sha: row["title"] for sha, row in artifacts.items()},
+        _artifact_transfer_filenames={sha: f"{sha}.txt" for sha in artifacts},
+    )
+
+
 @pytest.fixture
 def synthetic(tmp_path: Path) -> dict[str, Any]:
     return _build_synthetic_release(tmp_path)
+
+
+@pytest.fixture
+def synthetic_text(tmp_path: Path) -> dict[str, Any]:
+    return _build_synthetic_release(tmp_path, text_derivatives=True)
 
 
 def _reseal(release_dir: Path, mutate) -> str:
@@ -526,6 +663,178 @@ def test_4ter_un_store_complet_et_exact_est_accepte(synthetic: dict[str, Any]) -
     facts = _load_synthetic(synthetic)
     resolus = sri.require_artifact_store_is_complete(facts, synthetic["store"])
     assert set(resolus) == set(facts.artifact_ids)
+
+
+def test_pdf_majuscule_transfere_est_relu_aux_octets_exactes(
+    synthetic: dict[str, Any],
+) -> None:
+    identifier = synthetic["identifiers"]["a"]
+    transfer_path = synthetic["transfer_path"]
+    transfer = json.loads(transfer_path.read_text("utf-8"))
+    for row in transfer["files"]:
+        if row["sha256_expected"] == identifier:
+            row["file"] = f"{identifier}.PDF"
+    transfer_path.write_text(json.dumps(transfer), encoding="utf-8")
+    (synthetic["store"] / f"{identifier}.pdf").rename(
+        synthetic["store"] / f"{identifier}.PDF"
+    )
+    facts = _load_synthetic(synthetic)
+    paths = sri.require_artifact_store_is_complete(facts, synthetic["store"])
+    assert paths[identifier].name == f"{identifier}.PDF"
+
+
+@pytest.mark.parametrize("poisoned_name", [
+    "{sha}.pdf/../../outside.pdf",
+    "{sha}.PDF/../outside.pdf",
+    "{sha}.pdf\\..\\outside.pdf",
+])
+def test_manifeste_pdf_refuse_un_chemin_traversant_malgre_suffixe_valide(
+    synthetic: dict[str, Any], poisoned_name: str,
+) -> None:
+    identifier = synthetic["identifiers"]["a"]
+    transfer_path = synthetic["transfer_path"]
+    transfer = json.loads(transfer_path.read_text("utf-8"))
+    for row in transfer["files"]:
+        if row["sha256_expected"] == identifier:
+            row["file"] = poisoned_name.format(sha=identifier)
+    transfer_path.write_text(json.dumps(transfer), encoding="utf-8")
+    with pytest.raises(sri.SealedReleaseIngestionError, match="ne correspond"):
+        _load_synthetic(synthetic)
+
+
+def test_le_store_texte_verifie_les_octets_et_sha_exacts(
+    synthetic_text: dict[str, Any],
+) -> None:
+    facts = _text_unit_facts(synthetic_text)
+    paths = sri.require_artifact_store_is_complete(facts, synthetic_text["store"])
+    assert len(paths) == 2
+    assert all(path.suffix == ".txt" for path in paths.values())
+    assert set(facts.artifact_media_types.values()) == {"text/plain; charset=utf-8"}
+
+
+def test_full_loader_rejects_text_with_legacy_v1_inventory(
+    synthetic_text: dict[str, Any],
+) -> None:
+    with pytest.raises(sri.SealedReleaseIngestionError, match="text inventory kind"):
+        _load_synthetic(synthetic_text)
+
+
+def test_full_loader_refuses_public_successor_with_pdf_or_missing_external_gate(
+    synthetic: dict[str, Any], tmp_path: Path,
+) -> None:
+    _reseal(synthetic["release_dir"], lambda manifest: manifest.__setitem__(
+        "release_mode", "public_successor"
+    ))
+    with pytest.raises(sri.SealedReleaseIngestionError, match="public successor requires text"):
+        _load_synthetic(synthetic)
+    text_root = tmp_path / "text"
+    text_root.mkdir()
+    synthetic_text = _build_synthetic_release(text_root, text_derivatives=True)
+    _reseal(synthetic_text["release_dir"], lambda manifest: manifest.__setitem__(
+        "release_mode", "public_successor"
+    ))
+    with pytest.raises(sri.SealedReleaseIngestionError, match="text inventory kind"):
+        _load_synthetic(synthetic_text)
+
+
+def test_activation_refuses_public_successor_even_if_boolean_is_false(
+    synthetic: dict[str, Any],
+) -> None:
+    facts = replace(_load_synthetic(synthetic), release_mode="public_successor",
+                    public_successor_release=False)
+    with pytest.raises(sri.SealedReleaseIngestionError, match="external authority gate"):
+        sri.require_public_release_activation(facts, {})
+
+
+def test_titre_scelle_alimente_l_attribution_durable_du_derive(
+    synthetic_text: dict[str, Any],
+) -> None:
+    facts = _text_unit_facts(synthetic_text)
+    identifier = synthetic_text["identifiers"]["a"]
+    assert facts.artifact_source_labels[identifier] == "Artefact a"
+    profile = load_profile_registry(synthetic_text["profiles_dir"])[
+        (SYNTHETIC_COLLECTIONS[0], "profile-gate-v2")
+    ]
+    attribution = sri.derive_placement_attribution(
+        facts=facts,
+        artifact_id=identifier,
+        ingestion_artifact_id=uuid4(),
+        type_doc="ressource_officielle",
+        source_url="https://eduscol.education.gouv.fr/fichier-a.pdf",
+        profile=profile,
+    )
+    assert attribution.source_label == "Artefact a"
+
+
+def test_le_store_texte_refuse_un_objet_absent(synthetic_text: dict[str, Any]) -> None:
+    facts = _text_unit_facts(synthetic_text)
+    identifier = synthetic_text["identifiers"]["b"]
+    (synthetic_text["store"] / f"{identifier}.txt").unlink()
+    with pytest.raises(sri.SealedReleaseIngestionError, match="absent"):
+        sri.require_artifact_store_is_complete(facts, synthetic_text["store"])
+
+
+def test_le_store_texte_refuse_un_recu_cas_absent(
+    synthetic_text: dict[str, Any],
+) -> None:
+    facts = _text_unit_facts(synthetic_text)
+    receipt = next((synthetic_text["store"] / "derivative_receipts").glob("*.json"))
+    receipt.unlink()
+    with pytest.raises(sri.SealedReleaseIngestionError, match="recu"):
+        sri.require_artifact_store_is_complete(facts, synthetic_text["store"])
+
+
+def test_le_store_texte_refuse_des_octets_alteres(synthetic_text: dict[str, Any]) -> None:
+    facts = _text_unit_facts(synthetic_text)
+    identifier = synthetic_text["identifiers"]["b"]
+    (synthetic_text["store"] / f"{identifier}.txt").write_bytes(b"altered")
+    with pytest.raises(sri.SealedReleaseIngestionError, match="digest divergent"):
+        sri.require_artifact_store_is_complete(facts, synthetic_text["store"])
+
+
+def test_le_pdf_source_ne_peut_pas_se_substituer_au_derive_public(
+    synthetic_text: dict[str, Any],
+) -> None:
+    registry_path = synthetic_text["release_dir"] / "artifacts.release.json"
+    registry = json.loads(registry_path.read_text("utf-8"))
+    registry["artifacts"][0]["source_pdf_sha256"] = registry["artifacts"][0]["content_sha256"]
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    _reseal(
+        synthetic_text["release_dir"],
+        lambda manifest: manifest["artifact_registry"].__setitem__(
+            "sha256", _digest_of(registry_path)
+        ),
+    )
+    with pytest.raises(sri.SealedReleaseIngestionError, match="source PDF"):
+        _load_synthetic(synthetic_text)
+
+
+def test_le_catalogue_texte_sans_attribution_complete_est_refuse(
+    synthetic_text: dict[str, Any],
+) -> None:
+    registry_path = synthetic_text["release_dir"] / "artifacts.release.json"
+    registry = json.loads(registry_path.read_text("utf-8"))
+    registry["artifacts"][0].pop("citation", None)
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    _reseal(
+        synthetic_text["release_dir"],
+        lambda manifest: manifest["artifact_registry"].__setitem__(
+            "sha256", _digest_of(registry_path)
+        ),
+    )
+    with pytest.raises(sri.SealedReleaseIngestionError, match="attribution"):
+        _load_synthetic(synthetic_text)
+
+
+def test_le_payload_scelle_conserve_le_type_et_l_identite_du_pdf_source(
+    synthetic_text: dict[str, Any],
+) -> None:
+    facts = _text_unit_facts(synthetic_text)
+    placement = facts.placements[0]
+    evidence = sri.sealed_placement_evidence(placement, facts)
+    assert evidence["media_type"] == "text/plain; charset=utf-8"
+    assert evidence["source_pdf_sha256"] != evidence["content_sha256"]
+    assert len(evidence["source_pdf_sha256"]) == 64
 
 
 # ==========================================================================

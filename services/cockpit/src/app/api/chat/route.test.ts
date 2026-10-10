@@ -85,42 +85,21 @@ describe('POST /api/chat', () => {
     expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 
-  it('dérive le profil du chat uniquement de l’identité signée', async () => {
+  it('refuse la génération même avec une collection autorisée', async () => {
     const response = await POST(chatRequest(['rag_nexus_nsi_terminale_specialite']))
 
-    expect(response.status).toBe(200)
-    expect(mockedIsPublicLaunchReady).toHaveBeenCalledWith('signed-identity-token')
-    expect(mockedFetchEngine).toHaveBeenCalledWith('/chat', {
-      method: 'POST',
-      identityToken: 'signed-identity-token',
-      body: expect.objectContaining({
-        collections: ['rag_nexus_nsi_terminale_specialite'],
-        student_profile: expect.objectContaining({
-          niveau: 'terminale',
-          voie: 'generale',
-          matieres: ['nsi'],
-          statut_enseignement: 'specialite',
-          candidat: 'cned_libre',
-          school_year: '2026-2027',
-          zone: 'libre',
-        }),
-      }),
-    })
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({ error: 'answer_generation_disabled' })
+    expect(mockedIsPublicLaunchReady).not.toHaveBeenCalled()
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 
-  it('normalise une collection dupliquée avant de construire le profil moteur', async () => {
+  it('refuse également la génération sur une collection dupliquée', async () => {
     const collection = 'rag_nexus_nsi_terminale_specialite'
 
     const response = await POST(chatRequest([collection, collection]))
 
-    expect(response.status).toBe(200)
-    expect(mockedFetchEngine).toHaveBeenCalledWith('/chat', {
-      method: 'POST',
-      identityToken: 'signed-identity-token',
-      body: expect.objectContaining({
-        collections: [collection],
-        student_profile: expect.objectContaining({ matieres: ['nsi'] }),
-      }),
-    })
+    expect(response.status).toBe(503)
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 })

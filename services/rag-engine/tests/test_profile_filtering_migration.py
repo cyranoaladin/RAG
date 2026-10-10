@@ -8,22 +8,24 @@ from pathlib import Path
 ENGINE_ROOT = Path(__file__).resolve().parents[1]
 POSTGRES = ENGINE_ROOT / "infra" / "postgres"
 SCRIPTS = ENGINE_ROOT / "infra" / "scripts"
-FINGERPRINTS = POSTGRES / "schema_head_005_fingerprints.env"
-COLUMN_CONTRACT = POSTGRES / "schema_head_005_columns.tsv"
+FINGERPRINTS = POSTGRES / "schema_head_006_fingerprints.env"
+COLUMN_CONTRACT = POSTGRES / "schema_head_006_columns.tsv"
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_migration_manifest_preserves_profile_filtering_under_head_005() -> None:
-    assert _read(POSTGRES / "migrations" / "HEAD") == "005_official_snapshot_currentness\n"
+def test_migration_manifest_preserves_profile_filtering_under_head_006() -> None:
+    assert _read(POSTGRES / "migrations" / "HEAD") == "006_public_derivative_attribution\n"
     assert (POSTGRES / "migrations" / "003_profile_filtering.sql").is_file()
     assert (POSTGRES / "rollbacks" / "003_profile_filtering.down.sql").is_file()
     assert (POSTGRES / "migrations" / "004_artifact_placements.sql").is_file()
     assert (POSTGRES / "rollbacks" / "004_artifact_placements.down.sql").is_file()
     assert (POSTGRES / "migrations" / "005_official_snapshot_currentness.sql").is_file()
     assert (POSTGRES / "rollbacks" / "005_official_snapshot_currentness.down.sql").is_file()
+    assert (POSTGRES / "migrations" / "006_public_derivative_attribution.sql").is_file()
+    assert (POSTGRES / "rollbacks" / "006_public_derivative_attribution.down.sql").is_file()
 
 
 def test_profile_filtering_migration_is_additive_without_inferred_backfill() -> None:
@@ -85,7 +87,7 @@ def test_migration_runtime_validates_schema_003_and_its_absence() -> None:
     assert "validate_registry_sql 2" in rollback
 
 
-def test_bootstrap_stays_at_002_and_compose_applies_003_then_004_then_005() -> None:
+def test_bootstrap_stays_at_002_and_compose_applies_003_through_006() -> None:
     bootstrap = _read(POSTGRES / "init.sql")
     rag_chunks_bootstrap = bootstrap.split("-- TABLES AUXILIAIRES", maxsplit=1)[0]
     compose = _read(ENGINE_ROOT / "infra" / "docker-compose.v2.yml")
@@ -106,10 +108,15 @@ def test_bootstrap_stays_at_002_and_compose_applies_003_then_004_then_005() -> N
         "./postgres/migrations/005_official_snapshot_currentness.sql:"
         "/docker-entrypoint-initdb.d/03_005_official_snapshot_currentness.sql:ro"
     ) in compose
+    assert (
+        "./postgres/migrations/006_public_derivative_attribution.sql:"
+        "/docker-entrypoint-initdb.d/04_006_public_derivative_attribution.sql:ro"
+    ) in compose
     assert "information_schema.columns" in healthcheck
     assert "validate_003_sql" in healthcheck
     assert "validate_004_sql" in healthcheck
     assert "validate_005_sql" in healthcheck
+    assert "validate_006_sql" in healthcheck
 
 
 def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
@@ -131,6 +138,7 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
         ("003", "003_profile_filtering.sql"),
         ("004", "004_artifact_placements.sql"),
         ("005", "005_official_snapshot_currentness.sql"),
+        ("006", "006_public_derivative_attribution.sql"),
     ):
         assert migration in registration
         assert f"migration_{version}_sha" in registration
@@ -140,11 +148,11 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
     )
     assert (
         "./postgres/register_bootstrap_migrations.sh:"
-        "/docker-entrypoint-initdb.d/04_register_bootstrap_migrations.sh:ro"
+        "/docker-entrypoint-initdb.d/05_register_bootstrap_migrations.sh:ro"
     ) in compose
     assert (
         "./postgres/provision_runtime_roles.sh:"
-        "/docker-entrypoint-initdb.d/05_provision_runtime_roles.sh:ro"
+        "/docker-entrypoint-initdb.d/06_provision_runtime_roles.sh:ro"
     ) in compose
     provisioning = _read(role_provisioning_path)
     for setting in (
@@ -170,19 +178,19 @@ def test_fresh_bootstrap_registers_the_exact_migration_head() -> None:
     healthcheck = _read(healthcheck_path)
     validator_library = _read(SCRIPTS / "lib" / "pgvector_migration_state.sh")
     assert "discover_manifest" in healthcheck
-    assert "validate_registry_sql 5" in healthcheck
+    assert "validate_registry_sql 6" in healthcheck
     assert "pg_get_constraintdef" in validator_library
     assert "pg_get_indexdef" in validator_library
     assert (
         "./postgres/healthcheck.sh:/docker-entrypoint-healthcheck.sh:ro" in compose
     )
     assert (
-        "./postgres/schema_head_005_fingerprints.env:"
-        "/schema-head-005-fingerprints.env:ro" in compose
+        "./postgres/schema_head_006_fingerprints.env:"
+        "/schema-head-006-fingerprints.env:ro" in compose
     )
     assert (
-        "./postgres/schema_head_005_columns.tsv:"
-        "/schema-head-005-columns.tsv:ro" in compose
+        "./postgres/schema_head_006_columns.tsv:"
+        "/schema-head-006-columns.tsv:ro" in compose
     )
     assert '"CMD", "bash", "/docker-entrypoint-healthcheck.sh"' in compose
 
@@ -199,8 +207,8 @@ def test_schema_object_fingerprints_have_one_versioned_source() -> None:
     assert "IDX_RAG_CHUNKS_VECTOR_MD5=" in fingerprints
     assert "IDX_RAG_CHUNKS_TEXT_TSV_MD5=" in fingerprints
     assert "RAG_CHUNKS_TEXT_TSV_EXPRESSION_MD5=" in fingerprints
-    assert "/schema-head-005-fingerprints.env" in healthcheck
-    assert "/schema-head-005-columns.tsv" in healthcheck
+    assert "/schema-head-006-fingerprints.env" in healthcheck
+    assert "/schema-head-006-columns.tsv" in healthcheck
     assert "expected_product_columns" in healthcheck
     begin = healthcheck.index("BEGIN;", healthcheck.index("cat <<'SQL'"))
     create_temp = healthcheck.index("CREATE TEMP TABLE expected_product_columns")

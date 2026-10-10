@@ -1,0 +1,111 @@
+# Politique d'extraction privée. La décision de publication relève du gate séparé.
+id: NEXUS-STUDENT-TEXT-DERIVATIVE-EXTRACTION-V1
+version: 1.1.0
+source_format: application/pdf
+candidate_format: text/plain
+candidate_encoding: utf-8
+source_pdf_visibility: internal
+candidate_visibility: private
+publication_authorized_by_extraction: false
+
+identity:
+  exact_source_sha256_required: true
+  exact_page_count_required: true
+  source_packet_artifact_sha256_required: true
+  generator_code_sha256_required: true
+  adjudication_policy_sha256_required: true
+  modified_source_bytes_disposition: FAIL
+  encrypted_or_embedded_file_disposition: FAIL
+  cftr_source_disposition: EXCLUDE
+
+native_block_extraction:
+  library: PyMuPDF
+  library_version_recorded: true
+  method: "page.get_text('blocks', sort=True)"
+  block_indices_start_at: 0
+  text_block_type: 0
+  normalization: NFC_CRLF_TO_LF_STRIP_V1
+  normalization_order: [unicode_nfc, crlf_to_lf, cr_to_lf, strip_edges]
+  normalized_block_sha256_required: true
+  bbox_sha256_format: "json([format(x,'.6f') for x in bbox[:4]],separators=(',',':'))"
+  all_pages_and_blocks_recorded: true
+  max_group_chars: 4000
+  oversized_native_block_disposition: PII_OR_UNCERTAIN
+
+classification:
+  precedence:
+    - non_text_block
+    - packet_pii_status_not_cleared
+    - packet_automated_review_signal_for_page
+    - publisher_identity_not_proven
+    - third_party_page_signal
+    - empty_native_text
+    - raster_image_bbox_overlap
+    - vector_drawing_bbox_overlap
+    - oversized_native_block
+    - pii_regex
+    - teacher_or_nondisclosure_regex
+    - third_party_block_regex_or_long_quote
+    - safe_native_text
+  packet_automated_review_signal_source: source_packet_artifact.automated_review_signals
+  packet_pii_status_source: source_packet_artifact.source_pii_status
+  accepted_packet_pii_status: CLEARED
+  bbox_intersection: strict_positive_area
+  vector_drawing_rect_source: "page.get_drawings()[*]['rect']"
+  publisher_evidence_allowed:
+    - OFFICIAL_PDF_AUTHOR_METADATA
+    - EXPLICIT_DOCUMENT_IMPRINT
+    - OFFICIAL_CAPTURED_DOWNLOAD_PUBLISHER
+  publisher_identity_missing_disposition: EXCLUDE
+  publisher_identity_metadata_field: author
+  publisher_imprint_pages: [first, last]
+  publisher_name_regex: '(?:\bDGESCO\b|direction\s+g[ée]n[ée]rale\s+de\s+l.enseignement\s+scolaire|minist[èe]re\s+de\s+l.[ée]ducation\s+nationale|\bMENJS?\b)'
+  publisher_imprint_marker_regex: '(?:©|\bcopyright\b|\b[ée]diteur\s*:?|\b[ée]dit[ée]\s+par\b|\bpubli[ée]\s+par\b|\br[ée]alis[ée]\s+par\b|\bcon[çc]u\s+par\b)'
+  publisher_imprint_max_same_line_gap_chars: 80
+  publisher_imprint_regex: '(?:©|\bcopyright\b|\b[ée]diteur\s*:?|\b[ée]dit[ée]\s+par\b|\bpubli[ée]\s+par\b|\br[ée]alis[ée]\s+par\b|\bcon[çc]u\s+par\b)\s*[:\-]?\s*[^\n]{0,80}?(?:\bDGESCO\b|direction\s+g[ée]n[ée]rale\s+de\s+l.enseignement\s+scolaire|minist[èe]re\s+de\s+l.[ée]ducation\s+nationale|\bMENJS?\b)'
+  first_party_copyright_regex: '(?:©|\bcopyright\b)\s*(?:\bDGESCO\b|direction\s+g[ée]n[ée]rale\s+de\s+l.enseignement\s+scolaire|minist[èe]re\s+de\s+l.[ée]ducation\s+nationale|\bMENJS?\b)'
+  third_party_block_regex: '(?:©|\bcopyright\b|\btous droits r[ée]serv[ée]s\b|\breproduit avec l.autorisation\b|\bextrait de\b|\badapt[ée] de\b|\bcr[ée]dits?\b|\b[ée]diteur\b|\b[ée]ditions?\b|\blicen[cs]e\b|\bcreative commons\b|\bCC[- ]?BY\b|\bISBN\b|\bDOI\b|\bbibliographie\b|\bsitographie\b|\ben partenariat avec\b|\bavec le concours de\b|\b(?:Nathan|Hachette|Belin|Hatier|Bordas|Magnard|Flammarion|Gallimard|Larousse|Pearson|Dunod)\b)'
+  third_party_page_regex: '(?:\bcr[ée]dits?\s+(?:photo|photographique|illustration|image|auteur)\b|\breproduit avec l.autorisation\b|\btous droits r[ée]serv[ée]s\b|\bbibliographie\b|\bsitographie\b|\ben partenariat avec\b|\bavec le concours de\b|\bISBN\b|\b(?:[ée]ditions?\s+)?(?:Nathan|Hachette|Belin|Hatier|Bordas|Magnard|Flammarion|Gallimard|Larousse|Pearson|Dunod)\b)'
+  long_quotation_regex: '[«“][\s\S]{120,}?[»”]'
+  third_party_page_signal_excludes_all_blocks: true
+  captured_download_publisher_binding:
+    required: true
+    required_fields: [listing_capture_receipt_sha256, source_provenance_checkpoint_sha256, rights_authority_sha256, source_content_sha256, matched_anchor_href, source_pdf_url]
+    independent_gate_reconstruction_required: true
+    does_not_clear_third_party_or_pii: true
+  regex_flags: IGNORECASE
+  email_regex: '\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b'
+  phone_regex: '(?<!\d)(?:\+33|\+216|0)(?:[\s.()\-]*\d){8,}(?!\d)'
+  teacher_regex: '\b(?:corrig[ée]|bar[èe]me|enseignant(?:s|es)?|professeur(?:s)?|r[ée]serv[ée] aux (?:enseignants|professeurs)|r[ée]ponses? attendues?|solutions?|ne pas communiquer|non.divulgation)\b'
+  included_class: SAFE_TEXT_CANDIDATE
+  excluded_classes: [EXCLUDED_NON_TEXT, THIRD_PARTY_TEXT_SUSPECT, TEACHER_ONLY, PII_OR_UNCERTAIN]
+  model_review_may_override_excluded_class: false
+  graphic_ocr_allowed: false
+  images_or_page_renders_copied: false
+
+serialization:
+  protocol: NEXUS-STUDENT-TEXT-DERIVATIVE-SERIALIZATION-V2
+  header_first_line: NEXUS-STUDENT-TEXT-DERIVATIVE-V2
+  header_second_line: "canonical_json({source_pdf_sha256, source_attribution})"
+  block_first_line: "\\n[PAGE <page_number> BLOCK <block_index>]\\n"
+  block_second_line: "canonical_json({source_pdf_sha256, source_page, source_attribution})"
+  block_text: normalized_native_text_utf8
+  block_terminator: "\\n"
+  canonical_json: "sort_keys=True,separators=(',',':'),ensure_ascii=False,no_newline"
+  pages_without_safe_blocks_emit_bytes: false
+  trailing_newline_required_for_each_emitted_block: true
+  source_date_kind_required: true
+  byte_offsets_per_selected_block_and_group_required: true
+  source_uri_label_page_date_per_selected_block_and_group_required: true
+  licensor_licence_notice_per_selected_block_and_group_required: true
+  empty_derivative_disposition: EXCLUDE
+  distinct_source_and_derivative_sha256_required: true
+  private_candidate_cas_relpath: "candidates/<derivative_sha256>.txt"
+  receipt_cas_relpath: "derivative_receipts/<prefix>/<receipt_sha256>.json"
+  checkpoint_relpath: "derivatives/<source_sha256>.json"
+
+gate:
+  independent_byte_reconstruction_required: true
+  citation_and_rights_approval_required_separately: true
+  source_pdf_publication_allowed: false
+  candidate_publication_allowed_by_this_policy: false

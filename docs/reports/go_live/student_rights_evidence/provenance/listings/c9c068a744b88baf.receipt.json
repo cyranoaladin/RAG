@@ -1,0 +1,260 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "c9c068a744b88baf.extracted.txt",
+  "extracted_text_sha256": "9694af00dceff6403ab39e29e077bcfb2a5c9d6614c0f90789f3cce114a77196",
+  "final_url": "https://eduscol.education.gouv.fr/5799/programmes-et-ressources-en-histoire-geographie-voie-gt",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "c9c068a744b88baf.normalized.html",
+  "normalized_html_sha256": "c8e5c21f9ac6c27f514f86f20194114682a72b268a52356d768947d136d3b1fe",
+  "observed_at_utc": "2026-10-10T06:03:33.121Z",
+  "pdf_link_count": 48,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe577annexe1corr1063699pdf-83007.pdf",
+      "label": "Seconde générale et technologique (BO spécial n° 1 du 22 janvier 2019) PDF - 294.75 Ko",
+      "occurrence_index": 0
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe577annexe21062939pdf-83010.pdf",
+      "label": "Première générale (BO spécial n° 1 du 22 janvier 2019) PDF - 255.46 Ko",
+      "occurrence_index": 1
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe243annexe11159172pdf-83013.pdf",
+      "label": "Terminale générale (BO spécial n° 8 du 25 juillet 2019) PDF - 346.6 Ko",
+      "occurrence_index": 2
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe577annexe31062941pdf-83016.pdf",
+      "label": "Première technologique (BO spécial n° 1 du 22 janvier 2019) PDF - 226.33 Ko",
+      "occurrence_index": 3
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe243annexe21159174pdf-83019.pdf",
+      "label": "Terminale technologique (BO spécial n° 8 du 25 juillet 2019) PDF - 314.84 Ko",
+      "occurrence_index": 4
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegtcom2histtheme1antiquitemoyenage1169453pdf-83022.pdf",
+      "label": "Le monde méditerranéen : empreintes de l'Antiquité et du Moyen Âge PDF - 259.19 Ko",
+      "occurrence_index": 5
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt2histgeotheme2-xve-xvie-nouveau-rapport-monde1293851pdf-83025.pdf",
+      "label": "XVᵉ-XVIᵉ siècles : un nouveau rapport au monde, un temps de mutation intellectuelle PDF - 237.13 Ko",
+      "occurrence_index": 6
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt2histgeotheme3-etat-epoque-moderne1293912pdf-83028.pdf",
+      "label": "L'État à l'époque moderne : France et Angleterre PDF - 285.52 Ko",
+      "occurrence_index": 7
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegcom1histtheme1europerevolution1169455pdf-83031.pdf",
+      "label": "L'Europe face aux révolutions PDF - 304.55 Ko",
+      "occurrence_index": 8
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra22lyceeg1histoiretheme2franceeuropenationalitespolitiquessociete-1848-1871pdf-96450.pdf",
+      "label": "La France dans l'Europe des nationalités : politique et société (1848-1871) PDF - 320.91 Ko",
+      "occurrence_index": 9
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra22lycee-g1histoiretheme-3troisiemer-avant1914-94095.pdf",
+      "label": "La Troisième République avant 1914 : un régime politique, un empire colonial PDF - 313.2 Ko",
+      "occurrence_index": 10
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg1histtheme4premiere-gmfin-emp-euro-70665.pdf",
+      "label": "La Première Guerre mondiale : le « suicide de l'Europe » et la fin des empires européens PDF - 314.13 Ko",
+      "occurrence_index": 11
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceetcom1histtheme1europerevolution1169457pdf-83034.pdf",
+      "label": "L'Europe bouleversée par la Révolution française (1789-1815) PDF - 264.69 Ko",
+      "occurrence_index": 12
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra22lyceet1histoiretheme2transformationspolitiquessocialesfrance-1848-1870pdf-96453.pdf",
+      "label": "Les transformations politiques et sociales de la France de 1848 à 1870 PDF - 801.67 Ko",
+      "occurrence_index": 13
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceet1histtheme3troisiemerepublique-regimeempirecolonialpdf-104766.pdf",
+      "label": "La Troisième République : un régime, un empire colonial PDF - 229.98 Ko",
+      "occurrence_index": 14
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lycee1thistoiretheme4premiere-guerre-mondiale-fin-empire-europeenspdf-99081.pdf",
+      "label": "La Première Guerre mondiale et la fin des empires européens PDF - 388.35 Ko",
+      "occurrence_index": 15
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegthisttheme4fragilite-democraties-totalitarismes-2gm-70980.pdf",
+      "label": "Fragilités des démocraties, totalitarismes et Seconde Guerre mondiale PDF - 276.24 Ko",
+      "occurrence_index": 16
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegthisttheme2multiplication-acteurs-internationaux-monde-bipolairepdf-73089.pdf",
+      "label": "La multiplication des acteurs internationaux dans un monde bipolaire (de 1945 aux années 1970) PDF - 272.22 Ko",
+      "occurrence_index": 17
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegthisttheme3remises-cause-economiques-politiques-sociales-1970-1991pdf-73092.pdf",
+      "label": "Les remises en causes économiques, politiques et sociales des années 1970 à 1991 PDF - 236.84 Ko",
+      "occurrence_index": 18
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegthisttheme4mondeeuropefrancedepuis1990pdf-73197.pdf",
+      "label": "Le monde, l'Europe et la France depuis les années 1990, entre coopérations et conflits PDF - 270.48 Ko",
+      "occurrence_index": 19
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceetthistoiretheme1totalitarisme-seconde-guerre-mondialepdf-101889.pdf",
+      "label": "Totalitarismes et Seconde Guerre mondiale PDF - 299.44 Ko",
+      "occurrence_index": 20
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceetthistoiretheme2monde-bipolaire-multipolairepdf-99084.pdf",
+      "label": "Du monde bipolaire au monde multipolaire PDF - 268.68 Ko",
+      "occurrence_index": 21
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra22lyceetthistoiretheme3france1945-nos-jours-democratiepdf-96441.pdf",
+      "label": "La France de 1945 à nos jours : une démocratie PDF - 294.94 Ko",
+      "occurrence_index": 22
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegtcom2geotheme1equilibrefragile1169452pdf-83037.pdf",
+      "label": "Sociétés et environnements : des équilibres fragiles PDF - 423.2 Ko",
+      "occurrence_index": 23
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegtcom2degeotheme2territoirespopulations1179775pdf-83040.pdf",
+      "label": "Territoires, populations et développement : quels défis ? PDF - 440.44 Ko",
+      "occurrence_index": 24
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt2comgeotheme3mobilites1324199pdf-83043.pdf",
+      "label": "Des mobilités généralisées PDF - 183.07 Ko",
+      "occurrence_index": 25
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt2geotheme4afriqueaustrale1258341pdf-83046.pdf",
+      "label": "L'Afrique australe : un espace en profonde mutation PDF - 417.83 Ko",
+      "occurrence_index": 26
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegcom1geotheme1metropolisation1169454pdf-83049.pdf",
+      "label": "La métropolisation : un processus mondial différencié PDF - 336.44 Ko",
+      "occurrence_index": 27
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegcom1regeotheme2diversificationespaces1179776pdf-83052.pdf",
+      "label": "Une diversification des espaces et des acteurs de la production PDF - 371.48 Ko",
+      "occurrence_index": 28
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1geotheme3multifonctionnalitefragmentation1258339pdf-83055.pdf",
+      "label": "Les espaces ruraux : multifonctionnalité ou fragmentation ? PDF - 248.57 Ko",
+      "occurrence_index": 29
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1geotheme4chine1256344pdf-83058.pdf",
+      "label": "La Chine : des recompositions spatiales multiples PDF - 484.4 Ko",
+      "occurrence_index": 30
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceetcom1geotheme1metropolisation1169456pdf-83061.pdf",
+      "label": "La métropolisation : un processus mondial différencié PDF - 233.97 Ko",
+      "occurrence_index": 31
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceetcom1regeotheme2diversificationespaces1179777pdf-83064.pdf",
+      "label": "Une diversification des espaces et des acteurs de la production PDF - 232.45 Ko",
+      "occurrence_index": 32
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceet1geotheme3multifonctionnalitemarquee1256348pdf-83067.pdf",
+      "label": "Les espaces ruraux : une multifonctionnalité toujours plus marquée PDF - 198.72 Ko",
+      "occurrence_index": 33
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceetechnogeo1retheme4chinetechno1263905pdf-83070.pdf",
+      "label": "La Chine : des recompositions spatiales multiples PDF - 592.16 Ko",
+      "occurrence_index": 34
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeggeottheme1mersetoceansvoiegenerale1313435pdf-83073.pdf",
+      "label": "Mers et océans : au cœur de la mondialisation PDF - 288.45 Ko",
+      "occurrence_index": 35
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeggeottheme2dynamiquesterritorialesvoiegenerale21313437pdf-83076.pdf",
+      "label": "Dynamiques territoriales, coopérations et tensions dans la mondialisation PDF - 894.96 Ko",
+      "occurrence_index": 36
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra22lyceegtgeographietheme1ue-mondialisation-dynamiques-complexespdf-95673.pdf",
+      "label": "L'Union européenne dans la mondialisation : des dynamiques complexes PDF - 850.42 Ko",
+      "occurrence_index": 37
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeggeotthemeconclusiffranceregionsunioneuforceetrecompositions1313446pdf-83079.pdf",
+      "label": "La France et ses régions dans l'Union européenne et dans la mondialisation : lignes de force et recompositions PDF - 1.53 Mo",
+      "occurrence_index": 38
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceetechnogeottheme1mersetoceansvoietechnologique1313439pdf-83082.pdf",
+      "label": "Mers et océans : au cœur de la mondialisation PDF - 227.62 Ko",
+      "occurrence_index": 39
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceetechnogeottheme2terminaletechnologique1313441pdf-83085.pdf",
+      "label": "Des territoires inégalement intégrés dans la mondialisation, en fonction des décisions publiques et des stratégies des entreprises PDF - 229.9 Ko",
+      "occurrence_index": 40
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceetechnogeottheme3franceregionsunioneuforceetrecompositions1313448pdf-83088.pdf",
+      "label": "La France et ses régions dans l'Union européenne et dans la mondialisation : lignes de force et recompositions PDF - 296.87 Ko",
+      "occurrence_index": 41
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/la-place-de-l-esclavage-ses-formes-et-ses-memoires-dans-les-programmes-scolaires-69288.pdf",
+      "label": "Le document de l'IGÉSR et de la Dgesco sur l'esclavage, les traites négrières et leurs abolitions dans les programmes scolaires d'enseignement PDF - 5.09 Mo",
+      "occurrence_index": 42
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ficheincorporesdeforce-alsaciensmosellans-secondeguerremondialepdf-99150.pdf",
+      "label": "Le document de la Dgesco sur la mise en œuvre des programmes à travers le cas des incorporés de force alsaciens et mosellans durant la Seconde Guerre mondiale PDF - 115.87 Ko",
+      "occurrence_index": 43
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ficheparticipationjuifshistoirefrance-123617.pdf",
+      "label": "La ressource Enseigner la participation des juifs à l’histoire de France PDF - 7.92 Mo",
+      "occurrence_index": 44
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/fichecamerountlegenerale-123632.pdf",
+      "label": "La ressource pour la classe terminale générale La France au Cameroun : une guerre de décolonisation en Afrique centrale PDF - 436.82 Ko",
+      "occurrence_index": 45
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/fichecamerountletechnologiquepdf-123623.pdf",
+      "label": "La ressource pour la classe terminale technologique La France au Cameroun : une guerre de décolonisation en Afrique centrale PDF - 417.8 Ko",
+      "occurrence_index": 46
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/france-au-cameroun-annexes-123620.pdf",
+      "label": "Annexes des fiches La France au Cameroun PDF - 2.49 Mo",
+      "occurrence_index": 47
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/5799/programmes-et-ressources-en-histoire-geographie-voie-gt",
+  "screenshot_file": "c9c068a744b88baf.png",
+  "screenshot_sha256": "4079e355649bdcaa9bf766bc6ef1859b125a5a76e3afeaa4e8fe8e26320f8e73"
+}

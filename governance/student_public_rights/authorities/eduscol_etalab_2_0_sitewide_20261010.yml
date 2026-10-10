@@ -1,0 +1,74 @@
+authority_kind: SITEWIDE_DOWNLOAD_AUTHORITY
+authority_id: EDUSCOL_ETALAB_2_0_SITEWIDE
+status: SEALED_PENDING_FINAL_EXACT_HEAD_APPROVAL
+licensor: Direction générale de l'enseignement scolaire
+publisher: Ministère de l'Éducation nationale
+legal_notice_url: https://eduscol.education.gouv.fr/4656/mentions-legales
+licence_id: ETALAB-2.0
+licence_url: https://www.data.gouv.fr/pages/legal/licences/etalab-2.0
+applies_to:
+  - pages publiées sur le site Éduscol
+  - documents proposés en téléchargement sur le site Éduscol
+permitted_uses:
+  - extraction
+  - adaptation
+  - transformation
+  - information dérivée
+  - diffusion
+  - redistribution
+  - intégration dans une application
+  - exploitation commerciale
+attribution_required:
+  - source
+  - concédant
+  - URL
+  - date de dernière mise à jour
+excluded_components:
+  - logo tiers
+  - pictogramme tiers
+  - vignette tierce
+  - infographie tierce
+  - photographie tierce
+  - vidéo tierce
+  - contenu sonore tiers
+  - extrait textuel tiers
+  - tout composant dont le ministère ne détient pas les droits
+full_pdf_redistribution_allowed_by_product: false
+public_use_scope:
+  - recherche pédagogique
+  - passages textuels cités
+answer_generation_allowed: false
+resource_binding_required: true
+resource_binding_statuses:
+  - EXACT_CURRENT_SOURCE
+  - REPLACED_BY_CURRENT_SOURCE
+  - HISTORICAL_OFFICIAL_SNAPSHOT
+  - SOURCE_UNPROVEN
+resource_binding_for_original_derivative_accepted:
+  - EXACT_CURRENT_SOURCE
+  - HISTORICAL_OFFICIAL_SNAPSHOT
+replacement_requires_new_artifact_sha256: true
+old_sha_derivative_forbidden_on_replacement_alone: true
+resource_binding_unproven_disposition: EXCLUDE
+browser_capture:
+  capture_tool: Playwright Chromium
+  capture_tool_version: 1.58.2
+  chromium_version: 145.0.7632.6
+  capture_script: scripts/go_live/capture_eduscol_sitewide_authority.js
+  capture_script_sha256: 4818dbc0120acf403e5c5bd365baa5fccc9f169e94433c8f17967ddd4252c3f6
+  legal_notice:
+    receipt: docs/reports/go_live/student_rights_evidence/authorities/eduscol_legal_notice.receipt.json
+    receipt_sha256: e67accdc1ece2cb1e8db6cd4041635b2a179fce99169c19a104f7999a3145a17
+    normalized_html_sha256: 8e7b11607c65dc614e4db6395ec16a44b3b7370d8651c0f9d07ce4e3f1df29b5
+    extracted_text_sha256: 69846697794d2c0ddebc85e3b904fd4e86bd7f2a221efce7bedc8f6f533548cc
+    screenshot_sha256: 437223c9e907e8462d806cdeeee917bf3631722bdc63072e89e9317007f48a68
+    observed_at_utc: '2026-10-10T05:33:18.840Z'
+    http_status: 200
+  etalab_2_0_licence:
+    receipt: docs/reports/go_live/student_rights_evidence/authorities/etalab_2_0_licence.receipt.json
+    receipt_sha256: cb61de121d3363f4fbfc079466e51c2ed8df9f6c3492a3e408a344fcb5a86a27
+    normalized_html_sha256: bdd7502d4a23e80cea94a28dfb2dfba2cb9a9b53deec9d79901b16bcd3b39a16
+    extracted_text_sha256: 4968fcf4151d12584718877981f3e55c8bfee5406cdded6ff245da9f954df0f9
+    screenshot_sha256: 288c5b7a42a440c364d50d5df6a9f185656558d05354da06be48142f6e394597
+    observed_at_utc: '2026-10-10T05:33:20.288Z'
+    http_status: 200

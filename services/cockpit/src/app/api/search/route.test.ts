@@ -19,6 +19,7 @@ const MATHS_COLLECTION = 'rag_nexus_maths_terminale_gen_specialite'
 const NSI_COLLECTION = 'rag_nexus_nsi_terminale_specialite'
 const authIdentity = {
   sub: 'psn_1234567890abcdef',
+  role: 'student',
   niveau: 'terminale',
   school_year: '2026-2027',
   pedagogical_profile: {
@@ -34,6 +35,14 @@ const authContext = {
   allowedCollections: [MATHS_COLLECTION, NSI_COLLECTION],
   identity: authIdentity,
 } as never
+
+function useTeacherIdentity(): void {
+  mockedRequireBffAuth.mockResolvedValue({
+    identityToken: 'signed-identity-token',
+    allowedCollections: [MATHS_COLLECTION, NSI_COLLECTION],
+    identity: { ...authIdentity, role: 'teacher' },
+  } as never)
+}
 
 function engineResult(
   chunkId: string,
@@ -115,6 +124,33 @@ describe('POST /api/search', () => {
     expect(mockedFetchEngine).not.toHaveBeenCalled()
   })
 
+  it.each([
+    [MATHS_COLLECTION, NSI_COLLECTION],
+    [MATHS_COLLECTION, MATHS_COLLECTION],
+  ])('refuse une recherche élève portant deux collections, même identiques', async (...collections) => {
+    const response = await POST(searchRequest(collections))
+
+    expect(response.status).toBe(400)
+    expect(mockedIsPublicLaunchReady).not.toHaveBeenCalled()
+    expect(mockedFetchEngine).not.toHaveBeenCalled()
+  })
+
+  it('refuse un résultat moteur attribué à une autre collection', async () => {
+    mockedFetchEngine.mockResolvedValue({
+      status: 200,
+      payload: {
+        results: [engineResult('hors-scope', 0.7, { collection: NSI_COLLECTION })],
+        warnings: [],
+        filters_applied: { collection: MATHS_COLLECTION },
+      },
+    })
+
+    const response = await POST(searchRequest([MATHS_COLLECTION]))
+
+    expect(response.status).toBe(502)
+    expect((await responseBody(response)).error).toBe('invalid_upstream_response')
+  })
+
   it('refuse fail-closed une collection signée absente de l’artefact versionné', async () => {
     mockedRequireBffAuth.mockResolvedValue({
       identityToken: 'signed-identity-token',
@@ -180,6 +216,7 @@ describe('POST /api/search', () => {
   })
 
   it('fusionne les collections par leurs têtes sans réordonner une séquence MMR', async () => {
+    useTeacherIdentity()
     mockedFetchEngine
       .mockResolvedValueOnce({
         status: 200,
@@ -221,6 +258,7 @@ describe('POST /api/search', () => {
   })
 
   it('sérialise les appels moteur d’une recherche multi-collections', async () => {
+    useTeacherIdentity()
     let activeCalls = 0
     let maximumActiveCalls = 0
     let releaseFirstCall: (() => void) | undefined
@@ -258,6 +296,7 @@ describe('POST /api/search', () => {
   })
 
   it('n’entame pas une nouvelle collection lorsque le budget BFF global est épuisé', async () => {
+    useTeacherIdentity()
     let nowMs = 1_000
     vi.spyOn(Date, 'now').mockImplementation(() => nowMs)
     mockedFetchEngine.mockImplementation(async () => {

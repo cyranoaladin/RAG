@@ -1,0 +1,158 @@
+# Overlay du candidat de recherche publique. Toujours combiner avec
+# docker-compose.v2.yml sous un projet Compose explicite distinct de `infra`.
+# NEXUS_RELEASE_MATERIAL_ROOT désigne une copie immuable et vérifiée du SHA
+# final, jamais un checkout Git ou un lien `current` mutable.
+x-immutable-bind: &immutable-bind
+  type: bind
+  read_only: true
+  bind:
+    create_host_path: false
+
+networks:
+  # Interface du BFF de la même couleur. Aucun service DB/Prometheus ici.
+  bff_net:
+    driver: bridge
+
+volumes:
+  session_redis_data:
+
+services:
+  pgvector:
+    volumes: !override
+      - rag_pgvector_data:/var/lib/postgresql/data
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/init.sql
+        target: /docker-entrypoint-initdb.d/00_init.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/003_profile_filtering.sql
+        target: /docker-entrypoint-initdb.d/01_003_profile_filtering.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/004_artifact_placements.sql
+        target: /docker-entrypoint-initdb.d/02_004_artifact_placements.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/005_official_snapshot_currentness.sql
+        target: /docker-entrypoint-initdb.d/03_005_official_snapshot_currentness.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations/006_public_derivative_attribution.sql
+        target: /docker-entrypoint-initdb.d/04_006_public_derivative_attribution.sql
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/register_bootstrap_migrations.sh
+        target: /docker-entrypoint-initdb.d/05_register_bootstrap_migrations.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/provision_runtime_roles.sh
+        target: /docker-entrypoint-initdb.d/06_provision_runtime_roles.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/migrations
+        target: /docker-entrypoint-migrations
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/healthcheck.sh
+        target: /docker-entrypoint-healthcheck.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/scripts/lib/pgvector_migration_state.sh
+        target: /pgvector-migration-state.sh
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_006_fingerprints.env
+        target: /schema-head-006-fingerprints.env
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/postgres/schema_head_006_columns.tsv
+        target: /schema-head-006-columns.tsv
+    # Administration de la DB par `docker compose exec` dans ce seul projet.
+    ports: !override []
+
+  ingestor:
+    networks: !override [rag_net, bff_net]
+    build: !reset null
+    # Le dépôt de l'image est fixe : la variable ne peut plus devenir un tag.
+    # Le wrapper signé devra encore lier ce digest à la provenance du SHA final.
+    image: ghcr.io/cyranoaladin/rag-ingestor@sha256:${NEXUS_INGESTOR_IMAGE_SHA256:?digest API de provenance requis}
+    labels:
+      nexus.release-material.sha256: ${NEXUS_RELEASE_MATERIAL_MANIFEST_SHA256:?digest du manifeste des matériaux requis}
+    volumes: !override
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/configs
+        target: /app/configs
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/release
+        target: /app/release
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/servable-corpus
+        target: /app/servable-corpus
+      - <<: *immutable-bind
+        source: ${NEXUS_RUNTIME_SECRETS_ROOT:?secrets runtime requis}/api-clients.json
+        target: /app/api-clients/api-clients.json
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/models/e5-large
+        target: /models/e5-large
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/models/reranker
+        target: /models/reranker
+    ports: !override
+      - 127.0.0.1:${NEXUS_SEARCH_PORT:?port API du candidat requis}:8001
+
+  prometheus:
+    volumes: !override
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/prometheus/prometheus.v2.yml
+        target: /etc/prometheus/prometheus.yml
+      - <<: *immutable-bind
+        source: ${NEXUS_RELEASE_MATERIAL_ROOT:?artefacts scelles requis}/prometheus/rules
+        target: /etc/prometheus/rules
+      - rag_prometheus_data:/prometheus
+    ports: !override
+      - 127.0.0.1:${NEXUS_PROM_PORT:?port Prometheus du candidat requis}:9090
+
+  session-redis:
+    # Digest de l'image upstream retenue et vérifiée pour la release finale.
+    image: docker.io/library/redis@sha256:${NEXUS_REDIS_IMAGE_SHA256:?digest Redis upstream requis}
+    restart: unless-stopped
+    networks: [bff_net]
+    volumes:
+      - session_redis_data:/data
+      - <<: *immutable-bind
+        source: ${NEXUS_RUNTIME_SECRETS_ROOT:?secrets runtime requis}/session-redis.acl
+        target: /run/secrets/session-redis.acl
+    command: [redis-server, --appendonly, "yes", --appendfsync, always, --aclfile, /run/secrets/session-redis.acl]
+    healthcheck:
+      # NOAUTH prouve que le serveur répond mais refuse les clients anonymes.
+      test: [CMD-SHELL, "redis-cli ping 2>&1 | grep -q NOAUTH"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"
+
+  cockpit:
+    image: ghcr.io/cyranoaladin/rag-cockpit@sha256:${NEXUS_COCKPIT_IMAGE_SHA256:?digest Cockpit de provenance requis}
+    restart: unless-stopped
+    depends_on:
+      ingestor:
+        condition: service_healthy
+      session-redis:
+        condition: service_healthy
+    # Fichier hôte hors checkout : aucun secret n'entre dans l'image.
+    env_file:
+      - path: ${NEXUS_RUNTIME_SECRETS_ROOT:?secrets runtime requis}/cockpit.env
+        required: true
+    environment:
+      NODE_ENV: production
+    networks: [bff_net]
+    ports:
+      - 127.0.0.1:${NEXUS_COCKPIT_PORT:?port Cockpit du candidat requis}:3000
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    read_only: true
+    tmpfs: [/tmp:mode=1777, /app/.next/cache:mode=1777]
+    security_opt: [no-new-privileges:true]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "5"

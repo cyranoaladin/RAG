@@ -1,0 +1,278 @@
+Contenu
+Menu
+Rechercher
+Pied de page
+
+MINISTÈRE
+DE L'ÉDUCATION
+NATIONALE
+
+Se connecter
+Rechercher
+Rechercher
+Enseignement et formation
+Scolarité de l'élève et diplômes
+Vie des écoles et des établissements
+Accueil  Enseignement et formation  Niveaux  Enseigner au lycée général/technologique  Programmes et ressources en numérique et sciences informatiques - voie G
+Programmes et ressources en numérique et sciences informatiques - voie G
+
+Les programmes de numérique et sciences informatiques de première et de terminale de la voie générale sont présentés en lien avec des ressources pour accompagner leur mise en œuvre.
+
+février 2026
+Ajouter aux favoris
+SOMMAIRE
+Actualité - Épreuve de l'enseignement de spécialité à compter de la session 2026
+Programme en vigueur
+Le vademecum
+Ressources d'accompagnement pour la classe de première
+Représentation des données
+Traitement des données
+Interactions entre l'homme et la machine sur le Web
+Architectures matérielles et systèmes d'exploitation
+Langages et programmation
+Algorithmique
+Ressources d'accompagnement pour la classe de terminale
+Algorithmique
+Langages et programmation
+Structures de données
+Architectures matérielles, systèmes d’exploitation et réseaux
+Sujets d'examen
+Sujets zéros de l'épreuve écrite de spécialité NSI
+Les épreuves écrites de spécialité NSI
+Les épreuves pratiques de spécialité NSI
+Volumes horaires d'enseignement
+Sitographie pour le programme de Terminale
+Ressources transversales
+Autres programmes et ressources
+Actualité - Épreuve de l'enseignement de spécialité à compter de la session 2026
+
+La note de service du 4 juillet 2025 sur l'épreuve de l'enseignement de spécialité NSI modifie les modalités de l'épreuve pratique à compter de la session 2026.
+
+Trois sujets « zéro » pour l'épreuve pratique sont mis à disposition : Sujet 1 ; Sujet 2 ; Sujet 3.
+
+Programme en vigueur
+Spécialité numérique et sciences informatiques en première (BO spécial n° 1 du 22 janvier 2019) 
+PDF - 300.73 Ko
+Spécialité numérique et sciences informatiques en terminale (BO spécial n° 8 du 25 juillet 2019) 
+PDF - 196.38 Ko
+Le vademecum
+
+L’enseignement des sciences numérique, informatique et technologie est essentiel pour accompagner la transformation numérique de notre société et des pratiques professionnelles actuelles. Le vademecum Sciences numériques et technologie, Numérique et sciences informatiques a vocation à servir cette ambition et s’articule autour de quatre axes :
+
+Un éclairage sur les enjeux et les objectifs des enseignements de SNT et NSI ;
+Les spécificités des enseignements de SNT et de NSI ;
+Des exemples concrets de scénarios pédagogiques et de projets ;
+L’apport des enseignements de SNT et NSI au parcours des élèves.
+Vademecum Sciences numériques et technologie, Numérique et sciences informatiques
+
+PDF - 1.14 MO
+
+Ajouter aux favoris
+Ressources d'accompagnement pour la classe de première
+Pourquoi choisir la spécialité NSI ? 
+PDF - 138.77 Ko
+Représentation des données
+p-uplets nommés et dictionnaires 
+PDF - 158.82 Ko
+Types construits en Python 
+PDF - 159.07 Ko
+Types mutables et problèmes associés 
+PDF - 164.37 Ko
+Représentation des entiers naturels 
+PDF - 167.2 Ko
+Représentation des entiers relatifs 
+PDF - 142.45 Ko
+Traitement des données
+Manipulation de tables 
+PDF - 144.44 Ko
+Manipulation de tables avec la bibliothèque Pandas 
+PDF - 146.17 Ko
+Structures de données 
+PDF - 443.07 Ko
+Interactions entre l'homme et la machine sur le Web
+Évènements 
+PDF - 165.29 Ko
+Interaction client-serveur 
+PDF - 153.73 Ko
+Architectures matérielles et systèmes d'exploitation
+Systèmes de type UNIX : structures de données et algorithmes 
+PDF - 140.85 Ko
+Systèmes de type UNIX : le point de vue utilisateur 
+PDF - 143.82 Ko
+Modèle d'architecture de von Neumann 
+PDF - 243.56 Ko
+Langages et programmation
+Diversité et unité des langages de programmation 
+PDF - 161.08 Ko
+Mise au point de programmes testés 
+PDF - 147.73 Ko
+Algorithmique
+Algorithme des k plus proches voisins 
+PDF - 466.53 Ko
+Recherche dichotomique 
+PDF - 154.65 Ko
+Algorithmes gloutons 
+PDF - 207.89 Ko
+Le problème du sac à dos 
+PDF - 148.04 Ko
+Ressources d'accompagnement pour la classe de terminale
+Algorithmique
+L'algorithme de Boyer et Moore 
+PDF - 1.15 Mo
+Programmation dynamique 
+PDF - 785.04 Ko
+Diviser pour régner 
+PDF - 625.24 Ko
+Langages et programmation
+Calculabilité et décidabilité 
+PDF - 433.14 Ko
+Le paradigme fonctionnel 
+PDF - 404.66 Ko
+Modularité et api 
+PDF - 257.42 Ko
+Écriture de tests 
+PDF - 543.48 Ko
+Mise au point des programmes, gestion des bugs 
+PDF - 230.29 Ko
+Vocabulaire de la programmation objet 
+PDF - 260.45 Ko
+Récursivité 
+PDF - 1.21 Mo
+Structures de données
+Plus court chemin dans un graphe 
+PDF - 703.79 Ko
+Arbres binaires de recherche 
+PDF - 239.28 Ko
+Implantation des arbres binaires de recherche à l’aide de la pool 
+PDF - 368.54 Ko
+Généralités sur les arbres 
+PDF - 356.51 Ko
+Généralités sur les graphes 
+PDF - 452.42 Ko
+Représentation des graphes 
+PDF - 315.2 Ko
+Types abstraits de données - Présentation 
+PDF - 187.5 Ko
+Types abstraits de données - Implantations et propositions de mise en œuvre 
+PDF - 323.87 Ko
+Architectures matérielles, systèmes d’exploitation et réseaux
+Les circuits 
+PDF - 4.51 Mo
+Des circuits aux systèmes sur puces – questionnaire 
+PDF - 602.29 Ko
+Des circuits aux systèmes sur puces – corrigé 
+PDF - 611.76 Ko
+Sécurisation des communications 
+PDF - 874.59 Ko
+Protocoles RIP et OSPF 
+PDF - 383.58 Ko
+Sujets d'examen
+Sujets zéros de l'épreuve écrite de spécialité NSI
+Sujet A 
+PDF - 244.75 Ko
+Sujet B 
+PDF - 610.58 Ko
+Les épreuves écrites de spécialité NSI
+Les annales des épreuves du baccalauréat contiennent les sujets des épreuves écrites de spécialité NSI.
+Les épreuves pratiques de spécialité NSI
+Les éléments relatifs à la session 2025 sont disponibles dans la banque nationale de sujets.
+Volumes horaires d'enseignement
+
+L'horaire élève pour l'enseignement de spécialité NSI est de 4h en première générale, puis de 6h en terminale générale.
+
+Sitographie pour le programme de Terminale
+
+La sélection de ressources proposée est organisée suivant des thématiques en lien avec le programme.
+
+Histoire de l’informatique
+Structures de données
+Bases de données
+Architectures matérielles, systèmes d'exploitation et réseaux
+Langages et programmation
+Algorithmes
+Ressources transversales
+Un cas concret 
+PDF - 527.39 Ko
+Autres programmes et ressources
+Trophées NSI
+
+Les Trophées NSI et la Semaine du numérique et des sciences informatiques
+
+Sciences du numérique
+
+Actualités et accès à toutes les informations de la discipline
+
+Éducation et cybersécurité
+SNT
+
+Programmes et ressources en sciences numériques et technologie en voie générale et technologique
+
+CSTI
+
+Culture scientifique, technique et industrielle
+
+numérique - informatique - sciences de l’ingénieur (lycée GT)
+
+Partager la page
+
+Partager via Facebook
+Partager via X
+Partager via Bluesky
+Partager via LinkedIn
+Partager par email
+Copier le lien
+Sur le même thème
+Enseigner au lycée général/technologique
+
+Pour chaque enseignement, vous trouverez des liens vers des pages qui présentent les programmes du lycée général et technologique et des ressources…
+
+Lycée général
+
+La voie générale prépare en deux ans les lycéens au baccalauréat général et à la poursuite d'études supérieures. Elle est précédée du cycle de…
+
+Baccalauréat général
+Haut de page
+Suivez nous sur les réseaux sociaux
+Facebook
+X (ex-Twitter)
+Sites Éducation
+France Éducation International
+education.gouv.fr
+Devenir Enseignant
+Institut des hautes études de l'éducation et de la formation
+Enseignement supérieur, Recherche et Innovation
+Onisep
+Cned
+Réseau Canopé
+CLEMI
+Sites académiques
+Sites de formation et thématiques
+CultureSciences-Chimie
+La Clé des langues
+Culture sciences de l'ingénieur
+Planet-Terre
+CultureSciences-physique
+Planet-Vie
+Encyclopédie d'histoire numérique de l'Europe
+Sciences économiques et sociales
+Géoconfluences
+Odysseum
+Sites publics
+Élysée.fr
+Data.gouv.fr
+Gouvernement.fr
+Legifrance.gouv.fr
+Service-public.gouv.fr
+Jeunes.gouv.fr
+Sports.gouv.fr
+
+MINISTÈRE
+DE L'ÉDUCATION
+NATIONALE
+
+data.gouv.fr 
+legifrance.gouv.fr 
+service-public.gouv.fr 
+Mentions légales  Données personnelles et cookies  Gestion des cookies  Accessibilité : partiellement conforme  Contact  Plan du site  DE  EN  ES  Comprendre l'espace personnel éduscol
+
+Sauf cas particuliers indiqués dans les mentions légales, les contenus de ce site sont sous licence etalab-2.0.

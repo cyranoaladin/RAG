@@ -153,7 +153,208 @@
     },
     "Citation": {
       "additionalProperties": false,
+      "dependentSchemas": {
+        "derivative_notice": {
+          "if": {
+            "properties": {
+              "derivative_notice": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "derivative_notice": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licence_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licensor": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "page": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "source_updated_at": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "licensor",
+              "licence_id",
+              "source_updated_at",
+              "derivative_notice",
+              "page"
+            ]
+          }
+        },
+        "licence_id": {
+          "if": {
+            "properties": {
+              "licence_id": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "derivative_notice": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licence_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licensor": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "page": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "source_updated_at": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "licensor",
+              "licence_id",
+              "source_updated_at",
+              "derivative_notice",
+              "page"
+            ]
+          }
+        },
+        "licensor": {
+          "if": {
+            "properties": {
+              "licensor": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "derivative_notice": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licence_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licensor": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "page": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "source_updated_at": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "licensor",
+              "licence_id",
+              "source_updated_at",
+              "derivative_notice",
+              "page"
+            ]
+          }
+        },
+        "source_updated_at": {
+          "if": {
+            "properties": {
+              "source_updated_at": {
+                "type": "string"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "derivative_notice": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licence_id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "licensor": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "page": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "source_updated_at": {
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "required": [
+              "licensor",
+              "licence_id",
+              "source_updated_at",
+              "derivative_notice",
+              "page"
+            ]
+          }
+        }
+      },
       "properties": {
+        "derivative_notice": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Derivative Notice"
+        },
+        "licence_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Licence Id"
+        },
+        "licensor": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Licensor"
+        },
         "page": {
           "anyOf": [
             {
@@ -176,6 +377,25 @@
           "minLength": 1,
           "title": "Source Label",
           "type": "string"
+        },
+        "source_updated_at": {
+          "anyOf": [
+            {
+              "format": "date",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+              "type": "string"
+            },
+            {
+              "format": "date-time",
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Updated At"
         },
         "source_uri": {
           "minLength": 1,

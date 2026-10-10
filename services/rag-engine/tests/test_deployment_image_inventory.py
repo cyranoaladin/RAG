@@ -5,8 +5,10 @@ doubles fournis explicitement à chaque appel, jamais un vrai ``gh``.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +17,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 import deployment_image_inventory as dii  # noqa: E402
+import nexus_contracts.production_readiness as readiness_contract  # noqa: E402
 
 REPOSITORY = "cyranoaladin/RAG"
 RUN_ID = 555
@@ -22,6 +25,7 @@ RUN_ATTEMPT = 1
 SOURCE_COMMIT_SHA = "a" * 40
 SOURCE_TREE_SHA = "b" * 40
 WORKFLOW_PATH = ".github/workflows/production-image-provenance.yml"
+PUBLIC_ARTIFACT = "nexus-public-deployment-image-inventory-v2"
 
 INGESTOR_DIGEST = "sha256:" + "1" * 64
 WORKER_DIGEST = "sha256:" + "2" * 64
@@ -114,7 +118,12 @@ class _Fakes:
         if self.inventory is None:
             raise dii.DeploymentImageInventoryError("artifact not found (simulated)")
         path = dest_dir / dii._ARTIFACT_FILENAME
-        path.write_text(json.dumps(self.inventory), encoding="utf-8")
+        raw = (
+            json.dumps(self.inventory, sort_keys=True, indent=2) + "\n"
+            if artifact_name == PUBLIC_ARTIFACT
+            else json.dumps(self.inventory)
+        )
+        path.write_text(raw, encoding="utf-8")
         return path
 
 
@@ -151,6 +160,204 @@ class TestValidProvenanceIsAccepted:
         fakes = _Fakes(run=_run_document(), inventory=_inventory_document())
         _verify(fakes, tmp_path)
         assert fakes.download_calls == [(RUN_ID, "nexus-deployment-image-inventory", tmp_path)]
+
+
+def _public_inventory(**overrides: Any) -> dict[str, Any]:
+    document = deepcopy(_inventory_document())
+    document["protocol_version"] = "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2"
+    document["services"]["cockpit"] = {
+        "source_kind": "build",
+        "build_context": ".",
+        "dockerfile": "services/cockpit/Dockerfile",
+        "dockerfile_sha256": "4" * 64,
+        "image_repository": "ghcr.io/cyranoaladin/rag-cockpit",
+        "image_digest": "sha256:" + "5" * 64,
+    }
+    document.update(overrides)
+    return document
+
+
+def _verify_public(fakes: _Fakes, tmp_path: Path) -> dict[str, str]:
+    return dii.verify_public_candidate_image_provenance(
+        repository=REPOSITORY,
+        source_commit_sha=SOURCE_COMMIT_SHA,
+        source_tree_sha=SOURCE_TREE_SHA,
+        provenance_run_id=RUN_ID,
+        provenance_run_attempt=RUN_ATTEMPT,
+        github_api_get=fakes.github_api_get,
+        download_artifact=fakes.download_artifact,
+        work_dir=tmp_path,
+    )
+
+
+def test_public_inventory_requires_explicit_v2_and_four_bound_images(tmp_path: Path) -> None:
+    fakes = _Fakes(run=_run_document(), inventory=_public_inventory())
+    digests = _verify_public(fakes, tmp_path)
+    assert digests == {
+        "ingestor": f"ghcr.io/cyranoaladin/rag-ingestor@{INGESTOR_DIGEST}",
+        "multilevel-worker-a-production": f"ghcr.io/cyranoaladin/rag-multilevel-worker-production@{WORKER_DIGEST}",
+        "multilevel-worker-b-production": f"ghcr.io/cyranoaladin/rag-multilevel-worker-production@{WORKER_DIGEST}",
+        "cockpit": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "5" * 64,
+    }
+    assert fakes.download_calls == [(RUN_ID, PUBLIC_ARTIFACT, tmp_path)]
+    with pytest.raises(dii.DeploymentImageInventoryError, match="protocol_version"):
+        _verify(fakes, tmp_path)
+
+
+def test_public_image_repositories_match_the_signed_contract() -> None:
+    producer_repositories = {
+        name: repository for name, (_dockerfile, repository) in dii._PUBLIC_SERVICE_SOURCES.items()
+    }
+    assert producer_repositories == readiness_contract.PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
+
+
+def test_public_inventory_accepts_exact_cuda_ingestor_source(tmp_path: Path) -> None:
+    inventory = _public_inventory()
+    inventory["services"]["ingestor"]["dockerfile"] = (
+        "services/rag-engine/infra/Dockerfile.ingestor-v2.cuda"
+    )
+    images = _verify_public(_Fakes(run=_run_document(), inventory=inventory), tmp_path)
+    assert images["ingestor"] == f"ghcr.io/cyranoaladin/rag-ingestor@{INGESTOR_DIGEST}"
+
+
+def test_public_inventory_rejects_cuda_source_in_other_repository(tmp_path: Path) -> None:
+    inventory = _public_inventory()
+    inventory["services"]["ingestor"].update({
+        "dockerfile": "services/rag-engine/infra/Dockerfile.ingestor-v2.cuda",
+        "image_repository": "ghcr.io/cyranoaladin/rag-ingestor-cuda",
+    })
+    with pytest.raises(dii.DeploymentImageInventoryError, match="public image source identity differs"):
+        _verify_public(_Fakes(run=_run_document(), inventory=inventory), tmp_path)
+
+
+def test_public_inventory_exposes_one_verified_document_for_signed_digest(tmp_path: Path) -> None:
+    inventory = _public_inventory()
+    fakes = _Fakes(run=_run_document(), inventory=inventory)
+    document = dii.fetch_and_verify_public_candidate_image_provenance_document(
+        repository=REPOSITORY,
+        source_commit_sha=SOURCE_COMMIT_SHA,
+        source_tree_sha=SOURCE_TREE_SHA,
+        provenance_run_id=RUN_ID,
+        provenance_run_attempt=RUN_ATTEMPT,
+        github_api_get=fakes.github_api_get,
+        download_artifact=fakes.download_artifact,
+        work_dir=tmp_path,
+    )
+    assert document == inventory
+    assert fakes.download_calls == [(RUN_ID, PUBLIC_ARTIFACT, tmp_path)]
+    expected = hashlib.sha256((json.dumps(inventory, sort_keys=True, indent=2) + "\n").encode()).hexdigest()
+    assert dii.public_candidate_inventory_digest(document) == expected
+
+
+def test_public_inventory_refuses_noncanonical_artifact_bytes(tmp_path: Path) -> None:
+    fakes = _Fakes(run=_run_document(), inventory=_public_inventory())
+    def noncanonical_download(run_id: int, artifact_name: str, destination: Path) -> Path:
+        path = fakes.download_artifact(run_id, artifact_name, destination)
+        path.write_text(json.dumps(fakes.inventory), encoding="utf-8")
+        return path
+    with pytest.raises(dii.DeploymentImageInventoryError, match="canonical"):
+        dii.fetch_and_verify_public_candidate_image_provenance_document(
+            repository=REPOSITORY, source_commit_sha=SOURCE_COMMIT_SHA,
+            source_tree_sha=SOURCE_TREE_SHA, provenance_run_id=RUN_ID,
+            provenance_run_attempt=RUN_ATTEMPT, github_api_get=fakes.github_api_get,
+            download_artifact=noncanonical_download, work_dir=tmp_path,
+        )
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ("v1", "protocol_version"),
+        ("missing_cockpit", "does not name exactly"),
+        ("extra_service", "does not name exactly"),
+        ("wrong_context", "public image source identity differs"),
+        ("wrong_dockerfile", "public image source identity differs"),
+        ("wrong_repository", "public image source identity differs"),
+        ("wrong_worker_digest", "two worker services must reference"),
+        ("mutable_digest", "digest"),
+        ("wrong_source_tree", "source_tree_sha"),
+        ("wrong_run_attempt", "workflow_run_attempt"),
+    ],
+)
+def test_public_inventory_refuses_unbound_or_incomplete_image(
+    tmp_path: Path, change: str, message: str
+) -> None:
+    document = _public_inventory()
+    services = document["services"]
+    if change == "v1":
+        document["protocol_version"] = "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V1"
+    elif change == "missing_cockpit":
+        services.pop("cockpit")
+    elif change == "extra_service":
+        services["writer"] = deepcopy(services["cockpit"])
+    elif change == "wrong_context":
+        services["cockpit"]["build_context"] = "services/cockpit"
+    elif change == "wrong_dockerfile":
+        services["cockpit"]["dockerfile"] = "services/rag-engine/src/ui/Dockerfile"
+    elif change == "wrong_repository":
+        services["cockpit"]["image_repository"] = "ghcr.io/elsewhere/rag-cockpit"
+    elif change == "wrong_worker_digest":
+        services["multilevel-worker-b-production"]["image_digest"] = "sha256:" + "9" * 64
+    elif change == "mutable_digest":
+        services["cockpit"]["image_digest"] = "latest"
+    elif change == "wrong_source_tree":
+        document["source_tree_sha"] = "f" * 40
+    elif change == "wrong_run_attempt":
+        document["workflow_run_attempt"] = 2
+    else:
+        raise AssertionError(f"unknown test change: {change}")
+    fakes = _Fakes(run=_run_document(), inventory=document)
+    with pytest.raises(dii.DeploymentImageInventoryError, match=message):
+        _verify_public(fakes, tmp_path)
+
+
+@pytest.mark.parametrize(
+    "change, message",
+    [
+        ("wrong_workflow", "workflow path"),
+        ("wrong_commit", "not the commit being signed"),
+        ("failed_run", "not a successfully completed run"),
+        ("rerun", "current attempt"),
+        ("missing_artifact", "artifact not found"),
+    ],
+)
+def test_public_inventory_refuses_untrusted_run_or_artifact(
+    tmp_path: Path, change: str, message: str
+) -> None:
+    run = _run_document()
+    inventory = _public_inventory()
+    if change == "wrong_workflow":
+        run["path"] = ".github/workflows/other.yml"
+    elif change == "wrong_commit":
+        run["head_sha"] = "f" * 40
+    elif change == "failed_run":
+        run["conclusion"] = "failure"
+    elif change == "rerun":
+        run["run_attempt"] = 2
+    elif change == "missing_artifact":
+        inventory = None
+    else:
+        raise AssertionError(f"unknown test change: {change}")
+    with pytest.raises(dii.DeploymentImageInventoryError, match=message):
+        _verify_public(_Fakes(run=run, inventory=inventory), tmp_path)
+
+
+def test_public_downloader_pins_repository_and_v2_artifact_filename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected = tmp_path / "nexus-public-deployment-image-inventory-v2.json"
+
+    def fake_run(command: list[str], **kwargs: Any) -> Any:
+        assert command == [
+            "gh", "run", "download", str(RUN_ID), "-n", PUBLIC_ARTIFACT,
+            "-D", str(tmp_path), "-R", REPOSITORY,
+        ]
+        expected.write_text("{}", encoding="utf-8")
+        return dii.subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(dii.subprocess, "run", fake_run)
+    downloader = dii.make_public_candidate_download_artifact_via_gh(repository=REPOSITORY)
+    assert downloader(RUN_ID, PUBLIC_ARTIFACT, tmp_path) == expected
 
 
 class TestRunLevelRefusals:

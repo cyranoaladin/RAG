@@ -99,6 +99,46 @@ _CURRENTNESS_EXCLUSION_AUTHORITY_FIELDS = frozenset(
         "currentness_exclusion_registry_sha256",
     }
 )
+_PUBLIC_SUCCESSOR_AUTHORITY_FIELDS = frozenset(
+    {
+        "pr300_final_authority_receipt_sha256",
+        "delegated_evidence_pack_sha256",
+        "candidate_manifest_sha256",
+        "rights_authority_sha256",
+        "text_derivative_extraction_policy_sha256",
+        "public_profile_registry_sha256",
+        "public_rights_registry_sha256",
+        "public_pii_registry_sha256",
+    }
+)
+# Le futur successeur public déclare une chaîne DISTINCTE du candidat #312.
+# Ces empreintes seules ne constituent pas des preuves vérifiées : le lecteur
+# refuse encore l'activation de ce mode en fin de parcours.
+_PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS = frozenset(
+    {
+        "source_candidate_release_manifest_sha256",
+        "source_preparation_release_manifest_sha256",
+        "source_preparation_index_sha256",
+        "candidate_inventory_sha256",
+        "inclusion_attestation_sha256",
+        "derivative_pii_evidence_sha256",
+        "derivative_currentness_evidence_sha256",
+        "public_profile_manifest_sha256",
+        "public_rights_registry_sha256",
+        "public_pii_registry_sha256",
+        "rights_authority_sha256",
+        "delegated_evidence_pack_sha256",
+        "pr300_final_authority_receipt_sha256",
+        "public_scope_authority_sha256",
+        "exact_head_scope_review_receipt_sha256",
+        "authorization_set_sha256",
+        "exact_head_authorization_review_receipt_sha256",
+        "publication_batch_review_receipt_sha256",
+        "artifact_transfer_manifest_sha256",
+        "observed_transfer_receipt_sha256",
+        "revocation_evidence_sha256",
+    }
+)
 _MULTILEVEL_V2_ARTIFACT_FIELDS = frozenset(
     {
         "artifact_id",
@@ -113,6 +153,33 @@ _MULTILEVEL_V2_ARTIFACT_FIELDS = frozenset(
         "chunk_sha256_set_digest",
         "page_coverage_digest",
         "chunks",
+    }
+)
+_MULTILEVEL_V2_TEXT_ARTIFACT_FIELDS = (
+    _MULTILEVEL_V2_ARTIFACT_FIELDS - {"ignored_empty_pages"}
+) | frozenset(
+    {
+        "media_type",
+        "source_pdf_sha256",
+        "derivative_receipt_sha256",
+        "derivative_receipt_path",
+        "citation",
+        "chunk_lineage",
+        "excluded_source_pages",
+    }
+)
+_TEXT_DERIVATIVE_MEDIA_TYPE = "text/plain; charset=utf-8"
+_TEXT_DERIVATIVE_CITATION_FIELDS = frozenset(
+    {
+        "source_pdf_sha256", "source_uri", "source_label", "source_updated_at",
+        "source_date_kind", "licensor", "licence_id", "derivative_notice",
+    }
+)
+_TEXT_DERIVATIVE_LINEAGE_FIELDS = frozenset(
+    {
+        "kind", "private_relpath", "sha256", "source_receipt_sha256",
+        "chunk_count", "approved_native_group_count", "embedding_model_id",
+        "embedding_model_revision", "target_tokens",
     }
 )
 _MULTILEVEL_V2_CHUNK_FIELDS = frozenset(
@@ -417,10 +484,11 @@ def _validate_v2_page_partition(
     *,
     page_count: int,
     chunks: Sequence[Mapping[str, Any]],
+    excluded_field: str = "ignored_empty_pages",
 ) -> None:
     ignored_empty_pages = _require_list(
-        artifact.get("ignored_empty_pages"),
-        f"{field}.ignored_empty_pages",
+        artifact.get(excluded_field),
+        f"{field}.{excluded_field}",
     )
     for index, page in enumerate(ignored_empty_pages):
         if (
@@ -430,7 +498,7 @@ def _validate_v2_page_partition(
             or page > page_count
         ):
             raise ReleaseReadinessError(
-                f"{field}.ignored_empty_pages[{index}] is invalid"
+                f"{field}.{excluded_field}[{index}] is invalid"
             )
     if any(
         current <= previous
@@ -441,7 +509,7 @@ def _validate_v2_page_partition(
         )
     ):
         raise ReleaseReadinessError(
-            f"{field}.ignored_empty_pages must be strictly increasing"
+            f"{field}.{excluded_field} must be strictly increasing"
         )
 
     covered_pages = {
@@ -462,11 +530,14 @@ def _require_authority_chain(
     field: str,
     *,
     review_chain_allowed: bool,
+    public_successor_allowed: bool = False,
+    public_successor_promotion_allowed: bool = False,
 ) -> None:
     """Vérifie une chaîne d'autorité, agrégat comme sujet.
 
     L'ensemble fermé peut s'étendre des quatre empreintes de la revue humaine
-    PII, et de l'autorité d'exclusion d'actualité (ADR-0055), et d'elles seules.
+    PII et de l'autorité d'exclusion d'actualité (ADR-0055). L'autorité du
+    successeur public est réservée au mode candidate explicitement validé.
     Elles sont optionnelles — une release sans contenu détecté ou sans exclusions
     n'a pas de décisions à joindre — mais indivisibles.
 
@@ -480,6 +551,16 @@ def _require_authority_chain(
     Écrit une fois, appelé aux trois endroits : les laisser diverger ferait
     accepter dans l'agrégat ce que le sujet refuse."""
     declared = set(authorities)
+    if public_successor_allowed and declared == _PUBLIC_SUCCESSOR_AUTHORITY_FIELDS:
+        for name in sorted(_PUBLIC_SUCCESSOR_AUTHORITY_FIELDS):
+            _require_sha256(authorities.get(name), f"{field}.{name}")
+        return
+    if public_successor_promotion_allowed:
+        if declared != _PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS:
+            raise ReleaseReadinessError(f"{field}: public successor authorities differ")
+        for name in sorted(_PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS):
+            _require_sha256(authorities.get(name), f"{field}.{name}")
+        return
     review_declared = (
         declared & _PII_REVIEW_AUTHORITY_FIELDS if review_chain_allowed else set()
     )
@@ -763,7 +844,12 @@ def _parse_v2_artifact_registry(
     for index, artifact_raw in enumerate(artifacts_raw):
         artifact_field = f"{field}.artifacts[{index}]"
         artifact = _require_mapping(artifact_raw, artifact_field)
-        if set(artifact) != _MULTILEVEL_V2_ARTIFACT_FIELDS:
+        is_text = artifact.get("media_type") == _TEXT_DERIVATIVE_MEDIA_TYPE
+        expected_artifact_fields = (
+            _MULTILEVEL_V2_TEXT_ARTIFACT_FIELDS
+            if is_text else _MULTILEVEL_V2_ARTIFACT_FIELDS
+        )
+        if set(artifact) != expected_artifact_fields:
             raise ReleaseReadinessError(f"{artifact_field} fields mismatch")
         artifact_id = _require_sha256(artifact.get("artifact_id"), f"{artifact_field}.artifact_id")
         content_sha256 = _require_sha256(
@@ -802,6 +888,58 @@ def _parse_v2_artifact_registry(
             chunk_indices.append(chunk_index)
         if chunk_indices != list(range(len(chunks))):
             raise ReleaseReadinessError(f"{artifact_field} chunk indices are not contiguous")
+        if is_text:
+            source_pdf_sha = _require_sha256(
+                artifact.get("source_pdf_sha256"), f"{artifact_field}.source_pdf_sha256"
+            )
+            if source_pdf_sha == artifact_id:
+                raise ReleaseReadinessError(f"{artifact_field} reuses source PDF identity")
+            if artifact.get("source_path") != f"{artifact_id}.txt":
+                raise ReleaseReadinessError(f"{artifact_field}.source_path mismatch")
+            receipt_sha = _require_sha256(
+                artifact.get("derivative_receipt_sha256"),
+                f"{artifact_field}.derivative_receipt_sha256",
+            )
+            if artifact.get("derivative_receipt_path") != (
+                f"derivative_receipts/{receipt_sha}.json"
+            ):
+                raise ReleaseReadinessError(
+                    f"{artifact_field}.derivative_receipt_path mismatch"
+                )
+            citation = _require_mapping(artifact.get("citation"), f"{artifact_field}.citation")
+            if set(citation) != _TEXT_DERIVATIVE_CITATION_FIELDS:
+                raise ReleaseReadinessError(f"{artifact_field}.citation fields mismatch")
+            if (
+                citation.get("source_pdf_sha256") != source_pdf_sha
+                or citation.get("source_uri") != artifact.get("source_url")
+                or citation.get("source_label") != artifact.get("title")
+            ):
+                raise ReleaseReadinessError(f"{artifact_field}.citation source mismatch")
+            for name in _TEXT_DERIVATIVE_CITATION_FIELDS - {
+                "source_pdf_sha256", "source_uri", "source_label"
+            }:
+                _require_nonblank(citation.get(name), f"{artifact_field}.citation.{name}")
+            lineage = _require_mapping(
+                artifact.get("chunk_lineage"), f"{artifact_field}.chunk_lineage"
+            )
+            if set(lineage) != _TEXT_DERIVATIVE_LINEAGE_FIELDS:
+                raise ReleaseReadinessError(f"{artifact_field}.chunk_lineage fields mismatch")
+            if (
+                lineage.get("kind") != "NEXUS_STUDENT_DERIVATIVE_CHUNK_LINEAGE_V1"
+                or lineage.get("private_relpath") != f"chunk_lineage/{artifact_id}.json"
+                or lineage.get("source_receipt_sha256") != receipt_sha
+                or type(lineage.get("chunk_count")) is not int
+                or lineage["chunk_count"] != len(chunks)
+                or type(lineage.get("approved_native_group_count")) is not int
+                or lineage["approved_native_group_count"] < 1
+                or lineage.get("embedding_model_id") != embedding_model
+                or lineage.get("embedding_model_revision")
+                != "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3"
+                or type(lineage.get("target_tokens")) is not int
+                or lineage["target_tokens"] != 384
+            ):
+                raise ReleaseReadinessError(f"{artifact_field}.chunk_lineage mismatch")
+            _require_sha256(lineage.get("sha256"), f"{artifact_field}.chunk_lineage.sha256")
         _validate_artifact_digests(
             artifact,
             artifact_field,
@@ -812,6 +950,9 @@ def _parse_v2_artifact_registry(
             artifact_field,
             page_count=page_count,
             chunks=chunks,
+            excluded_field=(
+                "excluded_source_pages" if is_text else "ignored_empty_pages"
+            ),
         )
         artifacts.append(
             ExpectedArtifact(
@@ -900,6 +1041,8 @@ def _parse_subject_v2(
         _MULTILEVEL_AUTHORITY_FIELDS,
         f"{field}.authorities",
         review_chain_allowed=True,
+        public_successor_allowed=aggregate.get("release_mode") == "candidate",
+        public_successor_promotion_allowed=aggregate.get("release_mode") == "public_successor",
     )
     if authorities != aggregate.get("authorities"):
         raise ReleaseReadinessError(f"{field}.authorities mismatch")
@@ -913,7 +1056,11 @@ def _parse_subject_v2(
     profile_manifest_digest = _require_sha256(
         profile.get("manifest_digest"), f"{field}.profile.manifest_digest"
     )
-    if profile_manifest_digest != authorities.get("profile_manifest_sha256"):
+    expected_profile_digest = authorities.get(
+        "public_profile_manifest_sha256",
+        authorities.get("public_profile_registry_sha256", authorities.get("profile_manifest_sha256")),
+    )
+    if profile_manifest_digest != expected_profile_digest:
         raise ReleaseReadinessError(f"{field}.profile manifest digest differs from authority")
     if payload.get("models") != aggregate.get("models"):
         raise ReleaseReadinessError(f"{field}.models mismatch")
@@ -1028,7 +1175,9 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         if not (aggregate_keys >= valid_v2_keys and aggregate_keys <= (valid_v2_keys | optional_v2_keys)):
             raise ReleaseReadinessError("release manifest fields mismatch")
         release_mode = aggregate.get("release_mode")
-        if release_mode is not None and release_mode not in {"production", "rehearsal"}:
+        if release_mode is not None and release_mode not in {
+            "production", "rehearsal", "candidate", "public_successor"
+        }:
             raise ReleaseReadinessError("release manifest release_mode is unsupported")
         promotion_status = aggregate.get("promotion_status")
         if promotion_status is not None and promotion_status not in {"PROMOTABLE", "NOT_PROMOTABLE"}:
@@ -1042,6 +1191,20 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         review_status = aggregate.get("review_status")
         if review_status is not None and review_status not in {"REVIEWED", "PRE_REVIEW"}:
             raise ReleaseReadinessError("release manifest review_status is unsupported")
+        if release_mode == "candidate" and (
+            set(_require_mapping(aggregate.get("authorities"), "authorities"))
+            != _PUBLIC_SUCCESSOR_AUTHORITY_FIELDS
+            or promotion_status != "NOT_PROMOTABLE"
+            or activation_status != "NO_PRODUCTION_ACTIVATION"
+            or review_status != "PRE_REVIEW"
+        ):
+            raise ReleaseReadinessError("public successor candidate status mismatch")
+        if release_mode == "public_successor" and (
+            promotion_status != "PROMOTABLE"
+            or activation_status != "PRODUCTION_ACTIVATION_ALLOWED"
+            or review_status != "REVIEWED"
+        ):
+            raise ReleaseReadinessError("public successor status mismatch")
     else:
         release_mode = None
         promotion_status = None
@@ -1049,10 +1212,16 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
         review_status = None
 
     release_id = _require_nonblank(aggregate.get("release_id"), "release_id")
+    if release_mode == "public_successor" and not release_id.startswith(
+        "student-public-successor-"
+    ):
+        raise ReleaseReadinessError("public successor release_id must be new")
     school_year = _require_nonblank(aggregate.get("school_year"), "school_year")
     aggregate_authorities = _require_mapping(aggregate.get("authorities"), "authorities")
     _require_authority_chain(
-        aggregate_authorities, authority_fields, "authorities", review_chain_allowed=is_v2
+        aggregate_authorities, authority_fields, "authorities", review_chain_allowed=is_v2,
+        public_successor_allowed=is_v2 and release_mode == "candidate",
+        public_successor_promotion_allowed=is_v2 and release_mode == "public_successor",
     )
     aggregate_models = _require_mapping(aggregate.get("models"), "models")
     if set(aggregate_models) != {"embedding", "reranker"}:
@@ -1117,6 +1286,12 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
             artifact_registry_sha256,
             "artifact registry",
         )
+        if release_mode == "public_successor" and any(
+            not isinstance(item, Mapping)
+            or item.get("media_type") != _TEXT_DERIVATIVE_MEDIA_TYPE
+            for item in _require_list(artifact_registry.get("artifacts"), "artifact registry.artifacts")
+        ):
+            raise ReleaseReadinessError("public successor requires text derivatives only")
         artifacts.extend(
             _parse_v2_artifact_registry(
                 artifact_registry,
@@ -1207,6 +1382,16 @@ def load_release_expectation(path: Path, expected_sha256: str) -> ReleaseExpecta
             },
             "expected_counts",
         )
+        if release_mode == "public_successor":
+            if any(item.payload.get("visibility") != "public" for item in placements):
+                raise ReleaseReadinessError("public successor placement visibility differs")
+            # Les 21 SHA ci-dessus sont des DECLARATIONS. Ce lecteur ne possède
+            # pas les validateurs de revue GitHub, LOT41A/LOT42, currentness
+            # dérivé ni le reçu des octets transférés. Les accepter comme
+            # autorité de promotion serait une usurpation de ces contrôles.
+            raise ReleaseReadinessError(
+                "public successor external evidence verification unavailable"
+            )
     else:
         counts = _require_mapping(aggregate.get("expected_counts"), "expected_counts")
         aggregate_counts = {

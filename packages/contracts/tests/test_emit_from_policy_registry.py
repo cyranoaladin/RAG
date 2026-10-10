@@ -437,6 +437,27 @@ def test_emitting_over_a_pinned_scope_id_with_other_bytes_is_refused(
         _emit(tmp_path / "out", successor_path=staged)
 
 
+@pytest.mark.parametrize(
+    "collection,scope_id",
+    (
+        ("rag_nexus_hggsp_premiere_specialite", "prod_hggsp_premiere_specialite_v3"),
+        ("rag_nexus_hggsp_terminale_specialite", "prod_hggsp_terminale_specialite_v3"),
+    ),
+)
+def test_naming_authority_cannot_reissue_a_hggsp_successor_id(
+    tmp_path: Path, collection: str, scope_id: str
+) -> None:
+    payload = yaml.safe_load(SUCCESSOR_AUTHORITY.read_text(encoding="utf-8"))
+    for binding in payload["bindings"]:
+        if binding["collection"] == collection:
+            binding["scope_id"] = scope_id
+    staged = tmp_path / "successors.yml"
+    staged.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+
+    with pytest.raises(emitter.ScopeEmissionError, match="collision de scope_id"):
+        _emit(tmp_path / "out", successor_path=staged)
+
+
 # --- Le chemin historique reste intact -----------------------------------
 
 

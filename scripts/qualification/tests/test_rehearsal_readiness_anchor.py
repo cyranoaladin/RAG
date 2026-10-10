@@ -33,13 +33,15 @@ ANCRE_PRODUCTION = RACINE / "governance/trust-anchors/production-readiness-v1.js
 
 KEY_ID = "nexus-rehearsal-readiness-20260920-01"
 
-#: La chaîne de production, épinglée par le lot CQ. Reprise ici pour que
-#: l'ajout d'une ancre de répétition prouve, lui aussi, n'avoir rien déplacé.
+#: Baseline à l'octet de la chaîne de production. Le lot 310 (ADR-0066)
+#: étend intentionnellement le contrat de readiness publique : seul le hash
+#: du contrat change par rapport au lot CQ. Le gate et l'ancre de production
+#: conservent exactement leurs octets antérieurs.
 CHAINE_DE_PRODUCTION_INTACTE = {
     "services/rag-engine/src/ingestor/ingestion_profiles/readiness_gate.py":
         "a22d4dc2b4436df5f5501dc865ed48aade54e4f6056ed32839814128188f3a28",
     "packages/contracts/src/nexus_contracts/production_readiness.py":
-        "2e3398903b9a46fca1cbc7dfd923bb67cdb25e44b249ed2915ec3635ad430245",
+        "cadcc7e3a9a5c2f5eda07794b06c625834150b5cb164fe35fbe011910169dee1",
     "governance/trust-anchors/production-readiness-v1.json":
         "f123e9f35a9430d02092df675e5ed657fbccf8fb10af90fe03416335e7d1d238",
 }
@@ -189,8 +191,8 @@ def test_la_chaine_de_production_est_intacte_a_l_octet_pres(chemin: str) -> None
     attendu = CHAINE_DE_PRODUCTION_INTACTE[chemin]
     observe = hashlib.sha256((RACINE / chemin).read_bytes()).hexdigest()
     assert observe == attendu, (
-        f"{chemin} a changé : ajouter une ancre de répétition ne déplace rien "
-        "de la chaîne de production."
+        f"{chemin} a changé : toute nouvelle baseline de la chaîne de "
+        "production doit être documentée et revue."
     )
 
 

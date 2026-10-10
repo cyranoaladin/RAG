@@ -42,8 +42,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
@@ -54,6 +55,7 @@ from nexus_contracts.ingestion import CollectionProfile, ResourceScope
 from nexus_contracts.resource_state import ResourceState
 
 from ingestor.ingestion_control.artifact_attribution import (
+    ArtifactAttribution,
     derive_sealed_release_artifact_attribution,
     persist_artifact_attribution,
 )
@@ -68,8 +70,16 @@ from ingestor.ingestion_control.scope_authority import (
     VerifiedAuthorization,
     verify_scope_authorization,
 )
+from ingestor.ingestion_control.sealed_release_catalog import TEXT_MEDIA_TYPE
 from ingestor.ingestion_control.transitions import cas_transition
 from ingestor.ingestion_profiles.registry import ProfileRegistry
+from ingestor.multilevel_evidence import (
+    INVENTORY_KIND,
+    STUDENT_PUBLIC_INVENTORY_KIND,
+    MultilevelEvidenceError,
+    StudentPublicCandidateInventory,
+    load_student_public_candidate_inventory,
+)
 
 #: Le protocole sous lequel ces lignes sont écrites (ADR-0056). Il figure
 #: dans chaque ``payload`` : une ligne dit d'elle-même sous quel régime elle
@@ -100,6 +110,9 @@ STATE_SEQUENCE: tuple[ResourceState, ...] = (
 )
 
 PDF_MIME = "application/pdf"
+TEXT_MIME = TEXT_MEDIA_TYPE
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
+_TEXT_DERIVATIVE_MAGIC = b"NEXUS-STUDENT-TEXT-DERIVATIVE-V2\n"
 
 #: Les quatre grandeurs que la release déclare et que ce module recompte.
 EXPECTED_COUNT_KEYS = ("subjects", "unique_artifacts", "placements", "unique_chunks")
@@ -175,6 +188,11 @@ class SealedReleaseFacts:
     artifact_ids: frozenset[str]
     transferred_artifact_ids: frozenset[str]
     placements: tuple[SealedReleasePlacement, ...]
+    release_mode: str | None = None
+    public_successor_release: bool = False
+    promotion_status: str | None = None
+    review_status: str | None = None
+    activation_status: str | None = None
 
     @property
     def unique_chunk_count(self) -> int:
@@ -185,6 +203,19 @@ class SealedReleaseFacts:
         return self._artifact_chunk_counts
 
     _artifact_chunk_counts: Mapping[str, int] = field(default_factory=dict)
+    _artifact_media_types: Mapping[str, str] = field(default_factory=dict)
+    _artifact_source_pdf_sha256: Mapping[str, str] = field(default_factory=dict)
+    _artifact_receipt_sha256: Mapping[str, str] = field(default_factory=dict)
+    _artifact_source_labels: Mapping[str, str] = field(default_factory=dict)
+    _artifact_transfer_filenames: Mapping[str, str] = field(default_factory=dict)
+
+    @property
+    def artifact_media_types(self) -> Mapping[str, str]:
+        return self._artifact_media_types
+
+    @property
+    def artifact_source_labels(self) -> Mapping[str, str]:
+        return self._artifact_source_labels
 
 
 @dataclass
@@ -254,6 +285,10 @@ def load_sealed_release(
         "manifeste de release",
     )
     manifest = json.loads(manifest_raw.decode("utf-8"))
+    _require(
+        manifest.get("release_mode") != "candidate",
+        "public candidate release refused before ingestion control writes",
+    )
 
     # --- Scellement : ce qu'une release non scellée ne porte pas. ---------
     _require(
@@ -306,14 +341,46 @@ def load_sealed_release(
         str(entry["artifact_id"]): entry
         for entry in json.loads(artifacts_raw.decode("utf-8"))["artifacts"]
     }
+    artifact_media_types = _artifact_media_types(artifacts)
 
-    inventory_raw = _read_with_digest(
-        release_dir / "candidate_inventory.json",
-        candidate_inventory_sha256,
+    inventory_kind = json.loads(_read_with_digest(
+        release_dir / "candidate_inventory.json", candidate_inventory_sha256,
         "inventaire de candidats",
+    )).get("inventory_kind")
+    only_media_type = next(iter(artifact_media_types.values()))
+    if only_media_type == TEXT_MIME:
+        _require(
+            inventory_kind == STUDENT_PUBLIC_INVENTORY_KIND,
+            "text inventory kind must be student public derivative inventory",
+        )
+    else:
+        _require(
+            inventory_kind == INVENTORY_KIND,
+            "PDF inventory kind must be historical V1",
+        )
+    if manifest.get("release_mode") == "public_successor":
+        _require(only_media_type == TEXT_MIME, "public successor requires text artifacts")
+    discovery = _load_candidate_discovery(
+        release_dir / "candidate_inventory.json", expected_sha256=candidate_inventory_sha256,
     )
-    inventory = json.loads(inventory_raw.decode("utf-8"))
-    discovery = _index_inventory_placements(inventory)
+    if inventory_kind == STUDENT_PUBLIC_INVENTORY_KIND:
+        try:
+            text_inventory = load_student_public_candidate_inventory(
+                release_dir / "candidate_inventory.json",
+                expected_sha256=candidate_inventory_sha256,
+            )
+        except MultilevelEvidenceError as exc:
+            raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
+        _require_student_public_inventory_binding(
+            text_inventory, manifest=manifest,
+            artifact_registry_sha256=artifacts_release_sha256,
+            release_dir=release_dir,
+            artifacts=artifacts,
+        )
+    if manifest.get("release_mode") == "public_successor":
+        raise SealedReleaseIngestionError(
+            "public successor external authority gate unavailable before Worker A writes"
+        )
 
     transfer_raw = _read_with_digest(
         artifact_transfer_manifest_path,
@@ -326,7 +393,7 @@ def load_sealed_release(
         f"manifeste de transfert : release_id {transfer.get('release_id')!r} "
         f"≠ {manifest['release_id']!r}",
     )
-    transferred = _transferred_artifact_ids(transfer)
+    transferred = _transferred_artifact_files(transfer, artifact_media_types)
 
     collections: list[str] = []
     profile_versions: dict[str, str] = {}
@@ -354,7 +421,6 @@ def load_sealed_release(
         len(set(collections)) == len(collections),
         f"collections dupliquées dans le manifeste : {sorted(collections)}",
     )
-
     return SealedReleaseFacts(
         release_id=str(manifest["release_id"]),
         release_kind=str(manifest["release_kind"]),
@@ -366,13 +432,93 @@ def load_sealed_release(
         collections=tuple(sorted(collections)),
         profile_versions=profile_versions,
         artifact_ids=frozenset(artifacts),
-        transferred_artifact_ids=transferred,
+        transferred_artifact_ids=frozenset(transferred),
         placements=tuple(placements),
+        release_mode=manifest.get("release_mode"),
+        public_successor_release=manifest.get("release_mode") == "public_successor",
+        promotion_status=manifest.get("promotion_status"),
+        review_status=manifest.get("review_status"),
+        activation_status=manifest.get("activation_status"),
         _artifact_chunk_counts={
             artifact_id: len(entry.get("chunks", []))
             for artifact_id, entry in artifacts.items()
         },
+        _artifact_media_types=artifact_media_types,
+        _artifact_source_pdf_sha256={
+            artifact_id: str(entry["source_pdf_sha256"])
+            for artifact_id, entry in artifacts.items()
+            if artifact_media_types[artifact_id] == TEXT_MIME
+        },
+        _artifact_receipt_sha256={
+            artifact_id: str(entry["derivative_receipt_sha256"])
+            for artifact_id, entry in artifacts.items()
+            if artifact_media_types[artifact_id] == TEXT_MIME
+        },
+        _artifact_source_labels={
+            artifact_id: str(entry["title"])
+            for artifact_id, entry in artifacts.items()
+            if artifact_media_types[artifact_id] == TEXT_MIME
+        },
+        _artifact_transfer_filenames=transferred,
     )
+
+
+def _artifact_media_types(
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> dict[str, str]:
+    """Accepter l'ancien PDF ou un dérivé texte explicitement identifié."""
+    media_types: dict[str, str] = {}
+    for artifact_id, entry in artifacts.items():
+        declared = entry.get("media_type", PDF_MIME)
+        _require(
+            declared in (PDF_MIME, TEXT_MIME),
+            f"{artifact_id} : type de media non pris en charge {declared!r}",
+        )
+        if declared == TEXT_MIME:
+            _require(
+                isinstance(entry.get("title"), str)
+                and bool(entry["title"].strip()),
+                f"{artifact_id} : titre source du derive absent",
+            )
+            source_sha = entry.get("source_pdf_sha256")
+            _require(
+                isinstance(source_sha, str) and _SHA256.fullmatch(source_sha) is not None,
+                f"{artifact_id} : source PDF SHA-256 absent ou invalide",
+            )
+            _require(
+                source_sha != artifact_id,
+                f"{artifact_id} : le derive texte porte le SHA de son source PDF",
+            )
+            citation = entry.get("citation")
+            _require(
+                isinstance(citation, Mapping)
+                and citation.get("source_pdf_sha256") == source_sha
+                and citation.get("source_uri") == entry.get("source_url")
+                and citation.get("source_label") == entry.get("title")
+                and all(
+                    isinstance(citation.get(name), str)
+                    and bool(citation[name].strip())
+                    for name in (
+                        "licensor", "licence_id", "source_updated_at",
+                        "derivative_notice",
+                    )
+                ),
+                f"{artifact_id} : attribution du derive absente ou divergente",
+            )
+            receipt_sha = entry.get("derivative_receipt_sha256")
+            _require(
+                isinstance(receipt_sha, str)
+                and _SHA256.fullmatch(receipt_sha) is not None
+                and entry.get("derivative_receipt_path")
+                    == f"derivative_receipts/{receipt_sha}.json",
+                f"{artifact_id} : recu CAS du derive absent ou invalide",
+            )
+        media_types[artifact_id] = str(declared)
+    _require(
+        len(set(media_types.values())) == 1,
+        "release scellee : types PDF et texte melanges",
+    )
+    return media_types
 
 
 def _index_inventory_placements(
@@ -398,7 +544,149 @@ def _index_inventory_placements(
     return index
 
 
-def _transferred_artifact_ids(transfer: Mapping[str, Any]) -> frozenset[str]:
+def _load_candidate_discovery(
+    path: Path, *, expected_sha256: str
+) -> Mapping[tuple[str, str], Mapping[str, Any]]:
+    """Préserver V1 ; pour les textes, exiger le lecteur canonique dédié."""
+    raw = _read_with_digest(path, expected_sha256, "inventaire de candidats")
+    document = json.loads(raw.decode("utf-8"))
+    kind = document.get("inventory_kind")
+    if kind == INVENTORY_KIND:
+        return _index_inventory_placements(document)
+    if kind != STUDENT_PUBLIC_INVENTORY_KIND:
+        raise SealedReleaseIngestionError(f"inventory kind inconnu: {kind!r}")
+    try:
+        inventory = load_student_public_candidate_inventory(
+            path, expected_sha256=expected_sha256,
+        )
+    except MultilevelEvidenceError as exc:
+        raise SealedReleaseIngestionError(f"inventaire texte refusé: {exc}") from exc
+    return {
+        (placement.content_sha256, placement.source_placement_id): {
+            "collection": placement.collection,
+            "source_url": placement.source_url,
+            "title": placement.title,
+            "external_document_type": placement.external_document_type,
+        }
+        for placement in inventory.placements
+    }
+
+
+def _require_student_public_inventory_binding(
+    inventory: StudentPublicCandidateInventory, *, manifest: Mapping[str, Any],
+    artifact_registry_sha256: str, release_dir: Path,
+    artifacts: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Lier le texte au paquet préparatoire exact, sans cycle avec le final."""
+    _require(
+        inventory.release_id == manifest.get("release_id"),
+        "student public inventory release_id differs",
+    )
+    _require(
+        inventory.artifact_registry_sha256 == artifact_registry_sha256,
+        "student public inventory artifact registry differs",
+    )
+    authorities = manifest.get("authorities")
+    if not isinstance(authorities, Mapping):
+        raise SealedReleaseIngestionError("public successor authorities absent")
+    _require(
+        manifest.get("release_mode") == "public_successor",
+        "student public inventory requires final public_successor release",
+    )
+    preparation_sha = authorities.get("source_preparation_release_manifest_sha256")
+    index_sha = authorities.get("source_preparation_index_sha256")
+    if not isinstance(preparation_sha, str) or _SHA256.fullmatch(preparation_sha) is None:
+        raise SealedReleaseIngestionError(
+            "source preparation release manifest authority absent"
+        )
+    if not isinstance(index_sha, str) or _SHA256.fullmatch(index_sha) is None:
+        raise SealedReleaseIngestionError("source preparation index authority absent")
+    sidecar = release_dir / "source_preparation"
+    preparation = json.loads(_read_with_digest(
+        sidecar / "production-profile-gate.release.json", preparation_sha,
+        "source preparation release manifest",
+    ))
+    index = json.loads(_read_with_digest(
+        sidecar / "preparation-index.json", index_sha,
+        "source preparation index",
+    ))
+    source_inventory_sha = index.get("candidate_inventory_sha256")
+    _require(
+        isinstance(source_inventory_sha, str)
+        and _SHA256.fullmatch(source_inventory_sha) is not None,
+        "source preparation inventory authority absent",
+    )
+    try:
+        source_inventory = load_student_public_candidate_inventory(
+            sidecar / "candidate_inventory.json", expected_sha256=source_inventory_sha,
+        )
+    except MultilevelEvidenceError as exc:
+        raise SealedReleaseIngestionError(
+            f"source preparation inventory refused: {exc}"
+        ) from exc
+    preparation_authorities = preparation.get("authorities", {})
+    preparation_registry = preparation.get("artifact_registry", {})
+    _require(
+        index.get("kind") == "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V2"
+        and index.get("status") == "PREPARATION_ONLY_NOT_ACTIVABLE"
+        and index.get("transfer_status") == "NOT_TRANSFERRED"
+        and index.get("release_id") == preparation.get("release_id")
+        and index.get("release_manifest_sha256") == preparation_sha
+        and index.get("artifact_registry_sha256") == preparation_registry.get("sha256")
+        and index.get("source_candidate_manifest_sha256")
+            == authorities.get("source_candidate_release_manifest_sha256")
+        and preparation.get("release_mode") == "candidate"
+        and preparation.get("promotion_status") == "NOT_PROMOTABLE"
+        and preparation.get("activation_status") == "NO_PRODUCTION_ACTIVATION"
+        and preparation.get("review_status") == "PRE_REVIEW"
+        and source_inventory.release_id == preparation.get("release_id")
+        and source_inventory.release_manifest_sha256 == preparation_sha
+        and source_inventory.artifact_registry_sha256 == preparation_registry.get("sha256")
+        and source_inventory.candidate_manifest_sha256
+            == preparation_authorities.get("candidate_manifest_sha256"),
+        "source preparation authority chain differs",
+    )
+    _require(
+        inventory.release_manifest_sha256 == preparation_sha,
+        "student public inventory source preparation manifest differs",
+    )
+    _require(
+        inventory.candidate_manifest_sha256 == source_inventory.candidate_manifest_sha256,
+        "student public inventory candidate manifest differs",
+    )
+    _require(
+        inventory.source_candidate_inventory_sha256
+        == source_inventory.source_candidate_inventory_sha256,
+        "student public inventory source inventory differs",
+    )
+    _require(
+        set(inventory.placements) <= set(source_inventory.placements),
+        "student public inventory collection or placement differs from preparation",
+    )
+    _require(
+        set(inventory.derivative_identities) == inventory.unique_content_sha256
+        and set(artifacts) == inventory.unique_content_sha256,
+        "student public derivative or artifact registry population differs",
+    )
+    for derivative_sha, (source_sha, receipt_sha) in inventory.derivative_identities.items():
+        prepared = source_inventory.derivative_identities.get(derivative_sha)
+        artifact = artifacts[derivative_sha]
+        _require(
+            prepared is not None and prepared[0] == source_sha
+            and artifact.get("content_sha256") == derivative_sha
+            and artifact.get("source_pdf_sha256") == source_sha,
+            f"student public source PDF identity differs: {derivative_sha}",
+        )
+        _require(
+            prepared[1] == receipt_sha
+            and artifact.get("derivative_receipt_sha256") == receipt_sha,
+            f"student public derivative receipt identity differs: {derivative_sha}",
+        )
+
+
+def _transferred_artifact_files(
+    transfer: Mapping[str, Any], artifact_media_types: Mapping[str, str]
+) -> dict[str, str]:
     """Les artefacts que le transfert déclare avoir posés ET vérifiés.
 
     Un fichier dont le digest observé diffère de l'attendu n'est pas
@@ -410,7 +698,7 @@ def _transferred_artifact_ids(transfer: Mapping[str, Any]) -> frozenset[str]:
         f"({transfer.get('digest_missing')!r}) ou divergents "
         f"({transfer.get('digest_mismatches')!r})",
     )
-    identifiers: set[str] = set()
+    filenames: dict[str, str] = {}
     for entry in transfer.get("files", []):
         expected = str(entry["sha256_expected"])
         observed = str(entry["sha256_observed"])
@@ -419,13 +707,30 @@ def _transferred_artifact_ids(transfer: Mapping[str, Any]) -> frozenset[str]:
             f"manifeste de transfert : {entry.get('file')!r} attendu {expected}, "
             f"observé {observed}",
         )
-        identifiers.add(expected)
+        _require(expected in artifact_media_types,
+                 f"manifeste de transfert : artefact hors release {expected}")
+        suffix = ".txt" if artifact_media_types[expected] == TEXT_MIME else ".pdf"
+        filename = entry.get("file")
+        correct_name = (
+            filename == f"{expected}.txt"
+            if suffix == ".txt"
+            else isinstance(filename, str)
+            and filename == f"{expected}.{filename[-3:]}"
+            and filename[-3:].lower() == "pdf"
+        )
+        _require(
+            correct_name and expected not in filenames,
+            f"manifeste de transfert : {entry.get('file')!r} ne correspond "
+            f"pas au type declare de {expected} ({suffix})",
+        )
+        assert isinstance(filename, str)  # noqa: S101 - correct_name l'établit
+        filenames[expected] = filename
     _require(
-        len(identifiers) == int(transfer.get("file_count", -1)),
+        len(filenames) == int(transfer.get("file_count", -1)),
         f"manifeste de transfert : file_count={transfer.get('file_count')!r} "
-        f"mais {len(identifiers)} digests distincts",
+        f"mais {len(filenames)} digests distincts",
     )
-    return frozenset(identifiers)
+    return filenames
 
 
 def _placements_of_subject(
@@ -451,6 +756,11 @@ def _placements_of_subject(
             f"{key!r} — aucune provenance n'est inventée",
         )
         inventory_placement = discovery[key]
+        _require(
+            "collection" not in inventory_placement
+            or inventory_placement["collection"] == collection,
+            f"{collection} : inventory placement collection differs",
+        )
         artifact = artifacts[artifact_id]
         discovery_url = str(inventory_placement["source_url"])
         provenance_url = str(artifact["source_url"])
@@ -530,7 +840,7 @@ def require_collections_match(
 def require_artifact_store_is_complete(
     facts: SealedReleaseFacts, artifact_store_dir: Path
 ) -> dict[str, Path]:
-    """Exiger les 315 PDF, chacun aux octets exacts. Un seul manquant refuse.
+    """Exiger chaque objet scellé aux octets exacts. Un seul manquant refuse.
 
     Le digest est recalculé sur les octets du store : le manifeste de
     transfert dit ce qui a été posé, ce contrôle dit ce qui est là
@@ -545,13 +855,38 @@ def require_artifact_store_is_complete(
     missing: list[str] = []
     divergent: list[str] = []
     for artifact_id in sorted(facts.artifact_ids):
-        path = artifact_store_dir / f"{artifact_id}.pdf"
+        media_type = facts.artifact_media_types.get(artifact_id, PDF_MIME)
+        _require(media_type in (PDF_MIME, TEXT_MIME),
+                 f"{artifact_id} : type de media non pris en charge")
+        filename = facts._artifact_transfer_filenames.get(artifact_id)
+        _require(bool(filename), f"{artifact_id} : nom de transfert absent")
+        assert filename is not None  # noqa: S101 - _require ci-dessus
+        path = artifact_store_dir / filename
         if not path.is_file():
             missing.append(artifact_id)
             continue
-        if _sha256(path.read_bytes()) != artifact_id:
+        raw = path.read_bytes()
+        if _sha256(raw) != artifact_id:
             divergent.append(artifact_id)
             continue
+        if media_type == TEXT_MIME:
+            receipt_sha = facts._artifact_receipt_sha256[artifact_id]
+            _read_with_digest(
+                artifact_store_dir / "derivative_receipts"
+                / f"{receipt_sha}.json",
+                receipt_sha,
+                f"recu CAS du derive {artifact_id}",
+            )
+            _require(
+                raw.startswith(_TEXT_DERIVATIVE_MAGIC),
+                f"{artifact_id} : derive texte sans signature de serialisation",
+            )
+            try:
+                raw.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise SealedReleaseIngestionError(
+                    f"{artifact_id} : derive texte non UTF-8"
+                ) from exc
         resolved[artifact_id] = path
     _require(
         not missing,
@@ -646,6 +981,39 @@ def require_scope_authorizations(
     return verified
 
 
+def require_public_release_activation(
+    facts: SealedReleaseFacts,
+    scopes: Mapping[str, ResourceScope],
+) -> None:
+    """Refuser une candidate publique avant la première écriture de Worker A.
+
+    Les statuts sont scellés par le manifeste, mais ne remplacent jamais
+    l'autorisation de scope nommée et vérifiée ensuite. Les anciennes releases
+    internes restent sous leur protocole historique.
+    """
+    if facts.release_mode == "public_successor":
+        raise SealedReleaseIngestionError(
+            "public successor external authority gate unavailable before Worker A writes"
+        )
+    if not facts.public_successor_release and facts.release_mode != "candidate":
+        return
+    if not any(
+        _dimension_value(scope.visibility) == "public" for scope in scopes.values()
+    ):
+        return
+    denied = {
+        "promotion_status": "NOT_PROMOTABLE",
+        "review_status": "PRE_REVIEW",
+        "activation_status": "NO_PRODUCTION_ACTIVATION",
+    }
+    for name, candidate_status in denied.items():
+        value = getattr(facts, name)
+        _require(
+            isinstance(value, str) and bool(value.strip()) and value != candidate_status,
+            f"public candidate release refused: {name}={value!r}",
+        )
+
+
 def _require_provenance_hosts_are_authorized(
     *,
     facts: SealedReleaseFacts,
@@ -695,6 +1063,7 @@ def ingest_sealed_release(
         require_collections_match(facts, expected_collections)
     paths = require_artifact_store_is_complete(facts, artifact_store_dir)
     scopes = resolve_scopes(facts, profile_registry)
+    require_public_release_activation(facts, scopes)
     authorizations = require_scope_authorizations(
         conn,
         facts=facts,
@@ -759,7 +1128,7 @@ def sealed_placement_evidence(
     exposée pour qu'une adoption par un successeur (ADR-0059 § 5) compare
     EXACTEMENT ce que Worker A aurait écrit, et non une reconstruction.
     """
-    return {
+    evidence = {
         "protocol_version": PROTOCOL_VERSION,
         "pipeline_kind": SEALED_RELEASE_PIPELINE,
         "release_id": facts.release_id,
@@ -782,6 +1151,40 @@ def sealed_placement_evidence(
         "placement_status": placement.placement_status,
         "currentness": placement.currentness,
     }
+    if facts.artifact_media_types.get(placement.artifact_id) == TEXT_MIME:
+        evidence["media_type"] = TEXT_MIME
+        evidence["source_pdf_sha256"] = facts._artifact_source_pdf_sha256[
+            placement.artifact_id
+        ]
+    return evidence
+
+
+def derive_placement_attribution(
+    *,
+    facts: SealedReleaseFacts,
+    artifact_id: str,
+    ingestion_artifact_id: UUID,
+    type_doc: str,
+    source_url: str,
+    profile: CollectionProfile,
+) -> ArtifactAttribution:
+    """Lier le titre du dérivé au catalogue scellé sans relâcher la source.
+
+    La dérivation historique continue de vérifier le type et le domaine.
+    Seul le label des dérivés texte vient du titre scellé : c'est aussi la
+    valeur portée par leur citation, contrôlée lors du chargement.
+    """
+    attribution = derive_sealed_release_artifact_attribution(
+        ingestion_artifact_id=ingestion_artifact_id,
+        catalog_entry={"type_doc": type_doc, "source_url": source_url},
+        profile=profile,
+    )
+    if facts.artifact_media_types.get(artifact_id) != TEXT_MIME:
+        return attribution
+    label = facts.artifact_source_labels.get(artifact_id)
+    _require(bool(label), f"{artifact_id} : titre scellé du dérivé absent")
+    assert label is not None  # noqa: S101 - _require ci-dessus
+    return replace(attribution, source_label=label)
 
 
 def _ingest_placement(
@@ -829,8 +1232,8 @@ def _ingest_placement(
         run_id=run_id,
         sha256=placement.artifact_id,
         size_bytes=path.stat().st_size,
-        mime_declared=PDF_MIME,
-        mime_detected=PDF_MIME,
+        mime_declared=facts.artifact_media_types.get(placement.artifact_id, PDF_MIME),
+        mime_detected=facts.artifact_media_types.get(placement.artifact_id, PDF_MIME),
         provenance_url=placement.provenance_url,
         payload=dict(evidence),
     )
@@ -842,12 +1245,12 @@ def _ingest_placement(
     # perimetre du profil approuve.
     persist_artifact_attribution(
         conn,
-        attribution=derive_sealed_release_artifact_attribution(
+        attribution=derive_placement_attribution(
+            facts=facts,
+            artifact_id=placement.artifact_id,
             ingestion_artifact_id=artifact_id,
-            catalog_entry={
-                "type_doc": placement.type_doc,
-                "source_url": placement.provenance_url,
-            },
+            type_doc=placement.type_doc,
+            source_url=placement.provenance_url,
             profile=profile,
         ),
         run_id=run_id,
@@ -911,6 +1314,7 @@ def _advance_to_needs_review(
 __all__ = [
     "EXPECTED_COUNT_KEYS",
     "PDF_MIME",
+    "TEXT_MIME",
     "PROTOCOL_VERSION",
     "SEALED_RELEASE_KIND",
     "STATE_SEQUENCE",

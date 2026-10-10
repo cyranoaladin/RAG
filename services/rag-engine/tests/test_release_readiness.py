@@ -391,6 +391,145 @@ def _reseal_v2_release(
     return _write_json(aggregate_path, aggregate)
 
 
+def _v2_text_derivative_artifact(
+    registry_path: Path,
+) -> dict[str, object]:
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    artifact = registry["artifacts"][0]
+    artifact.pop("ignored_empty_pages")
+    artifact["source_path"] = f"{ARTIFACT_SHA}.txt"
+    artifact["media_type"] = "text/plain; charset=utf-8"
+    artifact["source_pdf_sha256"] = "f" * 64
+    artifact["derivative_receipt_sha256"] = "1" * 64
+    artifact["derivative_receipt_path"] = f"derivative_receipts/{'1' * 64}.json"
+    artifact["citation"] = {
+        "source_pdf_sha256": "f" * 64,
+        "source_uri": artifact["source_url"],
+        "source_label": artifact["title"],
+        "source_updated_at": "2026-10-10T06:04:23Z",
+        "source_date_kind": "DATED_OFFICIAL_SNAPSHOT",
+        "licensor": "Direction générale de l'enseignement scolaire",
+        "licence_id": "ETALAB-2.0",
+        "derivative_notice": "Extrait textuel dérivé.",
+    }
+    artifact["chunk_lineage"] = {
+        "kind": "NEXUS_STUDENT_DERIVATIVE_CHUNK_LINEAGE_V1",
+        "private_relpath": f"chunk_lineage/{ARTIFACT_SHA}.json",
+        "sha256": "2" * 64,
+        "source_receipt_sha256": "1" * 64,
+        "chunk_count": 1,
+        "approved_native_group_count": 1,
+        "embedding_model_id": MODEL_ID,
+        "embedding_model_revision": "3d7cfbdacd47fdda877c5cd8a79fbcc4f2a574f3",
+        "target_tokens": 384,
+    }
+    artifact["excluded_source_pages"] = []
+    _write_json(registry_path, registry)
+    return artifact
+
+
+def test_v2_text_derivative_variant_is_accepted_after_reseal(tmp_path: Path) -> None:
+    manifest, _, registry_path, subjects = _v2_release_files(tmp_path)
+    _v2_text_derivative_artifact(registry_path)
+    digest = _reseal_v2_release(manifest, registry_path, subjects)
+
+    expectation = load_release_expectation(manifest, digest)
+
+    assert expectation.artifacts[0].source_path == f"{ARTIFACT_SHA}.txt"
+
+
+def test_v2_public_successor_candidate_is_parseable_but_not_promoted(
+    tmp_path: Path,
+) -> None:
+    manifest, _, registry_path, subjects = _v2_release_files(tmp_path)
+    _v2_text_derivative_artifact(registry_path)
+    successor_authorities = {
+        name: hashlib.sha256(name.encode()).hexdigest()
+        for name in (
+            "pr300_final_authority_receipt_sha256",
+            "delegated_evidence_pack_sha256",
+            "candidate_manifest_sha256",
+            "rights_authority_sha256",
+            "text_derivative_extraction_policy_sha256",
+            "public_profile_registry_sha256",
+            "public_rights_registry_sha256",
+            "public_pii_registry_sha256",
+        )
+    }
+    for path in subjects:
+        subject = json.loads(path.read_text(encoding="utf-8"))
+        subject["authorities"] = successor_authorities
+        subject["profile"]["manifest_digest"] = successor_authorities[
+            "public_profile_registry_sha256"
+        ]
+        _write_json(path, subject)
+    aggregate = json.loads(manifest.read_text(encoding="utf-8"))
+    aggregate["authorities"] = successor_authorities
+    aggregate.update(
+        release_mode="candidate",
+        promotion_status="NOT_PROMOTABLE",
+        activation_status="NO_PRODUCTION_ACTIVATION",
+        review_status="PRE_REVIEW",
+    )
+    _write_json(manifest, aggregate)
+    digest = _reseal_v2_release(manifest, registry_path, subjects)
+
+    expectation = load_release_expectation(manifest, digest)
+
+    assert expectation.release_mode == "candidate"
+    assert expectation.promotion_status == "NOT_PROMOTABLE"
+    assert expectation.activation_status == "NO_PRODUCTION_ACTIVATION"
+
+
+def test_public_successor_promotion_requires_both_preparation_anchors() -> None:
+    required = readiness._PUBLIC_SUCCESSOR_PROMOTION_AUTHORITY_FIELDS | {
+        "source_preparation_release_manifest_sha256",
+        "source_preparation_index_sha256",
+    }
+    authorities = {name: hashlib.sha256(name.encode()).hexdigest() for name in required}
+    readiness._require_authority_chain(
+        authorities, frozenset(), "authorities", review_chain_allowed=True,
+        public_successor_promotion_allowed=True,
+    )
+    for missing in (
+        "source_preparation_release_manifest_sha256", "source_preparation_index_sha256"
+    ):
+        with pytest.raises(ReleaseReadinessError, match="public successor authorities"):
+            readiness._require_authority_chain(
+                {name: sha for name, sha in authorities.items() if name != missing},
+                frozenset(), "authorities", review_chain_allowed=True,
+                public_successor_promotion_allowed=True,
+            )
+
+
+@pytest.mark.parametrize(
+    "sabotage",
+    ["missing_attribution", "pdf_sha_reused", "receipt_path", "lineage_count", "image_media"],
+)
+def test_v2_text_derivative_variant_is_strict(
+    tmp_path: Path, sabotage: str
+) -> None:
+    manifest, _, registry_path, subjects = _v2_release_files(tmp_path)
+    artifact = _v2_text_derivative_artifact(registry_path)
+    if sabotage == "missing_attribution":
+        artifact["citation"].pop("source_updated_at")
+    elif sabotage == "pdf_sha_reused":
+        artifact["source_pdf_sha256"] = ARTIFACT_SHA
+    elif sabotage == "receipt_path":
+        artifact["derivative_receipt_path"] = "../receipt.json"
+    elif sabotage == "lineage_count":
+        artifact["chunk_lineage"]["chunk_count"] = 2
+    else:
+        artifact["media_type"] = "image/png"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["artifacts"][0] = artifact
+    _write_json(registry_path, registry)
+    digest = _reseal_v2_release(manifest, registry_path, subjects)
+
+    with pytest.raises(ReleaseReadinessError):
+        load_release_expectation(manifest, digest)
+
+
 def _set_v2_page_partition(
     aggregate_path: Path,
     registry_path: Path,

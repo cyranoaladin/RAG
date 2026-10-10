@@ -1,0 +1,590 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "4296a177ffee9bd5.extracted.txt",
+  "extracted_text_sha256": "75a4792d99f51c115fcd072a84fc51c4803c4e576aa9c2630795994302f2df9f",
+  "final_url": "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "4296a177ffee9bd5.normalized.html",
+  "normalized_html_sha256": "84efac072f3d6a610ebea58338305550855734c75c47ec70ced57a9712d2e171",
+  "observed_at_utc": "2026-10-10T06:03:31.708Z",
+  "pdf_link_count": 114,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/04-annexe1francais2ebomodifiepdf-69834.pdf",
+      "label": "Seconde générale et technologique (BO spécial n° 1 du 22 janvier 2019, modifié en 2020) PDF - 275.51 Ko",
+      "occurrence_index": 0
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/04annexe2francais1egtbomodifiepdf-69837.pdf",
+      "label": "Premières générale et technologique (BO spécial n° 1 du 22 janvier 2019, modifié en 2020) PDF - 279.4 Ko",
+      "occurrence_index": 1
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegttestspo2ndefracompetencesorales1183270pdf-81789.pdf",
+      "label": "Principes, modalités de passation et évaluation des compétences orales",
+      "occurrence_index": 2
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegttestspo2ndefrapropositionssujetssupportimage1183272pdf-81792.pdf",
+      "label": "Propositions de sujets avec un support image",
+      "occurrence_index": 3
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegttestspo2ndefrapropositionssujetssupportquestion1183274pdf-81795.pdf",
+      "label": "Propositions de sujets avec un support question",
+      "occurrence_index": 4
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt1frapreparation-epreuve-oralefiche1pdf-68445.pdf",
+      "label": "Comprendre les enjeux de l’enseignement du français en classe de première",
+      "occurrence_index": 5
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt1frapreparation-epreuve-oralefiche2pdf-68448.pdf",
+      "label": "S’organiser pour un enseignement de l’oral donnant corps à la lecture des élèves",
+      "occurrence_index": 6
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt1frapreparation-epreuve-oralefiche3pdf-68451.pdf",
+      "label": "Se saisir des outils numériques d’enregistrement pour apprendre à faire des choix et à les exprimer : mettre la technique au service de l’appropriation des œuvres",
+      "occurrence_index": 7
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt1frapreparation-epreuve-oraleannexepdf-68454.pdf",
+      "label": "Annexe",
+      "occurrence_index": 8
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/experimentation-oral-lecteur-73050.pdf",
+      "label": "L'expérimentation de l'oral de lecteur",
+      "occurrence_index": 9
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraexplicationlineaire1160957pdf-83964.pdf",
+      "label": "Présentation",
+      "occurrence_index": 10
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraexplicationlineaire-exemple1279727pdf-83967.pdf",
+      "label": "Exemple pour une classe de première avec questions de grammaire",
+      "occurrence_index": 11
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1fraattendus-prestation-eleve-eaf-explication-texte41258207pdf-83970.pdf",
+      "label": "Les attendus d'une prestation d'élève aux EAF en explication de texte",
+      "occurrence_index": 12
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra22lyceegt1fragrammaire-epreuve-anticipee-oral-definitionpdf-94413.pdf",
+      "label": "La question de grammaire de l’épreuve anticipée orale de français : précisions sur sa définition",
+      "occurrence_index": 13
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fradissertation-presentation1162106pdf-83973.pdf",
+      "label": "Présentation",
+      "occurrence_index": 14
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1fradissertation21160847pdf-83976.pdf",
+      "label": "Exemple : Racine, Britannicus - Parcours : tragique et tragédie à l'âge classique",
+      "occurrence_index": 15
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1fradissertation-candide1292233pdf-83979.pdf",
+      "label": "Exemple : Voltaire, Candide - Parcours : les Lumières et l'idée de progrès",
+      "occurrence_index": 16
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fracontractiontexte1160673pdf-83982.pdf",
+      "label": "Présentation",
+      "occurrence_index": 17
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceet1fracontractiontexte-exemple1160845pdf-83985.pdf",
+      "label": "Exemple pour une classe de première technologique",
+      "occurrence_index": 18
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraessai-presentation21162087pdf-83988.pdf",
+      "label": "Présentation",
+      "occurrence_index": 19
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceet1fraessai-exemple31160837pdf-83991.pdf",
+      "label": "Exemple pour une classe de première technologique",
+      "occurrence_index": 20
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1frapresentation-ressources-histoire-litteraire1160876pdf-83994.pdf",
+      "label": "Présentation des ressources sur l'histoire littéraire",
+      "occurrence_index": 21
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraexemple-outil-appropriationcarnet-lecture-exploitation-cercles-lecturepresentation1160841pdf-83997.pdf",
+      "label": "Présentation du carnet et du cercle de lecture",
+      "occurrence_index": 22
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fracarnet-cercle-lectureexemple1160833pdf-84000.pdf",
+      "label": "Exemple de mise en œuvre du carnet et du cercle de lecture",
+      "occurrence_index": 23
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1fraexemple-corpuscercle-lecture1160843pdf-84003.pdf",
+      "label": "Exemple de corpus pour le cercle de lecture",
+      "occurrence_index": 24
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraconstruire-cours-histoire-litteraire1160839pdf-84006.pdf",
+      "label": "Construire le cours d'histoire littéraire avec la classe",
+      "occurrence_index": 25
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraparcours-associepresentation1160868pdf-84009.pdf",
+      "label": "Présentation du parcours associé",
+      "occurrence_index": 26
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1fraparcours-associecorpus1160961pdf-84012.pdf",
+      "label": "Exemple de corpus pour le parcours associé",
+      "occurrence_index": 27
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraetude-transversale21160874pdf-84015.pdf",
+      "label": "Présentation de l'étude transversale",
+      "occurrence_index": 28
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1fraexplication-lineaireexemple-boetie1160964pdf-84018.pdf",
+      "label": "Explication : exemple de mise en œuvre",
+      "occurrence_index": 29
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraprolongement-artistique-culturel-groupement-textepresentation1160870pdf-84021.pdf",
+      "label": "Présentation du prolongement artistique et culturel et du groupement de textes complémentaires",
+      "occurrence_index": 30
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1fraparcours-artistique-culturelexemple1160959pdf-84024.pdf",
+      "label": "Exemple de prolongement artistique et culturel",
+      "occurrence_index": 31
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1fragroupement-texte-complementaireproposition-corpus1160955pdf-84027.pdf",
+      "label": "Exemple de groupement de textes complémentaires",
+      "occurrence_index": 32
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1refraexploitationdugroupement1190424pdf-84030.pdf",
+      "label": "Exploitation du groupement de textes complémentaires",
+      "occurrence_index": 33
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraetude-langue-presentation1179987pdf-84033.pdf",
+      "label": "Présentation des ressources sur l'étude de la langue",
+      "occurrence_index": 34
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1frasyntaxe-interrogation21188421pdf-84036.pdf",
+      "label": "La syntaxe de l'interrogation",
+      "occurrence_index": 35
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1frasyntaxe-interrogation-annexe1190418pdf-84039.pdf",
+      "label": "Annexe : formuler une interrogation directe et indirecte",
+      "occurrence_index": 36
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1refrainterrogationenregard1190253pdf-84042.pdf",
+      "label": "L'interrogation en regard de l'explication",
+      "occurrence_index": 37
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt1refranegationexplicationtexte1190422pdf-84045.pdf",
+      "label": "La négation",
+      "occurrence_index": 38
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1frajuxtaposition-coordination1180156pdf-84048.pdf",
+      "label": "La juxtaposition et la coordination",
+      "occurrence_index": 39
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2nde1refrarelationslogiques21196945pdf-84051.pdf",
+      "label": "Les relations logiques",
+      "occurrence_index": 40
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2nde1refrapropositionsrelatives1194689pdf-84054.pdf",
+      "label": "Les propositions relatives",
+      "occurrence_index": 41
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1frasubjonctif1201807pdf-84057.pdf",
+      "label": "Le subjonctif",
+      "occurrence_index": 42
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraconditionnel-futurvaleurs-temporelles-modales1197119pdf-84060.pdf",
+      "label": "Le conditionnel",
+      "occurrence_index": 43
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraexplication-texte-discours-rapportes1179977pdf-84063.pdf",
+      "label": "Les discours rapportés",
+      "occurrence_index": 44
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegt2-1frasubordonnees-conjonctivespdf-68379.pdf",
+      "label": "Les propositions subordonnées conjonctives",
+      "occurrence_index": 45
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2-1fraconcordance-tempsfiche11194687pdf-84066.pdf",
+      "label": "Notion, programmation et corpus",
+      "occurrence_index": 46
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2nde1refraconcordancedestempsfiche21196965pdf-84069.pdf",
+      "label": "La concordance des temps à l'indicatif et au conditionnel",
+      "occurrence_index": 47
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2nde1refraconcordancedestempsfiche31196951pdf-84072.pdf",
+      "label": "La concordance des temps au subjonctif",
+      "occurrence_index": 48
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/guide-la-grammaire-du-francais-terminologie-grammaticale-67998.pdf",
+      "label": "Grammaire du français - Terminologie grammaticale",
+      "occurrence_index": 49
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceeg1francaischretientroyesoeuvreparcourspdf-126008.pdf",
+      "label": "voie générale - Chrétien de Troyes, Le Chevalier de la charrette (édition bilingue) - parcours : le roman et l'invention de l'amour PDF - 91.92 Ko",
+      "occurrence_index": 50
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceet1francaischretientroyesoeuvreparcourspdf-126002.pdf",
+      "label": "voie technologique - Chrétien de Troyes, Le Chevalier de la charrette (édition bilingue) - parcours : héroïsme et amour PDF - 90.36 Ko",
+      "occurrence_index": 51
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceeg1francaisemilezolaoeuvreparcourspdf-126011.pdf",
+      "label": "voie générale - Émile Zola, Pot-Bouille - parcours : dévoiler les rouages de la société PDF - 104.61 Ko",
+      "occurrence_index": 52
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceet1francaisemilezolaoeuvreparcourspdf-126005.pdf",
+      "label": "voie technologique - Émile Zola, Thérèse Raquin - parcours : anatomie des passions PDF - 98.47 Ko",
+      "occurrence_index": 53
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisemilezolapistesactivitespotbouille-130225.pdf",
+      "label": "voie générale - Deux pistes d’activité pour entrer dans la lecture de Pot-Bouille d’Émile Zola PDF - 135.01 Ko",
+      "occurrence_index": 54
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisschwarzbartparcoursassociepdf-126014.pdf",
+      "label": "voies générale et technologique - Simone Schwarz-Bart, Pluie et vent sur Télumée Miracle - parcours : tisser les mémoires, habiter le monde PDF - 101.27 Ko",
+      "occurrence_index": 55
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1parcourslaboetiepdf-110862.pdf",
+      "label": "Étienne de La Boétie, Discours de la servitude volontaire - Parcours : « Défendre » et « entretenir » la liberté PDF - 156.92 Ko",
+      "occurrence_index": 56
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaislaboetieentrerlecturepdf-113556.pdf",
+      "label": "Entrer dans la lecture du Discours de la servitude volontaire de La Boétie PDF - 176.22 Ko",
+      "occurrence_index": 57
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaislaboetiecontextereception-002pdf-113553.pdf",
+      "label": "Entrer dans le Discours de la servitude volontaire de La Boétie par la découverte de son contexte et de sa réception PDF - 230.05 Ko",
+      "occurrence_index": 58
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaislaboetieenrichirprolongerlecturepdf-126221.pdf",
+      "label": "Étienne de La Boétie, Discours de la servitude volontaire - Enrichir et prolonger la lecture de l’oeuvre dans le cadre du parcours associé PDF - 414.09 Ko",
+      "occurrence_index": 59
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaislaboetielireparcourirsapproprieroeuvrepdf-128676.pdf",
+      "label": "Le Discours de la servitude volontaire - Lire, parcourir, s’approprier l’œuvre : la rhétorique d’un humaniste PDF - 151.63 Ko",
+      "occurrence_index": 60
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaislaboetierecouririmageetudediscoursservitudevolontaire-129469.pdf",
+      "label": "Recourir à l’image pour accompagner l’étude du Discours de la servitude volontaire et du parcours associé PDF - 94.44 Ko",
+      "occurrence_index": 61
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1parcoursfontenellepdf-110865.pdf",
+      "label": "Bernard Le Bouyer de Fontenelle, Entretiens sur la pluralité des mondes - Parcours : le goût de la science PDF - 163.2 Ko",
+      "occurrence_index": 62
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisfontenellesavoirprismeimaginairepdf-113541.pdf",
+      "label": "Le savoir au prisme de l’imaginaire dans les Entretiens sur la pluralité des mondes de Fontenelle PDF - 200.16 Ko",
+      "occurrence_index": 63
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgoutdelasciencepdf-113544.pdf",
+      "label": "Le goût de la science - Parcours dans les Entretiens sur la pluralité des mondes de Fontenelle PDF - 588.4 Ko",
+      "occurrence_index": 64
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelle-entretiensastrespenseerecitpdf-126224.pdf",
+      "label": "Les Entretiens : des astres à la pensée, récit d’une révolution PDF - 154.01 Ko",
+      "occurrence_index": 65
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisfontenelleoeuvreparcours-128667.pdf",
+      "label": "Les Entretiens sur la pluralité des mondes – Lire pour s’approprier l’œuvre et le parcours PDF - 294.64 Ko",
+      "occurrence_index": 66
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1parcoursgraffignypdf-110868.pdf",
+      "label": "Françoise de Graffigny, Lettres d'une Péruvienne - Parcours : « un nouvel univers s’est offert à mes yeux » PDF - 108.13 Ko",
+      "occurrence_index": 67
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyromanepistolairepdf-113550.pdf",
+      "label": "Le roman épistolaire : l’affirmation d’une conscience PDF - 142.46 Ko",
+      "occurrence_index": 68
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisgraffignyemancipationfemininepdf-113547.pdf",
+      "label": "L’émancipation féminine dans Les Lettres d’une Péruvienne PDF - 170.54 Ko",
+      "occurrence_index": 69
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisgraffignyrepresentationincaspdf-126017.pdf",
+      "label": "La représentation des Incas dans Les Lettres d’une Péruvienne PDF - 152.38 Ko",
+      "occurrence_index": 70
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra26lyceegt1francaisgraffignyreportagefrancelumierespdf-126020.pdf",
+      "label": "Zilia « nouvelliste », moraliste, philosophe - Reportage sur la France des Lumières PDF - 159.96 Ko",
+      "occurrence_index": 71
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1corneillementeuroeuvreparcoursmensongecomediepdf-104574.pdf",
+      "label": "Le Menteur de Pierre Corneille : l’œuvre, le parcours - Parcours : « Mensonge et comédie » PDF - 138.49 Ko",
+      "occurrence_index": 72
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1corneillementeurmensongecomedieveritedumensongepdf-106884.pdf",
+      "label": "Le Menteur, « mensonge et comédie » La vérité du mensonge PDF - 170.07 Ko",
+      "occurrence_index": 73
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1corneillementeurmensongecomediemultiplesvisagesmensongepdf-106887.pdf",
+      "label": "Le Menteur, « mensonge et comédie » Les multiples visages du mensonge PDF - 132.24 Ko",
+      "occurrence_index": 74
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1corneillereecriturepdf-106890.pdf",
+      "label": "Réécritures de Corneille PDF - 198.91 Ko",
+      "occurrence_index": 75
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1corneillegalanteriepdf-111333.pdf",
+      "label": "Galanterie, séduction et esthétique de la conversation PDF - 206.79 Ko",
+      "occurrence_index": 76
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1mussetbadineamouroeuvreparcoursjeuxcoeurparolepdf-104577.pdf",
+      "label": "On ne badine pas avec l’amour d’Alfred de Musset : l’œuvre, le parcours - Parcours : « Les jeux du cœur et de la parole » PDF - 133.3 Ko",
+      "occurrence_index": 77
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1mussetbadineamourproverbetragiquefantaisiegravitepdf-104925.pdf",
+      "label": "On ne badine pas avec l’amour d’Alfred de Musset. Du proverbe au tragique, fantaisie et gravité PDF - 129.87 Ko",
+      "occurrence_index": 78
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1mussetchoixtextesparcoursjeuxcoeurparolepdf-106896.pdf",
+      "label": "Choix de textes pour le parcours « Les jeux du cœur et de la parole » PDF - 161.23 Ko",
+      "occurrence_index": 79
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1mussetdiremussetclasseentiereapprochedramaturgiquepdf-106893.pdf",
+      "label": "Dire Musset en classe entière : Approche dramaturgique PDF - 238.35 Ko",
+      "occurrence_index": 80
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaismussetbadineamourformepiecefiche1pdf-112767.pdf",
+      "label": "La ressource sur « la forme d'une pièce » : son inscription dans le genre du proverbe (fiche 1) PDF - 127.07 Ko",
+      "occurrence_index": 81
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaismussetbadineamourformepiecefiche2pdf-112770.pdf",
+      "label": "La ressource sur « la forme d'une pièce » : sa composition en accelerando (fiche 2) PDF - 125.76 Ko",
+      "occurrence_index": 82
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaismussetbadineamourformepiecefiche3pdf-112773.pdf",
+      "label": "La ressource sur « la forme d'une pièce » : la manière dont Musset fait jouer ensemble le cœur et la parole (fiche 3) PDF - 130.94 Ko",
+      "occurrence_index": 83
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaismussetbadineamourformepiecefiche4pdf-112776.pdf",
+      "label": "La ressource sur « la forme d'une pièce » : son esthétique de la fantaisie (fiche 4) PDF - 141.77 Ko",
+      "occurrence_index": 84
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1mussettexterepresentationpdf-107208.pdf",
+      "label": "Texte et représentation PDF - 223.54 Ko",
+      "occurrence_index": 85
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1mussetsitobibliopdf-107205.pdf",
+      "label": "Sito-bibliographie PDF - 132.73 Ko",
+      "occurrence_index": 86
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1sarrautepourouipournonoeuvreparcourstheatredisputepdf-104583.pdf",
+      "label": "Pour un oui ou pour un non de Nathalie Sarraute : l’œuvre, le parcours - Parcours : « Théâtre et dispute » PDF - 141.97 Ko",
+      "occurrence_index": 87
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1sarrauteparcourstheatredisputelecturescursivescorpuspdf-106899.pdf",
+      "label": "Parcours « Théâtre et Dispute » Lectures cursives et corpus PDF - 210.8 Ko",
+      "occurrence_index": 88
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1sarrautepourouipournonenjeuxoralitepdf-107946.pdf",
+      "label": "Enjeux de l’oralité dans Pour un oui pour un non PDF - 166.2 Ko",
+      "occurrence_index": 89
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1sarrautepourouipournonoeuvreparcourstheatredispute2pdf-107949.pdf",
+      "label": "Théâtre et dispute (2) PDF - 136.04 Ko",
+      "occurrence_index": 90
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaistheatreecritsappropriationpdf-111180.pdf",
+      "label": "Écrits d’appropriation PDF - 164.85 Ko",
+      "occurrence_index": 91
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaistheatrelireserepresentercreerpdf-111183.pdf",
+      "label": "Lire, se représenter, créer PDF - 174.16 Ko",
+      "occurrence_index": 92
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisrimbaudoeuvreparcourspdf-100272.pdf",
+      "label": "Cahier de Douai : l’œuvre, le parcours « Émancipations créatrices » PDF - 257.24 Ko",
+      "occurrence_index": 93
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisrimbaudprojetlitterairerecueilpdf-100275.pdf",
+      "label": "Un projet littéraire ou un projet de recueil ? PDF - 515.65 Ko",
+      "occurrence_index": 94
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisrimbaudobjetetudenouvellesformespolitiquespoetiquespdf-101046.pdf",
+      "label": "Nouvelles formes politiques et poétiques PDF - 241.6 Ko",
+      "occurrence_index": 95
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisrimbaudecrirepoursemanciperpdf-102195.pdf",
+      "label": "Écrire pour s’émanciper PDF - 256.78 Ko",
+      "occurrence_index": 96
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisrimbaudavoixhautepdf-102207.pdf",
+      "label": "Rimbaud à voix haute PDF - 166.37 Ko",
+      "occurrence_index": 97
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisrimbaudobjetetudechoixtextesparcourspdf-102771.pdf",
+      "label": "Choix de textes pour le parcours « Émancipations créatrices » PDF - 154.1 Ko",
+      "occurrence_index": 98
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra24lyceegt1rimbaudbibliographiesitographiepdf-104580.pdf",
+      "label": "Références bibliographiques et sitographiques PDF - 199.44 Ko",
+      "occurrence_index": 99
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaispongeoeuvreparcourspdf-100284.pdf",
+      "label": "La Rage de l’expression : l’œuvre, le parcours « Dans l’atelier du poète » PDF - 252 Ko",
+      "occurrence_index": 100
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaispongepoesie-contre-poesiepdf-102345.pdf",
+      "label": "« Un effort contre \"la poésie\" » - Une poésie… malgré la poésie ? PDF - 242.18 Ko",
+      "occurrence_index": 101
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaispongechantier-du-poemepdf-102339.pdf",
+      "label": "Chantier du poème, poème du chantier PDF - 232.28 Ko",
+      "occurrence_index": 102
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaispongelaboratoiredesmotspdf-102342.pdf",
+      "label": "Le laboratoire des mots PDF - 242.49 Ko",
+      "occurrence_index": 103
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaispongeatelier-arts-plastiquespdf-102336.pdf",
+      "label": "L'atelier d'arts plastiques PDF - 251.03 Ko",
+      "occurrence_index": 104
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisdorionoeuvreparcourspdf-100281.pdf",
+      "label": "Mes Forêts : l’œuvre, le parcours « La poésie, la nature, l’intime » PDF - 201.44 Ko",
+      "occurrence_index": 105
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra25lyceegt1francaisdorionentretienpdf-100803.pdf",
+      "label": "Entretien avec Hélène Dorion (janvier 2023) PDF - 156.52 Ko",
+      "occurrence_index": 106
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisdorionobjetetudeformelivre1pdf-101040.pdf",
+      "label": "Mes Forêts, la forme d’un livre (1) PDF - 180.67 Ko",
+      "occurrence_index": 107
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisdorionobjetetudeformelivre2pdf-101043.pdf",
+      "label": "Mes Forêts, la forme d’un livre (2) PDF - 169.47 Ko",
+      "occurrence_index": 108
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisdorionnatureintimeparcourspdf-102198.pdf",
+      "label": "Mes Forêts, la nature et l’intime PDF - 255.9 Ko",
+      "occurrence_index": 109
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1dorionetudecompareemesforetspoesienaturepdf-104778.pdf",
+      "label": "Mes Forêts et la poésie de la nature, étude comparée PDF - 145.72 Ko",
+      "occurrence_index": 110
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1dorionpropositiongoupementtextes1pdf-104775.pdf",
+      "label": "Proposition de groupement de textes (corpus 1) PDF - 136.28 Ko",
+      "occurrence_index": 111
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisdoriontravailler-oralpdf-102204.pdf",
+      "label": "Travailler l’oral en étudiant Mes Forêts PDF - 144.37 Ko",
+      "occurrence_index": 112
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra23lyceegt1francaisdoriontravailler-ecritpdf-102201.pdf",
+      "label": "Travailler l’écrit avec Mes Forêts PDF - 178.04 Ko",
+      "occurrence_index": 113
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/5793/programmes-et-ressources-en-francais-voie-gt",
+  "screenshot_file": "4296a177ffee9bd5.png",
+  "screenshot_sha256": "dd27ce54f5207f9afd72a11dd2463e5c699082540c5131d71ae13011eb3c92f2"
+}

@@ -88,7 +88,7 @@ try:
     from .retrieval_readiness_v2 import retrieval_database_ready
     from .retrieval_scope_v2 import validate_scope_registry_catalogue_alignment
     from .review_readiness_v2 import review_database_ready
-    from .schema_readiness_v2 import schema_head_005_ready
+    from .schema_readiness_v2 import schema_head_006_ready
     from .security_v2 import (
         require_bff_service,
         validate_bff_service_configuration,
@@ -162,7 +162,7 @@ except ImportError as _exc:  # repli à plat, cause réelle préservée
         review_database_ready,
     )
     from schema_readiness_v2 import (  # type: ignore[no-redef]
-        schema_head_005_ready,
+        schema_head_006_ready,
     )
     from security_v2 import (  # type: ignore[no-redef]
         require_bff_service,
@@ -311,7 +311,7 @@ def _probe_database_readiness(
         )
         return (
             pgvector_dimension(rag_dsn),
-            schema_head_005_ready(rag_dsn),
+            schema_head_006_ready(rag_dsn),
             retrieval_database_ready(rag_dsn),
             review_database_ready(review_dsn),
             same_database,
@@ -645,7 +645,7 @@ def health_check() -> dict[str, str | int]:
         raise HTTPException(status_code=503, detail="service unavailable")
     return {
         "status": "healthy",
-        "schema_head": "005_official_snapshot_currentness",
+        "schema_head": "006_public_derivative_attribution",
         "embedding_model": model,
         "embedding_dim_declared": declared_dim,
         "pgvector_dim": database_dim,

@@ -53,6 +53,7 @@ import json
 import re
 from datetime import UTC, datetime
 from hashlib import sha256
+from types import MappingProxyType
 from typing import Any, Literal
 
 from pydantic import AwareDatetime, Field, StrictInt, StrictStr, field_validator, model_validator
@@ -62,6 +63,15 @@ from nexus_contracts.document import StrictBaseModel
 #: Version de protocole. Absente ou inconnue, le manifeste n'est pas parsé.
 PRODUCTION_READINESS_PROTOCOL_VERSION = "NEXUS-PRODUCTION-READINESS-V1"
 PRODUCTION_READINESS_V2_PROTOCOL_VERSION = "NEXUS-PRODUCTION-READINESS-V2"
+
+#: Dépôts signables du candidat public. Le producteur de provenance vérifie
+#: la même carte dans son test d'intégration inter-paquets.
+PUBLIC_CANDIDATE_IMAGE_REPOSITORIES = MappingProxyType({
+    "ingestor": "ghcr.io/cyranoaladin/rag-ingestor",
+    "multilevel-worker-a-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "multilevel-worker-b-production": "ghcr.io/cyranoaladin/rag-multilevel-worker-production",
+    "cockpit": "ghcr.io/cyranoaladin/rag-cockpit",
+})
 
 #: Le manifeste n'existe que pour la production. Un mode répétition ne
 #: réutilise pas ce protocole en l'affaiblissant : il utilise ses propres
@@ -263,6 +273,10 @@ class ProductionReadinessManifestV2(StrictBaseModel):
     application_image_digests: dict[str, str] = Field(min_length=1)
     upstream_image_digests: dict[str, str] = Field(min_length=1)
     compose_digest: StrictStr = Field(pattern=_HEX64)
+    # Option publique additive : absence totale conserve les octets V2 historiques.
+    public_candidate_inventory_digest: StrictStr | None = Field(default=None, pattern=_HEX64)
+    public_candidate_provenance_run_id: StrictInt | None = Field(default=None, gt=0)
+    public_candidate_provenance_run_attempt: StrictInt | None = Field(default=None, gt=0)
 
     workflow_path: StrictStr = Field(pattern=_WORKFLOW_PATH)
     workflow_ref: StrictStr = Field(min_length=1, max_length=255)
@@ -314,10 +328,33 @@ class ProductionReadinessManifestV2(StrictBaseModel):
                 f"release_tag suffix {match.group(2)!r} does not match the first "
                 f"12 characters of merge_sha ({self.merge_sha[:12]!r})"
             )
+        public_fields = (
+            self.public_candidate_inventory_digest,
+            self.public_candidate_provenance_run_id,
+            self.public_candidate_provenance_run_attempt,
+        )
+        if any(value is not None for value in public_fields) != all(
+            value is not None for value in public_fields
+        ):
+            raise ValueError("public candidate inventory digest and run identity must be complete")
+        if all(value is not None for value in public_fields):
+            expected_repositories = PUBLIC_CANDIDATE_IMAGE_REPOSITORIES
+            if set(self.application_image_digests) != set(expected_repositories):
+                raise ValueError("public candidate inventory requires exactly four application images")
+            for service, repository in expected_repositories.items():
+                if not self.application_image_digests[service].startswith(f"{repository}@sha256:"):
+                    raise ValueError(f"public candidate image repository differs for {service}")
+            if (
+                self.application_image_digests["multilevel-worker-a-production"]
+                != self.application_image_digests["multilevel-worker-b-production"]
+            ):
+                raise ValueError("public candidate worker images must be identical")
+        elif "cockpit" in self.application_image_digests:
+            raise ValueError("public candidate inventory is required when cockpit is signed")
         return self
 
     def canonical_document(self) -> dict[str, Any]:
-        return {
+        document = {
             "application_image_digests": _canonical_digest_map(
                 self.application_image_digests
             ),
@@ -348,6 +385,13 @@ class ProductionReadinessManifestV2(StrictBaseModel):
             "workflow_path": self.workflow_path,
             "workflow_ref": self.workflow_ref,
         }
+        if self.public_candidate_inventory_digest is not None:
+            document["public_candidate_inventory_digest"] = self.public_candidate_inventory_digest
+            document["public_candidate_provenance_run_id"] = self.public_candidate_provenance_run_id
+            document["public_candidate_provenance_run_attempt"] = (
+                self.public_candidate_provenance_run_attempt
+            )
+        return document
 
     def canonical_bytes(self) -> bytes:
         return _canonical_bytes(self.canonical_document())
@@ -771,7 +815,35 @@ def require_manifest_matches_release(
         )
 
 
+def require_public_candidate_inventory_matches_readiness(
+    manifest: ProductionReadinessManifestV2,
+    *,
+    inventory_digest: str,
+    provenance_run_id: int,
+    provenance_run_attempt: int,
+    application_image_digests: dict[str, str],
+) -> None:
+    """Confronte une provenance V2 *déjà vérifiée* aux faits signés.
+
+    Le téléchargeur/vérificateur de provenance reste la frontière d'autorité.
+    Cette fonction lie son résultat au manifeste sans refaire d'appel réseau.
+    """
+    if not isinstance(manifest, ProductionReadinessManifestV2):
+        raise ProductionReadinessError("public candidate manifest type differs from signed readiness")
+    if manifest.public_candidate_inventory_digest is None:
+        raise ProductionReadinessError("public candidate inventory binding is absent from signed readiness")
+    if manifest.public_candidate_inventory_digest != inventory_digest:
+        raise ProductionReadinessError("public candidate inventory digest differs from signed readiness")
+    if manifest.public_candidate_provenance_run_id != provenance_run_id:
+        raise ProductionReadinessError("public candidate provenance run id differs from signed readiness")
+    if manifest.public_candidate_provenance_run_attempt != provenance_run_attempt:
+        raise ProductionReadinessError("public candidate provenance run attempt differs from signed readiness")
+    if manifest.application_image_digests != application_image_digests:
+        raise ProductionReadinessError("public candidate application image map differs from signed readiness")
+
+
 __all__ = [
+    "PUBLIC_CANDIDATE_IMAGE_REPOSITORIES",
     "PRODUCTION_ENVIRONMENT",
     "PRODUCTION_READINESS_PROTOCOL_VERSION",
     "PRODUCTION_READINESS_V2_PROTOCOL_VERSION",
@@ -786,6 +858,7 @@ __all__ = [
     "parse_signed_production_readiness_manifest",
     "parse_signed_production_readiness_manifest_v2",
     "public_readiness_key_hex",
+    "require_public_candidate_inventory_matches_readiness",
     "require_manifest_matches_release",
     "sign_production_readiness_manifest",
     "sign_production_readiness_manifest_v2",

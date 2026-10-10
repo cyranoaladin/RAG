@@ -1,0 +1,350 @@
+{
+  "browser": "chromium",
+  "browser_version": "151.0.7922.34",
+  "capture_script_sha256": "79029c1acf74e102e7a0ef7890c875e25498993cc1252b2f47300368ab6ff81b",
+  "extracted_text_file": "a138949f20c6a516.extracted.txt",
+  "extracted_text_sha256": "aac9769466512c1cd903b46d83035e028ce386fac5c88957c17cb8eeba388284",
+  "final_url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
+  "http_status": 200,
+  "kind": "NEXUS_EDUSCOL_LISTING_BROWSER_CAPTURE_V1",
+  "normalized_html_file": "a138949f20c6a516.normalized.html",
+  "normalized_html_sha256": "a6a6b510abe190607004fd23005e70c30aeb9e4f25e4c10c5a773e0f9f1e3180",
+  "observed_at_utc": "2026-10-10T06:03:38.954Z",
+  "pdf_link_count": 66,
+  "pdf_links": [
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe647annexe1063008pdf-82875.pdf",
+      "label": "Seconde générale et technologique (BO spécial n° 1 du 22 janvier 2019) PDF - 314.33 Ko",
+      "occurrence_index": 0
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe648annexe1063542pdf-82878.pdf",
+      "label": "Spécialité SVT de première générale (BO spécial n° 1 du 22 janvier 2019) PDF - 405.48 Ko",
+      "occurrence_index": 1
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/spe252annexe1159114pdf-82881.pdf",
+      "label": "Spécialité SVT de terminale générale (BO spécial n° 8 du 25 juillet 2019) PDF - 455.06 Ko",
+      "occurrence_index": 2
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtmetabolisme1160684pdf-82887.pdf",
+      "label": "L'organisation fonctionnelle du vivant PDF - 275.82 Ko",
+      "occurrence_index": 3
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtbiodiversite1160676pdf-82890.pdf",
+      "label": "Biodiversité, résultat et étape de l'évolution PDF - 313.21 Ko",
+      "occurrence_index": 4
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2-1-tsvtparolescientifique1160695pdf-82884.pdf",
+      "label": "Actualisation des connaissances sur la biodiversité PDF - 157.6 Ko",
+      "occurrence_index": 5
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2svthomme-biodiversitebiodiversiteabeilles1214164pdf-82905.pdf",
+      "label": "Biodiversité génétique des abeilles et activités humaines PDF - 1.06 Mo",
+      "occurrence_index": 6
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg2svtgrandoralcrisecretace-paleocene-classe-puzzlepdf-70566.pdf",
+      "label": "La crise crétacé-paléocène : travail en « classe puzzle » et présentation orale PDF - 1.62 Mo",
+      "occurrence_index": 7
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2-1svtexploitationanimation1160693pdf-82908.pdf",
+      "label": "Exploitation d'une animation sur l'activité à l'intérieur de la cellule PDF - 249.67 Ko",
+      "occurrence_index": 8
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtbiodiversitelichencarto1179405pdf-82911.pdf",
+      "label": "Mesure et cartographie de la biodiversité des lichens sur un territoire donné PDF - 2.46 Mo",
+      "occurrence_index": 9
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtmetabolismeinterconnexion1160686pdf-82914.pdf",
+      "label": "Des voies métaboliques en interconnexion PDF - 1.06 Mo",
+      "occurrence_index": 10
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtagrosysteme1156428pdf-82929.pdf",
+      "label": "Nourrir l'humanité : vers une agriculture durable pour l'humanité ? PDF - 360.95 Ko",
+      "occurrence_index": 11
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svterosion1156434pdf-82932.pdf",
+      "label": "Géosciences et compréhension des paysages PDF - 278.54 Ko",
+      "occurrence_index": 12
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtagrosystemedeveloppement-durable-peches-baie-de-seine1160886pdf-82944.pdf",
+      "label": "Agromodèle - Des pêches interdites en baie de seine PDF - 899.04 Ko",
+      "occurrence_index": 13
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/dossierpresseeutrophisationv331160769pdf-93753.pdf",
+      "label": "dossier de presse « eutrophisation » PDF - 1.54 Mo",
+      "occurrence_index": 14
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtevolution-trait-cote1160888pdf-82947.pdf",
+      "label": "L'évolution du trait de côte en France métropolitaine PDF - 6.38 Mo",
+      "occurrence_index": 15
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtagrosystemereductionintrantsnitrates21161120pdf-82950.pdf",
+      "label": "Une technique culturale permettant de réduire l'utilisation d'intrants nitratés PDF - 2.16 Mo",
+      "occurrence_index": 16
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg2svttheme2cartographie-mesures-erosionlittoralfrance1308630pdf-82953.pdf",
+      "label": "Cartographie et mesure des zones d'érosion sur le littoral français PDF - 1.01 Mo",
+      "occurrence_index": 17
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtprocreation1160680pdf-82971.pdf",
+      "label": "Procréation et sexualité humaine PDF - 580.92 Ko",
+      "occurrence_index": 18
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtmicroorganismessante1156437pdf-82974.pdf",
+      "label": "Microorganismes et santé PDF - 281.97 Ko",
+      "occurrence_index": 19
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtmaladiesvectorielles1179409pdf-82983.pdf",
+      "label": "Quelques ressources scientifiques sur microorganismes et santé - Agents pathogènes et maladies vectorielles PDF - 139.59 Ko",
+      "occurrence_index": 20
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtmicroorganismesante-posters1160890pdf-82986.pdf",
+      "label": "La réalisation de posters scientifiques sur le thème «Microorganisme et santé» PDF - 572.32 Ko",
+      "occurrence_index": 21
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtoral-video1160892pdf-82989.pdf",
+      "label": "Utilisation de la vidéo pour former les élèves à l'oral PDF - 535.29 Ko",
+      "occurrence_index": 22
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtmicrobioteapprocheecosystemique1160689pdf-82992.pdf",
+      "label": "Microbiote humain et santé - une approche écosystémique PDF - 232.6 Ko",
+      "occurrence_index": 23
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2svtchikungunyafrance1179407pdf-82995.pdf",
+      "label": "Impact du réchauffement climatique sur le développement du chikungunya en France PDF - 1.69 Mo",
+      "occurrence_index": 24
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceegt2svteffet-protecteur-microbiote-obesite1217639pdf-82998.pdf",
+      "label": "Effet protecteur du microbiote intestinal contre l'obésité PDF - 290.39 Ko",
+      "occurrence_index": 25
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtdynamiqueinterne1179401pdf-82893.pdf",
+      "label": "La dynamique interne de la Terre PDF - 548.76 Ko",
+      "occurrence_index": 26
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtinformation-genetique-transmission-expression-variation1218874pdf-82896.pdf",
+      "label": "L'information génétique, sa transmission, son expression, sa variation PDF - 352.4 Ko",
+      "occurrence_index": 27
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg2-1svtexploitationanimation1160693pdf-82908.pdf",
+      "label": "Exploitation d'une animation sur l'activité à l'intérieur de la cellule PDF - 249.67 Ko",
+      "occurrence_index": 28
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg2svttraiter-theorie-derive-continents-wegener-debat-sc-72522.pdf",
+      "label": "Une manière de traiter la théorie de la dérive des continents de Wegener – mettre en place un débat scientifique en mobilisant les connaissances de collège PDF - 870.71 Ko",
+      "occurrence_index": 29
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtecosystemesservicesenvironnementaux1160678pdf-82935.pdf",
+      "label": "Les écosystèmes et services environnementaux PDF - 286.16 Ko",
+      "occurrence_index": 30
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1svttheme2cartographiedescontroverses1313328pdf-82956.pdf",
+      "label": "Réaliser la cartographie d'une controverse pour éduquer à la complexité des enjeux PDF - 301.83 Ko",
+      "occurrence_index": 31
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg1svtgrandoralequilibre-dynamique-ecosystemepdf-70560.pdf",
+      "label": "L’équilibre dynamique d’un écosystème - jeu de rôle et conviction oratoire PDF - 135.97 Ko",
+      "occurrence_index": 32
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra19lyceeg1svtsystemeimmunitaire1160682pdf-82977.pdf",
+      "label": "Le fonctionnement du système immunitaire humain PDF - 398.08 Ko",
+      "occurrence_index": 33
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1svttheme3variation-gen-bacterienne-resistance-antibiotiques1313332pdf-83001.pdf",
+      "label": "Variation génétique bactérienne et résistance aux antibiotiques PDF - 2.82 Mo",
+      "occurrence_index": 34
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceeg1svttheme3risquegenetiquemucosviscidose1313330pdf-83004.pdf",
+      "label": "Variation génétique et santé - Risque de transmission de la mucoviscidose chez un couple dont l'homme est hétérozygote composite PDF - 2.13 Mo",
+      "occurrence_index": 35
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg1svtgrandoralmutation-adnpdf-70563.pdf",
+      "label": "Mutations de l’ADN et variabilité génétique - altérations du génome et cancérisation : présentation orale d’une stratégie de résolution de problème (sans support écrit, individuelle) PDF - 164.19 Ko",
+      "occurrence_index": 36
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvtgenetiqueevolution1296957pdf-82899.pdf",
+      "label": "Génétique et évolution PDF - 609.69 Ko",
+      "occurrence_index": 37
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme1passegeologiqueplanete1313481pdf-82902.pdf",
+      "label": "À la recherche du passé géologique de notre planète PDF - 529.27 Ko",
+      "occurrence_index": 38
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtconservation-genomesstabilite-gen-72528.pdf",
+      "label": "La conservation des génomes - stabilité génétique et évolution clonale – remobiliser des prérequis et présentation orale PDF - 1.19 Mo",
+      "occurrence_index": 39
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvtloihardyweinberg1296958pdf-82917.pdf",
+      "label": "Prédiction des génotypes dans deux populations touchées par la drépanocytose en utilisant la loi de Hardy-Weinberg PDF - 579.4 Ko",
+      "occurrence_index": 40
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme1former-techniques-bio-apprehender-concept-holobionte1307945pdf-82920.pdf",
+      "label": "Former les élèves à des techniques de biologie moléculaire et de bioinformatique et appréhender le concept d'holobionte PDF - 5.31 Mo",
+      "occurrence_index": 41
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtmusoviscidoseenregistrement-video-72531.pdf",
+      "label": "La mucoviscidose – enregistrement vidéo ciblé sur la posture et la voix PDF - 204.34 Ko",
+      "occurrence_index": 42
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme1reconstituerhistoiregeologique1313483pdf-82926.pdf",
+      "label": "Reconstituer une histoire géologique - Démarches et problématisation PDF - 237.68 Ko",
+      "occurrence_index": 43
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtpasse-geologiqpres-orale-72525.pdf",
+      "label": "Le passé géologique de notre planète et les climats passés – présentation orale de recherches et mise en commun PDF - 944.47 Ko",
+      "occurrence_index": 44
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2climatsterre1307947pdf-82938.pdf",
+      "label": "Les climats de la Terre : comprendre le passé pour agir aujourd'hui et demain PDF - 866.42 Ko",
+      "occurrence_index": 45
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2plantes-sauvage-domestiquee1307949pdf-82941.pdf",
+      "label": "De la plante sauvage à la plante domestiquée PDF - 401.2 Ko",
+      "occurrence_index": 46
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvtdomesticationplantesposter1296956pdf-82959.pdf",
+      "label": "Communiquer par un poster scientifique : La domestication des plantes PDF - 830.9 Ko",
+      "occurrence_index": 47
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2basedonneespaleontologique1313162pdf-82962.pdf",
+      "label": "Utiliser une base de données paléontologique pour reconstituer des variations climatiques passées (Paleobiology Database) PDF - 1.31 Mo",
+      "occurrence_index": 48
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2placer-eleves-demarche-projet-comprendre-action-climatique1315226pdf-82965.pdf",
+      "label": "Placer les élèves en démarche de projet pour comprendre et évaluer une action climatique PDF - 333.91 Ko",
+      "occurrence_index": 49
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2argumenter-oral-actions-changement-climatique1315224pdf-82968.pdf",
+      "label": "Argumenter à l'oral sur les actions pour faire face au changement climatique PDF - 210.87 Ko",
+      "occurrence_index": 50
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2simclimatmntpdf-68493.pdf",
+      "label": "Simclimat, un modèle numérique de climat PDF - 758.17 Ko",
+      "occurrence_index": 51
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2simclimatcomprendrevariationsclimpassepdf-68496.pdf",
+      "label": "Simclimat pour comprendre les variations climatiques passées PDF - 807.14 Ko",
+      "occurrence_index": 52
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2simclimatdemarchescientifiquepdf-68499.pdf",
+      "label": "Utiliser Simclimat pour conduire une démarche scientifique PDF - 331.32 Ko",
+      "occurrence_index": 53
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme2trajectoiresstrategiesattenuationclimatpdf-68502.pdf",
+      "label": "Trajectoires et stratégies d’atténuation PDF - 1.43 Mo",
+      "occurrence_index": 54
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra20lyceegtsvttheme3comportement-mouvement-sysnerveux1331399pdf-82980.pdf",
+      "label": "Comportements, mouvement et système nerveux - Produire le mouvement : contraction musculaire et apport d'énergie - Comportements et stress : vers une vision intégrée de l'organisme PDF - 567.53 Ko",
+      "occurrence_index": 55
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtgrandoralmouvement-volontairepdf-70578.pdf",
+      "label": "La commande du mouvement volontaire : écouter et rapporter la parole de ses pairs PDF - 2.06 Mo",
+      "occurrence_index": 56
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtgrandoralatp-source-energiepdf-70575.pdf",
+      "label": "L’ATP comme source d’énergie : jeu de rôle et conviction oratoire PDF - 903.63 Ko",
+      "occurrence_index": 57
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg2svtgrandoralresistance-stress-classe-puzzlepdf-70569.pdf",
+      "label": "L’insuffisance surrénalienne au service de la compréhension de l’axe hypothalamohypophysocorticosurrénalien dans la phase de résistance au stress - travail en « classe puzzle » et présentation orale PDF - 1.27 Mo",
+      "occurrence_index": 58
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg2-1-tgrandoralprogresser-en-continu-70224.pdf",
+      "label": "S'entraîner à l'oral en continu - Diverses modalités pédagogiques PDF - 155.62 Ko",
+      "occurrence_index": 59
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceeg2-1-tsvt-esgrandoralorateur-argumentationpdf-70572.pdf",
+      "label": "Le grand orateur en SVT - Argumentation orale PDF - 174.34 Ko",
+      "occurrence_index": 60
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtgrandoralorateurs-eval-pairspdf-69651.pdf",
+      "label": "Évaluation par les pairs sur les notions du programme de première en spécialité SVT PDF - 285.98 Ko",
+      "occurrence_index": 61
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtgrandoraletablir-diagnostic-besoinspdf-69648.pdf",
+      "label": "Établir un diagnostic des besoins des élèves pour différentes compétences orales dans une séquence d’enseignement PDF - 190.95 Ko",
+      "occurrence_index": 62
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/ra21lyceegtsvtgrandoralcoherencecardiaquepdf-69654.pdf",
+      "label": "La cohérence cardiaque – Préparer le contenu de mon Grand oral – Guide élève PDF - 109.83 Ko",
+      "occurrence_index": 63
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/guide-pour-l-epreuve-pratique-en-sciences-de-la-vie-et-de-la-terre-ece-98298.pdf",
+      "label": "Guide pour l'épreuve pratique en sciences de la vie et de la Terre (ECE)",
+      "occurrence_index": 64
+    },
+    {
+      "href": "https://eduscol.education.gouv.fr/sites/default/files/document/guide-conditions-d-enseignement-pour-les-sciences-de-la-vie-et-de-la-terre-au-college-et-au-lycee-112215.pdf",
+      "label": "Guide - Conditions d’enseignement pour les sciences de la vie et de la Terre au collège et au lycée",
+      "occurrence_index": 65
+    }
+  ],
+  "playwright_version": "1.62.0",
+  "requested_url": "https://eduscol.education.gouv.fr/5835/programmes-et-ressources-en-sciences-de-la-vie-et-de-la-terre-voie-gt",
+  "screenshot_file": "a138949f20c6a516.png",
+  "screenshot_sha256": "d6446b0cde1d97f0259040be656f4cdf2972c39cafd5690e5441462dc459d9fa"
+}

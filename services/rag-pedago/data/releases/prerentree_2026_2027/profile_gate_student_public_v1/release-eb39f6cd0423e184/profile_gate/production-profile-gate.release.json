@@ -1,0 +1,97 @@
+{
+  "activation_status": "NO_PRODUCTION_ACTIVATION",
+  "artifact_registry": {
+    "path": "artifacts.release.json",
+    "sha256": "9c402d143616b12049e3078252a763a359667d80adae9b3a8053fd213398126d"
+  },
+  "authorities": {
+    "candidate_manifest_sha256": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
+    "delegated_evidence_pack_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
+    "pr300_final_authority_receipt_sha256": "feb4928db20244c2c56a09a29f0718519d14ed903ba26feedb2b11ec0e605346",
+    "public_pii_registry_sha256": "54564cabaa6e862ed532b16e829b7b3f52aaa995653421511afed198dfd77eaf",
+    "public_profile_registry_sha256": "5af870bd23ca1ff072e27262cab8c4255ad5f2b482deed33925d22c7a8017098",
+    "public_rights_registry_sha256": "5cd517b831f95c889f5487a81ce576f736a39cbf0de14d63a23fd16771a819ad",
+    "rights_authority_sha256": "013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1",
+    "text_derivative_extraction_policy_sha256": "6055813ee697c8b0386ebe266df5b85a744908c5deeaa2daff41afcc1aba7edf"
+  },
+  "expected_counts": {
+    "placements": 377,
+    "subjects": 11,
+    "unique_artifacts": 253,
+    "unique_chunks": 3975
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "promotion_status": "NOT_PROMOTABLE",
+  "release_id": "student-public-20261010-v1-eb39f6cd0423e184",
+  "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2",
+  "release_mode": "candidate",
+  "review_status": "PRE_REVIEW",
+  "school_year": "2026-2027",
+  "subjects": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "path": "subjects/rag_nexus_dgemc_terminale_option.release.json",
+      "sha256": "45c87dd7d2df22861f2759b2956f542530d182694aa6913d4a1740ed9274578e"
+    },
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "path": "subjects/rag_nexus_hggsp_premiere_specialite.release.json",
+      "sha256": "c3633e7c4b2038a665ad71f4a12d8e8ba6da6d33bc67934acf26423a20b3ac13"
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "path": "subjects/rag_nexus_hggsp_terminale_specialite.release.json",
+      "sha256": "401467e98ca2d6d1213458a9b39b380a285a8271507bb714417d35d4b640eece"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "path": "subjects/rag_nexus_hlp_premiere_specialite.release.json",
+      "sha256": "36f9a0367087adcc9272aba93b04405e1994c655bfd725240f51f9e872a45ba1"
+    },
+    {
+      "collection": "rag_nexus_hlp_terminale_specialite",
+      "path": "subjects/rag_nexus_hlp_terminale_specialite.release.json",
+      "sha256": "2ea5b52fc0750915b4728a44f4e0260d47237da9eeb0c6408beccf7416dc2e9e"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "path": "subjects/rag_nexus_nsi_premiere_specialite.release.json",
+      "sha256": "e8f463281ec12afb1e99d2cb211e89f8a2e9281eef2da48bd5af04c920825a9b"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "path": "subjects/rag_nexus_nsi_terminale_specialite.release.json",
+      "sha256": "4c20ee77bb67d7f9822db1f9698890d2d3bddb29bcaceade91ce8fc2778e39ef"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "path": "subjects/rag_nexus_ses_premiere_specialite.release.json",
+      "sha256": "f3714579478ca3df9c100a33b97b43cf543cc6ae7ed4f5a091275da03b4a4de5"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "path": "subjects/rag_nexus_ses_terminale_specialite.release.json",
+      "sha256": "ebb71cc5031c99debdd15b7db7ea2caa01b0ab082726dbcf34e0ba6f7ce60702"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "path": "subjects/rag_nexus_svt_premiere_specialite.release.json",
+      "sha256": "e10f30a881da333966b834e85135ff129c33686d227a150f259c0b4e10cc4dc6"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "path": "subjects/rag_nexus_svt_terminale_specialite.release.json",
+      "sha256": "558affdb164ccda78d96a148c76c6c9649bc6a923c0c016687b287646fdfb2ce"
+    }
+  ]
+}

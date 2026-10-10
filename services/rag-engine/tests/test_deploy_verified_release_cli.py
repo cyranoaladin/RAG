@@ -13,7 +13,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
+import stat
 import subprocess
 import sys
 from datetime import UTC, datetime
@@ -81,6 +83,48 @@ WORKER_DIGEST = "sha256:" + "2" * 64
 DOCKERFILE_SHA = "3" * 64
 INGESTOR_REPO = "ghcr.io/cyranoaladin/rag-ingestor"
 WORKER_REPO = "ghcr.io/cyranoaladin/rag-multilevel-worker-production"
+
+
+def test_public_readiness_checker_binds_exact_inventory_document() -> None:
+    material = _v2_material()
+    images = {
+        **V2_APPLICATION_IMAGES,
+        "cockpit": "ghcr.io/cyranoaladin/rag-cockpit@sha256:" + "5" * 64,
+    }
+    document = {
+        "protocol_version": "NEXUS-DEPLOYMENT-IMAGE-INVENTORY-V2",
+        "repository": REPOSITORY,
+        "source_commit_sha": material.merge_sha,
+        "source_tree_sha": material.merge_tree_sha,
+        "workflow_run_id": RUN_ID,
+        "workflow_run_attempt": RUN_ATTEMPT,
+        "services": {
+            name: {"image_repository": ref.split("@")[0], "image_digest": ref.split("@")[1]}
+            for name, ref in images.items()
+        },
+    }
+    digest = dii.public_candidate_inventory_digest(document)
+    manifest = dep.signer.assemble_and_sign_v2(
+        material, repository=REPOSITORY, pr_number=V2_PR_NUMBER,
+        pr_head_sha=V2_PR_HEAD_SHA, pr_head_tree_sha=V2_TREE_SHA,
+        application_image_digests=images,
+        upstream_image_digests={V2_UPSTREAM_IMAGE_SERVICE: V2_UPSTREAM_IMAGE_REF},
+        compose_digest="8" * 64, key_id=V2_KEY_ID, workflow_ref=V2_WORKFLOW_REF,
+        public_candidate_inventory_digest=digest,
+    )
+    dep.require_public_candidate_inventory_binding(manifest, document)
+    dep.require_runtime_images_match_readiness(
+        manifest, {name: images[name] for name in ("ingestor", "cockpit")}
+    )
+    with pytest.raises(dep.DeploymentWrapperError, match="runtime images"):
+        dep.require_runtime_images_match_readiness(manifest, images)
+    for change in (
+        {"source_tree_sha": "f" * 40},
+        {"workflow_run_attempt": RUN_ATTEMPT + 1},
+        {"services": {**document["services"], "cockpit": {"image_repository": "ghcr.io/cyranoaladin/rag-cockpit", "image_digest": "sha256:" + "9" * 64}}},
+    ):
+        with pytest.raises(dep.DeploymentWrapperError, match="public candidate inventory"):
+            dep.require_public_candidate_inventory_binding(manifest, {**document, **change})
 
 READINESS_SEED = "11" * 32
 KEY_ID = "nexus-readiness-test-1"
@@ -251,6 +295,23 @@ def _materialize(
 
 
 class TestMaterializeVerifiedBundleHappyPath:
+    def test_v1_bundle_is_private_under_permissive_umask(self, tmp_path: Path) -> None:
+        fakes = _Fakes(
+            run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()
+        )
+        previous = os.umask(0o000)
+        try:
+            bundle_dir = tmp_path / "bundle"
+            _materialize(fakes, tmp_path, bundle_dir=bundle_dir)
+        finally:
+            os.umask(previous)
+        assert stat.S_IMODE(bundle_dir.stat().st_mode) == 0o700
+        work_dir = tmp_path / "work"
+        assert stat.S_IMODE(work_dir.stat().st_mode) == 0o700
+        assert list(work_dir.iterdir()) == []
+        for path in bundle_dir.rglob("*"):
+            assert stat.S_IMODE(path.stat().st_mode) == (0o700 if path.is_dir() else 0o600)
+
     def test_bundle_contains_every_compose_file_byte_identical(self, tmp_path: Path) -> None:
         fakes = _Fakes(
             run=_run_document(), inventory=_inventory_document(), resolved_compose=_resolved_compose()

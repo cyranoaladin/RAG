@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 PDF_MEDIA_TYPE = "application/pdf"
+TEXT_MEDIA_TYPE = "text/plain; charset=utf-8"
+_SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 
 
 class SealedReleaseCatalogError(RuntimeError):
@@ -177,16 +180,48 @@ def _establish_media_type(
     files = document.get("files")
     if not isinstance(files, list) or not files:
         return "", "non etabli : le manifeste de transfert ne liste aucun objet"
-    extensions = {str(f.get("file", "")).rsplit(".", 1)[-1].lower() for f in files}
-    transferes = {
-        str(f.get("file", "")).rsplit(".", 1)[0] for f in files
-    }
+    names = [str(f.get("file", "")) for f in files]
+    extensions = {name.rsplit(".", 1)[-1].lower() for name in names}
+    transferes = {name.rsplit(".", 1)[0] for name in names}
     if transferes != set(artifacts):
         return "", (
             "non etabli : l'ensemble transfere ne coincide pas avec le catalogue"
         )
+    if len(names) != len(artifacts):
+        return "", "non etabli : plusieurs fichiers pour un meme artefact"
+    if extensions == {"txt"}:
+        for sha, entry in artifacts.items():
+            if f"{sha}.txt" not in names:
+                return "", "non etabli : nom du derive texte different de son SHA"
+            if entry.get("media_type") != TEXT_MEDIA_TYPE:
+                return "", "non etabli : text/plain non declare explicitement"
+            source_sha = entry.get("source_pdf_sha256")
+            if not isinstance(source_sha, str) or _SHA256.fullmatch(source_sha) is None:
+                raise SealedReleaseCatalogError(
+                    f"{sha}: source PDF SHA-256 missing or invalid"
+                )
+            if source_sha == sha:
+                raise SealedReleaseCatalogError(
+                    f"{sha}: source PDF and text derivative have the same SHA-256"
+                )
+        return TEXT_MEDIA_TYPE, (
+            "declaration text/plain; charset=utf-8 de chaque artefact et "
+            "convention de nommage du manifeste de transfert : les "
+            f"{len(files)} objets portent l'extension .txt et couvrent "
+            "exactement le catalogue (aucune lecture des octets)"
+        )
     if extensions != {"pdf"}:
         return "", f"non etabli : extensions heterogenes {sorted(extensions)}"
+    if any(
+        not any(
+            name.rsplit(".", 1)[0] == sha
+            and name.rsplit(".", 1)[-1].lower() == "pdf"
+            for name in names
+        )
+        or entry.get("media_type", PDF_MEDIA_TYPE) != PDF_MEDIA_TYPE
+        for sha, entry in artifacts.items()
+    ):
+        return "", "non etabli : PDF mal nomme ou type de media contradictoire"
     return PDF_MEDIA_TYPE, (
         "convention de nommage du manifeste de transfert : les "
         f"{len(files)} objets portent l'extension .pdf et couvrent exactement "
@@ -196,6 +231,7 @@ def _establish_media_type(
 
 __all__ = [
     "PDF_MEDIA_TYPE",
+    "TEXT_MEDIA_TYPE",
     "SealedReleaseCatalogError",
     "VerifiedSealedReleaseCatalog",
     "load_sealed_release_catalog",
