@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import importlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
-from build_student_public_successor_release import (
-    build_documents,
-    load_sources,
-    validate_inclusions,
-    write_immutable,
-)
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts/go_live"))
+_builder = importlib.import_module("build_student_public_successor_release")
+build_documents = _builder.build_documents
+load_sources = _builder.load_sources
+validate_inclusions = _builder.validate_inclusions
+write_immutable = _builder.write_immutable
 
 
 def _doc(documents: dict[Path, bytes], name: str) -> dict:
