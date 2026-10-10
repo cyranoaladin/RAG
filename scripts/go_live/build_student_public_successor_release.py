@@ -7,6 +7,7 @@ import argparse
 import copy
 import json
 import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,7 @@ RELEASE_ROOT = Path(
 )
 BLOCKERS = [
     "EXACT_HEAD_SUCCESSOR_SCOPE_REVIEW",
-    "DERIVATIVE_CURRENTNESS_EVIDENCE",
+    "FRESH_SOURCE_CURRENTNESS_AT_PROMOTION",
     "PRIVATE_BYTES_TRANSFER_RECEIPT",
     "SUCCESSOR_AUTHORIZATION_AND_BATCH_REVIEW",
 ]
@@ -68,6 +69,10 @@ def load_sources(root: Path) -> dict[str, Any]:
         if (document.get("release_id") != candidate.get("release_id")
                 or document.get("status") != "CANDIDATE_NOT_AUTHORIZED"):
             raise ValueError(f"candidate {name} status differs")
+        if (name == "public_rights_registry.json"
+                and document.get("rights_authority_sha256")
+                != candidate["authorities"]["rights_authority_sha256"]):
+            raise ValueError("candidate global rights authority differs")
         sidecars[name] = document
     proposal_raw = (root / PROFILE_DIR / "public_profile_proposal.json").read_bytes()
     proposal = _json(proposal_raw, "profile proposal")
@@ -124,29 +129,65 @@ def validate_inclusions(source: dict[str, Any], inclusion: object) -> frozenset[
     inputs = source["inputs"]
     if (set(inclusion) != {
             "kind", "source_candidate_manifest_sha256", "source_candidate_inventory_sha256",
-            "pii_scan_report_sha256", "decisions",
-        } or inclusion["kind"] != "NEXUS_STUDENT_PUBLIC_DERIVATIVE_INCLUSIONS_V1"
+            "rights_authority_sha256",
+            "pii_adjudication_report_sha256", "source_currentness_attestation_sha256",
+            "fresh_source_index_file_sha256", "fresh_source_index_logical_sha256",
+            "private_cas_manifest_sha256", "source_currentness_valid_until_utc",
+            "decision_count", "evidence_pack_sha256", "decisions",
+        } or inclusion["kind"] != "NEXUS_STUDENT_PUBLIC_DERIVATIVE_INCLUSIONS_V2"
             or inclusion["source_candidate_manifest_sha256"]
             != inputs["candidate_manifest_sha256"]
             or inclusion["source_candidate_inventory_sha256"]
             != digest(canonical(source["inventory"]))
-            or not isinstance(inclusion["pii_scan_report_sha256"], str)
-            or SHA256.fullmatch(inclusion["pii_scan_report_sha256"]) is None):
-        raise ValueError("inclusion attestation authority differs")
+            or inclusion["rights_authority_sha256"]
+            != inputs["release"]["authorities"]["rights_authority_sha256"]
+            or any(not isinstance(inclusion[field], str)
+                   or SHA256.fullmatch(inclusion[field]) is None
+                   for field in (
+                       "pii_adjudication_report_sha256",
+                       "source_currentness_attestation_sha256",
+                       "fresh_source_index_file_sha256",
+                       "fresh_source_index_logical_sha256",
+                       "private_cas_manifest_sha256",
+                       "evidence_pack_sha256",
+                   ))):
+        raise ValueError("verified inclusion authority differs")
+    try:
+        valid_until = datetime.fromisoformat(
+            inclusion["source_currentness_valid_until_utc"].replace("Z", "+00:00")
+        )
+    except (TypeError, ValueError):
+        raise ValueError("verified inclusion freshness invalid") from None
+    if valid_until.tzinfo is None or valid_until <= datetime.now(timezone.utc):
+        raise ValueError("verified inclusion freshness expired")
     decisions = inclusion["decisions"]
     expected = sorted(item["content_sha256"] for item in inputs["artifacts"]["artifacts"])
     if (not isinstance(decisions, list) or len(decisions) != len(expected)
+            or inclusion["decision_count"] != len(expected)
+            or inclusion["evidence_pack_sha256"] != digest(canonical(decisions))
             or any(not isinstance(row, dict) or set(row) != {
-                "content_sha256", "disposition", "evidence_sha256",
+                "content_sha256", "source_pdf_sha256", "disposition", "evidence_sha256",
+                "pii_evidence_sha256", "currentness_evidence_sha256",
+                "fresh_source_checkpoint_file_sha256",
             } for row in decisions)
             or [row["content_sha256"] for row in decisions] != expected):
         raise ValueError("inclusion population differs")
     included: set[str] = set()
+    source_by_sha = {item["content_sha256"]: item["source_pdf_sha256"]
+                     for item in inputs["artifacts"]["artifacts"]}
     for row in decisions:
+        if row["source_pdf_sha256"] != source_by_sha[row["content_sha256"]]:
+            raise ValueError("inclusion PDF source differs")
         if row["disposition"] not in {"INCLUDE", "EXCLUDE"}:
             raise ValueError("inclusion disposition is not final")
         evidence = row["evidence_sha256"]
-        if not isinstance(evidence, str) or SHA256.fullmatch(evidence) is None:
+        proof = {field: row[field] for field in (
+            "pii_evidence_sha256", "currentness_evidence_sha256",
+            "fresh_source_checkpoint_file_sha256",
+        )}
+        if (any(not isinstance(value, str) or SHA256.fullmatch(value) is None
+                for value in proof.values())
+                or evidence != digest(canonical(proof))):
             raise ValueError("inclusion evidence SHA differs")
         if row["disposition"] == "INCLUDE":
             included.add(row["content_sha256"])
@@ -208,15 +249,62 @@ def build_documents(
     documents[base / gate / "artifacts.release.json"] = artifact_raw
 
     authorities = copy.deepcopy(old["authorities"])
+    decisions_by_sha = {row["content_sha256"]: row for row in inclusion["decisions"]}
     for name, authority in SIDECARS.items():
         sidecar = copy.deepcopy(source["sidecars"][name])
         sidecar["release_id"] = release_id
         if name != "public_profiles.json":
             sidecar["entries"] = [item for item in sidecar["entries"]
                                   if item["content_sha256"] in included]
+        if name == "public_pii_registry.json":
+            sidecar["kind"] = "NEXUS_STUDENT_PUBLIC_DERIVATIVE_PII_REGISTRY_V2"
+            sidecar["adjudication_report_sha256"] = inclusion[
+                "pii_adjudication_report_sha256"]
+            for entry in sidecar["entries"]:
+                entry["pii_gate_status"] = "PASS_BY_DERIVATIVE_FULL_TEXT_ADJUDICATION"
+                entry["pii_evidence_sha256"] = decisions_by_sha[
+                    entry["content_sha256"]]["pii_evidence_sha256"]
+        if name == "public_rights_registry.json":
+            sidecar["kind"] = "NEXUS_STUDENT_PUBLIC_DERIVATIVE_RIGHTS_REGISTRY_V2"
+            sidecar["inclusion_attestation_sha256"] = selection_sha
+            sidecar["source_currentness_attestation_sha256"] = inclusion[
+                "source_currentness_attestation_sha256"]
+            for entry in sidecar["entries"]:
+                decision = decisions_by_sha[entry["content_sha256"]]
+                if entry["source_pdf_sha256"] != decision["source_pdf_sha256"]:
+                    raise ValueError("derivative rights source PDF differs")
+                entry["rights_basis"] = "EDUSCOL_ETALAB_2_0_SITEWIDE"
+                entry["currentness_evidence_sha256"] = decision[
+                    "currentness_evidence_sha256"]
         raw = canonical(sidecar)
         authorities[authority] = digest(raw)
         documents[base / gate / name] = raw
+
+    currentness_registry = {
+        "kind": "NEXUS_STUDENT_PUBLIC_DERIVATIVE_CURRENTNESS_REGISTRY_V1",
+        "status": "CANDIDATE_NOT_AUTHORIZED",
+        "release_id": release_id,
+        "source_currentness_attestation_sha256": inclusion[
+            "source_currentness_attestation_sha256"],
+        "fresh_source_index_file_sha256": inclusion["fresh_source_index_file_sha256"],
+        "private_cas_manifest_sha256": inclusion["private_cas_manifest_sha256"],
+        "valid_until_utc": inclusion["source_currentness_valid_until_utc"],
+        "entries": [
+            {
+                "content_sha256": row["content_sha256"],
+                "source_pdf_sha256": row["source_pdf_sha256"],
+                "currentness_evidence_sha256": row["currentness_evidence_sha256"],
+                "fresh_source_checkpoint_file_sha256": row[
+                    "fresh_source_checkpoint_file_sha256"],
+                "currentness_status": "PASS",
+                "revocation_status": "PASS_CURRENT_OFFICIAL_PUBLICATION",
+            }
+            for row in inclusion["decisions"] if row["disposition"] == "INCLUDE"
+        ],
+    }
+    currentness_raw = canonical(currentness_registry)
+    currentness_sha = digest(currentness_raw)
+    documents[base / gate / "public_currentness_registry.json"] = currentness_raw
 
     subjects = []
     total_placements = 0
@@ -307,8 +395,19 @@ def build_documents(
          "path": f"profile_gate/profiles/{row['collection']}.yml"}
         for row in subjects
     ]
+    proposed_scopes = [
+        {
+            "collection": row["collection"],
+            "final_subject_sha256": row["sha256"],
+            "proposed_scope_id": (
+                f"student_public_{row['collection'].removeprefix('rag_nexus_')}_v1"
+            ),
+            "status": "NOT_ISSUED",
+        }
+        for row in subjects
+    ]
     index = {
-        "kind": "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V1",
+        "kind": "NEXUS_STUDENT_PUBLIC_SUCCESSOR_PREPARATION_V2",
         "status": "PREPARATION_ONLY_NOT_ACTIVABLE",
         "release_id": release_id,
         "source_candidate_release_id": old["release_id"],
@@ -316,10 +415,34 @@ def build_documents(
         "source_candidate_inventory_sha256": digest(canonical(source["inventory"])),
         "complete_profile_proposal_sha256": source["profile_proposal_sha256"],
         "inclusion_attestation_sha256": selection_sha,
-        "pii_scan_report_sha256": inclusion["pii_scan_report_sha256"],
+        "pii_adjudication_report_sha256": inclusion["pii_adjudication_report_sha256"],
+        "source_currentness_attestation_sha256": inclusion[
+            "source_currentness_attestation_sha256"],
+        "fresh_source_index_file_sha256": inclusion["fresh_source_index_file_sha256"],
+        "fresh_source_index_logical_sha256": inclusion["fresh_source_index_logical_sha256"],
+        "private_cas_manifest_sha256": inclusion["private_cas_manifest_sha256"],
+        "source_currentness_valid_until_utc": inclusion[
+            "source_currentness_valid_until_utc"],
+        "evidence_pack_sha256": inclusion["evidence_pack_sha256"],
+        "verified_authorities": {
+            "candidate_manifest_sha256": inputs["candidate_manifest_sha256"],
+            "rights_authority_sha256": inclusion["rights_authority_sha256"],
+            "inclusion_attestation_sha256": selection_sha,
+            "pii_adjudication_report_sha256": inclusion[
+                "pii_adjudication_report_sha256"],
+            "source_currentness_attestation_sha256": inclusion[
+                "source_currentness_attestation_sha256"],
+            "fresh_source_index_file_sha256": inclusion[
+                "fresh_source_index_file_sha256"],
+            "private_cas_manifest_sha256": inclusion["private_cas_manifest_sha256"],
+            "public_pii_registry_sha256": authorities["public_pii_registry_sha256"],
+            "public_rights_registry_sha256": authorities["public_rights_registry_sha256"],
+            "public_currentness_registry_sha256": currentness_sha,
+        },
         "excluded_derivative_count": len(artifacts) - len(included),
         "complete_profile_count": len(profiles),
         "complete_profiles": profile_index,
+        "proposed_scopes": proposed_scopes,
         "release_manifest_sha256": aggregate_sha,
         "artifact_registry_sha256": artifact_sha,
         "candidate_inventory_sha256": inventory_sha,
@@ -351,6 +474,7 @@ def main() -> int:
     parser.add_argument("--repository-root", type=Path, required=True)
     parser.add_argument("--inclusion-attestation", type=Path, required=True)
     parser.add_argument("--inclusion-attestation-sha256", required=True)
+    parser.add_argument("--private-cas-root", type=Path, required=True)
     args = parser.parse_args()
     root = args.repository_root.resolve()
     inclusion_path = args.inclusion_attestation.resolve()
@@ -358,7 +482,13 @@ def main() -> int:
     if (SHA256.fullmatch(args.inclusion_attestation_sha256) is None
             or digest(raw) != args.inclusion_attestation_sha256):
         raise ValueError("inclusion attestation sealed digest differs")
-    documents = build_documents(load_sources(root), inclusion=_json(raw, "inclusion attestation"))
+    source = load_sources(root)
+    from check_student_public_derivative_inclusions import verify_private_cas_evidence
+
+    verified = verify_private_cas_evidence(source, args.private_cas_root)
+    if canonical(verified) != raw:
+        raise ValueError("inclusion attestation differs from private CAS replay")
+    documents = build_documents(source, inclusion=verified)
     write_immutable(root, documents)
     index = next(json.loads(raw) for path, raw in documents.items()
                  if path.name == "preparation-index.json")

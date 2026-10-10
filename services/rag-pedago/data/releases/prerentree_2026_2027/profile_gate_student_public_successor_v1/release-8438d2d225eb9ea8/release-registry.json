@@ -1,0 +1,25 @@
+{
+  "registry_version": "1",
+  "releases": [
+    {
+      "collections": [
+        "rag_nexus_dgemc_terminale_option",
+        "rag_nexus_hggsp_premiere_specialite",
+        "rag_nexus_hggsp_terminale_specialite",
+        "rag_nexus_hlp_premiere_specialite",
+        "rag_nexus_hlp_terminale_specialite",
+        "rag_nexus_nsi_premiere_specialite",
+        "rag_nexus_nsi_terminale_specialite",
+        "rag_nexus_ses_premiere_specialite",
+        "rag_nexus_ses_terminale_specialite",
+        "rag_nexus_svt_premiere_specialite",
+        "rag_nexus_svt_terminale_specialite"
+      ],
+      "expected_manifest_sha256": "636c2bba0273ac64c3f69ffc2fec4019756c7d9048849df00b7f3ee35def9e4d",
+      "manifest_path": "profile_gate/production-profile-gate.release.json",
+      "release_id": "student-public-successor-20261010-8438d2d225eb9ea8",
+      "release_kind": "MULTILEVEL_AGGREGATE_RELEASE_V2"
+    }
+  ],
+  "school_year": "2026-2027"
+}

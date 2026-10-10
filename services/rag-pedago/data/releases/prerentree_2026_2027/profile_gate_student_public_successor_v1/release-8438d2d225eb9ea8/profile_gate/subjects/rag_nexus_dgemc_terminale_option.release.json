@@ -1,0 +1,157 @@
+{
+  "artifact_registry": {
+    "path": "../artifacts.release.json",
+    "sha256": "d8f2fe39871995c7823e7bd82ea2f79dff6bd7ebb07a47fa7db76cba0338bcb5"
+  },
+  "authorities": {
+    "candidate_manifest_sha256": "eb39f6cd0423e184e0932196770ee7ffeb24d1aecb915a526ccad67206a11d17",
+    "delegated_evidence_pack_sha256": "ce7431919764fdf71fbcef90021c3adea365500e371e9d81594255188fecbfe7",
+    "pr300_final_authority_receipt_sha256": "feb4928db20244c2c56a09a29f0718519d14ed903ba26feedb2b11ec0e605346",
+    "public_pii_registry_sha256": "c977fbc3d2316dedb2d4c5cfad77fc09f90e681334eb37a04c0af4bfd06328a0",
+    "public_profile_registry_sha256": "5bc4fa240709d369d331344a35f08b29e6a5ab5f5575db56107231c9123ba1f2",
+    "public_rights_registry_sha256": "f935ab39a87790125641f1c5434a6a736f968be44ae370fe465cf60fe3bac0a2",
+    "rights_authority_sha256": "013527a0819e548f9962f04676aee5c02707c717b01296a6f61d59f30d8b0ec1",
+    "text_derivative_extraction_policy_sha256": "6055813ee697c8b0386ebe266df5b85a744908c5deeaa2daff41afcc1aba7edf"
+  },
+  "collection": "rag_nexus_dgemc_terminale_option",
+  "expected_counts": {
+    "placements": 6,
+    "unique_artifact_references": 6
+  },
+  "models": {
+    "embedding": {
+      "dimension": 1024,
+      "inventory_sha256": "58ad18dbb0a154c5a10320de9efdf81944f8b1ee1a01cc7f077e8b86b364dbc6",
+      "model_id": "intfloat/multilingual-e5-large"
+    },
+    "reranker": {
+      "inventory_sha256": "d7c1b418087e10bb11ebb98b92cb62d286d60e6f592987dc5f4b236ed6fcc660",
+      "model_id": "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    }
+  },
+  "placements": [
+    {
+      "artifact_id": "1fd37bd4d2c2c79c4b25faa4cec83a44d077f1e526067f0848575f82a097dcfe",
+      "candidat": "libre",
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "currentness": "official_snapshot",
+      "matiere": "dgemc",
+      "niveau": "terminale",
+      "placement_id": "686f56df0a5abefd4ffde41179595f43e18db7713ba295dc68ed63690f740a7c",
+      "placement_status": "active",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "review_status": "reviewed",
+      "school_year": "2026-2027",
+      "source_placement_id": "d11239b01b9100448133a3790a29792a680872d2a3446715f8d5e64700baf703",
+      "source_scope": "lycee/general/dgemc",
+      "statut_enseignement": "option",
+      "tenant": "libre_terminale",
+      "visibility": "public",
+      "voie": "generale"
+    },
+    {
+      "artifact_id": "6b0ec5082ca6c9a9b8348df544720dced511e2bec891d073a9546ed7fb2d9cd1",
+      "candidat": "libre",
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "currentness": "official_snapshot",
+      "matiere": "dgemc",
+      "niveau": "terminale",
+      "placement_id": "bd7d24318e88cc8d2101b4811f40e37a0392041bfcaa75c9b2c373d8eb2f33ae",
+      "placement_status": "active",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "review_status": "reviewed",
+      "school_year": "2026-2027",
+      "source_placement_id": "5ea9fb27909f6ecb3f41c6a3d90e17849e7677af2edf5b57a47c0f4498884a28",
+      "source_scope": "lycee/general/dgemc",
+      "statut_enseignement": "option",
+      "tenant": "libre_terminale",
+      "visibility": "public",
+      "voie": "generale"
+    },
+    {
+      "artifact_id": "7ab872278429abedd5d1d8a64a9e965c65d30cca182aafa0c6a21c6ef4d6282b",
+      "candidat": "libre",
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "currentness": "official_snapshot",
+      "matiere": "dgemc",
+      "niveau": "terminale",
+      "placement_id": "bac3225de488a859b335929ecbaf0c52c50e904361ea48a66f144733f79d6d25",
+      "placement_status": "active",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "review_status": "reviewed",
+      "school_year": "2026-2027",
+      "source_placement_id": "56b22d7ee9e8890ee6b8b96e2b4d1d8ec0d185bfd90e83e2d88f15a1450f39ed",
+      "source_scope": "lycee/general/dgemc",
+      "statut_enseignement": "option",
+      "tenant": "libre_terminale",
+      "visibility": "public",
+      "voie": "generale"
+    },
+    {
+      "artifact_id": "d3cb372e68bb1b00bab0053d8249803c58aa9d1ab5da86bc152e7eb9d157841e",
+      "candidat": "libre",
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "currentness": "official_snapshot",
+      "matiere": "dgemc",
+      "niveau": "terminale",
+      "placement_id": "8b7933a367eb55c5eeeb58ee700cdfd8e55ea14d235e07cff54435d47db256c6",
+      "placement_status": "active",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "review_status": "reviewed",
+      "school_year": "2026-2027",
+      "source_placement_id": "b307f94a375e8117b37b3be0fb277f73492cda7f41638a0df1fb5dff582d86e3",
+      "source_scope": "lycee/general/dgemc",
+      "statut_enseignement": "option",
+      "tenant": "libre_terminale",
+      "visibility": "public",
+      "voie": "generale"
+    },
+    {
+      "artifact_id": "d946d33672fd147f5a5e194589c16be68ef1ebbafb166a71be779501e824531d",
+      "candidat": "libre",
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "currentness": "official_snapshot",
+      "matiere": "dgemc",
+      "niveau": "terminale",
+      "placement_id": "9619d13d7fff0788ac64aff123fc59fe8e093c699b7c73606e908cbc701f3969",
+      "placement_status": "active",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "review_status": "reviewed",
+      "school_year": "2026-2027",
+      "source_placement_id": "e1e273abffa8f969cd0d25aad8ecfcb878b8025cd0c382742c243403028a1917",
+      "source_scope": "lycee/general/dgemc",
+      "statut_enseignement": "option",
+      "tenant": "libre_terminale",
+      "visibility": "public",
+      "voie": "generale"
+    },
+    {
+      "artifact_id": "ff816cff4bdfae96e6c81745a8d11609e15ceee17a2e640529a003d5fa7b0f2f",
+      "candidat": "libre",
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "currentness": "official_snapshot",
+      "matiere": "dgemc",
+      "niveau": "terminale",
+      "placement_id": "2d321ebdbc27e1055ef85b27861d9216fd7a4a8b4031e1e874411ba9cbc4b8fe",
+      "placement_status": "active",
+      "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+      "review_status": "reviewed",
+      "school_year": "2026-2027",
+      "source_placement_id": "8e23542a3aa7b1371870d008eddb1477d1906f8d4809bed1f34e17d9ae4c853d",
+      "source_scope": "lycee/general/dgemc",
+      "statut_enseignement": "option",
+      "tenant": "libre_terminale",
+      "visibility": "public",
+      "voie": "generale"
+    }
+  ],
+  "profile": {
+    "fingerprint": "5aa62d9b655d50fd7449223d904a0e37cf7c9cb502bd7e19d9e2f73b2077bfce",
+    "manifest_digest": "5bc4fa240709d369d331344a35f08b29e6a5ab5f5575db56107231c9123ba1f2",
+    "version": "student-public-v1"
+  },
+  "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+  "release_id": "student-public-successor-20261010-8438d2d225eb9ea8-rag_nexus_dgemc_terminale_option",
+  "release_kind": "MULTILEVEL_SUBJECT_RELEASE_V2",
+  "school_year": "2026-2027"
+}

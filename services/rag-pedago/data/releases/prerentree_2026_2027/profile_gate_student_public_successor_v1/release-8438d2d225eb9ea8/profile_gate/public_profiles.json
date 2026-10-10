@@ -1,0 +1,249 @@
+{
+  "entries": [
+    {
+      "collection": "rag_nexus_dgemc_terminale_option",
+      "profile_fingerprint": "5aa62d9b655d50fd7449223d904a0e37cf7c9cb502bd7e19d9e2f73b2077bfce",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_dgemc_terminale_option",
+        "matiere": "dgemc",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25_MENE1921266A_MENE2208320A",
+        "school_year": "2026-2027",
+        "statut_enseignement": "option",
+        "tenant": "libre_terminale",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "faad547f1aa105b7035f79447edbdfaf5f67c0918774c1751c531426638645de",
+      "source_subject_sha256": "8765839885e74fdeb0cf976d91c90c54aca8d82cd4aac2217b28112cf2e7312c"
+    },
+    {
+      "collection": "rag_nexus_hggsp_premiere_specialite",
+      "profile_fingerprint": "558df51ef8720ddf2992e06fed40e0006b61880644a12da97f37d48337ec2801",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_hggsp_premiere_specialite",
+        "matiere": "hggsp",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_premiere",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "344dbda80d00f24fba7ecdf03e45b852f39bed5a961cefdc9bf7ce5f2d9278e1",
+      "source_subject_sha256": "f47525e1e6b1cc2216bc650de9a581ba04f5f36e65abc713215215357d411b4e"
+    },
+    {
+      "collection": "rag_nexus_hggsp_terminale_specialite",
+      "profile_fingerprint": "36f283ce5d668517ca9200e05fdfd637d47d6c9d632fa92d7931832da0f37289",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_hggsp_terminale_specialite",
+        "matiere": "hggsp",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_terminale",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "30f8be0d8d3948e498c35dc9c27623f4397f676e615bd5eeb2dacf55dabb5f5a",
+      "source_subject_sha256": "5146d79f54739aafc49d439530a2180b831f48d0565061ed6b105c2f82eeafc9"
+    },
+    {
+      "collection": "rag_nexus_hlp_premiere_specialite",
+      "profile_fingerprint": "2b4b4f5796b5d51d0b4bdddf7886f77a1609f43ed886c6dcc2cf4c33c657eb8f",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_hlp_premiere_specialite",
+        "matiere": "hlp",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_premiere",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "38304fb9c8909001303a25c1faed1ea967dadbf4632fe70937e9e4aaec375f6c",
+      "source_subject_sha256": "eaf7d3985a6899f9d62e3611f66d40df3810ceb842c8fa0784d7880eb37c9801"
+    },
+    {
+      "collection": "rag_nexus_hlp_terminale_specialite",
+      "profile_fingerprint": "e5e56fa8f049cd5c122ff1e7af108ae0e0e552568a3ea5184cfb8c84f961ab70",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_hlp_terminale_specialite",
+        "matiere": "hlp",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_terminale",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "67075024f05613de92835bcec423346b15b55215741253c546d555c217ad48cd",
+      "source_subject_sha256": "62677a1a64551252fddc7a7c4974da6ad9616b82d47b12f0b5ee55b4d69cc50d"
+    },
+    {
+      "collection": "rag_nexus_nsi_premiere_specialite",
+      "profile_fingerprint": "5ef2b6a6e6e2c345b4b716cffd3cb3ddbd06d0c5591e6405b737d6c0d421527b",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_nsi_premiere_specialite",
+        "matiere": "nsi",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_premiere",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "b473bfb2441904ecb61e99f7ee773669f20658fd75e5397257804430b00a47be",
+      "source_subject_sha256": "8834521a9e05ad98477f7e5724959389502412140aba1802b275eb0cbbab6f59"
+    },
+    {
+      "collection": "rag_nexus_nsi_terminale_specialite",
+      "profile_fingerprint": "1b52a71083bd20c43e21057c7b940e8cd616eb3f6b273a35ed2cc754d6ccce68",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_nsi_terminale_specialite",
+        "matiere": "nsi",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_terminale",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "7893b391f1e11027a888a852b42e75e64a3a27a05f22957f6f6cb7f82fc56dfa",
+      "source_subject_sha256": "165967fcc21a86c9a337289a0057830abe486c8ccf5b4aaadb0c0058df158288"
+    },
+    {
+      "collection": "rag_nexus_ses_premiere_specialite",
+      "profile_fingerprint": "8255e174f22b6d25d697b9d0bd05435e77f09ee1dee2c9a152ba6a0598b7bb58",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_ses_premiere_specialite",
+        "matiere": "ses",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_premiere",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "bb08285f141068b27ad6af08508ca590ca2ff6b9a4ab250027b5b121de184b68",
+      "source_subject_sha256": "cf13cba2ad3d83b2d4ec4e50e02a8d53a5f355417b59c42d58209ce542e10229"
+    },
+    {
+      "collection": "rag_nexus_ses_terminale_specialite",
+      "profile_fingerprint": "3b0227c5e0d7180659f350fe30cc1f1483d2c4fadb80c6e3a5823ee5260d901d",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_ses_terminale_specialite",
+        "matiere": "ses",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_terminale",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "1856f339d4a703fe022e96952a9610b21f52a070c7d0c7c57549c9b231e9c6a2",
+      "source_subject_sha256": "6d45ffc260b680d5b74a63ffec26f29c6ffd63eabeac186d4231da46dc878618"
+    },
+    {
+      "collection": "rag_nexus_svt_premiere_specialite",
+      "profile_fingerprint": "3116e953cb8089fa42b86054c9e07c69bc407e426ce928f9262a65b48e1a01de",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_svt_premiere_specialite",
+        "matiere": "svt",
+        "niveau": "premiere",
+        "programme_version": "BOEN_special_1_2019-01-22",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_premiere",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "535e67e9384c26536befd605307f05efee2b4334618ea3fa72884e331d5be9b5",
+      "source_subject_sha256": "be8acd85238ff4733ae8ae11b52ad6d9017ba88dbdddee0a25730eedaccbe3ac"
+    },
+    {
+      "collection": "rag_nexus_svt_terminale_specialite",
+      "profile_fingerprint": "dd88fb4f3259fe1a6e088d31a1b60a451d8fe5febd0cefff5ad79864c2f3a317",
+      "scope": {
+        "audience": [
+          "libre",
+          "aefe"
+        ],
+        "candidat": "libre",
+        "collection": "rag_nexus_svt_terminale_specialite",
+        "matiere": "svt",
+        "niveau": "terminale",
+        "programme_version": "BOEN_special_8_2019-07-25",
+        "school_year": "2026-2027",
+        "statut_enseignement": "specialite",
+        "tenant": "libre_terminale",
+        "visibility": "public",
+        "voie": "generale"
+      },
+      "source_profile_fingerprint": "31929926de2f0823a78f2d8b5413cf38178d9592977f94a0ad848c8b3e706e9f",
+      "source_subject_sha256": "e2a293fa3791d042fbf64c3de0cea2d5a2b2e296bf667a6bb515728c3b8f3d60"
+    }
+  ],
+  "kind": "NEXUS_STUDENT_PUBLIC_SCOPE_CANDIDATES_V1",
+  "release_id": "student-public-successor-20261010-8438d2d225eb9ea8",
+  "status": "CANDIDATE_NOT_AUTHORIZED"
+}
