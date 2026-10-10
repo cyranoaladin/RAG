@@ -114,7 +114,8 @@ def test_cuda_image_and_compose_require_gpu_without_changing_retrieval() -> None
         line for line in cpu_requirements.splitlines() if line and not line.startswith(("#", "--", "torch=="))
     }
     assert "requirements.runtime-v2.cuda.txt" in dockerfile
-    assert dockerfile.split("\n", 1)[1].replace(
+    assert "ENV RAG_REQUIRE_CUDA=true" in dockerfile
+    assert dockerfile.split("\n", 1)[1].replace("ENV RAG_REQUIRE_CUDA=true\n", "").replace(
         "requirements.runtime-v2.cuda.txt", "requirements.runtime-v2.txt"
     ) == cpu_dockerfile
     assert "COPY services/rag-engine/src/ingestor/api_v2.py /app/api_v2.py" in dockerfile

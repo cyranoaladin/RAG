@@ -88,8 +88,24 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
         self.assertEqual(cockpit["with"]["file"], "services/cockpit/Dockerfile")
         self.assertIs(cockpit["with"]["push"], True)
 
+    def test_cuda_ingestor_is_opt_in_and_uses_a_distinct_immutable_tag(self) -> None:
+        inputs = self.workflow[True]["workflow_dispatch"]["inputs"]
+        self.assertEqual(inputs["cuda_ingestor"]["type"], "boolean")
+        self.assertIs(inputs["cuda_ingestor"]["default"], False)
+        steps = self.workflow["jobs"]["build-and-push"]["steps"]
+        cpu = next(step for step in steps if step.get("id") == "build_ingestor")
+        cuda = next(step for step in steps if step.get("id") == "build_ingestor_cuda")
+        self.assertEqual(cpu["if"], "inputs.cuda_ingestor != true")
+        self.assertEqual(cuda["if"], "inputs.cuda_ingestor == true")
+        self.assertEqual(cuda["with"]["file"], "services/rag-engine/infra/Dockerfile.ingestor-v2.cuda")
+        self.assertIn(":sha-${{ steps.source.outputs.commit_sha }}-cuda", cuda["with"]["tags"])
+        self.assertIs(cuda["with"]["push"], True)
+        self.assertIs(cuda["with"]["provenance"], True)
+        self.assertIs(cuda["with"]["sbom"], True)
+
     def _run_assembler(
-        self, directory: str, *, public_candidate: str, cockpit_digest: str
+        self, directory: str, *, public_candidate: str, cockpit_digest: str,
+        cuda_ingestor: str = "false",
     ) -> subprocess.CompletedProcess[str]:
         steps = self.workflow["jobs"]["build-and-push"]["steps"]
         assemble = next(step for step in steps if step.get("id") == "inventory")
@@ -114,6 +130,7 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
                 **os.environ,
                 **env,
                 "PUBLIC_CANDIDATE": public_candidate,
+                "CUDA_INGESTOR": cuda_ingestor,
                 "GITHUB_OUTPUT": str(Path(directory) / "github-output"),
             },
             capture_output=True,
@@ -194,6 +211,28 @@ class ProductionImageProvenanceWorkflowTests(unittest.TestCase):
                         }
                     self.assertEqual(without_timestamp, expected)
                     self.assertIn("inventory_file=" + filename, output.read_text())
+
+    def test_assembler_binds_cuda_dockerfile_to_the_public_image_digest(self) -> None:
+        with TemporaryDirectory() as directory:
+            result = self._run_assembler(
+                directory, public_candidate="true", cuda_ingestor="true",
+                cockpit_digest="sha256:" + "5" * 64,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            path = Path(directory) / "nexus-public-deployment-image-inventory-v2.json"
+            image = json.loads(path.read_text())["services"]["ingestor"]
+            self.assertEqual(image["dockerfile"], "services/rag-engine/infra/Dockerfile.ingestor-v2.cuda")
+            self.assertEqual(image["dockerfile_sha256"], "2" * 64)
+            self.assertEqual(image["image_repository"], "ghcr.io/cyranoaladin/rag-ingestor")
+            self.assertEqual(image["image_digest"], "sha256:" + "1" * 64)
+
+    def test_assembler_refuses_cuda_without_public_candidate(self) -> None:
+        with TemporaryDirectory() as directory:
+            result = self._run_assembler(
+                directory, public_candidate="false", cuda_ingestor="true", cockpit_digest="",
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("requires public_candidate", result.stderr)
 
     def test_assembler_refuses_invalid_mode_and_missing_cockpit_digest(self) -> None:
         for mode, digest, expected_error in (
