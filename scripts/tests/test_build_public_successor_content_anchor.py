@@ -86,6 +86,46 @@ def test_anchor_refuses_preparation_index_substitution(tmp_path: Path) -> None:
         build_content_anchor(manifest, _sha(manifest))
 
 
+@pytest.mark.parametrize("sidecar", [
+    "public_profiles.json", "public_rights_registry.json",
+    "public_pii_registry.json", "public_currentness_registry.json",
+    "inclusion_attestation.json",
+])
+def test_anchor_refuses_missing_referenced_sidecar(
+    tmp_path: Path, sidecar: str,
+) -> None:
+    release = tmp_path / "release"
+    shutil.copytree(PREPARATION, release)
+    (release / "profile_gate" / sidecar).unlink()
+    manifest = release / "profile_gate/production-profile-gate.release.json"
+    with pytest.raises(ContentAnchorError, match="sidecar"):
+        build_content_anchor(manifest, _sha(manifest))
+
+
+def test_anchor_refuses_changed_referenced_sidecar(tmp_path: Path) -> None:
+    release = tmp_path / "release"
+    shutil.copytree(PREPARATION, release)
+    sidecar = release / "profile_gate/public_profiles.json"
+    sidecar.write_bytes(sidecar.read_bytes() + b" ")
+    manifest = release / "profile_gate/production-profile-gate.release.json"
+    with pytest.raises(ContentAnchorError, match="sidecar"):
+        build_content_anchor(manifest, _sha(manifest))
+
+
+def test_inclusion_replay_refuses_unhandled_exclusion_in_content_anchor(
+    tmp_path: Path,
+) -> None:
+    release = tmp_path / "release"
+    shutil.copytree(PREPARATION, release)
+    index = release / "preparation-index.json"
+    document = json.loads(index.read_bytes())
+    document["excluded_derivative_count"] = 1
+    index.write_bytes(canonical_bytes(document))
+    manifest = release / "profile_gate/production-profile-gate.release.json"
+    with pytest.raises(ContentAnchorError, match="source inventory"):
+        inspect_content_preparation(manifest, _sha(manifest))
+
+
 def test_anchor_refuses_rewriting_a_divergent_output(tmp_path: Path) -> None:
     manifest = PREPARATION / "profile_gate/production-profile-gate.release.json"
     anchor = build_content_anchor(manifest, _sha(manifest))

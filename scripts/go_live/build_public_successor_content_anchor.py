@@ -93,6 +93,31 @@ def build_content_anchor(manifest_path: Path, expected_sha256: str) -> dict[str,
         raise ContentAnchorError("content digests missing")
     registry = _read(gate / "artifacts.release.json", registry_sha)
     inventory = _read(gate / "candidate_inventory.json", inventory_sha)
+    manifest_authorities = manifest.get("authorities")
+    verified_authorities = index.get("verified_authorities")
+    if not isinstance(manifest_authorities, dict) or not isinstance(verified_authorities, dict):
+        raise ContentAnchorError("preparation sidecar authorities absent")
+    sidecar_bindings = {
+        "public_profiles.json": ("public_profile_registry_sha256", manifest_authorities),
+        "public_rights_registry.json": ("public_rights_registry_sha256", manifest_authorities),
+        "public_pii_registry.json": ("public_pii_registry_sha256", manifest_authorities),
+        "public_currentness_registry.json": (
+            "public_currentness_registry_sha256", verified_authorities,
+        ),
+        "inclusion_attestation.json": ("inclusion_attestation_sha256", index),
+    }
+    sidecars: dict[str, str] = {}
+    for name, (field, authority) in sidecar_bindings.items():
+        sha = authority.get(field)
+        if not isinstance(sha, str) or SHA256.fullmatch(sha) is None:
+            raise ContentAnchorError(f"preparation sidecar authority invalid: {name}")
+        try:
+            _read(gate / name, sha)
+        except ContentAnchorError as error:
+            raise ContentAnchorError(f"preparation sidecar refused: {name}") from error
+        if (field in verified_authorities and verified_authorities[field] != sha):
+            raise ContentAnchorError(f"preparation sidecar authority differs: {name}")
+        sidecars[name] = sha
     if (
         index.get("artifact_registry_sha256") != registry_sha
         or inventory.get("artifact_registry_sha256") != registry_sha
@@ -156,6 +181,7 @@ def build_content_anchor(manifest_path: Path, expected_sha256: str) -> dict[str,
         "preparation_index_sha256": _sha(index_path.read_bytes()),
         "artifact_registry_sha256": registry_sha,
         "candidate_inventory_sha256": inventory_sha,
+        "preparation_sidecars": sidecars,
         "expected_counts": manifest["expected_counts"],
         "subjects": subjects,
     }
@@ -235,6 +261,10 @@ def inspect_content_preparation(
     index = _read(gate.parent / "preparation-index.json")
     inventory = _read(gate / "candidate_inventory.json",
                       anchor["candidate_inventory_sha256"])
+    if index.get("excluded_derivative_count") != 0:
+        raise ContentAnchorError(
+            "source inventory distinct from final requires a new replay path"
+        )
     inclusion_path = gate / "inclusion_attestation.json"
     inclusion = _read(inclusion_path, index.get("inclusion_attestation_sha256"))
     from check_public_successor_external_gate import (
