@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+from datetime import UTC, datetime, timedelta
 from dataclasses import replace
 from pathlib import Path
 import sys
@@ -136,9 +137,11 @@ def test_candidate_successor_cannot_emit_student_scopes(
         release_manifest_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),
     )
     monkeypatch.setattr(emitter, "load_policy_registry", lambda *_: registry)
-    monkeypatch.setattr(emitter, "load_successor_authority", lambda *_: {})
+    monkeypatch.setattr(emitter, "load_successor_authority", lambda *_: {
+        "rag_nexus_dgemc_terminale_option": "student_public_dgemc_terminale_option_v1",
+    })
     output = tmp_path / "scopes"
-    with pytest.raises(emitter.ScopeEmissionError, match="final public successor"):
+    with pytest.raises(emitter.ScopeEmissionError, match="verified external preissuance"):
         emitter.emit_from_policy_registry(
             subject_release=candidate,
             subject_release_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),
@@ -210,6 +213,134 @@ def test_adr_0053_cannot_emit_v2_under_student_public_ids_on_real_candidate(
     assert not output.exists()
 
 
+def _candidate_student_registry(root: Path) -> tuple[Path, emitter.PolicyRegistry, dict[str, str]]:
+    candidate = root / (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_student_public_successor_v1/release-fcc84331e7700042/"
+        "profile_gate/production-profile-gate.release.json"
+    )
+    refs = {row["collection"]: row["sha256"]
+            for row in json.loads(candidate.read_bytes())["subjects"]}
+    proposal = yaml.safe_load((root / (
+        "governance/student_public_rights/"
+        "public_successor_scope_proposal_20261010.yml"
+    )).read_text())
+    entries = {}
+    named = {}
+    for row in proposal["bindings"]:
+        target = row["target_policy"]
+        collection = row["collection"]
+        named[collection] = row["proposed_scope_id"]
+        entries[collection] = emitter.PolicyRegistryEntry(
+            collection=collection, decision_status="GOVERNED_BY_HUMAN_DECISION",
+            authority_source="NEXUS_HUMAN_DECISION_ADR_0064",
+            policy_source_scope_id=None, subject_manifest_sha256=refs[collection],
+            tenant=target["tenant"], niveau=target["niveau"], voie=target["voie"],
+            matiere=target["matiere"],
+            statut_enseignement=target["statut_enseignement"], candidat="libre",
+            audiences=tuple(row["evidence_audiences"]), rights=tuple(row["rights"]),
+            policy_visibility="public", evidence_visibility="public",
+            programme_version=row["programme_version"], target_audience="libre",
+            target_candidates=("libre",),
+        )
+    programme = (
+        "services/rag-pedago/data/releases/prerentree_2026_2027/"
+        "profile_gate_v4/release-024f8625ebfeb7ce/profile_gate/programme_registry.json"
+    )
+    registry = emitter.PolicyRegistry(
+        entries=entries,
+        visibility_restriction_order=("public", "internal", "restricted", "private"),
+        school_year="2026-2027", programme_authority_path=programme,
+        programme_authority_sha256=hashlib.sha256((root / programme).read_bytes()).hexdigest(),
+        release_manifest_sha256=hashlib.sha256(candidate.read_bytes()).hexdigest(),
+    )
+    return candidate, registry, named
+
+
+def test_verified_external_preissuance_emits_v3_from_immutable_candidate_subjects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = Path(__file__).resolve().parents[3]
+    candidate, registry, named = _candidate_student_registry(root)
+    monkeypatch.setattr(emitter, "load_policy_registry", lambda *_: registry)
+    monkeypatch.setattr(emitter, "load_successor_authority", lambda *_: named)
+    anchor = root / (
+        "docs/reports/go_live/student_public_successor_content_anchor_20261010.json"
+    )
+    evidence = emitter.StudentScopeEmissionEvidence(
+        content_anchor_sha256=hashlib.sha256(anchor.read_bytes()).hexdigest(),
+        content_manifest_sha256=registry.release_manifest_sha256,
+        subject_sha256_by_collection={
+            collection: entry.subject_manifest_sha256
+            for collection, entry in registry.entries.items()
+        },
+        expires_at_utc=datetime.now(UTC) + timedelta(hours=1),
+        reviewed_policy_registry_sha256="a" * 64,
+        reviewed_successor_authority_sha256="c" * 64,
+        reviewed_head_sha="b" * 40,
+    )
+    output = tmp_path / "scopes"
+    result = emitter.emit_from_policy_registry(
+        subject_release=candidate,
+        subject_release_sha256=registry.release_manifest_sha256,
+        policy_registry=tmp_path / "reviewed-registry",
+        policy_registry_sha256="a" * 64,
+        successor_authority=tmp_path / "named-scopes",
+        successor_authority_sha256="c" * 64,
+        artifacts_dir=output, repo_root=root,
+        student_scope_evidence=evidence,
+    )
+    assert len(result.emitted) == 11
+    assert all(isinstance(item.artifact, RetrievalScopeArtifactV3)
+               for item in result.emitted)
+    assert {item.collection: item.artifact.source_sha256 for item in result.emitted} == {
+        collection: entry.subject_manifest_sha256
+        for collection, entry in registry.entries.items()
+    }
+
+
+@pytest.mark.parametrize("sabotage", ["subject", "expired", "policy"])
+def test_external_preissuance_mismatch_refuses_before_scope_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, sabotage: str,
+) -> None:
+    root = Path(__file__).resolve().parents[3]
+    candidate, registry, named = _candidate_student_registry(root)
+    monkeypatch.setattr(emitter, "load_policy_registry", lambda *_: registry)
+    monkeypatch.setattr(emitter, "load_successor_authority", lambda *_: named)
+    subjects = {collection: entry.subject_manifest_sha256
+                for collection, entry in registry.entries.items()}
+    expires = datetime.now(UTC) + timedelta(hours=1)
+    policy_sha = "a" * 64
+    if sabotage == "subject":
+        subjects["rag_nexus_dgemc_terminale_option"] = "f" * 64
+    elif sabotage == "expired":
+        expires = datetime.now(UTC) - timedelta(seconds=1)
+    else:
+        policy_sha = "f" * 64
+    evidence = emitter.StudentScopeEmissionEvidence(
+        content_anchor_sha256="d" * 64,
+        content_manifest_sha256=registry.release_manifest_sha256,
+        subject_sha256_by_collection=subjects,
+        expires_at_utc=expires,
+        reviewed_policy_registry_sha256=policy_sha,
+        reviewed_successor_authority_sha256="c" * 64,
+        reviewed_head_sha="b" * 40,
+    )
+    output = tmp_path / "scopes"
+    with pytest.raises(emitter.ScopeEmissionError):
+        emitter.emit_from_policy_registry(
+            subject_release=candidate,
+            subject_release_sha256=registry.release_manifest_sha256,
+            policy_registry=tmp_path / "reviewed-registry",
+            policy_registry_sha256="a" * 64,
+            successor_authority=tmp_path / "named-scopes",
+            successor_authority_sha256="c" * 64,
+            artifacts_dir=output, repo_root=root,
+            student_scope_evidence=evidence,
+        )
+    assert not output.exists()
+
+
 def _proposal(**overrides: object) -> emitter.PolicyRegistryEntry:
     entry = emitter.PolicyRegistryEntry(
         collection="rag_nexus_dgemc_terminale_option",
@@ -232,6 +363,21 @@ def _proposal(**overrides: object) -> emitter.PolicyRegistryEntry:
         target_candidates=("libre",),
     )
     return replace(entry, **overrides)
+
+
+def test_student_namespace_refuses_extra_historical_name() -> None:
+    entry = _proposal()
+    registry = emitter.PolicyRegistry(
+        entries={entry.collection: entry},
+        visibility_restriction_order=("public", "internal", "restricted", "private"),
+        school_year="2026-2027", programme_authority_path="unused",
+        programme_authority_sha256="a" * 64, release_manifest_sha256="b" * 64,
+    )
+    with pytest.raises(emitter.ScopeEmissionError, match="population"):
+        emitter._require_student_public_namespace(registry, {
+            entry.collection: "student_public_dgemc_terminale_option_v1",
+            "rag_nexus_extra": "prod_extra_v1",
+        })
 
 
 @pytest.mark.parametrize(

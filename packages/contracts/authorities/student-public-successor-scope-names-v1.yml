@@ -1,0 +1,26 @@
+# Nommage des onze scopes V3 proposés ; aucun scope émis par ce fichier.
+authority_id: PRODUCTION_PROFILE_SCOPE_SUCCESSORS_V1
+release_id: student-public-successor-20261010-fcc84331e7700042
+bindings:
+- collection: rag_nexus_dgemc_terminale_option
+  scope_id: student_public_dgemc_terminale_option_v1
+- collection: rag_nexus_hggsp_premiere_specialite
+  scope_id: student_public_hggsp_premiere_specialite_v1
+- collection: rag_nexus_hggsp_terminale_specialite
+  scope_id: student_public_hggsp_terminale_specialite_v1
+- collection: rag_nexus_hlp_premiere_specialite
+  scope_id: student_public_hlp_premiere_specialite_v1
+- collection: rag_nexus_hlp_terminale_specialite
+  scope_id: student_public_hlp_terminale_specialite_v1
+- collection: rag_nexus_nsi_premiere_specialite
+  scope_id: student_public_nsi_premiere_specialite_v1
+- collection: rag_nexus_nsi_terminale_specialite
+  scope_id: student_public_nsi_terminale_specialite_v1
+- collection: rag_nexus_ses_premiere_specialite
+  scope_id: student_public_ses_premiere_specialite_v1
+- collection: rag_nexus_ses_terminale_specialite
+  scope_id: student_public_ses_terminale_specialite_v1
+- collection: rag_nexus_svt_premiere_specialite
+  scope_id: student_public_svt_premiere_specialite_v1
+- collection: rag_nexus_svt_terminale_specialite
+  scope_id: student_public_svt_terminale_specialite_v1

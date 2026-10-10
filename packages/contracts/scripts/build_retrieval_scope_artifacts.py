@@ -44,7 +44,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Mapping, NamedTuple, Sequence
 
@@ -98,6 +100,23 @@ SUBJECT_CROSS_CHECKED_DIMENSIONS: tuple[str, ...] = (
 
 class ScopeEmissionError(RuntimeError):
     """Refus d'émission : aucune sortie n'est écrite quand il est levé."""
+
+
+@dataclass(frozen=True)
+class StudentScopeEmissionEvidence:
+    """Liaisons de deux vérifications *live* faites par l'orchestrateur.
+
+    Ceci n'est pas un reçu autonome : le CLI de contrats ne sait pas le créer.
+    La pré-émission et la review exacte doivent être rejouées en amont.
+    """
+
+    content_anchor_sha256: str
+    content_manifest_sha256: str
+    subject_sha256_by_collection: Mapping[str, str]
+    expires_at_utc: datetime
+    reviewed_policy_registry_sha256: str
+    reviewed_successor_authority_sha256: str
+    reviewed_head_sha: str
 
 
 class PolicyBinding(NamedTuple):
@@ -1209,45 +1228,53 @@ def _build_artifact_from_registry(
     )
 
 
-def _require_final_public_successor_for_student_scopes(
-    path: Path, expected_sha256: str, registry: PolicyRegistry,
+def _require_external_preissuance_for_student_scopes(
+    expected_manifest_sha256: str, policy_registry_sha256: str,
+    successor_authority_sha256: str,
+    registry: PolicyRegistry, evidence: StudentScopeEmissionEvidence | None,
 ) -> None:
-    """Refuser la candidate #323 avant toute émission ADR-0064.
-
-    Le lecteur canonique porte le contrôle des 21 preuves externes. Tant qu'il
-    refuse le mode public_successor, l'émetteur reste fermé lui aussi.
-    """
+    """Lier l'émission aux preuves A et review vérifiées hors des contrats."""
     if not any(
         entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064"
         for entry in registry.entries.values()
     ):
         return
     _require(
-        registry.release_manifest_sha256 == expected_sha256,
+        evidence is not None,
+        "student scopes require verified external preissuance and exact review",
+    )
+    assert evidence is not None
+    _require(
+        all(entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064"
+            for entry in registry.entries.values()),
+        "student scopes cannot mix public and historical policies",
+    )
+    _require(
+        registry.release_manifest_sha256 == expected_manifest_sha256
+        == evidence.content_manifest_sha256,
         "student scopes: policy registry release digest differs",
     )
-    try:
-        from nexus_release_chain.release_readiness import (
-            ReleaseReadinessError,
-            load_release_expectation,
-        )
-    except ImportError as error:
-        raise ScopeEmissionError(
-            "student scopes require canonical release verifier"
-        ) from error
-    try:
-        release = load_release_expectation(path, expected_sha256)
-    except (ReleaseReadinessError, OSError) as error:
-        raise ScopeEmissionError(
-            "student scopes require canonically qualified final public successor release"
-        ) from error
     _require(
-        release.release_id.startswith("student-public-successor-")
-        and release.release_mode == "public_successor"
-        and release.promotion_status == "PROMOTABLE"
-        and release.activation_status == "PRODUCTION_ACTIVATION_ALLOWED"
-        and release.review_status == "REVIEWED",
-        "student scopes require final public successor release",
+        re.fullmatch(r"[0-9a-f]{64}", evidence.content_anchor_sha256) is not None
+        and re.fullmatch(r"[0-9a-f]{40}", evidence.reviewed_head_sha) is not None
+        and evidence.reviewed_policy_registry_sha256 == policy_registry_sha256
+        and evidence.reviewed_successor_authority_sha256
+        == successor_authority_sha256,
+        "student scopes: content anchor or reviewed policy differs",
+    )
+    _require(
+        dict(evidence.subject_sha256_by_collection) == {
+            collection: entry.subject_manifest_sha256
+            for collection, entry in registry.entries.items()
+        },
+        "student scopes: verified subject population differs",
+    )
+    expires = evidence.expires_at_utc
+    _require(
+        expires.tzinfo is not None
+        and expires.utcoffset() == UTC.utcoffset(expires)
+        and datetime.now(UTC) < expires,
+        "student scopes: verified preissuance expired",
     )
 
 
@@ -1259,6 +1286,12 @@ def _require_student_public_namespace(
     ADR-0053 reste valable pour ses scopes V2 historiques, mais ne peut pas
     emprunter un nom étudiant et contourner la garde de release finale.
     """
+    if any(entry.authority_source == "NEXUS_HUMAN_DECISION_ADR_0064"
+           for entry in registry.entries.values()):
+        _require(
+            set(named) == set(registry.entries),
+            "student_public scope naming population differs from policy registry",
+        )
     for collection, scope_id in named.items():
         entry = registry.entries.get(collection)
         student_id = scope_id.startswith("student_public_")
@@ -1284,13 +1317,16 @@ def emit_from_policy_registry(
     artifacts_dir: Path,
     repo_root: Path,
     reproduce_scope_ids: frozenset[str] = frozenset(),
+    student_scope_evidence: StudentScopeEmissionEvidence | None = None,
 ) -> EmissionResult:
     """Émettre un scope par collection de la release, et refuser tout le reste."""
     registry = load_policy_registry(policy_registry, policy_registry_sha256)
     named = load_successor_authority(successor_authority, successor_authority_sha256)
     _require_student_public_namespace(registry, named)
-    _require_final_public_successor_for_student_scopes(
-        subject_release, subject_release_sha256, registry,
+    _require_external_preissuance_for_student_scopes(
+        subject_release_sha256, policy_registry_sha256,
+        successor_authority_sha256, registry,
+        student_scope_evidence,
     )
     subjects = load_profile_subject_release(
         subject_release, subject_release_sha256
