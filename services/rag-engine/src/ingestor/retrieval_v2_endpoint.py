@@ -52,6 +52,7 @@ from nexus_contracts.production_readiness import (
 # repli à plat ci-dessous renomme. La placer dans les deux branches créait une
 # redéfinition et laissait croire l'inverse.
 from nexus_release_chain.release_readiness import (
+    RELEASE_AUTHORITY_REGISTRY_FILE,
     DeploymentBindingError,
     ReleaseReadinessError,
     ReleaseRegistryExpectation,
@@ -633,7 +634,15 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation) -> 
         binding = registry.manifests[0]
         expected = binding.expectation
         root_raw = os.environ.get("NEXUS_PUBLIC_SUCCESSOR_BUNDLE_ROOT", "").strip()
-        registry_sha = os.environ.get("RAG_RELEASE_REGISTRY_SHA256", "").strip()
+        selection = select_release_authority()
+        if (
+            selection is None
+            or selection.mechanism != RELEASE_AUTHORITY_REGISTRY_FILE
+            or len(selection.bindings) != 1
+            or load_selected_release_registry(selection) != registry
+        ):
+            raise ValueError("public successor release registry selection differs")
+        registry_sha = selection.bindings[0][1]
         scope_sha = os.environ.get("NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256", "").strip()
         release_sha = os.environ.get("NEXUS_RELEASE_SHA", "").strip()
         manifest_path_raw = os.environ.get("NEXUS_READINESS_MANIFEST_PATH", "").strip()
@@ -684,6 +693,20 @@ def _verify_public_successor_candidate(registry: ReleaseRegistryExpectation) -> 
             or set(dict(verdict.subject_sha256_by_collection)) != set(registry.collections)
         ):
             raise ValueError("public successor semantic C differs from served A or scope")
+        packaged = load_retrieval_scope_registry()
+        served = [
+            (key, artifact)
+            for key, artifact in packaged.items()
+            if isinstance(artifact, RetrievalScopeArtifactV3)
+            and str(artifact.evidence_subject.collection) in registry.collections
+        ]
+        if (
+            len(served) != len(registry.collections)
+            or any(key != artifact.scope_id for key, artifact in served)
+            or {artifact.scope_id: artifact.sha256_digest() for _, artifact in served}
+            != dict(verdict.scope_sha256_by_id)
+        ):
+            raise ValueError("public successor packaged scope bytes differ from C")
     except Exception as exc:
         raise RuntimeError("public successor activation authority unavailable") from exc
 

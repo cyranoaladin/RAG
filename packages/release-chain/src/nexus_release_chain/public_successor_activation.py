@@ -59,6 +59,7 @@ class PublicSuccessorActivationVerdict:
     release_registry_sha256: str
     scope_authority_sha256: str
     subject_sha256_by_collection: dict[str, str]
+    scope_sha256_by_id: dict[str, str]
     counts: dict[str, int]
     expires_at_utc: datetime
 
