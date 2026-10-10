@@ -34,6 +34,7 @@ from ingestor.ingestion_profiles.readiness_gate import enforce_readiness_gate
 from ingestor.ingestion_profiles.staging_readiness_gate import (
     EXPECTED_PROTOCOL_ENV,
     enforce_staging_readiness_gate,
+    require_running_image_matches_declared,
     require_running_image_matches_manifest,
 )
 
@@ -63,6 +64,7 @@ class _SignedPublication:
     manifest_sha256: str
     anchor_sha256: str
     envelope_sha256: str
+    registry_sha256: str
 
 
 def _signed_publication(root: Path) -> _SignedPublication:
@@ -72,12 +74,15 @@ def _signed_publication(root: Path) -> _SignedPublication:
         if manifest.public_successor_phase != "PUBLICATION":
             raise ValueError("signed staging readiness is not PUBLICATION")
         require_running_image_matches_manifest(manifest)
+        registry_path = root / "release" / "release-registry.json"
+        registry_sha256 = hashlib.sha256(registry_path.read_bytes()).hexdigest()
         return _SignedPublication(
             environment="rehearsal",
             release_id=manifest.allowed_release_id,
             manifest_sha256=manifest.allowed_release_manifest_sha256,
             anchor_sha256=manifest.public_successor_content_anchor_digest,
             envelope_sha256=manifest.public_successor_phase_authority_digest,
+            registry_sha256=registry_sha256,
         )
     verified = enforce_readiness_gate()
     manifest = verified.manifest
@@ -89,6 +94,11 @@ def _signed_publication(root: Path) -> _SignedPublication:
         )
     ):
         raise ValueError("signed production readiness lacks public A/C")
+    worker_images = getattr(manifest, "application_image_digests", None)
+    image = worker_images.get("multilevel-worker-b-production") if isinstance(worker_images, dict) else None
+    if not isinstance(image, str):
+        raise ValueError("signed production readiness lacks multilevel-worker-b-production image")
+    require_running_image_matches_declared(image)
     selection = select_release_authority()
     expected_path = root / "release" / "release-registry.json"
     if (
@@ -96,7 +106,6 @@ def _signed_publication(root: Path) -> _SignedPublication:
         or selection.mechanism != RELEASE_AUTHORITY_REGISTRY_FILE
         or len(selection.bindings) != 1
         or selection.bindings[0][0].resolve() != expected_path.resolve()
-        or selection.bindings[0][1] != _required_sha_env("RAG_RELEASE_REGISTRY_SHA256")
     ):
         raise ValueError("production public Worker B requires the selected A release registry")
     registry = load_selected_release_registry(selection)
@@ -113,6 +122,7 @@ def _signed_publication(root: Path) -> _SignedPublication:
         manifest_sha256=manifest.public_successor_content_manifest_digest,
         anchor_sha256=manifest.public_successor_content_anchor_digest,
         envelope_sha256=manifest.public_successor_authority_envelope_digest,
+        registry_sha256=selection.bindings[0][1],
     )
 
 
@@ -162,7 +172,7 @@ def _verified_runtime(
     root: Path,
 ) -> tuple[_SignedPublication, PublicSuccessorActivationVerdict, PublicTextRuntimeAuthorities]:
     signed = _signed_publication(root)
-    registry_sha = _required_sha_env("RAG_RELEASE_REGISTRY_SHA256")
+    registry_sha = signed.registry_sha256
     scope_sha = _required_sha_env("NEXUS_PUBLIC_SCOPE_AUTHORITY_SHA256")
     verdict = verify_public_successor_activation(
         root,

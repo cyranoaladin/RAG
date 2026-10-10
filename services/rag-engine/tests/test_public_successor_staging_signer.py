@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -71,3 +72,33 @@ def test_signer_refuses_valid_receipt_when_live_review_replay_fails(
             args, hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),
             datetime.now(UTC),
         )
+
+
+def test_public_ingestion_signer_requires_exact_clean_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def git(*args: str) -> str:
+        result = subprocess.run(
+            ["git", "-C", str(tmp_path), *args], capture_output=True, text=True, check=True,
+        )
+        return result.stdout.strip()
+
+    git("init", "-q")
+    git("config", "user.email", "test@example.invalid")
+    git("config", "user.name", "Test")
+    tracked = tmp_path / "tracked.txt"
+    tracked.write_text("a")
+    git("add", "tracked.txt")
+    git("commit", "-qm", "a")
+    old_sha = git("rev-parse", "HEAD")
+    tracked.write_text("b")
+    git("commit", "-qam", "b")
+    current_sha = git("rev-parse", "HEAD")
+    monkeypatch.setattr(signer, "REPO_ROOT", tmp_path)
+
+    with pytest.raises(signer.SigningRefused, match="HEAD"):
+        signer._require_public_checkout_matches_merge(old_sha)
+    signer._require_public_checkout_matches_merge(current_sha)
+    tracked.write_text("dirty")
+    with pytest.raises(signer.SigningRefused, match="tracked tree"):
+        signer._require_public_checkout_matches_merge(current_sha)

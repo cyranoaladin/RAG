@@ -87,6 +87,26 @@ def _require_commit_exists(merge_sha: str) -> None:
     )
 
 
+def _require_public_checkout_matches_merge(merge_sha: str) -> None:
+    """Refuser un signer public lancé depuis un autre commit ou un arbre modifié."""
+    head = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "rev-parse", "HEAD"],
+        capture_output=True, text=True, check=False,
+    )
+    _require(
+        head.returncode == 0 and head.stdout.strip() == merge_sha,
+        "public successor signer HEAD differs from signed merge_sha",
+    )
+    tracked = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "status", "--porcelain=v1", "--untracked-files=no"],
+        capture_output=True, text=True, check=False,
+    )
+    _require(
+        tracked.returncode == 0 and not tracked.stdout.strip(),
+        "public successor signer tracked tree is dirty",
+    )
+
+
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Signe un manifeste de readiness de répétition (staging)"
@@ -249,6 +269,7 @@ def main(argv: list[str] | None = None) -> int:
             anchor_sha = phase_authority_sha = None
             expires_at = issued_at + timedelta(days=args.valid_days)
         elif phase == "INGESTION":
+            _require_public_checkout_matches_merge(args.merge_sha)
             anchor_sha, phase_authority_sha, evidence_expiry = (
                 _verify_public_successor_ingestion_replay(
                     args, release_digest, issued_at,
