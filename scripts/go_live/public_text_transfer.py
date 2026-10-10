@@ -98,7 +98,7 @@ def verify_successor_inventory(root: Path, private_cas_root: Path,
     try:
         source = load_sources(root)
         inclusion = verify_private_cas_evidence(source, private_cas_root)
-        documents = build_documents(source, inclusion=inclusion)
+        documents = build_documents(source, inclusion=inclusion, legacy_profile_binding=True)
         inventory_matches = [raw == inventory_raw for path, raw in documents.items()
                              if path.name == "candidate_inventory.json"]
         allowlist_matches = [raw == allowlist_raw for path, raw in documents.items()

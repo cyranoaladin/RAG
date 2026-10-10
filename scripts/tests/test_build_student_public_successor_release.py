@@ -131,6 +131,43 @@ def test_real_successor_has_fresh_immutable_manifests_and_explicit_blockers():
     assert any(path.name == "public_profile_proposal.json" for path in documents)
 
 
+def test_successor_subject_profiles_match_complete_public_profiles():
+    source = load_sources(ROOT)
+    documents = build_documents(source, inclusion=_inclusion(source, set()))
+    profile_refs = source["profile_refs"]
+    subjects = [json.loads(raw) for path, raw in documents.items()
+                if path.parent.name == "subjects" and path.name.endswith(".release.json")]
+    assert len(subjects) == 11
+    for subject in subjects:
+        expected = profile_refs[subject["collection"]]
+        assert subject["profile"]["version"] == expected["profile_version"]
+        assert subject["profile"]["fingerprint"] == expected["fingerprint"]
+        registry = _doc(documents, "public_profiles.json")
+        entry = next(row for row in registry["entries"]
+                     if row["collection"] == subject["collection"])
+        assert entry["profile_fingerprint"] == hashlib.sha256(
+            _builder.canonical(entry["scope"])
+        ).hexdigest()
+        assert subject["profile"]["fingerprint"] != entry["profile_fingerprint"]
+        assert subject["profile"]["manifest_digest"] == hashlib.sha256(
+            _builder.canonical(registry)
+        ).hexdigest()
+
+
+def test_legacy_successor_replay_keeps_sealed_candidate_immutable():
+    source = load_sources(ROOT)
+    release_dir = next((ROOT / _builder.RELEASE_ROOT).glob("release-*"))
+    inclusion = json.loads((release_dir / "profile_gate/inclusion_attestation.json").read_bytes())
+    documents = build_documents(source, inclusion=inclusion, legacy_profile_binding=True)
+    assert len(documents) == 34
+    for relative, raw in documents.items():
+        assert (ROOT / relative).read_bytes() == raw
+    corrected = build_documents(source, inclusion=inclusion)
+    assert _doc(corrected, "production-profile-gate.release.json")["release_id"] != (
+        _doc(documents, "production-profile-gate.release.json")["release_id"]
+    )
+
+
 def test_builder_rejects_candidate_authority_sabotage():
     source = copy.deepcopy(load_sources(ROOT))
     source["inputs"]["release"]["promotion_status"] = "PROMOTABLE"

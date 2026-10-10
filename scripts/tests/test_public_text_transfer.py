@@ -268,7 +268,7 @@ def test_rejeu_successeur_exige_tous_les_documents_immutables(
     monkeypatch.setattr(cas_checker, "verify_private_cas_evidence",
                         lambda source, private_root: {"source": source})
     monkeypatch.setattr(builder, "build_documents",
-                        lambda source, inclusion: documents)
+                        lambda source, inclusion, legacy_profile_binding: documents)
 
     verify_successor_inventory(tmp_path, tmp_path, inventory, allowlist)
     (tmp_path / "release/preparation-index.json").write_bytes(b"substitution")
